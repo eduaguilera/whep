@@ -127,7 +127,7 @@ test_that(".combine_nue_livestock does not double-count excretion", {
   expect_equal(nrow(out), 2)
 
   # Mass balance is a single category-level value: excretion counted once.
-  # (sum(products) + excretion) / feed = (30 + 10 + 55) / 100.
+  # Summed products plus excretion, over feed: 30 plus 10 plus 55, over 100.
   expect_equal(unique(out$mass_balance), (30 + 10 + 55) / 100)
 
   # Per-item nue is a valid decomposition summing to total products / feed.
