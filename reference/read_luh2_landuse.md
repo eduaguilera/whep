@@ -56,25 +56,61 @@ Geoscientific Model Development 13, 5425-5464.
 A tibble with columns `lon`, `lat`, `area_code`, `year`, `land_use`,
 `fraction` and `area_ha` at `"grid"` resolution; at `"polity"`
 resolution `lon` and `lat` are dropped and `area_ha` is summed per
-`(area_code, year, land_use)`.
+`(area_code, year, land_use)`. Both resolutions carry the polity columns
+below, resolved from the `area_code` the cell grid assigns and the row's
+`year`; the cell-to-area assignment itself is the static present-day
+grid, which is what LUH2 has, so a pre-modern year is the present-day
+cell's area read at that year.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 read_luh2_landuse(example = TRUE)
-#> # A tibble: 12 × 7
-#>      lon   lat area_code  year land_use  fraction area_ha
-#>    <dbl> <dbl>     <int> <int> <chr>        <dbl>   <dbl>
-#>  1 -3.25 40.2        203  2000 cropland      0.4   94368.
-#>  2 -3.25 40.2        203  2000 grassland     0.2   47184.
-#>  3 -3.25 40.2        203  2000 natural       0.35  82572.
-#>  4 -3.25 40.2        203  2000 urban         0.05  11796.
-#>  5 35.2  -1.25        79  2000 cropland      0.3   92710.
-#>  6 35.2  -1.25        79  2000 grassland     0.25  77258.
-#>  7 35.2  -1.25        79  2000 natural       0.4  123613.
-#>  8 35.2  -1.25        79  2000 urban         0.05  15452.
-#>  9  9.25 47.8         11  2000 cropland      0.25  51958.
-#> 10  9.25 47.8         11  2000 grassland     0.2   41567.
-#> 11  9.25 47.8         11  2000 natural       0.5  103917.
-#> 12  9.25 47.8         11  2000 urban         0.05  10392.
+#> # A tibble: 12 × 11
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>    <int>     <int>            <int> <chr>                 <chr>                
+#>  1  2000       203              203 ESP-1800-2025         Spain                
+#>  2  2000       203              203 ESP-1800-2025         Spain                
+#>  3  2000       203              203 ESP-1800-2025         Spain                
+#>  4  2000       203              203 ESP-1800-2025         Spain                
+#>  5  2000        79               79 DEU-1990-2025         Germany              
+#>  6  2000        79               79 DEU-1990-2025         Germany              
+#>  7  2000        79               79 DEU-1990-2025         Germany              
+#>  8  2000        79               79 DEU-1990-2025         Germany              
+#>  9  2000        11               11 AUT-1919-2025         Austria              
+#> 10  2000        11               11 AUT-1919-2025         Austria              
+#> 11  2000        11               11 AUT-1919-2025         Austria              
+#> 12  2000        11               11 AUT-1919-2025         Austria              
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, land_use <chr>, fraction <dbl>, area_ha <dbl>
 ```

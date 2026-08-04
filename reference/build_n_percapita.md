@@ -65,15 +65,48 @@ build_n_percapita(
 
 A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the country
 total anthropogenic reactive nitrogen per capita (kg N/cap/yr), and
-`framing`, the anthropogenic definition it was computed under.
+`framing`, the anthropogenic definition it was computed under, plus the
+polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_n_percapita(example = TRUE)
-#> # A tibble: 2 × 4
-#>    year area_code n_percapita_kg framing      
-#>   <int>     <int>          <dbl> <chr>        
-#> 1  2000        10            8.5 synthetic_bnf
-#> 2  2000        20           22   synthetic_bnf
+#> # A tibble: 2 × 8
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000        10               10 AUS-1901-2025         Australia            
+#> 2  2000        20               20 BWA-1966-2025         Botswana             
+#> # ℹ 3 more variables: reporting_polity_has_geometry <lgl>,
+#> #   n_percapita_kg <dbl>, framing <chr>
 ```

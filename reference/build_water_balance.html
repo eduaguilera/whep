@@ -166,24 +166,49 @@ Defaults to <code>FALSE</code>.</p></dd>
 <code>aet_blue_mm</code>, <code>aet_green_mm</code>, <code>blue_consump_mm</code>, <code>green_consump_mm</code>,
 <code>cft_nir_mm</code>, <code>drainage_mm</code>, <code>runoff_mm</code>, <code>soil_water_change_mm</code> and
 <code>method_water</code>. For <code>resolution = "polity"</code>: the same terms aggregated to
-<code>year</code> and <code>area_code</code>.</p>
+<code>year</code> and <code>area_code</code>. Both resolutions carry the polity columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_water_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 18</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>      lon    lat area_code  year water_input_mm prec_mm irrig_mm pet_mm aet_mm</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>   9.25  47.8         11  <span style="text-decoration: underline;">2</span>000           <span style="text-decoration: underline;">1</span>200     950      250 <span style="color: #BB0000;">NA</span>        800</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>   9.75  47.8         11  <span style="text-decoration: underline;">2</span>000           <span style="text-decoration: underline;">1</span>100     880      220 <span style="color: #BB0000;">NA</span>        760</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> -<span style="color: #BB0000;">55.2</span>  -<span style="color: #BB0000;">12.2</span>         21  <span style="text-decoration: underline;">2</span>000           <span style="text-decoration: underline;">1</span>800    <span style="text-decoration: underline;">1</span>300      500 <span style="color: #BB0000;">NA</span>       <span style="text-decoration: underline;">1</span>300</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> -<span style="color: #BB0000;">55.8</span>  -<span style="color: #BB0000;">12.2</span>         21  <span style="text-decoration: underline;">2</span>000           <span style="text-decoration: underline;">1</span>750    <span style="text-decoration: underline;">1</span>270      480 <span style="color: #BB0000;">NA</span>       <span style="text-decoration: underline;">1</span>260</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  35.8   -<span style="color: #BB0000;">1.25</span>        79  <span style="text-decoration: underline;">2</span>000            900     720      180 <span style="color: #BB0000;">NA</span>        650</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  35.2   -<span style="color: #BB0000;">1.25</span>        79  <span style="text-decoration: underline;">2</span>000            950     760      190 <span style="color: #BB0000;">NA</span>        690</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  -<span style="color: #BB0000;">3.75</span>  40.2        203  <span style="text-decoration: underline;">2</span>000            600     500      100 <span style="color: #BB0000;">NA</span>        420</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  -<span style="color: #BB0000;">3.25</span>  40.2        203  <span style="text-decoration: underline;">2</span>000            650     540      110 <span style="color: #BB0000;">NA</span>        460</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9 more variables: aet_blue_mm &lt;dbl&gt;, aet_green_mm &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 22</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000        11               11 AUT-1919-2025         Austria              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000        11               11 AUT-1919-2025         Austria              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>000        21               21 BRA-1800-2025         Brazil               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>000        21               21 BRA-1800-2025         Brazil               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>000       203              203 ESP-1800-2025         Spain                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>000       203              203 ESP-1800-2025         Spain                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 17 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, water_input_mm &lt;dbl&gt;, prec_mm &lt;dbl&gt;, irrig_mm &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   pet_mm &lt;lgl&gt;, aet_mm &lt;dbl&gt;, aet_blue_mm &lt;dbl&gt;, aet_green_mm &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   blue_consump_mm &lt;dbl&gt;, green_consump_mm &lt;dbl&gt;, cft_nir_mm &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   drainage_mm &lt;dbl&gt;, runoff_mm &lt;dbl&gt;, soil_water_change_mm &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_water &lt;chr&gt;</span></span>

@@ -91,19 +91,52 @@ build_livestock_ghg_extension(
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (livestock emissions in kilograms CO2e) and `method_ghg` (the chosen
-tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`).
+tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), plus the polity
+columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_livestock_ghg_extension(example = TRUE)
-#> # A tibble: 6 × 5
-#>    year area_code item_cbs_code   impact_u method_ghg         
-#>   <int>     <int>         <int>      <dbl> <chr>              
-#> 1  1986        10           960  615600000 IPCC_2019_Tier1_AR6
-#> 2  1986        10           961 3078000000 IPCC_2019_Tier1_AR6
-#> 3  1986        10           976 1105650000 IPCC_2019_Tier1_AR6
-#> 4  1986       100           961 2246400000 IPCC_2019_Tier1_AR6
-#> 5  1987        10           961 3108780000 IPCC_2019_Tier1_AR6
-#> 6  1987       100           960  842400000 IPCC_2019_Tier1_AR6
+#> # A tibble: 6 × 9
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  1986        10               10 AUS-1901-2025         Australia            
+#> 2  1986        10               10 AUS-1901-2025         Australia            
+#> 3  1986        10               10 AUS-1901-2025         Australia            
+#> 4  1986       100              100 IND-1949-2025         India                
+#> 5  1987        10               10 AUS-1901-2025         Australia            
+#> 6  1987       100              100 IND-1949-2025         India                
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_ghg <chr>
 ```

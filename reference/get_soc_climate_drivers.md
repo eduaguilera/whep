@@ -82,7 +82,8 @@ drivers), `water_minus_pet_mm` (the monthly RothC/HSOC surplus),
 modifier driver, repeated across a cell-year's months), `clay_pct`,
 `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
-wilting-point and porosity references) and `method_water_input`.
+wilting-point and porosity references) and `method_water_input`, plus
+the polity columns below.
 
 ## Details
 
@@ -103,17 +104,49 @@ precipitation plus irrigation). Air temperature (CRU) and the soil
 texture products (clay, hydraulic properties) are not LPJmL outputs,
 hence the mixed sources.
 
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
+
 ## Examples
 
 ``` r
 get_soc_climate_drivers(example = TRUE)
-#> # A tibble: 3 × 17
-#>     lon   lat area_code  year month temp_c swc_topsoil precip_mm pet_mm
-#>   <dbl> <dbl>     <int> <int> <int>  <dbl>       <dbl>     <dbl>  <dbl>
-#> 1  9.25  47.8        11  2000     1    1.2        0.62        45     55
-#> 2  9.25  47.8        11  2000     2    3.4        0.58        50     45
-#> 3  9.25  47.8        11  2000     3    7.8        0.51        60     40
-#> # ℹ 8 more variables: water_minus_pet_mm <dbl>, water_balance_mm <dbl>,
+#> # A tibble: 3 × 21
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000        11               11 AUT-1919-2025         Austria              
+#> 2  2000        11               11 AUT-1919-2025         Austria              
+#> 3  2000        11               11 AUT-1919-2025         Austria              
+#> # ℹ 16 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, month <int>, temp_c <dbl>, swc_topsoil <dbl>, precip_mm <dbl>,
+#> #   pet_mm <dbl>, water_minus_pet_mm <dbl>, water_balance_mm <dbl>,
 #> #   clay_pct <dbl>, theta <dbl>, t_field <dbl>, t_wilt <dbl>, porosity <dbl>,
 #> #   method_water_input <chr>
 ```

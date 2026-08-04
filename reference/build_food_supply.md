@@ -61,17 +61,50 @@ build_food_supply(
 ## Value
 
 A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-`energy_kcal_cap_day`, `population` and `method_food_supply`.
+`energy_kcal_cap_day`, `population` and `method_food_supply`, plus the
+polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_food_supply(example = TRUE)
-#> # A tibble: 3 × 6
-#>    year area_code protein_g_cap_day energy_kcal_cap_day population
-#>   <int>     <int>             <dbl>               <dbl>      <dbl>
-#> 1  2010        10              63.4               1552.      10000
-#> 2  2010        32              27.4                681.       5000
-#> 3  2011        10              49.0               1351.      10200
-#> # ℹ 1 more variable: method_food_supply <chr>
+#> # A tibble: 3 × 10
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2010        10               10 AUS-1901-2025         Australia            
+#> 2  2010        32               32 CMR-1961-2025         Cameroon             
+#> 3  2011        10               10 AUS-1901-2025         Australia            
+#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>,
+#> #   protein_g_cap_day <dbl>, energy_kcal_cap_day <dbl>, population <dbl>,
+#> #   method_food_supply <chr>
 ```

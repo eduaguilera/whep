@@ -146,7 +146,8 @@ remote data. Defaults to <code>FALSE</code>.</p></dd>
 <li><p><code>year</code>: integer.</p></li>
 <li><p><code>arable_ha</code>, <code>permanent_ha</code>, <code>cropland_ha</code>: physical land area in hectares.</p></li>
 <li><p><code>source</code>: provenance, <code>"fao"</code> (&gt;= 1961) or <code>"luh2"</code> (pre-1961 backcast).</p></li>
-</ul></div>
+</ul><p>Plus the polity columns below.</p>
+    </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>The FAO identity <code>Cropland = Arable land + Permanent crops</code> holds in the
@@ -164,15 +165,40 @@ the FAO 1961 perennial fraction and cropland, so both match FAO exactly at the
 1961 splice point and carry LUH2's earlier dynamics backwards. Countries
 without a FAO 1961 anchor receive no backcast.</p>
     </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">get_arable_permanent_land</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 6</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code  year arable_ha permanent_ha cropland_ha source</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>       222  <span style="text-decoration: underline;">2</span>020   2<span style="text-decoration: underline;">831</span>300      2<span style="text-decoration: underline;">119</span>200     4<span style="text-decoration: underline;">950</span>500 fao   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>       222  <span style="text-decoration: underline;">1</span>960   2<span style="text-decoration: underline;">600</span>000      1<span style="text-decoration: underline;">500</span>000     4<span style="text-decoration: underline;">100</span>000 luh2  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020       222              222 TUN-1881-2025         Tunisia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">1</span>960       222              222 TUN-1881-2025         Tunisia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: reporting_polity_has_geometry &lt;lgl&gt;, arable_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   permanent_ha &lt;dbl&gt;, cropland_ha &lt;dbl&gt;, source &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -84,6 +84,8 @@ A tibble with one row per `(area_code, year)`:
 - `source`: provenance, `"fao"` (\>= 1961) or `"luh2"` (pre-1961
   backcast).
 
+Plus the polity columns below.
+
 ## Details
 
 The FAO identity `Cropland = Arable land + Permanent crops` holds in the
@@ -104,13 +106,45 @@ both match FAO exactly at the 1961 splice point and carry LUH2's earlier
 dynamics backwards. Countries without a FAO 1961 anchor receive no
 backcast.
 
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
+
 ## Examples
 
 ``` r
 get_arable_permanent_land(example = TRUE)
-#> # A tibble: 2 × 6
-#>   area_code  year arable_ha permanent_ha cropland_ha source
-#>       <int> <int>     <dbl>        <dbl>       <dbl> <chr> 
-#> 1       222  2020   2831300      2119200     4950500 fao   
-#> 2       222  1960   2600000      1500000     4100000 luh2  
+#> # A tibble: 2 × 10
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2020       222              222 TUN-1881-2025         Tunisia              
+#> 2  1960       222              222 TUN-1881-2025         Tunisia              
+#> # ℹ 5 more variables: reporting_polity_has_geometry <lgl>, arable_ha <dbl>,
+#> #   permanent_ha <dbl>, cropland_ha <dbl>, source <chr>
 ```

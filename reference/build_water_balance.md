@@ -87,24 +87,57 @@ A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`, `year`,
 `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 `method_water`. For `resolution = "polity"`: the same terms aggregated
-to `year` and `area_code`.
+to `year` and `area_code`. Both resolutions carry the polity columns
+below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_water_balance(example = TRUE)
-#> # A tibble: 8 × 18
-#>      lon    lat area_code  year water_input_mm prec_mm irrig_mm pet_mm aet_mm
-#>    <dbl>  <dbl>     <int> <int>          <dbl>   <dbl>    <dbl> <lgl>   <dbl>
-#> 1   9.25  47.8         11  2000           1200     950      250 NA        800
-#> 2   9.75  47.8         11  2000           1100     880      220 NA        760
-#> 3 -55.2  -12.2         21  2000           1800    1300      500 NA       1300
-#> 4 -55.8  -12.2         21  2000           1750    1270      480 NA       1260
-#> 5  35.8   -1.25        79  2000            900     720      180 NA        650
-#> 6  35.2   -1.25        79  2000            950     760      190 NA        690
-#> 7  -3.75  40.2        203  2000            600     500      100 NA        420
-#> 8  -3.25  40.2        203  2000            650     540      110 NA        460
-#> # ℹ 9 more variables: aet_blue_mm <dbl>, aet_green_mm <dbl>,
+#> # A tibble: 8 × 22
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000        11               11 AUT-1919-2025         Austria              
+#> 2  2000        11               11 AUT-1919-2025         Austria              
+#> 3  2000        21               21 BRA-1800-2025         Brazil               
+#> 4  2000        21               21 BRA-1800-2025         Brazil               
+#> 5  2000        79               79 DEU-1990-2025         Germany              
+#> 6  2000        79               79 DEU-1990-2025         Germany              
+#> 7  2000       203              203 ESP-1800-2025         Spain                
+#> 8  2000       203              203 ESP-1800-2025         Spain                
+#> # ℹ 17 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, water_input_mm <dbl>, prec_mm <dbl>, irrig_mm <dbl>,
+#> #   pet_mm <lgl>, aet_mm <dbl>, aet_blue_mm <dbl>, aet_green_mm <dbl>,
 #> #   blue_consump_mm <dbl>, green_consump_mm <dbl>, cft_nir_mm <lgl>,
 #> #   drainage_mm <dbl>, runoff_mm <dbl>, soil_water_change_mm <dbl>,
 #> #   method_water <chr>

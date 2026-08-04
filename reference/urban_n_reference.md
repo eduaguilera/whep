@@ -20,7 +20,14 @@ A tibble with columns:
 
 - area_code:
 
-  ISO3 country code (currently only `"ESP"`).
+  Numeric FAOSTAT area code, as everywhere else in this package;
+  currently only `203` (Spain). The vendored CSV records the ISO3 string
+  `"ESP"` and it is resolved to a code through
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+  at build time, so this series joins to area-keyed tables without a
+  hand conversion. It held the string itself until 0.3.0.9000, which
+  made it the one column named `area_code` in this package that was not
+  one (whep#401).
 
 - year:
 
@@ -43,15 +50,15 @@ Spain_Hist repository (private project data, not a public DOI):
 urban_n_reference
 #> # A tibble: 10 × 3
 #>    area_code  year urban_n_gg
-#>    <chr>     <dbl>      <dbl>
-#>  1 ESP        1860       6.97
-#>  2 ESP        1900       8.04
-#>  3 ESP        1950      12.1 
-#>  4 ESP        1990      16.8 
-#>  5 ESP        2000      28.9 
-#>  6 ESP        2008      43.0 
-#>  7 ESP        2016      50.0 
-#>  8 ESP        2018      54.8 
-#>  9 ESP        2020      51.4 
-#> 10 ESP        2022      61.3 
+#>        <int> <dbl>      <dbl>
+#>  1       203  1860       6.97
+#>  2       203  1900       8.04
+#>  3       203  1950      12.1 
+#>  4       203  1990      16.8 
+#>  5       203  2000      28.9 
+#>  6       203  2008      43.0 
+#>  7       203  2016      50.0 
+#>  8       203  2018      54.8 
+#>  9       203  2020      51.4 
+#> 10       203  2022      61.3 
 ```

@@ -64,7 +64,13 @@ globally-calibrated estimate.</p>
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A tibble with columns:</p><dl><dt>area_code</dt>
-<dd><p>ISO3 country code (currently only <code>"ESP"</code>).</p></dd>
+<dd><p>Numeric FAOSTAT area code, as everywhere else in this
+package; currently only <code>203</code> (Spain). The vendored CSV records the
+ISO3 string <code>"ESP"</code> and it is resolved to a code through
+<a href="polity_area_crosswalk.html">polity_area_crosswalk</a> at build time, so this series joins to
+area-keyed tables without a hand conversion. It held the string itself
+until 0.3.0.9000, which made it the one column named <code>area_code</code>
+in this package that was not one (whep#401).</p></dd>
 
 <dt>year</dt>
 <dd><p>Benchmark calendar year.</p></dd>
@@ -88,17 +94,17 @@ DOI): <code>input/Urban_waste.xlsx</code> sheet <code>UrbanN</code> and
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">urban_n_reference</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 3</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    area_code  year urban_n_gg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ESP        <span style="text-decoration: underline;">1</span>860       6.97</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> ESP        <span style="text-decoration: underline;">1</span>900       8.04</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> ESP        <span style="text-decoration: underline;">1</span>950      12.1 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> ESP        <span style="text-decoration: underline;">1</span>990      16.8 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> ESP        <span style="text-decoration: underline;">2</span>000      28.9 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> ESP        <span style="text-decoration: underline;">2</span>008      43.0 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> ESP        <span style="text-decoration: underline;">2</span>016      50.0 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> ESP        <span style="text-decoration: underline;">2</span>018      54.8 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> ESP        <span style="text-decoration: underline;">2</span>020      51.4 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> ESP        <span style="text-decoration: underline;">2</span>022      61.3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>       203  <span style="text-decoration: underline;">1</span>860       6.97</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>       203  <span style="text-decoration: underline;">1</span>900       8.04</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>       203  <span style="text-decoration: underline;">1</span>950      12.1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>       203  <span style="text-decoration: underline;">1</span>990      16.8 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>       203  <span style="text-decoration: underline;">2</span>000      28.9 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>       203  <span style="text-decoration: underline;">2</span>008      43.0 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>       203  <span style="text-decoration: underline;">2</span>016      50.0 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>       203  <span style="text-decoration: underline;">2</span>018      54.8 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>       203  <span style="text-decoration: underline;">2</span>020      51.4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>       203  <span style="text-decoration: underline;">2</span>022      61.3 </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

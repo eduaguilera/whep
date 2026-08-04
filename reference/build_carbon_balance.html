@@ -134,22 +134,47 @@ remote data. Defaults to <code>FALSE</code>.</p></dd>
 <code>"grid"</code> resolution (or <code>(area_code, year)</code> at <code>"polity"</code>),
 with <code>stock_mgc_ha</code>, <code>mineralization_mgc_ha</code>, <code>c_input_mgc_ha</code>,
 <code>luc_transfer_mgc_ha</code>, <code>rate_mgc_ha</code>, <code>son_change_kgn_ha</code>,
-<code>area_ha</code> and <code>method_soc</code>.</p>
+<code>area_ha</code> and <code>method_soc</code>, plus the polity columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_carbon_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 13</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     lon   lat area_code land_use     year area_ha stock_mgc_ha</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  0.25  0.25         1 Cropland     <span style="text-decoration: underline;">2</span>000      60         37.3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  0.25  0.25         1 NonCropland  <span style="text-decoration: underline;">2</span>000      40         37.3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  0.25  0.25         1 Cropland     <span style="text-decoration: underline;">2</span>001      50         37.7</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  0.25  0.25         1 NonCropland  <span style="text-decoration: underline;">2</span>001      50         36.9</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  0.25  0.25         1 Cropland     <span style="text-decoration: underline;">2</span>002      50         38.1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  0.25  0.25         1 NonCropland  <span style="text-decoration: underline;">2</span>002      50         36.4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 6 more variables: mineralization_mgc_ha &lt;dbl&gt;, c_input_mgc_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 17</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>001         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>001         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>002         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>002         1                1 ARM-1991-2025         Armenia              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 12 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, land_use &lt;chr&gt;, area_ha &lt;dbl&gt;, stock_mgc_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   mineralization_mgc_ha &lt;dbl&gt;, c_input_mgc_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   luc_transfer_mgc_ha &lt;dbl&gt;, rate_mgc_ha &lt;dbl&gt;, son_change_kgn_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_soc &lt;chr&gt;</span></span>
 </code></pre></div>

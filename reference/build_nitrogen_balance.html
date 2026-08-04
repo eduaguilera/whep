@@ -164,23 +164,47 @@ per-hectare rate), the input aggregates
 <code>som_sequestration_n_t</code>, <code>n_balance_t</code>, <code>surplus_t</code>, <code>surplus_share</code>,
 the five NUE ratios (<code>nue_std</code>, <code>nue_residues</code>, <code>nue_som</code>,
 <code>nue_useful</code>, <code>nue_full</code>), <code>total_gwp_co2e_kg</code>, and the <code>method_nh3</code>/
-<code>method_soil_n2o</code>/<code>method_leaching</code> provenance columns.</p>
+<code>method_soil_n2o</code>/<code>method_leaching</code> provenance columns, plus the polity
+columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 37</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code item_cbs_code  year area_ha n_input_full_t n_input_full_nosom_t</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>        10          <span style="text-decoration: underline;">2</span>511  <span style="text-decoration: underline;">2</span>020     120            100                   98</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 31 more variables: n_input_std_t &lt;dbl&gt;, n_input_som_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 41</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020        10               10 AUS-1901-2025         Australia            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 36 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   item_cbs_code &lt;int&gt;, area_ha &lt;dbl&gt;, n_input_full_t &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_full_nosom_t &lt;dbl&gt;, n_input_std_t &lt;dbl&gt;, n_input_som_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_input_for_n2o_t &lt;dbl&gt;, prod_n_t &lt;dbl&gt;, used_residue_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   burnt_residue_n_t &lt;dbl&gt;, grazed_weeds_n_t &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   som_sequestration_n_t &lt;dbl&gt;, n_output_residues_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_output_som_t &lt;dbl&gt;, n_output_useful_t &lt;dbl&gt;, n_output_std_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_output_full_t &lt;dbl&gt;, nh3_n_t &lt;dbl&gt;, n2o_direct_n_t &lt;dbl&gt;, no3_n_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   denitrification_n_t &lt;dbl&gt;, n2o_indirect_no3_n_t &lt;dbl&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   n_output_som_t &lt;dbl&gt;, n_output_useful_t &lt;dbl&gt;, n_output_std_t &lt;dbl&gt;, …</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

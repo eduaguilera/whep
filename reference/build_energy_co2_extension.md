@@ -58,21 +58,53 @@ build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (energy-use emissions in kilograms CO2e) and `method_energy` (e.g.
-`"GLEAM_3.0_energy_meat"`).
+`"GLEAM_3.0_energy_meat"`), plus the polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_energy_co2_extension(example = TRUE)
-#> # A tibble: 8 × 5
-#>    year area_code item_cbs_code    impact_u method_energy        
-#>   <int>     <int>         <int>       <dbl> <chr>                
-#> 1  2010        21           961  1766900000 GLEAM_3.0_energy_meat
-#> 2  2010        21          1053  3407700000 GLEAM_3.0_energy_meat
-#> 3  2010       231           961  8328900000 GLEAM_3.0_energy_meat
-#> 4  2010       231           976    57395000 GLEAM_3.0_energy_meat
-#> 5  2010       231          1016    17517000 GLEAM_3.0_energy_meat
-#> 6  2010       231          1049  1928100000 GLEAM_3.0_energy_meat
-#> 7  2010       231          1051   214230000 GLEAM_3.0_energy_meat
-#> 8  2010       231          1053 11171000000 GLEAM_3.0_energy_meat
+#> # A tibble: 8 × 9
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name  
+#>   <int>     <int>            <int> <chr>                 <chr>                  
+#> 1  2010        21               21 BRA-1800-2025         Brazil                 
+#> 2  2010        21               21 BRA-1800-2025         Brazil                 
+#> 3  2010       231              231 USA-1959-2025         United States of Ameri…
+#> 4  2010       231              231 USA-1959-2025         United States of Ameri…
+#> 5  2010       231              231 USA-1959-2025         United States of Ameri…
+#> 6  2010       231              231 USA-1959-2025         United States of Ameri…
+#> 7  2010       231              231 USA-1959-2025         United States of Ameri…
+#> 8  2010       231              231 USA-1959-2025         United States of Ameri…
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_energy <chr>
 ```

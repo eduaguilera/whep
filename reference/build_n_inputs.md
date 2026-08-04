@@ -164,23 +164,56 @@ used: `"residue_soil_returned"` when the upstream NPP input supplied
 `"total_residue"` when only gross residue N was available; it is `NA`
 for every other `fert_type`. `method_synthetic` records the synthetic
 crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
-and is `NA` for every other `fert_type`.
+and is `NA` for every other `fert_type`. Both grains also carry the
+polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 9
-#>     lon   lat area_code item_cbs_code  year fert_type          n_input_t
-#>   <dbl> <dbl>     <int>         <int> <int> <chr>                  <dbl>
-#> 1 -0.25 -0.25         1          2511  2020 bnf                      3.2
-#> 2 -0.25 -0.25         1          2511  2020 recycling                5.6
-#> 3 -0.25 -0.25         1          2511  2020 synthetic               12.4
-#> 4 -0.25 -0.25         1            NA  2020 deposition               0.9
-#> 5 -0.25 -0.25         1            NA  2020 urban                    4.5
-#> 6 -0.25 -0.25         1            NA  2020 som_mineralization       1.1
-#> 7 -0.25 -0.25         1          3000  2020 excreta                  2.3
-#> 8 -0.25 -0.25         1          2511  2020 manure_solid             1.8
-#> 9 -0.25 -0.25         1          2511  2020 manure_liquid            0.7
-#> # ℹ 2 more variables: method_recycling_n <chr>, method_synthetic <chr>
+#> # A tibble: 9 × 13
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2020         1                1 ARM-1991-2025         Armenia              
+#> 2  2020         1                1 ARM-1991-2025         Armenia              
+#> 3  2020         1                1 ARM-1991-2025         Armenia              
+#> 4  2020         1                1 ARM-1991-2025         Armenia              
+#> 5  2020         1                1 ARM-1991-2025         Armenia              
+#> 6  2020         1                1 ARM-1991-2025         Armenia              
+#> 7  2020         1                1 ARM-1991-2025         Armenia              
+#> 8  2020         1                1 ARM-1991-2025         Armenia              
+#> 9  2020         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
+#> #   method_recycling_n <chr>, method_synthetic <chr>
 ```

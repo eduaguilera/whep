@@ -505,6 +505,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Get area names from area codes
 - [`get_polity_geometries()`](https://eduaguilera.github.io/whep/reference/get_polity_geometries.md)
   : Get WHEP polity geometries
+- [`whep_polity_columns`](https://eduaguilera.github.io/whep/reference/whep_polity_columns.md)
+  : Polity columns on WHEP outputs
 
 ### Commodity balance sheet items
 

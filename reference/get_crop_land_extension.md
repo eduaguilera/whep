@@ -62,23 +62,56 @@ get_crop_land_extension(
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(physical land in hectares), and `method_land`.
+(physical land in hectares), and `method_land`, plus the polity columns
+below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 get_crop_land_extension(example = TRUE)
-#> # A tibble: 10 × 5
-#>     year area_code item_cbs_code impact_u method_land       
-#>    <int>     <int>         <int>    <dbl> <chr>             
-#>  1  2000        33          2511 17562678 cropland_apportion
-#>  2  2000        33          2514  2159391 cropland_apportion
-#>  3  2000        33          2516  3206883 cropland_apportion
-#>  4  2000        33          2555  7782531 cropland_apportion
-#>  5  2000       100          2511 27345112 cropland_apportion
-#>  6  2000       100          2513  9810455 cropland_apportion
-#>  7  2000       100          2531  1204599 cropland_apportion
-#>  8  2000       100          2555  7218004 cropland_apportion
-#>  9  2000       110          2511  1188233 cropland_apportion
-#> 10  2000       110          2805  1503221 cropland_apportion
+#> # A tibble: 10 × 9
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>    <int>     <int>            <int> <chr>                 <chr>                
+#>  1  2000        33               33 CAN-1948-2025         Canada               
+#>  2  2000        33               33 CAN-1948-2025         Canada               
+#>  3  2000        33               33 CAN-1948-2025         Canada               
+#>  4  2000        33               33 CAN-1948-2025         Canada               
+#>  5  2000       100              100 IND-1949-2025         India                
+#>  6  2000       100              100 IND-1949-2025         India                
+#>  7  2000       100              100 IND-1949-2025         India                
+#>  8  2000       100              100 IND-1949-2025         India                
+#>  9  2000       110              110 JPN-1952-2025         Japan                
+#> 10  2000       110              110 JPN-1952-2025         Japan                
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_land <chr>
 ```

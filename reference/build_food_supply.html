@@ -129,19 +129,45 @@ Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble keyed by <code>year</code>, <code>area_code</code> with <code>protein_g_cap_day</code>,
-<code>energy_kcal_cap_day</code>, <code>population</code> and <code>method_food_supply</code>.</p>
+<code>energy_kcal_cap_day</code>, <code>population</code> and <code>method_food_supply</code>, plus the
+polity columns below.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_food_supply</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 6</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code protein_g_cap_day energy_kcal_cap_day population</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010        10              63.4               <span style="text-decoration: underline;">1</span>552.      <span style="text-decoration: underline;">10</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010        32              27.4                681.       <span style="text-decoration: underline;">5</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>011        10              49.0               <span style="text-decoration: underline;">1</span>351.      <span style="text-decoration: underline;">10</span>200</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: method_food_supply &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 3 × 10</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010        10               10 AUS-1901-2025         Australia            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010        32               32 CMR-1961-2025         Cameroon             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>011        10               10 AUS-1901-2025         Australia            </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 5 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   protein_g_cap_day &lt;dbl&gt;, energy_kcal_cap_day &lt;dbl&gt;, population &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_food_supply &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -93,7 +93,9 @@ harvest-removal nitrogen the footprint's `"production"` category traces,
 carried through only when the `surplus` input supplies it), and the
 `metric`, `land_use`, `method_boundary` stamps. For the aggregate
 resolutions, the grouping key with the summed mass terms and the same
-stamps.
+stamps. Every area-keyed grain also carries the polity columns below;
+`resolution = "image_region"` is keyed by region rather than by
+`area_code`, so it does not.
 
 ## Exceedance is a decomposition, not the overshoot
 
@@ -110,20 +112,52 @@ agree to floating-point on all 26,497 positive-critical cells, and
 diverge only on the 2,076 negative-critical ones, costing 0.6% of global
 exceedance mass.
 
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
+
 ## Examples
 
 ``` r
 build_n_boundary_exceedance(example = TRUE)
-#> # A tibble: 5 × 17
-#>     lon   lat area_code item_cbs_code  year area_ha critical_kgn_ha
-#>   <dbl> <dbl>     <int>         <int> <int>   <dbl>           <dbl>
-#> 1  0.25  0.25         1          2511  2010     100              50
-#> 2  0.25  0.25         1          2513  2010      50              50
-#> 3  0.75  0.25         1          2511  2010     200             120
-#> 4  0.25  0.75         1          2511  2010      40              40
-#> 5  0.75  0.75         1          2555  2010      10             100
-#> # ℹ 10 more variables: actual_kgn_ha <dbl>, exceed_share <dbl>,
-#> #   exceedance_kgn_ha <dbl>, within_boundary_kgn_ha <dbl>,
-#> #   exceedance_n_t <dbl>, within_boundary_n_t <dbl>, actual_n_t <dbl>,
-#> #   metric <chr>, land_use <chr>, method_boundary <chr>
+#> # A tibble: 5 × 21
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2010         1                1 ARM-1991-2025         Armenia              
+#> 2  2010         1                1 ARM-1991-2025         Armenia              
+#> 3  2010         1                1 ARM-1991-2025         Armenia              
+#> 4  2010         1                1 ARM-1991-2025         Armenia              
+#> 5  2010         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 16 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, item_cbs_code <int>, area_ha <dbl>, critical_kgn_ha <dbl>,
+#> #   actual_kgn_ha <dbl>, exceed_share <dbl>, exceedance_kgn_ha <dbl>,
+#> #   within_boundary_kgn_ha <dbl>, exceedance_n_t <dbl>,
+#> #   within_boundary_n_t <dbl>, actual_n_t <dbl>, metric <chr>, land_use <chr>,
+#> #   method_boundary <chr>
 ```

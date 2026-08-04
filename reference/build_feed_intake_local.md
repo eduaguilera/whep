@@ -90,18 +90,50 @@ When `out_dir` is `NULL`, a tibble in the
 contract plus a `sub_territory` (0.5-degree cell) column. Otherwise,
 invisibly, the written file paths.
 
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
+
 ## Examples
 
 ``` r
 build_feed_intake_local(example = TRUE)
-#> # A tibble: 5 × 11
-#>    year area_code sub_territory live_anim_code item_cbs_code feed_type  supply
-#>   <int>     <int> <chr>                  <int>         <int> <chr>       <dbl>
-#> 1  2000       724 -3.75_40.25              960          3000 grass        1250
-#> 2  2000       724 -3.75_40.25              960          2591 crops          11
-#> 3  2000       724 -3.25_40.25              961          3000 grass         900
-#> 4  2000       724 -3.25_40.25              976          3500 scavenging      0
-#> 5  2000       724 -3.25_40.75             1049          2591 crops          22
-#> # ℹ 4 more variables: intake <dbl>, intake_dry_matter <dbl>, loss <dbl>,
-#> #   loss_share <dbl>
+#> # A tibble: 5 × 15
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000       724               NA NA                    NA                   
+#> 2  2000       724               NA NA                    NA                   
+#> 3  2000       724               NA NA                    NA                   
+#> 4  2000       724               NA NA                    NA                   
+#> 5  2000       724               NA NA                    NA                   
+#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>,
+#> #   sub_territory <chr>, live_anim_code <int>, item_cbs_code <int>,
+#> #   feed_type <chr>, supply <dbl>, intake <dbl>, intake_dry_matter <dbl>,
+#> #   loss <dbl>, loss_share <dbl>
 ```

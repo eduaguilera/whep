@@ -76,17 +76,50 @@ assembled per the WHEP historical carbon-balance design.
 A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 resolution (or `(area_code, year, land_use)` at `"polity"`), with
 `c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-`land_use` in `"cropland"`, `"grassland"` and `"natural"`.
+`land_use` in `"cropland"`, `"grassland"` and `"natural"`, plus the
+polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_carbon_inputs(example = TRUE)
-#> # A tibble: 3 × 8
-#>     lon   lat area_code  year land_use  c_input_mgc_ha_yr humified_fraction
-#>   <dbl> <dbl>     <int> <int> <chr>                 <dbl>             <dbl>
-#> 1  0.25  0.25         1  2000 cropland               2.75             0.182
-#> 2  0.25  0.25         1  2000 grassland              4                0.115
-#> 3  0.25  0.25         1  2000 natural                6                0.325
-#> # ℹ 1 more variable: method_c_input <chr>
+#> # A tibble: 3 × 12
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000         1                1 ARM-1991-2025         Armenia              
+#> 2  2000         1                1 ARM-1991-2025         Armenia              
+#> 3  2000         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, land_use <chr>, c_input_mgc_ha_yr <dbl>,
+#> #   humified_fraction <dbl>, method_c_input <chr>
 ```

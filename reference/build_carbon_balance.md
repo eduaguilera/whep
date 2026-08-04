@@ -84,22 +84,55 @@ pipeline.
 A tibble keyed by `(lon, lat, area_code, land_use, year)` at `"grid"`
 resolution (or `(area_code, year)` at `"polity"`), with `stock_mgc_ha`,
 `mineralization_mgc_ha`, `c_input_mgc_ha`, `luc_transfer_mgc_ha`,
-`rate_mgc_ha`, `son_change_kgn_ha`, `area_ha` and `method_soc`.
+`rate_mgc_ha`, `son_change_kgn_ha`, `area_ha` and `method_soc`, plus the
+polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_carbon_balance(example = TRUE)
-#> # A tibble: 6 × 13
-#>     lon   lat area_code land_use     year area_ha stock_mgc_ha
-#>   <dbl> <dbl>     <int> <chr>       <int>   <dbl>        <dbl>
-#> 1  0.25  0.25         1 Cropland     2000      60         37.3
-#> 2  0.25  0.25         1 NonCropland  2000      40         37.3
-#> 3  0.25  0.25         1 Cropland     2001      50         37.7
-#> 4  0.25  0.25         1 NonCropland  2001      50         36.9
-#> 5  0.25  0.25         1 Cropland     2002      50         38.1
-#> 6  0.25  0.25         1 NonCropland  2002      50         36.4
-#> # ℹ 6 more variables: mineralization_mgc_ha <dbl>, c_input_mgc_ha <dbl>,
+#> # A tibble: 6 × 17
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2000         1                1 ARM-1991-2025         Armenia              
+#> 2  2000         1                1 ARM-1991-2025         Armenia              
+#> 3  2001         1                1 ARM-1991-2025         Armenia              
+#> 4  2001         1                1 ARM-1991-2025         Armenia              
+#> 5  2002         1                1 ARM-1991-2025         Armenia              
+#> 6  2002         1                1 ARM-1991-2025         Armenia              
+#> # ℹ 12 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, land_use <chr>, area_ha <dbl>, stock_mgc_ha <dbl>,
+#> #   mineralization_mgc_ha <dbl>, c_input_mgc_ha <dbl>,
 #> #   luc_transfer_mgc_ha <dbl>, rate_mgc_ha <dbl>, son_change_kgn_ha <dbl>,
 #> #   method_soc <chr>
 ```

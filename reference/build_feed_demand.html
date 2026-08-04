@@ -97,26 +97,53 @@ remote data. Default is <code>FALSE</code>.</p></dd>
 <li><p><code>method_demand</code>: The demand method(s) used, e.g. <code>ipcc_tier2_energy</code>,
 <code>bouwman_fcr</code> or <code>krausmann_per_head</code> (a <code>+</code>-joined set for a mixed
 category whose animals used different methods).</p></li>
-</ul><p>With <code>by = "feed_type"</code>, the demand split across feed types as the
+</ul><p>plus the polity columns below.</p>
+<p>With <code>by = "feed_type"</code>, the demand split across feed types as the
 <code><a href="redistribute_feed.html">redistribute_feed()</a></code> <code>feed_demand</code> contract: <code>year</code>, <code>territory</code>,
 <code>sub_territory</code>, <code>livestock_category</code>, <code>item_cbs_code</code>, <code>feed_group</code>,
-<code>feed_quality</code>, <code>demand_dm_t</code>, <code>fixed_demand</code>.</p>
+<code>feed_quality</code>, <code>demand_dm_t</code>, <code>fixed_demand</code>. That grain is keyed by
+<code>territory</code>, not <code>area_code</code>, so it carries no polity columns.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
+
+
+<p>Every area-keyed output carries the polity its <code>area_code</code> resolves to in
+that row's year:</p><ul><li><p><code>polity_area_code</code>: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use <code>reporting_polity_code</code> to
+say which territory a row belongs to.</p></li>
+<li><p><code>reporting_polity_code</code>: The polity itself, e.g. <code>ESP-1846-1914</code>. It is
+year-aware, so the same <code>area_code</code> resolves to different polities in
+different years, which is the point of the crosswalk.</p></li>
+<li><p><code>reporting_polity_name</code>: Its name. It can differ from the area's own name
+where the area folds into an aggregate.</p></li>
+<li><p><code>reporting_polity_has_geometry</code>: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. <code>FALSE</code>
+is a documented gap upstream, not an error.</p></li>
+</ul><p>Rows whose <code>area_code</code> resolves to no polity keep the columns with <code>NA</code>
+rather than being dropped, so a gap is visible instead of silent.</p>
+<p>Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_feed_demand</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code livestock_category demand_dm_t method_demand     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000        79 Cattle_milk            5<span style="text-decoration: underline;">800</span>000 ipcc_tier2_energy </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000        79 Cattle_meat            9<span style="text-decoration: underline;">400</span>000 ipcc_tier2_energy </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>000        79 Sheep                  1<span style="text-decoration: underline;">100</span>000 ipcc_tier2_energy </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>000        79 Goats                   <span style="text-decoration: underline;">200</span>000 ipcc_tier2_energy </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>000        79 Pigs                   8<span style="text-decoration: underline;">700</span>000 bouwman_fcr       </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>000        79 Poultry                3<span style="text-decoration: underline;">900</span>000 bouwman_fcr       </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>000        79 Horses                  <span style="text-decoration: underline;">150</span>000 krausmann_per_head</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>000        79 Other                    <span style="text-decoration: underline;">30</span>000 krausmann_per_head</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 8 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>000        79               79 DEU-1990-2025         Germany              </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 4 more variables: reporting_polity_has_geometry &lt;lgl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   livestock_category &lt;chr&gt;, demand_dm_t &lt;dbl&gt;, method_demand &lt;chr&gt;</span></span>
 <span class="r-in"><span><span class="fu">build_feed_demand</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span>, by <span class="op">=</span> <span class="st">"feed_type"</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 9</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year territory sub_territory livestock_category item_cbs_code feed_group</span>

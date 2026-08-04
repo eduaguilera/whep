@@ -77,17 +77,50 @@ build_grassland_land_extension(
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(grassland area in hectares) and `method_grassland` (the chosen metric).
+(grassland area in hectares) and `method_grassland` (the chosen metric),
+plus the polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_grassland_land_extension(example = TRUE)
-#> # A tibble: 4 × 5
-#>    year area_code item_cbs_code impact_u method_grassland
-#>   <int>     <int>         <int>    <dbl> <chr>           
-#> 1  1986        10          3000 25000000 occupation      
-#> 2  1986       100          3000  8000000 occupation      
-#> 3  1987        10          3000 25000000 occupation      
-#> 4  1987       100          3000  8100000 occupation      
+#> # A tibble: 4 × 9
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  1986        10               10 AUS-1901-2025         Australia            
+#> 2  1986       100              100 IND-1949-2025         India                
+#> 3  1987        10               10 AUS-1901-2025         Australia            
+#> 4  1987       100              100 IND-1949-2025         India                
+#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_grassland <chr>
 ```

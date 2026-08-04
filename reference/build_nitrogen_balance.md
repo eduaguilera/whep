@@ -142,21 +142,52 @@ aggregates (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
 `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
 `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-`method_soil_n2o`/`method_leaching` provenance columns.
+`method_soil_n2o`/`method_leaching` provenance columns, plus the polity
+columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_nitrogen_balance(example = TRUE)
-#> # A tibble: 1 × 37
-#>   area_code item_cbs_code  year area_ha n_input_full_t n_input_full_nosom_t
-#>       <int>         <int> <int>   <dbl>          <dbl>                <dbl>
-#> 1        10          2511  2020     120            100                   98
-#> # ℹ 31 more variables: n_input_std_t <dbl>, n_input_som_t <dbl>,
+#> # A tibble: 1 × 41
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2020        10               10 AUS-1901-2025         Australia            
+#> # ℹ 36 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code <int>, area_ha <dbl>, n_input_full_t <dbl>,
+#> #   n_input_full_nosom_t <dbl>, n_input_std_t <dbl>, n_input_som_t <dbl>,
 #> #   n_input_for_n2o_t <dbl>, prod_n_t <dbl>, used_residue_n_t <dbl>,
 #> #   burnt_residue_n_t <dbl>, grazed_weeds_n_t <dbl>,
 #> #   som_sequestration_n_t <dbl>, n_output_residues_t <dbl>,
-#> #   n_output_som_t <dbl>, n_output_useful_t <dbl>, n_output_std_t <dbl>,
-#> #   n_output_full_t <dbl>, nh3_n_t <dbl>, n2o_direct_n_t <dbl>, no3_n_t <dbl>,
-#> #   denitrification_n_t <dbl>, n2o_indirect_no3_n_t <dbl>, …
+#> #   n_output_som_t <dbl>, n_output_useful_t <dbl>, n_output_std_t <dbl>, …
 ```

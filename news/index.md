@@ -2,6 +2,32 @@
 
 ## whep (development version)
 
+- Every area-keyed exported output now carries the **reporting-polity
+  columns** (`polity_area_code`, `reporting_polity_code`,
+  `reporting_polity_name`, `reporting_polity_has_geometry`), so a caller
+  can tell which territory a row belongs to, and whether it has a
+  polygon, without re-joining the crosswalk. This widens the contract
+  from 10 exports to 35, covering the balances
+  ([`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md),
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md),
+  [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md),
+  …), the footprint extensions
+  ([`get_crop_land_extension()`](https://eduaguilera.github.io/whep/reference/get_crop_land_extension.md),
+  [`build_livestock_ghg_extension()`](https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.md),
+  …) and the gridded readers
+  ([`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)).
+  The columns are additive: no existing column or value changes.
+  [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
+  keeps returning raw FAOSTAT area names (it is the pre-resolution
+  reader), and
+  [`build_grazing_feed_footprint()`](https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.md)/[`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
+  are aggregated over time and have no year to resolve a polity against.
+  [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  now returns the numeric WHEP `area_code` rather than the character
+  territory key its manure-transport reuse works in; an ISO3 input still
+  resolves through the same checked resolver as the manure path.
+
 - Add gridded soil **water, carbon and nitrogen balances** (0.5° cell ×
   polity fragment).
   [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)

@@ -70,20 +70,53 @@ build_ag_land_support(
 ## Value
 
 A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
-`land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`.
+`land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus
+the polity columns below.
+
+## Polity columns
+
+Every area-keyed output carries the polity its `area_code` resolves to
+in that row's year:
+
+- `polity_area_code`: The numeric key rows are AGGREGATED on, for the
+  matrix workflows. It is a bucket, not an identity: use
+  `reporting_polity_code` to say which territory a row belongs to.
+
+- `reporting_polity_code`: The polity itself, e.g. `ESP-1846-1914`. It
+  is year-aware, so the same `area_code` resolves to different polities
+  in different years, which is the point of the crosswalk.
+
+- `reporting_polity_name`: Its name. It can differ from the area's own
+  name where the area folds into an aggregate.
+
+- `reporting_polity_has_geometry`: Whether the polity has a polygon in
+  the WHEP polity database, for callers that need to map or intersect
+  it. `FALSE` is a documented gap upstream, not an error.
+
+Rows whose `area_code` resolves to no polity keep the columns with `NA`
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year,
+because WHEP's pre-anchor series are back-cast onto the anchor-year
+territory. See
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+for the reasoning.
 
 ## Examples
 
 ``` r
 build_ag_land_support(example = TRUE)
-#> # A tibble: 7 × 7
-#>     lon   lat area_code item_cbs_code  year land_use  area_ha
-#>   <dbl> <dbl>     <int>         <int> <int> <chr>       <dbl>
-#> 1  0.25  50.2        10          2511  2010 cropland     750 
-#> 2  0.25  50.2        10          2513  2010 cropland     250 
-#> 3  0.25  50.2        10          3000  2010 grassland   1977.
-#> 4  0.75  50.2        10          2511  2010 cropland     300 
-#> 5  0.75  50.2        10          3000  2010 grassland   2372.
-#> 6  0.75  50.2        20          2511  2010 cropland     200 
-#> 7  0.75  50.2        20          3000  2010 grassland   1581.
+#> # A tibble: 7 × 11
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name
+#>   <int>     <int>            <int> <chr>                 <chr>                
+#> 1  2010        10               10 AUS-1901-2025         Australia            
+#> 2  2010        10               10 AUS-1901-2025         Australia            
+#> 3  2010        10               10 AUS-1901-2025         Australia            
+#> 4  2010        10               10 AUS-1901-2025         Australia            
+#> 5  2010        10               10 AUS-1901-2025         Australia            
+#> 6  2010        20               20 BWA-1966-2025         Botswana             
+#> 7  2010        20               20 BWA-1966-2025         Botswana             
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, item_cbs_code <int>, land_use <chr>, area_ha <dbl>
 ```
