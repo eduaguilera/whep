@@ -38,104 +38,210 @@
 
 <div id="claudemd--whep-package" class="section level1">
 
+<p>WHEP is an R package (~140 scripts in <code>R/</code>, ~70k lines, 290 documented topics) that builds agro-environmental data: FAOSTAT/LUH2 primary production, commodity balances, trade, livestock nutrient and emission flows, gridded soil carbon/nitrogen/water balances, and FABIO-style footprints.</p>
+<p>Its outputs are numbers that get published. A change that is beautifully styled and quietly wrong is a failure; a plain change that is demonstrably right is not.</p>
 <div class="section level2">
-<h2 id="workflow-and-style">Workflow and Style<a class="anchor" aria-label="anchor" href="#workflow-and-style"></a></h2>
-<ul><li>Follow the workflow: <a href="https://lbm364dl.github.io/follow-the-workflow/" class="external-link uri">https://lbm364dl.github.io/follow-the-workflow/</a>
-</li>
-<li>Follow tidyverse style guide: <a href="https://style.tidyverse.org/" class="external-link uri">https://style.tidyverse.org/</a>
-</li>
-<li>Maximum line width is 80 characters.</li>
-<li>For code formatting, <strong>always</strong> run <code>air format .</code> before committing. Install the binary if not on PATH. Do not try to format manually.</li>
-<li>Extract complex logic into private/helper functions (prefixed with <code>.</code>) early. These helpers should be stateless and receive all necessary context via arguments.</li>
-<li>Functions should be short. Ideally no more than 25 lines. Split large functions into smaller ones with meaningful names.</li>
-<li>Main exported functions should come first in the file. Private helpers come at the end.</li>
-<li>Use <code>snake_case</code> for column names in tibbles. Names must be readable and self-explanatory — no cryptic abbreviations like <code>NEm</code>, <code>Bo</code>, <code>VS</code>, <code>GE</code>. Prefer descriptive names like <code>ne_maintenance</code>, <code>methane_potential</code>, <code>volatile_solids</code>, <code>gross_energy</code>.</li>
-<li>Avoid carrying redundant name+code column pairs (e.g. <code>area</code> + <code>area_code</code>, <code>item_prod</code> + <code>item_prod_code</code>) through intermediate computations. Integer codes are sufficient as join/group keys inside functions. Human-readable name columns should only be added at the final output stage via a dedicated lookup join. Do not add name columns to new functions until the lookup helpers exist.</li>
-<li>Always make sure all rules in this document and all linters have passed after a change in the code.</li>
-<li>Don’t use imported functions without namespace prefix (e.g. use <code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code> instead of just <code><a href="https://rdrr.io/r/stats/filter.html" class="external-link">filter()</a></code>). Do not use <code>@importFrom</code> in roxygen2 documentation.</li>
-<li>This is a tidy data project. Exported functions must accept and return <code>tibble</code> from tidyverse. Private helpers (<code>.</code> prefix) may use <code>data.table</code> internally for performance, but must convert back to tibble before returning. Never use bare <code>data.frame</code>.</li>
-<li>For argument validation use <code>rlang</code> functions (e.g. <code><a href="https://rlang.r-lib.org/reference/has_name.html" class="external-link">rlang::has_name()</a></code> instead of <code>%in% names()</code>).</li>
-<li>For error messages use <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code> instead of <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code>. Same for warnings (<code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_warn()</a></code>) and info.</li>
-<li>Escaped characters in regex must be double-escaped in R strings (e.g. <code>\\.</code> not <code>\.</code>).</li>
-<li>When defining functions that expect column names as arguments, expect symbolic names (unquoted) and use <code>{{ }}</code> (curly-curly) inside.</li>
-<li>There must not be functions inside functions. All functions at top level; helpers as private <code>.</code> functions.</li>
-<li>Always use native R pipes (<code>|&gt;</code>). Make functions look like piped expressions.</li>
-<li>Avoid for loops. Use vectorised operations, <code>purrr</code>, or <code>dplyr</code>/<code>tidyr</code>. Exception: data.table private helpers may use for loops when iterating over a small fixed set (e.g. column names).</li>
-<li>Avoid function signatures with &gt; 5 arguments. Group related arguments into named lists.</li>
-<li>Use <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> for small inline tibbles.</li>
-<li>Use <code>stringr</code> functions instead of base R for strings.</li>
-<li>Use <code>.by</code> argument name for grouping.</li>
+<h2 id="how-a-change-is-judged">How a change is judged<a class="anchor" aria-label="anchor" href="#how-a-change-is-judged"></a></h2>
+<p>In this order:</p>
+<ol style="list-style-type: decimal"><li>
+<strong>Are the numbers right, and is that shown?</strong> Evidence, not assertion.</li>
+<li>
+<strong>Do the checks pass?</strong> See <a href="#ci-checks">CI Checks</a>. Run them; do not predict them.</li>
+<li>
+<strong>Is it readable and in-style?</strong> See <a href="#code-style">Code style</a>.</li>
+</ol><p>Style nits are the cheapest thing to fix and the least important. Do not spend a review on them while leaving 1 and 2 unexamined.</p>
+<div class="section level3">
+<h3 id="evidence-a-change-must-carry">Evidence a change must carry<a class="anchor" aria-label="anchor" href="#evidence-a-change-must-carry"></a></h3>
+<ul><li>
+<strong>Bug fix</strong>: a test that fails before the fix and passes after it. Write it first, watch it fail, then fix.</li>
+<li>
+<strong>Changed numbers</strong>: state the before/after magnitude (in the PR body, and in <code>NEWS.md</code> when it is user-visible). “No published value changes” is also a claim that must be checked, not assumed.</li>
+<li>
+<strong>New code path</strong>: a test that reaches it — including the branch that aborts or warns, not just the happy path.</li>
+<li>
+<strong>Anything reading external data</strong>: an offline fixture, so the test suite never depends on a host being up. See <a href="#tests">Tests</a>.</li>
+<li>
+<strong>Prefer invariants over hand-picked expectations.</strong> The package ships them: <code><a href="reference/check_supply_use_balance.html">check_supply_use_balance()</a></code>, <code><a href="reference/check_footprint_conservation.html">check_footprint_conservation()</a></code>, <code><a href="reference/assert_footprint_invariants.html">assert_footprint_invariants()</a></code>, <code><a href="reference/check_series_jumps.html">check_series_jumps()</a></code>, plus pointblank column expectations in tests. An invariant catches the bug you did not imagine; an equality test on three rows does not.</li>
+<li>Report outcomes faithfully. If a check fails, say so and paste the output. If you skipped a step, say which.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="classify-every-change-mechanical-or-science-decision">Classify every change: mechanical or science decision<a class="anchor" aria-label="anchor" href="#classify-every-change-mechanical-or-science-decision"></a></h3>
+<p>Agents rank work by <em>engineering review effort</em> — small diff, green CI, one isolated file. That axis is <strong>orthogonal</strong> to <em>scientific decision content</em>. A one-line green diff can still embed a methodological choice. CI proves the code runs and that regressions are locked; it proves nothing about whether the embedded choice is the one the maintainer wants.</p>
+<p>So whenever proposing, reviewing, or prioritising a change, classify it:</p>
+<ul><li>
+<strong>Mechanical</strong> — objectively correct once implemented: a crash guard, a broken join, a dedup, a math identity that must hold, packaging/CI/docs. No defensible alternative. Reviewable on tests + CI.</li>
+<li>
+<strong>Science decision</strong> — defensible alternatives exist and results differ between them: a coefficient or reference value, an allocation rule, a conservation/mass-balance policy, a numeric cap or default, a fail-loud-vs-continue behaviour, a choice of estimation method or its default. Must not be merged on green CI alone.</li>
+</ul><p>State the classification and, for a science decision, <strong>surface the choice itself</strong> — what the alternatives are and what changes numerically between them — independent of how small the diff is. When in doubt, treat it as a science decision.</p>
+</div>
+<div class="section level3">
+<h3 id="never-invent-a-result-affecting-value">Never invent a result-affecting value<a class="anchor" aria-label="anchor" href="#never-invent-a-result-affecting-value"></a></h3>
+<ul><li>
+<strong>NEVER guess or hallucinate reference titles, authors, years, or DOIs.</strong> Verify from the actual source (web search, PDF, DOI lookup) before writing any bibliographic information. If you cannot verify it, say so explicitly.</li>
+<li>The same rule extends past citations to every value that moves a result: coefficients, emission and extraction factors, allocation rules, A-matrix caps, tolerances, and defaults. Each needs a source or an explicit, visible “assumed, unverified” note — never a plausible-looking number.</li>
+<li>Cite in the roxygen <code>@description</code> or a code comment at the point of use, not only in the PR body, which nobody reads a year later.</li>
+</ul></div>
+<div class="section level3">
+<h3 id="labels--the-triage-surface">Labels — the triage surface<a class="anchor" aria-label="anchor" href="#labels--the-triage-surface"></a></h3>
+<p>Labels are how the maintainer decides at a glance what can be batch-merged and what needs a domain expert. Label <strong>every</strong> issue extensively:</p>
+<ul><li>
+<strong>Triage axis (required, exactly one)</strong>: <code>mechanical</code> or <code>needs-expert</code>. Reference-value and coefficient changes are always <code>needs-expert</code>, even at one line. Infra, packaging, CRAN, docs, testing, and pure crash/identity fixes are <code>mechanical</code>. When in doubt, <code>needs-expert</code>.</li>
+<li>
+<strong>Subsystem</strong> (one or more, where applicable): <code>area:cbs</code>, <code>area:production</code>, <code>area:livestock</code>, <code>area:trade</code>, <code>area:footprint</code>, <code>area:nitrogen</code>, <code>area:soc</code>, <code>area:gapfilling</code>, <code>area:lmdi-decomp</code>, <code>area:data-io</code>, <code>area:spatialize</code>, <code>area:regions</code>, plus cross-cutting <code>fabio</code>, <code>lpjml</code>, <code>footprint-extension</code>. Cross-cutting infra/meta issues legitimately carry none — do not force one.</li>
+<li>
+<strong>Type</strong>: <code>bug</code> / <code>enhancement</code> / <code>documentation</code> / <code>dev-infra</code> / <code>testing</code> / <code>release</code>.</li>
+<li>
+<strong>Priority</strong>: a <code>priority:*</code> label.</li>
+</ul><p>Apply the full set when opening an issue; backfill missing labels when you touch an old one. PRs do not need the labels duplicated when they close an already-labelled issue.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="running-things">Running things<a class="anchor" aria-label="anchor" href="#running-things"></a></h2>
+<p><code>.Rprofile</code> runs <code>devtools::load_all()</code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">air</span> format .                     <span class="co"># mandatory before committing</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
+<span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
+<span>  build_args <span class="op">=</span> <span class="st">"--no-build-vignettes"</span>,</span>
+<span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
+<span>  error_on <span class="op">=</span> <span class="st">"error"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
+<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span></span>
+<span>    object_usage_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    line_length_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    indentation_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>    commas_linter <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Gotchas worth knowing before losing an hour:</p>
+<ul><li>The repo root has a <strong>tracked <code>.Renviron</code></strong>, which shadows <code>~/.Renviron</code>. Any <code>WHEP_*</code> path you set in your home file is invisible to an R session started here (#456). Pass the path argument explicitly, or set the variable in the session.</li>
+<li>Long pipeline builds are minutes-to-hours and read pins or multi-GB local rasters. Never put one in a test or an example; use the <a href="#documentation"><code>example = FALSE</code> fixture pattern</a>.</li>
+<li>
+<code>validation/</code> holds the ground-truth harness (<code>Rscript validation/validate_all.R</code>) — it compares real WHEP output against independent statistics. It <strong>needs network and external data</strong>, is <code>.Rbuildignore</code>d, and is not part of <code>R CMD check</code>. Run it when a change moves published numbers; see <code>validation/README.md</code> and <code>validation/SOURCES.md</code>.</li>
 </ul></div>
 <div class="section level2">
-<h2 id="multi-method-functions">Multi-method functions<a class="anchor" aria-label="anchor" href="#multi-method-functions"></a></h2>
-<ul><li>Estimation functions that admit more than one defensible method must expose a <code>method =</code> (or <code>tier =</code>) argument selecting among them, like <code>calculate_enteric_ch4(tier = )</code>. The default is the most rigorous available method; simpler methods remain selectable for the user’s choice, sensitivity analysis, and quantifying the accuracy benefit of the sophisticated method. Methods are alternatives, never silent fallbacks: the chosen method is recorded in an output column (e.g. <code>method_&lt;quantity&gt;</code>), and a coarser method is used only when explicitly requested.</li>
+<h2 id="conventions-that-are-easy-to-get-wrong">Conventions that are easy to get wrong<a class="anchor" aria-label="anchor" href="#conventions-that-are-easy-to-get-wrong"></a></h2>
+<div class="section level3">
+<h3 id="area-codes-and-polity-columns">Area codes and polity columns<a class="anchor" aria-label="anchor" href="#area-codes-and-polity-columns"></a></h3>
+<p>There are <strong>two code spaces</strong>, and confusing them silently misattributes data:</p>
+<ul><li>
+<code>area_code</code> — the FAOSTAT-style area key of the row.</li>
+<li>
+<code>polity_area_code</code> — the numeric key rows are <strong>aggregated on</strong> for the matrix workflows. It is a <em>bucket, not an identity</em>: 999 is Rest of World, 206 is Sudan (former), and 62 of the 257 ISO3 codes in <code>regions_full</code> do not get their own code.</li>
+<li>
+<code>reporting_polity_code</code> — the polity itself (<code>"ESP-1846-1914"</code>), year-aware: the same <code>area_code</code> resolves to different polities in different years. Use this to say which territory a row belongs to.</li>
+</ul><p><code>R/polity_columns_doc.R</code> documents these once; inherit that section instead of writing a fresh, subtly different description. Rows that resolve to no polity keep <code>NA</code> rather than being dropped, so gaps stay visible.</p>
+</div>
+<div class="section level3">
+<h3 id="join-on-codes-never-on-names">Join on codes, never on names<a class="anchor" aria-label="anchor" href="#join-on-codes-never-on-names"></a></h3>
+<p>Name-keyed joins have caused silent drops and double counts more than once. Join and group on integer codes inside functions; attach human-readable names only at the final output stage, with the lookup helpers that now exist: <code><a href="reference/add_area_code.html">add_area_code()</a></code>, <code><a href="reference/add_area_name.html">add_area_name()</a></code>, <code><a href="reference/add_item_cbs_code.html">add_item_cbs_code()</a></code>, <code><a href="reference/add_item_cbs_name.html">add_item_cbs_name()</a></code>, <code><a href="reference/add_item_prod_code.html">add_item_prod_code()</a></code>, <code><a href="reference/add_item_prod_name.html">add_item_prod_name()</a></code>, <code><a href="reference/add_polity_code.html">add_polity_code()</a></code>. Do not carry redundant name+code pairs through intermediate computations.</p>
+</div>
+<div class="section level3">
+<h3 id="multi-method-functions">Multi-method functions<a class="anchor" aria-label="anchor" href="#multi-method-functions"></a></h3>
+<p>Estimation functions that admit more than one defensible method must expose a <code>method =</code> (or <code>tier =</code>) argument selecting among them, validated with <code><a href="https://rlang.r-lib.org/reference/arg_match.html" class="external-link">rlang::arg_match()</a></code>. The default is the most rigorous available method; simpler methods stay selectable for the user’s choice, sensitivity analysis, and to quantify what the sophisticated method buys. Methods are alternatives, <strong>never silent fallbacks</strong>: record the chosen method in an output column (<code>method_&lt;quantity&gt;</code>, e.g. <code>method_soil_n2o</code>, <code>method_land</code>, <code>method_soc</code>), and use a coarser method only when explicitly requested.</p>
+</div>
+<div class="section level3">
+<h3 id="column-contracts">Column contracts<a class="anchor" aria-label="anchor" href="#column-contracts"></a></h3>
+<p>Validate arguments with <code>rlang</code> (<code><a href="https://rlang.r-lib.org/reference/has_name.html" class="external-link">rlang::has_name()</a></code>, <code><a href="https://rlang.r-lib.org/reference/arg_match.html" class="external-link">rlang::arg_match()</a></code>), not base R, and abort with <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code>. For completing a tibble to a known schema, use the exported <code><a href="reference/ensure_columns.html">ensure_columns()</a></code> with a zero-row prototype rather than ad-hoc <code>if (!has_name(...)) mutate(x = NA)</code> chains.</p>
+</div>
+<div class="section level3">
+<h3 id="nse-globals">NSE globals<a class="anchor" aria-label="anchor" href="#nse-globals"></a></h3>
+<p>Every NSE symbol must be declared in the <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> call at the top of <code>R/utils.R</code> or <code>R CMD check</code> NOTEs. It is ~1700 entries long: <strong>append</strong> a small block at the end, preceded by a comment naming the file and what the symbols are for, following the existing pattern. Do not reorder or alphabetise it — the file-grouped comments are the only thing making it reviewable.</p>
+</div>
+<div class="section level3">
+<h3 id="datatable-inside-private-helpers">data.table inside private helpers<a class="anchor" aria-label="anchor" href="#datatable-inside-private-helpers"></a></h3>
+<p>This is a tidy-data project: exported functions accept and return <code>tibble</code>. Private (<code>.</code>-prefixed) helpers may use <code>data.table</code> internally for performance, and must convert back to tibble before returning. Never use bare <code>data.frame</code>. <code>R/data_table_awareness.R</code> sets <code>.datatable.aware</code> for the package — leave it alone. Always namespace-prefix (<code>data.table::</code>).</p>
+</div>
+<div class="section level3">
+<h3 id="where-input-data-comes-from">Where input data comes from<a class="anchor" aria-label="anchor" href="#where-input-data-comes-from"></a></h3>
+<p>Three distinct mechanisms, and picking the wrong one is a design error:</p>
+<ul><li>
+<strong>Pins</strong> (<code>whep_inputs.csv</code> + the pins board) — for data WHEP itself produced or curated, which a user cannot otherwise obtain. Prepare with <code>inst/scripts/prepare_upload.R</code>.</li>
+<li>
+<strong>Env-var-gated local rasters</strong> — multi-GB third-party archives stay on local disk and are read via env vars: <code>WHEP_CRU_DIR</code>, <code>WHEP_LPJML_RUN_DIR</code>, <code>WHEP_HYDE_DIR</code>, <code>WHEP_HANI_DIR</code>, <code>WHEP_WIND_DIR</code>, <code>WHEP_LUH2_DIR</code>, <code>WHEP_HWSD_DIR</code>, <code>WHEP_CRITICAL_N_DIR</code>, plus the gridded land surfaces (<code>WHEP_TYPE_CROPLAND_PATH</code>, <code>WHEP_CROP_PATTERNS_PATH</code>, <code>WHEP_GRIDDED_PASTURE_PATH</code>, <code>WHEP_POLITY_FRACTION_PATH</code>). The readers <strong>abort with an instruction</strong> when unset. Never hardcode an absolute path, and never invent a fallback that silently reads something else.</li>
+<li>
+<strong>Verified on-demand download</strong> — for third-party data already published with a stable DOI and checksum: download, verify the published MD5, cache under <code>rappdirs::user_cache_dir("whep")</code>, and treat the env var as an override. Prefer this over a pin, which adds an uncheckable second copy (#457). Current cases: the LUH2 <code>states.nc</code> (<code><a href="reference/read_luh2_landuse.html">read_luh2_landuse()</a></code>, Zenodo record 15556812) and the critical-nitrogen archive (<code><a href="reference/read_critical_n.html">read_critical_n()</a></code>, Zenodo record 6395016).</li>
+</ul></div>
+<div class="section level3">
+<h3 id="newsmd">NEWS.md<a class="anchor" aria-label="anchor" href="#newsmd"></a></h3>
+<p><code>NEWS.md</code> carries user-visible behaviour changes under <code># whep (development version)</code>, in prose, naming what changed and what it does to published values (including “no published value changes”). Roughly a fifth of merges need an entry: add one whenever behaviour, an exported signature, or a number a user could have relied on changes. Pure refactors, tests, and CI work do not need one.</p>
+</div>
+<div class="section level3">
+<h3 id="file-naming">File naming<a class="anchor" aria-label="anchor" href="#file-naming"></a></h3>
+<p>New scripts in <code>R/</code> are <code>snake_case.R</code>, named after the subsystem (<code>n_balance_losses.R</code>), never after a person. <code>tests/testthat/test_&lt;script&gt;.R</code> mirrors the script. Some legacy files (<code>Typologies_Julia.R</code>, <code>whep_typologies_spain.R</code>) break this; do not copy them.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="code-style">Code style<a class="anchor" aria-label="anchor" href="#code-style"></a></h2>
+<p>Load-bearing (a linter, <code>air</code>, or <code>R CMD check</code> enforces it):</p>
+<ul><li>Maximum line width is 80 characters.</li>
+<li>
+<strong>Always</strong> run <code>air format .</code> before committing. Install the binary if it is not on PATH. Do not format manually — and note <code>air.toml</code> sets <code>skip = ["tribble"]</code>, so <code>tribble()</code> bodies keep the alignment you give them; align them yourself.</li>
+<li>Namespace-prefix every imported function (<code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code>, and <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>, not <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code>). Do not use <code>@importFrom</code>.</li>
+<li>Variable and function names must not exceed 30 characters.</li>
+<li>Escaped characters in regex must be double-escaped in R strings (<code>\\.</code>, not <code>\.</code>).</li>
+</ul><p>Conventions of the codebase (follow them; they are how the code reads):</p>
+<ul><li>Follow the workflow: <a href="https://lbm364dl.github.io/follow-the-workflow/" class="external-link uri">https://lbm364dl.github.io/follow-the-workflow/</a> and the tidyverse style guide: <a href="https://style.tidyverse.org/" class="external-link uri">https://style.tidyverse.org/</a>.</li>
+<li>Use <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_abort()</a></code> / <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_warn()</a></code> / <code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_inform()</a></code> instead of <code><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop()</a></code> / <code><a href="https://rdrr.io/r/base/warning.html" class="external-link">warning()</a></code> / <code><a href="https://rdrr.io/r/base/message.html" class="external-link">message()</a></code>, with cli’s inline markup (<code>{.arg x}</code>, <code>{.val {v}}</code>) and pluralisation (<code>{?s}</code>).</li>
+<li>
+<code>snake_case</code> for column names in tibbles. Readable and self-explanatory — no cryptic abbreviations like <code>NEm</code>, <code>Bo</code>, <code>VS</code>, <code>GE</code>. Prefer <code>ne_maintenance</code>, <code>methane_potential</code>, <code>volatile_solids</code>, <code>gross_energy</code>.</li>
+<li>Extract complex logic into private helpers (<code>.</code> prefix) early. Helpers are stateless and receive all context via arguments.</li>
+<li>No functions inside functions — all definitions at top level. Exported functions first in the file, private helpers after them.</li>
+<li>Native pipes (<code>|&gt;</code>); make functions read as piped expressions. Avoid long chains of intermediate assignments.</li>
+<li>Avoid <code>for</code> loops: vectorise, or use <code>purrr</code> / <code>dplyr</code> / <code>tidyr</code>. Exception: a data.table helper iterating a small fixed set of column names.</li>
+<li>Keep functions short. The codebase median is 16 lines and 72% are under 25 — that is the norm to match, not a limit to game. Split when a function does two things, not to hit a number; a 40-line function that reads top-to-bottom is better than four helpers that only exist to be short.</li>
+<li>Avoid signatures with more than ~5 arguments; group related ones into named lists.</li>
+<li>Column-name arguments are symbolic (unquoted), used with <code>{{ }}</code> inside and tunnelled with <code>{{ }}</code> when passed down.</li>
+<li>
+<code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> for small inline tibbles; <code>stringr</code> over base R for strings; <code>.by</code> for grouping.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a></h2>
-<ul><li>Use roxygen2. Only document exported functions. Private functions (<code>.</code> prefix) can remain undocumented.</li>
-<li>Finish all doc sentences with full stop.</li>
-<li>First line = title (no <code>@title</code> tag). Short, verb in imperative form.</li>
-<li>Then <code>@description</code>, <code>@param</code> for each parameter, <code>@return</code>, <code>@export</code>, <code>@examples</code>.</li>
-<li>One space after <code>#'</code>. Indent continuation lines by two spaces.</li>
-<li>Variable and function names must not exceed 30 characters.</li>
+<ul><li>roxygen2, markdown enabled. Document exported functions only; private (<code>.</code>-prefixed) helpers may stay undocumented.</li>
+<li>First line = title, no <code>@title</code> tag, short, imperative verb. Then <code>@description</code>, one <code>@param</code> per parameter, <code>@return</code>, <code>@export</code>, <code>@examples</code>.</li>
+<li>One space after <code>#'</code>; indent continuation lines by two spaces. Finish all doc sentences with a full stop.</li>
+<li>Reuse shared descriptions with <code>@inheritParams</code> / <code>@inheritSection</code> (see <code>R/polity_columns_doc.R</code>) instead of re-describing the same columns.</li>
 <li>
-<strong>Never</strong> use <code>\dontrun{}</code> or <code>\donttest{}</code> in examples. All examples must run during <code>R CMD check</code>. For functions that depend on external/remote data or take too long to run live, use the <code>example = FALSE</code> parameter pattern: add an <code>example</code> argument that, when <code>TRUE</code>, returns a small hardcoded <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> from a private helper in <code>R/toy_examples.R</code> (run the real function first, then sample ~10 rows for the fixture). The <code>@examples</code> block then just calls <code>my_function(example = TRUE)</code>. See <code><a href="reference/build_primary_production.html">build_primary_production()</a></code> and <code>R/toy_examples.R</code> for reference. For functions that run fast on small input, just provide a self-contained inline example directly.</li>
+<strong>Never</strong> use <code>\dontrun{}</code> or <code>\donttest{}</code>. Every example runs during <code>R CMD check</code>. For functions depending on remote data or slow builds, use the <code>example = FALSE</code> pattern: an <code>example</code> argument that returns a small hardcoded <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> from a <code>.example_*()</code> helper in <code>R/toy_examples.R</code> (run the real function once, then sample ~10 rows). The <code>@examples</code> block is then just <code>my_function(example = TRUE)</code>. ~50 functions already do this and <code>R/toy_examples.R</code> holds 46 such fixtures — copy the nearest one. Fast, self-contained functions get a plain inline example.</li>
+<li>Examples must not use a package from <code>Suggests</code> without guarding it (<code><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace()</a></code>), and must not need a <code>WHEP_*</code> env var.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="tests">Tests<a class="anchor" aria-label="anchor" href="#tests"></a></h2>
-<ul><li>All functions should have tests with <code>testthat</code>.</li>
-<li>One test file per R script: <code>tests/testthat/test_scriptname.R</code>.</li>
-<li>Access exported objects (functions and datasets) via <code><a href="https://rdrr.io/r/base/name.html" class="external-link">whep::name</a></code> in tests, not bare names. For dynamic access in loops, use <code>getExportedValue("whep", nm)</code>. Never use <code>:::</code> or <code><a href="https://rdrr.io/r/utils/getFromNamespace.html" class="external-link">getFromNamespace()</a></code> for exported objects.</li>
-<li>Use <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code>, pipes, <code><a href="https://dplyr.tidyverse.org/reference/pull.html" class="external-link">dplyr::pull()</a></code>, pointblank assertions.</li>
-<li>Take <code>test_gapfilling.R</code> as example.</li>
-<li>Make helper fixtures to reduce code repetition.</li>
-</ul></div>
-<div class="section level2">
-<h2 id="references--citations">References &amp; Citations<a class="anchor" aria-label="anchor" href="#references--citations"></a></h2>
 <ul><li>
-<strong>NEVER guess or hallucinate reference titles, authors, years, or DOIs.</strong> Always verify from the actual source (web search, PDF, or DOI lookup) before writing any bibliographic information.</li>
-<li>If you cannot verify a reference, say so explicitly rather than guessing.</li>
+<code>testthat</code> edition 3. One test file per <code>R/</code> script: <code>tests/testthat/test_scriptname.R</code>.</li>
+<li>
+<strong>The suite must never reach the network or read a <code>WHEP_*</code> path.</strong> A test that does turns an unrelated outage into a hard <code>R CMD check</code> ERROR (#490). Stub the reader with <code><a href="https://testthat.r-lib.org/reference/local_mocked_bindings.html" class="external-link">testthat::local_mocked_bindings()</a></code> (43 call sites do this already) or use a fixture under <code>tests/testthat/fixtures/</code>.</li>
+<li>Access exported objects via <code><a href="https://rdrr.io/r/base/name.html" class="external-link">whep::name</a></code> — never <code>:::</code> or <code><a href="https://rdrr.io/r/utils/getFromNamespace.html" class="external-link">getFromNamespace()</a></code> for something exported. Private helpers are tested directly as <code>whep:::.helper()</code>, which is the established practice. For dynamic access in loops use <code>getExportedValue("whep", nm)</code>.</li>
+<li>Guard anything from <code>Suggests</code> with <code><a href="https://testthat.r-lib.org/reference/skip.html" class="external-link">testthat::skip_if_not_installed()</a></code> (pointblank, sf, terra, ncdf4, ggplot2 are all Suggests).</li>
+<li>Use <code><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tibble::tribble()</a></code> fixtures, pipes, <code><a href="https://dplyr.tidyverse.org/reference/pull.html" class="external-link">dplyr::pull()</a></code>, and pointblank expectations (<code>expect_col_exists()</code>, <code>expect_col_vals_in_set()</code>, <code>expect_col_vals_not_null()</code>, <code>expect_col_vals_equal()</code>).</li>
+<li>Test edge cases and the failure branches: the abort message, the warning, the empty input, the missing column. <code>expect_error(class = ...)</code> against a condition class is better than matching message text.</li>
+<li>Factor repeated fixtures into helpers (<code>tests/testthat/helper_*.R</code>).</li>
+<li>
+<code>test_gapfilling.R</code> is the reference for style; <code>test_commodity_balance_sheet.R</code> is the reference for small self-contained fixtures with no pins and no network.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="ci-checks">CI Checks<a class="anchor" aria-label="anchor" href="#ci-checks"></a></h2>
 <p>The PR must pass these GitHub Actions checks:</p>
 <ol style="list-style-type: decimal"><li>
-<strong>R-CMD-check</strong> (5 platforms): <code><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck::rcmdcheck()</a></code> with no errors, warnings, or notes.
-<ul><li>All NSE variables must be declared in <code><a href="https://rdrr.io/r/utils/globalVariables.html" class="external-link">utils::globalVariables()</a></code> in <code>R/utils.R</code>.</li>
-<li>All <code>stats::</code> functions must use explicit prefix (e.g., <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>).</li>
-<li>Run locally: <code>Rscript -e "rcmdcheck::rcmdcheck(build_args='--no-build-vignettes', args=c('--no-tests','--ignore-vignettes'), error_on='error')"</code>
-</li>
-</ul></li>
+<strong>R-CMD-check</strong> (5 platforms, 30-min timeout): <code><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck::rcmdcheck()</a></code> with no errors, warnings, or notes. Tests run here, which is why a network-dependent test breaks the build.</li>
 <li>
-<strong>lint</strong> (<code>lintr</code>): Must pass with these linters disabled: <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code>, <code>commas_linter</code> (conflicts with <code>air</code> formatting).
-<ul><li>Run locally: <code>Rscript -e "lintr::lint_package(linters=lintr::linters_with_defaults(object_usage_linter=NULL, line_length_linter=NULL, indentation_linter=NULL, commas_linter=NULL))"</code>
-</li>
-</ul></li>
+<strong>lint</strong> (<code>lintr</code>): with <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code> and <code>commas_linter</code> disabled (they conflict with <code>air</code>). <code>inst/scripts</code> and <code>inst/analysis</code> are excluded.</li>
 <li>
-<strong>format-suggest</strong> (<code>air</code>): Code must be formatted with <code>air format .</code>
-<ul><li>
-<strong>This is mandatory, not optional.</strong> Do not attempt to manually match air style – always run the binary.</li>
-<li>If <code>air</code> is not on PATH, install it: download from <code>https://github.com/posit-dev/air/releases/latest/download/air-x86_64-pc-windows-msvc.zip</code> (Windows) or use <code>posit-dev/setup-air</code> (CI). Then run <code>air format .</code> on the repo root.</li>
-<li>After running air, also run <code>devtools::document()</code> to update <code>man/</code> files.</li>
-<li>Air formats <strong>all</strong> <code>.R</code> files: <code>R/</code>, <code>tests/</code>, <code>data-raw/</code>, etc. Not just the files you edited.</li>
-</ul></li>
+<strong>format-suggest</strong> (<code>air</code>): code must be formatted with <code>air format .</code>. Mandatory, not optional. Air formats <strong>all</strong> <code>.R</code> files — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not just the ones you edited. Run <code>devtools::document()</code> afterwards.</li>
 <li>
-<strong>pkgdown</strong>: The documentation site must build without errors.
-<ul><li>
-<strong>Every documented topic</strong> (functions AND datasets with roxygen docs) must appear in <code>_pkgdown.yml</code> under the <code>reference:</code> section. This includes all <code>.Rd</code> files in <code>man/</code>.</li>
-<li>When adding new exported functions or documented datasets, add them to the appropriate section in <code>_pkgdown.yml</code> (or create a new section).</li>
-<li>To verify: compare <code>ls man/*.Rd</code> topics against <code>_pkgdown.yml</code> contents. Every <code>.Rd</code> file (except <code>whep-package.Rd</code>) must have a matching entry.</li>
-<li>Run locally: <code>Rscript -e "pkgdown::build_reference_index()"</code>
-</li>
-</ul></li>
+<strong>pkgdown</strong>: the site must build. <strong>Every</strong> documented topic (functions and documented datasets) must appear in <code>_pkgdown.yml</code> under <code>reference:</code> — every <code>man/*.Rd</code> except <code>whep-package.Rd</code>. Verify with the <code>comm</code> command below; it is currently clean, so any output is your change.</li>
 <li>
-<strong>Tests</strong>: <code>devtools::test()</code> — the whole suite must be 100% green (a failing test is a hard <code>R CMD check --as-cran</code> ERROR). <code>test_commodity_balance_sheet.R</code> uses small self-contained fixtures (no pins, no network) and passes.</li>
+<strong>test-coverage</strong> (<code>covr</code> → Codecov): the suite runs again here and coverage is reported. New exported functions should arrive with tests, not after them.</li>
 </ol></div>
 <div class="section level2">
 <h2 id="before-committing">Before committing<a class="anchor" aria-label="anchor" href="#before-committing"></a></h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># 1. Format (MANDATORY — do not skip, do not do manually)</span></span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># 1. Format (MANDATORY — do not skip, do not do manually)</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 2. Document</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
@@ -148,11 +254,12 @@
 <span></span>
 <span><span class="co"># 4. Test</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">ls</span> man/<span class="pp">*</span>.Rd <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s|man/||;s|\.Rd||'</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> whep-package <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span> <span class="dt">\</span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">grep</span> <span class="st">'^  - '</span> _pkgdown.yml <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s/^  - //'</span> <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">ls</span> man/<span class="pp">*</span>.Rd <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s|man/||;s|\.Rd||'</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> whep-package <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span> <span class="dt">\</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">grep</span> <span class="st">'^  - '</span> _pkgdown.yml <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s/^  - //'</span> <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span></span></code></pre></div>
+<p>Commits are conventional-commit style with a subsystem scope (<code>fix(cbs): key source selection on area_code, not periodized name</code>), branches are <code>fix/…</code>, <code>feat/…</code>, <code>perf/…</code> or <code>&lt;user&gt;/&lt;topic&gt;</code>, and the PR body references the issue it closes.</p>
 </div>
 <div class="section level2">
 <h2 id="data-pipeline">Data pipeline<a class="anchor" aria-label="anchor" href="#data-pipeline"></a></h2>
@@ -165,17 +272,17 @@
 <li>
 <strong>Soil water balance</strong>: <code><a href="reference/build_water_balance.html">build_water_balance()</a></code> — gridded (0.5° cell × polity) annual water budget from LPJmL hydrology (drainage for N leaching); <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> emits the monthly SOC climate drivers.</li>
 <li>
-<strong>Soil carbon (SOC)</strong>: <code><a href="reference/build_carbon_balance.html">build_carbon_balance()</a></code> — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. <code>calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg","century"))</code> wraps the five SOC models (default <code>"hsoc"</code>); <code><a href="reference/build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> assembles humified C inputs.</li>
+<strong>Soil carbon (SOC)</strong>: <code><a href="reference/build_carbon_balance.html">build_carbon_balance()</a></code> — historical gridded SOC dynamics (equilibrium init + LUH2-driven march + LUC transfer), yielding ΔSOC → ΔSON. <code>calculate_soc_dynamics(model = c("hsoc","rothc","icbm","amg", "century"))</code> wraps the five SOC models (default <code>"hsoc"</code>); <code><a href="reference/build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code> assembles humified C inputs.</li>
 <li>
-<strong>Soil nitrogen balance</strong>: <code><a href="reference/build_nitrogen_balance.html">build_nitrogen_balance()</a></code> — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). <code><a href="reference/build_n_inputs.html">build_n_inputs()</a></code> assembles the input terms; <code><a href="reference/calculate_nh3.html">calculate_nh3()</a></code>/<code><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o()</a></code>/<code><a href="reference/calculate_n_leaching.html">calculate_n_leaching()</a></code> are the selectable loss methods; <code><a href="reference/build_n_deposition.html">build_n_deposition()</a></code>/<code><a href="reference/build_urban_n.html">build_urban_n()</a></code> read gridded deposition and urban/human N.</li>
+<strong>Soil nitrogen balance</strong>: <code><a href="reference/build_nitrogen_balance.html">build_nitrogen_balance()</a></code> — full gridded N balance (inputs − outputs, NUE indicators, GWP/CO2e). <code><a href="reference/build_n_inputs.html">build_n_inputs()</a></code> assembles the input terms; <code><a href="reference/calculate_nh3.html">calculate_nh3()</a></code> / <code><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o()</a></code> / <code><a href="reference/calculate_n_leaching.html">calculate_n_leaching()</a></code> are the selectable loss methods; <code><a href="reference/build_n_deposition.html">build_n_deposition()</a></code> / <code><a href="reference/build_urban_n.html">build_urban_n()</a></code> read gridded deposition and urban/human N.</li>
+<li>
+<strong>Footprints</strong>: <code><a href="reference/build_footprint.html">build_footprint()</a></code> over the FABIO-style IO core (<code><a href="reference/build_io_model.html">build_io_model()</a></code>, <code>leontief.R</code>), with extensions wired per stressor (<code>crop_land_extension.R</code>, <code>grassland_land_extension.R</code>, <code>livestock_ghg_extension.R</code>, <code>energy_co2_extension.R</code>, <code>crop_soil_n2o_extension.R</code>, <code>n_exceedance_extension.R</code>). Conservation checks live in <code>R/conservation.R</code> — a footprint change should exercise them.</li>
 <li>
 <strong>Source labels</strong>: use dataset-specific names (<code>FAOSTAT_prod</code>, <code>FAOSTAT_FBS_New</code>, etc.).</li>
 <li>
-<strong>New data sources</strong>: register via <code>whep_inputs.csv</code> + pins system; prepare with <code>inst/scripts/prepare_upload.R</code>. Multi-GB rasters (CRU, LPJmL, HYDE, HaNi, wind, LUH2, HWSD) and the Schulte-Uebbing gridded critical-nitrogen archive stay on local disk and are read via env vars (<code>WHEP_CRU_DIR</code>, <code>WHEP_LPJML_RUN_DIR</code>, <code>WHEP_HYDE_DIR</code>, <code>WHEP_HANI_DIR</code>, <code>WHEP_WIND_DIR</code>, <code>WHEP_LUH2_DIR</code>, <code>WHEP_HWSD_DIR</code>, <code>WHEP_CRITICAL_N_DIR</code>); the readers abort with an instruction when unset (never hardcode the absolute path). The gridded nitrogen balance reads its land surfaces the same way (<code>WHEP_TYPE_CROPLAND_PATH</code>, <code>WHEP_CROP_PATTERNS_PATH</code>, <code>WHEP_GRIDDED_PASTURE_PATH</code>, <code>WHEP_POLITY_FRACTION_PATH</code>).</li>
+<strong>New data sources</strong>: see <a href="#where-input-data-comes-from">Where input data comes from</a> for which of the three mechanisms to use.</li>
 <li>
-<strong>Two of those download on demand instead of aborting</strong>, because their source is openly licensed and publishes a checksum: the LUH2 <code>states.nc</code> (<code><a href="reference/read_luh2_landuse.html">read_luh2_landuse()</a></code>, Zenodo record 15556812) and the critical-nitrogen archive (<code><a href="reference/read_critical_n.html">read_critical_n()</a></code>, Zenodo record 6395016). Both verify the published MD5, cache under <code>rappdirs::user_cache_dir("whep")</code>, and treat their env var as an override. Prefer this over a pin for third-party data already published with a stable DOI and checksum — a pin adds an uncheckable second copy (see #457).</li>
-<li>
-<strong>LPJmL outputs are the one input a user cannot obtain</strong>, so unlike the third-party rasters above they are <strong>pinned, and <code>WHEP_LPJML_RUN_DIR</code> is optional</strong>. <code><a href="reference/build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code> reads <code>lpjml-grass-natural-net-c</code> and <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> reads <code>lpjml-soc-hydrology</code> by default; set the env var (or pass <code>run_dir</code>) only to derive those layers from a local run instead. Both artifacts hold <strong>only</strong> LPJmL-derived quantities — grazing excreta, humification fractions, CRU air temperature and the HWSD texture products are always computed locally, so the pinned and run-derived paths cannot silently disagree. Regenerate and re-upload them from a new run with <code>upload_whep_lpjml_soc_artifacts()</code> in the <code>~/whep_inputs</code> project.</li>
+<strong>LPJmL outputs are the one input a user cannot obtain</strong>, so unlike the third-party rasters they are <strong>pinned, and <code>WHEP_LPJML_RUN_DIR</code> is optional</strong>. <code><a href="reference/build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code> reads <code>lpjml-grass-natural-net-c</code> and <code><a href="reference/get_soc_climate_drivers.html">get_soc_climate_drivers()</a></code> reads <code>lpjml-soc-hydrology</code> by default; set the env var (or pass <code>run_dir</code>) only to derive those layers from a local run instead. Both artifacts hold <strong>only</strong> LPJmL-derived quantities — grazing excreta, humification fractions, CRU air temperature and the HWSD texture products are always computed locally, so the pinned and run-derived paths cannot silently disagree. Regenerate and re-upload them from a new run with <code>upload_whep_lpjml_soc_artifacts()</code> in the <code>~/whep_inputs</code> project.</li>
 </ul></div>
 <div class="section level2">
 <h2 id="package-data-updates">Package data updates<a class="anchor" aria-label="anchor" href="#package-data-updates"></a></h2>
@@ -185,6 +292,10 @@
 <li>Run <code>Rscript data-raw/table_mappings.R</code> if <code>regions.csv</code> or <code>items_*.csv</code> changed.</li>
 <li>Run <code>Rscript data-raw/whep_inputs.R</code> if <code>whep_inputs.csv</code> changed.</li>
 </ol></div>
+<div class="section level2">
+<h2 id="this-is-the-only-agent-instruction-file">This is the only agent instruction file<a class="anchor" aria-label="anchor" href="#this-is-the-only-agent-instruction-file"></a></h2>
+<p>The repo used to carry per-tool copies of these rules (<code>.github/copilot-instructions.md</code>, <code>.agent/rules/whep.md</code>). They drifted — one still forbade <code>data.table</code>, which the package now Imports — so they were deleted. Do not reintroduce a copy: if a tool needs its own entry point, make that file a pointer to this one.</p>
+</div>
 </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
