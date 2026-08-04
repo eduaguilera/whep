@@ -109,7 +109,7 @@ build_supply_use(example = TRUE)
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
 #>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
 #>  1  2021       255              255 BEL-1831-2025         Belgium               
-#>  2  2003        84               84 GRC-1919-2025         Greece                
+#>  2  2003        84               84 GRC-1947-2025         Greece (1947-2025)    
 #>  3  1982         3                3 ALB-1913-2025         Albania (1913-2025)   
 #>  4  2000         8                8 ATG-1800-2025         Antigua and Barbuda   
 #>  5  2013       170              170 PER-1942-2025         Peru                  

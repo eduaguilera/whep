@@ -100,8 +100,8 @@ build_primary_production(example = TRUE)
 #>  6  1867        90               90 GIN-1958-2025         Guinea               
 #>  7  1939        15               15 BLX-1850-1999         Belgium-Luxembourg   
 #>  8  1935       211              211 CHE-1800-2025         Switzerland          
-#>  9  1937         9                9 ARG-1800-2025         Argentina            
-#> 10  2000         9                9 ARG-1800-2025         Argentina            
+#>  9  1937         9                9 ARG-1902-2025         Argentina            
+#> 10  2000         9                9 ARG-1902-2025         Argentina            
 #> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_prod_code <chr>, item_cbs_code <dbl>, live_anim_code <chr>,
 #> #   unit <chr>, value <dbl>, source <chr>

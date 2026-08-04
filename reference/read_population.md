@@ -88,6 +88,6 @@ read_population(example = TRUE)
 #> 2  2010       100              100 IND-1949-2025         India                  
 #> 3  2010       231              231 USA-1959-2025         United States of Ameri…
 #> 4  2010       101              101 IDN-2002-2025         Indonesia              
-#> 5  2010        21               21 BRA-1800-2025         Brazil                 
+#> 5  2010        21               21 BRA-1909-2025         Brazil                 
 #> # ℹ 2 more variables: reporting_polity_has_geometry <lgl>, population <dbl>
 ```

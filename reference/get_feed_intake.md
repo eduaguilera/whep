@@ -114,7 +114,7 @@ get_feed_intake(example = TRUE)
 #>  6  1986         4                4 DZA-1962-2025         Algeria (1962-2025)   
 #>  7  2010       150              150 NLD-1830-2025         Netherlands           
 #>  8  1978        NA               NA NA                    NA                    
-#>  9  2021        23               23 BLZ-1800-2025         Belize                
+#>  9  2021        23               23 BLZ-1981-2025         Belize                
 #> 10  1977       114              114 KEN-1963-2025         Kenya                 
 #> 11  2020        32               32 CMR-1961-2025         Cameroon              
 #> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>,

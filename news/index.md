@@ -2,6 +2,34 @@
 
 ## whep (development version)
 
+- `polity_area_crosswalk` now takes its area-to-polity mapping from
+  **upstream’s published map** (`faostat_area_polity_map.csv`, read via
+  `WHEP_POLITIES_FAOSTAT_MAP`, 281 rows over 228 FAOSTAT area codes)
+  instead of inferring it from the polity-code string with
+  `sub("-.*", "", polity_code)`. The build aborts if the map is absent
+  rather than falling back silently. Seven reporting areas gain a
+  mapping no prefix could reach – Djibouti (72) had resolved to
+  **nothing**, and areas 7, 20, 181, 237, 249 and 251 reach
+  `ANG-1905-1975`, `BEC-1885-1966`, `SRH-1953-1964`, `F237-1954-1975`,
+  `F249-1918-1990` and `NRH-1953-1964`. Area 15 resolves to
+  `BLX-1850-1999` rather than `BLX-1921-1999`, and area 206 “Sudan
+  (former)” to `SUD-1956-2011` rather than standing in on post-secession
+  `SDN-2011-2025`. Prefix inference is kept, labelled in a new
+  `mapping_source` column, only where the map is silent: seven areas it
+  does not cover (351 and 901-906) and periods outside the spans it
+  declares, which is what keeps pre-1961 history resolvable for sources
+  reported under their own borders. The four-part codes that used to
+  enter through the prefix collapse (`AZE-SSR-1920-1991`,
+  `IDN-BLB/JVM/OTH-1949-1951`, `MMR-LWR-1852-1885`) are gone, taking
+  crosswalk `subnational` rows from 6 to 3 and ambiguous `(area, year)`
+  resolutions from 199 to 86. **This moves published values and no
+  magnitude comparison has been run.**
+
+- `polities` is refreshed from upstream, 603 rows to **740**, because
+  the published map names 43 polity codes the old snapshot did not
+  contain. This is the refresh
+  [\#485](https://github.com/eduaguilera/whep/issues/485) drafted.
+
 - The manure/nutrient chain now documents **one vocabulary for
   `territory`**: a stringified `area_code`, what
   [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)

@@ -97,8 +97,8 @@ build_energy_co2_extension(example = TRUE)
 #> # A tibble: 8 × 9
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name  
 #>   <int>     <int>            <int> <chr>                 <chr>                  
-#> 1  2010        21               21 BRA-1800-2025         Brazil                 
-#> 2  2010        21               21 BRA-1800-2025         Brazil                 
+#> 1  2010        21               21 BRA-1909-2025         Brazil                 
+#> 2  2010        21               21 BRA-1909-2025         Brazil                 
 #> 3  2010       231              231 USA-1959-2025         United States of Ameri…
 #> 4  2010       231              231 USA-1959-2025         United States of Ameri…
 #> 5  2010       231              231 USA-1959-2025         United States of Ameri…

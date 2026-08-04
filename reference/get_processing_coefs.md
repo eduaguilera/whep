@@ -82,18 +82,18 @@ few data where this doesn't hold.
 ``` r
 get_processing_coefs(example = TRUE)
 #> # A tibble: 10 × 14
-#>     year area_code polity_area_code reporting_polity_code reporting_polity_name
-#>    <dbl>     <dbl>            <int> <chr>                 <chr>                
-#>  1  1974       203              203 ESP-1800-2025         Spain                
-#>  2  1991        28               28 MMR-1885-2025         Myanmar              
-#>  3  1983        68               68 FRA-1919-2025         France               
-#>  4  1999        68               68 FRA-1919-2025         France               
-#>  5  2020       202              202 ZAF-1828-2025         South Africa         
-#>  6  2010        20               20 BWA-1966-2025         Botswana             
-#>  7  1972       226              226 UGA-1962-2025         Uganda               
-#>  8  1974       103              103 IRQ-1921-2025         Iraq                 
-#>  9  1995       230              230 UKR-1991-2014         Ukraine (1991-2014)  
-#> 10  1970       223              223 TUR-1920-2025         Türkiye (1920-2025)  
+#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
+#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
+#>  1  1974       203              203 ESP-1800-2025         Spain                 
+#>  2  1991        28               28 MMR-1885-2025         Myanmar               
+#>  3  1983        68               68 FRA-1919-2025         France                
+#>  4  1999        68               68 FRA-1919-2025         France                
+#>  5  2020       202              202 ZAF-1910-2025         South Africa (Union a…
+#>  6  2010        20               20 BWA-1966-2025         Botswana              
+#>  7  1972       226              226 UGA-1962-2025         Uganda                
+#>  8  1974       103              103 IRQ-1932-2025         Iraq                  
+#>  9  1995       230              230 UKR-1991-2014         Ukraine (1991-2014)   
+#> 10  1970       223              223 TUR-1920-2025         Türkiye (1920-2025)   
 #> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>,
 #> #   item_cbs_code_to_process <dbl>, value_to_process <dbl>,
 #> #   item_cbs_code_processed <dbl>, initial_conversion_factor <dbl>,

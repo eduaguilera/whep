@@ -129,8 +129,8 @@ build_water_balance(example = TRUE)
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2000        11               11 AUT-1919-2025         Austria              
 #> 2  2000        11               11 AUT-1919-2025         Austria              
-#> 3  2000        21               21 BRA-1800-2025         Brazil               
-#> 4  2000        21               21 BRA-1800-2025         Brazil               
+#> 3  2000        21               21 BRA-1909-2025         Brazil               
+#> 4  2000        21               21 BRA-1909-2025         Brazil               
 #> 5  2000        79               79 DEU-1990-2025         Germany              
 #> 6  2000        79               79 DEU-1990-2025         Germany              
 #> 7  2000       203              203 ESP-1800-2025         Spain                
