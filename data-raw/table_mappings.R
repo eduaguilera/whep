@@ -55,14 +55,14 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 # changes no byte -- which is why this commit carries no `data/` diff. Run against the
 # current upstream database it already excludes 27, and 22 of those are crosswalk
 # candidates, so the filter becomes load-bearing the moment the snapshot is refreshed
-# (#485). Measured, not assumed: the regeneration reports
-# "Excluded 27 retired/superseded polities from resolution candidates; 713 remain."
+# (#485). Measured rather than assumed: regenerating against the current upstream
+# database reports excluding 27 dead polities and retaining 713.
 #
 # It does NOT fix every ambiguity. Two polities can be live and still overlap --
-# Montenegro's `MNE-1913-1915` and `MNE-1913-1918` both cover 1913-1914 and are both
-# `draft` upstream. No downstream filter can resolve that; it is
-# lbm364dl/whep-polities#62. `.area_year_polity_conflicts()` detects the class and
-# `test_polity_resolution_uniqueness.R` pins the known instance.
+# Montenegro's MNE-1913-1915 and MNE-1913-1918 both cover 1913-1914 and are both
+# marked draft upstream. No downstream filter can resolve that; it is filed upstream
+# as whep-polities issue 62. The conflict detector added alongside this finds the
+# class, and test_polity_resolution_uniqueness.R pins the known instance.
 live_polity_attrs <- polity_attrs |>
   dplyr::filter(
     is.na(.data$wiki_status) |
