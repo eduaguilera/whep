@@ -120,7 +120,8 @@ class_from_group <- function(group) {
         "Crop residues",
         "Grass",
         "Forestry"
-      ) ~ "plant",
+      ) ~
+      "plant",
     TRUE ~ "other"
   )
 }

@@ -2,6 +2,7 @@ create_typo_ts_plot <- function(
   n_prov_destiny = NULL,
   shapefile_path = NULL,
   benchmark_years = seq(1860, 2020, by = 20),
+  ncols = NULL,
   out_dir = NULL
 ) {
   shapefile_path <- .provinces_shapefile(shapefile_path)
@@ -164,7 +165,7 @@ create_typo_ts_plot <- function(
           "Specialized cropping systems (intensive)",
         production_crops > animal_ingestion &
           synthetic_share <= 0.4 &
-          crop_productivity < 8 ~
+          crop_productivity < 10 ~
           "Specialized cropping systems (extensive)",
         Livestock_density > 1.3 &
           imported_feed_share > 0.6 &
@@ -175,9 +176,9 @@ create_typo_ts_plot <- function(
           imported_feed_share > 0.6 &
           feed_from_seminatural_share < 0.4 ~
           "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 30 ~
+        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity >= 30 ~
           "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
+        local_feed_share > 0.3 & Manure_share > 0.25 & crop_productivity < 30 ~
           "Connected crop-livestock systems (extensive)",
         local_feed_share < 0.6 & Manure_share < 0.6 ~
           "Disconnected crop-livestock systems (intensive)",
@@ -223,19 +224,35 @@ create_typo_ts_plot <- function(
   ]
 
   typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
     "Specialized cropping systems (intensive)" = "#F7DD5A",
     "Specialized cropping systems (extensive)" = "#FFF7C2",
     "Specialized livestock systems (intensive)" = "#b3001b",
     "Specialized livestock systems (extensive)" = "#C94F6B",
-    "Connected crop-livestock systems (intensive)" = "#7A4F20",
-    "Connected crop-livestock systems (extensive)" = "#AF814B",
     "Disconnected crop-livestock systems (intensive)" = "#E67E00",
     "Disconnected crop-livestock systems (extensive)" = "#F6A640",
+    "Connected crop-livestock systems (intensive)" = "#7A4F20",
+    "Connected crop-livestock systems (extensive)" = "#AF814B",
+    "Semi-natural agroecosystems" = "#66a61e",
     "Urban systems" = "#6A5ACD"
   )
 
-  typology_levels <- names(typology_colors)
+  typology_levels <- c(
+    "Specialized cropping systems (intensive)",
+    "Specialized livestock systems (intensive)",
+    "Disconnected crop-livestock systems (intensive)",
+    "Connected crop-livestock systems (intensive)",
+    "Semi-natural agroecosystems",
+    "Specialized cropping systems (extensive)",
+    "Specialized livestock systems (extensive)",
+    "Disconnected crop-livestock systems (extensive)",
+    "Connected crop-livestock systems (extensive)",
+    "Urban systems"
+  )
+
+  if (is.null(ncols)) {
+    ncols <- ceiling(sqrt(length(benchmark_years)))
+  }
+  n_rows <- ceiling(length(benchmark_years) / ncols)
 
   map_list <- list()
 
@@ -274,116 +291,118 @@ create_typo_ts_plot <- function(
       ggplot2::theme_minimal() +
       ggplot2::theme(
         legend.position = "none",
-        plot.title = ggplot2::element_text(size = 9, face = "plain")
+        plot.title = ggplot2::element_text(size = 30, face = "bold")
       )
 
     map_list[[as.character(yr)]] <- p
   }
 
-  block_width <- 0.002
-  block_height <- 0.002
-  block_gap <- 0.0006
-  title_y <- 0.505
+  legend_ncols <- 5
+  row_height <- 2.0
+  col_width <- 3.8
+  n_items <- length(typology_levels)
+  n_legend_rows <- ceiling(n_items / legend_ncols)
 
-  n <- length(typology_levels)
-
-  y_top <- seq(from = 0.5, by = -(block_height + block_gap), length.out = n)
-  y_bottom <- y_top - block_height
+  pw <- ncols * 4.5
+  ph <- n_rows * 3.5 + 4
+  leg_h <- ph * 1.8 / (n_rows * 3 + 1.8)
+  x_range <- legend_ncols * col_width
+  y_range <- (n_legend_rows - 1) * row_height + 2.0
+  sq_height_y <- 1.2
+  sq_size <- sq_height_y * (leg_h / y_range) / (pw / x_range)
 
   legend_df <- data.frame(
     Typology = typology_levels,
-    Color = unname(typology_colors),
+    Color = unname(typology_colors[typology_levels]),
     is_urban = typology_levels == "Urban systems",
-    ymin = y_bottom,
-    ymax = y_top
+    item_idx = seq_len(n_items) - 1
   )
+  legend_df$Label <- stringr::str_replace(
+    legend_df$Typology,
+    " systems \\(",
+    "\nsystems ("
+  )
+  legend_df$col <- legend_df$item_idx %% legend_ncols
+  legend_df$row <- legend_df$item_idx %/% legend_ncols
+  legend_df$sq_xmin <- legend_df$col * col_width
+  legend_df$sq_xmax <- legend_df$col * col_width + sq_size
+  legend_df$sq_ymin <- -legend_df$row * row_height - sq_height_y / 2
+  legend_df$sq_ymax <- -legend_df$row * row_height + sq_height_y / 2
+  legend_df$label_x <- legend_df$col * col_width + sq_size + 0.12
+  legend_df$label_y <- -legend_df$row * row_height
 
-  n_stripes <- 10
-  stripe_df <- subset(legend_df, is_urban)
-
-  stripe_lines <- do.call(
-    rbind,
-    lapply(seq_len(nrow(stripe_df)), function(i) {
-      xs <- seq(0, block_width, length.out = n_stripes)
-      data.frame(
-        x = xs,
-        xend = xs,
-        y = rep(stripe_df$ymin[i], n_stripes),
-        yend = rep(stripe_df$ymax[i], n_stripes)
-      )
-    })
+  urban_row <- legend_df[legend_df$is_urban, ]
+  xs <- seq(urban_row$sq_xmin, urban_row$sq_xmax, length.out = 8)
+  stripe_lines <- data.frame(
+    x = xs,
+    xend = xs,
+    y = rep(urban_row$sq_ymin, 8),
+    yend = rep(urban_row$sq_ymax, 8)
   )
 
   legend_plot <- ggplot2::ggplot(legend_df) +
-    ggplot2::annotate(
-      "text",
-      x = 0,
-      y = title_y,
-      label = "Typologies",
-      hjust = 0,
-      vjust = 0,
-      size = 5
-    ) +
     ggplot2::geom_rect(
       ggplot2::aes(
-        xmin = 0,
-        xmax = block_width,
-        ymin = ymin,
-        ymax = ymax,
+        xmin = sq_xmin,
+        xmax = sq_xmax,
+        ymin = sq_ymin,
+        ymax = sq_ymax,
         fill = ifelse(is_urban, "white", Color)
       ),
-      color = "black"
+      color = "black",
+      linewidth = 0.3
     ) +
     ggplot2::geom_segment(
       data = stripe_lines,
-      ggplot2::aes(
-        x = x,
-        xend = xend,
-        y = y,
-        yend = yend
-      ),
+      ggplot2::aes(x = x, xend = xend, y = y, yend = yend),
       color = "#6A5ACD",
       linewidth = 0.28
     ) +
     ggplot2::geom_text(
-      ggplot2::aes(
-        x = block_width + 0.001,
-        y = (ymin + ymax) / 2,
-        label = Typology
-      ),
+      ggplot2::aes(x = label_x, y = label_y, label = Label),
       hjust = 0,
-      size = 5
+      vjust = 0.5,
+      size = 9,
+      lineheight = 0.9
     ) +
     ggplot2::scale_fill_identity() +
     ggplot2::scale_x_continuous(
-      limits = c(0, 0.05),
-      expand = c(0, 0)
+      limits = c(0, legend_ncols * col_width),
+      expand = c(0.01, 0)
     ) +
     ggplot2::scale_y_continuous(
-      limits = c(min(y_bottom) - 0.005, max(y_top) + 0.01),
+      limits = c(-(n_legend_rows - 1) * row_height - 1.0, 1.0),
       expand = c(0, 0)
     ) +
-    ggplot2::coord_fixed(ratio = 1, clip = "off") +
     ggplot2::theme_void() +
-    ggplot2::theme(
-      plot.margin = ggplot2::margin(2, 2, 2, 2)
-    )
+    ggplot2::theme(plot.margin = ggplot2::margin(5, 5, 5, 5))
 
-  combined <- patchwork::wrap_plots(map_list, ncol = 3)
+  combined <- patchwork::wrap_plots(map_list, ncol = ncols)
 
-  final_plot <- (combined | legend_plot) +
+  final_plot <- (combined / legend_plot) +
+    patchwork::plot_layout(heights = c(n_rows * 3, 1.8)) +
     patchwork::plot_annotation(
-      title = "Typologies in Spain (1860-2020)"
-    ) &
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(
-        size = 18,
-        margin = ggplot2::margin(t = 0, b = 8)
+      title = paste0(
+        "Typologies in Spain (",
+        min(benchmark_years),
+        "-",
+        max(benchmark_years),
+        ")"
+      ),
+      theme = ggplot2::theme(
+        plot.title = ggplot2::element_text(
+          size = 32,
+          face = "bold",
+          margin = ggplot2::margin(t = 0, b = 20)
+        )
       )
     )
 
   grid::grid.newpage()
   print(final_plot)
+
+  plot_width <- ncols * 4.5
+  plot_height <- n_rows * 3.5 + 4
 
   if (!is.null(out_dir)) {
     if (!dir.exists(out_dir)) {
@@ -392,8 +411,8 @@ create_typo_ts_plot <- function(
     ggplot2::ggsave(
       filename = file.path(out_dir, "typologies_spain.png"),
       plot = final_plot,
-      width = 16,
-      height = 10,
+      width = plot_width,
+      height = plot_height,
       dpi = 300
     )
   }
@@ -411,14 +430,14 @@ create_typology_decision_tree <- function() {
     edge [fontname="Arial", fontsize=9]
 
     q_urban    [label="Human consumption > Total agricultural production"]
-    q_semi     [label="Semi-natural production > Crop production x 0.6"]
+    q_semi     [label="Semi-natural production > Crop production"]
     q_crop     [label="Crop production > Animal ingestion"]
-    q_crop_int [label="Synthetic share > 40% & Crop productivity > 10 kg N/ha"]
+    q_crop_int [label="Synthetic share > 40% & Crop productivity >= 10 kg N/ha"]
     q_ls_cond  [label="Livestock density > 1 LU/ha & Imported feed share > 60%\n& Feed from semi-natural share < 40%"]
     q_ls_dens  [label="Livestock density > 1.3 LU/ha"]
-    q_conn     [label="Local feed share > 30% & Manure share > 30%"]
-    q_conn_pr  [label="Crop productivity > 30 kg N/ha"]
-    q_disc     [label="Local feed share < 50% & Manure share < 50%\n& Synthetic share > 10%"]
+    q_conn     [label="Local feed share > 30% & Manure share > 25%"]
+    q_conn_pr  [label="Crop productivity >= 30 kg N/ha"]
+    q_disc     [label="Local feed share < 60% & Manure share < 60%"]
 
     r_urban  [label="Urban system", fillcolor=white, fontcolor="#6A5ACD", color="#6A5ACD", style="dashed,filled", penwidth=2]
     r_semi   [label="Semi-natural\nagroecosystem",             fillcolor="#66a61e",  fontcolor=white]

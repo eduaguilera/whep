@@ -140,9 +140,12 @@ get_arable_permanent_land <- function(
   if (!"item_code" %in% names(dt) && "item_name" %in% names(dt)) {
     dt[,
       item_code := data.table::fcase(
-        tolower(item_name) == "cropland"        , 6620L ,
-        tolower(item_name) == "arable land"     , 6621L ,
-        tolower(item_name) == "permanent crops" , 6650L ,
+        tolower(item_name) == "cropland"        ,
+        6620L                                   ,
+        tolower(item_name) == "arable land"     ,
+        6621L                                   ,
+        tolower(item_name) == "permanent crops" ,
+        6650L                                   ,
         default = NA_integer_
       )
     ]

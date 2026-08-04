@@ -279,11 +279,12 @@ parse_feed_digestibility <- function(raw) {
     dplyr::mutate(
       # Assign feed category based on position
       feed_category = dplyr::case_when(
-        as.numeric(number) <= 15 ~ dplyr::case_when(
-          as.numeric(number) <= 6 ~ "Roughages",
-          as.numeric(number) <= 15 ~ "Roughages",
-          .default = NA_character_
-        ),
+        as.numeric(number) <= 15 ~
+          dplyr::case_when(
+            as.numeric(number) <= 6 ~ "Roughages",
+            as.numeric(number) <= 15 ~ "Roughages",
+            .default = NA_character_
+          ),
         .default = NA_character_
       )
     ) |>

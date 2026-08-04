@@ -55,7 +55,8 @@ class_of <- function(code) {
         2001,
         2002,
         2003
-      ) ~ "perennial",
+      ) ~
+      "perennial",
     TRUE ~ "minor"
   )
 }

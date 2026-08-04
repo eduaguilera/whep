@@ -877,8 +877,10 @@ build_primary_production <- function(
   dt[, t_2 := data.table::fifelse(!is.na(t_euadb), t_euadb, t_dmbased)]
   dt[,
     source := data.table::fcase(
-      !is.na(t)       , "FAOSTAT_prod" ,
-      !is.na(t_euadb) , "EuropeAgriDB" ,
+      !is.na(t)       ,
+      "FAOSTAT_prod"  ,
+      !is.na(t_euadb) ,
+      "EuropeAgriDB"  ,
       default = "DM_yield_estimate"
     )
   ]
