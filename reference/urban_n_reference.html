@@ -70,7 +70,17 @@ ISO3 string <code>"ESP"</code> and it is resolved to a code through
 <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> at build time, so this series joins to
 area-keyed tables without a hand conversion. It held the string itself
 until 0.3.0.9000, which made it the one column named <code>area_code</code>
-in this package that was not one (whep#401).</p></dd>
+in this package that was not one (whep#401). Keep using it to join;
+it is an aggregation key, not the territory's identity.</p></dd>
+
+<dt>polity_code</dt>
+<dd><p>The polity the row's territory IS, e.g.
+<code>"ESP-1800-2025"</code>: the identifier every place in WHEP that names a
+territory is meant to carry (whep#458). Resolved at build time against
+the polity active in that benchmark year, so a series spanning a
+succession would carry more than one code. Added alongside
+<code>area_code</code> rather than replacing it (whep#495), so callers keying
+on the numeric are unaffected.</p></dd>
 
 <dt>year</dt>
 <dd><p>Benchmark calendar year.</p></dd>
@@ -92,19 +102,19 @@ DOI): <code>input/Urban_waste.xlsx</code> sheet <code>UrbanN</code> and
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">urban_n_reference</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 3</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    area_code  year urban_n_gg</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>       203  <span style="text-decoration: underline;">1</span>860       6.97</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>       203  <span style="text-decoration: underline;">1</span>900       8.04</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>       203  <span style="text-decoration: underline;">1</span>950      12.1 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>       203  <span style="text-decoration: underline;">1</span>990      16.8 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>       203  <span style="text-decoration: underline;">2</span>000      28.9 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>       203  <span style="text-decoration: underline;">2</span>008      43.0 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>       203  <span style="text-decoration: underline;">2</span>016      50.0 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>       203  <span style="text-decoration: underline;">2</span>018      54.8 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>       203  <span style="text-decoration: underline;">2</span>020      51.4 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>       203  <span style="text-decoration: underline;">2</span>022      61.3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 4</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    area_code polity_code    year urban_n_gg</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">1</span>860       6.97</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">1</span>900       8.04</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">1</span>950      12.1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">1</span>990      16.8 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>000      28.9 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>008      43.0 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>016      50.0 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>018      54.8 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>020      51.4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>       203 ESP-1800-2025  <span style="text-decoration: underline;">2</span>022      61.3 </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

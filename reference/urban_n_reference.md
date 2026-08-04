@@ -27,7 +27,17 @@ A tibble with columns:
   at build time, so this series joins to area-keyed tables without a
   hand conversion. It held the string itself until 0.3.0.9000, which
   made it the one column named `area_code` in this package that was not
-  one (whep#401).
+  one (whep#401). Keep using it to join; it is an aggregation key, not
+  the territory's identity.
+
+- polity_code:
+
+  The polity the row's territory IS, e.g. `"ESP-1800-2025"`: the
+  identifier every place in WHEP that names a territory is meant to
+  carry (whep#458). Resolved at build time against the polity active in
+  that benchmark year, so a series spanning a succession would carry
+  more than one code. Added alongside `area_code` rather than replacing
+  it (whep#495), so callers keying on the numeric are unaffected.
 
 - year:
 
@@ -48,17 +58,17 @@ Spain_Hist repository (private project data, not a public DOI):
 
 ``` r
 urban_n_reference
-#> # A tibble: 10 × 3
-#>    area_code  year urban_n_gg
-#>        <int> <dbl>      <dbl>
-#>  1       203  1860       6.97
-#>  2       203  1900       8.04
-#>  3       203  1950      12.1 
-#>  4       203  1990      16.8 
-#>  5       203  2000      28.9 
-#>  6       203  2008      43.0 
-#>  7       203  2016      50.0 
-#>  8       203  2018      54.8 
-#>  9       203  2020      51.4 
-#> 10       203  2022      61.3 
+#> # A tibble: 10 × 4
+#>    area_code polity_code    year urban_n_gg
+#>        <int> <chr>         <dbl>      <dbl>
+#>  1       203 ESP-1800-2025  1860       6.97
+#>  2       203 ESP-1800-2025  1900       8.04
+#>  3       203 ESP-1800-2025  1950      12.1 
+#>  4       203 ESP-1800-2025  1990      16.8 
+#>  5       203 ESP-1800-2025  2000      28.9 
+#>  6       203 ESP-1800-2025  2008      43.0 
+#>  7       203 ESP-1800-2025  2016      50.0 
+#>  8       203 ESP-1800-2025  2018      54.8 
+#>  9       203 ESP-1800-2025  2020      51.4 
+#> 10       203 ESP-1800-2025  2022      61.3 
 ```
