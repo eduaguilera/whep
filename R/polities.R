@@ -190,6 +190,18 @@
           c("..whep_polity_rowid", base_cols),
           with = FALSE
         ]
+        # Every row reaching here failed the span join, so the period the
+        # fallback lands on does NOT contain the (anchored) year: the polity did
+        # not exist then. FAOSTAT area 206 "Sudan (former)" in 1970 lands on
+        # SDN-2011-2025, post-secession Sudan, which by definition excludes the
+        # territory the 1970 figure covers. Copying the crosswalk's "matched" or
+        # "manual" status made that indistinguishable from a real period hit, so
+        # the misattribution was invisible rather than merely uncertain. Over the
+        # FAOSTAT era, 993 of 16638 resolved area-years across 36 areas are such
+        # nearest-period stand-ins, in both directions: pre-independence years
+        # (Sudan 1961-2010) and post-dissolution years (Czechoslovakia 1994-2023
+        # on F51-1947-1993). Report the substitution instead of hiding it.
+        fallback_map[, mapping_status := "out_of_span"]
         data.table::setkeyv(map, rowid_col)
         data.table::setkeyv(fallback_map, rowid_col)
         for (col in base_cols) {
@@ -225,6 +237,13 @@
 #' a table with FAOSTAT/FABIO `area_code` values. If a `year` column is
 #' present, the mapping is year-aware; otherwise the current/default mapping
 #' is used.
+#'
+#' When no mapped period covers a row's year, the nearest period of the same
+#' area is used as a stand-in and `mapping_status` reports `"out_of_span"`
+#' rather than the crosswalk's `"matched"`/`"manual"`. Such a row is attributed
+#' to a polity that did not exist in that year, so treat it as a coverage gap:
+#' either the area needs the missing period added to the crosswalk, or the
+#' reporting area outlived (or predates) every polity mapped to it.
 #'
 #' @param table A data frame.
 #' @param code_column Name of the column containing numeric area codes.

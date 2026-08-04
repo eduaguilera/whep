@@ -33,6 +33,66 @@ test_that("add_polity_code does not extend aggregate rows outside their range", 
   expect_true(is.na(mapped$polity_code[4]))
 })
 
+test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
+  # When no mapped period covers a row's year the row is not dropped: it falls
+  # back to the nearest period of the same area. That stand-in attributes the
+  # figure to a polity which did not exist in that year, and it used to inherit
+  # the crosswalk's own "matched"/"manual" status, so the misattribution was
+  # invisible rather than merely uncertain -- the failure mode reported in #387.
+  #
+  # Measured over the FAOSTAT era on the shipped crosswalk, 266 areas x
+  # 1961:2023: 993 of 16638 resolved area-years are stand-ins, spread over 36
+  # areas, and they run in BOTH directions. Backward, FAOSTAT area 206 "Sudan
+  # (former)" for 1961-2010 lands on SDN-2011-2025, post-secession Sudan, which
+  # by definition excludes the territory those figures cover. Forward, area 51
+  # Czechoslovakia for 1994-2023 lands on F51-1947-1993, a state that had already
+  # dissolved. Of the 993, 900 previously read "matched" and 93 read "manual";
+  # relabelling moved those statuses and 0 of 16758 polity_code values.
+  mapped <- tibble::tibble(
+    area_code = c(206L, 181L, 51L, 2L),
+    year = c(1970L, 1962L, 2000L, 1961L)
+  ) |>
+    add_polity_code()
+
+  # Backward: the only period mapped to area 206 starts in 2011.
+  expect_equal(mapped$polity_code[1], "SDN-2011-2025")
+  expect_equal(mapped$mapping_status[1], "out_of_span")
+  # Backward inside an otherwise covered chain: area 181 reaches no period for
+  # 1953-1964, because that period carries the SRH prefix rather than ZWE.
+  expect_equal(mapped$polity_code[2], "ZWE-1964-1980")
+  expect_equal(mapped$mapping_status[2], "out_of_span")
+  # Forward: a manually mapped dissolved-state area outliving its own polity.
+  expect_equal(mapped$polity_code[3], "F51-1947-1993")
+  expect_equal(mapped$mapping_status[3], "out_of_span")
+  # A genuine period hit keeps the status the crosswalk assigned it.
+  expect_equal(mapped$polity_code[4], "AFG-1919-2025")
+  expect_equal(mapped$mapping_status[4], "matched")
+
+  # The flag must be exactly the out-of-span set: no stand-in unflagged, and no
+  # real period hit falsely flagged. Asserted as an invariant rather than as the
+  # 993 count, because the count moves whenever the polities snapshot is
+  # refreshed while the invariant must not. Restricted to 1961 onwards so the
+  # back-cast anchor floor is inert and the row's own year is the year that was
+  # resolved; pre-anchor rows are deliberately matched to the anchor territory,
+  # where the row year lying outside the period is correct, not a stand-in.
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = 1961:2023
+  )
+  resolved <- add_polity_code(grid, "area_code", "year")
+  stand_in <- !is.na(resolved$polity_code) &
+    ((!is.na(resolved$polity_start_year) &
+      resolved$year < resolved$polity_start_year) |
+      (!is.na(resolved$polity_end_year) &
+        resolved$year > resolved$polity_end_year))
+  flagged <- !is.na(resolved$mapping_status) &
+    resolved$mapping_status == "out_of_span"
+
+  expect_gt(sum(stand_in), 0L)
+  expect_equal(which(flagged), which(stand_in))
+})
+
 test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {
   # WHEP's pre-1962 series are back-cast onto ~1961 borders, so a 1900 figure
   # represents 1961 territory and must map to the entity active in 1961, not a
