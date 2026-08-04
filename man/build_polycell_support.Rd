@@ -5,7 +5,7 @@
 \title{Build the polycell spatial support table}
 \usage{
 build_polycell_support(
-  years,
+  years = NULL,
   geometries = NULL,
   water = NULL,
   ice = NULL,
@@ -14,59 +14,79 @@ build_polycell_support(
 )
 }
 \arguments{
-\item{years}{Integer vector of calendar years to resolve.}
+\item{years}{Optional integer vector of calendar years. \code{NULL} (default)
+returns the interval-keyed grain; a vector expands to one row per
+polycell-year and adds a \code{year} column.}
 
 \item{geometries}{An \code{sf} table of polity geometries with at least
-\code{polity_code}, \code{start_year} and \code{end_year} columns; defaults to
-\code{\link[=get_polity_geometries]{get_polity_geometries()}}. \code{start_year} is inclusive and \code{end_year} is
-exclusive. Optional \code{wiki_status}, \code{polity_type} and \code{polygon_status}
-columns are honoured. Provide this argument to inject a fixture or an
-alternative geometry source.}
+\code{polity_code}, \code{start_year} and \code{end_year}; defaults to
+\code{\link[=get_polity_geometries]{get_polity_geometries()}}. \code{start_year} is inclusive, \code{end_year}
+exclusive, and neither is ever parsed out of \code{polity_code}. Optional
+\code{wiki_status}, \code{polity_type}, \code{polygon_status} and \code{area_code} columns are
+honoured.}
 
-\item{water}{Optional per-cell \code{tibble} of inland water with columns \code{lon},
-\code{lat} and \code{water_frac}, where \code{water_frac} is a fraction of the whole
-0.5-degree cell (GLWD convention). The water area is
-\code{water_frac * cell_area_ha}, apportioned across the cell's polycells pro
-rata by \code{polity_area_ha}.}
+\item{water}{Optional per-cell \code{tibble} of inland water with \code{lon}, \code{lat}
+and \code{water_frac}, a fraction of the \strong{whole} cell, as
+\code{\link[=read_glwd_water]{read_glwd_water()}} returns it.}
 
-\item{ice}{Optional \code{sf}/\code{sfc} polygon layer of glaciated area (e.g.
-\code{ne_10m_glaciated_areas}); subtracted per polycell by exact geodesic
-intersection.}
+\item{ice}{Optional \code{sf} polygon layer of glaciated area, as
+\code{\link[=read_glaciated_areas]{read_glaciated_areas()}} returns it, subtracted per polycell by exact
+geodesic intersection.}
 
-\item{data}{A named list of optional auxiliary layers. \code{data$luh2} is the
-DA-5 validation layer: a \code{tibble} with \code{lon}, \code{lat} and \code{terrestrial_ha}
-used only to reconcile the intersected land and emit the unassigned
-diagnostic. It never masks land. When it is omitted the reconciliation is
-not run and no \code{"unassigned"} attribute is attached.}
+\item{data}{Optional named list of auxiliary layers: \code{luh2} the validation
+layer (\code{lon}, \code{lat}, \code{terrestrial_ha}, e.g. \code{\link[=read_luh2_terrestrial]{read_luh2_terrestrial()}});
+\code{crosswalk} the deployed \code{\link[=build_cell_polity]{build_cell_polity()}} table carrying the
+transitional \code{polity_frac}; \code{producer_crosswalk} a freshly built
+\code{build_cell_polity_fraction()} table; and \code{crosswalk_year}, the year whose
+polycells the crosswalk's present-day geometry describes (default 2015).}
 
-\item{example}{If \code{TRUE}, return a small hard-coded example table instead of
-running the geometry engine, so the documented example runs without \code{sf}
-or remote data.}
+\item{example}{If \code{TRUE}, return a small hard-coded table instead of running
+the geometry engine, so the documented example needs no \code{sf} and no
+external data.}
 }
 \value{
-A \code{tibble}, one row per polycell-year, whose columns are a superset
-of \code{polycell_id}, \code{cell_id}, \code{lon}, \code{lat}, \code{polity_code}, \code{area_code},
-\code{year}, \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha},
-\code{inland_water_ha}, \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status},
-\code{split_method} and \code{coverage_status}. When \code{data$luh2} is supplied, the
-\code{"unassigned"} attribute (\code{attr(result, "unassigned")}) is a \code{tibble} of
-land present in the LUH2 validation layer but claimed by no live polity,
-carrying \code{unassigned_land_ha}.
+A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
+\code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
+\code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
+\code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
+\code{coverage_status}, \code{luh2_vintage} and the transitional \code{polity_frac}, plus
+\code{year} when \code{years} is supplied. Diagnostics ride as attributes:
+\code{"unassigned"} (land in the validation layer claimed by no live polity),
+\code{"coverage"} (every live polity interval and whether it had a polygon),
+\code{"overlap"} (cells holding more territory than the cell, because two
+polities were handed the same polygon), \code{"water_excess"} (inland water
+clamped to the polycell's territory), \code{"footprints"} and
+\code{"footprint_diff"} (the deployed crosswalk, the current producer and the
+polycell footprint, reconciled at \code{data$crosswalk_year}).
+
+\code{"overlap"}, \code{"water_excess"} and \code{"unassigned"} are \strong{interval-grain},
+like the table itself: they carry \code{start_year}, and one cell contributes a
+row per interval. Summing them without first filtering to the interval
+covering the year of interest counts the same cell once per epoch. On the
+shipped polities that is the difference between 1,342 clamped polycells
+over all epochs and 94 in 2015.
 }
 \description{
-Produce the canonical spatial support unit for WHEP: the \strong{polycell}, the
-intersection of a 0.5-degree grid cell with a polity over that polity's
-validity interval. Each row carries the polity's territory in the cell,
-decomposed into three separately addressable categories
-(\code{land_area_ha + inland_water_ha + ice_area_ha = polity_area_ha}), so that
+Produce WHEP's canonical spatial support unit, the \strong{polycell}: a
+0.5-degree grid cell intersected with a polity over that polity's validity
+interval. Each row carries the polity's territory in the cell decomposed into
+three separately addressable categories,
+\code{polity_area_ha = land_area_ha + inland_water_ha + ice_area_ha}, so that
 aggregating polycells to a polity changes no absolute value and no quantity
 crosses a border it does not belong to.
 
-Areas are geodesic, computed with \code{sf::st_area()} on unprojected WGS84
-longitude/latitude with spherical geometry (\code{s2}) enabled, matching WHEP's
-own spherical cell-area convention. The territory is the union of live real
-polities; land that falls in no live polity is emitted in the \code{"unassigned"}
-attribute rather than renormalised away.
+Areas are geodesic, from \code{sf::st_area()} on unprojected WGS84 with spherical
+(\code{s2}) geometry, matching WHEP's own spherical convention; \code{cell_area_ha}
+keeps the package formula so it stays bit-identical to
+\code{\link[=build_cell_polity]{build_cell_polity()}}. Territory is the union of live real polities; land
+claimed by no live polity is emitted in the \code{"unassigned"} attribute rather
+than renormalised away.
+
+The default grain is \strong{interval-keyed}: one row per polycell per interval
+over which every area is constant, carrying \code{start_year} and \code{end_year}
+(\code{end_year} exclusive). Supply \code{years} to expand to one row per
+polycell-year, which is what \code{\link[=expand_polycell_years]{expand_polycell_years()}} does on demand. No
+area varies within an interval, so the interval grain is the form to store.
 }
 \examples{
 build_polycell_support(example = TRUE)

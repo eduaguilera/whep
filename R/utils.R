@@ -1686,25 +1686,12 @@ utils::globalVariables(
     "share_other",
     "total_gap",
     "total_production",
-    # polycell_support.R (geodesic polycell producer)
+    # polycell_support.R. The producer itself is written entirely in `.data$`
+    # form, so it needs no declarations; these two are the polycell keys the
+    # compartment helpers in spatialize_compartments.R already name, and they
+    # were absent, so any bare-symbol use of them fails `R CMD check`.
     "polycell_id",
-    "cell_id",
-    "klon",
-    "klat",
-    "polity_area_ha",
-    "land_area_ha",
-    "inland_water_ha",
-    "ice_area_ha",
-    "geometry_source",
-    "polygon_status",
-    "split_method",
-    "coverage_status",
-    "wiki_status",
-    "water_frac",
-    "water_area_cell_ha",
-    "terrestrial_ha",
-    "claimed_land_ha",
-    "unassigned_land_ha"
+    "cell_id"
   )
 )
 

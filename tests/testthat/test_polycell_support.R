@@ -1007,3 +1007,338 @@ testthat::test_that("a shared cell carries no quantity across the border", {
   testthat::expect_gt(post_hoc_nop, 0.7 * cell_head)
   testthat::expect_equal(shared$head_count[nop], 0)
 })
+
+# T-A4 additions ---------------------------------------------------------------
+#
+# The 18 blocks above are the T-A3 contract and are left untouched. What
+# follows covers the decisions taken after that contract was written: the
+# interval grain (DA-16), the interim shim (DA-13), the two footprints (DA-12),
+# the water clamp (DA-19), unusable polity geometry (DA-15) and the recorded
+# LUH2 vintage (DA-9). All fixtures stay self-contained.
+
+testthat::test_that("the default grain is interval-keyed, not per-year", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-16: no area column varies inside a validity interval, so a per-year
+  # grain would repeat identical rows ~173 times. The interval grain is the
+  # form to store; `expand_polycell_years()` recovers the per-year view.
+  geometries <- pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year,
+      "RUS-1991-2014", 1991L, 2014L,
+      "RUS-2014-2025", 2014L, 2025L
+    ),
+    list(pcs_inset(10.0, 10.25), pcs_cell(10.25, 45.25))
+  )
+
+  intervals <- whep::build_polycell_support(geometries = geometries)
+
+  testthat::expect_false(rlang::has_name(intervals, "year"))
+  testthat::expect_true(all(c("start_year", "end_year") %in% names(intervals)))
+  testthat::expect_equal(nrow(intervals), 2L)
+  testthat::expect_equal(sort(intervals$start_year), c(1991L, 2014L))
+
+  yearly <- whep::expand_polycell_years(intervals, 2010L:2015L)
+  testthat::expect_equal(nrow(yearly), 6L)
+  testthat::expect_equal(
+    whep::build_polycell_support(years = 2010L:2015L, geometries = geometries),
+    yearly,
+    ignore_attr = TRUE
+  )
+  # The exclusive end_year still holds after expansion.
+  testthat::expect_equal(
+    yearly$polity_code[yearly$year == 2014L],
+    "RUS-2014-2025"
+  )
+})
+
+testthat::test_that("an interval splits where a cell's occupants change", {
+  testthat::skip_if_not_installed("sf")
+
+  # A cell's inland water is apportioned across its polycells, so an interval
+  # is only constant-area if it is split wherever a co-occupant arrives. WES
+  # holds half the cell throughout; EAS arrives in 2010, so WES must emit two
+  # intervals with different water even though its own polygon never changes.
+  geometries <- pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year,
+      "WES-2000-2020", 2000L, 2020L,
+      "EAS-2010-2020", 2010L, 2020L
+    ),
+    list(
+      pcs_rect(10.0, 10.25, 45.0, 45.5),
+      pcs_rect(10.25, 10.5, 45.0, 45.5)
+    )
+  )
+
+  result <- whep::build_polycell_support(
+    geometries = geometries,
+    water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2)
+  )
+
+  wes <- pcs_for(result, "WES-2000-2020") |> dplyr::arrange(start_year)
+  testthat::expect_equal(wes$start_year, c(2000L, 2010L))
+  testthat::expect_equal(wes$end_year, c(2010L, 2020L))
+  # Alone in the cell it takes all the water; sharing it, half.
+  testthat::expect_equal(
+    wes$inland_water_ha,
+    c(1, 0.5) * 0.2 * wes$cell_area_ha,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(wes$polity_area_ha[[1L]], wes$polity_area_ha[[2L]])
+})
+
+testthat::test_that("the shim reproduces the crosswalk bit-for-bit", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-13. The crosswalk is a present-day product with no epochs, so its
+  # `polity_frac` cannot be recomputed from the geodesic intersection without
+  # moving border shares by up to a whole 1/36 subcell. It is carried through
+  # instead, and the claim that an unmigrated consumer is unchanged is asserted
+  # with `identical()`, not with a tolerance.
+  crosswalk <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    10.25, 45.25, 11L, 0.7,
+    10.25, 45.25, 22L, 0.3,
+    99.75, 45.25, 33L, 1
+  ) |>
+    dplyr::mutate(cell_area_ha = whep:::.cell_area_ha_lat(.data$lat))
+
+  geometries <- pcs_polities(
+    tibble::tibble(
+      polity_code = c("AAA-2000-2020", "BBB-2000-2020"),
+      start_year = 2000L,
+      end_year = 2020L,
+      area_code = c(11L, 22L)
+    ),
+    list(pcs_inset(10.0, 10.35), pcs_inset(10.35, 10.5))
+  )
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    data = list(crosswalk = crosswalk)
+  )
+
+  shim <- whep::polycell_shim_view(result) |>
+    dplyr::arrange(.data$lon, .data$area_code)
+  expected <- crosswalk |>
+    dplyr::select("lon", "lat", "area_code", "polity_frac", "cell_area_ha") |>
+    dplyr::arrange(.data$lon, .data$area_code)
+
+  testthat::expect_identical(shim$polity_frac, expected$polity_frac)
+  testthat::expect_identical(shim$cell_area_ha, expected$cell_area_ha)
+  testthat::expect_identical(shim$area_code, expected$area_code)
+  testthat::expect_equal(shim, expected)
+
+  # The crosswalk cell the intersection never reaches is still carried, and it
+  # is flagged rather than silently invented as a polycell.
+  orphan <- dplyr::filter(result, .data$lon == 99.75)
+  testthat::expect_equal(orphan$coverage_status, "crosswalk_only")
+  testthat::expect_true(is.na(orphan$polity_area_ha))
+})
+
+testthat::test_that("both footprints are emitted and reconciled", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-12. The deployed crosswalk is the measurement baseline because it is the
+  # geometry every published number was computed from; today's producer is a
+  # different footprint. Silently picking either would make the migration's
+  # movement and the restriction's movement inseparable.
+  deployed <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    10.25, 45.25, 11L, 1,
+    99.75, 45.25, 33L, 1
+  )
+  producer <- deployed[1L, ]
+  geometries <- pcs_polities(
+    tibble::tibble(
+      polity_code = "AAA-2000-2020",
+      start_year = 2000L,
+      end_year = 2020L,
+      area_code = 11L
+    ),
+    list(pcs_inset(10.0, 10.5))
+  )
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    data = list(crosswalk = deployed, producer_crosswalk = producer)
+  )
+
+  footprints <- attr(result, "footprints")
+  testthat::expect_setequal(
+    footprints$footprint,
+    c("deployed_crosswalk", "producer_crosswalk", "polycell")
+  )
+  testthat::expect_equal(
+    footprints$rows[match("deployed_crosswalk", footprints$footprint)],
+    2L
+  )
+  testthat::expect_equal(
+    footprints$rows[match("producer_crosswalk", footprints$footprint)],
+    1L
+  )
+
+  # The disagreement is a first-class row, not a count in a message.
+  diff <- attr(result, "footprint_diff")
+  testthat::expect_equal(nrow(diff), 1L)
+  testthat::expect_equal(diff$lon, 99.75)
+  testthat::expect_true(diff$deployed_crosswalk)
+  testthat::expect_false(diff$producer_crosswalk)
+  testthat::expect_false(diff$polycell)
+})
+
+testthat::test_that("apportioned water is clamped to the polycell territory", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-19. The water layer carries its own land mask, so in a cell where it
+  # disagrees with the polity polygons the apportioned water can exceed the
+  # territory. It is capped there and the excess emitted, because
+  # `land_area_ha` must never go negative and the disagreement must stay
+  # visible instead of being absorbed.
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_inset(10.0, 10.05)),
+    water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.5)
+  )
+
+  testthat::expect_equal(result$inland_water_ha, result$polity_area_ha)
+  testthat::expect_equal(result$land_area_ha, 0)
+  testthat::expect_gte(result$land_area_ha, 0)
+
+  excess <- attr(result, "water_excess")
+  testthat::expect_equal(nrow(excess), 1L)
+  testthat::expect_equal(
+    excess$water_excess_ha,
+    0.5 * result$cell_area_ha - result$polity_area_ha,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("a polity without a usable polygon is reported", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-15: 23 of the shipped polities have empty geometry and 7 more carry a
+  # polygon the spherical engine rejects. None of them can host a polycell, and
+  # a polity that silently contributes zero area is indistinguishable from a
+  # polity with no territory.
+  geometries <- pcs_polities(
+    tibble::tibble(
+      polity_code = c("AAA-2000-2020", "NOG-2000-2020"),
+      start_year = 2000L,
+      end_year = 2020L
+    ),
+    list(pcs_inset(10.05, 10.45), sf::st_multipolygon())
+  )
+
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = geometries
+    ),
+    "no usable polygon"
+  )
+
+  testthat::expect_equal(result$polity_code, "AAA-2000-2020")
+  coverage <- attr(result, "coverage")
+  testthat::expect_equal(
+    coverage$coverage_status[coverage$polity_code == "NOG-2000-2020"],
+    "no_geometry"
+  )
+  testthat::expect_equal(
+    coverage$coverage_status[coverage$polity_code == "AAA-2000-2020"],
+    "has_geometry"
+  )
+})
+
+testthat::test_that("the LUH2 vintage is recorded in an output column", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-9: the vintage is selectable and recorded, so the choice is auditable
+  # rather than implicit in an environment variable.
+  luh2 <- tibble::tibble(lon = 10.25, lat = 45.25, terrestrial_ha = 1e5)
+  attr(luh2, "luh2_vintage") <- "GCB2022"
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_inset(10.05, 10.45)),
+    data = list(luh2 = luh2)
+  )
+
+  testthat::expect_equal(unique(result$luh2_vintage), "GCB2022")
+  testthat::expect_true(
+    is.na(
+      whep::build_polycell_support(
+        years = 2015L,
+        geometries = pcs_one_polity(pcs_inset(10.05, 10.45))
+      )$luh2_vintage
+    )
+  )
+})
+
+testthat::test_that("overlapping polity polygons are emitted, not absorbed", {
+  testthat::skip_if_not_installed("sf")
+
+  # Two live polities handed the SAME polygon claim the same ground twice. On
+  # the shipped table that is real: GNQ-1968-2025 and STP-1800-2025 each take
+  # all of cell (10.25, 1.75) in 2015, and 441 of 67,629 cells are affected.
+  # Deciding who owns the ground is a territorial judgement the producer must
+  # not make, so the double count is emitted where it lands.
+  same <- pcs_cell(10.25, 45.25)
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = pcs_live(
+        c("AAA-2000-2020", "BBB-2000-2020"),
+        list(same, same)
+      )
+    ),
+    "more territory than the cell"
+  )
+
+  testthat::expect_equal(nrow(result), 2L)
+  overlap <- attr(result, "overlap")
+  testthat::expect_equal(nrow(overlap), 1L)
+  testthat::expect_equal(overlap$polities, 2L)
+  testthat::expect_equal(
+    overlap$excess_ha,
+    result$cell_area_ha[[1L]],
+    tolerance = 1e-4
+  )
+  # Nothing is renormalised: each polity keeps its own polygon area.
+  testthat::expect_equal(
+    result$polity_area_ha,
+    rep(pcs_area_ha(same), 2L),
+    tolerance = 1e-6
+  )
+})
+
+testthat::test_that("a cell fully covered by one polity is not an overlap", {
+  testthat::skip_if_not_installed("sf")
+
+  # The whole-cell tolerance has to accept the two spherical conventions in
+  # play: `polity_area_ha` comes from s2 (R = 6,371,010 m) with great-circle
+  # edges, `cell_area_ha` from the package's parallel-bounded formula
+  # (R = 6,371,000 m). They disagree by between +9.5e-6 and -9.3e-6 relative
+  # over latitudes 0-85, in both directions, and no fully covered cell may be
+  # flagged as an overlap anywhere in that band.
+  cells <- purrr::map(
+    c(0.25, 45.25, 79.75),
+    \(lat) {
+      whep::build_polycell_support(
+        years = 2015L,
+        geometries = pcs_one_polity(pcs_cell(10.25, lat))
+      )
+    }
+  )
+
+  purrr::walk(cells, \(result) {
+    testthat::expect_null(attr(result, "overlap"))
+    testthat::expect_lt(
+      abs(result$polity_area_ha / result$cell_area_ha - 1),
+      1e-4
+    )
+  })
+})

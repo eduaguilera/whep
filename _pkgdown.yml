@@ -49,6 +49,12 @@ reference:
     re-aggregate to a polity without value change or cross-border leakage.
   contents:
   - build_polycell_support
+  - expand_polycell_years
+  - polycell_shim_view
+  - read_polycell_support
+  - read_glwd_water
+  - read_glaciated_areas
+  - read_luh2_terrestrial
 
 - title: Constant-territory back-casting
   desc: >

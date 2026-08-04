@@ -754,32 +754,37 @@
   )
 }
 
-# Polycell support rows sampled from a single-polity run of
-# build_polycell_support() over a 6-cell polygon (no water or ice supplied, so
-# land_area_ha == polity_area_ha). Areas are geodesic hectares.
+# Polycell support rows taken from a real single-polity run of
+# build_polycell_support(): one polygon spanning six cells, with an ice polygon
+# over part of cell (10.25, 45.25), GLWD water over cell (10.75, 45.25) and a
+# crosswalk covering the three cells of the 45.25 row, so the shim column is
+# populated on those and NA elsewhere. Areas are geodesic hectares.
 .ex_build_polycell_support <- function() {
   tibble::tribble(
     ~polycell_id, ~cell_id, ~lon, ~lat, ~polity_code, ~area_code, ~year,
-    ~cell_area_ha, ~polity_area_ha, ~land_area_ha, ~inland_water_ha,
-    ~ice_area_ha, ~geometry_source, ~polygon_status, ~split_method,
-    ~coverage_status,
-    "AAA-2000-2020@740449", 740449L, 10.25, 44.75, "AAA-2000-2020",
-    NA_integer_, 2015L, 219523.1, 100357.4, 100357.4, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial",
-    "AAA-2000-2020@740450", 740450L, 10.25, 45.25, "AAA-2000-2020",
-    NA_integer_, 2015L, 217615.7, 100201.3, 100201.3, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial",
-    "AAA-2000-2020@741449", 741449L, 10.75, 44.75, "AAA-2000-2020",
-    NA_integer_, 2015L, 219523.1, 135263.4, 135263.4, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial",
-    "AAA-2000-2020@741450", 741450L, 10.75, 45.25, "AAA-2000-2020",
-    NA_integer_, 2015L, 217615.7, 135758.1, 135758.1, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial",
-    "AAA-2000-2020@742449", 742449L, 11.25, 44.75, "AAA-2000-2020",
-    NA_integer_, 2015L, 219523.1, 100357.4, 100357.4, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial",
-    "AAA-2000-2020@742450", 742450L, 11.25, 45.25, "AAA-2000-2020",
-    NA_integer_, 2015L, 217615.7, 100201.3, 100201.3, 0, 0,
-    "polity_geometries", "assigned", "polygon_intersection", "partial"
+    ~start_year, ~end_year, ~cell_area_ha, ~polity_area_ha, ~land_area_ha,
+    ~inland_water_ha, ~ice_area_ha, ~geometry_source, ~polygon_status,
+    ~split_method, ~coverage_status, ~luh2_vintage, ~polity_frac,
+    "AAA-2000-2020@380269", 380269L, 10.25, 44.75, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 219523.1, 34757.5, 34734.6, 0, 22.9, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_,
+    NA_real_,
+    "AAA-2000-2020@380270", 380270L, 10.25, 45.25, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 217615.7, 139639.1, 122206.7, 0, 17432.4, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_, 1,
+    "AAA-2000-2020@381269", 381269L, 10.75, 44.75, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 219523.1, 43064.7, 43064.7, 0, 0, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_,
+    NA_real_,
+    "AAA-2000-2020@381270", 381270L, 10.75, 45.25, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 217615.7, 174927.8, 164047.0, 10880.8, 0, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_, 1,
+    "AAA-2000-2020@382269", 382269L, 11.25, 44.75, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 219523.1, 34757.5, 34757.5, 0, 0, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_,
+    NA_real_,
+    "AAA-2000-2020@382270", 382270L, 11.25, 45.25, "AAA-2000-2020", 11L, 2015L,
+    2000L, 2020L, 217615.7, 139639.1, 139639.1, 0, 0, "whep::polities",
+    "assigned", "polygon_intersection", "has_geometry", NA_character_, 1
   )
 }
