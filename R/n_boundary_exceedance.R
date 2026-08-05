@@ -74,7 +74,10 @@
 #'   nitrogen the footprint's `"production"` category traces, carried through
 #'   only when the `surplus` input supplies it), and the `metric`, `land_use`,
 #'   `method_boundary` stamps. For the aggregate resolutions, the grouping key
-#'   with the summed mass terms and the same stamps.
+#'   with the summed mass terms and the same stamps. Every area-keyed grain also
+#'   carries the polity columns below; `resolution = "image_region"` is keyed by
+#'   region rather than by `area_code`, so it does not.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_boundary_exceedance(example = TRUE)
@@ -109,7 +112,8 @@ build_n_boundary_exceedance <- function(
   surplus |>
     .nbx_filter_land_use(land_use) |>
     .nbx_grid(critical, metric, land_use) |>
-    .nbx_resolve(resolution, cell_polity)
+    .nbx_resolve(resolution, cell_polity) |>
+    .add_polity_columns_if_keyed()
 }
 
 # Fail at the comparison boundary when the supplied critical layer does not

@@ -1,3 +1,20 @@
+# The per-category demand contract. The reporting-polity columns are part of it
+# since whep#424, and they lead the frame because that is where the attach
+# helper puts the key.
+.feed_demand_contract <- function() {
+  c(
+    "year",
+    "area_code",
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry",
+    "livestock_category",
+    "demand_dm_t",
+    "method_demand"
+  )
+}
+
 test_that("get_feed_intake local points to build_feed_intake_local", {
   # The local grain is run via the chunked-by-year batch function (the full
   # run is too large for one in-memory result); get_feed_intake redirects there.
@@ -19,6 +36,10 @@ test_that("build_feed_intake_local(example = TRUE) returns the contract", {
     c(
       "year",
       "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
       "sub_territory",
       "live_anim_code",
       "item_cbs_code",
@@ -113,10 +134,7 @@ test_that(".livestock_crosswalk is the verified 22-row 3-method mapping", {
 test_that("build_feed_demand(example = TRUE) returns the demand contract", {
   out <- whep::build_feed_demand(example = TRUE)
   expect_s3_class(out, "tbl_df")
-  expect_named(
-    out,
-    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
-  )
+  expect_named(out, .feed_demand_contract())
   expect_true(all(out$demand_dm_t > 0))
 })
 
@@ -126,10 +144,7 @@ test_that("build_feed_demand builds the per-category demand from production", {
   )
   out <- whep::build_feed_demand(demand_tier = "fcr")
   expect_s3_class(out, "tbl_df")
-  expect_named(
-    out,
-    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
-  )
+  expect_named(out, .feed_demand_contract())
 })
 
 test_that("build_feed_demand(by = 'feed_type') composes with redistribute_feed", {

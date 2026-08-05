@@ -1,8 +1,12 @@
+# These fixtures carry numeric area codes (203 Spain, 68 France) where they
+# used to carry ISO3 literals. build_urban_n() routes them through
+# .manure_territory_to_area_code(), whose ISO3 form is a deprecated bridge
+# (#463); the resolved codes, and so every assertion below, are unchanged.
 .example_cell_polity_urban <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code,
-    -0.25, -0.25, "ESP",
-    0.25, -0.25, "ESP"
+    -0.25, -0.25, 203L,
+    0.25, -0.25, 203L
   )
 }
 
@@ -13,7 +17,7 @@ testthat::test_that("build_urban_n converts population to a nitrogen load", {
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2000L, 1000
+    -0.25, -0.25, 203L, 2000L, 1000
   )
   out <- whep::build_urban_n(
     data = list(
@@ -56,8 +60,8 @@ testthat::test_that("build_urban_n spills surplus to a neighbouring cell with cr
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2000L, 0,
-    0.25, -0.25, "ESP", 2000L, 1000
+    -0.25, -0.25, 203L, 2000L, 0,
+    0.25, -0.25, 203L, 2000L, 1000
   )
   out <- whep::build_urban_n(
     data = list(
@@ -88,13 +92,13 @@ testthat::test_that("build_urban_n splits a border cell by polity_frac", {
   )
   cell_polity <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac,
-    -0.25, -0.25, "ESP", 0.7,
-    -0.25, -0.25, "FRA", 0.3
+    -0.25, -0.25, 203L, 0.7,
+    -0.25, -0.25, 68L, 0.3
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2000L, 1000,
-    -0.25, -0.25, "FRA", 2000L, 1000
+    -0.25, -0.25, 203L, 2000L, 1000,
+    -0.25, -0.25, 68L, 2000L, 1000
   )
   out <- whep::build_urban_n(
     data = list(
@@ -106,8 +110,11 @@ testthat::test_that("build_urban_n splits a border cell by polity_frac", {
 
   generated_n_t <- 1000 * 0.9410902351391244 / 1000
   testthat::expect_equal(sum(out$urban_n_t), generated_n_t, tolerance = 1e-9)
+  # The ISO3 the fixture keys cells by is resolved to the numeric WHEP area
+  # code on the way out (203 Spain, 68 France), because the output now carries
+  # the reporting polity that code resolves to.
   testthat::expect_equal(
-    out$urban_n_t[match(c("ESP", "FRA"), out$area_code)],
+    out$urban_n_t[match(c(203L, 68L), out$area_code)],
     generated_n_t * c(0.7, 0.3),
     tolerance = 1e-9
   )
@@ -121,8 +128,8 @@ testthat::test_that("build_urban_n filters preloaded inputs by years", {
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2000L, 1000,
-    -0.25, -0.25, "ESP", 2001L, 1000
+    -0.25, -0.25, 203L, 2000L, 1000,
+    -0.25, -0.25, 203L, 2001L, 1000
   )
 
   out <- whep::build_urban_n(
@@ -148,7 +155,7 @@ testthat::test_that("build_urban_n interpolates the per-capita rate between benc
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2004L, 1000
+    -0.25, -0.25, 203L, 2004L, 1000
   )
   out <- whep::build_urban_n(
     data = list(
@@ -171,7 +178,7 @@ testthat::test_that("build_urban_n holds the rate constant outside the benchmark
   )
   cropland_ha <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 1800L, 1000
+    -0.25, -0.25, 203L, 1800L, 1000
   )
   out <- whep::build_urban_n(
     data = list(

@@ -49,7 +49,10 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (livestock emissions in kilograms CO2e) and `method_ghg` (the
-#'   chosen tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`).
+#'   chosen tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), plus the
+#'   polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -75,7 +78,8 @@ build_livestock_ghg_extension <- function(
 
   primary_prod |>
     .livestock_emissions_by_sector(tier) |>
-    .ghg_co2e_extension(tier, gwp)
+    .ghg_co2e_extension(tier, gwp) |>
+    .add_reporting_polity_columns()
 }
 
 # Run the cohort emissions pipeline, expanding to cohorts only for Tier 2 so

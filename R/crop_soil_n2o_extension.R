@@ -54,7 +54,10 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
-#'   `impact_u` (soil N2O in kilograms CO2e) and `method_soil_n2o`.
+#'   `impact_u` (soil N2O in kilograms CO2e) and `method_soil_n2o`, plus the
+#'   polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -109,7 +112,8 @@ build_crop_soil_n2o_extension <- function(
   synthetic <- .synthetic_n_inputs(fertilizer, synth_shares)
   manure_n <- .manure_n_inputs(manure, area_shares)
   residue <- .residue_n_inputs(primary_residues, residue_removed_frac)
-  .soil_n2o_co2e(synthetic, manure_n, residue, gwp)
+  .soil_n2o_co2e(synthetic, manure_n, residue, gwp) |>
+    .add_reporting_polity_columns()
 }
 
 # Synthetic fertiliser N (tonnes N) per crop: country total split by area share.

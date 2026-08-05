@@ -862,3 +862,62 @@ testthat::test_that("regions.csv carries the iso3c->area_code crosswalk (#381 gu
   testthat::expect_true(all(c("iso3c", "area_code") %in% names(regions)))
   testthat::expect_true(any(!is.na(regions$area_code)))
 })
+
+# ---- The LPJmL hydrology pin seam ------------------------------------------
+# get_soc_climate_drivers() must work without an LPJmL run. Only the three
+# LPJmL monthly drivers are pinned; CRU temperature and the HWSD texture
+# products stay local because a user can download both.
+
+.socd_pin_fixture <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~swc_topsoil, ~prec_mm, ~irrig_mm,
+    0.25, 40.25, 2000L, 1L, 0.4, 50, 5,
+    0.25, 40.25, 2000L, 2L, 0.5, 60, 0
+  )
+}
+
+testthat::test_that("no pin is fetched when a run directory is available", {
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "/some/run")
+  testthat::expect_null(whep:::.socd_pin_hydrology(list(), NULL, NULL))
+  testthat::expect_null(
+    whep:::.socd_pin_hydrology(list(), "/explicit/run", NULL)
+  )
+})
+
+testthat::test_that("no pin is fetched when every LPJmL var is supplied", {
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  supplied <- list(swc = "a", prec = "b", irrig = "c")
+  testthat::expect_null(whep:::.socd_pin_hydrology(supplied, NULL, NULL))
+})
+
+testthat::test_that("a partial injection still needs the pin", {
+  # Only prec supplied: swc and irrig must still be sourced, so the pin is
+  # needed. Guards against a partial override silently zeroing the others.
+  # Asserts the decision, not a failed fetch, so it never touches the network.
+  withr::local_envvar(WHEP_LPJML_RUN_DIR = "")
+  testthat::expect_true(
+    whep:::.socd_needs_pin(list(prec = .socd_pin_fixture()), NULL)
+  )
+  testthat::expect_false(
+    whep:::.socd_needs_pin(list(prec = 1, swc = 1, irrig = 1), NULL)
+  )
+})
+
+testthat::test_that("pin columns are reshaped to the reader contract", {
+  out <- whep:::.socd_pin_var(.socd_pin_fixture(), "prec_mm")
+  testthat::expect_equal(
+    names(out),
+    c("lon", "lat", "year", "month", "value")
+  )
+  testthat::expect_equal(out$value, c(50, 60))
+  testthat::expect_null(whep:::.socd_pin_var(NULL, "prec_mm"))
+})
+
+testthat::test_that("the pin error names both ways out", {
+  # A deliberately unregistered alias so this fails in the local lookup and
+  # never reaches the board -- the point is the message, not the transport.
+  testthat::expect_error(
+    whep:::.read_lpjml_pin("lpjml-not-a-registered-alias"),
+    "WHEP_LPJML_RUN_DIR"
+  )
+})

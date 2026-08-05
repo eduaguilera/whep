@@ -24,8 +24,15 @@
 #'
 #' @description
 #' Assemble the carbon returned to soil under grassland and natural vegetation
-#' as the layer the soil-organic-carbon turnover models consume, from a
-#' finished LPJmL run. The class carbon input is the net primary production
+#' as the layer the soil-organic-carbon turnover models consume. The
+#' LPJmL-derived net carbon density is read from the pinned
+#' `lpjml-grass-natural-net-c` artifact by default, so running LPJmL is not a
+#' prerequisite; pass `run_dir` (or set `WHEP_LPJML_RUN_DIR`) to derive it from
+#' a finished local run instead, or `data$net_c` to supply it directly. The
+#' pin holds only LPJmL-derived quantities: the grazing excreta, both
+#' humification fractions and the polity attachment are always computed here,
+#' so they never differ between the pinned and the run-derived path.
+#' The class carbon input is the net primary production
 #' minus harvested carbon (both per-plant-functional-type, [read_lpjml_npp()]),
 #' floored at zero and converted to megagrams of carbon per hectare per year
 #' (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
@@ -43,11 +50,19 @@
 #'   (default) keeps every year the inputs cover. Threaded into the default
 #'   LPJmL NPP, stand-fraction and land-use readers so they slice to the
 #'   requested years; ignored for inputs supplied via `data`.
+#' @param run_dir Path to a finished LPJmL run output directory holding
+#'   `pft_npp.nc`, `pft_harvestc.nc` and `cftfrac.nc` (the `scenario_*` output
+#'   folder). `NULL` (default) uses `WHEP_LPJML_RUN_DIR` when set, and the
+#'   pinned artifact otherwise.
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
-#'   when absent: `npp` and `harvestc` (per cell, PFT and year, the
+#'   when absent: `net_c` (the LPJmL net carbon density, `lon`, `lat`, `year`,
+#'   `land_use`, `npp_c_mgc_ha_yr`; takes precedence over both `run_dir` and
+#'   the pin); `npp` and `harvestc` (per cell, PFT and year, the
 #'   [read_lpjml_npp()] output); `stand_frac` (per cell, year and PFT name the
 #'   managed-grassland stand fractions with columns `lon`, `lat`, `year`,
-#'   `name_pft`, `stand_frac`); `country_grid` (`lon`, `lat`, `area_code`,
+#'   `name_pft`, `stand_frac`). Supplying all three of `npp`, `harvestc` and
+#'   `stand_frac` derives `net_c` without needing a run directory or the pin.
+#'   Also: `country_grid` (`lon`, `lat`, `area_code`,
 #'   `cell_area_frac`); `land_use` (per-cell class `area_ha`, used to spread
 #'   excreta and to area-weight polity output); `excreta` (the `applied` tibble
 #'   of [build_livestock_nutrient_flows()], grassland rows carry `applied_c`
@@ -57,7 +72,8 @@
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
 #'   `c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-#'   `land_use` in `"grassland"` and `"natural"`.
+#'   `land_use` in `"grassland"` and `"natural"`, plus the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source LPJmL run net primary production and harvested carbon; grassland and
 #'   natural carbon inputs per the WHEP historical carbon-balance design.
 #' @export
@@ -67,32 +83,110 @@ build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  run_dir = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
-  d <- .gn_resolve_inputs(data, years)
+  d <- .gn_resolve_inputs(data, years, run_dir)
   natural <- .gn_natural_input(d)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
-    .gn_finalise(resolution, d$land_use)
+    .gn_finalise(resolution, d$land_use) |>
+    .add_reporting_polity_columns()
 }
 
 # -- Input resolution ---------------------------------------------------------
 
-.gn_resolve_inputs <- function(data, years = NULL) {
+.gn_resolve_inputs <- function(data, years = NULL, run_dir = NULL) {
   list(
-    npp = data$npp %||% read_lpjml_npp("npp", years = years),
-    harvestc = data$harvestc %||% read_lpjml_npp("harvestc", years = years),
-    stand_frac = data$stand_frac %||% .gn_read_stand_frac(years = years),
+    net_c = .gn_resolve_net_c(data, years, run_dir),
     country_grid = data$country_grid %||% .gn_read_country_grid(),
     land_use = data$land_use %||% .gn_read_land_use(years),
     excreta = data$excreta,
     residue_humification = data$residue_humification %||%
       whep::residue_humification
   )
+}
+
+# The pin seam. Everything that needs the LPJmL run -- the three NetCDF reads
+# and the per-stand PFT algebra -- lives behind this one helper, and its output
+# schema IS the pinned artifact's schema. That is deliberate: the pin then
+# carries only LPJmL-derived quantities, so nothing downstream (the grazing
+# excreta, either humification fraction, the polity attachment) is silently
+# baked into it. A caller-supplied table always wins; a resolvable run
+# directory is read next; the pin is the default so a user who has never run
+# LPJmL still gets the real layer.
+.gn_resolve_net_c <- function(data, years, run_dir = NULL) {
+  if (!is.null(data$net_c)) {
+    return(.gn_check_net_c(data$net_c, "data$net_c"))
+  }
+  if (.gn_can_read_run(data, run_dir)) {
+    return(.gn_net_c_from_lpjml(data, years, run_dir))
+  }
+  .read_lpjml_pin(.gn_net_c_alias()) |>
+    .gn_check_net_c(.gn_net_c_alias()) |>
+    .filter_years_if_present(years)
+}
+
+.gn_net_c_alias <- function() {
+  "lpjml-grass-natural-net-c"
+}
+
+# A run is readable when the caller passed a run directory, the shared env var
+# is set, or every per-PFT input was supplied directly (the injected-data path
+# the tests use, which needs no run at all).
+.gn_can_read_run <- function(data, run_dir) {
+  supplied <- !is.null(data$npp) &&
+    !is.null(data$harvestc) &&
+    !is.null(data$stand_frac)
+  supplied || .has_path(run_dir) || .has_path(Sys.getenv("WHEP_LPJML_RUN_DIR"))
+}
+
+.gn_check_net_c <- function(x, source) {
+  .check_columns(
+    x,
+    c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr"),
+    source
+  )
+  tibble::as_tibble(x)
+}
+
+# Derive the net carbon density per cell, year and land-use class from the run:
+# natural sums the eleven natural PFT densities (one shared stand, never
+# harvested); grassland takes the stand-area-weighted mean of the rainfed and
+# irrigated net (NPP - harvest) densities.
+.gn_net_c_from_lpjml <- function(data, years, run_dir = NULL) {
+  npp <- data$npp %||% read_lpjml_npp("npp", years = years, run_dir = run_dir)
+  harvestc <- data$harvestc %||%
+    read_lpjml_npp("harvestc", years = years, run_dir = run_dir)
+  stand_frac <- data$stand_frac %||%
+    .gn_read_stand_frac(run_dir = run_dir, years = years)
+  natural <- npp |>
+    dplyr::filter(.data$name_pft %in% .gn_natural_pfts()) |>
+    dplyr::summarise(
+      npp_c_mgc_ha_yr = sum(pmax(.data$value, 0)) * 0.01,
+      .by = c("lon", "lat", "year")
+    ) |>
+    dplyr::mutate(land_use = "natural")
+  grassland <- .gn_grassland_net(npp, harvestc, stand_frac) |>
+    dplyr::mutate(land_use = "grassland")
+  dplyr::bind_rows(natural, grassland) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      "land_use",
+      "npp_c_mgc_ha_yr"
+    )
+}
+
+.gn_net_c_class <- function(net_c, class) {
+  net_c |>
+    dplyr::filter(.data$land_use == class) |>
+    dplyr::select("lon", "lat", "year", "npp_c_mgc_ha_yr")
 }
 
 # The natural-land PFT names (natural stand: trees plus the three natural
@@ -123,12 +217,8 @@ build_grass_natural_carbon_inputs <- function(
 # NPP densities (they coexist in one stand), converted to MgC/ha.
 .gn_natural_input <- function(d) {
   hf <- .gn_humified(d$residue_humification, "woody_residue")
-  d$npp |>
-    dplyr::filter(.data$name_pft %in% .gn_natural_pfts()) |>
-    dplyr::summarise(
-      c_input_mgc_ha_yr = sum(pmax(.data$value, 0)) * 0.01,
-      .by = c("lon", "lat", "year")
-    ) |>
+  .gn_net_c_class(d$net_c, "natural") |>
+    dplyr::rename(c_input_mgc_ha_yr = "npp_c_mgc_ha_yr") |>
     .gn_attach_polity(d$country_grid) |>
     dplyr::mutate(
       land_use = "natural",
@@ -147,7 +237,7 @@ build_grass_natural_carbon_inputs <- function(
   # its own humification fraction, matching the crop path (.sci_humified_fraction).
   hf_npp <- .gn_humified(d$residue_humification, "weed")
   hf_excreta <- .gn_humified(d$residue_humification, "excreta")
-  net <- .gn_grassland_net(d$npp, d$harvestc, d$stand_frac) |>
+  net <- .gn_net_c_class(d$net_c, "grassland") |>
     .gn_attach_polity(d$country_grid)
   excreta <- .gn_excreta_density(d$excreta, d$land_use, d$country_grid)
   net |>

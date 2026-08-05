@@ -818,16 +818,39 @@ build_processing_coefs <- function(
   dt
 }
 
+# Resolve an iso3c + year table from a genuine historical trade source to the
+# polity active in its own reported year, adding `area`, `area_code` -- the
+# polity aggregation bucket -- and `polity_code`. Unlike WHEP's pre-1962 FAOSTAT
+# series, which are back-cast onto ~1961 territory, these sources are reported
+# under their own year's borders, so the back-cast floor documented in
+# .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
+# whose reported year predates every period of its area, keep NA and are dropped
+# by the caller.
+.resolve_hist_trade_polities <- function(dt) {
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code)
+  ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
+
+  out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  out <- .add_polity_columns_dt(
+    out,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE,
+    backcast_anchor = -Inf
+  )
+  out[, area_code := polity_area_code]
+  keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
+  out[, keep, with = FALSE]
+}
+
 .read_historical_trade <- function(years = NULL) {
   items <- data.table::as.data.table(whep::items_full)[,
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
 
   exports <- .read_input(
     "historical-trade-exports",
@@ -861,16 +884,24 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+    by = c(
+      "year",
+      "area",
+      "area_code",
+      "polity_code",
+      "item_cbs",
+      "item_cbs_code",
+      "element"
+    )
   ]
   dt[, unit := "tonnes"]
-  dt[!is.na(area)]
+  dt[!is.na(polity_code)]
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.

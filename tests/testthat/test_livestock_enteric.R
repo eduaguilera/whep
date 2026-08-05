@@ -193,3 +193,21 @@ testthat::test_that("Tier 2 adds Method_Enteric column", {
       c("IPCC_2019_Tier2")
     )
 })
+
+testthat::test_that(".join_ym gives sheep a single Ym regardless of weight or diet quality", {
+  # Regression for #250: IPCC 2019 Table 10.13 gives a single Ym = 6.7% for
+  # all sheep "irrespective of feed quality" -- there is no <75kg/>=75kg
+  # split or 4.7% value in the source. Real-world sheep (~45 kg average)
+  # were previously routed to the fabricated 4.7% branch.
+  data <- tibble::tribble(
+    ~species_gen, ~weight, ~diet_quality,
+    "Sheep",       45,      "Medium",
+    "Sheep",       90,      "Medium",
+    "Sheep",       NA,      "Low",
+    "Sheep",       45,      "High"
+  )
+
+  result <- whep:::.join_ym(data)
+
+  testthat::expect_equal(result$ym_factor, rep(6.7, 4))
+})
