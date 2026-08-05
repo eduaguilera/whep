@@ -19,6 +19,19 @@
   either year 2024 (outside the default range) or areas 901-906, which are WHEP
   reporting labels no source dataset carries. That is a crosswalk-level
   measurement, not a full-pipeline one.
+* `read_population()` now reports the `area_code` rows that are aggregates of
+  several territories, alongside the message it already emitted for the dropped
+  regional residuals. `area_code` is `polity_area_code`, a bucket rather than an
+  identity, so with the real `gdp-population` pin eight ISO3 codes fold into two
+  rows: 999 "Rest of World" (Syria, North Macedonia, Palestine, Eswatini,
+  Equatorial Guinea, French Guiana) and, from 2012, 206 "Sudan (former)"
+  (Sudan + South Sudan). That is 0.35% of the population over 1850-2021 and
+  1.05% in 2015, against the 0.07% the existing message covered. The fold is
+  deliberate -- those are the codes the commodity balances are keyed on, so a
+  finer key would leave their food supply with no denominator -- and the
+  `@return` documentation now says a row is an area code rather than a country.
+  **No published value changes**: the output of a full real-pin read is
+  byte-identical before and after (28,255 rows, 530,970,330,534 person-years).
 * `build_energy_co2_extension()` now **reports the meat production it cannot
   price** instead of dropping it in silence. Reporting areas with no row in
   `gleam_geographic_hierarchy` get no energy intensity, so their carcass
@@ -180,6 +193,14 @@
   Curaçao" shipped with their accented letters read as pairs of Latin-1
   characters. The vendored harmonization CSVs are now repaired on read in
   `data-raw` (#399).
+* `polities_cats` is now derived from `regions_full` rather than vendored as a
+  second hand-maintained copy of the same 39 columns, so the two can no longer
+  drift. They had: 17 columns disagreed over the 198 shared area codes, and 95
+  of the differing cells were the literal string `"0"` in `eia`, `iea` and
+  eleven `region_*` columns where `regions_full` leaves `NA`. Those 95 cells are
+  now `NA`; the row set, row order, column names and column types are unchanged,
+  and the deliberate fold of Bhutan into `RASI` and Comoros into `RAFR` is kept
+  as an explicit override (#406).
 * `consolidate_sources()` gains two opt-in `tie_break` options for panels whose
   sources report exact zeros or several quality variants of one cell.
   `coverage = "positive"` counts the coverage tie-break over strictly positive

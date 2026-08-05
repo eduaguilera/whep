@@ -47,11 +47,6 @@ primary_double <- file.path(harmonization_dir, "primary_double.csv") |>
 cbs_trade_codes <- file.path(harmonization_dir, "cbs_trade_codes.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
 
-polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
-  dplyr::select(!dplyr::starts_with("0...")) |>
-  repair_table_labels()
-
 if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))
 }
@@ -105,7 +100,57 @@ add_current_area_polities <- function(table) {
 }
 
 regions_full <- add_current_area_polities(regions_full)
-polities_cats <- add_current_area_polities(polities_cats)
+
+# Derived: polities_cats ------------------------------------------------------
+
+# polities_cats is a row-filtered view of regions_full: the same columns, and
+# every one of its 198 area codes is one of regions_full's. It used to be read
+# from a second vendored CSV carrying its own copy of all 39 columns, so the two
+# copies drifted: 17 columns disagreed over the 198 shared codes (#406). 95 of
+# those cells were an encoding artefact -- the literal string "0" in eia, iea
+# and eleven region_ columns where regions_full leaves NA -- and none of the
+# disagreements was reaching a computation, because no package code reads
+# polities_cats.
+#
+# Only the membership is read from that CSV now; every column value comes from
+# regions_full, so a repair or an override applied there can no longer miss the
+# subset, and the deliberate difference below is the only difference left. The
+# membership itself stays vendored because it encodes no rule: the closest
+# predicate in regions_full is cbs == TRUE, and 18 areas contradict it, 7 in the
+# subset with cbs FALSE and 11 with cbs TRUE left out of it.
+polities_cats_codes <- file.path(harmonization_dir, "polities_cats.csv") |>
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  dplyr::pull("code") |>
+  as.integer()
+
+unknown_codes <- setdiff(polities_cats_codes, regions_full$code)
+if (length(unknown_codes) > 0) {
+  cli::cli_abort(c(
+    "Area codes in {.file polities_cats.csv} are absent from regions_full.",
+    "x" = "Unknown codes: {.val {unknown_codes}}."
+  ))
+}
+
+# polities_cats files Bhutan under rest-of-Asia and Comoros under
+# rest-of-Africa, where regions_full models both individually: neither country
+# had a commodity balance sheet in the CBS vintage the table was compiled
+# against. This is the one difference between the two tables that is a modelling
+# choice rather than drift, so it is stated here in code instead of being
+# implied by a second copy of the table. Whether it still holds now that the
+# faostat-cbs-new pin carries 91 rows for Bhutan and 135 for Comoros is #395,
+# and is deliberately not decided here: these values are exactly what the table
+# shipped before it became derived.
+rest_of_world_folds <- tibble::tribble(
+  ~code, ~polity_code, ~polity_name, ~cbs, ~fabio_code,
+  18L, "RASI", "Asia Other", FALSE, 999,
+  45L, "RAFR", "Africa Other", FALSE, 999
+)
+
+polities_cats <- regions_full |>
+  dplyr::filter(.data$code %in% polities_cats_codes) |>
+  # Keep the vendored row order, so deriving the table does not reshuffle it.
+  dplyr::arrange(match(.data$code, polities_cats_codes)) |>
+  dplyr::rows_update(rest_of_world_folds, by = "code", unmatched = "error")
 
 animals_codes <- file.path(harmonization_dir, "animals_codes.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
