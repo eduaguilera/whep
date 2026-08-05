@@ -111,11 +111,25 @@ test_that("CBS and FABIO area codes map to polity database rows", {
       .data$has_geometry
     )
 
-  expect_equal(nrow(fabio_row_sources), 6L)
+  # Seven rows over six areas: French Guiana carries two periods.
+  expect_equal(nrow(fabio_row_sources), 7L)
+  expect_true(all(fabio_row_sources$has_geometry))
+
+  # What every FABIO rest-of-world source shares, and the only part any build
+  # keys on, is the numeric bucket. That is asserted for all of them.
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2025"))
-  expect_true(all(fabio_row_sources$has_geometry))
+
+  # The IDENTITY splits, and deliberately so (#459). An area the compact country
+  # grid models as a country takes its own polity even while its value keeps
+  # folding into bucket 999; an area that is not individually modelled is
+  # identified as the aggregate it is summed into.
+  still_row <- fabio_row_sources$area_code %in% c(30L, 152L, 252L, 254L)
+  expect_true(all(fabio_row_sources$polity_code[still_row] == "ROW-1850-2025"))
+  expect_setequal(
+    fabio_row_sources$polity_code[!still_row],
+    c("GUF-1816-1946", "GUF-1946-2025", "PSE-1948-2025")
+  )
 })
 
 

@@ -874,15 +874,34 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
 
   # Identity fallbacks, tried only after the alias route misses.
   #
+  # A DEAD POLITY MUST NOT BE A RESOLUTION CANDIDATE, for the same reason
+  # `data-raw/table_mappings.R` filters them out of the crosswalk build: upstream
+  # retires a polity when a finer or corrected split supersedes it, and both rows
+  # stay in the published `polities` table because looking up a code you already
+  # hold is legitimate. What must not happen is resolving TO one.
+  #
+  # Only the INFERENCE routes below are filtered. The alias route is not: an alias
+  # names a code explicitly, and a curator who decided a label means a particular
+  # polity has made that decision whatever its status.
+  #
+  # Unfiltered, a corrected period and the row it corrected both cover the same
+  # year, the ambiguity guard cannot separate them, and the label resolves to
+  # nothing. Measured after the #530 re-sync: `CAN-1948-2025` (retired) sat beside
+  # `CAN-1949-2025`, and the same shape held for BRA, ARG, AGO, GRC and IRQ --
+  # 234 of `mueller_synthetic_n`'s 5,043 rows unresolvable, every one of them with
+  # exactly one LIVE candidate.
+  #
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
+  alive <- is.na(polities$wiki_status) |
+    !polities$wiki_status %in% c("retired", "superseded")
   pol <- data.frame(
-    polity_code = polities$polity_code,
-    start_year = polities$start_year,
-    end_year = polities$end_year,
+    polity_code = polities$polity_code[alive],
+    start_year = polities$start_year[alive],
+    end_year = polities$end_year[alive],
     stringsAsFactors = FALSE
   )
-  name_key <- .norm_polity_label(polities$polity_name)
+  name_key <- .norm_polity_label(polities$polity_name[alive])
   # The ISO3 index is what makes this usable for the datasets that motivated it.
   # The alias map is keyed on the labels curators had to decide about, so a label
   # that is simply a current ISO3 code is not in it: without this route,
@@ -890,7 +909,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   # 10 FAO-style legacy codes the map does carry -- and `crops_manure_n`'s `ISO`
   # 860 of 31,648. Upstream's matcher resolves "by alias, then ISO/name family +
   # year containment", so this is the second half of that rule, not a new one.
-  iso_key <- toupper(trimws(polities$iso3_code))
+  iso_key <- toupper(trimws(polities$iso3_code[alive]))
   refuse_names <- .refused_polity_label_names()
 
   family <- function(code) sub("-.*", "", code)
