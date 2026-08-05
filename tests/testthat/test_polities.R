@@ -23,9 +23,24 @@ test_that("add_polity_code maps area codes by year", {
 })
 
 test_that("add_polity_code extends out-of-period rows to their nearest period", {
+  # The aggregate years are DERIVED from the crosswalk rather than written in, so
+  # this test says "one year past whatever period this vintage declares" instead
+  # of naming a literal. Areas 15, 151 and 904 all had their bucket end year moved
+  # by an upstream re-sync while this branch was open (#530 extends RLAM-1850-2013
+  # to RLAM-1850-2025), and a hardcoded year silently starts asking the opposite
+  # question when that happens -- 2021 is outside the old bucket and inside the
+  # new one.
+  aggregate_areas <- c(15L, 151L, 904L)
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  past_period_end <- vapply(
+    aggregate_areas,
+    function(area) max(cw$polity_end_year[which(cw$area_code == area)]) + 1L,
+    integer(1L)
+  )
+
   mapped <- tibble::tibble(
-    area_code = c(2L, 15L, 151L, 904L),
-    year = c(1790L, 2000L, 2023L, 2021L)
+    area_code = c(2L, aggregate_areas),
+    year = c(1790L, past_period_end)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
     # behaviour: rows whose year no period covers fall back to their nearest
@@ -35,12 +50,11 @@ test_that("add_polity_code extends out-of-period rows to their nearest period", 
   # Area 2 Afghanistan is a national polity, so it extends to its nearest period.
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
 
-  # The other three are AGGREGATE reporting buckets -- 15 Belgium-Luxembourg
-  # (BLX-1850-1999), 151 Netherlands Antilles (ANT-1961-2010) and 904 Latin
-  # America Other (RLAM-1850-2013) are all typed `aggregate` -- and aggregates are
-  # deliberately NOT extended past their period, so these rows have no polity. See
-  # the test below for why that is the right answer rather than a gap to paper
-  # over.
+  # The other three are AGGREGATE reporting buckets -- 15 Belgium-Luxembourg,
+  # 151 Netherlands Antilles and 904 Latin America Other are all typed
+  # `aggregate` -- and aggregates are deliberately NOT extended past their period,
+  # so these rows have no polity. See the test below for why that is the right
+  # answer rather than a gap to paper over.
   expect_true(all(is.na(mapped$polity_code[2:4])))
 })
 
@@ -65,14 +79,25 @@ test_that("aggregate area 904 loses post-2013 years, and upstream owns that", {
   #    bucket that did not exist. That is 64 rows / 1,722,000 t of the historical
   #    trade feed, and `test_build_cbs.R` pins dropping them as deliberate.
   #
-  # So this pins the CURRENT honest answer, and it is expected to flip when #530
-  # lands: with `RLAM-1850-2025` in place these years resolve through the ordinary
-  # period join, with no fallback and no aggregate extension involved.
-  mapped <- tibble::tibble(area_code = 904L, year = 2013:2023) |>
+  # So this asserts the RULE rather than the vintage: inside the bucket's declared
+  # period area 904 resolves to it, and one year past the end it resolves to
+  # nothing. Both years are read off the crosswalk, so #530 extending
+  # `RLAM-1850-2013` to `RLAM-1850-2025` moves which calendar years are tested
+  # without changing what is being tested -- and after it lands the years that
+  # used to be NA resolve through the ordinary period join, which is the point.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  rlam <- cw[which(cw$area_code == 904L), ]
+  bucket_end <- max(rlam$polity_end_year)
+  bucket_code <- rlam$polity_code[which.max(rlam$polity_end_year)]
+
+  mapped <- tibble::tibble(
+    area_code = 904L,
+    year = c(bucket_end - 1L, bucket_end + 1L)
+  ) |>
     add_polity_code()
 
-  expect_equal(mapped$polity_code[1], "RLAM-1850-2013")
-  expect_true(all(is.na(mapped$polity_code[-1])))
+  expect_equal(mapped$polity_code[1], bucket_code)
+  expect_true(is.na(mapped$polity_code[2]))
 })
 
 test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
