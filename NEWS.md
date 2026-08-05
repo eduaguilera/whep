@@ -1,5 +1,24 @@
 # whep (development version)
 
+* The FABIO Rest-of-World fold is now **reported instead of silent**, and the
+  measurement that was blocking a decision on it has been redone. New
+  `folded_reporting_areas()` lists every reporting area whose `polity_area_code`
+  is not its own `area_code`: 61 areas folded into Rest of World, of which 14
+  carry observed data (Syria 24,426 `faostat-production` rows, Eswatini 12,196,
+  Réunion 11,970, Palestine 9,606, the Faroe Islands 2,458 and nine more, 130,103
+  rows in total), plus 3 successor-state folds (62 into 238, 276 and 277 into
+  206). `.aggregate_to_polities()` now warns per source, naming the areas and the
+  rows it folded, because these areas resolve with `mapping_status == "matched"`
+  and so no coverage count could show them. **No published value changes.**
+  `options(whep.unfold_rest_of_world = TRUE)` promotes each member to its own
+  code for sensitivity work; it warns on every crosswalk read and is not a
+  production mode. Measured on a full-range `get_wide_cbs()` (1850-2023),
+  promoting all 61 members moves global totals by at most 1.2%
+  (`stock_addition`) and under 0.1% for `feed`, `production` and `processing` —
+  the 13.7x feed inflation recorded in issue #419 does not reproduce, because
+  that comparison predates the `dcast()` duplicate-key fix in
+  `.select_best_source()` (#425).
+
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via
   `WHEP_POLITIES_FAOSTAT_MAP`, 281 rows over 228 FAOSTAT area codes) instead of

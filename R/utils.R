@@ -1769,7 +1769,9 @@ utils::globalVariables(
     "sjos_class",
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
-    "method_n_exceedance"
+    "method_n_exceedance",
+    # polity_folds.R (#419) — reporting-area fold diagnostic
+    "rows"
   )
 )
 
