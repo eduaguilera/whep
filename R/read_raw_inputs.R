@@ -307,7 +307,7 @@
   }
 })
 
-.aggregate_to_polities <- function(df, ...) {
+.aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) {
@@ -321,6 +321,11 @@
     include_unmapped = FALSE
   )
   dt <- dt[!is.na(polity_code)]
+  # A bucket can fold several live territories. Say so out loud here, where the
+  # fold is created, rather than letting the summed value travel with a polity
+  # that covers only part of it (whep#414).
+  .warn_partial_bucket_polities(dt)
+  .warn_folded_areas(dt, source_label)
   by_cols <- c(
     "year",
     "polity_area_code",
@@ -409,7 +414,7 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs, item_cbs_code, source_label = pin_alias)
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {
