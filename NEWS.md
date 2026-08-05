@@ -1,5 +1,23 @@
 # whep (development version)
 
+* `build_cell_polity()` gains `area_key`, choosing which code the shared
+  cell-area grid every gridded consumer keys on. The grid is rasterized from
+  present-day polygons through `regions.csv`, so its `area_code` is a raw
+  reporting-area code, not the `polity_area_code` bucket every polity-keyed
+  national table in whep is aggregated on. On the deployed
+  `cell_polity_fraction` parquet **12 of its 182 codes (819 cells) are not a
+  bucket** -- Syria, Palestine, Eswatini, Equatorial Guinea, North Macedonia,
+  New Caledonia, Western Sahara, Andorra, Liechtenstein and San Marino (all
+  folded into `999` Rest of World), `62` Ethiopia PDR (into `238`) and `277`
+  South Sudan (into `206`) -- so their cells match nothing on either side of
+  the join. Measured against real 2010 harvested area, **21.09 Mha of national
+  cropland, 1.525% of the world total, cannot be placed on any grid cell**;
+  15.30 Mha of that is the whole of Ethiopia and 5.67 Mha is Rest of World.
+  `area_key = "polity_area"` re-keys the grid on the bucket and cuts that to
+  0.12 Mha (0.009%). **No published value changes**: the default `"grid"`
+  reproduces today's output bit-for-bit and only adds a warning naming the
+  codes, because switching moves every gridded consumer's territorial
+  attribution at once. Whether it should become the default is issue #460.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
