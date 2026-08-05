@@ -73,15 +73,27 @@ testthat::test_that("adjacent periods are not a conflict", {
 })
 
 testthat::test_that("the shipped crosswalk's conflicts are the known ones", {
-  # PINNED, not asserted to zero -- see the header. Montenegro 1913-1914 is an upstream
-  # data question (lbm364dl/whep-polities#62), not something this package can resolve.
+  # PINNED, not asserted to zero -- see the header. Both remaining conflicts are the
+  # same upstream shape: a legacy period that was never retired when a finer split
+  # replaced it, so two live periods of one family cover the same years. Montenegro is
+  # filed upstream as whep-polities issue 62. Peru's `PER-1825-1909` overlaps both
+  # `PER-1825-1884` and `PER-1884-1909`, which between them partition the same interval.
+  #
+  # Both sit BEFORE 1961, so neither is reachable through the upstream FAOSTAT map --
+  # they enter as prefix-derived pre-FAOSTAT periods, which is why adopting the map
+  # (#517) shrank the conflict set without emptying it. Measured on the same polities
+  # vintage: prefix inference alone produced 199 conflicting area-years across five
+  # groups (areas 15, 28, 101, 170, 273); the map resolves the three FAOSTAT-era ones
+  # and 86 area-years across two groups remain.
   out <- whep:::.area_year_polity_conflicts()
 
   testthat::expect_setequal(
-    paste0(out$area_code, ":", out$year, " ", out$polity_codes),
+    unique(paste0(out$area_code, " ", out$polity_codes)),
     c(
-      "273:1913 MNE-1913-1915, MNE-1913-1918",
-      "273:1914 MNE-1913-1915, MNE-1913-1918"
+      "170 PER-1825-1884, PER-1825-1909",
+      "170 PER-1825-1909, PER-1884-1909",
+      "273 MNE-1913-1915, MNE-1913-1918"
     )
   )
+  testthat::expect_equal(nrow(out), 86L)
 })

@@ -4809,9 +4809,42 @@ extend_lpjml_wind <- function(
 
   nc <- ncdf4::nc_create(out_path, var_def)
   on.exit(ncdf4::nc_close(nc), add = TRUE)
-  ncdf4::ncvar_put(nc, var_def, tail_cube)
+  ncdf4::ncvar_put(nc, var_def, .clamp_non_negative(tail_cube, variable))
 
   invisible(out_path)
+}
+
+# Every variable written through .write_climate_tail() is a non-negative
+# physical quantity (wind speed, downwelling shortwave, downwelling longwave),
+# so a negative value can only be numerical noise.
+#
+# It does occur. The remap onto the LPJmL grid interpolates, and interpolation
+# overshoots where the field has a sharp gradient -- for shortwave that is the
+# polar-night terminator, where the true flux is exactly zero. The overshoot is
+# ~1e-5 W/m2, symmetric about zero, and physically nothing; the 1901-2019
+# ISIMIP base contains no negatives at all, so it is introduced purely by the
+# ERA5 tail we build here.
+#
+# Left unclamped it is still not harmless: LPJmL's SAFE build rejects negative
+# shortwave for every affected cell-day (update_daily_cell.c) without clamping
+# it, which produced 138k ERROR038 lines and a 12 MB error log on the
+# 1901-2023 run -- enough to bury a real error. Clamped here rather than in the
+# model because the input is what is wrong.
+#
+# The count is reported rather than silently applied: a large count, or a
+# magnitude that is not round-off, would mean something else is broken.
+.clamp_non_negative <- function(cube, variable) {
+  negative <- !is.na(cube) & cube < 0
+  count <- sum(negative)
+  if (count == 0L) {
+    return(cube)
+  }
+  cli::cli_alert_info(
+    "{variable}: clamping {count} negative value{?s} to zero
+     (most negative {signif(min(cube[negative]), 3)})."
+  )
+  cube[negative] <- 0
+  cube
 }
 
 # Extend one ISIMIP radiation series (rsds or rlds) to `target_years` with a
@@ -4824,8 +4857,10 @@ extend_lpjml_wind <- function(
 # capped 5.9.7 at 2019 before its own ERA5 tail (issue #340).
 #
 # The correction is multiplicative per cell and calendar month, fitted on the
-# overlap, identical in form to extend_lpjml_wind(). Radiation is a strictly
-# non-negative flux, so a multiplicative factor cannot drive it below zero.
+# overlap, identical in form to extend_lpjml_wind(). A multiplicative factor
+# cannot itself drive a non-negative flux below zero, but the remap onto the
+# LPJmL grid can: see .clamp_non_negative(), which is why the tail is clamped
+# on the way out.
 extend_lpjml_radiation <- function(
   era5_path,
   isimip_path,
