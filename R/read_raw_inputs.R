@@ -321,6 +321,10 @@
     include_unmapped = FALSE
   )
   dt <- dt[!is.na(polity_code)]
+  # A bucket can fold several live territories. Say so out loud here, where the
+  # fold is created, rather than letting the summed value travel with a polity
+  # that covers only part of it (whep#414).
+  .warn_partial_bucket_polities(dt)
   .warn_folded_areas(dt, source_label)
   by_cols <- c(
     "year",
