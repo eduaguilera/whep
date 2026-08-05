@@ -7,7 +7,10 @@
 expand_polycell_years(support, years)
 }
 \arguments{
-\item{support}{A \code{\link[=build_polycell_support]{build_polycell_support()}} table in the interval grain.}
+\item{support}{A \code{\link[=build_polycell_support]{build_polycell_support()}} table in the interval grain,
+carrying \code{cell_id}, \code{polity_code}, \code{start_year} and \code{end_year}. The first
+two are what identify successive intervals of one polity in one cell, and
+without them the open end cannot be told from a succession.}
 
 \item{years}{Integer vector of calendar years.}
 }
@@ -17,9 +20,11 @@ A \code{tibble} with one row per polycell-year, \code{year} placed after
 }
 \description{
 Repeats every polycell interval over the calendar years it covers, adding a
-\code{year} column. \code{start_year} is inclusive and \code{end_year} exclusive, so a year
-resolves to exactly one interval per polycell and a boundary year is never
-counted twice.
+\code{year} column. \code{start_year} is inclusive; \code{end_year} is \strong{exclusive at a
+succession}, so a boundary year resolves to the successor alone and is
+never counted twice, and \strong{inclusive at the open end}, so the last year the
+table covers still resolves to the polity nothing succeeds instead of to
+nothing at all.
 }
 \examples{
 if (requireNamespace("sf", quietly = TRUE)) {

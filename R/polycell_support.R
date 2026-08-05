@@ -17,20 +17,21 @@
 #' than renormalised away.
 #'
 #' The default grain is **interval-keyed**: one row per polycell per interval
-#' over which every area is constant, carrying `start_year` and `end_year`
-#' (`end_year` exclusive). Supply `years` to expand to one row per
-#' polycell-year, which is what [expand_polycell_years()] does on demand. No
-#' area varies within an interval, so the interval grain is the form to store.
+#' over which every area is constant, carrying `start_year` and `end_year`.
+#' Supply `years` to expand to one row per polycell-year, which is what
+#' [expand_polycell_years()] does on demand. No area varies within an interval,
+#' so the interval grain is the form to store.
 #'
 #' @param years Optional integer vector of calendar years. `NULL` (default)
 #'   returns the interval-keyed grain; a vector expands to one row per
 #'   polycell-year and adds a `year` column.
 #' @param geometries An `sf` table of polity geometries with at least
 #'   `polity_code`, `start_year` and `end_year`; defaults to
-#'   [get_polity_geometries()]. `start_year` is inclusive, `end_year`
-#'   exclusive, and neither is ever parsed out of `polity_code`. Optional
-#'   `wiki_status`, `polity_type`, `polygon_status` and `area_code` columns are
-#'   honoured.
+#'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
+#'   **exclusive at a succession** and **inclusive at the open end**, the
+#'   convention `polities` is documented under, and neither bound is ever
+#'   parsed out of `polity_code`. Optional `wiki_status`, `polity_type`,
+#'   `polygon_status` and `area_code` columns are honoured.
 #' @param water Optional per-cell `tibble` of inland water with `lon`, `lat`
 #'   and `water_frac`, a fraction of the **whole** cell, as
 #'   [read_glwd_water()] returns it.
@@ -157,11 +158,16 @@ polycell_example_geometries <- function() {
 #'
 #' @description
 #' Repeats every polycell interval over the calendar years it covers, adding a
-#' `year` column. `start_year` is inclusive and `end_year` exclusive, so a year
-#' resolves to exactly one interval per polycell and a boundary year is never
-#' counted twice.
+#' `year` column. `start_year` is inclusive; `end_year` is **exclusive at a
+#' succession**, so a boundary year resolves to the successor alone and is
+#' never counted twice, and **inclusive at the open end**, so the last year the
+#' table covers still resolves to the polity nothing succeeds instead of to
+#' nothing at all.
 #'
-#' @param support A [build_polycell_support()] table in the interval grain.
+#' @param support A [build_polycell_support()] table in the interval grain,
+#'   carrying `cell_id`, `polity_code`, `start_year` and `end_year`. The first
+#'   two are what identify successive intervals of one polity in one cell, and
+#'   without them the open end cannot be told from a succession.
 #' @param years Integer vector of calendar years.
 #'
 #' @return A `tibble` with one row per polycell-year, `year` placed after
@@ -174,12 +180,23 @@ polycell_example_geometries <- function() {
 #'     expand_polycell_years(2010L:2012L)
 #' }
 expand_polycell_years <- function(support, years) {
-  .pcs_require_cols(support, c("start_year", "end_year"), "support")
+  .pcs_require_cols(
+    support,
+    c("cell_id", "polity_code", "start_year", "end_year"),
+    "support"
+  )
   years <- as.integer(years)
+  # Whether an interval is succeeded is a property of the TABLE, not of the
+  # year being asked for, so the succession key is built once here rather than
+  # rebuilt for every year expanded.
+  open <- .pcs_open_intervals(support)
   years |>
     purrr::map(\(yr) {
-      support |>
-        dplyr::filter(.data$start_year <= yr, yr < .data$end_year) |>
+      covers <- .pcs_covers_year(support, yr, open)
+      # Subset outside the data mask, as `.filter_country_grid_year()` does:
+      # `support` is the caller's table, and a column of its own called
+      # `covers` would shadow the vector and filter on the wrong thing.
+      support[which(covers), , drop = FALSE] |>
         dplyr::mutate(year = yr, .after = "area_code")
     }) |>
     dplyr::bind_rows()
@@ -803,6 +820,79 @@ polycell_shim_view <- function(support) {
     dplyr::distinct(.data$cell_id, .data$breakpoint)
 }
 
+# -- Year resolution ----------------------------------------------------------
+
+# THE CONVENTION (DA-24) is stated once for the whole package, above
+# `.open_ended_intervals()` in `R/constant_territory.R`, and resolved by
+# `.covers_year()` there: `start_year` is inclusive, `end_year` is EXCLUSIVE at
+# a succession and INCLUSIVE at the open end. This file calls that predicate
+# instead of restating the rule -- the package carried three readings of
+# `end_year` before C2, and a second reading here is the same defect.
+#
+# What is decided HERE is the two things the predicate needs from THIS table.
+#
+# THE DOMAIN. A row with no `polity_code` is the shim's crosswalk-only padding
+# (`.pcs_append_crosswalk_only()`), carried so an unmigrated consumer still
+# sees every row it sees today. Its `[crosswalk_year, crosswalk_year + 1)`
+# window is a synthetic pin, not a validity interval: it can never be open, and
+# it must not be allowed to sit at `max(end_year)` and move the domain end off
+# the year the real intervals actually reach.
+#
+# THE GROUP is the physical cell plus the polity FAMILY -- the two things that
+# do NOT change when one epoch succeeds another. Getting it wrong is silent in
+# both directions, because the rule opens the latest-starting member of a group
+# and closes the rest:
+#
+#   TOO FINE and every terminal row is its own group maximum, so all of them
+#   open. `polycell_id` and `polity_code` are both too fine -- DA-2 makes them
+#   a function of the epoch, so an interval and its own successor land in
+#   different groups -- and on a grain with no dedupe downstream that is the
+#   boundary-year double count C2 removed.
+#
+#   TOO COARSE and one lineage closes another. `cell_id` alone merges every
+#   polity in the cell. `area_code` is a label rather than an identity: it is
+#   resolved from the periodized crosswalk, it is NA for 31 of the 220 live
+#   intervals reaching the domain end -- and a pasted key stringifies NA, so
+#   those collapse into one bucket rather than being skipped -- and
+#   `SDN-2011-2025` and `SSD-2011-2025` are two lineages under one code, 206.
+#
+# `cell_id` belongs in the key because a family's successor need not occupy the
+# same cells: keyed on the family alone, an interval starting later in some
+# OTHER cell would close a still-open interval here and punch a hole in the
+# terminal year of a cell where nothing succeeded anything. `polity_code` is
+# required of the table and `.polity_family()` of it is exactly what
+# `.active_polities()` groups on, so the package keeps one notion of
+# succession. (`.filter_country_grid_year()` reaches the same key from the
+# other end, cell + `area_code`: a country grid need not carry `polity_code`
+# at all, so it uses the coarsest succession-stable key it is given.)
+.pcs_open_intervals <- function(x) {
+  open <- rep(FALSE, nrow(x))
+  live <- which(!is.na(x$polity_code))
+  if (length(live) == 0L) {
+    return(open)
+  }
+  open[live] <- .open_ended_intervals(
+    x$start_year[live],
+    x$end_year[live],
+    paste(x$cell_id[live], .polity_family(x$polity_code[live]), sep = "\r")
+  )
+  open
+}
+
+# TRUE where a row's interval covers `yr`. `open` is the open-end flag of the
+# whole table; pass it whenever one table is resolved at more than one year, so
+# the succession key is built once instead of once per year. `.covers_year()`
+# only derives a group when it is not given the flag, so `NULL` is never read.
+.pcs_covers_year <- function(x, yr, open = NULL) {
+  .covers_year(
+    x$start_year,
+    x$end_year,
+    NULL,
+    yr,
+    open_ended = open %||% .pcs_open_intervals(x)
+  )
+}
+
 # -- Inland water -------------------------------------------------------------
 
 # The layer gives water as a fraction of the WHOLE cell, and it is INLAND
@@ -973,6 +1063,13 @@ polycell_shim_view <- function(support) {
 # is attached only to the intervals covering the year it describes. Everything
 # else carries NA, and `polycell_shim_view()` drops those rows, which is what
 # makes the shim reproduce the crosswalk exactly instead of approximately.
+#
+# "Covering" is the package convention, not a plain half-open test: a crosswalk
+# describing the last year the polities reach must attach to the polity that is
+# still open there, or the whole crosswalk falls through to
+# `.pcs_append_crosswalk_only()` and the shim degenerates to a copy of its own
+# input. The join runs first because it can duplicate a row, and the flag has
+# to be aligned to the rows the mutate actually sees.
 .pcs_add_shim <- function(pieces, data) {
   crosswalk <- data$crosswalk
   if (is.null(crosswalk)) {
@@ -985,20 +1082,21 @@ polycell_shim_view <- function(support) {
     "data$crosswalk"
   )
   yr <- as.integer(data$crosswalk_year %||% 2015L)
-  pieces |>
-    dplyr::left_join(
-      dplyr::distinct(
-        crosswalk,
-        .data$lon,
-        .data$lat,
-        .data$area_code,
-        .data$polity_frac
-      ),
-      by = c("lon", "lat", "area_code")
-    ) |>
+  joined <- dplyr::left_join(
+    pieces,
+    dplyr::distinct(
+      crosswalk,
+      .data$lon,
+      .data$lat,
+      .data$area_code,
+      .data$polity_frac
+    ),
+    by = c("lon", "lat", "area_code")
+  )
+  joined |>
     dplyr::mutate(
       polity_frac = dplyr::if_else(
-        .data$start_year <= yr & yr < .data$end_year,
+        .pcs_covers_year(joined, yr),
         .data$polity_frac,
         NA_real_
       )
@@ -1324,14 +1422,18 @@ polycell_shim_view <- function(support) {
 # footprint is taken at the same year. Comparing every historical interval
 # against them would count a cell once per epoch and make the reconciliation
 # meaningless: on the shipped table that is 129,047 rows against 68,527.
+#
+# Dropping the crosswalk-only rows first is what keeps the SHIM's own padding
+# out of the polycell footprint; keeping it out of the DOMAIN is a separate
+# guard, inside `.pcs_open_intervals()`. The two are independent and both are
+# needed. `distinct()` below means a wrongly OPENED interval could not
+# double-count here -- the risk this diagnostic runs is the other one, a
+# wrongly CLOSED interval dropping a cell from the footprint and manufacturing
+# the very disagreement against the two crosswalks that it exists to measure.
 .pcs_polycell_footprint <- function(support, data) {
   yr <- as.integer(data$crosswalk_year %||% 2015L)
-  support |>
-    dplyr::filter(
-      .data$coverage_status != "crosswalk_only",
-      .data$start_year <= yr,
-      yr < .data$end_year
-    ) |>
+  live <- dplyr::filter(support, .data$coverage_status != "crosswalk_only")
+  live[which(.pcs_covers_year(live, yr)), , drop = FALSE] |>
     dplyr::distinct(.data$lon, .data$lat, .data$area_code)
 }
 

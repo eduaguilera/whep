@@ -19,10 +19,11 @@ polycell-year and adds a \code{year} column.}
 
 \item{geometries}{An \code{sf} table of polity geometries with at least
 \code{polity_code}, \code{start_year} and \code{end_year}; defaults to
-\code{\link[=get_polity_geometries]{get_polity_geometries()}}. \code{start_year} is inclusive, \code{end_year}
-exclusive, and neither is ever parsed out of \code{polity_code}. Optional
-\code{wiki_status}, \code{polity_type}, \code{polygon_status} and \code{area_code} columns are
-honoured.}
+\code{\link[=get_polity_geometries]{get_polity_geometries()}}. \code{start_year} is inclusive; \code{end_year} is
+\strong{exclusive at a succession} and \strong{inclusive at the open end}, the
+convention \code{polities} is documented under, and neither bound is ever
+parsed out of \code{polity_code}. Optional \code{wiki_status}, \code{polity_type},
+\code{polygon_status} and \code{area_code} columns are honoured.}
 
 \item{water}{Optional per-cell \code{tibble} of inland water with \code{lon}, \code{lat}
 and \code{water_frac}, a fraction of the \strong{whole} cell, as
@@ -95,10 +96,10 @@ claimed by no live polity is emitted in the \code{"unassigned"} attribute rather
 than renormalised away.
 
 The default grain is \strong{interval-keyed}: one row per polycell per interval
-over which every area is constant, carrying \code{start_year} and \code{end_year}
-(\code{end_year} exclusive). Supply \code{years} to expand to one row per
-polycell-year, which is what \code{\link[=expand_polycell_years]{expand_polycell_years()}} does on demand. No
-area varies within an interval, so the interval grain is the form to store.
+over which every area is constant, carrying \code{start_year} and \code{end_year}.
+Supply \code{years} to expand to one row per polycell-year, which is what
+\code{\link[=expand_polycell_years]{expand_polycell_years()}} does on demand. No area varies within an interval,
+so the interval grain is the form to store.
 }
 \examples{
 if (requireNamespace("sf", quietly = TRUE)) {

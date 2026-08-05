@@ -2383,3 +2383,502 @@ testthat::test_that("terra measures a collection the same either way", {
   )
   testthat::expect_equal(whep:::.pcs_terra_one_ha(line), 0)
 })
+
+# DA-24 — the open interval covers its terminal year ---------------------------
+#
+# `end_year` is EXCLUSIVE at a succession and INCLUSIVE at the open end. The
+# producer had kept the uniformly exclusive read at three sites, so
+# `expand_polycell_years(..., <domain end>)` returned nothing, the shim
+# attached no `polity_frac` and the footprint reconciliation came back empty.
+#
+# These blocks assert the PROPERTY over every year of a fixture built to carry
+# every shape the rule has to survive, not a handful of named years. The
+# fixture is deliberately awkward:
+#
+#   ALPHA  one interval, open, spanning TWO cells
+#   BETA   a plain succession inside one cell (1900-1990, 1990-2025)
+#   GAMMA  TWO intervals of one family both ending at the domain end, in one
+#          cell -- the AGO-1816-2025 / AGO-1975-2025 shape that makes a bare
+#          "end_year is the maximum" test open both
+#   DELTA  open in cell 1, with a LATER-starting interval of the same family in
+#          cell 3 -- which must not close cell 1's
+#   EPSIL  dissolves long before the domain end
+#   ZETA   open with `area_code` NA, as 31 of the 220 live at-end polities are
+#   SDN2 / SSD2  two DIFFERENT families sharing one `area_code`, as
+#          SDN-2011-2025 and SSD-2011-2025 do
+#   ETA    open, with a sibling that starts LATER but ends EARLIER, which
+#          succeeds nothing at the domain end
+
+# One of four non-overlapping vertical strips inside the cell centred on `lon`.
+pcs_strip <- function(lon, k) {
+  x0 <- lon - 0.25 + 0.01 + (k - 1L) * 0.12
+  pcs_rect(x0, x0 + 0.10, 45.05, 45.45)
+}
+
+pcs_da24_spec <- function() {
+  tibble::tribble(
+    ~polity_code, ~start_year, ~end_year, ~area_code, ~cell, ~strip,
+    "ALPHA-1900-2025", 1900L, 2025L, 101L, 0L, 1L,
+    "BETA-1900-1990", 1900L, 1990L, 102L, 2L, 2L,
+    "BETA-1990-2025", 1990L, 2025L, 102L, 2L, 2L,
+    "GAMMA-1900-2025", 1900L, 2025L, 103L, 3L, 1L,
+    "GAMMA-1975-2025", 1975L, 2025L, 103L, 3L, 1L,
+    "DELTA-1900-2025", 1900L, 2025L, 104L, 1L, 2L,
+    "DELTA-1990-2025", 1990L, 2025L, 104L, 3L, 2L,
+    "EPSIL-1900-1950", 1900L, 1950L, 105L, 3L, 3L,
+    "ZETA-1950-2025", 1950L, 2025L, NA_integer_, 1L, 3L,
+    "SDN2-2011-2025", 2011L, 2025L, 206L, 2L, 3L,
+    "SSD2-2011-2025", 2011L, 2025L, 206L, 3L, 4L,
+    "ETA-1900-2025", 1900L, 2025L, 107L, 1L, 4L,
+    "ETA-1950-1960", 1950L, 1960L, 107L, 1L, 4L
+  )
+}
+
+pcs_da24_geometries <- function(spec = pcs_da24_spec()) {
+  lons <- c(10.25, 10.75, 11.25)
+  geoms <- purrr::map2(spec$cell, spec$strip, \(cell, strip) {
+    if (cell == 0L) {
+      # ALPHA spans two cells, so its open end has to hold in both.
+      pcs_multi(pcs_strip(lons[[1L]], strip), pcs_strip(lons[[2L]], strip))
+    } else {
+      pcs_strip(lons[[cell]], strip)
+    }
+  })
+  pcs_polities(dplyr::select(spec, -"cell", -"strip"), geoms)
+}
+
+testthat::test_that("every polycell resolves at the open end, once", {
+  testthat::skip_if_not_installed("sf")
+
+  spec <- pcs_da24_spec()
+  intervals <- whep::build_polycell_support(
+    geometries = pcs_da24_geometries(spec)
+  )
+  domain_end <- max(intervals$end_year)
+  testthat::expect_equal(domain_end, 2025L)
+
+  years <- seq(min(intervals$start_year), domain_end + 1L)
+  yearly <- whep::expand_polycell_years(intervals, years)
+
+  # Nothing beyond the domain, and the open end is NOT empty -- without this
+  # the uniqueness assertion below would be vacuous exactly where it matters.
+  testthat::expect_equal(sum(yearly$year > domain_end), 0L)
+  open_end <- dplyr::filter(yearly, .data$year == domain_end)
+  testthat::expect_gt(nrow(open_end), 0L)
+
+  # No year resolves one polycell twice, at the open end or anywhere else.
+  per_year <- yearly |>
+    dplyr::summarise(
+      n = dplyr::n(),
+      distinct = dplyr::n_distinct(.data$polycell_id),
+      .by = "year"
+    )
+  testthat::expect_equal(per_year$n, per_year$distinct)
+
+  # Every polycell of the table is reachable in at least one year: a wrong
+  # grouping loses whole polycells rather than duplicating them.
+  testthat::expect_setequal(
+    unique(yearly$polycell_id),
+    unique(intervals$polycell_id)
+  )
+
+  # Each polity is present exactly on the years its own columns cover, with the
+  # domain end added for the ones nothing succeeds.
+  observed <- yearly |>
+    dplyr::summarise(
+      first = min(.data$year),
+      last = max(.data$year),
+      .by = "polity_code"
+    ) |>
+    dplyr::arrange(.data$polity_code)
+  expected <- spec |>
+    dplyr::summarise(
+      first = min(.data$start_year),
+      last = max(dplyr::if_else(
+        .data$end_year == domain_end,
+        .data$end_year,
+        .data$end_year - 1L
+      )),
+      .by = "polity_code"
+    ) |>
+    dplyr::arrange(.data$polity_code)
+  testthat::expect_equal(observed, expected)
+})
+
+testthat::test_that("the open end resolves to the year before it, by value", {
+  testthat::skip_if_not_installed("sf")
+
+  # S-A10: measured on values, not on row counts. Nothing succeeds anything
+  # between 2024 and 2025 in this fixture, so the two years must carry the same
+  # polycells AND the same area, per cell and per polity family.
+  intervals <- whep::build_polycell_support(geometries = pcs_da24_geometries())
+  domain_end <- max(intervals$end_year)
+  pair <- whep::expand_polycell_years(intervals, c(domain_end - 1L, domain_end))
+
+  key <- \(yr) {
+    pair |>
+      dplyr::filter(.data$year == yr) |>
+      dplyr::arrange(.data$polycell_id) |>
+      dplyr::select("polycell_id", "cell_id", "polity_code", "polity_area_ha")
+  }
+  testthat::expect_equal(key(domain_end), key(domain_end - 1L))
+
+  # And the same multiplicity per cell and family: the open-end rule must not
+  # add a row where the year before had one, nor drop one where it had two.
+  multiplicity <- \(yr) {
+    pair |>
+      dplyr::filter(.data$year == yr) |>
+      dplyr::mutate(family = whep:::.polity_family(.data$polity_code)) |>
+      dplyr::count(.data$cell_id, .data$family) |>
+      dplyr::arrange(.data$cell_id, .data$family)
+  }
+  testthat::expect_equal(
+    multiplicity(domain_end),
+    multiplicity(domain_end - 1L)
+  )
+  # GAMMA's two co-located intervals, present in both years alike.
+  testthat::expect_equal(max(multiplicity(domain_end)$n), 2L)
+})
+
+testthat::test_that("an interval with a successor never covers its own end", {
+  testthat::skip_if_not_installed("sf")
+
+  intervals <- whep::build_polycell_support(geometries = pcs_da24_geometries())
+  domain_end <- max(intervals$end_year)
+  years <- seq(min(intervals$start_year), domain_end)
+  yearly <- whep::expand_polycell_years(intervals, years)
+
+  # Every interval that ends BEFORE the domain end is succeeded -- by the next
+  # epoch, or by the next slice `.pcs_split_intervals()` cut out of its own
+  # occupancy -- so no such interval may resolve on its own `end_year`. Stated
+  # on the resolved INTERVAL rather than on the polycell: a polycell holds many
+  # consecutive slices, and its presence at a breakpoint is the next slice
+  # doing its job, not a leak.
+  succeeded <- dplyr::filter(yearly, .data$end_year < domain_end)
+  testthat::expect_gt(nrow(succeeded), 0L)
+  testthat::expect_equal(sum(succeeded$year == succeeded$end_year), 0L)
+  # ... while every interval that reaches the domain end resolves on it.
+  testthat::expect_setequal(
+    dplyr::filter(yearly, .data$year == domain_end)$polycell_id,
+    dplyr::filter(intervals, .data$end_year == domain_end)$polycell_id
+  )
+
+  # BETA's boundary year is the successor's alone, in value as in label.
+  boundary <- dplyr::filter(yearly, .data$year == 1990L)
+  testthat::expect_equal(
+    sort(boundary$polity_code[
+      whep:::.polity_family(boundary$polity_code) == "BETA"
+    ]),
+    "BETA-1990-2025"
+  )
+})
+
+testthat::test_that("the domain end is read from the table, never fixed", {
+  testthat::skip_if_not_installed("sf")
+
+  # PR #551 already moves the shipped table, so "still open" cannot be a
+  # hardcoded 2025. A table whose coverage stops in 2000 opens 2000.
+  spec <- dplyr::mutate(
+    pcs_da24_spec(),
+    start_year = .data$start_year - 25L,
+    end_year = .data$end_year - 25L
+  )
+  intervals <- whep::build_polycell_support(
+    geometries = pcs_da24_geometries(spec)
+  )
+  testthat::expect_equal(max(intervals$end_year), 2000L)
+  testthat::expect_gt(nrow(whep::expand_polycell_years(intervals, 2000L)), 0L)
+  testthat::expect_equal(
+    nrow(whep::expand_polycell_years(intervals, 2001L)),
+    0L
+  )
+  testthat::expect_equal(
+    nrow(whep::expand_polycell_years(intervals, 2025L)),
+    0L
+  )
+})
+
+testthat::test_that("still-open is absence of a successor, not the year", {
+  testthat::skip_if_not_installed("sf")
+
+  # The trap AM-27 records. GAMMA-1900-2025 and GAMMA-1975-2025 both end on the
+  # domain end, and DELTA-1990-2025 starts later than DELTA-1900-2025 but lives
+  # in a DIFFERENT cell. A test that opens by the maximum year alone opens too
+  # many; one that keys on `polycell_id` or `polity_code` opens every terminal
+  # row; one that keys on the family without the cell closes DELTA in cell 1.
+  # Each of those is visible here.
+  intervals <- whep::build_polycell_support(geometries = pcs_da24_geometries())
+  domain_end <- max(intervals$end_year)
+  at_end <- whep::expand_polycell_years(intervals, domain_end)
+
+  # DELTA is open in the cell where nothing succeeded it.
+  delta <- dplyr::filter(
+    at_end,
+    whep:::.polity_family(.data$polity_code) == "DELTA"
+  )
+  testthat::expect_setequal(
+    delta$polity_code,
+    c("DELTA-1900-2025", "DELTA-1990-2025")
+  )
+  testthat::expect_equal(dplyr::n_distinct(delta$cell_id), 2L)
+
+  # ETA's earlier-ending sibling succeeds nothing, so ETA keeps its own end.
+  testthat::expect_true("ETA-1900-2025" %in% at_end$polity_code)
+
+  # An `area_code` of NA cannot cost a polity its open end.
+  testthat::expect_true("ZETA-1950-2025" %in% at_end$polity_code)
+  testthat::expect_true(all(is.na(
+    at_end$area_code[at_end$polity_code == "ZETA-1950-2025"]
+  )))
+
+  # Two families sharing one `area_code` are two lineages, not one.
+  testthat::expect_true(all(
+    c("SDN2-2011-2025", "SSD2-2011-2025") %in% at_end$polity_code
+  ))
+
+  # A polity that dissolved before the domain end stays dissolved.
+  testthat::expect_false("EPSIL-1900-1950" %in% at_end$polity_code)
+})
+
+testthat::test_that("the producer and the polity resolver agree on the year", {
+  testthat::skip_if_not_installed("sf")
+
+  # The point of DA-24 living in ONE predicate: `expand_polycell_years()` and
+  # `.active_polities()` must call the same year the same way. The two differ
+  # in ONE respect, and only where the fixture's own intervals overlap in time:
+  # `.active_polities()` dedupes an overlap to one interval per family, which
+  # the producer's grain deliberately does not, at every year alike. So the
+  # producer's set is a superset always, and equal on every family whose
+  # intervals do not overlap. The overlapping families are derived from the
+  # fixture and pinned, so the exception cannot silently grow.
+  spec <- pcs_da24_spec()
+  geometries <- pcs_da24_geometries(spec)
+  intervals <- whep::build_polycell_support(geometries = geometries)
+  polities <- sf::st_transform(
+    geometries[, c("polity_code", "start_year", "end_year")],
+    6933
+  )
+
+  families <- split(spec, whep:::.polity_family(spec$polity_code))
+  overlaps <- \(g) {
+    yrs <- seq(min(g$start_year), max(g$end_year) - 1L)
+    any(
+      vapply(
+        yrs,
+        \(y) sum(g$start_year <= y & y < g$end_year),
+        integer(1)
+      ) >
+        1L
+    )
+  }
+  overlapping <- names(families)[vapply(families, overlaps, logical(1))]
+  testthat::expect_setequal(overlapping, c("DELTA", "ETA", "GAMMA"))
+
+  years <- seq(min(intervals$start_year), max(intervals$end_year) + 1L)
+  compare <- purrr::map(years, \(yr) {
+    producer <- unique(whep::expand_polycell_years(intervals, yr)$polity_code)
+    resolver <- whep:::.active_polities(polities, yr)$polity_code
+    clean <- \(x) x[!whep:::.polity_family(x) %in% overlapping]
+    tibble::tibble(
+      year = yr,
+      missing = length(setdiff(resolver, producer)),
+      unequal = !setequal(clean(producer), clean(resolver))
+    )
+  }) |>
+    dplyr::bind_rows()
+
+  testthat::expect_equal(sum(compare$missing), 0L)
+  testthat::expect_equal(sum(compare$unequal), 0L)
+  # Not vacuous: the years compared really do resolve something.
+  testthat::expect_gt(
+    nrow(whep::expand_polycell_years(intervals, max(intervals$end_year))),
+    0L
+  )
+})
+
+testthat::test_that("the shim attaches on a crosswalk year at the open end", {
+  testthat::skip_if_not_installed("sf")
+
+  # `.pcs_add_shim()` and `.pcs_polycell_footprint()` resolve
+  # `data$crosswalk_year` the same way. Under the uniformly exclusive read a
+  # crosswalk describing the domain end attached to NOTHING: every crosswalk
+  # row fell through to `crosswalk_only` and the footprint reconciliation --
+  # the diagnostic that exists to measure the migration's movement -- came back
+  # empty while still reporting a row for itself.
+  geometries <- pcs_da24_geometries()
+  base <- whep::build_polycell_support(years = 2015L, geometries = geometries)
+  crosswalk <- base |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::summarise(
+      polity_frac = sum(.data$polity_area_ha) /
+        dplyr::first(.data$cell_area_ha),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    # two cells the intersection cannot reproduce, so the crosswalk-only path
+    # is live and can be seen NOT to leak into the polycell footprint
+    dplyr::bind_rows(tibble::tibble(
+      lon = c(-179.75, -179.25),
+      lat = c(-89.75, -89.25),
+      area_code = c(9001L, 9002L),
+      polity_frac = c(0.5, 1)
+    ))
+
+  built <- \(yr) {
+    whep::build_polycell_support(
+      geometries = geometries,
+      data = list(crosswalk = crosswalk, crosswalk_year = yr)
+    )
+  }
+  mid <- built(2015L)
+  at_end <- built(2025L)
+
+  testthat::expect_gt(sum(!is.na(mid$polity_frac)), 0L)
+  testthat::expect_equal(
+    sum(!is.na(at_end$polity_frac)),
+    sum(!is.na(mid$polity_frac))
+  )
+  testthat::expect_equal(sum(mid$coverage_status == "crosswalk_only"), 2L)
+  testthat::expect_equal(
+    sum(at_end$coverage_status == "crosswalk_only"),
+    sum(mid$coverage_status == "crosswalk_only")
+  )
+  polycell_row <- \(x) {
+    fp <- attr(x, "footprints")
+    fp[fp$footprint == "polycell", c("rows", "cells")]
+  }
+  testthat::expect_equal(polycell_row(at_end), polycell_row(mid))
+  # The footprint is the POLYCELLS covering the year, and nothing else: the two
+  # crosswalk-only cells must not be counted into it.
+  testthat::expect_equal(
+    polycell_row(mid)$rows,
+    nrow(dplyr::distinct(base, .data$lon, .data$lat, .data$area_code))
+  )
+  testthat::expect_gt(polycell_row(at_end)$rows, 0L)
+})
+
+testthat::test_that("the shim's own padding never defines the open end", {
+  testthat::skip_if_not_installed("sf")
+
+  # `.pcs_append_crosswalk_only()` pins its rows to
+  # `[crosswalk_year, crosswalk_year + 1)`. With `crosswalk_year` one year
+  # short of the domain end that synthetic window ENDS on the domain end, so
+  # counting it would move the table's coverage past the real intervals and
+  # close every one of them. The padding carries no `polity_code`, which is
+  # what keeps it out of both the domain and the open-end test.
+  geometries <- pcs_da24_geometries()
+  crosswalk <- tibble::tibble(
+    lon = c(-179.75, -179.25),
+    lat = c(-89.75, -89.25),
+    area_code = c(9001L, 9002L),
+    polity_frac = c(0.5, 1)
+  )
+  support <- whep::build_polycell_support(
+    geometries = geometries,
+    data = list(crosswalk = crosswalk, crosswalk_year = 2024L)
+  )
+  padding <- dplyr::filter(support, .data$coverage_status == "crosswalk_only")
+  testthat::expect_equal(nrow(padding), 2L)
+  testthat::expect_equal(max(support$end_year), 2025L)
+  testthat::expect_true(all(is.na(padding$polity_code)))
+
+  # The real intervals still resolve on the domain end ...
+  at_end <- whep::expand_polycell_years(support, 2025L)
+  testthat::expect_gt(nrow(at_end), 0L)
+  testthat::expect_true(all(!is.na(at_end$polity_code)))
+  # ... and the padding covers 2024 only, never 2025.
+  in_2024 <- whep::expand_polycell_years(support, 2024L)
+  testthat::expect_equal(sum(is.na(in_2024$polity_code)), 2L)
+})
+
+testthat::test_that("the open-end key is the cell and the polity family", {
+  # Unit-level, on `.pcs_open_intervals()` itself, because
+  # `.pcs_split_intervals()` happens to give every interval reaching the domain
+  # end in one cell the SAME start year, which hides most grouping errors on
+  # producer output. The helper's contract is wider than that accident, and
+  # this is where the four candidate keys separate:
+  #
+  #   cell + family (used)  AGO's later interval alone; FOO and BAR both open
+  #   cell + polity_code    opens BOTH AGO intervals -- the double count
+  #   cell alone            closes FOO, whose family nothing succeeded
+  #   cell + area_code      closes FOO too: FOO and BAR share code 206, as the
+  #                         real SDN-2011-2025 and SSD-2011-2025 do
+  #   family alone          closes DELTA in the cell where it is still open
+  tbl <- tibble::tribble(
+    ~cell_id, ~polity_code, ~start_year, ~end_year, ~area_code,
+    1L, "AGO-1816-1975", 1816L, 1975L, 7L,
+    1L, "AGO-1816-2025", 1816L, 2025L, 7L,
+    1L, "AGO-1975-2025", 1975L, 2025L, 7L,
+    1L, "FOO-1900-2025", 1900L, 2025L, 206L,
+    1L, "BAR-1990-2025", 1990L, 2025L, 206L,
+    2L, "DELTA-1900-2025", 1900L, 2025L, 104L,
+    3L, "DELTA-1990-2025", 1990L, 2025L, 104L,
+    4L, NA_character_, 2024L, 2025L, 9001L
+  )
+  open <- whep:::.pcs_open_intervals(tbl)
+  testthat::expect_equal(
+    tbl$polity_code[open],
+    c(
+      "AGO-1975-2025",
+      "FOO-1900-2025",
+      "BAR-1990-2025",
+      "DELTA-1900-2025",
+      "DELTA-1990-2025"
+    )
+  )
+
+  # And the same statement through the predicate: the domain end resolves to
+  # the open intervals, the year before to everything live then, and the year
+  # after to nothing.
+  covered <- \(yr) tbl$polity_code[whep:::.pcs_covers_year(tbl, yr) %in% TRUE]
+  testthat::expect_equal(covered(2025L), tbl$polity_code[open])
+  testthat::expect_equal(
+    covered(2024L),
+    c(
+      "AGO-1816-2025",
+      "AGO-1975-2025",
+      "FOO-1900-2025",
+      "BAR-1990-2025",
+      "DELTA-1900-2025",
+      "DELTA-1990-2025",
+      NA_character_
+    )
+  )
+  testthat::expect_equal(covered(2026L), character())
+
+  # The polity-less row is the shim's padding: it can never be open, and its
+  # `end_year` must not define the domain either. Pushed one year past every
+  # real interval it takes `max(end_year)` with it, and if it were counted the
+  # real intervals would no longer reach the end and every one of them would
+  # close. They must not: the padding still covers 2025 here, but only because
+  # its own half-open window plainly does.
+  padded <- dplyr::mutate(
+    tbl,
+    end_year = dplyr::if_else(is.na(.data$polity_code), 2026L, .data$end_year)
+  )
+  testthat::expect_equal(max(padded$end_year), 2026L)
+  testthat::expect_equal(whep:::.pcs_open_intervals(padded), open)
+  at_end <- whep:::.pcs_covers_year(padded, 2025L) %in% TRUE
+  testthat::expect_equal(
+    padded$polity_code[at_end & !is.na(padded$polity_code)],
+    tbl$polity_code[open]
+  )
+})
+
+testthat::test_that("expanding a year needs the succession key present", {
+  testthat::skip_if_not_installed("sf")
+
+  # Without `cell_id` and `polity_code` the open end cannot be told from a
+  # succession, so the absence is an error rather than a quieter answer.
+  intervals <- whep::build_polycell_support(geometries = pcs_da24_geometries())
+  testthat::expect_error(
+    whep::expand_polycell_years(
+      dplyr::select(intervals, -"polity_code"),
+      2025L
+    ),
+    "polity_code"
+  )
+  testthat::expect_error(
+    whep::expand_polycell_years(dplyr::select(intervals, -"cell_id"), 2025L),
+    "cell_id"
+  )
+})
