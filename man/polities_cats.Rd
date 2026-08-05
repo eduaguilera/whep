@@ -72,8 +72,13 @@ identifiers from multiple data sources and assignments to various regional
 groupings used in the literature and international databases.
 }
 \note{
-Five trailing columns containing only Excel \verb{#REF!} errors in the
-source CSV are dropped at load time and are not part of this dataset.
+Derived from \link{regions_full} rather than vendored separately: the
+198-code membership is read from \code{harmonization/polities_cats.csv} and every
+column value comes from \code{regions_full}, so the two tables cannot disagree
+except where this one deliberately folds an area into a rest-of-world
+aggregate. Two areas are folded, both because they had no commodity balance
+sheet when the table was compiled: Bhutan under \code{RASI} and Comoros under
+\code{RAFR}, each with \code{cbs} \code{FALSE} and \code{fabio_code} \code{999}.
 }
 \examples{
 head(polities_cats)

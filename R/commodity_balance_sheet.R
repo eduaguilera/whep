@@ -183,7 +183,8 @@ get_livestock_cbs <- function(primary_prod) {
       dplyr::filter(
         unit == "heads",
         item_cbs_code %in% livestock_items
-      ),
+      ) |>
+      .map_livestock_trade_polities(),
     error = function(e) {
       cli::cli_warn(
         "Could not read bilateral trade for livestock: {e$message}"
@@ -221,6 +222,40 @@ get_livestock_cbs <- function(primary_prod) {
     exports,
     by = c("year", "area_code", "item_cbs_code")
   )
+}
+
+# Map the raw FAOSTAT reporter/partner codes of the bilateral trade data
+# onto the same year-aware polity area-code space used by the polity-coded
+# slaughter counts (see `.aggregate_to_polities()` in the production build),
+# so live-animal trade and slaughter reconcile on a consistent join key.
+# Rows whose reporter or partner code does not map to a polity are dropped,
+# mirroring the slaughter side, and codes are re-aggregated at polity level.
+.map_livestock_trade_polities <- function(btd) {
+  dt <- data.table::as.data.table(btd)
+
+  dt <- dt |>
+    .add_polity_columns_dt(
+      code_col = "from_code",
+      year_col = "year",
+      prefix = "from_",
+      include_unmapped = FALSE
+    ) |>
+    .add_polity_columns_dt(
+      code_col = "to_code",
+      year_col = "year",
+      prefix = "to_",
+      include_unmapped = FALSE
+    )
+
+  dt <- dt[!is.na(from_polity_code) & !is.na(to_polity_code)]
+  dt[, from_code := from_polity_area_code]
+  dt[, to_code := to_polity_area_code]
+
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = c("year", "from_code", "to_code", "item_cbs_code", "unit")
+  ] |>
+    tibble::as_tibble()
 }
 
 #' Processed products share factors

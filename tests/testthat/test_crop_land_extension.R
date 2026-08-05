@@ -181,6 +181,119 @@ test_that("build_cropgrids_land_extension ignores tiny-area CROPGRIDS stubs", {
   expect_equal(round(res$impact_u), 945)
 })
 
+test_that(".cropgrids_to_polity_area re-keys CROPGRIDS onto polity area codes", {
+  # The cropgrids-land pin is built at CROPGRIDS' own reporting grain, the raw
+  # FAOSTAT `code`, but `harvested` comes from production, which is keyed on
+  # `polity_area_code`. Sudan (276) and South Sudan (277) both map to
+  # polity_area_code 206, a code the pin never carries, so before this re-key
+  # neither matched `harvested` and both silently took the global per-item ratio
+  # instead of their own CROPGRIDS multi-cropping ratio.
+  #
+  # MEASURED on the shipped pin: 7 areas, 276 of 6269 rows, 1.71% of pin
+  # harvested area were mis-keyed; re-keying moves Sudan's crop land extension
+  # +4.78% (18.04 -> 18.90 Mha, using the pin's own harvested area as a proxy
+  # base). The pin sits behind whep_read_file(), so this exercises the helper
+  # against a fixture rather than the shipped data.
+  cropgrids <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    276L, 2518L, 999, 1000, # Sudan, sorghum
+    277L, 2518L, 240, 300, # South Sudan, sorghum
+    33L, 2518L, 500, 1000, # Canada: code == polity_area_code, untouched
+    8888L, 2518L, 90, 100 # not in the crosswalk at all
+  )
+  res <- whep:::.cropgrids_to_polity_area(cropgrids)
+
+  expect_false(any(c(276L, 277L) %in% res$area_code))
+  expect_true(206L %in% res$area_code)
+  sdn <- res[res$area_code == 206L, ]
+  expect_equal(nrow(sdn), 1L)
+  # Physical and harvested area are summed BEFORE the ratio is taken, so the
+  # merged ratio is the area-weighted 1239/1300 = 0.953, not the unweighted mean
+  # of 0.999 and 0.8.
+  expect_equal(sdn$physical_ha, 1239)
+  expect_equal(sdn$harvested_ha, 1300)
+  expect_equal(res$harvested_ha[res$area_code == 33L], 1000)
+  # An area the crosswalk cannot resolve keeps its own code instead of being
+  # dropped, so the re-key degrades to the previous behaviour rather than losing
+  # the area. This guards the coalesce fallback, which nothing else exercises.
+  expect_true(8888L %in% res$area_code)
+  # The re-key is an aggregation, so it neither creates nor loses area.
+  expect_equal(sum(res$physical_ha), sum(cropgrids$physical_ha))
+  expect_equal(sum(res$harvested_ha), sum(cropgrids$harvested_ha))
+})
+
+test_that(".cropgrids_to_polity_area is idempotent", {
+  # The pin may one day be rebuilt directly on polity_area_code. Re-keying an
+  # already-re-keyed table must then be a no-op rather than aggregate twice.
+  # This holds because every polity_area_code in polity_area_crosswalk maps to
+  # itself: checked over all 266 crosswalk area codes, 0 non-identity targets.
+  # Verified against the real pin too (6101 rows unchanged on a second pass).
+  cropgrids <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    276L, 2518L, 999, 1000,
+    277L, 2518L, 240, 300,
+    206L, 2511L, 300, 305, # already a polity_area_code
+    999L, 2807L, 80, 100 # the ROW aggregation bucket
+  )
+  once <- whep:::.cropgrids_to_polity_area(cropgrids)
+  twice <- whep:::.cropgrids_to_polity_area(once)
+  expect_equal(twice, once)
+})
+
+test_that(".read_cropgrids_land re-keys both CROPGRIDS pins on read", {
+  # The re-key has to happen at the read boundary, because that is where the
+  # raw-FAOSTAT-keyed pins enter the package. Both aliases must get it: the
+  # cropgrids-fallow-land pin is built from cropgrids-land, so it inherits the
+  # same keying. The pins are remote, so mock the read.
+  pin <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    276L, 2518L, 999, 1000,
+    277L, 2518L, 240, 300
+  )
+  seen <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      seen <<- c(seen, file_alias)
+      pin
+    }
+  )
+  for (source in c("cropgrids", "cropgrids_fallow")) {
+    res <- whep:::.read_cropgrids_land(source)
+    expect_equal(res$area_code, 206L)
+    expect_equal(res$physical_ha, 1239)
+    expect_equal(res$harvested_ha, 1300)
+  }
+  expect_equal(seen, c("cropgrids-land", "cropgrids-fallow-land"))
+})
+
+test_that("re-keyed CROPGRIDS gives merged areas their own ratio", {
+  # End-to-end statement of the defect: harvested area keyed on polity_area_code
+  # 206 finds no 206 row in a raw-FAOSTAT-keyed table and falls through to the
+  # global per-item ratio, which here is dragged far below Sudan's actual one by
+  # a heavily multi-cropped third area.
+  harvested <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~harvested_ha,
+    2020L, 206L, 2518L, 1000
+  )
+  raw_keyed <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,
+    276L, 2518L, 999, 1000,
+    277L, 2518L, 240, 300,
+    33L, 2518L, 500, 1000
+  )
+  fallback <- whep::build_cropgrids_land_extension(harvested, raw_keyed)
+  # global ratio = (999 + 240 + 500) / (1000 + 300 + 1000) = 1739/2300 = 0.756
+  expect_equal(fallback$impact_u, 1000 * 1739 / 2300)
+
+  merged <- whep::build_cropgrids_land_extension(
+    harvested,
+    whep:::.cropgrids_to_polity_area(raw_keyed)
+  )
+  # Sudan's own merged ratio, 1239/1300 = 0.953, now applies instead.
+  expect_equal(merged$impact_u, 1000 * 1239 / 1300)
+  expect_gt(merged$impact_u, fallback$impact_u)
+})
+
 test_that("build_cropgrids_land_extension validates harvested columns", {
   cropgrids <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~physical_ha, ~harvested_ha,

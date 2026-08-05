@@ -16,26 +16,96 @@ test_that("add_polity_code maps area codes by year", {
   # upstream map names `F248-1947-1991` for area 248 over 1961-1990.
   expect_equal(mapped$polity_code[5], "F248-1947-1991")
   # And NOT `BLX-1921-1999`, which prefix `BLX` also reached: the map names
-  # `BLX-1850-1999` for area 15 over 1961-1999.
+  # `BLX-1850-1999` for area 15 over 1961-1999. Upstream has since retired
+  # `BLX-1921-1999` outright (whep-polities#117), so the dead-polity filter now
+  # removes it as well -- two independent reasons for the same answer.
   expect_equal(mapped$polity_code[6], "BLX-1850-1999")
-  expect_equal(mapped$polity_code[7], "RAFR-1850-2021")
-  expect_equal(mapped$polity_code[8], "ROW-1850-2023")
+  # The regional "Other" buckets and Rest of World were extended to 2025
+  # upstream (whep-polities#127) because they used to stop before FAOSTAT did.
+  expect_equal(mapped$polity_code[7], "RAFR-1850-2025")
+  expect_equal(mapped$polity_code[8], "ROW-1850-2025")
 })
 
-test_that("add_polity_code does not extend aggregate rows outside their range", {
+test_that("add_polity_code extends out-of-period rows to their nearest period", {
+  # The aggregate years are DERIVED from the crosswalk rather than written in, so
+  # this test says "one year past whatever period this vintage declares" instead
+  # of naming a literal. Areas 15, 151 and 904 all had their bucket end year moved
+  # by an upstream re-sync while this branch was open (#530 extends RLAM-1850-2013
+  # to RLAM-1850-2025), and a hardcoded year silently starts asking the opposite
+  # question when that happens -- 2021 is outside the old bucket and inside the
+  # new one.
+  aggregate_areas <- c(15L, 151L, 904L)
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  past_period_end <- vapply(
+    aggregate_areas,
+    function(area) max(cw$polity_end_year[which(cw$area_code == area)]) + 1L,
+    integer(1L)
+  )
+
   mapped <- tibble::tibble(
-    area_code = c(2L, 15L, 151L, 904L),
-    year = c(1790L, 2000L, 2023L, 2021L)
+    area_code = c(2L, aggregate_areas),
+    # main's version of this hunk hardcoded `2026`, with a comment saying "this
+    # year has to track the bucket's end". Deriving it does exactly that, so the
+    # derived form is kept and the literal dropped -- same intent, one fewer thing
+    # to remember on the next re-sync.
+    year = c(1790L, past_period_end)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
-    # behaviour: a non-aggregate area falls back to its nearest period, while
-    # aggregate reporting areas are NOT extended beyond their range.
+    # behaviour: rows whose year no period covers fall back to their nearest
+    # period.
     add_polity_code(backcast_anchor = -Inf)
 
+  # Area 2 Afghanistan is a national polity, so it extends to its nearest period.
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
+
+  # The other three are AGGREGATE reporting buckets -- 15 Belgium-Luxembourg,
+  # 151 Netherlands Antilles and 904 Latin America Other are all typed
+  # `aggregate` -- and aggregates are deliberately NOT extended past their period,
+  # so these rows have no polity. See the test below for why that is the right
+  # answer rather than a gap to paper over.
+  expect_true(all(is.na(mapped$polity_code[2:4])))
+})
+
+test_that("aggregate area 904 loses post-2013 years, and upstream owns that", {
+  # This test asserted the opposite until the branch was brought up to date with
+  # main: that 904 should be EXTENDED to `RLAM-1850-2013` for 2014-2023 so its
+  # FABIO data stopped being dropped. The symptom is real -- area 904 "Latin
+  # America Other" carries only `RLAM-1850-2013` in the polities vintage this
+  # package embeds, so every post-2013 row resolves to NA -- but the fix does not
+  # belong here, on two counts that are both measured rather than argued.
+  #
+  # 1. It is an upstream data defect and upstream has already fixed it. All seven
+  #    reporting buckets now run to 2025: `RLAM-1850-2013` -> `RLAM-1850-2025`,
+  #    and `RAFR`/`RASI`/`REUR`/`RNAM`/`ROCE-1850-2021` and `ROW-1850-2023`
+  #    likewise. The embedded vintage still has the short spans, which is what
+  #    makes this visible; the re-sync tracked in #530 removes the cause. Under
+  #    the epic's rule (#458) a territorial validity span is upstream's fact.
+  #
+  # 2. The downstream workaround was not safely asymmetric. Extending on nearest
+  #    distance back-fills years BEFORE an aggregate's start exactly as readily as
+  #    after its end, booking an 1830 Guadeloupe figure to `ROW-1850-2023` -- a
+  #    bucket that did not exist. That is 64 rows / 1,722,000 t of the historical
+  #    trade feed, and `test_build_cbs.R` pins dropping them as deliberate.
+  #
+  # So this asserts the RULE rather than the vintage: inside the bucket's declared
+  # period area 904 resolves to it, and one year past the end it resolves to
+  # nothing. Both years are read off the crosswalk, so #530 extending
+  # `RLAM-1850-2013` to `RLAM-1850-2025` moves which calendar years are tested
+  # without changing what is being tested -- and after it lands the years that
+  # used to be NA resolve through the ordinary period join, which is the point.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  rlam <- cw[which(cw$area_code == 904L), ]
+  bucket_end <- max(rlam$polity_end_year)
+  bucket_code <- rlam$polity_code[which.max(rlam$polity_end_year)]
+
+  mapped <- tibble::tibble(
+    area_code = 904L,
+    year = c(bucket_end - 1L, bucket_end + 1L)
+  ) |>
+    add_polity_code()
+
+  expect_equal(mapped$polity_code[1], bucket_code)
   expect_true(is.na(mapped$polity_code[2]))
-  expect_true(is.na(mapped$polity_code[3]))
-  expect_true(is.na(mapped$polity_code[4]))
 })
 
 test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
@@ -145,16 +215,45 @@ test_that("China aggregate area 351 is unmapped so it cannot double-count", {
   expect_true(all(is.na(agg$reporting_polity_code)))
 })
 
+test_that("partner polity mapping emits partner_polity_area_code", {
+  # the partner path must canonicalize partners symmetrically with the
+  # reporting side (which promotes reporting_polity_area_code -> polity_area_code).
+  mapped <- tibble::tibble(
+    area_code_partner = c(2L, 41L),
+    year = c(2000L, 2020L)
+  ) |>
+    whep:::.add_partner_polity_columns()
+
+  expect_true("partner_polity_area_code" %in% names(mapped))
+  expect_equal(mapped$partner_polity_area_code, c(2L, 41L))
+  expect_equal(mapped$partner_polity_code, c("AFG-1919-2025", "CHN-1950-2025"))
+})
+
+test_that("current mapping picks the open (latest-ending) period", {
+  # the open-period sentinel is derived from the crosswalk's latest end year,
+  # not a hardcoded literal, so the current mapping selects the still-open
+  # period over Afghanistan's earlier closed periods.
+  cw <- whep::polity_area_crosswalk
+  afg <- cw[cw$area_code == 2L & !is.na(cw$polity_code), ]
+  latest <- afg$polity_code[which.max(afg$polity_end_year)]
+
+  mapped <- tibble::tibble(area_code = 2L) |>
+    add_polity_code(year_column = NULL)
+
+  expect_equal(mapped$polity_code, latest)
+  expect_equal(mapped$polity_code, "AFG-1919-2025")
+})
+
 test_that("get_polity_geometries returns requested polygon rows", {
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",
     "NCL-1800-2025",
-    "ROW-1850-2023"
+    "ROW-1850-2025"
   ))
 
   expect_equal(
     sort(geoms$polity_code),
-    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2023")
+    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2025")
   )
   expect_true(all(geoms$has_geometry))
 })
@@ -169,4 +268,33 @@ testthat::test_that("the iso3c lookup is unique per code", {
     c(203L, 79L, 238L, 206L)
   )
   testthat::expect_true(is.na(whep:::.iso3c_to_area_code("ZZZ")))
+})
+
+testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
+  # Unique per iso3c (above) says nothing about the other direction, and the
+  # other direction is where the aggregation lives: `polity_area_code` is a
+  # bucket, so 257 ISO3 codes share 195 codes. Anything reading a population or
+  # per-capita row as one country depends on knowing that (#482), so the fold is
+  # pinned here: if upstream changes which ISO3 codes land on 999, this fails and
+  # the numbers on the 999 denominator have to be re-checked.
+  lut <- whep:::.iso3c_area_code_lookup()
+  testthat::expect_equal(nrow(lut), 257L)
+  testthat::expect_equal(dplyr::n_distinct(lut$area_code), 195L)
+  testthat::expect_equal(sum(duplicated(lut$area_code)), 62L)
+
+  row <- sort(lut$iso3c[lut$area_code == 999L])
+  testthat::expect_equal(length(row), 62L)
+  # The members that are present-day sovereign states, not small territories --
+  # the ones whose population a reader would look for as its own row.
+  testthat::expect_true(
+    all(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "AND", "LIE", "MCO") %in% row)
+  )
+  testthat::expect_equal(
+    whep:::.iso3c_to_area_code(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "GUF")),
+    rep(999L, 6)
+  )
+  # 206 "Sudan (former)" is the same shape at a smaller scale: post-secession
+  # Sudan and South Sudan both resolve to the pre-2011 bucket.
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SSD"), 206L)
+  testthat::expect_equal(sum(lut$area_code == 206L), 2L)
 })

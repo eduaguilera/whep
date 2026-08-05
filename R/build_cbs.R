@@ -802,7 +802,7 @@ build_processing_coefs <- function(
   ]
   dt <- dt[element %in% c("import", "export")]
 
-  .aggregate_to_polities(dt, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs_code, source_label = "fishstat-trade")
 }
 
 .read_fao_trade <- function(years = NULL) {
@@ -1349,7 +1349,11 @@ build_processing_coefs <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
+  # Keyed on polity_code, not on the label .read_land_areas() attaches: that
+  # label is the crosswalk's static area_name, while the frame this feeds
+  # carries the periodized polity_name. See .fill_with_proxies().
   land_wide <- land_areas |>
+    .proxy_polity_key(iso3_col = "iso3c") |>
     dplyr::mutate(
       land_use = dplyr::if_else(
         Land_Use %in% varnames_cropland,
@@ -1360,9 +1364,8 @@ build_processing_coefs <- function(
     dplyr::filter(land_use != "Other") |>
     dplyr::summarise(
       area_mha = sum(Area_Mha, na.rm = TRUE),
-      .by = c(year, area, land_use)
+      .by = c(year, polity_code, land_use)
     ) |>
-    dplyr::filter(!is.na(area)) |>
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
@@ -2190,16 +2193,89 @@ build_processing_coefs <- function(
     )
 }
 
+# Recover the polity identity that .aggregate_to_polities() flattened into
+# labels: it renames polity_area_code -> area_code and polity_name -> area, so
+# the pair every builder emits is a polity code in disguise. polity_name is
+# unique per polity_code across the crosswalk (476 names, 476 codes), which
+# makes this a lookup on the crosswalk's own two columns rather than a match
+# between two independent name vocabularies.
+.polity_code_from_labels <- function(dt) {
+  bridge <- .polity_crosswalk(include_unmapped = FALSE)[
+    !is.na(polity_name) & !is.na(polity_area_code),
+    .(
+      area_code = as.integer(polity_area_code),
+      area = polity_name,
+      polity_code
+    )
+  ]
+  bridge <- unique(bridge, by = c("area_code", "area"))
+  dt[, area_code := as.integer(area_code)]
+  merge(dt, bridge, by = c("area_code", "area"), all.x = TRUE, sort = FALSE)
+}
+
+# Put a proxy table keyed by ISO3 on the same polity key. Rows whose ISO3 has no
+# polity are dropped, and so are rows that would only reach an artificial
+# aggregate by folding into it from somewhere else: summing the six crosswalk
+# members that fold into Rest of World (999) would give the bucket a population
+# that is neither one member's nor the real rest of the world's, and a
+# per-capita rate against it would mean nothing. What such an aggregate's proxy
+# should be is a methodological choice, so those buckets stay unfilled here,
+# exactly as the name-keyed join left them.
+#
+# `area_code == polity_area_code` keeps the aggregates that report as themselves
+# (the pin carries RAFR, RASI, REUR, RLAM, ROCE and BLX, which ARE "Africa
+# Other" .. "Belgium-Luxembourg" rather than members of them). Nothing is being
+# summed for those, so there is no choice to defer.
+.proxy_polity_key <- function(df, iso3_col) {
+  dt <- if (data.table::is.data.table(df)) {
+    data.table::copy(df)
+  } else {
+    data.table::as.data.table(df)
+  }
+  if (iso3_col != "area_code") {
+    if ("area_code" %in% names(dt)) {
+      dt[, area_code := NULL]
+    }
+    data.table::setnames(dt, iso3_col, "area_code")
+  }
+  dt <- .iso3_to_fao_area_code(dt)
+  dt <- .add_polity_columns_dt(
+    dt,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  aggregates <- .aggregate_polity_codes()
+  dt[
+    !is.na(polity_code) &
+      (!polity_area_code %in% aggregates | area_code == polity_area_code)
+  ]
+}
+
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
   by_cols <- c("area", "area_code", "item_cbs", "item_cbs_code")
   sort_cols <- c(by_cols, "year")
 
-  # Join auxiliary columns first, then sort once for all four fills.
-  dt <- data.table::as.data.table(df)
-  pop_dt <- data.table::as.data.table(gdp_pop)[, .(year, area, pop)]
+  # Both proxies used to be joined on `area`, and three name vocabularies meet
+  # at that join: the frame carries polity_name, the gdp/population pin carries
+  # its own labels and the LUH2 land table the crosswalk's static area_name.
+  # Measured on the pin, 57 of its 196 names (8,263 rows, 27.8%) are names no
+  # builder emits, and 96 LUH2 labels (41.7% of land rows) likewise -- all of
+  # them resolving on the polity key. So both sides are keyed on polity_code.
+  dt <- .polity_code_from_labels(data.table::as.data.table(df))
+  pop_dt <- .proxy_polity_key(gdp_pop, iso3_col = "area_code")
+  # One row per polity: a no-op on the current pin (no two of its ISO3 codes
+  # share a non-aggregate polity), but it keeps a future fold from fanning the
+  # frame out on the merge below.
+  pop_dt <- pop_dt[,
+    .(pop = sum(pop, na.rm = TRUE)),
+    by = .(year, polity_code)
+  ]
   land_dt <- data.table::as.data.table(land_wide)
-  dt <- merge(dt, pop_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
-  dt <- merge(dt, land_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  join_cols <- c("year", "polity_code")
+  dt <- merge(dt, pop_dt, by = join_cols, all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, land_dt, by = join_cols, all.x = TRUE, sort = FALSE)
+  dt[, polity_code := NULL]
   data.table::setorderv(dt, sort_cols)
 
   # Four consecutive fills sharing the sort established above.
