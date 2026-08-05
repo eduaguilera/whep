@@ -105,6 +105,22 @@
   the 13.7x feed inflation recorded in issue #419 does not reproduce, because
   that comparison predates the `dcast()` duplicate-key fix in
   `.select_best_source()` (#425).
+* `build_primary_production()` gains `federation_land`, controlling how the
+  pre-1962 LUH2 back-cast reaches an area whose territory is a dissolved
+  federation. LUH2 land use is keyed on present-day ISO3, so 15
+  Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and 248 Yugoslav SFR have no
+  land record of their own and their pre-1962 production has never been
+  back-cast at all -- 14.3% of 1961-62 FAOSTAT production tonnage, USSR alone
+  12.2%. `federation_land = "successor_union"` rebuilds each federation's land
+  series as the sum of its successor states' LUH2 land, resolved from the
+  `successor` relation published in `polities`, and reduces the unmatched areas
+  from 4 to 1 (only Belgium-Luxembourg, which upstream publishes no successor
+  for). **No published value changes by default**: `"none"` keeps current
+  behaviour. Measured on a 1850-1965 build, `"successor_union"` raises global
+  pre-1962 production tonnage by 13.9% (1850) to 19.4% (1960), moves exactly
+  three area codes (51, 228, 248) and moves no row at or after 1961; it also
+  closes the hard 0-to-704 Mt discontinuity USSR had at the 1961 splice
+  (1960/1961 now differ by 1.2%).
 
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via

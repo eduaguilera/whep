@@ -27,6 +27,16 @@
 #'   `source` are used when present; WHEP item and area tables fill canonical
 #'   names where possible. Observed historical rows are retained, and LUH2 proxy
 #'   filling can use them as anchors. Default `NULL`.
+#' @param federation_land Character. How the pre-1962 LUH2 back-cast reaches an
+#'   area whose territory is a dissolved federation. LUH2 land use is keyed on
+#'   present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and
+#'   248 Yugoslav SFR have no land record of their own.
+#'   * `"none"` (default, current published behaviour) leaves them unmatched;
+#'     their pre-1962 production is not back-cast at all and the build warns.
+#'   * `"successor_union"` rebuilds each federation's land series as the sum of
+#'     its successor states' LUH2 land, resolved from the `successor` relation
+#'     published in [polities]. This back-casts 14.3% more of the 1961-62
+#'     production tonnage and therefore moves published pre-1962 values.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -55,14 +65,21 @@ build_primary_production <- function(
   example = FALSE,
   show_duplicates = FALSE,
   historical_data = NULL,
+  federation_land = c("none", "successor_union"),
   .raw_data = NULL
 ) {
   if (example) {
     return(.example_build_primary_prod())
   }
+  federation_land <- rlang::arg_match(federation_land)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
-    raw <- .read_production(start_year, end_year, historical_data)
+    raw <- .read_production(
+      start_year,
+      end_year,
+      historical_data,
+      federation_land = federation_land
+    )
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
@@ -146,7 +163,8 @@ build_primary_production <- function(
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  federation_land = "none"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -216,7 +234,8 @@ build_primary_production <- function(
   primary_ext <- .extend_historical(
     primary_raw2,
     years_df,
-    land_areas
+    land_areas,
+    federation_land = federation_land
   )
 
   # 10. Add grassland + historical yields
@@ -2532,7 +2551,8 @@ build_primary_production <- function(
 .extend_historical <- function(
   primary_raw2,
   years_df,
-  land_areas
+  land_areas,
+  federation_land = "none"
 ) {
   cli::cli_progress_step("Extending historical series")
   varnames_cropland <- c(
@@ -2548,6 +2568,12 @@ build_primary_production <- function(
   # country-name spelling differences); fall back to the area name
   # only when no code is present.
   area_key <- if ("area_code" %in% names(land_areas)) "area_code" else "area"
+
+  land_areas <- .add_federation_land_rows(
+    land_areas,
+    area_key = area_key,
+    federation_land = federation_land
+  )
 
   land_wide <- land_areas |>
     dplyr::mutate(
@@ -2592,6 +2618,95 @@ build_primary_production <- function(
       area != "",
       !is.na(unit)
     )
+}
+
+# LUH2 land use is keyed on present-day ISO3, so an area whose territory is a
+# dissolved federation (15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR, 248
+# Yugoslav SFR) has no land record and its pre-1962 production is simply never
+# back-cast -- 14.3% of 1961-62 FAOSTAT production tonnes on current `main`.
+#
+# `federation_land = "successor_union"` rebuilds a federation's land series as
+# the sum of its successor states' LUH2 land, resolved from the polities
+# database's published `successor` relation (see `.successor_iso3_map()`). This
+# is the same modern-boundary aggregate LUH2 already reports for every other
+# area at every year, and only the year-on-year *ratio* of the series is used
+# (by `fill_proxy_growth()`), so the absolute-level mismatch between a
+# federation and its successors' present-day extent does not enter the result.
+#
+# The extra rows are added to the copy of `land_areas` that `.extend_historical()`
+# turns into the back-cast proxy only. `.build_grassland()` keeps reading the
+# unaugmented table, because a federation grassland row would double-count
+# against its successors' own rows across the whole 1850-2023 span.
+.add_federation_land_rows <- function(
+  land_areas,
+  area_key = "area_code",
+  federation_land = "none"
+) {
+  if (federation_land == "none") {
+    return(land_areas)
+  }
+  needed <- c("iso3c", "area_code", "area", "year", "Land_Use", "Area_Mha")
+  if (area_key != "area_code" || !all(rlang::has_name(land_areas, needed))) {
+    cli::cli_warn(c(
+      "!" = "{.arg federation_land} needs {.field iso3c} and {.field area_code}
+        on the LUH2 land table; leaving the dissolved federations unmatched.",
+      "i" = "Their pre-1962 production stays un-back-cast."
+    ))
+    return(land_areas)
+  }
+
+  dt <- data.table::as.data.table(land_areas)
+  bridge <- .federation_land_bridge(dt)
+  if (nrow(bridge) == 0L) {
+    return(land_areas)
+  }
+  extra <- merge(
+    dt[, .(iso3c, year, Land_Use, Area_Mha)],
+    bridge,
+    by = "iso3c",
+    allow.cartesian = TRUE
+  )
+  extra <- extra[,
+    .(Area_Mha = sum(Area_Mha, na.rm = TRUE), iso3c = NA_character_),
+    by = .(area_code, area, year, Land_Use)
+  ]
+  cli::cli_alert_info(
+    "Bridged {data.table::uniqueN(bridge$area_code)} dissolved federation{?s}
+     to their successors' LUH2 land: {.val {unique(bridge$area)}}."
+  )
+  data.table::rbindlist(list(dt, extra), use.names = TRUE, fill = TRUE)
+}
+
+# Successor ISO3 codes for every production area whose own bucket has no LUH2
+# land, as a long iso3c -> (area_code, area) table.
+.federation_land_bridge <- function(land_areas_dt) {
+  empty <- data.table::data.table(
+    iso3c = character(0),
+    area_code = integer(0),
+    area = character(0)
+  )
+  available <- unique(land_areas_dt$iso3c[!is.na(land_areas_dt$iso3c)])
+  reachable <- unique(
+    land_areas_dt$area_code[!is.na(land_areas_dt$area_code)]
+  )
+  lookup <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(polity_code) & !(polity_area_code %in% reachable),
+    .(area_code = polity_area_code, area = area_name, polity_code)
+  ]
+  lookup <- unique(lookup, by = "area_code")
+  if (nrow(lookup) == 0L) {
+    return(empty)
+  }
+  iso3 <- .successor_iso3_map(lookup$polity_code, available)
+  lookup[, n_successors := lengths(iso3[polity_code])]
+  lookup <- lookup[n_successors > 0L]
+  if (nrow(lookup) == 0L) {
+    return(empty)
+  }
+  lookup[,
+    .(iso3c = iso3[[polity_code]]),
+    by = .(area_code, area)
+  ]
 }
 
 .fill_pre_faostat <- function(df, land_wide, join_keys = c("year", "area")) {
@@ -2743,9 +2858,11 @@ build_primary_production <- function(
   }
   bad <- unique(unmatched$area)
   cli::cli_warn(c(
-    "!" = "Historical extension: {length(bad)} area{?s} have no LUH2 land
-      match; their pre-1962 production is not back-cast.",
-    "i" = "First unmatched: {.val {head(bad, 5)}}."
+    "!" = "Historical extension: {length(bad)} area{?s} {?has/have} no LUH2
+      land match; their pre-1962 production is not back-cast.",
+    "i" = "First unmatched: {.val {head(bad, 5)}}.",
+    "i" = "Dissolved federations can be reached via
+      {.code federation_land = \"successor_union\"}."
   ))
   invisible(NULL)
 }
