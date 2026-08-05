@@ -42,6 +42,11 @@ Sudan and 277 South Sudan after the 2011 secession while no live polity
 means "Sudan and South Sudan" (whep#414). \code{.aggregate_to_polities()} warns
 when it builds such a bucket; set \code{options(whep.warn_polity_folds = FALSE)}
 to silence that warning.
+
+The polity reported here as the bucket's own is also the \code{area} label the
+builds attach to the summed row, and the one the reporting columns resolve.
+A bucket carries one label whatever its members resolve to, because \code{area}
+is a join key and a bucket under two labels stops summing (whep#563).
 }
 \examples{
 polity_bucket_coverage(years = 2015L)

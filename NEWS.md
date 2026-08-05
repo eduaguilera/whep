@@ -1,5 +1,32 @@
 # whep (development version)
 
+* **An aggregation bucket now sums, and comes out under one name.** The reader
+  aggregation grouped rows by the member's polity **name** as well as by
+  `polity_area_code`, so a bucket folding members that resolve to different
+  polities was never actually summed: it came back as several rows under one
+  `area_code`, carrying different `area` labels. That is live on the shipped
+  crosswalk, not hypothetical — bucket 206 "Sudan (former)" folds FAOSTAT areas
+  276 Sudan and 277 South Sudan, which resolve to two polities from 2012 on.
+  Measured over the real pins, four sources came out split: `faostat-fbs-new`
+  (2,056 duplicate `(area_code, year, item, element, unit)` keys),
+  `faostat-trade-totals` (3,739), `faostat-production` (2,000) and
+  `faostat-emissions-livestock` (144). The label is now derived after the sum
+  from the **bucket's own** code — the same polity `polity_bucket_coverage()`
+  reports and the reporting columns resolve — so one `area_code` has one `area`
+  in one year. Each reader's total is **unchanged to the digit** and its row
+  count falls by exactly its duplicate-key count.
+  **Published values do move, for bucket 206 only**, because the duplicated keys
+  were mishandled downstream in both directions: `build_primary_production()`
+  changes 1,673 of 6,170,595 keys, all in 2012-2023, and against the raw pin the
+  new value is the right one — bucket 206 goats in 2018 were 14,449,249 head
+  (South Sudan alone, Sudan's 40,846,000 dropped) and are now 55,295,249, while
+  2019 sugar cane was 10,898,000 t against 5,449,000 t reported and is now
+  5,449,000 t. On a real 2005-2020 `build_commodity_balances()` the effect is
+  678 changed keys, 559 of them area 206; every other area moves by **43.4 t in
+  total across 119 keys** (largest single move 3.91 t, 4e-9% of the build).
+  Element totals over that range move by 1.79% on `stock_variation` and by less
+  than 0.03% on everything else. `reporting_polity_code` for bucket 206 is
+  `SUD-1956-2011` before and after.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement

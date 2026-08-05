@@ -1319,23 +1319,22 @@ build_processing_coefs <- function(
   .warn_unmapped_codes(dt, "polity_code", "area_code", "crop residues")
   dt <- dt[!is.na(polity_code)]
 
+  # Same grouping and same labelling rule as `.aggregate_to_polities()`. Two
+  # sites emitting two `area` vocabularies for one `area_code` is what dropped
+  # 702,166 rows in whep#382, so the label comes from the shared helper rather
+  # than from whichever member this particular read happened to resolve.
+  labels <- .bucket_area_labels(dt)
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
       "polity_area_code",
-      "polity_name",
       "item_cbs",
       "item_cbs_code",
       "element"
     )
   ]
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .read_land_areas_wide <- function(years = NULL) {
