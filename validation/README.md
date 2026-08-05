@@ -47,6 +47,8 @@ a hardcoded grid.
 | `nass_sum.R` | Deterministic USA extractor: sums STATE rows from the local USDA NASS bulk CSV → national tonnes, writes `cache/findings/USA.json`. No web, no PDF. |
 | `lpjml_faostat_crops.R` | Checks a finished **LPJmL run's** crop output against FAOSTAT per CFT and country. See below. |
 | `lpjml_globalflux.R` | Checks a finished **LPJmL run's** global fluxes for spinup equilibration and against published observational estimates. See below. |
+| `lpjml_pins.R` | Guards the four **LPJmL-derived input pins** against their recorded contract, physical invariants and magnitudes, so a pin swap cannot pass silently. See below. |
+| `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
 
 ## Validating an LPJmL run (different target)
 
@@ -69,6 +71,47 @@ Rscript validation/lpjml_globalflux.R <run_dir> [baseline_run_dir] 2000,2010
 ```
 
 `<run_dir>` is a run's `output/scenario_1`.
+
+### Guarding the LPJmL-derived pins
+
+Separate from the two above, which check a *run*. This one checks the four
+**pins** WHEP actually feeds on:
+
+```bash
+Rscript validation/lpjml_pins.R            # check against the recorded baseline
+Rscript validation/lpjml_pins.R --record   # rewrite the baseline, deliberately
+```
+
+It exists because repointing those pins from LPJmL 5.9.7 to 6.1.1 raised
+natural-land carbon input ~31% — moving every downstream SOC number — and
+`validate_all.R` ran clean straight through it. It had to: every variable that
+sweep covers reads FAOSTAT/GAEZ/MapSPAM/PSD and none reads an LPJmL pin (#559).
+
+Three tiers, and they mean different things when they fail:
+
+- **Contract** — required columns, row count, year span. A mismatch means the pin
+  is not the layer its consumers expect.
+- **Invariant** — physical impossibility, not expectation: a fractional
+  saturation outside `[0, 1]`, a negative carbon density, a monthly rainfall
+  above any observed value. These hold for any model version, so they never need
+  updating, and a violation is corruption rather than a model difference.
+- **Baseline** — recorded magnitudes in `gt_lpjml_pins.json`. **This tier is
+  designed to fail when the pins change.** The tolerance is `1e-5`, not a few
+  percent, because these are deterministic model outputs rather than
+  measurements — at 2% the real 5.9.7→6.1.1 hydrology shift (1.7%) slipped
+  through while the larger carbon shifts were caught, which is the silent pass
+  the script exists to prevent.
+
+So a baseline failure is a prompt, not a verdict: find out what moved, then
+re-record with `--record` and say in the commit message why.
+
+**Still not covered:** how a pin change propagates into `build_carbon_balance()`
+output. That needs local raster paths which are unset in a fresh checkout —
+`WHEP_HWSD_DIR`, `WHEP_CRU_DIR`, `WHEP_LUH2_DIR`, `WHEP_POLITY_FRACTION_PATH`,
+`WHEP_TYPE_CROPLAND_PATH`, `WHEP_GRIDDED_PASTURE_PATH`,
+`WHEP_CROP_PATTERNS_PATH` — and the repo's tracked `.Renviron` shadows
+`~/.Renviron` (#456), so they cannot come from a home file either. Tracked in
+#559.
 
 **What these can and cannot establish.** LPJmL only matches FAO yields once its
 maximum LAI has been calibrated per country ([Fader et al.
