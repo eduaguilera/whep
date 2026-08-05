@@ -93,6 +93,15 @@
 <li>
 <strong>Priority</strong>: a <code>priority:*</code> label.</li>
 </ul><p>Apply the full set when opening an issue; backfill missing labels when you touch an old one. PRs do not need the labels duplicated when they close an already-labelled issue.</p>
+<div class="section level4">
+<h4 id="contributor-facing-labels">Contributor-facing labels<a class="anchor" aria-label="anchor" href="#contributor-facing-labels"></a></h4>
+<p>Three further labels exist for people outside the team, who pick work by them. Guidelines live in <code>.github/CONTRIBUTING.md</code> (that path keeps them out of the package build — <code>^\.github$</code> is in <code>.Rbuildignore</code>).</p>
+<ul><li>
+<strong><code>good first issue</code></strong> + <strong><code>help wanted</code></strong>: small, self-contained and precisely specified. <strong>Verify the defect still exists in current code before applying it.</strong> Several audit-era issues had already been fixed by a later commit while the issue stayed open; sending a newcomer to one of those is worse than leaving it unlabelled.</li>
+<li>
+<strong><code>no-data-needed</code></strong>: the issue can be reproduced, fixed <strong>and verified</strong> using only a clone. Package data (<code>data/*.rda</code>, <code>inst/extdata/</code>), hand-built <code>tribble()</code> fixtures and injected arguments all count as available; pins, <code>WHEP_*_DIR</code> rasters and any network read do not.</li>
+</ul><p><code>no-data-needed</code> exists because the data barrier, not the science, is what usually blocks an outside contributor: the test suite is fully offline, but a real pipeline build needs inputs that cannot be handed out. Two rules keep it worth having — apply it only after checking the verification path really is offline, and never apply it to code that is not on <code>main</code> (work living on an unmerged feature branch cannot be picked up from a fresh clone).</p>
+</div>
 </div>
 </div>
 <div class="section level2">
