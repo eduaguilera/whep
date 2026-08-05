@@ -72,6 +72,8 @@ utils::globalVariables(
     "live_anim_lookup_prod",
     "source_any",
     "source_prod",
+    # polities.R + build_production.R (dependency-to-sovereign attribution)
+    "sovereign_iso3c",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",

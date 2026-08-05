@@ -1,5 +1,17 @@
+# Which pkgcheck items are dropped from the summary. Details are still
+# reported for everything -- this only shortens the summary list.
+#
+# num_imports is dropped because it will not change: whep is a data-processing
+# pipeline over FAOSTAT, LUH2, LPJmL, CRU and HYDE, and 25 imports is what that
+# costs. pkgcheck marks it optional rather than failing.
+#
+# Nothing else is suppressed on purpose. ci_checks and renv were suppressed
+# here in March and both were misreadings: pkgcheck reports "no continuous
+# integration checks" when the checked commit has no workflow runs on GitHub
+# yet, which is what a local pre-push run always looks like, and the package
+# has six workflows; renv was dropped from the package after this file was
+# written, so there is nothing left to suppress. coverage was suppressed while
+# genuinely below rOpenSci's 75% threshold, which hid a real submission
+# blocker -- it is left visible so it gets closed instead.
 summary:
   num_imports: false
-  ci_checks: false
-  renv: false
-  coverage: false
