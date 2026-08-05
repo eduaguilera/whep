@@ -466,6 +466,13 @@ polycell_shim_view <- function(support) {
 # exactly the ones the spherical engine refuses to read. `st_collection_extract`
 # errors rather than passing through when the geometry is already singular and
 # polygonal, so that case returns untouched.
+#
+# For AREA this is belt and braces: `terra::vect()` performs the same
+# extraction internally, and measured either way a two-polygon collection comes
+# back at 69,978.2271 ha and a polygon-plus-line collection at 34,989.1136 ha,
+# with a line-only geometry giving 0 on both paths. Skipping it is an
+# equivalent mutant. What the helper buys is the explicit empty return, so
+# `terra::expanse()` is never handed a geometry with nothing to measure.
 .pcs_polygonal_part <- function(geom) {
   types <- as.character(sf::st_geometry_type(geom))
   polygonal <- types %in% c("POLYGON", "MULTIPOLYGON")
@@ -600,6 +607,12 @@ polycell_shim_view <- function(support) {
 # The layer is unioned so overlapping ice features cannot be counted twice. The
 # union is repaired before use for the same reason the clipped pieces are: s2
 # emits a duplicate vertex in its own output and then refuses to read it back.
+# This is measured, not defensive. On ne_10m_glaciated_areas all 1,885 kept
+# features pass `st_is_valid()` and their union does not, so every later
+# predicate against that union would abort. The smallest reproducing subset is
+# two Greenland features carrying 22,544 vertices, and simplifying either to an
+# inlineable size collapses it, so the regression test needs the real layer and
+# skips without it.
 .pcs_prepare_ice <- function(ice) {
   if (is.null(ice)) {
     return(NULL)
@@ -1100,6 +1113,12 @@ polycell_shim_view <- function(support) {
 # bulges 0.0017 degrees and is ordinary polygon detail; the 49th parallel's
 # 27.6-degree segment bulges 0.83 degrees and moves a province. The default
 # floor of 0.01 degrees is about 1.1 km of displacement.
+#
+# `min_span_deg` is therefore a PERFORMANCE prefilter, not a second criterion:
+# the largest bulge any sub-degree span can produce is 0.0011 degrees, measured
+# over latitudes 0 to 89.9, and reaching the 0.01 floor at latitude 45 needs a
+# 3.03-degree span. Removing it changes no output, which a mutation sweep
+# correctly reports as an equivalent mutant rather than a gap in the tests.
 .pcs_long_edges <- function(
   polities,
   min_span_deg = 1,

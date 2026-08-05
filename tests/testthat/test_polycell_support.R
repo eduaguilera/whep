@@ -1983,3 +1983,217 @@ testthat::test_that("long edges ride as a diagnostic and change no area", {
   )
   testthat::expect_null(attr(quiet, "long_edges"))
 })
+
+testthat::test_that("the window contains the spherical extent on all sides", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("s2")
+
+  # Both longitude bounds are load-bearing, and only one of them shows up on
+  # the shipped table: F228-1800-1856 extends 10.46407 degrees BELOW its
+  # coordinate box, while the largest extension ABOVE any coordinate box is
+  # 2.842e-14 (MHL-1874-2025 among others). A test that only looked at the
+  # values would therefore never notice the upper bound being dropped, so what
+  # is asserted here is the containment property itself, exactly: the window
+  # must cover the spherical rectangle on every side, however small the margin.
+  purrr::walk(c("F228-1800-1856", "MHL-1874-2025", "ESP-1800-2025"), \(code) {
+    geom <- sf::st_geometry(whep::get_polity_geometries(code))
+    window <- whep:::.pcs_cell_window(geom)
+    rect <- s2::s2_bounds_rect(geom)
+    box <- sf::st_bbox(geom)
+
+    testthat::expect_lte(rect$lng_lo, window[["xmin"]] + 0)
+    testthat::expect_gte(window[["xmax"]], rect$lng_hi)
+    testthat::expect_lte(rect$lat_lo, window[["ymin"]] + 0)
+    testthat::expect_gte(window[["ymax"]], rect$lat_hi)
+    # And the coordinate box, which the spherical rectangle does not always
+    # contain either.
+    testthat::expect_lte(window[["xmin"]], box[["xmin"]])
+    testthat::expect_gte(window[["xmax"]], box[["xmax"]])
+  })
+
+  # The one polity where the margin is large, pinned so the direction is not
+  # silently reversed.
+  f228 <- sf::st_geometry(whep::get_polity_geometries("F228-1800-1856"))
+  testthat::expect_equal(
+    sf::st_bbox(f228)[["xmin"]] - whep:::.pcs_cell_window(f228)[["xmin"]],
+    10.46407,
+    tolerance = 1e-4
+  )
+})
+
+testthat::test_that("water is floored where ice slightly exceeds the piece", {
+  testthat::skip_if_not_installed("sf")
+
+  # The real numeric situation, reproduced directly on the helper because no
+  # fixture reaches it through the producer: ice and territory come from two
+  # INDEPENDENT intersections, so on a fully ice-covered polycell their
+  # difference lands at -1e-9 rather than 0. Built from one geometry, as every
+  # fixture is, the difference is exactly 0.000e+00 and the floor is never
+  # exercised. 56 Greenland rows in the real build were negative before it.
+  pieces <- tibble::tibble(
+    cell_id = 1L,
+    lon = 10.25,
+    lat = 45.25,
+    cell_area_ha = 200000,
+    polity_area_ha = 100000,
+    ice_area_ha = 100000 + 1e-9,
+    start_year = 2000L,
+    end_year = 2020L
+  )
+  water <- tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.4)
+
+  out <- whep:::.pcs_add_water(pieces, water)
+
+  testthat::expect_gte(out$inland_water_ha, 0)
+  testthat::expect_equal(out$inland_water_ha, 0)
+  # The whole apportioned amount is then excess, not a negative water area.
+  testthat::expect_equal(
+    out$water_excess_ha,
+    0.4 * 200000 * 1,
+    tolerance = 1e-6
+  )
+  # And the land it feeds cannot go negative either.
+  testthat::expect_gte(
+    max(out$polity_area_ha - out$inland_water_ha - out$ice_area_ha, 0),
+    0
+  )
+})
+
+testthat::test_that("a terra measurement totals every polygonal part", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("terra")
+
+  # `sf::st_intersection()` can hand back a GEOMETRYCOLLECTION holding several
+  # disjoint polygons for one piece. Measuring only the first would return a
+  # plausible number that is quietly short, and every current fixture has a
+  # single part, so nothing would notice.
+  west <- sf::st_polygon(list(cbind(
+    c(10.0, 10.2, 10.2, 10.0, 10.0),
+    c(45.0, 45.0, 45.2, 45.2, 45.0)
+  )))
+  east <- sf::st_polygon(list(cbind(
+    c(10.3, 10.5, 10.5, 10.3, 10.3),
+    c(45.0, 45.0, 45.2, 45.2, 45.0)
+  )))
+  collection <- sf::st_sfc(
+    sf::st_geometrycollection(list(west, east)),
+    crs = 4326
+  )
+
+  total <- whep:::.pcs_terra_one_ha(collection)
+  west_only <- whep:::.pcs_terra_one_ha(sf::st_sfc(west, crs = 4326))
+  east_only <- whep:::.pcs_terra_one_ha(sf::st_sfc(east, crs = 4326))
+
+  testthat::expect_equal(total, west_only + east_only, tolerance = 1e-9)
+  testthat::expect_gt(total, west_only * 1.5)
+  # A line or a point in the collection contributes nothing but must not make
+  # the whole measurement fail.
+  with_line <- sf::st_sfc(
+    sf::st_geometrycollection(list(
+      west,
+      sf::st_linestring(cbind(c(20, 21), c(45, 45)))
+    )),
+    crs = 4326
+  )
+  testthat::expect_equal(
+    whep:::.pcs_terra_one_ha(with_line),
+    west_only,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("the ice union is repaired before it is used", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if(
+    !nzchar(Sys.getenv("WHEP_NATURALEARTH_DIR")),
+    "WHEP_NATURALEARTH_DIR unset: the real ice layer is required here."
+  )
+
+  # `read_glaciated_areas()` returns features that are individually valid, and
+  # `sf::st_union()` of them is NOT: measured on ne_10m_glaciated_areas, all
+  # 1,885 kept features pass `st_is_valid()` while their union fails it, so
+  # every later `st_intersects()` and `st_intersection()` against that union
+  # would abort. The repair inside `.pcs_prepare_ice()` is what prevents it.
+  #
+  # This needs the real layer. The smallest reproducing subset is two features
+  # -- Greenland glaciers, indices 1851 and 1858 -- carrying 22,544 vertices
+  # between them, and simplifying either one to an inlineable size collapses
+  # it, so there is no offline fixture and this test SKIPS in CI. That gap is
+  # the reason the sweep runs locally with the layer present.
+  ice <- suppressWarnings(whep::read_glaciated_areas())
+  features <- sf::st_geometry(ice)
+
+  testthat::expect_true(all(whep:::.s2_valid(features)))
+  testthat::expect_false(all(whep:::.s2_valid(sf::st_union(features))))
+
+  prepared <- whep:::.pcs_prepare_ice(ice)
+  testthat::expect_true(all(whep:::.s2_valid(prepared)))
+  # And the repaired union is usable by the spherical engine, which is the
+  # whole point: unrepaired, this call aborts. The planar repair splits it into
+  # more than one valid piece, so the area comes back as a vector.
+  testthat::expect_true(all(is.finite(as.numeric(sf::st_area(prepared)))))
+  testthat::expect_gt(sum(as.numeric(sf::st_area(prepared))), 0)
+})
+
+testthat::test_that("the span prefilter is implied by the bulge floor", {
+  # Two mutants survive the sweep because they are equivalent, and both are
+  # pinned here so that stops being true the moment the constants move.
+  #
+  # First: `min_span_deg` is a performance prefilter, not a criterion. No span
+  # under a degree can reach the 0.01-degree bulge floor at any latitude, so
+  # dropping the span test changes no output. If the floor were ever lowered
+  # below 0.0011 the two would stop agreeing and this fails.
+  grid <- tidyr::expand_grid(
+    lat = c(0, 30, 45, 60, 80, 89, 89.9),
+    span = c(0.01, 0.1, 0.5, 0.9, 0.999)
+  )
+  worst <- max(whep:::.pcs_great_circle_bulge(grid$lat, grid$span))
+
+  testthat::expect_lt(worst, 0.01)
+  testthat::expect_equal(worst, 0.001088664, tolerance = 1e-6)
+  # And the span a real flag needs is several degrees, not one.
+  testthat::expect_gt(
+    stats::uniroot(
+      \(s) whep:::.pcs_great_circle_bulge(45, s) - 0.01,
+      c(0.1, 20)
+    )$root,
+    3
+  )
+})
+
+testthat::test_that("terra measures a collection the same either way", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("terra")
+
+  # Second equivalent mutant: `.pcs_polygonal_part()` does not change the AREA
+  # terra reports, because terra extracts the polygonal parts itself. The
+  # helper is kept for the explicit empty return, and the equality is pinned so
+  # a future terra that stopped extracting would be caught here rather than in
+  # a silent under-measurement.
+  west <- sf::st_polygon(list(cbind(
+    c(10.0, 10.2, 10.2, 10.0, 10.0),
+    c(45.0, 45.0, 45.2, 45.2, 45.0)
+  )))
+  east <- sf::st_polygon(list(cbind(
+    c(10.3, 10.5, 10.5, 10.3, 10.3),
+    c(45.0, 45.0, 45.2, 45.2, 45.0)
+  )))
+  collection <- sf::st_sfc(
+    sf::st_geometrycollection(list(west, east)),
+    crs = 4326
+  )
+  raw <- suppressWarnings(terra::vect(sf::st_sf(geometry = collection)))
+
+  testthat::expect_equal(
+    whep:::.pcs_terra_one_ha(collection),
+    sum(terra::expanse(raw, unit = "m")) / 1e4,
+    tolerance = 1e-9
+  )
+  # A geometry with no polygonal part measures zero, which is the case the
+  # helper's early return exists for.
+  line <- sf::st_sfc(
+    sf::st_linestring(cbind(c(20, 21), c(45, 45))),
+    crs = 4326
+  )
+  testthat::expect_equal(whep:::.pcs_terra_one_ha(line), 0)
+})

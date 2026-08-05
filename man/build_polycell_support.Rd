@@ -54,19 +54,22 @@ as attributes:
 \code{over_claimed_land_ha} where they claim more), \code{"coverage"} (every live
 polity interval and why it did or did not produce polycells),
 \code{"overlap"} (cells holding more territory than the cell, because two
-polities were handed the same polygon), \code{"terra_measured"} (polycells whose
-area came from \code{terra}), \code{"water_excess"} (inland water clamped to the
-polycell's territory), \code{"water_unmatched"} (cells the water layer and the
-polycells do not share), \code{"footprints"} and \code{"footprint_diff"} (the
-deployed crosswalk, the current producer and the polycell footprint,
-reconciled at \code{data$crosswalk_year}).
+polities were handed the same polygon), \code{"long_edges"} (polity edges the
+source stores as one long segment along a parallel, which s2 draws as a
+bulging great circle), \code{"terra_measured"} (polycells whose area came from
+\code{terra}), \code{"water_excess"} (inland water clamped to the polycell's
+territory), \code{"water_unmatched"} (cells the water layer and the polycells do
+not share), \code{"footprints"} and \code{"footprint_diff"} (the deployed crosswalk,
+the current producer and the polycell footprint, reconciled at
+\code{data$crosswalk_year}).
 
-\code{"overlap"}, \code{"terra_measured"}, \code{"water_excess"} and \code{"unassigned"} are
-\strong{interval-grain}, like the table itself: they carry \code{start_year} and
-\code{end_year}, and one cell contributes a row per interval. Summing them
-without first filtering to the interval covering the year of interest
-counts the same cell once per epoch. On the shipped polities that is the
-difference between 1,342 clamped polycells over all epochs and 94 in 2015.
+\code{"overlap"}, \code{"terra_measured"}, \code{"water_excess"}, \code{"water_unmatched"} and
+\code{"unassigned"} are \strong{interval-grain}, like the table itself: they carry
+\code{start_year} and \code{end_year}, and one cell contributes a row per interval.
+Summing them without first filtering to the interval covering the year of
+interest counts the same cell once per epoch. On the shipped polities that
+is the difference between 1,343 clamped polycells over all epochs and 94 in
+2015.
 
 When \code{data$crosswalk} is supplied the table also carries the crosswalk rows
 the intersection did not reproduce, so the transitional shim stays

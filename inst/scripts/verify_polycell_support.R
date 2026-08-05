@@ -12,7 +12,11 @@
 #   S-A1 the three area categories sum to polity_area_ha.
 #   S-A2 re-aggregation to the polity polygon, AT A YEAR. Never summed across
 #        intervals: the table is interval-keyed, so summing a polity over every
-#        interval counts a cell once per epoch and inflates it.
+#        interval counts a cell once per epoch and inflates it. Reported at a
+#        historical year, at the modern year, and then over EVERY interval at a
+#        year inside its own validity, which is the only view that shows the
+#        whole exception list: two of its five members are live in neither
+#        1900 nor 2015.
 #   S-A4 the global land denominator against the whole-cell base.
 #   DA-12 the deployed crosswalk, today's producer and the polycell footprint.
 #   DA-13 the transitional shim against build_cell_polity(), bit-for-bit.
@@ -136,6 +140,62 @@
      over 1e-6: {sum(comparison$rel > 1e-6)}."
   )
   print(utils::head(as.data.frame(comparison), 8), digits = 6)
+  invisible(comparison)
+}
+
+# The S-A2 exception list, checked over EVERY interval at a year inside its
+# own validity rather than at one calendar year. Measured across all 567
+# clipped intervals: max 6.6957e-05, median 1.1962e-14, five above 1e-6. All
+# five carry pieces the spherical engine could not read, so their residual is
+# the terra/s2 engine substitution and nothing else; a polity appearing here
+# without terra pieces is a new defect. Two of the five are not live in 1900 or
+# 2015, which is why a single-year check reports three and misses them.
+.vps_exception_list <- function(polycells) {
+  .vps_h("S-A2: the exception list, over every interval at its own year")
+  expected <- c(
+    "GRC-1830-1913",
+    "DEU-1800-1866",
+    "DEU-1866-1871",
+    "GBR-1800-1921",
+    "FRA-1800-1919"
+  )
+  worst <- polycells |>
+    dplyr::mutate(probe_year = .data$start_year) |>
+    dplyr::summarise(
+      got_ha = sum(.data$polity_area_ha),
+      terra_pieces = sum(.data$area_engine == "terra"),
+      .by = c("polity_code", "probe_year")
+    ) |>
+    dplyr::summarise(
+      got_ha = sum(.data$got_ha),
+      terra_pieces = sum(.data$terra_pieces),
+      .by = "polity_code"
+    )
+  comparison <- worst |>
+    dplyr::inner_join(.vps_own_areas(worst$polity_code), by = "polity_code") |>
+    dplyr::mutate(rel = abs(.data$got_ha - .data$own_ha) / .data$own_ha) |>
+    dplyr::filter(.data$rel > 1e-6) |>
+    dplyr::arrange(dplyr::desc(.data$rel))
+  print(as.data.frame(comparison), digits = 6)
+  grew <- setdiff(comparison$polity_code, expected)
+  if (length(grew) > 0L) {
+    cli::cli_alert_danger(
+      "The S-A2 exception list GREW: {.val {grew}}. Investigate before
+       accepting this build."
+    )
+  } else {
+    cli::cli_alert_success(
+      "Exception list is within the expected {length(expected)}: {.val
+       {expected}}."
+    )
+  }
+  no_terra <- comparison$polity_code[comparison$terra_pieces == 0L]
+  if (length(no_terra) > 0L) {
+    cli::cli_alert_danger(
+      "Over tolerance WITHOUT a terra piece: {.val {no_terra}}. That is not
+       the engine substitution and needs its own explanation."
+    )
+  }
   invisible(comparison)
 }
 
@@ -324,6 +384,7 @@
   .vps_identity(polycells)
   .vps_reaggregation(polycells, historical_year)
   .vps_reaggregation(polycells, year)
+  .vps_exception_list(polycells)
   .vps_denominator(polycells, year)
   .vps_footprints(support, crosswalk)
   .vps_coverage(support)
