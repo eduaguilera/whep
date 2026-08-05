@@ -1176,7 +1176,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @keywords internal
 #' @noRd
 .convert_to_items_n <- function(
-  grafs_prod_item_combined = whep_read_file(""),
+  grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
   biomass_coefs = whep_read_file("biomass_coefs")
 ) {
@@ -1240,13 +1240,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
-#' (export, import). National scaling can be activated, for analysis for whole
-#' Spain. It should be deactivated for provincial analysis
+#' (export, import).
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
-#' @param pie_full_destinies_fm A data frame with destiny data.
-#' @param biomass_coefs A data frame with biomass coefficients.
-#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
