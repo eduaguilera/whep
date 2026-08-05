@@ -67,7 +67,23 @@ run_lpjml <- function(
   # CRU TS release used for temp/prec/cloud/wetdays, as written by
   # prepare_spatialize_all.R (Section 9d).
   cru_tag = "cru_ts4.09.1901.2024",
-  nspinup = 200,
+  # Spinup length. NULL selects by version: 200 for 5.x, 300 for 6.x.
+  #
+  # 6.x needs the longer spinup for nitrogen. `nlosses/ninflux` must approach 1
+  # at N steady state; 5.9.7 reaches 1.07 by year 120, while 6.x is still at
+  # 1.68 at year 248 with soil pools draining (SoilNH4 -1.91%/yr). Measured on
+  # 500 tropical cells; the decay is not a single exponential, so it cannot be
+  # extrapolated from a short run. Carbon and water need far less -- 6.x's
+  # slowest carbon pool (LitC) equilibrates by year 189 -- so this is only about
+  # N-derived output. Re-measured after the nitrogen fixes on the fork and the
+  # trajectory is unchanged, i.e. the requirement is structural rather than a bug.
+  nspinup = NULL,
+  # MPI ranks. Open MPI counts *physical cores* as slots, so on a machine with
+  # 24 physical cores and 32 logical CPUs the default ceiling is 24 and asking
+  # for more aborts with "not enough slots". `--use-hwthread-cpus` lifts it, and
+  # measured on 6000 cells / 60-yr spinup it is worth having: 30 ranks ran in
+  # 680 s against 748/769 s at 24, about 10% faster. The flag is added
+  # automatically when use_cores exceeds the physical core count.
   use_cores = 24,
   input_set = c("whep", "stock")
 ) {
@@ -75,6 +91,7 @@ run_lpjml <- function(
   # model's own standard inputs, so whep results can be validated against LPJmL's
   # published ones.
   input_set <- match.arg(input_set)
+  nspinup <- nspinup %||% .default_nspinup(lpjml_version)
   l_files_dir <- normalizePath(l_files_dir, mustWork = TRUE)
   input_path <- file.path(l_files_dir, "whep", "lpjml_inputs")
 
@@ -300,7 +317,7 @@ run_lpjml <- function(
       cfg,
       model_path,
       sim_path,
-      run_cmd = stringr::str_glue("mpirun -np {use_cores} "),
+      run_cmd = .mpirun_cmd(use_cores),
       write_stdout = TRUE
     ),
     error = function(err) {
@@ -686,6 +703,55 @@ run_lpjml <- function(
   c(header, sprintf("# source: %s", path), readLines(path, warn = FALSE))
 }
 
+
+# Spinup length when the caller does not set one. 6.x needs the longer run for
+# nitrogen; see the `nspinup` argument comment for the measurements.
+.default_nspinup <- function(lpjml_version) {
+  if (.is_lpjml6(lpjml_version)) 300L else 200L
+}
+
+# Physical cores, which is what Open MPI counts as slots. `nproc` reports
+# logical CPUs, so it overcounts on any machine with hyperthreading.
+.physical_cores <- function() {
+  out <- suppressWarnings(
+    tryCatch(
+      system2("lscpu", stdout = TRUE, stderr = FALSE),
+      error = function(e) character()
+    )
+  )
+  sockets <- .lscpu_int(out, "^Socket\\(s\\):")
+  per_socket <- .lscpu_int(out, "^Core\\(s\\) per socket:")
+  if (is.na(sockets) || is.na(per_socket)) {
+    return(NA_integer_)
+  }
+  sockets * per_socket
+}
+
+.lscpu_int <- function(lines, pattern) {
+  hit <- grep(pattern, lines, value = TRUE)
+  if (!length(hit)) {
+    return(NA_integer_)
+  }
+  suppressWarnings(as.integer(stringr::str_trim(sub("^[^:]*:", "", hit[[1L]]))))
+}
+
+# The mpirun invocation lpjmlkit::run_lpjml() prefixes the binary with.
+#
+# Open MPI aborts with "There are not enough slots available in the system" when
+# asked for more ranks than there are physical cores. `--use-hwthread-cpus`
+# makes it count hardware threads instead, which is what allows going past that
+# ceiling. Added only when needed, so a normal run's command line is unchanged.
+.mpirun_cmd <- function(use_cores) {
+  physical <- .physical_cores()
+  if (!is.na(physical) && use_cores > physical) {
+    cli::cli_alert_info(
+      "Requesting {use_cores} ranks on {physical} physical core{?s}; adding
+       {.code --use-hwthread-cpus} so Open MPI counts hardware threads."
+    )
+    return(stringr::str_glue("mpirun -np {use_cores} --use-hwthread-cpus "))
+  }
+  stringr::str_glue("mpirun -np {use_cores} ")
+}
 
 # LPJmL 6.x is anything with a major version of 6 or above.
 .is_lpjml6 <- function(lpjml_version) {
