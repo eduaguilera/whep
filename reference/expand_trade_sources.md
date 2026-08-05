@@ -34,7 +34,7 @@ trade_sources <- tibble::tibble(
   SACO_link = NA,
 )
 expand_trade_sources(trade_sources)
-#> # A tibble: 9 × 12
+#> # A tibble: 9 × 13
 #> # Groups:   No [3]
 #>      No  Year Name  Trade Info_Format  Timeline_Start Timeline_End Timeline_Freq
 #>   <int> <dbl> <chr> <chr> <chr>                 <dbl>        <dbl>         <dbl>
@@ -47,6 +47,6 @@ expand_trade_sources(trade_sources)
 #> 7     2     4 b     t2    partial_ser…              1            4             1
 #> 8     3     2 c_2   t3    year                      2            5             2
 #> 9     3     4 c_4   t3    year                      2            5             2
-#> # ℹ 4 more variables: `Imp/Exp` <chr>, SACO_link <lgl>, ImpExp <chr>,
-#> #   In_Saco <int>
+#> # ℹ 5 more variables: `Imp/Exp` <chr>, SACO_link <lgl>, ImpExp <chr>,
+#> #   In_Saco <int>, reporting_polity_code <chr>
 ```

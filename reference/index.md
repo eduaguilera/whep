@@ -493,6 +493,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Polities
 - [`polity_area_crosswalk`](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
   : FAOSTAT/FABIO area-to-polity crosswalk
+- [`polity_label_aliases`](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md)
+  : Source label to polity aliases
 - [`polities_cats`](https://eduaguilera.github.io/whep/reference/polities_cats.md)
   : Polity categories and regional classifications
 - [`regions_full`](https://eduaguilera.github.io/whep/reference/regions_full.md)
@@ -509,6 +511,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Get WHEP polity geometries
 - [`whep_polity_columns`](https://eduaguilera.github.io/whep/reference/whep_polity_columns.md)
   : Polity columns on WHEP outputs
+- [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
+  : Resolve a source's country label to a polity
 
 ### Commodity balance sheet items
 
