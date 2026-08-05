@@ -111,11 +111,96 @@ test_that("CBS and FABIO area codes map to polity database rows", {
       .data$has_geometry
     )
 
-  expect_equal(nrow(fabio_row_sources), 6L)
+  # Seven rows over six areas: French Guiana carries two periods.
+  expect_equal(nrow(fabio_row_sources), 7L)
+  expect_true(all(fabio_row_sources$has_geometry))
+
+  # What every FABIO rest-of-world source shares, and the only part any build
+  # keys on, is the numeric bucket. That is asserted for all of them.
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
-  expect_true(all(fabio_row_sources$has_geometry))
+
+  # The IDENTITY splits, and deliberately so (#459). An area the compact country
+  # grid models as a country takes its own polity even while its value keeps
+  # folding into bucket 999; an area that is not individually modelled is
+  # identified as the aggregate it is summed into.
+  still_row <- fabio_row_sources$area_code %in% c(30L, 152L, 252L, 254L)
+  expect_true(all(fabio_row_sources$polity_code[still_row] == "ROW-1850-2023"))
+  expect_setequal(
+    fabio_row_sources$polity_code[!still_row],
+    c("GUF-1816-1946", "GUF-1946-2025", "PSE-1948-2025")
+  )
+})
+
+
+# -- area label encoding (issue #399) ------------------------------------------
+
+# No area label in a published table may be mojibake. Three territory names
+# shipped corrupt across eight cells: Curacao (area 279) in three columns of
+# regions_full and polity_area_crosswalk, Cote d'Ivoire (area 107) in four
+# columns of regions_full and polities_cats, and "Netherlands Antilles /
+# Curacao" (area 151) in one. Each was the UTF-8 bytes of the accented letter
+# decoded as a pair of Latin-1 characters in the vendored harmonization CSVs, now
+# repaired on read in data-raw/_labels.R.
+#
+# Swept across every character column rather than a list of label columns,
+# because a repair aimed at label columns alone fixes area 279's `name` and
+# leaves the identical corruption in `iea`, `water_area` and `Lassaletta`.
+# Mojibake is never wanted in any string column, so the rule is the column's
+# type.
+#
+# It was not costing a join, and that was checked rather than assumed: no alias
+# resolves on either spelling of Curacao. It was a latent trap all the same,
+# because area 279's FAOSTAT_name is NA, so the corrupt `name` was the only label
+# it had -- an alias added later under the correct spelling would have missed in
+# silence.
+test_that("published area tables carry no mojibake in any label", {
+  tables <- c(
+    "regions_full",
+    "polities_cats",
+    "polity_area_crosswalk",
+    "polities"
+  )
+  offenders <- character(0)
+  checked <- 0L
+  for (nm in tables) {
+    d <- get(nm, envir = asNamespace("whep"))
+    for (col in names(d)[vapply(d, is.character, logical(1))]) {
+      checked <- checked + 1L
+      # Every Latin-1-decoded UTF-8 byte pair opens with U+00C3.
+      hits <- unique(grep("\u00c3", d[[col]], value = TRUE))
+      if (length(hits) > 0L) {
+        offenders <- c(
+          offenders,
+          paste0(
+            nm,
+            "$",
+            col,
+            " (",
+            paste(utils::head(hits, 3), collapse = ", "),
+            ")"
+          )
+        )
+      }
+    }
+  }
+  # Non-vacuous: zero character columns would make the loop prove nothing.
+  expect_gt(checked, 40L)
+  expect_equal(
+    length(offenders),
+    0L,
+    info = paste("mojibake in area labels:", paste(offenders, collapse = "; "))
+  )
+
+  # And the repaired names read correctly, so a repair that silently stopped
+  # working fails here instead of reverting to a corrupt string nobody reads.
+  regions <- whep::regions_full
+  expect_true("Cura\u00e7ao" %in% regions$name)
+  expect_true("C\u00f4te d'Ivoire" %in% regions$iea)
+  crosswalk <- whep::polity_area_crosswalk
+  expect_true(
+    "Cura\u00e7ao" %in% crosswalk$area_name[which(crosswalk$area_code == 279L)]
+  )
 })
 
 
@@ -753,6 +838,36 @@ test_that("IPCC 2019 datasets are clean tibbles", {
       has_numeric,
       info = paste(nm, "must have numeric columns")
     )
+  }
+})
+
+test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
+  # Regression guard for issues #252 (Horses) and #253 (Poultry-Broilers).
+  # Values verified against IPCC 2019 Refinement Vol 4 Ch 10 Table 10.16a,
+  # high-productivity systems column (the tier the rest of the table uses).
+  expected <- tibble::tribble(
+    ~category, ~bo_m3_kg_vs,
+    "Horses", 0.30,
+    "Mules and Asses", 0.33,
+    "Poultry - Layers", 0.39,
+    "Poultry - Broilers", 0.36
+  )
+
+  for (nm in c("ipcc_2019_bo", "ipcc_tier2_bo_values")) {
+    obj <- getExportedValue("whep", nm)
+    got <- expected |>
+      dplyr::left_join(obj, by = "category", suffix = c("_exp", "_got"))
+    testthat::expect_equal(
+      got$bo_m3_kg_vs_got,
+      got$bo_m3_kg_vs_exp,
+      info = nm
+    )
+
+    bo <- function(cat) obj$bo_m3_kg_vs[obj$category == cat]
+    # #252: Horses must not be copied from Mules and Asses.
+    testthat::expect_false(bo("Horses") == bo("Mules and Asses"), info = nm)
+    # #253: broilers and layers share the high-productivity tier.
+    testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
   }
 })
 

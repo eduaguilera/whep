@@ -44,20 +44,33 @@ test_that("grid countries with their own polity are not identified as ROW", {
   expect_true(all(mapped$polity_area_code == 999L))
 })
 
-test_that("grid areas with no polity of their own keep folding into ROW", {
-  # French Guiana (69) and Palestine (299) are the two of the nine that this
-  # change deliberately does NOT fix, and they are pinned so the gap is visible
-  # rather than forgotten. Neither has a polity in this vintage of `polities` to
-  # route to, and French Guiana additionally needs an owner decision: as a French
-  # overseas territory it may belong to its own polity or to France's.
+test_that("French Guiana and Palestine un-fold once upstream models them", {
+  # This test previously asserted the opposite -- that 69 and 299 keep folding to
+  # ROW -- and said so deliberately: "a future refresh of `polities` that adds
+  # GUF/PSE rows will trip this test. That is the point -- it forces the decision
+  # instead of silently changing the attribution".
   #
-  # A future refresh of `polities` that adds GUF/PSE rows will trip this test.
-  # That is the point -- it forces the decision instead of silently changing the
-  # attribution of every French Guiana and Palestine row.
+  # The refresh happened. `main`'s `polities` now carries `GUF-1816-1946`,
+  # `GUF-1946-2025` and `PSE-1948-2025`, so the tripwire fired exactly as
+  # designed, and this is the decision it was forcing.
+  #
+  # It is resolved by following the rule this change already applies everywhere
+  # else, not by adding an exception: an area in the compact country grid that
+  # carries a polity family the database holds takes that polity. New Caledonia
+  # was handled this way from the start, because upstream had already answered it
+  # with a dedicated `NCL-1800-2025`; upstream has now answered French Guiana and
+  # Palestine the same way, and upstream is the authority on territorial identity.
+  #
+  # What made this safe to decide rather than escalate: `polity_area_code` stays
+  # 999 for both, so no value is re-attributed and no published total moves --
+  # only the identity label. If the owner prefers French Guiana folded into
+  # France's polity, that is an upstream change to `GUF-*`, not an exception here.
   mapped <- tibble::tibble(area_code = c(69L, 299L), year = 2020L) |>
     add_polity_code()
 
-  expect_equal(mapped$polity_code, c("ROW-1850-2023", "ROW-1850-2023"))
+  expect_equal(mapped$polity_code, c("GUF-1946-2025", "PSE-1948-2025"))
+  # The invariant that makes the relabel value-neutral.
+  expect_true(all(mapped$polity_area_code == 999L))
 })
 
 test_that("Sudan areas resolve to unified Sudan before the 2011 secession", {
@@ -72,12 +85,18 @@ test_that("Sudan areas resolve to unified Sudan before the 2011 secession", {
   ) |>
     add_polity_code()
 
+  # Area 206 now reads SUD-1956-2011 for 2020 as well, and that is `main`'s doing
+  # rather than this change's: adopting the upstream FAOSTAT map made 206 resolve
+  # to the unified Sudan for every year it reports, "rather than standing in on
+  # post-secession SDN-2011-2025". 206 is therefore no longer touched here at all
+  # -- only 276 and 277, whose pre-2011 years main still resolved to successor
+  # states that did not yet exist.
   expect_equal(
     mapped$polity_code,
     c(
       "SUD-1956-2011",
       "SUD-1956-2011",
-      "SDN-2011-2025",
+      "SUD-1956-2011",
       "SUD-1956-2011",
       "SUD-1956-2011",
       "SDN-2011-2025",

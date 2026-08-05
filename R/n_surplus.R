@@ -44,7 +44,9 @@
 #'   `balance`. Defaults to `FALSE`.
 #' @return The `balance` tibble with `surplus_n_t` (tonnes N, may be negative),
 #'   `method_surplus` and, when `area_ha` is present, `surplus_kgn_ha`
-#'   (kg N per hectare).
+#'   (kg N per hectare). An area-keyed `balance` also gains the polity columns
+#'   below; one without an `area_code` is returned without them.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' calculate_n_surplus(example = TRUE)
@@ -61,7 +63,8 @@ calculate_n_surplus <- function(
   balance |>
     .n_surplus_add_value(method) |>
     .n_surplus_add_production() |>
-    .n_surplus_add_intensity()
+    .n_surplus_add_intensity() |>
+    .add_polity_columns_if_keyed()
 }
 
 # ---- Private helpers -------------------------------------------------------

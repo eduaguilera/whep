@@ -106,6 +106,45 @@ read_lpjml_hydrology <- function(
   )
 }
 
+# LPJmL 6.x renames some output variables to their CF short names, so the name
+# a file actually carries depends on the model version that wrote it. Known
+# renames, keyed by the 5.x name this package's map records: in `mprec.nc`, the
+# variable 5.x calls `prec` is named `pr` in 6.x.
+#
+# Only `prec` is affected among the variables read here; the other nine are
+# byte-identical in name between 5.9.7 and 6.1.1, verified against completed
+# runs of both.
+.hydro_var_aliases <- function() {
+  list(prec = "pr")
+}
+
+# The in-file name for a mapped variable, tolerating the 6.x renames.
+#
+# Resolved per file rather than per version because there is no version stamp to
+# branch on: a run directory is just NetCDF files, and both versions' output can
+# sit side by side on one machine. Checking what the file contains works for
+# either without asking the caller which model wrote it.
+#
+# An unresolvable name lists what the file does contain, so the next rename
+# costs one run to diagnose rather than a hunt -- the failure it replaces was
+# `argument is of length zero` from `nc$var[[netcdf_var]]$ndims`, which names
+# neither the variable nor the file.
+.hydro_resolve_var <- function(nc, netcdf_var, path) {
+  present <- names(nc$var)
+  if (netcdf_var %in% present) {
+    return(netcdf_var)
+  }
+  alias <- intersect(.hydro_var_aliases()[[netcdf_var]], present)
+  if (length(alias) > 0L) {
+    return(alias[[1L]])
+  }
+  cli::cli_abort(c(
+    "Variable {.field {netcdf_var}} not found in {.file {path}}.",
+    i = "The file contains: {.field {present}}.",
+    i = "If LPJmL renamed it, add the new name to {.fun .hydro_var_aliases}."
+  ))
+}
+
 # Resolve the run directory from the argument, else the environment variable.
 .resolve_run_dir <- function(run_dir) {
   resolved <- run_dir %||% Sys.getenv("WHEP_LPJML_RUN_DIR")
@@ -175,6 +214,7 @@ read_lpjml_hydrology <- function(
   }
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
+  netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
   slice <- .hydro_time_slice(nc, netcdf_var, first_year, years)

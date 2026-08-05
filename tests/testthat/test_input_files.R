@@ -47,6 +47,16 @@ testthat::test_that("whep_read_file errors with invalid file type", {
   )
 })
 
+testthat::test_that("a missing NetCDF member errors instead of returning NULL", {
+  # Issue #457: the nc and nc4 types hand back a path rather than contents, and
+  # were missing from the known-formats list, so a pin with no NetCDF member
+  # returned NULL and the caller failed later and somewhere else.
+  testthat::expect_error(
+    whep_read_file("read_example", type = "nc"),
+    "no .*nc.* file"
+  )
+})
+
 testthat::test_that("whep_read_file errors when remote down and no cache", {
   local_mocked_bindings(
     .check_remote_reachable = function(...) {
