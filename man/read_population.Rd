@@ -19,8 +19,11 @@ data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{year}, \code{area_code} and \code{population} (persons), one row
-per country-year, sorted by year then area code, plus the polity columns
-below.
+per area code and year, sorted by year then area code, plus the polity
+columns below. A row is one country in the common case, but \code{area_code} is
+an aggregation bucket: rows on 999 ("Rest of World") and, from 2012,
+206 ("Sudan (former)") are sums over several territories rather than a
+single country.
 }
 \description{
 Reads the \code{gdp-population} pin and returns population per country and year on
@@ -34,6 +37,18 @@ Regional residual aggregates in the pin (\code{RAFR}, \code{RASI}, \code{REUR}, 
 \code{ROCE}) are not countries and carry no numeric code. They are dropped and
 reported rather than silently discarded, since their omission is what makes
 the result a countries-only total rather than a world total.
+
+\code{area_code} here is \code{polity_area_code}, which is a \strong{bucket, not an
+identity}: several ISO3 codes can share one code, and this function sums
+them, so some rows are aggregates of more than one territory. With the real
+pin, code 999 "Rest of World" carries Syria, North Macedonia, Palestine,
+Eswatini, Equatorial Guinea and French Guiana, and code 206 "Sudan (former)"
+carries Sudan plus South Sudan from 2012 on. The fold is required, not
+accidental -- those are the codes the commodity balances are keyed on, so a
+finer key would leave their food supply with no population denominator -- and
+every folded row is named in a message. The polity columns say the same
+thing: 999 resolves to \code{ROW-1850-2023} "Rest of World", and 206 to
+\code{SUD-1956-2011}, the pre-secession territory its two members together cover.
 }
 \section{Polity columns}{
 
