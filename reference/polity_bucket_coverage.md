@@ -52,10 +52,11 @@ one polity in the requested years.
 
 ``` r
 polity_bucket_coverage(years = 2015L)
-#> # A tibble: 1 × 10
+#> # A tibble: 2 × 10
 #>   polity_area_code  year n_member_polities member_polity_codes member_area_codes
 #>              <int> <int>             <int> <chr>               <chr>            
 #> 1              206  2015                 3 SDN-2011-2025, SSD… 206, 276, 277    
+#> 2              999  2015                 8 GNQ-1968-2025, GUF… 5, 6, 17, 22, 24…
 #> # ℹ 5 more variables: bucket_polity_code <chr>, bucket_polity_name <chr>,
 #> #   bucket_mapping_status <chr>, bucket_polity_type <chr>, coverage <chr>
 ```
