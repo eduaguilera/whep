@@ -360,7 +360,11 @@ build_cbs_prices <- function(
   vop[, `:=`(unit = "kdollars", element = "production")]
 
   # Aggregate to polity level
-  .aggregate_to_polities(vop, item_prod_code)
+  .aggregate_to_polities(
+    vop,
+    item_prod_code,
+    source_label = "faostat-value-of-production"
+  )
 }
 
 # -- Internal: CBS prices ------------------------------------------------------

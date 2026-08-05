@@ -346,6 +346,16 @@ Conventions of the codebase (follow them; they are how the code reads):
   that does turns an unrelated outage into a hard `R CMD check` ERROR (#490).
   Stub the reader with `testthat::local_mocked_bindings()` (43 call sites do
   this already) or use a fixture under `tests/testthat/fixtures/`.
+  - `skip_on_ci()` does **not** enforce this: r-universe runs its check without
+    `CI` set, so a `skip_on_ci()` test runs there for real. Use
+    `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset (r-universe,
+    CRAN) while `r-lib/actions/setup-r` and `devtools::test()` both set it. A
+    real-data test that genuinely cannot be rescoped onto a fixture needs
+    **both**. Guarding on a local file or `WHEP_*` env var is equally fine —
+    that is what the LPJmL/HWSD/LUH2 smoke tests do.
+  - The `offline-tests` job is the enforcement, and it only sees these tests
+    because it unsets `CI`. If it fails alone, add a fixture — do not skip the
+    test and do not relax the job.
 - Access exported objects via `whep::name` — never `:::` or
   `getFromNamespace()` for something exported. Private helpers are tested
   directly as `whep:::.helper()`, which is the established practice. For

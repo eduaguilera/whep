@@ -77,6 +77,17 @@ testthat::test_that("values are quantities, not counts, at build scale", {
   # A guard on the property rather than on a fixture: after a real build the primary-source
   # magnitudes must be implausible as counts. Skipped where the pins are unavailable, and it is
   # the one test here that would have caught the defect from the outside.
+  #
+  # Reading the pins over the network is the whole point here, so this cannot be
+  # rescoped onto a fixture -- it is instead kept out of every automated check.
+  # `skip_on_ci()` alone does not do that: r-universe does not set `CI`, so this
+  # was the only test in the suite still fetching remote data during a check, and
+  # its download time (3 min CPU against 58 min wall clock) pushed r-universe's
+  # Windows job past its 60-minute cap. `skip_on_cran()` covers the check
+  # surfaces, because `NOT_CRAN` is unset on r-universe and on CRAN while
+  # `r-lib/actions/setup-r` and `devtools::test()` both set it -- so the test
+  # still runs locally and in offline-tests, where it belongs.
+  testthat::skip_on_cran()
   testthat::skip_on_ci()
   cbs <- tryCatch(
     suppressWarnings(suppressMessages(
