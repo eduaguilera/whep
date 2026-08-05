@@ -1,5 +1,23 @@
 # whep (development version)
 
+* `build_energy_co2_extension()` gains a third `unclassified` treatment,
+  `"polity_region"`, for the **live** reporting areas `gleam_geographic_hierarchy`
+  has no row for. On today's crosswalk that is Nauru (area 148) and Tuvalu (227):
+  they exist, report under their own area codes, and their meat production left
+  the extension unpriced. `"polity_region"` groups them by running GLEAM's own
+  scheme rules on the continent their polity carries -- no grouping label is
+  added to the package -- so Tuvalu now lands on `"Least developed countries"`,
+  the classification `.energy_ldc_iso3()` already asserted for TUV while joining
+  against a table with no TUV row. Those rows are labelled
+  `"GLEAM_3.0_energy_meat_polity_region"` in `method_energy`. **No published
+  value changes**: the default is still `"drop"`, and the full 1850-2023 build is
+  bit-identical under both `"drop"` and `"global_mean"`. Measured, for the
+  decision: `"polity_region"` adds 366 rows and 2 areas (61,149 to 61,515),
+  moves no existing row by any amount, and raises total energy CO2e by
+  0.0000155%; it puts Nauru at 288,502 kg CO2e and Tuvalu at 424,851 kg over
+  1961-2023, against 664,412 and 1,775,719 under `"global_mean"`. Whether the
+  default should move is left open in whep#415.
+
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
