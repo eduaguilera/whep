@@ -4,7 +4,12 @@
 \alias{build_energy_co2_extension}
 \title{Build the livestock energy-use CO2 footprint extension (meat only).}
 \usage{
-build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
+build_energy_co2_extension(
+  method = c("gleam"),
+  data = list(),
+  unclassified = c("drop", "global_mean"),
+  example = FALSE
+)
 }
 \arguments{
 \item{method}{Estimation method. Only \code{"gleam"} (default), the GLEAM 3.0
@@ -14,13 +19,22 @@ per-live-weight factors, is currently available.}
 \code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output). It falls back to
 its reader when absent.}
 
+\item{unclassified}{How to treat reporting areas \code{gleam_geographic_hierarchy}
+has no row for, and which therefore get no country energy intensity.
+\code{"drop"} (default) keeps the historical behaviour: their meat production
+leaves the extension, and a warning says how much. \code{"global_mean"} prices
+them at the unweighted world mean of the published GLEAM factors instead,
+marking those rows \code{"GLEAM_3.0_energy_meat_global_mean"} in
+\code{method_energy}.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (energy-use emissions in kilograms CO2e) and \code{method_energy}
-(e.g. \code{"GLEAM_3.0_energy_meat"}), plus the polity columns below.
+(\code{"GLEAM_3.0_energy_meat"}, or \code{"GLEAM_3.0_energy_meat_global_mean"} for
+rows priced at the world mean), plus the polity columns below.
 }
 \description{
 Aggregate GLEAM 3.0 on-farm (direct) and feed-production (embedded) energy
@@ -46,6 +60,17 @@ its factors by production system and climate zone but the package has no
 country-level system or climate shares, the intensities are collapsed to one
 value per country by an unweighted mean across systems and climate zones;
 this choice is recorded in \code{method_energy}.
+
+\code{gleam_geographic_hierarchy} is the country universe of the whole extension,
+so a reporting area absent from it gets no energy intensity and its meat
+production leaves the extension. That affects both the aggregate reporting
+buckets (\code{polity_area_code} 999 "Rest of World" and the continental residuals
+901-906) and the dissolved entities GLEAM's present-day country table cannot
+carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
+Montenegro). The size of that loss is now \strong{reported} on every build rather
+than left to be inferred, and \code{unclassified = "global_mean"} prices those
+areas at the world-mean GLEAM intensity instead of losing them. The default
+keeps the historical behaviour; see whep#492.
 }
 \section{Polity columns}{
 

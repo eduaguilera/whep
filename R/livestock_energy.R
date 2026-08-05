@@ -272,13 +272,9 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
       .by = c(species, cohort)
     )
 
-  if (rlang::has_name(data, "iso3")) {
+  if (.has_gleam_region_key(data)) {
+    data$gleam_region <- .gleam_region_of(data)
     data <- data |>
-      dplyr::left_join(
-        gleam_geographic_hierarchy |>
-          dplyr::select(iso3, gleam_region),
-        by = "iso3"
-      ) |>
       dplyr::left_join(
         gleam_animal_weights |>
           dplyr::summarise(

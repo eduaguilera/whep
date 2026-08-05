@@ -718,7 +718,7 @@ build_processing_coefs <- function(
   ]
   dt <- dt[element %in% c("import", "export")]
 
-  .aggregate_to_polities(dt, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs_code, source_label = "fishstat-trade")
 }
 
 .read_fao_trade <- function(years = NULL) {
