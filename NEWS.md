@@ -1,5 +1,24 @@
 # whep (development version)
 
+* `polities` and `polity_area_crosswalk` are re-synced against upstream
+  `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
+  **14** codes this package had been treating as live and published a replacement
+  for each. The user-visible consequence is that `reporting_polity_code` values
+  change: `ROW-1850-2023` becomes `ROW-1850-2025`, the six regional buckets
+  `RAFR/RASI/REUR/RNAM/ROCE-1850-2021` and `RLAM-1850-2013` become `-1850-2025`,
+  and `CAN-1948-2025` becomes `CAN-1949-2025`. Newfoundland acceded on 31 March
+  **1949**, so calendar 1948 now resolves to pre-accession Canada
+  (`CAN-1886-1949`, 9,379,600 km2) instead of post-accession Canada
+  (9,774,537 km2) -- a 394,937 km2 correction visible only where the back-cast
+  anchor is off, i.e. historical trade sources reported under their own borders.
+  The bucket extensions recover **88 previously unresolvable area-years** over
+  1961-2024 (`RLAM` alone had lost 2014-2024), of which 20 fall inside the
+  default `1850:2023` build range. **No published value is expected to move**:
+  `polity_area_code`, the numeric bucket every matrix workflow aggregates on, is
+  byte-identical for all 267 reporting areas, and the recovered area-years are
+  either year 2024 (outside the default range) or areas 901-906, which are WHEP
+  reporting labels no source dataset carries. That is a crosswalk-level
+  measurement, not a full-pipeline one.
 * The FABIO Rest-of-World fold is now **reported instead of silent**, and the
   measurement that was blocking a decision on it has been redone. New
   `folded_reporting_areas()` lists every reporting area whose `polity_area_code`
@@ -170,6 +189,16 @@
   inflated coverage; `quality_variants = TRUE` collapses a source's several
   `quality_col` variants of a cell to its best-ranked one instead of aborting.
   Both default to the previous behaviour (#139).
+* `get_faostat_data()` no longer attaches and then unloads `FAOSTAT` to make
+  `FAOSTAT::fillCountryCode()` see its lazily loaded `FAOcountryProfile`. The
+  ISO3 lookup now loads that dataset explicitly and matches area names itself,
+  reproducing `fillCountryCode()`'s rule (exact match against the six profile
+  name columns, unresolved when several profile rows match). Verified identical
+  on all 232 FAOSTAT area names in `regions_full` and upstream's
+  `faostat_area_polity_map`: 215 resolve, 0 differences. Two side effects are
+  gone -- the user's `FAOSTAT` session state is left alone, and rows keep their
+  input order instead of being sorted by area name by an internal `merge()`
+  (#520).
 
 # whep 0.3.0
 

@@ -35,6 +35,43 @@
   out
 }
 
+# Crown dependencies and overseas territories (JEY, GGY, IMN, ALA, BLM, SXM)
+# sit in the crosswalk with their sovereign's `polity_code` but with no
+# FAOSTAT `area_code`, so `.current_area_lookup()`'s `!is.na(area_code)` filter
+# cannot see them and any source keyed by ISO3 silently loses their rows.
+# This returns, for each such ISO3, the ISO3 of a territory that shares its
+# polity and does have an aggregation bucket, i.e. its sovereign.
+.dependency_sovereign_iso3 <- function() {
+  sovereign <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(polity_code, sovereign_iso3c = area_iso3c, area_code)
+  ]
+  # Keep the resolution deterministic where one polity spans several buckets
+  # (ROW, and the Sudan/Ethiopia splits) by taking the lowest area code.
+  data.table::setorderv(sovereign, c("polity_code", "area_code"))
+  sovereign <- unique(sovereign, by = "polity_code")
+  sovereign[, area_code := NULL]
+
+  dependency <- .polity_crosswalk(include_unmapped = FALSE)[
+    is.na(area_code) & !is.na(area_iso3c),
+    .(iso3c = area_iso3c, polity_code, polity_start_year, polity_end_year)
+  ]
+  # One crosswalk row per polity period; take the most recent, which is how
+  # `.current_area_lookup()` picks a code's current polity.
+  data.table::setorderv(
+    dependency,
+    c("iso3c", "polity_end_year", "polity_start_year"),
+    order = c(1L, -1L, -1L),
+    na.last = TRUE
+  )
+  dependency <- unique(dependency, by = "iso3c")
+
+  out <- merge(dependency, sovereign, by = "polity_code", sort = FALSE)
+  out <- out[sovereign_iso3c != iso3c, .(iso3c, sovereign_iso3c)]
+  data.table::setorderv(out, "iso3c")
+  out
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
