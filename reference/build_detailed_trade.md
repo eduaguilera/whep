@@ -74,7 +74,7 @@ A tibble with columns:
 
 ``` r
 build_detailed_trade(example = TRUE)
-#> # A tibble: 10 × 15
+#> # A tibble: 10 × 16
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <int>     <int>            <int> <chr>                 <chr>                
 #>  1  2010         4                4 DZA-1962-2025         Algeria (1962-2025)  
@@ -87,9 +87,9 @@ build_detailed_trade(example = TRUE)
 #>  8  2005         4                4 DZA-1962-2025         Algeria (1962-2025)  
 #>  9  2012       100              100 IND-1949-2025         India                
 #> 10  2012       100              100 IND-1949-2025         India                
-#> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>,
+#> # ℹ 11 more variables: reporting_polity_has_geometry <lgl>,
 #> #   area_code_partner <int>, partner_polity_code <chr>,
 #> #   partner_polity_name <chr>, partner_polity_has_geometry <lgl>,
-#> #   element <chr>, item_cbs_code <int>, unit <chr>, value <dbl>,
-#> #   country_share <dbl>
+#> #   partner_polity_area_code <int>, element <chr>, item_cbs_code <int>,
+#> #   unit <chr>, value <dbl>, country_share <dbl>
 ```
