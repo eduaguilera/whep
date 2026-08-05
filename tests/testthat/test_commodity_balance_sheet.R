@@ -157,3 +157,54 @@ testthat::test_that("livestock CBS routes slaughter animals to processing", {
   testthat::expect_equal(buffalo$processing, 20)
   testthat::expect_equal(buffalo$other_uses, 0)
 })
+
+testthat::test_that(".map_livestock_trade_polities maps raw FAO codes to polity codes", {
+  # Raw FAOSTAT area_code 62 (Ethiopia) maps to polity area_code 238,
+  # while 231 (United States) maps to itself.
+  btd <- tibble::tribble(
+      ~year, ~from_code, ~to_code, ~item_cbs_code, ~unit, ~value,
+      2000L, 62L, 231L, 1096L, "heads", 30,
+      2000L, 231L, 62L, 1096L, "heads", 10
+    )
+
+  mapped <- .map_livestock_trade_polities(btd)
+
+  testthat::expect_setequal(mapped$from_code, c(238L, 231L))
+  testthat::expect_setequal(mapped$to_code, c(231L, 238L))
+  testthat::expect_false(any(mapped$from_code == 62L))
+  testthat::expect_false(any(mapped$to_code == 62L))
+})
+
+testthat::test_that("livestock trade reconciles with polity-coded slaughter (Ethiopia)", {
+  # Bilateral trade is keyed by RAW FAOSTAT codes (Ethiopia = 62),
+  # whereas slaughter counts are polity-coded (Ethiopia = 238). Both
+  # sides must be reconciled on the polity area code before joining.
+  local_mocked_bindings(
+    whep_read_file = function(...) NULL,
+    .clean_bilateral_trade = function(...) {
+      tibble::tribble(
+          ~year, ~from_code, ~to_code, ~item_cbs_code, ~unit, ~value,
+          2000L, 62L, 231L, 1096L, "heads", 30,
+          2000L, 231L, 62L, 1096L, "heads", 10
+        )
+    }
+  )
+
+  primary <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+      2000L, 238L, 2735L, 1096L, "tonnes", 2,
+      2000L, 238L, 1096L, NA, "slaughtered_heads", 100
+    )
+
+  result <- get_livestock_cbs(primary)
+  ethiopia <- dplyr::filter(result, item_cbs_code == 1096L)
+
+  # Live-animal trade now matches the polity-coded slaughter row.
+  testthat::expect_equal(ethiopia$area_code, 238L)
+  testthat::expect_equal(ethiopia$import, 10)
+  testthat::expect_equal(ethiopia$export, 30)
+  # Production is slaughtered plus export less import, so 100 plus 30 less 10.
+  testthat::expect_equal(ethiopia$production, 120)
+  # Domestic supply is production plus import less export, so 120 plus 10 less 30.
+  testthat::expect_equal(ethiopia$domestic_supply, 100)
+})
