@@ -364,21 +364,8 @@ add_polity_code <- function(
   # against once survived a withdrawal by only one of the two tables being
   # rebuilt (#419). So the unfold switch has to reach both or the two lookups
   # disagree about where a Rest-of-World member's rows belong.
-  regions <- whep::regions_full
-  if (.unfold_rest_of_world_option()) {
-    regions <- regions |>
-      dplyr::mutate(
-        polity_area_code = dplyr::if_else(
-          !is.na(.data$fabio_code) &
-            .data$fabio_code == 999L &
-            !is.na(.data$code) &
-            .data$code != 999L,
-          as.integer(.data$code),
-          as.integer(.data$polity_area_code)
-        )
-      )
-  }
-  regions |>
+  whep::regions_full |>
+    .unfold_regions_full() |>
     dplyr::filter(!is.na(.data$iso3c), !is.na(.data$polity_area_code)) |>
     dplyr::distinct(
       iso3c = as.character(.data$iso3c),

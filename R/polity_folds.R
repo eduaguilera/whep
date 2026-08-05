@@ -207,14 +207,22 @@ polity_bucket_coverage <- function(years = NULL) {
 #' those areas, because the coverage reports cannot: a fold resolves perfectly
 #' well, only to a territory that did not report the data.
 #'
-#' Two kinds exist, and they are not equally defensible:
+#' Three kinds exist, and they are not equally defensible:
 #'
 #' - `"fabio_rest_of_world"`: FABIO collapses the area into its single
-#'   Rest-of-World row (`polity_area_code` 999, `ROW-1850-2023`). Most such
-#'   areas report nothing, but several report substantial data of their own:
-#'   Syria, Eswatini, New Caledonia, North Macedonia, Reunion, Guadeloupe,
-#'   Palestine, the Faroe Islands. Their observed values are attributed to Rest
-#'   of World.
+#'   Rest-of-World row (`polity_area_code` 999, `ROW-1850-2025`) because its own
+#'   region list does not enumerate the area either. 57 areas, all flagged
+#'   `cbs` `FALSE` in [regions_full]. Several still report substantial data of
+#'   their own -- Reunion, Guadeloupe, Palestine, the Faroe Islands -- which is
+#'   attributed to Rest of World.
+#' - `"cbs_reporter_folded"`: the area is flagged `cbs` `TRUE`, so
+#'   [regions_full] says it has a commodity balance sheet of its own, and it is
+#'   folded into 999 anyway. Four areas: 153 New Caledonia, 154 North Macedonia,
+#'   209 Eswatini and 212 Syria, the last being the largest single contributor
+#'   to the fold. **FABIO does not fold these**: its published region list
+#'   enumerates all four as regions in their own right (see the section below),
+#'   so this fold is WHEP's, not a FABIO convention, and the `"fabio"` label the
+#'   other 57 carry does not apply.
 #' - `"successor_state"`: the area is summed into the bucket of the state that
 #'   succeeded it, which is a deliberate territorial identity rather than a
 #'   loss: FAOSTAT area 62 "Ethiopia PDR" into 238 Ethiopia, and areas 276 Sudan
@@ -224,6 +232,26 @@ polity_bucket_coverage <- function(years = NULL) {
 #' 419; this function only makes the current state visible and changes nothing.
 #' A build also warns, naming the areas and the row counts it actually folded.
 #'
+#' @section What FABIO's own region list says:
+#' FABIO (Bruckner et al. 2019) publishes the region list it uses, and it
+#' contains all four `"cbs_reporter_folded"` areas as regions of their own:
+#'
+#' - `io_codes.csv` of the FABIO v1.1 release (Zenodo record 2577067, the file
+#'   `inst/scripts/compare_fabio.R` already downloads) enumerates 192 areas x
+#'   125 commodities. Areas 153, 154, 209 and 212 each have their own 125-row
+#'   block, distinct from area 999 `RoW`.
+#' - The FABIO source repository
+#'   (<https://github.com/fineprint-global/fabio>) folds an area into Rest of
+#'   World exactly when it is absent from `inst/regions_full.csv` with
+#'   `current == TRUE`. All four carry `current` `TRUE` there, and the 192
+#'   codes that file flags `cbs` `TRUE` are precisely the 192 areas of
+#'   `io_codes.csv`.
+#'
+#' So `fabio_code == 999` for these four is a statement WHEP makes, not one
+#' FABIO makes. Correcting it in `regions_full` would move published values,
+#' because `polity_area_code` is derived from `fabio_code`, so the contradiction
+#' is left standing and reported here instead (issue 556).
+#'
 #' @section Measuring the alternative:
 #' `options(whep.unfold_rest_of_world = TRUE)` promotes every Rest-of-World
 #' member to its own `polity_area_code` for the whole pipeline, which is the
@@ -231,6 +259,11 @@ polity_bucket_coverage <- function(years = NULL) {
 #' mode**: published WHEP values assume the fold, so every read of the crosswalk
 #' warns while it is set. The `"successor_state"` folds are never lifted by it,
 #' since those are territorial identities rather than a FABIO convention.
+#'
+#' `options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only the four
+#' `"cbs_reporter_folded"` areas, which is the narrower experiment issue 556
+#' asks for: it lifts exactly the folds FABIO does not make and leaves the 57
+#' folds FABIO agrees with in place. `TRUE` and `"all"` are the same mode.
 #'
 #' Measured with it on a full-range `get_wide_cbs()` (1850-2023, all 61 members
 #' promoted), global totals move by at most 1.2% (`stock_addition`) and by less
@@ -247,7 +280,14 @@ polity_bucket_coverage <- function(years = NULL) {
 #' - `area_name`, `area_iso3c`: Its name and ISO3-like code.
 #' - `polity_area_code`: The bucket its rows are summed into.
 #' - `polity_code`, `polity_name`: The polity the fold attributes them to.
-#' - `fold_kind`: `"fabio_rest_of_world"` or `"successor_state"`.
+#' - `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"` or
+#'   `"successor_state"`.
+#'
+#' @references
+#' Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,
+#' Borner, J. (2019). FABIO - The Construction of the Food and Agriculture
+#' Input-Output Model. Environmental Science & Technology 53(19), 11302-11312.
+#' \doi{10.1021/acs.est.9b03554}
 #'
 #' @export
 #'
@@ -255,9 +295,10 @@ polity_bucket_coverage <- function(years = NULL) {
 #' folded <- folded_reporting_areas()
 #' nrow(folded)
 #' head(folded[folded$fold_kind == "successor_state", ], 4)
+#' folded[folded$fold_kind == "cbs_reporter_folded", ]
 folded_reporting_areas <- function(crosswalk = NULL) {
   cw <- crosswalk %||% .polity_crosswalk()
-  required <- c("area_code", "polity_area_code", "fabio_code")
+  required <- c("area_code", "polity_area_code", "fabio_code", "cbs")
   missing <- required[!rlang::has_name(cw, required)]
   if (length(missing) > 0L) {
     cli::cli_abort(
@@ -272,10 +313,10 @@ folded_reporting_areas <- function(crosswalk = NULL) {
       .data$area_code != .data$polity_area_code
     ) |>
     dplyr::mutate(
-      fold_kind = dplyr::if_else(
-        !is.na(.data$fabio_code) & .data$fabio_code == 999L,
-        "fabio_rest_of_world",
-        "successor_state"
+      fold_kind = dplyr::case_when(
+        is.na(.data$fabio_code) | .data$fabio_code != 999L ~ "successor_state",
+        .data$cbs %in% TRUE ~ "cbs_reporter_folded",
+        TRUE ~ "fabio_rest_of_world"
       )
     ) |>
     dplyr::distinct(
@@ -365,18 +406,58 @@ folded_reporting_areas <- function(crosswalk = NULL) {
 # default leaves every published number exactly where it is. Every consumer goes
 # through `.polity_crosswalk()`, so one switch covers the whole pipeline instead
 # of 30 call sites disagreeing.
+#
+# `"cbs_reporters"` is the narrower experiment #556 asks for: promote only the
+# four areas FABIO's own region list enumerates as regions of their own, and
+# leave the 57 folds FABIO agrees with alone.
+.unfold_rest_of_world_modes <- function() {
+  c("none", "all", "cbs_reporters")
+}
+
+.unfold_rest_of_world_mode <- function() {
+  value <- getOption("whep.unfold_rest_of_world", FALSE)
+  if (isTRUE(value)) {
+    return("all")
+  }
+  if (is.null(value) || isFALSE(value)) {
+    return("none")
+  }
+  modes <- .unfold_rest_of_world_modes()
+  if (is.character(value) && length(value) == 1L && value %in% modes) {
+    return(value)
+  }
+  cli::cli_abort(c(
+    "{.code options(whep.unfold_rest_of_world = )} must be {.val TRUE},
+     {.val FALSE} or one of {.val {modes}}.",
+    "x" = "Got {.val {value}}."
+  ))
+}
+
 .unfold_rest_of_world_option <- function() {
-  isTRUE(getOption("whep.unfold_rest_of_world", FALSE))
+  .unfold_rest_of_world_mode() != "none"
+}
+
+# The ONE predicate deciding which members a mode promotes. `regions_full` and
+# the crosswalk both state the fold, and a promotion once survived being
+# withdrawn because only one of them was rebuilt (#419), so the two call sites
+# share this rather than each spelling the condition out.
+.rest_of_world_members <- function(areas, mode) {
+  in_bucket <- !is.na(areas$fabio_code) &
+    areas$fabio_code == 999L &
+    !is.na(areas$area_code) &
+    areas$area_code != 999L
+  if (mode == "none") {
+    return(rep(FALSE, length(in_bucket)))
+  }
+  if (mode == "all") {
+    return(in_bucket)
+  }
+  in_bucket & areas$cbs %in% TRUE
 }
 
 .unfold_rest_of_world <- function(crosswalk) {
-  if (!.unfold_rest_of_world_option()) {
-    return(crosswalk)
-  }
-  promoted <- !is.na(crosswalk$fabio_code) &
-    crosswalk$fabio_code == 999L &
-    !is.na(crosswalk$area_code) &
-    crosswalk$area_code != 999L
+  mode <- .unfold_rest_of_world_mode()
+  promoted <- .rest_of_world_members(crosswalk, mode)
   if (!any(promoted)) {
     return(crosswalk)
   }
@@ -386,11 +467,36 @@ folded_reporting_areas <- function(crosswalk = NULL) {
   # published should be impossible to mistake for one that does. Session-level
   # "once" state would also make the warning untestable.
   cli::cli_warn(c(
-    "!" = "{.code options(whep.unfold_rest_of_world = TRUE)} is set:
+    "!" = "{.code whep.unfold_rest_of_world} is set to {.val {mode}}:
            {sum(promoted)} crosswalk row{?s} promoted out of the FABIO
            Rest-of-World bucket.",
     "i" = "Published WHEP values assume the fold. This is a sensitivity setting
-           for issue 419, not a supported production mode."
+           for issues 419 and 556, not a supported production mode."
   ))
   crosswalk
+}
+
+# `regions_full` states the fold a second time, keyed on `code` rather than
+# `area_code`, so the same predicate is applied to a renamed view of it.
+.unfold_regions_full <- function(regions) {
+  mode <- .unfold_rest_of_world_mode()
+  if (mode == "none") {
+    return(regions)
+  }
+  promoted <- .rest_of_world_members(
+    tibble::tibble(
+      fabio_code = as.integer(regions$fabio_code),
+      area_code = as.integer(regions$code),
+      cbs = regions$cbs
+    ),
+    mode
+  )
+  regions |>
+    dplyr::mutate(
+      polity_area_code = dplyr::if_else(
+        promoted,
+        as.integer(.data$code),
+        as.integer(.data$polity_area_code)
+      )
+    )
 }

@@ -181,7 +181,7 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
   )
   testthat::expect_setequal(
     unique(folded$fold_kind),
-    c("fabio_rest_of_world", "successor_state")
+    c("fabio_rest_of_world", "cbs_reporter_folded", "successor_state")
   )
 
   # Every fold, by definition: the bucket is not the area's own code.
@@ -195,12 +195,45 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
   testthat::expect_setequal(unique(successor$area_code), c(62L, 276L, 277L))
   testthat::expect_setequal(unique(successor$polity_area_code), c(238L, 206L))
 
-  # Everything else is the FABIO Rest-of-World fold, and it lands on one bucket
-  # and one polity.
-  row_fold <- folded[folded$fold_kind == "fabio_rest_of_world", ]
+  # Everything else lands on one bucket and one polity, and splits in two.
+  row_fold <- folded[folded$fold_kind != "successor_state", ]
   testthat::expect_equal(unique(row_fold$polity_area_code), 999L)
   testthat::expect_equal(unique(row_fold$polity_code), "ROW-1850-2025")
   testthat::expect_equal(length(unique(row_fold$area_code)), 61L)
+})
+
+testthat::test_that("the four CBS reporters folded into 999 are named (#556)", {
+  # `"fabio_rest_of_world"` claimed something about FABIO that is false for four
+  # of the 61 members. FABIO's published region list -- `io_codes.csv` of the
+  # v1.1 release (Zenodo record 2577067), 192 areas x 125 commodities -- gives
+  # each of these four its own block, distinct from area 999 `RoW`, and the
+  # FABIO source repository marks all four `current == TRUE`, the flag its
+  # `replace_RoW()` keeps out of bucket 999. So this fold is WHEP's own, and
+  # `regions_full` says as much itself by flagging them `cbs`.
+  folded <- whep::folded_reporting_areas()
+  contradictory <- folded[folded$fold_kind == "cbs_reporter_folded", ]
+
+  testthat::expect_setequal(
+    unique(contradictory$area_code),
+    c(153L, 154L, 209L, 212L)
+  )
+  testthat::expect_equal(unique(contradictory$polity_area_code), 999L)
+  testthat::expect_equal(unique(contradictory$polity_code), "ROW-1850-2025")
+
+  # The other 57 are folds FABIO also makes, and none of them is a reporter.
+  agreed <- folded[folded$fold_kind == "fabio_rest_of_world", ]
+  testthat::expect_equal(length(unique(agreed$area_code)), 57L)
+  testthat::expect_length(
+    intersect(agreed$area_code, contradictory$area_code),
+    0L
+  )
+})
+
+testthat::test_that("folded_reporting_areas() needs the cbs flag", {
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  cw$cbs <- NULL
+
+  testthat::expect_error(whep::folded_reporting_areas(cw), "cbs")
 })
 
 testthat::test_that("the areas that report real data of their own are folded", {
@@ -364,7 +397,7 @@ testthat::test_that("the unfold switch promotes the whole pipeline and warns", {
     as.data.frame(whep::polity_area_crosswalk)
   ))
   members <- unique(
-    members$area_code[members$fold_kind == "fabio_rest_of_world"]
+    members$area_code[members$fold_kind != "successor_state"]
   )
   promoted <- cw[!is.na(cw$area_code) & cw$area_code %in% members, ]
   testthat::expect_true(all(
@@ -382,6 +415,50 @@ testthat::test_that("the unfold switch promotes the whole pipeline and warns", {
   testthat::expect_setequal(
     unique(still_folded$fold_kind),
     "successor_state"
+  )
+})
+
+testthat::test_that("the unfold switch can lift only the CBS reporters", {
+  # The narrower experiment #556 asks for: lift exactly the four folds FABIO
+  # does not make, and leave the 57 it does make standing.
+  testthat::skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_rest_of_world = "cbs_reporters")
+
+  testthat::expect_true(whep:::.unfold_rest_of_world_option())
+  testthat::expect_warning(
+    whep:::.polity_crosswalk(),
+    "promoted out of the FABIO"
+  )
+  cw <- as.data.frame(suppressWarnings(whep:::.polity_crosswalk()))
+  reporters <- c(153L, 154L, 209L, 212L)
+  lifted <- cw[!is.na(cw$area_code) & cw$area_code %in% reporters, ]
+  testthat::expect_true(all(lifted$polity_area_code == lifted$area_code))
+
+  # Both tables move together, or the two lookups disagree (#419).
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SYR"), 212L)
+  # A non-reporter FABIO also folds stays in the bucket, unlike under `"all"`.
+  testthat::expect_equal(whep:::.iso3c_to_area_code("FRO"), 999L)
+
+  still_folded <- suppressWarnings(whep::folded_reporting_areas())
+  testthat::expect_setequal(
+    unique(still_folded$fold_kind),
+    c("fabio_rest_of_world", "successor_state")
+  )
+  testthat::expect_equal(
+    length(unique(
+      still_folded$area_code[still_folded$fold_kind == "fabio_rest_of_world"]
+    )),
+    57L
+  )
+})
+
+testthat::test_that("an unrecognised unfold mode aborts instead of folding", {
+  testthat::skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_rest_of_world = "reporters")
+
+  testthat::expect_error(
+    whep:::.unfold_rest_of_world_mode(),
+    "cbs_reporters"
   )
 })
 
