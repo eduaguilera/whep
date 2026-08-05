@@ -29,24 +29,50 @@ test_that("add_polity_code extends out-of-period rows to their nearest period", 
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
     # behaviour: rows whose year no period covers fall back to their nearest
-    # period. Aggregate reporting areas (15, 151, 904) are extended too, so
-    # their most-recent years are not silently dropped.
+    # period.
     add_polity_code(backcast_anchor = -Inf)
 
+  # Area 2 Afghanistan is a national polity, so it extends to its nearest period.
   expect_equal(mapped$polity_code[1], "AFG-1800-1893")
-  expect_equal(mapped$polity_code[2], "BLX-1850-1999")
-  expect_equal(mapped$polity_code[3], "ANT-1961-2010")
-  expect_equal(mapped$polity_code[4], "RLAM-1850-2013")
+
+  # The other three are AGGREGATE reporting buckets -- 15 Belgium-Luxembourg
+  # (BLX-1850-1999), 151 Netherlands Antilles (ANT-1961-2010) and 904 Latin
+  # America Other (RLAM-1850-2013) are all typed `aggregate` -- and aggregates are
+  # deliberately NOT extended past their period, so these rows have no polity. See
+  # the test below for why that is the right answer rather than a gap to paper
+  # over.
+  expect_true(all(is.na(mapped$polity_code[2:4])))
 })
 
-test_that("aggregate area 904 keeps its most-recent years (2014-2023)", {
-  # area 904 "Latin America Other" carries only RLAM-1850-2013, so its post-2013
-  # FABIO data previously mapped to NA and was dropped by callers. It must now
-  # extend to the aggregate polity instead.
+test_that("aggregate area 904 loses post-2013 years, and upstream owns that", {
+  # This test asserted the opposite until the branch was brought up to date with
+  # main: that 904 should be EXTENDED to `RLAM-1850-2013` for 2014-2023 so its
+  # FABIO data stopped being dropped. The symptom is real -- area 904 "Latin
+  # America Other" carries only `RLAM-1850-2013` in the polities vintage this
+  # package embeds, so every post-2013 row resolves to NA -- but the fix does not
+  # belong here, on two counts that are both measured rather than argued.
+  #
+  # 1. It is an upstream data defect and upstream has already fixed it. All seven
+  #    reporting buckets now run to 2025: `RLAM-1850-2013` -> `RLAM-1850-2025`,
+  #    and `RAFR`/`RASI`/`REUR`/`RNAM`/`ROCE-1850-2021` and `ROW-1850-2023`
+  #    likewise. The embedded vintage still has the short spans, which is what
+  #    makes this visible; the re-sync tracked in #530 removes the cause. Under
+  #    the epic's rule (#458) a territorial validity span is upstream's fact.
+  #
+  # 2. The downstream workaround was not safely asymmetric. Extending on nearest
+  #    distance back-fills years BEFORE an aggregate's start exactly as readily as
+  #    after its end, booking an 1830 Guadeloupe figure to `ROW-1850-2023` -- a
+  #    bucket that did not exist. That is 64 rows / 1,722,000 t of the historical
+  #    trade feed, and `test_build_cbs.R` pins dropping them as deliberate.
+  #
+  # So this pins the CURRENT honest answer, and it is expected to flip when #530
+  # lands: with `RLAM-1850-2025` in place these years resolve through the ordinary
+  # period join, with no fallback and no aggregate extension involved.
   mapped <- tibble::tibble(area_code = 904L, year = 2013:2023) |>
     add_polity_code()
 
-  expect_true(all(mapped$polity_code == "RLAM-1850-2013"))
+  expect_equal(mapped$polity_code[1], "RLAM-1850-2013")
+  expect_true(all(is.na(mapped$polity_code[-1])))
 })
 
 test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
