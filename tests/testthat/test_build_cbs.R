@@ -753,3 +753,73 @@ test_that(".format_cbs_output removes duplicate rows", {
   expect_equal(nrow(prod_rows), 1L)
   expect_equal(prod_rows$value, 100)
 })
+
+
+# -- .resolve_hist_trade_polities ----------------------------------------------
+
+test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
+  # The historical trade pins are a genuine historical source: 1746-1961 figures
+  # reported under the borders in force at the time, unlike WHEP's pre-1962
+  # FAOSTAT series which are back-cast onto ~1961 territory. Resolution used to
+  # go through .current_area_lookup, which is deliberately year-insensitive, so
+  # every row of an ISO3 got that ISO3's *present-day* polity: all 1,093 India
+  # rows landed on IND-1949-2025 and all 9,522 UK rows on GBR-1921-2025.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("IND", "IND", "IND", "GBR", "GBR"),
+    year = c(1885L, 1920L, 1961L, 1850L, 1961L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      # IND-1800-1893 is `superseded` upstream, replaced by the finer IND-1800-1886 /
+      # IND-1886-1893 split. It was returned here until the FAOSTAT area map became the
+      # resolution authority (#517); pinning a superseded polity was the bug, not the fix.
+      "IND-1800-1886",
+      "IND-1914-1937",
+      "IND-1949-2025",
+      "GBR-1800-1921",
+      "GBR-1921-2025"
+    )
+  )
+
+  # The FABIO aggregation bucket is period-invariant for both ISO3s, which is
+  # why making the lookup year-aware moved no tonnage for them: over the full
+  # pin the totals went 18,455,438,816 t -> 18,453,716,816 t (-0.0093%), and all
+  # of that was the pre-1850 aggregate rows exercised in the next test.
+  expect_equal(resolved$area_code, c(100L, 100L, 100L, 229L, 229L))
+})
+
+test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
+  # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
+  # ROW-1850-2023 is of type "aggregate". .add_polity_columns_dt refuses to
+  # extend aggregate reporting areas outside their range, so an 1830 figure has
+  # no polity and must be dropped rather than back-filled into ROW. That is the
+  # 64 rows / 1,722,000 t the year-aware lookup removes from the feed.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "GLP"),
+    year = c(1830L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_true(is.na(resolved$area_code[1]))
+  expect_equal(resolved$polity_code[2], "ROW-1850-2023")
+  expect_equal(resolved$area_code[2], 999L)
+})
+
+test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {
+  # The pins carry a handful of labels that are not ISO3 codes in the crosswalk
+  # (a placeholder for unknown origin, "BEL-LUX", "CZH"). They stay NA so the
+  # caller drops them instead of silently attaching them to a wrong polity;
+  # resolving them needs new crosswalk aliases, not a change here.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ESP"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_false(is.na(resolved$polity_code[2]))
+})

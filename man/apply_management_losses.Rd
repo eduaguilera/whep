@@ -29,12 +29,14 @@ nitrogen (the same N is not removed twice). Carbon applied to the field is
 \code{applied_n} times the post-storage manure C:N (the solid/liquid/excreta value
 for the stream's management system), so the applied C:N reflects storage, not
 fresh excreta; the carbon and volatile-solids storage losses follow from that.
+The grazing stream undergoes no storage and keeps its full carbon and volatile
+solids (no storage C:N cap is applied to it).
 }
 \examples{
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 )
 apply_management_losses(split_manure_management(excretion))
 }
