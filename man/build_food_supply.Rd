@@ -7,6 +7,7 @@
 build_food_supply(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
+  protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
   example = FALSE
 )
 }
@@ -23,13 +24,25 @@ food tonnes times \code{whep::biomass_coefs} divided by population) or
 \code{fbs_supply} (\code{year}, \code{area_code}, \code{protein_g_cap_day},
 \code{energy_kcal_cap_day}, \code{population}) is required.}
 
+\item{protein_basis}{How the inedible fraction is treated when converting
+nitrogen density to protein, for \code{"whep_native"} only:
+\code{"edible_portion"} (default) scales the nitrogen density by
+\code{Edible_portion}, which is correct when \code{food_t} is commodity mass while
+the density applies to the edible part, and agrees best with FAOSTAT FBS;
+\code{"whole_commodity"} applies no edible scaling, the behaviour before this
+argument existed, kept for continuity and sensitivity analysis;
+\code{"product_nitrogen"} uses the agronomic \code{Product_kgN_kgDM} for both the
+edible and inedible fractions, scaled by \code{Edible_portion}, ignoring
+\code{N_kgN_kgFM}. A missing \code{Edible_portion} counts as 1.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of computing.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{protein_g_cap_day},
-\code{energy_kcal_cap_day}, \code{population} and \code{method_food_supply}, plus the
-polity columns below.
+\code{energy_kcal_cap_day}, \code{population}, \code{method_food_supply} and
+\code{method_protein_basis} (\code{NA} for \code{"faostat_fbs"}), plus the polity columns
+below.
 }
 \description{
 Assembles per-capita protein and dietary-energy supply, the state variable
@@ -38,9 +51,13 @@ axis; dietary energy is a secondary cross-check. The default \code{"whep_native"
 method multiplies the WHEP commodity-balance food element (tonnes fresh
 matter, per \code{year}, \code{area_code}, \code{item_cbs_code}) by the per-item nutrition
 coefficients in \code{whep::biomass_coefs} and divides by national population.
-Protein per kilogram fresh matter follows the coalesce chain \code{Edible_N_kgFM},
-then \code{N_kgN_kgFM}, then \code{Product_kgN_kgDM * Product_kgDM_kgFM} (kg N per kg
-fresh matter), times 6.25 (nitrogen-to-protein factor). Energy per kilogram
+Protein per kilogram fresh matter is nitrogen times 6.25
+(nitrogen-to-protein factor), on the basis selected by \code{protein_basis}.
+The nitrogen density is \code{N_kgN_kgFM} where available, otherwise
+\code{Product_kgN_kgDM * Product_kgDM_kgFM}. \code{Edible_N_kgFM} is not read: it is
+empty in every coefficient row, upstream as well as in the packaged data, so
+the edible basis is derived from \code{Edible_portion} instead of stored
+redundantly. Energy per kilogram
 fresh matter follows \code{GE_product_edible_portion_MJ_kgFM}, then
 \code{GE_product_MJ_kgFM} (MJ per kg fresh matter), converted to kilocalories via
 \code{MJ / 0.004184}. The energy term is GROSS (combustion) energy, not Atwater

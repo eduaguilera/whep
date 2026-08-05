@@ -827,6 +827,36 @@ test_that("IPCC 2019 datasets are clean tibbles", {
   }
 })
 
+test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
+  # Regression guard for issues #252 (Horses) and #253 (Poultry-Broilers).
+  # Values verified against IPCC 2019 Refinement Vol 4 Ch 10 Table 10.16a,
+  # high-productivity systems column (the tier the rest of the table uses).
+  expected <- tibble::tribble(
+    ~category, ~bo_m3_kg_vs,
+    "Horses", 0.30,
+    "Mules and Asses", 0.33,
+    "Poultry - Layers", 0.39,
+    "Poultry - Broilers", 0.36
+  )
+
+  for (nm in c("ipcc_2019_bo", "ipcc_tier2_bo_values")) {
+    obj <- getExportedValue("whep", nm)
+    got <- expected |>
+      dplyr::left_join(obj, by = "category", suffix = c("_exp", "_got"))
+    testthat::expect_equal(
+      got$bo_m3_kg_vs_got,
+      got$bo_m3_kg_vs_exp,
+      info = nm
+    )
+
+    bo <- function(cat) obj$bo_m3_kg_vs[obj$category == cat]
+    # #252: Horses must not be copied from Mules and Asses.
+    testthat::expect_false(bo("Horses") == bo("Mules and Asses"), info = nm)
+    # #253: broilers and layers share the high-productivity tier.
+    testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
+  }
+})
+
 test_that("IPCC 2006 datasets are clean tibbles", {
   ipcc_2006 <- list(
     ipcc_2006_enteric_ef = c(
