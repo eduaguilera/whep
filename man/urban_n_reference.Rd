@@ -13,7 +13,15 @@ ISO3 string \code{"ESP"} and it is resolved to a code through
 \link{polity_area_crosswalk} at build time, so this series joins to
 area-keyed tables without a hand conversion. It held the string itself
 until 0.3.0.9000, which made it the one column named \code{area_code}
-in this package that was not one (whep#401).}
+in this package that was not one (whep#401). Keep using it to join;
+it is an aggregation key, not the territory's identity.}
+\item{polity_code}{The polity the row's territory IS, e.g.
+\code{"ESP-1800-2025"}: the identifier every place in WHEP that names a
+territory is meant to carry (whep#458). Resolved at build time against
+the polity active in that benchmark year, so a series spanning a
+succession would carry more than one code. Added alongside
+\code{area_code} rather than replacing it (whep#495), so callers keying
+on the numeric are unaffected.}
 \item{year}{Benchmark calendar year.}
 \item{urban_n_gg}{National-total urban nitrogen applied to agriculture
 (Gg N/year).}

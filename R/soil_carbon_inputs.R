@@ -31,7 +31,9 @@
 #'   `root_c_t` and `weed_npp_c_t`, tonnes C); `manure` (the `applied` tibble of
 #'   [build_livestock_nutrient_flows()], with `crop` either an existing
 #'   `item_prod_code` or an `item_prod` name from [items_prod_full] (matched
-#'   case-insensitively), and `territory` a stringified `area_code` or `iso3c`);
+#'   case-insensitively), and `territory` a stringified `area_code` -- an
+#'   `iso3c` literal is still resolved but deprecated, see
+#'   [estimate_n_excretion()]);
 #'   `country_grid` and `crop_patterns` (the spatialization inputs,
 #'   `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area` (the
 #'   FAOSTAT national harvested area per `area_code`, `item_prod_code`, `year`

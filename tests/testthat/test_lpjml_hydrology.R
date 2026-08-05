@@ -253,3 +253,52 @@ testthat::test_that("annual read sums the 12 months per cell", {
   result <- dplyr::arrange(result, lon, lat)
   testthat::expect_equal(result$value, annual_from_monthly$value)
 })
+
+# LPJmL 6.x renamed mprec.nc's variable from `prec` to its CF short name `pr`.
+# Both must read, because both versions' output can sit side by side on one
+# machine and a run directory carries no version stamp to branch on.
+testthat::test_that("precipitation reads under the 5.x name `prec`", {
+  cube <- .lpjml_hydro_fixture_cube(var_name = "prec", file = "mprec.nc")
+  result <- whep::read_lpjml_hydrology(
+    "prec",
+    run_dir = cube$dir,
+    years = 1901L,
+    first_year = 1901L,
+    monthly = TRUE
+  )
+
+  testthat::expect_equal(nrow(result), cube$n_cells * 12)
+  pointblank::expect_col_vals_gte(result, "value", 0)
+})
+
+testthat::test_that("precipitation reads under the 6.x name `pr`", {
+  cube <- .lpjml_hydro_fixture_cube(var_name = "pr", file = "mprec.nc")
+  result <- whep::read_lpjml_hydrology(
+    "prec",
+    run_dir = cube$dir,
+    years = 1901L,
+    first_year = 1901L,
+    monthly = TRUE
+  )
+
+  testthat::expect_equal(nrow(result), cube$n_cells * 12)
+  pointblank::expect_col_vals_gte(result, "value", 0)
+})
+
+# The failure this replaces was `argument is of length zero`, which named
+# neither the variable nor the file. Listing what the file does contain is what
+# makes the next rename cost one run to diagnose.
+testthat::test_that("an unresolvable variable name aborts naming the file", {
+  cube <- .lpjml_hydro_fixture_cube(var_name = "totally_new", file = "mprec.nc")
+
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "prec",
+      run_dir = cube$dir,
+      years = 1901L,
+      first_year = 1901L,
+      monthly = TRUE
+    ),
+    "totally_new"
+  )
+})
