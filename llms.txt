@@ -612,6 +612,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Full polity and region reference table
 - [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
   : Add WHEP polity codes to a table
+- [`polity_bucket_coverage()`](https://eduaguilera.github.io/whep/reference/polity_bucket_coverage.md)
+  : Report reporting buckets whose polity covers less than the bucket
 - [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
   : Get area codes from area names
 - [`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md)

@@ -29,10 +29,27 @@ system or climate shares, the intensities are collapsed to one value per
 country by an unweighted mean across systems and climate zones; this
 choice is recorded in `method_energy`.
 
+`gleam_geographic_hierarchy` is the country universe of the whole
+extension, so a reporting area absent from it gets no energy intensity
+and its meat production leaves the extension. That affects both the
+aggregate reporting buckets (`polity_area_code` 999 "Rest of World" and
+the continental residuals 901-906) and the dissolved entities GLEAM's
+present-day country table cannot carry (USSR, Czechoslovakia,
+Yugoslavia, Belgium-Luxembourg, Serbia and Montenegro). The size of that
+loss is now **reported** on every build rather than left to be inferred,
+and `unclassified = "global_mean"` prices those areas at the world-mean
+GLEAM intensity instead of losing them. The default keeps the historical
+behaviour; see whep#492.
+
 ## Usage
 
 ``` r
-build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
+build_energy_co2_extension(
+  method = c("gleam"),
+  data = list(),
+  unclassified = c("drop", "global_mean"),
+  example = FALSE
+)
 ```
 
 ## Arguments
@@ -49,6 +66,16 @@ build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
   [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
   output). It falls back to its reader when absent.
 
+- unclassified:
+
+  How to treat reporting areas `gleam_geographic_hierarchy` has no row
+  for, and which therefore get no country energy intensity. `"drop"`
+  (default) keeps the historical behaviour: their meat production leaves
+  the extension, and a warning says how much. `"global_mean"` prices
+  them at the unweighted world mean of the published GLEAM factors
+  instead, marking those rows `"GLEAM_3.0_energy_meat_global_mean"` in
+  `method_energy`.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading remote data.
@@ -57,8 +84,9 @@ build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(energy-use emissions in kilograms CO2e) and `method_energy` (e.g.
-`"GLEAM_3.0_energy_meat"`), plus the polity columns below.
+(energy-use emissions in kilograms CO2e) and `method_energy`
+(`"GLEAM_3.0_energy_meat"`, or `"GLEAM_3.0_energy_meat_global_mean"` for
+rows priced at the world mean), plus the polity columns below.
 
 ## Polity columns
 
