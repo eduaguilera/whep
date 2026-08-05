@@ -16,16 +16,26 @@ test_that("add_polity_code maps area codes by year", {
   # upstream map names `F248-1947-1991` for area 248 over 1961-1990.
   expect_equal(mapped$polity_code[5], "F248-1947-1991")
   # And NOT `BLX-1921-1999`, which prefix `BLX` also reached: the map names
-  # `BLX-1850-1999` for area 15 over 1961-1999.
+  # `BLX-1850-1999` for area 15 over 1961-1999. Upstream has since retired
+  # `BLX-1921-1999` outright (whep-polities#117), so the dead-polity filter now
+  # removes it as well -- two independent reasons for the same answer.
   expect_equal(mapped$polity_code[6], "BLX-1850-1999")
-  expect_equal(mapped$polity_code[7], "RAFR-1850-2021")
-  expect_equal(mapped$polity_code[8], "ROW-1850-2023")
+  # The regional "Other" buckets and Rest of World were extended to 2025
+  # upstream (whep-polities#127) because they used to stop before FAOSTAT did.
+  expect_equal(mapped$polity_code[7], "RAFR-1850-2025")
+  expect_equal(mapped$polity_code[8], "ROW-1850-2025")
 })
 
 test_that("add_polity_code does not extend aggregate rows outside their range", {
   mapped <- tibble::tibble(
     area_code = c(2L, 15L, 151L, 904L),
-    year = c(1790L, 2000L, 2023L, 2021L)
+    # Area 904 is the Latin America Other bucket, whose polity now runs
+    # 1850-2025 (upstream extended it from 1850-2013 in whep-polities#127), so
+    # the first year the lookup rejects is 2026. This year has to track the
+    # bucket's end: the guard exists to prove an aggregate is NOT extended past
+    # its last year, and asking about 2021 -- outside the old vintage but inside
+    # the new one -- would have made it assert the opposite.
+    year = c(1790L, 2000L, 2023L, 2026L)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
     # behaviour: a non-aggregate area falls back to its nearest period, while
@@ -149,12 +159,12 @@ test_that("get_polity_geometries returns requested polygon rows", {
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",
     "NCL-1800-2025",
-    "ROW-1850-2023"
+    "ROW-1850-2025"
   ))
 
   expect_equal(
     sort(geoms$polity_code),
-    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2023")
+    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2025")
   )
   expect_true(all(geoms$has_geometry))
 })
