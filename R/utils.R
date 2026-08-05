@@ -1788,7 +1788,10 @@ utils::globalVariables(
     "iso3_code",
     "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
-    "rows"
+    "rows",
+    # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
+    # Bouwman region in an aggregate reporting bucket's herd
+    "region_weight"
   )
 )
 

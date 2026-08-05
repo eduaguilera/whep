@@ -1,5 +1,23 @@
 # whep (development version)
 
+* `build_feed_demand()` gains `region_fallback`, which decides how a reporting
+  bucket the crosswalk leaves without a Bouwman feed region gets one. Rest of
+  World (`area_code` 999) folds 62 FAOSTAT reporting areas, 58 of which have a
+  region of their own, and kept none of them; every region-keyed join therefore
+  missed and the bucket's feed demand went nowhere. The new default,
+  `"member_mix"`, splits the bucket across its members' regions weighted by the
+  livestock those members carry (Middle East 0.69, Southern Africa 0.18,
+  Oceania 0.045, Eastern Europe 0.045, then five smaller regions). `"none"`
+  restores the previous behaviour. **This moves published values, for area 999
+  only.** Measured over a full 1850-2023 `get_primary_production()`: with
+  `by = "feed_type"` the mix gains 5,500 keys and 926,327,446 t of dry matter
+  (world total +0.151%) where 808,638,528 t had been dropped outright, and no
+  key that existed before changes by more than 1e-6 t; at `by = "category"`
+  area 999 goes from 808,638,528 to 926,327,446 t (+14.6%) with
+  `demand_tier = "ipcc"`, and from 0 to 2,035,462,034 t with
+  `demand_tier = "fcr"`. All 191 other areas are bit-identical in both tiers.
+  The five continent residuals `901`-`905` stay unmapped on purpose: they span
+  several Bouwman regions each and carry no production row at all.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
