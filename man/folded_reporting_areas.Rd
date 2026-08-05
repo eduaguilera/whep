@@ -31,7 +31,7 @@ well, only to a territory that did not report the data.
 Two kinds exist, and they are not equally defensible:
 \itemize{
 \item \code{"fabio_rest_of_world"}: FABIO collapses the area into its single
-Rest-of-World row (\code{polity_area_code} 999, \code{ROW-1850-2023}). Most such
+Rest-of-World row (\code{polity_area_code} 999, \code{ROW-1850-2025}). Most such
 areas report nothing, but several report substantial data of their own:
 Syria, Eswatini, New Caledonia, North Macedonia, Reunion, Guadeloupe,
 Palestine, the Faroe Islands. Their observed values are attributed to Rest

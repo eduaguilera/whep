@@ -258,7 +258,7 @@ polity_bucket_coverage <- function(years = NULL) {
 #' Two kinds exist, and they are not equally defensible:
 #'
 #' - `"fabio_rest_of_world"`: FABIO collapses the area into its single
-#'   Rest-of-World row (`polity_area_code` 999, `ROW-1850-2023`). Most such
+#'   Rest-of-World row (`polity_area_code` 999, `ROW-1850-2025`). Most such
 #'   areas report nothing, but several report substantial data of their own:
 #'   Syria, Eswatini, New Caledonia, North Macedonia, Reunion, Guadeloupe,
 #'   Palestine, the Faroe Islands. Their observed values are attributed to Rest
