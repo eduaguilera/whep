@@ -674,6 +674,8 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
 
   expect_true(is.na(resolved$polity_code[1]))
   expect_false(is.na(resolved$polity_code[2]))
+})
+
 test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
   # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
   # and the two sides speak different vocabularies. Everything that comes through
