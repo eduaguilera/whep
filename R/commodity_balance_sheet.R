@@ -1,43 +1,44 @@
-#' Commodity balance sheet data
+#' Commodity balance sheet data.
 #'
 #' @description
-#' States supply and use parts for each commodity balance sheet (CBS) item.
+#' Retrieve supply and use parts for each commodity balance sheet
+#' (CBS) item. Stock variations are split into two non-negative
+#' columns following the FABIO methodology.
 #'
-#' @param example If `TRUE`, return a small example output without downloading
-#'   remote data. Default is `FALSE`.
+#' @param example If `TRUE`, return a small example output without
+#'   downloading remote data. Default is `FALSE`.
 #'
 #' @returns
 #' A tibble with the commodity balance sheet data in wide format.
 #' It contains the following columns:
 #' - `year`: The year in which the recorded event occurred.
-#' - `area_code`: The code of the country where the data is from. For code
-#'    details see e.g. `add_area_name()`.
-#' - `item_cbs_code`: FAOSTAT internal code for each item. For code details
-#'   see e.g. `add_item_cbs_name()`.
+#' - `area_code`: The code of the country where the data is from.
+#'    For code details see e.g. `add_area_name()`.
+#' - `item_cbs_code`: FAOSTAT internal code for each item. For
+#'   code details see e.g. `add_item_cbs_name()`.
 #'
-#' The other columns are quantities (measured in tonnes), where total supply
-#' and total use should be balanced.
+#' The other columns are quantities where total supply and total
+#' use should be balanced. Units are tonnes for most items,
+#' and heads for live animals (see [items_cbs] `item_type`).
 #'
 #' For supply:
 #'    - `production`: Produced locally.
 #'    - `import`: Obtained from importing from other countries.
-#'    - `stock_retrieval`: Available as net stock from previous years. For ease,
-#'      only one stock column is included here as supply. If the value is
-#'      positive, there is a stock quantity available as supply. Otherwise, it
-#'      means a larger quantity was stored for later years and cannot be used as
-#'      supply, having to deduce it from total supply. Since in this case it is
-#'      negative, the total supply is still computed as the sum of all of these.
+#'    - `stock_withdrawal`: Biomass taken out of storage
+#'      (non-negative). Positive when stocks decrease.
 #'
 #' For use:
 #'    - `food`: Food for humans.
 #'    - `feed`: Food for animals.
 #'    - `export`: Released as export for other countries.
 #'    - `seed`: Intended for new production.
-#'    - `processing`: The product will be used to obtain other subproducts.
-#'    - `other_uses`: Any other use not included in the above ones.
+#'    - `processing`: Used to obtain other subproducts.
+#'    - `other_uses`: Any other use not included above.
+#'    - `stock_addition`: Biomass placed into storage
+#'      (non-negative). Positive when stocks increase.
 #'
-#' There is an additional column `domestic_supply` which is computed as the
-#' total use excluding `export`.
+#' There is an additional column `domestic_supply` which is
+#' computed as total use excluding `export`.
 #'
 #' @export
 #'
@@ -48,21 +49,213 @@ get_wide_cbs <- function(example = FALSE) {
     return(.example_get_wide_cbs())
   }
 
-  "commodity_balance_sheet" |>
-    whep_read_file() |>
-    tidyr::pivot_wider(
-      names_from = Element,
-      values_from = Value,
-      values_fill = 0
+  primary_prod <- .cache_get("primary_prod", build_primary_production())
+
+  cbs_built <- .cache_get("cbs_built", {
+    cli::cli_h1("Building commodity balance sheets")
+    build_commodity_balances(primary_prod)
+  })
+
+  .cache_get("cbs_wide", {
+    cli::cli_progress_step("Adding livestock CBS rows")
+    cbs <- .pivot_cbs_wide(cbs_built)
+    livestock_cbs <- get_livestock_cbs(primary_prod)
+    wide <- dplyr::bind_rows(cbs, livestock_cbs) |>
+      .add_reporting_polity_columns()
+    .qc_supply_use_balance(wide)
+    wide
+  })
+}
+
+#' Livestock commodity balance sheet entries
+#'
+#' @description
+#' Build CBS rows for live animals from primary production data
+#' and bilateral trade. Live animals are not included in the FAO
+#' commodity balance sheet but are needed as explicit intermediates
+#' in the IO model.
+#'
+#' Following the FABIO methodology, live-animal production is estimated
+#' from slaughter counts as `slaughtered + exported - imported`
+#' (animals raised in the country), and domestic supply (`processing`)
+#' equals `production + import - export`. Only live animals with explicit
+#' slaughter-product outputs are added; other animal products are supplied
+#' directly by husbandry.
+#'
+#' Units are heads (number of animals).
+#'
+#' @param primary_prod Tibble from [get_primary_production()].
+#'
+#' @returns A tibble with the same columns as [get_wide_cbs()].
+#'
+#' @keywords internal
+get_livestock_cbs <- function(primary_prod) {
+  slaughter_livestock <- .slaughter_livestock_items(primary_prod) |>
+    dplyr::rename(item_cbs_code = live_anim_code)
+
+  slaughtered <- primary_prod |>
+    dplyr::inner_join(
+      slaughter_livestock,
+      dplyr::join_by(item_cbs_code)
     ) |>
-    dplyr::rename_with(tolower) |>
+    dplyr::filter(unit == "slaughtered_heads") |>
+    dplyr::summarise(
+      slaughtered = sum(value, na.rm = TRUE),
+      .by = c(year, area_code, item_cbs_code)
+    )
+
+  live_trade <- .get_livestock_trade_totals(
+    slaughter_livestock$item_cbs_code
+  )
+
+  live_prod <- slaughtered |>
+    dplyr::left_join(
+      live_trade,
+      by = c("year", "area_code", "item_cbs_code")
+    ) |>
     dplyr::mutate(
-      stock_retrieval = -stock_variation,
-      dplyr::across(c(year, area_code), as.integer),
-      .keep = "unused"
+      import = tidyr::replace_na(import, 0),
+      export = tidyr::replace_na(export, 0),
+      # FABIO convention: production = animals raised in country
+      production = pmax(slaughtered + export - import, 0),
+      domestic_supply = production + import - export
+    )
+
+  live_prod |>
+    dplyr::mutate(
+      food = 0,
+      feed = 0,
+      seed = 0,
+      processing = domestic_supply,
+      other_uses = 0,
+      stock_withdrawal = 0,
+      stock_addition = 0
     ) |>
-    dplyr::select(-area, -item) |>
-    dplyr::rename(item_cbs_code = item_code)
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      production,
+      import,
+      export,
+      food,
+      feed,
+      seed,
+      processing,
+      other_uses,
+      stock_withdrawal,
+      stock_addition,
+      domestic_supply
+    )
+}
+
+.slaughter_product_codes <- function(items_cbs = whep::items_cbs) {
+  items_cbs |>
+    dplyr::filter(item_type == "slaughter_product") |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+}
+
+.slaughter_livestock_items <- function(
+  primary_prod,
+  slaughter_product_codes = .slaughter_product_codes()
+) {
+  if (length(slaughter_product_codes) == 0L) {
+    return(tibble::tibble(live_anim_code = integer()))
+  }
+
+  primary_prod |>
+    dplyr::filter(
+      unit == "tonnes",
+      !is.na(live_anim_code),
+      item_cbs_code %in% slaughter_product_codes
+    ) |>
+    dplyr::distinct(live_anim_code = as.integer(live_anim_code))
+}
+
+# Extract per-country import and export totals for live animals
+# from the raw bilateral trade data.
+.get_livestock_trade_totals <- function(livestock_items) {
+  btd <- tryCatch(
+    "bilateral_trade" |>
+      whep_read_file() |>
+      .clean_bilateral_trade() |>
+      dplyr::filter(
+        unit == "heads",
+        item_cbs_code %in% livestock_items
+      ) |>
+      .map_livestock_trade_polities(),
+    error = function(e) {
+      cli::cli_warn(
+        "Could not read bilateral trade for livestock: {e$message}"
+      )
+      NULL
+    }
+  )
+
+  if (is.null(btd) || nrow(btd) == 0) {
+    return(tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      item_cbs_code = integer(),
+      import = numeric(),
+      export = numeric()
+    ))
+  }
+
+  imports <- btd |>
+    dplyr::summarise(
+      import = sum(value, na.rm = TRUE),
+      .by = c(year, to_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = to_code)
+
+  exports <- btd |>
+    dplyr::summarise(
+      export = sum(value, na.rm = TRUE),
+      .by = c(year, from_code, item_cbs_code)
+    ) |>
+    dplyr::rename(area_code = from_code)
+
+  dplyr::full_join(
+    imports,
+    exports,
+    by = c("year", "area_code", "item_cbs_code")
+  )
+}
+
+# Map the raw FAOSTAT reporter/partner codes of the bilateral trade data
+# onto the same year-aware polity area-code space used by the polity-coded
+# slaughter counts (see `.aggregate_to_polities()` in the production build),
+# so live-animal trade and slaughter reconcile on a consistent join key.
+# Rows whose reporter or partner code does not map to a polity are dropped,
+# mirroring the slaughter side, and codes are re-aggregated at polity level.
+.map_livestock_trade_polities <- function(btd) {
+  dt <- data.table::as.data.table(btd)
+
+  dt <- dt |>
+    .add_polity_columns_dt(
+      code_col = "from_code",
+      year_col = "year",
+      prefix = "from_",
+      include_unmapped = FALSE
+    ) |>
+    .add_polity_columns_dt(
+      code_col = "to_code",
+      year_col = "year",
+      prefix = "to_",
+      include_unmapped = FALSE
+    )
+
+  dt <- dt[!is.na(from_polity_code) & !is.na(to_polity_code)]
+  dt[, from_code := from_polity_area_code]
+  dt[, to_code := to_polity_area_code]
+
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = c("year", "from_code", "to_code", "item_cbs_code", "unit")
+  ] |>
+    tibble::as_tibble()
 }
 
 #' Processed products share factors
@@ -125,22 +318,46 @@ get_processing_coefs <- function(example = FALSE) {
   if (example) {
     return(.example_get_processing_coefs())
   }
+  primary_prod <- .cache_get("primary_prod", build_primary_production())
 
-  "processing_coefs" |>
-    whep_read_file() |>
-    dplyr::select(-Item, -Element) |>
-    dplyr::rename_with(tolower) |>
-    add_item_cbs_code(name_column = "item") |>
+  cbs_built <- .cache_get("cbs_built", {
+    cli::cli_h1("Building commodity balance sheets")
+    build_commodity_balances(primary_prod)
+  })
+
+  .cache_get("proc_coefs", {
+    cli::cli_h1("Building processing coefficients")
+    build_processing_coefs(cbs_built)
+  })
+}
+
+# Pivot long-format CBS to wide and split stock_variation into
+# stock_addition (positive) and stock_withdrawal (negative).
+.pivot_cbs_wide <- function(cbs_long) {
+  cbs_long |>
     dplyr::select(
       year,
       area_code,
-      item_cbs_code_to_process = item_code,
-      value_to_process = value,
-      item_cbs_code_processed = item_cbs_code,
-      initial_conversion_factor = product_fraction,
-      initial_value_processed = value_proc_raw,
-      conversion_factor_scaling = scaling,
-      final_conversion_factor = cf,
-      final_value_processed = value_proc
-    )
+      item_cbs_code,
+      element,
+      value
+    ) |>
+    tidyr::pivot_wider(
+      names_from = element,
+      values_from = value,
+      values_fill = 0
+    ) |>
+    dplyr::mutate(
+      stock_addition = dplyr::if_else(
+        stock_variation > 0,
+        stock_variation,
+        0
+      ),
+      stock_withdrawal = dplyr::if_else(
+        stock_variation < 0,
+        -stock_variation,
+        0
+      )
+    ) |>
+    dplyr::select(-stock_variation)
 }

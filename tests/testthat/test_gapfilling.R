@@ -318,6 +318,22 @@ testthat::test_that("fill_linear handles single non-NA value without error", {
     )
 })
 
+testthat::test_that("fill_linear warns on duplicate years within a group", {
+  # Duplicate years are malformed time-series input and must be flagged
+  # rather than silently passed to approx() which crashes in obscure ways.
+  testthat::expect_warning(
+    tibble::tribble(
+      ~year, ~value,
+      2015, 10,
+      2015, 20,
+      2016, NA,
+      2017, NA
+    ) |>
+      fill_linear(value),
+    "Duplicate year"
+  )
+})
+
 testthat::test_that("fill_linear handles all-NA group without error", {
   tibble::tribble(
     ~year, ~value,
@@ -368,6 +384,183 @@ testthat::test_that("fill_linear handles no NAs without error", {
     fill_linear(value) |>
     pointblank::expect_col_vals_equal(value, c(1, 2, 3)) |>
     pointblank::expect_col_vals_equal(source_value, "Original")
+})
+
+# fill_linear log_space --------------------------------------------------------
+
+testthat::test_that("fill_linear log_space uses the geometric midpoint", {
+  gap <- tibble::tribble(
+    ~year, ~value,
+    0, 1,
+    5, NA,
+    10, 1024
+  )
+
+  log_result <- gap |>
+    fill_linear(value, log_space = TRUE)
+  linear_result <- gap |>
+    fill_linear(value)
+
+  # Geometric (constant-growth) midpoint of 1 and 1024 is 32, not the
+  # arithmetic midpoint 512.5 that linear interpolation returns.
+  testthat::expect_equal(log_result$value[2], 32)
+  testthat::expect_false(isTRUE(all.equal(log_result$value[2], 512.5)))
+  testthat::expect_equal(log_result$source_value[2], "Log-linear interpolation")
+
+  testthat::expect_equal(linear_result$value[2], 512.5)
+  testthat::expect_equal(linear_result$source_value[2], "Linear interpolation")
+})
+
+testthat::test_that("fill_linear log_space falls back to linear on non-positive anchors", {
+  # A zero anchor makes log space undefined -> linear fallback.
+  tibble::tribble(
+    ~year, ~value,
+    0, 0,
+    5, NA,
+    10, 10
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, 0, "Original",
+        5, 5, "Linear interpolation",
+        10, 10, "Original"
+      )
+    )
+
+  # A negative anchor is likewise undefined -> linear fallback.
+  tibble::tribble(
+    ~year, ~value,
+    0, -4,
+    5, NA,
+    10, 8
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, -4, "Original",
+        5, 2, "Linear interpolation",
+        10, 8, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space mixes log and linear segments in one series", {
+  # First gap has positive anchors (log); second gap is bracketed by a zero
+  # anchor (linear). Both segments coexist with distinct source labels.
+  tibble::tribble(
+    ~year, ~value,
+    0, 1,
+    5, NA,
+    10, 1024,
+    15, NA,
+    20, 0
+  ) |>
+    fill_linear(value, log_space = TRUE) |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~year, ~value, ~source_value,
+        0, 1, "Original",
+        5, 32, "Log-linear interpolation",
+        10, 1024, "Original",
+        15, 512, "Linear interpolation",
+        20, 0, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space interpolates per group", {
+  tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 0, 1,
+    "a", 5, NA,
+    "a", 10, 1024,
+    "b", 0, 2,
+    "b", 5, NA,
+    "b", 10, 200
+  ) |>
+    fill_linear(value, log_space = TRUE, .by = "category") |>
+    testthat::expect_equal(
+      tibble::tribble(
+        ~category, ~year, ~value, ~source_value,
+        "a", 0, 1, "Original",
+        "a", 5, 32, "Log-linear interpolation",
+        "a", 10, 1024, "Original",
+        "b", 0, 2, "Original",
+        "b", 5, 20, "Log-linear interpolation",
+        "b", 10, 200, "Original"
+      )
+    )
+})
+
+testthat::test_that("fill_linear log_space works on the smoothing (grouped) path", {
+  noisy <- tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 2010, 10,
+    "a", 2011, 12,
+    "a", 2012, 8,
+    "a", 2013, NA,
+    "a", 2014, NA,
+    "a", 2015, 40,
+    "a", 2016, 44,
+    "a", 2017, 36
+  )
+
+  res_lin <- noisy |>
+    fill_linear(value, value_smooth_window = 3, .by = "category")
+  res_log <- noisy |>
+    fill_linear(
+      value,
+      log_space = TRUE,
+      value_smooth_window = 3,
+      .by = "category"
+    )
+
+  # Both fill the interior gap; the log-space fill differs from the linear one
+  # on a rising series and is labelled distinctly.
+  testthat::expect_false(any(is.na(res_lin$value[4:5])))
+  testthat::expect_false(any(is.na(res_log$value[4:5])))
+  testthat::expect_false(isTRUE(all.equal(
+    res_lin$value[4:5],
+    res_log$value[4:5]
+  )))
+  testthat::expect_true(
+    any(res_log$source_value == "Log-linear interpolation")
+  )
+})
+
+testthat::test_that("fill_linear default arguments match linear behaviour (regression lock)", {
+  # Omitting log_space must be byte-identical to log_space = FALSE, and must
+  # reproduce the established linear interpolation output.
+  grouped_default <- fill_linear_fixture() |>
+    fill_linear(value, .by = "category")
+  grouped_explicit <- fill_linear_fixture() |>
+    fill_linear(value, log_space = FALSE, .by = "category")
+  testthat::expect_equal(grouped_default, grouped_explicit)
+
+  ungrouped_default <- simple_linear_series() |>
+    fill_linear(value)
+  ungrouped_explicit <- simple_linear_series() |>
+    fill_linear(value, log_space = FALSE)
+  testthat::expect_equal(ungrouped_default, ungrouped_explicit)
+
+  grouped_default |>
+    dplyr::filter(category == "b") |>
+    dplyr::pull(value) |>
+    testthat::expect_equal(c(1, 2, 3, 4, 5, 5))
+  grouped_default |>
+    dplyr::filter(category == "b") |>
+    dplyr::pull(source_value) |>
+    testthat::expect_equal(c(
+      "Original",
+      "Linear interpolation",
+      "Linear interpolation",
+      "Linear interpolation",
+      "Original",
+      "Last value carried forward"
+    ))
 })
 
 # fill_sum --------------------------------------------------------------------
@@ -553,6 +746,87 @@ test_that("fill_proxy_growth works with grouping", {
 
   expect_false(is.na(esp_filled))
   expect_false(is.na(fra_filled))
+})
+
+test_that("fill_proxy_growth groups proxy growth by region (var:group)", {
+  # Advanced "variable:group" syntax: growth is taken from `gdp` aggregated
+  # over `region`, not from the value column's own series. ESP and FRA share
+  # region "EU", so ESP's gaps are backfilled with the region-mean gdp growth
+  # (mean of the two countries' growths), not ESP's own gdp growth.
+  data <- tibble::tribble(
+    ~region, ~country, ~year, ~value, ~gdp,
+    "EU", "ESP", 2000, NA, 100,
+    "EU", "ESP", 2001, NA, 120,
+    "EU", "ESP", 2002, 500, 150,
+    "EU", "FRA", 2000, 1000, 200,
+    "EU", "FRA", 2001, 1200, 260,
+    "EU", "FRA", 2002, 1400, 299
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp:region",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Region-mean gdp growth: 2001 = mean(0.20, 0.30) = 0.25;
+  # 2002 = mean(0.25, 0.15) = 0.20. Backfill from the 2002 anchor (500):
+  #   value_2001 = 500 / 1.20; value_2000 = value_2001 / 1.25.
+  esp <- result |>
+    dplyr::filter(country == "ESP") |>
+    dplyr::arrange(year)
+
+  expect_equal(esp$value[esp$year == 2001], 500 / 1.20, tolerance = 1e-6)
+  expect_equal(
+    esp$value[esp$year == 2000],
+    500 / (1.20 * 1.25),
+    tolerance = 1e-6
+  )
+
+  # The region-grouped result must differ from ESP's own-gdp backfill, which
+  # would give 500 / 1.25 for 2001. This confirms growth is grouped by region.
+  expect_false(isTRUE(all.equal(esp$value[esp$year == 2001], 500 / 1.25)))
+})
+
+test_that("fill_proxy_growth extrapolates per group, not across groups", {
+  # Regression: .parse_proxy_spec used to return `group_vars` while
+  # downstream code read `present_group_vars` (unset), collapsing all
+  # groups into one. Under the bug, a group with a slow-growing proxy
+  # would be pulled towards a neighbour's fast-growing proxy.
+  data <- tibble::tribble(
+    ~country, ~year, ~value, ~proxy,
+    "slow",   2000,    NA,    10,
+    "slow",   2001,    NA,    11,
+    "slow",   2002,   100,    12,
+    "fast",   2000,    NA,    10,
+    "fast",   2001,    NA,    50,
+    "fast",   2002,  1000,   100
+  )
+
+  result <- fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "proxy",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Expected per-group backfill, walking back from the 2002 anchor
+  # using the local proxy growth. The slow group's 2000 value is
+  # anchor times (proxy_2000 / proxy_2002); the fast group uses its
+  # own proxy series. A bug that averaged growth rates across groups
+  # would pull both values toward the same (wrong) intermediate.
+  slow_2000 <- result |>
+    dplyr::filter(country == "slow", year == 2000L) |>
+    dplyr::pull(value)
+  fast_2000 <- result |>
+    dplyr::filter(country == "fast", year == 2000L) |>
+    dplyr::pull(value)
+
+  expect_equal(slow_2000, 100 * (10 / 12), tolerance = 1e-6)
+  expect_equal(fast_2000, 1000 * (10 / 100), tolerance = 1e-6)
 })
 
 test_that("fill_proxy_growth returns same number of rows", {
@@ -1004,4 +1278,417 @@ test_that("fill_proxy_growth works with capitalized time column", {
 
   expect_false(any(is.na(result$gdp)))
   expect_equal(nrow(result), 4)
+})
+
+# Sort reuse tests ---------------------------------------------------------
+
+test_that(".is_sorted_by detects sorted and unsorted data", {
+  sorted <- data.frame(a = c(1, 1, 2, 2), b = c(1, 2, 1, 2))
+  unsorted <- data.frame(a = c(2, 1, 1, 2), b = c(1, 2, 1, 2))
+  ties <- data.frame(a = c(1, 1, 1), b = c(3, 2, 1))
+
+  expect_true(whep:::.is_sorted_by(sorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(unsorted, c("a", "b")))
+  expect_false(whep:::.is_sorted_by(ties, c("a", "b")))
+  expect_true(whep:::.is_sorted_by(ties, "a"))
+})
+
+test_that("fill_proxy_growth gives identical results regardless of input order", {
+  # Same data, two row orders.
+  df_sorted <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+  df_unsorted <- df_sorted[c(4:6, 1:3), ]
+
+  run_chain <- function(df) {
+    r <- whep::fill_proxy_growth(
+      df,
+      food,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+    whep::fill_proxy_growth(
+      r,
+      feed,
+      proxy_col = "proxy",
+      time_col = year,
+      .by = "area",
+      verbose = FALSE
+    )
+  }
+
+  res_sorted <- run_chain(df_sorted)
+  res_unsorted <- run_chain(df_unsorted)
+
+  # Align row order for comparison — results should match by key.
+  key <- c("area", "year")
+  compare <- function(x) {
+    x <- x[do.call(order, x[key]), ]
+    rownames(x) <- NULL
+    x
+  }
+
+  expect_equal(compare(res_sorted), compare(res_unsorted))
+})
+
+test_that("fill_proxy_growth preserves sort order through chained calls", {
+  df <- tibble::tribble(
+    ~area, ~year, ~food, ~feed, ~proxy,
+    "A",   2000,   10,    5,    100,
+    "A",   2001,   NA,   NA,    110,
+    "A",   2002,   12,    6,    120,
+    "B",   2000,   20,   10,    200,
+    "B",   2001,   NA,   NA,    210,
+    "B",   2002,   22,   11,    220,
+  )
+
+  sort_cols <- c("area", "year")
+  expect_true(whep:::.is_sorted_by(df, sort_cols))
+
+  r1 <- whep::fill_proxy_growth(
+    df,
+    food,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r1, sort_cols))
+
+  r2 <- whep::fill_proxy_growth(
+    r1,
+    feed,
+    proxy_col = "proxy",
+    time_col = year,
+    .by = "area",
+    verbose = FALSE
+  )
+  expect_true(whep:::.is_sorted_by(r2, sort_cols))
+})
+
+# interp_vec -------------------------------------------------------------------
+
+# Shared fixture for the anti-drift checks: one series whose gaps are bracketed
+# by strictly positive anchors, expressed both as a data frame (for
+# `fill_linear()`) and as anchor/output vectors (for `interp_vec()`).
+interp_vec_series <- function() {
+  tibble::tribble(
+    ~year, ~value,
+    2000, 2,
+    2001, NA,
+    2002, NA,
+    2003, NA,
+    2004, 32,
+    2005, NA,
+    2006, 200
+  )
+}
+
+# The same series but with a zero anchor, which makes log space undefined and
+# forces the linear fallback on both entry points.
+interp_vec_series_zero <- function() {
+  tibble::tribble(
+    ~year, ~value,
+    2000, 0,
+    2001, NA,
+    2002, NA,
+    2003, NA,
+    2004, 32,
+    2005, NA,
+    2006, 200
+  )
+}
+
+testthat::test_that("interp_vec log space uses the constant growth rate", {
+  # Geometric (constant-growth) midpoint of 1 and 1024 is 32, not the
+  # arithmetic midpoint 512.5 that linear interpolation returns.
+  log_result <- whep::interp_vec(
+    c(2000, 2010),
+    c(1, 1024),
+    xout = 2005,
+    log_space = TRUE
+  )
+  testthat::expect_equal(log_result$y, 32)
+  testthat::expect_equal(log_result$method, "loglinear")
+
+  linear_result <- whep::interp_vec(c(2000, 2010), c(1, 1024), xout = 2005)
+  testthat::expect_equal(linear_result$y, 512.5)
+  testthat::expect_equal(linear_result$method, "linear")
+
+  # Off-midpoint positions follow the closed-form constant-growth path.
+  xout <- c(2002, 2005, 2008)
+  fraction <- (xout - 2000) / 10
+  whep::interp_vec(c(2000, 2010), c(1, 1024), xout, log_space = TRUE)$y |>
+    testthat::expect_equal(exp(log(1) + fraction * (log(1024) - log(1))))
+})
+
+testthat::test_that("interp_vec falls back to linear on non-positive anchors", {
+  # A zero anchor makes log space undefined -> linear fallback.
+  zero_anchor <- whep::interp_vec(
+    c(0, 10),
+    c(0, 10),
+    xout = 5,
+    log_space = TRUE
+  )
+  testthat::expect_equal(zero_anchor$y, 5)
+  testthat::expect_equal(zero_anchor$method, "linear")
+
+  # A negative anchor is likewise undefined -> linear fallback.
+  negative_anchor <- whep::interp_vec(
+    c(0, 10),
+    c(-4, 8),
+    xout = 5,
+    log_space = TRUE
+  )
+  testthat::expect_equal(negative_anchor$y, 2)
+  testthat::expect_equal(negative_anchor$method, "linear")
+
+  # Log and linear segments coexist in one call, each labelled on its own.
+  mixed <- whep::interp_vec(
+    c(0, 10, 20),
+    c(1, 1024, 0),
+    xout = c(5, 15),
+    log_space = TRUE
+  )
+  testthat::expect_equal(mixed$y, c(32, 512))
+  testthat::expect_equal(mixed$method, c("loglinear", "linear"))
+})
+
+testthat::test_that("interp_vec matches fill_linear(log_space = TRUE)", {
+  # Anti-drift lock: both entry points must resolve the same gaps to the same
+  # values, because both must route the log-space math through the same
+  # internal helper.
+  gap_years <- c(2001, 2002, 2003, 2005)
+
+  filled <- interp_vec_series() |>
+    whep::fill_linear(value, log_space = TRUE)
+  anchors <- interp_vec_series() |>
+    dplyr::filter(!is.na(value))
+  direct <- whep::interp_vec(
+    anchors$year,
+    anchors$value,
+    xout = gap_years,
+    log_space = TRUE
+  )
+
+  testthat::expect_identical(
+    direct$y,
+    filled$value[match(gap_years, filled$year)]
+  )
+  testthat::expect_equal(direct$method, rep("loglinear", 4))
+  testthat::expect_equal(
+    filled$source_value[match(gap_years, filled$year)],
+    rep("Log-linear interpolation", 4)
+  )
+
+  # The linear fallback must agree too, so a zero anchor cannot make the two
+  # entry points diverge.
+  filled_zero <- interp_vec_series_zero() |>
+    whep::fill_linear(value, log_space = TRUE)
+  anchors_zero <- interp_vec_series_zero() |>
+    dplyr::filter(!is.na(value))
+  direct_zero <- whep::interp_vec(
+    anchors_zero$year,
+    anchors_zero$value,
+    xout = gap_years,
+    log_space = TRUE
+  )
+
+  testthat::expect_identical(
+    direct_zero$y,
+    filled_zero$value[match(gap_years, filled_zero$year)]
+  )
+  testthat::expect_equal(
+    direct_zero$method,
+    c("linear", "linear", "linear", "loglinear")
+  )
+})
+
+testthat::test_that("interp_vec matches fill_linear when log space is off", {
+  gap_years <- c(2001, 2002, 2003, 2005)
+
+  filled <- interp_vec_series() |>
+    whep::fill_linear(value)
+  anchors <- interp_vec_series() |>
+    dplyr::filter(!is.na(value))
+
+  whep::interp_vec(anchors$year, anchors$value, xout = gap_years)$y |>
+    testthat::expect_identical(filled$value[match(gap_years, filled$year)])
+})
+
+testthat::test_that("interp_vec sorts anchors and keeps the xout order", {
+  unsorted <- whep::interp_vec(
+    x = c(2010, 2000, 2005),
+    y = c(400, 100, 200),
+    xout = c(2007, 2002),
+    log_space = TRUE
+  )
+  sorted <- whep::interp_vec(
+    x = c(2000, 2005, 2010),
+    y = c(100, 200, 400),
+    xout = c(2007, 2002),
+    log_space = TRUE
+  )
+
+  testthat::expect_identical(unsorted, sorted)
+  testthat::expect_equal(unsorted$method, c("loglinear", "loglinear"))
+  # Output order follows `xout`, so the 2007 value comes first and is the
+  # larger of the two.
+  testthat::expect_true(unsorted$y[1] > unsorted$y[2])
+})
+
+testthat::test_that("interp_vec handles degenerate anchor sets", {
+  # Fewer than two usable anchors: nothing to interpolate between.
+  single <- whep::interp_vec(2000, 5, xout = c(2000, 2001), log_space = TRUE)
+  testthat::expect_equal(single$y, c(NA_real_, NA_real_))
+  testthat::expect_equal(single$method, c(NA_character_, NA_character_))
+
+  # All-NA values leave no anchor at all.
+  all_na <- whep::interp_vec(
+    c(2000, 2005, 2010),
+    rep(NA_real_, 3),
+    xout = 2003,
+    log_space = TRUE
+  )
+  testthat::expect_equal(all_na$y, NA_real_)
+  testthat::expect_equal(all_na$method, NA_character_)
+
+  # Missing values and non-finite positions drop out of the anchor set; the
+  # two survivors still bracket the output point.
+  partial <- whep::interp_vec(
+    c(2000, 2005, Inf, 2010),
+    c(1, NA, 7, 1024),
+    xout = 2005,
+    log_space = TRUE
+  )
+  testthat::expect_equal(partial$y, 32)
+  testthat::expect_equal(partial$method, "loglinear")
+
+  # Empty input is empty output, not an error.
+  empty <- whep::interp_vec(
+    c(2000, 2010),
+    c(1, 1024),
+    xout = numeric(0),
+    log_space = TRUE
+  )
+  testthat::expect_equal(empty$y, numeric(0))
+  testthat::expect_equal(empty$method, character(0))
+})
+
+testthat::test_that("interp_vec collapses tied anchor positions", {
+  # A zero-length span cannot define a growth rate. Tied positions are averaged
+  # once, up front, so the linear and log-space paths see the same anchors.
+  # The tied 2010 anchors average to 1024, so 2005 is the geometric midpoint of
+  # 1 and 1024, and 2015 the geometric midpoint of 1024 and 1048576.
+  tied <- whep::interp_vec(
+    x = c(2000, 2010, 2010, 2020),
+    y = c(1, 1000, 1048, 1048576),
+    xout = c(2005, 2010, 2015),
+    log_space = TRUE
+  )
+  # 2010 is itself an anchor position once the tie is averaged, so it is
+  # returned as that averaged value rather than interpolated.
+  testthat::expect_equal(tied$y, c(32, 1024, 32768))
+  testthat::expect_equal(tied$method, c("loglinear", "linear", "loglinear"))
+
+  # Every anchor at the same position leaves a single usable anchor.
+  degenerate <- whep::interp_vec(
+    c(2000, 2000),
+    c(4, 6),
+    xout = 2000,
+    log_space = TRUE
+  )
+  testthat::expect_equal(degenerate$y, NA_real_)
+  testthat::expect_equal(degenerate$method, NA_character_)
+})
+
+testthat::test_that("interp_vec returns anchor positions bit-exactly", {
+  # A caller that densifies a whole grid of positions passes the anchor
+  # positions along with the gaps. Log space must not rebuild the anchor values
+  # it was handed: `exp(log(3))` is 3.0000000000000004, not 3, which would
+  # break a downstream bit-identical comparison. `expect_identical()`, not
+  # `expect_equal()`, is the point of this test.
+  anchor_x <- c(2000, 2010, 2020, 2030)
+  anchor_y <- c(3, 7, 300, 11)
+  on_anchors <- whep::interp_vec(
+    anchor_x,
+    anchor_y,
+    xout = anchor_x,
+    log_space = TRUE
+  )
+  testthat::expect_identical(on_anchors$y, anchor_y)
+  testthat::expect_identical(on_anchors$method, rep("linear", 4))
+
+  # A flat segment is the same trap: the midpoint of 7 and 7 is 7 exactly, but
+  # a log-space round trip returns 6.999999999999999.
+  flat <- whep::interp_vec(
+    c(2000, 2010),
+    c(7, 7),
+    xout = c(2000, 2005, 2010),
+    log_space = TRUE
+  )
+  testthat::expect_identical(flat$y[c(1L, 3L)], c(7, 7))
+
+  # Interior positions are still interpolated in log space, so pinning the
+  # anchors has not disabled the feature.
+  whep::interp_vec(anchor_x, anchor_y, xout = 2005, log_space = TRUE)$method |>
+    testthat::expect_equal("loglinear")
+})
+
+testthat::test_that("interp_vec applies rule outside the anchor range", {
+  outside <- c(1990, 2020)
+
+  # rule = 1 (default): no value outside the anchor range.
+  ruled_na <- whep::interp_vec(
+    c(2000, 2010),
+    c(1, 1024),
+    xout = outside,
+    log_space = TRUE
+  )
+  testthat::expect_equal(ruled_na$y, c(NA_real_, NA_real_))
+  testthat::expect_equal(ruled_na$method, c(NA_character_, NA_character_))
+
+  # rule = 2: carry the nearest anchor, never extrapolate in log space.
+  ruled_carry <- whep::interp_vec(
+    c(2000, 2010),
+    c(1, 1024),
+    xout = outside,
+    log_space = TRUE,
+    rule = 2
+  )
+  testthat::expect_equal(ruled_carry$y, c(1, 1024))
+  testthat::expect_equal(ruled_carry$method, c("linear", "linear"))
+
+  # A missing output position yields a missing value, not an error.
+  missing_xout <- whep::interp_vec(
+    c(2000, 2010),
+    c(1, 1024),
+    xout = c(NA, 2005),
+    log_space = TRUE
+  )
+  testthat::expect_equal(missing_xout$y, c(NA_real_, 32))
+  testthat::expect_equal(missing_xout$method, c(NA_character_, "loglinear"))
+})
+
+testthat::test_that("interp_vec rejects invalid arguments", {
+  testthat::expect_error(
+    whep::interp_vec(c(2000, 2010), 1, xout = 2005),
+    "same length"
+  )
+  testthat::expect_error(
+    whep::interp_vec(c(2000, 2010), c(1, 2), xout = 2005, log_space = "yes"),
+    "log_space"
+  )
+  testthat::expect_error(
+    whep::interp_vec(c(2000, 2010), c(1, 2), xout = 2005, rule = 3),
+    "rule"
+  )
 })

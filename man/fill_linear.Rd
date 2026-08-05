@@ -9,10 +9,12 @@ fill_linear(
   value_col,
   time_col = year,
   interpolate = TRUE,
+  log_space = FALSE,
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
-  .by = NULL
+  .by = NULL,
+  .copy = TRUE
 )
 }
 \arguments{
@@ -24,6 +26,15 @@ fill_linear(
 
 \item{interpolate}{Logical. If \code{TRUE} (default),
 performs linear interpolation.}
+
+\item{log_space}{Logical. If \code{TRUE}, interior interpolation is performed in
+log space (constant compound growth rate) for each gap segment whose two
+bracketing anchors are both finite and strictly positive; any segment with
+a non-positive or non-finite anchor falls back to linear interpolation.
+Default: \code{FALSE}, i.e. linear interpolation everywhere. Log-space fills are
+labelled \code{"Log-linear interpolation"} in the source column, distinct from
+\code{"Linear interpolation"}, so the choice survives downstream. Carrying
+forward or backward is unaffected.}
 
 \item{fill_forward}{Logical. If \code{TRUE} (default),
 carries last value forward.}
@@ -37,6 +48,10 @@ for variables with high inter-annual variability. If \code{NULL} (default), no
 smoothing is applied.}
 
 \item{.by}{A character vector with the grouping variables (optional).}
+
+\item{.copy}{Logical. If \code{TRUE} (default), data.table inputs are
+defensively copied before mutation. Set to \code{FALSE} when the caller
+owns the data and does not need the original preserved.}
 }
 \value{
 A tibble data frame (ungrouped) where gaps in value_col have been
@@ -66,4 +81,5 @@ fill_linear(
   interpolate = FALSE,
   .by = c("category"),
 )
+fill_linear(sample_tibble, value, log_space = TRUE, .by = c("category"))
 }

@@ -104,8 +104,9 @@ at the [reference page](https://eduaguilera.github.io/whep/reference/index.html)
 ## Contributing
 
 We welcome contributions! Please see our
-[Contributing Guide](.github/CONTRIBUTING.md) for details on how to
-get started, code style, and development workflow.
+[Contributing Guide](https://github.com/eduaguilera/whep/blob/main/.github/CONTRIBUTING.md)
+for how to find something to work on, set up the package, run the CI checks
+locally, and open a pull request.
 
 If you're new to R package development, we have written a
 **small free online book** covering both git and R package development.

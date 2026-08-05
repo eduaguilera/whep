@@ -1,0 +1,40 @@
+Cat_1,Cat_feed
+Additives,Zoot_fixed
+Alcohol,Non_feed
+Animal fats,Zoot_fixed
+Aquatic animals,High_quality
+Brans,Low_quality
+Cakes,High_quality
+Cereals,High_quality
+Citrus,High_quality
+DDGS and other,High_quality
+Eggs,High_quality
+Fibres,Non_feed
+Fodder_green,Low_quality
+Fruits,High_quality
+Grapes,Non_feed
+Live animals,Non_feed
+Meat,Zoot_fixed
+Milk and products,High_quality
+Molasses,High_quality
+Oil,High_quality
+Oilseeds,High_quality
+Olives,Non_feed
+Other,Non_feed
+Other animal products,High_quality
+Pulses,High_quality
+Roots_tubers,High_quality
+Spices,Non_feed
+Straw,Residues
+Sugar,High_quality
+Sugar_crops,High_quality
+Treenuts,High_quality
+Vegetables,High_quality
+Firewood,Non_feed
+Aquatic Plants,Low_quality
+Other crop residues,Residues
+Grass,Grass
+Acorns,Grass
+Fallow,Grass
+Lactation,Lactation
+Forest,Grass

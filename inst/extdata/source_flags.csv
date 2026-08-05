@@ -1,0 +1,26 @@
+source,description,reference
+FAOSTAT_prod,"Original FAOSTAT Crops and livestock products production data (QCL domain)","FAO (2026) FAOSTAT Crops and livestock products. https://www.fao.org/faostat/en/#data/QCL. Downloaded March 2026"
+EuropeAgriDB,"European agricultural database, historical crop areas and yields 1850-2018","Einarsson et al. (2021) Crop production and nitrogen use in European cropland and grassland 1961-2019. Sci Data. doi:10.1038/s41597-021-01061-z"
+DM_yield_estimate,"Dry-matter yield estimate from country crop composition",
+fill_linear,"Linear interpolation or carry-forward/backward fill",
+imputed_yield,"Imputed as yield x functional unit (area or heads)","fill_linear detail appended when yield was interpolated (e.g. imputed_yield:Linear interpolation)"
+imputed_yield:Linear interpolation,"Yield was linearly interpolated between known years then multiplied by functional unit",
+imputed_yield:Last value carried forward,"Yield was carried forward from last known year then multiplied by functional unit",
+imputed_yield:First value carried backwards,"Yield was carried backward from first known year then multiplied by functional unit",
+imputed_cbs_ratio,"Imputed from CBS production ratio when production items sum to <90% of CBS total",
+LUH2_cropland,"LUH2 v2h cropland area proxy for pre-1961 extension","Hurtt et al. (2020) Harmonization of global land use change and management for the period 850-2100 (LUH2) for CMIP6. Geosci Model Dev. doi:10.5194/gmd-13-5425-2020"
+LUH2_agriland,"LUH2 v2h agricultural land area proxy for pre-1961 extension","Hurtt et al. (2020) Harmonization of global land use change and management for the period 850-2100 (LUH2) for CMIP6. Geosci Model Dev. doi:10.5194/gmd-13-5425-2020"
+LUH2_grassland,"LUH2 v2h grassland/rangeland area","Hurtt et al. (2020) Harmonization of global land use change and management for the period 850-2100 (LUH2) for CMIP6. Geosci Model Dev. doi:10.5194/gmd-13-5425-2020"
+fill_linear_historical,"Linear extrapolation for pre-1961 years",
+Estimated,"Double-product estimation (multi-type items)",
+FAOSTAT_FBS_New,"FAO New Food Balance Sheets (SUA-based methodology, 2010-2023)","FAO (2026) FAOSTAT Food Balances (2010-). https://www.fao.org/faostat/en/#data/FBS. Downloaded March 2026"
+FAOSTAT_FBS_Old,"FAO Old Food Balance Sheets (legacy methodology, 1961-2013)","FAO (2026) FAOSTAT Food Balances (-2013, old methodology). https://www.fao.org/faostat/en/#data/FBSH. Downloaded March 2026"
+FAOSTAT_FBS_Old_scaled,"Old FBS scaled to New FBS level via median ratio in 2010-2013 overlap period","Vonderschmidt et al. (2024) Analysis combining the multiple FAO food balance sheet datasets needs careful treatment. Lancet Planet Health. doi:10.1016/S2542-5196(23)00276-0"
+FAOSTAT_CBS,"Old FAOSTAT Commodity Balances (crops, livestock, fish)","FAO (2026) FAOSTAT Commodity Balances. https://www.fao.org/faostat/en/#data/BC. Downloaded March 2026"
+FAOSTAT_trade,"FAOSTAT Crops and livestock products trade data aggregated to CBS items","FAO (2026) FAOSTAT Crops and livestock products trade. https://www.fao.org/faostat/en/#data/TCL. Downloaded March 2026"
+fishstat_trade,"FAO FishStat Fisheries trade data mapped via ISSCAAP groups to CBS items","FAO (2025) FishStat Fisheries and Aquaculture - Global fish trade. https://www.fao.org/fishery/en/collection/global_commodity_prod. v2025.1.0"
+historical_fill,"Historical extension (pre-1961) using population and agricultural land proxies",
+Processed,"Processing calibration (first round) using global conversion factors",
+Processed_round2,"Processing calibration (second round)",
+trade_imputed,"Trade imputed from domestic supply minus production residual (tier 2)",
+mean,"Mean of multiple overlapping CBS sources",

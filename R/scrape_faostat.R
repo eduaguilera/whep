@@ -1,4 +1,4 @@
-#' Scrapes activity_data from FAOSTAT and slightly post-processes it
+#' Scrape activity data from FAOSTAT and post-process it
 #'
 #' @description
 #' Important: Dynamically allows for the introduction of subsets as `"..."`.
@@ -10,18 +10,22 @@
 #'   to be one of `c('livestock','crop_area','crop_yield','crop_production')`.
 #' @param ... can be whichever column name from `get_faostat_bulk`,
 #'   particularly `year`, `area` or `ISO3_CODE`.
+#' @param example Logical. If `TRUE`, return a small hardcoded example
+#'   `tibble` instead of scraping FAOSTAT. Useful for offline demos and
+#'   documentation. Default `FALSE`.
 #'
-#' @returns `data.frame` of FAOSTAT for `activity_data`; default is for
-#'   all years and countries.
+#' @returns `tibble` of FAOSTAT for `activity_data` with columns `area`,
+#'   `item`, `element`, `year`, `value`, `unit` and `ISO3_CODE`; default is
+#'   for all years and countries.
 #'
 #' @export
 #'
 #' @examples
-#' \donttest{
-#' get_faostat_data("livestock", year = 2010, area = "Portugal")
-#' }
-get_faostat_data <- function(activity_data, ...) {
-  rlang::check_installed("FAOSTAT")
+#' get_faostat_data(example = TRUE)
+get_faostat_data <- function(activity_data, ..., example = FALSE) {
+  if (example) {
+    return(.example_get_faostat_data())
+  }
 
   faostat_converters <- .faostat_converter(activity_data)
 
@@ -51,9 +55,7 @@ get_faostat_data <- function(activity_data, ...) {
           faostat_data[[filter_name]] %in% filter_args[[filter_name]],
         ]
       } else {
-        cli::cli_warn(
-          "Column '{filter_name}' not found in FAOSTAT data."
-        )
+        warning(paste("Column", filter_name, "not found in FAOSTAT data."))
       }
     }
   }
@@ -72,11 +74,7 @@ get_faostat_data <- function(activity_data, ...) {
 #' @returns data.frame
 .populate_iso3_code <- function(df) {
   # create new column "ISO3_CODE" and fill it
-  df <- FAOSTAT::fillCountryCode(
-    country = "area",
-    data = df,
-    outCode = "ISO3_CODE"
-  )
+  df[["ISO3_CODE"]] <- .match_fao_area_to_iso3(df[["area"]])
 
   # manually fix some crazy countries/ISO3_CODE
   df[df$area == "China, mainland", "ISO3_CODE"] <- "CHN"
@@ -86,6 +84,8 @@ get_faostat_data <- function(activity_data, ...) {
   df[df$area == "South Sudan", "ISO3_CODE"] <- "SSD"
   df[df$area == "Czechia", "ISO3_CODE"] <- "CZE"
   df[df$area == "Lao People's Democratic Republic", "ISO3_CODE"] <- "LAO"
+
+  .warn_unmatched_fao_areas(unique(df$area[is.na(df$ISO3_CODE)]))
 
   df
 }
@@ -107,7 +107,7 @@ get_faostat_data <- function(activity_data, ...) {
     length(activity_data) != 1 ||
       !(activity_data %in% .activity_data_choices())
   ) {
-    cli::cli_abort(.bad_activity_data_param_error())
+    stop(.bad_activity_data_param_error())
   }
 
   # create list to translate activity_data into FAOSTAT code
@@ -131,17 +131,105 @@ get_faostat_data <- function(activity_data, ...) {
   )
 }
 
+.match_fao_area_to_iso3 <- function(areas) {
+  lookup <- .fao_area_iso3_lookup()
+
+  lookup[["iso3_code"]][match(areas, lookup[["fao_area_name"]])]
+}
+
+.warn_unmatched_fao_areas <- function(unmatched) {
+  if (length(unmatched) == 0) {
+    return(invisible())
+  }
+
+  shown <- utils::head(unmatched, 5)
+  cli::cli_warn(c(
+    "Could not match {length(unmatched)} FAOSTAT area name{?s} to an
+     {.field ISO3_CODE}.",
+    i = "First unmatched: {.val {shown}}.",
+    i = "Regional aggregates and multi-territory areas have no ISO3 code."
+  ))
+}
+
+# Builds the FAOSTAT area name -> ISO3 code lookup. Reproduces the matching
+# rule of FAOSTAT::fillCountryCode(): an area name is compared for exact
+# equality against the six name columns of `FAOcountryProfile`, and only
+# resolves when all its matches fall in a single profile row. Names matching
+# several rows (e.g. the "China" aggregate) stay unmatched.
+.fao_area_iso3_lookup <- function() {
+  name_cols <- .fao_profile_name_cols()
+
+  .fao_country_profile(c("ISO3_CODE", name_cols)) |>
+    dplyr::mutate(
+      profile_row = dplyr::row_number(),
+      iso3_code = as.character(ISO3_CODE)
+    ) |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(name_cols),
+      values_to = "fao_area_name",
+      values_transform = as.character
+    ) |>
+    dplyr::filter(!is.na(fao_area_name)) |>
+    dplyr::distinct(fao_area_name, profile_row, iso3_code) |>
+    dplyr::summarise(
+      iso3_code = dplyr::if_else(
+        dplyr::n() == 1L,
+        iso3_code[1],
+        NA_character_
+      ),
+      .by = fao_area_name
+    )
+}
+
+.fao_profile_name_cols <- function() {
+  c(
+    "OFFICIAL_FAO_NAME",
+    "SHORT_NAME",
+    "FAO_TABLE_NAME",
+    "UNOFFICIAL1_NAME",
+    "UNOFFICIAL2_NAME",
+    "UNOFFICIAL3_NAME"
+  )
+}
+
+# FAOSTAT::fillCountryCode() reads `FAOcountryProfile` as a free variable and
+# so only works while the package is attached; prefixed calls fail with
+# "object 'FAOcountryProfile' not found" (#520). Load the dataset explicitly
+# instead, which does not depend on that lazy-load behaviour.
+.fao_country_profile <- function(required_cols) {
+  profile_env <- new.env(parent = emptyenv())
+  utils::data("FAOcountryProfile", package = "FAOSTAT", envir = profile_env)
+
+  if (!rlang::env_has(profile_env, "FAOcountryProfile")) {
+    faostat_version <- as.character(utils::packageVersion("FAOSTAT"))
+    cli::cli_abort(
+      "Dataset {.val FAOcountryProfile} is not available in
+       {.pkg FAOSTAT} {faostat_version}."
+    )
+  }
+
+  profile <- rlang::env_get(profile_env, "FAOcountryProfile") |>
+    tibble::as_tibble()
+
+  missing_cols <- setdiff(required_cols, names(profile))
+  if (length(missing_cols) > 0) {
+    cli::cli_abort(
+      "Column{?s} {.field {missing_cols}} missing from
+       {.val FAOcountryProfile}."
+    )
+  }
+
+  profile |>
+    dplyr::select(dplyr::all_of(required_cols))
+}
+
 .activity_data_choices <- function() {
   c("livestock", "crop_area", "crop_yield", "crop_production")
 }
 
 .bad_activity_data_param_error <- function() {
-  choices <- paste(.activity_data_choices(), collapse = ", ")
-  c(
-    paste0(
-      "`activity_data` must be one of: ",
-      choices, "."
-    ),
-    "i" = "See {.fun get_faostat_data} for details."
+  paste(
+    "Please, ensure activity_data is one of",
+    '"livestock,crop_area,crop_yield,crop_production."'
   )
 }

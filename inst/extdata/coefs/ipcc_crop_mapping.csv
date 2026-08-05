@@ -1,0 +1,112 @@
+item_prod_code,item_prod_name,name_biomass,ipcc_crop,crop_group
+15,Wheat,Wheat,Wheat,Wheat
+44,Barley,Barley,Barley,Wheat
+56,Maize (corn),Maize,Maize,Maize
+27,Rice,Rice,Rice,Rice
+75,Oats,Oats,Oats,Wheat
+79,Millet,Millet,Millet,Sorghum_millet
+83,Sorghum,Sorghum,Sorghum,Sorghum_millet
+71,Rye,Rye,Rye,Wheat
+97,Triticale,Triticale,Other_cereals,Wheat
+101,Canary seed,Canary grass,Other_cereals,Wheat
+89,Buckwheat,Cereals nes,Other_cereals,Wheat
+92,Quinoa,Cereals nes,Other_cereals,Wheat
+103,Mixed grain,Cereals nes,Other_cereals,Wheat
+108,Cereals n.e.c.,Cereals nes,Other_cereals,Wheat
+236,Soya beans,Soyabeans,Soybeans,Legumes
+176,"Beans, dry",Beans,Dry_beans,Legumes
+181,"Broad beans and horse beans, dry",Fava bean,Dry_beans,Legumes
+191,"Chick peas, dry",Chickpea,Chickpeas,Legumes
+201,"Lentils, dry",Lentils,Lentils,Legumes
+187,"Peas, dry",Pea,Peas,Legumes
+210,Lupins,Lupin,Pulses_other,Legumes
+205,Vetches,Vetch,Pulses_other,Legumes
+195,"Cow peas, dry",Pulses nes,Pulses_other,Legumes
+197,"Pigeon peas, dry",Pulses nes,Pulses_other,Legumes
+203,"Bambara beans, dry",Pulses nes,Pulses_other,Legumes
+211,Other pulses n.e.c.,Pulses nes,Pulses_other,Legumes
+423,String beans,Pulses nes,Pulses_other,Legumes
+242,"Groundnuts, excluding shelled","Groundnuts, with shell",Groundnuts,Legumes
+270,Rape or colza seed,Rape,Rapeseed,Oilseeds
+267,Sunflower seed,Sunflower seed,Sunflower,Oilseeds
+280,Safflower seed,Safflower,Other_oilseeds,Oilseeds
+329,Cotton seed,Cottonseed,Cotton,Other
+333,Linseed,Linseed,Other_oilseeds,Oilseeds
+265,Castor oil seeds,"Oilcrops, other",Other_oilseeds,Oilseeds
+277,Jojoba seeds,"Oilcrops, other",Other_oilseeds,Oilseeds
+289,Sesame seed,"Oilcrops, other",Other_oilseeds,Oilseeds
+299,Melonseed,"Oilcrops, other",Other_oilseeds,Oilseeds
+305,Tallowtree seed,"Oilcrops, other",Other_oilseeds,Oilseeds
+311,Kapokseed in shell,"Oilcrops, other",Other_oilseeds,Oilseeds
+339,"Other oil seeds, n.e.c.","Oilcrops, other",Other_oilseeds,Oilseeds
+336,Hempseed,Hemp seed,Other_oilseeds,Oilseeds
+254,Oil palm fruit,Oil palm,Permanent_crops,Other
+256,Palm kernels,Oil palm,Permanent_crops,Other
+116,Potatoes,Potato,Potatoes,Root_tuber
+122,Sweet potatoes,Sweet potato,Sweet_potatoes,Root_tuber
+125,"Cassava, fresh",Cassava,Cassava,Root_tuber
+94,Fonio,"Roots, other",Other_roots,Root_tuber
+135,Yautia,"Roots, other",Other_roots,Root_tuber
+136,Taro,"Roots, other",Other_roots,Root_tuber
+137,Yams,"Roots, other",Other_roots,Root_tuber
+149,"Edible roots and tubers with high starch or inulin content, n.e.c., fresh","Roots, other",Other_roots,Root_tuber
+459,Chicory roots,Chicory roots,Other_roots,Root_tuber
+157,Sugar beet,Sugar beet,Sugar_beet,Root_tuber
+161,Other sugar crops n.e.c.,Sugar beet,Sugar_beet,Root_tuber
+156,Sugar cane,Sugarcane,Sugarcane,Other
+515,Apples,Apple,Permanent_crops,Other
+521,Pears,Pear,Permanent_crops,Other
+536,Plums and sloes,Plum,Permanent_crops,Other
+534,Peaches and nectarines,Peach,Permanent_crops,Other
+526,Apricots,Apricot,Permanent_crops,Other
+260,Olives,Olive,Permanent_crops,Other
+560,Grapes,Grapevine,Permanent_crops,Other
+225,"Hazelnuts, in shell",Hazelnut,Permanent_crops,Other
+222,"Walnuts, in shell",Walnut,Permanent_crops,Other
+220,"Chestnuts, in shell",Chestnut,Permanent_crops,Other
+512,"Other citrus fruit, n.e.c.",Citrus,Permanent_crops,Other
+490,Oranges,Orange,Permanent_crops,Other
+497,Lemons and limes,Lemon,Permanent_crops,Other
+495,"Tangerines, mandarins, clementines",Mandarin,Permanent_crops,Other
+507,Pomelos and grapefruits,Grapefruit,Permanent_crops,Other
+577,Dates,Dates,Permanent_crops,Other
+574,Pineapples,Pineapple,Permanent_crops,Other
+667,Tea leaves,Tea,Permanent_crops,Other
+671,Mate leaves,Tea,Permanent_crops,Other
+674,Tea nes,Tea,Permanent_crops,Other
+572,Avocados,Avocado,Permanent_crops,Other
+600,Papayas,Papaya,Permanent_crops,Other
+587,Persimmons,Persimmon,Permanent_crops,Other
+523,Quinces,Quince,Permanent_crops,Other
+461,Locust beans (carobs),Carob,Permanent_crops,Other
+641,"Forage and silage, alfalfa",Alfalfa,Fodder_crops,Other
+640,"Forage and silage, clover",Clover,Fodder_crops,Other
+638,"Forage and silage, rye grass",Ryegrass,Fodder_crops,Other
+647,Beets for fodder,Fodder beet,Fodder_crops,Other
+642,"Forage and silage, green oilseeds","Fodder, other",Fodder_crops,Other
+651,Forage products,"Fodder, other",Fodder_crops,Other
+655,Vegetables and roots fodder,"Fodder, other",Fodder_crops,Other
+388,Tomatoes,Tomato,Vegetables,Other
+372,Lettuce and chicory,Lettuce,Vegetables,Other
+402,"Onions and shallots, green",Onion,Vegetables,Other
+403,"Onions and shallots, dry (excluding dehydrated)",Onion,Vegetables,Other
+406,Green garlic,Garlic,Vegetables,Other
+401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",Pepper,Vegetables,Other
+426,Carrots and turnips,Carrot,Vegetables,Other
+366,Artichokes,Artichoke,Vegetables,Other
+568,Cantaloupes and other melons,Melon,Vegetables,Other
+567,Watermelons,Watermelon,Vegetables,Other
+544,Strawberries,Strawberry,Vegetables,Other
+393,Cauliflowers and broccoli,Cauliflower,Vegetables,Other
+397,Cucumbers and gherkins,Cucumber,Vegetables,Other
+367,Asparagus,Asparagus,Vegetables,Other
+407,Leeks and other alliaceous vegetables,Leek,Vegetables,Other
+373,Spinach,Spinach,Vegetables,Other
+378,Cassava leaves,"Vegetables, other",Vegetables,Other
+430,Okra,"Vegetables, other",Vegetables,Other
+446,Green corn (maize),"Vegetables, other",Vegetables,Other
+463,"Other vegetables, fresh n.e.c.","Vegetables, other",Vegetables,Other
+449,Mushrooms and truffles,Mushrooms,Vegetables,Other
+826,Unmanufactured tobacco,Tobacco,Other_fiber,Other
+836,Natural rubber in primary forms,Rubber,Permanent_crops,Other
+839,"Balata, gutta-percha, guayule, chicle and similar natural gums in primary forms or in plates, sheets or strip",Rubber,Permanent_crops,Other

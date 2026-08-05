@@ -1,0 +1,142 @@
+# Builds the SJOS-N package data (Module 0):
+#   n_boundary_params      - planetary reactive-nitrogen boundary parameters
+#                            (Tg N/yr boundary range, per-capita cap,
+#                            synthetic-to-total agricultural ratio, food share
+#                            of agricultural N).
+#   nourishment_thresholds - protein/energy floors + targets, the 1.35 waste-
+#                            inequality factor and the normalised-score class
+#                            cutoffs.
+#   sjos_levels            - the 2-way boundary axis crossed with the 3-way
+#                            nourishment axis, plus plotting colours.
+#   nourish_levels         - nourishment classification levels + colours.
+#
+# Constants transcribed from plans/2026-07-10-sjos-nitrogen.md (Module 0).
+# Level labels and colours are ported BY VALUE from afsetools::load_vectors()
+# (SJOS_levels/SJOS_colours and Nour_levels/Nourish_colours); the values are
+# copied here so the package carries no afsetools dependency. Colours are R
+# colour names, not hex. See R/datasets_sjos_n.R for the @source records.
+
+n_boundary_params <- tibble::tribble(
+  ~parameter,
+  ~value,
+  ~unit,
+  ~description,
+  "boundary_low",
+  60,
+  "Tg N/yr",
+  "Lower estimate of the planetary boundary for anthropogenic reactive N.",
+  "boundary_high",
+  125,
+  "Tg N/yr",
+  "Upper estimate of the planetary boundary for anthropogenic reactive N.",
+  "boundary_top",
+  205,
+  "Tg N/yr",
+  "Top reactive-N boundary estimate bounding the SJOS-N boundary range.",
+  "per_capita_cap",
+  40,
+  "kg N/cap/yr",
+  "Per-capita anthropogenic reactive-nitrogen cap.",
+  "syn_tot_agri_ratio",
+  (109 + 33) / (0.85 * 109),
+  "ratio",
+  "Scaling from synthetic to total agricultural reactive N.",
+  "food_agri_share",
+  0.95,
+  "fraction",
+  "Food share of agricultural reactive nitrogen."
+)
+
+nourishment_thresholds <- tibble::tribble(
+  ~metric,
+  ~bound,
+  ~value,
+  ~unit,
+  "protein_raw",
+  "floor",
+  46,
+  "g/cap/day",
+  "protein_raw",
+  "target",
+  63,
+  "g/cap/day",
+  "protein",
+  "floor",
+  46 * 1.35,
+  "g/cap/day",
+  "protein",
+  "target",
+  63 * 1.35,
+  "g/cap/day",
+  "energy",
+  "floor",
+  2300,
+  "kcal/cap/day",
+  "energy",
+  "target",
+  2900,
+  "kcal/cap/day",
+  "waste_inequality",
+  "factor",
+  1.35,
+  "ratio",
+  "class",
+  "under",
+  1,
+  "score",
+  "class",
+  "over",
+  2,
+  "score"
+)
+
+# Boundary axis (Within_boundary/Exceedance) crossed with the nourishment axis
+# (Under/Adequate/Over); colours from afsetools SJOS_colours.
+sjos_levels <- tibble::tribble(
+  ~level,
+  ~order,
+  ~colour,
+  "Within_boundary Under",
+  1L,
+  "lightseagreen",
+  "Within_boundary Adequate",
+  2L,
+  "lightgreen",
+  "Within_boundary Over",
+  3L,
+  "burlywood3",
+  "Exceedance Under",
+  4L,
+  "mediumpurple",
+  "Exceedance Adequate",
+  5L,
+  "salmon1",
+  "Exceedance Over",
+  6L,
+  "indianred3"
+)
+
+# Nourishment levels in the afsetools Nour_levels order (Over/Adequate/Under);
+# colours from afsetools Nourish_colours.
+nourish_levels <- tibble::tribble(
+  ~level,
+  ~order,
+  ~colour,
+  "Over",
+  1L,
+  "red",
+  "Adequate",
+  2L,
+  "green",
+  "Under",
+  3L,
+  "blue"
+)
+
+usethis::use_data(
+  n_boundary_params,
+  nourishment_thresholds,
+  sjos_levels,
+  nourish_levels,
+  overwrite = TRUE
+)

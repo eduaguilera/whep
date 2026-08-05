@@ -1,0 +1,14 @@
+Crop,Name_Eurostat
+G0000,Plants harvested green from arable land
+G1000,Temporary grasses and grazings
+G2000,Leguminous plants harvested green
+G2100,Alfalfa
+G2900,Other leguminous plants harvested green n.e.c.
+G3000,Green maize
+G9000,Other plants harvested green from arable land
+G9100,Other cereals harvested green (excluding green maize)
+G9900,Other plants harvested green from arable land n.e.c.
+R0000,Root crops
+R1000,Potatoes (including seed potatoes)
+R2000,Sugar beet (excluding seed)
+R9000,Other root crops n.e.c.

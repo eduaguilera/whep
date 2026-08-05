@@ -1,0 +1,180 @@
+testthat::test_that("build_grassland_land_extension example has expected structure", {
+  result <- whep::build_grassland_land_extension(example = TRUE)
+
+  pointblank::expect_col_exists(
+    result,
+    c("year", "area_code", "item_cbs_code", "impact_u", "method_grassland")
+  )
+  pointblank::expect_col_vals_gt(result, "impact_u", 0)
+})
+
+testthat::test_that("luh2 occupation sums grass area and drops crops and fallow", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 10L, 3000L, "ha", 1000, # grassland
+    2000L, 10L, 3000L, "ha", 500, # grassland, second prod item
+    2000L, 10L, 3003L, "ha", 9999, # fallow, excluded
+    2000L, 10L, 2511L, "ha", 7777, # wheat crop, excluded
+    2000L, 10L, 3000L, "tonnes", 4242 # grass biomass, excluded (not ha)
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "occupation",
+    data = list(primary_prod = primary_prod)
+  )
+
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$item_cbs_code, 3000L)
+  testthat::expect_equal(result$impact_u, 1500)
+  testthat::expect_equal(result$method_grassland, "occupation")
+})
+
+testthat::test_that("faostat_pasture filters item 6655 from the landuse pin", {
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    10, 6655, "Area", 2000, 50000, # Australia perm. pasture (1000 ha)
+    10, 6620, "Area", 2000, 9999, # cropland -> excluded (wrong item)
+    351, 6655, "Area", 2000, 40000 # China aggregate -> unmapped, excluded
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "faostat_pasture",
+    data = list(landuse = landuse)
+  )
+
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$area_code, 10L)
+  testthat::expect_equal(result$impact_u, 5e7)
+  testthat::expect_true(all(result$item_cbs_code == 3000L))
+  testthat::expect_equal(result$method_grassland, "occupation")
+})
+
+testthat::test_that("faostat_pasture drops aggregates via the polity crosswalk", {
+  # China 351 is a statistical aggregate (its NA iso3c also has no polity), while
+  # dissolved-state reporting areas (Czechoslovakia 51, USSR 228) DO carry an
+  # iso3c but only overlap successors out of time, so they map to real polities
+  # and must be kept. The old `!is.na(iso3c)` heuristic could not tell these
+  # apart from a true aggregate; the crosswalk can.
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    68, 6655, "Area", 1985, 1000, # France -> real polity, kept
+    51, 6655, "Area", 1985, 2000, # Czechoslovakia -> real polity (1985), kept
+    351, 6655, "Area", 1985, 9999 # China aggregate -> unmapped, dropped
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "faostat_pasture",
+    data = list(landuse = landuse)
+  )
+
+  testthat::expect_false(351L %in% result$area_code)
+  testthat::expect_true(all(c(68L, 51L) %in% result$area_code))
+})
+
+testthat::test_that("faostat_pasture collapses ROW territories to a polity key", {
+  # Small territories FABIO buckets into Rest of World (e.g. American Samoa 5,
+  # Andorra 6) carry an iso3c, so the old filter kept them under their raw
+  # FAOSTAT codes -- a different key basis than the LUH2 source. The crosswalk
+  # collapses them into the ROW polity_area_code (999), preserving their area but
+  # aligning both sources on polity_area_code.
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    5, 6655, "Area", 2000, 3, # American Samoa, bucketed into ROW
+    6, 6655, "Area", 2000, 7 # Andorra, also bucketed into ROW
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "faostat_pasture",
+    data = list(landuse = landuse)
+  )
+
+  testthat::expect_equal(result$area_code, 999L)
+  # ROW carries both territories: (3 + 7) thousand ha = 10000 ha.
+  testthat::expect_equal(result$impact_u, 1e4)
+  testthat::expect_false(any(c(5L, 6L) %in% result$area_code))
+})
+
+testthat::test_that("active_grazing caps area at grazing intake over yield", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 10L, 3000L, "ha", 1000, # capped by intake
+    2000L, 20L, 3000L, "ha", 100 # uncapped (intake implies more)
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 10L, 3000L, "grass", 1000, # 1000 / 2 = 500 ha, below 1000
+    2000L, 20L, 3000L, "grass", 1000 # 1000 / 2 = 500 ha, above 100
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "active_grazing",
+    usable_grass_yield_dm_t_ha = 2,
+    data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+  )
+
+  capped <- dplyr::filter(result, area_code == 10L)
+  uncapped <- dplyr::filter(result, area_code == 20L)
+  testthat::expect_equal(capped$impact_u, 500)
+  testthat::expect_equal(uncapped$impact_u, 100)
+  testthat::expect_true(all(result$method_grassland == "active_grazing"))
+})
+
+testthat::test_that("active_grazing keeps temporary grassland (item 3002)", {
+  # Grass intake is booked under item 3000 only, but occupation also carries
+  # temporary grassland (item 3002). Capping against total grassland must keep
+  # 3002 instead of zeroing it (issue #195).
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 30L, 3000L, "ha", 600, # permanent grassland
+    2000L, 30L, 3002L, "ha", 400, # temporary grassland, no intake row
+    2000L, 40L, 3000L, "ha", 600, # capped case, permanent
+    2000L, 40L, 3002L, "ha", 400 # capped case, temporary
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 30L, 3000L, "grass", 3000, # 3000 / 2 = 1500 ha, above total 1000
+    2000L, 40L, 3000L, "grass", 1000 # 1000 / 2 = 500 ha, below total 1000
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "active_grazing",
+    usable_grass_yield_dm_t_ha = 2,
+    data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+  )
+
+  # Uncapped area: temporary grassland keeps its full area, not zeroed.
+  uncapped_temp <- dplyr::filter(
+    result,
+    area_code == 30L,
+    item_cbs_code == 3002L
+  )
+  testthat::expect_equal(uncapped_temp$impact_u, 400)
+
+  # Capped area: 500 ha total split 600:400 -> 300 permanent, 200 temporary.
+  capped_perm <- dplyr::filter(result, area_code == 40L, item_cbs_code == 3000L)
+  capped_temp <- dplyr::filter(result, area_code == 40L, item_cbs_code == 3002L)
+  testthat::expect_equal(capped_perm$impact_u, 300)
+  testthat::expect_equal(capped_temp$impact_u, 200)
+})
+
+testthat::test_that("active_grazing rejects invalid usable grass yield", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 10L, 3000L, "ha", 1000
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 10L, 3000L, "grass", 1000
+  )
+
+  testthat::expect_error(
+    whep::build_grassland_land_extension(
+      grassland_metric = "active_grazing",
+      usable_grass_yield_dm_t_ha = -1,
+      data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+    )
+  )
+})

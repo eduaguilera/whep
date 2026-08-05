@@ -1,0 +1,24 @@
+model,component,parameter,value,unit,formula_role,climate_var,source
+Miami,F_MAT,Max_gCm2yr,3000,g C/m2/yr,Max/(1+exp(Midpoint-Rate*T)),Temperature,Lieth (1975) Modeling Primary Productivity of the World
+Miami,F_MAT,Midpoint,1.315,dimensionless,logistic midpoint,Temperature,Lieth (1975) Modeling Primary Productivity of the World
+Miami,F_MAT,Rate,0.119,1/degC,temperature sensitivity,Temperature,Lieth (1975) Modeling Primary Productivity of the World
+Miami,F_MAP,Max_gCm2yr,3000,g DM/m2/yr,Max*(1-exp(-Rate*P)),Precipitation,Lieth (1975) Modeling Primary Productivity of the World
+Miami,F_MAP,Rate,0.000664,1/mm,exponential rate,Precipitation,Lieth (1975) Modeling Primary Productivity of the World
+NCEAS_tree_TNPP,F_MAP,Coefficient,0.551,g C/m2/yr,Coef*P^Exp/exp(Div*P),Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_TNPP,F_MAP,Exponent,1.055,dimensionless,power law exponent,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_TNPP,F_MAP,Exp_divisor,0.000306,1/mm,exponential divisor,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_TNPP,F_MAT,Max_gCm2yr,2540,g C/m2/yr,Max/(1+exp(Mid-Rate*T)),Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_TNPP,F_MAT,Midpoint,1.584,dimensionless,logistic midpoint,Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_TNPP,F_MAT,Rate,0.0622,1/degC,temperature rate,Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAP,Coefficient,0.1665,g C/m2/yr,Coef*P^Exp/exp(Div*P),Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAP,Exponent,1.185,dimensionless,power law exponent,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAP,Exp_divisor,0.000414,1/mm,exponential divisor,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAT,Max_gCm2yr,3139,g C/m2/yr,Max/(1+exp(Mid-Rate*T)),Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAT,Midpoint,2.2,dimensionless,logistic midpoint,Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_tree_ANPP,F_MAT,Rate,0.0307,1/degC,temperature rate,Temperature,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 1"
+NCEAS_nontree_TNPP,Saturating,Max_gCm2yr,6116,g C/m2/yr,Max*(1-exp(-Rate*P)),Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 2"
+NCEAS_nontree_TNPP,Saturating,Rate,6.05e-05,1/mm,exponential rate,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 2"
+NCEAS_nontree_ANPP,Saturating,Max_gCm2yr,4000,g C/m2/yr,Max*(1-exp(-Rate*P)),Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 2"
+NCEAS_nontree_ANPP,Saturating,Rate,4.77e-05,1/mm,exponential rate,Precipitation,"Del Grosso et al. (2008) Ecology 89:2117-2126, Table 2"
+Rosenzweig,Log_linear,Slope,1.66,dimensionless,log10(NPP)=Slope*log10(AET)+Intercept,AET,Rosenzweig (1968) Am Nat 102:67-74
+Rosenzweig,Log_linear,Intercept,-1.66,dimensionless,log10(NPP)=Slope*log10(AET)+Intercept,AET,Rosenzweig (1968) Am Nat 102:67-74

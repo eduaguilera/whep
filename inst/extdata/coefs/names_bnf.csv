@@ -1,0 +1,32 @@
+item_prod_code,item_prod_name,name_biomass,name_bnf,item_cbs_name
+27,Rice,Rice,Rice,Rice (Paddy Equivalent)
+176,"Beans, dry",Beans,Beans,Beans
+191,"Chick peas, dry",Chickpea,Other pulses,"Pulses, Other and products"
+181,"Broad beans and horse beans, dry",Fava bean,Fava bean,
+201,"Lentils, dry",Lentils,Lentils,
+210,Lupins,Lupin,Other pulses,
+187,"Peas, dry",Pea,Pea,Peas
+195,"Cow peas, dry",Pulses nes,Other pulses,
+197,"Pigeon peas, dry",Pulses nes,Other pulses,
+203,"Bambara beans, dry",Pulses nes,Other pulses,
+211,Other pulses n.e.c.,Pulses nes,Other pulses,
+423,String beans,Pulses nes,Other pulses,
+205,Vetches,Vetch,Other pulses,
+414,"Other beans, green","Beans, green",Green leguminous,Green_fodder
+417,"Peas, green","Pea, green, with pod",Green leguminous,
+420,"Broad beans and horse beans, green","Pea, green, with pod",Green leguminous,
+242,"Groundnuts, excluding shelled","Groundnuts, with shell","Groundnuts, with shell",
+236,Soya beans,Soyabeans,Soyabeans,Soyabeans
+156,Sugar cane,Sugarcane,Sugarcane,Sugar cane
+641,"Forage and silage, alfalfa",Alfalfa,Alfalfa,Alfalfa
+640,"Forage and silage, clover",Clover,Clover,
+642,"Forage and silage, green oilseeds","Fodder, other","Fodder, other",
+651,Forage products,"Fodder, other","Fodder, other",
+655,Vegetables and roots fodder,"Fodder, other","Fodder, other",
+643,"Forage and silage, legumes",Other legumes for green fodder,Green leguminous,
+3003,Fallow,Fallow,Fallow,
+Fallow,Fallow,Fallow,Fallow,
+996,Temporary grassland,Grass,Weeds,
+3001,Pasture,Grass,Weeds,
+3002,range,Grass,Weeds,
+645,Mixed Grasses and Legumes,Cereal-legume mixture,Mixed swards,

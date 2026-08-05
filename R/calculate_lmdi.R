@@ -219,11 +219,11 @@
 #' # [] sums the bracketed variable across sector before forming ratios,
 #' # enabling proper structural decomposition.
 #' data_sectors <- tibble::tribble(
-#'   ~year, ~sector,      ~activity, ~emissions,
-#'   2010, "industry",   600,        60,
-#'   2010, "transport",  400,        40,
-#'   2011, "industry",   700,        63,
-#'   2011, "transport",  500,        55
+#'   ~year, ~sector, ~activity, ~emissions,
+#'   2010, "industry", 600, 60,
+#'   2010, "transport", 400, 40,
+#'   2011, "industry", 700, 63,
+#'   2011, "transport", 500, 55
 #' ) |>
 #'   dplyr::group_by(year) |>
 #'   dplyr::mutate(total_activity = sum(activity)) |>
@@ -383,7 +383,12 @@ calculate_lmdi <- function(
   # Parse factors from identity
   factors <- .parse_identity(identity)$factors
 
-  # Always treat zeros (required for LMDI log calculations)
+  # Balance the panel first, independent of rolling mean, so groups that
+  # appear or disappear between periods do not break additive closure (#155).
+  data <- data |>
+    .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose)
+
+  # Treat zeros after balancing so filled-in gaps are handled too (#155).
   data <- .lmdi_treat_zeros(data, numeric_vars, target_var, factors, verbose)
 
   # Only apply rolling mean smoothing if requested (rolling_mean > 1)
@@ -397,7 +402,6 @@ calculate_lmdi <- function(
     )
 
     data <- data |>
-      .lmdi_balance_panel({{ time_var }}, group_cols, numeric_vars, verbose) |>
       .lmdi_apply_rolling_mean(
         target_var,
         {{ time_var }},
@@ -405,7 +409,10 @@ calculate_lmdi <- function(
         numeric_vars,
         k_eff,
         verbose
-      )
+      ) |>
+      # Smoothing each series independently breaks the identity; re-derive the
+      # target from its (now smoothed) factors so closure holds (#246).
+      .lmdi_recompute_target(target_var, factors, verbose)
   }
 
   data
@@ -719,6 +726,9 @@ calculate_lmdi <- function(
   ))
   numeric_vars <- all_vars[all_vars %in% names(data)]
   numeric_vars <- numeric_vars[purrr::map_lgl(data[numeric_vars], is.numeric)]
+  # Bracket selectors (e.g. `sector` in `activity[sector]`) are grouping keys,
+  # never numeric decomposition variables, even when integer-coded (#247).
+  numeric_vars <- setdiff(numeric_vars, .extract_selectors(identity))
   group_cols <- setdiff(names(data), c(time_var_str, numeric_vars))
   list(numeric_vars = numeric_vars, group_cols = group_cols)
 }
@@ -765,12 +775,13 @@ calculate_lmdi <- function(
   }
   epsilon <- 1e-12
 
-  # Check if any zeros/NAs exist before replacement
-  has_zeros <- any(
-    purrr::map_lgl(
-      numeric_vars,
-      ~ any(is.na(data[[.x]]) | data[[.x]] == 0)
-    )
+  # Rows where at least one numeric column will be epsilon-replaced. Only these
+  # rows get their target re-derived, so adding a single zero elsewhere never
+  # rewrites the target of unaffected rows (behaviour stays continuous, #180).
+  affected <- purrr::reduce(
+    numeric_vars,
+    ~ .x | is.na(data[[.y]]) | data[[.y]] == 0,
+    .init = rep(FALSE, nrow(data))
   )
 
   # Replace zeros/NAs with epsilon in all numeric columns
@@ -782,23 +793,27 @@ calculate_lmdi <- function(
       )
     )
 
-  # Recalculate target to maintain identity after epsilon replacement
-  # Only when: (1) zeros were replaced, and (2) factors are simple column names
+  # Re-derive the target from its factors on affected rows to maintain the
+  # identity after epsilon replacement, but only for simple-factor identities.
   simple_factors <- factors[!stringr::str_detect(factors, "[/\\[\\]]")]
-  if (
-    has_zeros &&
-      length(simple_factors) == length(factors) &&
-      all(simple_factors %in% names(data))
-  ) {
+  is_simple <- length(simple_factors) == length(factors) &&
+    all(simple_factors %in% names(data))
+  if (is_simple && any(affected)) {
+    prod_factors <- data |>
+      dplyr::select(dplyr::all_of(simple_factors)) |>
+      purrr::reduce(`*`)
     data <- data |>
       dplyr::mutate(
-        !!rlang::sym(target_var) := purrr::reduce(
-          dplyr::across(dplyr::all_of(simple_factors)),
-          `*`
+        !!rlang::sym(target_var) := dplyr::if_else(
+          affected,
+          prod_factors,
+          .data[[target_var]]
         )
       )
     if (verbose) {
-      cli::cli_inform("  - Target '{target_var}' recalculated from factors")
+      cli::cli_inform(
+        "  - Target '{target_var}' re-derived on {sum(affected)} affected row(s)"
+      )
     }
   }
 
@@ -808,6 +823,26 @@ calculate_lmdi <- function(
     )
     cli::cli_inform("-----------------------------")
     cli::cli_inform("")
+  }
+  data
+}
+
+.lmdi_recompute_target <- function(data, target_var, factors, verbose) {
+  simple_factors <- factors[!stringr::str_detect(factors, "[/\\[\\]]")]
+  is_simple <- length(simple_factors) == length(factors) &&
+    all(simple_factors %in% names(data))
+  if (!is_simple) {
+    return(data)
+  }
+  prod_factors <- data |>
+    dplyr::select(dplyr::all_of(simple_factors)) |>
+    purrr::reduce(`*`)
+  data <- data |>
+    dplyr::mutate(!!rlang::sym(target_var) := prod_factors)
+  if (verbose) {
+    cli::cli_inform(
+      "  - Target '{target_var}' re-derived from smoothed factors"
+    )
   }
   data
 }
@@ -882,7 +917,7 @@ calculate_lmdi <- function(
         ~ zoo::rollapply(
           .x,
           width = k_eff,
-          FUN = mean,
+          FUN = function(x) mean(x, na.rm = TRUE),
           align = "center",
           partial = TRUE
         )
@@ -896,7 +931,7 @@ calculate_lmdi <- function(
         ~ zoo::rollapply(
           .x,
           width = k_eff,
-          FUN = mean,
+          FUN = function(x) mean(x, na.rm = TRUE),
           align = "center",
           partial = TRUE
         )

@@ -1,0 +1,3087 @@
+#' Build primary production dataset
+#'
+#' @description
+#' Construct the full primary production dataset from raw FAOSTAT inputs.
+#' This is a convenience wrapper that chains the pipeline steps:
+#'
+#' 1. `.read_production()` — read & reformat FAOSTAT data.
+#' 2. `.fix_production()` — apply Global-ported corrections.
+#' 3. `.dedup_production()` — keep one value per key across sources.
+#' 4. `.qc_production()` — flag data-quality anomalies on the
+#'   surviving (deduplicated) values.
+#'
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2023`.
+#' @param smooth_carry_forward Logical. If `TRUE`, carry-forward tails
+#'   are replaced with a linear trend. Default `FALSE`.
+#' @param example Logical. If `TRUE`, return a small hardcoded example
+#'   tibble instead of reading remote data. Default `FALSE`.
+#' @param show_duplicates Logical. If `TRUE`, return only the rows that
+#'   have competing sources in wide format (one column per source) for
+#'   diagnostic comparison. Default `FALSE`.
+#' @param historical_data Optional harmonized historical production rows to add
+#'   before the LUH2 historical extension. May be a data frame or a path to a
+#'   parquet/csv file. Required semantic columns are `year`,
+#'   `item_prod_code`, `unit`, `value`, and one of `area_code` or
+#'   `polity_area_code`. Names such as `item_prod_name`, `item_cbs_name`, and
+#'   `source` are used when present; WHEP item and area tables fill canonical
+#'   names where possible. Observed historical rows are retained, and LUH2 proxy
+#'   filling can use them as anchors. Default `NULL`.
+#' @param .raw_data Optional tibble with the same structure as the output
+#'   of the internal `.read_production()` step. When supplied, the
+#'   remote-data read is skipped entirely and the pipeline starts from
+#'   `.fix_production()`. Columns required: `year`, `area`, `area_code`,
+#'   `item_prod`, `item_prod_code`, `item_cbs`, `item_cbs_code`,
+#'   `live_anim`, `live_anim_code`, `unit`, `value`, `source`.
+#'   Default `NULL`.
+#'
+#' @returns A tibble with the same columns as [get_primary_production()]:
+#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
+#'   `reporting_polity_code`, `reporting_polity_name`,
+#'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
+#'   `live_anim_code`, `unit`, `value`, and `source`.
+#'   Item names can be recovered via [add_item_prod_name()] and related helpers.
+#'   When `show_duplicates = TRUE`, returns a wide tibble with one
+#'   column per source showing the competing values.
+#'
+#' @export
+#'
+#' @examples
+#' build_primary_production(example = TRUE)
+build_primary_production <- function(
+  start_year = 1850,
+  end_year = 2023,
+  smooth_carry_forward = FALSE,
+  example = FALSE,
+  show_duplicates = FALSE,
+  historical_data = NULL,
+  .raw_data = NULL
+) {
+  if (example) {
+    return(.example_build_primary_prod())
+  }
+  cli::cli_h1("Building primary production")
+  if (is.null(.raw_data)) {
+    raw <- .read_production(start_year, end_year, historical_data)
+  } else {
+    if (!is.null(historical_data)) {
+      cli::cli_warn(
+        "{.arg historical_data} is ignored when {.arg .raw_data} is supplied."
+      )
+    }
+    raw <- .raw_data
+  }
+  cb_extracts <- attr(raw, ".cb_extracts")
+
+  clean <- raw |>
+    .fix_production() |>
+    dplyr::mutate(value = .round_reproducible(.data$value)) |>
+    tibble::as_tibble()
+
+  if (show_duplicates) {
+    return(.show_prod_duplicates(clean))
+  }
+
+  # QC flags are computed after deduplication so anomaly detection compares
+  # surviving values within a single source. Running it before dedup compared
+  # values across competing sources (later discarded), yielding spurious
+  # spike and carry-forward flags when sources disagreed.
+  result <- clean |>
+    .dedup_production() |>
+    .qc_production(smooth = smooth_carry_forward) |>
+    tibble::as_tibble() |>
+    dplyr::mutate(
+      item_prod_code = as.numeric(item_prod_code),
+      live_anim_code = as.numeric(live_anim_code)
+    ) |>
+    dplyr::select(
+      year,
+      area_code,
+      item_prod_code,
+      item_cbs_code,
+      live_anim_code,
+      unit,
+      value,
+      source,
+      dplyr::any_of("fao_flag")
+    ) |>
+    .add_reporting_polity_columns()
+
+  attr(result, ".cb_extracts") <- cb_extracts
+  result
+}
+
+
+#' Step 1: Read and reformat FAOSTAT production data
+#'
+#' @description
+#' Read raw FAOSTAT inputs (crops, livestock, fodder, emission-based
+#' stocks), gap-fill yields, handle double products, extend back to 1850
+#' using LUH2 land-use areas, and add grassland.
+#'
+#' No data corrections are applied at this stage. The output preserves
+#' FAOSTAT values as-is (including known issues such as un-corrected tea
+#' tonnages and the absence of game-meat stocks). For the corrected
+#' version, pipe into `.fix_production()`.
+#'
+#' @param start_year Integer. First year to include. Default `1850`.
+#' @param end_year Integer. Last year to include. Default `2023`.
+#'
+#' @returns A tibble in long format with columns:
+#'   `year`, `area`, `area_code`, `item_prod`, `item_prod_code`,
+#'   `item_cbs`, `item_cbs_code`, `live_anim`, `live_anim_code`,
+#'   `unit`, `value`, `source`.
+#'
+#'   The `source` column indicates data provenance:
+#'   `"FAOSTAT_prod"` (original FAOSTAT production), `"EuropeAgriDB"` (European AgriDB fodder),
+#'   `"DM_yield_estimate"` (dry-matter yield imputation),
+#'   `"fill_linear"` (interpolation), `"imputed_yield"` (yield × area),
+#'   `"imputed_cbs_ratio"` (CBS ratio imputation),
+#'   `"LUH2_cropland"` / `"LUH2_agriland"` (LUH2 proxy),
+#'   `"fill_linear_historical"` (pre-1962 linear extrapolation),
+#'   `"LUH2"` (grassland), `"Estimated"` (double-product estimation).
+#'
+#' @keywords internal
+#' @noRd
+.read_production <- function(
+  start_year = 1850,
+  end_year = 2023,
+  historical_data = NULL
+) {
+  output_years <- start_year:end_year
+  years_df <- tibble::tibble(year = output_years)
+
+  # FAOSTAT data begins at 1961. When historical extension is needed,
+  # we must also read the FAOSTAT anchor years to extrapolate from.
+  # All reads use `years` (which may extend beyond output_years);
+  # the output is trimmed to `output_years` at the end.
+  needs_historical <- start_year < 1962L
+  years <- if (needs_historical) {
+    start_year:max(end_year, 1965L)
+  } else {
+    output_years
+  }
+
+  # 1. Read commodity balances (for gap-filling)
+  cbs_prod_raw <- .read_cbs_production(years = years)
+
+  # 2. Read and process FAOSTAT crop/livestock production
+  fao_crop_liv <- .read_fao_crop_liv(years = years)
+
+  # 3. Fodder crops (year 2013 excluded — known bad data in old source)
+  fodder <- .build_fodder(fao_crop_liv, years = years)
+
+  # 4. Combine FAO + fodder (no tea correction — see .fix_production)
+  fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
+
+  # 5. Livestock stocks
+  fao_liv_all <- .build_livestock_stocks(
+    fao_combined,
+    years = years
+  )
+
+  # 5b. Livestock slaughter counts
+  fao_slaughter <- .build_livestock_slaughter(
+    fao_combined,
+    years = years
+  )
+
+  # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
+  primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
+
+  # 7. Yield calculation + gap-filling
+  yield_all <- .compute_yields(
+    primary_raw,
+    cbs_prod_raw
+  )
+
+  # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
+  primary_raw2 <- .assemble_production_raw(yield_all)
+
+  historical_rows <- .prepare_historical_production(
+    historical_data,
+    years = output_years
+  )
+  if (nrow(historical_rows) > 0L) {
+    cli::cli_alert_info(
+      "Adding {nrow(historical_rows)} harmonized historical production row{?s}"
+    )
+    primary_raw2 <- dplyr::bind_rows(primary_raw2, historical_rows)
+  }
+
+  # 9. Historical extension
+  land_areas <- .read_land_areas(years = years)
+  int_yields <- .read_int_yields(years = years)
+
+  primary_ext <- .extend_historical(
+    primary_raw2,
+    years_df,
+    land_areas
+  )
+
+  # 10. Add grassland + historical yields
+  grassland <- .build_grassland(land_areas)
+
+  cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
+
+  result <- primary_ext |>
+    dplyr::bind_rows(grassland) |>
+    .add_historical_yields(int_yields) |>
+    .finalise_primary() |>
+    dplyr::bind_rows(fao_slaughter) |>
+    .filter_years(output_years)
+
+  attr(result, ".cb_extracts") <- cb_extracts
+  result
+}
+
+
+#' Step 2: Apply Global-ported corrections to production data
+#'
+#' @description
+#' Applies the data corrections that were originally in
+#' `Global/R/crop_liv_prod.r`. These modify values but do not add
+#' QC metadata. Each correction is documented inline.
+#'
+#' **Corrections applied:**
+#' * **Tea ÷ 4.37** — FAOSTAT reports tea in fresh-leaf weight;
+#'   this converts to made-tea weight for years after 1990. Affects
+#'   both `tonnes` and yield units (`t_ha`, `t_head`, `t_LU`).
+#' * **Rice × 0.67** — FAOSTAT reports rice production as paddy;
+#'   this converts paddy rice tonnes and yields to milled equivalent.
+#' * **Game meat stocks** — creates synthetic `LU` and `heads` rows
+#'   for item "Game" (1190) from game-meat production tonnes (1163).
+#' * **Dissolved countries** — removes overlapping country/year
+#'   observations (e.g. Czechoslovakia after 1992).
+#'
+#' @param df A tibble from `.read_production()`.
+#'
+#' @returns The same tibble with corrected values.
+#'
+#' @keywords internal
+#' @noRd
+.fix_production <- function(df) {
+  df |>
+    .correct_tea_final() |>
+    .fix_rice_milled_equiv() |>
+    .add_game_meat_final() |>
+    .filter_dissolved_countries()
+}
+
+
+#' Step 3: Flag production data-quality anomalies
+#'
+#' @description
+#' Detects and optionally smooths data-quality issues in the production
+#' dataset. Adds a `qc_flag` character column.
+#'
+#' **Flags applied:**
+#' * `carry_forward` — constant-value tail (≥ `min_run` identical final
+#'   years). Likely FAOSTAT carry-forward imputation.
+#' * `spike` — year-on-year change exceeding `spike_ratio`.
+#' * `fodder_break` — the 1984/1985 EU fodder reporting discontinuity.
+#'
+#' @param df A tibble from `.fix_production()` (or `.read_production()`).
+#' @param smooth Logical. Replace carry-forward tails with a linear
+#'   trend? Default `FALSE`.
+#' @param anchor_years Integer. Years for trend anchor. Default `5`.
+#' @param spike_ratio Numeric. Threshold. Default `10`.
+#' @param spike_min Numeric. Minimum value. Default `1000`.
+#' @param min_run Integer. Minimum carry-forward run. Default `3`.
+#'
+#' @returns The input tibble plus a `qc_flag` column.
+#'
+#' @keywords internal
+#' @noRd
+.qc_production <- function(
+  df,
+  smooth = FALSE,
+  anchor_years = 5L,
+  spike_ratio = 10,
+  spike_min = 1000,
+  min_run = 3L
+) {
+  by_cols <- c(
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "unit"
+  )
+
+  df <- df |>
+    .flag_cf_and_spikes(
+      by = by_cols,
+      min_run = min_run,
+      spike_ratio = spike_ratio,
+      spike_min = spike_min
+    ) |>
+    .flag_fodder_break(item_col = "item_prod")
+
+  if (smooth) {
+    df <- .smooth_carry_forward(
+      df,
+      by = by_cols,
+      anchor_years = anchor_years
+    )
+  }
+
+  df <- .collapse_qc_flags(df)
+  .qc_summary(df, "Primary Production")
+  df
+}
+
+# -- Input reading helpers -----------------------------------------------------
+
+.read_cbs_production <- function(years = NULL) {
+  cli::cli_progress_step("Reading CBS production")
+  fbs_new <- .extract_cb("faostat-fbs-new", years = years)
+  fbs_old <- .extract_cb("faostat-fbs-old", years = years)
+  cbs_anim <- .extract_cb(
+    "faostat-cbs-old-animal",
+    years = years
+  )
+  cbs_crops <- .extract_cb(
+    "faostat-cbs-old-crops",
+    years = years
+  )
+
+  dt <- data.table::rbindlist(
+    list(
+      data.table::as.data.table(fbs_new),
+      data.table::as.data.table(fbs_old),
+      data.table::as.data.table(cbs_anim),
+      data.table::as.data.table(cbs_crops)
+    ),
+    use.names = TRUE,
+    fill = TRUE
+  )
+  dt <- dt[element == "production"]
+  dt <- dt[,
+    .(t_cbs = mean(value, na.rm = TRUE)),
+    by = c("area", "area_code", "year", "item_cbs", "item_cbs_code", "element")
+  ]
+  dt <- dt[, .(year, area_code, item_cbs_code, item_cbs, t_cbs)]
+
+  # Attach CB extracts so CBS build can reuse them
+  attr(dt, ".cb_extracts") <- list(
+    fbs_new = fbs_new,
+    fbs_old = fbs_old,
+    cbs_crops = cbs_crops,
+    cbs_animals = cbs_anim
+  )
+  dt
+}
+
+.read_fao_crop_liv <- function(years = NULL) {
+  cli::cli_progress_step("Reading FAO crops/livestock")
+  dt <- .read_input("faostat-production", years = years, year_col = "Year")
+  data.table::setnames(
+    dt,
+    c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
+    c(
+      "item_prod_code",
+      "item_prod",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value"
+    )
+  )
+  # Rename FAOSTAT flag so .aggregate_to_polities carries it through
+  if ("Flag" %in% names(dt)) {
+    data.table::setnames(dt, "Flag", "fao_flag")
+  }
+  dt[, item_prod_code := as.character(item_prod_code)]
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production"
+  )
+  data.table::setorderv(
+    dt,
+    c(
+      "year",
+      "area",
+      "area_code",
+      "item_prod_code",
+      "item_prod",
+      "element",
+      "unit"
+    )
+  )
+  dt
+}
+
+# `dependency_land` decides what happens to LUH2 land reported for a crown
+# dependency or overseas territory whose sovereign the crosswalk names but
+# which has no FAOSTAT `area_code` of its own: JEY, GGY, IMN, ALA, BLM, SXM.
+# "drop" is what the pipeline has always done, though only as a side effect of
+# the bridge being keyed by a numeric bucket; "sovereign" folds the land into
+# the sovereign polity's bucket instead. That is a change in what `GBR` and
+# `NLD` mean in a land series (18.8 Mha-years over 1850-2022, 0.0008% of LUH2
+# land), so it is a decision rather than a default: to take it, swap the two
+# strings below.
+.read_land_areas <- function(
+  years = NULL,
+  dependency_land = c("drop", "sovereign")
+) {
+  dependency_land <- match.arg(dependency_land)
+  cli::cli_progress_step("Reading land areas")
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
+  ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
+
+  dt <- .read_input("luh2-areas", years = years, year_col = "Year")
+  data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
+  if (dependency_land == "sovereign") {
+    dt <- .attribute_dependency_land(dt, area_bridge$iso3c)
+  }
+  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  unmatched <- unique(dt[is.na(area), iso3c])
+  if (length(unmatched) > 0) {
+    cli::cli_warn(
+      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
+    )
+  }
+  dt <- dt[!is.na(area)]
+  dt <- dt[year > 1849]
+  .fix_luh2_crop_collapse(dt)
+}
+
+# Relabel a dependency's LUH2 rows with its sovereign's ISO3, so the ordinary
+# area bridge assigns them the sovereign's bucket and label, and sum where both
+# report the same land use in the same year. The rows have to be summed rather
+# than stacked: `.fix_luh2_crop_collapse()` writes an interpolated value into
+# every row matching an (area_code, year, Land_Use) key, so leaving two rows
+# under one bucket would repair a collapsed year to twice the intended area.
+# `known_iso3` guards against relabelling to a sovereign the bridge itself
+# cannot resolve, which would move the loss rather than remove it.
+.attribute_dependency_land <- function(land_areas, known_iso3) {
+  dt <- data.table::as.data.table(land_areas)
+  map <- .dependency_sovereign_iso3()
+  map <- map[sovereign_iso3c %in% known_iso3 & iso3c %in% dt$iso3c]
+  if (nrow(map) == 0L) {
+    return(dt)
+  }
+
+  cli::cli_alert_info(
+    "Attributing LUH2 land to the sovereign polity for: {map$iso3c}"
+  )
+  sovereign <- stats::setNames(map$sovereign_iso3c, map$iso3c)
+  dt[iso3c %in% names(sovereign), iso3c := as.character(sovereign[iso3c])]
+
+  value_cols <- intersect(c("Area_Mha", "C_stock_Tg"), names(dt))
+  key_cols <- setdiff(names(dt), value_cols)
+  touched <- unique(unname(sovereign))
+  data.table::rbindlist(
+    list(
+      dt[!iso3c %in% touched],
+      dt[
+        iso3c %in% touched,
+        lapply(.SD, sum, na.rm = TRUE),
+        by = key_cols,
+        .SDcols = value_cols
+      ]
+    ),
+    use.names = TRUE
+  )
+}
+
+.fix_luh2_crop_collapse <- function(
+  land_areas,
+  collapse_ratio = 0.02,
+  min_neighbor_mha = 0.001
+) {
+  crop_vars <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
+  if (
+    !all(
+      c("area_code", "area", "year", "Land_Use", "Area_Mha") %in%
+        names(land_areas)
+    )
+  ) {
+    return(land_areas)
+  }
+
+  dt <- data.table::as.data.table(land_areas)
+  crop_totals <- dt[
+    Land_Use %in% crop_vars,
+    .(cropland_mha = sum(Area_Mha, na.rm = TRUE)),
+    by = .(area_code, area, year)
+  ]
+  data.table::setorder(crop_totals, area_code, year)
+  crop_totals[,
+    `:=`(
+      prev_mha = data.table::shift(cropland_mha, 1L),
+      next_mha = data.table::shift(cropland_mha, 1L, type = "lead")
+    ),
+    by = area_code
+  ]
+  crop_totals[, neighbor_mha := (prev_mha + next_mha) / 2]
+
+  bad <- crop_totals[
+    !is.na(prev_mha) &
+      !is.na(next_mha) &
+      prev_mha > min_neighbor_mha &
+      next_mha > min_neighbor_mha &
+      cropland_mha < neighbor_mha * collapse_ratio,
+    .(area_code, area, year)
+  ]
+  if (nrow(bad) == 0L) {
+    return(dt)
+  }
+
+  for (i in seq_len(nrow(bad))) {
+    ac <- bad$area_code[i]
+    yr <- bad$year[i]
+    for (lu in crop_vars) {
+      prev_val <- dt[
+        area_code == ac & year == yr - 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      next_val <- dt[
+        area_code == ac & year == yr + 1L & Land_Use == lu,
+        Area_Mha
+      ]
+      if (length(prev_val) > 0L && length(next_val) > 0L) {
+        dt[
+          area_code == ac & year == yr & Land_Use == lu,
+          Area_Mha := mean(c(prev_val[1L], next_val[1L]), na.rm = TRUE)
+        ]
+      }
+    }
+  }
+
+  cli::cli_alert_warning(
+    "Repaired {nrow(bad)} isolated LUH2 cropland collapse{?s} by adjacent-year interpolation"
+  )
+  dt
+}
+
+.read_int_yields <- function(years = NULL) {
+  cli::cli_progress_step("Reading international yields")
+  # The raw `area_code` is already a `polity_area_code`, matching the
+  # production `area_code`. Key the proxy by code (not by the periodized
+  # polity name) so the merge in `.add_historical_yields()` matches.
+  dt <- .read_input("international-yields", years = years, year_col = "year")
+  dt[, item_prod_code := as.character(item_code)]
+  dt[, area_code := as.integer(area_code)]
+  dt[, item_code := NULL]
+
+  dt <- dt[
+    year < 1962 & !is.na(yield) & yield != 0 & yield < 100
+  ]
+  dt <- dt[,
+    .(yield = mean(yield, na.rm = TRUE)),
+    by = c("year", "area_code", "item_prod_code")
+  ]
+  dt <- dt[!is.nan(yield)]
+  dt
+}
+
+# -- Fodder --------------------------------------------------------------------
+
+.build_fodder <- function(fao_crop_liv, years = NULL) {
+  cli::cli_progress_step("Building fodder dataset")
+  items_prod <- whep::items_prod_full
+  items <- whep::items_full
+  crops_eu <- whep::crops_eurostat
+  biomass <- whep::biomass_coefs
+
+  # Old FAO fodder data
+  i_fodder <- .read_fodder_old(years = years)
+
+  # EU AgriDB fodder
+  fodder_euadb <- .read_fodder_euadb(years = years)
+
+  # DM yields for imputing fodder areas
+  dm_yield <- .compute_dm_yield(
+    fao_crop_liv,
+    items_prod,
+    biomass
+  )
+
+  # Build complete fodder dataset
+  .combine_fodder(
+    i_fodder,
+    fodder_euadb,
+    dm_yield,
+    items_prod,
+    biomass
+  )
+}
+
+.read_fodder_old <- function(years = NULL) {
+  items_prod <- data.table::as.data.table(whep::items_prod_full)
+  items <- data.table::as.data.table(whep::items_full)
+
+  dt <- .read_input("faostat-production-old", years = years, year_col = "Year")
+  data.table::setnames(
+    dt,
+    c("AreaCode", "ItemCode", "ItemName", "Year", "Value"),
+    c("area_code", "item_prod_code", "item_prod", "year", "value")
+  )
+  dt[, `:=`(
+    element = "production",
+    unit = "t",
+    item_prod_code = as.character(item_prod_code)
+  )]
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production-old"
+  )
+  dt <- merge(
+    dt,
+    items_prod[, .(item_prod_code, item_cbs)],
+    by = "item_prod_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt <- merge(
+    dt,
+    unique(items[, .(item_cbs, Cat_1)]),
+    by = "item_cbs",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[Cat_1 == "Fodder_green"]
+}
+
+.read_fodder_euadb <- function(years = NULL) {
+  crops_eu <- whep::crops_eurostat
+  regions <- whep::regions_full
+
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
+    tibble::as_tibble() |>
+    dplyr::select(
+      polity_code = area_iso3c,
+      area_code = polity_area_code
+    ) |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
+
+  .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
+    dplyr::rename(year = Year) |>
+    dplyr::left_join(crops_eu, by = "Crop") |>
+    dplyr::rename(adb_region = Region) |>
+    dplyr::left_join(
+      regions |>
+        dplyr::select(
+          adb_region = ADB_Region,
+          area = polity_name,
+          polity_code
+        ),
+      by = "adb_region"
+    ) |>
+    dplyr::left_join(
+      area_bridge,
+      by = "polity_code"
+    ) |>
+    dplyr::select(-polity_code) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      Name_Eurostat,
+      Label,
+      Unit,
+      value = Value
+    )
+}
+
+.compute_dm_yield <- function(fao_crop_liv, items_prod, biomass) {
+  crops_dm <- items_prod |>
+    dplyr::left_join(
+      biomass |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
+      by = "Name_biomass"
+    ) |>
+    dplyr::select(item_prod_code, Product_kgDM_kgFM) |>
+    dplyr::filter(!is.na(Product_kgDM_kgFM))
+
+  fao_crop_liv |>
+    dplyr::filter(unit %in% c("ha", "t")) |>
+    tidyr::pivot_wider(
+      names_from = "unit",
+      values_from = "value"
+    ) |>
+    dplyr::left_join(crops_dm, by = "item_prod_code") |>
+    dplyr::mutate(dm = t * Product_kgDM_kgFM) |>
+    dplyr::summarise(
+      ha = sum(ha, na.rm = TRUE),
+      dm = sum(dm, na.rm = TRUE),
+      .by = c(year, area, area_code)
+    ) |>
+    dplyr::mutate(yield_dm = dm * 4 / ha)
+}
+
+.combine_fodder <- function(
+  i_fodder,
+  fodder_euadb,
+  dm_yield,
+  items_prod,
+  biomass
+) {
+  crops_dm <- items_prod |>
+    dplyr::left_join(
+      biomass |> dplyr::select(Name_biomass, Product_kgDM_kgFM),
+      by = "Name_biomass"
+    ) |>
+    dplyr::select(item_prod_code, Product_kgDM_kgFM) |>
+    dplyr::filter(!is.na(Product_kgDM_kgFM))
+
+  fodder_all <- i_fodder |>
+    dplyr::filter(year != 2013) |>
+    dplyr::mutate(
+      value = dplyr::if_else(value == 0, NA_real_, value)
+    ) |>
+    dplyr::right_join(
+      dm_yield |> dplyr::select(year, area_code, yield_dm),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::left_join(crops_dm, by = "item_prod_code") |>
+    dplyr::rename(t = value) |>
+    dplyr::mutate(
+      t_dm = t * Product_kgDM_kgFM,
+      ha = t_dm / yield_dm
+    ) |>
+    .merge_euadb_fodder(fodder_euadb, items_prod) |>
+    .fill_fodder_gaps(dm_yield, items_prod, biomass)
+
+  fodder_all |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      source,
+      t_2,
+      ha
+    ) |>
+    dplyr::rename(t = t_2) |>
+    tidyr::pivot_longer(
+      t:ha,
+      names_to = "unit",
+      values_to = "value"
+    )
+}
+
+.merge_euadb_fodder <- function(
+  fodder,
+  fodder_euadb,
+  items_prod
+) {
+  # `.read_fodder_euadb()` labels rows with the plain `polity_name`, but
+  # `fodder` carries periodized names, so a name-keyed join fragments rows.
+  # Rekey EU AgriDB onto the FAO name for the same (year, area_code) so the
+  # joins below match on a consistent (year, area_code, area) key.
+  fao_area <- fodder |>
+    dplyr::filter(!is.na(area)) |>
+    dplyr::distinct(year, area_code, area) |>
+    dplyr::rename(fao_area = area)
+
+  fodder_euadb <- fodder_euadb |>
+    dplyr::left_join(fao_area, by = c("year", "area_code")) |>
+    dplyr::mutate(area = dplyr::coalesce(fao_area, area)) |>
+    dplyr::select(-fao_area)
+
+  euadb_area <- fodder_euadb |>
+    dplyr::filter(Unit == "Mha") |>
+    dplyr::mutate(ha_euadb = value * 1e6) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      Name_Eurostat,
+      ha_euadb
+    ) |>
+    dplyr::left_join(
+      items_prod |>
+        dplyr::select(item_prod, item_prod_code, Name_Eurostat),
+      by = "Name_Eurostat"
+    )
+
+  euadb_yield <- fodder_euadb |>
+    dplyr::filter(Label == "Yield") |>
+    dplyr::mutate(kgnha_euadb = value) |>
+    dplyr::select(year, area, Name_Eurostat, kgnha_euadb)
+
+  fodder |>
+    dplyr::full_join(
+      euadb_area,
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "item_prod",
+        "item_prod_code"
+      )
+    ) |>
+    dplyr::left_join(
+      euadb_yield,
+      by = c("year", "area", "Name_Eurostat")
+    ) |>
+    dplyr::mutate(
+      ha_tot = sum(ha, na.rm = TRUE),
+      .by = c(year, area, area_code)
+    ) |>
+    dplyr::mutate(
+      sum_ha = sum(ha, na.rm = TRUE),
+      ha_share = dplyr::if_else(
+        ha_tot == 0,
+        NA_real_,
+        dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
+      ),
+      .by = c(year, area, area_code, Name_Eurostat)
+    )
+}
+
+.fill_fodder_gaps <- function(
+  fodder,
+  dm_yield,
+  items_prod,
+  biomass
+) {
+  grp_cols <- c(
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "Name_Eurostat"
+  )
+
+  dt <- data.table::as.data.table(fodder)
+  dt <- dt[!is.na(area)]
+  dt <- dt[,
+    .(
+      t = .sum_if_any(t),
+      t_dm = .sum_if_any(t_dm),
+      ha = .sum_if_any(ha),
+      ha_euadb = .sum_if_any(ha_euadb),
+      ha_share = .mean_if_any(ha_share),
+      kgnha_euadb = .mean_if_any(kgnha_euadb)
+    ),
+    by = c("year", grp_cols)
+  ]
+
+  # tidyr::complete equivalent: cross join all years x all group combos
+  dt <- merge(
+    .cross_join(
+      dt[, .(year = unique(year))],
+      unique(dt[, ..grp_cols])
+    ),
+    dt,
+    by = c("year", grp_cols),
+    all.x = TRUE,
+    sort = FALSE
+  )
+
+  # Three fill_linear calls sharing one sort — first call sets key,
+  # subsequent calls see key already set and skip setkeyv.
+  dt <- fill_linear(
+    dt,
+    ha_share,
+    time_col = year,
+    .by = grp_cols,
+    .copy = FALSE
+  )
+  dt <- fill_linear(
+    dt,
+    kgnha_euadb,
+    time_col = year,
+    .by = grp_cols,
+    .copy = FALSE
+  )
+  dt[, ha := data.table::fifelse(is.na(ha_euadb), ha, ha_euadb * ha_share)]
+  dt <- fill_linear(dt, ha, time_col = year, .by = grp_cols, .copy = FALSE)
+
+  dt <- dt[,
+    .(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      t,
+      t_dm,
+      ha_share,
+      ha,
+      kgnha_euadb
+    )
+  ]
+
+  dm_dt <- data.table::as.data.table(dm_yield)[, .(year, area_code, yield_dm)]
+  items_dt <- data.table::as.data.table(items_prod)[, .(
+    item_prod,
+    Name_biomass
+  )]
+  bio_dt <- data.table::as.data.table(biomass)[,
+    .(Name_biomass, Product_kgDM_kgFM, Product_kgN_kgDM)
+  ]
+
+  dt <- merge(
+    dt,
+    dm_dt,
+    by = c("year", "area_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt <- merge(dt, items_dt, by = "item_prod", all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, bio_dt, by = "Name_biomass", all.x = TRUE, sort = FALSE)
+
+  dt[, `:=`(
+    t_euadb = ha * kgnha_euadb / (Product_kgN_kgDM * Product_kgDM_kgFM * 1000),
+    t_dmbased = ha * yield_dm / Product_kgDM_kgFM
+  )]
+  dt[, t_2 := data.table::fifelse(!is.na(t_euadb), t_euadb, t_dmbased)]
+  dt[,
+    source := data.table::fcase(
+      !is.na(t)       , "FAOSTAT_prod" ,
+      !is.na(t_euadb) , "EuropeAgriDB" ,
+      default = "DM_yield_estimate"
+    )
+  ]
+
+  tibble::as_tibble(dt[!is.na(item_prod) & !is.na(t_2)])
+}
+
+.correct_tea <- function(df) {
+  df |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        unit == "t" &
+          item_prod == "Tea leaves" &
+          year > 1990,
+        value / 4.37,
+        value
+      )
+    )
+}
+
+# -- Livestock stocks ----------------------------------------------------------
+
+.build_livestock_stocks <- function(
+  fao_combined,
+  years = NULL
+) {
+  cli::cli_progress_step("Building livestock stocks")
+  animals <- whep::animals_codes
+  liv_lu <- whep::liv_lu_coefs
+
+  fao_stocks <- .read_livestock_stocks(years = years)
+
+  fao_liv_raw <- .combine_livestock(
+    fao_combined,
+    fao_stocks,
+    animals
+  )
+
+  .finalise_livestock(fao_liv_raw, animals, liv_lu)
+}
+
+.read_livestock_stocks <- function(years = NULL) {
+  dt <- .read_input(
+    "faostat-emissions-livestock",
+    years = years,
+    year_col = "Year"
+  )
+  data.table::setnames(
+    dt,
+    c("Item Code", "Item", "Area Code", "Unit", "Element", "Year", "Value"),
+    c(
+      "item_cbs_code",
+      "item_cbs",
+      "area_code",
+      "unit",
+      "element",
+      "year",
+      "value"
+    )
+  )
+  dt <- dt[element == "Stocks"]
+  if ("Source" %in% names(dt)) {
+    dt <- dt[Source == "FAO TIER 1"]
+  }
+  .aggregate_to_polities(
+    dt,
+    item_cbs_code,
+    item_cbs,
+    source_label = "faostat-emissions-livestock"
+  )
+}
+
+.combine_livestock <- function(
+  fao_combined,
+  fao_stocks,
+  animals
+) {
+  fao_combined |>
+    dplyr::filter(element == "Stocks") |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        unit == "1000 An",
+        value * 1000,
+        value
+      )
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod_code,
+      value
+    ) |>
+    dplyr::inner_join(
+      animals |>
+        dplyr::select(
+          item_cbs_code,
+          item_cbs,
+          Item_Code,
+          Livestock_name
+        ) |>
+        dplyr::mutate(item_prod_code = as.character(Item_Code)) |>
+        dplyr::select(-Item_Code),
+      by = "item_prod_code"
+    ) |>
+    dplyr::full_join(
+      fao_stocks |>
+        dplyr::rename(
+          value_st = value,
+          item_st = item_cbs
+        ) |>
+        dplyr::select(
+          year,
+          area,
+          item_cbs_code,
+          item_st,
+          value_st
+        ),
+      by = c("year", "area", "item_cbs_code")
+    ) |>
+    # Carry value_st forward (and back) in time per (area, item_cbs_code)
+    # so years that fall outside the faostat-emissions-livestock pin's
+    # coverage (typically the last 1-2 years; FAO emissions data lags
+    # QCL) inherit the latest known sub-item stock. Without this,
+    # fill_linear() cannot interpolate those years and .split_stock_share()
+    # below would treat them the same as an entirely-missing sub-item
+    # series (see its own comment for how that case is handled without
+    # double-counting).
+    fill_linear(
+      value_st,
+      time_col = year,
+      .by = c("area", "item_cbs_code")
+    ) |>
+    .split_stock_share() |>
+    dplyr::filter(!is.na(area_code)) |>
+    dplyr::mutate(
+      n = dplyr::n(),
+      .by = c(area, item_cbs, item_cbs_code)
+    ) |>
+    tidyr::complete(
+      year,
+      tidyr::nesting(
+        area,
+        area_code,
+        item_cbs,
+        item_cbs_code,
+        Livestock_name
+      )
+    ) |>
+    fill_linear(
+      n,
+      time_col = year,
+      .by = c(
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_cbs_code",
+        "Livestock_name"
+      )
+    ) |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        !is.na(value_comb),
+        value_comb,
+        dplyr::if_else(n > 40, NA_real_, 0)
+      ),
+      .by = c(area, area_code, item_cbs, item_cbs_code, Livestock_name)
+    ) |>
+    fill_linear(
+      value,
+      time_col = year,
+      .by = c(
+        "area",
+        "area_code",
+        "item_cbs",
+        "item_cbs_code",
+        "Livestock_name"
+      )
+    )
+}
+
+# Split the unsplit QCL stock (`value`) across sub-items (e.g. dairy vs
+# non-dairy cattle) sharing the same parent item_prod_code, proportionally to
+# each sub-item's own emissions-stock series (`value_st`).
+#
+# sum(value_st) used na.rm = FALSE, so if even one sub-item's value_st was
+# entirely NA for a country (fill_linear() has no anchor point to
+# interpolate from), the group sum became NA, share became NA for EVERY
+# sub-item in the group -- including ones with perfectly good data -- and
+# value_comb fell back to the full unsplit `value` for all of them. A country
+# whose cattle herd is split into dairy/non-dairy then had BOTH sub-rows
+# receive 100% of the total head count instead of a real split, double (or
+# n-fold) counting the herd.
+#
+# Fix: sum with na.rm = TRUE, so a sub-item with no data at all contributes
+# 0 rather than NA, and its share becomes 0 -- letting siblings that DO have
+# data absorb the total instead of everyone falling back to it. If the whole
+# group has no data (sum is 0), split equally across the n sub-items instead
+# of giving each the full amount, so the total is still conserved.
+.split_stock_share <- function(data) {
+  data |>
+    dplyr::mutate(
+      sum_value_st = sum(value_st, na.rm = TRUE),
+      share = dplyr::if_else(
+        sum_value_st > 0,
+        dplyr::coalesce(value_st, 0) / sum_value_st,
+        1 / dplyr::n()
+      ),
+      value_comb = value * share,
+      .by = c(year, area, item_prod_code)
+    ) |>
+    dplyr::select(-sum_value_st, -share)
+}
+
+.finalise_livestock <- function(fao_liv_raw, animals, liv_lu) {
+  fao_liv_raw |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_cbs_code,
+      item_cbs,
+      value,
+      source_value
+    ) |>
+    dplyr::left_join(
+      animals |> dplyr::select(item_cbs, Animal_class),
+      by = "item_cbs"
+    ) |>
+    dplyr::left_join(liv_lu, by = "Animal_class") |>
+    dplyr::mutate(value_lu = value * LU_head) |>
+    (\(df) {
+      dplyr::bind_rows(
+        df |>
+          dplyr::mutate(value = value_lu, unit = "LU"),
+        df |>
+          dplyr::mutate(unit = "heads")
+      )
+    })() |>
+    dplyr::mutate(element = "Stock") |>
+    dplyr::rename(
+      item_prod = item_cbs,
+      item_prod_code = item_cbs_code
+    ) |>
+    dplyr::mutate(item_prod_code = as.character(item_prod_code)) |>
+    dplyr::mutate(
+      source = dplyr::if_else(
+        source_value == "Original",
+        "FAOSTAT_prod",
+        "fill_linear"
+      )
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod_code,
+      item_prod,
+      unit,
+      value,
+      source
+    )
+}
+
+# -- Livestock slaughter -------------------------------------------------------
+
+.build_slaughter_map <- function() {
+  ac <- whep::animals_codes
+  from_ac <- ac |>
+    dplyr::filter(
+      !is.na(Item_Code_product),
+      Liv_prod_cat %in%
+        c(
+          "Cattle meat",
+          "Chicken meat",
+          "Pig meat",
+          "Sheep and goat meat",
+          "Other animal meat"
+        )
+    ) |>
+    dplyr::select(
+      meat_prod_code = Item_Code_product,
+      item_cbs_code
+    )
+  supplement <- tibble::tribble(
+    ~meat_prod_code, ~item_cbs_code,
+    947, 946,
+    1073, 1072,
+    1080, 1079,
+    1141, 1140,
+    1151, 1150,
+    1097, 1096,
+    1108, 1107,
+    1111, 1110,
+    1127, 1126,
+    1158, 1157,
+    1163, 1190
+  )
+  dplyr::bind_rows(from_ac, supplement) |>
+    dplyr::distinct()
+}
+
+.read_slaughter_raw <- function(fao_combined, smap) {
+  fao_combined |>
+    dplyr::filter(element == "Producing Animals/Slaughtered") |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        unit == "1000 An",
+        value * 1000,
+        value
+      ),
+      item_prod_code = as.numeric(item_prod_code)
+    ) |>
+    dplyr::inner_join(
+      smap,
+      by = c("item_prod_code" = "meat_prod_code")
+    ) |>
+    dplyr::summarise(
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, area, area_code, item_cbs_code)
+    ) |>
+    dplyr::filter(value > 0)
+}
+
+.split_slaughter_by_shares <- function(slaughter_raw, years) {
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  needs_split <- slaughter_raw |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code")
+  no_split <- slaughter_raw |>
+    dplyr::anti_join(split_cbs, by = "item_cbs_code")
+
+  if (nrow(needs_split) == 0L) {
+    return(no_split)
+  }
+  # Stock shares come from the faostat-emissions-livestock pin, which lags
+  # QCL slaughter by 1-2 years. Carry the latest known share forward (and
+  # interpolate/back-fill) so split species keep their slaughter counts in
+  # QCL's most recent years, mirroring the value_st fill in
+  # .combine_livestock(). Without this the inner_join drops those years and
+  # cattle/swine/chicken slaughtered_heads silently vanish.
+  shares <- .compute_stock_shares(years) |>
+    .carry_forward_shares(sort(unique(needs_split$year)))
+  split_result <- needs_split |>
+    dplyr::select(-item_cbs_code) |>
+    dplyr::distinct() |>
+    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::mutate(value = value * share) |>
+    dplyr::select(year, area, area_code, item_cbs_code, value)
+
+  dplyr::bind_rows(no_split, split_result)
+}
+
+.carry_forward_shares <- function(shares, target_years) {
+  shares |>
+    tidyr::complete(
+      year = target_years,
+      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+    ) |>
+    fill_linear(
+      share,
+      time_col = year,
+      .by = c("area_code", "Item_Code", "item_cbs_code")
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+}
+
+.compute_stock_shares <- function(years) {
+  fao_stocks <- .read_livestock_stocks(years = years)
+  split_parents <- whep::animals_codes |>
+    dplyr::count(Item_Code) |>
+    dplyr::filter(n > 1) |>
+    dplyr::pull(Item_Code)
+  split_cbs <- whep::animals_codes |>
+    dplyr::filter(Item_Code %in% split_parents) |>
+    dplyr::select(Item_Code, item_cbs_code)
+
+  fao_stocks |>
+    dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
+    dplyr::mutate(
+      share = value / sum(value, na.rm = TRUE),
+      .by = c(year, area_code, Item_Code)
+    ) |>
+    dplyr::filter(!is.na(share)) |>
+    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+}
+
+.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+  cli::cli_progress_step("Building livestock slaughter counts")
+  items <- whep::items_cbs
+  smap <- .build_slaughter_map()
+  raw <- .read_slaughter_raw(fao_combined, smap)
+  result <- .split_slaughter_by_shares(raw, years)
+
+  result |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs_code, item_cbs_name),
+      by = "item_cbs_code"
+    ) |>
+    dplyr::mutate(
+      item_prod = item_cbs_name,
+      item_prod_code = as.character(item_cbs_code),
+      item_cbs = item_cbs_name,
+      live_anim = NA_character_,
+      live_anim_code = NA_character_,
+      unit = "slaughtered_heads",
+      source = "FAOSTAT_prod"
+    ) |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs,
+      item_cbs_code,
+      live_anim,
+      live_anim_code,
+      unit,
+      value,
+      source
+    )
+}
+
+# -- Primary combination & yields ---------------------------------------------
+
+.combine_primary_raw <- function(fao_combined, fao_liv_all) {
+  cli::cli_progress_step("Combining primary raw dataset")
+  dplyr::bind_rows(
+    fao_combined |>
+      dplyr::filter(unit %in% c("ha", "t")) |>
+      dplyr::mutate(
+        source = dplyr::if_else(
+          is.na(source),
+          "FAOSTAT_prod",
+          source
+        )
+      ),
+    fao_liv_all
+  ) |>
+    dplyr::summarise(
+      value = sum(value),
+      source = source[1L],
+      .by = c(
+        year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        unit
+      )
+    )
+}
+
+.add_game_meat <- function(df) {
+  game <- df |>
+    dplyr::filter(item_prod_code == 1163) |>
+    dplyr::mutate(
+      value = value * 3,
+      unit = "LU",
+      item_prod = "Game",
+      item_prod_code = 1190
+    )
+
+  game_heads <- game |>
+    dplyr::mutate(value = value / 10, unit = "heads")
+
+  dplyr::bind_rows(df, game, game_heads)
+}
+
+.compute_yields <- function(primary_raw, cbs_prod_raw) {
+  cli::cli_progress_step("Computing yields")
+  items_prod <- whep::items_prod_full
+
+  yield_raw <- .calculate_raw_yields(primary_raw, items_prod)
+  yield_double <- .handle_double_products(
+    yield_raw,
+    whep::primary_double
+  )
+
+  dplyr::bind_rows(
+    yield_raw |>
+      dplyr::filter(
+        !item_prod %in% whep::primary_double$item_prod
+      ),
+    yield_double
+  ) |>
+    .fill_yields(items_prod, cbs_prod_raw)
+}
+
+.calculate_raw_yields <- function(primary_raw, items_prod) {
+  crop_dt <- data.table::as.data.table(primary_raw)[unit %in% c("ha", "t")]
+  crop_yield <- data.table::dcast(
+    crop_dt,
+    year + area + area_code + item_prod + item_prod_code ~ unit,
+    value.var = "value"
+  )
+  crop_yield[, `:=`(yield_c = t / ha, unit = "t_ha")]
+  data.table::setnames(crop_yield, "ha", "fu")
+  crop_yield <- tibble::as_tibble(crop_yield)
+
+  liv_yield <- primary_raw |>
+    dplyr::filter(unit == "t") |>
+    dplyr::select(-unit) |>
+    dplyr::right_join(
+      items_prod |>
+        dplyr::filter(!is.na(live_anim)) |>
+        dplyr::select(
+          live_anim,
+          live_anim_code,
+          item_prod_code
+        ) |>
+        dplyr::mutate(live_anim_code = as.character(live_anim_code)),
+      by = "item_prod_code"
+    ) |>
+    dplyr::rename(t = value) |>
+    tidyr::complete(
+      year,
+      tidyr::nesting(
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        live_anim,
+        live_anim_code
+      )
+    ) |>
+    dplyr::left_join(
+      dplyr::bind_rows(
+        primary_raw |>
+          dplyr::filter(unit == "LU") |>
+          dplyr::rename(live_anim_code = item_prod_code) |>
+          dplyr::select(
+            year,
+            area,
+            area_code,
+            live_anim_code,
+            unit,
+            value
+          ),
+        primary_raw |>
+          dplyr::filter(unit == "heads") |>
+          dplyr::rename(live_anim_code = item_prod_code) |>
+          dplyr::select(
+            year,
+            area,
+            area_code,
+            live_anim_code,
+            unit,
+            value
+          )
+      ) |>
+        dplyr::summarise(
+          value = sum(value, na.rm = TRUE),
+          .by = c(year, area, area_code, live_anim_code, unit)
+        ),
+      by = c(
+        "year",
+        "area",
+        "area_code",
+        "live_anim_code"
+      )
+    ) |>
+    dplyr::rename(fu = value) |>
+    dplyr::mutate(
+      yield_c = t / fu,
+      unit = dplyr::if_else(
+        unit == "LU",
+        "t_LU",
+        "t_head"
+      )
+    )
+
+  dplyr::bind_rows(crop_yield, liv_yield) |>
+    dplyr::mutate(
+      t = dplyr::if_else(t == 0, NA_real_, t),
+      fu = dplyr::if_else(fu == 0, NA_real_, fu),
+      yield_c = dplyr::if_else(
+        yield_c == 0 | is.infinite(yield_c) | is.nan(yield_c),
+        NA_real_,
+        yield_c
+      )
+    ) |>
+    tidyr::complete(
+      year,
+      tidyr::nesting(
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        live_anim,
+        live_anim_code,
+        unit
+      )
+    )
+}
+
+.handle_double_products <- function(yield_raw, primary_double) {
+  yield_double_all <- yield_raw |>
+    dplyr::right_join(
+      primary_double |> dplyr::select(item_prod, Multi_type),
+      by = "item_prod"
+    ) |>
+    .suppress_empty_series() |>
+    .build_double_combined(primary_double) |>
+    .deduplicate_doubles()
+
+  yield_double_all |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      Multi_type,
+      unit,
+      yield_c,
+      fu,
+      t
+    )
+}
+
+.suppress_empty_series <- function(df) {
+  df |>
+    dplyr::mutate(
+      check_t = sum(t, na.rm = TRUE),
+      check_fu = sum(fu, na.rm = TRUE),
+      check = check_t + check_fu,
+      .by = c(area, area_code, item_prod, item_prod_code)
+    ) |>
+    dplyr::filter(check != 0)
+}
+
+.build_double_combined <- function(df, primary_double) {
+  multi_stripped <- df |>
+    dplyr::mutate(
+      fu = dplyr::if_else(
+        Multi_type == "Multi",
+        NA_real_,
+        fu
+      ),
+      yield_c = dplyr::if_else(
+        Multi_type == "Multi",
+        NA_real_,
+        yield_c
+      )
+    )
+
+  combined <- df |>
+    dplyr::filter(Multi_type %in% c("Multi", "Primary")) |>
+    dplyr::select(-Multi_type, -item_prod_code) |>
+    dplyr::left_join(
+      primary_double |>
+        dplyr::select(item_prod, Item_area) |>
+        dplyr::left_join(
+          primary_double |>
+            dplyr::select(
+              item_prod,
+              item_prod_code,
+              Multi_type
+            ) |>
+            dplyr::mutate(
+              item_prod_code = as.character(item_prod_code)
+            ) |>
+            dplyr::rename(Item_area = item_prod),
+          by = "Item_area"
+        ),
+      by = "item_prod"
+    ) |>
+    dplyr::mutate(item_prod = Item_area) |>
+    dplyr::summarise(
+      t = sum(t, na.rm = TRUE),
+      fu_sum = sum(fu, na.rm = TRUE),
+      fu_mean = mean(fu, na.rm = TRUE),
+      distinct = dplyr::n_distinct(fu),
+      .by = c(
+        year,
+        item_prod,
+        item_prod_code,
+        area,
+        area_code,
+        unit,
+        Multi_type
+      )
+    ) |>
+    dplyr::mutate(
+      fu = dplyr::if_else(
+        distinct == 1,
+        fu_mean,
+        fu_sum
+      ),
+      fu = dplyr::if_else(is.nan(fu), NA_real_, fu),
+      yield_c = t / fu,
+      source = "Estimated"
+    )
+
+  dplyr::bind_rows(multi_stripped, combined)
+}
+
+.deduplicate_doubles <- function(df) {
+  df |>
+    dplyr::filter(!is.na(t)) |>
+    dplyr::mutate(
+      n = dplyr::n(),
+      .by = c(
+        year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        unit
+      )
+    ) |>
+    dplyr::filter(n == 1 | (n == 2 & is.na(source)))
+}
+
+.fill_yields <- function(yield_all, items_prod, cbs_prod_raw) {
+  yield_all |>
+    .collapse_yield_rows() |>
+    fill_linear(
+      yield_c,
+      time_col = year,
+      .by = c(
+        "area",
+        "area_code",
+        "item_prod",
+        "item_prod_code",
+        "live_anim_code",
+        "unit"
+      )
+    ) |>
+    .add_global_yields() |>
+    dplyr::left_join(
+      items_prod |>
+        dplyr::select(item_prod_code, item_cbs_code, group) |>
+        dplyr::distinct(item_prod_code, .keep_all = TRUE),
+      by = "item_prod_code"
+    ) |>
+    dplyr::left_join(
+      cbs_prod_raw,
+      by = c("year", "area_code", "item_cbs_code")
+    ) |>
+    .compute_cbs_ratios() |>
+    .impute_missing_values()
+}
+
+.collapse_yield_rows <- function(df) {
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+
+  df[, `:=`(.t_ok = as.double(!is.na(t)), .fu_ok = as.double(!is.na(fu)))]
+
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "live_anim_code",
+    "unit"
+  )
+
+  # GForce-optimized numeric aggregation
+  out <- df[,
+    .(
+      t = sum(t, na.rm = TRUE),
+      .t_n = sum(.t_ok),
+      fu = sum(fu, na.rm = TRUE),
+      .fu_n = sum(.fu_ok),
+      yield_c = mean(yield_c, na.rm = TRUE)
+    ),
+    keyby = by_cols
+  ]
+
+  out[.t_n == 0, t := NA_real_]
+  out[.fu_n == 0, fu := NA_real_]
+  out[is.nan(yield_c), yield_c := NA_real_]
+  out[, c(".t_n", ".fu_n") := NULL]
+
+  # Character columns: vectorised first-non-NA via unique()
+  # (avoids per-group R expression evaluation)
+  chars <- .first_non_na_chars(
+    df,
+    by_cols,
+    c(
+      "source",
+      "Multi_type",
+      "live_anim"
+    )
+  )
+
+  out <- out[chars]
+  df[, c(".t_ok", ".fu_ok") := NULL]
+  out
+}
+
+.add_global_yields <- function(df) {
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+  dt <- df
+
+  global <- dt[,
+    .(
+      t = sum(t, na.rm = TRUE),
+      fu = sum(fu, na.rm = TRUE)
+    ),
+    by = c("year", "item_prod_code", "live_anim_code", "unit")
+  ]
+
+  global[, yield_glo := t / fu]
+  global[
+    yield_glo == 0 | is.infinite(yield_glo) | is.nan(yield_glo),
+    yield_glo := NA_real_
+  ]
+
+  global <- fill_linear(
+    global,
+    yield_glo,
+    time_col = year,
+    .by = c("item_prod_code", "live_anim_code", "unit"),
+    .copy = FALSE
+  )
+  if (!data.table::is.data.table(global)) {
+    data.table::setDT(global)
+  }
+  global <- global[, .(year, item_prod_code, live_anim_code, unit, yield_glo)]
+
+  merge(
+    dt,
+    global,
+    by = c("year", "item_prod_code", "live_anim_code", "unit"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+}
+
+.compute_cbs_ratios <- function(df) {
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  } else {
+    data.table::setalloccol(df)
+  }
+  df[,
+    `:=`(
+      prod_cbs_ratio = t / t_cbs,
+      prod_cbs_count = .N,
+      sumprod_cbs_ratio = sum(t, na.rm = TRUE) / t_cbs[1L]
+    ),
+    by = c("year", "area", "area_code", "item_cbs_code")
+  ]
+
+  df |>
+    .collapse_cbs_ratio_rows() |>
+    fill_linear(
+      prod_cbs_ratio,
+      time_col = year,
+      .by = c(
+        "area",
+        "area_code",
+        "item_prod",
+        "item_prod_code",
+        "item_cbs",
+        "item_cbs_code",
+        "live_anim",
+        "live_anim_code",
+        "unit",
+        "group"
+      )
+    )
+}
+
+.collapse_cbs_ratio_rows <- function(df) {
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+
+  df[, .tcbs_ok := as.double(!is.na(t_cbs))]
+
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit",
+    "group"
+  )
+
+  # GForce-optimized numeric aggregation
+  out <- df[,
+    .(
+      t = sum(t, na.rm = TRUE),
+      fu = sum(fu, na.rm = TRUE),
+      yield_c = mean(yield_c, na.rm = TRUE),
+      yield_glo = mean(yield_glo, na.rm = TRUE),
+      t_cbs = sum(t_cbs, na.rm = TRUE),
+      .tcbs_n = sum(.tcbs_ok),
+      prod_cbs_ratio = mean(prod_cbs_ratio, na.rm = TRUE),
+      prod_cbs_count = mean(prod_cbs_count, na.rm = TRUE),
+      sumprod_cbs_ratio = mean(sumprod_cbs_ratio, na.rm = TRUE)
+    ),
+    keyby = by_cols
+  ]
+
+  out[.tcbs_n == 0, t_cbs := NA_real_]
+  out[is.nan(yield_c), yield_c := NA_real_]
+  out[is.nan(yield_glo), yield_glo := NA_real_]
+  out[is.nan(prod_cbs_ratio), prod_cbs_ratio := NA_real_]
+  out[is.nan(sumprod_cbs_ratio), sumprod_cbs_ratio := NA_real_]
+  out[, .tcbs_n := NULL]
+
+  # Character columns: vectorised first-non-NA via unique()
+  chars <- .first_non_na_chars(
+    df,
+    by_cols,
+    c(
+      "source",
+      "Multi_type",
+      "source_yield_c"
+    )
+  )
+
+  out <- out[chars]
+  df[, .tcbs_ok := NULL]
+  out
+}
+
+.impute_missing_values <- function(df) {
+  df |>
+    dplyr::mutate(
+      yield = dplyr::if_else(
+        !is.na(yield_c),
+        yield_c,
+        yield_glo
+      ),
+      t2 = dplyr::if_else(
+        is.na(t),
+        dplyr::if_else(
+          is.na(fu * yield) &
+            sumprod_cbs_ratio < 0.9 &
+            is.na(Multi_type),
+          t_cbs * prod_cbs_ratio,
+          fu * yield
+        ),
+        t
+      ),
+      fu2 = dplyr::if_else(
+        is.na(fu),
+        t2 / yield,
+        fu
+      ),
+      source = dplyr::case_when(
+        !is.na(source) ~ source,
+        !is.na(t) ~ "FAOSTAT_prod",
+        !is.na(fu * yield) &
+          !is.na(source_yield_c) &
+          source_yield_c != "Original" ~
+          paste0("imputed_yield:", source_yield_c),
+        !is.na(fu * yield) ~ "imputed_yield",
+        sumprod_cbs_ratio < 0.9 &
+          is.na(Multi_type) ~
+          "imputed_cbs_ratio",
+        TRUE ~ "imputed_yield"
+      )
+    ) |>
+    dplyr::mutate(
+      remove = dplyr::if_else(
+        (is.na(group) | group == "Crop products") |
+          (group == "Livestock products" & unit == "t_ha") |
+          is.na(t2) |
+          t2 == 0,
+        "remove",
+        NA_character_
+      )
+    ) |>
+    dplyr::filter(is.na(remove))
+}
+
+# -- Assembly ------------------------------------------------------------------
+
+.assemble_production_raw <- function(yield_all) {
+  cli::cli_progress_step("Assembling production")
+  items <- whep::items_full
+
+  ha_df <- yield_all |>
+    dplyr::filter(unit == "t_ha") |>
+    dplyr::mutate(unit = "ha") |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      live_anim,
+      live_anim_code,
+      unit,
+      source,
+      value = fu2
+    )
+
+  tonnes_df <- yield_all |>
+    dplyr::filter(unit %in% c("t_ha", "t_head")) |>
+    dplyr::mutate(unit = "t") |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      live_anim,
+      live_anim_code,
+      unit,
+      source,
+      value = t2
+    )
+
+  yield_df <- yield_all |>
+    dplyr::select(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      live_anim,
+      live_anim_code,
+      unit,
+      source,
+      value = yield
+    )
+
+  live_anim_df <- yield_all |>
+    dplyr::filter(unit %in% c("t_LU", "t_head")) |>
+    dplyr::summarise(
+      value = mean(fu2, na.rm = TRUE),
+      source = source[1L],
+      .by = c(
+        year,
+        area,
+        area_code,
+        live_anim_code,
+        unit
+      )
+    ) |>
+    dplyr::mutate(
+      unit = dplyr::case_match(
+        unit,
+        "t_LU" ~ "LU",
+        "t_head" ~ "heads"
+      )
+    ) |>
+    dplyr::rename(item_prod_code = live_anim_code) |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs, item_cbs_code) |>
+        dplyr::mutate(item_prod_code = as.character(item_cbs_code)),
+      by = "item_prod_code"
+    ) |>
+    dplyr::mutate(item_prod = item_cbs)
+
+  dplyr::bind_rows(ha_df, tonnes_df, yield_df) |>
+    dplyr::select(-item_prod) |>
+    dplyr::left_join(
+      whep::items_prim |>
+        dplyr::select(
+          item_prod,
+          item_prod_code,
+          item_cbs,
+          item_cbs_code
+        ),
+      by = "item_prod_code"
+    ) |>
+    dplyr::filter(
+      !is.na(value),
+      !is.infinite(value),
+      value != 0
+    ) |>
+    dplyr::bind_rows(live_anim_df) |>
+    dplyr::mutate(
+      unit = dplyr::if_else(
+        unit == "t",
+        "tonnes",
+        as.character(unit)
+      )
+    )
+}
+
+.prepare_historical_production <- function(historical_data, years) {
+  if (is.null(historical_data)) {
+    return(.empty_historical_production())
+  }
+
+  raw <- .read_historical_production(historical_data)
+  if (nrow(raw) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  required <- c("year", "item_prod_code", "unit", "value")
+  missing <- setdiff(required, names(raw))
+  has_area_code <- "area_code" %in%
+    names(raw) ||
+    "polity_area_code" %in% names(raw)
+  if (length(missing) > 0L || !has_area_code) {
+    cli::cli_abort(
+      c(
+        "{.arg historical_data} is missing required columns.",
+        "x" = "Required columns: {.field {required}} and one of {.field area_code} or {.field polity_area_code}.",
+        if (length(missing) > 0L) {
+          "x" <- "Missing: {.field {missing}}."
+        }
+      )
+    )
+  }
+
+  raw <- tibble::as_tibble(raw)
+  n_in <- nrow(raw)
+  area_code <- .coalesce_historical_cols(
+    raw,
+    c("area_code", "polity_area_code")
+  )
+  item_prod <- .coalesce_historical_cols(
+    raw,
+    c("item_prod", "item_prod_name")
+  )
+  item_cbs <- .coalesce_historical_cols(
+    raw,
+    c("item_cbs", "item_cbs_name")
+  )
+  source <- .coalesce_historical_cols(raw, c("source", "raw_source"))
+  source <- dplyr::if_else(is.na(source) | source == "", "unknown", source)
+  source <- dplyr::if_else(
+    stringr::str_starts(source, "historical_"),
+    source,
+    paste0("historical_", source)
+  )
+
+  dt <- data.table::data.table(
+    year = suppressWarnings(as.integer(raw$year)),
+    area = .coalesce_historical_cols(
+      raw,
+      c("area", "area_name", "reporting_polity_name", "raw_country")
+    ),
+    area_code = suppressWarnings(as.integer(as.numeric(area_code))),
+    item_prod = item_prod,
+    item_prod_code = .normalise_historical_code(raw$item_prod_code),
+    item_cbs = item_cbs,
+    item_cbs_code = if ("item_cbs_code" %in% names(raw)) {
+      suppressWarnings(as.integer(as.numeric(raw$item_cbs_code)))
+    } else {
+      NA_integer_
+    },
+    live_anim = .coalesce_historical_cols(
+      raw,
+      c("live_anim", "live_anim_name")
+    ),
+    live_anim_code = if ("live_anim_code" %in% names(raw)) {
+      .normalise_historical_code(raw$live_anim_code)
+    } else {
+      NA_character_
+    },
+    unit = as.character(raw$unit),
+    value = suppressWarnings(as.numeric(raw$value)),
+    source = source
+  )
+
+  dt <- dt[
+    year %in%
+      years &
+      !is.na(area_code) &
+      !is.na(item_prod_code) &
+      item_prod_code != "" &
+      !is.na(unit) &
+      unit != "" &
+      !is.na(value) &
+      is.finite(value)
+  ]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  area_lookup <- .current_area_lookup(include_unmapped = TRUE)[
+    !is.na(area_code),
+    .(
+      area_code = as.integer(area_code),
+      area_lookup = area_name
+    )
+  ]
+  area_lookup <- unique(area_lookup, by = "area_code")
+  dt <- merge(dt, area_lookup, by = "area_code", all.x = TRUE, sort = FALSE)
+  dt[, area := data.table::fcoalesce(area_lookup, area)]
+  dt[, area_lookup := NULL]
+
+  item_lookup <- data.table::as.data.table(whep::items_prod_full)[,
+    .(
+      item_prod_code = as.character(item_prod_code),
+      item_cbs_code = suppressWarnings(as.integer(as.numeric(item_cbs_code))),
+      item_prod_lookup = item_prod,
+      item_cbs_lookup = item_cbs,
+      live_anim_lookup = live_anim,
+      live_anim_code_lookup = .normalise_historical_code(live_anim_code)
+    )
+  ]
+  item_lookup_both <- unique(
+    item_lookup[!is.na(item_cbs_code)],
+    by = c("item_prod_code", "item_cbs_code")
+  )
+  item_lookup_prod <- unique(
+    item_lookup[,
+      .(
+        item_prod_code,
+        item_prod_lookup_prod = item_prod_lookup,
+        item_cbs_code_lookup_prod = item_cbs_code,
+        item_cbs_lookup_prod = item_cbs_lookup,
+        live_anim_lookup_prod = live_anim_lookup,
+        live_anim_code_lookup_prod = live_anim_code_lookup
+      )
+    ],
+    by = "item_prod_code"
+  )
+  dt <- merge(
+    dt,
+    item_lookup_both,
+    by = c("item_prod_code", "item_cbs_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt <- merge(
+    dt,
+    item_lookup_prod,
+    by = "item_prod_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[, `:=`(
+    item_prod = data.table::fcoalesce(
+      item_prod_lookup,
+      item_prod_lookup_prod,
+      item_prod
+    ),
+    item_cbs_code = data.table::fcoalesce(
+      item_cbs_code,
+      item_cbs_code_lookup_prod
+    ),
+    item_cbs = data.table::fcoalesce(
+      item_cbs_lookup,
+      item_cbs_lookup_prod,
+      item_cbs
+    ),
+    live_anim = data.table::fcoalesce(
+      live_anim_lookup,
+      live_anim_lookup_prod,
+      live_anim
+    ),
+    live_anim_code = data.table::fcoalesce(
+      live_anim_code,
+      live_anim_code_lookup,
+      live_anim_code_lookup_prod
+    )
+  )]
+  lookup_cols <- grep("_lookup", names(dt), value = TRUE)
+  dt[, (lookup_cols) := NULL]
+  dt <- dt[
+    !is.na(area) &
+      !is.na(item_prod) &
+      !is.na(item_cbs) &
+      !is.na(item_cbs_code)
+  ]
+  if (nrow(dt) == 0L) {
+    return(.empty_historical_production())
+  }
+
+  key_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+  out <- dt[,
+    .(
+      value = mean(value, na.rm = TRUE),
+      source = .best_prod_source(source)
+    ),
+    by = key_cols
+  ]
+  out <- out[!is.nan(value)]
+  if (nrow(out) < n_in) {
+    cli::cli_alert_info(
+      "Kept {nrow(out)} of {n_in} harmonized historical production row{?s} after year/schema filtering and duplicate collapse"
+    )
+  }
+
+  tibble::as_tibble(out[, .historical_production_cols(), with = FALSE])
+}
+
+.read_historical_production <- function(historical_data) {
+  if (inherits(historical_data, "data.frame")) {
+    return(tibble::as_tibble(historical_data))
+  }
+
+  if (!is.character(historical_data) || length(historical_data) != 1L) {
+    cli::cli_abort(
+      "{.arg historical_data} must be {.code NULL}, a data frame, or a single file path."
+    )
+  }
+
+  path <- path.expand(historical_data)
+  if (!file.exists(path)) {
+    cli::cli_abort("{.file {path}} does not exist.")
+  }
+
+  ext <- tolower(tools::file_ext(path))
+  if (identical(ext, "parquet")) {
+    return(tibble::as_tibble(nanoparquet::read_parquet(path)))
+  }
+  if (identical(ext, "csv")) {
+    return(readr::read_csv(path, show_col_types = FALSE))
+  }
+
+  cli::cli_abort(
+    "{.arg historical_data} path must be a {.file .parquet} or {.file .csv} file."
+  )
+}
+
+.empty_historical_production <- function() {
+  tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_prod = character(),
+    item_prod_code = character(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    live_anim = character(),
+    live_anim_code = character(),
+    unit = character(),
+    value = double(),
+    source = character()
+  )
+}
+
+.historical_production_cols <- function() {
+  c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit",
+    "value",
+    "source"
+  )
+}
+
+.coalesce_historical_cols <- function(df, cols) {
+  present <- intersect(cols, names(df))
+  if (length(present) == 0L) {
+    return(rep(NA_character_, nrow(df)))
+  }
+  vals <- lapply(present, \(col) as.character(df[[col]]))
+  out <- vals[[1L]]
+  if (length(vals) > 1L) {
+    for (val in vals[-1L]) {
+      out <- dplyr::coalesce(out, val)
+    }
+  }
+  out
+}
+
+.normalise_historical_code <- function(x) {
+  x_chr <- stringr::str_squish(as.character(x))
+  x_num <- suppressWarnings(as.integer(as.numeric(x_chr)))
+  dplyr::if_else(!is.na(x_num), as.character(x_num), x_chr)
+}
+
+.filter_dissolved_countries <- function(df) {
+  force(df)
+  cli::cli_progress_step("Filtering dissolved countries")
+  # Key on `area_code` (polity_area_code), not `area`: after
+  # `.aggregate_to_polities()` the `area` names are periodized
+  # (e.g. "Czechoslovakia (1947-1993)"), so name conditions never fire.
+  df |>
+    dplyr::filter(
+      # Czechoslovakia (51) after its 1992 dissolution
+      !(area_code == 51L & year > 1992),
+      # Czechia (167) and Slovakia (199) before 1993
+      !(area_code %in% c(167L, 199L) & year < 1993),
+      # Baltics, Slovenia (198), Croatia (98) before 1992
+      !(area_code %in% c(126L, 119L, 63L, 198L, 98L) & year < 1992),
+      # Belgium-Luxembourg (15) after its 1999 split
+      !(area_code == 15L & year > 1999),
+      # Belgium (255) and Luxembourg (256) before 2000
+      !(area_code %in% c(255L, 256L) & year < 2000)
+    )
+}
+
+# -- Post-processing corrections (used by .fix_production) --------------------
+
+#' Correct tea fresh-leaf weight to made-tea weight (final format)
+#' @details FAOSTAT reports tea in fresh-leaf weight. Made-tea weight is
+#'   fresh / 4.37. Applied to `tonnes` and yield units for "Tea leaves"
+#'   from 1991 onward.
+#' @keywords internal
+#' @noRd
+.correct_tea_final <- function(df) {
+  force(df)
+  cli::cli_progress_step("Correcting tea weights")
+  tea_units <- c("tonnes", "t_ha", "t_head", "t_LU")
+  df |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        item_prod == "Tea leaves" &
+          year > 1990 &
+          unit %in% tea_units,
+        value / 4.37,
+        value
+      )
+    )
+}
+
+#' Convert paddy rice production to milled-equivalent rice
+#' @details FAOSTAT crop production reports rice as paddy rice. WHEP's CBS rice
+#'   item is compared against FABIO's milled-equivalent rice, so paddy-based
+#'   production tonnes and `t_ha` yields are multiplied by the extraction rate.
+#'   Hectares are left unchanged. Rows imputed from CBS production are skipped
+#'   because the CBS harmonizer already converts rice to milled equivalent.
+#' @keywords internal
+#' @noRd
+.fix_rice_milled_equiv <- function(
+  df,
+  extraction_rate = .rice_milled_extraction_rate()
+) {
+  force(df)
+  cli::cli_progress_step("Converting rice to milled equivalent")
+  rice_units <- c("tonnes", "t_ha")
+  paddy_sources <- c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland",
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland"
+  )
+
+  df |>
+    dplyr::mutate(
+      rice_source_is_paddy = .data$source %in%
+        paddy_sources |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "imputed_yield"
+        ) |
+        stringr::str_starts(
+          tidyr::replace_na(.data$source, ""),
+          "historical_"
+        ),
+      rice_source_is_paddy = tidyr::replace_na(
+        .data$rice_source_is_paddy,
+        FALSE
+      ),
+      value = dplyr::if_else(
+        as.character(.data$item_prod_code) == "27" &
+          .data$item_cbs_code == 2807L &
+          .data$unit %in% rice_units &
+          .data$rice_source_is_paddy,
+        .data$value * extraction_rate,
+        .data$value
+      )
+    ) |>
+    dplyr::select(-dplyr::all_of("rice_source_is_paddy"))
+}
+
+#' Add game-meat livestock units and heads (final format)
+#' @details Creates `LU` and `heads` rows for item "Game" (1190) from
+#'   game-meat production tonnes (item 1163). Conversion:
+#'   LU = tonnes * 3, heads = tonnes * 3 / 10.
+#' @keywords internal
+#' @noRd
+.add_game_meat_final <- function(df) {
+  force(df)
+  cli::cli_progress_step("Adding game meat stocks")
+  game_tonnes <- df |>
+    dplyr::filter(item_prod_code == 1163, unit == "tonnes")
+
+  if (nrow(game_tonnes) == 0L) {
+    return(df)
+  }
+
+  game_lu <- game_tonnes |>
+    dplyr::mutate(
+      value = value * 3,
+      unit = "LU",
+      item_prod = "Game",
+      item_prod_code = 1190
+    )
+
+  game_heads <- game_lu |>
+    dplyr::mutate(
+      value = value / 10,
+      unit = "heads"
+    )
+
+  dplyr::bind_rows(df, game_lu, game_heads)
+}
+
+# -- Historical extension -----------------------------------------------------
+
+.extend_historical <- function(
+  primary_raw2,
+  years_df,
+  land_areas
+) {
+  cli::cli_progress_step("Extending historical series")
+  varnames_cropland <- c(
+    "c3ann",
+    "c3per",
+    "c4ann",
+    "c4per",
+    "c3nfx"
+  )
+  varnames_pasture <- c("pastr", "range")
+
+  # Join land to production by area_code when available (robust to
+  # country-name spelling differences); fall back to the area name
+  # only when no code is present.
+  area_key <- if ("area_code" %in% names(land_areas)) "area_code" else "area"
+
+  land_wide <- land_areas |>
+    dplyr::mutate(
+      land_use = dplyr::case_when(
+        Land_Use %in% varnames_cropland ~ "Cropland",
+        Land_Use %in% varnames_pasture ~ "Pasture",
+        TRUE ~ "Other"
+      )
+    ) |>
+    dplyr::filter(land_use != "Other") |>
+    dplyr::summarise(
+      area_mha = sum(Area_Mha, na.rm = TRUE),
+      .by = dplyr::all_of(c("year", area_key, "land_use"))
+    ) |>
+    dplyr::filter(!is.na(.data[[area_key]])) |>
+    tidyr::pivot_wider(
+      names_from = land_use,
+      values_from = area_mha
+    )
+
+  if (!"Cropland" %in% names(land_wide)) {
+    land_wide$Cropland <- 0
+  }
+  if (!"Pasture" %in% names(land_wide)) {
+    land_wide$Pasture <- 0
+  }
+  land_wide <- land_wide |>
+    dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
+
+  primary_raw2 |>
+    dplyr::mutate(
+      land_use = dplyr::if_else(
+        unit %in% c("ha", "t_ha") | (unit == "tonnes" & is.na(live_anim_code)),
+        "Cropland",
+        "Agriland"
+      )
+    ) |>
+    dplyr::full_join(years_df, by = "year") |>
+    .fill_pre_faostat(land_wide, join_keys = c("year", area_key)) |>
+    dplyr::filter(
+      !is.na(area),
+      area != "",
+      !is.na(unit)
+    )
+}
+
+.fill_pre_faostat <- function(df, land_wide, join_keys = c("year", "area")) {
+  id_cols <- c(
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "land_use",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+  livestock_units <- c("t_head", "t_LU")
+  fill_cols <- setdiff(id_cols, c("live_anim", "live_anim_code"))
+
+  pre_years <- df |>
+    dplyr::filter(year < 1962) |>
+    dplyr::pull(year) |>
+    unique() |>
+    sort()
+
+  pre_base <- df |>
+    dplyr::filter(
+      year < 1962,
+      !is.na(area),
+      !is.na(area_code),
+      !is.na(item_prod),
+      !is.na(item_prod_code),
+      !is.na(unit)
+    ) |>
+    dplyr::mutate(
+      .observed_value = !is.na(.data$value),
+      .observed_source = .data$source
+    )
+
+  pre <- .complete_year_nesting_dt(
+    pre_base,
+    id_cols = id_cols,
+    years = pre_years
+  )
+
+  pre <- merge(
+    data.table::as.data.table(pre),
+    data.table::as.data.table(land_wide),
+    by = join_keys,
+    all.x = TRUE,
+    sort = FALSE
+  )
+  .warn_unmatched_land(pre, land_wide, join_keys, livestock_units)
+  pre[, `:=`(
+    value_cropland = value,
+    value_agriland = value,
+    value_livestockyield = value
+  )]
+  pre[,
+    .historical_anchor := any(
+      .observed_value %in%
+        TRUE &
+        !is.na(.observed_source) &
+        stringr::str_starts(.observed_source, "historical_")
+    ),
+    by = id_cols
+  ]
+
+  pre_liv <- pre |>
+    dplyr::filter(unit %in% livestock_units) |>
+    fill_linear(
+      value_livestockyield,
+      time_col = year,
+      .by = fill_cols
+    )
+
+  pre_crop <- pre |>
+    dplyr::filter(!(unit %in% livestock_units), land_use == "Cropland") |>
+    fill_proxy_growth(
+      value_col = value_cropland,
+      proxy_col = "Cropland",
+      time_col = year,
+      .by = fill_cols,
+      verbose = FALSE
+    )
+
+  pre_agri <- pre |>
+    dplyr::filter(
+      !(unit %in% livestock_units),
+      land_use != "Cropland" | is.na(land_use)
+    ) |>
+    fill_proxy_growth(
+      value_col = value_agriland,
+      proxy_col = "agriland",
+      time_col = year,
+      .by = fill_cols,
+      verbose = FALSE
+    )
+
+  pre <- dplyr::bind_rows(pre_liv, pre_crop, pre_agri) |>
+    dplyr::mutate(
+      value = dplyr::case_when(
+        land_use == "Cropland" ~ value_cropland,
+        unit %in% livestock_units ~ value_livestockyield,
+        TRUE ~ value_agriland
+      ),
+      source = dplyr::case_when(
+        .data$.observed_value %in% TRUE & !is.na(.data$.observed_source) ~
+          .data$.observed_source,
+        .data$.historical_anchor %in% TRUE & land_use == "Cropland" ~
+          "historical_LUH2_cropland",
+        .data$.historical_anchor %in% TRUE & unit %in% livestock_units ~
+          "historical_fill_linear",
+        .data$.historical_anchor %in% TRUE ~ "historical_LUH2_agriland",
+        land_use == "Cropland" ~ "LUH2_cropland",
+        unit %in% livestock_units ~ "fill_linear_historical",
+        TRUE ~ "LUH2_agriland"
+      )
+    ) |>
+    dplyr::select(
+      -dplyr::any_of(c(
+        ".observed_value",
+        ".observed_source",
+        ".historical_anchor"
+      ))
+    )
+
+  post <- df |> dplyr::filter(year > 1961)
+
+  dplyr::bind_rows(pre, post)
+}
+
+# Warn loudly when pre-1962 crop/agriland rows fail to match any LUH2
+# land record, so the silent loss of back-cast production (e.g. from a
+# country-name spelling mismatch) becomes a visible, diagnosable signal
+# instead of disappearing.
+.warn_unmatched_land <- function(pre, land_wide, join_keys, livestock_units) {
+  area_col <- setdiff(join_keys, "year")
+  if (length(area_col) != 1 || !area_col %in% names(land_wide)) {
+    return(invisible(NULL))
+  }
+  land_rows <- pre[
+    !(pre$unit %in% livestock_units) & !is.na(pre[[area_col]]),
+  ]
+  unmatched <- land_rows[
+    !(land_rows[[area_col]] %in% unique(land_wide[[area_col]])),
+  ]
+  if (nrow(unmatched) == 0) {
+    return(invisible(NULL))
+  }
+  bad <- unique(unmatched$area)
+  cli::cli_warn(c(
+    "!" = "Historical extension: {length(bad)} area{?s} have no LUH2 land
+      match; their pre-1962 production is not back-cast.",
+    "i" = "First unmatched: {.val {head(bad, 5)}}."
+  ))
+  invisible(NULL)
+}
+
+.complete_year_nesting_dt <- function(df, id_cols, years = NULL) {
+  dt <- data.table::as.data.table(df)
+  complete_years <- if (is.null(years)) {
+    sort(unique(dt$year))
+  } else {
+    sort(unique(years))
+  }
+  years_dt <- data.table::data.table(year = complete_years)
+  keys_dt <- unique(dt[, id_cols, with = FALSE])
+  years_dt[, .cross_key := 1L]
+  keys_dt[, .cross_key := 1L]
+  skeleton <- merge(
+    years_dt,
+    keys_dt,
+    by = ".cross_key",
+    allow.cartesian = TRUE,
+    sort = FALSE
+  )
+  skeleton[, .cross_key := NULL]
+
+  merge(
+    skeleton,
+    dt,
+    by = c("year", id_cols),
+    all.x = TRUE,
+    sort = FALSE
+  )
+}
+
+.build_grassland <- function(land_areas) {
+  cli::cli_progress_step("Building grassland")
+  varnames_pasture <- c("pastr", "range")
+
+  land_areas |>
+    dplyr::filter(Land_Use %in% varnames_pasture) |>
+    dplyr::mutate(
+      item_prod = dplyr::if_else(
+        Land_Use == "pastr",
+        "Pasture",
+        "range"
+      ),
+      item_prod_code = dplyr::if_else(
+        Land_Use == "pastr",
+        "3001",
+        "3002"
+      ),
+      item_cbs = "Grassland",
+      item_cbs_code = 3000L
+    ) |>
+    dplyr::summarise(
+      value = sum(Area_Mha, na.rm = TRUE) * 1e6,
+      .by = c(
+        year,
+        area,
+        area_code,
+        item_prod,
+        item_prod_code,
+        item_cbs,
+        item_cbs_code
+      )
+    ) |>
+    dplyr::mutate(unit = "ha", source = "LUH2_grassland")
+}
+
+.add_historical_yields <- function(df, int_yields) {
+  force(df)
+  cli::cli_progress_step("Adding historical yields")
+  # Capture source per key. Prefer tonnes/t rows as the production source
+  # indicator, but fall back to any unit so stock-only historical rows keep
+  # provenance.
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+
+  source_key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  # Pick the best source per key by ranking every row ONCE and taking the
+  # lowest-ranked (then alphabetical) source per group, instead of calling
+  # .best_prod_source() per group. The per-group call re-ran dplyr::case_when's
+  # formula parsing for every one of millions of groups, which dominated this
+  # step (a ~26 min "Adding historical yields" phase on a global run). Dropping
+  # NA sources up front matches .best_prod_source()'s own NA handling; groups
+  # with only NA sources are simply absent here and pick up NA via the later
+  # left join, exactly as before.
+  ranked <- df[!is.na(source)]
+  ranked[, .src_rank := .prod_source_rank(source)]
+  ranked[is.na(.src_rank), .src_rank := .Machine$integer.max]
+  data.table::setorderv(ranked, c(".src_rank", "source"))
+  src_lookup_prod <- ranked[
+    unit %in% c("tonnes", "t"),
+    .(source_prod = source[1L]),
+    by = source_key
+  ]
+  src_lookup_any <- ranked[,
+    .(source_any = source[1L]),
+    by = source_key
+  ]
+
+  agg <- df[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = c(
+      "year",
+      "area",
+      "area_code",
+      "item_prod",
+      "item_prod_code",
+      "item_cbs",
+      "item_cbs_code",
+      "land_use",
+      "unit",
+      "live_anim",
+      "live_anim_code"
+    )
+  ]
+
+  wide <- data.table::dcast(
+    agg,
+    year +
+      area +
+      area_code +
+      item_prod +
+      item_prod_code +
+      item_cbs +
+      item_cbs_code +
+      land_use +
+      live_anim +
+      live_anim_code ~
+      unit,
+    value.var = "value"
+  )
+
+  wide <- merge(
+    wide,
+    src_lookup_prod,
+    by = source_key,
+    all.x = TRUE,
+    sort = FALSE
+  )
+  wide <- merge(
+    wide,
+    src_lookup_any,
+    by = source_key,
+    all.x = TRUE,
+    sort = FALSE
+  )
+  wide[,
+    .preserve_historical_tonnes := !is.na(source_prod) &
+      stringr::str_starts(source_prod, "historical_")
+  ]
+  wide[, source := dplyr::coalesce(source_prod, source_any)]
+  wide[, source_prod := NULL]
+  wide[, source_any := NULL]
+  wide[, area_code := as.integer(area_code)]
+  wide <- merge(
+    wide,
+    if (data.table::is.data.table(int_yields)) {
+      int_yields
+    } else {
+      data.table::as.data.table(int_yields)
+    },
+    by = c("year", "area_code", "item_prod_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+
+  wide[, t_ha_raw := tonnes / ha]
+  wide[,
+    t_ha := data.table::fifelse(
+      year < 1961 & !.preserve_historical_tonnes,
+      NA_real_,
+      t_ha_raw
+    )
+  ]
+
+  wide <- fill_proxy_growth(
+    wide,
+    value_col = t_ha,
+    proxy_col = "yield",
+    time_col = year,
+    .by = c("area", "item_prod"),
+    verbose = FALSE
+  )
+  if (!data.table::is.data.table(wide)) {
+    data.table::setDT(wide)
+  }
+  wide[, t_ha := data.table::fifelse(!is.na(t_ha), t_ha, t_ha_raw)]
+  wide[,
+    tonnes := data.table::fifelse(
+      !.preserve_historical_tonnes & !is.na(ha),
+      ha * t_ha,
+      tonnes
+    )
+  ]
+  wide[, .preserve_historical_tonnes := NULL]
+  wide
+}
+
+.best_prod_source <- function(source) {
+  source <- source[!is.na(source)]
+  if (length(source) == 0L) {
+    return(NA_character_)
+  }
+  source[order(.prod_source_rank(source), source)][[1L]]
+}
+
+.first_non_missing <- function(x) {
+  idx <- which.min(is.na(x))
+  if (is.na(x[idx])) NA_character_ else x[idx]
+}
+
+# Vectorised first-non-NA for character columns.
+# Uses unique() (C-level) instead of per-group R evaluation.
+.first_non_na_chars <- function(df, by_cols, char_cols) {
+  data.table::setkeyv(df, by_cols)
+  present_cols <- intersect(char_cols, names(df))
+  # Start from full set of group keys
+  result <- unique(df[, by_cols, with = FALSE], by = by_cols)
+  for (col in present_cols) {
+    cols <- c(by_cols, col)
+    part <- unique(
+      df[!is.na(df[[col]]), cols, with = FALSE],
+      by = by_cols
+    )
+    result <- merge(result, part, by = by_cols, all.x = TRUE, sort = FALSE)
+  }
+  result
+}
+
+.sum_if_any <- function(x) {
+  if (anyNA(x) && all(is.na(x))) NA_real_ else sum(x, na.rm = TRUE)
+}
+
+.mean_if_any <- function(x) {
+  if (anyNA(x) && all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE)
+}
+
+# Cross join two data.tables (cartesian product of all rows).
+.cross_join <- function(x, y) {
+  x[, .cross := 1L]
+  y[, .cross := 1L]
+  out <- merge(x, y, by = ".cross", allow.cartesian = TRUE, sort = FALSE)
+  out[, .cross := NULL]
+  out
+}
+
+.finalise_primary <- function(df) {
+  force(df)
+  cli::cli_progress_step("Finalising primary production")
+  if (!data.table::is.data.table(df)) {
+    data.table::setDT(df)
+  }
+  dt <- df[,
+    .(
+      year,
+      area,
+      area_code,
+      item_prod,
+      item_prod_code,
+      item_cbs,
+      item_cbs_code,
+      live_anim,
+      live_anim_code,
+      source,
+      ha,
+      LU,
+      heads,
+      tonnes,
+      t_ha,
+      t_LU,
+      t_head
+    )
+  ]
+
+  long <- data.table::melt(
+    dt,
+    measure.vars = c("ha", "LU", "heads", "tonnes", "t_ha", "t_LU", "t_head"),
+    variable.name = "unit",
+    value.name = "value"
+  )
+
+  long <- long[value != 0 & !is.na(value)]
+
+  out <- long[,
+    .(
+      value = mean(value, na.rm = TRUE),
+      source = source[1L]
+    ),
+    by = c(
+      "year",
+      "area",
+      "area_code",
+      "item_prod",
+      "item_prod_code",
+      "item_cbs",
+      "item_cbs_code",
+      "live_anim",
+      "live_anim_code",
+      "unit"
+    )
+  ]
+
+  out
+}
+
+.prod_source_rank <- function(source) {
+  dplyr::case_when(
+    source == "FAOSTAT_prod" ~ 1L,
+    source == "EuropeAgriDB" ~ 2L,
+    stringr::str_starts(source, "historical_") ~ 3L,
+    stringr::str_starts(source, "imputed_yield") ~ 4L,
+    source == "imputed_cbs_ratio" ~ 5L,
+    source == "DM_yield_estimate" ~ 6L,
+    source == "fill_linear" ~ 7L,
+    source == "fill_linear_historical" ~ 8L,
+    source == "LUH2_cropland" ~ 9L,
+    source == "LUH2_agriland" ~ 10L,
+    source == "LUH2_grassland" ~ 11L,
+    source == "Estimated" ~ 12L,
+    TRUE ~ 13L
+  )
+}
+
+.dedup_production <- function(df) {
+  dt <- data.table::as.data.table(df)
+  dt[, `:=`(
+    .src_rank = .prod_source_rank(source),
+    .orig_row = .I
+  )]
+  by_cols <- c("year", "area_code", "item_prod_code", "unit")
+  data.table::setorderv(dt, c(by_cols, ".src_rank"))
+  dt <- dt[dt[, .I[1L], by = by_cols]$V1]
+  data.table::setorderv(dt, ".orig_row")
+  dt[, c(".src_rank", ".orig_row") := NULL]
+  tibble::as_tibble(dt)
+}
+
+.show_prod_duplicates <- function(df) {
+  key_cols <- c("year", "area_code", "item_prod_code", "unit")
+  dupes <- df |>
+    dplyr::add_count(
+      dplyr::across(dplyr::all_of(key_cols)),
+      name = ".n"
+    ) |>
+    dplyr::filter(.n > 1L) |>
+    dplyr::select(!.n)
+
+  n_keys <- dplyr::n_distinct(
+    dupes$year,
+    dupes$area_code,
+    dupes$item_prod_code,
+    dupes$unit
+  )
+  cli::cli_alert_info(
+    "{n_keys} key{?s} with competing sources found."
+  )
+
+  dupes |>
+    dplyr::select(
+      dplyr::all_of(key_cols),
+      source,
+      value
+    ) |>
+    dplyr::mutate(
+      .src_rank = .prod_source_rank(source)
+    ) |>
+    dplyr::arrange(
+      dplyr::across(dplyr::all_of(key_cols)),
+      .src_rank
+    ) |>
+    dplyr::select(!.src_rank) |>
+    tidyr::pivot_wider(
+      names_from = source,
+      values_from = value
+    )
+}
+
+# Round to significant figures to absorb last-bit floating-point noise from
+# parallel reductions (data.table gforce and multithreaded BLAS), which makes
+# the build non-reproducible run-to-run, occasionally flipping a downstream QC
+# flag. The chosen precision is far above the real precision of the source
+# data, so no information is lost, while the noise sits well below the rounding
+# unit and is fully absorbed.
+#
+# `digits` is build-specific: the raw production values carry ~1e-16 (single
+# ULP) noise, so 9 s.f. is ample; the CBS balancing cascade
+# (additions/subtractions with cancellation) amplifies that noise to ~1e-8
+# relative, so the final CBS value rounds to 7 s.f. (half the rounding unit is
+# ~70x the worst observed noise, guaranteeing the difference is absorbed).
+.round_reproducible <- function(x, digits = 9) {
+  signif(x, digits)
+}

@@ -1,0 +1,29 @@
+Livestock_cat,var,var_value,max_intake_share
+Sheep,item_cbs,Acorns,0.05
+Goats,item_cbs,Acorns,0.1
+Poultry,item_cbs,Acorns,0.0
+Cattle_meat,item_cbs,Acorns,0.01
+Cattle_milk,item_cbs,Acorns,0.01
+Pigs,item_cbs,Acorns,0.4
+Horses,item_cbs,Acorns,0.0
+Donkeys_mules,item_cbs,Acorns,0.0
+Rabbits,item_cbs,Acorns,0.0
+Other_birds,item_cbs,Acorns,0.0
+Fur animals,item_cbs,Acorns,0.0
+Other,item_cbs,Acorns,0.0
+Pets,item_cbs,Acorns,0.0
+Aquaculture,item_cbs,Acorns,0.0
+Sheep,Cat_feed,Grass,1.0
+Goats,Cat_feed,Grass,0.9
+Poultry,Cat_feed,Grass,0.0
+Cattle_meat,Cat_feed,Grass,1.0
+Cattle_milk,Cat_feed,Grass,1.0
+Pigs,Cat_feed,Grass,0.1
+Horses,Cat_feed,Grass,1.0
+Donkeys_mules,Cat_feed,Grass,1.0
+Rabbits,Cat_feed,Grass,0.5
+Other_birds,Cat_feed,Grass,0.0
+Fur animals,Cat_feed,Grass,0.0
+Other,Cat_feed,Grass,0.0
+Pets,Cat_feed,Grass,0.0
+Aquaculture,Cat_feed,Grass,0.0

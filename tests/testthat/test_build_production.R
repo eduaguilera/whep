@@ -1,0 +1,769 @@
+# test_build_production.R — unit tests for R/build_production.R helpers
+
+# -- Fixtures ------------------------------------------------------------------
+
+.make_afse_stub <- function() {
+  list(
+    items_full = tibble::tribble(
+      ~item_cbs, ~item_cbs_code, ~comm_group, ~group, ~default_destiny,
+      "Wheat", 2511L, "Cereals", "Crop products", "Food",
+      "Maize", 2514L, "Cereals", "Crop products", "Feed"
+    ),
+    items_prod_full = tibble::tribble(
+      ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+      "Wheat", 15L, "Wheat", 2511L, NA_character_, NA_integer_,
+      "Maize", 56L, "Maize", 2514L, NA_character_, NA_integer_
+    ),
+    regions_full = tibble::tribble(
+      ~polity_name, ~polity_code, ~iso3c,
+      "Spain", 203L, "ESP",
+      "France", 68L, "FRA"
+    ),
+    polities_cats = tibble::tribble(
+      ~polity_name, ~polity_code, ~dissolved,
+      "Spain", 203L, FALSE,
+      "France", 68L, FALSE
+    ),
+    Primary_double = tibble::tibble(
+      Item_area = character(),
+      multi_type = character()
+    ),
+    NoDataProducts = character()
+  )
+}
+
+.make_primary_raw <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~unit, ~value,
+    2000L, "Spain", 203L, "Wheat", 15L, "Wheat", 2511L, "tonnes", 5000,
+    2000L, "Spain", 203L, "Wheat", 15L, "Wheat", 2511L, "ha", 200,
+    2001L, "Spain", 203L, "Wheat", 15L, "Wheat", 2511L, "tonnes", 5500,
+    2001L, "Spain", 203L, "Wheat", 15L, "Wheat", 2511L, "ha", 210
+  )
+}
+
+
+# -- filter_dissolved_countries ------------------------------------------------
+
+test_that(".filter_dissolved_countries removes dissolved polities", {
+  # `area` is periodized after `.aggregate_to_polities()`; the filter must
+  # key on `area_code` (Czechoslovakia = 51), not on the plain name.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~value,
+    2000L, "Spain", 203L, 10,
+    2000L, "Czechoslovakia (1947-1993)", 51L, 20,
+    1990L, "Czechoslovakia (1947-1993)", 51L, 30
+  )
+
+  result <- whep:::.filter_dissolved_countries(df)
+  # Czechoslovakia after 1992 should be removed
+  expect_false(
+    any(result$area_code == 51L & result$year > 1992)
+  )
+  # Czechoslovakia before 1993 should be kept
+  expect_true(
+    any(result$area_code == 51L & result$year == 1990)
+  )
+})
+
+test_that(".filter_dissolved_countries dedups at the 1992/1993 boundary", {
+  # Both the dissolved polity and its successors present in the overlap
+  # years. Czechoslovakia (51) must go for 1993, successors for 1992.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~value,
+    1993L, "Czechoslovakia (1947-1993)", 51L, 20,
+    1993L, "Czechia", 167L, 10,
+    1993L, "Slovakia", 199L, 11,
+    1992L, "Czechia", 167L, 9,
+    1992L, "Slovakia", 199L, 8
+  )
+
+  result <- whep:::.filter_dissolved_countries(df)
+  # dissolved parent removed after 1992
+  expect_false(any(result$area_code == 51L))
+  # successors removed before 1993
+  expect_false(any(result$area_code %in% c(167L, 199L) & result$year < 1993))
+  # successors kept in 1993
+  expect_true(any(result$area_code == 167L & result$year == 1993))
+  expect_true(any(result$area_code == 199L & result$year == 1993))
+})
+
+
+# -- add_historical_yields (pre-1962 yield proxy) ------------------------------
+
+test_that(".add_historical_yields back-casts a periodized-name country", {
+  # China's periodized `area` ("China (PRC)") never equals the plain proxy
+  # name, so the proxy must join by `area_code` (41). If it matches, the
+  # pre-1961 tonnes are back-cast from the yield-growth proxy.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~land_use, ~live_anim, ~live_anim_code, ~unit, ~value, ~source,
+    1961L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "tonnes", 6000, "FAOSTAT_prod",
+    1961L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "ha", 100, "FAOSTAT_prod",
+    1960L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "tonnes", 0, "FAOSTAT_prod",
+    1960L, "China (PRC)", 41L, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_integer_, "ha", 100, "FAOSTAT_prod"
+  )
+  int_yields <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~yield,
+    1960L, 41L, "15", 2.0,
+    1961L, 41L, "15", 2.5
+  )
+
+  result <- whep:::.add_historical_yields(df, int_yields) |>
+    tibble::as_tibble()
+  # proxy joined by code → yield attached for the periodized-name country
+  expect_true(all(!is.na(result$yield)))
+  # 1960 tonnes back-cast from proxy: 100 * (60 * 2.0/2.5) = 4800
+  tonnes_1960 <- result$tonnes[result$year == 1960L]
+  expect_equal(tonnes_1960, 4800)
+})
+
+
+# -- merge_euadb_fodder --------------------------------------------------------
+
+test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
+  # FAO fodder uses periodized names; EU AgriDB uses plain names. The merge
+  # must align them by `area_code` so a matched crop stays a single row.
+  fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~t, ~t_dm, ~ha,
+    2010L, "Foo (1990-2020)", 100L, "Grass", "3001", 5, 4, 10
+  )
+  fodder_euadb <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Name_Eurostat, ~Label, ~Unit, ~value,
+    2010L, "Foo", 100L, "GrassEuro", "Area", "Mha", 5,
+    2010L, "Foo", 100L, "GrassEuro", "Yield", "kgN/ha", 200
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_Eurostat,
+    "Grass", "3001", "GrassEuro"
+  )
+
+  result <- whep:::.merge_euadb_fodder(fodder, fodder_euadb, items_prod)
+  # single merged row for the matched crop (not two fragments)
+  expect_equal(nrow(result), 1L)
+  expect_false(is.na(result$ha))
+  expect_false(is.na(result$ha_euadb))
+})
+
+
+# -- combine_primary -----------------------------------------------------------
+
+test_that(".combine_primary_raw aggregates and keeps item_prod columns", {
+  fao_combined <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    2000L, "Spain", 203L, "Wheat", 15L, "t", 5000,
+    2000L, "Spain", 203L, "Wheat", 15L, "ha", 200
+  ) |>
+    dplyr::mutate(source = NA_character_)
+
+  fao_liv_all <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_prod = character(),
+    item_prod_code = integer(),
+    unit = character(),
+    value = double(),
+    source = character()
+  )
+
+  result <- whep:::.combine_primary_raw(
+    fao_combined,
+    fao_liv_all
+  )
+  expect_true("item_prod" %in% names(result))
+  expect_true("item_prod_code" %in% names(result))
+  expect_true("source" %in% names(result))
+  expect_equal(nrow(result), 2L)
+  # NA source gets tagged as FAOSTAT
+  expect_true(all(result$source == "FAOSTAT_prod"))
+})
+
+
+# -- correct_tea ---------------------------------------------------------------
+
+test_that(".correct_tea divides Tea leaves value by 4.37 after 1990", {
+  df <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~unit, ~value, ~year,
+    "Tea leaves", 667L, "t", 437, 2000L,
+    "Tea leaves", 667L, "t", 437, 1980L,
+    "Wheat", 15L, "t", 200, 2000L
+  )
+
+  result <- whep:::.correct_tea(df)
+  # post-1990 Tea leaves value should be divided by 4.37
+  expect_equal(result$value[1], 437 / 4.37)
+  # pre-1990 Tea leaves value should remain unchanged
+  expect_equal(result$value[2], 437)
+  # Wheat unchanged
+
+  expect_equal(result$value[3], 200)
+})
+
+
+# -- deduplication regression tests -------------------------------------------
+
+test_that(".collapse_yield_rows aggregates duplicate key rows", {
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim_code, ~unit, ~t, ~fu, ~yield_c, ~source, ~Multi_type, ~live_anim,
+    2010L, "Spain", 203L, "Milk", 951L, "946", "t_LU", 8, 4, 2, NA_character_, NA_character_, NA_character_,
+    2010L, "Spain", 203L, "Milk", 951L, "946", "t_LU", 12, 6, 2, "FAOSTAT_prod", "Primary", "Buffalo",
+    2010L, "Spain", 203L, "Wheat", 15L, NA_character_, "t_ha", 20, 10, 2, "FAOSTAT_prod", NA_character_, NA_character_
+  )
+
+  result <- whep:::.collapse_yield_rows(df)
+
+  expect_equal(nrow(result), 2L)
+
+  milk <- result |>
+    dplyr::filter(item_prod == "Milk")
+
+  expect_equal(milk$t, 20)
+  expect_equal(milk$fu, 10)
+  expect_equal(milk$yield_c, 2)
+  expect_equal(milk$source, "FAOSTAT_prod")
+  expect_equal(milk$Multi_type, "Primary")
+  expect_equal(milk$live_anim, "Buffalo")
+})
+
+test_that(".collapse_cbs_ratio_rows aggregates duplicate ratio rows", {
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~group, ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~prod_cbs_count, ~sumprod_cbs_ratio, ~source, ~Multi_type,
+    2010L, "Spain", 203L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_character_, "t_ha", "Crop products", 8, 4, 2, 2, 20, 0.4, 2, 0.4, NA_character_, NA_character_,
+    2010L, "Spain", 203L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_character_, "t_ha", "Crop products", 12, 6, 2, 2, 20, 0.6, 2, 0.6, "FAOSTAT_prod", "Primary"
+  )
+
+  result <- whep:::.collapse_cbs_ratio_rows(df)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$t, 20)
+  expect_equal(result$fu, 10)
+  expect_equal(result$yield_c, 2)
+  expect_equal(result$yield_glo, 2)
+  expect_equal(result$t_cbs, 40)
+  expect_equal(result$prod_cbs_ratio, 0.5)
+  expect_equal(result$prod_cbs_count, 2)
+  expect_equal(result$sumprod_cbs_ratio, 0.5)
+  expect_equal(result$source, "FAOSTAT_prod")
+  expect_equal(result$Multi_type, "Primary")
+})
+
+test_that(".compute_cbs_ratios handles duplicate year rows without warning", {
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~group, ~t, ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~source, ~Multi_type,
+    2010L, "Spain", 203L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_character_, "t_ha", "Crop products", 8, 4, 2, 2, 20, "FAOSTAT_prod", NA_character_,
+    2010L, "Spain", 203L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_character_, "t_ha", "Crop products", 12, 6, 2, 2, 20, "FAOSTAT_prod", "Primary"
+  )
+
+  result <- expect_no_warning(
+    whep:::.compute_cbs_ratios(df)
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$prod_cbs_count, 2)
+})
+
+
+# -- .fill_yields item join ----------------------------------------------------
+
+test_that(".fill_yields joins items_prod by item_prod_code only", {
+  items_prod <- tibble::tribble(
+    ~item_prod_code, ~item_cbs_code, ~group,
+    "15", 2511L, "Primary crops",
+    "305", 2570L, "Primary crops"
+  )
+
+  yield_data <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~live_anim_code, ~unit, ~t, ~fu, ~yield_c,
+    ~source, ~Multi_type, ~live_anim, ~yield_glo,
+    2000L, "Spain", 203L, "Wheat WRONG NAME", "15",
+    NA_character_, "t_ha", 100, 50, 2,
+    "FAOSTAT_prod", NA_character_, NA_character_, 2
+  )
+
+  result <- dplyr::left_join(
+    yield_data,
+    items_prod |>
+      dplyr::select(item_prod_code, item_cbs_code, group) |>
+      dplyr::distinct(item_prod_code, .keep_all = TRUE),
+    by = "item_prod_code"
+  )
+  expect_equal(result$item_cbs_code, 2511L)
+  expect_equal(result$group, "Primary crops")
+})
+
+
+# -- year range defaults -------------------------------------------------------
+
+test_that("build_primary_production defaults to end_year 2023", {
+  formals_prod <- formals(whep::build_primary_production)
+  expect_equal(formals_prod$end_year, 2023)
+})
+
+test_that(".extend_historical keeps modern rows when LUH2 land columns are absent", {
+  primary <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = 100,
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = 2023L)
+  land <- tibble::tibble(
+    year = 2023L,
+    area = "Spain",
+    Land_Use = "urban",
+    Area_Mha = 1
+  )
+
+  result <- whep:::.extend_historical(primary, years, land)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 2023L)
+  expect_equal(result$value, 100)
+})
+
+test_that(".extend_historical matches LUH2 land by area_code, not name", {
+  # Production calls the country "Türkiye"; LUH2 calls it "Turkey".
+  # Joining by name would drop it; joining by area_code keeps it and
+  # back-casts the pre-1962 (NA) years from the cropland proxy.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Türkiye",
+    area_code = 99L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Turkey",
+    area_code = 99L,
+    Land_Use = "c3ann",
+    Area_Mha = c(8, 9, 10)
+  )
+
+  result <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::filter(area_code == 99L) |>
+    dplyr::arrange(year)
+
+  # All three years populated; none lost to the name mismatch.
+  expect_equal(result$year, c(1959L, 1960L, 1961L))
+  expect_false(anyNA(result$value))
+  expect_equal(result$value[result$year == 1961L], 100)
+  expect_true(all(result$value > 0))
+})
+
+test_that(".extend_historical warns about areas with no LUH2 land match", {
+  primary <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Atlantis",
+    area_code = 999L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    Land_Use = "c3ann",
+    Area_Mha = c(9, 10)
+  )
+
+  expect_warning(
+    whep:::.extend_historical(primary, years, land),
+    "no LUH2 land"
+  )
+})
+
+test_that(".prepare_historical_production normalizes generic historical rows", {
+  historical <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
+    1950L, 203L, "15.0", "tonnes", 100, "future_source",
+    1950L, 203L, "15.0", "tonnes", 120, "historical_future_source",
+    1800L, 203L, "15.0", "tonnes", 999, "future_source"
+  )
+
+  result <- whep:::.prepare_historical_production(
+    historical,
+    years = 1950:1951
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$year, 1950L)
+  expect_equal(result$area, "Spain")
+  expect_equal(result$item_prod, "Wheat")
+  expect_equal(result$item_prod_code, "15")
+  expect_equal(result$item_cbs_code, 2511L)
+  expect_equal(result$unit, "tonnes")
+  expect_equal(result$value, 110)
+  expect_true(stringr::str_starts(result$source, "historical_"))
+  # Prod-side item codes must be character to bind with the FAOSTAT pipeline
+  # (primary_raw2). live_anim_code being integer broke build on real data.
+  expect_type(result$item_prod_code, "character")
+  expect_type(result$live_anim_code, "character")
+})
+
+test_that(".extend_historical uses historical rows as LUH2 anchors", {
+  primary <- tibble::tibble(
+    year = c(1950L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(50, 100),
+    source = c("historical_test", "FAOSTAT_prod")
+  )
+  years <- tibble::tibble(year = 1949:1961)
+  land <- tibble::tibble(
+    year = 1949:1961,
+    area = "Spain",
+    Land_Use = "c3ann",
+    Area_Mha = 1
+  )
+
+  result <- whep:::.extend_historical(primary, years, land)
+
+  observed <- result |>
+    dplyr::filter(.data$year == 1950L, .data$unit == "tonnes")
+  filled <- result |>
+    dplyr::filter(.data$year == 1951L, .data$unit == "tonnes")
+
+  expect_equal(observed$value, 50)
+  expect_equal(observed$source, "historical_test")
+  expect_equal(filled$source, "historical_LUH2_cropland")
+  expect_false(is.na(filled$value))
+})
+
+test_that(".add_historical_yields preserves direct historical tonnes", {
+  df <- tibble::tibble(
+    year = 1950L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    land_use = "Cropland",
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = c("tonnes", "ha"),
+    value = c(50, 10),
+    source = "historical_test"
+  )
+  int_yields <- tibble::tibble(
+    year = 1950L,
+    area_code = 203L,
+    item_prod_code = "15",
+    yield = 999
+  )
+
+  result <- whep:::.add_historical_yields(df, int_yields)
+
+  expect_equal(result$tonnes, 50)
+  expect_equal(result$t_ha, 5)
+})
+
+
+# -- rice unit convention ------------------------------------------------------
+
+test_that(".fix_rice_milled_equiv converts paddy production only", {
+  rate <- whep:::.rice_milled_extraction_rate()
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 100, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "t_ha", 10, "imputed_yield:Global",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "ha", 20, "FAOSTAT_prod",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 80, "imputed_cbs_ratio",
+    2000L, "China", 41L, "Rice", "27",
+    "Rice and products", 2807L, NA, NA,
+    "tonnes", 200, "historical_mitchell",
+    2000L, "China", 41L, "Wheat", "15",
+    "Wheat and products", 2511L, NA, NA,
+    "tonnes", 50, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.fix_rice_milled_equiv(df) |>
+    dplyr::arrange(.data$item_prod_code, .data$unit, .data$source)
+
+  rice <- result |>
+    dplyr::filter(.data$item_prod_code == "27")
+
+  testthat::expect_equal(
+    rice$value[rice$unit == "tonnes" & rice$source == "FAOSTAT_prod"],
+    100 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "t_ha"],
+    10 * rate
+  )
+  testthat::expect_equal(
+    rice$value[rice$unit == "ha"],
+    20
+  )
+  testthat::expect_equal(
+    rice$value[rice$source == "imputed_cbs_ratio"],
+    80
+  )
+  # observed historical rice is paddy too and must be milled-converted
+  testthat::expect_equal(
+    rice$value[rice$source == "historical_mitchell"],
+    200 * rate
+  )
+  testthat::expect_equal(
+    result$value[result$item_prod_code == "15"],
+    50
+  )
+})
+
+
+# -- deduplication --------------------------------------------------------------
+
+test_that(".dedup_production keeps highest-priority source", {
+  duped <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "t", 100, "imputed_yield",
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "t", 200, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "ha", 10, "LUH2_cropland",
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "ha", 20, "EuropeAgriDB"
+  )
+
+  result <- whep:::.dedup_production(duped)
+  expect_equal(nrow(result), 2L)
+
+  tonnes_row <- result |>
+    dplyr::filter(unit == "t")
+  expect_equal(tonnes_row$source, "FAOSTAT_prod")
+  expect_equal(tonnes_row$value, 200)
+
+  ha_row <- result |>
+    dplyr::filter(unit == "ha")
+  expect_equal(ha_row$source, "EuropeAgriDB")
+  expect_equal(ha_row$value, 20)
+})
+
+test_that(".show_prod_duplicates returns wide format of competing sources", {
+  duped <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "t", 100, "imputed_yield",
+    2000L, "Spain", 203L, "Wheat", 15L,
+    "Wheat", 2511L, NA, NA, "t", 200, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Maize", 56L,
+    "Maize", 2514L, NA, NA, "t", 50, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.show_prod_duplicates(duped)
+  # Only the duplicated key (Wheat/t) should appear
+  expect_equal(nrow(result), 1L)
+  # Columns should include the two competing sources
+  expect_true("FAOSTAT_prod" %in% names(result))
+  expect_true("imputed_yield" %in% names(result))
+  # FAOSTAT_prod column first because it has higher priority
+  src_cols <- setdiff(
+    names(result),
+    c("year", "area_code", "item_prod_code", "unit")
+  )
+  expect_equal(src_cols[1], "FAOSTAT_prod")
+})
+
+test_that("QC flags reflect post-dedup values, not competing sources", {
+  # Two sources disagree by >10x on 2001; FAOSTAT_prod is a smooth series.
+  competing <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L, "tonnes", 5000, "FAOSTAT_prod",
+    2001L, "Spain", 203L, "Wheat", 15L, "tonnes", 5500, "FAOSTAT_prod",
+    2002L, "Spain", 203L, "Wheat", 15L, "tonnes", 6000, "FAOSTAT_prod",
+    2001L, "Spain", 203L, "Wheat", 15L, "tonnes", 100000, "imputed_yield"
+  )
+
+  # QC after dedup: the competing imputed_yield value for 2001 is discarded,
+  # leaving a smooth single-source series with no spike.
+  qc_after <- competing |>
+    whep:::.dedup_production() |>
+    whep:::.qc_production()
+  expect_false(
+    any(stringr::str_detect(qc_after$qc_flag, "spike"), na.rm = TRUE)
+  )
+
+  # Regression guard: QC before dedup compares the two 2001 sources and
+  # raises a spurious spike flag.
+  qc_before <- whep:::.qc_production(competing)
+  expect_true(
+    any(stringr::str_detect(qc_before$qc_flag, "spike"), na.rm = TRUE)
+  )
+})
+
+test_that("build_primary_production output has no duplicate keys", {
+  result <- whep::build_primary_production(example = TRUE)
+  keys <- dplyr::select(
+    result,
+    year,
+    area_code,
+    item_prod_code,
+    unit
+  )
+  expect_equal(nrow(keys), nrow(dplyr::distinct(keys)))
+})
+
+# -- .split_stock_share ---------------------------------------------------------
+
+test_that(".split_stock_share splits proportionally when both sub-items have data", {
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, 30,
+    2000, "A", "866", 100, 70
+  )
+
+  result <- .split_stock_share(data)
+
+  # value is the same unsplit QCL total repeated on every row of the group
+  # (from the earlier inner_join fan-out), so the group's real total is 100,
+  # not sum(data$value).
+  expect_equal(result$value_comb, c(30, 70))
+  expect_equal(sum(result$value_comb), 100)
+})
+
+test_that(".split_stock_share does not double-count when one sub-item is entirely NA", {
+  # Regression for #144: previously sum(value_st) had no na.rm, so a single
+  # NA sub-item made the whole group's share NA, and BOTH sub-rows fell back
+  # to the full unsplit `value` -- doubling the country's herd count.
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, NA_real_,
+    2000, "A", "866", 100, 40
+  )
+
+  result <- .split_stock_share(data)
+
+  # The NA sub-item gets 0 (no data to justify any share); the sub-item with
+  # data absorbs the rest. Total heads must equal the original unsplit value.
+  expect_equal(result$value_comb, c(0, 100))
+  expect_equal(sum(result$value_comb), 100)
+})
+
+test_that(".split_stock_share splits equally when every sub-item is NA", {
+  # If no sub-item has any data at all, an equal split (rather than giving
+  # every sub-item the full total) is the only way to keep the total heads
+  # conserved without an arbitrary preference for one sub-item.
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 90, NA_real_,
+    2000, "A", "866", 90, NA_real_,
+    2000, "A", "866", 90, NA_real_
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, rep(30, 3))
+  expect_equal(sum(result$value_comb), 90)
+})
+
+test_that(".split_stock_share keeps the full value for a single-item group", {
+  # A parent item_prod_code with only one mapped sub-item (no real dairy/
+  # non-dairy-style split) should always receive the whole unsplit value,
+  # whether or not it happens to have its own value_st.
+  with_data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "976", 50, 12
+  )
+  without_data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "976", 50, NA_real_
+  )
+
+  expect_equal(.split_stock_share(with_data)$value_comb, 50)
+  expect_equal(.split_stock_share(without_data)$value_comb, 50)
+})
+
+test_that(".split_stock_share keeps groups (year, area, item_prod_code) independent", {
+  data <- tibble::tribble(
+    ~year, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, "A", "866", 100, NA_real_,
+    2000, "A", "866", 100, 60,
+    2000, "B", "866", 200, 10,
+    2000, "B", "866", 200, 30
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, c(0, 100, 50, 150))
+})
+
+test_that(".carry_forward_shares extends shares to QCL's latest years", {
+  # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
+  # 2021 while slaughter data (target_years) runs to 2023.
+  shares <- tibble::tribble(
+    ~year, ~area_code, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 203L, 866L, 867L, 0.4,
+    2020L, 203L, 866L, 868L, 0.6,
+    2021L, 203L, 866L, 867L, 0.3,
+    2021L, 203L, 866L, 868L, 0.7
+  )
+  target_years <- 2020:2023
+
+  result <- whep:::.carry_forward_shares(shares, target_years)
+
+  # Every target year is covered for both split sub-items.
+  expect_equal(sort(unique(result$year)), 2020:2023)
+  expect_equal(nrow(result), 8L)
+
+  # Latest known share (2021) is carried forward to 2022 and 2023.
+  latest <- result |>
+    dplyr::filter(year %in% c(2022L, 2023L)) |>
+    dplyr::arrange(year, item_cbs_code)
+  expect_equal(latest$share, c(0.3, 0.7, 0.3, 0.7))
+
+  # Shares still sum to 1 within each (year, area_code, Item_Code).
+  sums <- result |>
+    dplyr::summarise(
+      total = sum(share),
+      .by = c(year, area_code, Item_Code)
+    )
+  expect_equal(sums$total, rep(1, 4))
+})

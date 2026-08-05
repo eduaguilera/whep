@@ -1,0 +1,20 @@
+item_code,species,species_group,spatial_proxy,grazing_fraction
+960,"Cattle, dairy",cattle_dairy,pasture,0.45
+961,"Cattle, non-dairy",cattle_non_dairy,pasture,0.45
+946,Buffaloes,buffalo,pasture,0.50
+976,Sheep,sheep_goats,pasture,0.80
+1016,Goats,sheep_goats,pasture,0.80
+1049,Pigs,pigs,cropland,0.05
+1052,"Chickens, layers",chickens_layers,cropland,0.10
+1053,"Chickens, broilers",chickens_broilers,cropland,0.10
+1068,Ducks,poultry,cropland,0.10
+1072,Geese and guinea fowls,poultry,cropland,0.10
+1079,Turkeys,poultry,cropland,0.10
+1096,Horses,equines,pasture,0.60
+1107,Asses,equines,pasture,0.60
+1110,Mules,equines,pasture,0.60
+1126,Camels,camels,rangeland,0.90
+1157,Camelids other,camels,rangeland,0.90
+1140,Rabbits and hares,other,cropland,0.05
+1150,Rodents other,other,cropland,0.05
+1171,Animals live nes,other,mixed,0.30

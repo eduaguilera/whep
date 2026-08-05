@@ -1,0 +1,705 @@
+region_hanpp,crop_group,year,modern_share
+North America and Oceania,Wheat,1900,0
+North America and Oceania,Wheat,1920,0.05
+North America and Oceania,Wheat,1940,0.15
+North America and Oceania,Wheat,1950,0.3
+North America and Oceania,Wheat,1960,0.55
+North America and Oceania,Wheat,1970,0.85
+North America and Oceania,Wheat,1980,0.95
+North America and Oceania,Wheat,1990,0.98
+North America and Oceania,Wheat,2000,1
+North America and Oceania,Wheat,2010,1
+North America and Oceania,Wheat,2020,1
+North America and Oceania,Rice,1900,0
+North America and Oceania,Rice,1920,0
+North America and Oceania,Rice,1940,0.05
+North America and Oceania,Rice,1950,0.2
+North America and Oceania,Rice,1960,0.6
+North America and Oceania,Rice,1970,0.9
+North America and Oceania,Rice,1980,0.98
+North America and Oceania,Rice,1990,1
+North America and Oceania,Rice,2000,1
+North America and Oceania,Rice,2010,1
+North America and Oceania,Rice,2020,1
+North America and Oceania,Maize,1900,0
+North America and Oceania,Maize,1920,0.02
+North America and Oceania,Maize,1940,0.3
+North America and Oceania,Maize,1950,0.85
+North America and Oceania,Maize,1960,0.95
+North America and Oceania,Maize,1970,0.98
+North America and Oceania,Maize,1980,1
+North America and Oceania,Maize,1990,1
+North America and Oceania,Maize,2000,1
+North America and Oceania,Maize,2010,1
+North America and Oceania,Maize,2020,1
+North America and Oceania,Sorghum_millet,1900,0
+North America and Oceania,Sorghum_millet,1920,0
+North America and Oceania,Sorghum_millet,1940,0.05
+North America and Oceania,Sorghum_millet,1950,0.15
+North America and Oceania,Sorghum_millet,1960,0.4
+North America and Oceania,Sorghum_millet,1970,0.7
+North America and Oceania,Sorghum_millet,1980,0.9
+North America and Oceania,Sorghum_millet,1990,0.95
+North America and Oceania,Sorghum_millet,2000,1
+North America and Oceania,Sorghum_millet,2010,1
+North America and Oceania,Sorghum_millet,2020,1
+North America and Oceania,Legumes,1900,0
+North America and Oceania,Legumes,1920,0
+North America and Oceania,Legumes,1940,0.05
+North America and Oceania,Legumes,1950,0.15
+North America and Oceania,Legumes,1960,0.3
+North America and Oceania,Legumes,1970,0.55
+North America and Oceania,Legumes,1980,0.8
+North America and Oceania,Legumes,1990,0.92
+North America and Oceania,Legumes,2000,0.97
+North America and Oceania,Legumes,2010,1
+North America and Oceania,Legumes,2020,1
+North America and Oceania,Root_tuber,1900,0
+North America and Oceania,Root_tuber,1920,0
+North America and Oceania,Root_tuber,1940,0.05
+North America and Oceania,Root_tuber,1950,0.2
+North America and Oceania,Root_tuber,1960,0.4
+North America and Oceania,Root_tuber,1970,0.7
+North America and Oceania,Root_tuber,1980,0.9
+North America and Oceania,Root_tuber,1990,0.97
+North America and Oceania,Root_tuber,2000,1
+North America and Oceania,Root_tuber,2010,1
+North America and Oceania,Root_tuber,2020,1
+North America and Oceania,Oilseeds,1900,0
+North America and Oceania,Oilseeds,1920,0
+North America and Oceania,Oilseeds,1940,0.05
+North America and Oceania,Oilseeds,1950,0.15
+North America and Oceania,Oilseeds,1960,0.35
+North America and Oceania,Oilseeds,1970,0.65
+North America and Oceania,Oilseeds,1980,0.85
+North America and Oceania,Oilseeds,1990,0.95
+North America and Oceania,Oilseeds,2000,1
+North America and Oceania,Oilseeds,2010,1
+North America and Oceania,Oilseeds,2020,1
+North America and Oceania,Other,1900,0
+North America and Oceania,Other,1920,0.05
+North America and Oceania,Other,1940,0.15
+North America and Oceania,Other,1950,0.3
+North America and Oceania,Other,1960,0.55
+North America and Oceania,Other,1970,0.8
+North America and Oceania,Other,1980,0.92
+North America and Oceania,Other,1990,0.97
+North America and Oceania,Other,2000,1
+North America and Oceania,Other,2010,1
+North America and Oceania,Other,2020,1
+West Europe,Wheat,1900,0
+West Europe,Wheat,1920,0.01
+West Europe,Wheat,1940,0.08
+West Europe,Wheat,1950,0.2
+West Europe,Wheat,1960,0.5
+West Europe,Wheat,1970,0.8
+West Europe,Wheat,1980,0.95
+West Europe,Wheat,1990,1
+West Europe,Wheat,2000,1
+West Europe,Wheat,2010,1
+West Europe,Wheat,2020,1
+West Europe,Rice,1900,0
+West Europe,Rice,1920,0
+West Europe,Rice,1940,0.02
+West Europe,Rice,1950,0.1
+West Europe,Rice,1960,0.35
+West Europe,Rice,1970,0.65
+West Europe,Rice,1980,0.85
+West Europe,Rice,1990,0.95
+West Europe,Rice,2000,1
+West Europe,Rice,2010,1
+West Europe,Rice,2020,1
+West Europe,Maize,1900,0
+West Europe,Maize,1920,0
+West Europe,Maize,1940,0.05
+West Europe,Maize,1950,0.2
+West Europe,Maize,1960,0.55
+West Europe,Maize,1970,0.85
+West Europe,Maize,1980,0.95
+West Europe,Maize,1990,1
+West Europe,Maize,2000,1
+West Europe,Maize,2010,1
+West Europe,Maize,2020,1
+West Europe,Sorghum_millet,1900,0
+West Europe,Sorghum_millet,1920,0
+West Europe,Sorghum_millet,1940,0.02
+West Europe,Sorghum_millet,1950,0.08
+West Europe,Sorghum_millet,1960,0.25
+West Europe,Sorghum_millet,1970,0.55
+West Europe,Sorghum_millet,1980,0.8
+West Europe,Sorghum_millet,1990,0.92
+West Europe,Sorghum_millet,2000,0.97
+West Europe,Sorghum_millet,2010,1
+West Europe,Sorghum_millet,2020,1
+West Europe,Legumes,1900,0
+West Europe,Legumes,1920,0
+West Europe,Legumes,1940,0.02
+West Europe,Legumes,1950,0.08
+West Europe,Legumes,1960,0.2
+West Europe,Legumes,1970,0.45
+West Europe,Legumes,1980,0.7
+West Europe,Legumes,1990,0.88
+West Europe,Legumes,2000,0.96
+West Europe,Legumes,2010,1
+West Europe,Legumes,2020,1
+West Europe,Root_tuber,1900,0
+West Europe,Root_tuber,1920,0
+West Europe,Root_tuber,1940,0.05
+West Europe,Root_tuber,1950,0.15
+West Europe,Root_tuber,1960,0.35
+West Europe,Root_tuber,1970,0.6
+West Europe,Root_tuber,1980,0.85
+West Europe,Root_tuber,1990,0.95
+West Europe,Root_tuber,2000,1
+West Europe,Root_tuber,2010,1
+West Europe,Root_tuber,2020,1
+West Europe,Oilseeds,1900,0
+West Europe,Oilseeds,1920,0
+West Europe,Oilseeds,1940,0.02
+West Europe,Oilseeds,1950,0.08
+West Europe,Oilseeds,1960,0.25
+West Europe,Oilseeds,1970,0.55
+West Europe,Oilseeds,1980,0.8
+West Europe,Oilseeds,1990,0.95
+West Europe,Oilseeds,2000,1
+West Europe,Oilseeds,2010,1
+West Europe,Oilseeds,2020,1
+West Europe,Other,1900,0
+West Europe,Other,1920,0.03
+West Europe,Other,1940,0.1
+West Europe,Other,1950,0.2
+West Europe,Other,1960,0.45
+West Europe,Other,1970,0.7
+West Europe,Other,1980,0.88
+West Europe,Other,1990,0.96
+West Europe,Other,2000,1
+West Europe,Other,2010,1
+West Europe,Other,2020,1
+East Europe,Wheat,1900,0
+East Europe,Wheat,1920,0
+East Europe,Wheat,1940,0.02
+East Europe,Wheat,1950,0.05
+East Europe,Wheat,1960,0.15
+East Europe,Wheat,1970,0.45
+East Europe,Wheat,1980,0.7
+East Europe,Wheat,1990,0.9
+East Europe,Wheat,2000,0.98
+East Europe,Wheat,2010,1
+East Europe,Wheat,2020,1
+East Europe,Rice,1900,0
+East Europe,Rice,1920,0
+East Europe,Rice,1940,0.01
+East Europe,Rice,1950,0.03
+East Europe,Rice,1960,0.1
+East Europe,Rice,1970,0.3
+East Europe,Rice,1980,0.6
+East Europe,Rice,1990,0.82
+East Europe,Rice,2000,0.95
+East Europe,Rice,2010,1
+East Europe,Rice,2020,1
+East Europe,Maize,1900,0
+East Europe,Maize,1920,0
+East Europe,Maize,1940,0.02
+East Europe,Maize,1950,0.08
+East Europe,Maize,1960,0.25
+East Europe,Maize,1970,0.55
+East Europe,Maize,1980,0.75
+East Europe,Maize,1990,0.9
+East Europe,Maize,2000,0.98
+East Europe,Maize,2010,1
+East Europe,Maize,2020,1
+East Europe,Sorghum_millet,1900,0
+East Europe,Sorghum_millet,1920,0
+East Europe,Sorghum_millet,1940,0.01
+East Europe,Sorghum_millet,1950,0.03
+East Europe,Sorghum_millet,1960,0.1
+East Europe,Sorghum_millet,1970,0.25
+East Europe,Sorghum_millet,1980,0.5
+East Europe,Sorghum_millet,1990,0.75
+East Europe,Sorghum_millet,2000,0.92
+East Europe,Sorghum_millet,2010,0.97
+East Europe,Sorghum_millet,2020,1
+East Europe,Legumes,1900,0
+East Europe,Legumes,1920,0
+East Europe,Legumes,1940,0.01
+East Europe,Legumes,1950,0.03
+East Europe,Legumes,1960,0.08
+East Europe,Legumes,1970,0.2
+East Europe,Legumes,1980,0.45
+East Europe,Legumes,1990,0.68
+East Europe,Legumes,2000,0.88
+East Europe,Legumes,2010,0.96
+East Europe,Legumes,2020,1
+East Europe,Root_tuber,1900,0
+East Europe,Root_tuber,1920,0
+East Europe,Root_tuber,1940,0.02
+East Europe,Root_tuber,1950,0.05
+East Europe,Root_tuber,1960,0.15
+East Europe,Root_tuber,1970,0.35
+East Europe,Root_tuber,1980,0.6
+East Europe,Root_tuber,1990,0.82
+East Europe,Root_tuber,2000,0.95
+East Europe,Root_tuber,2010,1
+East Europe,Root_tuber,2020,1
+East Europe,Oilseeds,1900,0
+East Europe,Oilseeds,1920,0
+East Europe,Oilseeds,1940,0.01
+East Europe,Oilseeds,1950,0.03
+East Europe,Oilseeds,1960,0.1
+East Europe,Oilseeds,1970,0.3
+East Europe,Oilseeds,1980,0.55
+East Europe,Oilseeds,1990,0.78
+East Europe,Oilseeds,2000,0.92
+East Europe,Oilseeds,2010,0.98
+East Europe,Oilseeds,2020,1
+East Europe,Other,1900,0
+East Europe,Other,1920,0
+East Europe,Other,1940,0.03
+East Europe,Other,1950,0.05
+East Europe,Other,1960,0.15
+East Europe,Other,1970,0.4
+East Europe,Other,1980,0.65
+East Europe,Other,1990,0.85
+East Europe,Other,2000,1
+East Europe,Other,2010,1
+East Europe,Other,2020,1
+South and Central Asia,Wheat,1900,0
+South and Central Asia,Wheat,1920,0
+South and Central Asia,Wheat,1940,0
+South and Central Asia,Wheat,1950,0
+South and Central Asia,Wheat,1960,0
+South and Central Asia,Wheat,1970,0.42
+South and Central Asia,Wheat,1980,0.61
+South and Central Asia,Wheat,1990,0.88
+South and Central Asia,Wheat,2000,0.9
+South and Central Asia,Wheat,2010,0.93
+South and Central Asia,Wheat,2020,0.95
+South and Central Asia,Rice,1900,0
+South and Central Asia,Rice,1920,0
+South and Central Asia,Rice,1940,0
+South and Central Asia,Rice,1950,0
+South and Central Asia,Rice,1960,0
+South and Central Asia,Rice,1970,0.12
+South and Central Asia,Rice,1980,0.47
+South and Central Asia,Rice,1990,0.62
+South and Central Asia,Rice,2000,0.73
+South and Central Asia,Rice,2010,0.8
+South and Central Asia,Rice,2020,0.85
+South and Central Asia,Maize,1900,0
+South and Central Asia,Maize,1920,0
+South and Central Asia,Maize,1940,0
+South and Central Asia,Maize,1950,0
+South and Central Asia,Maize,1960,0
+South and Central Asia,Maize,1970,0.02
+South and Central Asia,Maize,1980,0.1
+South and Central Asia,Maize,1990,0.26
+South and Central Asia,Maize,2000,0.45
+South and Central Asia,Maize,2010,0.58
+South and Central Asia,Maize,2020,0.68
+South and Central Asia,Sorghum_millet,1900,0
+South and Central Asia,Sorghum_millet,1920,0
+South and Central Asia,Sorghum_millet,1940,0
+South and Central Asia,Sorghum_millet,1950,0
+South and Central Asia,Sorghum_millet,1960,0
+South and Central Asia,Sorghum_millet,1970,0.01
+South and Central Asia,Sorghum_millet,1980,0.05
+South and Central Asia,Sorghum_millet,1990,0.26
+South and Central Asia,Sorghum_millet,2000,0.5
+South and Central Asia,Sorghum_millet,2010,0.6
+South and Central Asia,Sorghum_millet,2020,0.7
+South and Central Asia,Legumes,1900,0
+South and Central Asia,Legumes,1920,0
+South and Central Asia,Legumes,1940,0
+South and Central Asia,Legumes,1950,0
+South and Central Asia,Legumes,1960,0
+South and Central Asia,Legumes,1970,0
+South and Central Asia,Legumes,1980,0.01
+South and Central Asia,Legumes,1990,0.05
+South and Central Asia,Legumes,2000,0.1
+South and Central Asia,Legumes,2010,0.28
+South and Central Asia,Legumes,2020,0.38
+South and Central Asia,Root_tuber,1900,0
+South and Central Asia,Root_tuber,1920,0
+South and Central Asia,Root_tuber,1940,0
+South and Central Asia,Root_tuber,1950,0
+South and Central Asia,Root_tuber,1960,0
+South and Central Asia,Root_tuber,1970,0
+South and Central Asia,Root_tuber,1980,0.05
+South and Central Asia,Root_tuber,1990,0.05
+South and Central Asia,Root_tuber,2000,0.5
+South and Central Asia,Root_tuber,2010,0.65
+South and Central Asia,Root_tuber,2020,0.75
+South and Central Asia,Oilseeds,1900,0
+South and Central Asia,Oilseeds,1920,0
+South and Central Asia,Oilseeds,1940,0
+South and Central Asia,Oilseeds,1950,0
+South and Central Asia,Oilseeds,1960,0
+South and Central Asia,Oilseeds,1970,0.05
+South and Central Asia,Oilseeds,1980,0.15
+South and Central Asia,Oilseeds,1990,0.35
+South and Central Asia,Oilseeds,2000,0.55
+South and Central Asia,Oilseeds,2010,0.68
+South and Central Asia,Oilseeds,2020,0.78
+South and Central Asia,Other,1900,0
+South and Central Asia,Other,1920,0
+South and Central Asia,Other,1940,0
+South and Central Asia,Other,1950,0
+South and Central Asia,Other,1960,0
+South and Central Asia,Other,1970,0.13
+South and Central Asia,Other,1980,0.32
+South and Central Asia,Other,1990,0.51
+South and Central Asia,Other,2000,0.65
+South and Central Asia,Other,2010,0.75
+South and Central Asia,Other,2020,0.82
+East Asia,Wheat,1900,0
+East Asia,Wheat,1920,0
+East Asia,Wheat,1940,0.02
+East Asia,Wheat,1950,0.05
+East Asia,Wheat,1960,0.15
+East Asia,Wheat,1970,0.3
+East Asia,Wheat,1980,0.7
+East Asia,Wheat,1990,0.95
+East Asia,Wheat,2000,0.95
+East Asia,Wheat,2010,0.97
+East Asia,Wheat,2020,1
+East Asia,Rice,1900,0
+East Asia,Rice,1920,0
+East Asia,Rice,1940,0
+East Asia,Rice,1950,0
+East Asia,Rice,1960,0
+East Asia,Rice,1970,0.12
+East Asia,Rice,1980,0.46
+East Asia,Rice,1990,0.67
+East Asia,Rice,2000,0.85
+East Asia,Rice,2010,0.92
+East Asia,Rice,2020,0.96
+East Asia,Maize,1900,0
+East Asia,Maize,1920,0
+East Asia,Maize,1940,0
+East Asia,Maize,1950,0
+East Asia,Maize,1960,0.08
+East Asia,Maize,1970,0.2
+East Asia,Maize,1980,0.57
+East Asia,Maize,1990,0.68
+East Asia,Maize,2000,0.85
+East Asia,Maize,2010,0.92
+East Asia,Maize,2020,0.96
+East Asia,Sorghum_millet,1900,0
+East Asia,Sorghum_millet,1920,0
+East Asia,Sorghum_millet,1940,0
+East Asia,Sorghum_millet,1950,0
+East Asia,Sorghum_millet,1960,0
+East Asia,Sorghum_millet,1970,0.05
+East Asia,Sorghum_millet,1980,0.2
+East Asia,Sorghum_millet,1990,0.4
+East Asia,Sorghum_millet,2000,0.62
+East Asia,Sorghum_millet,2010,0.72
+East Asia,Sorghum_millet,2020,0.8
+East Asia,Legumes,1900,0
+East Asia,Legumes,1920,0
+East Asia,Legumes,1940,0
+East Asia,Legumes,1950,0
+East Asia,Legumes,1960,0
+East Asia,Legumes,1970,0.03
+East Asia,Legumes,1980,0.15
+East Asia,Legumes,1990,0.3
+East Asia,Legumes,2000,0.52
+East Asia,Legumes,2010,0.65
+East Asia,Legumes,2020,0.75
+East Asia,Root_tuber,1900,0
+East Asia,Root_tuber,1920,0
+East Asia,Root_tuber,1940,0
+East Asia,Root_tuber,1950,0
+East Asia,Root_tuber,1960,0
+East Asia,Root_tuber,1970,0.05
+East Asia,Root_tuber,1980,0.2
+East Asia,Root_tuber,1990,0.4
+East Asia,Root_tuber,2000,0.62
+East Asia,Root_tuber,2010,0.72
+East Asia,Root_tuber,2020,0.8
+East Asia,Oilseeds,1900,0
+East Asia,Oilseeds,1920,0
+East Asia,Oilseeds,1940,0
+East Asia,Oilseeds,1950,0
+East Asia,Oilseeds,1960,0.02
+East Asia,Oilseeds,1970,0.1
+East Asia,Oilseeds,1980,0.35
+East Asia,Oilseeds,1990,0.55
+East Asia,Oilseeds,2000,0.75
+East Asia,Oilseeds,2010,0.85
+East Asia,Oilseeds,2020,0.92
+East Asia,Other,1900,0
+East Asia,Other,1920,0
+East Asia,Other,1940,0
+East Asia,Other,1950,0
+East Asia,Other,1960,0.02
+East Asia,Other,1970,0.12
+East Asia,Other,1980,0.43
+East Asia,Other,1990,0.62
+East Asia,Other,2000,0.8
+East Asia,Other,2010,0.88
+East Asia,Other,2020,0.93
+Latin America and Caribbean,Wheat,1900,0
+Latin America and Caribbean,Wheat,1920,0
+Latin America and Caribbean,Wheat,1940,0
+Latin America and Caribbean,Wheat,1950,0
+Latin America and Caribbean,Wheat,1960,0.11
+Latin America and Caribbean,Wheat,1970,0.25
+Latin America and Caribbean,Wheat,1980,0.68
+Latin America and Caribbean,Wheat,1990,0.82
+Latin America and Caribbean,Wheat,2000,0.9
+Latin America and Caribbean,Wheat,2010,0.94
+Latin America and Caribbean,Wheat,2020,0.97
+Latin America and Caribbean,Rice,1900,0
+Latin America and Caribbean,Rice,1920,0
+Latin America and Caribbean,Rice,1940,0
+Latin America and Caribbean,Rice,1950,0
+Latin America and Caribbean,Rice,1960,0
+Latin America and Caribbean,Rice,1970,0.04
+Latin America and Caribbean,Rice,1980,0.27
+Latin America and Caribbean,Rice,1990,0.5
+Latin America and Caribbean,Rice,2000,0.65
+Latin America and Caribbean,Rice,2010,0.75
+Latin America and Caribbean,Rice,2020,0.83
+Latin America and Caribbean,Maize,1900,0
+Latin America and Caribbean,Maize,1920,0
+Latin America and Caribbean,Maize,1940,0
+Latin America and Caribbean,Maize,1950,0
+Latin America and Caribbean,Maize,1960,0.02
+Latin America and Caribbean,Maize,1970,0.06
+Latin America and Caribbean,Maize,1980,0.18
+Latin America and Caribbean,Maize,1990,0.32
+Latin America and Caribbean,Maize,2000,0.57
+Latin America and Caribbean,Maize,2010,0.7
+Latin America and Caribbean,Maize,2020,0.8
+Latin America and Caribbean,Sorghum_millet,1900,0
+Latin America and Caribbean,Sorghum_millet,1920,0
+Latin America and Caribbean,Sorghum_millet,1940,0
+Latin America and Caribbean,Sorghum_millet,1950,0
+Latin America and Caribbean,Sorghum_millet,1960,0
+Latin America and Caribbean,Sorghum_millet,1970,0
+Latin America and Caribbean,Sorghum_millet,1980,0.12
+Latin America and Caribbean,Sorghum_millet,1990,0.32
+Latin America and Caribbean,Sorghum_millet,2000,0.65
+Latin America and Caribbean,Sorghum_millet,2010,0.75
+Latin America and Caribbean,Sorghum_millet,2020,0.85
+Latin America and Caribbean,Legumes,1900,0
+Latin America and Caribbean,Legumes,1920,0
+Latin America and Caribbean,Legumes,1940,0
+Latin America and Caribbean,Legumes,1950,0
+Latin America and Caribbean,Legumes,1960,0
+Latin America and Caribbean,Legumes,1970,0.01
+Latin America and Caribbean,Legumes,1980,0.02
+Latin America and Caribbean,Legumes,1990,0.02
+Latin America and Caribbean,Legumes,2000,0.12
+Latin America and Caribbean,Legumes,2010,0.22
+Latin America and Caribbean,Legumes,2020,0.35
+Latin America and Caribbean,Root_tuber,1900,0
+Latin America and Caribbean,Root_tuber,1920,0
+Latin America and Caribbean,Root_tuber,1940,0
+Latin America and Caribbean,Root_tuber,1950,0
+Latin America and Caribbean,Root_tuber,1960,0
+Latin America and Caribbean,Root_tuber,1970,0
+Latin America and Caribbean,Root_tuber,1980,0
+Latin America and Caribbean,Root_tuber,1990,0.22
+Latin America and Caribbean,Root_tuber,2000,0.4
+Latin America and Caribbean,Root_tuber,2010,0.55
+Latin America and Caribbean,Root_tuber,2020,0.68
+Latin America and Caribbean,Oilseeds,1900,0
+Latin America and Caribbean,Oilseeds,1920,0
+Latin America and Caribbean,Oilseeds,1940,0
+Latin America and Caribbean,Oilseeds,1950,0
+Latin America and Caribbean,Oilseeds,1960,0
+Latin America and Caribbean,Oilseeds,1970,0.05
+Latin America and Caribbean,Oilseeds,1980,0.3
+Latin America and Caribbean,Oilseeds,1990,0.6
+Latin America and Caribbean,Oilseeds,2000,0.8
+Latin America and Caribbean,Oilseeds,2010,0.9
+Latin America and Caribbean,Oilseeds,2020,0.95
+Latin America and Caribbean,Other,1900,0
+Latin America and Caribbean,Other,1920,0
+Latin America and Caribbean,Other,1940,0
+Latin America and Caribbean,Other,1950,0
+Latin America and Caribbean,Other,1960,0.02
+Latin America and Caribbean,Other,1970,0.06
+Latin America and Caribbean,Other,1980,0.22
+Latin America and Caribbean,Other,1990,0.42
+Latin America and Caribbean,Other,2000,0.57
+Latin America and Caribbean,Other,2010,0.68
+Latin America and Caribbean,Other,2020,0.78
+North Africa and West Asia,Wheat,1900,0
+North Africa and West Asia,Wheat,1920,0
+North Africa and West Asia,Wheat,1940,0
+North Africa and West Asia,Wheat,1950,0
+North Africa and West Asia,Wheat,1960,0.05
+North Africa and West Asia,Wheat,1970,0.18
+North Africa and West Asia,Wheat,1980,0.42
+North Africa and West Asia,Wheat,1990,0.66
+North Africa and West Asia,Wheat,2000,0.72
+North Africa and West Asia,Wheat,2010,0.8
+North Africa and West Asia,Wheat,2020,0.88
+North Africa and West Asia,Rice,1900,0
+North Africa and West Asia,Rice,1920,0
+North Africa and West Asia,Rice,1940,0
+North Africa and West Asia,Rice,1950,0
+North Africa and West Asia,Rice,1960,0
+North Africa and West Asia,Rice,1970,0.08
+North Africa and West Asia,Rice,1980,0.42
+North Africa and West Asia,Rice,1990,0.5
+North Africa and West Asia,Rice,2000,0.55
+North Africa and West Asia,Rice,2010,0.65
+North Africa and West Asia,Rice,2020,0.72
+North Africa and West Asia,Maize,1900,0
+North Africa and West Asia,Maize,1920,0
+North Africa and West Asia,Maize,1940,0
+North Africa and West Asia,Maize,1950,0
+North Africa and West Asia,Maize,1960,0
+North Africa and West Asia,Maize,1970,0.45
+North Africa and West Asia,Maize,1980,0.6
+North Africa and West Asia,Maize,1990,0.65
+North Africa and West Asia,Maize,2000,0.7
+North Africa and West Asia,Maize,2010,0.78
+North Africa and West Asia,Maize,2020,0.85
+North Africa and West Asia,Sorghum_millet,1900,0
+North Africa and West Asia,Sorghum_millet,1920,0
+North Africa and West Asia,Sorghum_millet,1940,0
+North Africa and West Asia,Sorghum_millet,1950,0
+North Africa and West Asia,Sorghum_millet,1960,0
+North Africa and West Asia,Sorghum_millet,1970,0
+North Africa and West Asia,Sorghum_millet,1980,0.22
+North Africa and West Asia,Sorghum_millet,1990,0.45
+North Africa and West Asia,Sorghum_millet,2000,0.58
+North Africa and West Asia,Sorghum_millet,2010,0.68
+North Africa and West Asia,Sorghum_millet,2020,0.76
+North Africa and West Asia,Legumes,1900,0
+North Africa and West Asia,Legumes,1920,0
+North Africa and West Asia,Legumes,1940,0
+North Africa and West Asia,Legumes,1950,0
+North Africa and West Asia,Legumes,1960,0.02
+North Africa and West Asia,Legumes,1970,0.05
+North Africa and West Asia,Legumes,1980,0.15
+North Africa and West Asia,Legumes,1990,0.25
+North Africa and West Asia,Legumes,2000,0.35
+North Africa and West Asia,Legumes,2010,0.45
+North Africa and West Asia,Legumes,2020,0.55
+North Africa and West Asia,Root_tuber,1900,0
+North Africa and West Asia,Root_tuber,1920,0
+North Africa and West Asia,Root_tuber,1940,0
+North Africa and West Asia,Root_tuber,1950,0
+North Africa and West Asia,Root_tuber,1960,0.03
+North Africa and West Asia,Root_tuber,1970,0.1
+North Africa and West Asia,Root_tuber,1980,0.25
+North Africa and West Asia,Root_tuber,1990,0.4
+North Africa and West Asia,Root_tuber,2000,0.5
+North Africa and West Asia,Root_tuber,2010,0.62
+North Africa and West Asia,Root_tuber,2020,0.72
+North Africa and West Asia,Oilseeds,1900,0
+North Africa and West Asia,Oilseeds,1920,0
+North Africa and West Asia,Oilseeds,1940,0
+North Africa and West Asia,Oilseeds,1950,0
+North Africa and West Asia,Oilseeds,1960,0.02
+North Africa and West Asia,Oilseeds,1970,0.1
+North Africa and West Asia,Oilseeds,1980,0.3
+North Africa and West Asia,Oilseeds,1990,0.48
+North Africa and West Asia,Oilseeds,2000,0.6
+North Africa and West Asia,Oilseeds,2010,0.72
+North Africa and West Asia,Oilseeds,2020,0.8
+North Africa and West Asia,Other,1900,0
+North Africa and West Asia,Other,1920,0
+North Africa and West Asia,Other,1940,0
+North Africa and West Asia,Other,1950,0
+North Africa and West Asia,Other,1960,0.04
+North Africa and West Asia,Other,1970,0.15
+North Africa and West Asia,Other,1980,0.4
+North Africa and West Asia,Other,1990,0.6
+North Africa and West Asia,Other,2000,0.65
+North Africa and West Asia,Other,2010,0.75
+North Africa and West Asia,Other,2020,0.82
+Sub-saharan Africa,Wheat,1900,0
+Sub-saharan Africa,Wheat,1920,0
+Sub-saharan Africa,Wheat,1940,0
+Sub-saharan Africa,Wheat,1950,0
+Sub-saharan Africa,Wheat,1960,0.05
+Sub-saharan Africa,Wheat,1970,0.22
+Sub-saharan Africa,Wheat,1980,0.43
+Sub-saharan Africa,Wheat,1990,0.52
+Sub-saharan Africa,Wheat,2000,0.52
+Sub-saharan Africa,Wheat,2010,0.6
+Sub-saharan Africa,Wheat,2020,0.68
+Sub-saharan Africa,Rice,1900,0
+Sub-saharan Africa,Rice,1920,0
+Sub-saharan Africa,Rice,1940,0
+Sub-saharan Africa,Rice,1950,0
+Sub-saharan Africa,Rice,1960,0
+Sub-saharan Africa,Rice,1970,0.04
+Sub-saharan Africa,Rice,1980,0.11
+Sub-saharan Africa,Rice,1990,0.15
+Sub-saharan Africa,Rice,2000,0.2
+Sub-saharan Africa,Rice,2010,0.36
+Sub-saharan Africa,Rice,2020,0.48
+Sub-saharan Africa,Maize,1900,0
+Sub-saharan Africa,Maize,1920,0
+Sub-saharan Africa,Maize,1940,0
+Sub-saharan Africa,Maize,1950,0
+Sub-saharan Africa,Maize,1960,0.01
+Sub-saharan Africa,Maize,1970,0.04
+Sub-saharan Africa,Maize,1980,0.13
+Sub-saharan Africa,Maize,1990,0.21
+Sub-saharan Africa,Maize,2000,0.44
+Sub-saharan Africa,Maize,2010,0.55
+Sub-saharan Africa,Maize,2020,0.65
+Sub-saharan Africa,Sorghum_millet,1900,0
+Sub-saharan Africa,Sorghum_millet,1920,0
+Sub-saharan Africa,Sorghum_millet,1940,0
+Sub-saharan Africa,Sorghum_millet,1950,0
+Sub-saharan Africa,Sorghum_millet,1960,0
+Sub-saharan Africa,Sorghum_millet,1970,0
+Sub-saharan Africa,Sorghum_millet,1980,0.03
+Sub-saharan Africa,Sorghum_millet,1990,0.04
+Sub-saharan Africa,Sorghum_millet,2000,0.15
+Sub-saharan Africa,Sorghum_millet,2010,0.25
+Sub-saharan Africa,Sorghum_millet,2020,0.38
+Sub-saharan Africa,Legumes,1900,0
+Sub-saharan Africa,Legumes,1920,0
+Sub-saharan Africa,Legumes,1940,0
+Sub-saharan Africa,Legumes,1950,0
+Sub-saharan Africa,Legumes,1960,0
+Sub-saharan Africa,Legumes,1970,0.01
+Sub-saharan Africa,Legumes,1980,0.01
+Sub-saharan Africa,Legumes,1990,0.02
+Sub-saharan Africa,Legumes,2000,0.2
+Sub-saharan Africa,Legumes,2010,0.32
+Sub-saharan Africa,Legumes,2020,0.45
+Sub-saharan Africa,Root_tuber,1900,0
+Sub-saharan Africa,Root_tuber,1920,0
+Sub-saharan Africa,Root_tuber,1940,0
+Sub-saharan Africa,Root_tuber,1950,0
+Sub-saharan Africa,Root_tuber,1960,0
+Sub-saharan Africa,Root_tuber,1970,0
+Sub-saharan Africa,Root_tuber,1980,0
+Sub-saharan Africa,Root_tuber,1990,0
+Sub-saharan Africa,Root_tuber,2000,0.25
+Sub-saharan Africa,Root_tuber,2010,0.38
+Sub-saharan Africa,Root_tuber,2020,0.5
+Sub-saharan Africa,Oilseeds,1900,0
+Sub-saharan Africa,Oilseeds,1920,0
+Sub-saharan Africa,Oilseeds,1940,0
+Sub-saharan Africa,Oilseeds,1950,0
+Sub-saharan Africa,Oilseeds,1960,0
+Sub-saharan Africa,Oilseeds,1970,0.02
+Sub-saharan Africa,Oilseeds,1980,0.05
+Sub-saharan Africa,Oilseeds,1990,0.12
+Sub-saharan Africa,Oilseeds,2000,0.22
+Sub-saharan Africa,Oilseeds,2010,0.35
+Sub-saharan Africa,Oilseeds,2020,0.48
+Sub-saharan Africa,Other,1900,0
+Sub-saharan Africa,Other,1920,0
+Sub-saharan Africa,Other,1940,0
+Sub-saharan Africa,Other,1950,0
+Sub-saharan Africa,Other,1960,0
+Sub-saharan Africa,Other,1970,0.02
+Sub-saharan Africa,Other,1980,0.08
+Sub-saharan Africa,Other,1990,0.22
+Sub-saharan Africa,Other,2000,0.24
+Sub-saharan Africa,Other,2010,0.35
+Sub-saharan Africa,Other,2020,0.48
