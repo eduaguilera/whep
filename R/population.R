@@ -38,7 +38,9 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with `year`, `area_code` and `population` (persons), one row
-#'   per country-year, sorted by year then area code.
+#'   per country-year, sorted by year then area code, plus the polity columns
+#'   below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' read_population(example = TRUE)
@@ -56,7 +58,8 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
       population = sum(.data$population),
       .by = c("year", "area_code")
     ) |>
-    dplyr::arrange(.data$year, .data$area_code)
+    dplyr::arrange(.data$year, .data$area_code) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -123,5 +126,6 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
     2010L,
     21L,
     196353500
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

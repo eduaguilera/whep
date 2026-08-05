@@ -1174,9 +1174,11 @@ generate_ipcc_2019_tables <- function() {
     ),
 
     # Table 10.12: Ym values (% GE converted to CH4).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
-    # Note: The 2019 Refinement introduced feedlot distinction
-    # and body-weight distinction for sheep.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13 (Updated).
+    # Note: The 2019 Refinement introduced a feedlot distinction for
+    # cattle. Table 10.13 gives a SINGLE Ym for sheep -- "irrespective
+    # of feed quality" -- with no body-weight split (see #250); there
+    # is no IPCC source for a <75kg/>=75kg distinction or a 4.7 value.
     table_10_12 = tibble::tribble(
       ~category, ~feed_situation, ~ym_percent, ~ym_uncertainty,
       "Cattle",  "Pasture/Range",          6.5, 1.0,
@@ -1184,8 +1186,7 @@ generate_ipcc_2019_tables <- function() {
       "Cattle",  "Feedlot (>90% conc.)",   3.0, 1.0,
       "Buffalo", "Pasture/Range",          6.5, 1.0,
       "Buffalo", "Mixed",                  6.5, 1.0,
-      "Sheep",   "Large body (>=75kg)",    6.7, 1.0,
-      "Sheep",   "Small body (<75kg)",     4.7, 1.0,
+      "Sheep",   "All",                    6.7, 1.0,
       "Goats",   "All",                    5.5, 1.0,
       "Camels",  "All",                    5.0, 1.0
     ),
@@ -1202,11 +1203,11 @@ generate_ipcc_2019_tables <- function() {
       "Swine - Breeding",    0.27,
       "Sheep",               0.19,
       "Goats",               0.18,
-      "Horses",              0.33,
+      "Horses",              0.30,
       "Mules and Asses",     0.33,
-      "Camels",              0.10,
+      "Camels",              0.26,
       "Poultry - Layers",    0.39,
-      "Poultry - Broilers",  0.24
+      "Poultry - Broilers",  0.36
     ),
 
     # Table 10.17: MCF by MMS type and annual average temperature.
@@ -1454,9 +1455,13 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Ym values (% GE) used for Tier 2 enteric CH4.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
-    # Note: The 2019 Refinement differentiates cattle by
-    # feed situation and sheep by body weight.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13 (Updated).
+    # Note: The 2019 Refinement differentiates cattle by feed situation.
+    # Sheep get a SINGLE Ym "irrespective of feed quality" (no body-weight
+    # or diet-quality split -- see #250); the value is repeated across
+    # every feed_situation (incl. Feedlot, for safety) so the join in
+    # .join_ym() always resolves to the same, correct 6.7 regardless of
+    # which feed_situation a sheep row happens to carry.
     ym_values = tibble::tribble(
       ~category, ~feed_situation, ~ym_percent,
       "Cattle",  "High",    6.5,
@@ -1468,7 +1473,8 @@ generate_ipcc_tier2_params <- function() {
       "Buffalo", "Low",     6.5,
       "Sheep",   "High",    6.7,
       "Sheep",   "Medium",  6.7,
-      "Sheep",   "Low",     4.7,
+      "Sheep",   "Low",     6.7,
+      "Sheep",   "Feedlot", 6.7,
       "Goats",   "High",    5.5,
       "Goats",   "Medium",  5.5,
       "Goats",   "Low",     5.5,
@@ -1478,8 +1484,11 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Bo - Maximum CH4 producing capacity (m3 CH4/kg VS).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
-    # Note: Dairy and non-dairy cattle have DIFFERENT Bo.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16a.
+    # Note: Dairy and non-dairy cattle have DIFFERENT Bo. Values are the
+    # "High productivity systems" column (matches the convention already
+    # used for Buffalo = 0.10). Camels = 0.26 (was previously miscopied
+    # from Buffalo's 0.10 -- see issue #251).
     bo_values = tibble::tribble(
       ~category,             ~bo_m3_kg_vs,
       "Dairy Cattle",         0.24,
@@ -1489,11 +1498,11 @@ generate_ipcc_tier2_params <- function() {
       "Swine - Breeding",     0.27,
       "Sheep",                0.19,
       "Goats",                0.18,
-      "Horses",               0.33,
+      "Horses",               0.30,
       "Mules and Asses",      0.33,
-      "Camels",               0.10,
+      "Camels",               0.26,
       "Poultry - Layers",     0.39,
-      "Poultry - Broilers",   0.24
+      "Poultry - Broilers",   0.36
     ),
 
     # Ash content of manure (%).
