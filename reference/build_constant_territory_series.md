@@ -119,6 +119,11 @@ A tibble, one row per (`ref_year`-target, data `year`):
 
 - `n_sources`: number of source polities contributing that year
 
+- `unallocated`: total reported value from sources that could not be
+  placed on the grid that year (constant within a year; 0 when all were
+  placed). Kept out of `covered`/`imputed` so it is neither smeared nor
+  lost.
+
 ## Examples
 
 ``` r
@@ -156,9 +161,10 @@ build_constant_territory_series(
   resolution = 50000,
   verbose = FALSE
 )
-#> # A tibble: 2 × 7
+#> # A tibble: 2 × 8
 #>   target_polity_code  year value covered imputed imputed_share n_sources
 #>   <chr>              <int> <dbl>   <dbl>   <dbl>         <dbl>     <int>
 #> 1 P1                  1900   100     100       0             0         1
 #> 2 P2                  1900   100       0     100             1         1
+#> # ℹ 1 more variable: unallocated <dbl>
 ```
