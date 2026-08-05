@@ -649,3 +649,65 @@ get_polity_geometries <- function(polity_codes = NULL) {
     stringsAsFactors = FALSE
   )
 }
+
+# -- Dissolved-federation successor closure ------------------------------------
+
+# A dissolved federation (USSR, Czechoslovakia, Yugoslav SFR) carries no
+# present-day ISO3 code, so any lookup keyed on present-day ISO3 -- LUH2 land
+# use among them -- cannot reach its territory at all. The polities database
+# publishes the dissolution relation as `successor`, so the territory is
+# recoverable as the union of the states that replaced it. The walk has to be
+# transitive: the Yugoslav SFR reaches Serbia only through the 1992-2006
+# Serbia-and-Montenegro union, three hops down.
+#
+# `available_iso3` is the ISO3 vocabulary the caller can actually resolve, and a
+# branch stops as soon as it lands inside it, so no successor is expanded past
+# the point where it becomes reachable.
+.successor_iso3_map <- function(polity_codes, available_iso3, max_depth = 12L) {
+  edges <- .polity_successor_edges()
+  iso3 <- .polity_iso3_lookup()
+  polity_codes <- unique(polity_codes[!is.na(polity_codes)])
+  purrr::map(
+    rlang::set_names(polity_codes),
+    \(code) .walk_successor_iso3(code, edges, iso3, available_iso3, max_depth)
+  )
+}
+
+.walk_successor_iso3 <- function(
+  polity_code,
+  edges,
+  iso3,
+  available_iso3,
+  max_depth
+) {
+  frontier <- polity_code
+  seen <- character(0)
+  found <- character(0)
+  depth <- 0L
+  while (length(frontier) > 0L && depth < max_depth) {
+    frontier <- setdiff(frontier, seen)
+    seen <- c(seen, frontier)
+    reached <- unname(iso3[frontier])
+    resolved <- !is.na(reached) & reached %in% available_iso3
+    found <- c(found, reached[resolved])
+    frontier <- unique(unlist(
+      edges[frontier[!resolved]],
+      use.names = FALSE
+    ))
+    depth <- depth + 1L
+  }
+  sort(unique(found))
+}
+
+.polity_successor_edges <- function() {
+  successors <- stringr::str_split(polities$successor, ";\\s*")
+  successors <- purrr::map(
+    successors,
+    \(codes) codes[!is.na(codes) & codes != ""]
+  )
+  rlang::set_names(successors, polities$polity_code)
+}
+
+.polity_iso3_lookup <- function() {
+  rlang::set_names(polities$iso3_code, polities$polity_code)
+}

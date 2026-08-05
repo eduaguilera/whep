@@ -159,6 +159,74 @@ test_that("get_polity_geometries returns requested polygon rows", {
   expect_true(all(geoms$has_geometry))
 })
 
+# ---- Dissolved-federation successor closure ---------------------------------
+
+test_that(".successor_iso3_map resolves the dissolved federations", {
+  # LUH2 land use is keyed on present-day ISO3, so a federation that no longer
+  # exists is unreachable by ISO3 alone (whep#408). The polities `successor`
+  # relation recovers it, but only transitively: the Yugoslav SFR reaches Serbia
+  # and Montenegro through the 1992-2006 Serbia-and-Montenegro union.
+  available <- c(
+    "ARM",
+    "AZE",
+    "BLR",
+    "EST",
+    "GEO",
+    "KAZ",
+    "KGZ",
+    "LTU",
+    "LVA",
+    "MDA",
+    "RUS",
+    "TJK",
+    "TKM",
+    "UKR",
+    "UZB",
+    "CZE",
+    "SVK",
+    "BIH",
+    "HRV",
+    "MKD",
+    "MNE",
+    "SRB",
+    "SVN",
+    "BEL",
+    "LUX",
+    "ESP"
+  )
+  res <- whep:::.successor_iso3_map(
+    c("F228-1945-1991", "F51-1947-1993", "F248-1991-1992"),
+    available
+  )
+
+  expect_equal(res[["F51-1947-1993"]], c("CZE", "SVK"))
+  expect_equal(
+    res[["F248-1991-1992"]],
+    c("BIH", "HRV", "MKD", "MNE", "SRB", "SVN")
+  )
+  expect_equal(length(res[["F228-1945-1991"]]), 15L)
+  expect_true(all(c("RUS", "UKR", "UZB") %in% res[["F228-1945-1991"]]))
+})
+
+test_that(".successor_iso3_map stops at the first reachable ISO3", {
+  # RUS-1991-2014 is itself succeeded by RUS-2014-2025; a branch must not be
+  # expanded once it has landed inside the caller's vocabulary, or a later
+  # boundary change would silently widen the union.
+  res <- whep:::.successor_iso3_map("F51-1947-1993", c("CZE", "SVK", "ESP"))
+  expect_equal(res[["F51-1947-1993"]], c("CZE", "SVK"))
+
+  # A polity already in the vocabulary resolves to itself, not to its successor.
+  self <- whep:::.successor_iso3_map("BEL-1831-2025", c("BEL", "LUX"))
+  expect_equal(self[["BEL-1831-2025"]], "BEL")
+})
+
+test_that(".successor_iso3_map returns nothing when no successor is published", {
+  # Belgium-Luxembourg carries no `successor` upstream, so it stays unreachable
+  # and the caller must keep warning rather than invent an attribution.
+  res <- whep:::.successor_iso3_map("BLX-1850-1999", c("BEL", "LUX"))
+  expect_equal(res[["BLX-1850-1999"]], character(0))
+})
+
 # ---- ISO3 -> numeric area_code lookup --------------------------------------
 
 testthat::test_that("the iso3c lookup is unique per code", {

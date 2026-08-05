@@ -398,6 +398,158 @@ test_that(".extend_historical warns about areas with no LUH2 land match", {
   )
 })
 
+# -- Dissolved-federation LUH2 bridge (whep#408) -------------------------------
+
+.make_csk_land <- function() {
+  # LUH2 as it really is: Czechia and Slovakia have land, Czechoslovakia (area
+  # 51) does not, because LUH2 is keyed on present-day ISO3.
+  tibble::tribble(
+    ~iso3c, ~area_code, ~area, ~year, ~Land_Use, ~Area_Mha,
+    "CZE", 167L, "Czechia", 1960L, "c3ann", 2,
+    "CZE", 167L, "Czechia", 1961L, "c3ann", 3,
+    "SVK", 199L, "Slovakia", 1960L, "c3ann", 4,
+    "SVK", 199L, "Slovakia", 1961L, "c3ann", 6
+  )
+}
+
+.make_csk_production <- function() {
+  tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Czechoslovakia",
+    area_code = 51L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_character_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+}
+
+test_that(".federation_land_bridge maps a federation to its successors' ISO3", {
+  bridge <- whep:::.federation_land_bridge(
+    data.table::as.data.table(.make_csk_land())
+  )
+
+  csk <- bridge[bridge$area_code == 51L, ]
+  expect_equal(sort(csk$iso3c), c("CZE", "SVK"))
+  expect_equal(unique(csk$area), "Czechoslovakia")
+})
+
+test_that(".add_federation_land_rows is a no-op by default", {
+  land <- .make_csk_land()
+
+  expect_identical(
+    whep:::.add_federation_land_rows(land, federation_land = "none"),
+    land
+  )
+})
+
+test_that(".add_federation_land_rows sums successor LUH2 land", {
+  aug <- whep:::.add_federation_land_rows(
+    .make_csk_land(),
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages()
+
+  csk <- aug |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # 1960: CZE 2 + SVK 4 = 6 Mha; 1961: 3 + 6 = 9 Mha.
+  expect_equal(csk$Area_Mha, c(6, 9))
+  expect_true(all(is.na(csk$iso3c)))
+  # Successor rows themselves are untouched, so nothing double-counts upstream.
+  expect_equal(
+    aug$Area_Mha[aug$area_code == 167L & aug$year == 1961L],
+    3
+  )
+})
+
+test_that(".add_federation_land_rows leaves its input untouched", {
+  # `.build_grassland()` reads the same LUH2 table straight from
+  # `.read_production()`. If the bridge mutated it by reference, every
+  # federation would gain a 1850-2023 grassland row that double-counts against
+  # its successors' own rows.
+  land <- data.table::as.data.table(.make_csk_land())
+  before <- nrow(land)
+
+  invisible(suppressMessages(
+    whep:::.add_federation_land_rows(land, federation_land = "successor_union")
+  ))
+
+  expect_equal(nrow(land), before)
+  expect_false(51L %in% land$area_code)
+})
+
+test_that(".add_federation_land_rows warns without the ISO3 column", {
+  expect_warning(
+    whep:::.add_federation_land_rows(
+      .make_csk_land() |> dplyr::select(-"iso3c"),
+      federation_land = "successor_union"
+    ),
+    "iso3c"
+  )
+})
+
+test_that(".extend_historical back-casts a federation only when asked", {
+  # This is whep#408: with the default the 1960 row stays NA, because
+  # Czechoslovakia has no LUH2 land of its own to grow the proxy from.
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  status_quo <- whep:::.extend_historical(primary, years, land) |>
+    suppressWarnings() |>
+    dplyr::filter(.data$area_code == 51L, .data$year == 1960L)
+
+  expect_true(all(is.na(status_quo$value)))
+
+  bridged <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages() |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # Cropland proxy grows 6 -> 9 Mha, so 1960 tonnes = 100 * 6 / 9.
+  expect_equal(bridged$value, c(100 * 6 / 9, 100))
+  expect_equal(bridged$source[bridged$year == 1960L], "LUH2_cropland")
+})
+
+test_that(".extend_historical stops warning once a federation is bridged", {
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  expect_warning(
+    whep:::.extend_historical(primary, years, land),
+    "no LUH2 land"
+  )
+  expect_no_warning(
+    whep:::.extend_historical(
+      primary,
+      years,
+      land,
+      federation_land = "successor_union"
+    ) |>
+      suppressMessages()
+  )
+})
+
+test_that("build_primary_production rejects an unknown federation_land", {
+  expect_error(
+    build_primary_production(federation_land = "spatial_intersection"),
+    class = "rlang_error"
+  )
+})
+
 test_that(".prepare_historical_production normalizes generic historical rows", {
   historical <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
