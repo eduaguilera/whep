@@ -1769,7 +1769,12 @@ utils::globalVariables(
     "sjos_class",
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
-    "method_n_exceedance"
+    "method_n_exceedance",
+    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
+    "ISO3_CODE",
+    "fao_area_name",
+    "iso3_code",
+    "profile_row"
   )
 )
 
