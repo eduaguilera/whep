@@ -469,7 +469,6 @@ utils::globalVariables(
     "element_text",
     "end_year",
     "estimated",
-    "exact_start",
     "everything",
     "Excr_MgN",
     "Excreta",

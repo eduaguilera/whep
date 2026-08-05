@@ -12,10 +12,14 @@
 .current_area_lookup <- function(include_unmapped = TRUE) {
   out <- .polity_crosswalk(include_unmapped = include_unmapped)
   out <- out[!is.na(area_code)]
+  # A period is "open" when it runs to the latest end year present in the
+  # crosswalk (the open-period sentinel). Derive it from the data rather than
+  # hardcoding a literal year, so it tracks future data extensions.
+  open_end_year <- max(out$polity_end_year, na.rm = TRUE)
   out[,
     `:=`(
       has_polity = !is.na(polity_code),
-      is_current = !is.na(polity_end_year) & polity_end_year >= 2025
+      is_current = !is.na(polity_end_year) & polity_end_year >= open_end_year
     )
   ]
   data.table::setorderv(
@@ -178,14 +182,15 @@
       ),
       allow.cartesian = TRUE
     ]
-    matches[,
-      exact_start := !is.na(polity_start_year) &
-        polity_start_year == join_start_year
-    ]
+    # Prefer the most recent applicable period. An `exact_start` tiebreak used
+    # to sit here but was dead code: data.table's non-equi join overwrites
+    # `join_start_year` with the query year, so `polity_start_year ==
+    # join_start_year` degraded to `== year` and never changed the pick. The
+    # `polity_start_year DESC` order below is what actually decides ties.
     data.table::setorderv(
       matches,
-      c("..whep_polity_rowid", "exact_start", "polity_start_year"),
-      order = c(1L, -1L, -1L),
+      c("..whep_polity_rowid", "polity_start_year"),
+      order = c(1L, -1L),
       na.last = TRUE
     )
     matches <- unique(matches, by = "..whep_polity_rowid")
@@ -201,6 +206,28 @@
         allow.cartesian = TRUE
       ]
       # Do not silently extend dataset-specific aggregate reporting areas.
+      #
+      # An earlier revision of this branch DID extend them, to stop aggregates
+      # whose period was cut short from losing their most-recent years -- area
+      # 904 "Latin America Other" reaching only 2013 because `RLAM-1850-2013`
+      # ends there, while FAOSTAT keeps reporting it. That was the wrong place to
+      # fix it, for two measured reasons.
+      #
+      # It is an upstream data defect, and upstream has fixed it: all seven
+      # reporting buckets now run to 2025 ("Extend the seven reporting buckets to
+      # 2025 so the data they exist for resolves"), so `RLAM-1850-2013` becomes
+      # `RLAM-1850-2025` and the six `-1850-2021` buckets likewise. The
+      # short-period vintage this package still embeds is what makes the symptom
+      # visible; the re-sync in #470 removes the cause. A territorial validity
+      # span is upstream's fact, not something to paper over on read.
+      #
+      # And extending on nearest-distance is not symmetric in a safe way. It
+      # back-fills years BEFORE an aggregate's start as readily as after its end,
+      # which attributes a figure to a bucket that did not exist: an 1830
+      # Guadeloupe row would be booked to `ROW-1850-2023`. That is 64 rows /
+      # 1,722,000 t in the historical trade feed, and dropping them rather than
+      # back-filling is deliberate -- see `test_build_cbs.R`'s
+      # `.resolve_hist_trade_polities drops pre-range aggregate rows`.
       fallback_matches <- fallback_matches[
         !is.na(polity_code) & get("lookup_polity_type") != "aggregate"
       ]
@@ -476,11 +503,12 @@ add_polity_code <- function(
       "partner_polity_has_geometry"
     )
   }
+  # Keep `partner_polity_area_code` so FABIO-collapsed partners are
+  # canonicalized symmetrically with the reporting side's `polity_area_code`.
   out[,
     c(
       "partner_area_name",
       "partner_area_iso3c",
-      "partner_polity_area_code",
       "partner_polity_start_year",
       "partner_polity_end_year",
       "partner_mapping_status"
@@ -490,6 +518,7 @@ add_polity_code <- function(
   leading_cols <- c(
     "year",
     code_column,
+    "partner_polity_area_code",
     "partner_polity_code",
     "partner_polity_name",
     "partner_polity_has_geometry"
