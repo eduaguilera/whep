@@ -82,9 +82,11 @@
 #'     preserved in outputs when present.
 #'   - `year` or validity intervals (`valid_from`/`valid_to`,
 #'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
-#'     time-varying polity overlays. The start bound is inclusive and the end
-#'     bound is **exclusive**, so 2014 selects `"RUS-2014-2025"`, not
-#'     `"RUS-1991-2014"`.
+#'     time-varying polity overlays. The start bound is inclusive; the end
+#'     bound is **exclusive at a succession** and **inclusive at the open
+#'     end**, so 2014 selects `"RUS-2014-2025"` and not `"RUS-1991-2014"`,
+#'     while 2025 still selects `"RUS-2014-2025"` because no later interval of
+#'     that compartment follows it. See [polities] for the full rule.
 #' @param species_proxy A tibble mapping each `species_group` to its
 #'   spatial proxy type: `"pasture"`, `"cropland"`, `"rangeland"`, or
 #'   `"mixed"`.

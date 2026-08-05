@@ -34,11 +34,15 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year (`start_year <= ref_year < end_year`).
+#'   year, under the validity convention described for `polities`.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
 #'   `end_year` and geometry. Defaults to [get_polity_geometries()].
-#'   `start_year` is inclusive and `end_year` is **exclusive**, so 2014
-#'   resolves to `"RUS-2014-2025"`, never to `"RUS-1991-2014"`. Where the table
+#'   `start_year` is inclusive; `end_year` is **exclusive at a succession** and
+#'   **inclusive at the open end**. So 2014 resolves to `"RUS-2014-2025"`,
+#'   never to `"RUS-1991-2014"`, while 2025 still resolves to
+#'   `"RUS-2014-2025"` because nothing succeeds it. An interval counts as open
+#'   when it ends on the last year the supplied table covers and no
+#'   later-starting interval of the same polity follows it. Where the table
 #'   still carries overlapping intervals for one polity, the interval starting
 #'   on the resolved year wins, then the latest-starting one.
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
@@ -131,11 +135,25 @@ build_constant_territory_series <- function(
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
-  target <- .active_polities(polities, ref_year)
+  # Computed ONCE on the whole table: whether an interval is succeeded is a
+  # property of the table, and the per-year source subset below would hide the
+  # successor and reopen a genuinely dissolved epoch.
+  open_ended <- .open_ended_intervals(
+    polities$start_year,
+    polities$end_year,
+    .polity_family(polities$polity_code)
+  )
+
+  target <- .active_polities(polities, ref_year, open_ended = open_ended)
   if (nrow(target) == 0) {
+    covered <- if (nrow(polities) == 0L) {
+      "none, since no supplied polity carries a polygon"
+    } else {
+      paste0(min(polities$start_year), "-", max(polities$end_year))
+    }
     cli::cli_abort(c(
       "No polities with a polygon are active in `ref_year` = {ref_year}.",
-      "i" = "`end_year` is exclusive, so an interval ending in {ref_year} does not cover it. The shipped table's open intervals end in 2025, making 2024 its last covered year."
+      "i" = "`end_year` is exclusive at a succession, so an interval ending in {ref_year} does not cover it unless nothing succeeds it. Covered years: {covered}."
     ))
   }
 
@@ -149,8 +167,12 @@ build_constant_territory_series <- function(
     # Restrict to the reported polities BEFORE resolving the year: the caller
     # named these codes, so a same-polity tie must never discard one of them in
     # favour of an interval nobody reported.
-    src <- polities[polities$polity_code %in% dy$polity_code, ]
-    src <- .active_polities(src, y)
+    reported <- polities$polity_code %in% dy$polity_code
+    src <- .active_polities(
+      polities[reported, ],
+      y,
+      open_ended = open_ended[reported]
+    )
 
     if (nrow(src) == 0) {
       if (verbose) {
@@ -300,20 +322,90 @@ build_constant_territory_series <- function(
   stringr::str_remove(polity_code, "-\\d+-\\d+$")
 }
 
-# Rows of `polities` valid in `yr`. `start_year` is inclusive and `end_year` is
-# EXCLUSIVE, so 2014 resolves to "RUS-2014-2025" and never to "RUS-1991-2014".
-# An inclusive end bound makes both epochs active on every boundary year, and
-# `.assign_polity()` then hands every cell to whichever sorts first -- always
-# the dissolved predecessor -- so the successor receives no row at all.
+# THE CONVENTION (DA-24), stated once here and referred to from every other
+# resolver: `start_year` is inclusive; `end_year` is EXCLUSIVE at a succession
+# and INCLUSIVE at the open end.
+#
+# Exclusive at a succession, because 2014 belongs to "RUS-2014-2025" and never
+# to "RUS-1991-2014". An inclusive end bound makes both epochs active on every
+# boundary year, and `.assign_polity()` then hands every cell to whichever
+# sorts first -- always the dissolved predecessor -- so the successor receives
+# no row at all.
+#
+# Inclusive at the open end, because an interval nothing succeeds ends where
+# the table's coverage ends, not at a boundary between two epochs: no
+# double-count is possible there, and a uniformly exclusive read would make the
+# current year unrepresentable (all 229 open intervals end in 2025, so 2024
+# would be the last covered year).
+.open_ended_intervals <- function(start_year, end_year, group) {
+  open <- rep(FALSE, length(end_year))
+  if (length(end_year) == 0L || all(is.na(end_year))) {
+    return(open)
+  }
+  # Both conditions come from the data, never from a hardcoded year, so the
+  # rule follows upstream when the intervals are extended. Only intervals that
+  # REACH the domain end can succeed one another there, so a sibling starting
+  # later but ending earlier is not a successor and must not punch a one-year
+  # hole in a polity that is otherwise continuous.
+  at_end <- which(!is.na(end_year) & end_year == max(end_year, na.rm = TRUE))
+  keys <- as.character(group)[at_end]
+  # A row whose group is unknown keeps the strict exclusive read.
+  at_end <- at_end[!is.na(keys)]
+  keys <- keys[!is.na(keys)]
+  if (length(at_end) == 0L) {
+    return(open)
+  }
+  # The successor condition is load-bearing: 7 polities in the shipped table
+  # carry two intervals ending on the domain end (`AGO-1816-2025` beside
+  # `AGO-1975-2025`), and a bare "end_year is the maximum" test would open BOTH
+  # and count the terminal year twice. With no group repeated, every interval
+  # here is its own group maximum, so the branch below is exactly the general
+  # case and skips a group-wise pass that costs ~1.3 s on a 70k-row grid.
+  if (anyDuplicated(keys) == 0L) {
+    open[at_end] <- TRUE
+    return(open)
+  }
+  starts <- start_year[at_end]
+  starts[is.na(starts)] <- -Inf
+  open[at_end] <- starts >= tapply(starts, keys, max)[keys]
+  open
+}
+
+# TRUE where an interval covers `yr` under the convention above. `group` is
+# evaluated lazily and only touched on a terminal year, so callers may pass an
+# expression that is expensive to build. `open_ended` short-circuits that
+# derivation with a flag computed elsewhere.
+.covers_year <- function(start_year, end_year, group, yr, open_ended = NULL) {
+  covered <- start_year <= yr & yr < end_year
+  at_end <- !is.na(end_year) & end_year == yr
+  if (!any(at_end)) {
+    return(covered)
+  }
+  if (is.null(open_ended)) {
+    open_ended <- .open_ended_intervals(start_year, end_year, group)
+  }
+  covered | (start_year <= yr & at_end & open_ended)
+}
+
+# Rows of `polities` valid in `yr` under the convention above. `open_ended` is
+# the open-end flag of the FULL table, aligned to `polities` rows; pass it
+# whenever `polities` is a subset, because whether an interval is succeeded is
+# a property of the whole table and a subset can hide the successor. Left NULL,
+# it is derived from `polities` itself.
 # Where the table still carries overlapping intervals for one polity (an
 # upstream data defect: `PER-1825-1909` alongside `PER-1825-1884`), keep a
 # single interval per polity, tie-broken exactly as `.whep_polity_lookup()`
 # does in `R/polities.R`: the interval starting on `yr` first, then the
 # latest-starting one.
-.active_polities <- function(polities, yr) {
-  active <- polities[
-    which(polities$start_year <= yr & polities$end_year > yr),
-  ]
+.active_polities <- function(polities, yr, open_ended = NULL) {
+  covers <- .covers_year(
+    polities$start_year,
+    polities$end_year,
+    .polity_family(polities$polity_code),
+    yr,
+    open_ended = open_ended
+  )
+  active <- polities[which(covers), ]
   if (nrow(active) < 2L) {
     return(active)
   }

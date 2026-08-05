@@ -12,9 +12,18 @@ a continuous time interval. Key columns include:
 \code{PREFIX-start_year-end_year}.
 \item \code{polity_name}: Human-readable polity name.
 \item \code{start_year}, \code{end_year}: Validity interval for the row. \code{start_year} is
-inclusive and \code{end_year} is \strong{exclusive}, so 2014 belongs to
-\code{"RUS-2014-2025"}, not to \code{"RUS-1991-2014"}. Filtering \code{year <= end_year}
-returns both epochs and double-counts every boundary year.
+inclusive; \code{end_year} is \strong{exclusive at a succession} and \strong{inclusive at
+the open end}. So 2014 belongs to \code{"RUS-2014-2025"} and not to
+\code{"RUS-1991-2014"} (filtering \code{year <= end_year} returns both epochs and
+double-counts every boundary year), while 2025 still belongs to
+\code{"RUS-2014-2025"}, because no later interval of that polity follows it and
+a uniformly exclusive read would leave the current year with no polity at
+all. An interval is open when it ends on the last year the table covers
+(\code{max(end_year)}, 2025 in this vintage, for 229 of the 740 rows) and no
+later-starting interval of the same polity follows it. That second
+condition is not decoration: seven polities carry two intervals ending in
+2025 (\code{AGO-1816-2025} beside \code{AGO-1975-2025}), and only the later-starting
+one is open.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
 a compatibility alias.
 \item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},

@@ -91,14 +91,42 @@
     }
     start_vals[is.na(start_vals)] <- -Inf
     end_vals[is.na(end_vals)] <- Inf
-    # The start bound is inclusive and the end bound is EXCLUSIVE, matching the
-    # `polities` convention: 2014 selects "RUS-2014-2025", not "RUS-1991-2014".
-    # An inclusive end bound would return both epochs on every boundary year and
-    # double-count the cell.
-    return(country_grid[yr >= start_vals & yr < end_vals, , drop = FALSE])
+    # A missing bound arrives as a scalar; make both full length so the
+    # open-end test below is never handed a vector shorter than its grouping.
+    start_vals <- rep_len(start_vals, nrow(country_grid))
+    end_vals <- rep_len(end_vals, nrow(country_grid))
+    # The start bound is inclusive; the end bound is EXCLUSIVE at a succession
+    # and INCLUSIVE at the open end, matching the `polities` convention stated
+    # in full above `.open_ended_intervals()` in `R/constant_territory.R`. 2014
+    # selects "RUS-2014-2025", not "RUS-1991-2014" -- an inclusive end bound
+    # would return both epochs on every boundary year and double-count the cell
+    # -- while 2025 still selects "RUS-2014-2025", because nothing succeeds it.
+    covers <- .covers_year(
+      start_vals,
+      end_vals,
+      .compartment_interval_groups(country_grid),
+      yr
+    )
+    return(country_grid[which(covers), , drop = FALSE])
   }
 
   country_grid
+}
+
+#' Group key identifying successive intervals of one polity compartment.
+#'
+#' Built from the physical cell and the reporting area, deliberately NOT from
+#' `.compartment_id_cols()`: DA-2 makes `polycell_id` a function of the polity
+#' code, so it changes at every succession and would file an interval and its
+#' own successor under different keys, leaving the open-end test blind.
+#' @noRd
+.compartment_interval_groups <- function(country_grid) {
+  cols <- intersect(c("lon", "lat", "area_code"), names(country_grid))
+  if (length(cols) == 0L) {
+    return(rep("", nrow(country_grid)))
+  }
+  keys <- lapply(cols, \(cl) country_grid[[cl]])
+  do.call(paste, c(keys, list(sep = "\r")))
 }
 
 #' Build the static crop-pattern by country-compartment table.

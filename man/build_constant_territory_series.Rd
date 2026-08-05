@@ -26,12 +26,16 @@ in \code{year} and carry a polygon).
 }}
 
 \item{ref_year}{Integer. Target boundaries are the polities active in this
-year (\verb{start_year <= ref_year < end_year}).}
+year, under the validity convention described for \code{polities}.}
 
 \item{polities}{An \code{sf} of polity polygons with \code{polity_code}, \code{start_year},
 \code{end_year} and geometry. Defaults to \code{\link[=get_polity_geometries]{get_polity_geometries()}}.
-\code{start_year} is inclusive and \code{end_year} is \strong{exclusive}, so 2014
-resolves to \code{"RUS-2014-2025"}, never to \code{"RUS-1991-2014"}. Where the table
+\code{start_year} is inclusive; \code{end_year} is \strong{exclusive at a succession} and
+\strong{inclusive at the open end}. So 2014 resolves to \code{"RUS-2014-2025"},
+never to \code{"RUS-1991-2014"}, while 2025 still resolves to
+\code{"RUS-2014-2025"} because nothing succeeds it. An interval counts as open
+when it ends on the last year the supplied table covers and no
+later-starting interval of the same polity follows it. Where the table
 still carries overlapping intervals for one polity, the interval starting
 on the resolved year wins, then the latest-starting one.}
 

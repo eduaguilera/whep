@@ -126,7 +126,8 @@ test_that("years with no usable source are skipped, output schema is stable", {
 })
 
 # ---------------------------------------------------------------------------
-# Epoch resolution: `start_year` inclusive, `end_year` EXCLUSIVE.
+# Epoch resolution: `start_year` inclusive, `end_year` EXCLUSIVE at a
+# succession and INCLUSIVE at the open end (DA-24).
 #
 # The four blocks above use deliberately NON-adjacent epochs (SRC 1850-1950,
 # targets 1990-2025), so they pass under either convention and prove nothing
@@ -149,10 +150,13 @@ test_that("years with no usable source are skipped, output schema is stable", {
 
 test_that("no year resolves to two intervals of the same polity", {
   flat <- .ct_polities_flat()
-  offenders <- purrr::map(.ct_domain_years(flat), \(yr) {
-    family <- whep:::.polity_family(
-      whep:::.active_polities(flat, yr)$polity_code
-    )
+  years <- .ct_domain_years(flat)
+  resolved <- purrr::map(years, \(yr) {
+    whep:::.polity_family(whep:::.active_polities(flat, yr)$polity_code)
+  })
+  names(resolved) <- as.character(years)
+
+  offenders <- purrr::imap(resolved, \(family, yr) {
     if (anyDuplicated(family) == 0L) {
       return(character())
     }
@@ -160,6 +164,134 @@ test_that("no year resolves to two intervals of the same polity", {
   })
   # Every polity, every year in 1684-2025 -- not a hand-picked sample.
   expect_equal(sort(unique(unlist(offenders))), character())
+
+  # DA-24: the property has to hold at the OPEN END too, and there it is only a
+  # real assertion if the year resolves at all. Under a uniformly exclusive
+  # read the last year of the domain is empty, which would make the line above
+  # vacuous exactly where the current polities live.
+  last <- as.character(max(flat$end_year))
+  expect_gt(length(resolved[[last]]), 0L)
+  expect_equal(anyDuplicated(resolved[[last]]), 0L)
+
+  # No family has an interval STARTING on the open end, so nothing succeeds
+  # there and the year before it must resolve to precisely the same polities.
+  expect_equal(sum(flat$start_year == max(flat$end_year)), 0L)
+  previous <- as.character(max(flat$end_year) - 1L)
+  expect_setequal(resolved[[last]], resolved[[previous]])
+  expect_equal(length(resolved[[last]]), length(resolved[[previous]]))
+})
+
+test_that("the open end is read from the data and admits no sibling", {
+  flat <- .ct_polities_flat()
+  family <- whep:::.polity_family(flat$polity_code)
+  open <- whep:::.open_ended_intervals(flat$start_year, flat$end_year, family)
+  domain_end <- max(flat$end_year)
+
+  # Open-ended means BOTH conditions: the interval ends where the table's
+  # coverage ends, AND nothing of its own polity starts later.
+  expect_true(all(flat$end_year[open] == domain_end))
+  expect_equal(max(table(family[open])), 1L)
+  expect_setequal(family[open], unique(family[flat$end_year == domain_end]))
+
+  # The successor half is what a bare "end_year is the maximum" test misses.
+  # These seven polities each carry a SECOND interval ending on the domain end,
+  # and opening them too would count the terminal year twice. Enumerated, as
+  # C2's shared-start list is, so the next one cannot arrive silently.
+  succeeded <- flat$polity_code[flat$end_year == domain_end & !open]
+  expect_setequal(
+    succeeded,
+    c(
+      "AGO-1816-2025",
+      "ARG-1800-2025",
+      "BLZ-1800-2025",
+      "BRA-1800-2025",
+      "GRC-1919-2025",
+      "IRQ-1921-2025",
+      "ROU-1940-2025"
+    )
+  )
+  # Each of the seven really is succeeded: a later-starting interval of the
+  # same polity exists, so this is a succession and not an open end.
+  later <- purrr::map_lgl(succeeded, \(code) {
+    i <- match(code, flat$polity_code)
+    any(family == family[i] & flat$start_year > flat$start_year[i])
+  })
+  expect_true(all(later))
+  # ...and none of them is active on the open end, while its successor is.
+  at_end <- whep:::.active_polities(flat, domain_end)$polity_code
+  expect_equal(intersect(succeeded, at_end), character())
+  expect_setequal(
+    intersect(whep:::.polity_family(succeeded), whep:::.polity_family(at_end)),
+    whep:::.polity_family(succeeded)
+  )
+})
+
+test_that("a later sibling that ends earlier does not close the open end", {
+  # "X-1900-2025" runs to the domain end; "X-1950-1980" starts later but is
+  # long gone by then, so it succeeds nothing there. Reading any later start as
+  # a successor would leave X alive in 2024 and absent in 2025 -- a one-year
+  # hole in a polity that is continuous.
+  sibling <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "X-1900-2025", 1900L, 2025L,
+    "X-1950-1980", 1950L, 1980L,
+    "Y-1900-2025", 1900L, 2025L
+  )
+  expect_setequal(
+    whep:::.active_polities(sibling, 2024)$polity_code,
+    c("X-1900-2025", "Y-1900-2025")
+  )
+  expect_setequal(
+    whep:::.active_polities(sibling, 2025)$polity_code,
+    c("X-1900-2025", "Y-1900-2025")
+  )
+  # The overlap rule itself is untouched: while both X intervals are live the
+  # later-starting one still wins.
+  expect_setequal(
+    whep:::.active_polities(sibling, 1960)$polity_code,
+    c("X-1950-1980", "Y-1900-2025")
+  )
+})
+
+test_that("the open end moves with the table, not with a hardcoded 2025", {
+  # A table whose coverage ends in 2000. Its own open end is 2000; 2025 -- the
+  # shipped vintage's open end -- resolves to nothing here.
+  shifted <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "P-1800-1900", 1800L, 1900L,
+    "P-1900-2000", 1900L, 2000L
+  )
+  expect_equal(
+    whep:::.active_polities(shifted, 2000)$polity_code,
+    "P-1900-2000"
+  )
+  expect_equal(nrow(whep:::.active_polities(shifted, 2025)), 0L)
+  # The succession boundary stays exclusive: 1900 belongs to the successor, and
+  # a terminal year is not reopened merely because an interval ends on it.
+  expect_equal(
+    whep:::.active_polities(shifted, 1900)$polity_code,
+    "P-1900-2000"
+  )
+
+  # Extend the table forward and 2000 becomes a closed succession boundary
+  # again, with the open end following upstream to 2100.
+  extended <- rbind(
+    shifted,
+    tibble::tibble(
+      polity_code = "P-2000-2100",
+      start_year = 2000L,
+      end_year = 2100L
+    )
+  )
+  expect_equal(
+    whep:::.active_polities(extended, 2000)$polity_code,
+    "P-2000-2100"
+  )
+  expect_equal(
+    whep:::.active_polities(extended, 2100)$polity_code,
+    "P-2000-2100"
+  )
+  expect_equal(nrow(whep:::.active_polities(extended, 2101)), 0L)
 })
 
 test_that("every adjacent-epoch boundary year resolves to the successor", {
@@ -320,6 +452,56 @@ test_that("a source reported on its own end_year is dissolved, not placed", {
     "no source polity"
   )
   expect_equal(nrow(res), 0L)
+})
+
+test_that("ref_year on the open end resolves end to end", {
+  testthat::skip_if_not_installed("sf")
+  # `.synthetic_polities()` ends its coverage in 2025, exactly as the shipped
+  # vintage does. Under a uniformly exclusive read this call ABORTS with "no
+  # polities ... active in ref_year = 2025", which is what DA-24 removes.
+  open_end <- whep::build_constant_territory_series(
+    .reported,
+    ref_year = 2025,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    verbose = FALSE
+  )
+  expect_setequal(open_end$target_polity_code, c("T_L", "T_R"))
+  # ...and it agrees with a year safely inside the same intervals, so the open
+  # end is the same territory rather than a differently-resolved one.
+  inside <- whep::build_constant_territory_series(
+    .reported,
+    ref_year = 2000,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    verbose = FALSE
+  )
+  expect_equal(open_end, inside)
+
+  # A source reported ON the open end is placed, where a source reported on a
+  # succession boundary is dissolved (the block below pins that complement).
+  placed <- whep::build_constant_territory_series(
+    data.frame(year = 2025L, polity_code = "T_L", value = 100),
+    ref_year = 2025,
+    polities = .synthetic_polities(),
+    resolution = 10000,
+    verbose = FALSE
+  )
+  expect_equal(sum(placed$covered), 100, tolerance = 1e-6)
+})
+
+test_that("a ref_year past the open end aborts, naming the covered range", {
+  testthat::skip_if_not_installed("sf")
+  expect_error(
+    whep::build_constant_territory_series(
+      .reported,
+      ref_year = 2026,
+      polities = .synthetic_polities(),
+      resolution = 10000,
+      verbose = FALSE
+    ),
+    "1850-2025"
+  )
 })
 
 test_that("a reported source is never discarded by the same-polity tie-break", {
