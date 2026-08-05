@@ -7,15 +7,27 @@
 # green exactly when the host happens to answer.
 #
 # This job removes the luck. It runs the suite with:
-#   1. an empty pins cache, so nothing can be served from a warm copy, and
-#   2. http(s)_proxy pointed at a dead port, so every remote read aborts.
+#   1. an empty pins cache, so nothing can be served from a warm copy,
+#   2. http(s)_proxy pointed at a dead port, so every remote read aborts, and
+#   3. CI unset, so `skip_on_ci()` tests run here too.
 # Any test that reaches out fails here, deterministically, on every run.
 #
-# The proxy vars are set on the test step ONLY -- the setup steps above it need
+# (3) is not incidental. A `skip_on_ci()` test is invisible to every GitHub
+# Actions job, this one included, so the guard would be blind to exactly the
+# tests most likely to reach the network -- the ones deliberately kept out of
+# CI because they are slow and real-data backed. That blind spot is not
+# hypothetical: it let a turnkey test through that ERRORed the r-universe
+# check for a week (r-universe does not set CI, so it ran the test for real,
+# built the full 1850-2023 series and died on a 16 GB allocation).
+#
+# Unsetting CI is safe because every remaining real-data test carries its own
+# local-file or env-var guard and skips on that instead.
+#
+# These env vars are set on the test step ONLY -- the setup steps above it need
 # real network access to install dependencies.
 #
 # Reproduce locally:
-#   XDG_CACHE_HOME=$(mktemp -d) http_proxy=http://127.0.0.1:9 \
+#   CI=false XDG_CACHE_HOME=$(mktemp -d) http_proxy=http://127.0.0.1:9 \
 #     https_proxy=http://127.0.0.1:9 Rscript -e 'devtools::test()'
 #
 # If this job fails alone, the fix is to give the offending test an offline
@@ -63,6 +75,9 @@ jobs:
           XDG_CACHE_HOME: ${{ runner.temp }}/empty-cache
           http_proxy: http://127.0.0.1:9
           https_proxy: http://127.0.0.1:9
+          # Runs the `skip_on_ci()` tests here as well -- see the header.
+          # testthat treats any non-"true" value as "not on CI".
+          CI: "false"
         run: |
           mkdir -p "$XDG_CACHE_HOME"
           Rscript -e 'devtools::test(stop_on_failure = TRUE)'
