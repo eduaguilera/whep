@@ -1,5 +1,23 @@
 # whep (development version)
 
+* New `polity_coverage_gaps()` reports the rows of a built table whose
+  `reporting_polity_code` is a nearest-period stand-in, i.e. a polity that did
+  not exist in that row's year. `add_polity_code()` has always reported these as
+  `mapping_status == "out_of_span"`, but the reporting-column boundary every
+  area-keyed output crosses dropped that column, so the documented uncertainty
+  was invisible in published data. Measured on the real FAOSTAT production path
+  (`.read_input("faostat-production")` aggregated to polities, 1961-2024),
+  **5,637 of 3,011,912 rows (0.19%)** are stand-ins, all of them bucket 206
+  "Sudan (former)" over 2012-2024 on `SUD-1956-2011`; on `faostat-fbs-old` it is
+  972 of 5,331,877 (0.018%), the same bucket over 2012-2013. Across the whole
+  crosswalk over 1961-2023 it is 922 of 16,658 resolved area-years in 28 areas,
+  in both directions. **No published value or column changes**: the new function
+  is a separate query, and carrying the signal on the outputs themselves is
+  opt-in through `options(whep.polity_mapping_status = "flag")` for a logical
+  `reporting_polity_out_of_span`, or `"status"` for the full
+  `reporting_mapping_status`. The default, `"none"`, is today's schema. Which of
+  the two to adopt as the default is an open decision (#545).
+
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement

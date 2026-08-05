@@ -298,3 +298,207 @@ testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
   testthat::expect_equal(whep:::.iso3c_to_area_code("SSD"), 206L)
   testthat::expect_equal(sum(lut$area_code == 206L), 2L)
 })
+
+# ---- out-of-span stand-ins on published output (whep#545) -------------------
+
+testthat::test_that("the published reporting columns hide the stand-in", {
+  # THE DEFECT, PINNED AS THE DEFAULT. `add_polity_code()` documents that a row
+  # no mapped period covers is attributed to the NEAREST period and reported as
+  # `out_of_span`, "a coverage gap". The reporting-column boundary every
+  # area-keyed build output crosses deletes that column, so the two rows below
+  # are indistinguishable in published data even though one is a stand-in.
+  #
+  # Bucket 206 "Sudan (former)" is the live case: FAOSTAT keeps reporting it
+  # after `SUD-1956-2011` ends, so 2015 lands on a polity that ended in 2011.
+  rows <- tibble::tibble(
+    area_code = 206L,
+    year = c(2005L, 2015L),
+    value = 1
+  )
+
+  resolved <- whep::add_polity_code(rows)
+  testthat::expect_equal(resolved$polity_code, rep("SUD-1956-2011", 2L))
+  testthat::expect_equal(resolved$mapping_status, c("manual", "out_of_span"))
+
+  published <- whep:::.add_reporting_polity_columns(rows)
+  testthat::expect_setequal(
+    setdiff(names(published), c("year", "area_code", "value")),
+    c(
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry"
+    )
+  )
+  # Same polity, same name, nothing saying one of them did not exist yet.
+  testthat::expect_equal(
+    published$reporting_polity_code,
+    rep("SUD-1956-2011", 2L)
+  )
+})
+
+testthat::test_that("polity_coverage_gaps finds what the columns hide", {
+  gaps <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 206L, year = c(2005L, 2015L, 2015L), value = 1)
+  )
+
+  testthat::expect_equal(nrow(gaps), 1L)
+  testthat::expect_equal(gaps$year, 2015L)
+  testthat::expect_equal(gaps$area_code, 206L)
+  testthat::expect_equal(gaps$polity_code, "SUD-1956-2011")
+  testthat::expect_equal(gaps$polity_end_year, 2011L)
+  # Row COUNTS, not distinct area-years: the caller wants to know how much of
+  # its table is affected.
+  testthat::expect_equal(gaps$n_rows, 2L)
+
+  # A table with no stand-in gets zero rows and the same columns, so a caller
+  # can bind or assert on the result without a special case.
+  clean <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 2L, year = 2000L)
+  )
+  testthat::expect_equal(nrow(clean), 0L)
+  testthat::expect_equal(names(clean), names(gaps))
+})
+
+testthat::test_that("polity_coverage_gaps agrees with the resolver", {
+  # An invariant rather than a count: the gap set must be EXACTLY the
+  # `out_of_span` set `add_polity_code()` reports, or the two answers to "did
+  # this polity exist that year" disagree. The count itself moves with every
+  # upstream re-sync; the agreement must not. Restricted to 1961 onwards so the
+  # back-cast anchor floor is inert, as in the resolver's own test above.
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = 1961:2023
+  )
+  resolved <- whep::add_polity_code(grid)
+  expected <- resolved[
+    !is.na(resolved$mapping_status) &
+      resolved$mapping_status == "out_of_span",
+    c("area_code", "year")
+  ]
+  gaps <- whep::polity_coverage_gaps(grid)
+
+  testthat::expect_gt(nrow(expected), 0L)
+  testthat::expect_equal(nrow(gaps), nrow(expected))
+  testthat::expect_setequal(
+    paste(gaps$area_code, gaps$year),
+    paste(expected$area_code, expected$year)
+  )
+  # Every reported gap really is outside its polity's period, in one direction
+  # or the other.
+  testthat::expect_true(all(
+    gaps$year < gaps$polity_start_year | gaps$year > gaps$polity_end_year
+  ))
+})
+
+testthat::test_that("polity_coverage_gaps needs the area column", {
+  testthat::expect_error(
+    whep::polity_coverage_gaps(tibble::tibble(year = 2015L)),
+    "area_code"
+  )
+  # A non-default code column is honoured, and a table with no year column
+  # falls back to the current mapping, which has no stand-ins by construction.
+  renamed <- tibble::tibble(bucket = 206L, year = 2015L)
+  testthat::expect_equal(
+    nrow(whep::polity_coverage_gaps(renamed, code_column = "bucket")),
+    1L
+  )
+  testthat::expect_equal(
+    nrow(whep::polity_coverage_gaps(tibble::tibble(area_code = 206L))),
+    0L
+  )
+})
+
+testthat::test_that("the mapping-status switch carries the signal, opt-in", {
+  # Carrying it by default would change the schema of ~100 exported outputs at
+  # once, which is an owner decision (#545), so both repairs are selectable and
+  # neither is imposed. What is asserted here is that each mode adds EXACTLY the
+  # column it promises and changes nothing else.
+  rows <- tibble::tibble(
+    area_code = 206L,
+    year = c(2005L, 2015L),
+    value = 1
+  )
+  base <- whep:::.add_reporting_polity_columns(rows)
+
+  withr::local_options(whep.polity_mapping_status = "flag")
+  flagged <- whep:::.add_reporting_polity_columns(rows)
+  testthat::expect_equal(
+    setdiff(names(flagged), names(base)),
+    "reporting_polity_out_of_span"
+  )
+  testthat::expect_equal(
+    flagged$reporting_polity_out_of_span,
+    c(FALSE, TRUE)
+  )
+  testthat::expect_equal(
+    as.data.frame(flagged[names(base)]),
+    as.data.frame(base)
+  )
+
+  withr::local_options(whep.polity_mapping_status = "status")
+  status <- whep:::.add_reporting_polity_columns(rows)
+  testthat::expect_equal(
+    setdiff(names(status), names(base)),
+    "reporting_mapping_status"
+  )
+  testthat::expect_equal(
+    status$reporting_mapping_status,
+    c("manual", "out_of_span")
+  )
+  testthat::expect_equal(
+    as.data.frame(status[names(base)]),
+    as.data.frame(base)
+  )
+})
+
+testthat::test_that("the switch reaches the partner columns too", {
+  trade <- tibble::tibble(
+    area_code = 2L,
+    area_code_partner = 206L,
+    year = c(2005L, 2015L)
+  )
+  base <- whep:::.add_partner_polity_columns(trade)
+
+  withr::local_options(whep.polity_mapping_status = "flag")
+  flagged <- whep:::.add_partner_polity_columns(trade)
+  testthat::expect_equal(
+    setdiff(names(flagged), names(base)),
+    "partner_polity_out_of_span"
+  )
+  testthat::expect_equal(flagged$partner_polity_out_of_span, c(FALSE, TRUE))
+})
+
+testthat::test_that("re-running under the switch adds no duplicate column", {
+  # Several builds attach the reporting columns to a frame that already has
+  # them, so a mode's own column has to be dropped and rebuilt like the others
+  # rather than appended a second time.
+  rows <- tibble::tibble(area_code = 206L, year = c(2005L, 2015L))
+
+  withr::local_options(whep.polity_mapping_status = "flag")
+  once <- whep:::.add_reporting_polity_columns(rows)
+  twice <- whep:::.add_reporting_polity_columns(once)
+  testthat::expect_equal(names(twice), names(once))
+  testthat::expect_equal(as.data.frame(twice), as.data.frame(once))
+
+  # And switching the mode off again removes it, instead of leaving a stale
+  # column behind that no longer tracks the resolution.
+  withr::local_options(whep.polity_mapping_status = "none")
+  back <- whep:::.add_reporting_polity_columns(once)
+  testthat::expect_false("reporting_polity_out_of_span" %in% names(back))
+})
+
+testthat::test_that("a mistyped mapping-status option aborts", {
+  withr::local_options(whep.polity_mapping_status = "out_of_span")
+  testthat::expect_error(
+    whep:::.add_reporting_polity_columns(
+      tibble::tibble(area_code = 2L, year = 2000L)
+    ),
+    "whep.polity_mapping_status"
+  )
+  testthat::expect_error(
+    whep:::.polity_status_mode("yes"),
+    class = "rlang_error"
+  )
+})
