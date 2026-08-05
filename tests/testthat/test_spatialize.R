@@ -437,6 +437,115 @@ testthat::test_that("build_gridded_landuse handles cells with no pattern gracefu
   testthat::expect_equal(total, 100, tolerance = 1e-6)
 })
 
+# Type-aware allocation ---------------------------------------------------------
+
+testthat::test_that("type-aware allocation excludes cells lacking the crop's LUH2 type", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000
+  )
+  # Crop pattern is present in both cells.
+  crop_patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               0.5,
+    0.75, 50.25,             15L,               0.5
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
+  # Crop 15 maps to c3ann, present only in the first cell (sparse table:
+  # the second cell has no c3ann row).
+  type_mapping <- tibble::tribble(
+    ~item_prod_code, ~luh2_type,
+    15L, "c3ann"
+  )
+  type_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~luh2_type, ~type_ha, ~type_irrig_ha,
+    0.25, 50.25, 2000L, "c3ann", 500, 0
+  )
+
+  result <- whep::build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid,
+    config = list(
+      type_cropland = type_cropland,
+      type_mapping = type_mapping
+    )
+  )
+
+  # The cell lacking the crop's LUH2 type must get zero allocation.
+  cell_lacking_type <- result |>
+    dplyr::filter(lon == 0.75) |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(cell_lacking_type, 0, tolerance = 1e-6)
+
+  # The full country total lands in the cell that has the type.
+  cell_with_type <- result |>
+    dplyr::filter(lon == 0.25) |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(cell_with_type, 1000, tolerance = 1e-6)
+})
+
+testthat::test_that("type-aware allocation falls back to total cropland when no cell has the type", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               0.5,
+    0.75, 50.25,             15L,               0.5
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L, 500,
+    0.75, 50.25, 2000L, 500
+  )
+  country_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 1L
+  )
+  type_mapping <- tibble::tribble(
+    ~item_prod_code, ~luh2_type,
+    15L, "c3ann"
+  )
+  # No cell has c3ann for this crop (a different type is present).
+  type_cropland <- tibble::tribble(
+    ~lon, ~lat, ~year, ~luh2_type, ~type_ha, ~type_irrig_ha,
+    0.25, 50.25, 2000L, "c4ann", 500, 0,
+    0.75, 50.25, 2000L, "c4ann", 500, 0
+  )
+
+  result <- whep::build_gridded_landuse(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid,
+    config = list(
+      type_cropland = type_cropland,
+      type_mapping = type_mapping
+    )
+  )
+
+  # Whole-group fallback: total is conserved via total cropland.
+  total <- result |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(total, 1000, tolerance = 1e-6)
+})
+
 # Multiple years ----------------------------------------------------------------
 
 testthat::test_that("build_gridded_landuse handles multiple years", {

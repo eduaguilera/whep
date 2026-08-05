@@ -49,7 +49,9 @@
 #'   `n_inputs`/`population`. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the
 #'   country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
-#'   and `framing`, the anthropogenic definition it was computed under.
+#'   and `framing`, the anthropogenic definition it was computed under, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_percapita(example = TRUE)
@@ -74,7 +76,8 @@ build_n_percapita <- function(
   n_inputs |>
     .n_percapita_anthropogenic(framing, params) |>
     .n_percapita_per_capita(population) |>
-    dplyr::mutate(framing = .env$framing)
+    dplyr::mutate(framing = .env$framing) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -159,5 +162,6 @@ build_n_percapita <- function(
     20L,
     22,
     "synthetic_bnf"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

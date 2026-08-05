@@ -1153,6 +1153,7 @@ prepare_country_areas <- function(
       crop_areas$irrigated_area_ha[needs_fallback] <-
         fallback$irrigated_area_ha
     }
+    crop_areas <- .cap_national_irrigation(crop_areas)
   } else {
     cli::cli_alert_info(
       "MIRCA not found -- using LUH2-proportional irrigation allocation"
@@ -1189,6 +1190,27 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# Cap summed irrigated area per country-year at the LUH2 national total. MIRCA
+# rescaling makes covered crops absorb the whole national total, so the per-CFT
+# fallback for MIRCA-absent crops would otherwise add irrigation on top of an
+# already-complete allocation (double-counting). Scaling proportionally when the
+# country sum exceeds `total_irrig_ha` conserves the national irrigation total.
+.cap_national_irrigation <- function(crop_areas) {
+  crop_areas |>
+    dplyr::mutate(
+      national_irrig_ha = sum(.data$irrigated_area_ha, na.rm = TRUE),
+      cap_scale = dplyr::if_else(
+        .data$national_irrig_ha > .data$total_irrig_ha &
+          .data$national_irrig_ha > 0,
+        .data$total_irrig_ha / .data$national_irrig_ha,
+        1
+      ),
+      irrigated_area_ha = .data$irrigated_area_ha * .data$cap_scale,
+      .by = c("year", "area_code")
+    ) |>
+    dplyr::select(-"national_irrig_ha", -"cap_scale")
 }
 
 
@@ -5939,6 +5961,23 @@ prepare_lpjml6_static_inputs <- function(
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
+# Collapse per-crop N rates to LPJmL PFT bands with an area-weighted mean
+# (weight = rainfed_ha + irrigated_ha), mirroring the yields writer. Many crops
+# share one band; a plain mean would bias the band rate toward minor-area crops
+# and break the implied applied-N mass (LPJmL multiplies rate x band area).
+.aggregate_nitrogen_pft <- function(ng) {
+  ng <- data.table::as.data.table(ng)
+  ng[, w := rainfed_ha + irrigated_ha]
+  agg <- ng[
+    w > 0,
+    .(num = sum(kg_n_ha * w, na.rm = TRUE), w_sum = sum(w, na.rm = TRUE)),
+    by = .(year, pft, fert_type, row, col)
+  ]
+  agg[, value := num / w_sum]
+  agg[is.nan(value), value := 0]
+  agg[, .(year, pft, fert_type, row, col, value)]
+}
+
 .write_nitrogen_nc_chunks <- function(
   nc_syn,
   nc_man,
@@ -5950,10 +5989,7 @@ prepare_lpjml6_static_inputs <- function(
 ) {
   ng <- data.table::as.data.table(n_dt)
   ng <- coord_to_rowcol(ng, grid)
-  agg <- ng[,
-    .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft, fert_type, row, col)
-  ]
+  agg <- .aggregate_nitrogen_pft(ng)
   # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
   # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
   rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]

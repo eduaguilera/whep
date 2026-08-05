@@ -41,7 +41,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (grassland area in hectares) and `method_grassland` (the chosen
-#'   metric).
+#'   metric), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -66,7 +68,10 @@ build_grassland_land_extension <- function(
     faostat_pasture = .grassland_occupation_faostat(data$landuse)
   )
   if (grassland_metric == "occupation") {
-    return(dplyr::mutate(occupation, method_grassland = "occupation"))
+    return(
+      dplyr::mutate(occupation, method_grassland = "occupation") |>
+        .add_reporting_polity_columns()
+    )
   }
 
   .check_usable_grass_yield(usable_grass_yield_dm_t_ha)
@@ -75,7 +80,12 @@ build_grassland_land_extension <- function(
   } else {
     data$feed_intake
   }
-  .grassland_active_grazing(occupation, feed_intake, usable_grass_yield_dm_t_ha)
+  .grassland_active_grazing(
+    occupation,
+    feed_intake,
+    usable_grass_yield_dm_t_ha
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # LUH2 grassland area (hectares) from primary production, excluding rotational
@@ -146,6 +156,12 @@ build_grassland_land_extension <- function(
 }
 
 # Cap grassland area at the area implied by grazing intake and usable yield.
+# Grass intake from get_feed_intake() is booked under permanent grassland
+# (item_cbs 3000) only, while occupation spans all grass items (e.g. 3002
+# temporary grassland). Capping must therefore compare total grazing intake
+# against total grassland area per year/area, then split the capped total back
+# across items in proportion to their occupation, otherwise items with no
+# matching intake row (like 3002) would be silently zeroed.
 .grassland_active_grazing <- function(
   occupation,
   feed_intake,
@@ -155,22 +171,30 @@ build_grassland_land_extension <- function(
     dplyr::filter(.data$feed_type == "grass") |>
     dplyr::summarise(
       grazing_intake_dm_t = sum(.data$intake_dry_matter, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(
       year = as.integer(.data$year),
-      area_code = as.integer(.data$area_code),
-      item_cbs_code = as.integer(.data$item_cbs_code)
+      area_code = as.integer(.data$area_code)
     )
 
   occupation |>
-    dplyr::left_join(intake, by = c("year", "area_code", "item_cbs_code")) |>
+    dplyr::mutate(
+      occupation_total = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::left_join(intake, by = c("year", "area_code")) |>
     dplyr::mutate(
       grazing_intake_dm_t = tidyr::replace_na(.data$grazing_intake_dm_t, 0),
-      impact_u = pmin(
-        .data$impact_u,
+      capped_total = pmin(
+        .data$occupation_total,
         .data$grazing_intake_dm_t / usable_grass_yield_dm_t_ha,
         na.rm = TRUE
+      ),
+      impact_u = dplyr::if_else(
+        .data$occupation_total > 0,
+        .data$impact_u * .data$capped_total / .data$occupation_total,
+        0
       ),
       method_grassland = "active_grazing"
     ) |>
