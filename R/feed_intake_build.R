@@ -398,6 +398,12 @@
 # agree on the ranking and on the dominant region (Middle East 0.69 by
 # livestock units, 0.82 by Tier-2 demand).
 #
+# Cross-checked against a source that touches neither the fold nor the unfold
+# switch (which is itself unreliable for stocks, whep#589): raw FAOSTAT
+# `Stocks` from the `faostat-production` pin converted with `liv_lu_coefs`
+# gives the same 13 members and region shares within 0.019 of these (Middle
+# East 0.688 there against 0.693 here).
+#
 # Regenerate with `inst/scripts/row_feed_region_weights.R` after a polities
 # re-sync, since a re-sync can move members in or out of the bucket.
 .feed_region_fallbacks <- function() {
