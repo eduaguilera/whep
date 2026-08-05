@@ -527,10 +527,14 @@ polycell_shim_view <- function(support) {
 }
 
 # `s2::s2_bounds_rect()` reports the spherical extent. It returns a longitude
-# interval that WRAPS (lo > hi) for a polygon crossing the antimeridian, whose
-# coordinate box already spans the globe, so the coordinate box is used there.
-# An unreadable geometry cannot be bounded spherically either; it falls back
-# the same way rather than aborting the build.
+# interval that WRAPS (lo > hi) for a polygon crossing the antimeridian, and a
+# wrapped interval cannot be used as a `min`/`max` pair, so longitude falls
+# back to the coordinate box there -- which already spans the globe for such a
+# polygon anyway. The LATITUDE bounds stay usable when longitude wraps, and are
+# kept: discarding them omitted the extreme-latitude cells of F228's nine
+# intervals and of KIR-1800-2025, which is the same omission the longitude
+# bound exists to prevent. An unreadable geometry cannot be bounded spherically
+# at all and falls back on both axes rather than aborting the build.
 .pcs_s2_window <- function(geom) {
   box <- sf::st_bbox(geom)
   fallback <- c(
@@ -543,12 +547,13 @@ polycell_shim_view <- function(support) {
     return(fallback)
   }
   rect <- try(s2::s2_bounds_rect(geom), silent = TRUE)
-  if (inherits(rect, "try-error") || rect$lng_lo > rect$lng_hi) {
+  if (inherits(rect, "try-error")) {
     return(fallback)
   }
+  wraps <- rect$lng_lo > rect$lng_hi
   c(
-    xmin = rect$lng_lo,
-    xmax = rect$lng_hi,
+    xmin = if (wraps) box[["xmin"]] else rect$lng_lo,
+    xmax = if (wraps) box[["xmax"]] else rect$lng_hi,
     ymin = rect$lat_lo,
     ymax = rect$lat_hi
   )
@@ -847,15 +852,18 @@ polycell_shim_view <- function(support) {
 # Neither is a rounding effect, and both are INTERVAL-GRAIN, for the same
 # reason `unassigned` is: a cell covered in one epoch and not in another is
 # unmatched only in the second, so a footprint taken over all intervals at once
-# answers the wrong question. Measured on the shipped polities against GLWD,
-# all intervals: 1,906 covered cell-intervals hold 0.403 Gha of whole-cell area
-# with no water row, and 110 wet GLWD cells are never reached by any polycell.
-# Sliced to 2015 the second side is 477, over four times the all-interval
-# figure, which is exactly why the rows carry their interval and the gap rows
-# partition the whole domain. Only WET cells are reported on that side: a dry
-# cell no polycell reaches loses nothing, and 703 further GLWD cells are
-# unmatched across all intervals but carry no water. EA10 required this
-# disagreement handled explicitly rather than absorbed.
+# answers the wrong question. Measured on the shipped polities against GLWD:
+# 6,658 covered cell-intervals have no water row, and the wet side carries
+# 7,817 rows over 7,506 distinct cells. Sliced, that side reads 6,597 cells in
+# 1800, 1,233 in 1900 and 477 in 2015 -- the territory grows, so the count
+# falls -- and only 110 wet cells are unreached in EVERY interval, with 703
+# further GLWD cells unreached throughout but carrying no water. Only WET cells
+# are reported there, because a dry cell no polycell reaches loses nothing.
+#
+# Those slice figures are only correct because the gap rows partition the whole
+# domain. While `.pcs_gaps_before()` was dead the wet side reported its 110
+# never-reached cells and nothing else, so 2015 read 110 rather than 477.
+# EA10 required this disagreement handled explicitly rather than absorbed.
 .pcs_water_unmatched <- function(support, water) {
   covered <- support |>
     dplyr::filter(.data$coverage_status != "crosswalk_only") |>
@@ -1426,6 +1434,16 @@ polycell_shim_view <- function(support) {
 }
 
 # The stretch before each claimed interval, back to the previous one.
+#
+# The gap bounds are built under NEW names and renamed afterwards. Assigning
+# `start_year` and `end_year` directly inside one `transmute()` reads the
+# rebound value, not the original: `end_year = start_year` resolved to the
+# `start_year` assigned a line earlier, so every gap came out zero-length and
+# was then dropped by the `start_year < end_year` filter. The whole helper was
+# dead: re-running the broken version over the shipped build returns 0 rows
+# where this one returns 7,340, and 6,487 of the 32,248 wet GLWD cells that
+# some polycell reaches had no row at the domain start. Distinct names make
+# that class of mistake impossible here.
 .pcs_gaps_before <- function(claimed, domain) {
   claimed |>
     dplyr::arrange(.data$lon, .data$lat, .data$start_year) |>
@@ -1436,9 +1454,10 @@ polycell_shim_view <- function(support) {
     dplyr::transmute(
       .data$lon,
       .data$lat,
-      start_year = .data$previous_end,
-      end_year = .data$start_year
-    )
+      gap_start = .data$previous_end,
+      gap_end = .data$start_year
+    ) |>
+    dplyr::rename(start_year = "gap_start", end_year = "gap_end")
 }
 
 # The stretch after the last claimed interval, out to the end of the domain.

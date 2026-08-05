@@ -48,6 +48,14 @@
 
 .vps_h <- function(x) cli::cli_h2(x)
 
+.vps_codes_from_env <- function() {
+  codes <- Sys.getenv("WHEP_VPS_POLITY_CODES", "")
+  if (!nzchar(codes)) {
+    return(NULL)
+  }
+  stringr::str_split_1(codes, ",") |> stringr::str_trim()
+}
+
 .vps_env <- function(name) {
   value <- Sys.getenv(name, "")
   if (nzchar(value)) value else NULL
@@ -159,41 +167,80 @@
     "GBR-1800-1921",
     "FRA-1800-1919"
   )
-  worst <- polycells |>
-    dplyr::mutate(probe_year = .data$start_year) |>
-    dplyr::summarise(
-      got_ha = sum(.data$polity_area_ha),
-      terra_pieces = sum(.data$area_engine == "terra"),
-      .by = c("polity_code", "probe_year")
+  # ONE interval per polycell, never a total over interval rows. Summing every
+  # row of a polity counts each of its cells once per epoch: GRC-1830-1913 has
+  # 51 polycells across 62 interval rows, and the total reads 5,194,796 ha
+  # against a 4,624,216 ha polygon, a spurious 0.1234 where the truth at a year
+  # is 6.696e-05. TUR-1800-1913 carries 1,399 split polycells, so a gate built
+  # that way fires on dozens of polities that are correct.
+  #
+  # The probe is the polity's own earliest interval start, which every one of
+  # its polycells covers because the splits partition the polity's validity.
+  measured <- polycells |>
+    dplyr::inner_join(
+      dplyr::summarise(
+        polycells,
+        probe_year = min(.data$start_year),
+        .by = "polity_code"
+      ),
+      by = "polity_code"
+    ) |>
+    dplyr::filter(
+      .data$start_year <= .data$probe_year,
+      .data$probe_year < .data$end_year
     ) |>
     dplyr::summarise(
-      got_ha = sum(.data$got_ha),
-      terra_pieces = sum(.data$terra_pieces),
-      .by = "polity_code"
+      got_ha = sum(.data$polity_area_ha),
+      polycells = dplyr::n(),
+      terra_pieces = sum(.data$area_engine == "terra"),
+      .by = c("polity_code", "probe_year")
     )
-  comparison <- worst |>
-    dplyr::inner_join(.vps_own_areas(worst$polity_code), by = "polity_code") |>
+  comparison <- measured |>
+    dplyr::inner_join(
+      .vps_own_areas(measured$polity_code),
+      by = "polity_code"
+    ) |>
     dplyr::mutate(rel = abs(.data$got_ha - .data$own_ha) / .data$own_ha) |>
     dplyr::filter(.data$rel > 1e-6) |>
     dplyr::arrange(dplyr::desc(.data$rel))
   print(as.data.frame(comparison), digits = 6)
-  grew <- setdiff(comparison$polity_code, expected)
-  if (length(grew) > 0L) {
+  # SET EQUALITY, reported in both directions and as counts. "Within the
+  # expected five" passes just as happily on an EMPTY list, so a relaxed
+  # tolerance or a broken measurement reads as success; the machine-checkable
+  # line below cannot. `present` is restricted to the subset actually built, so
+  # running on a handful of polities does not read as a shrunken list.
+  built <- intersect(expected, polycells$polity_code)
+  unexpected <- setdiff(comparison$polity_code, expected)
+  missing <- setdiff(built, comparison$polity_code)
+  no_terra <- comparison$polity_code[comparison$terra_pieces == 0L]
+  cli::cli_text(
+    "exception list: expected {length(built)}, present
+     {length(intersect(comparison$polity_code, built))}, unexpected
+     {length(unexpected)}, missing {length(missing)}, without terra
+     {length(no_terra)}."
+  )
+  if (length(unexpected) > 0L) {
     cli::cli_alert_danger(
-      "The S-A2 exception list GREW: {.val {grew}}. Investigate before
+      "The S-A2 exception list GREW: {.val {unexpected}}. Investigate before
        accepting this build."
     )
-  } else {
-    cli::cli_alert_success(
-      "Exception list is within the expected {length(expected)}: {.val
-       {expected}}."
+  }
+  if (length(missing) > 0L) {
+    cli::cli_alert_danger(
+      "The S-A2 exception list SHRANK: {.val {missing}} no longer exceeds the
+       tolerance. That is not automatically good -- it also happens when the
+       measurement stops measuring."
     )
   }
-  no_terra <- comparison$polity_code[comparison$terra_pieces == 0L]
   if (length(no_terra) > 0L) {
     cli::cli_alert_danger(
       "Over tolerance WITHOUT a terra piece: {.val {no_terra}}. That is not
        the engine substitution and needs its own explanation."
+    )
+  }
+  if (length(c(unexpected, missing, no_terra)) == 0L) {
+    cli::cli_alert_success(
+      "Exception list is exactly the expected {length(built)}: {.val {built}}."
     )
   }
   invisible(comparison)
@@ -302,7 +349,11 @@
   )
 }
 
-.vps_water_unmatched <- function(support) {
+# The diagnostic is interval-grain, so a row is a cell-INTERVAL, not a cell.
+# Both are reported, and the wet side is also sliced, because the two answer
+# different questions: how many cells are unreached in some epoch, and how many
+# at the year in hand.
+.vps_water_unmatched <- function(support, year) {
   .vps_h("EA10: cells the water layer and the polycells do not share")
   unmatched <- attr(support, "water_unmatched")
   if (is.null(unmatched) || nrow(unmatched) == 0L) {
@@ -311,10 +362,21 @@
   }
   print(as.data.frame(dplyr::summarise(
     unmatched,
-    cells = dplyr::n(),
+    cell_intervals = dplyr::n(),
+    distinct_cells = dplyr::n_distinct(.data$lon, .data$lat),
     whole_cell_gha = round(sum(.data$cell_area_ha, na.rm = TRUE) / 1e9, 4),
     .by = "side"
   )))
+  wet <- unmatched |>
+    dplyr::filter(
+      .data$side == "water_cell_without_polycell",
+      .data$start_year <= year,
+      year < .data$end_year
+    )
+  cli::cli_text(
+    "wet cells no polycell reaches at {year}:
+     {nrow(dplyr::distinct(wet, .data$lon, .data$lat))}."
+  )
 }
 
 .vps_overlap <- function(support, polycells, year) {
@@ -363,7 +425,18 @@
 
 # ---- Run --------------------------------------------------------------------
 
-.vps_main <- function(year = 2015L, historical_year = 1900L) {
+# `polity_codes` restricts the build to a subset. The default is the whole
+# table, which is the production call and takes about an hour; a subset runs in
+# minutes and is what makes it practical to EXECUTE this script after editing
+# it. `inst/scripts/` is under no test, so an unexecuted change here is
+# unverified by construction, which is exactly how a broken S-A2 gate once
+# shipped from this file. Set WHEP_VPS_POLITY_CODES to a comma-separated list
+# to drive it from the shell.
+.vps_main <- function(
+  year = 2015L,
+  historical_year = 1900L,
+  polity_codes = .vps_codes_from_env()
+) {
   rlang::check_installed(c("sf", "terra"))
   water <- .vps_water()
   ice <- .vps_ice()
@@ -371,7 +444,7 @@
   crosswalk <- .vps_crosswalk()
   cli::cli_alert_info("Building the polycell support table...")
   support <- whep::build_polycell_support(
-    geometries = whep::get_polity_geometries(),
+    geometries = whep::get_polity_geometries(polity_codes),
     water = water,
     ice = ice,
     data = list(luh2 = luh2, crosswalk = crosswalk, crosswalk_year = year)
@@ -389,7 +462,7 @@
   .vps_footprints(support, crosswalk)
   .vps_coverage(support)
   .vps_water_clamp(support, polycells, year)
-  .vps_water_unmatched(support)
+  .vps_water_unmatched(support, year)
   .vps_unassigned(support, polycells, luh2, year)
   .vps_unassigned(support, polycells, luh2, historical_year)
   .vps_overlap(support, polycells, year)

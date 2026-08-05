@@ -1459,15 +1459,79 @@ testthat::test_that("unassigned land is reported for years with no claim", {
   testthat::expect_lt(live$unassigned_land_ha, gone$unassigned_land_ha)
   testthat::expect_gt(live$claimed_land_ha, 0)
 
-  # Every year of the domain resolves to exactly one row per cell.
+  # Every year of the domain resolves to exactly one row per cell, asserted in
+  # BOTH directions. Comparing `nrow(distinct)` against `nrow(slice)` catches
+  # duplication and can never catch omission, which is how a dead
+  # `.pcs_gaps_before()` -- every leading gap zero-length and filtered away --
+  # survived: cells claimed only later simply had no row before their first
+  # claim, and the counts still matched.
   every <- attr(result, "unassigned")
-  purrr::walk(c(2000L, 2005L, 2010L, 2019L), \(yr) {
+  cells <- dplyr::distinct(every, .data$lon, .data$lat)
+  purrr::walk(2000L:2019L, \(yr) {
     slice <- dplyr::filter(every, .data$start_year <= yr, yr < .data$end_year)
-    testthat::expect_equal(
-      nrow(dplyr::distinct(slice, .data$lon, .data$lat)),
-      nrow(slice)
-    )
+    seen <- dplyr::distinct(slice, .data$lon, .data$lat)
+    # No cell twice ...
+    testthat::expect_equal(nrow(seen), nrow(slice))
+    # ... and no cell missing.
+    testthat::expect_equal(nrow(seen), nrow(cells))
   })
+})
+
+testthat::test_that("the leading gap before a first claim is emitted", {
+  testthat::skip_if_not_installed("sf")
+
+  # `.pcs_gaps_before()` was dead: `transmute()` evaluates sequentially, so
+  # `end_year = start_year` read the `start_year` rebound a line earlier, every
+  # leading gap came out zero-length, and the `start_year < end_year` filter
+  # deleted them all. Re-run over the shipped build the broken version returns
+  # 0 gap rows against the fixed one's 7,340, leaving 6,487 of the 32,248 wet
+  # GLWD cells that some polycell reaches with no row at the domain start.
+  # Here, a cell first claimed in 2010 loses its whole unassigned row at 2005.
+  #
+  # LAT is claimed only from 2010; EAR spans the whole domain and is what fixes
+  # the domain's lower bound at 2000. Before 2010 LAT's cell is unclaimed, so
+  # its LUH2 land must be reported as unassigned in that stretch.
+  luh2_ha <- 0.6 * pcs_area_ha(pcs_cell(20.25, 45.25))
+  result <- whep::build_polycell_support(
+    geometries = pcs_polities(
+      tibble::tribble(
+        ~polity_code, ~start_year, ~end_year,
+        "EAR-2000-2020", 2000L, 2020L,
+        "LAT-2010-2020", 2010L, 2020L
+      ),
+      list(pcs_inset(10.05, 10.45), pcs_inset(20.05, 20.45))
+    ),
+    data = list(
+      luh2 = tibble::tibble(
+        lon = c(10.25, 20.25),
+        lat = 45.25,
+        terrestrial_ha = luh2_ha
+      )
+    )
+  )
+
+  late_cell <- attr(result, "unassigned") |>
+    dplyr::filter(.data$lon == 20.25) |>
+    dplyr::arrange(.data$start_year)
+
+  # Two rows: the leading gap, then the claimed stretch.
+  testthat::expect_equal(nrow(late_cell), 2L)
+  testthat::expect_equal(late_cell$start_year, c(2000L, 2010L))
+  testthat::expect_equal(late_cell$end_year, c(2010L, 2020L))
+  # In the leading gap nothing is claimed, so ALL the layer's land is
+  # unassigned. Without the fix this row does not exist at all.
+  testthat::expect_equal(late_cell$claimed_land_ha[[1L]], 0)
+  testthat::expect_equal(
+    late_cell$unassigned_land_ha[[1L]],
+    luh2_ha,
+    tolerance = 1e-9
+  )
+  # And once claimed, only the remainder is.
+  testthat::expect_gt(late_cell$claimed_land_ha[[2L]], 0)
+  testthat::expect_lt(
+    late_cell$unassigned_land_ha[[2L]],
+    late_cell$unassigned_land_ha[[1L]]
+  )
 })
 
 testthat::test_that("an unreadable clip piece is measured, never dropped", {
@@ -1852,37 +1916,72 @@ testthat::test_that("a border stored as one long segment is enumerated", {
   # shares still sum to 1.0000 in every cell and no conservation check can see
   # it. The producer changes no area -- the segment is what the source says the
   # border is -- so the defect is made visible instead.
-  # Sudan carries the same defect on the 22nd parallel, in two segments.
-  affected <- whep::get_polity_geometries(
-    c("USA-1959-2025", "CAN-1948-2025", "SDN-2011-2025")
+  # Egypt and Sudan carry the same defect on the 22nd parallel. Naming a few
+  # codes here was itself a wrong belief: `EGY-1922-2025` does not exist, and
+  # every EGY interval after 1899 carries two 22nd-parallel edges. The
+  # enumeration is therefore asserted over the WHOLE shipped table, so a polity
+  # nobody thought of cannot be quietly absent.
+  edges <- whep:::.pcs_long_edges(
+    whep:::.pcs_prepare_polities(whep::get_polity_geometries())
   )
-  edges <- whep:::.pcs_long_edges(whep:::.pcs_prepare_polities(affected))
 
   testthat::expect_s3_class(edges, "data.frame")
-  testthat::expect_setequal(
-    edges$polity_code,
-    c("USA-1959-2025", "CAN-1948-2025", "SDN-2011-2025")
+  testthat::expect_equal(nrow(edges), 42L)
+  testthat::expect_equal(dplyr::n_distinct(edges$polity_code), 30L)
+  testthat::expect_true(all(
+    c(
+      "USA-1867-1959",
+      "USA-1959-2025",
+      "CAN-1800-1866",
+      "CAN-1866-1948",
+      "CAN-1948-2025",
+      "SUD-1899-1934",
+      "SDN-2011-2025",
+      "EGY-1899-1925",
+      "EGY-1925-1967",
+      "EGY-1967-1979",
+      "EGY-1979-2025"
+    ) %in%
+      edges$polity_code
+  ))
+  # The Egypt interval that never existed, and the four that do.
+  testthat::expect_false("EGY-1922-2025" %in% edges$polity_code)
+  testthat::expect_equal(
+    sum(stringr::str_starts(edges$polity_code, "EGY-")),
+    8L
   )
 
-  # The 49th parallel, from both sides, with its span and its bulge pinned.
+  # The 49th parallel, from both sides and across every epoch that carries it:
+  # three Canadian intervals and two American ones, all the same segment.
   forty_ninth <- edges |>
     dplyr::filter(.data$span_deg > 20) |>
     dplyr::arrange(.data$polity_code)
-  testthat::expect_equal(nrow(forty_ninth), 2L)
+  testthat::expect_equal(nrow(forty_ninth), 5L)
+  testthat::expect_setequal(
+    forty_ninth$polity_code,
+    c(
+      "CAN-1800-1866",
+      "CAN-1866-1948",
+      "CAN-1948-2025",
+      "USA-1867-1959",
+      "USA-1959-2025"
+    )
+  )
+  testthat::expect_true(all(abs(forty_ninth$lat - 49) < 0.02))
   testthat::expect_equal(
-    forty_ninth$span_deg,
-    rep(27.6036213, 2L),
-    tolerance = 1e-7
+    dplyr::filter(forty_ninth, .data$polity_code == "USA-1959-2025")$span_deg,
+    27.60362128,
+    tolerance = 1e-8
   )
   testthat::expect_equal(
-    forty_ninth$lat,
-    c(48.999436, 48.997353),
-    tolerance = 1e-7
+    dplyr::filter(forty_ninth, .data$polity_code == "USA-1959-2025")$bulge_deg,
+    0.8293695404,
+    tolerance = 1e-8
   )
   testthat::expect_equal(
-    forty_ninth$bulge_deg,
-    c(0.82936020, 0.82936954),
-    tolerance = 1e-6
+    dplyr::filter(forty_ninth, .data$polity_code == "CAN-1948-2025")$bulge_deg,
+    0.8293601982,
+    tolerance = 1e-8
   )
 
   # The 22nd parallel, both segments, pinned the same way.
@@ -1901,6 +2000,44 @@ testthat::test_that("a border stored as one long segment is enumerated", {
     tolerance = 1e-6
   )
   testthat::expect_true(all(abs(twenty_second$lat - 22) < 0.01))
+
+  # Egypt's worst 22nd-parallel edge is four times Sudan's and the largest
+  # outside the 49th parallel: 12.2 degrees of longitude bulging 0.1133
+  # degrees, about 12.6 km. Its twin on the Sudanese side of the same era,
+  # SUD-1899-1934, is the same segment traversed the other way.
+  egypt <- edges |>
+    dplyr::filter(.data$polity_code == "EGY-1899-1925") |>
+    dplyr::arrange(dplyr::desc(.data$bulge_deg))
+  testthat::expect_equal(nrow(egypt), 2L)
+  testthat::expect_equal(egypt$span_deg[[1L]], 12.2035593, tolerance = 1e-7)
+  testthat::expect_equal(egypt$lat[[1L]], 21.998745, tolerance = 1e-6)
+  testthat::expect_equal(egypt$bulge_deg[[1L]], 0.113289925, tolerance = 1e-6)
+  testthat::expect_gt(egypt$bulge_deg[[1L]], 3 * max(twenty_second$bulge_deg))
+
+  # And the ranking as a whole: above Egypt sit only the five 49th-parallel
+  # intervals and the two Sudanese intervals holding the SAME 22nd-parallel
+  # segment traversed the other way, at 0.1133110 against Egypt's 0.1132899.
+  bigger <- edges |>
+    dplyr::filter(.data$bulge_deg > egypt$bulge_deg[[1L]]) |>
+    dplyr::pull(.data$polity_code)
+  testthat::expect_setequal(
+    bigger,
+    c(
+      "USA-1867-1959",
+      "USA-1959-2025",
+      "CAN-1800-1866",
+      "CAN-1866-1948",
+      "CAN-1948-2025",
+      "SUD-1899-1934",
+      "SUD-1934-1956"
+    )
+  )
+  testthat::expect_equal(
+    max(dplyr::filter(edges, .data$polity_code == "SUD-1899-1934")$bulge_deg),
+    0.1133110267,
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(max(edges$bulge_deg), 0.8319039990, tolerance = 1e-8)
 
   # The bulge is the great-circle maximum, not a linear interpolation: a
   # segment half as long bulges roughly a quarter as far.
@@ -1995,20 +2132,49 @@ testthat::test_that("the window contains the spherical extent on all sides", {
   # values would therefore never notice the upper bound being dropped, so what
   # is asserted here is the containment property itself, exactly: the window
   # must cover the spherical rectangle on every side, however small the margin.
-  purrr::walk(c("F228-1800-1856", "MHL-1874-2025", "ESP-1800-2025"), \(code) {
-    geom <- sf::st_geometry(whep::get_polity_geometries(code))
-    window <- whep:::.pcs_cell_window(geom)
-    rect <- s2::s2_bounds_rect(geom)
-    box <- sf::st_bbox(geom)
+  # Over EVERY polity, not a hand-picked few. Walking three codes leaves the
+  # coordinate-box half of the union untested, because on those three the
+  # spherical rectangle already contains it -- the same shape of hole that let
+  # the longitude bound go uncovered in the first place. BNB-1881-1963's box
+  # extends 1.42e-14 below its spherical rect, so only a sweep over all of them
+  # exercises both sides.
+  polities <- whep::get_polity_geometries()
+  geoms <- sf::st_geometry(polities)
+  usable <- which(!sf::st_is_empty(geoms))
 
-    testthat::expect_lte(rect$lng_lo, window[["xmin"]] + 0)
-    testthat::expect_gte(window[["xmax"]], rect$lng_hi)
-    testthat::expect_lte(rect$lat_lo, window[["ymin"]] + 0)
-    testthat::expect_gte(window[["ymax"]], rect$lat_hi)
-    # And the coordinate box, which the spherical rectangle does not always
-    # contain either.
-    testthat::expect_lte(window[["xmin"]], box[["xmin"]])
-    testthat::expect_gte(window[["xmax"]], box[["xmax"]])
+  failures <- purrr::map_dfr(usable, \(i) {
+    geom <- geoms[i]
+    rect <- try(s2::s2_bounds_rect(geom), silent = TRUE)
+    if (inherits(rect, "try-error")) {
+      return(NULL)
+    }
+    window <- whep:::.pcs_cell_window(geom)
+    box <- sf::st_bbox(geom)
+    wraps <- rect$lng_lo > rect$lng_hi
+    tibble::tibble(
+      polity_code = polities$polity_code[i],
+      # The spherical rectangle. Longitude is exempt only where the interval
+      # wraps, because a wrapped interval is not a min/max pair; latitude is
+      # never exempt, and asserting it caught F228's nine intervals and
+      # KIR-1800-2025 losing their spherical latitude bound on the wrap path.
+      lon_lo = if (wraps) FALSE else window[["xmin"]] > rect$lng_lo,
+      lon_hi = if (wraps) FALSE else window[["xmax"]] < rect$lng_hi,
+      lat_lo = window[["ymin"]] > rect$lat_lo,
+      lat_hi = window[["ymax"]] < rect$lat_hi,
+      # And the coordinate box, on every side.
+      box_lo = window[["xmin"]] > box[["xmin"]],
+      box_hi = window[["xmax"]] < box[["xmax"]],
+      box_lat_lo = window[["ymin"]] > box[["ymin"]],
+      box_lat_hi = window[["ymax"]] < box[["ymax"]]
+    )
+  })
+
+  testthat::expect_gt(nrow(failures), 500L)
+  purrr::walk(setdiff(names(failures), "polity_code"), \(side) {
+    testthat::expect_equal(
+      failures$polity_code[failures[[side]]],
+      character(0)
+    )
   })
 
   # The one polity where the margin is large, pinned so the direction is not
@@ -2104,10 +2270,6 @@ testthat::test_that("a terra measurement totals every polygonal part", {
 
 testthat::test_that("the ice union is repaired before it is used", {
   testthat::skip_if_not_installed("sf")
-  testthat::skip_if(
-    !nzchar(Sys.getenv("WHEP_NATURALEARTH_DIR")),
-    "WHEP_NATURALEARTH_DIR unset: the real ice layer is required here."
-  )
 
   # `read_glaciated_areas()` returns features that are individually valid, and
   # `sf::st_union()` of them is NOT: measured on ne_10m_glaciated_areas, all
@@ -2115,14 +2277,15 @@ testthat::test_that("the ice union is repaired before it is used", {
   # every later `st_intersects()` and `st_intersection()` against that union
   # would abort. The repair inside `.pcs_prepare_ice()` is what prevents it.
   #
-  # This needs the real layer. The smallest reproducing subset is two features
-  # -- Greenland glaciers, indices 1851 and 1858 -- carrying 22,544 vertices
-  # between them, and simplifying either one to an inlineable size collapses
-  # it, so there is no offline fixture and this test SKIPS in CI. That gap is
-  # the reason the sweep runs locally with the layer present.
-  ice <- suppressWarnings(whep::read_glaciated_areas())
+  # The fixture is the smallest reproducing subset of the real layer, two
+  # Greenland features carrying 22,544 vertices, stored VERBATIM. Simplifying
+  # either collapses it, so the vertices are the fixture; xz brings the pair to
+  # 106 KB, which is worth paying to keep the deepest defect in this task
+  # covered in CI rather than only where the 1.6 MB shapefile happens to sit.
+  ice <- readRDS(testthat::test_path("fixtures", "ice_invalid_union.rds"))
   features <- sf::st_geometry(ice)
 
+  testthat::expect_equal(length(features), 2L)
   testthat::expect_true(all(whep:::.s2_valid(features)))
   testthat::expect_false(all(whep:::.s2_valid(sf::st_union(features))))
 
@@ -2132,7 +2295,22 @@ testthat::test_that("the ice union is repaired before it is used", {
   # whole point: unrepaired, this call aborts. The planar repair splits it into
   # more than one valid piece, so the area comes back as a vector.
   testthat::expect_true(all(is.finite(as.numeric(sf::st_area(prepared)))))
-  testthat::expect_gt(sum(as.numeric(sf::st_area(prepared))), 0)
+  testthat::expect_equal(
+    sum(as.numeric(sf::st_area(prepared))) / 1e6,
+    1010665,
+    tolerance = 1e-4
+  )
+
+  # End to end: the producer completes against an ice layer whose union is
+  # invalid, and subtracts real ice from a polycell over Greenland.
+  greenland <- whep::get_polity_geometries("GRL-1800-2025")
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = greenland[,],
+    ice = ice
+  )
+  testthat::expect_gt(sum(result$ice_area_ha), 0)
+  testthat::expect_true(all(result$land_area_ha >= 0))
 })
 
 testthat::test_that("the span prefilter is implied by the bulge floor", {
@@ -2143,21 +2321,29 @@ testthat::test_that("the span prefilter is implied by the bulge floor", {
   # under a degree can reach the 0.01-degree bulge floor at any latitude, so
   # dropping the span test changes no output. If the floor were ever lowered
   # below 0.0011 the two would stop agreeing and this fails.
+  # The thresholds are READ FROM THE FUNCTION, not copied. Hard-coding 0.01
+  # here would let the floor be lowered below the maximum sub-degree bulge --
+  # destroying the very equivalence this block claims -- while the block still
+  # passed.
+  defaults <- formals(whep:::.pcs_long_edges)
+  floor_deg <- eval(defaults$min_bulge_deg)
+  span_deg <- eval(defaults$min_span_deg)
+
   grid <- tidyr::expand_grid(
     lat = c(0, 30, 45, 60, 80, 89, 89.9),
-    span = c(0.01, 0.1, 0.5, 0.9, 0.999)
+    span = span_deg * c(0.01, 0.1, 0.5, 0.9, 0.999)
   )
   worst <- max(whep:::.pcs_great_circle_bulge(grid$lat, grid$span))
 
-  testthat::expect_lt(worst, 0.01)
+  testthat::expect_lt(worst, floor_deg)
   testthat::expect_equal(worst, 0.001088664, tolerance = 1e-6)
-  # And the span a real flag needs is several degrees, not one.
+  # And the span a real flag needs is several times the prefilter, not one.
   testthat::expect_gt(
     stats::uniroot(
-      \(s) whep:::.pcs_great_circle_bulge(45, s) - 0.01,
+      \(s) whep:::.pcs_great_circle_bulge(45, s) - floor_deg,
       c(0.1, 20)
     )$root,
-    3
+    3 * span_deg
   )
 })
 
