@@ -527,9 +527,29 @@ body references the issue it closes.
   artifacts hold **only** LPJmL-derived quantities — grazing excreta,
   humification fractions, CRU air temperature and the HWSD texture
   products are always computed locally, so the pinned and run-derived
-  paths cannot silently disagree. Regenerate and re-upload them from a
-  new run with `upload_whep_lpjml_soc_artifacts()` in the
-  `~/whep_inputs` project.
+  paths cannot silently disagree.
+- **Regenerate the LPJmL-derived pins together, from one run.** Four
+  pins carry LPJmL model *output* — `lpjml-grass-availability`,
+  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
+  `lpjml-soc-hydrology`. Use the single entry point
+  `regenerate_whep_lpjml_pins()` in the `~/whep_inputs` project: dry-run
+  by default (it prints a manifest plus the change against each pin it
+  would replace), `upload = TRUE` to publish. Refreshing only some of
+  them leaves WHEP mixing two LPJmL versions across its feed,
+  soil-carbon and water chains at once — worse than consistently using
+  either version, and invisible downstream because every pin still loads
+  with the right schema. The six `lpjml-wind-*` / `lpjml-rsds-*` /
+  `lpjml-rlds-*` pins are climate **forcing** (they feed *into* LPJmL,
+  so they do not change with the model version) and must never go
+  through that path; they come from
+  `inst/scripts/prepare_spatialize_all.R`.
+- **LPJmL output variable names are version-dependent.** 6.x renames
+  some outputs to their CF short names — `mprec.nc` holds `pr` where 5.x
+  held `prec`. Readers resolve the name against what the file actually
+  contains (`.hydro_var_aliases()`), because a run directory carries no
+  version stamp and both versions’ output can sit side by side on one
+  machine. Add the next rename there; the reader aborts listing the
+  file’s actual variables rather than failing on a `NULL` lookup.
 
 ## Package data updates
 
