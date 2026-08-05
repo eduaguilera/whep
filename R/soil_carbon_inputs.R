@@ -31,7 +31,9 @@
 #'   `root_c_t` and `weed_npp_c_t`, tonnes C); `manure` (the `applied` tibble of
 #'   [build_livestock_nutrient_flows()], with `crop` either an existing
 #'   `item_prod_code` or an `item_prod` name from [items_prod_full] (matched
-#'   case-insensitively), and `territory` a stringified `area_code` or `iso3c`);
+#'   case-insensitively), and `territory` a stringified `area_code` -- an
+#'   `iso3c` literal is still resolved but deprecated, see
+#'   [estimate_n_excretion()]);
 #'   `country_grid` and `crop_patterns` (the spatialization inputs,
 #'   `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area` (the
 #'   FAOSTAT national harvested area per `area_code`, `item_prod_code`, `year`
@@ -48,7 +50,9 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`.
+#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -72,7 +76,8 @@ build_soil_carbon_inputs <- function(
     d$crop_patterns,
     d$harvested_area
   )
-  .sci_finalise(gridded, resolution, d$residue_humification)
+  .sci_finalise(gridded, resolution, d$residue_humification) |>
+    .add_reporting_polity_columns()
 }
 
 # Private helpers ----

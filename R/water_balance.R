@@ -72,7 +72,8 @@
 #'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 #'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
-#'   `year` and `area_code`.
+#'   `year` and `area_code`. Both resolutions carry the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_water_balance(example = TRUE)
@@ -91,7 +92,8 @@ build_water_balance <- function(
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
-    .wb_finalise(method, resolution)
+    .wb_finalise(method, resolution) |>
+    .add_reporting_polity_columns()
 }
 
 #' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
@@ -134,8 +136,12 @@ build_water_balance <- function(
 #' products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 #' sources.
 #'
-#' @param run_dir Path to the LPJmL run output directory. Defaults to
-#'   `Sys.getenv("WHEP_LPJML_RUN_DIR")` via [read_lpjml_hydrology()].
+#' @param run_dir Path to the LPJmL run output directory. `NULL` (default) uses
+#'   `WHEP_LPJML_RUN_DIR` when set, and the pinned `lpjml-soc-hydrology`
+#'   artifact otherwise, so running LPJmL is not a prerequisite. That artifact
+#'   holds only the three LPJmL monthly drivers (topsoil saturation,
+#'   precipitation, irrigation); air temperature still comes from CRU and the
+#'   texture products from HWSD, both downloadable, so neither is pinned.
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year the inputs cover.
 #' @param data Optional named list of pre-loaded inputs, each falling back to
@@ -156,7 +162,9 @@ build_water_balance <- function(
 #'   modifier driver, repeated across a cell-year's months), `clay_pct`,
 #'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 #'   the monthly volumetric soil water content and its static field-capacity,
-#'   wilting-point and porosity references) and `method_water_input`.
+#'   wilting-point and porosity references) and `method_water_input`, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' get_soc_climate_drivers(example = TRUE)
@@ -169,12 +177,14 @@ get_soc_climate_drivers <- function(
   if (isTRUE(example)) {
     return(.example_soc_climate_drivers())
   }
-  swc <- .wb_swc_topsoil(data, run_dir, years)
-  monthly <- .socd_monthly_climate(data, run_dir, years)
+  pin <- .socd_pin_hydrology(data, run_dir, years)
+  swc <- .wb_swc_topsoil(data, run_dir, years, pin)
+  monthly <- .socd_monthly_climate(data, run_dir, years, pin)
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
-  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -612,18 +622,22 @@ get_soc_climate_drivers <- function(
     grid,
     method_water = .wb_method_label(method, "cft_native")
   )
-  if (resolution == "grid") {
+  out <- if (resolution == "grid") {
     .wb_drop_polity_cols(grid)
   } else {
     .wb_aggregate_polity(grid)
   }
+  .add_reporting_polity_columns(out)
 }
 
-# Topsoil soil-water saturation per cell-month, from data$swc or the reader.
-# `years` is forwarded so the reader slices the soil-water cube to the requested
-# years instead of materialising the full multi-decade 4-D array.
-.wb_swc_topsoil <- function(data, run_dir, years) {
+# Topsoil soil-water saturation per cell-month, from data$swc, the pinned
+# artifact or the reader. `years` is forwarded so the reader slices the
+# soil-water cube to the requested years instead of materialising the full
+# multi-decade 4-D array. The pinned artifact already holds the topsoil layer
+# only, so the layer filter below is a no-op on that path.
+.wb_swc_topsoil <- function(data, run_dir, years, pin = NULL) {
   swc <- data$swc %||%
+    .socd_pin_var(pin, "swc_topsoil") %||%
     read_lpjml_hydrology(
       "swc",
       run_dir = run_dir,
@@ -657,11 +671,21 @@ get_soc_climate_drivers <- function(
 # decomposition modifiers consume: precip_mm and pet_mm (monthly, for Century)
 # and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
 # source falls back to its reader when not injected.
-.socd_monthly_climate <- function(data, run_dir, years) {
+.socd_monthly_climate <- function(data, run_dir, years, pin = NULL) {
   temp <- .socd_read(data$temp, "tmp", years)
   pet <- .socd_read(data$pet, "pet", years)
-  prec <- .socd_lpjml(data$prec, "prec", run_dir, years)
-  irrig <- .socd_lpjml(data$irrig, "irrig", run_dir, years)
+  prec <- .socd_lpjml(
+    data$prec %||% .socd_pin_var(pin, "prec_mm"),
+    "prec",
+    run_dir,
+    years
+  )
+  irrig <- .socd_lpjml(
+    data$irrig %||% .socd_pin_var(pin, "irrig_mm"),
+    "irrig",
+    run_dir,
+    years
+  )
   temp |>
     dplyr::rename(temp_c = value) |>
     dplyr::inner_join(
@@ -718,6 +742,61 @@ get_soc_climate_drivers <- function(
 }
 
 # Read an LPJmL monthly hydrology flux from the injected tibble or the reader.
+.socd_hydro_alias <- function() {
+  "lpjml-soc-hydrology"
+}
+
+# Whether the pinned artifact has to be fetched at all: kept separate from the
+# fetch so the policy is testable without network access. Note the check is
+# "were ALL THREE supplied", not "any": a caller who overrides only `prec` still
+# needs a source for the other two.
+.socd_needs_pin <- function(data, run_dir) {
+  supplied <- !is.null(data$swc) &&
+    !is.null(data$prec) &&
+    !is.null(data$irrig)
+  has_run <- .has_path(run_dir) || .has_path(Sys.getenv("WHEP_LPJML_RUN_DIR"))
+  !supplied && !has_run
+}
+
+# The pin seam for the three LPJmL monthly drivers get_soc_climate_drivers()
+# needs (topsoil saturation, precipitation, irrigation). Read ONCE here and
+# handed to both consumers, so a call that falls back for all three fetches the
+# artifact once rather than three times. Returns NULL -- meaning "no pin
+# needed" -- whenever a run directory is available or every LPJmL var was
+# supplied directly, so neither of those paths touches the network.
+# Air temperature (CRU) and the soil texture products are NOT in this artifact:
+# both come from downloadable third-party sources, so pinning them would freeze
+# data a user can fetch themselves.
+.socd_pin_hydrology <- function(data, run_dir, years) {
+  if (!.socd_needs_pin(data, run_dir)) {
+    return(NULL)
+  }
+  raw <- .read_lpjml_pin(.socd_hydro_alias())
+  .check_columns(
+    raw,
+    c("lon", "lat", "year", "month", "swc_topsoil", "prec_mm", "irrig_mm"),
+    .socd_hydro_alias()
+  )
+  .filter_years_if_present(tibble::as_tibble(raw), years)
+}
+
+# Pull one column out of the pinned monthly table as the (lon, lat, year,
+# month, value) shape every monthly reader emits, so the pin is
+# indistinguishable from a reader downstream.
+.socd_pin_var <- function(pin, column) {
+  if (is.null(pin)) {
+    return(NULL)
+  }
+  dplyr::transmute(
+    pin,
+    .data$lon,
+    .data$lat,
+    .data$year,
+    .data$month,
+    value = .data[[column]]
+  )
+}
+
 .socd_lpjml <- function(input, var, run_dir, years) {
   raw <- input %||%
     read_lpjml_hydrology(

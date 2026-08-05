@@ -56,7 +56,8 @@
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 #'   \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-#'   \code{area_ha} and \code{method_soc}.
+#'   \code{area_ha} and \code{method_soc}, plus the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
 #'   \doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
 #'   ported from the Spain historical pipeline.
@@ -95,7 +96,8 @@ build_carbon_balance <- function(
   marched |>
     .cb_derive_son() |>
     dplyr::mutate(method_soc = model) |>
-    .cb_finalise(resolution)
+    .cb_finalise(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # -- Input resolution ---------------------------------------------------------

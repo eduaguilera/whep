@@ -121,6 +121,45 @@ testthat::test_that("active_grazing caps area at grazing intake over yield", {
   testthat::expect_true(all(result$method_grassland == "active_grazing"))
 })
 
+testthat::test_that("active_grazing keeps temporary grassland (item 3002)", {
+  # Grass intake is booked under item 3000 only, but occupation also carries
+  # temporary grassland (item 3002). Capping against total grassland must keep
+  # 3002 instead of zeroing it (issue #195).
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 30L, 3000L, "ha", 600, # permanent grassland
+    2000L, 30L, 3002L, "ha", 400, # temporary grassland, no intake row
+    2000L, 40L, 3000L, "ha", 600, # capped case, permanent
+    2000L, 40L, 3002L, "ha", 400 # capped case, temporary
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 30L, 3000L, "grass", 3000, # 3000 / 2 = 1500 ha, above total 1000
+    2000L, 40L, 3000L, "grass", 1000 # 1000 / 2 = 500 ha, below total 1000
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "active_grazing",
+    usable_grass_yield_dm_t_ha = 2,
+    data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+  )
+
+  # Uncapped area: temporary grassland keeps its full area, not zeroed.
+  uncapped_temp <- dplyr::filter(
+    result,
+    area_code == 30L,
+    item_cbs_code == 3002L
+  )
+  testthat::expect_equal(uncapped_temp$impact_u, 400)
+
+  # Capped area: 500 ha total split 600:400 -> 300 permanent, 200 temporary.
+  capped_perm <- dplyr::filter(result, area_code == 40L, item_cbs_code == 3000L)
+  capped_temp <- dplyr::filter(result, area_code == 40L, item_cbs_code == 3002L)
+  testthat::expect_equal(capped_perm$impact_u, 300)
+  testthat::expect_equal(capped_temp$impact_u, 200)
+})
+
 testthat::test_that("active_grazing rejects invalid usable grass yield", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~unit, ~value,

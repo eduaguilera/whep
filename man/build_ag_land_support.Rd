@@ -36,7 +36,8 @@ data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{item_cbs_code}, \code{year},
-\code{land_use} (\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}.
+\code{land_use} (\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}, plus the
+polity columns below.
 }
 \description{
 Assembles the physical agricultural land support that \code{\link[=build_n_inputs]{build_n_inputs()}}
@@ -55,6 +56,33 @@ short of the cropland surface, as \code{"luh2"} does after 2015) keep their
 cropland support and raise a warning naming the affected years; supply
 \code{data$grassland_ha} to cover them.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+}
+
 \examples{
 build_ag_land_support(example = TRUE)
 }

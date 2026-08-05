@@ -236,7 +236,12 @@ test_that("manure territory as an iso3c resolves instead of dropping to NA", {
     crop_patterns = crop_patterns,
     residue_humification = whep::residue_humification
   )
-  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  # The iso3c form is a deprecated bridge (#463), so resolving it warns; this
+  # test is about it still resolving rather than dropping to NA.
+  testthat::expect_warning(
+    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "deprecated"
+  )
   # 20 t manure C over 40 ha = 0.5, not 0 (which a silent as.integer NA drop
   # would give).
   testthat::expect_equal(out$manure_c_mgc_ha_yr, 20 / 40)

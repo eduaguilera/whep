@@ -53,7 +53,8 @@
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `urban_n_t` and
-#'   `method_urban`.
+#'   `method_urban`, plus the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_urban_n(example = TRUE)
@@ -74,7 +75,8 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
   source_cells <- .urban_source_cells(generated)
   sink_cells <- .urban_sink_cells(cropland)
   flows <- allocate_manure_transport(source_cells, sink_cells)
-  .urban_finalise(flows)
+  .urban_finalise(flows) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -164,7 +166,12 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
     dplyr::mutate(
       lon = coords$lon,
       lat = coords$lat,
-      area_code = .data$territory
+      # `territory` is the character key the transport allocator works in (a
+      # stringified area_code, or an ISO3 when the caller's cell_polity used
+      # one). Resolve it back to the numeric WHEP area code every other builder
+      # emits, so the reporting polity can be resolved from it; the resolver
+      # aborts on an unrecognised value rather than emitting a silent NA.
+      area_code = .manure_territory_to_area_code(.data$territory)
     ) |>
     dplyr::summarise(
       urban_n_t = sum(.data$applied_n),
@@ -177,6 +184,7 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
 .example_urban_n <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~urban_n_t, ~method_urban,
-    -0.25, -0.25, "ESP", 2020L, 4.5, "spain_hist_rate|room_weighted"
-  )
+    -0.25, -0.25, 203L, 2020L, 4.5, "spain_hist_rate|room_weighted"
+  ) |>
+    .add_reporting_polity_columns()
 }
