@@ -60,7 +60,9 @@ belonging to this polity compartment. Defaults to 1.
 preserved in outputs when present.
 \item \code{year} or validity intervals (\code{valid_from}/\code{valid_to},
 \code{start_year}/\code{end_year}, \code{from_year}/\code{to_year}) for historical,
-time-varying polity overlays.
+time-varying polity overlays. The start bound is inclusive and the end
+bound is \strong{exclusive}, so 2014 selects \code{"RUS-2014-2025"}, not
+\code{"RUS-1991-2014"}.
 }}
 
 \item{species_proxy}{A tibble mapping each \code{species_group} to its

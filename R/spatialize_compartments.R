@@ -91,7 +91,11 @@
     }
     start_vals[is.na(start_vals)] <- -Inf
     end_vals[is.na(end_vals)] <- Inf
-    return(country_grid[yr >= start_vals & yr <= end_vals, , drop = FALSE])
+    # The start bound is inclusive and the end bound is EXCLUSIVE, matching the
+    # `polities` convention: 2014 selects "RUS-2014-2025", not "RUS-1991-2014".
+    # An inclusive end bound would return both epochs on every boundary year and
+    # double-count the cell.
+    return(country_grid[yr >= start_vals & yr < end_vals, , drop = FALSE])
   }
 
   country_grid

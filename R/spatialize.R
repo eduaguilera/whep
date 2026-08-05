@@ -50,7 +50,9 @@
 #'     preserved in outputs when present.
 #'   - `year` or validity intervals (`valid_from`/`valid_to`,
 #'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
-#'     time-varying polity overlays.
+#'     time-varying polity overlays. The start bound is inclusive and the end
+#'     bound is **exclusive**, so 2014 selects `"RUS-2014-2025"`, not
+#'     `"RUS-1991-2014"`.
 #' @param config Named list of optional extras. Unknown keys raise
 #'   an error. Recognised keys:
 #'   - `years`: Integer vector of years to spatialize. If `NULL`

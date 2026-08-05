@@ -34,9 +34,13 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year (`start_year <= ref_year <= end_year`).
+#'   year (`start_year <= ref_year < end_year`).
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
 #'   `end_year` and geometry. Defaults to [get_polity_geometries()].
+#'   `start_year` is inclusive and `end_year` is **exclusive**, so 2014
+#'   resolves to `"RUS-2014-2025"`, never to `"RUS-1991-2014"`. Where the table
+#'   still carries overlapping intervals for one polity, the interval starting
+#'   on the resolved year wins, then the latest-starting one.
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
 #'   `function(centroids_sf, year) -> numeric` returning a non-negative density
 #'   per grid-cell centroid (centroids are supplied in `crs_equal_area`).
@@ -127,15 +131,12 @@ build_constant_territory_series <- function(
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
-  .active <- function(yr) {
-    polities[polities$start_year <= yr & polities$end_year >= yr, ]
-  }
-
-  target <- .active(ref_year)
+  target <- .active_polities(polities, ref_year)
   if (nrow(target) == 0) {
-    cli::cli_abort(
-      "No polities with a polygon are active in `ref_year` = {ref_year}."
-    )
+    cli::cli_abort(c(
+      "No polities with a polygon are active in `ref_year` = {ref_year}.",
+      "i" = "`end_year` is exclusive, so an interval ending in {ref_year} does not cover it. The shipped table's open intervals end in 2025, making 2024 its last covered year."
+    ))
   }
 
   data <- data[!is.na(data$value), required]
@@ -145,8 +146,11 @@ build_constant_territory_series <- function(
   for (k in seq_along(years)) {
     y <- years[k]
     dy <- data[data$year == y, ]
-    src <- .active(y)
-    src <- src[src$polity_code %in% dy$polity_code, ]
+    # Restrict to the reported polities BEFORE resolving the year: the caller
+    # named these codes, so a same-polity tie must never discard one of them in
+    # favour of an interval nobody reported.
+    src <- polities[polities$polity_code %in% dy$polity_code, ]
+    src <- .active_polities(src, y)
 
     if (nrow(src) == 0) {
       if (verbose) {
@@ -286,6 +290,41 @@ build_constant_territory_series <- function(
   )])
 }
 # nolint end
+
+# The epoch-independent part of a polity code: "RUS-1991-2014" -> "RUS",
+# "AZE-SSR-1920-1991" -> "AZE-SSR". Only the trailing year pair is stripped, and
+# no date is ever read from here: `start_year`/`end_year` are authoritative
+# because 2 of 740 codes disagree with their own columns (`NNG-1949-1963` ends
+# in 1969).
+.polity_family <- function(polity_code) {
+  stringr::str_remove(polity_code, "-\\d+-\\d+$")
+}
+
+# Rows of `polities` valid in `yr`. `start_year` is inclusive and `end_year` is
+# EXCLUSIVE, so 2014 resolves to "RUS-2014-2025" and never to "RUS-1991-2014".
+# An inclusive end bound makes both epochs active on every boundary year, and
+# `.assign_polity()` then hands every cell to whichever sorts first -- always
+# the dissolved predecessor -- so the successor receives no row at all.
+# Where the table still carries overlapping intervals for one polity (an
+# upstream data defect: `PER-1825-1909` alongside `PER-1825-1884`), keep a
+# single interval per polity, tie-broken exactly as `.whep_polity_lookup()`
+# does in `R/polities.R`: the interval starting on `yr` first, then the
+# latest-starting one.
+.active_polities <- function(polities, yr) {
+  active <- polities[
+    which(polities$start_year <= yr & polities$end_year > yr),
+  ]
+  if (nrow(active) < 2L) {
+    return(active)
+  }
+  family <- .polity_family(active$polity_code)
+  # `exact_start` is redundant under the filter above -- `start_year <= yr`
+  # makes an exact start the maximum start -- and is kept because it states the
+  # boundary-year rule the tests assert, not as live logic.
+  exact_start <- !is.na(active$start_year) & active$start_year == yr
+  ranked <- order(family, !exact_start, -active$start_year)
+  active[ranked, ][!duplicated(family[ranked]), ]
+}
 
 # Assign each centroid to the polity whose polygon contains it. Returns a
 # character vector aligned to `centroids` order (NA where no polygon, first

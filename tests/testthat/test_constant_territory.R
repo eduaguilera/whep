@@ -124,3 +124,225 @@ test_that("years with no usable source are skipped, output schema is stable", {
   )
   expect_equal(nrow(res), 0)
 })
+
+# ---------------------------------------------------------------------------
+# Epoch resolution: `start_year` inclusive, `end_year` EXCLUSIVE.
+#
+# The four blocks above use deliberately NON-adjacent epochs (SRC 1850-1950,
+# targets 1990-2025), so they pass under either convention and prove nothing
+# about the boundary. The blocks below assert the property over EVERY polity in
+# the shipped table, and add the adjacent-epoch fixture the others avoid.
+#
+# These run without `sf`: `.active_polities()` only reads `polity_code`,
+# `start_year` and `end_year`, so the geometry is dropped as a plain data frame.
+# ---------------------------------------------------------------------------
+
+.ct_polities_flat <- function() {
+  flat <- as.data.frame(whep::polities)
+  flat[["geom"]] <- NULL
+  flat[, c("polity_code", "start_year", "end_year")]
+}
+
+.ct_domain_years <- function(flat) {
+  seq.int(min(flat$start_year), max(flat$end_year))
+}
+
+test_that("no year resolves to two intervals of the same polity", {
+  flat <- .ct_polities_flat()
+  offenders <- purrr::map(.ct_domain_years(flat), \(yr) {
+    family <- whep:::.polity_family(
+      whep:::.active_polities(flat, yr)$polity_code
+    )
+    if (anyDuplicated(family) == 0L) {
+      return(character())
+    }
+    paste0(unique(family[duplicated(family)]), "@", yr)
+  })
+  # Every polity, every year in 1684-2025 -- not a hand-picked sample.
+  expect_equal(sort(unique(unlist(offenders))), character())
+})
+
+test_that("every adjacent-epoch boundary year resolves to the successor", {
+  flat <- .ct_polities_flat()
+  flat$family <- whep:::.polity_family(flat$polity_code)
+  pairs <- merge(
+    flat,
+    flat,
+    by = "family",
+    suffixes = c("_pred", "_succ")
+  )
+  pairs <- pairs[pairs$end_year_pred == pairs$start_year_succ, ]
+  # The shipped table must actually contain adjacent epochs, or this block is
+  # vacuous -- the failure mode AM-25 flagged in two other blocks.
+  expect_gt(nrow(pairs), 100)
+
+  resolved <- purrr::map(unique(pairs$start_year_succ), \(yr) {
+    whep:::.active_polities(flat, yr)$polity_code
+  })
+  names(resolved) <- as.character(unique(pairs$start_year_succ))
+
+  pred_alive <- purrr::map2_lgl(
+    pairs$polity_code_pred,
+    as.character(pairs$start_year_succ),
+    \(code, yr) code %in% resolved[[yr]]
+  )
+  # THE fencepost property: the predecessor is dissolved ON its own `end_year`.
+  expect_equal(pairs$polity_code_pred[pred_alive], character())
+
+  # And the interval that does take the boundary year began on it -- so the
+  # year resolves forward to the successor generation, never back.
+  starts <- stats::setNames(flat$start_year, flat$polity_code)
+  winner <- purrr::map2_chr(
+    pairs$family,
+    as.character(pairs$start_year_succ),
+    \(fam, yr) {
+      codes <- resolved[[yr]]
+      codes[whep:::.polity_family(codes) == fam]
+    }
+  )
+  expect_equal(unname(starts[winner]), pairs$start_year_succ)
+
+  # The named successor is the winner except where its own family has a SECOND
+  # interval starting the same year -- an upstream duplicate, 7 of the 8 being
+  # a `superseded`/`retired` row the tie-break correctly passes over. Pinned as
+  # an enumerated exception so the next one cannot hide inside a tolerance.
+  expect_setequal(
+    pairs$polity_code_succ[winner != pairs$polity_code_succ],
+    c(
+      "CAN-1866-1886",
+      "CHN-1921-1945",
+      "ETH-1907-1952",
+      "F248-1920-1991",
+      "GRC-1919-2025",
+      "HUN-1938-1947",
+      "MNE-1913-1918",
+      "ROU-1940-2025"
+    )
+  )
+})
+
+test_that("2014 resolves to RUS-2014-2025, never RUS-1991-2014", {
+  flat <- .ct_polities_flat()
+  active <- whep:::.active_polities(flat, 2014)$polity_code
+  expect_true("RUS-2014-2025" %in% active)
+  expect_false("RUS-1991-2014" %in% active)
+  # ...and the predecessor still owns every year up to its exclusive end.
+  expect_true(
+    "RUS-1991-2014" %in% whep:::.active_polities(flat, 2013)$polity_code
+  )
+  expect_false(
+    "RUS-2014-2025" %in% whep:::.active_polities(flat, 2013)$polity_code
+  )
+})
+
+test_that("overlapping intervals of one polity collapse to the later epoch", {
+  overlapping <- tibble::tribble(
+    ~polity_code, ~start_year, ~end_year,
+    "Q-1800-1900", 1800L, 1900L,
+    "Q-1850-2000", 1850L, 2000L,
+    "R-1800-2000", 1800L, 2000L
+  )
+  # Mid-interval: the later-starting epoch wins.
+  expect_setequal(
+    whep:::.active_polities(overlapping, 1860)$polity_code,
+    c("Q-1850-2000", "R-1800-2000")
+  )
+  # On the later epoch's own start year: the exact-start epoch wins.
+  expect_setequal(
+    whep:::.active_polities(overlapping, 1850)$polity_code,
+    c("Q-1850-2000", "R-1800-2000")
+  )
+  # Before it exists, the earlier epoch is the only candidate.
+  expect_setequal(
+    whep:::.active_polities(overlapping, 1840)$polity_code,
+    c("Q-1800-1900", "R-1800-2000")
+  )
+  # PER-1825-1909 genuinely overlaps PER-1825-1884 upstream; one row, not two.
+  flat <- .ct_polities_flat()
+  per <- whep:::.active_polities(flat, 1850)$polity_code
+  expect_equal(sum(whep:::.polity_family(per) == "PER"), 1L)
+})
+
+test_that("a hyphenated prefix is not mistaken for an epoch", {
+  expect_equal(whep:::.polity_family("AZE-SSR-1920-1991"), "AZE-SSR")
+  expect_equal(whep:::.polity_family("MMR-LWR-1852-1885"), "MMR-LWR")
+  expect_equal(whep:::.polity_family("RUS-2014-2025"), "RUS")
+  # `NNG-1949-1963` really ends in 1969: the code is never a date source.
+  expect_equal(whep:::.polity_family("NNG-1949-1963"), "NNG")
+  # A code carrying no epoch suffix is its own family.
+  expect_equal(whep:::.polity_family(c("P1", "T_L")), c("P1", "T_L"))
+})
+
+# Adjacent epochs of ONE polity, end to end through the exported function.
+# P-1800-1900 is the left unit square; P-1900-2000 doubles it eastward.
+.adjacent_polities <- function() {
+  sf::st_sf(
+    polity_code = c("P-1800-1900", "P-1900-2000"),
+    start_year = c(1800L, 1900L),
+    end_year = c(1900L, 2000L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 100000, 100000),
+      .rect(0, 0, 200000, 100000),
+      crs = 6933
+    )
+  )
+}
+
+test_that("an adjacent-epoch boundary year lands wholly on the successor", {
+  testthat::skip_if_not_installed("sf")
+  res <- whep::build_constant_territory_series(
+    data.frame(year = 1900L, polity_code = "P-1900-2000", value = 100),
+    ref_year = 1900,
+    polities = .adjacent_polities(),
+    resolution = 10000,
+    verbose = FALSE
+  )
+  # Under an inclusive `end_year` both epochs are active in 1900 and
+  # `.assign_polity()` gives the western half to the DISSOLVED "P-1800-1900",
+  # producing two rows of 50. One row, all of it, on the successor.
+  expect_equal(nrow(res), 1L)
+  expect_equal(res$target_polity_code, "P-1900-2000")
+  expect_equal(res$value, 100, tolerance = 1e-6)
+  expect_equal(res$imputed_share, 0, tolerance = 1e-9)
+  expect_false("P-1800-1900" %in% res$target_polity_code)
+})
+
+test_that("a source reported on its own end_year is dissolved, not placed", {
+  testthat::skip_if_not_installed("sf")
+  expect_warning(
+    res <- whep::build_constant_territory_series(
+      data.frame(year = 1900L, polity_code = "P-1800-1900", value = 100),
+      ref_year = 1950,
+      polities = .adjacent_polities(),
+      resolution = 10000,
+      verbose = TRUE
+    ),
+    "no source polity"
+  )
+  expect_equal(nrow(res), 0L)
+})
+
+test_that("a reported source is never discarded by the same-polity tie-break", {
+  testthat::skip_if_not_installed("sf")
+  overlapping <- sf::st_sf(
+    polity_code = c("P-1800-1900", "P-1850-2000"),
+    start_year = c(1800L, 1850L),
+    end_year = c(1900L, 2000L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 100000, 100000),
+      .rect(0, 0, 200000, 100000),
+      crs = 6933
+    )
+  )
+  # "P-1800-1900" loses the target tie-break to "P-1850-2000" at 1860, but the
+  # caller named it as the SOURCE, so its value must still be placed.
+  res <- whep::build_constant_territory_series(
+    data.frame(year = 1860L, polity_code = "P-1800-1900", value = 100),
+    ref_year = 1860,
+    polities = overlapping,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  expect_equal(res$target_polity_code, "P-1850-2000")
+  expect_equal(res$covered, 100, tolerance = 1e-6)
+})

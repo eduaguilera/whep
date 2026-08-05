@@ -11,7 +11,10 @@ a continuous time interval. Key columns include:
 \item \code{polity_code}: Stable WHEP polity identifier, usually
 \code{PREFIX-start_year-end_year}.
 \item \code{polity_name}: Human-readable polity name.
-\item \code{start_year}, \code{end_year}: Inclusive validity years for the row.
+\item \code{start_year}, \code{end_year}: Validity interval for the row. \code{start_year} is
+inclusive and \code{end_year} is \strong{exclusive}, so 2014 belongs to
+\code{"RUS-2014-2025"}, not to \code{"RUS-1991-2014"}. Filtering \code{year <= end_year}
+returns both epochs and double-counts every boundary year.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
 a compatibility alias.
 \item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},

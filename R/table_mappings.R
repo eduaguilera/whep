@@ -43,7 +43,10 @@
 #' - `polity_code`: Stable WHEP polity identifier, usually
 #'   `PREFIX-start_year-end_year`.
 #' - `polity_name`: Human-readable polity name.
-#' - `start_year`, `end_year`: Inclusive validity years for the row.
+#' - `start_year`, `end_year`: Validity interval for the row. `start_year` is
+#'   inclusive and `end_year` is **exclusive**, so 2014 belongs to
+#'   `"RUS-2014-2025"`, not to `"RUS-1991-2014"`. Filtering `year <= end_year`
+#'   returns both epochs and double-counts every boundary year.
 #' - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained as
 #'   a compatibility alias.
 #' - `polygon_status`: Polygon status in `whep-polities` (`"assigned"`,
