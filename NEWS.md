@@ -32,6 +32,22 @@
   `@return` documentation now says a row is an area code rather than a country.
   **No published value changes**: the output of a full real-pin read is
   byte-identical before and after (28,255 rows, 530,970,330,534 person-years).
+* `build_energy_co2_extension()` now **reports the meat production it cannot
+  price** instead of dropping it in silence. Reporting areas with no row in
+  `gleam_geographic_hierarchy` get no energy intensity, so their carcass
+  production used to leave the extension without a word: measured on the full
+  FAOSTAT production input, that is **595 Mt of carcass weight, 3.48% of
+  1850-2023** and **15.3% of 1961**, over eight areas -- the USSR (436.8 Mt),
+  Belgium-Luxembourg (43.9), Czechoslovakia (38.1), the Yugoslav SFR (37.8), the
+  Rest-of-World bucket 999 (25.5), Serbia and Montenegro (12.8), Tuvalu and
+  Nauru. A warning now names them with their tonnage and share. A new
+  `unclassified` argument selects the treatment: `"drop"` (default) keeps the
+  historical behaviour, and `"global_mean"` prices those areas at the unweighted
+  world mean of the published GLEAM factors, marking the affected rows
+  `"GLEAM_3.0_energy_meat_global_mean"` in `method_energy`. **No published value
+  changes on the default path** (verified bit-identical on the full input);
+  `"global_mean"` raises total energy CO2e by 4.4% over 1850-2023, 14.3% in 1961
+  and 0.17% in 2023. Which treatment is right is an open decision (#492).
 * New `polity_bucket_coverage()` reports every FABIO reporting bucket
   (`polity_area_code`) that folds more than one polity in a year, and says
   whether the polity the bucket itself resolves to covers the fold
