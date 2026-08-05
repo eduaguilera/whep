@@ -508,6 +508,31 @@ testthat::test_that("an unfolded area keeps the label it always had", {
   testthat::expect_equal(out$area, "Spain")
 })
 
+testthat::test_that(".read_crop_residues uses the same bucket label", {
+  # `.read_crop_residues()` repeats the aggregation by hand, and both paths feed
+  # joins keyed on `c("year", "area", "area_code", ...)`, so a second `area`
+  # vocabulary for one bucket is the shape #382 measured at 702,166 dropped
+  # rows. Mocked, not pinned -- the suite must not reach the network.
+  testthat::local_mocked_bindings(
+    get_primary_residues = function(...) {
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+        2015,  276,        2511,                2105,                   800,
+        2015,  277,        2511,                2105,                   200
+      )
+    }
+  )
+
+  out <- suppressWarnings(whep:::.read_crop_residues(years = 2015L))
+
+  testthat::expect_setequal(out$area_code, 206L)
+  testthat::expect_setequal(out$area, "Sudan (1956-2011)")
+  # One row per element, not one per member: production plus the derived
+  # feed/other-uses row that this reader adds.
+  testthat::expect_equal(nrow(out), data.table::uniqueN(out$element))
+  testthat::expect_equal(sum(out$value[out$element == "production"]), 1000)
+})
+
 testthat::test_that(".label_polity_buckets falls back to the row's polity", {
   # No bucket needs this today; it exists so a bucket code that resolves to no
   # polity stays labelled rather than turning `area` into NA.
