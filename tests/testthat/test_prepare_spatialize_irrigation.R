@@ -2,18 +2,7 @@
 # inst/scripts/prepare_spatialize_all.R. The helper lives at script scope
 # (not package R/) so we source the script once and exercise it offline.
 
-local({
-  pkg_root <- testthat::test_path("..", "..")
-  script_path <- file.path(
-    pkg_root,
-    "inst",
-    "scripts",
-    "prepare_spatialize_all.R"
-  )
-  if (file.exists(script_path)) {
-    sys.source(script_path, envir = topenv())
-  }
-})
+.source_prepare_spatialize()
 
 
 test_that(".cap_national_irrigation caps summed irrigation at the total", {

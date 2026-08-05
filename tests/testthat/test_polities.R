@@ -16,10 +16,14 @@ test_that("add_polity_code maps area codes by year", {
   # upstream map names `F248-1947-1991` for area 248 over 1961-1990.
   expect_equal(mapped$polity_code[5], "F248-1947-1991")
   # And NOT `BLX-1921-1999`, which prefix `BLX` also reached: the map names
-  # `BLX-1850-1999` for area 15 over 1961-1999.
+  # `BLX-1850-1999` for area 15 over 1961-1999. Upstream has since retired
+  # `BLX-1921-1999` outright (whep-polities#117), so the dead-polity filter now
+  # removes it as well -- two independent reasons for the same answer.
   expect_equal(mapped$polity_code[6], "BLX-1850-1999")
-  expect_equal(mapped$polity_code[7], "RAFR-1850-2021")
-  expect_equal(mapped$polity_code[8], "ROW-1850-2023")
+  # The regional "Other" buckets and Rest of World were extended to 2025
+  # upstream (whep-polities#127) because they used to stop before FAOSTAT did.
+  expect_equal(mapped$polity_code[7], "RAFR-1850-2025")
+  expect_equal(mapped$polity_code[8], "ROW-1850-2025")
 })
 
 test_that("add_polity_code extends out-of-period rows to their nearest period", {
@@ -40,6 +44,10 @@ test_that("add_polity_code extends out-of-period rows to their nearest period", 
 
   mapped <- tibble::tibble(
     area_code = c(2L, aggregate_areas),
+    # main's version of this hunk hardcoded `2026`, with a comment saying "this
+    # year has to track the bucket's end". Deriving it does exactly that, so the
+    # derived form is kept and the literal dropped -- same intent, one fewer thing
+    # to remember on the next re-sync.
     year = c(1790L, past_period_end)
   ) |>
     # disable the back-cast anchor floor here to exercise the raw out-of-range
@@ -240,12 +248,12 @@ test_that("get_polity_geometries returns requested polygon rows", {
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",
     "NCL-1800-2025",
-    "ROW-1850-2023"
+    "ROW-1850-2025"
   ))
 
   expect_equal(
     sort(geoms$polity_code),
-    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2023")
+    c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2025")
   )
   expect_true(all(geoms$has_geometry))
 })
@@ -260,4 +268,33 @@ testthat::test_that("the iso3c lookup is unique per code", {
     c(203L, 79L, 238L, 206L)
   )
   testthat::expect_true(is.na(whep:::.iso3c_to_area_code("ZZZ")))
+})
+
+testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
+  # Unique per iso3c (above) says nothing about the other direction, and the
+  # other direction is where the aggregation lives: `polity_area_code` is a
+  # bucket, so 257 ISO3 codes share 195 codes. Anything reading a population or
+  # per-capita row as one country depends on knowing that (#482), so the fold is
+  # pinned here: if upstream changes which ISO3 codes land on 999, this fails and
+  # the numbers on the 999 denominator have to be re-checked.
+  lut <- whep:::.iso3c_area_code_lookup()
+  testthat::expect_equal(nrow(lut), 257L)
+  testthat::expect_equal(dplyr::n_distinct(lut$area_code), 195L)
+  testthat::expect_equal(sum(duplicated(lut$area_code)), 62L)
+
+  row <- sort(lut$iso3c[lut$area_code == 999L])
+  testthat::expect_equal(length(row), 62L)
+  # The members that are present-day sovereign states, not small territories --
+  # the ones whose population a reader would look for as its own row.
+  testthat::expect_true(
+    all(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "AND", "LIE", "MCO") %in% row)
+  )
+  testthat::expect_equal(
+    whep:::.iso3c_to_area_code(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "GUF")),
+    rep(999L, 6)
+  )
+  # 206 "Sudan (former)" is the same shape at a smaller scale: post-secession
+  # Sudan and South Sudan both resolve to the pre-2011 bucket.
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SSD"), 206L)
+  testthat::expect_equal(sum(lut$area_code == 206L), 2L)
 })
