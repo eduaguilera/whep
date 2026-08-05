@@ -58,6 +58,10 @@ a continuous time interval. Key columns include:</p><ul><li><p><code>polity_code
 <li><p><code>start_year</code>, <code>end_year</code>: Inclusive validity years for the row.</p></li>
 <li><p><code>iso3_code</code>, <code>iso3c</code>: ISO3 code where one exists. <code>iso3c</code> is retained as
 a compatibility alias.</p></li>
+<li><p><code>wiki_status</code>: Upstream review state. <code>"retired"</code> and <code>"superseded"</code> mark a
+DEAD row, kept so a code already held in older output stays resolvable, but
+never a resolution target: <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> excludes them, so resolve
+through it rather than through this table.</p></li>
 <li><p><code>polygon_status</code>: Polygon status in <code>whep-polities</code> (<code>"assigned"</code>,
 <code>"proxy"</code>, <code>"missing"</code>, or <code>"excluded"</code>).</p></li>
 <li><p><code>has_geometry</code>: Logical flag indicating whether the geometry is non-empty.</p></li>

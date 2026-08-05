@@ -15,6 +15,19 @@ Regional residual aggregates in the pin (`RAFR`, `RASI`, `REUR`, `RLAM`,
 and reported rather than silently discarded, since their omission is
 what makes the result a countries-only total rather than a world total.
 
+`area_code` here is `polity_area_code`, which is a **bucket, not an
+identity**: several ISO3 codes can share one code, and this function
+sums them, so some rows are aggregates of more than one territory. With
+the real pin, code 999 "Rest of World" carries Syria, North Macedonia,
+Palestine, Eswatini, Equatorial Guinea and French Guiana, and code 206
+"Sudan (former)" carries Sudan plus South Sudan from 2012 on. The fold
+is required, not accidental – those are the codes the commodity balances
+are keyed on, so a finer key would leave their food supply with no
+population denominator – and every folded row is named in a message. The
+polity columns say the same thing: 999 resolves to `ROW-1850-2023` "Rest
+of World", and 206 to `SUD-1956-2011`, the pre-secession territory its
+two members together cover.
+
 ## Usage
 
 ``` r
@@ -44,8 +57,11 @@ read_population(years = NULL, data = list(), example = FALSE)
 ## Value
 
 A tibble with `year`, `area_code` and `population` (persons), one row
-per country-year, sorted by year then area code, plus the polity columns
-below.
+per area code and year, sorted by year then area code, plus the polity
+columns below. A row is one country in the common case, but `area_code`
+is an aggregation bucket: rows on 999 ("Rest of World") and, from 2012,
+206 ("Sudan (former)") are sums over several territories rather than a
+single country.
 
 ## Polity columns
 

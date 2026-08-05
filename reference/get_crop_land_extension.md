@@ -102,10 +102,10 @@ get_crop_land_extension(example = TRUE)
 #> # A tibble: 10 × 9
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <int>     <int>            <int> <chr>                 <chr>                
-#>  1  2000        33               33 CAN-1948-2025         Canada               
-#>  2  2000        33               33 CAN-1948-2025         Canada               
-#>  3  2000        33               33 CAN-1948-2025         Canada               
-#>  4  2000        33               33 CAN-1948-2025         Canada               
+#>  1  2000        33               33 CAN-1949-2025         Canada               
+#>  2  2000        33               33 CAN-1949-2025         Canada               
+#>  3  2000        33               33 CAN-1949-2025         Canada               
+#>  4  2000        33               33 CAN-1949-2025         Canada               
 #>  5  2000       100              100 IND-1949-2025         India                
 #>  6  2000       100              100 IND-1949-2025         India                
 #>  7  2000       100              100 IND-1949-2025         India                

@@ -112,8 +112,13 @@ ILO, IEA, and other international statistical sources.</p>
     </div>
     <div class="section level2">
     <h2 id="note">Note<a class="anchor" aria-label="anchor" href="#note"></a></h2>
-    <p>Five trailing columns containing only Excel <code>#REF!</code> errors in the
-source CSV are dropped at load time and are not part of this dataset.</p>
+    <p>Derived from <a href="regions_full.html">regions_full</a> rather than vendored separately: the
+198-code membership is read from <code>harmonization/polities_cats.csv</code> and every
+column value comes from <code>regions_full</code>, so the two tables cannot disagree
+except where this one deliberately folds an area into a rest-of-world
+aggregate. Two areas are folded, both because they had no commodity balance
+sheet when the table was compiled: Bhutan under <code>RASI</code> and Comoros under
+<code>RAFR</code>, each with <code>cbs</code> <code>FALSE</code> and <code>fabio_code</code> <code>999</code>.</p>
     </div>
 
     <div class="section level2">
@@ -122,11 +127,11 @@ source CSV are dropped at load time and are not part of this dataset.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 39</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… 0    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… <span style="color: #BB0000;">NA</span>   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> ALB         Albania         3     3 ALB   Albania      FALSE Alba… Alba… Alba…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> DZA         Algeria         4     4 DZA   Algeria      FALSE Alge… Alge… Alge…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> AGO         Angola          7     7 AGO   Angola       FALSE Ango… Ango… Ango…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… 0    </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… <span style="color: #BB0000;">NA</span>   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> ARG         Argentina       9     9 ARG   Argentina    FALSE Arge… Arge… Arge…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 29 more variables: water_code &lt;dbl&gt;, water_area &lt;chr&gt;, baci &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fish &lt;dbl&gt;, region_code &lt;dbl&gt;, cbs &lt;lgl&gt;, fabio_code &lt;dbl&gt;,</span></span>

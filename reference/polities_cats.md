@@ -113,8 +113,15 @@ and other international statistical sources.
 
 ## Note
 
-Five trailing columns containing only Excel `#REF!` errors in the source
-CSV are dropped at load time and are not part of this dataset.
+Derived from
+[regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md)
+rather than vendored separately: the 198-code membership is read from
+`harmonization/polities_cats.csv` and every column value comes from
+`regions_full`, so the two tables cannot disagree except where this one
+deliberately folds an area into a rest-of-world aggregate. Two areas are
+folded, both because they had no commodity balance sheet when the table
+was compiled: Bhutan under `RASI` and Comoros under `RAFR`, each with
+`cbs` `FALSE` and `fabio_code` `999`.
 
 ## Examples
 
@@ -123,11 +130,11 @@ head(polities_cats)
 #> # A tibble: 6 × 39
 #>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
 #>   <chr>       <chr>       <dbl> <int> <chr> <chr>        <lgl> <chr> <chr> <chr>
-#> 1 AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… 0    
+#> 1 AFG         Afghanistan     2     2 AFG   Afghanistan  FALSE Afgh… Afgh… NA   
 #> 2 ALB         Albania         3     3 ALB   Albania      FALSE Alba… Alba… Alba…
 #> 3 DZA         Algeria         4     4 DZA   Algeria      FALSE Alge… Alge… Alge…
 #> 4 AGO         Angola          7     7 AGO   Angola       FALSE Ango… Ango… Ango…
-#> 5 ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… 0    
+#> 5 ATG         Antigua an…     8     8 ATG   Antigua and… FALSE Anti… Anti… NA   
 #> 6 ARG         Argentina       9     9 ARG   Argentina    FALSE Arge… Arge… Arge…
 #> # ℹ 29 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
 #> #   fish <dbl>, region_code <dbl>, cbs <lgl>, fabio_code <dbl>,

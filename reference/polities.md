@@ -24,6 +24,12 @@ over a continuous time interval. Key columns include:
 - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained
   as a compatibility alias.
 
+- `wiki_status`: Upstream review state. `"retired"` and `"superseded"`
+  mark a DEAD row, kept so a code already held in older output stays
+  resolvable, but never a resolution target:
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+  excludes them, so resolve through it rather than through this table.
+
 - `polygon_status`: Polygon status in `whep-polities` (`"assigned"`,
   `"proxy"`, `"missing"`, or `"excluded"`).
 
