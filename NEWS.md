@@ -48,6 +48,19 @@
   changes on the default path** (verified bit-identical on the full input);
   `"global_mean"` raises total energy CO2e by 4.4% over 1850-2023, 14.3% in 1961
   and 0.17% in 2023. Which treatment is right is an open decision (#492).
+* New `polity_bucket_coverage()` reports every FABIO reporting bucket
+  (`polity_area_code`) that folds more than one polity in a year, and says
+  whether the polity the bucket itself resolves to covers the fold
+  (`"aggregate"`), covers only part of it (`"partial"`), or is absent
+  (`"unlabelled"`). Exactly one bucket in the shipped crosswalk is `"partial"`:
+  206, which folds FAOSTAT areas 276 Sudan and 277 South Sudan while no live
+  polity means "Sudan and South Sudan". Measured on real FAOSTAT production for
+  2015, that bucket carries 53,124,088 t for Sudan plus 14,876,146 t for South
+  Sudan -- 21.9% of the bucket -- under one polity label.
+  `.aggregate_to_polities()` now warns when it builds such a bucket; silence it
+  with `options(whep.warn_polity_folds = FALSE)`. **No published value changes:**
+  the fold, the numeric bucket and every polity label are exactly as before, and
+  the only new behaviour is the warning and the new function.
 
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via
