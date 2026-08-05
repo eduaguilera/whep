@@ -5,6 +5,7 @@
   if (!include_unmapped) {
     out <- out[!is.na(polity_code)]
   }
+  out <- .unfold_rest_of_world(out)
   data.table::copy(out)
 }
 
@@ -332,7 +333,25 @@ add_polity_code <- function(
 # also the code the commodity balances actually carry, so mapping there is
 # unique by construction rather than by picking a winner: 257 iso3c, 257 rows.
 .iso3c_area_code_lookup <- function() {
-  whep::regions_full |>
+  # `regions_full` states the fold a SECOND time, and the promotion this guards
+  # against once survived a withdrawal by only one of the two tables being
+  # rebuilt (#419). So the unfold switch has to reach both or the two lookups
+  # disagree about where a Rest-of-World member's rows belong.
+  regions <- whep::regions_full
+  if (.unfold_rest_of_world_option()) {
+    regions <- regions |>
+      dplyr::mutate(
+        polity_area_code = dplyr::if_else(
+          !is.na(.data$fabio_code) &
+            .data$fabio_code == 999L &
+            !is.na(.data$code) &
+            .data$code != 999L,
+          as.integer(.data$code),
+          as.integer(.data$polity_area_code)
+        )
+      )
+  }
+  regions |>
     dplyr::filter(!is.na(.data$iso3c), !is.na(.data$polity_area_code)) |>
     dplyr::distinct(
       iso3c = as.character(.data$iso3c),

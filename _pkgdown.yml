@@ -360,6 +360,7 @@ reference:
   - add_area_code
   - add_area_name
   - get_polity_geometries
+  - folded_reporting_areas
   - whep_polity_columns
   - resolve_polity_label
 - subtitle: Commodity balance sheet items

@@ -1786,7 +1786,9 @@ utils::globalVariables(
     "ISO3_CODE",
     "fao_area_name",
     "iso3_code",
-    "profile_row"
+    "profile_row",
+    # polity_folds.R (#419) — reporting-area fold diagnostic
+    "rows"
   )
 )
 
