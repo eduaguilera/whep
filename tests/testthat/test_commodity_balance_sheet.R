@@ -203,8 +203,8 @@ testthat::test_that("livestock trade reconciles with polity-coded slaughter (Eth
   testthat::expect_equal(ethiopia$area_code, 238L)
   testthat::expect_equal(ethiopia$import, 10)
   testthat::expect_equal(ethiopia$export, 30)
-  # production = slaughtered + export - import = 100 + 30 - 10.
+  # Production is slaughtered plus export less import, so 100 plus 30 less 10.
   testthat::expect_equal(ethiopia$production, 120)
-  # domestic_supply = production + import - export = 120 + 10 - 30.
+  # Domestic supply is production plus import less export, so 120 plus 10 less 30.
   testthat::expect_equal(ethiopia$domestic_supply, 100)
 })
