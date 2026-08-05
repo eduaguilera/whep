@@ -1127,6 +1127,35 @@ testthat::test_that("the candidate window follows the spherical extent", {
   testthat::expect_lt(below$polity_area_ha, 1e-3 * pcs_area_ha(polity))
 })
 
+testthat::test_that("the window widens in longitude as well as latitude", {
+  testthat::skip_if_not_installed("sf")
+  testthat::skip_if_not_installed("s2")
+
+  # Both halves of `s2::s2_bounds_rect()` are load-bearing, and the latitude
+  # half alone looks sufficient on synthetic rectangles. On the shipped table
+  # the longitude half matters for exactly one polity: F228-1800-1856, whose
+  # spherical longitude bound runs 10.46407 degrees past its coordinate box,
+  # against at most 2.8e-14 for every other non-wrapping polity. Discarding the
+  # longitude bound therefore passes every fixture and loses that polity's
+  # westernmost cells on real data.
+  window <- whep:::.pcs_cell_window(
+    sf::st_geometry(whep::get_polity_geometries("F228-1800-1856"))
+  )
+  box <- sf::st_bbox(
+    sf::st_geometry(whep::get_polity_geometries("F228-1800-1856"))
+  )
+
+  testthat::expect_lt(window[["xmin"]], box[["xmin"]])
+  testthat::expect_equal(
+    box[["xmin"]] - window[["xmin"]],
+    10.46407,
+    tolerance = 1e-4
+  )
+  # The latitude half is unchanged by this polity, so a test that only watched
+  # latitude would see nothing here.
+  testthat::expect_equal(window[["ymin"]], box[["ymin"]])
+})
+
 testthat::test_that("the shim reproduces the crosswalk bit-for-bit", {
   testthat::skip_if_not_installed("sf")
 
@@ -1568,9 +1597,18 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
   # The two earlier ice tests used synthetic geometry with no invalid pieces,
   # and the terra test passed no `ice` at all, so nothing exercised the pair.
   # This does: Greece from shipped package data, with ice over the Aegean.
+  #
+  # The ice rectangle is chosen to give `.pcs_ice_areas_terra()` a VALUE to
+  # meet, not a sign. It covers cells 407256 and 408256 -- which hold two of
+  # Greece's seven terra pieces and no s2 piece -- exactly and entirely, so
+  # their ice must equal their whole territory; every other polycell, including
+  # the five remaining terra pieces, must come back at exactly zero. Asserting
+  # only `sum(ice) > 0` admits a helper that returns the whole piece, one that
+  # crops too small, and one that halves the ice.
+  covered <- c(407256L, 408256L)
   greece <- whep::get_polity_geometries("GRC-1830-1913")
   aegean <- sf::st_sf(
-    geometry = sf::st_sfc(pcs_rect(23.0, 25.0, 37.5, 39.0), crs = 4326)
+    geometry = sf::st_sfc(pcs_rect(23.5, 24.5, 38.0, 38.5), crs = 4326)
   )
 
   testthat::expect_warning(
@@ -1589,13 +1627,43 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
   testthat::expect_setequal(result$cell_id, bare$cell_id)
   testthat::expect_equal(sum(result$polity_area_ha), sum(bare$polity_area_ha))
 
-  # Ice is subtracted on the terra-measured pieces too, not skipped: cells
-  # 407256 and 408256 sit under the Aegean rectangle and are both terra rows.
-  terra_rows <- dplyr::filter(result, .data$area_engine == "terra")
-  testthat::expect_gt(sum(terra_rows$ice_area_ha), 0)
+  # The two fully covered cells are terra rows, and their ice is their whole
+  # territory: a crop that misses part of the cell cannot reach this, and a
+  # halved ice area cannot either.
+  # The rectangle's edges are straight in longitude and latitude while the cell
+  # edges the pieces were clipped against are great circles, so the cover is
+  # 99.98% rather than 100%. That is three orders of magnitude tighter than any
+  # of the failures it has to exclude: a crop shrunk by 20% loses tens of
+  # percent, and halved ice loses half.
+  under_ice <- dplyr::filter(result, .data$cell_id %in% covered)
+  testthat::expect_equal(nrow(under_ice), 2L)
+  testthat::expect_equal(unique(under_ice$area_engine), "terra")
+  testthat::expect_equal(
+    under_ice$ice_area_ha,
+    under_ice$polity_area_ha,
+    tolerance = 1e-3
+  )
   testthat::expect_true(all(
-    terra_rows$ice_area_ha <= terra_rows$polity_area_ha * (1 + 1e-9)
+    under_ice$ice_area_ha / under_ice$polity_area_ha > 0.999
   ))
+  testthat::expect_true(all(
+    under_ice$land_area_ha < 1e-3 * under_ice$polity_area_ha
+  ))
+
+  # Every other polycell is untouched by the rectangle, including the five
+  # terra pieces outside it: a helper that ignored the ice geometry and handed
+  # back the whole piece would light these up.
+  outside <- dplyr::filter(result, !.data$cell_id %in% covered)
+  testthat::expect_equal(sum(outside$ice_area_ha), 0)
+  testthat::expect_equal(
+    sum(dplyr::filter(outside, .data$area_engine == "terra")$ice_area_ha),
+    0
+  )
+  testthat::expect_equal(
+    sum(result$ice_area_ha),
+    sum(under_ice$polity_area_ha),
+    tolerance = 1e-3
+  )
 
   # And the identity still holds on every row, whichever engine measured it.
   testthat::expect_equal(
@@ -1690,33 +1758,58 @@ testthat::test_that("both sides of the LUH2 disagreement are emitted", {
   # only `pmax(terrestrial - claimed, 0)` reconciles the over-claim away by
   # construction: at 2015 the real table under-claims 315.50 Mha in some cells
   # and over-claims 103.03 Mha in others, and only the first was reported.
-  claimed <- pcs_inset(10.0, 10.4)
+  #
+  # BOTH directions must be exercised with a VALUE, not merely a column that
+  # exists. Two cells, each holding the whole polity's polygon for that cell:
+  # in the first LUH2 sees 95% of the cell as land against the polity's 80%, an
+  # under-claim; in the second it sees 40% against the same 80%, an over-claim.
+  cell_ha <- pcs_area_ha(pcs_cell(10.25, 45.25))
+  under_cell <- pcs_rect(10.0, 10.4, 45.05, 45.45)
+  over_cell <- pcs_rect(20.0, 20.4, 45.05, 45.45)
   result <- whep::build_polycell_support(
     years = 2015L,
-    geometries = pcs_one_polity(claimed),
+    geometries = pcs_live(
+      c("UND-2000-2020", "OVR-2000-2020"),
+      list(under_cell, over_cell)
+    ),
     data = list(
       luh2 = tibble::tibble(
         lon = c(10.25, 20.25),
         lat = 45.25,
-        # One cell where LUH2 sees more land than the polity claims, one where
-        # it sees far less.
-        terrestrial_ha = c(0.95 * pcs_area_ha(pcs_cell(10.25, 45.25)), 0)
+        terrestrial_ha = c(0.95 * cell_ha, 0.40 * cell_ha)
       )
     )
   )
 
   unassigned <- attr(result, "unassigned")
-  testthat::expect_true(
-    rlang::has_name(unassigned, "over_claimed_land_ha")
-  )
+  testthat::expect_true(rlang::has_name(unassigned, "over_claimed_land_ha"))
+  claimed_by <- \(lon) {
+    dplyr::filter(result, abs(.data$lon - .env$lon) < 1e-9)$land_area_ha
+  }
+
   under <- dplyr::filter(unassigned, .data$lon == 10.25)
-  testthat::expect_gt(under$unassigned_land_ha, 0)
-  testthat::expect_equal(under$over_claimed_land_ha, 0)
-  # The cell LUH2 calls sea but the run never claimed contributes nothing to
-  # either side, so it must not appear at all.
+  testthat::expect_equal(nrow(under), 1L)
   testthat::expect_equal(
-    nrow(dplyr::filter(unassigned, .data$lon == 20.25)),
-    0L
+    under$unassigned_land_ha,
+    0.95 * cell_ha - claimed_by(10.25),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(under$over_claimed_land_ha, 0)
+
+  # The value the fix exists to emit, pinned: without it this is 0.
+  over <- dplyr::filter(unassigned, .data$lon == 20.25)
+  testthat::expect_equal(nrow(over), 1L)
+  testthat::expect_equal(
+    over$over_claimed_land_ha,
+    claimed_by(20.25) - 0.40 * cell_ha,
+    tolerance = 1e-9
+  )
+  testthat::expect_gt(over$over_claimed_land_ha, 0.2 * cell_ha)
+  testthat::expect_equal(over$unassigned_land_ha, 0)
+
+  # And the two sides are not the same number by accident.
+  testthat::expect_false(
+    isTRUE(all.equal(over$over_claimed_land_ha, under$unassigned_land_ha))
   )
 })
 
@@ -1746,4 +1839,147 @@ testthat::test_that("interval diagnostics carry the interval they describe", {
     testthat::expect_true(rlang::has_name(diagnostic, "start_year"))
     testthat::expect_true(rlang::has_name(diagnostic, "end_year"))
   })
+})
+
+testthat::test_that("a border stored as one long segment is enumerated", {
+  testthat::skip_if_not_installed("sf")
+
+  # DA-22 (issue #529). `cshapes-2.0` stores the 49th parallel between the USA
+  # and Canada as a SINGLE segment between vertices 27.6039 degrees of
+  # longitude apart. s2 draws that as a great circle rising 0.8294 degrees
+  # north of the parallel, which books roughly 123,276 km2 of Canadian prairie
+  # to the USA. Both polities are clipped against the same curve, so their
+  # shares still sum to 1.0000 in every cell and no conservation check can see
+  # it. The producer changes no area -- the segment is what the source says the
+  # border is -- so the defect is made visible instead.
+  # Sudan carries the same defect on the 22nd parallel, in two segments.
+  affected <- whep::get_polity_geometries(
+    c("USA-1959-2025", "CAN-1948-2025", "SDN-2011-2025")
+  )
+  edges <- whep:::.pcs_long_edges(whep:::.pcs_prepare_polities(affected))
+
+  testthat::expect_s3_class(edges, "data.frame")
+  testthat::expect_setequal(
+    edges$polity_code,
+    c("USA-1959-2025", "CAN-1948-2025", "SDN-2011-2025")
+  )
+
+  # The 49th parallel, from both sides, with its span and its bulge pinned.
+  forty_ninth <- edges |>
+    dplyr::filter(.data$span_deg > 20) |>
+    dplyr::arrange(.data$polity_code)
+  testthat::expect_equal(nrow(forty_ninth), 2L)
+  testthat::expect_equal(
+    forty_ninth$span_deg,
+    rep(27.6036213, 2L),
+    tolerance = 1e-7
+  )
+  testthat::expect_equal(
+    forty_ninth$lat,
+    c(48.999436, 48.997353),
+    tolerance = 1e-7
+  )
+  testthat::expect_equal(
+    forty_ninth$bulge_deg,
+    c(0.82936020, 0.82936954),
+    tolerance = 1e-6
+  )
+
+  # The 22nd parallel, both segments, pinned the same way.
+  twenty_second <- edges |>
+    dplyr::filter(.data$polity_code == "SDN-2011-2025") |>
+    dplyr::arrange(dplyr::desc(.data$span_deg))
+  testthat::expect_equal(nrow(twenty_second), 2L)
+  testthat::expect_equal(
+    twenty_second$span_deg,
+    c(6.2728820, 5.4304409),
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    twenty_second$bulge_deg,
+    c(0.029847583, 0.022361890),
+    tolerance = 1e-6
+  )
+  testthat::expect_true(all(abs(twenty_second$lat - 22) < 0.01))
+
+  # The bulge is the great-circle maximum, not a linear interpolation: a
+  # segment half as long bulges roughly a quarter as far.
+  testthat::expect_equal(
+    whep:::.pcs_great_circle_bulge(49, 27.603621 / 2),
+    whep:::.pcs_great_circle_bulge(49, 27.603621) / 4,
+    tolerance = 0.02
+  )
+  # A parallel at the equator cannot bulge at all, and the sign is the same
+  # either side of it.
+  testthat::expect_equal(whep:::.pcs_great_circle_bulge(0, 27.6), 0)
+  testthat::expect_equal(
+    whep:::.pcs_great_circle_bulge(-49, 27.603621),
+    whep:::.pcs_great_circle_bulge(49, 27.603621)
+  )
+})
+
+testthat::test_that("a short or sloping edge is not flagged", {
+  testthat::skip_if_not_installed("sf")
+
+  # The threshold has to separate a border the source drew as one long parallel
+  # segment from ordinary densely-vertexed coastline. A cell-sized edge is
+  # under the span threshold; a long edge that climbs in latitude is not a
+  # parallel and is not what DA-22 is about.
+  flat_long <- pcs_rect(10.0, 15.0, 45.0, 45.5)
+  short <- pcs_rect(10.0, 10.4, 45.0, 45.4)
+  sloping <- sf::st_polygon(list(cbind(
+    c(20.0, 25.0, 25.0, 20.0, 20.0),
+    c(45.0, 47.0, 47.5, 45.5, 45.0)
+  )))
+
+  edges <- whep:::.pcs_long_edges(
+    whep:::.pcs_prepare_polities(
+      pcs_live(
+        c("FLA-2000-2020", "SHO-2000-2020", "SLO-2000-2020"),
+        list(flat_long, short, sloping)
+      )
+    )
+  )
+
+  testthat::expect_setequal(unique(edges$polity_code), "FLA-2000-2020")
+  # Both parallels of the long rectangle, north and south.
+  testthat::expect_equal(nrow(edges), 2L)
+  testthat::expect_equal(edges$span_deg, rep(5, 2L))
+  testthat::expect_true(all(edges$bulge_deg > 0))
+})
+
+testthat::test_that("long edges ride as a diagnostic and change no area", {
+  testthat::skip_if_not_installed("sf")
+
+  # The producer must not redraw the border: which curve the border follows is
+  # a territorial judgement, not a geometry repair. The diagnostic is emitted
+  # and the areas are exactly what they were without it.
+  polity <- pcs_rect(10.0, 15.0, 45.0, 45.5)
+  testthat::expect_warning(
+    flagged <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = pcs_one_polity(polity)
+    ),
+    "near-constant latitude"
+  )
+
+  long_edges <- attr(flagged, "long_edges")
+  testthat::expect_equal(nrow(long_edges), 2L)
+  testthat::expect_true(all(
+    c("lon_from", "lon_to", "lat", "span_deg", "bulge_deg") %in%
+      names(long_edges)
+  ))
+  # No area moved: the polity still re-aggregates to its own polygon.
+  testthat::expect_equal(
+    sum(flagged$polity_area_ha),
+    pcs_area_ha(polity),
+    tolerance = 1e-9
+  )
+
+  # A polity with no long edge gets no attribute and no warning.
+  quiet <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_one_polity(pcs_inset(10.05, 10.45))
+  )
+  testthat::expect_null(attr(quiet, "long_edges"))
 })

@@ -311,10 +311,11 @@ read_polycell_support <- function(path = NULL, version = NULL) {
 # splits the self-intersections into pieces s2 usually accepts; whatever is
 # still invalid is kept but excluded from the s2 geometry so one bad loop
 # cannot abort the whole producer, and its geodesic area is measured with
-# `terra::expanse()` instead. This is not hypothetical on either layer: three
-# `ne_10m_glaciated_areas` features and seven shipped polity polygons are
-# s2-invalid and `sf::st_area()` aborts on all of them; the planar repair
-# recovers four of the seven polities, leaving three unusable.
+# `terra::expanse()` instead. This is not hypothetical on either layer: four of
+# the 1,886 `ne_10m_glaciated_areas` features and seven shipped polity polygons
+# are s2-invalid and `sf::st_area()` aborts on all of them. The planar repair
+# recovers three of the four ice features and four of the seven polities,
+# leaving one ice feature and three polities unusable.
 .repair_s2_polygons <- function(x) {
   fixed <- .s2_repair(sf::st_geometry(x))
   sf::st_geometry(x) <- fixed$geom

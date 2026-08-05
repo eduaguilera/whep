@@ -58,19 +58,22 @@
 #'   `over_claimed_land_ha` where they claim more), `"coverage"` (every live
 #'   polity interval and why it did or did not produce polycells),
 #'   `"overlap"` (cells holding more territory than the cell, because two
-#'   polities were handed the same polygon), `"terra_measured"` (polycells whose
-#'   area came from `terra`), `"water_excess"` (inland water clamped to the
-#'   polycell's territory), `"water_unmatched"` (cells the water layer and the
-#'   polycells do not share), `"footprints"` and `"footprint_diff"` (the
-#'   deployed crosswalk, the current producer and the polycell footprint,
-#'   reconciled at `data$crosswalk_year`).
+#'   polities were handed the same polygon), `"long_edges"` (polity edges the
+#'   source stores as one long segment along a parallel, which s2 draws as a
+#'   bulging great circle), `"terra_measured"` (polycells whose area came from
+#'   `terra`), `"water_excess"` (inland water clamped to the polycell's
+#'   territory), `"water_unmatched"` (cells the water layer and the polycells do
+#'   not share), `"footprints"` and `"footprint_diff"` (the deployed crosswalk,
+#'   the current producer and the polycell footprint, reconciled at
+#'   `data$crosswalk_year`).
 #'
-#'   `"overlap"`, `"terra_measured"`, `"water_excess"` and `"unassigned"` are
-#'   **interval-grain**, like the table itself: they carry `start_year` and
-#'   `end_year`, and one cell contributes a row per interval. Summing them
-#'   without first filtering to the interval covering the year of interest
-#'   counts the same cell once per epoch. On the shipped polities that is the
-#'   difference between 1,342 clamped polycells over all epochs and 94 in 2015.
+#'   `"overlap"`, `"terra_measured"`, `"water_excess"`, `"water_unmatched"` and
+#'   `"unassigned"` are **interval-grain**, like the table itself: they carry
+#'   `start_year` and `end_year`, and one cell contributes a row per interval.
+#'   Summing them without first filtering to the interval covering the year of
+#'   interest counts the same cell once per epoch. On the shipped polities that
+#'   is the difference between 1,343 clamped polycells over all epochs and 94 in
+#'   2015.
 #'
 #'   When `data$crosswalk` is supplied the table also carries the crosswalk rows
 #'   the intersection did not reproduce, so the transitional shim stays
@@ -460,8 +463,20 @@ polycell_shim_view <- function(support) {
 }
 
 # Type extraction only, run planar-side because the pieces that reach here are
-# exactly the ones the spherical engine refuses to read.
+# exactly the ones the spherical engine refuses to read. `st_collection_extract`
+# errors rather than passing through when the geometry is already singular and
+# polygonal, so that case returns untouched.
 .pcs_polygonal_part <- function(geom) {
+  types <- as.character(sf::st_geometry_type(geom))
+  polygonal <- types %in% c("POLYGON", "MULTIPOLYGON")
+  if (all(polygonal)) {
+    return(geom)
+  }
+  # A crop that only grazes a piece comes back as a line or a point, which
+  # `st_collection_extract()` rejects outright rather than returning empty.
+  if (!any(types %in% c("GEOMETRY", "GEOMETRYCOLLECTION"))) {
+    return(geom[polygonal])
+  }
   old <- sf::sf_use_s2()
   on.exit(suppressMessages(sf::sf_use_s2(old)), add = TRUE)
   suppressMessages(sf::sf_use_s2(FALSE))
@@ -816,28 +831,39 @@ polycell_shim_view <- function(support) {
 # polygons, so the two footprints do not coincide. A polycell the layer has no
 # row for is booked as having no inland water, which turns that water into
 # land; a water cell no polycell reaches has its water dropped entirely.
-# Neither is a rounding effect. Measured on the shipped polities against GLWD:
-# 1,906 polycell cells holding 0.403 Gha of whole-cell area have no water row,
-# and 110 wet GLWD cells reach no polycell. Only WET cells are reported on the
-# second side, because a dry cell no polycell reaches loses nothing; 1,378
-# further GLWD cells are unmatched but carry no water. EA10 required exactly
-# this disagreement to be handled explicitly rather than absorbed, so both
-# directions are emitted.
+# Neither is a rounding effect, and both are INTERVAL-GRAIN, for the same
+# reason `unassigned` is: a cell covered in one epoch and not in another is
+# unmatched only in the second, so a footprint taken over all intervals at once
+# answers the wrong question. Measured on the shipped polities against GLWD,
+# all intervals: 1,906 covered cell-intervals hold 0.403 Gha of whole-cell area
+# with no water row, and 110 wet GLWD cells are never reached by any polycell.
+# Sliced to 2015 the second side is 477, over four times the all-interval
+# figure, which is exactly why the rows carry their interval and the gap rows
+# partition the whole domain. Only WET cells are reported on that side: a dry
+# cell no polycell reaches loses nothing, and 703 further GLWD cells are
+# unmatched across all intervals but carry no water. EA10 required this
+# disagreement handled explicitly rather than absorbed.
 .pcs_water_unmatched <- function(support, water) {
-  cells <- support |>
+  covered <- support |>
     dplyr::filter(.data$coverage_status != "crosswalk_only") |>
-    dplyr::distinct(.data$lon, .data$lat, .data$cell_area_ha)
+    dplyr::distinct(
+      .data$lon,
+      .data$lat,
+      .data$start_year,
+      .data$end_year,
+      .data$cell_area_ha
+    )
   layer <- dplyr::distinct(water, .data$lon, .data$lat, .data$water_frac)
+  wet <- dplyr::filter(layer, .data$water_frac > 0)
   dplyr::bind_rows(
-    cells |>
+    covered |>
       dplyr::anti_join(layer, by = c("lon", "lat")) |>
       dplyr::mutate(
         side = "polycell_without_water_cell",
         water_frac = NA_real_
       ),
-    layer |>
-      dplyr::anti_join(cells, by = c("lon", "lat")) |>
-      dplyr::filter(.data$water_frac > 0) |>
+    .pcs_interval_gaps(covered, wet, .pcs_domain(support)) |>
+      dplyr::select(-"claimed_land_ha") |>
       dplyr::mutate(
         side = "water_cell_without_polycell",
         cell_area_ha = NA_real_
@@ -1008,6 +1034,11 @@ polycell_shim_view <- function(support) {
   if (nrow(terra_measured) > 0L) {
     attr(support, "terra_measured") <- terra_measured
   }
+  long_edges <- .pcs_long_edges(polities)
+  if (nrow(long_edges) > 0L) {
+    attr(support, "long_edges") <- long_edges
+    .pcs_warn_long_edges(long_edges)
+  }
   if (!is.null(water)) {
     attr(support, "water_unmatched") <- .pcs_water_unmatched(support, water)
     attr(support, "water_excess") <- .pcs_water_excess(support)
@@ -1048,6 +1079,127 @@ polycell_shim_view <- function(support) {
       .data$territory_ha > .data$cell_area_ha * (1 + .pcs_cell_tolerance())
     ) |>
     dplyr::mutate(excess_ha = .data$territory_ha - .data$cell_area_ha)
+}
+
+# DA-22 (issue #529). A source that stores a border following a parallel as ONE
+# segment between distant vertices hands s2 a great circle, and s2 renders it
+# bulging poleward. `cshapes-2.0` writes the 49th parallel as a single 27.6039
+# degree segment, whose great circle rises 0.8294 degrees north of the
+# parallel and books roughly 123,276 km2 of Canadian prairie to the USA;
+# Egypt and Sudan on the 22nd parallel are the same defect at 2,359 km2.
+#
+# Nothing here changes an area. The segment IS what the source says the border
+# is, and re-drawing it would be a territorial judgement the producer must not
+# make. What it does is make the affected borders visible: both polities are
+# clipped against the same curve, so their shares still sum to 1.0000 in every
+# cell and no conservation check can ever see the transfer.
+#
+# The criterion is the BULGE, not the span: what matters is how far the great
+# circle departs from the parallel the vertices sit on, and that grows with the
+# square of the span and with latitude. A 1.24-degree segment at latitude 45
+# bulges 0.0017 degrees and is ordinary polygon detail; the 49th parallel's
+# 27.6-degree segment bulges 0.83 degrees and moves a province. The default
+# floor of 0.01 degrees is about 1.1 km of displacement.
+.pcs_long_edges <- function(
+  polities,
+  min_span_deg = 1,
+  max_drift_deg = 0.01,
+  min_bulge_deg = 0.01
+) {
+  geom <- sf::st_geometry(polities)
+  attrs <- sf::st_drop_geometry(polities)
+  found <- seq_along(geom) |>
+    purrr::map(\(i) {
+      .pcs_polity_long_edges(geom[i], attrs[i, ], min_span_deg, max_drift_deg)
+    }) |>
+    purrr::compact()
+  if (length(found) == 0L) {
+    return(.pcs_empty_long_edges())
+  }
+  dplyr::filter(purrr::list_rbind(found), .data$bulge_deg >= min_bulge_deg)
+}
+
+.pcs_empty_long_edges <- function() {
+  tibble::tibble(
+    polity_code = character(),
+    start_year = integer(),
+    end_year = integer(),
+    lon_from = double(),
+    lon_to = double(),
+    lat = double(),
+    span_deg = double(),
+    bulge_deg = double()
+  )
+}
+
+.pcs_polity_long_edges <- function(geom, attrs, min_span_deg, max_drift_deg) {
+  if (sf::st_is_empty(geom)[[1L]]) {
+    return(NULL)
+  }
+  edges <- .pcs_ring_edges(
+    sf::st_coordinates(geom),
+    min_span_deg,
+    max_drift_deg
+  )
+  if (nrow(edges) == 0L) {
+    return(NULL)
+  }
+  dplyr::mutate(
+    edges,
+    polity_code = attrs$polity_code,
+    start_year = attrs$start_year,
+    end_year = attrs$end_year,
+    .before = 1L
+  )
+}
+
+# `sf::st_coordinates()` labels rings with however many `L` columns the
+# geometry type needs, so they are pasted rather than named individually.
+.pcs_ring_edges <- function(xy, min_span_deg, max_drift_deg) {
+  ring_cols <- grep("^L[0-9]+$", colnames(xy), value = TRUE)
+  rings <- apply(xy[, ring_cols, drop = FALSE], 1L, paste, collapse = "-")
+  split(seq_len(nrow(xy)), rings) |>
+    purrr::keep(\(i) length(i) > 1L) |>
+    purrr::map(\(i) {
+      .pcs_edges_of_ring(xy[i, , drop = FALSE], min_span_deg, max_drift_deg)
+    }) |>
+    purrr::list_rbind()
+}
+
+.pcs_edges_of_ring <- function(m, min_span_deg, max_drift_deg) {
+  span <- abs(diff(m[, "X"]))
+  drift <- abs(diff(m[, "Y"]))
+  # A span past 180 degrees is the antimeridian wrap, not a long edge.
+  keep <- which(span > min_span_deg & span < 180 & drift < max_drift_deg)
+  if (length(keep) == 0L) {
+    return(NULL)
+  }
+  tibble::tibble(
+    lon_from = unname(m[keep, "X"]),
+    lon_to = unname(m[keep + 1L, "X"]),
+    lat = unname(m[keep, "Y"]),
+    span_deg = unname(span[keep]),
+    bulge_deg = unname(.pcs_great_circle_bulge(m[keep, "Y"], span[keep]))
+  )
+}
+
+# A great circle through two points at latitude `lat` separated by `span_deg`
+# of longitude reaches `atan(tan(lat) / cos(span_deg / 2))` at its midpoint.
+# The bulge is how far that is from the parallel the two vertices sit on.
+.pcs_great_circle_bulge <- function(lat, span_deg) {
+  rad <- pi / 180
+  abs(atan(tan(lat * rad) / cos(span_deg * rad / 2)) / rad) - abs(lat)
+}
+
+.pcs_warn_long_edges <- function(long_edges) {
+  worst <- max(long_edges$bulge_deg)
+  cli::cli_warn(c(
+    "{nrow(long_edges)} polity edge{?s} span{?s/} over a degree of longitude at
+     near-constant latitude.",
+    i = "s2 draws each as a great circle bulging up to
+         {round(worst, 4)} degrees off the parallel its vertices sit on.
+         No area is changed; see the {.val long_edges} attribute."
+  ))
 }
 
 .pcs_warn_overlap <- function(overlap) {
@@ -1239,11 +1391,11 @@ polycell_shim_view <- function(support) {
 # per cell whether or not anybody held it then.
 .pcs_cover_domain <- function(claimed, cells, domain) {
   covered <- dplyr::inner_join(cells, claimed, by = c("lon", "lat"))
-  gaps <- .pcs_claim_gaps(claimed, cells, domain)
+  gaps <- .pcs_interval_gaps(claimed, cells, domain)
   dplyr::bind_rows(covered, gaps)
 }
 
-.pcs_claim_gaps <- function(claimed, cells, domain) {
+.pcs_interval_gaps <- function(claimed, cells, domain) {
   dplyr::bind_rows(
     .pcs_gaps_before(claimed, domain),
     .pcs_gap_after(claimed, domain),
@@ -1316,6 +1468,7 @@ polycell_shim_view <- function(support) {
   c(
     "coverage",
     "overlap",
+    "long_edges",
     "terra_measured",
     "water_excess",
     "water_unmatched",
