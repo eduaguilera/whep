@@ -12,8 +12,8 @@
 #' its post-storage bundle ratio, so mass is conserved by construction.
 #'
 #' @param applied A tibble from [apply_management_losses()] with at least `year`,
-#'   `territory`, `sub_territory`, `stream`, `applied_n`, `applied_c` and
-#'   `applied_vs`.
+#'   `territory` (a stringified `area_code`, see [estimate_n_excretion()]),
+#'   `sub_territory`, `stream`, `applied_n`, `applied_c` and `applied_vs`.
 #' @param gridded A named list describing the land surface for each polity:
 #'   * `crops`: a tibble keyed by `year`, `territory`, `sub_territory`, `crop`
 #'     with the allocation weight (`manure_n_receptivity` for
@@ -54,13 +54,13 @@
 #' applied <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
 #'   ~applied_n, ~applied_c, ~applied_vs,
-#'   2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
-#'   2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
+#'   2020L, "203", NA, "collected", "Solid", 80, 800, 40,
+#'   2020L, "203", NA, "grazing", "Excreta", 20, 380, 12
 #' )
 #' crops <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-#'   2020L, "ESP", NA, "barley", 6, 50,
-#'   2020L, "ESP", NA, "wheat", 4, 40
+#'   2020L, "203", NA, "barley", 6, 50,
+#'   2020L, "203", NA, "wheat", 4, 40
 #' )
 #' allocate_manure_to_land(applied, list(crops = crops))
 allocate_manure_to_land <- function(

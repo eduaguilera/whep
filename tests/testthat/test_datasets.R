@@ -119,6 +119,77 @@ test_that("CBS and FABIO area codes map to polity database rows", {
 })
 
 
+# -- area label encoding (issue #399) ------------------------------------------
+
+# No area label in a published table may be mojibake. Three territory names
+# shipped corrupt across eight cells: Curacao (area 279) in three columns of
+# regions_full and polity_area_crosswalk, Cote d'Ivoire (area 107) in four
+# columns of regions_full and polities_cats, and "Netherlands Antilles /
+# Curacao" (area 151) in one. Each was the UTF-8 bytes of the accented letter
+# decoded as a pair of Latin-1 characters in the vendored harmonization CSVs, now
+# repaired on read in data-raw/_labels.R.
+#
+# Swept across every character column rather than a list of label columns,
+# because a repair aimed at label columns alone fixes area 279's `name` and
+# leaves the identical corruption in `iea`, `water_area` and `Lassaletta`.
+# Mojibake is never wanted in any string column, so the rule is the column's
+# type.
+#
+# It was not costing a join, and that was checked rather than assumed: no alias
+# resolves on either spelling of Curacao. It was a latent trap all the same,
+# because area 279's FAOSTAT_name is NA, so the corrupt `name` was the only label
+# it had -- an alias added later under the correct spelling would have missed in
+# silence.
+test_that("published area tables carry no mojibake in any label", {
+  tables <- c(
+    "regions_full",
+    "polities_cats",
+    "polity_area_crosswalk",
+    "polities"
+  )
+  offenders <- character(0)
+  checked <- 0L
+  for (nm in tables) {
+    d <- get(nm, envir = asNamespace("whep"))
+    for (col in names(d)[vapply(d, is.character, logical(1))]) {
+      checked <- checked + 1L
+      # Every Latin-1-decoded UTF-8 byte pair opens with U+00C3.
+      hits <- unique(grep("\u00c3", d[[col]], value = TRUE))
+      if (length(hits) > 0L) {
+        offenders <- c(
+          offenders,
+          paste0(
+            nm,
+            "$",
+            col,
+            " (",
+            paste(utils::head(hits, 3), collapse = ", "),
+            ")"
+          )
+        )
+      }
+    }
+  }
+  # Non-vacuous: zero character columns would make the loop prove nothing.
+  expect_gt(checked, 40L)
+  expect_equal(
+    length(offenders),
+    0L,
+    info = paste("mojibake in area labels:", paste(offenders, collapse = "; "))
+  )
+
+  # And the repaired names read correctly, so a repair that silently stopped
+  # working fails here instead of reverting to a corrupt string nobody reads.
+  regions <- whep::regions_full
+  expect_true("Cura\u00e7ao" %in% regions$name)
+  expect_true("C\u00f4te d'Ivoire" %in% regions$iea)
+  crosswalk <- whep::polity_area_crosswalk
+  expect_true(
+    "Cura\u00e7ao" %in% crosswalk$area_name[which(crosswalk$area_code == 279L)]
+  )
+})
+
+
 # -- source_flags.csv consistency ----------------------------------------------
 
 test_that("source_flags.csv covers all source labels used in code", {
@@ -756,6 +827,36 @@ test_that("IPCC 2019 datasets are clean tibbles", {
   }
 })
 
+test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
+  # Regression guard for issues #252 (Horses) and #253 (Poultry-Broilers).
+  # Values verified against IPCC 2019 Refinement Vol 4 Ch 10 Table 10.16a,
+  # high-productivity systems column (the tier the rest of the table uses).
+  expected <- tibble::tribble(
+    ~category, ~bo_m3_kg_vs,
+    "Horses", 0.30,
+    "Mules and Asses", 0.33,
+    "Poultry - Layers", 0.39,
+    "Poultry - Broilers", 0.36
+  )
+
+  for (nm in c("ipcc_2019_bo", "ipcc_tier2_bo_values")) {
+    obj <- getExportedValue("whep", nm)
+    got <- expected |>
+      dplyr::left_join(obj, by = "category", suffix = c("_exp", "_got"))
+    testthat::expect_equal(
+      got$bo_m3_kg_vs_got,
+      got$bo_m3_kg_vs_exp,
+      info = nm
+    )
+
+    bo <- function(cat) obj$bo_m3_kg_vs[obj$category == cat]
+    # #252: Horses must not be copied from Mules and Asses.
+    testthat::expect_false(bo("Horses") == bo("Mules and Asses"), info = nm)
+    # #253: broilers and layers share the high-productivity tier.
+    testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
+  }
+})
+
 test_that("IPCC 2006 datasets are clean tibbles", {
   ipcc_2006 <- list(
     ipcc_2006_enteric_ef = c(
@@ -850,7 +951,6 @@ test_that("livestock_constants is a named list", {
   expect_true("days_in_year" %in% names(obj))
 })
 
-
 # -- mapping key uniqueness (issue #178) ---------------------------------------
 
 # A non-unique join key silently fans out downstream merges; a fully
@@ -896,4 +996,21 @@ test_that("FAOSTAT production code 1807 maps only to Sheep and Goat Meat", {
   citrus <- whep::items_prod_full |>
     dplyr::filter(item_prod == "Citrus Fruit, Total")
   expect_equal(citrus$item_prod_code, "1804")
+})
+
+testthat::test_that("coello_synthetic_n has the expected schema + range", {
+  x <- whep::coello_synthetic_n
+  pointblank::expect_col_exists(
+    x,
+    c("year", "area_code", "item_cbs_code", "kg_n_ha")
+  )
+  testthat::expect_true(is.integer(x$area_code))
+  testthat::expect_true(is.integer(x$item_cbs_code))
+  testthat::expect_equal(min(x$year), 1961L)
+  testthat::expect_equal(max(x$year), 2023L)
+  testthat::expect_true(all(x$kg_n_ha >= 0))
+  # Data-quality safeguard: implausible Coello outliers (>1000 kg N/ha) are
+  # dropped to missing in the builder, so no rate exceeds the threshold.
+  testthat::expect_true(all(x$kg_n_ha <= 1000))
+  testthat::expect_gt(nrow(x), 0L)
 })

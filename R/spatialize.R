@@ -322,6 +322,20 @@ build_gridded_landuse <- function(
       )
     ]
 
+    # `type_cropland` is stored sparse: cells lacking a crop's LUH2 type have
+    # no row and join to `type_ha = NA`. Zero those so a crop cannot be placed
+    # in a cell lacking its type. Otherwise they would keep the inherited total
+    # cropland and both leak allocation and inflate `type_pot`, masking the
+    # whole-group fallback below.
+    grid_cp_tc[
+      is.na(type_ha),
+      `:=`(
+        cropland_ha = 0,
+        irrigated_ha = 0,
+        rainfed_ha = 0
+      )
+    ]
+
     # Check which (country, crop) have type potential; fallback where zero
     grid_cp_tc[,
       type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
@@ -921,11 +935,14 @@ build_gridded_landuse <- function(
   if (nrow(leaked) == 0L) {
     return(invisible(NULL))
   }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  codes <- sort(unique(leaked$area_code))
   cli::cli_warn(c(
     "{nrow(leaked)} (country, crop) pair{?s} in year {yr} have national \\
      harvested area but no allocatable grid cell; \\
      {round(sum(leaked$national_area))} ha dropped:",
-    "x" = "area_code{?s} {.val {sort(unique(leaked$area_code))}}."
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
   ))
 }
 

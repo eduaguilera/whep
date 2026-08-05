@@ -214,6 +214,7 @@ reference:
   - read_n_deposition
   - build_n_deposition
   - read_hyde_population
+  - read_population
   - build_urban_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
@@ -226,8 +227,61 @@ reference:
   - read_soil_hydraulic
   - build_cell_polity
   - spatialize_country_n_to_crops
+  - build_ag_land_support
   - build_n_inputs
   - build_nitrogen_balance
+
+- title: SJOS - nitrogen
+  desc: >
+    Safe and Just Operating Space for nitrogen. Reader for the
+    Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers
+    (critical surplus, critical input, exceedance, the medium-specific
+    critical losses and the binding-threshold map) that the
+    boundary-exceedance modules compare the WHEP nitrogen surplus and
+    process-based losses against. The gridded soil-surface nitrogen surplus
+    (net inputs minus harvested-nitrogen exports) and its surplus-mode
+    critical-boundary exceedance, decomposed per crop into the parts within
+    and above the boundary. The pathway-mode boundary instead routes each
+    process-based nitrogen loss to its medium-specific critical load (ammonia
+    to air, nitrate to the tighter of groundwater and surface water),
+    decomposing each medium and naming the binding boundary per crop. The
+    nourishment ("just") axis supplies per-capita protein and dietary energy,
+    from the commodity-balance food element times the biomass nutrition
+    coefficients divided by population, or from FAOSTAT Food Balance Sheet
+    per-capita supply, and normalizes that supply onto a piecewise adequacy
+    score classified Under, Adequate or Over. The boundary and nourishment
+    sides are then crossed per crop into the 2-way safe-and-just
+    classification, and each crop's exceedance, within-boundary or total
+    surplus nitrogen becomes the intensity of an embodied-nitrogen trade
+    footprint extension.
+  contents:
+  - read_critical_n
+  - calculate_n_surplus
+  - build_n_boundary_exceedance
+  - build_n_pathway_exceedance
+  - build_food_supply
+  - normalize_nourishment
+  - calculate_food_gini
+  - disaggregate_ussr
+  - build_n_boundary_percapita
+  - build_n_percapita
+  - classify_sjos_n
+  - build_n_exceedance_extension
+  - build_sjos_n_footprint
+  - build_sjos_nitrogen
+
+- title: SJOS - nitrogen coefficient tables
+  desc: >
+    Planetary reactive-nitrogen boundary parameters, the nourishment
+    protein/energy thresholds (with the waste-inequality factor and class
+    cutoffs), and the boundary/nourishment classification levels with their
+    plotting colours, feeding the SJOS-N per-capita boundary axis and the
+    2-way safe-and-just classification.
+  contents:
+  - n_boundary_params
+  - nourishment_thresholds
+  - sjos_levels
+  - nourish_levels
 
 - title: Soil balances - carbon (historical balance)
   desc: >
@@ -320,6 +374,7 @@ reference:
   - add_area_code
   - add_area_name
   - get_polity_geometries
+  - whep_polity_columns
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
@@ -343,6 +398,7 @@ reference:
   - biomass_coefs
   - cb_processing
   - cft_mapping
+  - coello_synthetic_n
   - crops_eurostat
   - crops_manure_n
   - lassaletta_grassland_share

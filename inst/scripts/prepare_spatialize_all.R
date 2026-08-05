@@ -1153,6 +1153,7 @@ prepare_country_areas <- function(
       crop_areas$irrigated_area_ha[needs_fallback] <-
         fallback$irrigated_area_ha
     }
+    crop_areas <- .cap_national_irrigation(crop_areas)
   } else {
     cli::cli_alert_info(
       "MIRCA not found -- using LUH2-proportional irrigation allocation"
@@ -1189,6 +1190,27 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# Cap summed irrigated area per country-year at the LUH2 national total. MIRCA
+# rescaling makes covered crops absorb the whole national total, so the per-CFT
+# fallback for MIRCA-absent crops would otherwise add irrigation on top of an
+# already-complete allocation (double-counting). Scaling proportionally when the
+# country sum exceeds `total_irrig_ha` conserves the national irrigation total.
+.cap_national_irrigation <- function(crop_areas) {
+  crop_areas |>
+    dplyr::mutate(
+      national_irrig_ha = sum(.data$irrigated_area_ha, na.rm = TRUE),
+      cap_scale = dplyr::if_else(
+        .data$national_irrig_ha > .data$total_irrig_ha &
+          .data$national_irrig_ha > 0,
+        .data$total_irrig_ha / .data$national_irrig_ha,
+        1
+      ),
+      irrigated_area_ha = .data$irrigated_area_ha * .data$cap_scale,
+      .by = c("year", "area_code")
+    ) |>
+    dplyr::select(-"national_irrig_ha", -"cap_scale")
 }
 
 
@@ -4787,9 +4809,42 @@ extend_lpjml_wind <- function(
 
   nc <- ncdf4::nc_create(out_path, var_def)
   on.exit(ncdf4::nc_close(nc), add = TRUE)
-  ncdf4::ncvar_put(nc, var_def, tail_cube)
+  ncdf4::ncvar_put(nc, var_def, .clamp_non_negative(tail_cube, variable))
 
   invisible(out_path)
+}
+
+# Every variable written through .write_climate_tail() is a non-negative
+# physical quantity (wind speed, downwelling shortwave, downwelling longwave),
+# so a negative value can only be numerical noise.
+#
+# It does occur. The remap onto the LPJmL grid interpolates, and interpolation
+# overshoots where the field has a sharp gradient -- for shortwave that is the
+# polar-night terminator, where the true flux is exactly zero. The overshoot is
+# ~1e-5 W/m2, symmetric about zero, and physically nothing; the 1901-2019
+# ISIMIP base contains no negatives at all, so it is introduced purely by the
+# ERA5 tail we build here.
+#
+# Left unclamped it is still not harmless: LPJmL's SAFE build rejects negative
+# shortwave for every affected cell-day (update_daily_cell.c) without clamping
+# it, which produced 138k ERROR038 lines and a 12 MB error log on the
+# 1901-2023 run -- enough to bury a real error. Clamped here rather than in the
+# model because the input is what is wrong.
+#
+# The count is reported rather than silently applied: a large count, or a
+# magnitude that is not round-off, would mean something else is broken.
+.clamp_non_negative <- function(cube, variable) {
+  negative <- !is.na(cube) & cube < 0
+  count <- sum(negative)
+  if (count == 0L) {
+    return(cube)
+  }
+  cli::cli_alert_info(
+    "{variable}: clamping {count} negative value{?s} to zero
+     (most negative {signif(min(cube[negative]), 3)})."
+  )
+  cube[negative] <- 0
+  cube
 }
 
 # Extend one ISIMIP radiation series (rsds or rlds) to `target_years` with a
@@ -4802,8 +4857,10 @@ extend_lpjml_wind <- function(
 # capped 5.9.7 at 2019 before its own ERA5 tail (issue #340).
 #
 # The correction is multiplicative per cell and calendar month, fitted on the
-# overlap, identical in form to extend_lpjml_wind(). Radiation is a strictly
-# non-negative flux, so a multiplicative factor cannot drive it below zero.
+# overlap, identical in form to extend_lpjml_wind(). A multiplicative factor
+# cannot itself drive a non-negative flux below zero, but the remap onto the
+# LPJmL grid can: see .clamp_non_negative(), which is why the tail is clamped
+# on the way out.
 extend_lpjml_radiation <- function(
   era5_path,
   isimip_path,
@@ -5939,6 +5996,23 @@ prepare_lpjml6_static_inputs <- function(
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
+# Collapse per-crop N rates to LPJmL PFT bands with an area-weighted mean
+# (weight = rainfed_ha + irrigated_ha), mirroring the yields writer. Many crops
+# share one band; a plain mean would bias the band rate toward minor-area crops
+# and break the implied applied-N mass (LPJmL multiplies rate x band area).
+.aggregate_nitrogen_pft <- function(ng) {
+  ng <- data.table::as.data.table(ng)
+  ng[, w := rainfed_ha + irrigated_ha]
+  agg <- ng[
+    w > 0,
+    .(num = sum(kg_n_ha * w, na.rm = TRUE), w_sum = sum(w, na.rm = TRUE)),
+    by = .(year, pft, fert_type, row, col)
+  ]
+  agg[, value := num / w_sum]
+  agg[is.nan(value), value := 0]
+  agg[, .(year, pft, fert_type, row, col, value)]
+}
+
 .write_nitrogen_nc_chunks <- function(
   nc_syn,
   nc_man,
@@ -5950,10 +6024,7 @@ prepare_lpjml6_static_inputs <- function(
 ) {
   ng <- data.table::as.data.table(n_dt)
   ng <- coord_to_rowcol(ng, grid)
-  agg <- ng[,
-    .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft, fert_type, row, col)
-  ]
+  agg <- .aggregate_nitrogen_pft(ng)
   # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
   # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
   rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]

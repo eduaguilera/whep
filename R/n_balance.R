@@ -72,6 +72,12 @@
 #'   through). Also required:
 #'   * `npp_n_input`: shared with [build_n_inputs()]'s `"recycling"` term
 #'     (see [calculate_npp_carbon_nitrogen()]); used here for `prod_n_t`.
+#'   * `ag_land_support`: the [build_ag_land_support()] table, supplying
+#'     `area_ha` (the per-hectare boundary denominator) on a physical-land
+#'     basis. Derived natively when absent and derivable, and shared with
+#'     [build_n_inputs()] so both see one table; when neither supplied nor
+#'     derivable, `area_ha` falls back to the harvested area the NPP input
+#'     carries.
 #'   * `residue_destiny_input`: [calculate_residue_destinies()]'s required
 #'     input (`item_prod_code`, `residue_dm_t`, plus whatever the chosen
 #'     `residue_destiny_method` needs), for `used_residue_n_t`/
@@ -107,7 +113,10 @@
 #' @param example If `TRUE`, return a small fixture instead of assembling
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`/`area_code`/`item_cbs_code` (plus
-#'   `lon`/`lat` at `resolution = "grid"`) with the input aggregates
+#'   `lon`/`lat` at `resolution = "grid"`) with `area_ha` (each crop's
+#'   harvested hectares in the cell, summed over cells at
+#'   `resolution = "polity"`; used downstream to convert tonnes N to a
+#'   per-hectare rate), the input aggregates
 #'   (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
 #'   `n_input_som_t`, `n_input_for_n2o_t`), the output aggregates
 #'   (`n_output_residues_t`, `n_output_som_t`, `n_output_useful_t`,
@@ -117,7 +126,9 @@
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-#'   `method_soil_n2o`/`method_leaching` provenance columns.
+#'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_nitrogen_balance(example = TRUE)
@@ -145,8 +156,14 @@ build_nitrogen_balance <- function(
   # term (both calling .n_balance_npp()) share one result instead of each
   # re-running the full NPP-N pipeline.
   data$.npp_cache <- .n_balance_npp(data)
+  # Materialise the agricultural land support once here so this function's
+  # area_ha denominator and build_n_inputs()'s non-item allocation share ONE
+  # table: derived twice they could disagree, and area_ha would silently fall
+  # back to harvested area even though physical support was available.
+  data$ag_land_support <- .ni_resolve_land_support(data, years = NULL)
   n_inputs <- data$n_inputs %||%
     build_n_inputs(resolution = resolution, data = data)
+  .nb_validate_input_grain(n_inputs, resolution)
 
   .nb_inputs(n_inputs, key) |>
     .nb_outputs(data, key) |>
@@ -154,7 +171,8 @@ build_nitrogen_balance <- function(
     .nb_indicators_pass1() |>
     .nb_cap_som() |>
     .nb_indicators_pass2(m, data, key, gwp) |>
-    .nb_finalise()
+    .nb_finalise() |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: method validation ----------------------------------
@@ -195,6 +213,7 @@ build_nitrogen_balance <- function(
 # sum) and n_input_for_n2o_t is a separate sum that DOES include it
 # (N_Figs.R:496).
 .nb_inputs <- function(n_inputs, key) {
+  provenance <- .nb_input_methods(n_inputs, key)
   wide <- n_inputs |>
     dplyr::summarise(
       n_input_t = sum(.data$n_input_t, na.rm = TRUE),
@@ -206,7 +225,7 @@ build_nitrogen_balance <- function(
       values_fill = 0
     ) |>
     .nb_ensure_fert_cols()
-  wide |>
+  out <- wide |>
     dplyr::mutate(
       n_input_full_t = .data$bnf +
         .data$excreta +
@@ -239,6 +258,47 @@ build_nitrogen_balance <- function(
         .data$urban +
         .data$recycling
     )
+  if (is.null(provenance)) {
+    return(out)
+  }
+  dplyr::left_join(out, provenance, by = key)
+}
+
+.nb_validate_input_grain <- function(n_inputs, resolution) {
+  if (resolution != "grid") {
+    return(invisible(n_inputs))
+  }
+  key <- c("lon", "lat", "area_code", "item_cbs_code", "year")
+  .check_columns(n_inputs, key, "n_inputs")
+  incomplete <- !stats::complete.cases(n_inputs[, key, drop = FALSE])
+  if (any(incomplete)) {
+    cli::cli_abort(c(
+      "Grid nitrogen inputs must carry complete grid and item keys.",
+      i = "{sum(incomplete)} row{?s} are incomplete; allocate non-item inputs
+           over agricultural support before building the balance."
+    ))
+  }
+  invisible(n_inputs)
+}
+
+.nb_input_methods <- function(n_inputs, key) {
+  method_cols <- intersect(
+    c("method_recycling_n", "method_synthetic"),
+    names(n_inputs)
+  )
+  if (length(method_cols) == 0L) {
+    return(NULL)
+  }
+  dplyr::summarise(
+    n_inputs,
+    dplyr::across(dplyr::all_of(method_cols), .nb_method_stamp),
+    .by = dplyr::all_of(key)
+  )
+}
+
+.nb_method_stamp <- function(x) {
+  values <- sort(unique(x[!is.na(x) & nzchar(x)]))
+  if (length(values) == 0L) NA_character_ else paste(values, collapse = "|")
 }
 
 # fert_type columns not present after the pivot (a source with zero rows)
@@ -277,17 +337,69 @@ build_nitrogen_balance <- function(
 # prod_n_t: the SAME calculate_npp_carbon_nitrogen() result build_n_inputs()
 # already computes for its "recycling" term, via the shared .n_balance_npp()
 # helper (R/n_balance_inputs.R) -- not a second, separate NPP-N call.
+# area_ha (each crop's harvested hectares, needed downstream by
+# calculate_n_surplus()/build_n_pathway_exceedance() to convert tonnes N to a
+# per-hectare rate) is summed from the SAME NPP rows onto the balance key: at
+# resolution = "grid" per (lon, lat, area_code, item_cbs_code, year), at
+# "polity" over cells. Several item_prod_code crops can map to one
+# item_cbs_code, so the harvested areas are summed the same way prod_n_t is.
 .nb_add_prod_n <- function(x, data, key) {
   npp <- .n_balance_npp(data)
   if (is.null(npp)) {
-    return(dplyr::mutate(x, prod_n_t = 0))
+    area <- .nb_area_support(data, key)
+    if (is.null(area)) {
+      return(dplyr::mutate(x, prod_n_t = 0, area_ha = NA_real_))
+    }
+    return(.nb_merge_output_term(x, dplyr::mutate(area, prod_n_t = 0), key))
   }
-  prod <- npp |>
+  prod_n <- npp |>
+    .nb_npp_with_area() |>
     dplyr::summarise(
       prod_n_t = sum(.data$product_n_t, na.rm = TRUE),
       .by = dplyr::all_of(key)
     )
+  support <- .nb_area_support(data, key)
+  prod <- if (is.null(support)) {
+    npp |>
+      .nb_npp_with_area() |>
+      dplyr::summarise(
+        area_ha = .sum_if_any(.data$area_ha),
+        .by = dplyr::all_of(key)
+      ) |>
+      dplyr::full_join(prod_n, by = key)
+  } else {
+    dplyr::full_join(prod_n, support, by = key)
+  }
   .nb_merge_output_term(x, prod, key)
+}
+
+# Prefer explicit physical agricultural support for the per-hectare boundary
+# denominator. Harvested area can exceed physical land under multicropping and
+# leaves grass rows without an area; it remains a compatibility fallback only.
+.nb_area_support <- function(data, key) {
+  if (is.null(data$ag_land_support)) {
+    return(NULL)
+  }
+  support <- .ni_land_support(data)
+  support |>
+    dplyr::summarise(
+      area_ha = sum(.data$area_ha),
+      .by = dplyr::all_of(key)
+    )
+}
+
+# The NPP result carries each crop's harvested area (area_ha) when the upstream
+# npp_n_input supplied it (the real crop-NPP chain, calculate_crop_npp() etc.,
+# preserves it). When a caller assembled npp_n_input without area_ha, the
+# harvested area is genuinely unknown, so an NA column is added instead of a
+# guessed value. That NA collapses (na.rm) to 0 on the balance key, which
+# downstream yields an NA per-hectare rate (the same guard as a true zero-area
+# cell) rather than a spurious finite rate.
+.nb_npp_with_area <- function(npp) {
+  if (rlang::has_name(npp, "area_ha")) {
+    return(npp)
+  }
+  dplyr::mutate(npp, area_ha = NA_real_)
 }
 
 # used_residue_n_t / burnt_residue_n_t: calculate_residue_destinies() splits
@@ -648,6 +760,7 @@ build_nitrogen_balance <- function(
 .nb_finalise <- function(x) {
   cols <- c(
     .nb_present_key(x),
+    "area_ha",
     "n_input_full_t",
     "n_input_full_nosom_t",
     "n_input_std_t",
@@ -680,7 +793,8 @@ build_nitrogen_balance <- function(
     "total_gwp_co2e_kg",
     "method_nh3",
     "method_soil_n2o",
-    "method_leaching"
+    "method_leaching",
+    intersect(c("method_recycling_n", "method_synthetic"), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
 }
@@ -717,6 +831,7 @@ build_nitrogen_balance <- function(
     ~area_code,
     ~item_cbs_code,
     ~year,
+    ~area_ha,
     ~n_input_full_t,
     ~n_input_full_nosom_t,
     ~n_input_std_t,
@@ -753,6 +868,7 @@ build_nitrogen_balance <- function(
     10L,
     2511L,
     2020L,
+    120,
     100,
     98,
     98,
@@ -786,5 +902,6 @@ build_nitrogen_balance <- function(
     "manner",
     "ipcc2019",
     "meisinger_drainage"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
