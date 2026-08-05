@@ -14,8 +14,8 @@
 #   ... top callers of forderv, bmerge, copy ...
 #   CALLERS_END
 
-# Load the package in dev mode. If running inside renv with all deps
-# installed, `library(whep)` also works.
+# Load the package in dev mode. With all deps installed, `library(whep)`
+# also works.
 devtools::load_all(".")
 
 # ── Config ──────────────────────────────────────────────────────────────────

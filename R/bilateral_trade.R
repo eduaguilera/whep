@@ -166,6 +166,12 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   active <- which(exports > 0 | imports > 0)
   sub <- trade_matrix[active, active, drop = FALSE]
   sub[sub == 0] <- 1
+  # RAS/IPF scales multiplicatively, so a cell that is genuinely 0 going in
+  # stays 0 through every iteration; but the seeding line above treats the
+  # diagonal (self-trade, always 0) like any other unobserved zero, which
+  # would let IPF allocate a spurious i -> i flow to hit the row/column
+  # totals. Re-zero it so self-trade can never re-enter the balanced matrix.
+  sub <- .zero_diagonal(sub)
   sub <- .ipf_2d(sub, exports[active], imports[active])
 
   result <- matrix(
@@ -248,6 +254,18 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   # TODO: Adapt this to our needs
   k_trust_factor <- 0.1
   trade_matrix[na_mask] <- estimate[na_mask] * k_trust_factor
+  # The diagonal (a country trading with itself) starts NA from
+  # .build_trade_matrix() and would otherwise be filled by the estimate above,
+  # like any other missing cell -- but self-trade is never a real flow.
+  .zero_diagonal(trade_matrix)
+}
+
+# Force the diagonal of a country x country trade matrix to exactly 0. A
+# country never trades with itself; used both after estimating missing trade
+# (.fill_missing_trade()) and after IPF's zero-seeding step (.balance_matrix())
+# so self-trade can never re-enter the matrix.
+.zero_diagonal <- function(trade_matrix) {
+  diag(trade_matrix) <- 0
   trade_matrix
 }
 

@@ -39,19 +39,33 @@ testthat::test_that("crop/soil N2O example has expected structure", {
 
   pointblank::expect_col_exists(
     result,
-    c("year", "area_code", "item_cbs_code", "impact_u", "method_soil_n2o")
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "impact_u",
+      "method_soil_n2o",
+      "method_synthetic"
+    )
   )
   pointblank::expect_col_vals_gt(result, "impact_u", 0)
 })
 
 testthat::test_that("synthetic N is split across crops by harvested area", {
+  # Coello is the default crop split; this test pins the old uniform
+  # behaviour, which is now the explicitly-selected "area_share" method
+  # (REGRESSION requirement (c): area_share reproduces the harvested-area
+  # split). The area_code here exists in whep::coello_synthetic_n, so the
+  # default would rate-weight; forcing area_share isolates the 0.7 split.
   f <- .soil_n2o_fixture()
+  f$synthetic_method <- "area_share"
   result <- whep::build_crop_soil_n2o_extension(
     data = f
   )
 
   testthat::expect_setequal(result$item_cbs_code, c(2511L, 2513L))
   testthat::expect_true(all(result$method_soil_n2o == "IPCC_2019_Tier1_AR6"))
+  testthat::expect_true(all(result$method_synthetic == "area_share"))
 
   # synthetic factor: (EF1 + FracGASF*EF4 + FracLEACH*EF5) * 44/28 * 1000 * GWP
   per_t_n <- (0.010 + 0.11 * 0.010 + 0.24 * 0.011) * (44 / 28) * 1000 * 273
@@ -59,6 +73,48 @@ testthat::test_that("synthetic N is split across crops by harvested area", {
   wheat <- result$impact_u[result$item_cbs_code == 2511L]
   barley <- result$impact_u[result$item_cbs_code == 2513L]
   testthat::expect_equal(wheat / (wheat + barley), 0.7)
+})
+
+testthat::test_that("soil-N2O synthetic split follows Coello rates", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2010L, 10L, 2511L, "ha", 100, # wheat
+    2010L, 10L, 2514L, "ha", 100 # maize
+  )
+  fertilizer <- tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural Use", "Nutrient nitrogen N (total)", 2010L, 10L, 1000
+  )
+  coello <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~kg_n_ha,
+    2010L, 10L, 2511L, 150,
+    2010L, 10L, 2514L, 50
+  )
+  res <- whep::build_crop_soil_n2o_extension(
+    data = list(
+      primary_prod = primary_prod,
+      fertilizer = fertilizer,
+      coello_rates = coello,
+      synthetic_method = "coello",
+      manure = tibble::tibble(
+        Item = character(),
+        Element = character(),
+        Year = integer(),
+        `Area Code` = integer(),
+        Value = double()
+      ),
+      primary_residues = tibble::tibble(
+        year = integer(),
+        area_code = integer(),
+        item_cbs_code_crop = integer(),
+        value = double()
+      )
+    )
+  )
+  wheat <- res$impact_u[res$item_cbs_code == 2511L]
+  maize <- res$impact_u[res$item_cbs_code == 2514L]
+  testthat::expect_gt(wheat, maize) # Coello wheat rate 3x maize
+  testthat::expect_equal(wheat / (wheat + maize), 0.75, tolerance = 1e-8)
 })
 
 testthat::test_that("residue N adds via the leaching-only factor", {

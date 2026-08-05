@@ -11,7 +11,7 @@ home:
     href: https://lbm364dl.github.io/follow-the-workflow
 
 authors:
-  European Research Council: 
+  European Research Council:
     html: "<img src='https://erc.europa.eu/themes/custom/erc_theme/ERC_FAVICON.png' width=55 alt='European Research Council'>"
     href: "https://erc.europa.eu/homepage"
 
@@ -61,6 +61,222 @@ reference:
   - grass_access_shares
   - aggregate_grass_to_polity
   - read_lpjml_grass_productivity
+
+- title: Soil balances - water
+  desc: >
+    Read LPJmL hydrology outputs (drainage, evapotranspiration components,
+    precipitation, irrigation, runoff, discharge, soil water content and the
+    per-crop net irrigation requirement) into tidy long form, close the gridded
+    soil water balance exposing the footprint-relevant terms (precipitation,
+    applied irrigation, blue and green consumptive water, net irrigation
+    requirement), and assemble the monthly climate drivers for the
+    soil-organic-carbon dynamics.
+  contents:
+  - read_lpjml_hydrology
+  - read_lpjml_npp
+  - read_cru_climate
+  - build_water_balance
+  - get_soc_climate_drivers
+
+- title: Soil-balance coefficient tables
+  desc: >
+    Structural parameter tables for the soil-organic-carbon turnover models
+    (HSOC, RothC, ICBM, AMG, Century), the AMG humification coefficient by
+    carbon input type, the soil carbon-to-nitrogen ratios used to convert
+    soil-carbon change into net nitrogen mineralization or sequestration, the
+    per-input-type humification fractions for the HSOC model, and the USDA
+    texture-class soil hydraulic properties (with the HWSD texture-code
+    crosswalk) feeding the ICBM moisture modifier.
+  contents:
+  - soc_turnover_params
+  - amg_h_by_input_type
+  - soil_cn_ratios
+  - residue_humification
+  - soc_soil_cover_curve
+  - soil_hydraulic_by_texture
+  - hwsd_texture_usda
+
+- title: Nitrogen-loss coefficient tables
+  desc: >
+    Coefficient datasets for the nitrogen-loss cascade (Module C): the
+    disaggregated direct N2O emission factors by climate and irrigation, the
+    fertiliser-type N2O modifying factors, the Meisinger and Randall topsoil
+    denitrification matrix with its drainage-class bins, the subsoil nitrate
+    reduction shares, the MANNER ammonia-volatilisation factor tables (plus
+    the synthetic-fertiliser rate/rainfall factors, the organic-manure
+    incorporation-delay factor, the inorganic nitrogen fraction by species
+    and the gross-default technique/incorporation-delay blend), the IPCC
+    2006 Tier 1 direct soil N2O factors, the soil organic matter content
+    bins, and the C:N leaching-attenuation and indirect-N2O constants.
+  contents:
+  - n2o_efs_disaggregated
+  - fertiliser_n2o_modifiers
+  - meisinger_denitrification
+  - drainage_ranges
+  - subsoil_no3_reduction
+  - manner_params
+  - manner_rate_factor
+  - manner_rain_factor
+  - manner_incorporation_factor
+  - manure_inorganic_n
+  - manner_default_technique_mix
+  - n2o_efs_ipcc2006
+  - som_ranges
+  - n_attenuation_constants
+
+- title: Urban nitrogen coefficient tables
+  desc: >
+    Spain historical benchmark series (Module C, Task C3) behind
+    `build_urban_n()`'s global default per-capita urban-N-to-agriculture
+    rate: the raw national-total urban nitrogen series and its derived
+    per-capita rate.
+  contents:
+  - urban_n_reference
+  - urban_kgn_cap_reference
+
+- title: Soil balances - carbon (SOC climate)
+  desc: >
+    Per-model native climate rate-modifying functions for the soil-organic-carbon
+    turnover models. Each model carries its own published temperature and moisture
+    response (RothC/HSOC a*b*c, ICBM re_clim, AMGv2 f(T)*f(H), Century DEFAC),
+    not a shared scalar.
+  contents:
+  - soc_rate_modifier_rothc
+  - soc_rate_modifier_icbm
+  - soc_rate_modifier_amg
+  - soc_rate_modifier_century
+
+- title: Soil balances - carbon (SOC models)
+  desc: >
+    Soil-organic-carbon turnover models sharing a common annual call contract.
+    HSOC (two pools plus inert organic matter) and RothC (five pools) step
+    forward in time; ICBM (two pools) and AMG (active plus stable) are
+    analytical; Century (five pools) integrates an ODE. Each pulls its rate
+    constants from `soc_turnover_params` and takes an annual climate modifier.
+    `calculate_soc_dynamics` is the selector that dispatches to any of them and
+    builds the per-model native climate modifier from supplied climate drivers.
+  contents:
+  - calculate_soc_dynamics
+  - calculate_soc_hsoc
+  - calculate_soc_rothc
+  - calculate_soc_icbm
+  - calculate_soc_amg
+  - calculate_soc_century
+
+- title: Soil balances - carbon (inputs)
+  desc: >
+    Assemble the soil carbon-input layer the turnover models consume: crop
+    residue, root and applied-manure carbon per cell, crop and year in
+    megagrams of carbon per hectare, plus the carbon-weighted humification
+    fraction from `residue_humification`. The grassland and natural-land
+    carbon inputs come from the LPJmL net primary production minus harvested
+    carbon (grassland additionally carrying grazing-excreta carbon).
+  contents:
+  - build_soil_carbon_inputs
+  - build_grass_natural_carbon_inputs
+  - build_carbon_inputs
+
+- title: Soil balances - nitrogen
+  desc: >
+    Gridded nitrogen-balance inputs (Module C). Atmospheric nitrogen
+    deposition from HaNi NHx and NOy, aggregated to WHEP's 0.5-degree grid and
+    converted to a per-hectare rate using the true latitude-dependent cell
+    area. Urban/human-excreta nitrogen from gridded HYDE population and a
+    per-capita rate, with neighbour-cell transport buffering for cells with
+    no local cropland room. Ammonia-N volatilisation from the MANNER
+    process-based model, for synthetic fertiliser and organic manure, plus a
+    gross-default organic-manure variant that fills in the application
+    technique and incorporation delay from a documented placeholder blend
+    instead of requiring per-cell/per-era survey data. Gridded
+    windspeed and soil pH drivers, the cell-polity assembly, and the
+    polity-to-crop-to-grid spatialization of a country-level nitrogen total
+    (Task C6 infrastructure). The gridded nitrogen INPUT assembly combines
+    every source (BNF, residue/root recycling, manure, deposition, urban,
+    soil organic-matter mineralization, synthetic fertiliser) into one
+    long-format table (Task C6 final phase).
+  contents:
+  - read_n_deposition
+  - build_n_deposition
+  - read_hyde_population
+  - read_population
+  - build_urban_n
+  - calculate_manner_nh3
+  - calculate_manner_nh3_default
+  - calculate_nh3
+  - calculate_soil_n2o
+  - calculate_n_leaching
+  - calculate_indirect_n2o_nh3
+  - read_lpjml_wind
+  - read_soil_ph
+  - read_soil_hydraulic
+  - build_cell_polity
+  - spatialize_country_n_to_crops
+  - build_ag_land_support
+  - build_n_inputs
+  - build_nitrogen_balance
+
+- title: SJOS - nitrogen
+  desc: >
+    Safe and Just Operating Space for nitrogen. Reader for the
+    Schulte-Uebbing et al. (2022) gridded critical-nitrogen layers
+    (critical surplus, critical input, exceedance, the medium-specific
+    critical losses and the binding-threshold map) that the
+    boundary-exceedance modules compare the WHEP nitrogen surplus and
+    process-based losses against. The gridded soil-surface nitrogen surplus
+    (net inputs minus harvested-nitrogen exports) and its surplus-mode
+    critical-boundary exceedance, decomposed per crop into the parts within
+    and above the boundary. The pathway-mode boundary instead routes each
+    process-based nitrogen loss to its medium-specific critical load (ammonia
+    to air, nitrate to the tighter of groundwater and surface water),
+    decomposing each medium and naming the binding boundary per crop. The
+    nourishment ("just") axis supplies per-capita protein and dietary energy,
+    from the commodity-balance food element times the biomass nutrition
+    coefficients divided by population, or from FAOSTAT Food Balance Sheet
+    per-capita supply, and normalizes that supply onto a piecewise adequacy
+    score classified Under, Adequate or Over. The boundary and nourishment
+    sides are then crossed per crop into the 2-way safe-and-just
+    classification, and each crop's exceedance, within-boundary or total
+    surplus nitrogen becomes the intensity of an embodied-nitrogen trade
+    footprint extension.
+  contents:
+  - read_critical_n
+  - calculate_n_surplus
+  - build_n_boundary_exceedance
+  - build_n_pathway_exceedance
+  - build_food_supply
+  - normalize_nourishment
+  - calculate_food_gini
+  - disaggregate_ussr
+  - build_n_boundary_percapita
+  - build_n_percapita
+  - classify_sjos_n
+  - build_n_exceedance_extension
+  - build_sjos_n_footprint
+  - build_sjos_nitrogen
+
+- title: SJOS - nitrogen coefficient tables
+  desc: >
+    Planetary reactive-nitrogen boundary parameters, the nourishment
+    protein/energy thresholds (with the waste-inequality factor and class
+    cutoffs), and the boundary/nourishment classification levels with their
+    plotting colours, feeding the SJOS-N per-capita boundary axis and the
+    2-way safe-and-just classification.
+  contents:
+  - n_boundary_params
+  - nourishment_thresholds
+  - sjos_levels
+  - nourish_levels
+
+- title: Soil balances - carbon (historical balance)
+  desc: >
+    Reconstruct per-cell soil-organic-carbon stock trajectories: equilibrium
+    initialisation under the earliest land-use carbon inputs, a forward march on
+    yearly per-cell per-class land-use areas with a carbon-conserving
+    land-use-change transfer, and the derived soil-organic-nitrogen change via
+    the asymmetric soil carbon-to-nitrogen ratios.
+  contents:
+  - build_carbon_balance
+  - read_luh2_landuse
 
 - title: Crop NPP, BNF and coefficient tables
   desc: >
@@ -115,6 +331,10 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - create_grafs_plot_df
+  - plot_input_output
+  - plot_input_output_livestock
+  - plot_input_output_system
 
 - title: Download large input datasets
   desc: >
@@ -138,6 +358,7 @@ reference:
   - add_area_code
   - add_area_name
   - get_polity_geometries
+  - whep_polity_columns
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs
@@ -161,6 +382,7 @@ reference:
   - biomass_coefs
   - cb_processing
   - cft_mapping
+  - coello_synthetic_n
   - crops_eurostat
   - crops_manure_n
   - lassaletta_grassland_share
@@ -180,21 +402,58 @@ reference:
     Get a tidy dataframe with the found sources for different data.
   contents:
   - expand_trade_sources
-  
+
+
+- title: Nitrogen typologies Spain
+  desc: >
+    Functions to generate data for N inputs, outputs, production, destinies,
+    typologies, etc.
+  contents:
+  - create_typologies_of_josette
+  - create_typologies_grafs_spain
+  - create_alfredos_typologies
+  - create_typologies_whep
+  - create_grafs_plot_df
+  - create_n_prov_destiny
+  - create_n_soil_inputs
+  - create_n_production
+  - calculate_nue_crops
+  - calculate_nue_livestock
+  - calculate_system_nue
+  - create_n_nat_destiny
+
+- title: Data-frame utilities
+  desc: >
+    Complete tabular schemas without losing column types or silently
+    discarding extra fields.
+  contents:
+  - ensure_columns
 
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
+    `interp_vec()` is the vector-level interpolation primitive behind
+    `fill_linear(log_space = TRUE)`, for callers working with plain vectors.
   contents:
   - fill_linear
   - fill_sum
   - fill_proxy_growth
+  - interp_vec
+
+- title: Multi-source consolidation
+  desc: >
+    Reduce a multi-source panel to one winning row per cell by source priority,
+    with measure-aware demotion, coverage and quality tie-breaks, and an
+    isolated-flip continuity override.
+  contents:
+  - consolidate_sources
 
 - title: Decomposition analysis
   desc: >
     Functions for index decomposition analysis.
   contents:
   - calculate_lmdi
+  - decompose_weighted_ratio
 
 - title: Multi-regional input-output model
   desc: >
@@ -212,6 +471,8 @@ reference:
   - add_footprint_product_stage
   - build_crop_land_extension
   - get_crop_land_extension
+  - get_arable_permanent_land
+  - build_fao_arable_fallow_extension
   - build_cropgrids_land_extension
   - build_hayr_land_extension
   - build_grassland_land_extension
@@ -230,13 +491,16 @@ reference:
 
 - title: Trustworthiness and quality control
   desc: >
-    Checks that make footprint and balance results trustworthy: conservation
-    invariants, accounting identities, and other data-quality diagnostics.
+    Checks that make footprint, balance and time-series results trustworthy:
+    conservation invariants, accounting identities, within-series jump
+    detection (the level-2 detector of the AFE data-validation framework), and
+    other data-quality diagnostics.
   contents:
   - check_footprint_conservation
   - summarise_conservation
   - assert_footprint_invariants
   - check_supply_use_balance
+  - check_series_jumps
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality

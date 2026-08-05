@@ -14,6 +14,14 @@
 #' @param time_col The column containing time values. Default: `year`.
 #' @param interpolate Logical. If `TRUE` (default),
 #'   performs linear interpolation.
+#' @param log_space Logical. If `TRUE`, interior interpolation is performed in
+#'   log space (constant compound growth rate) for each gap segment whose two
+#'   bracketing anchors are both finite and strictly positive; any segment with
+#'   a non-positive or non-finite anchor falls back to linear interpolation.
+#'   Default: `FALSE`, i.e. linear interpolation everywhere. Log-space fills are
+#'   labelled `"Log-linear interpolation"` in the source column, distinct from
+#'   `"Linear interpolation"`, so the choice survives downstream. Carrying
+#'   forward or backward is unaffected.
 #' @param fill_forward Logical. If `TRUE` (default),
 #'   carries last value forward.
 #' @param fill_backward Logical. If `TRUE` (default),
@@ -50,11 +58,13 @@
 #'   interpolate = FALSE,
 #'   .by = c("category"),
 #' )
+#' fill_linear(sample_tibble, value, log_space = TRUE, .by = c("category"))
 fill_linear <- function(
   data,
   value_col,
   time_col = year,
   interpolate = TRUE,
+  log_space = FALSE,
   fill_forward = TRUE,
   fill_backward = TRUE,
   value_smooth_window = NULL,
@@ -65,6 +75,10 @@ fill_linear <- function(
   time_col_name <- rlang::as_name(rlang::enquo(time_col))
   source_col_name <- paste0("source_", value_col_name)
   by_cols <- .by %||% character(0)
+
+  if (!rlang::is_bool(log_space)) {
+    cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
+  }
 
   n <- nrow(data)
   if (n == 0L) {
@@ -119,6 +133,7 @@ fill_linear <- function(
       smooth_vals,
       times,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward
     )
@@ -141,6 +156,7 @@ fill_linear <- function(
       source_col_name,
       by_cols,
       interpolate,
+      log_space,
       fill_forward,
       fill_backward,
       value_smooth_window,
@@ -207,9 +223,22 @@ fill_linear <- function(
       NA_real_
     )
     interp <- locf + (nocb - locf) * frac
+    if (log_space) {
+      interp_log <- .loglinear_interp(tm, tl, tn, locf, nocb)
+      use_log <- !is.na(interp_log)
+      interp <- data.table::fifelse(use_log, interp_log, interp)
+    }
     mask <- is_na & !is.na(interp) & locf_ok & nocb_ok
     filled[mask] <- interp[mask]
-    source[mask] <- "Linear interpolation"
+    if (log_space) {
+      source[mask] <- data.table::fifelse(
+        use_log[mask],
+        "Log-linear interpolation",
+        "Linear interpolation"
+      )
+    } else {
+      source[mask] <- "Linear interpolation"
+    }
   }
 
   # Carry backward (NAs before first valid in group)
@@ -237,6 +266,99 @@ fill_linear <- function(
   }
 }
 
+#' Interpolate anchor points at arbitrary output positions.
+#'
+#' @description
+#' Vector-level interpolation primitive: anchor positions and values in, one
+#' interpolated value per requested output position out. With
+#' `log_space = TRUE` an output point is filled in log space (constant compound
+#' growth rate) whenever both of its bracketing anchors are finite and strictly
+#' positive; every other point falls back to ordinary linear interpolation.
+#'
+#' This is the same rule, and the same internal implementation, that
+#' [fill_linear()] applies with `log_space = TRUE`. `fill_linear()` is a
+#' data-frame gap filler that needs the target rows to already exist;
+#' `interp_vec()` is for callers that hold plain vectors and need values at
+#' positions with no pre-existing row, or that call the primitive once per gap
+#' segment inside their own guard logic.
+#'
+#' @param x Numeric vector of anchor positions, for example years. It does not
+#'   need to be sorted.
+#' @param y Numeric vector of anchor values, the same length as `x`.
+#' @param xout Numeric vector of positions to interpolate at. It does not need
+#'   to be sorted; results follow the order of `xout`.
+#' @param log_space Logical. If `TRUE`, each output point bracketed by two
+#'   finite and strictly positive anchors is interpolated in log space
+#'   (constant compound growth rate); any other point falls back to linear
+#'   interpolation. Default: `FALSE`, i.e. linear interpolation everywhere.
+#' @param rule Either `1` or `2`, passed to [stats::approx()] to handle output
+#'   positions outside the anchor range. `1` (default) returns `NA` there, `2`
+#'   carries the nearest anchor value. Log space never applies outside the
+#'   anchor range.
+#'
+#' @return A list of two vectors, each as long as `xout`:
+#'   * `y`: the interpolated values.
+#'   * `method`: `"loglinear"` where the value came from log space, `"linear"`
+#'     where it came from linear interpolation, and `NA_character_` where no
+#'     value could be produced.
+#'
+#' @details
+#' Anchors with a non-finite position or a missing value are dropped, and
+#' anchors sharing a position are averaged, so that the linear and log-space
+#' paths always see the same anchor set. Anchors whose value is infinite are
+#' kept, but a segment bounded by one is never eligible for log space. If fewer
+#' than two usable anchors remain there is nothing to interpolate between, and
+#' every element of `y` and `method` is `NA`.
+#'
+#' An output position that coincides with an anchor position returns that
+#' anchor's value unchanged, labelled `"linear"`, because nothing needed
+#' interpolating there. In particular log space never rebuilds an anchor value
+#' it was handed, which would perturb it in the last bits.
+#'
+#' @export
+#'
+#' @examples
+#' # Constant compound growth: the 2005 midpoint of 1 and 1024 is 32, whereas
+#' # linear interpolation returns the arithmetic midpoint 512.5.
+#' interp_vec(c(2000, 2010), c(1, 1024), xout = 2005, log_space = TRUE)
+#' interp_vec(c(2000, 2010), c(1, 1024), xout = 2005)
+#'
+#' # A non-positive anchor makes log space undefined, so the point stays linear.
+#' interp_vec(c(2000, 2010), c(0, 10), xout = 2005, log_space = TRUE)
+#'
+#' # Several output positions at once, from an unsorted anchor set. With
+#' # `rule = 2` the position beyond the last anchor carries that anchor value.
+#' interp_vec(
+#'   x = c(2010, 2000, 2005),
+#'   y = c(400, 100, 200),
+#'   xout = c(2002, 2007, 2015),
+#'   log_space = TRUE,
+#'   rule = 2
+#' )
+#'
+#' @seealso [fill_linear()]
+interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
+  .interp_vec_validate(x, y, log_space, rule)
+  xout <- as.numeric(xout)
+  anchors <- .interp_vec_anchors(x, y)
+
+  if (length(anchors$x) < 2L) {
+    return(list(
+      y = rep(NA_real_, length(xout)),
+      method = rep(NA_character_, length(xout))
+    ))
+  }
+
+  linear <- stats::approx(anchors$x, anchors$y, xout = xout, rule = rule)$y
+  method <- rep(NA_character_, length(linear))
+  method[!is.na(linear)] <- "linear"
+
+  if (!log_space) {
+    return(list(y = linear, method = method))
+  }
+  .interp_vec_apply_log(anchors, xout, linear, method)
+}
+
 # Fallback grouped path for smoothing case (rare).
 .fill_linear_by_group <- function(
   data,
@@ -245,6 +367,7 @@ fill_linear <- function(
   source_col_name,
   by_cols,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward,
   value_smooth_window,
@@ -277,14 +400,14 @@ fill_linear <- function(
         last_v <- valid[length(valid)]
 
         if (interpolate && length(valid) >= 2L && first_v < last_v) {
-          interp <- .safe_na_approx(sv, x = tm, na.rm = FALSE)
-          if (length(interp) == m) {
+          interp <- .interp_series(sv, tm, log_space)
+          if (length(interp$value) == m) {
             mask <- nna &
-              !is.na(interp) &
+              !is.na(interp$value) &
               seq_len(m) > first_v &
               seq_len(m) < last_v
-            filled[mask] <- interp[mask]
-            src[mask] <- "Linear interpolation"
+            filled[mask] <- interp$value[mask]
+            src[mask] <- .interp_source_label(interp$kind[mask])
           }
         }
         if (fill_backward && first_v > 1L) {
@@ -369,6 +492,7 @@ fill_linear <- function(
   smooth_vals,
   times,
   interpolate,
+  log_space,
   fill_forward,
   fill_backward
 ) {
@@ -415,11 +539,11 @@ fill_linear <- function(
     if (length(mid_idx) > 0L) {
       na_mid <- mid_idx[is.na(filled[mid_idx])]
       if (length(na_mid) > 0L) {
-        interp <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
-        if (length(interp) == n) {
-          fill_mask <- na_mid[!is.na(interp[na_mid])]
-          filled[fill_mask] <- interp[fill_mask]
-          source[fill_mask] <- "Linear interpolation"
+        interp <- .interp_series(smooth_vals, times, log_space)
+        if (length(interp$value) == n) {
+          fill_mask <- na_mid[!is.na(interp$value[na_mid])]
+          filled[fill_mask] <- interp$value[fill_mask]
+          source[fill_mask] <- .interp_source_label(interp$kind[fill_mask])
         }
       }
     }
@@ -431,6 +555,144 @@ fill_linear <- function(
   source[has_orig] <- "Original"
 
   list(value = filled, source = source)
+}
+
+# Interpolate a series, optionally refilling each interior segment in log space.
+# `smooth_vals` carries NA at gap positions; the non-NA entries are the anchors.
+# The linear baseline is `.safe_na_approx()` (identical to the prior behaviour,
+# so `log_space = FALSE` is a no-op). When `log_space` is TRUE, every gap whose
+# bracketing anchors are both finite and strictly positive is refilled in log
+# space (constant compound growth rate). Returns a list with `value` (the
+# interpolated vector) and `kind` (per-position label: "loglinear", "linear",
+# or NA where no interpolated value was produced).
+.interp_series <- function(smooth_vals, times, log_space) {
+  n <- length(smooth_vals)
+  linear <- .safe_na_approx(smooth_vals, x = times, na.rm = FALSE)
+  if (length(linear) != n) {
+    return(list(value = linear, kind = NA_character_))
+  }
+
+  kind <- data.table::fifelse(is.na(linear), NA_character_, "linear")
+  value <- linear
+
+  if (log_space) {
+    tt <- as.numeric(times)
+    anchor_time <- data.table::fifelse(!is.na(smooth_vals), tt, NA_real_)
+    anchor_val <- as.numeric(smooth_vals)
+    log_val <- .loglinear_interp(
+      tt,
+      data.table::nafill(anchor_time, "locf"),
+      data.table::nafill(anchor_time, "nocb"),
+      data.table::nafill(anchor_val, "locf"),
+      data.table::nafill(anchor_val, "nocb")
+    )
+    use_log <- is.na(smooth_vals) & !is.na(log_val) & !is.na(linear)
+    value[use_log] <- log_val[use_log]
+    kind[use_log] <- "loglinear"
+  }
+
+  list(value = value, kind = kind)
+}
+
+# Log-space (constant-growth) interpolation between bracketing anchors.
+# Returns the interpolated value where both anchors are finite and strictly
+# positive and the anchor times differ; NA elsewhere (the caller keeps its
+# linear value there). Non-positive anchors are floored to 1 before `log()`
+# purely to avoid NaN warnings; those positions are discarded by `usable`.
+.loglinear_interp <- function(t, t0, t1, v0, v1) {
+  span <- t1 - t0
+  usable <- is.finite(v0) &
+    is.finite(v1) &
+    v0 > 0 &
+    v1 > 0 &
+    is.finite(span) &
+    span != 0
+  safe_v0 <- data.table::fifelse(usable, v0, 1)
+  safe_v1 <- data.table::fifelse(usable, v1, 1)
+  frac <- (t - t0) / span
+  out <- exp(log(safe_v0) + frac * (log(safe_v1) - log(safe_v0)))
+  data.table::fifelse(usable, out, NA_real_)
+}
+
+# Map per-position interpolation `kind` labels to source-column strings.
+.interp_source_label <- function(kind) {
+  data.table::fifelse(
+    !is.na(kind) & kind == "loglinear",
+    "Log-linear interpolation",
+    "Linear interpolation"
+  )
+}
+
+# Argument checks for interp_vec().
+.interp_vec_validate <- function(x, y, log_space, rule) {
+  if (length(x) != length(y)) {
+    cli::cli_abort(
+      "`x` and `y` must have the same length, not {length(x)} and {length(y)}."
+    )
+  }
+  if (!rlang::is_bool(log_space)) {
+    cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
+  }
+  if (!rlang::is_scalar_integerish(rule) || !rule %in% c(1L, 2L)) {
+    cli::cli_abort("`rule` must be either 1 or 2.")
+  }
+  invisible(NULL)
+}
+
+# Usable anchors for interp_vec(): numeric, finite position, non-missing value,
+# sorted by position, with tied positions averaged. Collapsing ties here (rather
+# than leaving them to `stats::approx(ties = "mean")`) keeps the linear and the
+# log-space paths on exactly the same anchor set.
+.interp_vec_anchors <- function(x, y) {
+  x <- as.numeric(x)
+  y <- as.numeric(y)
+  keep <- is.finite(x) & !is.na(y)
+  x <- x[keep]
+  y <- y[keep]
+  ord <- order(x)
+  x <- x[ord]
+  y <- y[ord]
+  if (anyDuplicated(x) == 0L) {
+    return(list(x = x, y = y))
+  }
+  tie_id <- cumsum(c(TRUE, diff(x) != 0))
+  list(
+    x = x[!duplicated(tie_id)],
+    y = as.numeric(rowsum(y, tie_id, reorder = FALSE)) / tabulate(tie_id)
+  )
+}
+
+# Replace the linear values of interp_vec() by their log-space counterparts
+# wherever the bracketing anchors allow it. The log-space math is
+# `.loglinear_interp()`, the same helper `fill_linear(log_space = TRUE)` uses,
+# so the two entry points cannot drift apart. Output positions outside the
+# anchor range keep whatever `rule` gave them.
+#
+# Positions that coincide with an anchor keep their linear value too, which
+# `stats::approx()` returns bit-exactly. Nothing needs interpolating there, and
+# rebuilding the value as `exp(log(v0))` would perturb it in the last bits
+# (`exp(log(3)) != 3`). `fill_linear(log_space = TRUE)` never hits this because
+# `.interp_series()` only writes into positions whose value is missing.
+.interp_vec_apply_log <- function(anchors, xout, linear, method) {
+  n_anchors <- length(anchors$x)
+  lower <- findInterval(xout, anchors$x)
+  inside <- !is.na(lower) &
+    lower >= 1L &
+    lower < n_anchors &
+    !xout %in% anchors$x
+  safe_lower <- pmin(pmax(lower, 1L), n_anchors - 1L)
+  safe_lower[is.na(safe_lower)] <- 1L
+  log_value <- .loglinear_interp(
+    xout,
+    anchors$x[safe_lower],
+    anchors$x[safe_lower + 1L],
+    anchors$y[safe_lower],
+    anchors$y[safe_lower + 1L]
+  )
+  use_log <- inside & !is.na(log_value)
+  linear[use_log] <- log_value[use_log]
+  method[use_log] <- "loglinear"
+  list(y = linear, method = method)
 }
 
 #' Fill gaps summing the previous value of a variable to the value of
@@ -1818,6 +2080,11 @@ fill_proxy_growth <- function(
 }
 
 .parse_proxy_spec <- function(spec, data, value_col, group_by, verbose) {
+  # Advanced grouped syntax "variable:group1+group2" (optional "[weight]").
+  if (grepl(":", spec)) {
+    return(.parse_grouped_proxy_spec(spec, data))
+  }
+
   weight_col <- NULL
   col_name <- spec
   if (grepl("\\[", spec)) {
@@ -1873,30 +2140,15 @@ fill_proxy_growth <- function(
           if (!is.null(weight_col)) "_w" else ""
         )
       ))
-    } else {
-      if (verbose) {
-        message(
-          "Auto-detected '",
-          col_name,
-          "' as categorical -> ",
-          "using as grouping variable"
-        )
-      }
-      return(list(
-        source_var = value_col,
-        group_vars = col_name,
-        present_group_vars = present(col_name),
-        weight_col = weight_col,
-        spec_name = paste0(
-          value_col,
-          "_",
-          col_name,
-          if (!is.null(weight_col)) "_w" else ""
-        )
-      ))
     }
-  } else {
-    warning("Column '", col_name, "' not found in data")
+    if (verbose) {
+      message(
+        "Auto-detected '",
+        col_name,
+        "' as categorical -> ",
+        "using as grouping variable"
+      )
+    }
     return(list(
       source_var = value_col,
       group_vars = col_name,
@@ -1911,10 +2163,28 @@ fill_proxy_growth <- function(
     ))
   }
 
-  parts <- strsplit(spec, ":")[[1]]
-  source_var <- parts[1]
-  rhs <- if (length(parts) > 1) parts[2] else ""
+  cli::cli_warn("Column {.val {col_name}} not found in data.")
+  list(
+    source_var = value_col,
+    group_vars = col_name,
+    present_group_vars = present(col_name),
+    weight_col = weight_col,
+    spec_name = paste0(
+      value_col,
+      "_",
+      col_name,
+      if (!is.null(weight_col)) "_w" else ""
+    )
+  )
+}
 
+# Parse the advanced "variable:group1+group2[weight]" proxy syntax, where the
+# growth reference is `variable` aggregated over the `+`-separated grouping
+# columns (optionally weighted by `weight`).
+.parse_grouped_proxy_spec <- function(spec, data) {
+  parts <- strsplit(spec, ":")[[1]]
+  source_var <- trimws(parts[1])
+  rhs <- if (length(parts) > 1) parts[2] else ""
   if (is.na(rhs)) {
     rhs <- ""
   }
@@ -1946,7 +2216,7 @@ fill_proxy_growth <- function(
   list(
     source_var = source_var,
     group_vars = group_vars,
-    present_group_vars = present(group_vars),
+    present_group_vars = intersect(group_vars, names(data)),
     weight_col = weight_col,
     spec_name = spec_name
   )

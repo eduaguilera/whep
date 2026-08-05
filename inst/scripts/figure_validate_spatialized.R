@@ -253,9 +253,17 @@ grid_country <- grid_country_cft |>
     .by = c(year, area_code)
   )
 
-comp_country <- ref_country |>
-  dplyr::inner_join(grid_country, by = c("year", "area_code")) |>
-  dplyr::inner_join(polities, by = "area_code")
+# Full join so a reference country with no gridded cells -- a total mass
+# leak, the most severe conservation failure -- is kept (with zero gridded
+# area) and surfaces as a worst-case deviation instead of being silently
+# dropped by an inner join. Names come from a left join to keep all rows.
+comp_country <- .join_conservation(
+  ref_country,
+  grid_country,
+  by = c("year", "area_code"),
+  fill = c("ref_mha", "ref_irr_mha", "grid_mha", "grid_irr_mha")
+) |>
+  dplyr::left_join(polities, by = "area_code")
 
 scatter_years <- c(1960L, 1980L, 2000L, 2020L)
 

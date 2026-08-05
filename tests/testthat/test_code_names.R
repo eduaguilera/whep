@@ -84,6 +84,41 @@ testthat::test_that("add_area_code correctly sets new column in table", {
     )
 })
 
+testthat::test_that("add_area_name returns current country name for shared ISO3", {
+  # Regression for #237: FABIO/FAOSTAT reuse one ISO3 across a defunct area and
+  # its successor (e.g. ETH -> both "Ethiopia PDR" (area 62) and the current
+  # "Ethiopia" (area 238); SDN -> "Sudan (former)" and current "Sudan"). The
+  # ISO3 join must resolve to the current polity, not the historical one.
+  table <- tibble::tibble(area_code = c("ETH", "SDN"))
+
+  table |>
+    add_area_name() |>
+    dplyr::pull(area_name) |>
+    testthat::expect_equal(c("Ethiopia", "Sudan"))
+})
+
+testthat::test_that("add_area_code does not fan out on a duplicated area_name", {
+  # Regression for #238: add_area_code() joins by name, so the lookup must be
+  # deduplicated on the name key (not the code key). Guard as an invariant so a
+  # future crosswalk with a repeated area_name cannot silently fan out rows.
+  polities <- whep:::.get_polities(
+    "area_name",
+    "area_code",
+    join_column = "area_name"
+  )
+
+  testthat::expect_equal(
+    nrow(polities),
+    dplyr::n_distinct(polities$area_name)
+  )
+
+  table <- tibble::tibble(area_name = c("Armenia", "Afghanistan"))
+  table |>
+    add_area_code() |>
+    nrow() |>
+    testthat::expect_equal(nrow(table))
+})
+
 testthat::test_that("add_item_cbs_name correctly sets new column in table", {
   table <- tibble::tibble(item_cbs_code = c(2559, 2744, 9876))
 
@@ -241,4 +276,42 @@ testthat::test_that("add_item_prod_code correctly sets new column in table", {
         "Dummy item", NA
       )
     )
+})
+
+testthat::test_that("add_item_prod_name does not fan out on a duplicate item_prod_code", {
+  # Regression for #236: whep::items_prod has a real non-unique key --
+  # item_prod_code 1807 maps to two unrelated names ("Citrus Fruit, Total"
+  # and "Sheep and Goat Meat"). Without a distinct() guard on the lookup,
+  # every input row with that code was duplicated by the left_join, silently
+  # doubling any downstream sum()/.by aggregation.
+  dup_names <- whep::items_prod |>
+    dplyr::filter(item_prod_code == 1807) |>
+    dplyr::pull(item_prod_name)
+  testthat::expect_gt(length(dup_names), 1)
+
+  table <- tibble::tibble(item_prod_code = c(1807, 27), value = c(100, 200))
+
+  out <- add_item_prod_name(table)
+
+  testthat::expect_equal(nrow(out), nrow(table))
+  testthat::expect_equal(sum(out$value), sum(table$value))
+})
+
+testthat::test_that(".get_cbs_items and .get_prod_items never return a duplicate key", {
+  # Same class of bug as the add_item_prod_name() test above, checked as a
+  # standing invariant on the lookup tables themselves: matching
+  # .get_polities()'s existing distinct() pattern, neither lookup may return
+  # more than one row per code, regardless of whether the underlying
+  # whep::items_cbs/items_prod happen to contain a duplicate key today.
+  cbs_items <- whep:::.get_cbs_items("item_cbs_name", "item_cbs_code")
+  prod_items <- whep:::.get_prod_items("item_prod_name", "item_prod_code")
+
+  testthat::expect_equal(
+    nrow(cbs_items),
+    dplyr::n_distinct(cbs_items$item_cbs_code)
+  )
+  testthat::expect_equal(
+    nrow(prod_items),
+    dplyr::n_distinct(prod_items$item_prod_code)
+  )
 })

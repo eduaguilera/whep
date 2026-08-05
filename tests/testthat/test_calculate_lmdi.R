@@ -640,6 +640,163 @@ test_that("calculate_lmdi recalculates target after epsilon replacement", {
 })
 
 
+# Regression: decomposition correctness -----------------------------------
+
+# Data where activity and intensity covary, so smoothing each series
+# independently would break the identity emissions = activity * intensity.
+lmdi_covarying_fixture <- function() {
+  activity <- c(100, 130, 90, 160, 120, 200, 150)
+  intensity <- c(0.10, 0.20, 0.05, 0.30, 0.08, 0.40, 0.12)
+  tibble::tibble(
+    year = 2010:2016,
+    activity = activity,
+    intensity = intensity,
+    emissions = activity * intensity
+  )
+}
+
+# Structural panel where one sector appears and another disappears between
+# the two periods (unbalanced panel).
+lmdi_unbalanced_sector_fixture <- function() {
+  tibble::tribble(
+    ~year, ~sector, ~activity, ~emissions,
+    2010, "a", 600, 60,
+    2010, "c", 400, 40,
+    2011, "a", 700, 63,
+    2011, "b", 500, 55
+  ) |>
+    dplyr::group_by(year) |>
+    dplyr::mutate(total_activity = sum(activity)) |>
+    dplyr::ungroup()
+}
+
+test_that("calculate_lmdi closes with rolling_mean on covarying factors", {
+  # Regression for #246: smoothing target and factors independently must not
+  # break additive closure, even on a balanced single-group panel.
+  data <- lmdi_covarying_fixture()
+
+  result <- calculate_lmdi(
+    data,
+    identity = "emissions:activity*intensity",
+    time_var = year,
+    rolling_mean = 3,
+    verbose = FALSE
+  )
+
+  closure <- result |>
+    dplyr::group_by(period) |>
+    dplyr::summarise(
+      target_add = sum(additive[component_type == "target"]),
+      factor_add = sum(additive[component_type == "factor"]),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(gap = abs(target_add - factor_add))
+
+  expect_true(all(closure$gap < 1e-6))
+})
+
+test_that("calculate_lmdi closes on unbalanced structural panels", {
+  # Regression for #155: sectors that appear/disappear between periods must
+  # still be attributed so contributions sum to the total change.
+  data <- lmdi_unbalanced_sector_fixture()
+
+  result <- calculate_lmdi(
+    data,
+    identity = paste0(
+      "emissions:total_activity*",
+      "(activity[sector]/total_activity)*",
+      "(emissions[sector]/activity[sector])"
+    ),
+    time_var = year,
+    verbose = FALSE
+  )
+
+  period_result <- result |> dplyr::filter(period == "2010-2011")
+  target_change <- period_result |>
+    dplyr::filter(component_type == "target") |>
+    dplyr::pull(additive)
+  factor_sum <- period_result |>
+    dplyr::filter(component_type == "factor") |>
+    dplyr::pull(additive) |>
+    sum()
+
+  # True total change is (63 + 55) - (60 + 40) = 18.
+  expect_equal(target_change, 18, tolerance = 1e-6)
+  expect_equal(factor_sum, target_change, tolerance = 1e-6)
+})
+
+test_that("calculate_lmdi treats integer selector as a grouping key", {
+  # Regression for #247: an integer-coded selector column must be a grouping
+  # key, never a numeric decomposition variable that gets smoothed/blended.
+  # One column named `sector`, populated either as integers or as characters,
+  # with no redundant grouping column that could mask the misclassification.
+  build <- function(codes) {
+    tibble::tibble(
+      year = rep(2010:2012, each = 2),
+      sector = rep(codes, times = 3),
+      activity = c(600, 400, 700, 500, 750, 550),
+      emissions = c(60, 40, 63, 55, 71, 60)
+    ) |>
+      dplyr::group_by(year) |>
+      dplyr::mutate(total_activity = sum(activity)) |>
+      dplyr::ungroup()
+  }
+
+  run <- function(codes) {
+    calculate_lmdi(
+      build(codes),
+      identity = paste0(
+        "emissions:total_activity*",
+        "(activity[sector]/total_activity)*",
+        "(emissions[sector]/activity[sector])"
+      ),
+      time_var = year,
+      rolling_mean = 3,
+      verbose = FALSE
+    ) |>
+      dplyr::arrange(period, factor_label, component_type) |>
+      dplyr::pull(additive)
+  }
+
+  # An integer-coded selector must yield the same decomposition as a
+  # character-coded one; if it were smoothed as a numeric variable the
+  # grouping (and thus the contributions) would be corrupted.
+  expect_equal(run(c(1L, 2L)), run(c("a", "b")), tolerance = 1e-6)
+})
+
+test_that("calculate_lmdi target rewrite is not gated on a single zero", {
+  # Regression for #180: adding one zero row must not change the decomposition
+  # of the zero-free rows (behaviour must be continuous). Use slightly
+  # inconsistent emissions so a whole-column rewrite would be detectable.
+  base <- tibble::tribble(
+    ~year, ~activity, ~intensity, ~emissions,
+    2010, 1000, 0.10, 100,
+    2011, 1100, 0.10, 115,
+    2012, 1200, 0.10, 120
+  )
+  with_zero <- dplyr::bind_rows(
+    base,
+    tibble::tibble(year = 2013, activity = 1300, intensity = 0, emissions = 0)
+  )
+
+  period_add <- function(data) {
+    suppressWarnings(
+      calculate_lmdi(
+        data,
+        identity = "emissions:activity*intensity",
+        time_var = year,
+        verbose = FALSE
+      )
+    ) |>
+      dplyr::filter(period == "2010-2011") |>
+      dplyr::arrange(factor_label, component_type) |>
+      dplyr::pull(additive)
+  }
+
+  expect_equal(period_add(base), period_add(with_zero), tolerance = 1e-9)
+})
+
+
 # Closure warning tests --------------------------------------------------------
 
 test_that("calculate_lmdi warns on inconsistent data", {

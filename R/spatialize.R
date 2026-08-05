@@ -322,6 +322,20 @@ build_gridded_landuse <- function(
       )
     ]
 
+    # `type_cropland` is stored sparse: cells lacking a crop's LUH2 type have
+    # no row and join to `type_ha = NA`. Zero those so a crop cannot be placed
+    # in a cell lacking its type. Otherwise they would keep the inherited total
+    # cropland and both leak allocation and inflate `type_pot`, masking the
+    # whole-group fallback below.
+    grid_cp_tc[
+      is.na(type_ha),
+      `:=`(
+        cropland_ha = 0,
+        irrigated_ha = 0,
+        rainfed_ha = 0
+      )
+    ]
+
     # Check which (country, crop) have type potential; fallback where zero
     grid_cp_tc[,
       type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
@@ -389,6 +403,11 @@ build_gridded_landuse <- function(
       ir_uniform * irrigated_area_ha
     )
   )]
+
+  # Surface (country, crop) pairs whose national area cannot be allocated
+  # (no matching grid cell / only zero-cropland cells) before the filter
+  # below silently drops them.
+  .warn_unallocated_crops(dat, yr)
 
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
@@ -895,6 +914,36 @@ build_gridded_landuse <- function(
     gridded_cropland = gridded_cropland,
     type_cropland = type_cropland
   )
+}
+
+#' Warn about country-crops whose national area cannot be allocated.
+#'
+#' A (country, crop) with a positive harvested area but no matching grid
+#' cell (or only zero-cropland cells) receives a zero allocation and would
+#' otherwise be dropped silently, leaking its national total. Detect these
+#' and warn with the count, leaked area, and identities.
+#' @noRd
+.warn_unallocated_crops <- function(dat, yr) {
+  leaked <- dat[,
+    .(
+      national_area = harvested_area_ha[1L],
+      allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
+    ),
+    by = .(area_code, item_prod_code)
+  ]
+  leaked <- leaked[national_area > 0 & allocated <= 0]
+  if (nrow(leaked) == 0L) {
+    return(invisible(NULL))
+  }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  codes <- sort(unique(leaked$area_code))
+  cli::cli_warn(c(
+    "{nrow(leaked)} (country, crop) pair{?s} in year {yr} have national \\
+     harvested area but no allocatable grid cell; \\
+     {round(sum(leaked$national_area))} ha dropped:",
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
+  ))
 }
 
 #' Aggregate crop-level results to CFT level.

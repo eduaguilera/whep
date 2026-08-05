@@ -18,12 +18,22 @@
 #' @param extensions Numeric vector of environmental extensions per sector.
 #' @param labels Tibble with `area_code` and `item_cbs_code` mapping sectors.
 #' @param fd_labels Tibble labelling Y columns, from [build_io_model()].
-#' @param origin_area Optional area code vector limiting origin sectors.
+#' @param origin_area Optional vector limiting origin sectors. Each value is
+#'   matched against `labels$area_code` -- the LEGACY numeric area code -- and a
+#'   value that matches no `area_code` is then resolved through the polity
+#'   vocabulary of [polity_area_crosswalk], so a `polity_area_code` (`206`, the
+#'   Sudan aggregation bucket) or a `polity_code` (`"SDN-2011-2025"`) selects
+#'   the area codes it covers. Legacy codes keep their legacy meaning. Values
+#'   that resolve to no sector are dropped with a warning, and a call in which
+#'   nothing resolves aborts instead of returning an empty table.
 #' @param origin_item Optional item code vector limiting origin sectors.
 #' @param output_tol Minimum output considered valid when computing extension
 #'   intensities.
 #' @param value_added_floor Minimum non-intermediate leakage share used when
 #'   constructing technical coefficients from `z_mat`.
+#' @param max_column_sum Maximum allowed column sum in A. Must match the value
+#'   used by [compute_footprint()] (default `100`) so the path decomposition
+#'   and the footprint it decomposes share an identical A cap.
 #' @param conserve_extensions If `TRUE`, rescale positive paths within each
 #'   origin area/item so their sum does not exceed the corresponding positive
 #'   extension total.
@@ -46,6 +56,7 @@ compute_footprint_paths <- function(
   origin_item = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 ) {
@@ -58,6 +69,7 @@ compute_footprint_paths <- function(
     fd_labels,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions,
     min_value
   )
@@ -103,7 +115,8 @@ compute_footprint_paths <- function(
   a_mat <- .technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = value_added_floor
+    value_added_floor = value_added_floor,
+    max_column_sum = max_column_sum
   )
   ia <- Matrix::Diagonal(n) - a_mat
   lu_fact <- .factor_ia(ia)
@@ -170,12 +183,63 @@ compute_footprint_paths <- function(
 ) {
   keep <- extensions > 0 & x_vec > output_tol
   if (!is.null(origin_area)) {
-    keep <- keep & labels$area_code %in% origin_area
+    keep <- keep & .origin_area_selection(labels, origin_area)
   }
   if (!is.null(origin_item)) {
     keep <- keep & labels$item_cbs_code %in% origin_item
   }
   which(keep)
+}
+
+# `origin_area` filters on `labels$area_code`, the legacy numeric area code.
+# A caller holding the polity vocabulary instead -- a `polity_area_code` such as
+# 206, the aggregation bucket covering Sudan 276 and South Sudan 277, or a
+# `polity_code` such as "SDN-2011-2025" -- used to get a silent, valid-looking
+# empty table, because those values are absent from `area_code` for the 64 areas
+# whose aggregation key differs from their own code. Accept either vocabulary,
+# resolved through the same reporting-polity lookup that labels the output, so
+# what you filter on is what the output reports. A value that matches a legacy
+# `area_code` keeps its legacy meaning, so anything that worked before is
+# unchanged; only values matching no `area_code` reach the polity vocabulary.
+.origin_area_selection <- function(labels, origin_area) {
+  lookup <- .label_reporting_polity_lookup(labels)
+  resolved <- purrr::map(origin_area, ~ .resolve_one_origin_area(lookup, .x))
+  unmatched <- origin_area[purrr::map_int(resolved, length) == 0L]
+
+  if (length(unmatched) == length(origin_area)) {
+    cli::cli_abort(c(
+      "{.arg origin_area} matches no sector in {.arg labels}.",
+      "x" = "Unresolved: {.val {origin_area}}.",
+      "i" = paste(
+        "Values are matched against {.field area_code}, then against",
+        "{.field polity_area_code} and {.field polity_code}."
+      )
+    ))
+  }
+  if (length(unmatched) > 0L) {
+    cli::cli_warn(
+      "Ignoring {.arg origin_area} values with no sector: {.val {unmatched}}."
+    )
+  }
+
+  labels$area_code %in% unlist(resolved)
+}
+
+.resolve_one_origin_area <- function(lookup, value) {
+  if (is.na(value)) {
+    return(lookup$area_code[0])
+  }
+  legacy <- .area_column_hits(lookup$area_code, value)
+  if (any(legacy)) {
+    return(lookup$area_code[legacy])
+  }
+  polity <- .area_column_hits(lookup$polity_area_code, value) |
+    .area_column_hits(lookup$reporting_polity_code, value)
+  lookup$area_code[polity]
+}
+
+.area_column_hits <- function(column, value) {
+  !is.na(column) & as.character(column) == as.character(value)
 }
 
 .footprint_paths_one_fd_col <- function(
@@ -325,6 +389,7 @@ compute_footprint_paths <- function(
   fd_labels,
   output_tol,
   value_added_floor,
+  max_column_sum,
   conserve_extensions,
   min_value
 ) {
@@ -339,6 +404,7 @@ compute_footprint_paths <- function(
     value_added_floor = value_added_floor,
     conserve_extensions = conserve_extensions
   )
+  .validate_max_column_sum(max_column_sum)
   if (!is.data.frame(fd_labels) || nrow(fd_labels) != ncol(y_mat)) {
     cli::cli_abort(
       "{.arg fd_labels} must be a data frame with one row per Y column."
@@ -422,6 +488,7 @@ compute_fp_product_paths <- function(
   origin_item = NULL,
   output_tol = 1e-8,
   value_added_floor = 1e-3,
+  max_column_sum = 100,
   conserve_extensions = TRUE,
   min_value = 0
 ) {
@@ -434,6 +501,7 @@ compute_fp_product_paths <- function(
     fd_labels,
     output_tol,
     value_added_floor,
+    max_column_sum,
     conserve_extensions,
     min_value
   )
@@ -479,7 +547,8 @@ compute_fp_product_paths <- function(
   a_mat <- .technical_coefficients(
     z_mat,
     x_vec,
-    value_added_floor = value_added_floor
+    value_added_floor = value_added_floor,
+    max_column_sum = max_column_sum
   )
   ia_t <- Matrix::t(Matrix::Diagonal(n) - a_mat)
   lu_fact <- .factor_ia(ia_t)
@@ -749,8 +818,11 @@ add_footprint_product_stage <- function(
     ))
   }
 
-  area_names <- whep::regions_full |>
-    dplyr::select(product_area = code, product_area_name = name) |>
+  area_names <- .label_reporting_polity_lookup(labels) |>
+    dplyr::transmute(
+      product_area = .data$area_code,
+      product_area_name = .data$reporting_polity_name
+    ) |>
     dplyr::distinct(.data$product_area, .keep_all = TRUE) |>
     data.table::as.data.table()
 

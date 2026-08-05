@@ -732,6 +732,87 @@ testthat::test_that("build_cbs_prices estimates palm kernel from palm oil ratio"
   testthat::expect_true(all(pk$price > 0))
 })
 
+testthat::test_that(".estimate_missing_prices keeps untouched element-years", {
+  # Asymmetric gaps: import 2562 missing 2018-2019, export missing only
+  # 2018. The buggy cross-product filter (year %in% . & element %in% .)
+  # would also delete the genuine 2019 export price, which is not among
+  # the estimated pairs. A keyed anti-join must preserve it.
+  dt <- data.table::data.table(
+    year = c(
+      2018L,
+      2019L,
+      2020L,
+      2018L,
+      2019L,
+      2020L,
+      2019L,
+      2020L,
+      2020L
+    ),
+    item_cbs = c(
+      rep("Palm Oil", 6),
+      rep("Palm kernels", 3)
+    ),
+    item_cbs_code = c(rep(2577L, 6), rep(2562L, 3)),
+    element = c(
+      "export",
+      "export",
+      "export",
+      "import",
+      "import",
+      "import",
+      "export",
+      "export",
+      "import"
+    ),
+    tonnes = rep(1000, 9),
+    kdollars = c(
+      500,
+      600,
+      550,
+      450,
+      500,
+      500,
+      500,
+      500,
+      400
+    ),
+    price = c(
+      0.5,
+      0.6,
+      0.55,
+      0.45,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.4
+    )
+  )
+
+  result <- .estimate_missing_prices(dt)
+
+  # Genuine 2019 export palm-kernel price must survive untouched.
+  kept <- result |>
+    dplyr::filter(
+      item_cbs_code == 2562L,
+      element == "export",
+      year == 2019L
+    )
+  testthat::expect_equal(nrow(kept), 1)
+  testthat::expect_equal(kept$price, 0.5)
+
+  # Estimation still fills the genuinely missing 2018 export price.
+  estimated <- result |>
+    dplyr::filter(
+      item_cbs_code == 2562L,
+      element == "export",
+      year == 2018L
+    )
+  testthat::expect_equal(nrow(estimated), 1)
+  testthat::expect_true(estimated$price > 0)
+})
+
 # Proxy price tests ------------------------------------------------------------
 
 testthat::test_that("build_cbs_prices creates soy hulls proxy from soyabean cake", {

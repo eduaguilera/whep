@@ -103,8 +103,11 @@
 #'
 #' The IPCC 2019 Refinement EF tables (10.10, 10.14) use their own region
 #' taxonomy, distinct from the GLEAM regions in gleam_geographic_hierarchy.
-#' Eight GLEAM regions map directly; two are judgement calls: GLEAM "Russia"
-#' to IPCC "Eastern Europe" and "Near East and North Africa" to "Middle East".
+#' The gleam_region keys below match the values actually shipped in
+#' gleam_geographic_hierarchy. Most GLEAM regions map directly; two are
+#' judgement calls: GLEAM "Russian Federation" to IPCC "Eastern Europe" and
+#' "West Asia & Northern Africa" to "Middle East". "Antarctica" has no IPCC
+#' EF region and is intentionally left unmapped (no livestock countries).
 #' @noRd
 .add_ipcc_region <- function(data) {
   crosswalk <- tibble::tribble(
@@ -112,21 +115,21 @@
     ~region,
     "North America",
     "North America",
-    "Russia",
+    "Russian Federation",
     "Eastern Europe",
     "Western Europe",
     "Western Europe",
     "Eastern Europe",
     "Eastern Europe",
-    "Near East and North Africa",
+    "West Asia & Northern Africa",
     "Middle East",
-    "East and Southeast Asia",
+    "East Asia",
     "Asia",
     "Oceania",
     "Oceania",
     "South Asia",
     "Indian Subcontinent",
-    "Latin America and Caribbean",
+    "Central & South America",
     "Latin America",
     "Sub-Saharan Africa",
     "Africa"
@@ -227,7 +230,7 @@
     dplyr::select(-ef_other, -ef_agg)
 }
 
-#' Join Ym values from Table 10.12 with feed situation mapping.
+#' Join Ym values from IPCC 2019 Table 10.13 with feed situation mapping.
 #' @noRd
 .join_ym <- function(data) {
   ym_tbl <- ipcc_tier2_ym_values
@@ -248,16 +251,6 @@
       feed_situation = dplyr::case_when(
         !is.na(system) & system == "Feedlot" ~ "Feedlot",
         TRUE ~ diet_quality
-      )
-    )
-
-  # Map sheep by body weight per Table 10.12 footnote
-  data <- data |>
-    dplyr::mutate(
-      feed_situation = dplyr::case_when(
-        species_gen == "Sheep" & !is.na(weight) & weight < 75 ~ "Low",
-        species_gen == "Sheep" & !is.na(weight) & weight >= 75 ~ "High",
-        TRUE ~ feed_situation
       )
     )
 
