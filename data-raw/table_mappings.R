@@ -180,12 +180,6 @@ regions_full_raw <- here::here(
 regions_compact <- here::here("inst", "extdata", "regions.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
 
-# The area codes the package's own compact country grid treats as individually
-# modelled territories. Consulted below to decide which FABIO rest-of-world
-# folds may override an area's own polity: an area this package models as a
-# country cannot honestly be identified as a non-territorial aggregate.
-grid_area_codes <- as.integer(regions_compact$area_code)
-
 regions_for_crosswalk <- dplyr::bind_rows(
   regions_full_raw,
   regions_compact |>
@@ -329,35 +323,11 @@ if (length(unresolvable_map_codes) > 0L) {
 # already map to their own polities (CHN/HKG/MAC/TWN), so mapping 351 to CHN as
 # well double-counted China across every FAOSTAT domain. Left unmapped, 351 is
 # dropped as a statistical aggregate (its iso3c and polity_code are NA).
-#
-# Areas 276 "Sudan" and 277 "South Sudan" are here for a different reason: they
-# need a SECOND prefix, and more than one row per area is how this table says so
-# (the prefix join below fans out, and each prefix contributes its own periods).
-# Their ISO3 supplies only the post-2011 successor -- SDN and SSD -- so every
-# pre-2011 year missed the year-aware join entirely and was rescued by its
-# nearest-match fallback onto a state that did not exist yet: a 1990 figure for
-# either came back as SDN-2011-2025 or SSD-2011-2025. Adding SUD gives both the
-# unified-Sudan chain (SUD-1899-1934, SUD-1934-1956, SUD-1956-2011) for the years
-# it covers, while the upstream map keeps supplying 2012 onwards.
-#
-# Only SUD is added, and only for these two. The successor prefixes are NOT
-# repeated here even though this area needs them, because the upstream FAOSTAT
-# map already declares those spans; adding them again duplicates the row the map
-# supplies, which is what an earlier revision of this change did. Area 206
-# "Sudan (former)" is not here at all: the upstream map already resolves it to
-# SUD-1956-2011 for every year it reports, so it needs nothing.
-#
-# The numeric bucket is untouched: all three areas keep fabio_code 206, so
-# polity_area_code still folds them together. Whether that bucket's post-2011
-# value (Sudan and South Sudan summed) can honestly carry a one-territory polity
-# is whep#414 and is not decided here.
 manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
   51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
   228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
-  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities.",
-  276L, "SUD", "FAOSTAT Sudan reporting area needs pre-2011 unified-Sudan periods.",
-  277L, "SUD", "FAOSTAT South Sudan reporting area needs pre-2011 unified-Sudan periods."
+  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."
 )
 
 reporting_areas <- regions_for_crosswalk |>
@@ -387,32 +357,8 @@ reporting_areas <- regions_for_crosswalk |>
       .data$reporting_polity_code,
       NA_character_
     ),
-    # FABIO folds many small territories into its Rest of World bucket. That fold
-    # is carried by `polity_area_code` below, which takes `fabio_code` and so
-    # stays 999 for every one of them. Forcing `polity_code` to ROW as well is
-    # redundant there and destructive for an area this package models as a
-    # country in its own right: five codes of the compact country grid --
-    # 61 Equatorial Guinea, 153 New Caledonia, 154 North Macedonia, 209 Eswatini
-    # and 212 Syrian Arab Republic -- were identified as ROW-1850-2023, a
-    # non-territorial aggregate with no borders of its own, for every year, while
-    # `polities` carries a real dedicated polity for each.
-    #
-    # So the ROW override yields to an area that is BOTH in the grid and has a
-    # polity of its own. Every other folded area keeps folding: it is not
-    # individually modelled here, so routing it to its own polity would diverge
-    # from FABIO's aggregation for nothing (that trade-off, at the numeric level,
-    # is whep#419). Grid areas 69 French Guiana and 299 Palestine keep folding
-    # too, because no GUF/PSE polity exists in this vintage of `polities` to
-    # route them to.
-    grid_country_prefix = dplyr::if_else(
-      .data$area_code %in% grid_area_codes,
-      .data$area_iso3c_prefix,
-      NA_character_
-    ),
     fabio_row_prefix = dplyr::if_else(
-      !is.na(.data$fabio_code) &
-        .data$fabio_code == 999L &
-        is.na(.data$grid_country_prefix),
+      !is.na(.data$fabio_code) & .data$fabio_code == 999L,
       "ROW",
       NA_character_
     ),
@@ -582,24 +528,10 @@ polity_area_crosswalk <- dplyr::bind_rows(
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
-      # Only claim the fold happened where it actually did. This used to fire on
-      # any area with fabio_code 999, so the grid countries that stopped being
-      # folded kept a note asserting they were collapsed into Rest of World while
-      # pointing at SYR-1967-2025 or SWZ-1894-2025 -- a note contradicting the
-      # mapping it annotates.
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code != 999L &
-        startsWith(.data$polity_code, "ROW-") ~
-        "FABIO collapses this source area into the Rest of World reporting polity.",
-      !is.na(.data$fabio_code) &
-        .data$fabio_code == 999L &
-        .data$area_code != 999L &
-        !is.na(.data$polity_code) ~
-        paste(
-          "FABIO collapses this source area into Rest of World, but WHEP models",
-          "it as a country of its own, so it keeps its own polity."
-        ),
+        .data$area_code !=
+          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
       .data$mapping_status ==
         "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       .data$mapping_status == "manual" ~ paste0(
