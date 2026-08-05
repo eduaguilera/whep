@@ -48,9 +48,14 @@ build_cropgrids_land_extension(
 - cropgrids:
 
   Tibble of national crop areas with columns `area_code`,
-  `item_cbs_code`, `physical_ha`, `harvested_ha`. If `NULL`, the remote
-  pin selected by `source` is read via
-  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md).
+  `item_cbs_code`, `physical_ha`, `harvested_ha`, where `area_code` is a
+  `polity_area_code` (the basis `harvested` is keyed on). If `NULL`, the
+  remote pin selected by `source` is read via
+  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md)
+  and re-keyed from its source-native raw FAOSTAT area codes to
+  `polity_area_code`, so areas that FABIO merges (Sudan and South Sudan
+  into 206) get one combined CROPGRIDS ratio instead of falling through
+  to the global per-item ratio.
 
 - source:
 

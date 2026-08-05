@@ -115,8 +115,12 @@ harvested area hitting this fallback is reported via a warning.</p>
 
 <dt id="arg-cropgrids">cropgrids<a class="anchor" aria-label="anchor" href="#arg-cropgrids"></a></dt>
 <dd><p>Tibble of national crop areas with columns <code>area_code</code>,
-<code>item_cbs_code</code>, <code>physical_ha</code>, <code>harvested_ha</code>. If <code>NULL</code>, the remote pin
-selected by <code>source</code> is read via <code><a href="whep_read_file.html">whep_read_file()</a></code>.</p></dd>
+<code>item_cbs_code</code>, <code>physical_ha</code>, <code>harvested_ha</code>, where <code>area_code</code> is a
+<code>polity_area_code</code> (the basis <code>harvested</code> is keyed on). If <code>NULL</code>, the
+remote pin selected by <code>source</code> is read via <code><a href="whep_read_file.html">whep_read_file()</a></code> and re-keyed
+from its source-native raw FAOSTAT area codes to <code>polity_area_code</code>, so
+areas that FABIO merges (Sudan and South Sudan into 206) get one combined
+CROPGRIDS ratio instead of falling through to the global per-item ratio.</p></dd>
 
 
 <dt id="arg-source">source<a class="anchor" aria-label="anchor" href="#arg-source"></a></dt>
