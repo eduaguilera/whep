@@ -42,18 +42,14 @@
 #'   ratios.
 #'
 #'   **Single-level structural decomposition:**
-#'   - `"emissions:activity*(activity[sector]/activity)*
-#'     (emissions[sector]/activity[sector])"`
-#'   - Creates 3 factors: Activity level, Sectoral
-#'     structure, Sectoral intensity.
+#'   - `"emissions:activity*(activity[sector]/activity)*(emissions[sector]/activity[sector])"`
+#'   - Creates 3 factors: Activity level, Sectoral structure, Sectoral
+#'     intensity.
 #'
 #'   **Multi-level structural decomposition:**
-#'   - Two levels:
-#'     `"emissions:activity*(activity[sector]/activity)*
-#'     (activity[sector+fuel]/activity[sector])*
-#'     (emissions[sector+fuel]/activity[sector+fuel])"`
-#'   - Creates 4 factors: Activity level, Sector
-#'     structure, Fuel structure, Sectoral-fuel intensity.
+#'   - Two levels: `"emissions:activity*(activity[sector]/activity)*(activity[sector+fuel]/activity[sector])*(emissions[sector+fuel]/activity[sector+fuel])"`
+#'   - Creates 4 factors: Activity level, Sector structure, Fuel structure,
+#'     Sectoral-fuel intensity.
 #'
 #' @section Data Requirements:
 #'   The input data frame must contain:
@@ -562,10 +558,9 @@ calculate_lmdi <- function(
         closure_summary[row_idx, closure_group_cols, drop = TRUE],
         collapse = ", "
       )
-      cli::cli_warn(paste0(
-        "[{context}] Additive contributions differ",
-        " from target change by {round(add_diff, 4)}"
-      ))
+      cli::cli_warn(
+        "[{context}] Additive contributions differ from target change by {round(add_diff, 4)}"
+      )
     }
     target_mult_val <- closure_summary$target_mult[row_idx]
     prod_mult_val <- closure_summary$prod_factors_mult[row_idx]
@@ -578,11 +573,9 @@ calculate_lmdi <- function(
           closure_summary[row_idx, closure_group_cols, drop = TRUE],
           collapse = ", "
         )
-        cli::cli_warn(paste0(
-          "[{context}] Multiplicative contributions",
-          " differ from target ratio",
-          " by {round(mult_diff, 4)}"
-        ))
+        cli::cli_warn(
+          "[{context}] Multiplicative contributions differ from target ratio by {round(mult_diff, 4)}"
+        )
       }
     }
   }
@@ -879,11 +872,7 @@ calculate_lmdi <- function(
     }
     if (verbose) {
       cli::cli_inform(
-        c(
-          "rolling_mean={k_orig} larger than",
-          " available years (min={min_years}).",
-          " Using k={k_eff}."
-        )
+        "rolling_mean={k_orig} larger than available years (min={min_years}). Using k={k_eff}."
       )
     }
   }
@@ -901,11 +890,7 @@ calculate_lmdi <- function(
 ) {
   if (verbose) {
     cli::cli_inform(
-      c(
-        "Applying {k_eff}-year centered rolling",
-        " mean to:",
-        " {paste(numeric_vars, collapse = ', ')}"
-      )
+      "Applying {k_eff}-year centered rolling mean to: {paste(numeric_vars, collapse = ', ')}"
     )
   }
   if (length(group_cols) > 0) {
@@ -939,11 +924,7 @@ calculate_lmdi <- function(
   }
   if (nrow(data) == 0) {
     cli::cli_warn(
-      c(
-        "No data remaining after applying",
-        " rolling mean. Consider using a",
-        " smaller rolling_mean value."
-      )
+      "No data remaining after applying rolling mean. Consider using a smaller rolling_mean value."
     )
   }
   if (verbose) {
