@@ -155,6 +155,20 @@
   `burnt_residue_n_t`. `residue_soil_dm_t` and their sum do not change (neither
   depends on `feed_use_fraction`), so `build_soil_carbon_inputs()`'s residue
   carbon is unaffected.
+* The pre-1962 commodity-balance fills now key their **proxies on the polity**
+  rather than on an area name. Three name vocabularies met at that join: the
+  frame carries the periodized `polity_name` (FAO area 3 arrives as
+  `"Albania (1913-2025)"`), the gdp/population pin carries its own labels
+  (`"Albania"`) and the LUH2 land table the crosswalk's static `area_name`. 57
+  of the pin's 196 names (8,263 rows, 27.8%) and 96 of the LUH2 labels (41.7% of
+  land rows) were names no builder emits, so those territories silently kept
+  their gaps. **This moves published values**: proxy coverage of the pre-1962
+  frame's (year, polity) cells rises from 13,664 to 18,480 of 22,624 for
+  population (43 polities gain a proxy, none lose one) and from 402 to 567 of
+  606 for agricultural land over 1900-1902 (55 gain, none lose). Aggregates that
+  are only reached by folding other territories into them (Rest of World, 999)
+  are still left without a proxy: what an aggregate's proxy should be is an open
+  methodological question (#493).
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
