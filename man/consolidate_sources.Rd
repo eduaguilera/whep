@@ -22,7 +22,8 @@ consolidate_sources(
 \item{data}{A tibble with one row per source per (\code{.by}, \code{time_col}) cell.}
 
 \item{value_col}{Unquoted name of the value column. Coverage counts the cells
-where this column is non-missing.}
+where this column is non-missing, or only those where it is strictly
+positive when \code{tie_break$coverage} is \code{"positive"}.}
 
 \item{source_col}{Unquoted name of the source-label column.}
 
@@ -58,19 +59,27 @@ the hard drop. Default: \code{NULL}.
 
 \item{tie_break}{Optional named list of options breaking equal-rank ties:
 \itemize{
-\item \code{coverage}: logical, break ties by broader within-series coverage.
-Default: \code{TRUE}.
+\item \code{coverage}: break ties by broader within-series coverage. \code{TRUE}
+(default), or equivalently \code{"nonmissing"}, counts the cells where
+\code{value_col} is non-missing; \code{"positive"} counts only the cells where it
+is strictly positive (\code{value_col} must then be numeric); \code{FALSE}
+disables the coverage tie-break.
 \item \code{quality_col}: string naming a quality column used as a tie-break
 after coverage. Default: \code{NULL}.
 \item \code{quality_levels}: character vector ordering \code{quality_col} values best
 first (unlisted values rank last). Required when \code{quality_col} is set.
+\item \code{quality_variants}: logical. When \code{TRUE}, a source contributing several
+\code{quality_col} variants of one cell keeps its best-ranked variant instead
+of aborting; rows sharing source, cell and quality level still abort, as
+do variants whose best rank is not unique. Requires \code{quality_col}.
+Default: \code{FALSE}.
 }}
 
 \item{continuity_override}{Logical. Revert isolated single-period winner
 flips. Default: \code{TRUE}.}
 
-\item{verbose}{Logical. Report the drop count, name-order ties, and
-continuity reversions. Default: \code{TRUE}.}
+\item{verbose}{Logical. Report the drop count, any resolved quality variants,
+name-order ties, and continuity reversions. Default: \code{TRUE}.}
 }
 \value{
 A tibble with the winning row per (\code{.by}, \code{time_col}) cell, the original
@@ -108,20 +117,29 @@ source loses any cell a measure-consistent source also reports, yet still
 wins a cell it alone reports (a lone reporter is never demoted away). Rows
 matching \code{measure$exempt} keep their base rank (for example world-level
 cells, where production equals consumption).
-\item \strong{Winner selection.} Within each (\code{.by}, \code{time_col}) cell the winner is
-the row of lowest effective rank; ties are broken by broader within-series
-coverage (the count of cells the source reports across the \code{.by} group)
-when \code{tie_break$coverage}, then by \code{tie_break$quality_col} ordered per
-\code{tie_break$quality_levels}, then by ascending source name (reported when
-\code{verbose}).
+\item \strong{Winner selection.} Within each (\code{.by}, \code{time_col}) cell any row with
+a real (non-missing) value outranks every \code{value_col}-missing row, so a
+higher-priority source's \code{NA} never discards a lower-priority source's real
+observation; a cell wins \code{NA} only when no source reports a real value. Among
+rows with a real value the winner is the row of lowest effective rank; ties
+are broken by broader within-series coverage (the count of cells the source
+reports across the \code{.by} group) when \code{tie_break$coverage}, then by
+\code{tie_break$quality_col} ordered per \code{tie_break$quality_levels}, then by
+ascending source name (reported when \code{verbose}). Coverage counts the cells
+where \code{value_col} is non-missing, or only the strictly positive ones under
+\code{tie_break$coverage = "positive"}, for panels where an exact zero reads as
+"not reported" as often as "measured zero" and would otherwise inflate the
+coverage of a mostly-zero series.
 \item \strong{Continuity override.} When enabled, an isolated single-period winner
 flip is reverted: if the immediately preceding and following periods share
 a different winner that also reports the middle period, that continuous
 source reclaims the middle cell, removing single-period teeth from
-otherwise smooth series. The reversion is skipped when it would hand a
-cell won by a measure-consistent source back to a measure-demoted one:
-continuity never undoes the measure penalty, because a single-period
-source switch is cosmetic while a measure switch corrupts the series.
+otherwise smooth series. The reversion is skipped when the flanking source's
+middle-period value is itself missing (continuity never reinstates an \code{NA})
+and when it would hand a cell won by a measure-consistent source back to a
+measure-demoted one: continuity never undoes the measure penalty, because a
+single-period source switch is cosmetic while a measure switch corrupts the
+series.
 }
 
 This operationalises the AFE decision \emph{Consolidate multi-source panels
@@ -130,8 +148,12 @@ measure identity is part of the dedup key's semantics, and priority alone
 cannot arbitrate cells whose sources report different measures.
 
 The input must hold at most one row per source per cell; pre-aggregate any
-sub-detail rows first (the function aborts on duplicates rather than sum
-silently).
+sub-detail rows first (by default the function aborts on duplicates rather
+than sum silently). Set \code{tie_break$quality_variants} when a source
+legitimately contributes several \code{tie_break$quality_col} variants of one
+cell (an observed and an interpolated estimate, say): the variants then
+collapse to the best-ranked one before any other stage, and only rows
+sharing a source, a cell \emph{and} a quality level still abort.
 }
 \examples{
 panel <- tibble::tribble(

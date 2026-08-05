@@ -11,6 +11,11 @@
 #' @param intake A tibble of realised feed intake with at least `year`,
 #'   `territory`, `sub_territory`, `livestock_category`, `item_cbs_code`,
 #'   `feed_quality` and `intake_dm_t` (the [redistribute_feed()] result).
+#'   `territory` is a stringified `area_code` (`as.character(area_code)`, what
+#'   [redistribute_feed()] emits and what the whole manure chain carries
+#'   through to the nitrogen inputs); an `iso3c` literal is still resolved
+#'   there but is deprecated, since it can only answer with an aggregation
+#'   bucket and so loses the territory for 62 of the 257 codes it knows.
 #' @param options A named list of method options:
 #'   * `method`: `"intake_minus_retention"` (default,
 #'     `n_intake * (1 - n_retention_frac)`) or `"intake_minus_product_n"`
@@ -29,8 +34,8 @@
 #' intake <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~livestock_category,
 #'   ~item_cbs_code, ~feed_quality, ~intake_dm_t,
-#'   2020L, "ES", NA, "Cattle_milk", 2513L, "high_quality", 100,
-#'   2020L, "ES", NA, "Cattle_milk", NA, "grass", 500
+#'   2020L, "203", NA, "Cattle_milk", 2513L, "high_quality", 100,
+#'   2020L, "203", NA, "Cattle_milk", NA, "grass", 500
 #' )
 #' estimate_n_excretion(intake)
 estimate_n_excretion <- function(intake, options = list()) {

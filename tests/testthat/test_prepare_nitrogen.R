@@ -144,3 +144,45 @@ test_that(".fill_n_inputs_to_target_year leaves pre-first-obs as NA", {
   # 1920 is the first observed year; backward fill is disabled.
   expect_false(any(out$year < 1920L))
 })
+
+
+test_that(".aggregate_nitrogen_pft area-weights N rates by crop area", {
+  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  # Two crops share PFT band 1 in the same cell: a 100-ha crop at 200 kgN/ha and
+  # a 1-ha crop at 10 kgN/ha. An unweighted mean gives 105; the area-weighted
+  # mean must stay close to the dominant crop's rate.
+  ng <- tibble::tribble(
+    ~year, ~pft, ~fert_type, ~row, ~col, ~kg_n_ha, ~rainfed_ha, ~irrigated_ha,
+    2000L, 1L, "Synthetic", 5L, 7L, 200, 100, 0,
+    2000L, 1L, "Synthetic", 5L, 7L, 10, 1, 0
+  )
+  out <- tibble::as_tibble(.aggregate_nitrogen_pft(ng))
+  expect_equal(nrow(out), 1L)
+  # Area-weighted: 200 over 100 ha and 10 over 1 ha gives 20010 over 101.
+  expect_equal(out$value, 20010 / 101, tolerance = 1e-9)
+  expect_false(isTRUE(all.equal(out$value, 105)))
+})
+
+test_that(".aggregate_nitrogen_pft conserves total applied N mass", {
+  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  ng <- tibble::tribble(
+    ~year, ~pft, ~fert_type, ~row, ~col, ~kg_n_ha, ~rainfed_ha, ~irrigated_ha,
+    2000L, 1L, "Synthetic", 5L, 7L, 200, 80, 20,
+    2000L, 1L, "Synthetic", 5L, 7L, 10, 1, 0
+  )
+  out <- tibble::as_tibble(.aggregate_nitrogen_pft(ng))
+  total_area <- sum(ng$rainfed_ha + ng$irrigated_ha)
+  mass_in <- sum(ng$kg_n_ha * (ng$rainfed_ha + ng$irrigated_ha))
+  # band rate x band area must reproduce the input applied-N mass
+  expect_equal(out$value * total_area, mass_in, tolerance = 1e-6)
+})
+
+test_that(".aggregate_nitrogen_pft drops zero-area bands and NaN", {
+  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  ng <- tibble::tribble(
+    ~year, ~pft, ~fert_type, ~row, ~col, ~kg_n_ha, ~rainfed_ha, ~irrigated_ha,
+    2000L, 1L, "Synthetic", 5L, 7L, 200, 0, 0
+  )
+  out <- .aggregate_nitrogen_pft(ng)
+  expect_equal(nrow(out), 0L)
+})

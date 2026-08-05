@@ -111,7 +111,7 @@ create_n_soil_inputs <- function(example = FALSE) {
       deposition = sum(Deposition, na.rm = TRUE),
       fixation = sum(BNF, na.rm = TRUE),
       synthetic = sum(Synthetic, na.rm = TRUE),
-      manure = sum(Solid + Liquid, na.rm = TRUE),
+      manure = sum(Excreta + Solid + Liquid, na.rm = TRUE),
       urban = sum(Urban, na.rm = TRUE),
       .by = c(Year, Province_name, Item, Irrig_cat, Box)
     ) |>
@@ -150,8 +150,7 @@ create_n_production <- function(example = FALSE) {
 #' @title Calculate N Production
 #' @description Internal function to calculate nitrogen production.
 #' @param grafs_prod_destiny A data frame with consumption, export, import data.
-#' @return A tibble with production values per year, province, item,
-#' and box.
+#' @return A tibble with production and import values.
 #' @keywords internal
 #' @noRd
 .calculate_n_production <- function(grafs_prod_destiny) {
@@ -163,6 +162,7 @@ create_n_production <- function(example = FALSE) {
       values_from = mg_n,
       values_fill = 0
     ) |>
+    .ensure_destiny_cols() |>
     dplyr::mutate(
       feed = livestock_rum + livestock_mono,
       prod = population_food + population_other_uses + feed + export,
@@ -174,6 +174,26 @@ create_n_production <- function(example = FALSE) {
       .by = c(year, province_name, item, box)
     ) |>
     dplyr::arrange(year, province_name, item, box)
+}
+
+#' Ensure every destiny pivot column exists after pivot_wider().
+#'
+#' If a destiny category (e.g. export) has no rows anywhere in the input,
+#' pivot_wider() never creates that column, and the downstream mutate()
+#' crashes with "object not found".
+#' @keywords internal
+#' @noRd
+.ensure_destiny_cols <- function(prod_wide) {
+  required <- c(
+    "livestock_rum",
+    "livestock_mono",
+    "population_food",
+    "population_other_uses",
+    "export"
+  )
+  missing <- setdiff(required, names(prod_wide))
+  prod_wide[missing] <- 0
+  prod_wide
 }
 
 
@@ -191,14 +211,22 @@ create_n_production <- function(example = FALSE) {
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
-#' @return A tibble containing nitrogen use efficiency (NUE) for crops.
+#' @returns
+#' A tibble containing nitrogen input, production, and NUE data.
 #'   It includes the following columns:
 #'   - `year`: Year.
 #'   - `province_name`: The Spanish province.
 #'   - `item`: The item which was produced, defined in `names_biomass_cb`.
 #'   - `box`: One of the two systems of the GRAFS model: cropland or
-#'       semi-natural agroecosystems.
-#'   - `nue`: Nitrogen Use Efficiency as a percentage (%).
+#'            semi-natural agroecosystems.
+#'   - `deposition`: Atmospheric nitrogen deposition in megagrams (Mg).
+#'   - `fixation`: Nitrogen fixation in megagrams (Mg).
+#'   - `synthetic`: Synthetic nitrogen fertilizer applied to the land in
+#'                  megagrams (Mg).
+#'   - `manure`: Nitrogen in manure applied to the land in megagrams (Mg).
+#'   - `urban`: Nitrogen in wastewater from human sources in megagrams (Mg).
+#'   - `prod`: Produced nitrogen in megagrams (Mg).
+#'   - `inputs`: Total nitrogen inputs in megagrams (Mg).
 #'
 #' @export
 #'
@@ -282,32 +310,52 @@ calculate_nue_livestock <- function(example = FALSE) {
     return(.ex_calc_nue_livestock())
   }
   intake_n <- whep_read_file("intake_ygiac") |>
-    dplyr::filter(Livestock_cat != "Pets") |>
-    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::rename(n_mg_n = intake_mgn) |>
+    dplyr::filter(livestock_cat != "Pets") |>
+    dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
-      feed_n = sum(N_MgN, na.rm = TRUE),
+      feed_n = sum(n_mg_n, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
-  prod_n <- whep_read_file("livestock_prod_ygps") |>
-    dplyr::filter(!is.na(Prod_MgN)) |>
-    dplyr::group_by(Year, Province_name, Livestock_cat, Item) |>
+  prod_n <- whep_read_file("stock_prod_ygps") |>
+    dplyr::rename_with(tolower) |>
+    # The pin keys products as item_cbs; the rest of the pipeline (and this
+    # function's output) uses the data-layer name `item`.
+    dplyr::rename(item = item_cbs) |>
+    dplyr::filter(!is.na(prod_mgn)) |>
+    dplyr::group_by(year, province_name, livestock_cat, item) |>
     dplyr::summarise(
-      prod_n = sum(Prod_MgN, na.rm = TRUE),
+      prod_n = sum(prod_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   excretion_n <- whep_read_file("n_excretion_ygs") |>
-    dplyr::group_by(Year, Province_name, Livestock_cat) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::filter(livestock_cat != "Pets") |>
+    dplyr::group_by(year, province_name, livestock_cat) |>
     dplyr::summarise(
-      excretion_n = sum(Excr_MgN, na.rm = TRUE),
+      excretion_n = sum(n_excr_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
-  nue_livestock <- intake_n |>
+  .combine_nue_livestock(intake_n, prod_n, excretion_n)
+}
+
+#' @title Combine livestock N flows into NUE and mass balance
+#' @description Joins per-category feed and excretion N with per-item product
+#' N. Per-item `nue` is computed row-wise, while `mass_balance` is computed at
+#' the `(year, province_name, livestock_cat)` level so excretion (which is a
+#' category-level flow) is counted once rather than once per produced item.
+#' @param intake_n Feed N per year, province, and livestock category.
+#' @param prod_n Product N per year, province, livestock category, and item.
+#' @param excretion_n Excreted N per year, province, and livestock category.
+#' @return A tibble with per-item `nue` and category-level `mass_balance`.
+#' @keywords internal
+#' @noRd
+.combine_nue_livestock <- function(intake_n, prod_n, excretion_n) {
+  intake_n |>
     dplyr::inner_join(
       prod_n,
       by = c("year", "province_name", "livestock_cat")
@@ -318,7 +366,8 @@ calculate_nue_livestock <- function(example = FALSE) {
     ) |>
     dplyr::mutate(
       nue = prod_n / feed_n * 100,
-      mass_balance = (prod_n + excretion_n) / feed_n
+      mass_balance = (sum(prod_n) + excretion_n) / feed_n,
+      .by = c(year, province_name, livestock_cat)
     ) |>
     dplyr::select(
       year,
@@ -331,8 +380,6 @@ calculate_nue_livestock <- function(example = FALSE) {
       nue,
       mass_balance
     )
-
-  nue_livestock
 }
 
 #' @title System NUE
@@ -380,14 +427,14 @@ calculate_system_nue <- function(
 
   total_outputs <- dplyr::bind_rows(
     whep_read_file("n_balance_ygpit_all"),
-    whep_read_file("livestock_prod_ygps")
+    whep_read_file("stock_prod_ygps")
   ) |>
-    dplyr::group_by(Year, Province_name) |>
+    dplyr::rename_with(tolower) |>
+    dplyr::group_by(year, province_name) |>
     dplyr::summarise(
-      total_prod = sum(Prod_MgN, na.rm = TRUE),
+      total_prod = sum(prod_mgn, na.rm = TRUE),
       .groups = "drop"
-    ) |>
-    dplyr::rename_with(tolower)
+    )
 
   system_nue <- total_outputs |>
     dplyr::left_join(n_soil_inputs, by = c("year", "province_name")) |>

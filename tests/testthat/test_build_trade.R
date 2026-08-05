@@ -146,8 +146,12 @@ testthat::test_that("unmapped item names warn and are dropped", {
     Value = c(100, 200)
   )
 
+  # Name-only input also triggers the brittle name-join fallback warning.
   testthat::expect_warning(
-    result <- build_detailed_trade(raw_trade = raw),
+    testthat::expect_warning(
+      result <- build_detailed_trade(raw_trade = raw),
+      "by name"
+    ),
     "not found in CBS mapping"
   )
 
@@ -286,6 +290,47 @@ testthat::test_that("polity self-trade is removed after aggregation", {
   testthat::expect_equal(nrow(result), 0)
 })
 
+testthat::test_that("intra-aggregate distinct-origin trade survives collapse", {
+  # American Samoa (5) and Andorra (6) both collapse to the Rest of World
+  # aggregate polity (999). A real flow 5 -> 6 becomes 999 -> 999, which the
+  # naive polity-level self-trade filter would delete. It must survive: these
+  # are two different countries, not genuine self-trade (deepens #152).
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(5L),
+    `Partner Country Code` = c(6L),
+    `Item Code` = c(15L),
+    Element = c("Import Quantity"),
+    Year = c(2020L),
+    Unit = c("tonnes"),
+    Value = c(100)
+  )
+
+  result <- build_detailed_trade(raw_trade = raw)
+
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_equal(result$area_code, 999)
+  testthat::expect_equal(result$area_code_partner, 999)
+  testthat::expect_equal(result$value, 100)
+})
+
+testthat::test_that("genuine self-trade within an aggregate is still removed", {
+  # A flow from American Samoa (5) to itself is real self-trade and must be
+  # dropped even though 5 collapses to the Rest of World aggregate (999).
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(5L),
+    `Partner Country Code` = c(5L),
+    `Item Code` = c(15L),
+    Element = c("Import Quantity"),
+    Year = c(2020L),
+    Unit = c("tonnes"),
+    Value = c(100)
+  )
+
+  result <- build_detailed_trade(raw_trade = raw)
+
+  testthat::expect_equal(nrow(result), 0)
+})
+
 testthat::test_that("zero-value rows are dropped", {
   raw <- data.table::data.table(
     `Reporter Country Code` = c(2L, 2L),
@@ -315,7 +360,12 @@ testthat::test_that("item name column maps through cbs_trade_codes names", {
     Value = c(100)
   )
 
-  result <- build_detailed_trade(raw_trade = raw)
+  # The name-join path is a brittle fallback used only without item codes, so
+  # it now warns (relates to #170).
+  testthat::expect_warning(
+    result <- build_detailed_trade(raw_trade = raw),
+    "by name"
+  )
 
   testthat::expect_equal(nrow(result), 1)
   testthat::expect_equal(result$item_cbs_code, 2511)

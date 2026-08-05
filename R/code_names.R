@@ -34,7 +34,12 @@ add_area_name <- function(
   code_column = "area_code",
   name_column = "area_name"
 ) {
-  polities <- .get_polities(name_column, code_column, table)
+  polities <- .get_polities(
+    name_column,
+    code_column,
+    join_column = code_column,
+    table = table
+  )
 
   table |>
     dplyr::left_join(polities, {{ code_column }})
@@ -74,7 +79,11 @@ add_area_code <- function(
   name_column = "area_name",
   code_column = "area_code"
 ) {
-  polities <- .get_polities(name_column, code_column)
+  polities <- .get_polities(
+    name_column,
+    code_column,
+    join_column = name_column
+  )
 
   table |>
     dplyr::left_join(polities, {{ name_column }})
@@ -232,19 +241,23 @@ add_item_prod_code <- function(
     dplyr::left_join(items, {{ name_column }})
 }
 
-.get_polities <- function(name_column, code_column, table = NULL) {
+.get_polities <- function(name_column, code_column, join_column, table = NULL) {
   key_column <- .resolve_polity_key(table, code_column)
-  areas <- .current_area_lookup(include_unmapped = TRUE)
 
-  areas |>
+  .current_area_lookup(include_unmapped = TRUE) |>
     tibble::as_tibble() |>
+    dplyr::arrange(
+      dplyr::desc(polity_end_year),
+      dplyr::desc(polity_start_year),
+      dplyr::desc(area_code)
+    ) |>
     dplyr::select(
       !!name_column := area_name,
       !!code_column := dplyr::all_of(key_column)
     ) |>
     dplyr::filter(!is.na(.data[[code_column]])) |>
     dplyr::distinct(
-      dplyr::across(dplyr::all_of(code_column)),
+      dplyr::across(dplyr::all_of(join_column)),
       .keep_all = TRUE
     )
 }
@@ -280,6 +293,10 @@ add_item_prod_code <- function(
     dplyr::select(
       !!name_column := item_cbs_name,
       !!code_column := item_cbs_code
+    ) |>
+    dplyr::distinct(
+      dplyr::across(dplyr::all_of(code_column)),
+      .keep_all = TRUE
     )
 }
 
@@ -288,5 +305,9 @@ add_item_prod_code <- function(
     dplyr::select(
       !!name_column := item_prod_name,
       !!code_column := item_prod_code
+    ) |>
+    dplyr::distinct(
+      dplyr::across(dplyr::all_of(code_column)),
+      .keep_all = TRUE
     )
 }

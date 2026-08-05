@@ -13,8 +13,8 @@ test_that(".assign_items returns expected item groups", {
 # .calculate_n_soil_inputs
 test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
   n_balance <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
-    2000, "A", "Wheat", "Cropland", "irrig", 1, 2, 3, 1, 1, 2
+    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Excreta, ~Solid, ~Liquid, ~Urban,
+    2000, "A", "Wheat", "Cropland", "irrig", 1, 2, 3, 3, 1, 1, 2
   )
 
   names_biomass_cb <- tibble::tribble(
@@ -27,14 +27,15 @@ test_that(".calculate_n_soil_inputs aggregates soil inputs correctly", {
   expect_equal(out$deposition, 1)
   expect_equal(out$fixation, 2)
   expect_equal(out$synthetic, 3)
-  expect_equal(out$manure, 2)
+  # manure is Excreta + Solid + Liquid, all taken from the pin as shipped
+  expect_equal(out$manure, 3 + 1 + 1)
   expect_equal(out$urban, 2)
 })
 
 test_that(".calculate_n_soil_inputs assigns Firewood correctly", {
   n_balance <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Solid, ~Liquid, ~Urban,
-    2000, "A", "Holm oak", "Forest_low", NA, 1, 0, 0, 0, 0, 0
+    ~Year, ~Province_name, ~Name_biomass, ~LandUse, ~Irrig_cat, ~Deposition, ~BNF, ~Synthetic, ~Excreta, ~Solid, ~Liquid, ~Urban,
+    2000, "A", "Holm oak", "Forest_low", NA, 1, 0, 0, 0, 0, 0, 0
   )
 
   names_biomass_cb <- tibble::tribble(
@@ -77,6 +78,22 @@ test_that(".calculate_n_production sums production correctly", {
   expect_equal(out$prod, 10)
 })
 
+test_that(".calculate_n_production does not crash when a destiny category is entirely absent", {
+  # Regression for #175: pivot_wider() only creates a column for a destiny
+  # level actually present in the input. A province/year/item with no export
+  # rows at all previously crashed the mutate() with "object 'export' not
+  # found" instead of treating it as zero.
+  grafs <- tibble::tribble(
+    ~year, ~province_name, ~item, ~box, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 5,
+    2000, "A", "Wheat", "Cropland", "livestock_rum", 2
+  )
+
+  out <- .calculate_n_production(grafs)
+
+  expect_equal(out$prod, 7)
+})
+
 
 # calculate_nue_crops
 test_that("calculate_nue_crops computes NUE correctly", {
@@ -101,6 +118,37 @@ test_that("calculate_nue_crops computes NUE correctly", {
     )
 
   expect_equal(nue$nue, 5 / 5 * 100)
+})
+
+# .combine_nue_livestock
+test_that(".combine_nue_livestock does not double-count excretion", {
+  # Pigs produce multiple items, so the product join fans out to 2 rows.
+  intake_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~feed_n,
+    2000, "A", "Pigs", 100
+  )
+
+  prod_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~item, ~prod_n,
+    2000, "A", "Pigs", "Meat", 30,
+    2000, "A", "Pigs", "Offals", 10
+  )
+
+  excretion_n <- tibble::tribble(
+    ~year, ~province_name, ~livestock_cat, ~excretion_n,
+    2000, "A", "Pigs", 55
+  )
+
+  out <- .combine_nue_livestock(intake_n, prod_n, excretion_n)
+
+  expect_equal(nrow(out), 2)
+
+  # Mass balance is a single category-level value: excretion counted once.
+  # Summed products plus excretion, over feed: 30 plus 10 plus 55, over 100.
+  expect_equal(unique(out$mass_balance), (30 + 10 + 55) / 100)
+
+  # Per-item nue is a valid decomposition summing to total products / feed.
+  expect_equal(sum(out$nue), (30 + 10) / 100 * 100)
 })
 
 # calculate_system_nue

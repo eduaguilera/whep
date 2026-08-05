@@ -93,6 +93,8 @@
 #' `sub_territory` (0.5-degree cell) column. Otherwise, invisibly, the written
 #' file paths.
 #'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples
@@ -162,10 +164,15 @@ build_feed_intake_local <- function(
 #'    `bouwman_fcr` or `krausmann_per_head` (a `+`-joined set for a mixed
 #'    category whose animals used different methods).
 #'
+#' plus the polity columns below.
+#'
 #' With `by = "feed_type"`, the demand split across feed types as the
 #' [redistribute_feed()] `feed_demand` contract: `year`, `territory`,
 #' `sub_territory`, `livestock_category`, `item_cbs_code`, `feed_group`,
-#' `feed_quality`, `demand_dm_t`, `fixed_demand`.
+#' `feed_quality`, `demand_dm_t`, `fixed_demand`. That grain is keyed by
+#' `territory`, not `area_code`, so it carries no polity columns.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -185,7 +192,7 @@ build_feed_demand <- function(
   data <- .feed_demand_data()
   total <- .build_feed_demand_total(get_primary_production(), demand_tier, data)
   if (by == "category") {
-    return(total)
+    return(.add_reporting_polity_columns(total))
   }
   .build_feed_mix(total, data)
 }
@@ -250,7 +257,8 @@ build_feed_demand <- function(
     engine$result,
     engine$code_shares,
     local = TRUE
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # Write per-year output to disk, skipping years already written (restartable)

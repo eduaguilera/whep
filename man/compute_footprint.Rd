@@ -109,6 +109,16 @@ For large systems, pass \code{z_mat} and \code{x_vec} instead of
 sparse LU factorisation, avoiding the dense Leontief inverse
 entirely and reducing memory from \eqn{O(n^2)} to
 \eqn{O(nnz)}.
+
+The \code{z_mat} and \code{l_inv} paths give identical results while the
+largest column sum of A stays below 1 (the Leontief inverse is
+then non-negative). At or above 1 the paths can diverge: the dense
+inverse zeroes negative entries whereas the sparse solve drops the
+resulting negative embodied flows, and a precomputed \code{l_inv} may
+have been capped differently (\code{compute_leontief_inverse()} defaults
+to a conservative cap below 1). The \code{z_mat} path emits a warning
+when this happens; \code{max_column_sum} is ignored when \code{l_inv} is
+supplied directly.
 }
 \examples{
 z_mat <- matrix(c(0, 5, 10, 0), nrow = 2)

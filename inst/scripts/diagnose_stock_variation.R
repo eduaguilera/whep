@@ -12,10 +12,22 @@ cat("Building pipeline...\n")
 primary <- whep::build_primary_production()
 cbs <- whep::build_commodity_balances(primary)
 
-# Wide format with all elements
+# CBS is long (element column). Pivot the elements we need to wide so
+# each row is one year-area-item with its stock_variation, domestic_supply
+# and production side by side.
 cbs_wide <- cbs |>
-  dplyr::mutate(stock_variation = -stock_retrieval) |>
-  dplyr::select(-stock_retrieval)
+  dplyr::filter(
+    element %in% c("stock_variation", "domestic_supply", "production")
+  ) |>
+  tidyr::pivot_wider(
+    id_cols = c(year, area_code, item_cbs_code),
+    names_from = element,
+    values_from = value
+  )
+
+# Guarantee the three columns exist even if an element is absent.
+needed <- c("stock_variation", "domestic_supply", "production")
+cbs_wide[setdiff(needed, names(cbs_wide))] <- NA_real_
 
 # Compute SV as share of domestic supply
 cbs_wide <- cbs_wide |>

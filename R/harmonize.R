@@ -281,7 +281,10 @@ harmonize_interpolate <- function(data, ...) {
 #
 # Expand `data_groups` to all years between `start_year`
 # and `end_year`, join simple values and compute value shares per
-# year. Missing years are filled using `linear_fill()`.
+# year. Missing years are filled using `linear_fill()`. Shares are
+# then renormalized to sum to 1 within each `(item, year)` group so
+# that 1:n splits conserve mass in partially observed years (where
+# some members lack a simple value and their share is interpolated).
 .calc_complex_shares <- function(
   data_groups,
   df_simple,
@@ -313,6 +316,15 @@ harmonize_interpolate <- function(data, ...) {
       value_share,
       year,
       .by = c("item", "item_code_harm", grouping_names)
+    ) |>
+    dplyr::mutate(
+      share_sum = sum(value_share, na.rm = TRUE),
+      value_share = dplyr::if_else(
+        share_sum > 0,
+        value_share / share_sum,
+        value_share
+      ),
+      .by = c("item", "year", dplyr::all_of(grouping_names))
     ) |>
     dplyr::select(
       item,

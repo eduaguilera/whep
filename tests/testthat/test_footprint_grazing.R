@@ -98,6 +98,49 @@ testthat::test_that("animals that did not graze receive no land", {
   testthat::expect_equal(sum(out$value), 100)
 })
 
+testthat::test_that("intake without eligible output is surfaced not dropped", {
+  grass_land <- tibble::tibble(year = 2010L, area_code = 1L, value = 100)
+  # Cattle graze 75% of the land and produce milk; sheep graze the other
+  # 25% but produce no eligible output at all. The second-stage join must
+  # not silently drop the sheep's grazing land.
+  grazer_intake <- tibble::tibble(
+    year = 2010L,
+    area_code = 1L,
+    live_anim_code = c(960L, 976L),
+    value = c(75, 25)
+  )
+  production <- tibble::tibble(
+    year = 2010L,
+    area_code = 1L,
+    live_anim_code = 960L,
+    item_cbs_code = 2848L,
+    value = 90
+  )
+  testthat::expect_warning(
+    out <- whep::allocate_grazing_to_products(
+      grass_land,
+      grazer_intake,
+      production
+    ),
+    "25% of grazing land"
+  )
+  # The 25 ha is surfaced by the warning, never attributed to cattle milk
+  # and never left as an NA output item.
+  testthat::expect_false(anyNA(out$item_cbs_code))
+  testthat::expect_equal(sum(out$value), 75)
+})
+
+testthat::test_that("full output coverage stays silent", {
+  inp <- .grazing_inputs()
+  testthat::expect_no_warning(
+    whep::allocate_grazing_to_products(
+      inp$grass_land,
+      inp$grazer_intake,
+      inp$livestock_production
+    )
+  )
+})
+
 testthat::test_that("forward footprint routes grazing land to meat consumers", {
   grass_land <- tibble::tibble(year = 2010L, area_code = 10L, value = 200)
   grazer_intake <- tibble::tibble(
