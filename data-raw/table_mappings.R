@@ -83,6 +83,90 @@ excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 # repair_table_labels(): shared with harmonization_tables.R, which reads the same
 # vendored regions_full.csv to build regions_full and polities_cats.
 source("data-raw/_labels.R")
+# The source-label -> polity map published by whep-polities
+# (data/final/label_alias_map.csv, gated there by write_label_alias_map.py
+# --check). Embedded rather than resolved at runtime, for the same reason
+# `polities` is: a package function cannot depend on a sibling checkout existing.
+#
+# This exists because `add_polity_code()` resolves NUMERIC area codes and nothing
+# resolved a country LABEL. Datasets carrying labels therefore had no supported
+# path to a polity: mueller_synthetic_n's `iso3c` column holds FAO-style legacy
+# codes (BZE, ROM, ZAR) and lassaletta_grassland_share's `Country` holds name
+# variants (Cape Verde, Swaziland), and both simply went unresolved. Building a
+# lookup here instead of consuming the published one would make this package a
+# second authority for label -> polity, which is exactly what misattributed
+# FAOSTAT data in #387.
+whep_label_alias_map <- Sys.getenv(
+  "WHEP_POLITIES_LABEL_ALIAS_MAP",
+  unset = path.expand("~/whep-polities/data/final/label_alias_map.csv")
+)
+
+# Fail with an explanation rather than readr's bare "does not exist". This file
+# is published by whep-polities and arrives with lbm364dl/whep-polities#39,
+# whereas polities_database.gpkg is already on that repo's main -- so this is the
+# one upstream artifact a regeneration can be missing, and the raw error names a
+# path without saying what provides it.
+if (!file.exists(whep_label_alias_map)) {
+  cli::cli_abort(c(
+    "The published label alias map is missing.",
+    x = "Looked for {.path {whep_label_alias_map}}.",
+    i = paste(
+      "It is published by whep-polities as",
+      "{.path data/final/label_alias_map.csv} and gated there by",
+      "{.code scripts/write_label_alias_map.py --check}."
+    ),
+    i = paste(
+      "If that repository is checked out elsewhere, point",
+      "{.envvar WHEP_POLITIES_LABEL_ALIAS_MAP} at the file."
+    ),
+    i = paste(
+      "The committed data/polity_label_aliases.rda already carries the",
+      "aliases, so only regeneration is affected, not use."
+    )
+  ))
+}
+
+polity_label_aliases <- readr::read_csv(
+  whep_label_alias_map,
+  show_col_types = FALSE,
+  na = excel_na,
+  col_types = readr::cols(
+    source_label = readr::col_character(),
+    source = readr::col_character(),
+    year_start = readr::col_integer(),
+    year_end = readr::col_integer(),
+    polity_code = readr::col_character(),
+    common_name = readr::col_character(),
+    confidence = readr::col_character(),
+    # How many source rows were actually observed for this label, 0 when the
+    # label is merely mappable. Declared explicitly because this col_types list
+    # is exhaustive by intent -- an upstream column that is not named here is a
+    # column this script cannot see.
+    observed_rows = readr::col_double()
+  )
+)
+
+# Every published alias must name a polity the upstream database carries.
+# Upstream gates the same invariant, so a failure here means the alias map and
+# the GeoPackage were taken from different revisions rather than that the map is
+# wrong. Checked against the freshly read `polities`, not against the committed
+# data/polities.rda, because the two are regenerated together from this script.
+unknown_alias_targets <- setdiff(
+  polity_label_aliases$polity_code,
+  polities$polity_code
+)
+if (length(unknown_alias_targets) > 0L) {
+  cli::cli_abort(c(
+    "The published label alias map targets polities this package cannot carry.",
+    x = "Unknown: {.val {utils::head(unknown_alias_targets, 5)}}.",
+    i = "Rebuild from the same whep-polities revision that produced the map."
+  ))
+}
+
+cli::cli_inform(paste0(
+  "Loaded {nrow(polity_label_aliases)} published label aliases over ",
+  "{length(unique(polity_label_aliases$source_label))} labels."
+))
 
 regions_full_raw <- here::here(
   "inst",
@@ -95,6 +179,12 @@ regions_full_raw <- here::here(
 
 regions_compact <- here::here("inst", "extdata", "regions.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
+
+# The area codes the package's own compact country grid treats as individually
+# modelled territories. Consulted below to decide which FABIO rest-of-world
+# folds may override an area's own polity: an area this package models as a
+# country cannot honestly be identified as a non-territorial aggregate.
+grid_area_codes <- as.integer(regions_compact$area_code)
 
 regions_for_crosswalk <- dplyr::bind_rows(
   regions_full_raw,
@@ -239,11 +329,35 @@ if (length(unresolvable_map_codes) > 0L) {
 # already map to their own polities (CHN/HKG/MAC/TWN), so mapping 351 to CHN as
 # well double-counted China across every FAOSTAT domain. Left unmapped, 351 is
 # dropped as a statistical aggregate (its iso3c and polity_code are NA).
+#
+# Areas 276 "Sudan" and 277 "South Sudan" are here for a different reason: they
+# need a SECOND prefix, and more than one row per area is how this table says so
+# (the prefix join below fans out, and each prefix contributes its own periods).
+# Their ISO3 supplies only the post-2011 successor -- SDN and SSD -- so every
+# pre-2011 year missed the year-aware join entirely and was rescued by its
+# nearest-match fallback onto a state that did not exist yet: a 1990 figure for
+# either came back as SDN-2011-2025 or SSD-2011-2025. Adding SUD gives both the
+# unified-Sudan chain (SUD-1899-1934, SUD-1934-1956, SUD-1956-2011) for the years
+# it covers, while the upstream map keeps supplying 2012 onwards.
+#
+# Only SUD is added, and only for these two. The successor prefixes are NOT
+# repeated here even though this area needs them, because the upstream FAOSTAT
+# map already declares those spans; adding them again duplicates the row the map
+# supplies, which is what an earlier revision of this change did. Area 206
+# "Sudan (former)" is not here at all: the upstream map already resolves it to
+# SUD-1956-2011 for every year it reports, so it needs nothing.
+#
+# The numeric bucket is untouched: all three areas keep fabio_code 206, so
+# polity_area_code still folds them together. Whether that bucket's post-2011
+# value (Sudan and South Sudan summed) can honestly carry a one-territory polity
+# is whep#414 and is not decided here.
 manual_area_prefixes <- tibble::tribble(
   ~area_code, ~manual_polity_prefix, ~manual_note,
   51L, "F51", "FAOSTAT Czechoslovakia reporting area maps to WHEP Czechoslovakia polities.",
   228L, "F228", "FAOSTAT USSR reporting area maps to WHEP Russian Empire/USSR polities.",
-  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities."
+  248L, "F248", "FAOSTAT Yugoslav SFR reporting area maps to WHEP Yugoslavia polities.",
+  276L, "SUD", "FAOSTAT Sudan reporting area needs pre-2011 unified-Sudan periods.",
+  277L, "SUD", "FAOSTAT South Sudan reporting area needs pre-2011 unified-Sudan periods."
 )
 
 reporting_areas <- regions_for_crosswalk |>
@@ -273,8 +387,32 @@ reporting_areas <- regions_for_crosswalk |>
       .data$reporting_polity_code,
       NA_character_
     ),
+    # FABIO folds many small territories into its Rest of World bucket. That fold
+    # is carried by `polity_area_code` below, which takes `fabio_code` and so
+    # stays 999 for every one of them. Forcing `polity_code` to ROW as well is
+    # redundant there and destructive for an area this package models as a
+    # country in its own right: five codes of the compact country grid --
+    # 61 Equatorial Guinea, 153 New Caledonia, 154 North Macedonia, 209 Eswatini
+    # and 212 Syrian Arab Republic -- were identified as ROW-1850-2023, a
+    # non-territorial aggregate with no borders of its own, for every year, while
+    # `polities` carries a real dedicated polity for each.
+    #
+    # So the ROW override yields to an area that is BOTH in the grid and has a
+    # polity of its own. Every other folded area keeps folding: it is not
+    # individually modelled here, so routing it to its own polity would diverge
+    # from FABIO's aggregation for nothing (that trade-off, at the numeric level,
+    # is whep#419). Grid areas 69 French Guiana and 299 Palestine keep folding
+    # too, because no GUF/PSE polity exists in this vintage of `polities` to
+    # route them to.
+    grid_country_prefix = dplyr::if_else(
+      .data$area_code %in% grid_area_codes,
+      .data$area_iso3c_prefix,
+      NA_character_
+    ),
     fabio_row_prefix = dplyr::if_else(
-      !is.na(.data$fabio_code) & .data$fabio_code == 999L,
+      !is.na(.data$fabio_code) &
+        .data$fabio_code == 999L &
+        is.na(.data$grid_country_prefix),
       "ROW",
       NA_character_
     ),
@@ -444,10 +582,24 @@ polity_area_crosswalk <- dplyr::bind_rows(
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
+      # Only claim the fold happened where it actually did. This used to fire on
+      # any area with fabio_code 999, so the grid countries that stopped being
+      # folded kept a note asserting they were collapsed into Rest of World while
+      # pointing at SYR-1967-2025 or SWZ-1894-2025 -- a note contradicting the
+      # mapping it annotates.
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code !=
-          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
+        .data$area_code != 999L &
+        startsWith(.data$polity_code, "ROW-") ~
+        "FABIO collapses this source area into the Rest of World reporting polity.",
+      !is.na(.data$fabio_code) &
+        .data$fabio_code == 999L &
+        .data$area_code != 999L &
+        !is.na(.data$polity_code) ~
+        paste(
+          "FABIO collapses this source area into Rest of World, but WHEP models",
+          "it as a country of its own, so it keeps its own polity."
+        ),
       .data$mapping_status ==
         "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       .data$mapping_status == "manual" ~ paste0(
@@ -538,3 +690,4 @@ usethis::use_data(items_cbs, overwrite = TRUE)
 usethis::use_data(items_prod, overwrite = TRUE)
 usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)
+usethis::use_data(polity_label_aliases, overwrite = TRUE)
