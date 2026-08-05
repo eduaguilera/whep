@@ -27,6 +27,12 @@ means "Sudan and South Sudan" (whep#414). `.aggregate_to_polities()`
 warns when it builds such a bucket; set
 `options(whep.warn_polity_folds = FALSE)` to silence that warning.
 
+The polity reported here as the bucket's own is also the `area` label
+the builds attach to the summed row, and the one the reporting columns
+resolve. A bucket carries one label whatever its members resolve to,
+because `area` is a join key and a bucket under two labels stops summing
+(whep#563).
+
 ## Usage
 
 ``` r
