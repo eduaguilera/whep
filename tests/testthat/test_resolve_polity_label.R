@@ -94,11 +94,25 @@ test_that("a year-scoped alias is silent outside its span, not contradicted", {
 })
 
 test_that("ambiguous identifiers return NA instead of picking by row order", {
-  # Four polities are named "Montenegro" once parenthesised qualifiers are
-  # dropped, and MNE-1913-1915 overlaps MNE-1913-1918. Resolving 1914 by row
-  # order would invent an answer; NA says the label needs an alias.
-  expect_true(is.na(resolve_polity_label("Montenegro", year = 1914L)))
-  # The same label is unambiguous in 2010, where exactly one is live.
+  # Panama in 1970 is the live case: `PAN-1903-1979` and `CZN-1903-1979`, the
+  # Canal Zone, both carry ISO3 `PAN` and both cover that year. They are a real
+  # territorial overlap rather than a data defect -- the Zone was administered
+  # separately inside Panama's borders -- so no re-sync will remove it, which is
+  # what makes it the right case to pin the guard on. Resolving by row order
+  # would invent an answer; NA says the label needs an alias.
+  expect_true(is.na(resolve_polity_label("PAN", year = 1970L)))
+  # And unambiguous once the Zone ends: exactly one live polity carries `PAN`.
+  expect_equal(resolve_polity_label("PAN", year = 2000L), "PAN-1979-2025")
+
+  # Montenegro USED to be this test's case, on `MNE-1913-1915` overlapping
+  # `MNE-1913-1918` while both were draft upstream. That was a data defect, filed
+  # as whep-polities#62, and upstream has retired `MNE-1913-1915`. So 1914 now has
+  # one live answer, and the guard needed a case that is not a bug waiting to be
+  # fixed -- hence Panama above.
+  expect_equal(
+    resolve_polity_label("Montenegro", year = 1914L),
+    "MNE-1913-1918"
+  )
   expect_equal(
     resolve_polity_label("Montenegro", year = 2010L),
     "MNE-2006-2025"
@@ -110,7 +124,6 @@ test_that("ambiguous identifiers return NA instead of picking by row order", {
   # no answer and NA was the honest one. `SUD-1956-2011` now carries `SDN` as its
   # ISO3 too, so a 2000 row resolves to the unified Sudan that actually existed
   # then -- which is the outcome #387 wanted, reached upstream instead of here.
-  # The guard itself is unchanged and still tested by Montenegro above.
   expect_equal(resolve_polity_label("SDN", year = 2000L), "SUD-1956-2011")
   expect_equal(resolve_polity_label("SDN", year = 2015L), "SDN-2011-2025")
 })
@@ -152,33 +165,28 @@ test_that("resolve_polity_label recovers the coverage whep#389 measured", {
   # refresh that resolves MORE labels does not fail the test, while a regression
   # that resolves fewer does.
   #
-  # mueller_synthetic_n$iso3c: 328 rows carried a legacy code matching no
-  # polity, and the other 4,715 carried an ISO3 the package had no label route
-  # for at all.
+  # mueller_synthetic_n$iso3c: 328 rows carried a legacy code matching no polity,
+  # and the other 4,715 carried an ISO3 the package had no label route for at all.
+  # All 5,043 now resolve.
   #
-  # 4,832 of 5,043 resolve against the polities vintage this package currently
-  # embeds. The bound was 4,999 when this was written, and the 167-row difference
-  # is NOT a regression in the resolver -- it is the ambiguity guard firing on an
-  # upstream defect that upstream has since fixed. Five ISO3 families ship a
-  # spanning row alongside the finer split of the same family, so two live
-  # polities cover 2000 and the resolver refuses to pick by row order:
+  # This bound has moved twice and the history is worth keeping, because both
+  # moves were the guard working rather than the resolver regressing. It was 4,999
+  # when written. The #530 re-sync then dropped it to 4,809, because a corrected
+  # polity period and the row it superseded both stayed in the published `polities`
+  # table and both covered 2000, so the ambiguity guard refused to choose --
+  # `CAN-1948-2025` beside `CAN-1949-2025`, and the same shape for BRA, ARG, AGO,
+  # GRC and IRQ. That exposed a real defect: the inference routes were reading
+  # every row of `polities`, including retired and superseded ones, where the
+  # crosswalk build has always filtered them. With that fixed, every one of the
+  # 234 rows resolves, because each had exactly one LIVE candidate all along.
   #
-  #   BRA (54 rows)  BRA-1800-2025 alongside BRA-1909-2025
-  #   ARG (44)       ARG-1800-2025 alongside ARG-1902-2025
-  #   AGO (41)       AGO-1816-2025 alongside AGO-1975-2025
-  #   GRC (39)       GRC-1919-2025 alongside GRC-1947-2025
-  #   IRQ (33)       IRQ-1921-2025 alongside IRQ-1932-2025
-  #
-  # Measured against upstream `main`: every one of the five spanning rows is now
-  # retired or superseded, leaving exactly one live polity covering 2000 in each
-  # family. So the re-sync in #530 lifts this back above 4,999 without touching
-  # the resolver. It stays a lower bound for exactly that reason.
+  # Asserted as a lower bound, so a future vintage that resolves more still passes.
   mueller <- resolve_polity_label(
     whep::mueller_synthetic_n$iso3c,
     source = "mueller-synthetic-n",
     year = 2000L
   )
-  expect_gte(sum(!is.na(mueller)), 4832)
+  expect_gte(sum(!is.na(mueller)), 5043)
 
   # lassaletta_grassland_share$Country was matched by exact string against
   # regions$area_name, which covered 6,370 of 6,909 rows (92.2%). Resolution
