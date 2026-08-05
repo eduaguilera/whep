@@ -1788,7 +1788,10 @@ utils::globalVariables(
     "iso3_code",
     "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
-    "rows"
+    "rows",
+    # polity_folds.R (#546) — deterministic label for a folded reporting bucket
+    "polity_bucket_name",
+    "i.polity_bucket_name"
   )
 )
 

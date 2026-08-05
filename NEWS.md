@@ -1,5 +1,30 @@
 # whep (development version)
 
+* A reporting bucket that folds several territories is now named after the
+  **bucket**, not after whichever member sorted first. `.aggregate_to_polities()`
+  grouped by each row's own `polity_name`, so bucket 206 -- FAOSTAT areas 276
+  Sudan and 277 South Sudan summed into FABIO's Sudan region -- came out as two
+  rows sharing one `area_code` under two `area` labels, and the one that survived
+  downstream was decided by row order. Measured on real FAOSTAT crops/livestock
+  for 2015, bucket 206 held 439 rows, 268 labelled "Sudan" and 171 "South
+  Sudan", and the commodity-balance lookup kept **"South Sudan"** for a bucket
+  that is 78% Sudan by production, contradicting `reporting_polity_name` on the
+  same row. The bucket is now labelled from its own numeric code, the same
+  resolution `reporting_polity_name` uses, so the two agree: bucket 206 reads
+  `"Sudan (1956-2011)"`, the unified Sudan whose extent is Sudan plus South
+  Sudan. The period is still wrong for post-2011 rows and cannot be fixed here --
+  no live polity means "Sudan and South Sudan" (whep#414,
+  lbm364dl/whep-polities#139).
+* That collapse moves a small number of published values, all descending from
+  bucket 206. Because the members used to arrive as separate rows, the
+  non-primary-source mean in `.select_best_source()` averaged Sudan against South
+  Sudan instead of summing them, which is not what a fold means. On a
+  2012-2016 `build_commodity_balances()`, **104 of 407,312 keys change (0.026%)**:
+  35 in bucket 206, at most +15,444 t on one key, and 69 elsewhere reached
+  through trade balancing, at most 2.7 t (0.1%). Global element totals move by at
+  most 2.1e-6 (`export`); `production`, `food` and `seed` do not move at all. Row
+  counts, key sets and column names are unchanged.
+
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement

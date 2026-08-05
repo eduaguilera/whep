@@ -139,9 +139,9 @@ test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
     "Bucket 206"
   )
 
-  # No value moved: the two members keep their own rows and their own values,
-  # and both now sit under bucket code 206.
-  expect_equal(folded$area_code, c(206L, 206L))
+  # One bucket, one row, one label (whep#546 -- before that the two members
+  # came back as two rows carrying their own names under the bucket's code).
+  expect_equal(folded$area_code, 206L)
   expect_equal(sum(folded$value), 3405356)
 
   withr::local_options(whep.warn_polity_folds = FALSE)
@@ -390,4 +390,132 @@ testthat::test_that("folded_reporting_areas() rejects a frame it cannot read", {
     whep::folded_reporting_areas(tibble::tibble(area_code = 1L)),
     "missing"
   )
+})
+
+# A folded bucket's name is a decision, not a sort accident (whep#546) ---------
+
+testthat::test_that("a folded bucket is named after the bucket, not a member", {
+  # BEFORE whep#546 this came back as two rows, "South Sudan" first, because
+  # `.aggregate_to_polities()` grouped by each row's OWN `polity_name` and
+  # `.read_fao_crop_liv()` sorts by `area`. Measured on real FAOSTAT 2015,
+  # bucket 206 held 268 "Sudan" rows and 171 "South Sudan" rows, and
+  # `unique(dt_raw[, .(area_code, area)], by = "area_code")` in build_cbs.R kept
+  # "South Sudan" -- naming a bucket that is 78% Sudan by production after the
+  # smaller successor.
+  sudan <- data.table::data.table(
+    year = c(2015L, 2015L),
+    area_code = c(276L, 277L),
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    item_prod = "Sorghum",
+    value = c(2744000, 661356)
+  )
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      data.table::copy(sudan),
+      item_prod_code,
+      item_prod
+    )
+  )
+
+  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$area_code, 206L)
+  testthat::expect_equal(out$area, "Sudan (1956-2011)")
+  testthat::expect_equal(out$value, 3405356)
+})
+
+testthat::test_that("the bucket label does not depend on input row order", {
+  # The mechanism, isolated: reverse the rows and nothing about the answer may
+  # move. Under the old rule the label flipped between the two members.
+  mk <- function(codes, values) {
+    data.table::data.table(
+      year = 2015L,
+      area_code = codes,
+      element = "production",
+      unit = "t",
+      item_prod_code = "83",
+      item_prod = "Sorghum",
+      value = values
+    )
+  }
+
+  forwards <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      mk(c(276L, 277L), c(2744000, 661356)),
+      item_prod_code,
+      item_prod
+    )
+  )
+  backwards <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      mk(c(277L, 276L), c(661356, 2744000)),
+      item_prod_code,
+      item_prod
+    )
+  )
+
+  testthat::expect_equal(
+    as.data.frame(forwards),
+    as.data.frame(backwards)
+  )
+})
+
+testthat::test_that("the bucket label agrees with reporting_polity_name", {
+  # The two name columns contradicted each other on the same row: `area` said
+  # "South Sudan" while `reporting_polity_name`, resolved from the bucket code,
+  # said "Sudan (1956-2011)". They are now resolved from the same place.
+  sudan <- data.table::data.table(
+    year = 2015L,
+    area_code = c(276L, 277L),
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    item_prod = "Sorghum",
+    value = c(2744000, 661356)
+  )
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      data.table::copy(sudan),
+      item_prod_code,
+      item_prod
+    )
+  ) |>
+    whep:::.add_reporting_polity_columns()
+
+  testthat::expect_equal(out$area, out$reporting_polity_name)
+})
+
+testthat::test_that("an unfolded area keeps the label it always had", {
+  # The rule generalises what every unfolded code already does, so no code
+  # whose bucket is itself may move.
+  spain <- data.table::data.table(
+    year = 2015L,
+    area_code = 203L,
+    element = "production",
+    unit = "t",
+    item_prod_code = "15",
+    item_prod = "Wheat",
+    value = 5000
+  )
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(spain, item_prod_code, item_prod)
+  )
+  testthat::expect_equal(out$area_code, 203L)
+  testthat::expect_equal(out$area, "Spain")
+})
+
+testthat::test_that(".label_polity_buckets falls back to the row's polity", {
+  # No bucket needs this today; it exists so a bucket code that resolves to no
+  # polity stays labelled rather than turning `area` into NA.
+  dt <- data.table::data.table(
+    year = 2015L,
+    polity_area_code = -1L,
+    polity_name = "Somewhere"
+  )
+  out <- whep:::.label_polity_buckets(dt)
+  testthat::expect_equal(out$polity_bucket_name, "Somewhere")
 })

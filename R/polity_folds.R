@@ -126,6 +126,54 @@ polity_bucket_coverage <- function(years = NULL) {
     )
 }
 
+# Name a reporting bucket after the BUCKET, not after one of its members.
+#
+# `.aggregate_to_polities()` sums rows into `polity_area_code` and then renames
+# that pair onto `area_code`/`area`. Until whep#546 the name half came from each
+# row's own `polity_name`, so a bucket folding two live territories emitted one
+# row per member, each carrying the member's name under the bucket's code. The
+# name that then survived downstream was decided by row order:
+# `build_cbs.R`'s `unique(dt_raw[, .(area_code, area)], by = "area_code")` keeps
+# the first row, and `.read_fao_crop_liv()` sorts by `area` first. Measured on
+# real FAOSTAT 2015, bucket 206 held 268 "Sudan" rows and 171 "South Sudan"
+# rows, and "South Sudan" won because "South" sorts before "Sudan" -- naming a
+# bucket that is 78% Sudan by production after the smaller successor.
+#
+# The rule here is the one every unfolded code already follows, and which
+# bucket 999 follows by luck (all 62 Rest-of-World members resolve to the same
+# polity): a bucket carries the name its own numeric code resolves to for that
+# year. That is also exactly what `.add_reporting_polity_columns()` resolves
+# `reporting_polity_name` from, so the two name columns can no longer disagree
+# about which territory the value belongs to.
+#
+# Bucket 206 is the only bucket this moves, and it moves it to
+# "Sudan (1956-2011)" -- the unified Sudan, whose extent IS Sudan plus South
+# Sudan. The period is wrong for post-2011 rows and that is not fixable here:
+# no live polity means "Sudan and South Sudan" -- see whep#414 and upstream
+# issue 139 in lbm364dl/whep-polities. An explicit, documented, wrong-period
+# name beats a right-period name for 22% of the value.
+#
+# Falling back to the row's own polity name keeps a bucket whose code resolves
+# to nothing labelled rather than NA; no bucket needs it today.
+.label_polity_buckets <- function(dt) {
+  keys <- unique(
+    dt[!is.na(polity_area_code), .(area_code = polity_area_code, year)]
+  )
+  labels <- .add_polity_columns_dt(
+    keys,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )[, .(polity_area_code = area_code, year, polity_bucket_name = polity_name)]
+  dt[
+    labels,
+    polity_bucket_name := i.polity_bucket_name,
+    on = c("polity_area_code", "year")
+  ]
+  dt[is.na(polity_bucket_name), polity_bucket_name := polity_name]
+  dt
+}
+
 # Warn where a build has just summed several territories into one bucket whose
 # polity names only part of them. Wired into `.aggregate_to_polities()`, which
 # is where the sum is created; the reporting-column helper runs on ~100 outputs

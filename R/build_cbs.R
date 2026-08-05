@@ -1224,12 +1224,17 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(polity_code)]
 
+  # Same bucket-labelling rule as `.aggregate_to_polities()`, which this
+  # repeats by hand: a folded bucket is named after the bucket, not after
+  # whichever member sorts first (whep#546). Both paths feed joins keyed on
+  # `c("year", "area", "area_code", ...)`, so they must share one vocabulary.
+  dt <- .label_polity_buckets(dt)
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
       "polity_area_code",
-      "polity_name",
+      "polity_bucket_name",
       "item_cbs",
       "item_cbs_code",
       "element"
@@ -1237,7 +1242,7 @@ build_processing_coefs <- function(
   ]
   data.table::setnames(
     dt,
-    c("polity_area_code", "polity_name"),
+    c("polity_area_code", "polity_bucket_name"),
     c("area_code", "area")
   )
   dt

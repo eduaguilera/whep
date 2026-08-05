@@ -326,10 +326,13 @@
   # that covers only part of it (whep#414).
   .warn_partial_bucket_polities(dt)
   .warn_folded_areas(dt, source_label)
+  # Label the bucket after the bucket, not after whichever member happens to
+  # sort first (whep#546). See `.label_polity_buckets()`.
+  dt <- .label_polity_buckets(dt)
   by_cols <- c(
     "year",
     "polity_area_code",
-    "polity_name",
+    "polity_bucket_name",
     "unit",
     "element",
     dots
@@ -347,7 +350,7 @@
 
   data.table::setnames(
     dt,
-    c("polity_area_code", "polity_name"),
+    c("polity_area_code", "polity_bucket_name"),
     c("area_code", "area")
   )
   dt

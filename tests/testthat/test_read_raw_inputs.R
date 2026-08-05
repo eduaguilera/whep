@@ -102,3 +102,34 @@ test_that("a bucket comes out of the aggregator under exactly one area label", {
   # precisely why it is not sufficient on its own.
   expect_equal(sum(out$value), sum(raw$value))
 })
+
+test_that("the one-label invariant holds for the bucket that broke it", {
+  # The guard above uses bucket 999, whose 62 members all resolve to
+  # `ROW-1850-2025` -- so it passed even while bucket 206 was violating the
+  # invariant on every real build. Areas 276 Sudan and 277 South Sudan both
+  # carry `polity_area_code` 206 but resolve to DIFFERENT polities, so before
+  # whep#546 the aggregator emitted two rows under code 206, labelled "Sudan"
+  # and "South Sudan". Measured on real `.read_fao_crop_liv(years = 2015)`:
+  # 439 rows in bucket 206 under two labels, 268 / 171.
+  raw <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element,     ~unit, ~value,
+    2015L, 276L,       2511,           "production", "t",   5312,
+    2015L, 277L,       2511,           "production", "t",   1488,
+    2015L, 203L,       2511,           "production", "t",   7
+  )
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      data.table::as.data.table(raw),
+      item_cbs_code
+    )
+  )
+
+  labels_per_code <- tapply(out$area, out$area_code, function(x) {
+    length(unique(x))
+  })
+  expect_true(all(labels_per_code == 1L))
+  expect_equal(nrow(out[out$area_code == 206L, ]), 1L)
+  expect_equal(sum(out$value[out$area_code == 206L]), 6800)
+  expect_equal(sum(out$value), sum(raw$value))
+})
