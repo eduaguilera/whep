@@ -106,7 +106,7 @@ folded_reporting_areas <- function(crosswalk = NULL) {
 #
 # `folded_reporting_areas()` lists which areas the crosswalk folds; this says
 # which of them carried data in the source being aggregated, and how much. That
-# is the number the fold hides: the crosswalk names 65 folds, but only a handful
+# is the number the fold hides: the crosswalk names 64 folded areas, but only 14
 # of them have anything to fold, and until this warned nothing in a build
 # distinguished the two. Warn rather than inform, because the whole defect is
 # that the attribution was reportable and unreported.
