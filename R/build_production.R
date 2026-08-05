@@ -394,7 +394,12 @@ build_primary_production <- function(
     data.table::setnames(dt, "Flag", "fao_flag")
   }
   dt[, item_prod_code := as.character(item_prod_code)]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production"
+  )
   data.table::setorderv(
     dt,
     c(
@@ -625,7 +630,12 @@ build_primary_production <- function(
     unit = "t",
     item_prod_code = as.character(item_prod_code)
   )]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production-old"
+  )
   dt <- merge(
     dt,
     items_prod[, .(item_prod_code, item_cbs)],
@@ -998,7 +1008,12 @@ build_primary_production <- function(
   if ("Source" %in% names(dt)) {
     dt <- dt[Source == "FAO TIER 1"]
   }
-  .aggregate_to_polities(dt, item_cbs_code, item_cbs)
+  .aggregate_to_polities(
+    dt,
+    item_cbs_code,
+    item_cbs,
+    source_label = "faostat-emissions-livestock"
+  )
 }
 
 .combine_livestock <- function(
