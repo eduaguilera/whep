@@ -96,18 +96,49 @@
 # while the areas whose map span stops earlier (51 Czechoslovakia 1993, 186
 # Serbia and Montenegro 2006, 248 Yugoslav SFR 1992) no longer answer for a year
 # their polity had already ended in.
-.polity_join_end_year <- function(polity_end_year, map_year_end) {
+.polity_join_end_year <- function(polity_end_year, map_year_end, is_open) {
   territorial <- data.table::fifelse(
     is.na(polity_end_year),
     Inf,
     as.numeric(polity_end_year)
   )
+  # EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT THE OPEN END.
+  #
+  # A boundary between two epochs belongs to the successor, which is what the
+  # exclusive reading buys. But a still-open interval has nothing after it, so
+  # there is no double-count to prevent and excluding its terminal year simply
+  # deletes a year. Measured on the shipped snapshot: 227 live polities end at
+  # 2025 and a strictly exclusive rule left NONE of them covering 2025, so every
+  # current-year row degraded from `matched` to `out_of_span` -- resolved only by
+  # the nearest-period fallback, which is the pathology this epic removes.
+  #
+  # Openness is detected by ABSENCE OF A SUCCESSOR, not by comparing the end year
+  # to the table maximum. The year test re-introduces the double-count for any
+  # polity whose last interval ends at the maximum AND has a successor, and the
+  # maximum itself moves (#530 took the table from 740 rows to 749). Measured:
+  # 244 live polities have no successor, 227 of them end at 2025, and ZERO live
+  # polities ending at 2025 have one -- so the two agree today and the successor
+  # test is the one that keeps agreeing.
+  # `fifelse()` will not recycle its test, so a scalar `is_open` (which is what a
+  # caller testing one period naturally passes) has to be widened here.
+  is_open <- rep_len(as.logical(is_open), length(territorial))
+  territorial <- data.table::fifelse(is_open, territorial + 1, territorial)
   reported <- data.table::fifelse(
     is.na(map_year_end),
     -Inf,
     as.numeric(map_year_end) + 1
   )
   pmax(territorial, reported)
+}
+
+# Which polity codes upstream declares nothing succeeds. Read from `polities`
+# rather than the crosswalk because succession is a fact about the polity, and
+# the crosswalk does not carry the relation.
+.open_polity_codes <- function() {
+  p <- polities
+  succ <- p$successor
+  open <- is.na(succ) | !nzchar(trimws(succ))
+  unique(p$polity_code[open])
 }
 
 .add_polity_columns_dt <- function(
@@ -169,7 +200,11 @@
           -Inf,
           as.numeric(polity_start_year)
         ),
-        .polity_join_end_year(polity_end_year, get("map_year_end")),
+        .polity_join_end_year(
+          polity_end_year,
+          get("map_year_end"),
+          polity_code %in% .open_polity_codes()
+        ),
         area_name,
         area_iso3c,
         polity_area_code,

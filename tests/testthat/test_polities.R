@@ -246,10 +246,56 @@ test_that(".polity_join_end_year widens only to a later reported year", {
   expect_equal(
     whep:::.polity_join_end_year(
       c(1993L, 1999L, 2025L, NA, 1993L),
-      c(1992L, 1999L, 2023L, 2000L, NA)
+      c(1992L, 1999L, 2023L, 2000L, NA),
+      is_open = FALSE
     ),
     c(1993, 2000, 2025, Inf, 1993)
   )
+})
+
+test_that("a still-open period covers its terminal year, a succeeded one does not", {
+  # EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT THE OPEN END.
+  #
+  # A strictly exclusive reading deletes the current year: all 227 live polities
+  # that end at 2025 stop covering 2025, so every present-day row degrades from
+  # `matched` to `out_of_span` and is resolved by the nearest-period fallback
+  # instead of by a real period. A succeeded period must still yield its terminal
+  # year to its successor, which is the whole point of the exclusive bound.
+  expect_equal(
+    whep:::.polity_join_end_year(2025L, NA_integer_, is_open = TRUE),
+    2026
+  )
+  expect_equal(
+    whep:::.polity_join_end_year(1993L, NA_integer_, is_open = FALSE),
+    1993
+  )
+
+  # Openness is ABSENCE OF A SUCCESSOR, not `end_year == max(end_year)`. The year
+  # test breaks for any polity whose last interval ends at the maximum and has a
+  # successor, and the maximum moves with every upstream re-sync. Measured on the
+  # shipped snapshot: no live polity ending at 2025 carries a successor, so the
+  # two agree today -- this pins the reason they will keep agreeing.
+  p <- as.data.frame(whep::polities)
+  live <- is.na(p$wiki_status) | !p$wiki_status %in% c("retired", "superseded")
+  ends_at_max <- live &
+    !is.na(p$end_year) &
+    p$end_year == max(p$end_year, na.rm = TRUE)
+  has_successor <- !is.na(p$successor) & nzchar(trimws(p$successor))
+  expect_equal(sum(ends_at_max & has_successor), 0L)
+  expect_true(all(p$polity_code[ends_at_max] %in% whep:::.open_polity_codes()))
+
+  # End to end: the current year resolves as a real period hit, while a
+  # succession boundary belongs to the successor.
+  now <- tibble::tibble(area_code = c(203L, 229L), year = 2025L) |>
+    add_polity_code()
+  expect_true(all(now$mapping_status == "matched"))
+
+  handover <- tibble::tibble(
+    area_code = c(51L, 248L, 186L),
+    year = c(1993L, 1992L, 2006L)
+  ) |>
+    add_polity_code()
+  expect_true(all(handover$mapping_status == "out_of_span"))
 })
 
 test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {
