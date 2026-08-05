@@ -8,7 +8,7 @@ test_that("residue destinies conserve mass and stay non-negative (both methods)"
     item_prod_code = c("15", "56", "176"),
     residue_dm_t = c(80, 120, 30),
     region_krausmann = "West Europe",
-    region_hanpp = "Western Europe",
+    region_un_sub = "Western Europe",
     year = 1980
   )
   for (m in c("krausmann_regional", "shares")) {

@@ -3,7 +3,7 @@ test_that("krausmann_regional split is mass-conserving and feeds livestock", {
     item_prod_code = "15",
     residue_dm_t = 100,
     region_krausmann = "West Europe",
-    region_hanpp = "Western Europe"
+    region_un_sub = "Western Europe"
   )
   out <- whep::calculate_residue_destinies(x)
   testthat::expect_equal(
@@ -53,7 +53,7 @@ test_that("calculate_residue_destinies conserves mass with an unmatched region",
     item_prod_code = "15",
     residue_dm_t = 100,
     region_krausmann = "Nowhere",
-    region_hanpp = "Nowhere"
+    region_un_sub = "Nowhere"
   ))
   testthat::expect_equal(
     out$residue_feed_dm_t + out$residue_burn_dm_t + out$residue_soil_dm_t,
@@ -86,7 +86,7 @@ test_that("krausmann split accepts regions_full recovery labels", {
     item_prod_code = "15",
     residue_dm_t = 100,
     region_krausmann = "Western Europe",
-    region_hanpp = "Western Europe"
+    region_un_sub = "Western Europe"
   ))
   testthat::expect_gt(out$residue_feed_dm_t, 0)
   testthat::expect_gt(out$residue_burn_dm_t, 0)

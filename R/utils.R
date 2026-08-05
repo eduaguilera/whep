@@ -219,6 +219,7 @@ utils::globalVariables(
     ".bnf_row",
     # residue_destiny.R
     "region_krausmann",
+    "region_un_sub",
     "cat_krausmann",
     "Cat_Krausmann",
     "recovery_rates",
