@@ -3,6 +3,10 @@ harmonization_dir <- here::here("inst", "extdata", "harmonization")
 # Excel exports use #N/A, #DIV/0!, and #REF! for missing/error cells
 excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 
+# repair_table_labels(): shared with table_mappings.R, which re-reads the same
+# vendored regions_full.csv to build the crosswalk.
+source("data-raw/_labels.R")
+
 # Guard against non-unique join keys and duplicate rows in mapping tables.
 # A non-unique key silently fans out downstream joins; duplicate rows
 # double-count. Fail loudly at build time so bad data never ships.
@@ -28,7 +32,8 @@ excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 # Direct reads ----------------------------------------------------------------
 
 regions_full <- file.path(harmonization_dir, "regions_full.csv") |>
-  readr::read_csv(show_col_types = FALSE, na = excel_na)
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  repair_table_labels()
 
 items_full <- file.path(harmonization_dir, "items_full.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
@@ -44,7 +49,8 @@ cbs_trade_codes <- file.path(harmonization_dir, "cbs_trade_codes.csv") |>
 
 polities_cats <- file.path(harmonization_dir, "polities_cats.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
-  dplyr::select(!dplyr::starts_with("0..."))
+  dplyr::select(!dplyr::starts_with("0...")) |>
+  repair_table_labels()
 
 if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))

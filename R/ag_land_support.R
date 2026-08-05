@@ -72,7 +72,9 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
-#'   `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`.
+#'   `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_ag_land_support(example = TRUE)
@@ -96,7 +98,8 @@ build_ag_land_support <- function(
   .als_finalise(
     cropland,
     .als_grassland_support(data, cell_polity, cropland, grassland)
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Cropland support ------------------------------------------------------
@@ -432,5 +435,6 @@ build_ag_land_support <- function(
     2010L,
     "grassland",
     1581.24
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

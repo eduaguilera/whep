@@ -202,56 +202,82 @@ test_that(".luh2_nc_years defaults to calendar years 850..end, not indices", {
   testthat::expect_false(any(yrs < 850L))
 })
 
-test_that("the pin is the primary states source, not the local directory", {
-  # Issue #457: WHEP_LUH2_DIR may point at any of the v2h trees in circulation,
-  # so the pin (which names its vintage) must win whenever it is readable.
+# Record which nc path each source dispatch resolved to, without reading it.
+.luh2_mock_nc_reader <- function() {
   testthat::local_mocked_bindings(
-    .luh2_states_dir = function() "/local/tree",
-    .luh2_read_states_local = function(years = NULL) {
-      stop("the local tree must not be read while the pin is readable")
+    .luh2_read_states_nc = function(nc_path, years = NULL, origin = "local") {
+      tibble::tibble(nc_path = nc_path, origin = origin, year = years)
     },
-    .luh2_read_states = function(years = NULL) {
-      tibble::tibble(origin = "pin", year = years)
+    .package = "whep",
+    .env = parent.frame()
+  )
+}
+
+test_that("a local tree is preferred over a 6.7 GB download", {
+  # Issue #457: the Zenodo payload is byte-identical to what a local tree holds,
+  # so there is nothing to gain from re-fetching 6.7 GB when the file is present.
+  states_dir <- withr::local_tempdir()
+  file.create(file.path(states_dir, "states.nc"))
+  .luh2_mock_nc_reader()
+  testthat::local_mocked_bindings(
+    .luh2_states_dir = function() states_dir,
+    .luh2_zenodo_states = function(...) {
+      stop("Zenodo must not be reached while a local tree exists")
     },
     .package = "whep"
   )
 
   out <- whep:::.luh2_read_states_source(years = 1750L)
-  testthat::expect_equal(out$origin, "pin")
+  testthat::expect_equal(out$origin, "local")
+  testthat::expect_equal(out$nc_path, file.path(states_dir, "states.nc"))
 })
 
-test_that("states_source = 'local' skips the pin outright", {
+test_that("states_source = 'zenodo' ignores a local tree", {
+  # The reproducibility lever: insist on the checksum-verified reference vintage
+  # even when WHEP_LUH2_DIR holds something.
+  states_dir <- withr::local_tempdir()
+  file.create(file.path(states_dir, "states.nc"))
+  .luh2_mock_nc_reader()
   testthat::local_mocked_bindings(
-    .luh2_read_states = function(years = NULL) {
-      stop("the pin must not be fetched when the local tree was asked for")
-    },
-    .luh2_read_states_local = function(years = NULL) {
-      tibble::tibble(origin = "local", year = years)
-    },
+    .luh2_states_dir = function() states_dir,
+    .luh2_zenodo_states = function(...) "/cache/states.nc",
     .package = "whep"
   )
 
   out <- whep:::.luh2_read_states_source(
     years = 1750L,
-    states_source = "local"
+    states_source = "zenodo"
   )
-  testthat::expect_equal(out$origin, "local")
+  testthat::expect_equal(out$origin, "zenodo")
+  testthat::expect_equal(out$nc_path, "/cache/states.nc")
 })
 
-test_that("an unreadable pin falls back to the local directory with a warning", {
+test_that("auto downloads from Zenodo when there is no local tree", {
+  .luh2_mock_nc_reader()
   testthat::local_mocked_bindings(
-    .luh2_read_states = function(years = NULL) stop("board unreachable"),
-    .luh2_read_states_local = function(years = NULL) {
-      tibble::tibble(origin = "local", year = years)
+    .luh2_states_dir = function() "",
+    .luh2_zenodo_states = function(...) "/cache/states.nc",
+    .package = "whep"
+  )
+
+  out <- whep:::.luh2_read_states_source(years = 1750L)
+  testthat::expect_equal(out$origin, "zenodo")
+})
+
+test_that("states_source = 'local' aborts rather than downloading", {
+  .luh2_mock_nc_reader()
+  testthat::local_mocked_bindings(
+    .luh2_states_dir = function() "",
+    .luh2_zenodo_states = function(...) {
+      stop("Zenodo must not be reached when the local tree was asked for")
     },
     .package = "whep"
   )
 
-  testthat::expect_warning(
-    out <- whep:::.luh2_read_states_source(years = 1750L),
-    "Falling back"
+  testthat::expect_error(
+    whep:::.luh2_read_states_source(years = 1750L, states_source = "local"),
+    "No local LUH2 states tree"
   )
-  testthat::expect_equal(out$origin, "local")
 })
 
 test_that("an unset LUH2 directory cannot select a current-directory file", {
@@ -260,21 +286,137 @@ test_that("an unset LUH2 directory cannot select a current-directory file", {
   file.create("states.nc")
   testthat::local_mocked_bindings(
     .luh2_states_dir = function() "",
-    .luh2_read_states_nc = function(...) {
-      stop("current-directory states.nc must not be read")
-    },
     .package = "whep"
   )
 
-  testthat::expect_error(
-    whep:::.luh2_read_states_local(years = 1750L),
-    "No LUH2 v2h states source"
+  testthat::expect_null(whep:::.luh2_local_states_nc())
+})
+
+# ---- Zenodo cache ----------------------------------------------------------
+
+test_that("a cached states.nc of the published size is not re-downloaded", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+  writeBin(raw(1L), path)
+  # stand in for the 6.7 GB payload: claim its size rather than allocating it
+  testthat::local_mocked_bindings(
+    .luh2_states_bytes = function() 1,
+    .package = "whep"
   )
+
+  out <- whep:::.luh2_zenodo_states(
+    dir = dir,
+    download = function(...) stop("a full cache must not re-download")
+  )
+  testthat::expect_equal(out, path)
+})
+
+test_that("a truncated cached file is re-downloaded, not read", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+  writeBin(raw(2L), path)
+  testthat::local_mocked_bindings(
+    .luh2_states_bytes = function() 100,
+    .package = "whep"
+  )
+
+  called <- FALSE
+  out <- whep:::.luh2_zenodo_states(
+    dir = dir,
+    download = function(p) {
+      called <<- TRUE
+      p
+    }
+  )
+  testthat::expect_true(called)
+  testthat::expect_equal(out, path)
+})
+
+test_that("a download that fails its MD5 is deleted, not kept", {
+  # A kept mismatching file of the right size would pass the cheap size check
+  # forever after, so verification must remove it.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+  writeBin(as.raw(1:4), path)
+
+  testthat::expect_error(
+    whep:::.luh2_verify_download(path, 0L),
+    "does not match the published MD5"
+  )
+  testthat::expect_false(file.exists(path))
+})
+
+test_that("a download error is reported with the manual instruction", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+
+  testthat::expect_error(
+    whep:::.luh2_verify_download(path, simpleError("host unreachable")),
+    "host unreachable"
+  )
+})
+
+test_that("the download lifts R's timeout entirely, then restores it", {
+  # R's default download timeout is 60 s: a 6.7 GB fetch cannot finish inside
+  # that, and any finite replacement is a guess about someone else's bandwidth.
+  # 0 disables the timeout in libcurl (verified: a 75 s drip completes under 0
+  # and is cut off at exactly 60.0 s under 60), so it must be exactly 0 here --
+  # max(old, 0) would silently leave the 60 s default in place.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+  withr::local_options(timeout = 60)
+  seen <- NULL
+
+  testthat::expect_error(
+    whep:::.luh2_download_states(
+      path,
+      fetch = function(p) {
+        seen <<- getOption("timeout")
+        writeBin(as.raw(1:4), p)
+        0L
+      }
+    ),
+    "does not match the published MD5"
+  )
+  testthat::expect_identical(seen, 0L)
+  testthat::expect_equal(getOption("timeout"), 60)
+})
+
+test_that("a matching download passes verification", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "states.nc")
+  writeBin(as.raw(1:4), path)
+  digest <- unname(tools::md5sum(path))
+  testthat::local_mocked_bindings(
+    .luh2_states_md5 = function() digest,
+    .package = "whep"
+  )
+
+  testthat::expect_equal(whep:::.luh2_verify_download(path, 0L), path)
+  testthat::expect_true(file.exists(path))
+})
+
+test_that("the published Zenodo identifiers are the ones that were verified", {
+  # These three constants are the whole provenance guarantee; a silent edit to
+  # any of them would let a different product through as the reference vintage.
+  testthat::expect_equal(
+    whep:::.luh2_states_md5(),
+    "411ef3d657c3108942954c895f658a17"
+  )
+  testthat::expect_equal(whep:::.luh2_states_bytes(), 6657587367)
+  testthat::expect_equal(whep:::.luh2_states_doi(), "10.5281/zenodo.15556812")
+  testthat::expect_match(whep:::.luh2_states_url(), "records/15556812")
+})
+
+test_that("the retired luh2_v2h_states pin is no longer registered", {
+  # Issue #457: the pin was a byte-identical, unversioned mirror of the Zenodo
+  # asset. Leaving the row behind would keep a second acquisition path alive.
+  testthat::expect_false("luh2_v2h_states" %in% whep::whep_inputs$alias)
 })
 
 # Build a tiny synthetic LUH2 v2h states.nc (native grid, one time slice = year
 # 850) carrying the 12 state fractions, so the real NetCDF parser and class
-# mapper can be smoke-tested on CI without the ~6.6 GB luh2_v2h_states pin.
+# mapper can be smoke-tested on CI without the 6.7 GB real states.nc.
 # `global_attrs` writes the CF global attributes the vintage is read from.
 .luh2_fixture_states_nc <- function(
   global_attrs = list(source_id = "UofMD-landState-LUH2-GCB2022")
@@ -365,50 +507,6 @@ test_that("states.nc parser reads a synthetic file and maps 12 states to 4 class
   testthat::expect_equal(max(crop), fx$cropland, tolerance = 1e-6)
 })
 
-test_that("the pin is fetched as a NetCDF path, not as a table", {
-  # Issue #457: the payload is one .nc member, so the pin reader asked for the
-  # default type = "parquet" and aborted with "this input has no parquet file".
-  fx <- .luh2_fixture_states_nc()
-  asked <- NULL
-  testthat::local_mocked_bindings(
-    whep_read_file = function(file_alias, type = "parquet", ...) {
-      asked <<- c(asked, type)
-      if (type != "nc") {
-        cli::cli_abort("This input has no {.val {type}} file.")
-      }
-      fx$path
-    },
-    .package = "whep"
-  )
-
-  states <- whep:::.luh2_read_states(years = fx$year)
-  testthat::expect_equal(asked, "nc")
-  pointblank::expect_col_exists(
-    states,
-    c("lon", "lat", "year", "land_use", "fraction")
-  )
-  testthat::expect_true(all(states$year == fx$year))
-})
-
-test_that("a tidy tabular payload is still decoded", {
-  # A future re-upload as a tidy parquet must need no reader change, so the
-  # tabular decoder stays reachable when the pin has no NetCDF member.
-  raw <- .luh2_raw_fixture()
-  testthat::local_mocked_bindings(
-    whep_read_file = function(file_alias, type = "parquet", ...) {
-      if (type == "nc") {
-        cli::cli_abort("This input has no {.val nc} file.")
-      }
-      raw
-    },
-    .package = "whep"
-  )
-
-  states <- whep:::.luh2_read_states(years = 1750L)
-  testthat::expect_true(all(states$year == 1750L))
-  testthat::expect_setequal(unique(states$land_use), unique(raw$land_use))
-})
-
 test_that("the LUH2 vintage read is recorded on the result", {
   # Issue #457: the base v2h release (850-2015) and the Global Carbon Budget
   # variants (850-2022) are different products, so a result must say which one
@@ -417,7 +515,7 @@ test_that("the LUH2 vintage read is recorded on the result", {
   states <- whep:::.luh2_read_states_nc(
     fx$path,
     years = fx$year,
-    origin = "pin"
+    origin = "zenodo"
   )
   prov <- whep::get_provenance(states)
 
@@ -425,16 +523,13 @@ test_that("the LUH2 vintage read is recorded on the result", {
     prov,
     c("input_alias", "input_version", "input_origin", "input_source_id")
   )
-  testthat::expect_equal(prov$input_alias, "luh2_v2h_states")
+  testthat::expect_equal(prov$input_alias, "luh2_states")
   testthat::expect_equal(prov$input_source_id, "UofMD-landState-LUH2-GCB2022")
-  testthat::expect_equal(prov$input_origin, "pin")
+  testthat::expect_equal(prov$input_origin, "zenodo")
   testthat::expect_equal(prov$input_first_year, 850L)
   testthat::expect_equal(prov$input_last_year, 850L)
-  # the pinned version is only claimed when the pin was what was read
-  registered <- whep::whep_inputs |>
-    dplyr::filter(alias == "luh2_v2h_states") |>
-    dplyr::pull(version)
-  testthat::expect_equal(prov$input_version, registered)
+  # the Zenodo record is only claimed when the verified download was the source
+  testthat::expect_equal(prov$input_version, "10.5281/zenodo.15556812")
 
   local_read <- whep:::.luh2_read_states_nc(fx$path, years = fx$year)
   local_prov <- whep::get_provenance(local_read)
@@ -459,7 +554,7 @@ test_that("read_luh2_landuse carries the vintage through to its output", {
   fx <- .luh2_fixture_states_nc()
   testthat::local_mocked_bindings(
     .luh2_read_states_source = function(years = NULL, ...) {
-      whep:::.luh2_read_states_nc(fx$path, years = years, origin = "pin")
+      whep:::.luh2_read_states_nc(fx$path, years = years, origin = "zenodo")
     },
     .luh2_read_country_grid = function() {
       tibble::tibble(
@@ -488,54 +583,51 @@ test_that("read_luh2_landuse carries the vintage through to its output", {
   testthat::expect_null(whep::get_provenance(plain))
 })
 
-test_that("real pin smoke test (skipped when unreadable)", {
-  # The luh2_v2h_states pin is the ~6.6 GB LUH2 states product. On CI there is
-  # no warm cache, so reading it downloads the whole file and hangs the check
-  # (the tryCatch below only guards against an *error*, not a slow download).
+test_that("real Zenodo cache smoke test (skipped when not populated)", {
+  # 6.7 GB: never download during a test run. Only assert against a cache that
+  # some earlier real run already filled.
   testthat::skip_on_ci()
-  states <- tryCatch(
-    whep:::.luh2_read_states(years = 1750L),
-    error = function(e) NULL
+  cached <- file.path(whep:::.luh2_cache_dir(), "states.nc")
+  testthat::skip_if(
+    !file.exists(cached),
+    "LUH2 Zenodo cache not populated"
   )
-  testthat::skip_if(is.null(states), "luh2_v2h_states pin not readable")
-  # the pinned payload is the Global Carbon Budget vintage, 850-2022
-  prov <- whep::get_provenance(states)
-  testthat::expect_equal(prov$input_origin, "pin")
-  testthat::expect_true(!is.na(prov$input_source_id))
-  cat("\nLUH2 pin vintage:", prov$input_source_id, "\n")
-  cat(
-    "\nLUH2 states found:",
-    paste(sort(unique(states$land_use)), collapse = ", "),
-    "\n"
+  testthat::expect_true(whep:::.luh2_cached_size_ok(cached))
+  testthat::expect_equal(
+    whep:::.luh2_nc_source_id(cached),
+    whep:::.luh2_reference_source_id()
   )
-  print(utils::head(as.data.frame(states)))
-  pointblank::expect_col_exists(
-    states,
-    c("lon", "lat", "year", "land_use", "fraction")
+  # the cache is only ever written after an MD5 match, so it must still match
+  testthat::expect_equal(
+    unname(tools::md5sum(cached)),
+    whep:::.luh2_states_md5()
   )
 })
 
-# ---- Real local states.nc smoke test ---------------------------------------
-.luh2_local_states_nc <- function() {
-  file.path(
-    Sys.getenv("WHEP_LUH2_DIR", ""),
-    "states.nc"
-  )
+# ---- Real states.nc smoke test ---------------------------------------------
+# The real grid from wherever this machine has it: a WHEP_LUH2_DIR tree if one is
+# set, else the populated Zenodo cache. Resolving both matters because the
+# canonical home is now the cache, so keying these plausibility checks on the env
+# var alone would silently stop exercising them.
+.luh2_test_states_path <- function() {
+  local_nc <- file.path(Sys.getenv("WHEP_LUH2_DIR", ""), "states.nc")
+  if (nzchar(Sys.getenv("WHEP_LUH2_DIR")) && file.exists(local_nc)) {
+    return(local_nc)
+  }
+  file.path(whep:::.luh2_cache_dir(), "states.nc")
 }
 
-test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", {
+test_that("the real states.nc reads at 0.5 deg with plausible year-2000 land use", {
   testthat::skip_if(
-    !file.exists(.luh2_local_states_nc()),
-    "local LUH2 states.nc not present"
+    !file.exists(.luh2_test_states_path()),
+    "no real LUH2 states.nc present"
   )
-  # ask for the LOCAL states outright: the pin is now the primary source, so
-  # calling read_luh2_landuse() bare would exercise the pin, not this file.
-  out <- whep::read_luh2_landuse(
-    resolution = "grid",
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 2000L)
+  local_states <- whep:::.luh2_read_states_nc(
+    .luh2_test_states_path(),
     years = 2000L,
-    states_source = "local"
+    origin = "local"
   )
-  local_states <- whep:::.luh2_read_states_local(years = 2000L)
 
   # 0.5-degree grid on the standard 0.5 centres
   testthat::expect_true(all(out$year == 2000L))
@@ -592,43 +684,49 @@ test_that("local states.nc reads at 0.5 deg with plausible year-2000 land use", 
   testthat::expect_true(gland > 12 && gland < 14)
 })
 
-test_that("local states.nc is readable for 1750", {
+test_that("the real states.nc is readable for 1750", {
   testthat::skip_if(
-    !file.exists(.luh2_local_states_nc()),
-    "local LUH2 states.nc not present"
+    !file.exists(.luh2_test_states_path()),
+    "no real LUH2 states.nc present"
   )
-  out <- whep::read_luh2_landuse(
-    resolution = "grid",
-    years = 1750L,
-    states_source = "local"
-  )
+  out <- whep::read_luh2_landuse(resolution = "grid", years = 1750L)
   testthat::expect_true(all(out$year == 1750L))
   testthat::expect_true(nrow(out) > 0L)
-  testthat::expect_equal(whep::get_provenance(out)$input_origin, "local")
+  testthat::expect_true(
+    whep::get_provenance(out)$input_origin %in% c("local", "zenodo")
+  )
 })
 
-test_that("the pin and a same-vintage local tree agree exactly", {
-  # Issue #457: the pin can only replace the local workaround if it decodes to
-  # the same grid. Only meaningful when WHEP_LUH2_DIR holds the pinned vintage.
+test_that("the real reference states.nc matches its published MD5", {
+  # Issue #457: the retired pin was byte-identical to the Zenodo asset. That is
+  # what makes the published MD5 usable as the vintage check rather than a
+  # recorded claim -- assert it against the real file when one is present.
   testthat::skip_on_ci()
+  real_nc <- .luh2_test_states_path()
+  testthat::skip_if(!file.exists(real_nc), "no real LUH2 states.nc present")
   testthat::skip_if(
-    !file.exists(.luh2_local_states_nc()),
-    "local LUH2 states.nc not present"
-  )
-  pinned <- tryCatch(
-    whep:::.luh2_read_states(years = 2000L),
-    error = function(e) NULL
-  )
-  testthat::skip_if(is.null(pinned), "luh2_v2h_states pin not readable")
-  local_states <- whep:::.luh2_read_states_local(years = 2000L)
-  testthat::skip_if(
-    whep::get_provenance(pinned)$input_source_id !=
-      whep::get_provenance(local_states)$input_source_id,
-    "WHEP_LUH2_DIR holds a different LUH2 vintage than the pin"
+    whep:::.luh2_nc_source_id(real_nc) != whep:::.luh2_reference_source_id(),
+    "the real states.nc is a different LUH2 vintage than the reference"
   )
 
+  testthat::expect_equal(file.size(real_nc), whep:::.luh2_states_bytes())
   testthat::expect_equal(
-    pinned |> whep::attach_provenance(NULL),
-    local_states |> whep::attach_provenance(NULL)
+    unname(tools::md5sum(real_nc)),
+    whep:::.luh2_states_md5()
+  )
+})
+
+test_that("an off-vintage local tree warns instead of passing silently", {
+  fx <- .luh2_fixture_states_nc(
+    global_attrs = list(source_id = "LUH2 v2h")
+  )
+  testthat::expect_warning(
+    whep:::.luh2_read_states_nc(fx$path, years = fx$year, origin = "local"),
+    "not the reference vintage"
+  )
+  # the reference vintage, and any non-local origin, stay quiet
+  ref <- .luh2_fixture_states_nc()
+  testthat::expect_no_warning(
+    whep:::.luh2_read_states_nc(ref$path, years = ref$year, origin = "local")
   )
 })

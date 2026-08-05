@@ -70,7 +70,9 @@
 #'   set with a `water` suffix, plus `critical_gw_kgn_ha`, `critical_sw_kgn_ha`
 #'   and `binding_water_medium`), `binding_boundary`, and the `nh3_source` /
 #'   `method_boundary` stamps. For the aggregate resolutions, the grouping key
-#'   with the summed per-medium mass terms and the same stamps.
+#'   with the summed per-medium mass terms and the same stamps. Every grain also
+#'   carries the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_pathway_exceedance(example = TRUE)
@@ -95,7 +97,8 @@ build_n_pathway_exceedance <- function(
     .npb_water() |>
     .npb_binding() |>
     .npb_stamp(nh3_source) |>
-    .npb_resolve(resolution)
+    .npb_resolve(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------

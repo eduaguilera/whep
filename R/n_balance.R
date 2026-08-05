@@ -126,7 +126,9 @@
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-#'   `method_soil_n2o`/`method_leaching` provenance columns.
+#'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_nitrogen_balance(example = TRUE)
@@ -169,7 +171,8 @@ build_nitrogen_balance <- function(
     .nb_indicators_pass1() |>
     .nb_cap_som() |>
     .nb_indicators_pass2(m, data, key, gwp) |>
-    .nb_finalise()
+    .nb_finalise() |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: method validation ----------------------------------
@@ -899,5 +902,6 @@ build_nitrogen_balance <- function(
     "manner",
     "ipcc2019",
     "meisinger_drainage"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

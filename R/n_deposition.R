@@ -75,7 +75,9 @@ read_n_deposition <- function(
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`,
-#'   `deposition_kgn_ha`, `deposition_n_t` and `method_deposition`.
+#'   `deposition_kgn_ha`, `deposition_n_t` and `method_deposition`, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_deposition(example = TRUE)
@@ -92,7 +94,8 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
     "cell_polity",
     c("area_code", "polity_frac", "cell_area_ha")
   )
-  .nd_assemble(nhx, noy, polity)
+  .nd_assemble(nhx, noy, polity) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -225,5 +228,6 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
     ~lon, ~lat, ~area_code, ~year, ~deposition_kgn_ha, ~deposition_n_t,
     ~method_deposition,
     -0.25, -0.25, 1L, 2020L, 15, 46.2, "hani"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
