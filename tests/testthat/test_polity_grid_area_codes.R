@@ -7,9 +7,16 @@
 #
 # These tests pin the corrected mapping for all nine, and pin the invariant that
 # makes the correction safe: `polity_area_code` is the numeric FABIO aggregation
-# bucket and it is NOT what changed. Un-folding at the numeric level inflates
-# global feed 13.7x (whep#419), so a future change that "fixes" the fold by
-# promoting these areas to their own bucket must fail here rather than ship.
+# bucket and it is NOT what changed. A future change that "fixes" the fold by
+# promoting these areas to their own bucket must fail here rather than ship,
+# because that is a separate modelling decision about FABIO matrix comparability
+# and not something to arrive at as a side effect of relabelling.
+#
+# Not, note, because promoting them is arithmetically catastrophic. Earlier
+# revisions of this comment cited whep#419's 13.7x inflation of global feed; two
+# full-range `get_wide_cbs()` builds (PR #555) put it at 1.0000 for feed, with the
+# largest column move 1.2% on `stock_addition`. The 13.7x came from a baseline
+# corrupted by the `dcast()` duplicate-key fallback (#425, fixed by #429).
 
 test_that("grid countries with their own polity are not identified as ROW", {
   # All five have a real dedicated polity in `polities` covering the reported

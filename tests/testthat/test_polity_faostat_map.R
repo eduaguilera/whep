@@ -170,8 +170,17 @@ testthat::test_that("the Rest-of-World fold yields to areas the grid models", {
   # identity, and `polity_area_code`, the numeric bucket every build actually
   # keys on (`get_primary_production()` emits it AS `area_code`). Only the
   # identity changes here. All seven keep `polity_area_code` 999, so no value is
-  # re-attributed and no total moves. Lifting the fold on the NUMERIC key is the
-  # unsafe change -- #419 measures it at 13.7x on feed -- and is not done here.
+  # re-attributed and no total moves.
+  #
+  # Lifting the fold on the NUMERIC key is a separate change and is not done here.
+  # Note that #419's headline figure for it -- 13.7x on global feed -- has since
+  # been DISPROVED by two full-range `get_wide_cbs()` builds (PR #555): feed comes
+  # out at 1.0000 and the largest move of any column is 1.2% on `stock_addition`.
+  # The 13.7x was an artifact of the `dcast()` duplicate-key `length()` fallback
+  # (#425, fixed by #429), which corrupted the baseline that measurement was taken
+  # against. So the numeric fold stands on the modelling question -- FABIO matrix
+  # comparability, and the promotion's unmeasured effect past CBS -- rather than on
+  # a magnitude argument.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   folded <- unique(cw$area_code[cw$mapping_source == "fabio_row_fold"])
 
