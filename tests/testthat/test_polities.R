@@ -152,22 +152,104 @@ test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
   # year that was resolved; pre-anchor rows are deliberately matched to the anchor
   # territory, where the row year lying outside the period is correct, not a
   # stand-in.
+  #
+  # `polity_end_year` is EXCLUSIVE, so a period covers
+  # `polity_start_year:(polity_end_year - 1)` and a row AT `polity_end_year` is
+  # already a stand-in -- unless the upstream map declares that reported year
+  # for the pair, which is the one thing allowed to reach past the territorial
+  # span (#550).
   crosswalk <- whep::polity_area_crosswalk
   grid <- expand.grid(
     area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
     year = 1961:2023
   )
-  resolved <- add_polity_code(grid, "area_code", "year")
+  resolved <- add_polity_code(grid, "area_code", "year") |>
+    dplyr::left_join(
+      crosswalk |>
+        dplyr::distinct(
+          area_code = .data$area_code,
+          polity_code = .data$polity_code,
+          map_year_end = .data$map_year_end
+        ),
+      by = c("area_code", "polity_code")
+    )
+  covered_to <- pmax(
+    resolved$polity_end_year - 1L,
+    dplyr::coalesce(resolved$map_year_end, -Inf)
+  )
   stand_in <- !is.na(resolved$polity_code) &
     ((!is.na(resolved$polity_start_year) &
       resolved$year < resolved$polity_start_year) |
-      (!is.na(resolved$polity_end_year) &
-        resolved$year > resolved$polity_end_year))
+      (!is.na(resolved$polity_end_year) & resolved$year > covered_to))
   flagged <- !is.na(resolved$mapping_status) &
     resolved$mapping_status == "out_of_span"
 
   expect_gt(sum(stand_in), 0L)
   expect_equal(which(flagged), which(stand_in))
+})
+
+test_that("a period does not answer for its exclusive end year", {
+  # `polity_end_year` is exclusive everywhere else in the package -- the
+  # crosswalk build, `.area_year_polity_conflicts()`, `resolve_polity_label()`
+  # -- but the resolver used to join on `>= year`, so a period answered for one
+  # year past its end and the row still read "matched"/"manual" (#550). Three
+  # FAOSTAT areas landed that way in a state that had already dissolved.
+  dissolved <- tibble::tibble(
+    area_code = c(51L, 186L, 248L),
+    year = c(1993L, 2006L, 1992L)
+  ) |>
+    add_polity_code()
+
+  expect_equal(dissolved$year, dissolved$polity_end_year)
+  expect_equal(
+    dissolved$mapping_status,
+    rep("out_of_span", 3L)
+  )
+
+  # The successor owns the hand-over year: 1993 is Czechia's and Slovakia's,
+  # not Czechoslovakia's.
+  successors <- tibble::tibble(
+    area_code = c(167L, 199L),
+    year = 1993L
+  ) |>
+    add_polity_code()
+  expect_equal(
+    successors$polity_code,
+    c("CZE-1993-2025", "SVK-1993-2025")
+  )
+  expect_equal(successors$mapping_status, c("matched", "matched"))
+})
+
+test_that("a reported year past a polity's end is kept, not dropped", {
+  # The upstream map is the authority on which years an area REPORTS under a
+  # period, and its `map_year_end` is inclusive. Four areas report a final year
+  # equal to their polity's exclusive `polity_end_year`, so the exclusive join
+  # alone would have cost them that year -- two of them (15, 151) to `NA`,
+  # because the nearest-period fallback deliberately skips aggregates.
+  reported <- tibble::tibble(
+    area_code = c(15L, 151L, 206L, 228L),
+    year = c(1999L, 2010L, 2011L, 1991L)
+  ) |>
+    add_polity_code()
+
+  expect_equal(reported$year, reported$polity_end_year)
+  expect_equal(
+    reported$polity_code,
+    c("BLX-1850-1999", "ANT-1961-2010", "SUD-1956-2011", "F228-1945-1991")
+  )
+  expect_false(any(reported$mapping_status == "out_of_span"))
+})
+
+test_that(".polity_join_end_year widens only to a later reported year", {
+  # NA `polity_end_year` is an open period; NA `map_year_end` is a row the
+  # upstream map does not cover, which must not drag the bound down.
+  expect_equal(
+    whep:::.polity_join_end_year(
+      c(1993L, 1999L, 2025L, NA, 1993L),
+      c(1992L, 1999L, 2023L, 2000L, NA)
+    ),
+    c(1993, 2000, 2025, Inf, 1993)
+  )
 })
 
 test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {

@@ -76,6 +76,40 @@
   out
 }
 
+# Exclusive upper bound of the years a crosswalk period covers, i.e. the period
+# runs `polity_start_year:(polity_end_year - 1)`.
+#
+# `polity_end_year` is EXCLUSIVE. That is what `whep-polities` publishes -- a
+# successor's `start_year` equals its predecessor's `end_year` (F51-1947-1993
+# hands over to CZE-1993-2025 and SVK-1993-2025; SUD-1956-2011 to SDN-2011-2025
+# and SSD-2011-2025), and 240 of the 245 FAOSTAT-map rows in the crosswalk carry
+# `polity_end_year == map_year_end + 1L` against an inclusive `map_year_end`.
+# It is also what `.area_year_polity_conflicts()`, `.polity_area_years()`,
+# `resolve_polity_label()` and the crosswalk build already compute with.
+#
+# `map_year_end` is the last year upstream declares the reporting area reports
+# under this period, inclusive, and the map is the authority on reporting years.
+# In the four rows where it reaches past the territorial span it wins, so a
+# reported year is never dropped for being one past a polity's end: four areas
+# whose last reported year equals `polity_end_year` (15 Belgium-Luxembourg 1999,
+# 151 Netherlands Antilles 2010, 206 Sudan (former) 2011, 228 USSR 1991) keep it,
+# while the areas whose map span stops earlier (51 Czechoslovakia 1993, 186
+# Serbia and Montenegro 2006, 248 Yugoslav SFR 1992) no longer answer for a year
+# their polity had already ended in.
+.polity_join_end_year <- function(polity_end_year, map_year_end) {
+  territorial <- data.table::fifelse(
+    is.na(polity_end_year),
+    Inf,
+    as.numeric(polity_end_year)
+  )
+  reported <- data.table::fifelse(
+    is.na(map_year_end),
+    -Inf,
+    as.numeric(map_year_end) + 1
+  )
+  pmax(territorial, reported)
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
@@ -116,6 +150,11 @@
   if (!is.null(year_col) && year_col %in% names(dt)) {
     lookup <- .polity_crosswalk(include_unmapped = include_unmapped)
     lookup <- lookup[!is.na(area_code)]
+    # A caller-supplied or mocked crosswalk need not carry the upstream map's
+    # reporting years; without them the territorial span is the only bound.
+    if (!rlang::has_name(lookup, "map_year_end")) {
+      lookup[, "map_year_end" := NA_integer_]
+    }
     lookup <- lookup[,
       c(
         "area_code",
@@ -130,11 +169,7 @@
           -Inf,
           as.numeric(polity_start_year)
         ),
-        data.table::fifelse(
-          is.na(polity_end_year),
-          Inf,
-          as.numeric(polity_end_year)
-        ),
+        .polity_join_end_year(polity_end_year, get("map_year_end")),
         area_name,
         area_iso3c,
         polity_area_code,
@@ -178,7 +213,7 @@
       on = .(
         area_code,
         join_start_year <= year,
-        join_end_year >= year
+        join_end_year > year
       ),
       allow.cartesian = TRUE
     ]
@@ -232,12 +267,15 @@
         !is.na(polity_code) & get("lookup_polity_type") != "aggregate"
       ]
       if (nrow(fallback_matches) > 0L) {
+        # `join_end_year` is the exclusive upper bound, so the last year a
+        # period covers is `join_end_year - 1` and a row at `join_end_year`
+        # itself is already one year past it.
         fallback_matches[,
           "year_distance" := data.table::fcase(
-            year < join_start_year ,
-            join_start_year - year ,
-            year > join_end_year   ,
-            year - join_end_year   ,
+            year < join_start_year   ,
+            join_start_year - year   ,
+            year >= join_end_year    ,
+            year - join_end_year + 1 ,
             default = 0
           )
         ]

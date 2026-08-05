@@ -11,7 +11,12 @@ a continuous time interval. Key columns include:
 \item \code{polity_code}: Stable WHEP polity identifier, usually
 \code{PREFIX-start_year-end_year}.
 \item \code{polity_name}: Human-readable polity name.
-\item \code{start_year}, \code{end_year}: Inclusive validity years for the row.
+\item \code{start_year}, \code{end_year}: Half-open validity interval for the row:
+\code{start_year} is inclusive, \code{end_year} is \strong{exclusive}, so the row covers
+\code{start_year:(end_year - 1)} and hands over to its successor in \code{end_year}
+(\code{F51-1947-1993} Czechoslovakia covers 1947-1992, and 1993 belongs to
+\code{CZE-1993-2025} and \code{SVK-1993-2025}). Open periods carry the vintage's
+horizon as \code{end_year}, so they too stop one year short of it.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
 a compatibility alias.
 \item \code{wiki_status}: Upstream review state. \code{"retired"} and \code{"superseded"} mark a
