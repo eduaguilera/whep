@@ -4,9 +4,16 @@
 \alias{get_primary_production}
 \title{Primary items production}
 \usage{
-get_primary_production(example = FALSE)
+get_primary_production(years = NULL, example = FALSE)
 }
 \arguments{
+\item{years}{Optional integer vector of years to build. When \code{NULL}
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key. Gap-filling and source selection look across
+the years present, so a narrow window is not guaranteed to reproduce the
+full-range result value for value.}
+
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
 }

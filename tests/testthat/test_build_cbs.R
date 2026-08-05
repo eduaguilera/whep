@@ -1019,3 +1019,45 @@ test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", 
     numeric_code
   )
 })
+
+test_that("build_commodity_balances defaults to the long format", {
+  long <- whep::build_commodity_balances(example = TRUE)
+
+  expect_true(rlang::has_name(long, "element"))
+  expect_false(rlang::has_name(long, "production"))
+})
+
+test_that("build_commodity_balances format = 'wide' pivots the elements", {
+  # Same dataset, one column per element instead of one row per element, with
+  # stock_variation split into the two non-negative directions.
+  wide <- whep::build_commodity_balances(example = TRUE, format = "wide")
+
+  expect_false(rlang::has_name(wide, "element"))
+  expect_true(all(
+    c("production", "import", "food", "feed", "domestic_supply") %in%
+      names(wide)
+  ))
+  expect_true(all(c("stock_addition", "stock_withdrawal") %in% names(wide)))
+})
+
+test_that("build_commodity_balances rejects an unknown format", {
+  expect_error(
+    whep::build_commodity_balances(example = TRUE, format = "matrix"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances needs primary_all for the wide format", {
+  # The live-animal rows come from primary production, so the wide format
+  # cannot be assembled from .fixed_data alone. Aborting beats silently
+  # returning a sheet with no live animals in it.
+  expect_error(
+    whep::build_commodity_balances(
+      format = "wide",
+      .fixed_data = readRDS(
+        testthat::test_path("fixtures", "cbs_fixed_small.rds")
+      )
+    ),
+    "primary_all"
+  )
+})

@@ -3,6 +3,12 @@
 #' @description
 #' Get amount of crops, livestock and livestock products.
 #'
+#' @param years Optional integer vector of years to build. When `NULL`
+#'   (default) the whole series is built. Supplying a window builds only that
+#'   range rather than building 1850-2023 and discarding the rest, and caches it
+#'   under a window-specific key. Gap-filling and source selection look across
+#'   the years present, so a narrow window is not guaranteed to reproduce the
+#'   full-range result value for value.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
@@ -46,11 +52,13 @@
 #'
 #' @examples
 #' get_primary_production(example = TRUE)
-get_primary_production <- function(example = FALSE) {
+get_primary_production <- function(years = NULL, example = FALSE) {
   if (example) {
     return(.ex_get_primary_prod())
   }
-  .cache_get("primary_prod", build_primary_production())
+  build_years <- .build_years(years)
+  .cached_primary_prod(build_years) |>
+    .filter_years(build_years)
 }
 
 #' Crop residue items

@@ -276,28 +276,28 @@ testthat::test_that("build_io_model with non-numeric years raises error", {
 })
 
 testthat::test_that("IO default build helpers scope cache keys by requested years", {
-  testthat::expect_null(.io_build_years(NULL))
-  testthat::expect_equal(.io_build_years(c(2001, 1999)), 1999:2001)
+  testthat::expect_null(.build_years(NULL))
+  testthat::expect_equal(.build_years(c(2001, 1999)), 1999:2001)
   testthat::expect_true(.io_years_are_contiguous(c(2001, 1999, 2000)))
   testthat::expect_false(.io_years_are_contiguous(c(2001, 1999)))
-  testthat::expect_null(.io_context_years(NULL))
-  testthat::expect_equal(.io_context_years(2001:2005), 2001:2005)
-  testthat::expect_equal(.io_context_years(2013), 2011:2013)
-  testthat::expect_equal(.io_context_years(2016:2020), 2011:2020)
+  testthat::expect_null(.context_years(NULL))
+  testthat::expect_equal(.context_years(2001:2005), 2001:2005)
+  testthat::expect_equal(.context_years(2013), 2011:2013)
+  testthat::expect_equal(.context_years(2016:2020), 2011:2020)
   testthat::expect_equal(
-    .io_cache_key("primary_prod", NULL),
+    .cache_key("primary_prod", NULL),
     "primary_prod"
   )
   testthat::expect_equal(
-    .io_cache_key("primary_prod", c(2001, 1999)),
+    .cache_key("primary_prod", c(2001, 1999)),
     "primary_prod__1999__2001"
   )
   # The IO model caches a plain (no reporting-polity columns, no QC)
   # cbs_wide object; get_wide_cbs() caches the reporting version under
   # the bare "cbs_wide" slot. Their keys must never collide (issue #243).
-  testthat::expect_false(.io_cache_key("cbs_wide_io", NULL) == "cbs_wide")
+  testthat::expect_false(.cache_key("cbs_wide_io", NULL) == "cbs_wide")
   testthat::expect_false(
-    .io_cache_key("cbs_wide_io", c(1999, 2001)) == "cbs_wide"
+    .cache_key("cbs_wide_io", c(1999, 2001)) == "cbs_wide"
   )
 })
 

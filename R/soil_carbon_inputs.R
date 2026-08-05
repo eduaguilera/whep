@@ -498,7 +498,7 @@ build_soil_carbon_inputs <- function(
 # residue fraction) -> calculate_npp_carbon_nitrogen() (the carbon partition,
 # including residue_soil_c_t, root_c_t and weed_npp_c_t).
 .sci_read_npp <- function(years = NULL) {
-  .sci_npp_from_primary_prod(.filter_years(get_primary_production(), years))
+  .sci_npp_from_primary_prod(get_primary_production(years = years))
 }
 
 # FAOSTAT national harvested area (ha) per (area_code, item_prod_code, year),
@@ -508,7 +508,7 @@ build_soil_carbon_inputs <- function(
 # .sci_crop_prod_wide). One table serves every input_type (residue/root/weed and
 # manure), all keyed by (area_code, item_prod_code, year).
 .sci_read_harvested_area <- function(years = NULL) {
-  .sci_harvested_area(.filter_years(get_primary_production(), years))
+  .sci_harvested_area(get_primary_production(years = years))
 }
 
 .sci_harvested_area <- function(primary_prod) {
@@ -613,8 +613,8 @@ build_soil_carbon_inputs <- function(
 # harvested area. The `crop` it emits is the item_prod_code, so it resolves
 # straight back through .sci_manure_crop_prod_code().
 .sci_read_manure <- function(years = NULL) {
-  production <- .filter_years(get_primary_production(), years)
-  cbs <- .filter_years(get_wide_cbs(), years)
+  production <- get_primary_production(years = years)
+  cbs <- get_wide_cbs(years = years)
   intake <- .run_redistribute_national(
     production = production,
     cbs = cbs,
