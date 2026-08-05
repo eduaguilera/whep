@@ -180,3 +180,32 @@ testthat::test_that("the iso3c lookup is unique per code", {
   )
   testthat::expect_true(is.na(whep:::.iso3c_to_area_code("ZZZ")))
 })
+
+testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
+  # Unique per iso3c (above) says nothing about the other direction, and the
+  # other direction is where the aggregation lives: `polity_area_code` is a
+  # bucket, so 257 ISO3 codes share 195 codes. Anything reading a population or
+  # per-capita row as one country depends on knowing that (#482), so the fold is
+  # pinned here: if upstream changes which ISO3 codes land on 999, this fails and
+  # the numbers on the 999 denominator have to be re-checked.
+  lut <- whep:::.iso3c_area_code_lookup()
+  testthat::expect_equal(nrow(lut), 257L)
+  testthat::expect_equal(dplyr::n_distinct(lut$area_code), 195L)
+  testthat::expect_equal(sum(duplicated(lut$area_code)), 62L)
+
+  row <- sort(lut$iso3c[lut$area_code == 999L])
+  testthat::expect_equal(length(row), 62L)
+  # The members that are present-day sovereign states, not small territories --
+  # the ones whose population a reader would look for as its own row.
+  testthat::expect_true(
+    all(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "AND", "LIE", "MCO") %in% row)
+  )
+  testthat::expect_equal(
+    whep:::.iso3c_to_area_code(c("SYR", "MKD", "PSE", "SWZ", "GNQ", "GUF")),
+    rep(999L, 6)
+  )
+  # 206 "Sudan (former)" is the same shape at a smaller scale: post-secession
+  # Sudan and South Sudan both resolve to the pre-2011 bucket.
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SSD"), 206L)
+  testthat::expect_equal(sum(lut$area_code == 206L), 2L)
+})

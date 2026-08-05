@@ -19,6 +19,20 @@
   either year 2024 (outside the default range) or areas 901-906, which are WHEP
   reporting labels no source dataset carries. That is a crosswalk-level
   measurement, not a full-pipeline one.
+* `read_population()` now reports the `area_code` rows that are aggregates of
+  several territories, alongside the message it already emitted for the dropped
+  regional residuals. `area_code` is `polity_area_code`, a bucket rather than an
+  identity, so with the real `gdp-population` pin eight ISO3 codes fold into two
+  rows: 999 "Rest of World" (Syria, North Macedonia, Palestine, Eswatini,
+  Equatorial Guinea, French Guiana) and, from 2012, 206 "Sudan (former)"
+  (Sudan + South Sudan). That is 0.35% of the population over 1850-2021 and
+  1.05% in 2015, against the 0.07% the existing message covered. The fold is
+  deliberate -- those are the codes the commodity balances are keyed on, so a
+  finer key would leave their food supply with no denominator -- and the
+  `@return` documentation now says a row is an area code rather than a country.
+  **No published value changes**: the output of a full real-pin read is
+  byte-identical before and after (28,255 rows, 530,970,330,534 person-years).
+
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via
   `WHEP_POLITIES_FAOSTAT_MAP`, 281 rows over 228 FAOSTAT area codes) instead of
