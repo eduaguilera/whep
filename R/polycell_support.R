@@ -531,10 +531,13 @@ polycell_shim_view <- function(support) {
 # wrapped interval cannot be used as a `min`/`max` pair, so longitude falls
 # back to the coordinate box there -- which already spans the globe for such a
 # polygon anyway. The LATITUDE bounds stay usable when longitude wraps, and are
-# kept: discarding them omitted the extreme-latitude cells of F228's nine
-# intervals and of KIR-1800-2025, which is the same omission the longitude
-# bound exists to prevent. An unreadable geometry cannot be bounded spherically
-# at all and falls back on both axes rather than aborting the build.
+# kept. On the shipped table this changes nothing -- discarding them moves the
+# window by 2.8e-14 degrees, which floors to the same cell index, so no
+# candidate cell differs for any of the 580 polities. It is kept because a
+# refreshed geometry source (#382, #485) need not be so forgiving, and because
+# dropping a bound on one axis is the same omission the longitude bound exists
+# to prevent. An unreadable geometry cannot be bounded spherically at all and
+# falls back on both axes rather than aborting the build.
 .pcs_s2_window <- function(geom) {
   box <- sf::st_bbox(geom)
   fallback <- c(
