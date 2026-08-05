@@ -142,15 +142,19 @@ testthat::test_that("the FABIO Rest-of-World fold still outranks the map", {
   # PINNED because lifting it moves every Rest-of-World figure and is tracked
   # separately (#419/#414), not because it is right. 31 areas the upstream map
   # names a real polity for -- Syria, North Macedonia, Eswatini, New Caledonia,
-  # French Guiana, Palestine among them -- stay on `ROW-1850-2023` because FABIO
+  # French Guiana, Palestine among them -- stay on `ROW-1850-2025` because FABIO
   # folds them into its single Rest-of-World row. Adopting the map deliberately
   # did NOT change that, so this number must move only on purpose.
+  #
+  # The bucket's own code moved from `ROW-1850-2023` when upstream extended it
+  # (whep-polities#127); the 62 folded areas did not change, which is the thing
+  # this test is here to hold still.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   folded <- unique(cw$area_code[cw$mapping_source == "fabio_row_fold"])
 
   testthat::expect_equal(length(folded), 62L)
   testthat::expect_true(all(
-    cw$polity_code[cw$mapping_source == "fabio_row_fold"] == "ROW-1850-2023"
+    cw$polity_code[cw$mapping_source == "fabio_row_fold"] == "ROW-1850-2025"
   ))
   for (area in c(212L, 154L, 209L, 153L, 69L, 299L)) {
     testthat::expect_true(area %in% folded)

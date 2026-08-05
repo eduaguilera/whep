@@ -231,7 +231,7 @@ testthat::test_that("origin_area keeps the legacy meaning of an area code", {
     extensions = extensions,
     labels = labels,
     fd_labels = fd_labels,
-    origin_area = "ROW-1850-2023",
+    origin_area = "ROW-1850-2025",
     conserve_extensions = FALSE
   )
 

@@ -5,18 +5,7 @@
 # (`.faostat_synth_country_total`, `.faostat_manure_country_long`) need
 # whep_read_file() over the network and are not covered here.
 
-local({
-  pkg_root <- testthat::test_path("..", "..")
-  script_path <- file.path(
-    pkg_root,
-    "inst",
-    "scripts",
-    "prepare_spatialize_all.R"
-  )
-  if (file.exists(script_path)) {
-    sys.source(script_path, envir = topenv())
-  }
-})
+.source_prepare_spatialize()
 
 
 test_that(".smil_global_yearly interpolates linearly between anchors", {

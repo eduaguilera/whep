@@ -1350,7 +1350,14 @@ utils::globalVariables(
     "residue_c_mg",
     "root_c_mg",
     "manure_c_mg",
+    "weed_c_mg",
     "total_c_mg",
+    # .sci_sum_components() pre-masks c_mass_mg by input_type into these four
+    # dot-prefixed data.table columns, then sums them per cell.
+    ".residue",
+    ".root",
+    ".weed",
+    ".manure",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",
@@ -1769,7 +1776,12 @@ utils::globalVariables(
     "sjos_class",
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
-    "method_n_exceedance"
+    "method_n_exceedance",
+    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
+    "ISO3_CODE",
+    "fao_area_name",
+    "iso3_code",
+    "profile_row"
   )
 )
 
