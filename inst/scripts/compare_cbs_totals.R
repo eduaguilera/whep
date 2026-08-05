@@ -45,10 +45,10 @@
   )
 }
 
-# Count buckets emitted under more than one label IN A GIVEN YEAR. Across years a
-# bucket legitimately carries several `reporting_polity_name` values, because the
-# polity name is periodized -- so the year has to be in the key or this metric
-# reports every relabelling as a split.
+# Count buckets emitted under more than one label IN A GIVEN YEAR. Across
+# years a bucket legitimately carries several `reporting_polity_name` values,
+# because the polity name is periodized -- so the year has to be in the key
+# or this metric reports every relabelling as a split.
 .cbs_split_labels <- function(x) {
   lab <- unique(x[, c("area_code", "year", "reporting_polity_name")])
   sum(table(lab$area_code, lab$year) > 1L)
