@@ -1,0 +1,34 @@
+{
+  "note": "Recorded magnitudes for the LPJmL-derived pins. A mismatch is not automatically a fault: it is the intended alarm when the pins are repointed at a different LPJmL run. Re-record deliberately and say in the commit message why the numbers moved.",
+  "compare_years": [2000, 2010],
+  "pins": {
+    "lpjml-grass-availability": {
+      "n_rows": 5239855,
+      "first_year": 1901,
+      "last_year": 2023,
+      "mean": 1.497867262552,
+      "median": 0.8131793171264
+    },
+    "lpjml-grass-productivity": {
+      "n_rows": 6809325,
+      "first_year": 1901,
+      "last_year": 2023,
+      "mean": 183.282239534719,
+      "median": 102.713092803955
+    },
+    "lpjml-grass-natural-net-c": {
+      "n_rows": 12577999,
+      "first_year": 1901,
+      "last_year": 2023,
+      "mean": 6.212994850758,
+      "median": 5.025367842573
+    },
+    "lpjml-soc-hydrology": {
+      "n_rows": 86781420,
+      "first_year": 1901,
+      "last_year": 2023,
+      "mean": 0.4661382837461,
+      "median": 0.4954651743174
+    }
+  }
+}

@@ -17,9 +17,25 @@ source("validation/variables.R")
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)
-production <- readRDS(
-  sprintf(".whep_cache/primary_prod_%d_%d.rds", year_min, year_max)
+# The production build is NOT triggered here on purpose: it takes minutes to
+# hours and reads pins, which is not something a validation sweep should start
+# without being asked. But a bare readRDS() on a missing cache dies inside
+# gzfile() naming only a path, which reads as corruption rather than as setup
+# not done -- so say which it is.
+production_cache <- sprintf(
+  ".whep_cache/primary_prod_%d_%d.rds",
+  year_min,
+  year_max
 )
+if (!file.exists(production_cache)) {
+  cli::cli_abort(c(
+    "No cached WHEP production at {.path {production_cache}}.",
+    i = "{.path .whep_cache/} is gitignored, so a fresh checkout has none.",
+    i = "Build it once with {.code Rscript validation/rank_countries.R}, or set
+         {.envvar VAL_YEAR_MIN}/{.envvar VAL_YEAR_MAX} to a window you have."
+  ))
+}
+production <- readRDS(production_cache)
 lookups <- whep_validation_lookups()
 scorecard <- list()
 add <- function(variable, archetype, n, ok, flag, note) {
@@ -146,33 +162,42 @@ if (file.exists(psd_path)) {
 }
 
 # 3. occupation + land_per_tonne (external, vs LCA literature) -----------------
-occ_gt <- jsonlite::fromJSON("validation/cache/ground_truth/occupation.json") |>
-  tibble::as_tibble() |>
-  dplyr::transmute(
-    item_cbs_code = as.integer(.data$item_cbs_code),
-    lit = .data$gt_value,
-    lo = .data$gt_low,
-    hi = .data$gt_high
-  )
-score_occ <- function(extractor, label) {
-  w <- extractor(production, bench_years) |>
-    dplyr::inner_join(occ_gt, by = "item_cbs_code") |>
-    dplyr::mutate(
-      m2 = .data$whep_value * 10,
-      in_range = .data$m2 >= .data$lo & .data$m2 <= .data$hi
+occ_path <- "validation/cache/ground_truth/occupation.json"
+if (!file.exists(occ_path)) {
+  cli::cli_warn(c(
+    "Skipping occupation and land_per_tonne: no ground truth at
+     {.path {occ_path}}.",
+    i = "{.path validation/cache/} is gitignored, so a fresh clone has none;
+         see {.file validation/README.md}."
+  ))
+} else {
+  occ_gt <- jsonlite::fromJSON(occ_path) |>
+    tibble::as_tibble() |>
+    dplyr::transmute(
+      item_cbs_code = as.integer(.data$item_cbs_code),
+      lit = .data$gt_value,
+      lo = .data$gt_low,
+      hi = .data$gt_high
     )
-  add(
-    label,
-    "external",
-    nrow(w),
-    sum(w$in_range),
-    sum(!w$in_range),
-    "ha-yr/t vs Poore & Nemecek 2018 range (m2*yr/kg)"
-  )
+  score_occ <- function(extractor, label) {
+    w <- extractor(production, bench_years) |>
+      dplyr::inner_join(occ_gt, by = "item_cbs_code") |>
+      dplyr::mutate(
+        m2 = .data$whep_value * 10,
+        in_range = .data$m2 >= .data$lo & .data$m2 <= .data$hi
+      )
+    add(
+      label,
+      "external",
+      nrow(w),
+      sum(w$in_range),
+      sum(!w$in_range),
+      "ha-yr/t vs Poore & Nemecek 2018 range (m2*yr/kg)"
+    )
+  }
+  score_occ(extract_occupation_intensity, "occupation")
+  score_occ(extract_land_per_tonne, "land_per_tonne")
 }
-score_occ(extract_occupation_intensity, "occupation")
-score_occ(extract_land_per_tonne, "land_per_tonne")
-
 # 4. cropping_intensity (bound, vs GAEZ potential) -----------------------------
 gaez_path <- "validation/cache/ground_truth/cropping_intensity.json"
 if (file.exists(gaez_path)) {

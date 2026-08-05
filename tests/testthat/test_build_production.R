@@ -890,12 +890,15 @@ test_that(".split_stock_share keeps groups (year, area, item_prod_code) independ
 test_that(".carry_forward_shares extends shares to QCL's latest years", {
   # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
   # 2021 while slaughter data (target_years) runs to 2023.
+  # `area` carries the reporting territory: one `area_code` can hold two of
+  # them, so it is part of the share key. See
+  # test_stock_share_territory_key.R.
   shares <- tibble::tribble(
-    ~year, ~area_code, ~Item_Code, ~item_cbs_code, ~share,
-    2020L, 203L, 866L, 867L, 0.4,
-    2020L, 203L, 866L, 868L, 0.6,
-    2021L, 203L, 866L, 867L, 0.3,
-    2021L, 203L, 866L, 868L, 0.7
+    ~year, ~area_code, ~area, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 203L, "Spain", 866L, 867L, 0.4,
+    2020L, 203L, "Spain", 866L, 868L, 0.6,
+    2021L, 203L, "Spain", 866L, 867L, 0.3,
+    2021L, 203L, "Spain", 866L, 868L, 0.7
   )
   target_years <- 2020:2023
 
@@ -918,4 +921,45 @@ test_that(".carry_forward_shares extends shares to QCL's latest years", {
       .by = c(year, area_code, Item_Code)
     )
   expect_equal(sums$total, rep(1, 4))
+})
+
+test_that(".read_land_areas separates LUH2's own sentinel from real territories", {
+  # The old single warning said "LUH2 ISO3 codes not found in
+  # polity_area_crosswalk, dropping: BLM, ALA, -99, SXM, JEY, GGY, and IMN",
+  # which reported two unrelated facts as one and was wrong about six of the
+  # seven. Measured over the whole pin, 1850-2022:
+  #
+  #   -99, LUH2's own unassigned marker   8,620 Mha   0.358% of all LUH2 area
+  #   the six real territories                19 Mha   0.0008%
+  #
+  # So 459 parts in 460 of what looked like lost coverage is land the source
+  # itself attributes to no country. The six -- Jersey, Guernsey, Isle of Man,
+  # Saint-Barthelemy, Aland, Sint Maarten -- ARE in the crosswalk under their
+  # sovereign's polity; what they lack is a FAOSTAT area code. Both halves stay
+  # dropped, which is whep#407's question, not this one's.
+  local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::data.table(
+        ISO3 = c("ESP", "-99", "JEY"),
+        Year = 2000L,
+        Land_Use = "c3ann",
+        Area_Mha = c(10, 8620, 0.01)
+      )
+    }
+  )
+
+  warn <- suppressMessages(
+    tryCatch(whep:::.read_land_areas(years = 2000L), warning = function(w) w)
+  )
+  expect_s3_class(warn, "condition")
+  expect_match(conditionMessage(warn), "no FAOSTAT area code")
+  expect_match(conditionMessage(warn), "JEY")
+  # The sentinel must NOT appear in the warning: it is not a coverage gap.
+  expect_false(grepl("-99", conditionMessage(warn), fixed = TRUE))
+
+  msgs <- suppressWarnings(
+    testthat::capture_messages(whep:::.read_land_areas(years = 2000L))
+  )
+  expect_true(any(grepl("-99", msgs, fixed = TRUE)))
+  expect_true(any(grepl("no country assignment", msgs)))
 })

@@ -155,10 +155,12 @@ lintr::lint_package(
 
 Gotchas worth knowing before losing an hour:
 
-- The repo root has a **tracked `.Renviron`**, which shadows `~/.Renviron`.
-  Any `WHEP_*` path you set in your home file is invisible to an R session
-  started here (#456). Pass the path argument explicitly, or set the variable
-  in the session.
+- `WHEP_*` paths belong in `~/.Renviron` and are read from there. Do **not**
+  add a `.Renviron` at the repo root: R reads a working-directory `.Renviron`
+  *instead of* `~/.Renviron`, never both, so one here silently hides every
+  `WHEP_*` path an R session started at the root would otherwise see. That was
+  #456, fixed by moving `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron`
+  into the R-CMD-check workflow env and `.Rprofile`.
 - Long pipeline builds are minutes-to-hours and read pins or multi-GB local
   rasters. Never put one in a test or an example; use the
   [`example = FALSE` fixture pattern](#documentation).
@@ -346,6 +348,16 @@ Conventions of the codebase (follow them; they are how the code reads):
   that does turns an unrelated outage into a hard `R CMD check` ERROR (#490).
   Stub the reader with `testthat::local_mocked_bindings()` (43 call sites do
   this already) or use a fixture under `tests/testthat/fixtures/`.
+  - `skip_on_ci()` does **not** enforce this: r-universe runs its check without
+    `CI` set, so a `skip_on_ci()` test runs there for real. Use
+    `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset (r-universe,
+    CRAN) while `r-lib/actions/setup-r` and `devtools::test()` both set it. A
+    real-data test that genuinely cannot be rescoped onto a fixture needs
+    **both**. Guarding on a local file or `WHEP_*` env var is equally fine —
+    that is what the LPJmL/HWSD/LUH2 smoke tests do.
+  - The `offline-tests` job is the enforcement, and it only sees these tests
+    because it unsets `CI`. If it fails alone, add a fixture — do not skip the
+    test and do not relax the job.
 - Access exported objects via `whep::name` — never `:::` or
   `getFromNamespace()` for something exported. Private helpers are tested
   directly as `whep:::.helper()`, which is the established practice. For

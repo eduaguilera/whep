@@ -10,8 +10,14 @@ test_that("crop NPP -> carbon/nitrogen -> BNF -> residue destinies composes", {
     production_t = c(1000, 200),
     area_ha = c(400, 80),
     year = 2000,
+    # The chain carries three regional groupings because they key three
+    # different coefficient tables: region_krausmann the recovery rate,
+    # region_hanpp the modern-variety adoption share, and region_un_sub the
+    # residue feed-use fraction (M49 sub-regions, see #405). Keeping all three
+    # here is what .sci_crop_prod_wide() actually supplies.
     region_krausmann = "West Europe",
     region_hanpp = "Western Europe",
+    region_un_sub = "Western Europe",
     sub_territory = "ESP"
   )
 

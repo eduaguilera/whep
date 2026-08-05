@@ -275,7 +275,7 @@
     ~item_prod_code,
     ~residue_dm_t,
     ~region_krausmann,
-    ~region_hanpp,
+    ~region_un_sub,
     0.25,
     50.25,
     10L,
