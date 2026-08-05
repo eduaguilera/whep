@@ -177,6 +177,14 @@
   Curaçao" shipped with their accented letters read as pairs of Latin-1
   characters. The vendored harmonization CSVs are now repaired on read in
   `data-raw` (#399).
+* `polities_cats` is now derived from `regions_full` rather than vendored as a
+  second hand-maintained copy of the same 39 columns, so the two can no longer
+  drift. They had: 17 columns disagreed over the 198 shared area codes, and 95
+  of the differing cells were the literal string `"0"` in `eia`, `iea` and
+  eleven `region_*` columns where `regions_full` leaves `NA`. Those 95 cells are
+  now `NA`; the row set, row order, column names and column types are unchanged,
+  and the deliberate fold of Bhutan into `RASI` and Comoros into `RAFR` is kept
+  as an explicit override (#406).
 * `consolidate_sources()` gains two opt-in `tie_break` options for panels whose
   sources report exact zeros or several quality variants of one cell.
   `coverage = "positive"` counts the coverage tie-break over strictly positive
