@@ -68,14 +68,14 @@
     ),
     biomass_coefs = tibble::tribble(
       ~Name_biomass,
-      ~Edible_N_kgFM,
       ~N_kgN_kgFM,
       ~Product_kgN_kgDM,
       ~Product_kgDM_kgFM,
+      ~Edible_portion,
       ~GE_product_edible_portion_MJ_kgFM,
       ~GE_product_MJ_kgFM,
-      "Wheat", 0.020, NA, NA, NA, 13.0, NA,
-      "Barley", 0.018, NA, NA, NA, 12.5, NA
+      "Wheat", 0.020, NA, NA, 1, 13.0, NA,
+      "Barley", 0.018, NA, NA, 1, 12.5, NA
     ),
     items_full = tibble::tribble(
       ~item_cbs_code, ~Name_biomass,

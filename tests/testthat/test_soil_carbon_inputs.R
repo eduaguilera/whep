@@ -236,7 +236,12 @@ test_that("manure territory as an iso3c resolves instead of dropping to NA", {
     crop_patterns = crop_patterns,
     residue_humification = whep::residue_humification
   )
-  out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data)
+  # The iso3c form is a deprecated bridge (#463), so resolving it warns; this
+  # test is about it still resolving rather than dropping to NA.
+  testthat::expect_warning(
+    out <- whep::build_soil_carbon_inputs(resolution = "polity", data = data),
+    "deprecated"
+  )
   # 20 t manure C over 40 ha = 0.5, not 0 (which a silent as.integer NA drop
   # would give).
   testthat::expect_equal(out$manure_c_mgc_ha_yr, 20 / 40)
@@ -572,10 +577,52 @@ test_that(".sci_manure_crop_layer emits the manure-engine crops contract", {
   testthat::expect_equal(crop15$crop_area_ha, 40)
 })
 
-test_that(".sci_read_manure runs turnkey and yields cropland applied_c", {
-  testthat::skip_on_ci()
-  testthat::skip_if_not_installed("arrow")
-  applied <- whep:::.sci_read_manure(years = 2010L)
+# The only two pin-backed reads in .sci_read_manure() are its default inputs,
+# get_primary_production() and get_wide_cbs(). Both are stubbed here, so the
+# turnkey wiring is exercised offline on a fixture: everything downstream of
+# the two readers -- feed demand, national redistribution, excretion, manure
+# allocation and the crop layer -- runs for real. Doing this on real data
+# instead needs the network and builds the full 1850-2023 series to keep one
+# year (get_wide_cbs() takes no year argument), which cost >16 GB and broke the
+# r-universe check; the year-scoping fix is tracked in #367.
+
+# A herd large enough to excrete, the CBS feed that sustains it, and the
+# harvested-area rows the crop layer allocates that manure onto. `area` must be
+# a polity the Bouwman feed regions cover, so it is derived, not hardcoded.
+.sci_manure_turnkey_area <- function() {
+  region <- whep:::.feed_region_lookup(whep::polity_area_crosswalk)
+  bouwman <- unique(whep::conv_bouwman$region_bouwman)
+  region$area_code[region$region_bouwman %in% bouwman][1]
+}
+
+.sci_manure_turnkey_prod <- function(area) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~item_prod_code,
+    ~unit, ~value,
+    1970L, area, 960L, NA_character_, "960", "heads", 1e6,
+    1970L, area, 2511L, NA_character_, "15", "ha", 40,
+    1970L, area, 2807L, NA_character_, "27", "ha", 20,
+    # Grassland: dropped by the crop layer, never a manure crop.
+    1970L, area, 3000L, NA_character_, "3000", "ha", 999
+  )
+}
+
+.sci_manure_turnkey_cbs <- function(area) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed,
+    1970L, area, 2591L, 1e5
+  )
+}
+
+test_that(".sci_read_manure wires the turnkey chain to cropland applied_c", {
+  area <- .sci_manure_turnkey_area()
+  testthat::local_mocked_bindings(
+    get_primary_production = function(...) .sci_manure_turnkey_prod(area),
+    get_wide_cbs = function(...) .sci_manure_turnkey_cbs(area)
+  )
+  applied <- suppressWarnings(suppressMessages(
+    whep:::.sci_read_manure(years = 1970L)
+  ))
   testthat::expect_true(all(
     c("year", "territory", "land_use", "crop", "applied_c") %in%
       names(applied)
@@ -583,4 +630,7 @@ test_that(".sci_read_manure runs turnkey and yields cropland applied_c", {
   cropland <- applied[applied$land_use == "Cropland" & !is.na(applied$crop), ]
   testthat::expect_gt(nrow(cropland), 0L)
   testthat::expect_gt(sum(cropland$applied_c, na.rm = TRUE), 0)
+  # Manure lands only on the two crops the crop layer emitted, keyed by
+  # item_prod_code -- never on the grassland row.
+  testthat::expect_setequal(unique(cropland$crop), c("15", "27"))
 })

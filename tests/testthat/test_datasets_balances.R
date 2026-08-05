@@ -353,3 +353,60 @@ testthat::test_that("urban_n_reference keys its area by FAOSTAT code", {
   testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
   testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
 })
+
+testthat::test_that("urban_n_reference names its territory by polity code", {
+  # whep#495 (epic whep#458): resolving the ISO3 label to 203 made the series
+  # joinable, and 203 is still a FABIO aggregation bucket rather than the
+  # identity of a territory. Every place in WHEP that identifies a territory has
+  # to carry a polity code string, so this 10-row coefficient table names Spain
+  # as ESP-1800-2025 and not only as 203. This test fails on the pre-#495 build:
+  # the dataset had exactly three columns, none of them a polity code.
+  x <- whep::urban_n_reference
+
+  pointblank::expect_col_exists(x, "polity_code")
+  testthat::expect_true(is.character(x$polity_code))
+  testthat::expect_true(all(!is.na(x$polity_code)))
+  # Shape, not just presence: a bare "ESP" or a stringified 203 would satisfy
+  # "a character column called polity_code" and would not be a polity code. The
+  # prefix runs 3 to 5 characters across whep::polities (ESP, AUSA, RSFSR).
+  testthat::expect_true(all(grepl(
+    "^[A-Z0-9]{3,5}-[0-9]{4}-[0-9]{4}$",
+    x$polity_code
+  )))
+
+  # ATTACHED, not substituted (whep#424's choice for the 25 area-keyed
+  # exports): the numeric key external consumers may already join on survives.
+  pointblank::expect_col_exists(x, c("area_code", "year", "urban_n_gg"))
+  testthat::expect_true(is.integer(x$area_code))
+
+  # Re-derive the expected code independently of the build script: for each
+  # benchmark year, the ESP polity whose active span covers that year. If the
+  # build had written a literal or matched on the wrong year, the two would
+  # disagree. Spain happens to be one continuous polity over 1860-2022, so this
+  # currently expects one distinct code -- the check is written per row anyway,
+  # because the point of the column is that it can differ by year.
+  expected <- whep::polity_area_crosswalk |>
+    dplyr::filter(area_iso3c == "ESP", !is.na(polity_code)) |>
+    dplyr::distinct(polity_code, polity_start_year, polity_end_year)
+  resolved <- vapply(
+    x$year,
+    function(yr) {
+      hit <- expected$polity_code[
+        expected$polity_start_year <= yr & expected$polity_end_year >= yr
+      ]
+      if (length(hit) == 1L) hit else NA_character_
+    },
+    character(1)
+  )
+  testthat::expect_equal(x$polity_code, resolved)
+
+  # And it has to be a polity that exists, not a well-formed string: a code
+  # absent from whep::polities is unusable by anything downstream.
+  testthat::expect_true(all(x$polity_code %in% whep::polities$polity_code))
+
+  # The measured series is untouched by the added identifier: same ten
+  # benchmark years, same Gg N.
+  testthat::expect_equal(nrow(x), 10L)
+  testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
+  testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
+})

@@ -175,8 +175,22 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   # polygon_status == "unassigned": some historical periods (e.g. pre-1883
   # Chile, before the War of the Pacific) have no faithful-vintage polygon,
   # and we record an honest gap rather than back-project a later/modern border.
-  no_geometry <- cw[!cw$has_geometry, ]
+  #
+  # One upstream defect is PINNED rather than tolerated: `CAN-1800-1866` declares
+  # polygon_status "proxy", which asserts a substitute polygon was attached, and
+  # ships none. That contradiction is filed upstream as whep-polities issue 59,
+  # which upstream is working through -- 4 were reachable from the crosswalk before
+  # #517 and this is the last. Naming it keeps a NEW offender failing here while
+  # the known one is visible; the pin must shrink to zero, never grow.
+  known_status_defects <- "CAN-1800-1866"
+  no_geometry <- cw[
+    !cw$has_geometry & !cw$polity_code %in% known_status_defects,
+  ]
   testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
+  testthat::expect_setequal(
+    intersect(cw$polity_code[!cw$has_geometry], known_status_defects),
+    known_status_defects
+  )
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]

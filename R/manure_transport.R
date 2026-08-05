@@ -13,8 +13,9 @@
 #' source cell's bundle ratio.
 #'
 #' @param source_cells A tibble of cells exporting manure, keyed by `year`,
-#'   `territory` and `sub_territory` (a `"lon_lat"` cell id), with `surplus_n`,
-#'   `surplus_c` and `surplus_vs` (t).
+#'   `territory` (a stringified `area_code`, see [estimate_n_excretion()]) and
+#'   `sub_territory` (a `"lon_lat"` cell id), with `surplus_n`, `surplus_c` and
+#'   `surplus_vs` (t).
 #' @param sink_cells A tibble of cells with spare capacity, keyed by `year`,
 #'   `territory` and `sub_territory`, with `room_n` (remaining cropland plus
 #'   grassland N capacity, t).
@@ -30,12 +31,12 @@
 #' @examples
 #' source_cells <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~surplus_n, ~surplus_c, ~surplus_vs,
-#'   2020L, "ESP", "1.5_40", 10, 90, 6
+#'   2020L, "203", "1.5_40", 10, 90, 6
 #' )
 #' sink_cells <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~room_n,
-#'   2020L, "ESP", "1_40", 4,
-#'   2020L, "ESP", "2_40", 6
+#'   2020L, "203", "1_40", 4,
+#'   2020L, "203", "2_40", 6
 #' )
 #' allocate_manure_transport(source_cells, sink_cells)
 allocate_manure_transport <- function(

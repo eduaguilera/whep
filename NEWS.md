@@ -1,5 +1,62 @@
 # whep (development version)
 
+* `polity_area_crosswalk` now takes its area-to-polity mapping from
+  **upstream's published map** (`faostat_area_polity_map.csv`, read via
+  `WHEP_POLITIES_FAOSTAT_MAP`, 281 rows over 228 FAOSTAT area codes) instead of
+  inferring it from the polity-code string with `sub("-.*", "", polity_code)`.
+  The build aborts if the map is absent rather than falling back silently. Seven
+  reporting areas gain a mapping no prefix could reach -- Djibouti (72) had
+  resolved to **nothing**, and areas 7, 20, 181, 237, 249 and 251 reach
+  `ANG-1905-1975`, `BEC-1885-1966`, `SRH-1953-1964`, `F237-1954-1975`,
+  `F249-1918-1990` and `NRH-1953-1964`. Area 15 resolves to `BLX-1850-1999`
+  rather than `BLX-1921-1999`, and area 206 "Sudan (former)" to `SUD-1956-2011`
+  rather than standing in on post-secession `SDN-2011-2025`. Prefix inference is
+  kept, labelled in a new `mapping_source` column, only where the map is silent:
+  seven areas it does not cover (351 and 901-906) and periods outside the spans
+  it declares, which is what keeps pre-1961 history resolvable for sources
+  reported under their own borders. The four-part codes that used to enter
+  through the prefix collapse (`AZE-SSR-1920-1991`, `IDN-BLB/JVM/OTH-1949-1951`,
+  `MMR-LWR-1852-1885`) are gone, taking crosswalk `subnational` rows from 6 to 3
+  and ambiguous `(area, year)` resolutions from 199 to 86. **This moves published
+  values and no magnitude comparison has been run.**
+* `polities` is refreshed from upstream, 603 rows to **740**, because the
+  published map names 43 polity codes the old snapshot did not contain. This is
+  the refresh #485 drafted.
+
+* The manure/nutrient chain now documents **one vocabulary for `territory`**: a
+  stringified `area_code`, what `redistribute_feed()` emits and what the
+  pipeline has always passed. The `@examples` of `estimate_n_excretion()`,
+  `split_manure_management()`, `apply_management_losses()`,
+  `allocate_manure_to_land()`, `allocate_manure_transport()` and
+  `build_livestock_nutrient_flows()` used ISO literals instead (`"ESP"`, and
+  `"ES"`, which the chain's own resolver rejects outright). Passing an `iso3c`
+  still resolves, as a bridge for existing fixtures, but now warns: it can only
+  answer with `polity_area_code`, a FABIO aggregation bucket, which for 62 of
+  the 257 ISO3 codes in `regions_full` is not that territory's own code (61 land
+  on 999, Rest of World; `"SSD"` lands on 206, Sudan (former), where the numeric
+  form `"277"` keeps South Sudan). No published value changes: the pipeline
+  itself never took the ISO3 branch.
+
+* `urban_n_reference` now carries a **`polity_code`** column
+  (`"ESP-1800-2025"`) alongside its numeric `area_code`, so the benchmark series
+  names the territory it measures instead of only the FAOSTAT aggregation bucket
+  `203`. The code is resolved per benchmark year against the polity active in
+  that year. Additive: `area_code` and every measured value are unchanged, and
+  no exported function reads this dataset at runtime. This sets the convention
+  for the other territory-keyed coefficient tables.
+
+* `add_polity_code()` no longer presents a **nearest-period stand-in as a real
+  match**. When no mapped period covers a row's year the row still resolves to
+  the nearest period of the same area, but `mapping_status` now reports
+  `"out_of_span"` instead of inheriting the crosswalk's `"matched"`/`"manual"`,
+  so a figure attributed to a polity that did not exist in that year is
+  visible. Over the FAOSTAT era this covers 993 of 16638 resolved area-years
+  across 36 areas, in both directions: FAOSTAT area 206 "Sudan (former)" for
+  1961-2010 resolved to `SDN-2011-2025` (post-secession Sudan, which excludes
+  the territory those figures cover) and area 51 Czechoslovakia for 1994-2023
+  resolved to `F51-1947-1993`, a state that had dissolved. Relabelling only:
+  no `polity_code` assignment changes (0 of 16638), and no exported table
+  carries `mapping_status`, so no published value moves.
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row
