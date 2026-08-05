@@ -11,31 +11,16 @@
 testthat::test_that("only the expected areas fall back to prefix inference", {
   # PINNED so the list can only shrink deliberately. Every area here is one the
   # upstream map does not cover, so its polity is inferred rather than declared.
-  # All eight are statistical constructs rather than territories: 351 is the
+  # All seven are statistical constructs rather than territories: 351 is the
   # FAOSTAT "China" aggregate, deliberately left unmapped so it cannot
   # double-count its own components, and 901-906 are the regional "Other" buckets
   # that resolve to WHEP's own regional aggregate polities.
-  #
-  # 999 is the Rest-of-World bucket itself, and it is here rather than under
-  # `fabio_row_fold` only because of the routing change below: the fold override
-  # now yields to any area the compact grid models with a polity family of its
-  # own, and 999 satisfies that trivially, since the family it carries IS `ROW`.
-  # So it reaches `ROW-1850-2025` through its own prefix instead of through the
-  # override. Same polity, same `polity_area_code` 999, different route -- which
-  # is why the label moved and nothing else did.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   fallback <- sort(unique(cw$area_code[
     cw$mapping_source == "prefix_fallback" & !is.na(cw$area_code)
   ]))
 
-  testthat::expect_equal(
-    fallback,
-    c(351L, 901L, 902L, 903L, 904L, 905L, 906L, 999L)
-  )
-  # The bucket's own answer is unchanged by the reroute.
-  row_rows <- cw[which(cw$area_code == 999L), ]
-  testthat::expect_equal(unique(row_rows$polity_code), "ROW-1850-2025")
-  testthat::expect_equal(unique(row_rows$polity_area_code), 999L)
+  testthat::expect_equal(fallback, c(351L, 901L, 902L, 903L, 904L, 905L, 906L))
 })
 
 testthat::test_that("mapping_source accounts for every crosswalk row", {
@@ -60,10 +45,7 @@ testthat::test_that("mapping_source accounts for every crosswalk row", {
     unique(cw$map_match_route[from_map]),
     c("iso-equal", "manual-route", "manual-replace", "manual-span")
   )
-  # 254 rather than 245: the seven grid areas the Rest-of-World override used to
-  # capture now take the polity the map declares for them, so their map rows stop
-  # being shadowed. See the fold test below.
-  testthat::expect_equal(sum(from_map), 254L)
+  testthat::expect_equal(sum(from_map), 245L)
 })
 
 testthat::test_that("the map's spans partition each area's reporting years", {
@@ -156,54 +138,25 @@ testthat::test_that("area 52 keeps pre-1991 coverage without a prefix collapse",
   testthat::expect_equal(mapped$mapping_status, c("out_of_span", "matched"))
 })
 
-testthat::test_that("the Rest-of-World fold yields to areas the grid models", {
-  # This pin was previously "the fold still outranks the map", asserting 62 folded
-  # areas and naming Syria, North Macedonia, Eswatini, New Caledonia, French
-  # Guiana and Palestine as staying on `ROW-1850-2025`. It said the number "must
-  # move only on purpose". This is that purpose (#459): seven areas the package
-  # models as countries in its own compact grid, and for which `polities` carries
-  # a real polity, stop being identified as a non-territorial aggregate.
+testthat::test_that("the FABIO Rest-of-World fold still outranks the map", {
+  # PINNED because lifting it moves every Rest-of-World figure and is tracked
+  # separately (#419/#414), not because it is right. 31 areas the upstream map
+  # names a real polity for -- Syria, North Macedonia, Eswatini, New Caledonia,
+  # French Guiana, Palestine among them -- stay on `ROW-1850-2025` because FABIO
+  # folds them into its single Rest-of-World row. Adopting the map deliberately
+  # did NOT change that, so this number must move only on purpose.
   #
-  # The old pin's stated reason -- that lifting it "moves every Rest-of-World
-  # figure" -- is MEASURED to be false for this change, and that is the whole
-  # argument for making it. The fold lives in two places: `polity_code`, an
-  # identity, and `polity_area_code`, the numeric bucket every build actually
-  # keys on (`get_primary_production()` emits it AS `area_code`). Only the
-  # identity changes here. All seven keep `polity_area_code` 999, so no value is
-  # re-attributed and no total moves.
-  #
-  # Lifting the fold on the NUMERIC key is a separate change and is not done here.
-  # Note that #419's headline figure for it -- 13.7x on global feed -- has since
-  # been DISPROVED by two full-range `get_wide_cbs()` builds (PR #555): feed comes
-  # out at 1.0000 and the largest move of any column is 1.2% on `stock_addition`.
-  # The 13.7x was an artifact of the `dcast()` duplicate-key `length()` fallback
-  # (#425, fixed by #429), which corrupted the baseline that measurement was taken
-  # against. So the numeric fold stands on the modelling question -- FABIO matrix
-  # comparability, and the promotion's unmeasured effect past CBS -- rather than on
-  # a magnitude argument.
+  # The bucket's own code moved from `ROW-1850-2023` when upstream extended it
+  # (whep-polities#127); the 62 folded areas did not change, which is the thing
+  # this test is here to hold still.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   folded <- unique(cw$area_code[cw$mapping_source == "fabio_row_fold"])
 
-  testthat::expect_equal(length(folded), 54L)
+  testthat::expect_equal(length(folded), 62L)
   testthat::expect_true(all(
     cw$polity_code[cw$mapping_source == "fabio_row_fold"] == "ROW-1850-2025"
   ))
-
-  # The seven that no longer fold, and the invariant that makes it safe.
-  unfolded <- c(61L, 69L, 153L, 154L, 209L, 212L, 299L)
-  for (area in unfolded) {
-    testthat::expect_false(area %in% folded)
-    rows <- cw[which(cw$area_code == area), ]
-    testthat::expect_false(any(rows$polity_code == "ROW-1850-2025"))
-    testthat::expect_equal(unique(rows$polity_area_code), 999L)
-  }
-
-  # Everything else FABIO folds keeps folding. These are not individually modelled
-  # here, so routing them to their own polity would diverge from FABIO's
-  # aggregation for nothing -- Bermuda and the Faroe Islands have real polities
-  # (`BMU-1684-1968`, `FRO-1800-2025`) and still fold, which is the boundary this
-  # change draws: the grid, not the mere existence of a polity, decides.
-  for (area in c(17L, 24L, 64L, 85L, 88L)) {
+  for (area in c(212L, 154L, 209L, 153L, 69L, 299L)) {
     testthat::expect_true(area %in% folded)
   }
 })
