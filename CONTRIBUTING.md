@@ -69,8 +69,9 @@ worth being explicit.
 pinned datasets. A dedicated `offline-tests` CI job enforces this by
 running the suite with an empty cache behind a dead proxy, so any test
 that reaches the network fails deterministically. You can therefore
-clone, install dependencies, and run `devtools::test()` with no access
-to anything.
+clone, install dependencies, and run
+[`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+with no access to anything.
 
 The **full data pipeline** is a different matter. Running a real build
 needs inputs that are not in the repository:
@@ -344,8 +345,9 @@ fixture from `R/toy_examples.R`, and let `@examples` call
 for the reference implementation. For anything that runs fast on small
 input, just write a self-contained inline example.
 
-Run `devtools::document()` after any roxygen change, and commit the
-regenerated `man/` files.
+Run
+[`devtools::document()`](https://devtools.r-lib.org/reference/document.html)
+after any roxygen change, and commit the regenerated `man/` files.
 
 ## Tests
 

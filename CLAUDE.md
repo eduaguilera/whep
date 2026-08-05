@@ -137,8 +137,10 @@ picked up from a fresh clone).
 
 ## Running things
 
-`.Rprofile` runs `devtools::load_all()` on session start, so a plain
-`Rscript`/`R` session already has the package loaded.
+`.Rprofile` runs
+[`devtools::load_all()`](https://devtools.r-lib.org/reference/load_all.html)
+on session start, so a plain `Rscript`/`R` session already has the
+package loaded.
 
 ``` r
 
@@ -440,7 +442,9 @@ The PR must pass these GitHub Actions checks:
 3.  **format-suggest** (`air`): code must be formatted with
     `air format .`. Mandatory, not optional. Air formats **all** `.R`
     files — `R/`, `tests/`, `data-raw/` — not just the ones you edited.
-    Run `devtools::document()` afterwards.
+    Run
+    [`devtools::document()`](https://devtools.r-lib.org/reference/document.html)
+    afterwards.
 4.  **pkgdown**: the site must build. **Every** documented topic
     (functions and documented datasets) must appear in `_pkgdown.yml`
     under `reference:` — every `man/*.Rd` except `whep-package.Rd`.

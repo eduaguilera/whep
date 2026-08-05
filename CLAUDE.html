@@ -106,13 +106,13 @@
 </div>
 <div class="section level2">
 <h2 id="running-things">Running things<a class="anchor" aria-label="anchor" href="#running-things"></a></h2>
-<p><code>.Rprofile</code> runs <code>devtools::load_all()</code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
+<p><code>.Rprofile</code> runs <code><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">devtools::load_all()</a></code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">air</span> format .                     <span class="co"># mandatory before committing</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
 <span>  build_args <span class="op">=</span> <span class="st">"--no-build-vignettes"</span>,</span>
 <span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
@@ -240,7 +240,7 @@
 <li>
 <strong>lint</strong> (<code>lintr</code>): with <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code> and <code>commas_linter</code> disabled (they conflict with <code>air</code>). <code>inst/scripts</code> and <code>inst/analysis</code> are excluded.</li>
 <li>
-<strong>format-suggest</strong> (<code>air</code>): code must be formatted with <code>air format .</code>. Mandatory, not optional. Air formats <strong>all</strong> <code>.R</code> files — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not just the ones you edited. Run <code>devtools::document()</code> afterwards.</li>
+<strong>format-suggest</strong> (<code>air</code>): code must be formatted with <code>air format .</code>. Mandatory, not optional. Air formats <strong>all</strong> <code>.R</code> files — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not just the ones you edited. Run <code><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">devtools::document()</a></code> afterwards.</li>
 <li>
 <strong>pkgdown</strong>: the site must build. <strong>Every</strong> documented topic (functions and documented datasets) must appear in <code>_pkgdown.yml</code> under <code>reference:</code> — every <code>man/*.Rd</code> except <code>whep-package.Rd</code>. Verify with the <code>comm</code> command below; it is currently clean, so any output is your change.</li>
 <li>
@@ -252,7 +252,7 @@
 <span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 2. Document</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Check</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
@@ -262,7 +262,7 @@
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 4. Test</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml</span></span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co"># (compare outputs; empty = OK)</span></span>
 <span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
