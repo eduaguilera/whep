@@ -255,13 +255,23 @@ testthat::test_that("build_urban_n example fixture is schema-complete", {
 # different latitude, so a test cannot pass by accident on a crosswalk
 # where every cell has exactly one polity with polity_frac = 1 (which is
 # what every other fixture in the repo uses).
+#
+# The codes were opaque letters when C0 was first pinned, chosen so that
+# nothing could resolve them and no assertion could pass by looking one
+# up. `build_urban_n()` now routes area_code through
+# `.manure_territory_to_area_code()` (#463/#512), which aborts on an
+# unrecognised value, so the letters are replaced by the numeric codes the
+# rest of this file already uses (203 Spain, 68 France, 231 USA). Only the
+# LABELS change: every property, value and tolerance pinned below is
+# unchanged, and was measured to reproduce exactly under both vocabularies
+# before the substitution was made.
 .urban_c0_cell_polity <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac,
-    -0.25, -0.25, "A", 0.5,
-    -0.25, -0.25, "B", 0.3,
-    -0.25, -0.25, "C", 0.2,
-    0.25, 59.75, "A", 1.0
+    -0.25, -0.25, 203L, 0.5,
+    -0.25, -0.25, 68L, 0.3,
+    -0.25, -0.25, 231L, 0.2,
+    0.25, 59.75, 203L, 1.0
   )
 }
 
@@ -271,10 +281,10 @@ testthat::test_that("build_urban_n example fixture is schema-complete", {
 .urban_c0_cropland <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "A", 2000L, 1000,
-    -0.25, -0.25, "B", 2000L, 1000,
-    -0.25, -0.25, "C", 2000L, 1000,
-    0.25, 59.75, "A", 2000L, 1000
+    -0.25, -0.25, 203L, 2000L, 1000,
+    -0.25, -0.25, 68L, 2000L, 1000,
+    -0.25, -0.25, 231L, 2000L, 1000,
+    0.25, 59.75, 203L, 2000L, 1000
   )
 }
 
@@ -312,7 +322,7 @@ testthat::test_that("C0: urban N is population x rate, conserved to the tonne", 
   # exactly, with no area weighting.
   shared <- out[out$lon == -0.25, , drop = FALSE]
   testthat::expect_equal(
-    shared$urban_n_t[match(c("A", "B", "C"), shared$area_code)],
+    shared$urban_n_t[match(c(203L, 68L, 231L), shared$area_code)],
     1e6 * rate / 1000 * c(0.5, 0.3, 0.2),
     tolerance = 1e-9
   )
