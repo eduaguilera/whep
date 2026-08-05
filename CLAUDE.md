@@ -402,6 +402,18 @@ Conventions of the codebase (follow them; they are how the code reads):
   [`testthat::local_mocked_bindings()`](https://testthat.r-lib.org/reference/local_mocked_bindings.html)
   (43 call sites do this already) or use a fixture under
   `tests/testthat/fixtures/`.
+  - `skip_on_ci()` does **not** enforce this: r-universe runs its check
+    without `CI` set, so a `skip_on_ci()` test runs there for real. Use
+    `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset
+    (r-universe, CRAN) while `r-lib/actions/setup-r` and
+    [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+    both set it. A real-data test that genuinely cannot be rescoped onto
+    a fixture needs **both**. Guarding on a local file or `WHEP_*` env
+    var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests
+    do.
+  - The `offline-tests` job is the enforcement, and it only sees these
+    tests because it unsets `CI`. If it fails alone, add a fixture — do
+    not skip the test and do not relax the job.
 - Access exported objects via
   [`whep::name`](https://rdrr.io/r/base/name.html) — never `:::` or
   [`getFromNamespace()`](https://rdrr.io/r/utils/getFromNamespace.html)
