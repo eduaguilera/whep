@@ -8,8 +8,8 @@ allocate_manure_to_land(applied, gridded = list(), options = list())
 }
 \arguments{
 \item{applied}{A tibble from \code{\link[=apply_management_losses]{apply_management_losses()}} with at least \code{year},
-\code{territory}, \code{sub_territory}, \code{stream}, \code{applied_n}, \code{applied_c} and
-\code{applied_vs}.}
+\code{territory} (a stringified \code{area_code}, see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}}),
+\code{sub_territory}, \code{stream}, \code{applied_n}, \code{applied_c} and \code{applied_vs}.}
 
 \item{gridded}{A named list describing the land surface for each polity:
 \itemize{
@@ -66,13 +66,13 @@ its post-storage bundle ratio, so mass is conserved by construction.
 applied <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~stream, ~manure_type,
   ~applied_n, ~applied_c, ~applied_vs,
-  2020L, "ESP", NA, "collected", "Solid", 80, 800, 40,
-  2020L, "ESP", NA, "grazing", "Excreta", 20, 380, 12
+  2020L, "203", NA, "collected", "Solid", 80, 800, 40,
+  2020L, "203", NA, "grazing", "Excreta", 20, 380, 12
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-  2020L, "ESP", NA, "barley", 6, 50,
-  2020L, "ESP", NA, "wheat", 4, 40
+  2020L, "203", NA, "barley", 6, 50,
+  2020L, "203", NA, "wheat", 4, 40
 )
 allocate_manure_to_land(applied, list(crops = crops))
 }

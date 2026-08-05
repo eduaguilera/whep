@@ -22,9 +22,13 @@
 #' method multiplies the WHEP commodity-balance food element (tonnes fresh
 #' matter, per `year`, `area_code`, `item_cbs_code`) by the per-item nutrition
 #' coefficients in `whep::biomass_coefs` and divides by national population.
-#' Protein per kilogram fresh matter follows the coalesce chain `Edible_N_kgFM`,
-#' then `N_kgN_kgFM`, then `Product_kgN_kgDM * Product_kgDM_kgFM` (kg N per kg
-#' fresh matter), times 6.25 (nitrogen-to-protein factor). Energy per kilogram
+#' Protein per kilogram fresh matter is nitrogen times 6.25
+#' (nitrogen-to-protein factor), on the basis selected by `protein_basis`.
+#' The nitrogen density is `N_kgN_kgFM` where available, otherwise
+#' `Product_kgN_kgDM * Product_kgDM_kgFM`. `Edible_N_kgFM` is not read: it is
+#' empty in every coefficient row, upstream as well as in the packaged data, so
+#' the edible basis is derived from `Edible_portion` instead of stored
+#' redundantly. Energy per kilogram
 #' fresh matter follows `GE_product_edible_portion_MJ_kgFM`, then
 #' `GE_product_MJ_kgFM` (MJ per kg fresh matter), converted to kilocalories via
 #' `MJ / 0.004184`. The energy term is GROSS (combustion) energy, not Atwater
@@ -45,28 +49,52 @@
 #'   `whep::biomass_coefs` / `whep::items_full`. For `"faostat_fbs"`:
 #'   `fbs_supply` (`year`, `area_code`, `protein_g_cap_day`,
 #'   `energy_kcal_cap_day`, `population`) is required.
+#' @param protein_basis How the inedible fraction is treated when converting
+#'   nitrogen density to protein, for `"whep_native"` only:
+#'   `"edible_portion"` (default) scales the nitrogen density by
+#'   `Edible_portion`, which is correct when `food_t` is commodity mass while
+#'   the density applies to the edible part, and agrees best with FAOSTAT FBS;
+#'   `"whole_commodity"` applies no edible scaling, the behaviour before this
+#'   argument existed, kept for continuity and sensitivity analysis;
+#'   `"product_nitrogen"` uses the agronomic `Product_kgN_kgDM` for both the
+#'   edible and inedible fractions, scaled by `Edible_portion`, ignoring
+#'   `N_kgN_kgFM`. A missing `Edible_portion` counts as 1.
 #' @param example If `TRUE`, return a small fixture instead of computing.
 #'   Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `protein_g_cap_day`,
-#'   `energy_kcal_cap_day`, `population` and `method_food_supply`.
+#'   `energy_kcal_cap_day`, `population`, `method_food_supply` and
+#'   `method_protein_basis` (`NA` for `"faostat_fbs"`), plus the polity columns
+#'   below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_food_supply(example = TRUE)
 build_food_supply <- function(
   method = c("whep_native", "faostat_fbs"),
   data = list(),
+  protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_build_food_supply())
   }
   method <- rlang::arg_match(method)
+  protein_basis <- rlang::arg_match(protein_basis)
   out <- if (method == "faostat_fbs") {
     .food_supply_fbs(data)
   } else {
-    .food_supply_whep_native(data)
+    .food_supply_whep_native(data, protein_basis)
   }
-  dplyr::mutate(out, method_food_supply = method)
+  dplyr::mutate(
+    out,
+    method_food_supply = method,
+    method_protein_basis = if (method == "faostat_fbs") {
+      NA_character_
+    } else {
+      protein_basis
+    }
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -87,7 +115,7 @@ build_food_supply <- function(
 
 # whep_native: commodity-balance food tonnes times the per-item nutrition
 # coefficients, aggregated per country-year and divided by national population.
-.food_supply_whep_native <- function(data) {
+.food_supply_whep_native <- function(data, protein_basis) {
   cbs_food <- data$cbs_food
   population <- data$population
   coefs <- data$biomass_coefs %||% whep::biomass_coefs
@@ -103,26 +131,28 @@ build_food_supply <- function(
     "data$population"
   )
   cbs_food |>
-    .food_join_nutrition(.food_nutrition_lookup(items, coefs)) |>
+    .food_join_nutrition(
+      .food_nutrition_lookup(items, coefs, protein_basis)
+    ) |>
     .food_aggregate() |>
     .food_per_capita(population)
 }
 
 # Per-item nutrition coefficients keyed by item_cbs_code. Bridge item_cbs_code
 # to Name_biomass (items_full) then to biomass_coefs, deriving protein and
-# gross-energy content per kilogram fresh matter with the documented coalesce
-# chains. Protein is nitrogen times 6.25.
-.food_nutrition_lookup <- function(items, coefs) {
+# gross-energy content per kilogram fresh matter.
+.food_nutrition_lookup <- function(items, coefs, protein_basis) {
+  .check_columns(coefs, .food_coef_cols(), "data$biomass_coefs")
   bridge <- dplyr::distinct(items, .data$item_cbs_code, .data$Name_biomass)
   nutrition <- dplyr::transmute(
     coefs,
     Name_biomass = .data$Name_biomass,
-    protein_frac_kgfm = dplyr::coalesce(
-      .data$Edible_N_kgFM,
-      .data$N_kgN_kgFM,
-      .data$Product_kgN_kgDM * .data$Product_kgDM_kgFM
-    ) *
-      6.25,
+    protein_frac_kgfm = .food_protein_frac(
+      nitrogen_edible = .data$N_kgN_kgFM,
+      nitrogen_product = .data$Product_kgN_kgDM * .data$Product_kgDM_kgFM,
+      edible_portion = .data$Edible_portion,
+      protein_basis = protein_basis
+    ),
     energy_mj_kgfm = dplyr::coalesce(
       .data$GE_product_edible_portion_MJ_kgFM,
       .data$GE_product_MJ_kgFM
@@ -133,6 +163,55 @@ build_food_supply <- function(
     # >1 row would fan out and double-count food_t downstream.
     dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
   dplyr::left_join(bridge, nutrition, by = "Name_biomass")
+}
+
+.food_coef_cols <- function() {
+  c(
+    "Name_biomass",
+    "N_kgN_kgFM",
+    "Product_kgN_kgDM",
+    "Product_kgDM_kgFM",
+    "Edible_portion",
+    "GE_product_edible_portion_MJ_kgFM",
+    "GE_product_MJ_kgFM"
+  )
+}
+
+# Protein mass fraction per kilogram fresh matter, nitrogen times 6.25.
+#
+# `Edible_N_kgFM` is deliberately NOT read. It is empty in every one of the 421
+# coefficient rows, upstream in afsetools as well as in the packaged data
+# (#361), so the edible basis is derived here from the populated columns rather
+# than stored redundantly in the coefficient table.
+#
+# The three bases differ in how the inedible fraction is treated:
+#   edible_portion    nitrogen density (edible where available, else product)
+#                     scaled by the edible fraction of fresh matter. Correct
+#                     when `food_t` is commodity mass but the density applies to
+#                     the edible part only. Best agreement with FAOSTAT FBS.
+#   whole_commodity   no edible scaling; the pre-#361 behaviour, kept selectable
+#                     for continuity and sensitivity analysis.
+#   product_nitrogen  agronomic product nitrogen for both fractions, scaled by
+#                     the edible fraction, ignoring `N_kgN_kgFM`.
+#
+# A missing `Edible_portion` is treated as 1 (no inedible fraction) in the two
+# scaling bases, so an unpopulated row degrades to the whole-commodity value
+# rather than to NA.
+.food_protein_frac <- function(
+  nitrogen_edible,
+  nitrogen_product,
+  edible_portion,
+  protein_basis
+) {
+  edible_fraction <- dplyr::coalesce(edible_portion, 1)
+  nitrogen <- switch(
+    protein_basis,
+    edible_portion = dplyr::coalesce(nitrogen_edible, nitrogen_product) *
+      edible_fraction,
+    whole_commodity = dplyr::coalesce(nitrogen_edible, nitrogen_product),
+    product_nitrogen = nitrogen_product * edible_fraction
+  )
+  nitrogen * 6.25
 }
 
 # Attach the nutrition coefficients to the food tonnes and drop (with a

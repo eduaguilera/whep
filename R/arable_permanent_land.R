@@ -62,6 +62,10 @@
 #' - `arable_ha`, `permanent_ha`, `cropland_ha`: physical land area in hectares.
 #' - `source`: provenance, `"fao"` (>= 1961) or `"luh2"` (pre-1961 backcast).
 #'
+#' Plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
+#'
 #' @export
 #'
 #' @examples
@@ -95,7 +99,8 @@ get_arable_permanent_land <- function(
     out <- out[out$year %in% years, , drop = FALSE]
   }
   out <- out[order(out$area_code, out$year), , drop = FALSE]
-  tibble::as_tibble(out)
+  tibble::as_tibble(out) |>
+    .add_reporting_polity_columns()
 }
 
 # -- FAO RL land-use ingestion -------------------------------------------------
@@ -396,7 +401,8 @@ get_arable_permanent_land <- function(
     ~area_code, ~year, ~arable_ha, ~permanent_ha, ~cropland_ha, ~source,
     222L, 2020L, 2831300, 2119200, 4950500, "fao",
     222L, 1960L, 2600000, 1500000, 4100000, "luh2"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 #' Build a per-crop physical land extension with FAO fallow-inclusive arable land.
