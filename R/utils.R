@@ -1788,7 +1788,9 @@ utils::globalVariables(
     "iso3_code",
     "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
-    "rows"
+    "rows",
+    # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
+    "n_successors"
   )
 )
 
