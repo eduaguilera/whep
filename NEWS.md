@@ -1,5 +1,19 @@
 # whep (development version)
 
+* New `polity_bucket_coverage()` reports every FABIO reporting bucket
+  (`polity_area_code`) that folds more than one polity in a year, and says
+  whether the polity the bucket itself resolves to covers the fold
+  (`"aggregate"`), covers only part of it (`"partial"`), or is absent
+  (`"unlabelled"`). Exactly one bucket in the shipped crosswalk is `"partial"`:
+  206, which folds FAOSTAT areas 276 Sudan and 277 South Sudan while no live
+  polity means "Sudan and South Sudan". Measured on real FAOSTAT production for
+  2015, that bucket carries 53,124,088 t for Sudan plus 14,876,146 t for South
+  Sudan -- 21.9% of the bucket -- under one polity label.
+  `.aggregate_to_polities()` now warns when it builds such a bucket; silence it
+  with `options(whep.warn_polity_folds = FALSE)`. **No published value changes:**
+  the fold, the numeric bucket and every polity label are exactly as before, and
+  the only new behaviour is the warning and the new function.
+
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via
   `WHEP_POLITIES_FAOSTAT_MAP`, 281 rows over 228 FAOSTAT area codes) instead of
