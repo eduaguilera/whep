@@ -1351,7 +1351,14 @@ utils::globalVariables(
     "residue_c_mg",
     "root_c_mg",
     "manure_c_mg",
+    "weed_c_mg",
     "total_c_mg",
+    # .sci_sum_components() pre-masks c_mass_mg by input_type into these four
+    # dot-prefixed data.table columns, then sums them per cell.
+    ".residue",
+    ".root",
+    ".weed",
+    ".manure",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",

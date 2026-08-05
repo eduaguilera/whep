@@ -459,7 +459,9 @@ testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
 
-  out <- whep:::.n_inputs_urban(data)
+  # The iso3c form is a deprecated bridge (#463), so resolving it warns; what
+  # this test is about is that it still resolves rather than becoming NA.
+  testthat::expect_warning(out <- whep:::.n_inputs_urban(data), "deprecated")
 
   testthat::expect_equal(out$area_code, 203L)
   testthat::expect_false(anyNA(out$area_code))
@@ -507,9 +509,12 @@ testthat::test_that("manure_type maps to manure_solid/manure_liquid/excreta", {
 })
 
 testthat::test_that("manure territory resolves an iso3c code, not just a stringified area_code", {
-  # build_livestock_nutrient_flows()'s own @examples/tests use an iso3c
-  # territory ("ESP"); the real pipeline (redistribute_feed()) instead
-  # casts area_code to character. Both must resolve, not just one.
+  # The real pipeline (redistribute_feed()) casts area_code to character; an
+  # iso3c territory is a deprecated bridge for fixtures written before the
+  # manure chain's @examples used area codes (#463). It must still resolve
+  # rather than silently NA out, but it now warns, and the warning has to reach
+  # the exported boundary rather than dying inside the helper -- that is what
+  # tells a caller their fixture is on the lossy vocabulary.
   intake <- .nbi_livestock_intake()
   intake$territory <- "ESP"
   gridded <- .nbi_gridded()
@@ -519,7 +524,10 @@ testthat::test_that("manure territory resolves an iso3c code, not just a stringi
   data$livestock_intake <- intake
   data$gridded <- gridded
 
-  out <- whep::build_n_inputs(data = data)
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(data = data),
+    "deprecated"
+  )
   manure <- out[
     out$fert_type %in% c("manure_solid", "manure_liquid", "excreta"),
   ]
@@ -804,4 +812,139 @@ testthat::test_that("all-zero Coello rates fall back to conserving area shares",
   testthat::expect_equal(res$n_input_t, c(500, 500))
   testthat::expect_true(all(res$method_synthetic == "area_share"))
   testthat::expect_false(anyNA(res$n_input_t))
+})
+
+testthat::test_that("a duplicate-ISO3 territory no longer shifts later ones", {
+  # Regression: the previous inline lookup joined on regions_full$code, where
+  # ETH and SDN each carry a second historical row. The join grew the result and
+  # shifted every LATER territory onto the wrong country -- c("ESP","ETH","DEU")
+  # returned 203, 238, 62, silently turning Germany into Ethiopia PDR.
+  #
+  # The ISO3 form is now a deprecated bridge that warns, and these assertions
+  # are about the resolved codes rather than the warning, so silence it here;
+  # the warning itself is asserted in the test below.
+  territory_codes <- function(x) {
+    suppressWarnings(whep:::.manure_territory_to_area_code(x))
+  }
+  testthat::expect_equal(
+    territory_codes(c("ESP", "ETH", "DEU")),
+    c(203L, 238L, 79L)
+  )
+  testthat::expect_equal(territory_codes(c("SDN", "DEU")), c(206L, 79L))
+  # Stringified area codes still pass straight through, mixed with ISO3.
+  testthat::expect_equal(territory_codes(c("203", "ETH")), c(203L, 238L))
+})
+
+testthat::test_that("the ISO3 territory bridge warns and area codes do not", {
+  # #463: territory carried two undocumented vocabularies. The pipeline emits
+  # only stringified area codes (feed_intake_redistribute.R:805), while the
+  # manure chain's own @examples used ISO3 literals, and the two disagree about
+  # what the resolved code means: an ISO3 resolves through polity_area_code, a
+  # FABIO aggregation bucket, which for 62 of the 257 ISO3 codes in
+  # whep::regions_full is not that territory's own code (measured). 61 land on
+  # 999, Rest of World; "SSD" lands on 206, Sudan (former), where the numeric
+  # form "277" keeps South Sudan. So the bridge must be audible.
+  testthat::expect_warning(
+    testthat::expect_equal(
+      whep:::.manure_territory_to_area_code(c("ESP", "203")),
+      c(203L, 203L)
+    ),
+    "deprecated"
+  )
+  # The warning names the offending value, so a caller can find the fixture.
+  testthat::expect_warning(
+    whep:::.manure_territory_to_area_code("SSD"),
+    "SSD"
+  )
+  # The measured collapse itself: the two vocabularies for South Sudan resolve
+  # to different area codes, hence different polities downstream (206 is
+  # SDN-2011-2025, 277 is SSD-2011-2025).
+  testthat::expect_equal(
+    suppressWarnings(whep:::.manure_territory_to_area_code("SSD")),
+    206L
+  )
+  testthat::expect_equal(whep:::.manure_territory_to_area_code("277"), 277L)
+  # The pipeline's own vocabulary stays silent: no warning for anyone who
+  # follows the (now area-code) documented examples.
+  testthat::expect_silent(
+    whep:::.manure_territory_to_area_code(c("203", "79", NA))
+  )
+})
+
+testthat::test_that("an unresolvable territory still aborts", {
+  testthat::expect_error(
+    whep:::.manure_territory_to_area_code(c("203", "NOTACODE")),
+    "NOTACODE"
+  )
+})
+
+testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
+  # #463: every @examples block in the manure chain identified a territory with
+  # an ISO literal -- "ESP" in the allocation, transport and driver examples,
+  # "ES" in the excretion and management ones -- while the pipeline itself
+  # passes as.character(area_code). "ES" is not resolvable at all: pasting the
+  # documented split_manure_management() fixture into build_n_inputs() aborted
+  # with "Could not resolve territory to an area_code", and "ESP" resolved only
+  # through the lossy iso3c bridge. The defect lives in the documentation, so
+  # this scans the roxygen @examples blocks themselves; asserting on one
+  # function's output would let the next ISO literal back in.
+  #
+  # R/ holds compiled objects rather than sources in an installed package, so
+  # the scan skips wherever the five files are not readable and is load-bearing
+  # under devtools::test() and in a source checkout.
+  files <- c(
+    "excretion.R",
+    "manure_management.R",
+    "manure_allocation.R",
+    "manure_transport.R",
+    "build_livestock_nutrient_flows.R"
+  )
+  roots <- c(testthat::test_path("..", "..", "R"), "../../00_pkg_src/whep/R")
+  found <- lapply(roots, function(r) file.path(r, files))
+  found <- Filter(function(p) all(file.exists(p)), found)
+  testthat::skip_if(
+    length(found) == 0L,
+    "the manure chain's R sources are not available next to the tests"
+  )
+  paths <- found[[1]]
+
+  # Every #' line below an @examples tag, up to the end of that roxygen block.
+  example_lines <- function(path) {
+    lines <- readLines(path, warn = FALSE)
+    rox <- grepl("^#'", lines)
+    starts <- which(rox & grepl("@examples", lines))
+    unlist(lapply(starts, function(i) {
+      j <- i + 1L
+      while (j <= length(lines) && rox[[j]]) {
+        j <- j + 1L
+      }
+      if (j > i + 1L) lines[seq(i + 1L, j - 1L)] else character()
+    }))
+  }
+  lits <- unlist(lapply(paths, function(p) {
+    ex <- example_lines(p)
+    gsub('"', "", unlist(regmatches(ex, gregexpr('"[^"]*"', ex))))
+  }))
+  testthat::expect_gt(length(lits), 0L)
+
+  iso_like <- unique(lits[grepl("^[A-Za-z]{2,3}$", lits)])
+  testthat::expect_equal(
+    iso_like,
+    character(),
+    info = paste0(
+      "ISO-shaped literals in the manure chain's examples: ",
+      paste(iso_like, collapse = ", ")
+    )
+  )
+  # In these blocks the quoted all-digit literals ARE the territory values:
+  # years and item codes are unquoted integers and cell ids carry a "_". Each
+  # must resolve through the chain's terminal step, and resolve silently, since
+  # a warning here would mean the examples still teach the bridge.
+  codes <- unique(lits[grepl("^[0-9]+$", lits)])
+  testthat::expect_gt(length(codes), 0L)
+  testthat::expect_silent(whep:::.manure_territory_to_area_code(codes))
+  testthat::expect_equal(
+    whep:::.manure_territory_to_area_code(codes),
+    as.integer(codes)
+  )
 })

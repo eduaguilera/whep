@@ -129,7 +129,9 @@
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`.
+#'   is `NA` for every other `fert_type`. Both grains also carry the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -166,7 +168,8 @@ build_n_inputs <- function(
     .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
-    .ni_resolve(resolution)
+    .ni_resolve(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -408,25 +411,49 @@ build_n_inputs <- function(
     )
 }
 
-# build_livestock_nutrient_flows()'s $applied$territory carries either a
-# stringified area_code (the real pipeline's own convention, e.g.
-# feed_intake_redistribute.R:805 territory = as.character(area_code)) or an
-# ISO3 code (the function's own roxygen @examples and test fixtures use
-# territory = "ESP"). Resolve both rather than assuming one and silently
-# NA-ing the other: try integer parsing first, then fall back to an
-# iso3c -> area_code lookup via whep::regions_full; abort on anything that
-# resolves to neither, rather than propagating NA into area_code.
+# build_livestock_nutrient_flows()'s $applied$territory carries a stringified
+# area_code -- the one vocabulary the pipeline itself produces, e.g.
+# feed_intake_redistribute.R:805 territory = as.character(area_code). An ISO3
+# literal is still resolved, but only as a compatibility bridge for fixtures
+# written before the manure chain's own @examples used area codes: try integer
+# parsing first, then fall back to an iso3c -> area_code lookup via
+# .iso3c_to_area_code() (R/polities.R); abort on anything that resolves to
+# neither, rather than propagating NA into area_code.
+#
+# That helper matches on polity_area_code and so returns exactly one row per
+# ISO3. The previous inline lookup joined on regions_full$code, where ETH and
+# SDN each carry a historical predecessor as a second row, so a left_join grew
+# the result and shifted every LATER territory onto the wrong country: given
+# c("ESP", "ETH", "DEU") it returned 203, 238, 62 -- Germany silently became
+# Ethiopia PDR -- with only a "number of items to replace" warning.
+#
+# Uniqueness is not identity, though: polity_area_code is a FABIO aggregation
+# bucket, so the bridge answers with a code that is NOT the territory's own for
+# 62 of the 257 ISO3 codes it knows (measured). 61 of those land on 999, Rest
+# of World (AND, LIE, GRL, REU, ...), and SSD lands on 206, Sudan (former) --
+# where the numeric vocabulary "277" would have kept South Sudan. The bridge
+# therefore warns: a caller passing ISO3 cannot see which of the two answers it
+# got, and a silent one-in-four chance of another territory's code is exactly
+# the identity loss the polity migration is closing.
 .manure_territory_to_area_code <- function(territory) {
   as_int <- suppressWarnings(as.integer(territory))
   still_missing <- is.na(as_int) & !is.na(territory)
   if (any(still_missing)) {
-    iso3_lookup <- whep::regions_full |>
-      dplyr::filter(!is.na(.data$iso3c)) |>
-      dplyr::distinct(.data$iso3c, .data$code)
-    resolved <- tibble::tibble(iso3c = territory[still_missing]) |>
-      dplyr::left_join(iso3_lookup, by = "iso3c") |>
-      dplyr::pull("code")
-    as_int[still_missing] <- resolved
+    from_iso3 <- .iso3c_to_area_code(territory[still_missing])
+    as_int[still_missing] <- from_iso3
+    bridged <- unique(territory[still_missing][!is.na(from_iso3)])
+    if (length(bridged) > 0) {
+      cli::cli_warn(c(
+        "Resolving {.field territory} from an {.field iso3c} literal is
+         deprecated.",
+        i = "Bridged as {.field iso3c}: {.val {bridged}}. Pass
+             {.code as.character(area_code)} instead, the vocabulary the
+             manure pipeline itself produces.",
+        i = "An {.field iso3c} resolves to {.field polity_area_code}, a FABIO
+             aggregation bucket, which for 62 of 257 known codes is not the
+             territory's own: {.val SSD} becomes 206, Sudan (former)."
+      ))
+    }
   }
   unresolved <- unique(territory[is.na(as_int) & !is.na(territory)])
   if (length(unresolved) > 0) {
@@ -566,11 +593,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() stringifies area_code internally (its manure-
-      # transport reuse needs a character territory key). Resolve either its
-      # normal numeric-string code or an ISO3 fixture/input through the same
-      # checked resolver as the manure path; never turn an ISO3 into silent NA.
-      area_code = .manure_territory_to_area_code(.data$area_code),
+      # build_urban_n() resolves its own territory key (a stringified
+      # area_code, or an ISO3) back to a numeric area_code, through the same
+      # checked resolver as the manure path, so nothing is left to resolve
+      # here and an ISO3 never becomes a silent NA.
+      area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",
@@ -888,5 +915,6 @@ build_n_inputs <- function(
         "coello",
         NA_character_
       )
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }

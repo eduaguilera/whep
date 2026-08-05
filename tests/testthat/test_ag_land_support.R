@@ -134,14 +134,20 @@
 testthat::test_that("the example fixture matches the documented contract", {
   out <- whep::build_ag_land_support(example = TRUE)
   testthat::expect_s3_class(out, "tbl_df")
+  # The reporting-polity columns are part of the contract (whep#424), and they
+  # lead the frame because that is where the attach helper puts the key.
   testthat::expect_named(
     out,
     c(
+      "year",
+      "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
       "lon",
       "lat",
-      "area_code",
       "item_cbs_code",
-      "year",
       "land_use",
       "area_ha"
     )

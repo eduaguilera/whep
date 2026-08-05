@@ -69,12 +69,128 @@ subsoil_no3_reduction <- .read_balance_csv("subsoil_no3_reduction.csv")
 manner_params <- .read_balance_csv("manner_params.csv")
 n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 
+# Resolve an ISO3 area label to the numeric FAOSTAT area code every other
+# area_code in this package uses. Aborts on an ISO3 the crosswalk does not
+# know, and on one that names two areas (ETH is both 62, Ethiopia PDR, and
+# 238; SDN is both 206, former Sudan, and 276), where taking whichever row
+# came first would silently date the series.
+.iso3_to_area_code <- function(iso3) {
+  if (!exists("polity_area_crosswalk")) {
+    load(here::here("data", "polity_area_crosswalk.rda"))
+  }
+  codes <- polity_area_crosswalk |>
+    dplyr::filter(.data$area_iso3c %in% iso3, !is.na(.data$area_code)) |>
+    dplyr::distinct(.data$area_iso3c, .data$area_code)
+
+  unknown <- setdiff(iso3, codes$area_iso3c)
+  if (length(unknown) > 0) {
+    cli::cli_abort(c(
+      "Cannot resolve an ISO3 area label to a FAOSTAT area code.",
+      "x" = "Not in polity_area_crosswalk: {.val {unknown}}."
+    ))
+  }
+  ambiguous <- unique(codes$area_iso3c[duplicated(codes$area_iso3c)])
+  if (length(ambiguous) > 0) {
+    cli::cli_abort(c(
+      "An ISO3 area label maps to more than one FAOSTAT area code.",
+      "x" = "Ambiguous: {.val {ambiguous}}.",
+      "i" = "Label the source rows with the era they cover."
+    ))
+  }
+
+  as.integer(codes$area_code[match(iso3, codes$area_iso3c)])
+}
+
+# Resolve an ISO3 area label plus a data year to the polity code string
+# ("ESP-1800-2025") that epic whep#458 asks every territory identifier in this
+# package to carry. Matched strictly against the polity's own active span, not
+# through add_polity_code()'s 1961 back-cast anchor: a vendored national series
+# reports each benchmark year under the borders it actually had, while WHEP's
+# pre-1961 FAOSTAT series are back-cast onto the anchor-year territory and need
+# the floor. Aborts on a year no polity covers, and on a year two polities
+# claim, so a re-dated or split territory becomes a build error instead of a row
+# carrying NA or whichever candidate sorted first.
+.iso3_year_to_polity_code <- function(iso3, year) {
+  if (!exists("polity_area_crosswalk")) {
+    load(here::here("data", "polity_area_crosswalk.rda"))
+  }
+  spans <- polity_area_crosswalk |>
+    dplyr::filter(.data$area_iso3c %in% iso3, !is.na(.data$polity_code)) |>
+    dplyr::distinct(
+      .data$area_iso3c,
+      .data$polity_code,
+      .data$polity_start_year,
+      .data$polity_end_year
+    ) |>
+    dplyr::mutate(
+      # An open-ended span still has to match; only a missing bound is relaxed.
+      from_year = dplyr::coalesce(as.numeric(.data$polity_start_year), -Inf),
+      to_year = dplyr::coalesce(as.numeric(.data$polity_end_year), Inf)
+    )
+
+  found <- Map(
+    function(one_iso3, one_year) {
+      spans$polity_code[
+        spans$area_iso3c == one_iso3 &
+          spans$from_year <= one_year &
+          spans$to_year >= one_year
+      ]
+    },
+    iso3,
+    year
+  )
+  labels <- paste(iso3, year)
+
+  unresolved <- labels[lengths(found) == 0]
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Cannot resolve an ISO3 area label and year to a polity code.",
+      "x" = "No polity active in polity_area_crosswalk: {.val {unresolved}}."
+    ))
+  }
+  ambiguous <- labels[lengths(found) > 1]
+  if (length(ambiguous) > 0) {
+    cli::cli_abort(c(
+      "An ISO3 area label and year map to more than one polity.",
+      "x" = "Ambiguous: {.val {ambiguous}}.",
+      "i" = "Label the source rows with the polity they cover."
+    ))
+  }
+
+  unlist(found, use.names = FALSE)
+}
+
 # Module C (Task C3) urban nitrogen coefficient datasets. urban_n_reference is
 # the raw Spain_Hist benchmark series (see R/datasets_balances.R @source for
 # provenance). urban_kgn_cap_reference is the DERIVED per-capita rate; it is
 # NOT recomputed here (see data-raw/build_urban_kgn_cap.R for how it was
 # built and how to regenerate it against real HYDE data).
-urban_n_reference <- .read_balance_csv("urban_n_reference.csv")
+#
+# The vendored urban_n_reference.csv labels its area with the ISO3 string
+# "ESP", while every other area_code in this package is the numeric FAOSTAT
+# code -- the other half of this same derivation,
+# data-raw/build_urban_kgn_cap.R, keeps Spain by filtering on area code 203L.
+# One concept keyed two ways, so the series could not be joined to any
+# area-keyed table without a hand conversion and the column name gave no hint
+# that one was needed (whep#401). The label is resolved here rather than
+# rewritten in the vendored CSV, which would diverge from its source, and
+# looked up in the crosswalk rather than written as a literal 203, so a
+# renamed or re-coded territory becomes a build error instead of a wrong join.
+#
+# That made the series joinable, and a FAOSTAT area code is still not what epic
+# whep#458 asks a territory identifier to be: 203 is an aggregation bucket, the
+# polity is ESP-1800-2025. polity_code is therefore ATTACHED next to area_code
+# rather than replacing it (whep#495), the same attach-do-not-replace choice
+# whep#424 made for the 25 area-keyed exports, so nothing keying on the numeric
+# breaks. It is resolved per row against the polity active in that benchmark
+# year, so a series whose span crosses a succession picks up both polities
+# without this build needing to change.
+urban_n_reference <- .read_balance_csv("urban_n_reference.csv") |>
+  dplyr::mutate(
+    polity_code = .iso3_year_to_polity_code(.data$area_code, .data$year)
+  ) |>
+  dplyr::mutate(area_code = .iso3_to_area_code(.data$area_code)) |>
+  dplyr::relocate("polity_code", .after = "area_code")
 urban_kgn_cap_reference <- .read_balance_csv("urban_kgn_cap_reference.csv")
 
 # Module C (Task C4) MANNER process-based ammonia-volatilisation coefficient

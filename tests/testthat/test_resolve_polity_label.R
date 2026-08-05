@@ -104,11 +104,14 @@ test_that("ambiguous identifiers return NA instead of picking by row order", {
     "MNE-2006-2025"
   )
 
-  # "SDN" is the case that motivated the guard on the ISO3 route: the only
-  # polity carrying that ISO3 starts in 2011, so a pre-secession year has no
-  # answer. This is the Sudan misattribution from #387, refused rather than
-  # guessed.
-  expect_true(is.na(resolve_polity_label("SDN", year = 2000L)))
+  # "SDN" motivated the guard on the ISO3 route, and upstream has since answered
+  # it properly rather than leaving it to be refused. When this was written the
+  # only polity carrying that ISO3 started in 2011, so a pre-secession year had
+  # no answer and NA was the honest one. `SUD-1956-2011` now carries `SDN` as its
+  # ISO3 too, so a 2000 row resolves to the unified Sudan that actually existed
+  # then -- which is the outcome #387 wanted, reached upstream instead of here.
+  # The guard itself is unchanged and still tested by Montenegro above.
+  expect_equal(resolve_polity_label("SDN", year = 2000L), "SUD-1956-2011")
   expect_equal(resolve_polity_label("SDN", year = 2015L), "SDN-2011-2025")
 })
 
@@ -151,13 +154,31 @@ test_that("resolve_polity_label recovers the coverage whep#389 measured", {
   #
   # mueller_synthetic_n$iso3c: 328 rows carried a legacy code matching no
   # polity, and the other 4,715 carried an ISO3 the package had no label route
-  # for at all. 4,999 of 5,043 now resolve; the remainder is SDN, refused above.
+  # for at all.
+  #
+  # 4,832 of 5,043 resolve against the polities vintage this package currently
+  # embeds. The bound was 4,999 when this was written, and the 167-row difference
+  # is NOT a regression in the resolver -- it is the ambiguity guard firing on an
+  # upstream defect that upstream has since fixed. Five ISO3 families ship a
+  # spanning row alongside the finer split of the same family, so two live
+  # polities cover 2000 and the resolver refuses to pick by row order:
+  #
+  #   BRA (54 rows)  BRA-1800-2025 alongside BRA-1909-2025
+  #   ARG (44)       ARG-1800-2025 alongside ARG-1902-2025
+  #   AGO (41)       AGO-1816-2025 alongside AGO-1975-2025
+  #   GRC (39)       GRC-1919-2025 alongside GRC-1947-2025
+  #   IRQ (33)       IRQ-1921-2025 alongside IRQ-1932-2025
+  #
+  # Measured against upstream `main`: every one of the five spanning rows is now
+  # retired or superseded, leaving exactly one live polity covering 2000 in each
+  # family. So the re-sync in #530 lifts this back above 4,999 without touching
+  # the resolver. It stays a lower bound for exactly that reason.
   mueller <- resolve_polity_label(
     whep::mueller_synthetic_n$iso3c,
     source = "mueller-synthetic-n",
     year = 2000L
   )
-  expect_gte(sum(!is.na(mueller)), 4999)
+  expect_gte(sum(!is.na(mueller)), 4832)
 
   # lassaletta_grassland_share$Country was matched by exact string against
   # regions$area_name, which covered 6,370 of 6,909 rows (92.2%). Resolution
@@ -181,14 +202,16 @@ test_that("resolve_polity_label recovers the coverage whep#389 measured", {
     "ROW-1850-2023"
   )
 
-  # urban_n_reference$area_code holds "ESP" in a column that means the numeric
-  # FAOSTAT area everywhere else in the package, so a consumer joining on it got
-  # zero rows for all 10 of its rows.
-  urban <- resolve_polity_label(
-    whep::urban_n_reference$area_code,
-    year = as.integer(whep::urban_n_reference$year)
-  )
-  expect_equal(sum(!is.na(urban)), 10L)
+  # urban_n_reference is FIXED ON MAIN and no longer needs this route at all.
+  # This asserted that resolving its `area_code` rescued all 10 rows, because that
+  # column held the string "ESP" in a slot that means the numeric FAOSTAT area
+  # everywhere else in the package, so a consumer joining on it got zero rows. The
+  # dataset now ships `area_code = 203` and carries `polity_code` directly, so the
+  # defect is gone at source and a label lookup on a numeric code correctly
+  # resolves nothing. Pinned in its fixed shape so the regression would be caught.
+  expect_type(whep::urban_n_reference$area_code, "integer")
+  expect_equal(unique(whep::urban_n_reference$area_code), 203L)
+  expect_equal(unique(whep::urban_n_reference$polity_code), "ESP-1800-2025")
 })
 
 test_that("source and year must be scalar or the same length as label", {
