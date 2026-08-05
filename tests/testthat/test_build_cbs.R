@@ -793,7 +793,7 @@ test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
 
 test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
   # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
-  # ROW-1850-2023 is of type "aggregate". .add_polity_columns_dt refuses to
+  # ROW-1850-2025 is of type "aggregate". .add_polity_columns_dt refuses to
   # extend aggregate reporting areas outside their range, so an 1830 figure has
   # no polity and must be dropped rather than back-filled into ROW. That is the
   # 64 rows / 1,722,000 t the year-aware lookup removes from the feed.
@@ -805,7 +805,7 @@ test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
 
   expect_true(is.na(resolved$polity_code[1]))
   expect_true(is.na(resolved$area_code[1]))
-  expect_equal(resolved$polity_code[2], "ROW-1850-2023")
+  expect_equal(resolved$polity_code[2], "ROW-1850-2025")
   expect_equal(resolved$area_code[2], 999L)
 })
 

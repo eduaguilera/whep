@@ -20,6 +20,17 @@
 #'   to soil (from [get_primary_residues()], net of the removed fraction) times
 #'   the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 #'
+#' Both country totals are read under raw FAOSTAT `Area Code` values and
+#' harmonised to the whep polity `area_code` through [polity_area_crosswalk]
+#' before they are split to crops, so reporting units that FABIO folds into one
+#' bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
+#' Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
+#' to 999). FAOSTAT rows that are not territories carry no polity and are
+#' dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
+#' rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
+#' is a documented exception rather than a coverage gap, since a rollup has no
+#' crop shares of its own and would double count its members.
+#'
 #' N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 #' factors (climate-aggregated): direct `EF1 = 0.010`; indirect via
 #' volatilisation `EF4 = 0.010` applied to the volatilised fraction
@@ -163,7 +174,8 @@ build_crop_soil_n2o_extension <- function(
     dplyr::filter(
       !is.na(.data$manure_applied_n_t),
       .data$manure_applied_n_t >= 0
-    )
+    ) |>
+    .n_country_to_polity("manure_applied_n_t")
 }
 
 # Country-total synthetic fertiliser N (tonnes N) from the FAOSTAT pin.
@@ -178,7 +190,50 @@ build_crop_soil_n2o_extension <- function(
       area_code = as.integer(.data[["Area Code"]]),
       synthetic_n_t = .data$Value
     ) |>
-    dplyr::filter(!is.na(.data$synthetic_n_t), .data$synthetic_n_t >= 0)
+    dplyr::filter(!is.na(.data$synthetic_n_t), .data$synthetic_n_t >= 0) |>
+    .n_country_to_polity("synthetic_n_t")
+}
+
+# Re-key a raw-FAOSTAT country total onto the WHEP polity vocabulary, the
+# `area_code` every other whep table speaks. The crop shares these totals are
+# split by descend from get_primary_production(), which is aggregated to
+# `polity_area_code` by .aggregate_to_polities(); joining a literal FAOSTAT
+# `Area Code` against that either misses the join or lands on the wrong country.
+# Reporting units that FABIO folds into one bucket are summed, exactly as
+# .aggregate_to_polities() sums them: Sudan 276 + South Sudan 277 -> 206,
+# Ethiopia PDR 62 -> 238, and the ~20 small territories that fold into "rest of
+# world" -> 999. Measured on the 1961-2023 pins against a crop-share key set
+# rebuilt the same way get_primary_production() builds it, this recovers 103
+# country-years for each of the two totals, +0.234% of the joinable synthetic-N
+# mass and +0.278% of the joinable applied-manure mass.
+#
+# `polity_area_code` is functionally determined by `area_code` (0 of the 550
+# crosswalk rows disagree), so the bridge needs no year predicate; checked
+# against the year-aware .add_polity_columns_dt() path over the real pins, the
+# two agree to 0 on all 9883 synthetic and 11076 manure keys.
+#
+# Documented exception: the 40 aggregate/non-territory reporting codes in these
+# two pins get no polity and are dropped -- 5000 "World", the 51xx-58xx
+# continent, region, EU-27, OECD and income-group rollups, plus "China" 351,
+# which overlaps 41/96/128/214. This costs no coverage. Those codes are absent
+# from the crop shares too, so the inner join already discarded them, and there
+# is no output resolution that could carry them: both of
+# spatialize_country_n_to_crops()'s resolutions need a crop share. Keeping them
+# would double count the members they roll up.
+.n_country_to_polity <- function(totals, value_col) {
+  bridge <- whep::polity_area_crosswalk |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
+    dplyr::distinct(
+      area_code = as.integer(.data$area_code),
+      polity_area_code = as.integer(.data$polity_area_code)
+    )
+  totals |>
+    dplyr::inner_join(bridge, by = "area_code") |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(value_col), sum),
+      .by = c(year, polity_area_code)
+    ) |>
+    dplyr::rename(area_code = "polity_area_code")
 }
 
 # Each crop's share of national harvested cropland area per year (grassland

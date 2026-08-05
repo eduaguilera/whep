@@ -14,6 +14,10 @@ a continuous time interval. Key columns include:
 \item \code{start_year}, \code{end_year}: Inclusive validity years for the row.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
 a compatibility alias.
+\item \code{wiki_status}: Upstream review state. \code{"retired"} and \code{"superseded"} mark a
+DEAD row, kept so a code already held in older output stays resolvable, but
+never a resolution target: \link{polity_area_crosswalk} excludes them, so resolve
+through it rather than through this table.
 \item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},
 \code{"proxy"}, \code{"missing"}, or \code{"excluded"}).
 \item \code{has_geometry}: Logical flag indicating whether the geometry is non-empty.
