@@ -64,6 +64,17 @@ to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net o
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 }
 
+Both country totals are read under raw FAOSTAT \verb{Area Code} values and
+harmonised to the whep polity \code{area_code} through \link{polity_area_crosswalk}
+before they are split to crops, so reporting units that FABIO folds into one
+bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
+Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
+to 999). FAOSTAT rows that are not territories carry no polity and are
+dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
+rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
+is a documented exception rather than a coverage gap, since a rollup has no
+crop shares of its own and would double count its members.
+
 N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 factors (climate-aggregated): direct \code{EF1 = 0.010}; indirect via
 volatilisation \code{EF4 = 0.010} applied to the volatilised fraction
