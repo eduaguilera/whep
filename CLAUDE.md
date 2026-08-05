@@ -172,10 +172,13 @@ lintr::lint_package(
 
 Gotchas worth knowing before losing an hour:
 
-- The repo root has a **tracked `.Renviron`**, which shadows
-  `~/.Renviron`. Any `WHEP_*` path you set in your home file is
-  invisible to an R session started here (#456). Pass the path argument
-  explicitly, or set the variable in the session.
+- `WHEP_*` paths belong in `~/.Renviron` and are read from there. Do
+  **not** add a `.Renviron` at the repo root: R reads a
+  working-directory `.Renviron` *instead of* `~/.Renviron`, never both,
+  so one here silently hides every `WHEP_*` path an R session started at
+  the root would otherwise see. That was \#456, fixed by moving
+  `_R_CHECK_SYSTEM_CLOCK_` out of a tracked `.Renviron` into the
+  R-CMD-check workflow env and `.Rprofile`.
 - Long pipeline builds are minutes-to-hours and read pins or multi-GB
   local rasters. Never put one in a test or an example; use the
   [`example = FALSE` fixture pattern](#documentation).

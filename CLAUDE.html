@@ -127,7 +127,8 @@
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Gotchas worth knowing before losing an hour:</p>
-<ul><li>The repo root has a <strong>tracked <code>.Renviron</code></strong>, which shadows <code>~/.Renviron</code>. Any <code>WHEP_*</code> path you set in your home file is invisible to an R session started here (#456). Pass the path argument explicitly, or set the variable in the session.</li>
+<ul><li>
+<code>WHEP_*</code> paths belong in <code>~/.Renviron</code> and are read from there. Do <strong>not</strong> add a <code>.Renviron</code> at the repo root: R reads a working-directory <code>.Renviron</code> <em>instead of</em> <code>~/.Renviron</code>, never both, so one here silently hides every <code>WHEP_*</code> path an R session started at the root would otherwise see. That was #456, fixed by moving <code>_R_CHECK_SYSTEM_CLOCK_</code> out of a tracked <code>.Renviron</code> into the R-CMD-check workflow env and <code>.Rprofile</code>.</li>
 <li>Long pipeline builds are minutes-to-hours and read pins or multi-GB local rasters. Never put one in a test or an example; use the <a href="#documentation"><code>example = FALSE</code> fixture pattern</a>.</li>
 <li>
 <code>validation/</code> holds the ground-truth harness (<code>Rscript validation/validate_all.R</code>) — it compares real WHEP output against independent statistics. It <strong>needs network and external data</strong>, is <code>.Rbuildignore</code>d, and is not part of <code>R CMD check</code>. Run it when a change moves published numbers; see <code>validation/README.md</code> and <code>validation/SOURCES.md</code>.</li>
