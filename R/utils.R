@@ -515,6 +515,8 @@ utils::globalVariables(
     "Food_MgN",
     "food_pets",
     "food_share",
+    "from_polity_area_code",
+    "from_polity_code",
     "fu",
     "fu_mean",
     "fu_sum",
@@ -842,6 +844,8 @@ utils::globalVariables(
     "Timeline_End",
     "Timeline_Freq",
     "Timeline_Start",
+    "to_polity_area_code",
+    "to_polity_code",
     "tonnes",
     "total_export",
     "Total_feed_import",
@@ -1184,6 +1188,7 @@ utils::globalVariables(
     "livestock_production_defaults",
     "polities",
     "polity_area_crosswalk",
+    "polity_label_aliases",
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",
@@ -1350,7 +1355,14 @@ utils::globalVariables(
     "residue_c_mg",
     "root_c_mg",
     "manure_c_mg",
+    "weed_c_mg",
     "total_c_mg",
+    # .sci_sum_components() pre-masks c_mass_mg by input_type into these four
+    # dot-prefixed data.table columns, then sums them per cell.
+    ".residue",
+    ".root",
+    ".weed",
+    ".manure",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",
@@ -1769,7 +1781,12 @@ utils::globalVariables(
     "sjos_class",
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
-    "method_n_exceedance"
+    "method_n_exceedance",
+    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
+    "ISO3_CODE",
+    "fao_area_name",
+    "iso3_code",
+    "profile_row"
   )
 )
 

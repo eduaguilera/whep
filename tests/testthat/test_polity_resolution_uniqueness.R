@@ -10,20 +10,25 @@
 # whichever row order surfaced. Fixed in `data-raw/table_mappings.R` by joining
 # `live_polity_attrs` rather than `polity_attrs`.
 #
-# Currently that filter removes nothing: this vintage of the database holds one
-# `superseded` polity and it is not in the crosswalk. It becomes load-bearing when the
-# snapshot is refreshed (#485), where 22 of 27 dead polities are candidates. So the
-# first test below would pass today even without the fix -- which is why the second
-# test exercises the DETECTOR against a fixture instead of against shipped data.
+# That filter is now load-bearing rather than latent. The refreshed snapshot (#530)
+# holds 41 dead polities against the previous vintage's 27, and 14 of the codes this
+# package used to treat as live are dead in it -- including `BLX-1921-1999`,
+# `CAN-1948-2025` and `ROW-1850-2023`. Without the filter each of those would compete
+# with its own replacement. The first test below therefore has teeth on shipped data;
+# the second still exercises the DETECTOR against a fixture so it cannot go vacuous if
+# a future vintage happens to be clean.
 #
 # ROUTE 2 -- GENUINELY OVERLAPPING LIVE PERIODS, which no downstream filter can fix.
-# Montenegro has `MNE-1913-1915` and `MNE-1913-1918`, both `draft` upstream, both
-# covering 1913 and 1914. One is presumably a legacy duplicate that was never retired,
-# but deciding which is an upstream question. Filed as lbm364dl/whep-polities#62.
+# Montenegro had `MNE-1913-1915` and `MNE-1913-1918` both `draft` upstream and both
+# covering 1913-1914, and Peru had `PER-1825-1909` overlapping `PER-1825-1884` and
+# `PER-1884-1909`. Deciding those was an upstream question, filed upstream as
+# whep-polities issue 62, and upstream has now decided both. `MNE-1913-1915` is
+# retired and `PER-1825-1909` superseded, so route 1's filter removes them.
 #
-# So the third test PINS the known conflict rather than asserting zero. Asserting zero
-# would fail today and teach nobody which route regressed; pinning means a new conflict
-# fails the test and the pin shrinks when upstream fixes Montenegro.
+# So the third test asserts ZERO. It used to pin the two known conflicts because
+# asserting zero would have failed; the pin was written to shrink when upstream fixed
+# Montenegro, and it has shrunk all the way. Zero is the invariant the crosswalk is
+# supposed to satisfy, so it is asserted directly now instead of enumerated.
 
 testthat::test_that("no dead polity is a resolution candidate", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -72,28 +77,19 @@ testthat::test_that("adjacent periods are not a conflict", {
   testthat::expect_equal(nrow(whep:::.area_year_polity_conflicts(adjacent)), 0L)
 })
 
-testthat::test_that("the shipped crosswalk's conflicts are the known ones", {
-  # PINNED, not asserted to zero -- see the header. Both remaining conflicts are the
-  # same upstream shape: a legacy period that was never retired when a finer split
-  # replaced it, so two live periods of one family cover the same years. Montenegro is
-  # filed upstream as whep-polities issue 62. Peru's `PER-1825-1909` overlaps both
-  # `PER-1825-1884` and `PER-1884-1909`, which between them partition the same interval.
+testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
+  # ZERO, not a pin -- see the header. The measured history of this number on the
+  # same detector: prefix inference alone gave 199 conflicting area-years across
+  # five groups (areas 15, 28, 101, 170, 273); adopting the upstream FAOSTAT map
+  # (#517) resolved the three FAOSTAT-era groups and left 86 area-years across
+  # two pre-1961 groups (areas 170 Peru and 273 Montenegro); refreshing the
+  # polities snapshot (#530) resolved both, because upstream retired
+  # `MNE-1913-1915` and superseded `PER-1825-1909`.
   #
-  # Both sit BEFORE 1961, so neither is reachable through the upstream FAOSTAT map --
-  # they enter as prefix-derived pre-FAOSTAT periods, which is why adopting the map
-  # (#517) shrank the conflict set without emptying it. Measured on the same polities
-  # vintage: prefix inference alone produced 199 conflicting area-years across five
-  # groups (areas 15, 28, 101, 170, 273); the map resolves the three FAOSTAT-era ones
-  # and 86 area-years across two groups remain.
+  # Any regression here means a NEW overlap, so the offending code pairs are
+  # asserted before the count: a bare `nrow == 0` failure would not say which.
   out <- whep:::.area_year_polity_conflicts()
 
-  testthat::expect_setequal(
-    unique(paste0(out$area_code, " ", out$polity_codes)),
-    c(
-      "170 PER-1825-1884, PER-1825-1909",
-      "170 PER-1825-1909, PER-1884-1909",
-      "273 MNE-1913-1915, MNE-1913-1918"
-    )
-  )
-  testthat::expect_equal(nrow(out), 86L)
+  testthat::expect_equal(unique(out$polity_codes), character(0))
+  testthat::expect_equal(nrow(out), 0L)
 })

@@ -50,19 +50,21 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 # historical output needs to resolve the code it already has. What must not happen is
 # resolving TO one.
 #
-# Inert for the COMMITTED snapshot and not for long. The committed `polities.rda` holds
-# one `superseded` polity and it is not in the crosswalk, so regenerating against it
-# changes no byte -- which is why this commit carries no `data/` diff. Run against the
-# current upstream database it already excludes 27, and 22 of those are crosswalk
-# candidates, so the filter becomes load-bearing the moment the snapshot is refreshed
-# (#485). Measured rather than assumed: regenerating against the current upstream
-# database reports excluding 27 dead polities and retaining 713.
+# It is LOAD-BEARING as of the #530 re-sync, having been latent before it. The old
+# snapshot held 27 dead polities; this one holds 41, and 14 codes that were live in the
+# old one are dead in this one -- `BLX-1921-1999`, `CAN-1886-1948`, `CAN-1948-2025`,
+# `MOR-1956-1958`, `SER-2006-2008`, `RLAM-1850-2013`, the five `R*-1850-2021` buckets,
+# `ROW-1850-2023`, `MNE-1913-1915` and `PER-1825-1909`. Every one of those has a live
+# replacement it would otherwise compete with. Measured rather than assumed: this run
+# reports excluding 41 dead polities and retaining 708.
 #
-# It does NOT fix every ambiguity. Two polities can be live and still overlap --
-# Montenegro's MNE-1913-1915 and MNE-1913-1918 both cover 1913-1914 and are both
-# marked draft upstream. No downstream filter can resolve that; it is filed upstream
-# as whep-polities issue 62. The conflict detector added alongside this finds the
-# class, and test_polity_resolution_uniqueness.R pins the known instance.
+# It does not fix ambiguity between two LIVE overlapping periods, which is a different
+# class and no downstream filter can resolve it. That used to be a real gap here --
+# Montenegro's `MNE-1913-1915`/`MNE-1913-1918` and Peru's `PER-1825-1909` against
+# `PER-1825-1884`/`PER-1884-1909`, filed upstream as whep-polities issue 62 -- and
+# upstream has since retired/superseded the duplicate in each pair, so this filter now
+# removes them. The conflict detector added alongside this still guards the class, and
+# test_polity_resolution_uniqueness.R now asserts it is empty rather than pinning it.
 live_polity_attrs <- polity_attrs |>
   dplyr::filter(
     is.na(.data$wiki_status) |
@@ -81,6 +83,90 @@ excel_na <- c("", "NA", "#N/A", "#DIV/0!", "#REF!")
 # repair_table_labels(): shared with harmonization_tables.R, which reads the same
 # vendored regions_full.csv to build regions_full and polities_cats.
 source("data-raw/_labels.R")
+# The source-label -> polity map published by whep-polities
+# (data/final/label_alias_map.csv, gated there by write_label_alias_map.py
+# --check). Embedded rather than resolved at runtime, for the same reason
+# `polities` is: a package function cannot depend on a sibling checkout existing.
+#
+# This exists because `add_polity_code()` resolves NUMERIC area codes and nothing
+# resolved a country LABEL. Datasets carrying labels therefore had no supported
+# path to a polity: mueller_synthetic_n's `iso3c` column holds FAO-style legacy
+# codes (BZE, ROM, ZAR) and lassaletta_grassland_share's `Country` holds name
+# variants (Cape Verde, Swaziland), and both simply went unresolved. Building a
+# lookup here instead of consuming the published one would make this package a
+# second authority for label -> polity, which is exactly what misattributed
+# FAOSTAT data in #387.
+whep_label_alias_map <- Sys.getenv(
+  "WHEP_POLITIES_LABEL_ALIAS_MAP",
+  unset = path.expand("~/whep-polities/data/final/label_alias_map.csv")
+)
+
+# Fail with an explanation rather than readr's bare "does not exist". This file
+# is published by whep-polities and arrives with lbm364dl/whep-polities#39,
+# whereas polities_database.gpkg is already on that repo's main -- so this is the
+# one upstream artifact a regeneration can be missing, and the raw error names a
+# path without saying what provides it.
+if (!file.exists(whep_label_alias_map)) {
+  cli::cli_abort(c(
+    "The published label alias map is missing.",
+    x = "Looked for {.path {whep_label_alias_map}}.",
+    i = paste(
+      "It is published by whep-polities as",
+      "{.path data/final/label_alias_map.csv} and gated there by",
+      "{.code scripts/write_label_alias_map.py --check}."
+    ),
+    i = paste(
+      "If that repository is checked out elsewhere, point",
+      "{.envvar WHEP_POLITIES_LABEL_ALIAS_MAP} at the file."
+    ),
+    i = paste(
+      "The committed data/polity_label_aliases.rda already carries the",
+      "aliases, so only regeneration is affected, not use."
+    )
+  ))
+}
+
+polity_label_aliases <- readr::read_csv(
+  whep_label_alias_map,
+  show_col_types = FALSE,
+  na = excel_na,
+  col_types = readr::cols(
+    source_label = readr::col_character(),
+    source = readr::col_character(),
+    year_start = readr::col_integer(),
+    year_end = readr::col_integer(),
+    polity_code = readr::col_character(),
+    common_name = readr::col_character(),
+    confidence = readr::col_character(),
+    # How many source rows were actually observed for this label, 0 when the
+    # label is merely mappable. Declared explicitly because this col_types list
+    # is exhaustive by intent -- an upstream column that is not named here is a
+    # column this script cannot see.
+    observed_rows = readr::col_double()
+  )
+)
+
+# Every published alias must name a polity the upstream database carries.
+# Upstream gates the same invariant, so a failure here means the alias map and
+# the GeoPackage were taken from different revisions rather than that the map is
+# wrong. Checked against the freshly read `polities`, not against the committed
+# data/polities.rda, because the two are regenerated together from this script.
+unknown_alias_targets <- setdiff(
+  polity_label_aliases$polity_code,
+  polities$polity_code
+)
+if (length(unknown_alias_targets) > 0L) {
+  cli::cli_abort(c(
+    "The published label alias map targets polities this package cannot carry.",
+    x = "Unknown: {.val {utils::head(unknown_alias_targets, 5)}}.",
+    i = "Rebuild from the same whep-polities revision that produced the map."
+  ))
+}
+
+cli::cli_inform(paste0(
+  "Loaded {nrow(polity_label_aliases)} published label aliases over ",
+  "{length(unique(polity_label_aliases$source_label))} labels."
+))
 
 regions_full_raw <- here::here(
   "inst",
@@ -161,7 +247,7 @@ regions_for_crosswalk <- dplyr::bind_rows(
 #
 # ONE DELIBERATE EXCEPTION: the FABIO Rest-of-World fold still outranks the map.
 # 31 map-covered areas carry `fabio_code == 999` and therefore resolve to
-# `ROW-1850-2023` today (Syria, North Macedonia, Eswatini, New Caledonia,
+# `ROW-1850-2025` today (Syria, North Macedonia, Eswatini, New Caledonia,
 # French Guiana, Palestine and 25 more), even though the map names a real polity
 # for each. Letting the map win there would move every Rest-of-World figure, and
 # that fold is tracked separately as #419/#414. It is left standing here on
@@ -403,8 +489,11 @@ prefix_areas <- reporting_areas |>
 # re-attribute an 1890 Austria figure to `AUT-1919-2025` as an out-of-span
 # stand-in. So a prefix-derived period of a mapped area is kept when it overlaps
 # NO span the map declares for that area, and dropped when it does -- which is
-# what keeps `BLX-1921-1999` (1921-1999, overlapping the map's 1961-1999 span for
-# area 15) out while keeping `AFG-1800-1893` in.
+# what kept `BLX-1921-1999` (1921-1999, overlapping the map's 1961-1999 span for
+# area 15) out while keeping `AFG-1800-1893` in. Since the #530 re-sync upstream
+# has retired `BLX-1921-1999` outright, so that particular row is now excluded one
+# step earlier by the dead-polity filter; the rule still governs every live period
+# of a mapped area, which is where it earns its place.
 #
 # The comparison is deliberately mixed-convention: `polity_end_year` is EXCLUSIVE
 # so a period covers `start:(end - 1)`, while the map's `map_year_end` is
@@ -601,3 +690,4 @@ usethis::use_data(items_cbs, overwrite = TRUE)
 usethis::use_data(items_prod, overwrite = TRUE)
 usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)
+usethis::use_data(polity_label_aliases, overwrite = TRUE)

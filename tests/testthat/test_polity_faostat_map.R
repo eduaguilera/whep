@@ -20,7 +20,7 @@ testthat::test_that("only the expected areas fall back to prefix inference", {
   # `fabio_row_fold` only because of the routing change below: the fold override
   # now yields to any area the compact grid models with a polity family of its
   # own, and 999 satisfies that trivially, since the family it carries IS `ROW`.
-  # So it reaches `ROW-1850-2023` through its own prefix instead of through the
+  # So it reaches `ROW-1850-2025` through its own prefix instead of through the
   # override. Same polity, same `polity_area_code` 999, different route -- which
   # is why the label moved and nothing else did.
   cw <- as.data.frame(whep::polity_area_crosswalk)
@@ -34,7 +34,7 @@ testthat::test_that("only the expected areas fall back to prefix inference", {
   )
   # The bucket's own answer is unchanged by the reroute.
   row_rows <- cw[which(cw$area_code == 999L), ]
-  testthat::expect_equal(unique(row_rows$polity_code), "ROW-1850-2023")
+  testthat::expect_equal(unique(row_rows$polity_code), "ROW-1850-2025")
   testthat::expect_equal(unique(row_rows$polity_area_code), 999L)
 })
 
@@ -159,7 +159,7 @@ testthat::test_that("area 52 keeps pre-1991 coverage without a prefix collapse",
 testthat::test_that("the Rest-of-World fold yields to areas the grid models", {
   # This pin was previously "the fold still outranks the map", asserting 62 folded
   # areas and naming Syria, North Macedonia, Eswatini, New Caledonia, French
-  # Guiana and Palestine as staying on `ROW-1850-2023`. It said the number "must
+  # Guiana and Palestine as staying on `ROW-1850-2025`. It said the number "must
   # move only on purpose". This is that purpose (#459): seven areas the package
   # models as countries in its own compact grid, and for which `polities` carries
   # a real polity, stop being identified as a non-territorial aggregate.
@@ -186,7 +186,7 @@ testthat::test_that("the Rest-of-World fold yields to areas the grid models", {
 
   testthat::expect_equal(length(folded), 54L)
   testthat::expect_true(all(
-    cw$polity_code[cw$mapping_source == "fabio_row_fold"] == "ROW-1850-2023"
+    cw$polity_code[cw$mapping_source == "fabio_row_fold"] == "ROW-1850-2025"
   ))
 
   # The seven that no longer fold, and the invariant that makes it safe.
@@ -194,7 +194,7 @@ testthat::test_that("the Rest-of-World fold yields to areas the grid models", {
   for (area in unfolded) {
     testthat::expect_false(area %in% folded)
     rows <- cw[which(cw$area_code == area), ]
-    testthat::expect_false(any(rows$polity_code == "ROW-1850-2023"))
+    testthat::expect_false(any(rows$polity_code == "ROW-1850-2025"))
     testthat::expect_equal(unique(rows$polity_area_code), 999L)
   }
 

@@ -125,7 +125,7 @@ test_that("CBS and FABIO area codes map to polity database rows", {
   # folding into bucket 999; an area that is not individually modelled is
   # identified as the aggregate it is summed into.
   still_row <- fabio_row_sources$area_code %in% c(30L, 152L, 252L, 254L)
-  expect_true(all(fabio_row_sources$polity_code[still_row] == "ROW-1850-2023"))
+  expect_true(all(fabio_row_sources$polity_code[still_row] == "ROW-1850-2025"))
   expect_setequal(
     fabio_row_sources$polity_code[!still_row],
     c("GUF-1816-1946", "GUF-1946-2025", "PSE-1948-2025")
