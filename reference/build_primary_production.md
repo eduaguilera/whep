@@ -22,6 +22,7 @@ build_primary_production(
   example = FALSE,
   show_duplicates = FALSE,
   historical_data = NULL,
+  federation_land = c("none", "successor_union"),
   .raw_data = NULL
 )
 ```
@@ -62,6 +63,24 @@ build_primary_production(
   WHEP item and area tables fill canonical names where possible.
   Observed historical rows are retained, and LUH2 proxy filling can use
   them as anchors. Default `NULL`.
+
+- federation_land:
+
+  Character. How the pre-1962 LUH2 back-cast reaches an area whose
+  territory is a dissolved federation. LUH2 land use is keyed on
+  present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228
+  USSR and 248 Yugoslav SFR have no land record of their own.
+
+  - `"none"` (default, current published behaviour) leaves them
+    unmatched; their pre-1962 production is not back-cast at all and the
+    build warns.
+
+  - `"successor_union"` rebuilds each federation's land series as the
+    sum of its successor states' LUH2 land, resolved from the
+    `successor` relation published in
+    [polities](https://eduaguilera.github.io/whep/reference/polities.md).
+    This back-casts 14.3% more of the 1961-62 production tonnage and
+    therefore moves published pre-1962 values.
 
 - .raw_data:
 

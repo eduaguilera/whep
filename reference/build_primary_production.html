@@ -71,6 +71,7 @@ surviving (deduplicated) values.</p></li>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  federation_land <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"successor_union"</span><span class="op">)</span>,</span>
 <span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -112,6 +113,19 @@ parquet/csv file. Required semantic columns are <code>year</code>,
 <code>source</code> are used when present; WHEP item and area tables fill canonical
 names where possible. Observed historical rows are retained, and LUH2 proxy
 filling can use them as anchors. Default <code>NULL</code>.</p></dd>
+
+
+<dt id="arg-federation-land">federation_land<a class="anchor" aria-label="anchor" href="#arg-federation-land"></a></dt>
+<dd><p>Character. How the pre-1962 LUH2 back-cast reaches an
+area whose territory is a dissolved federation. LUH2 land use is keyed on
+present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and
+248 Yugoslav SFR have no land record of their own.</p><ul><li><p><code>"none"</code> (default, current published behaviour) leaves them unmatched;
+their pre-1962 production is not back-cast at all and the build warns.</p></li>
+<li><p><code>"successor_union"</code> rebuilds each federation's land series as the sum of
+its successor states' LUH2 land, resolved from the <code>successor</code> relation
+published in <a href="polities.html">polities</a>. This back-casts 14.3% more of the 1961-62
+production tonnage and therefore moves published pre-1962 values.</p></li>
+</ul></dd>
 
 
 <dt id="arg--raw-data">.raw_data<a class="anchor" aria-label="anchor" href="#arg--raw-data"></a></dt>
