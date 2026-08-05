@@ -520,19 +520,19 @@
 #' ipcc_2019_n2o_ef_direct
 "ipcc_2019_n2o_ef_direct"
 
-#' IPCC 2019 Ym values (Table 10.12).
+#' IPCC 2019 Ym values (Table 10.13).
 #'
 #' @description
 #' Methane conversion rate (% GE) by species and feed
 #' situation. The 2019 Refinement differentiates:
 #' - Cattle feedlot (>90% concentrate): 3.0%.
-#' - Sheep >= 75 kg body weight: 6.7%.
-#' - Sheep < 75 kg body weight: 4.7%.
+#' - Sheep: a single 6.7%, irrespective of feed quality (no
+#'   body-weight split).
 #'
 #' @format A tibble with `category`, `feed_situation`,
 #'   `ym_percent`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13.
 #'
 #' @examples
 #' ipcc_2019_ym

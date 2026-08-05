@@ -9,7 +9,12 @@ estimate_n_excretion(intake, options = list())
 \arguments{
 \item{intake}{A tibble of realised feed intake with at least \code{year},
 \code{territory}, \code{sub_territory}, \code{livestock_category}, \code{item_cbs_code},
-\code{feed_quality} and \code{intake_dm_t} (the \code{\link[=redistribute_feed]{redistribute_feed()}} result).}
+\code{feed_quality} and \code{intake_dm_t} (the \code{\link[=redistribute_feed]{redistribute_feed()}} result).
+\code{territory} is a stringified \code{area_code} (\code{as.character(area_code)}, what
+\code{\link[=redistribute_feed]{redistribute_feed()}} emits and what the whole manure chain carries
+through to the nitrogen inputs); an \code{iso3c} literal is still resolved
+there but is deprecated, since it can only answer with an aggregation
+bucket and so loses the territory for 62 of the 257 codes it knows.}
 
 \item{options}{A named list of method options:
 \itemize{
@@ -40,8 +45,8 @@ comparable.
 intake <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~item_cbs_code, ~feed_quality, ~intake_dm_t,
-  2020L, "ES", NA, "Cattle_milk", 2513L, "high_quality", 100,
-  2020L, "ES", NA, "Cattle_milk", NA, "grass", 500
+  2020L, "203", NA, "Cattle_milk", 2513L, "high_quality", 100,
+  2020L, "203", NA, "Cattle_milk", NA, "grass", 500
 )
 estimate_n_excretion(intake)
 }

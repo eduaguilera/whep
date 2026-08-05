@@ -3,13 +3,13 @@
 \docType{data}
 \name{ipcc_2019_ym}
 \alias{ipcc_2019_ym}
-\title{IPCC 2019 Ym values (Table 10.12).}
+\title{IPCC 2019 Ym values (Table 10.13).}
 \format{
 A tibble with \code{category}, \code{feed_situation},
 \code{ym_percent}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13.
 }
 \usage{
 ipcc_2019_ym
@@ -19,8 +19,8 @@ Methane conversion rate (\% GE) by species and feed
 situation. The 2019 Refinement differentiates:
 \itemize{
 \item Cattle feedlot (>90\% concentrate): 3.0\%.
-\item Sheep >= 75 kg body weight: 6.7\%.
-\item Sheep < 75 kg body weight: 4.7\%.
+\item Sheep: a single 6.7\%, irrespective of feed quality (no
+body-weight split).
 }
 }
 \examples{
