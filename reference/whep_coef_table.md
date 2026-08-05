@@ -27,14 +27,14 @@ A tibble with the coefficient table.
 ``` r
 whep_coef_table("residue_feed_fraction")
 #> # A tibble: 18 × 3
-#>    region_hanpp                    feed_use_fraction source                   
+#>    region_un_sub                   feed_use_fraction source                   
 #>    <chr>                                       <dbl> <chr>                    
 #>  1 Sub-Saharan Africa                           0.4  Lal 2005; McIntire 1992  
 #>  2 Northern Africa                              0.3  Smil 1999; Lal 2005      
 #>  3 Western Asia                                 0.3  Smil 1999                
 #>  4 Southern Asia                                0.45 Erenstein 2014; Smil 1999
 #>  5 Eastern Asia                                 0.3  Smil 1999                
-#>  6 South-Eastern Asia                           0.3  Smil 1999                
+#>  6 South-eastern Asia                           0.3  Smil 1999                
 #>  7 Central Asia                                 0.25 Lal 2005                 
 #>  8 Western Europe                               0.15 Krausmann 2008; Smil 1999
 #>  9 Eastern Europe                               0.2  Krausmann 2008           

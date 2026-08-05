@@ -59,14 +59,15 @@ for soil incorporation.</p>
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>A tibble with <code>item_prod_code</code> and <code>residue_dm_t</code>. The
 <code>krausmann_regional</code> method also needs <code>region_krausmann</code> (for the recovery
-rate) and <code>region_hanpp</code> (for the feed-use fraction). <code>region_krausmann</code>
-can use the recovery-table labels or the matching <code>regions_full</code> labels.
-The <code>shares</code> method needs <code>year</code>.</p></dd>
+rate) and <code>region_un_sub</code> (for the feed-use fraction, the UN M49
+sub-regions of <code>regions_full$region_UN_sub</code>). <code>region_krausmann</code> can use
+the recovery-table labels or the matching <code>regions_full</code> labels. The
+<code>shares</code> method needs <code>year</code>.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>
 <dd><p>Destiny method: <code>"krausmann_regional"</code> (default, Krausmann
-recovery x HANPP-regional feed-use fraction) or <code>"shares"</code> (the
+recovery x UN-sub-regional feed-use fraction) or <code>"shares"</code> (the
 Spain-specific per-crop-year use/burn shares, flagged <code>to_be_revised</code>).</p></dd>
 
 </dl></div>
@@ -81,11 +82,11 @@ Spain-specific per-crop-year use/burn shares, flagged <code>to_be_revised</code>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">calculate_residue_destinies</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>    item_prod_code <span class="op">=</span> <span class="st">"15"</span>, residue_dm_t <span class="op">=</span> <span class="fl">100</span>,</span></span>
-<span class="r-in"><span>    region_krausmann <span class="op">=</span> <span class="st">"Western Europe"</span>, region_hanpp <span class="op">=</span> <span class="st">"Western Europe"</span></span></span>
+<span class="r-in"><span>    region_krausmann <span class="op">=</span> <span class="st">"Western Europe"</span>, region_un_sub <span class="op">=</span> <span class="st">"Western Europe"</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 8</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_hanpp   residue_feed_dm_t</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   item_prod_code residue_dm_t region_krausmann region_un_sub  residue_feed_dm_t</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 15                      100 West Europe      Western Europe              10.5</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: residue_burn_dm_t &lt;dbl&gt;, residue_soil_dm_t &lt;dbl&gt;,</span></span>
