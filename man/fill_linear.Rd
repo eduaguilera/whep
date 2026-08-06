@@ -57,7 +57,11 @@ owns the data and does not need the original preserved.}
 A tibble data frame (ungrouped) where gaps in value_col have been
 filled, and a new "source" variable has been created indicating if the
 value is original or, in case it has been estimated, the gapfilling method
-that has been used.
+that has been used. Rows come back sorted by \code{.by} and then \code{time_col},
+which is the order the filling is defined in: carrying a value forward or
+backward, and the moving average behind \code{value_smooth_window}, all read
+neighbouring rows, so the result cannot depend on the order the rows were
+handed over in.
 }
 \description{
 Fills gaps (\code{NA} values) in a time-dependent variable by
