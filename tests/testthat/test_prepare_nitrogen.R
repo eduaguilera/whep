@@ -175,3 +175,129 @@ test_that(".aggregate_nitrogen_pft drops zero-area bands and NaN", {
   out <- .aggregate_nitrogen_pft(ng)
   expect_equal(nrow(out), 0L)
 })
+
+
+# ---- label -> area_code resolution (#494) --------------------------------
+#
+# `.read_crop_base_rates_local()` used to repair mueller_synthetic_n's FAO-style
+# legacy ISO codes with a hand-maintained 14-entry `recode()` list before
+# joining on iso3c. The list is gone; the mapping now comes from
+# `whep::polity_label_aliases`. These tests are the lock that the substitution
+# stays value-for-value identical, and that the bridge back to a numeric code
+# stays in the grid's area space.
+
+# The retired list, kept here as the expectation the replacement must reproduce.
+.retired_mueller_recode <- function() {
+  tibble::tribble(
+    ~legacy, ~iso3c,
+    "SRM",   "SCG",
+    "GUA",   "GTM",
+    "BZE",   "BLZ",
+    "COS",   "CRI",
+    "ELS",   "SLV",
+    "HAI",   "HTI",
+    "HON",   "HND",
+    "ROM",   "ROU",
+    "TRI",   "TTO",
+    "ZAR",   "COD",
+    "BHA",   "BHS",
+    "BAR",   "BRB",
+    "DMI",   "DMA",
+    "STL",   "LCA"
+  )
+}
+
+
+test_that(".spatialize_label_area_code reproduces the retired recode list", {
+  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  regions <- .spatialize_area_lookup()
+  recode_list <- .retired_mueller_recode()
+  present <- recode_list$legacy %in% whep::mueller_synthetic_n$iso3c
+  # 10 of the 14 entries name a code the dataset actually uses; the other 4
+  # (BHA, BAR, DMI, STL) never occur in it and were dead weight.
+  expect_equal(sum(present), 10L)
+  expect_setequal(
+    recode_list$legacy[!present],
+    c("BHA", "BAR", "DMI", "STL")
+  )
+  live <- recode_list[present, ]
+  got <- .spatialize_label_area_code(
+    live$legacy,
+    source = "mueller-synthetic-n",
+    year = .mueller_base_year(),
+    area_lookup = regions
+  )
+  want <- regions$area_code[match(live$iso3c, regions$iso3c)]
+  expect_equal(got, want)
+})
+
+
+test_that("mueller synthetic rates are unchanged by dropping the list", {
+  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  regions <- .spatialize_area_lookup()
+  mueller <- whep::mueller_synthetic_n
+  recode_list <- .retired_mueller_recode()
+  legacy_iso <- dplyr::coalesce(
+    recode_list$iso3c[match(mueller$iso3c, recode_list$legacy)],
+    mueller$iso3c
+  )
+  before <- regions$area_code[match(legacy_iso, regions$iso3c)]
+  after <- .spatialize_label_area_code(
+    mueller$iso3c,
+    source = "mueller-synthetic-n",
+    year = .mueller_base_year(),
+    area_lookup = regions
+  )
+  # Row-for-row identity over all 5,043 rows, not just a matching total.
+  expect_equal(after, before)
+  expect_equal(sum(!is.na(after)), nrow(mueller))
+  expect_equal(dplyr::n_distinct(after), dplyr::n_distinct(before))
+})
+
+
+test_that(".spatialize_label_area_code stays in the grid's area space", {
+  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  regions <- .spatialize_area_lookup()
+  got <- .spatialize_label_area_code(
+    c("SDN", "ETH"),
+    source = "mueller-synthetic-n",
+    year = .mueller_base_year(),
+    area_lookup = regions
+  )
+  # `polity_area_crosswalk` would answer 206 "Sudan (former)" and 238 for both
+  # of Ethiopia's FAOSTAT areas. regions.csv -- the table the country grid is
+  # rasterised from -- carries 276 and 238 and has no 206 and no 62 at all, so
+  # a bridge through `polity_area_code` would attach rates to absent cells.
+  expect_equal(got, c(276L, 238L))
+  expect_false(any(c(206L, 62L) %in% regions$area_code))
+  expect_true(all(got %in% regions$area_code))
+})
+
+
+test_that(".spatialize_label_area_code honours the alias year scope", {
+  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  regions <- .spatialize_area_lookup()
+  # The published alias is `SRM -> SCG-1992-2006`. Outside that window nothing
+  # claims the label, so the honest answer is NA rather than a nearest guess.
+  got <- .spatialize_label_area_code(
+    c("SRM", "SRM"),
+    source = "mueller-synthetic-n",
+    year = c(2000L, 2020L),
+    area_lookup = regions
+  )
+  expect_equal(got[[1]], regions$area_code[match("SCG", regions$iso3c)])
+  expect_true(is.na(got[[2]]))
+})
+
+
+test_that(".spatialize_label_area_code returns NA for unknown labels", {
+  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  regions <- .spatialize_area_lookup()
+  got <- .spatialize_label_area_code(
+    c("ZZZ", "not a country"),
+    source = "mueller-synthetic-n",
+    year = .mueller_base_year(),
+    area_lookup = regions
+  )
+  expect_true(all(is.na(got)))
+})

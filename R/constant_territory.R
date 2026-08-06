@@ -34,7 +34,10 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year (`start_year <= ref_year <= end_year`).
+#'   year. `end_year` is exclusive (see [polities]), so "active" means
+#'   `start_year <= ref_year < end_year` and a polity does not answer for the
+#'   year its successor takes over. The same reading selects the sources of
+#'   each data year.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
 #'   `end_year` and geometry. Defaults to [get_polity_geometries()].
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
@@ -130,8 +133,15 @@ build_constant_territory_series <- function(
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
+  # `end_year` is EXCLUSIVE (see [polities]), so a period covers
+  # `start_year:(end_year - 1)`. Reading it inclusively made a polity and its
+  # successors all active in the hand-over year -- 238 polities carry a polygon
+  # in 1993 on that reading, Czechoslovakia on top of Czechia and Slovakia, and
+  # 453 extra active polity-years over 1850-2024. Since `.assign_polity()` gives
+  # each cell exactly one source and one target, the dissolved predecessor was
+  # capturing the cells its successors should have received.
   .active <- function(yr) {
-    polities[polities$start_year <= yr & polities$end_year >= yr, ]
+    polities[polities$start_year <= yr & polities$end_year > yr, ]
   }
 
   target <- .active(ref_year)

@@ -76,6 +76,71 @@
   out
 }
 
+# Exclusive upper bound of the years a crosswalk period covers, i.e. the period
+# runs `polity_start_year:(polity_end_year - 1)`.
+#
+# `polity_end_year` is EXCLUSIVE. That is what `whep-polities` publishes -- a
+# successor's `start_year` equals its predecessor's `end_year` (F51-1947-1993
+# hands over to CZE-1993-2025 and SVK-1993-2025; SUD-1956-2011 to SDN-2011-2025
+# and SSD-2011-2025), and 240 of the 245 FAOSTAT-map rows in the crosswalk carry
+# `polity_end_year == map_year_end + 1L` against an inclusive `map_year_end`.
+# It is also what `.area_year_polity_conflicts()`, `.polity_area_years()`,
+# `resolve_polity_label()` and the crosswalk build already compute with.
+#
+# `map_year_end` is the last year upstream declares the reporting area reports
+# under this period, inclusive, and the map is the authority on reporting years.
+# In the four rows where it reaches past the territorial span it wins, so a
+# reported year is never dropped for being one past a polity's end: four areas
+# whose last reported year equals `polity_end_year` (15 Belgium-Luxembourg 1999,
+# 151 Netherlands Antilles 2010, 206 Sudan (former) 2011, 228 USSR 1991) keep it,
+# while the areas whose map span stops earlier (51 Czechoslovakia 1993, 186
+# Serbia and Montenegro 2006, 248 Yugoslav SFR 1992) no longer answer for a year
+# their polity had already ended in.
+.polity_join_end_year <- function(polity_end_year, map_year_end, is_open) {
+  territorial <- data.table::fifelse(
+    is.na(polity_end_year),
+    Inf,
+    as.numeric(polity_end_year)
+  )
+  # EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT THE OPEN END.
+  #
+  # A boundary between two epochs belongs to the successor, which is what the
+  # exclusive reading buys. But a still-open interval has nothing after it, so
+  # there is no double-count to prevent and excluding its terminal year simply
+  # deletes a year. Measured on the shipped snapshot: 227 live polities end at
+  # 2025 and a strictly exclusive rule left NONE of them covering 2025, so every
+  # current-year row degraded from `matched` to `out_of_span` -- resolved only by
+  # the nearest-period fallback, which is the pathology this epic removes.
+  #
+  # Openness is detected by ABSENCE OF A SUCCESSOR, not by comparing the end year
+  # to the table maximum. The year test re-introduces the double-count for any
+  # polity whose last interval ends at the maximum AND has a successor, and the
+  # maximum itself moves (#530 took the table from 740 rows to 749). Measured:
+  # 244 live polities have no successor, 227 of them end at 2025, and ZERO live
+  # polities ending at 2025 have one -- so the two agree today and the successor
+  # test is the one that keeps agreeing.
+  # `fifelse()` will not recycle its test, so a scalar `is_open` (which is what a
+  # caller testing one period naturally passes) has to be widened here.
+  is_open <- rep_len(as.logical(is_open), length(territorial))
+  territorial <- data.table::fifelse(is_open, territorial + 1, territorial)
+  reported <- data.table::fifelse(
+    is.na(map_year_end),
+    -Inf,
+    as.numeric(map_year_end) + 1
+  )
+  pmax(territorial, reported)
+}
+
+# Which polity codes upstream declares nothing succeeds. Read from `polities`
+# rather than the crosswalk because succession is a fact about the polity, and
+# the crosswalk does not carry the relation.
+.open_polity_codes <- function() {
+  p <- polities
+  succ <- p$successor
+  open <- is.na(succ) | !nzchar(trimws(succ))
+  unique(p$polity_code[open])
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
@@ -116,6 +181,11 @@
   if (!is.null(year_col) && year_col %in% names(dt)) {
     lookup <- .polity_crosswalk(include_unmapped = include_unmapped)
     lookup <- lookup[!is.na(area_code)]
+    # A caller-supplied or mocked crosswalk need not carry the upstream map's
+    # reporting years; without them the territorial span is the only bound.
+    if (!rlang::has_name(lookup, "map_year_end")) {
+      lookup[, "map_year_end" := NA_integer_]
+    }
     lookup <- lookup[,
       c(
         "area_code",
@@ -130,10 +200,10 @@
           -Inf,
           as.numeric(polity_start_year)
         ),
-        data.table::fifelse(
-          is.na(polity_end_year),
-          Inf,
-          as.numeric(polity_end_year)
+        .polity_join_end_year(
+          polity_end_year,
+          get("map_year_end"),
+          polity_code %in% .open_polity_codes()
         ),
         area_name,
         area_iso3c,
@@ -178,7 +248,7 @@
       on = .(
         area_code,
         join_start_year <= year,
-        join_end_year >= year
+        join_end_year > year
       ),
       allow.cartesian = TRUE
     ]
@@ -232,12 +302,15 @@
         !is.na(polity_code) & get("lookup_polity_type") != "aggregate"
       ]
       if (nrow(fallback_matches) > 0L) {
+        # `join_end_year` is the exclusive upper bound, so the last year a
+        # period covers is `join_end_year - 1` and a row at `join_end_year`
+        # itself is already one year past it.
         fallback_matches[,
           "year_distance" := data.table::fcase(
-            year < join_start_year ,
-            join_start_year - year ,
-            year > join_end_year   ,
-            year - join_end_year   ,
+            year < join_start_year   ,
+            join_start_year - year   ,
+            year >= join_end_year    ,
+            year - join_end_year + 1 ,
             default = 0
           )
         ]
@@ -1236,4 +1309,66 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     },
     character(1)
   )
+}
+
+# -- Dissolved-federation successor closure ------------------------------------
+
+# A dissolved federation (USSR, Czechoslovakia, Yugoslav SFR) carries no
+# present-day ISO3 code, so any lookup keyed on present-day ISO3 -- LUH2 land
+# use among them -- cannot reach its territory at all. The polities database
+# publishes the dissolution relation as `successor`, so the territory is
+# recoverable as the union of the states that replaced it. The walk has to be
+# transitive: the Yugoslav SFR reaches Serbia only through the 1992-2006
+# Serbia-and-Montenegro union, three hops down.
+#
+# `available_iso3` is the ISO3 vocabulary the caller can actually resolve, and a
+# branch stops as soon as it lands inside it, so no successor is expanded past
+# the point where it becomes reachable.
+.successor_iso3_map <- function(polity_codes, available_iso3, max_depth = 12L) {
+  edges <- .polity_successor_edges()
+  iso3 <- .polity_iso3_lookup()
+  polity_codes <- unique(polity_codes[!is.na(polity_codes)])
+  purrr::map(
+    rlang::set_names(polity_codes),
+    \(code) .walk_successor_iso3(code, edges, iso3, available_iso3, max_depth)
+  )
+}
+
+.walk_successor_iso3 <- function(
+  polity_code,
+  edges,
+  iso3,
+  available_iso3,
+  max_depth
+) {
+  frontier <- polity_code
+  seen <- character(0)
+  found <- character(0)
+  depth <- 0L
+  while (length(frontier) > 0L && depth < max_depth) {
+    frontier <- setdiff(frontier, seen)
+    seen <- c(seen, frontier)
+    reached <- unname(iso3[frontier])
+    resolved <- !is.na(reached) & reached %in% available_iso3
+    found <- c(found, reached[resolved])
+    frontier <- unique(unlist(
+      edges[frontier[!resolved]],
+      use.names = FALSE
+    ))
+    depth <- depth + 1L
+  }
+  sort(unique(found))
+}
+
+.polity_successor_edges <- function() {
+  successors <- stringr::str_split(polities$successor, ";\\s*")
+  successors <- purrr::map(
+    successors,
+    \(codes) codes[!is.na(codes) & codes != ""]
+  )
+  rlang::set_names(successors, polities$polity_code)
+}
+
+.polity_iso3_lookup <- function() {
+  rlang::set_names(polities$iso3_code, polities$polity_code)
 }
