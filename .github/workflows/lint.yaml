@@ -55,7 +55,14 @@ jobs:
           # silently failed" -- the latter would make a broken step read green.
           git cat-file -e "${base}^{commit}"
           git cat-file -e "${head}^{commit}"
-          git diff --name-only --diff-filter=ACMR "${base}" "${head}" \
+          # Diff from the MERGE BASE, not from the base branch head. base.sha is
+          # wherever the base branch has since advanced to, so base..head also
+          # reports every file main changed after this branch forked -- six
+          # unrelated files on the first run of this workflow, and more the
+          # staler the branch, which defeats the point.
+          merge_base=$(git merge-base "${base}" "${head}")
+          echo "Merge base: ${merge_base}"
+          git diff --name-only --diff-filter=ACMR "${merge_base}" "${head}" \
             -- '*.R' '*.r' > changed_r_files.txt
           count=$(grep -c . changed_r_files.txt || true)
           echo "count=${count}" >> "$GITHUB_OUTPUT"
