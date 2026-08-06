@@ -127,8 +127,15 @@ testthat::test_that("region_fallback 'none' is the pre-467 status quo", {
 })
 
 testthat::test_that("the Rest-of-World weights come from real fold members", {
+  # Selected by the bucket they fold INTO, not by what the fold is called.
+  # `fold_kind` is a classification and it moves: #556 reclassified Syria (212),
+  # Eswatini (209), North Macedonia (154) and New Caledonia (153) from
+  # `fabio_rest_of_world` to `cbs_reporter_folded` while this branch was open,
+  # because they are CBS reporters as well as folds. All four still fold into
+  # 999 and still carry herds, so a `fold_kind` filter silently dropped four real
+  # members and this assertion failed on rows that were entirely correct.
   members <- whep::folded_reporting_areas() |>
-    dplyr::filter(.data$fold_kind == "fabio_rest_of_world")
+    dplyr::filter(.data$polity_area_code == 999L)
   herds <- whep:::.row_member_herds()
 
   testthat::expect_true(all(herds$member_area_code %in% members$area_code))

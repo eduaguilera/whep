@@ -1789,16 +1789,13 @@ utils::globalVariables(
     "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
-<<<<<<< HEAD
-    # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
-    # Bouwman region in an aggregate reporting bucket's herd
-    "region_weight"
-=======
     # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
     "n_successors",
     # polity_folds.R (#563) — bucket area-label derivation NSE columns
-    "member_name"
->>>>>>> origin/main
+    "member_name",
+    # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
+    # Bouwman region in an aggregate reporting bucket's herd
+    "region_weight"
   )
 )
 
