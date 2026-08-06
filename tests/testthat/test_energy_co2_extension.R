@@ -107,17 +107,202 @@ testthat::test_that("areas GLEAM cannot classify are named, not dropped mutely",
   # list moves with the crosswalk (Bermuda, Guam and Palau were in it until they
   # were folded into FABIO bucket 999, so they no longer report as themselves).
   testthat::expect_warning(
-    grouping <- .energy_country_grouping(),
+    hierarchy <- .energy_hierarchy(),
     "GLEAM cannot classify"
   )
   # The warning is a statement about the crosswalk, not about any one build, so
-  # it must not change what the grouping itself contains.
-  testthat::expect_setequal(grouping$iso3, gleam_geographic_hierarchy$iso3)
+  # under the default it must not change what the country universe contains.
+  testthat::expect_setequal(hierarchy$iso3, gleam_geographic_hierarchy$iso3)
 
-  areas <- testthat::capture_warnings(.energy_country_grouping())
+  areas <- testthat::capture_warnings(.energy_hierarchy())
   testthat::expect_match(areas, "Nauru", all = FALSE)
   testthat::expect_match(areas, "Tuvalu", all = FALSE)
 })
+
+testthat::test_that("Bermuda, Guam and Palau cannot be reached individually", {
+  # whep#415 names five live areas; three of them no longer report as themselves.
+  # Measured on the real `get_primary_production()` output (6,170,595 rows, 194
+  # distinct reporting areas): area codes 17, 88 and 180 carry ZERO rows, so no
+  # treatment on this code path can reach them -- bucket 999 carries their
+  # production. This pins the crosswalk state that makes that true, so if
+  # whep#419 ever unfolds them the omission stops being silent.
+  folded <- whep::polity_area_crosswalk |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$area_code %in% c(17L, 88L, 180L)) |>
+    dplyr::distinct(.data$area_code, .data$polity_area_code, .data$polity_type)
+
+  testthat::expect_equal(nrow(folded), 3L)
+  testthat::expect_true(all(folded$polity_area_code == 999L))
+  testthat::expect_true(all(folded$polity_type == "aggregate"))
+  # ... which is exactly why the warning above does not name them.
+  testthat::expect_false(any(
+    c(17L, 88L, 180L) %in% .areas_gleam_cannot_group()$area_code
+  ))
+})
+
+testthat::test_that("polity_region groups an omitted area like its GLEAM peers", {
+  # The point of deriving rather than tabulating: no grouping label is typed in
+  # here. Nauru and Tuvalu go through the same `case_when()` as the 204 published
+  # countries, on the continent their polity carries, so each label they get must
+  # already be one GLEAM's own non-OECD countries of that continent carry.
+  extended <- suppressMessages(
+    .energy_country_grouping(.energy_hierarchy("polity_region"))
+  )
+  derived <- dplyr::filter(extended, .data$ef_scope == "polity_region")
+  testthat::expect_setequal(derived$iso3, c("NRU", "TUV"))
+
+  hierarchy <- tibble::as_tibble(whep::gleam_geographic_hierarchy)
+  peers <- extended |>
+    dplyr::filter(
+      .data$ef_scope == "country",
+      .data$iso3 %in%
+        hierarchy$iso3[
+          hierarchy$continent == "Oceania" & hierarchy$oecd == 0
+        ]
+    )
+  testthat::expect_setequal(derived$region5, unique(peers$region5))
+  testthat::expect_setequal(derived$detailed15, unique(peers$detailed15))
+  testthat::expect_equal(unique(peers$detailed15), "Non-OECD Pacific")
+
+  # `development3` is a property of the country, not the continent, and comes
+  # from `.energy_ldc_iso3()`. That resolves the contradiction whep#415 named:
+  # this file asserted TUV was least-developed while joining against a table
+  # that had no row for it at all.
+  testthat::expect_equal(
+    derived$development3[derived$iso3 == "TUV"],
+    "Least developed countries"
+  )
+  testthat::expect_equal(derived$development3[derived$iso3 == "NRU"], "Others")
+
+  # The GLEAM region comes from the merged whep#465 override table rather than a
+  # second copy of that decision, and only feeds the dressing fraction.
+  testthat::expect_true(
+    all(.energy_polity_hierarchy_rows()$gleam_region == "Oceania")
+  )
+})
+
+testthat::test_that("only continents that settle every scheme are derived", {
+  # `detailed15` splits Asia into "Middle East" and "Asia" on `faostat_region`,
+  # which `polity_area_crosswalk` does not carry, so an Asian area would have to
+  # be guessed onto one side. It stays unpriced and keeps being reported instead.
+  testthat::expect_false("Asia" %in% .energy_scheme_continents())
+  testthat::expect_setequal(
+    .energy_scheme_continents(),
+    c("Africa", "Americas", "Europe", "Oceania")
+  )
+})
+
+testthat::test_that("an area GLEAM omits can be neither OECD nor EU27", {
+  # This is what lets the derived rows set `oecd = 0` and `eu27 = 0` rather than
+  # look a flag up somewhere: both memberships are complete in GLEAM's own table,
+  # so an iso3 absent from it belongs to neither. Pinned because a coefficient
+  # refresh that dropped a member would make the assumption false silently.
+  hierarchy <- tibble::as_tibble(whep::gleam_geographic_hierarchy)
+  oecd_members <- c(
+    "AUS",
+    "AUT",
+    "BEL",
+    "CAN",
+    "CHL",
+    "COL",
+    "CRI",
+    "CZE",
+    "DNK",
+    "EST",
+    "FIN",
+    "FRA",
+    "DEU",
+    "GRC",
+    "HUN",
+    "ISL",
+    "IRL",
+    "ISR",
+    "ITA",
+    "JPN",
+    "KOR",
+    "LVA",
+    "LTU",
+    "LUX",
+    "MEX",
+    "NLD",
+    "NZL",
+    "NOR",
+    "POL",
+    "PRT",
+    "SVK",
+    "SVN",
+    "ESP",
+    "SWE",
+    "CHE",
+    "TUR",
+    "GBR",
+    "USA"
+  )
+  testthat::expect_length(setdiff(oecd_members, hierarchy$iso3), 0L)
+  testthat::expect_length(
+    setdiff(oecd_members, hierarchy$iso3[hierarchy$oecd == 1]),
+    0L
+  )
+  testthat::expect_equal(sum(hierarchy$eu27), 27L)
+
+  testthat::expect_true(all(.energy_polity_hierarchy_rows()$eu27 == 0L))
+  testthat::expect_true(all(.energy_polity_hierarchy_rows()$oecd == 0L))
+  testthat::expect_length(
+    intersect(.energy_polity_hierarchy_rows()$iso3, hierarchy$iso3),
+    0L
+  )
+})
+
+# Tuvalu (area 227) is one of the two live areas GLEAM omits, and its production
+# is real: 4,448 t of pig and 2,120 t of poultry carcass over 1961-2023 in the
+# FAOSTAT input.
+.energy_omitted_area_fixture <- function() {
+  .energy_prod_fixture() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+        2000L, 227L, 2733L, "tonnes", 70,
+        2000L, 227L, 1049L, "slaughtered_heads", 2000,
+        2000L, 227L, 1051L, "slaughtered_heads", 200
+      )
+    )
+}
+
+testthat::test_that("polity_region recovers a live omitted area, and says so", {
+  # whep#415's option 1, opt-in so nothing moves without consent. It must
+  # recover Tuvalu, label those rows, and leave every GLEAM-classified area
+  # bit-identical -- structure included, not just the totals.
+  base <- suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_omitted_area_fixture())
+    )
+  )
+  result <- suppressMessages(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_omitted_area_fixture()),
+      unclassified = "polity_region"
+    )
+  )
+
+  testthat::expect_false(227L %in% base$area_code)
+  tuvalu <- dplyr::filter(result, .data$area_code == 227L)
+  testthat::expect_setequal(tuvalu$item_cbs_code, c(1049L, 1051L))
+  testthat::expect_true(all(tuvalu$impact_u > 0))
+  testthat::expect_true(
+    all(tuvalu$method_energy == "GLEAM_3.0_energy_meat_polity_region")
+  )
+
+  # Structure, not only values: rows are added and none removed or re-keyed.
+  usa <- dplyr::filter(result, .data$area_code == 231L)
+  testthat::expect_equal(usa, dplyr::filter(base, .data$area_code == 231L))
+  testthat::expect_equal(nrow(result), nrow(base) + nrow(tuvalu))
+  testthat::expect_setequal(
+    setdiff(result$area_code, base$area_code),
+    227L
+  )
+  testthat::expect_length(setdiff(base$area_code, result$area_code), 0L)
+})
+
 
 testthat::test_that("area -> iso3 needs no tie-break across polity periods", {
   # `.energy_area_iso3()` used to reuse `.current_area_lookup()`, which exists to
@@ -275,7 +460,29 @@ testthat::test_that("the world-mean intensity is the mean of GLEAM's factors", {
   testthat::expect_true(all(country$ef_global <= country$hi))
 })
 
-testthat::test_that("unclassified only takes the two documented values", {
+testthat::test_that("polity_region leaves the aggregate buckets alone", {
+  # Its scope is the live self-reporting areas only. Bucket 999 is not one, so
+  # it must still drop and still be reported -- that is whep#492's decision, and
+  # this treatment must not quietly pre-empt it.
+  msgs <- testthat::capture_warnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_unpriced_fixture()),
+      unclassified = "polity_region"
+    )
+  )
+  result <- suppressMessages(suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_unpriced_fixture()),
+      unclassified = "polity_region"
+    )
+  ))
+
+  testthat::expect_false(999L %in% result$area_code)
+  testthat::expect_match(msgs, "has no row for", all = FALSE)
+  testthat::expect_match(msgs, "RoW", all = FALSE)
+})
+
+testthat::test_that("unclassified only takes the documented values", {
   testthat::expect_error(
     whep::build_energy_co2_extension(unclassified = "zero"),
     class = "rlang_error"
