@@ -25,6 +25,11 @@
 #' when it builds such a bucket; set `options(whep.warn_polity_folds = FALSE)`
 #' to silence that warning.
 #'
+#' The polity reported here as the bucket's own is also the `area` label the
+#' builds attach to the summed row, and the one the reporting columns resolve.
+#' A bucket carries one label whatever its members resolve to, because `area`
+#' is a join key and a bucket under two labels stops summing (whep#563).
+#'
 #' @param years Integer vector of years to classify. Defaults to the FAOSTAT
 #'   reporting era, 1961 to 2025. Years before the back-cast anchor resolve to
 #'   the anchor-year territory, so they classify identically to 1961.
@@ -355,6 +360,59 @@ folded_reporting_areas <- function(crosswalk = NULL) {
     )
   ]
   folded
+}
+
+# The `area` label an aggregation bucket carries, one per (bucket, year).
+#
+# A bucket is a numeric key that several reporting areas are summed into, so its
+# label has to be a property of the BUCKET. Taking it from a member row instead
+# -- which is what grouping by `polity_name` did -- means a bucket whose members
+# resolve to different polities comes out under several labels, and the sum the
+# bucket exists to produce never happens (whep#563, the defect that forced the
+# revert of whep#480 in whep#561). Resolving the bucket's own code is also what
+# `polity_bucket_coverage()` documents as the label a fold carries, and what
+# `add_reporting_polity_columns()` resolves downstream, so this makes the
+# aggregator agree with both rather than inventing a third rule.
+#
+# `dt` must already carry the polity columns, i.e. be past
+# `.add_polity_columns_dt()`.
+.bucket_area_labels <- function(dt) {
+  # The member label is only a fallback, for a bucket whose own code resolves to
+  # no polity in that year (an aggregate whose period has ended). Deterministic
+  # by lowest `area_code` so it cannot depend on row order or on which member
+  # happens to report.
+  members <- dt[
+    !is.na(polity_area_code),
+    .(member_name = polity_name[which.min(area_code)]),
+    by = c("polity_area_code", "year")
+  ]
+  if (nrow(members) == 0L) {
+    return(members[, .(polity_area_code, year, area = character(0))])
+  }
+  resolved <- .add_polity_columns_dt(
+    data.table::data.table(
+      area_code = members$polity_area_code,
+      year = members$year
+    ),
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  members[, area := data.table::fcoalesce(resolved$polity_name, member_name)]
+  members[, member_name := NULL]
+  members
+}
+
+# Attach the bucket labels to an aggregated table and rename it to the
+# `area_code` / `area` pair the rest of the pipeline expects, in the column
+# order the grouped key already had.
+.apply_bucket_area_labels <- function(dt, labels) {
+  # An update-join, not a merge: it cannot drop or reorder a row, so the label
+  # is provably an annotation rather than a second filter.
+  dt[labels, on = c("polity_area_code", "year"), area := i.area]
+  data.table::setnames(dt, "polity_area_code", "area_code")
+  data.table::setcolorder(dt, c("year", "area_code", "area"))
+  dt
 }
 
 # The alternative to the fold, selectable and OFF by default.

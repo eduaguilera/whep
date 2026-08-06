@@ -326,14 +326,14 @@
   # that covers only part of it (whep#414).
   .warn_partial_bucket_polities(dt)
   .warn_folded_areas(dt, source_label)
-  by_cols <- c(
-    "year",
-    "polity_area_code",
-    "polity_name",
-    "unit",
-    "element",
-    dots
-  )
+  # `polity_name` is deliberately NOT a grouping key. It is a property of the
+  # member row, so keying on it splits a bucket whose members resolve to
+  # different polities -- the bucket stops summing without a single value
+  # moving (whep#563). The label is attached after the sum instead, from the
+  # bucket's own code, which is what `polity_bucket_coverage()` and the
+  # reporting columns already say a bucket is called.
+  by_cols <- c("year", "polity_area_code", "unit", "element", dots)
+  labels <- .bucket_area_labels(dt)
 
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
@@ -345,12 +345,7 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {

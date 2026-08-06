@@ -14,7 +14,10 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 \item \code{polity_code}, \code{polity_name}: Matched WHEP polity, or \code{NA} for
 statistical composites that are not real polities.
 \item \code{polity_start_year}, \code{polity_end_year}: Validity interval for the matched
-polity. \code{polity_end_year} is exclusive.
+polity. \code{polity_end_year} is exclusive, so the period covers
+\code{polity_start_year:(polity_end_year - 1)}. \code{\link[=add_polity_code]{add_polity_code()}} resolves a
+year on that reading, widened to the inclusive \code{map_year_end} below where
+the upstream map declares a reported year past the territorial span.
 \item \code{mapping_source}: How the area-to-polity decision was reached.
 \code{"upstream_map"} for the published \code{whep-polities} FAOSTAT area map, which
 is the authority for the years FAOSTAT reports; \code{"prefix_outside_map"} for a
