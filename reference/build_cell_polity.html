@@ -61,7 +61,10 @@ expects as a required input.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_cell_polity</span><span class="op">(</span>polity_fraction_path <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_cell_polity</span><span class="op">(</span></span>
+<span>  polity_fraction_path <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  area_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity_area"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,11 +75,51 @@ expects as a required input.</p>
 <dd><p>Path to the cell-polity fraction parquet.
 Defaults to <code>Sys.getenv("WHEP_POLITY_FRACTION_PATH")</code>.</p></dd>
 
+
+<dt id="arg-area-key">area_key<a class="anchor" aria-label="anchor" href="#arg-area-key"></a></dt>
+<dd><p>Which area code the output is keyed on: <code>"grid"</code> (default,
+the parquet's own reporting-area codes) or <code>"polity_area"</code> (the
+<a href="polity_area_crosswalk.html">polity_area_crosswalk</a> bucket national tables are aggregated on).</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>polity_frac</code> and
 <code>cell_area_ha</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="which-area-code-the-grid-is-keyed-on">Which area code the grid is keyed on<a class="anchor" aria-label="anchor" href="#which-area-code-the-grid-is-keyed-on"></a></h2>
+
+
+<p>The parquet is rasterized from present-day polygons through
+<code>inst/extdata/regions.csv</code>, so its <code>area_code</code> is a raw reporting-area code
+and <strong>not</strong> necessarily a <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> <code>polity_area_code</code>: the
+bucket every polity-keyed national table in whep is aggregated on. Grid
+codes that are not a bucket cannot join to national data at all: the join
+is silently empty on both sides.</p>
+<p><code>area_key</code> selects which of the two the output carries. It is not a
+fallback: <code>"grid"</code> is the default, reproduces the parquet's own codes
+bit-for-bit, and warns naming the codes that cannot resolve;
+<code>"polity_area"</code> resolves each code to its bucket through
+<a href="polity_area_crosswalk.html">polity_area_crosswalk</a> and re-sums <code>polity_frac</code> within
+<code>(lon, lat, area_code)</code>, so a cell straddling two areas of the same bucket
+stays one row per bucket and each cell's fractions still sum to 1. It
+respects <code>options(whep.unfold_rest_of_world = TRUE)</code> (see
+<code><a href="folded_reporting_areas.html">folded_reporting_areas()</a></code>), so the grid and the national tables agree
+about where a Rest-of-World member's rows belong.</p>
+<p>Under <code>"polity_area"</code> the raw reporting code is <strong>carried, not replaced</strong>:
+the output gains <code>grid_area_code</code> holding the parquet's own code, joined with
+<code>+</code> where a cell's areas collapse into one bucket. So the fold this performs
+is recoverable at the join rather than baked into the grid — a derived key
+silently overwriting the raw one it came from is what whep#582 reports from
+the output side, and the same fold is what dropped Sudan's 40.8 M goats and
+doubled its sugar cane in the published production series (whep#563).</p>
+<p>The output deliberately does <strong>not</strong> gain <code>polity_code</code> /
+<code>reporting_polity_*</code>. A bucket is not a polity: <code>999</code> holds up to 17
+territories at once and <code>206</code> holds Sudan and South Sudan together, so no
+polity code string is recoverable from this year-less grid. Carrying that
+identity needs the cell x polity x validity-interval unit tracked by epic
+whep#458, not a column added here.</p>
     </div>
 
     <div class="section level2">
