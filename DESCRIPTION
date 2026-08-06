@@ -13,7 +13,7 @@ Authors@R: c(
 Description: A set of tools for processing and analyzing data developed in the
     context of the "Who Has Eaten the Planet" (WHEP) project, funded by the
     European Research Council (ERC). For more details on multi-regional
-    input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see
+    input-output model "Food and Agriculture Biomass Input-Output" (FABIO) see
     Bruckner et al. (2019) <doi:10.1021/acs.est.9b03554>.
 License: MIT + file LICENSE
 Imports:
@@ -34,6 +34,7 @@ Imports:
     readr,
     rlang,
     scales,
+    sf,
     stringr,
     tibble,
     tidyr,
@@ -43,6 +44,7 @@ Imports:
     stringi,
     zoo
 Encoding: UTF-8
+Language: en-US
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests:
@@ -61,7 +63,6 @@ Suggests:
     readxl,
     rmarkdown,
     RSQLite,
-    sf,
     terra,
     testthat (>= 3.0.0),
     zip

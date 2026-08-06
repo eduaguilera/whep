@@ -1,4 +1,11 @@
-# Constant-territory time series
+---
+title: "Constant-territory time series"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Constant-territory time series}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
 
 `build_constant_territory_series()` estimates a time series of a quantity over a
 **fixed** set of boundaries — the polities active in a chosen `ref_year` — from
@@ -65,7 +72,7 @@ series <- build_constant_territory_series(
 # series: target_polity_code, year, value, covered, imputed, imputed_share, n_sources
 ```
 
-Boundaries come from [get_polity_geometries()] by default; pass `polities` to
+Boundaries come from `get_polity_geometries()` by default; pass `polities` to
 use a subset (and to keep the gridded region compact — a continent-spanning
 target trips the `max_cells` guard).
 
