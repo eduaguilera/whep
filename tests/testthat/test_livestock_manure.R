@@ -208,6 +208,70 @@ testthat::test_that("Manure Tier 1 Buffalo uses Table 10.15 EF", {
   testthat::expect_equal(ef, 2)
 })
 
+# .calc_volatile_solids ---------------------------------------------------------
+
+testthat::test_that("Volatile solids match IPCC 2019 Eq 10.24 (#160)", {
+  # Eq 10.24: VS = GE * [(1 - DE/100) + UE] * (1 - ASH/100) / 18.45.
+  # UE (urinary energy fraction of GE) is additive, not scaled by DE.
+  # GE = 200, DE = 65 %, UE = 0.04, ASH = 8 % (Cattle), factor = 18.45:
+  #   200 * (0.35 + 0.04) * 0.92 / 18.45 = 3.889431.
+  result <- tibble::tribble(
+    ~species,       ~species_gen, ~gross_energy, ~de_percent,
+    "Dairy Cattle", "Cattle",     200,           65
+  ) |>
+    whep:::.calc_volatile_solids()
+
+  expected <- 200 * (1 - 65 / 100 + 0.04) * (1 - 8 / 100) / 18.45
+  testthat::expect_equal(result$volatile_solids, expected)
+  testthat::expect_equal(result$volatile_solids, 3.889431, tolerance = 1e-6)
+  # The pre-fix formula scaled UE by DE, giving ~3.7503; guard against it.
+  buggy <- 200 * (1 - 65 / 100 + 0.04 * 65 / 100) * (1 - 8 / 100) / 18.45
+  testthat::expect_false(isTRUE(all.equal(result$volatile_solids, buggy)))
+})
+
+# .calc_weighted_mcf ------------------------------------------------------------
+
+testthat::test_that("Weighted MCF falls back to Global MMS mix (#201)", {
+  # "Africa" has no region-specific rows in regional_mms_distribution, so the
+  # Global Cattle distribution must be used instead of the flat 2% default.
+  # Global Cattle mix x Temperate MCF (Table 10.17):
+  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 % -> 0.07225.
+  result <- tibble::tribble(
+    ~species_gen, ~region,  ~climate_zone,
+    "Cattle",     "Africa", "Temperate"
+  ) |>
+    whep:::.calc_weighted_mcf()
+
+  testthat::expect_equal(result$weighted_mcf, 0.07225)
+  # Must not collapse to the flat 2% (0.02) default.
+  testthat::expect_false(isTRUE(all.equal(result$weighted_mcf, 0.02)))
+})
+
+# .calc_direct_n2o --------------------------------------------------------------
+
+testthat::test_that("Direct N2O falls back to Global MMS mix (#201)", {
+  # A region without region-specific MMS rows ("Africa") must reuse the Global
+  # distribution, giving the same weighted EF3 as an explicit "Global" region,
+  # not the flat pasture default (EF3 = 0.005).
+  base <- tibble::tribble(
+    ~species_gen, ~n_excretion, ~heads,
+    "Cattle",     100,          10
+  )
+
+  africa <- base |>
+    dplyr::mutate(region = "Africa") |>
+    whep:::.calc_direct_n2o() |>
+    dplyr::pull(manure_n2o_direct)
+  global <- base |>
+    dplyr::mutate(region = "Global") |>
+    whep:::.calc_direct_n2o() |>
+    dplyr::pull(manure_n2o_direct)
+
+  testthat::expect_equal(africa, global)
+  flat_default <- 10 * 100 * 0.005 * (44 / 28)
+  testthat::expect_false(isTRUE(all.equal(africa, flat_default)))
+})
+
 testthat::test_that(".calc_weighted_mcf reaches the Latin America MMS mix, not the Global default", {
   # Regression for #174: regional_mms_distribution previously used region
   # label "Latin America and Caribbean", which never matched the "Latin

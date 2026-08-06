@@ -143,14 +143,7 @@ rcmdcheck::rcmdcheck(
   args = c("--no-tests", "--ignore-vignettes"),
   error_on = "error"
 )
-lintr::lint_package(
-  linters = lintr::linters_with_defaults(
-    object_usage_linter = NULL,
-    line_length_linter = NULL,
-    indentation_linter = NULL,
-    commas_linter = NULL
-  )
-)
+lintr::lint_package()   # linters and exclusions come from .lintr
 ```
 
 Gotchas worth knowing before losing an hour:

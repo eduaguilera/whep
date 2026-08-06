@@ -180,10 +180,9 @@
   items_prod_full,
   animals_codes,
   conv_krausmann,
-  crosswalk,
+  regs_codes,
   fcr
 ) {
-  regs_codes <- .feed_region_lookup(crosswalk)
   demand_fcr <- .build_feed_demand_fcr(
     primary_prod,
     items_prod_full,
@@ -239,12 +238,15 @@
     ) |>
     .assign_bouwman_feed_class(animals_codes) |>
     dplyr::left_join(regs_codes, by = "area_code") |>
+    .with_region_weight() |>
     dplyr::left_join(
       fcr,
       by = c("year", "region_bouwman", "item_bouwman"),
       relationship = "many-to-many"
     ) |>
-    dplyr::mutate(demand_aft = .data$value * .data$fcr) |>
+    dplyr::mutate(
+      demand_aft = .data$value * .data$fcr * .data$region_weight
+    ) |>
     dplyr::filter(!is.na(.data$fcr)) |>
     dplyr::summarise(
       demand_aft = sum(.data$demand_aft, na.rm = TRUE),
@@ -296,6 +298,7 @@
     ) |>
     dplyr::inner_join(kraus, by = "live_anim_code") |>
     dplyr::left_join(regs_codes, by = "area_code") |>
+    .with_region_weight() |>
     dplyr::left_join(
       demand_shares_grazers,
       by = c("year", "region_bouwman")
@@ -303,15 +306,12 @@
     dplyr::mutate(
       demand_aft = .data$value *
         .data$cf_kraus *
-        .data$dm_share_grazers
+        .data$dm_share_grazers *
+        .data$region_weight
     ) |>
-    dplyr::select(
-      year,
-      area_code,
-      live_anim,
-      live_anim_code,
-      feed_type,
-      demand_aft
+    dplyr::summarise(
+      demand_aft = sum(.data$demand_aft, na.rm = TRUE),
+      .by = c("year", "area_code", "live_anim", "live_anim_code", "feed_type")
     )
 }
 
@@ -348,14 +348,104 @@
     dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
 }
 
-.feed_region_lookup <- function(crosswalk = whep::polity_area_crosswalk) {
-  tibble::as_tibble(crosswalk) |>
+# Bouwman feed region per reporting bucket, as a WEIGHTED lookup: one row per
+# (area_code, region_bouwman) carrying the share of the bucket's herd that sits
+# in that region. Every area the crosswalk resolves directly gets a single row
+# at weight 1, so the join and every product downstream is unchanged for it.
+#
+# `fallback` fills only the buckets the crosswalk leg leaves empty (whep#467):
+# - "member_mix": Rest of World (999) is split across its members' own regions.
+# - "none": the status quo, where such a bucket has no region and its feed
+#   demand is dropped by `.warn_dropped_mix()` and the share joins.
+.feed_region_lookup <- function(
+  crosswalk = whep::polity_area_crosswalk,
+  fallback = c("member_mix", "none")
+) {
+  fallback <- rlang::arg_match(fallback)
+  direct <- tibble::as_tibble(crosswalk) |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       region_bouwman = .data$region
     ) |>
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$region_bouwman)) |>
-    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+    dplyr::distinct(.data$area_code, .keep_all = TRUE) |>
+    dplyr::mutate(region_weight = 1)
+  if (fallback == "none") {
+    return(direct)
+  }
+  dplyr::bind_rows(
+    direct,
+    dplyr::filter(
+      .feed_region_fallbacks(),
+      !.data$area_code %in% direct$area_code
+    )
+  )
+}
+
+# The Rest-of-World bucket's Bouwman regions, weighted by the herd its members
+# actually carry.
+#
+# Bucket 999 folds 62 FAOSTAT reporting areas (`folded_reporting_areas()`), 58
+# of which have a Bouwman region of their own; the fold discards all 58 and
+# leaves the bucket with none. Only 13 of the 62 carry any livestock at all, so
+# the bucket's mix is measurable rather than assumed: the weights below are the
+# members' livestock units summed over 1850-2023, from a full
+# `get_primary_production()` run with
+# `options(whep.unfold_rest_of_world = TRUE)` (see `folded_reporting_areas()`),
+# which promotes each member to its own `polity_area_code`. Livestock units are
+# used rather than the feed demand itself because the IPCC Tier-2 demand model
+# is region-dependent, which would make the weights circular; the two bases
+# agree on the ranking and on the dominant region (Middle East 0.69 by
+# livestock units, 0.82 by Tier-2 demand).
+#
+# Cross-checked against a source that touches neither the fold nor the unfold
+# switch (which is itself unreliable for stocks, whep#589): raw FAOSTAT
+# `Stocks` from the `faostat-production` pin converted with `liv_lu_coefs`
+# gives the same 13 members and region shares within 0.019 of these (Middle
+# East 0.688 there against 0.693 here).
+#
+# Regenerate with `inst/scripts/row_feed_region_weights.R` after a polities
+# re-sync, since a re-sync can move members in or out of the bucket.
+.feed_region_fallbacks <- function() {
+  .row_member_herds() |>
+    dplyr::summarise(
+      herd = sum(.data$livestock_units),
+      .by = "region_bouwman"
+    ) |>
+    dplyr::transmute(
+      area_code = 999L,
+      region_bouwman = .data$region_bouwman,
+      region_weight = .data$herd / sum(.data$herd)
+    )
+}
+
+.row_member_herds <- function() {
+  tibble::tribble(
+    ~member_area_code, ~member_area_name,      ~region_bouwman,   ~livestock_units,
+    212L,              "Syrian Arab Republic", "Middle East",     20797998,
+    209L,              "Eswatini",             "Southern Africa",  5429610,
+    154L,              "North Macedonia",      "Eastern Europe",   1380710,
+    153L,              "New Caledonia",        "Oceania",          1329304,
+    299L,              "Palestine",            "Middle East",       683313,
+    182L,              "Reunion",              "Eastern Africa",    525447,
+    87L,               "Guadeloupe",           "Central America",   352357,
+    135L,              "Martinique",           "Central America",   230170,
+    61L,               "Equatorial Guinea",    "Western Africa",    127212,
+    64L,               "Faroe Islands",        "OECD Europe",        53551,
+    47L,               "Cook Islands",         "Oceania",            48958,
+    69L,               "French Guiana",        "South America",      42417,
+    160L,              "Niue",                 "Oceania",             5668
+  )
+}
+
+# Areas joined to a weighted region lookup keep their weight; a caller that
+# passes a plain (area_code, region_bouwman) lookup gets weight 1, so fixtures
+# and the "none" fallback behave exactly as before.
+.with_region_weight <- function(df) {
+  if (rlang::has_name(df, "region_weight")) {
+    return(df)
+  }
+  dplyr::mutate(df, region_weight = 1)
 }
 
 .feed_animal_type_lookup <- function(animals_codes) {
