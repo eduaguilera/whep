@@ -53,6 +53,16 @@
   predecessor was capturing the ones its successors should have received. Note
   that `ref_year = 2025` now aborts: the vintage's open periods carry 2025 as
   their exclusive end, so they stop at 2024.
+* `inst/scripts/prepare_spatialize_all.R` no longer repairs
+  `mueller_synthetic_n`'s FAO-style legacy ISO codes with a hand-maintained
+  14-entry `recode()` list. The mapping now comes from
+  `whep::polity_label_aliases` through `resolve_polity_label()`, bridged back to
+  the country grid's numeric `area_code` through the polity's `iso3_code` and the
+  same `regions.csv` lookup the grid is rasterised from. **No published values
+  change**: the resulting `crop_synthetic` table is byte-identical, 5,043 rows
+  resolving to the same 156 area codes with a maximum rate difference of 0. Four
+  of the 14 list entries (`BHA`, `BAR`, `DMI`, `STL`) named codes the dataset
+  never uses.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
