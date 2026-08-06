@@ -1,5 +1,18 @@
 # whep (development version)
 
+* **One unvaluable 1:n split no longer erases observed data.**
+  `harmonize_interpolate()` summed the split 1:n contributions together with
+  the already-correct `"simple"` component using `sum()` without `na.rm`, so a
+  single contribution with a missing `value`, or with a share that could
+  neither be computed nor interpolated (every year of the group totalling
+  zero makes the shares `NaN`), turned the whole harmonized
+  `(item_code, year)` cell into `NA`/`NaN` — including the observed values
+  summed into it. Unvaluable contributions are now dropped with a warning
+  naming the affected cells, and the observed values survive. Published values
+  change only where the old output was `NA`/`NaN`: such a cell now holds its
+  observed `"simple"` sum, or disappears if it had none. No cell that was a
+  number before changes.
+
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different

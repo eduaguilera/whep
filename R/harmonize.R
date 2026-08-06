@@ -85,6 +85,13 @@ harmonize_simple <- function(data, ...) {
 #'
 #'   Do not provide a single row; the function will not create
 #'   duplicates automatically.
+#'
+#'   A 1:n contribution can turn out to be unvaluable, because its
+#'   `value` is missing or because its share could neither be computed
+#'   nor interpolated (e.g. every year of the group has a zero total).
+#'   Such contributions are dropped with a warning rather than summed,
+#'   so that one missing value cannot turn the observed `"simple"`
+#'   values of the same `(item_code, year)` cell into `NA`.
 #' @param data A data frame containing at least columns:
 #'   - `item`: String, original item name.
 #'   - `item_code_harm`: Numeric, code for harmonized item.
@@ -339,7 +346,8 @@ harmonize_interpolate <- function(data, ...) {
 #
 # Multiply 1:n `value` by `value_share`, bind simple
 # series and sum to return harmonized series by `item_code` and
-# year.
+# year. Unvaluable 1:n contributions are dropped beforehand, so the
+# final `sum()` never sees a missing value and needs no `na.rm`.
 .calc_return_harm_int <- function(
   data,
   complex_shares,
@@ -362,12 +370,68 @@ harmonize_interpolate <- function(data, ...) {
       value,
       dplyr::all_of(grouping_names)
     ) |>
+    .drop_unusable_splits(grouping_names) |>
     dplyr::bind_rows(df_simple) |>
     dplyr::rename(item_code = item_code_harm) |>
     dplyr::summarise(
       value = sum(value),
       .by = .group_by_chars("item_code", "year", grouping_cols = grouping_cols)
     )
+}
+
+# Drop 1:n contributions that carry no usable value
+#
+# A split value is missing either because the raw 1:n `value` is
+# missing, or because its `value_share` could not be computed and not
+# interpolated (e.g. every year of the group has a zero total, so the
+# shares are `NaN`). Summing such a row would propagate the missing
+# value to the whole harmonized `(item_code, year)` cell and destroy
+# the observed "simple" component summed into it, so it is dropped
+# with a warning instead: the split is unrecoverable, but the observed
+# values are real and must survive it.
+.drop_unusable_splits <- function(split_values, grouping_names) {
+  unusable <- split_values |> dplyr::filter(is.na(value))
+
+  if (nrow(unusable) == 0) {
+    return(split_values)
+  }
+
+  affected <- cli::cli_vec(
+    .format_unusable_cells(unusable, grouping_names),
+    style = list("vec-trunc" = 5)
+  )
+  cli::cli_warn(
+    c(
+      "!" = "Dropping {nrow(unusable)} 1:n contribution{?s} with no
+        usable value.",
+      "i" = "Either the value or its value share is missing, so the
+        split cannot be computed. Observed {.val simple} values in the
+        affected cells are kept.",
+      "*" = "Affected: {affected}."
+    ),
+    class = "whep_harmonize_unusable_split"
+  )
+
+  split_values |> dplyr::filter(!is.na(value))
+}
+
+# Label the harmonized cells of unvaluable 1:n contributions
+#
+# Build one `"<item_code_harm> (<year>)"` label per affected cell,
+# extended with the values of any additional grouping columns.
+.format_unusable_cells <- function(unusable, grouping_names) {
+  cells <- unusable |>
+    dplyr::distinct(dplyr::pick(
+      "item_code_harm",
+      "year",
+      dplyr::all_of(grouping_names)
+    ))
+  extra <- cells |>
+    dplyr::select(dplyr::all_of(grouping_names)) |>
+    purrr::imap(~ paste0(", ", .y, " ", .x)) |>
+    purrr::reduce(paste0, .init = "")
+
+  paste0(cells$item_code_harm, " (", cells$year, extra, ")")
 }
 
 # Convert quosures to character column names
