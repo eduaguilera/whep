@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`build_cbs_prices()` no longer drops crop residues into an NA bucket.**
+  The residue routing in `.add_residue_prices()` read
+  `Herb_Woody == "Woody"` inside a nested `fifelse()`, so every item whose
+  herbaceous/woody habit is missing got `NA` as its residue item. Those rows
+  were pooled into one `NA`-keyed group and then dropped, and the pool mixed
+  the mass and value of unrelated items on the way. On the real
+  `faostat-trade-bilateral` pin (1986-2021) that silently discarded **72 rows**
+  (36 years x 2 elements) of residue value. Residues are now generated only for
+  primary crops and grassland — processed and animal products never had a crop
+  residue — and a crop with no recorded habit takes the herbaceous default,
+  reported in a warning naming the items (currently Cottonseed, Palm kernels
+  and Palm Oil, whose `Name` is unset in `items_prod_full_raw.csv`).
+  **Published values move for one item, `Other crop residues` (2106)**: its
+  tonnage basis grows by 15.0% on average (2020 exports 345.6 Mt to 401.9 Mt)
+  and its price shifts by -2.6% on average (2020 exports -1.2%, largest single
+  move +6.8%). `Straw` (2105), `Firewood` (2107) and every non-residue item are
+  unchanged to the digit.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different
