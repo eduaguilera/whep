@@ -56,6 +56,14 @@
 #' [folded_reporting_areas()]), so the grid and the national tables agree
 #' about where a Rest-of-World member's rows belong.
 #'
+#' Under `"polity_area"` the raw reporting code is **carried, not replaced**:
+#' the output gains `grid_area_code` holding the parquet's own code, joined with
+#' `+` where a cell's areas collapse into one bucket. So the fold this performs
+#' is recoverable at the join rather than baked into the grid — a derived key
+#' silently overwriting the raw one it came from is what whep#582 reports from
+#' the output side, and the same fold is what dropped Sudan's 40.8 M goats and
+#' doubled its sugar cane in the published production series (whep#563).
+#'
 #' The output deliberately does **not** gain `polity_code` /
 #' `reporting_polity_*`. A bucket is not a polity: `999` holds up to 17
 #' territories at once and `206` holds Sudan and South Sudan together, so no
@@ -239,15 +247,34 @@ spatialize_country_n_to_crops <- function(
 # bucket (Sudan/South Sudan) collapse to a single row, so polity_frac is
 # re-summed within the cell; codes absent from the crosswalk keep their own
 # code rather than being dropped, so a gap stays visible.
+#
+# THE RAW CODE IS CARRIED, NOT REPLACED. The bucket arrives as an added
+# `grid_area_code` alongside the keyed `area_code`, so the fold this performs
+# stays recoverable at the join instead of becoming irrecoverable in the grid.
+# That asymmetry -- a derived key overwriting the raw one it was derived from --
+# is what whep#582 reports from the output side, and doing it here would put the
+# same ambiguity somewhere much harder to unwind: measured upstream, 41 cells /
+# 12.18 Mha fold two distinct polity codes onto bucket 206, which is the same
+# fold that dropped Sudan's 40.8 M goats and doubled its sugar cane in the
+# published production series (whep#563, fixed in whep#591).
+#
+# Where a cell's areas collapse into one bucket the raw codes are joined with a
+# separator rather than one of them being picked, because picking would be the
+# silent half of the same problem.
 .cell_polity_to_bucket <- function(raw) {
   raw |>
     dplyr::mutate(area_code = as.integer(.data$area_code)) |>
     dplyr::left_join(.cell_polity_bucket_lookup(), by = "area_code") |>
     dplyr::mutate(
+      grid_area_code = .data$area_code,
       area_code = dplyr::coalesce(.data$polity_area_code, .data$area_code)
     ) |>
     dplyr::summarise(
       polity_frac = sum(.data$polity_frac),
+      grid_area_code = paste(
+        sort(unique(.data$grid_area_code)),
+        collapse = "+"
+      ),
       .by = c(lon, lat, area_code)
     )
 }

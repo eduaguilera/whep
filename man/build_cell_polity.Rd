@@ -50,6 +50,14 @@ respects \code{options(whep.unfold_rest_of_world = TRUE)} (see
 \code{\link[=folded_reporting_areas]{folded_reporting_areas()}}), so the grid and the national tables agree
 about where a Rest-of-World member's rows belong.
 
+Under \code{"polity_area"} the raw reporting code is \strong{carried, not replaced}:
+the output gains \code{grid_area_code} holding the parquet's own code, joined with
+\code{+} where a cell's areas collapse into one bucket. So the fold this performs
+is recoverable at the join rather than baked into the grid — a derived key
+silently overwriting the raw one it came from is what whep#582 reports from
+the output side, and the same fold is what dropped Sudan's 40.8 M goats and
+doubled its sugar cane in the published production series (whep#563).
+
 The output deliberately does \strong{not} gain \code{polity_code} /
 \verb{reporting_polity_*}. A bucket is not a polity: \code{999} holds up to 17
 territories at once and \code{206} holds Sudan and South Sudan together, so no
