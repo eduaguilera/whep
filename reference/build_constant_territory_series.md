@@ -61,8 +61,12 @@ build_constant_territory_series(
 
 - ref_year:
 
-  Integer. Target boundaries are the polities active in this year
-  (`start_year <= ref_year <= end_year`).
+  Integer. Target boundaries are the polities active in this year.
+  `end_year` is exclusive (see
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)),
+  so "active" means `start_year <= ref_year < end_year` and a polity
+  does not answer for the year its successor takes over. The same
+  reading selects the sources of each data year.
 
 - polities:
 

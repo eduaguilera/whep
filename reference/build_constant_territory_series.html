@@ -136,7 +136,10 @@ in <code>year</code> and carry a polygon).</p></li>
 
 <dt id="arg-ref-year">ref_year<a class="anchor" aria-label="anchor" href="#arg-ref-year"></a></dt>
 <dd><p>Integer. Target boundaries are the polities active in this
-year (<code>start_year &lt;= ref_year &lt;= end_year</code>).</p></dd>
+year. <code>end_year</code> is exclusive (see <a href="polities.html">polities</a>), so "active" means
+<code>start_year &lt;= ref_year &lt; end_year</code> and a polity does not answer for the
+year its successor takes over. The same reading selects the sources of
+each data year.</p></dd>
 
 
 <dt id="arg-polities">polities<a class="anchor" aria-label="anchor" href="#arg-polities"></a></dt>

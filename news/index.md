@@ -35,6 +35,38 @@
   `reporting_polity_code` for bucket 206 is `SUD-1956-2011` before and
   after.
 
+- `polity_end_year` / `end_year` is now read as **exclusive**
+  everywhere, which is the convention upstream `whep-polities`
+  publishes: a successor’s `start_year` equals its predecessor’s
+  `end_year`, and 240 of the 245 FAOSTAT-map rows in
+  `polity_area_crosswalk` carry `polity_end_year == map_year_end + 1`.
+  [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+  used to join on `polity_end_year >= year`, so a period answered for
+  one year past its end. Over the 1961-2024 grid for all 266 crosswalk
+  areas that put **7** area-years on their period’s end year, of which
+  **3 landed in a state that had already dissolved** and still read
+  `"matched"`/`"manual"`: 1993 Czechoslovakia (`F51-1947-1993`), 2006
+  Serbia and Montenegro (`SCG-1992-2006`) and 1992 Yugoslav SFR
+  (`F248-1991-1992`). Those three now report `"out_of_span"`. The other
+  four are years the upstream map explicitly declares the area reports
+  (`map_year_end`, inclusive), and the resolver keeps them: a reported
+  year is never dropped for being one past a polity’s end. **No
+  published value moves**: over 1850-2024 x 266 areas,
+  `polity_area_code` is unchanged on every row, the resolved-row count
+  is unchanged (46,336 with the default back-cast anchor), and the only
+  `polity_code` that moves is area 273 Montenegro in 1962, from
+  `MNE-1913-1918` to `MNE-2006-2025` – a nearest-period stand-in either
+  way, now landing on the nearer period.
+  [`build_constant_territory_series()`](https://eduaguilera.github.io/whep/reference/build_constant_territory_series.md)
+  reads the same convention, so a dissolved polity no longer sits on top
+  of its successors in the hand-over year (238 polities carried a
+  polygon in 1993 on the old reading against 236, and 453 extra active
+  polity-years over 1850-2024), where each grid cell goes to exactly one
+  target and the predecessor was capturing the ones its successors
+  should have received. Note that `ref_year = 2025` now aborts: the
+  vintage’s open periods carry 2025 as their exclusive end, so they stop
+  at 2024.
+
 - `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or
   superseded **14** codes this package had been treating as live and

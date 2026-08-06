@@ -26,7 +26,12 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
   statistical composites that are not real polities.
 
 - `polity_start_year`, `polity_end_year`: Validity interval for the
-  matched polity. `polity_end_year` is exclusive.
+  matched polity. `polity_end_year` is exclusive, so the period covers
+  `polity_start_year:(polity_end_year - 1)`.
+  [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+  resolves a year on that reading, widened to the inclusive
+  `map_year_end` below where the upstream map declares a reported year
+  past the territorial span.
 
 - `mapping_source`: How the area-to-polity decision was reached.
   `"upstream_map"` for the published `whep-polities` FAOSTAT area map,

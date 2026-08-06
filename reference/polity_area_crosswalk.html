@@ -58,7 +58,10 @@ FAOSTAT/FABIO-derived WHEP data to periodized WHEP <code>polity_code</code> valu
 <li><p><code>polity_code</code>, <code>polity_name</code>: Matched WHEP polity, or <code>NA</code> for
 statistical composites that are not real polities.</p></li>
 <li><p><code>polity_start_year</code>, <code>polity_end_year</code>: Validity interval for the matched
-polity. <code>polity_end_year</code> is exclusive.</p></li>
+polity. <code>polity_end_year</code> is exclusive, so the period covers
+<code>polity_start_year:(polity_end_year - 1)</code>. <code><a href="add_polity_code.html">add_polity_code()</a></code> resolves a
+year on that reading, widened to the inclusive <code>map_year_end</code> below where
+the upstream map declares a reported year past the territorial span.</p></li>
 <li><p><code>mapping_source</code>: How the area-to-polity decision was reached.
 <code>"upstream_map"</code> for the published <code>whep-polities</code> FAOSTAT area map, which
 is the authority for the years FAOSTAT reports; <code>"prefix_outside_map"</code> for a

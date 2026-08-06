@@ -55,7 +55,12 @@ repository.</p>
 a continuous time interval. Key columns include:</p><ul><li><p><code>polity_code</code>: Stable WHEP polity identifier, usually
 <code>PREFIX-start_year-end_year</code>.</p></li>
 <li><p><code>polity_name</code>: Human-readable polity name.</p></li>
-<li><p><code>start_year</code>, <code>end_year</code>: Inclusive validity years for the row.</p></li>
+<li><p><code>start_year</code>, <code>end_year</code>: Half-open validity interval for the row:
+<code>start_year</code> is inclusive, <code>end_year</code> is <strong>exclusive</strong>, so the row covers
+<code>start_year:(end_year - 1)</code> and hands over to its successor in <code>end_year</code>
+(<code>F51-1947-1993</code> Czechoslovakia covers 1947-1992, and 1993 belongs to
+<code>CZE-1993-2025</code> and <code>SVK-1993-2025</code>). Open periods carry the vintage's
+horizon as <code>end_year</code>, so they too stop one year short of it.</p></li>
 <li><p><code>iso3_code</code>, <code>iso3c</code>: ISO3 code where one exists. <code>iso3c</code> is retained as
 a compatibility alias.</p></li>
 <li><p><code>wiki_status</code>: Upstream review state. <code>"retired"</code> and <code>"superseded"</code> mark a

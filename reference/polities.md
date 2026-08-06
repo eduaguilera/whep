@@ -19,7 +19,13 @@ over a continuous time interval. Key columns include:
 
 - `polity_name`: Human-readable polity name.
 
-- `start_year`, `end_year`: Inclusive validity years for the row.
+- `start_year`, `end_year`: Half-open validity interval for the row:
+  `start_year` is inclusive, `end_year` is **exclusive**, so the row
+  covers `start_year:(end_year - 1)` and hands over to its successor in
+  `end_year` (`F51-1947-1993` Czechoslovakia covers 1947-1992, and 1993
+  belongs to `CZE-1993-2025` and `SVK-1993-2025`). Open periods carry
+  the vintage's horizon as `end_year`, so they too stop one year short
+  of it.
 
 - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained
   as a compatibility alias.
