@@ -655,6 +655,90 @@ build_processing_coefs <- function(
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
+  .canonicalise_gdp_pop_area(dt)
+}
+
+# Relabel this input's areas with the polity name the rest of the pipeline uses.
+#
+# `.fill_with_proxies()` joins population on `c("year", "area")` -- the name, not
+# a code -- and the two sides speak different vocabularies. Every builder that
+# goes through `.aggregate_to_polities()` emits the period-specific
+# `polity_name` ("Albania (1913-2025)", "Cote d'Ivoire"), while this pin writes
+# its own short forms. Measured on the current pin: 35 of its 196 area names,
+# 5,346 rows or 18.0%, are not names any builder emits, so the join found nothing
+# and the failure is silent -- an unmatched proxy is an NA, not an error, so those
+# countries simply went unfilled.
+#
+# Resolved through the CODE, not through a synonym list. The pin already carries
+# the area's ISO3 in `area_code`, so the label is mapped ISO3 -> FAOSTAT area
+# code -> polity name for that row's year, by the same two helpers
+# `.aggregate_to_polities()` uses. The two vocabularies therefore agree by
+# construction, including the pre-1962 back-cast: 1900 Bangladesh resolves to
+# "East Pakistan (1947-1971)" on both sides because both anchor at 1961.
+#
+# TWO THINGS IT DELIBERATELY DOES NOT DO.
+#
+# It only renames a label that differs from its own polity name, so a label that
+# already matches cannot be rewritten. Checked against the 1961 CBS extract's
+# area vocabulary: 110 of 169 labels matched before, 148 after, and 0 went from
+# matching to not matching.
+#
+# It only renames an area that IS its polity's canonical reporting area
+# (`area_code == polity_area_code`). An area folded into an aggregate -- Syria and
+# Equatorial Guinea into Rest of World -- would otherwise be relabelled as the
+# aggregate, which would both attribute one member's population to the whole
+# bucket and put several pin rows on one `(year, area)` key. Whether the bucket's
+# proxy should be the SUM over its members is a real question and not one a
+# relabelling can answer, so those 6 areas are left unfilled as before.
+#
+# This is not #382's version of the fix. That one canonicalised towards the
+# crosswalk's `area_name`, which is the vocabulary `.read_land_areas()` uses but
+# not the one the frame being filled carries; applied here it would have renamed
+# Bolivia, Iran, Tanzania, Venezuela and North Korea -- five labels that match
+# today -- into names that match nothing.
+.canonicalise_gdp_pop_area <- function(dt) {
+  if (!all(c("area", "area_code", "year") %in% names(dt))) {
+    return(dt)
+  }
+  if (!is.character(dt$area_code)) {
+    return(dt)
+  }
+  dt <- data.table::as.data.table(dt)
+
+  keys <- unique(dt[, .(area, area_code, year)])
+  keys[, key_row := .I]
+  mapped <- .iso3_to_fao_area_code(data.table::copy(keys))
+  mapped <- .add_polity_columns_dt(
+    mapped,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  mapped <- mapped[
+    !is.na(polity_name) &
+      !is.na(polity_area_code) &
+      area_code == polity_area_code,
+    .(key_row, canonical_area = polity_name)
+  ]
+  keys <- merge(keys, mapped, by = "key_row", all.x = TRUE, sort = FALSE)
+  keys <- keys[!is.na(canonical_area) & canonical_area != area]
+  if (nrow(keys) == 0L) {
+    return(dt)
+  }
+
+  cols <- names(dt)
+  dt <- merge(
+    dt,
+    keys[, .(area, area_code, year, canonical_area)],
+    by = c("area", "area_code", "year"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[!is.na(canonical_area), area := canonical_area]
+  dt[, canonical_area := NULL]
+  # The merge puts the join keys first; callers read this pin by name but the
+  # order is what the pin published, so put it back.
+  data.table::setcolorder(dt, cols)
   dt
 }
 
@@ -1222,25 +1306,35 @@ build_processing_coefs <- function(
     year_col = "year",
     include_unmapped = FALSE
   )
+  # Say what is dropped. Of the places this pipeline discards rows with no
+  # polity, the trade ones already announce it and this one did not, so the
+  # residue rows that `get_primary_residues()` could not attribute to an area
+  # disappeared here without a word: 3,937 of 246,471 at full range.
+  #
+  # Today it always reports the single code `NA`, because every non-NA area code
+  # reaching here came out of the crosswalk in the first place. That is the point
+  # of it -- it stays as the tripwire for a code that is real but unmapped, and
+  # `.warn_residues_no_area()` names the labels and years upstream where the
+  # attribution actually fails.
+  .warn_unmapped_codes(dt, "polity_code", "area_code", "crop residues")
   dt <- dt[!is.na(polity_code)]
 
+  # Same grouping and same labelling rule as `.aggregate_to_polities()`. Two
+  # sites emitting two `area` vocabularies for one `area_code` is what dropped
+  # 702,166 rows in whep#382, so the label comes from the shared helper rather
+  # than from whichever member this particular read happened to resolve.
+  labels <- .bucket_area_labels(dt)
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
       "polity_area_code",
-      "polity_name",
       "item_cbs",
       "item_cbs_code",
       "element"
     )
   ]
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .read_land_areas_wide <- function(years = NULL) {

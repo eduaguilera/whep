@@ -398,6 +398,158 @@ test_that(".extend_historical warns about areas with no LUH2 land match", {
   )
 })
 
+# -- Dissolved-federation LUH2 bridge (whep#408) -------------------------------
+
+.make_csk_land <- function() {
+  # LUH2 as it really is: Czechia and Slovakia have land, Czechoslovakia (area
+  # 51) does not, because LUH2 is keyed on present-day ISO3.
+  tibble::tribble(
+    ~iso3c, ~area_code, ~area, ~year, ~Land_Use, ~Area_Mha,
+    "CZE", 167L, "Czechia", 1960L, "c3ann", 2,
+    "CZE", 167L, "Czechia", 1961L, "c3ann", 3,
+    "SVK", 199L, "Slovakia", 1960L, "c3ann", 4,
+    "SVK", 199L, "Slovakia", 1961L, "c3ann", 6
+  )
+}
+
+.make_csk_production <- function() {
+  tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Czechoslovakia",
+    area_code = 51L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_character_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+}
+
+test_that(".federation_land_bridge maps a federation to its successors' ISO3", {
+  bridge <- whep:::.federation_land_bridge(
+    data.table::as.data.table(.make_csk_land())
+  )
+
+  csk <- bridge[bridge$area_code == 51L, ]
+  expect_equal(sort(csk$iso3c), c("CZE", "SVK"))
+  expect_equal(unique(csk$area), "Czechoslovakia")
+})
+
+test_that(".add_federation_land_rows is a no-op by default", {
+  land <- .make_csk_land()
+
+  expect_identical(
+    whep:::.add_federation_land_rows(land, federation_land = "none"),
+    land
+  )
+})
+
+test_that(".add_federation_land_rows sums successor LUH2 land", {
+  aug <- whep:::.add_federation_land_rows(
+    .make_csk_land(),
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages()
+
+  csk <- aug |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # 1960: CZE 2 + SVK 4 = 6 Mha; 1961: 3 + 6 = 9 Mha.
+  expect_equal(csk$Area_Mha, c(6, 9))
+  expect_true(all(is.na(csk$iso3c)))
+  # Successor rows themselves are untouched, so nothing double-counts upstream.
+  expect_equal(
+    aug$Area_Mha[aug$area_code == 167L & aug$year == 1961L],
+    3
+  )
+})
+
+test_that(".add_federation_land_rows leaves its input untouched", {
+  # `.build_grassland()` reads the same LUH2 table straight from
+  # `.read_production()`. If the bridge mutated it by reference, every
+  # federation would gain a 1850-2023 grassland row that double-counts against
+  # its successors' own rows.
+  land <- data.table::as.data.table(.make_csk_land())
+  before <- nrow(land)
+
+  invisible(suppressMessages(
+    whep:::.add_federation_land_rows(land, federation_land = "successor_union")
+  ))
+
+  expect_equal(nrow(land), before)
+  expect_false(51L %in% land$area_code)
+})
+
+test_that(".add_federation_land_rows warns without the ISO3 column", {
+  expect_warning(
+    whep:::.add_federation_land_rows(
+      .make_csk_land() |> dplyr::select(-"iso3c"),
+      federation_land = "successor_union"
+    ),
+    "iso3c"
+  )
+})
+
+test_that(".extend_historical back-casts a federation only when asked", {
+  # This is whep#408: with the default the 1960 row stays NA, because
+  # Czechoslovakia has no LUH2 land of its own to grow the proxy from.
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  status_quo <- whep:::.extend_historical(primary, years, land) |>
+    suppressWarnings() |>
+    dplyr::filter(.data$area_code == 51L, .data$year == 1960L)
+
+  expect_true(all(is.na(status_quo$value)))
+
+  bridged <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages() |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # Cropland proxy grows 6 -> 9 Mha, so 1960 tonnes = 100 * 6 / 9.
+  expect_equal(bridged$value, c(100 * 6 / 9, 100))
+  expect_equal(bridged$source[bridged$year == 1960L], "LUH2_cropland")
+})
+
+test_that(".extend_historical stops warning once a federation is bridged", {
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  expect_warning(
+    whep:::.extend_historical(primary, years, land),
+    "no LUH2 land"
+  )
+  expect_no_warning(
+    whep:::.extend_historical(
+      primary,
+      years,
+      land,
+      federation_land = "successor_union"
+    ) |>
+      suppressMessages()
+  )
+})
+
+test_that("build_primary_production rejects an unknown federation_land", {
+  expect_error(
+    build_primary_production(federation_land = "spatial_intersection"),
+    class = "rlang_error"
+  )
+})
+
 test_that(".prepare_historical_production normalizes generic historical rows", {
   historical <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value, ~source,
@@ -738,12 +890,15 @@ test_that(".split_stock_share keeps groups (year, area, item_prod_code) independ
 test_that(".carry_forward_shares extends shares to QCL's latest years", {
   # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
   # 2021 while slaughter data (target_years) runs to 2023.
+  # `area` carries the reporting territory: one `area_code` can hold two of
+  # them, so it is part of the share key. See
+  # test_stock_share_territory_key.R.
   shares <- tibble::tribble(
-    ~year, ~area_code, ~Item_Code, ~item_cbs_code, ~share,
-    2020L, 203L, 866L, 867L, 0.4,
-    2020L, 203L, 866L, 868L, 0.6,
-    2021L, 203L, 866L, 867L, 0.3,
-    2021L, 203L, 866L, 868L, 0.7
+    ~year, ~area_code, ~area, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 203L, "Spain", 866L, 867L, 0.4,
+    2020L, 203L, "Spain", 866L, 868L, 0.6,
+    2021L, 203L, "Spain", 866L, 867L, 0.3,
+    2021L, 203L, "Spain", 866L, 868L, 0.7
   )
   target_years <- 2020:2023
 
@@ -766,4 +921,45 @@ test_that(".carry_forward_shares extends shares to QCL's latest years", {
       .by = c(year, area_code, Item_Code)
     )
   expect_equal(sums$total, rep(1, 4))
+})
+
+test_that(".read_land_areas separates LUH2's own sentinel from real territories", {
+  # The old single warning said "LUH2 ISO3 codes not found in
+  # polity_area_crosswalk, dropping: BLM, ALA, -99, SXM, JEY, GGY, and IMN",
+  # which reported two unrelated facts as one and was wrong about six of the
+  # seven. Measured over the whole pin, 1850-2022:
+  #
+  #   -99, LUH2's own unassigned marker   8,620 Mha   0.358% of all LUH2 area
+  #   the six real territories                19 Mha   0.0008%
+  #
+  # So 459 parts in 460 of what looked like lost coverage is land the source
+  # itself attributes to no country. The six -- Jersey, Guernsey, Isle of Man,
+  # Saint-Barthelemy, Aland, Sint Maarten -- ARE in the crosswalk under their
+  # sovereign's polity; what they lack is a FAOSTAT area code. Both halves stay
+  # dropped, which is whep#407's question, not this one's.
+  local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::data.table(
+        ISO3 = c("ESP", "-99", "JEY"),
+        Year = 2000L,
+        Land_Use = "c3ann",
+        Area_Mha = c(10, 8620, 0.01)
+      )
+    }
+  )
+
+  warn <- suppressMessages(
+    tryCatch(whep:::.read_land_areas(years = 2000L), warning = function(w) w)
+  )
+  expect_s3_class(warn, "condition")
+  expect_match(conditionMessage(warn), "no FAOSTAT area code")
+  expect_match(conditionMessage(warn), "JEY")
+  # The sentinel must NOT appear in the warning: it is not a coverage gap.
+  expect_false(grepl("-99", conditionMessage(warn), fixed = TRUE))
+
+  msgs <- suppressWarnings(
+    testthat::capture_messages(whep:::.read_land_areas(years = 2000L))
+  )
+  expect_true(any(grepl("-99", msgs, fixed = TRUE)))
+  expect_true(any(grepl("no country assignment", msgs)))
 })

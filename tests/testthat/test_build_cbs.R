@@ -823,3 +823,68 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
   expect_true(is.na(resolved$polity_code[1]))
   expect_false(is.na(resolved$polity_code[2]))
 })
+
+test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
+  # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
+  # and the two sides speak different vocabularies. Everything that comes through
+  # `.aggregate_to_polities()` carries the period-specific `polity_name`, while the
+  # gdp-population pin writes its own short forms. Measured on the current pin: 35
+  # of its 196 area names, 5,346 rows or 18.0%, are not names any builder emits, so
+  # the join silently found nothing and those countries went unfilled. Checked
+  # against the 1961 CBS extract's own area vocabulary, 110 of 169 labels matched
+  # before and 148 after, with 0 going from matching to not matching.
+  #
+  # The relabelling goes ISO3 -> FAOSTAT area code -> polity name for the row's
+  # year, so it is a code lookup rather than a hand-written synonym list, and it
+  # agrees with `.aggregate_to_polities()` by construction. #382 canonicalised
+  # towards the crosswalk's `area_name` instead, which is a third vocabulary: on
+  # today's main that would have renamed Bolivia, Iran, Tanzania, Venezuela and
+  # North Korea -- five labels that match today -- into names that match nothing.
+  dt <- data.table::data.table(
+    year = rep(2000L, 5L),
+    area = c("Lao", "Republic of Korea", "Albania", "Spain", "Syria"),
+    area_code = c("LAO", "KOR", "ALB", "ESP", "SYR"),
+    pop = 1:5
+  )
+
+  result <- whep:::.canonicalise_gdp_pop_area(dt)
+
+  # Short forms take the polity name, including the periodized one.
+  expect_equal(result$area[result$area_code == "LAO"], "Laos")
+  expect_equal(result$area[result$area_code == "KOR"], "South Korea")
+  expect_equal(result$area[result$area_code == "ALB"], "Albania (1913-2025)")
+
+  # A label that already IS its polity's name is left alone, so the function
+  # cannot break a join that works.
+  expect_equal(result$area[result$area_code == "ESP"], "Spain")
+
+  # Syria's FAOSTAT area folds into the Rest of World bucket, so its polity name
+  # is the aggregate's. Relabelling it would attribute one member's population to
+  # the whole bucket and collide with the other members on the same (year, area)
+  # key, so folded areas are deliberately left as they are.
+  expect_equal(result$area[result$area_code == "SYR"], "Syria")
+
+  # Nothing else changes: same rows, same values, same column order.
+  expect_equal(nrow(result), 5L)
+  expect_equal(names(result), names(dt))
+  expect_equal(result$pop[order(result$area_code)], c(3L, 4L, 2L, 1L, 5L))
+})
+
+test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", {
+  # The pin is read straight from a remote board, so the guard matters: a revision
+  # that drops `area_code` or stores it as a number must leave the frame alone
+  # rather than half-relabel it.
+  no_code <- data.table::data.table(year = 2000L, area = "Lao", pop = 1)
+  expect_identical(whep:::.canonicalise_gdp_pop_area(no_code), no_code)
+
+  numeric_code <- data.table::data.table(
+    year = 2000L,
+    area = "Lao",
+    area_code = 120L,
+    pop = 1
+  )
+  expect_identical(
+    whep:::.canonicalise_gdp_pop_area(numeric_code),
+    numeric_code
+  )
+})
