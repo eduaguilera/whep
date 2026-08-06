@@ -78,8 +78,17 @@ current reporting polity has a polygon.</p></li>
 <li><p><code>baci</code>: BACI trade database country code.</p></li>
 <li><p><code>fish</code>: Fisheries dataset numeric code.</p></li>
 <li><p><code>region_code</code>: Numeric regional code.</p></li>
-<li><p><code>cbs</code>: Logical CBS dataset membership flag.</p></li>
-<li><p><code>fabio_code</code>: FABIO database numeric code.</p></li>
+<li><p><code>cbs</code>: Logical CBS dataset membership flag; <code>TRUE</code> if the area has a
+commodity balance sheet of its own. 202 areas.</p></li>
+<li><p><code>fabio_code</code>: FABIO database numeric code, and the value
+<code>polity_area_code</code> is derived from, so it is the fold instruction as well
+as a fact about FABIO. It is the area's own <code>code</code> for a <code>cbs</code> reporter and
+999 (Rest of World) otherwise, with seven exceptions: 62 -&gt; 238, 276 -&gt; 206
+and 277 -&gt; 206 are successor-state folds, and 153, 154, 209 and 212 are
+<code>cbs</code> reporters folded into 999 anyway. Those four are a contradiction
+inside this table – FABIO's own published region list enumerates all four
+as regions of their own – left standing because correcting it would move
+published values. See <a href="folded_reporting_areas.html">folded_reporting_areas</a> and issue 556.</p></li>
 <li><p><code>ADB_Region</code>: Asian Development Bank region.</p></li>
 <li><p><code>region</code>: General world region.</p></li>
 <li><p><code>uISO3c</code>: UN M49 numeric code.</p></li>

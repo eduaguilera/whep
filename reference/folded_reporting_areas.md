@@ -9,14 +9,26 @@ unresolved. This lists those areas, because the coverage reports cannot:
 a fold resolves perfectly well, only to a territory that did not report
 the data.
 
-Two kinds exist, and they are not equally defensible:
+Three kinds exist, and they are not equally defensible:
 
 - `"fabio_rest_of_world"`: FABIO collapses the area into its single
-  Rest-of-World row (`polity_area_code` 999, `ROW-1850-2023`). Most such
-  areas report nothing, but several report substantial data of their
-  own: Syria, Eswatini, New Caledonia, North Macedonia, Reunion,
-  Guadeloupe, Palestine, the Faroe Islands. Their observed values are
-  attributed to Rest of World.
+  Rest-of-World row (`polity_area_code` 999, `ROW-1850-2025`) because
+  its own region list does not enumerate the area either. 57 areas, all
+  flagged `cbs` `FALSE` in
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md).
+  Several still report substantial data of their own – Reunion,
+  Guadeloupe, Palestine, the Faroe Islands – which is attributed to Rest
+  of World.
+
+- `"cbs_reporter_folded"`: the area is flagged `cbs` `TRUE`, so
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md)
+  says it has a commodity balance sheet of its own, and it is folded
+  into 999 anyway. Four areas: 153 New Caledonia, 154 North Macedonia,
+  209 Eswatini and 212 Syria, the last being the largest single
+  contributor to the fold. **FABIO does not fold these**: its published
+  region list enumerates all four as regions in their own right (see the
+  section below), so this fold is WHEP's, not a FABIO convention, and
+  the `"fabio"` label the other 57 carry does not apply.
 
 - `"successor_state"`: the area is summed into the bucket of the state
   that succeeded it, which is a deliberate territorial identity rather
@@ -53,7 +65,30 @@ A tibble with one row per folded reporting area, ordered by `area_code`:
 
 - `polity_code`, `polity_name`: The polity the fold attributes them to.
 
-- `fold_kind`: `"fabio_rest_of_world"` or `"successor_state"`.
+- `fold_kind`: `"fabio_rest_of_world"`, `"cbs_reporter_folded"` or
+  `"successor_state"`.
+
+## What FABIO's own region list says
+
+FABIO (Bruckner et al. 2019) publishes the region list it uses, and it
+contains all four `"cbs_reporter_folded"` areas as regions of their own:
+
+- `io_codes.csv` of the FABIO v1.1 release (Zenodo record 2577067, the
+  file `inst/scripts/compare_fabio.R` already downloads) enumerates 192
+  areas x 125 commodities. Areas 153, 154, 209 and 212 each have their
+  own 125-row block, distinct from area 999 `RoW`.
+
+- The FABIO source repository
+  (<https://github.com/fineprint-global/fabio>) folds an area into Rest
+  of World exactly when it is absent from `inst/regions_full.csv` with
+  `current == TRUE`. All four carry `current` `TRUE` there, and the 192
+  codes that file flags `cbs` `TRUE` are precisely the 192 areas of
+  `io_codes.csv`.
+
+So `fabio_code == 999` for these four is a statement WHEP makes, not one
+FABIO makes. Correcting it in `regions_full` would move published
+values, because `polity_area_code` is derived from `fabio_code`, so the
+contradiction is left standing and reported here instead (issue 556).
 
 ## Measuring the alternative
 
@@ -65,6 +100,12 @@ of the crosswalk warns while it is set. The `"successor_state"` folds
 are never lifted by it, since those are territorial identities rather
 than a FABIO convention.
 
+`options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only the
+four `"cbs_reporter_folded"` areas, which is the narrower experiment
+issue 556 asks for: it lifts exactly the folds FABIO does not make and
+leaves the 57 folds FABIO agrees with in place. `TRUE` and `"all"` are
+the same mode.
+
 Measured with it on a full-range
 [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
 (1850-2023, all 61 members promoted), global totals move by at most 1.2%
@@ -72,6 +113,14 @@ Measured with it on a full-range
 `processing`. An earlier measurement recorded in issue 419 reported up
 to 13.7x; that comparison predates the `dcast()` duplicate-key fix in
 `.select_best_source()` (issue 425) and does not reproduce.
+
+## References
+
+Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,
+Borner, J. (2019). FABIO - The Construction of the Food and Agriculture
+Input-Output Model. Environmental Science & Technology 53(19),
+11302-11312.
+[doi:10.1021/acs.est.9b03554](https://doi.org/10.1021/acs.est.9b03554)
 
 ## Examples
 
@@ -87,5 +136,14 @@ head(folded[folded$fold_kind == "successor_state", ], 4)
 #> 2        62 Ethiopia PDR ETH                     238 ETH-1889-1897 Ethiopia (18…
 #> 3        62 Ethiopia PDR ETH                     238 ETH-1897-1902 Ethiopia (18…
 #> 4        62 Ethiopia PDR ETH                     238 ETH-1902-1907 Ethiopia (19…
+#> # ℹ 1 more variable: fold_kind <chr>
+folded[folded$fold_kind == "cbs_reporter_folded", ]
+#> # A tibble: 4 × 7
+#>   area_code area_name        area_iso3c polity_area_code polity_code polity_name
+#>       <int> <chr>            <chr>                 <int> <chr>       <chr>      
+#> 1       153 New Caledonia    NCL                     999 ROW-1850-2… Rest of Wo…
+#> 2       154 North Macedonia  MKD                     999 ROW-1850-2… Rest of Wo…
+#> 3       209 Eswatini         SWZ                     999 ROW-1850-2… Rest of Wo…
+#> 4       212 Syrian Arab Rep… SYR                     999 ROW-1850-2… Rest of Wo…
 #> # ℹ 1 more variable: fold_kind <chr>
 ```

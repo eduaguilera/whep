@@ -58,9 +58,20 @@ minus the five trailing `0...36`–`0...40` artefact columns):
 
 - `region_code`: Numeric regional code.
 
-- `cbs`: Logical CBS dataset membership flag.
+- `cbs`: Logical CBS dataset membership flag; `TRUE` if the area has a
+  commodity balance sheet of its own. 202 areas.
 
-- `fabio_code`: FABIO database numeric code.
+- `fabio_code`: FABIO database numeric code, and the value
+  `polity_area_code` is derived from, so it is the fold instruction as
+  well as a fact about FABIO. It is the area's own `code` for a `cbs`
+  reporter and 999 (Rest of World) otherwise, with seven exceptions: 62
+  -\> 238, 276 -\> 206 and 277 -\> 206 are successor-state folds, and
+  153, 154, 209 and 212 are `cbs` reporters folded into 999 anyway.
+  Those four are a contradiction inside this table – FABIO's own
+  published region list enumerates all four as regions of their own –
+  left standing because correcting it would move published values. See
+  [folded_reporting_areas](https://eduaguilera.github.io/whep/reference/folded_reporting_areas.md)
+  and issue 556.
 
 - `ADB_Region`: Asian Development Bank region.
 
