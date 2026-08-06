@@ -118,14 +118,7 @@
 <span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
 <span>  error_on <span class="op">=</span> <span class="st">"error"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
-<span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span></span>
-<span>    object_usage_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    line_length_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    indentation_linter <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    commas_linter <span class="op">=</span> <span class="cn">NULL</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># linters and exclusions come from .lintr</span></span></code></pre></div>
 <p>Gotchas worth knowing before losing an hour:</p>
 <ul><li>
 <code>WHEP_*</code> paths belong in <code>~/.Renviron</code> and are read from there. Do <strong>not</strong> add a <code>.Renviron</code> at the repo root: R reads a working-directory <code>.Renviron</code> <em>instead of</em> <code>~/.Renviron</code>, never both, so one here silently hides every <code>WHEP_*</code> path an R session started at the root would otherwise see. That was #456, fixed by moving <code>_R_CHECK_SYSTEM_CLOCK_</code> out of a tracked <code>.Renviron</code> into the R-CMD-check workflow env and <code>.Rprofile</code>.</li>
