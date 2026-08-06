@@ -56,3 +56,9 @@ add_polity_code(
 ## Value
 
 A tibble with added polity metadata columns.
+
+## See also
+
+[`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+which reports the stand-in rows of an already-built table, whose
+published columns no longer carry `mapping_status`.
