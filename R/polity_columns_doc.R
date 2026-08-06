@@ -30,6 +30,18 @@
 #' WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
 #' [add_polity_code()] for the reasoning.
 #'
+#' A row whose year no mapped period covers is resolved to the NEAREST period of
+#' the same area instead, so `reporting_polity_code` can name a polity that did
+#' not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+#' reporting after `SUD-1956-2011` ends, and its post-2011 rows carry that code.
+#' These columns do not say so: [add_polity_code()] reports such a row as
+#' `mapping_status == "out_of_span"`, and that column is dropped here so that
+#' adding it does not change the schema of every area-keyed output at once.
+#' [polity_coverage_gaps()] reports the stand-in rows of a built table, and
+#' `options(whep.polity_mapping_status = "flag")` (or `"status"`) carries the
+#' signal on the outputs themselves. Both are opt-in; the default is no extra
+#' column.
+#'
 #' @name whep_polity_columns
 #' @keywords internal
 NULL

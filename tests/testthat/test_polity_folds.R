@@ -139,10 +139,14 @@ test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
     "Bucket 206"
   )
 
-  # No value moved: the two members keep their own rows and their own values,
-  # and both now sit under bucket code 206.
-  expect_equal(folded$area_code, c(206L, 206L))
-  expect_equal(sum(folded$value), 3405356)
+  # The bucket SUMS. Until whep#563 this came back as two rows under one code,
+  # 2,744,000 and 661,356, because the aggregator also grouped by the member's
+  # `polity_name` -- so the fold the warning describes was not actually being
+  # performed, and every consumer keyed on `(area_code, year, item, element)`
+  # saw a duplicated key.
+  expect_equal(nrow(folded), 1L)
+  expect_equal(folded$area_code, 206L)
+  expect_equal(folded$value, 3405356)
 
   withr::local_options(whep.warn_polity_folds = FALSE)
   expect_no_warning(
@@ -467,4 +471,87 @@ testthat::test_that("folded_reporting_areas() rejects a frame it cannot read", {
     whep::folded_reporting_areas(tibble::tibble(area_code = 1L)),
     "missing"
   )
+})
+
+# The bucket label, which is what whep#563 is about ---------------------------
+#
+# One `area_code` must come out under one `area`, whatever the members resolve
+# to, because `area` is a join key and a duplicated `(area_code, year, item,
+# element)` is what fed the `dcast()` `length()` fallback in whep#425.
+
+.bucket_fixture_rows <- function() {
+  data.table::data.table(
+    area_code = c(900L, 901L, 902L, 951L, 952L, 960L, 961L, 970L),
+    year = 2015L,
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    value = c(1, 2, 4, 8, 16, 32, 64, 128)
+  )
+}
+
+testthat::test_that("every bucket gets exactly one label, whatever it folds", {
+  .local_fold_crosswalk()
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(.bucket_fixture_rows(), item_prod_code)
+  )
+
+  # Four buckets, four rows, four labels -- not eight rows under four codes.
+  testthat::expect_equal(nrow(out), 4L)
+  labels <- stats::setNames(out$area, as.character(out$area_code))
+  testthat::expect_equal(
+    labels[c("900", "950", "960", "970")],
+    c(`900` = "Aggregate", `950` = "P", `960` = "R", `970` = "T")
+  )
+
+  # Bucket 900 is the shape whep#480 shipped: a member (901 "X", 902 "Y") with
+  # its own polity while `polity_area_code` stays on the aggregate. It sums.
+  totals <- stats::setNames(out$value, as.character(out$area_code))
+  testthat::expect_equal(unname(totals[["900"]]), 7)
+  testthat::expect_equal(unname(totals[["960"]]), 96)
+  testthat::expect_equal(sum(out$value), sum(.bucket_fixture_rows()$value))
+})
+
+testthat::test_that("a bucket with no row of its own falls back to a member", {
+  # Bucket 950 has no crosswalk row for its own code, so it cannot be labelled
+  # from the bucket. The member label is then used -- deterministically, the
+  # lowest `area_code`, so it does not depend on which member reported or on
+  # row order -- rather than leaving the rows unlabelled.
+  .local_fold_crosswalk()
+  rows <- .bucket_fixture_rows()[area_code %in% c(951L, 952L)]
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(data.table::copy(rows), item_prod_code)
+  )
+  testthat::expect_equal(out$area, "P")
+
+  reversed <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      data.table::copy(rows)[order(-area_code)],
+      item_prod_code
+    )
+  )
+  testthat::expect_equal(reversed$area, "P")
+  testthat::expect_false(any(is.na(out$area)))
+})
+
+testthat::test_that("labelling annotates the aggregate, it cannot filter it", {
+  # `.apply_bucket_area_labels()` is an update-join precisely so that a missing
+  # label costs a label and never a row -- the 702,166-row drop in whep#382 came
+  # from a labelling change meeting an inner join.
+  agg <- data.table::data.table(
+    year = c(2015L, 2015L),
+    polity_area_code = c(900L, 111L),
+    value = c(7, 5)
+  )
+  labels <- data.table::data.table(
+    polity_area_code = 900L,
+    year = 2015L,
+    area = "Aggregate"
+  )
+
+  out <- whep:::.apply_bucket_area_labels(agg, labels)
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_equal(names(out)[1:3], c("year", "area_code", "area"))
+  testthat::expect_equal(out$area, c("Aggregate", NA_character_))
 })
