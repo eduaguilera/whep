@@ -119,6 +119,69 @@ test_that("CBS and FABIO area codes map to polity database rows", {
 })
 
 
+# -- the fabio_code rule and its exceptions (issue #556) -----------------------
+
+# `fabio_code` is not merely a fact about FABIO: `polity_area_code` is derived
+# from it, so it is also the instruction saying which bucket an area's rows are
+# summed into. The rule it follows is exact -- own code for a `cbs` reporter,
+# 999 otherwise -- which is what makes its seven exceptions readable, and what
+# makes four of them a contradiction rather than a convention.
+
+test_that("regions_full sets fabio_code from cbs, with seven exceptions", {
+  regions <- whep::regions_full |>
+    dplyr::filter(!is.na(.data$code))
+
+  # 62 into 238 and 276/277 into 206 are successor-state folds: territorial
+  # identities, not a FABIO convention.
+  #
+  # 153, 154, 209 and 212 are the #556 contradiction. They are flagged as
+  # reporting a balance sheet of their own AND folded into Rest of World, and
+  # FABIO does NOT fold them: `io_codes.csv` of the FABIO v1.1 release (Zenodo
+  # record 2577067) gives each of the four its own 125-commodity block among 192
+  # areas, and the FABIO source repository (fineprint-global/fabio) marks all
+  # four `current == TRUE` in `inst/regions_full.csv`, which is exactly the flag
+  # its `replace_RoW()` keeps out of bucket 999. Lifting the fold moves
+  # published values, so the four are pinned here rather than corrected; when
+  # the decision is made they leave this table.
+  exceptions <- tibble::tribble(
+    ~code, ~fabio_code,
+    62L,   238L,
+    153L,  999L,
+    154L,  999L,
+    209L,  999L,
+    212L,  999L,
+    276L,  206L,
+    277L,  206L
+  )
+
+  reporters <- regions |> dplyr::filter(.data$cbs %in% TRUE)
+  expect_equal(nrow(reporters), 202L)
+
+  mismatched <- reporters |>
+    dplyr::filter(
+      is.na(.data$fabio_code) | .data$fabio_code != .data$code
+    ) |>
+    dplyr::transmute(
+      code = as.integer(.data$code),
+      fabio_code = as.integer(.data$fabio_code)
+    ) |>
+    dplyr::arrange(.data$code)
+
+  expect_equal(mismatched, exceptions)
+
+  # The converse, which is what makes `cbs` an exact discriminator: no
+  # non-reporter keeps its own code, so `cbs` alone separates the 57 folds
+  # FABIO also makes from the 4 it does not.
+  kept <- regions |>
+    dplyr::filter(
+      !.data$cbs %in% TRUE,
+      !is.na(.data$fabio_code),
+      .data$fabio_code == .data$code
+    )
+  expect_equal(nrow(kept), 0L)
+})
+
+
 # -- area label encoding (issue #399) ------------------------------------------
 
 # No area label in a published table may be mojibake. Three territory names

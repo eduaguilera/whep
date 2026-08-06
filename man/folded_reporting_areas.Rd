@@ -17,7 +17,8 @@ A tibble with one row per folded reporting area, ordered by
 \item \code{area_name}, \code{area_iso3c}: Its name and ISO3-like code.
 \item \code{polity_area_code}: The bucket its rows are summed into.
 \item \code{polity_code}, \code{polity_name}: The polity the fold attributes them to.
-\item \code{fold_kind}: \code{"fabio_rest_of_world"} or \code{"successor_state"}.
+\item \code{fold_kind}: \code{"fabio_rest_of_world"}, \code{"cbs_reporter_folded"} or
+\code{"successor_state"}.
 }
 }
 \description{
@@ -28,14 +29,22 @@ WHEP output without a single row being dropped or left unresolved. This lists
 those areas, because the coverage reports cannot: a fold resolves perfectly
 well, only to a territory that did not report the data.
 
-Two kinds exist, and they are not equally defensible:
+Three kinds exist, and they are not equally defensible:
 \itemize{
 \item \code{"fabio_rest_of_world"}: FABIO collapses the area into its single
-Rest-of-World row (\code{polity_area_code} 999, \code{ROW-1850-2023}). Most such
-areas report nothing, but several report substantial data of their own:
-Syria, Eswatini, New Caledonia, North Macedonia, Reunion, Guadeloupe,
-Palestine, the Faroe Islands. Their observed values are attributed to Rest
-of World.
+Rest-of-World row (\code{polity_area_code} 999, \code{ROW-1850-2025}) because its own
+region list does not enumerate the area either. 57 areas, all flagged
+\code{cbs} \code{FALSE} in \link{regions_full}. Several still report substantial data of
+their own -- Reunion, Guadeloupe, Palestine, the Faroe Islands -- which is
+attributed to Rest of World.
+\item \code{"cbs_reporter_folded"}: the area is flagged \code{cbs} \code{TRUE}, so
+\link{regions_full} says it has a commodity balance sheet of its own, and it is
+folded into 999 anyway. Four areas: 153 New Caledonia, 154 North Macedonia,
+209 Eswatini and 212 Syria, the last being the largest single contributor
+to the fold. \strong{FABIO does not fold these}: its published region list
+enumerates all four as regions in their own right (see the section below),
+so this fold is WHEP's, not a FABIO convention, and the \code{"fabio"} label the
+other 57 carry does not apply.
 \item \code{"successor_state"}: the area is summed into the bucket of the state that
 succeeded it, which is a deliberate territorial identity rather than a
 loss: FAOSTAT area 62 "Ethiopia PDR" into 238 Ethiopia, and areas 276 Sudan
@@ -46,6 +55,29 @@ Whether to lift the Rest-of-World fold is an open decision recorded in issue
 419; this function only makes the current state visible and changes nothing.
 A build also warns, naming the areas and the row counts it actually folded.
 }
+\section{What FABIO's own region list says}{
+
+FABIO (Bruckner et al. 2019) publishes the region list it uses, and it
+contains all four \code{"cbs_reporter_folded"} areas as regions of their own:
+\itemize{
+\item \code{io_codes.csv} of the FABIO v1.1 release (Zenodo record 2577067, the file
+\code{inst/scripts/compare_fabio.R} already downloads) enumerates 192 areas x
+125 commodities. Areas 153, 154, 209 and 212 each have their own 125-row
+block, distinct from area 999 \code{RoW}.
+\item The FABIO source repository
+(\url{https://github.com/fineprint-global/fabio}) folds an area into Rest of
+World exactly when it is absent from \code{inst/regions_full.csv} with
+\code{current == TRUE}. All four carry \code{current} \code{TRUE} there, and the 192
+codes that file flags \code{cbs} \code{TRUE} are precisely the 192 areas of
+\code{io_codes.csv}.
+}
+
+So \code{fabio_code == 999} for these four is a statement WHEP makes, not one
+FABIO makes. Correcting it in \code{regions_full} would move published values,
+because \code{polity_area_code} is derived from \code{fabio_code}, so the contradiction
+is left standing and reported here instead (issue 556).
+}
+
 \section{Measuring the alternative}{
 
 \code{options(whep.unfold_rest_of_world = TRUE)} promotes every Rest-of-World
@@ -54,6 +86,11 @@ experiment the decision needs. It is \strong{off by default and not a production
 mode}: published WHEP values assume the fold, so every read of the crosswalk
 warns while it is set. The \code{"successor_state"} folds are never lifted by it,
 since those are territorial identities rather than a FABIO convention.
+
+\code{options(whep.unfold_rest_of_world = "cbs_reporters")} promotes only the four
+\code{"cbs_reporter_folded"} areas, which is the narrower experiment issue 556
+asks for: it lifts exactly the folds FABIO does not make and leaves the 57
+folds FABIO agrees with in place. \code{TRUE} and \code{"all"} are the same mode.
 
 Measured with it on a full-range \code{get_wide_cbs()} (1850-2023, all 61 members
 promoted), global totals move by at most 1.2\% (\code{stock_addition}) and by less
@@ -67,4 +104,11 @@ not reproduce.
 folded <- folded_reporting_areas()
 nrow(folded)
 head(folded[folded$fold_kind == "successor_state", ], 4)
+folded[folded$fold_kind == "cbs_reporter_folded", ]
+}
+\references{
+Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,
+Borner, J. (2019). FABIO - The Construction of the Food and Agriculture
+Input-Output Model. Environmental Science & Technology 53(19), 11302-11312.
+\doi{10.1021/acs.est.9b03554}
 }

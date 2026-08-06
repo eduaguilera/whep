@@ -98,6 +98,25 @@
   1961-2023, against 664,412 and 1,775,719 under `"global_mean"`. Whether the
   default should move is left open in whep#415.
 
+* `folded_reporting_areas()` no longer calls all 61 Rest-of-World folds a FABIO
+  convention, because for four of them it is not one. FABIO's own published
+  region list -- `io_codes.csv` of the v1.1 release (Zenodo record 2577067),
+  192 areas x 125 commodities, the file `inst/scripts/compare_fabio.R` already
+  downloads -- gives **153 New Caledonia, 154 North Macedonia, 209 Eswatini and
+  212 Syria** each their own commodity block, distinct from area 999 `RoW`; the
+  FABIO source repository marks all four `current == TRUE`, which is exactly the
+  flag its `replace_RoW()` keeps out of bucket 999. `regions_full` nonetheless
+  gives them `fabio_code` 999 while flagging them `cbs` `TRUE`, and Syria is the
+  single largest contributor to the fold (24,426 `faostat-production` rows).
+  Those four now come back as a third `fold_kind`, `"cbs_reporter_folded"`,
+  separating them from the 57 folds FABIO does make; a new
+  `options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only those
+  four, alongside the existing `TRUE` (equivalently `"all"`) for all 61. **No
+  published value changes**: `fabio_code`, `polity_area_code` and every polity
+  label are untouched on the default path, which the suite pins against the
+  committed crosswalk. Whether to correct `regions_full` is an open decision
+  (#556); doing so is the numeric un-fold of #563's option 3, and must not be
+  done at the polity level alone (#480, reverted in #561).
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
