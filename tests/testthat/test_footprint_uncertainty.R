@@ -13,22 +13,14 @@
   get(".Random.seed", envir = globalenv(), inherits = FALSE)
 }
 
-# Runs `code` as a session that has never drawn a random number, putting back
-# whatever RNG state the rest of the suite left behind.
+# Runs `code` as a session that has never drawn a random number. Putting the
+# suite's own RNG state back is `with_preserve_seed()`'s job here; only the
+# assertion inside `code` is under test.
 .with_no_rng_state <- function(code) {
-  old <- .rng_state()
-  on.exit(
-    if (is.null(old)) {
-      suppressWarnings(rm(list = ".Random.seed", envir = globalenv()))
-    } else {
-      assign(".Random.seed", old, envir = globalenv())
-    },
-    add = TRUE
-  )
-  if (!is.null(old)) {
-    rm(list = ".Random.seed", envir = globalenv())
-  }
-  force(code)
+  withr::with_preserve_seed({
+    suppressWarnings(rm(list = ".Random.seed", envir = globalenv()))
+    force(code)
+  })
 }
 
 .spread_run <- function(seed = NULL) {
