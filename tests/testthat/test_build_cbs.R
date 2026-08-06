@@ -740,10 +740,18 @@ test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
       item_cbs_code = 2511L,
       area_ha = 1
     ),
-    gdp_pop = tibble::tibble(year = 1950L, area = "Spain", pop = 10),
-    land_areas_wide = tibble::tibble(
+    # Both proxies are resolved onto the frame's polity key, not joined on an
+    # area label: the gdp/population pin is keyed by ISO3 in `area_code`, and
+    # .read_land_areas_wide() emits a polity_code.
+    gdp_pop = tibble::tibble(
       year = 1950L,
       area = "Spain",
+      area_code = "ESP",
+      pop = 10
+    ),
+    land_areas_wide = tibble::tibble(
+      year = 1950L,
+      polity_code = "ESP-1800-2025",
       Cropland = 1,
       Pasture = 0,
       agriland = 1
