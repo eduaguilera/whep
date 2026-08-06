@@ -49,5 +49,5 @@ tibble::tibble(
 #> # A tibble: 1 × 6
 #>   species      cohort  heads enteric_ch4_tier2 manure_ch4_tier2 manure_n2o_total
 #>   <chr>        <chr>   <dbl>             <dbl>            <dbl>            <dbl>
-#> 1 Dairy Cattle Adult …  1000           126919.           17626.            2701.
+#> 1 Dairy Cattle Adult …  1000           126919.           18255.            2701.
 ```
