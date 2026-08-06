@@ -440,6 +440,14 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called `set.seed()` and left it set, so every
+  random number drawn afterwards depended on having made the call, and in a
+  session that had not yet used the RNG it created `.Random.seed` where there
+  was none. The seed is now scoped to the call and the previous RNG state (or
+  its absence) is restored on return. Seeded results are bit-identical to
+  before; unseeded runs still consume the caller's stream, so consecutive
+  unseeded runs remain independent draws (#188).
 
 # whep 0.3.0
 
