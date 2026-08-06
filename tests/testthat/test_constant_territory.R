@@ -192,3 +192,40 @@ test_that("numeric polity_code keys index by name, not position", {
   expect_equal(tr$value, 100, tolerance = 1e-6)
   expect_equal(sum(res$covered), 100, tolerance = 1e-6)
 })
+
+test_that("a polity is not active in its exclusive end year", {
+  # `end_year` is EXCLUSIVE (see [polities]), so a polity and its successors
+  # must not both be active in the hand-over year. Reading it inclusively made
+  # them overlap -- on the shipped snapshot, 238 polities carry a polygon in
+  # 1993 that way, Czechoslovakia sitting on top of Czechia and Slovakia --
+  # and each grid cell goes to exactly one target, so the dissolved
+  # predecessor captured the cells its successors should have received (#550).
+  #
+  # OLD covers the whole rectangle and ends in 1950; NEW_L and NEW_R split it
+  # and start in 1950. `ref_year` is the hand-over year 1950, so the targets
+  # must be exactly the two successors.
+  polys <- sf::st_sf(
+    polity_code = c("OLD", "NEW_L", "NEW_R"),
+    start_year = c(1850L, 1950L, 1950L),
+    end_year = c(1950L, 2025L, 2025L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 100000, 100000),
+      .rect(0, 0, 50000, 100000),
+      .rect(50000, 0, 100000, 100000),
+      crs = 6933
+    )
+  )
+  reported <- data.frame(year = 1900L, polity_code = "OLD", value = 100)
+  res <- build_constant_territory_series(
+    reported,
+    ref_year = 1950,
+    polities = polys,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  expect_equal(res$target_polity_code, c("NEW_L", "NEW_R"))
+  expect_equal(res$value, c(50, 50), tolerance = 1e-6)
+  expect_equal(sum(res$covered), 100, tolerance = 1e-6)
+})
