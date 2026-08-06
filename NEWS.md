@@ -1,5 +1,13 @@
 # whep (development version)
 
+* `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
+  an `example = FALSE` argument, so both now have runnable examples like the
+  rest of the package's remote-data functions. Their documented `@return` was
+  also wrong and is corrected: `create_typologies_of_josette()` returns a named
+  list of three tibbles plus a `ggplot`, not a single tibble, and
+  `create_typologies_grafs_spain()` returns `Province_name` and `Typologie` for
+  `map_year` only, not a seven-column series over all years. No published value
+  changes — the only new code path is the `example = TRUE` early return.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different
