@@ -23,6 +23,31 @@
   )
 }
 
+# A polycell-support-shaped feed for the same grid: one border cell shared
+# between polities 10 and 20, one interior cell. Land is deliberately BELOW the
+# whole-cell area in both cells (inland water and ice are territory, not land)
+# and the two cells hold different absolute land, so that
+#   a share of the cell's LAND      (10 takes 1800/2400 = 0.75 and 2000/2000 = 1)
+#   a share of the WHOLE cell       (1800/3000 = 0.6 and 2000/3000 = 0.667)
+#   an absolute area                (1800 and 2000)
+# are three different weights and no test can pass on two of them at once.
+.nbs_support <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_area_ha, ~cell_area_ha,
+    0.25, 50.25, 10L, 1800, 3000,
+    0.25, 50.25, 20L, 600, 3000,
+    0.75, 50.25, 10L, 2000, 3000
+  )
+}
+
+# The same support with `polity_frac` alongside `land_area_ha`, so an explicit
+# `split` has both keys available and cannot be satisfied by accident. The two
+# keys disagree on the border cell: the subcell count says 0.5/0.5, the
+# measured land says 0.75/0.25.
+.nbs_support_both <- function() {
+  dplyr::mutate(.nbs_support(), polity_frac = c(0.5, 0.5, 1))
+}
+
 .nbs_crop_patterns <- function() {
   tibble::tribble(
     ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
@@ -288,6 +313,330 @@ testthat::test_that("missing required columns abort with a clear message", {
     ),
     "country_totals"
   )
+})
+
+# C5: the polycell split key ------------------------------------------------
+
+testthat::test_that("auto takes the measured land when the support carries it", {
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_support(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+
+  testthat::expect_true(all(result$method_polity_split == "land_area_ha"))
+})
+
+testthat::test_that("auto prefers measured land when both keys are present", {
+  # Without this the migration can be undone by preference order alone: `auto`
+  # would keep choosing the coarser key on exactly the supports that carry the
+  # finer one, and every caller would go on producing crosswalk numbers under a
+  # migrated support.
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_support_both(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  wheat <- result$n_t[result$item_cbs_code == 2511L & result$lon == 0.25]
+
+  testthat::expect_true(all(result$method_polity_split == "land_area_ha"))
+  testthat::expect_equal(wheat, 70 * 540 / 740)
+})
+
+testthat::test_that("auto takes polity_frac when there is no measured land", {
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_cell_polity(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+
+  testthat::expect_true(all(result$method_polity_split == "polity_frac"))
+})
+
+testthat::test_that("an explicit key the support lacks aborts, never downgrades", {
+  # The failure this forbids: a caller asking for the geodesic split, being
+  # handed subcell-count numbers, and having no way to tell afterwards.
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = .nbs_cell_polity(),
+      resolution = "grid",
+      split = "land_area_ha",
+      data = .nbs_grid_data()
+    ),
+    "land_area_ha"
+  )
+})
+
+testthat::test_that("an explicit polity_frac is not upgraded either", {
+  both <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_support_both(),
+    resolution = "grid",
+    split = "polity_frac",
+    data = .nbs_grid_data()
+  )
+  wheat <- both$n_t[both$item_cbs_code == 2511L & both$lon == 0.25]
+
+  testthat::expect_true(all(both$method_polity_split == "polity_frac"))
+  # 0.5 of the border cell and all of the interior one: 720*0.5 vs 200*1.
+  testthat::expect_equal(wheat, 70 * 360 / 560)
+})
+
+testthat::test_that("the split key is a share of the cell's LAND", {
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = .nbs_support(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+
+  wheat <- result[result$item_cbs_code == 2511L, ]
+  # wheat crop_pattern_ha: cell1 = 1200*0.6 = 720, cell2 = 1000*0.2 = 200.
+  # Polity 10 holds 1800/2400 of cell1's land and 2000/2000 of cell2's, so the
+  # weights are 540 and 200. Under `land_area_ha / cell_area_ha` they would be
+  # 432 and 133.3; under the absolute area, 1,296,000 and 400,000; under a
+  # cell-level key, 720 and 200. All four differ.
+  testthat::expect_equal(wheat$n_t[wheat$lon == 0.25], 70 * 540 / 740)
+  testthat::expect_equal(wheat$n_t[wheat$lon == 0.75], 70 * 200 / 740)
+})
+
+testthat::test_that("an absolute area is not a normalised weight", {
+  # Two interior cells, so both keys give every cell a fraction of exactly 1
+  # and the grid output must be bit-identical to the crosswalk's. It is not if
+  # `land_area_ha` itself is used as the weight, because the two cells carry
+  # different absolute land: that is the ~11% signal this consumer exists to
+  # catch cheaply.
+  interior <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_area_ha, ~cell_area_ha,
+    0.25, 50.25, 10L, 2400, 3000,
+    0.75, 50.25, 10L, 2000, 3000
+  )
+  args <- list(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  old <- do.call(
+    whep::spatialize_country_n_to_crops,
+    c(args, list(cell_polity = .nbs_cell_polity()))
+  )
+  new <- do.call(
+    whep::spatialize_country_n_to_crops,
+    c(args, list(cell_polity = interior))
+  )
+
+  testthat::expect_identical(
+    dplyr::select(new, -"method_polity_split"),
+    dplyr::select(old, -"method_polity_split")
+  )
+})
+
+testthat::test_that("the polity total is invariant under the key swap", {
+  # The control-case property: the cell weights are renormalised inside each
+  # polity-crop-year, so a change of partition redistributes the national total
+  # and cannot change it. Measured on a border fixture where the shares DO
+  # move, so this is not passing on an unchanged input.
+  args <- list(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  old <- do.call(
+    whep::spatialize_country_n_to_crops,
+    c(args, list(cell_polity = .nbs_support_both(), split = "polity_frac"))
+  )
+  new <- do.call(
+    whep::spatialize_country_n_to_crops,
+    c(args, list(cell_polity = .nbs_support_both(), split = "land_area_ha"))
+  )
+  totals <- function(x) {
+    x |>
+      dplyr::summarise(n_t = sum(.data$n_t), .by = c("year", "area_code")) |>
+      dplyr::arrange(.data$year, .data$area_code)
+  }
+
+  testthat::expect_equal(totals(new), totals(old))
+  testthat::expect_false(isTRUE(all.equal(new$n_t, old$n_t)))
+})
+
+testthat::test_that("a border cell delivers to each polity only its own share", {
+  # S-A6, the pig case: two polities share a cell and carry deliberately
+  # incompatible national totals. Neither may receive any part of the other's.
+  totals <- tibble::tribble(
+    ~year, ~area_code, ~n_t,
+    2010L, 10L, 100,
+    2010L, 20L, 7
+  )
+  shares <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~area_share,
+    2010L, 10L, 2511L, 1,
+    2010L, 20L, 2511L, 1
+  )
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = totals,
+    crop_shares = shares,
+    cell_polity = .nbs_support(),
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  by_polity <- result |>
+    dplyr::summarise(n_t = sum(.data$n_t), .by = "area_code") |>
+    dplyr::arrange(.data$area_code)
+
+  testthat::expect_equal(by_polity$n_t, c(100, 7))
+  # Polity 20 holds only the border cell, so all of its nitrogen lands there.
+  testthat::expect_equal(
+    sort(unique(result$lon[result$area_code == 20L])),
+    0.25
+  )
+})
+
+testthat::test_that("cell_frac is a partition of each cell's land", {
+  frac <- whep:::.n_cell_frac(.nbs_support(), "land_area_ha")
+  per_cell <- frac |>
+    dplyr::summarise(total = sum(.data$cell_frac), .by = c("lon", "lat"))
+
+  testthat::expect_equal(per_cell$total, rep(1, nrow(per_cell)))
+  testthat::expect_equal(frac$cell_frac, c(0.75, 0.25, 1))
+})
+
+testthat::test_that("a duplicated area_code in a cell is refused, not folded", {
+  # DA-23: `polity_area_crosswalk` folds Sudan and South Sudan onto 206. Folding
+  # two polities' shares here would look exactly like a partition afterwards.
+  folded <- dplyr::mutate(.nbs_support(), area_code = 10L)
+
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = folded,
+      resolution = "grid",
+      data = .nbs_grid_data()
+    ),
+    "duplicated"
+  )
+})
+
+testthat::test_that("an NA area_code is refused too", {
+  unkeyed <- .nbs_support()
+  unkeyed$area_code[2] <- NA_integer_
+
+  testthat::expect_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = unkeyed,
+      resolution = "grid",
+      data = .nbs_grid_data()
+    ),
+    "duplicated"
+  )
+})
+
+testthat::test_that("the transitional key is used as supplied, not repaired", {
+  # `polity_frac` is a partition of the cell by construction, so a support whose
+  # fractions do not sum to 1 is broken and must lose weight VISIBLY. Silently
+  # renormalising it here would repair a broken crosswalk behind shares that
+  # then look complete -- and would make the transitional path stop reproducing
+  # today's numbers, which DA-13 requires it to do.
+  partial <- dplyr::mutate(.nbs_cell_polity(), polity_frac = c(0.5, 1))
+  result <- whep::spatialize_country_n_to_crops(
+    country_totals = .nbs_country_totals(),
+    crop_shares = .nbs_crop_shares(),
+    cell_polity = partial,
+    resolution = "grid",
+    data = .nbs_grid_data()
+  )
+  wheat <- result$n_t[result$item_cbs_code == 2511L & result$lon == 0.25]
+
+  # 720*0.5 against 200*1. Renormalised per cell both would become 1 and the
+  # answer would be 70*720/920.
+  testthat::expect_equal(wheat, 70 * 360 / 560)
+})
+
+testthat::test_that("the refusal does not reach the transitional key", {
+  # DA-13: the crosswalk path must stay exactly what it is today, so the DA-23
+  # refusal is a property of the polycell key only.
+  duped <- dplyr::bind_rows(.nbs_cell_polity(), .nbs_cell_polity()[1, ])
+
+  testthat::expect_no_error(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = duped,
+      resolution = "grid",
+      split = "polity_frac",
+      data = .nbs_grid_data()
+    )
+  )
+})
+
+testthat::test_that("an NA or negative land area aborts", {
+  # `coverage_status == "crosswalk_only"` rows of the transitional shim carry
+  # NA in every area column. Weighting them would delete one polity's claim
+  # while the rest of the cell still looked like a complete partition.
+  padded <- .nbs_support()
+  padded$land_area_ha[2] <- NA_real_
+  negative <- .nbs_support()
+  negative$land_area_ha[2] <- -1
+
+  testthat::expect_error(
+    whep:::.n_cell_frac(padded, "land_area_ha"),
+    "finite and non-negative"
+  )
+  testthat::expect_error(
+    whep:::.n_cell_frac(negative, "land_area_ha"),
+    "finite and non-negative"
+  )
+})
+
+testthat::test_that("a landless cell is named and dropped, and mass is kept", {
+  landless <- .nbs_support()
+  landless$land_area_ha[landless$lon == 0.75] <- 0
+
+  testthat::expect_warning(
+    result <- whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = landless,
+      resolution = "grid",
+      data = .nbs_grid_data()
+    ),
+    "land_area_ha"
+  )
+
+  testthat::expect_equal(sum(result$n_t), 100)
+  testthat::expect_false(any(result$lon == 0.75))
+})
+
+testthat::test_that("the fallback reallocation carries the split stamp too", {
+  result <- suppressWarnings(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares_unmatched(),
+      cell_polity = .nbs_support(),
+      resolution = "grid",
+      data = .nbs_grid_data_unmatched()
+    )
+  )
+  barley <- result[result$item_cbs_code == 2513L, ]
+
+  testthat::expect_true(all(result$method_polity_split == "land_area_ha"))
+  # cropland type_ha weighted by the land share: 1200*0.75 = 900 and 1000*1.
+  testthat::expect_equal(barley$n_t[barley$lon == 0.25], 30 * 900 / 1900)
+  testthat::expect_equal(sum(result$n_t), 100)
 })
 
 # .n_crop_rate_shares (Coello rate-weighted, conserving crop shares) ----------

@@ -1490,6 +1490,9 @@ utils::globalVariables(
     "weighted_ha",
     "group_ha",
     "cropland_share",
+    # n_balance_spatialize.R (C5) — the polity share of the cell that weights
+    # every grid cell, under whichever split key was resolved
+    "cell_frac",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
     # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
