@@ -537,7 +537,7 @@ build_soil_carbon_inputs <- function(
 }
 
 # Reshape the long primary-production table to one crop-polity-year row carrying
-# production tonnage and harvested area, plus the Krausmann/HANPP regions the
+# production tonnage and harvested area, plus the regional groupings the
 # residue-destiny split needs. Grassland and livestock rows are dropped; only
 # crop production (tonnes) and area (ha) are kept.
 .sci_crop_prod_wide <- function(primary_prod) {
@@ -567,14 +567,19 @@ build_soil_carbon_inputs <- function(
     dplyr::left_join(.sci_crop_regions(), by = "area_code")
 }
 
-# The Krausmann recovery and HANPP feed-use regions per polity, from
-# whep::regions_full, keyed by the legacy numeric area_code.
+# The regional groupings the crop-NPP chain keys coefficients by, per polity,
+# from whep::regions_full and keyed by the legacy numeric area_code:
+# region_krausmann for the residue recovery rate, region_hanpp for the
+# modern-variety adoption share (whose table really is HANPP-valued), and
+# region_un_sub for the residue feed-use fraction (whose table is M49
+# sub-region-valued; see .residue_destiny_krausmann and #405).
 .sci_crop_regions <- function() {
   whep::regions_full |>
     dplyr::transmute(
       area_code = as.integer(.data$code),
       region_krausmann = .data$region_krausmann,
-      region_hanpp = .data$region_HANPP
+      region_hanpp = .data$region_HANPP,
+      region_un_sub = .data$region_UN_sub
     ) |>
     dplyr::distinct(.data$area_code, .keep_all = TRUE)
 }

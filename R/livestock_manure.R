@@ -48,7 +48,7 @@
         TRUE ~ species_gen
       )
     )
-  if (!rlang::has_name(data, "region") && rlang::has_name(data, "iso3")) {
+  if (!rlang::has_name(data, "region") && .has_gleam_region_key(data)) {
     data <- .add_ipcc_region(data)
   }
 
@@ -189,9 +189,9 @@
       )
     )
 
-  region_from_iso3 <- !rlang::has_name(data, "region") &&
-    rlang::has_name(data, "iso3")
-  if (region_from_iso3) {
+  region_added <- !rlang::has_name(data, "region") &&
+    .has_gleam_region_key(data)
+  if (region_added) {
     data <- .add_ipcc_region(data)
   }
 
@@ -259,7 +259,7 @@
       dplyr::rename(manure_ef_kgch4 = ef_kg_head_yr)
   }
 
-  if (region_from_iso3) {
+  if (region_added) {
     data <- data |> dplyr::select(-dplyr::any_of("region"))
   }
   data |>

@@ -9,12 +9,13 @@ calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
 \code{krausmann_regional} method also needs \code{region_krausmann} (for the recovery
-rate) and \code{region_hanpp} (for the feed-use fraction). \code{region_krausmann}
-can use the recovery-table labels or the matching \code{regions_full} labels.
-The \code{shares} method needs \code{year}.}
+rate) and \code{region_un_sub} (for the feed-use fraction, the UN M49
+sub-regions of \code{regions_full$region_UN_sub}). \code{region_krausmann} can use
+the recovery-table labels or the matching \code{regions_full} labels. The
+\code{shares} method needs \code{year}.}
 
 \item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
-recovery x HANPP-regional feed-use fraction) or \code{"shares"} (the
+recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
 Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
 }
 \value{
@@ -30,7 +31,7 @@ for soil incorporation.
 calculate_residue_destinies(
   tibble::tibble(
     item_prod_code = "15", residue_dm_t = 100,
-    region_krausmann = "Western Europe", region_hanpp = "Western Europe"
+    region_krausmann = "Western Europe", region_un_sub = "Western Europe"
   )
 )
 }

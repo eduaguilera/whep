@@ -45,19 +45,28 @@
 #' - `polity_name`: Human-readable polity name.
 #' - `start_year`, `end_year`: Validity interval for the row. `start_year` is
 #'   inclusive; `end_year` is **exclusive at a succession** and **inclusive at
-#'   the open end**. So 2014 belongs to `"RUS-2014-2025"` and not to
+#'   the open end**. Exclusive at a succession, so `F51-1947-1993`
+#'   Czechoslovakia covers 1947-1992 and 1993 belongs to `CZE-1993-2025` and
+#'   `SVK-1993-2025`, and 2014 belongs to `"RUS-2014-2025"` rather than to
 #'   `"RUS-1991-2014"` (filtering `year <= end_year` returns both epochs and
-#'   double-counts every boundary year), while 2025 still belongs to
-#'   `"RUS-2014-2025"`, because no later interval of that polity follows it and
-#'   a uniformly exclusive read would leave the current year with no polity at
-#'   all. An interval is open when it ends on the last year the table covers
-#'   (`max(end_year)`, 2025 in this vintage, for 229 of the 740 rows) and no
-#'   later-starting interval of the same polity follows it. That second
-#'   condition is not decoration: seven polities carry two intervals ending in
-#'   2025 (`AGO-1816-2025` beside `AGO-1975-2025`), and only the later-starting
-#'   one is open.
+#'   double-counts every boundary year). Inclusive at the open end, so 2025
+#'   still belongs to `"RUS-2014-2025"`, because no later interval of that
+#'   polity follows it and a uniformly exclusive read would leave the current
+#'   year with no polity at all. **Openness is absence of a successor, not a
+#'   comparison against the last year in the table.** 244 live polities have no
+#'   successor, 227 of them end in 2025, and no live polity ending in 2025
+#'   carries one, so the two readings agree on this vintage; the successor test
+#'   is the one that keeps agreeing when the horizon moves. The distinction is
+#'   not decoration: 237 of the 749 rows end in 2025 but only 229 are open,
+#'   because eight are succeeded there (`AGO-1816-2025` by `AGO-1975-2025`, and
+#'   likewise ARG, BLZ, BRA, CAN, GRC, IRQ and ROU), and opening those too would
+#'   count the terminal year twice.
 #' - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained as
 #'   a compatibility alias.
+#' - `wiki_status`: Upstream review state. `"retired"` and `"superseded"` mark a
+#'   DEAD row, kept so a code already held in older output stays resolvable, but
+#'   never a resolution target: [polity_area_crosswalk] excludes them, so resolve
+#'   through it rather than through this table.
 #' - `polygon_status`: Polygon status in `whep-polities` (`"assigned"`,
 #'   `"proxy"`, `"missing"`, or `"excluded"`).
 #' - `has_geometry`: Logical flag indicating whether the geometry is non-empty.
@@ -80,8 +89,12 @@
 #'   statistical composites that are not real polities.
 #' - `polity_start_year`, `polity_end_year`: Validity interval for the matched
 #'   polity, on the same convention as [polities]: `polity_end_year` is
-#'   exclusive at a succession and inclusive at the open end, so an interval
-#'   nothing succeeds covers its own terminal year.
+#'   exclusive at a succession, so the period covers
+#'   `polity_start_year:(polity_end_year - 1)`, and inclusive at the open end,
+#'   so an interval nothing succeeds covers its own terminal year.
+#'   [add_polity_code()] resolves a year on that reading, widened further to the
+#'   inclusive `map_year_end` below where the upstream map declares a reported
+#'   year past the territorial span.
 #' - `mapping_source`: How the area-to-polity decision was reached.
 #'   `"upstream_map"` for the published `whep-polities` FAOSTAT area map, which
 #'   is the authority for the years FAOSTAT reports; `"prefix_outside_map"` for a
@@ -103,3 +116,29 @@
 #'   `~/whep-polities/data/final/faostat_area_polity_map.csv` and
 #'   `inst/extdata/harmonization/regions_full.csv`.
 "polity_area_crosswalk"
+
+#' Source label to polity aliases
+#'
+#' Published map from the country/area **labels** a source writes to periodized
+#' WHEP `polity_code` values, consumed by [resolve_polity_label()]. It is the
+#' label-keyed counterpart of [polity_area_crosswalk], which is keyed by numeric
+#' reporting area code.
+#'
+#' The map is authored and gated in `whep-polities`; this package embeds a copy
+#' rather than deciding label identity itself, so that a label's meaning has one
+#' authority.
+#'
+#' @format
+#' A tibble with one row per alias. Columns:
+#' - `source_label`: The label exactly as the source writes it.
+#' - `source`: Source slug the alias is scoped to, or `NA` when it applies to
+#'   any source.
+#' - `year_start`, `year_end`: Year range the alias is scoped to. A missing bound
+#'   is unbounded on that side; both missing means the alias is not year-scoped.
+#' - `polity_code`: The WHEP polity the label resolves to.
+#' - `common_name`: Human-readable name of that polity.
+#' - `confidence`: Curator's confidence in the alias.
+#' - `observed_rows`: Source rows actually observed for the label, `NA` when the
+#'   label is merely mappable.
+#' @source `~/whep-polities/data/final/label_alias_map.csv`.
+"polity_label_aliases"

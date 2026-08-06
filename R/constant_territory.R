@@ -34,7 +34,9 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year, under the validity convention described for `polities`.
+#'   year, under the validity convention described for `polities`: a polity
+#'   does not answer for the year its successor takes over. The same reading
+#'   selects the sources of each data year.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
 #'   `end_year` and geometry. Defaults to [get_polity_geometries()].
 #'   `start_year` is inclusive; `end_year` is **exclusive at a succession** and
@@ -67,6 +69,9 @@
 #'   - `imputed`: mass added for uncovered cells
 #'   - `imputed_share`: covariate fraction imputed (0 = fully observed)
 #'   - `n_sources`: number of source polities contributing that year
+#'   - `unallocated`: total reported value from sources that could not be placed
+#'     on the grid that year (constant within a year; 0 when all were placed).
+#'     Kept out of `covered`/`imputed` so it is neither smeared nor lost.
 #'
 #' @examples
 #' # Self-contained toy: two adjacent square polities. Only "P1" reports a
@@ -135,9 +140,19 @@ build_constant_territory_series <- function(
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
-  # Computed ONCE on the whole table: whether an interval is succeeded is a
-  # property of the table, and the per-year source subset below would hide the
-  # successor and reopen a genuinely dissolved epoch.
+  # `end_year` is EXCLUSIVE at a succession (see [polities]), so such a period
+  # covers `start_year:(end_year - 1)`. Reading it inclusively made a polity and
+  # its successors all active in the hand-over year -- 238 polities carry a
+  # polygon in 1993 on that reading, Czechoslovakia on top of Czechia and
+  # Slovakia, and 453 extra active polity-years over 1850-2024. Since
+  # `.assign_polity()` gives each cell exactly one source and one target, the
+  # dissolved predecessor was capturing the cells its successors should have
+  # received. `.active_polities()` below applies that rule together with DA-24's
+  # open end and the same-polity dedupe.
+  #
+  # The open-end flag is computed ONCE on the whole table: whether an interval is
+  # succeeded is a property of the table, and the per-year source subset below
+  # would hide the successor and reopen a genuinely dissolved epoch.
   open_ended <- .open_ended_intervals(
     polities$start_year,
     polities$end_year,
@@ -238,18 +253,24 @@ build_constant_territory_series <- function(
     # ---- source intensities: value per unit covariate over each source's extent ----
     has_data <- !is.na(base$src) & base$src %in% names(vmap)
     denom <- tapply(base$w[has_data], base$src[has_data], sum)
-    # a source with data but zero gridded weight (too small for the grid) is lost
-    starved <- setdiff(names(vmap), names(denom[denom > 0]))
+    # a source with data but zero gridded weight (too small for the grid, or no
+    # covariate density over its extent) cannot be placed. Keep it out of the
+    # intensity map, the covered set and the donor pool so its value is neither
+    # smeared over gap cells nor silently lost; report it as `unallocated`.
+    placeable <- names(denom)[denom > 0]
+    starved <- setdiff(names(vmap), placeable)
+    unallocated <- sum(vmap[starved], na.rm = TRUE)
     if (length(starved) && verbose) {
       cli::cli_warn(
         "Year {y}: {length(starved)} source{?s} smaller than the grid resolution; refine `resolution` to capture {.val {starved}}."
       )
     }
-    intensity <- vmap[names(denom)] / denom # per source polity
+    intensity <- vmap[placeable] / denom[placeable] # per placeable source
+    has_data <- has_data & base$src %in% placeable
     base$e <- ifelse(has_data, base$w * intensity[base$src], NA_real_)
 
     # ---- donor intensity for uncovered target cells ----
-    tot_value <- sum(vmap[names(denom)], na.rm = TRUE) # value actually distributed
+    tot_value <- sum(vmap[placeable], na.rm = TRUE) # value actually distributed
     tot_w_data <- sum(base$w[has_data], na.rm = TRUE)
     i_donor <- if (donor == "regional" && tot_w_data > 0) {
       tot_value / tot_w_data
@@ -277,12 +298,13 @@ build_constant_territory_series <- function(
     })
     df <- do.call(rbind, agg)
     df$year <- y
-    df$n_sources <- length(denom[denom > 0])
+    df$n_sources <- length(placeable)
+    df$unallocated <- unallocated
     results[[k]] <- df
 
     if (verbose) {
       cli::cli_progress_step(
-        "Year {y}: {nrow(df)} target{?s}, {length(denom[denom>0])} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
+        "Year {y}: {nrow(df)} target{?s}, {length(placeable)} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
         .auto_close = TRUE
       )
     }
@@ -297,7 +319,8 @@ build_constant_territory_series <- function(
       covered = double(),
       imputed = double(),
       imputed_share = double(),
-      n_sources = integer()
+      n_sources = integer(),
+      unallocated = double()
     ))
   }
   rownames(out) <- NULL
@@ -308,7 +331,8 @@ build_constant_territory_series <- function(
     "covered",
     "imputed",
     "imputed_share",
-    "n_sources"
+    "n_sources",
+    "unallocated"
   )])
 }
 # nolint end
@@ -316,8 +340,8 @@ build_constant_territory_series <- function(
 # The epoch-independent part of a polity code: "RUS-1991-2014" -> "RUS",
 # "AZE-SSR-1920-1991" -> "AZE-SSR". Only the trailing year pair is stripped, and
 # no date is ever read from here: `start_year`/`end_year` are authoritative
-# because 2 of 740 codes disagree with their own columns (`NNG-1949-1963` ends
-# in 1969).
+# because 2 of the 749 codes disagree with their own columns (`NNG-1949-1963`
+# ends in 1969, `TAN-1922-1964` in 1961).
 .polity_family <- function(polity_code) {
   stringr::str_remove(polity_code, "-\\d+-\\d+$")
 }
@@ -355,10 +379,13 @@ build_constant_territory_series <- function(
   if (length(at_end) == 0L) {
     return(open)
   }
-  # The successor condition is load-bearing: 7 polities in the shipped table
-  # carry two intervals ending on the domain end (`AGO-1816-2025` beside
-  # `AGO-1975-2025`), and a bare "end_year is the maximum" test would open BOTH
-  # and count the terminal year twice. With no group repeated, every interval
+  # The successor condition is load-bearing: 8 polities in the shipped 749-row
+  # table carry two intervals ending on the domain end (`AGO-1816-2025` beside
+  # `AGO-1975-2025`; also ARG, BLZ, BRA, CAN, GRC, IRQ, ROU), so 237 intervals
+  # end there but only 229 are open. A bare "end_year is the maximum" test would
+  # open BOTH of each pair and count the terminal year twice. It is also the
+  # test that keeps agreeing with upstream's own `successor` column as the
+  # horizon moves. With no group repeated, every interval
   # here is its own group maximum, so the branch below is exactly the general
   # case and skips a group-wise pass that costs ~1.3 s on a 70k-row grid.
   if (anyDuplicated(keys) == 0L) {
@@ -392,11 +419,21 @@ build_constant_territory_series <- function(
 # whenever `polities` is a subset, because whether an interval is succeeded is
 # a property of the whole table and a subset can hide the successor. Left NULL,
 # it is derived from `polities` itself.
-# Where the table still carries overlapping intervals for one polity (an
-# upstream data defect: `PER-1825-1909` alongside `PER-1825-1884`), keep a
-# single interval per polity, tie-broken exactly as `.whep_polity_lookup()`
-# does in `R/polities.R`: the interval starting on `yr` first, then the
-# latest-starting one.
+# Where the table still carries overlapping intervals for one polity, keep a
+# single interval per polity, tie-broken on the latest start exactly as
+# `.add_polity_columns_dt()` does in `R/polities.R`. The dedupe is not
+# hypothetical housekeeping: `get_polity_geometries()` returns every row
+# regardless of `wiki_status`, and on the shipped 749-row table 703 rows carry a
+# polygon and 2,134 polity-years across 23 families have two intervals of one
+# polity active at once (`GRC-1830-1913` alongside `GRC-1881-1913`,
+# `PER-1825-1909` alongside `PER-1825-1884`). Without the dedupe both come back
+# and `.assign_polity()` keeps whichever sorts first, which is always the
+# dissolved predecessor because `X-a-b` precedes `X-b-c` lexically; the
+# successor then gets no row at all and every cell outside the predecessor's
+# smaller extent is dropped, so mass is lost and not merely relabelled.
+# Restricting to live, non-aggregate rows leaves 0 such polity-years on this
+# vintage (it was 86 across MNE and PER on the 740-row one), so the overlap is
+# now entirely between a live interval and a retired or superseded one.
 .active_polities <- function(polities, yr, open_ended = NULL) {
   covers <- .covers_year(
     polities$start_year,
@@ -412,7 +449,10 @@ build_constant_territory_series <- function(
   family <- .polity_family(active$polity_code)
   # `exact_start` is redundant under the filter above -- `start_year <= yr`
   # makes an exact start the maximum start -- and is kept because it states the
-  # boundary-year rule the tests assert, not as live logic.
+  # boundary-year rule the tests assert, not as live logic. `R/polities.R`
+  # dropped its own copy for the same reason (there it was not merely redundant
+  # but unreachable, the non-equi join having overwritten `join_start_year`), so
+  # the surviving decision on both paths is the latest start.
   exact_start <- !is.na(active$start_year) & active$start_year == yr
   ranked <- order(family, !exact_start, -active$start_year)
   active[ranked, ][!duplicated(family[ranked]), ]
@@ -420,7 +460,8 @@ build_constant_territory_series <- function(
 
 # Assign each centroid to the polity whose polygon contains it. Returns a
 # character vector aligned to `centroids` order (NA where no polygon, first
-# match where polygons overlap).
+# match where polygons overlap). The code is coerced to character so that all
+# downstream keying is by name, never by numeric position (see issue #209).
 .assign_polity <- function(centroids, polys) {
   centroids$.cid <- seq_len(nrow(centroids))
   j <- sf::st_join(
@@ -432,5 +473,5 @@ build_constant_territory_series <- function(
   j <- sf::st_drop_geometry(j)
   j <- j[!duplicated(j$.cid), ] # keep first match on overlap
   j <- j[order(j$.cid), ]
-  j$polity_code
+  as.character(j$polity_code)
 }

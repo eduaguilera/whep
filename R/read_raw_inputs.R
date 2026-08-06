@@ -307,7 +307,7 @@
   }
 })
 
-.aggregate_to_polities <- function(df, ...) {
+.aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) {
@@ -321,14 +321,19 @@
     include_unmapped = FALSE
   )
   dt <- dt[!is.na(polity_code)]
-  by_cols <- c(
-    "year",
-    "polity_area_code",
-    "polity_name",
-    "unit",
-    "element",
-    dots
-  )
+  # A bucket can fold several live territories. Say so out loud here, where the
+  # fold is created, rather than letting the summed value travel with a polity
+  # that covers only part of it (whep#414).
+  .warn_partial_bucket_polities(dt)
+  .warn_folded_areas(dt, source_label)
+  # `polity_name` is deliberately NOT a grouping key. It is a property of the
+  # member row, so keying on it splits a bucket whose members resolve to
+  # different polities -- the bucket stops summing without a single value
+  # moving (whep#563). The label is attached after the sum instead, from the
+  # bucket's own code, which is what `polity_bucket_coverage()` and the
+  # reporting columns already say a bucket is called.
+  by_cols <- c("year", "polity_area_code", "unit", "element", dots)
+  labels <- .bucket_area_labels(dt)
 
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
@@ -340,12 +345,7 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
@@ -409,7 +409,7 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs, item_cbs_code, source_label = pin_alias)
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {

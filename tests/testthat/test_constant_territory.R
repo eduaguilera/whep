@@ -119,7 +119,8 @@ test_that("years with no usable source are skipped, output schema is stable", {
       "covered",
       "imputed",
       "imputed_share",
-      "n_sources"
+      "n_sources",
+      "unallocated"
     )
   )
   expect_equal(nrow(res), 0)
@@ -194,9 +195,11 @@ test_that("the open end is read from the data and admits no sibling", {
   expect_setequal(family[open], unique(family[flat$end_year == domain_end]))
 
   # The successor half is what a bare "end_year is the maximum" test misses.
-  # These seven polities each carry a SECOND interval ending on the domain end,
+  # These eight polities each carry a SECOND interval ending on the domain end,
   # and opening them too would count the terminal year twice. Enumerated, as
-  # C2's shared-start list is, so the next one cannot arrive silently.
+  # C2's shared-start list is, so the next one cannot arrive silently. The
+  # 740 -> 749 re-sync (#551) added the eighth, `CAN-1948-2025`, which is
+  # exactly the silent growth this enumeration exists to catch.
   succeeded <- flat$polity_code[flat$end_year == domain_end & !open]
   expect_setequal(
     succeeded,
@@ -205,12 +208,26 @@ test_that("the open end is read from the data and admits no sibling", {
       "ARG-1800-2025",
       "BLZ-1800-2025",
       "BRA-1800-2025",
+      "CAN-1948-2025",
       "GRC-1919-2025",
       "IRQ-1921-2025",
       "ROU-1940-2025"
     )
   )
-  # Each of the seven really is succeeded: a later-starting interval of the
+  # 237 intervals end on the domain end and 229 are open, so the year test and
+  # the successor test do NOT agree here and only the latter is right.
+  expect_equal(sum(flat$end_year == domain_end), 229L + length(succeeded))
+
+  # Upstream's own `successor` column is the independent witness: no live polity
+  # ending on the domain end is without a successor's counterpart, and every
+  # interval our data-derived predicate calls open is one `.open_polity_codes()`
+  # also calls open. The two mechanisms must not drift apart.
+  expect_equal(
+    setdiff(flat$polity_code[open], whep:::.open_polity_codes()),
+    character()
+  )
+
+  # Each of the eight really is succeeded: a later-starting interval of the
   # same polity exists, so this is a succession and not an open end.
   later <- purrr::map_lgl(succeeded, \(code) {
     i <- match(code, flat$polity_code)
@@ -335,13 +352,18 @@ test_that("every adjacent-epoch boundary year resolves to the successor", {
   expect_equal(unname(starts[winner]), pairs$start_year_succ)
 
   # The named successor is the winner except where its own family has a SECOND
-  # interval starting the same year -- an upstream duplicate, 7 of the 8 being
-  # a `superseded`/`retired` row the tie-break correctly passes over. Pinned as
-  # an enumerated exception so the next one cannot hide inside a tolerance.
+  # interval starting the same year -- an upstream duplicate. Nine such cases on
+  # the 749-row table, up from eight on the 740-row one: #551 added
+  # `CAN-1886-1949` beside the now-retired `CAN-1886-1948`. Pinned as an
+  # enumerated exception so the next one cannot hide inside a tolerance.
+  losers <- sort(unique(pairs$polity_code_succ[
+    winner != pairs$polity_code_succ
+  ]))
   expect_setequal(
-    pairs$polity_code_succ[winner != pairs$polity_code_succ],
+    losers,
     c(
       "CAN-1866-1886",
+      "CAN-1886-1949",
       "CHN-1921-1945",
       "ETH-1907-1952",
       "F248-1920-1991",
@@ -350,6 +372,25 @@ test_that("every adjacent-epoch boundary year resolves to the successor", {
       "MNE-1913-1918",
       "ROU-1940-2025"
     )
+  )
+  # In 7 of the 9 the loser is a `superseded`/`retired` row the tie-break
+  # correctly passes over. The other two are the reverse and are a FINDING, not
+  # a target: the tie-break is status-blind (`wiki_status` is not among the
+  # three columns a caller must supply), so on a shared start year a live
+  # interval can lose to a dead one. `CAN-1886-1949` is harmless -- its polygon
+  # is `st_equals()` to the retired `CAN-1886-1948`'s, so the same territory is
+  # resolved either way. `MNE-1913-1918` is NOT: the retired `MNE-1913-1915`
+  # that wins carries 0.9923 Mha against its 1.5893 Mha, so 1913 and 1914
+  # resolve to a 37.6% smaller Montenegro. Both are upstream duplicates, and
+  # deciding by status would be a change of contract, so they are pinned here
+  # rather than papered over.
+  status <- stats::setNames(
+    whep::polities$wiki_status,
+    whep::polities$polity_code
+  )
+  expect_setequal(
+    losers[!status[losers] %in% c("retired", "superseded")],
+    c("CAN-1886-1949", "MNE-1913-1918")
   )
 })
 
@@ -527,4 +568,108 @@ test_that("a reported source is never discarded by the same-polity tie-break", {
   )
   expect_equal(res$target_polity_code, "P-1850-2000")
   expect_equal(res$covered, 100, tolerance = 1e-6)
+})
+
+test_that("a starved (zero-weight) source is not smeared and is accounted", {
+  # SRC reports value 100, but the covariate density is zero everywhere over
+  # SRC's own extent (x < 100k) and positive only over the uncovered strip
+  # (x >= 100k). SRC therefore has cells but zero gridded weight: it cannot be
+  # placed. Its value must NOT inflate the donor intensity for the gap strip,
+  # and it must be reported via `unallocated`.
+  cov_fn <- function(centroids, year) {
+    x <- sf::st_coordinates(centroids)[, 1]
+    ifelse(x >= 100000, 1, 0)
+  }
+  expect_warning(
+    res <- build_constant_territory_series(
+      .reported,
+      ref_year = 2000,
+      polities = .synthetic_polities(),
+      covariate = cov_fn,
+      resolution = 10000,
+      verbose = TRUE
+    ),
+    "smaller than the grid resolution"
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  # No placeable source -> nothing is covered and nothing is smeared.
+  expect_equal(sum(res$covered), 0, tolerance = 1e-9)
+  expect_equal(sum(res$imputed), 0, tolerance = 1e-9)
+  expect_equal(sum(res$value), 0, tolerance = 1e-9)
+  expect_equal(res$n_sources, c(0, 0))
+
+  # The unallocatable value is accounted for, not silently dropped.
+  expect_equal(unique(res$unallocated), 100, tolerance = 1e-6)
+})
+
+test_that("numeric polity_code keys index by name, not position", {
+  # Same synthetic geometry, but with numeric polity codes and the source (code
+  # 30) listed LAST, so name- vs position-indexing give different answers.
+  polys <- sf::st_sf(
+    polity_code = c(10, 20, 30),
+    start_year = c(1990L, 1990L, 1850L),
+    end_year = c(2025L, 2025L, 1950L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 50000, 100000), # code 10  -> T_L
+      .rect(50000, 0, 150000, 100000), # code 20  -> T_R
+      .rect(0, 0, 100000, 100000), # code 30  -> SRC
+      crs = 6933
+    )
+  )
+  reported <- data.frame(year = 1900L, polity_code = 30, value = 100)
+  res <- build_constant_territory_series(
+    reported,
+    ref_year = 2000,
+    polities = polys,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  # Same expectations as the character-keyed uniform-density case: name-based
+  # indexing attaches the right intensity regardless of source ordering.
+  tl <- res[res$target_polity_code == "10", ]
+  tr <- res[res$target_polity_code == "20", ]
+  expect_equal(tl$value, 50, tolerance = 1e-6)
+  expect_equal(tr$covered, 50, tolerance = 1e-6)
+  expect_equal(tr$value, 100, tolerance = 1e-6)
+  expect_equal(sum(res$covered), 100, tolerance = 1e-6)
+})
+
+test_that("a polity is not active in its exclusive end year", {
+  # `end_year` is EXCLUSIVE (see [polities]), so a polity and its successors
+  # must not both be active in the hand-over year. Reading it inclusively made
+  # them overlap -- on the shipped snapshot, 238 polities carry a polygon in
+  # 1993 that way, Czechoslovakia sitting on top of Czechia and Slovakia --
+  # and each grid cell goes to exactly one target, so the dissolved
+  # predecessor captured the cells its successors should have received (#550).
+  #
+  # OLD covers the whole rectangle and ends in 1950; NEW_L and NEW_R split it
+  # and start in 1950. `ref_year` is the hand-over year 1950, so the targets
+  # must be exactly the two successors.
+  polys <- sf::st_sf(
+    polity_code = c("OLD", "NEW_L", "NEW_R"),
+    start_year = c(1850L, 1950L, 1950L),
+    end_year = c(1950L, 2025L, 2025L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 100000, 100000),
+      .rect(0, 0, 50000, 100000),
+      .rect(50000, 0, 100000, 100000),
+      crs = 6933
+    )
+  )
+  reported <- data.frame(year = 1900L, polity_code = "OLD", value = 100)
+  res <- build_constant_territory_series(
+    reported,
+    ref_year = 1950,
+    polities = polys,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  expect_equal(res$target_polity_code, c("NEW_L", "NEW_R"))
+  expect_equal(res$value, c(50, 50), tolerance = 1e-6)
+  expect_equal(sum(res$covered), 100, tolerance = 1e-6)
 })

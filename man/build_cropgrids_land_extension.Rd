@@ -18,8 +18,12 @@ build_cropgrids_land_extension(
 \code{\link[=get_primary_production]{get_primary_production()}} (\code{unit == "ha"}).}
 
 \item{cropgrids}{Tibble of national crop areas with columns \code{area_code},
-\code{item_cbs_code}, \code{physical_ha}, \code{harvested_ha}. If \code{NULL}, the remote pin
-selected by \code{source} is read via \code{\link[=whep_read_file]{whep_read_file()}}.}
+\code{item_cbs_code}, \code{physical_ha}, \code{harvested_ha}, where \code{area_code} is a
+\code{polity_area_code} (the basis \code{harvested} is keyed on). If \code{NULL}, the
+remote pin selected by \code{source} is read via \code{\link[=whep_read_file]{whep_read_file()}} and re-keyed
+from its source-native raw FAOSTAT area codes to \code{polity_area_code}, so
+areas that FABIO merges (Sudan and South Sudan into 206) get one combined
+CROPGRIDS ratio instead of falling through to the global per-item ratio.}
 
 \item{source}{Which CROPGRIDS pin to read when \code{cropgrids} is \code{NULL}:
 \code{"cropgrids"} (\code{cropgrids-land}: physical crop area, excludes fallow) or
