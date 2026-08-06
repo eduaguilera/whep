@@ -15,6 +15,85 @@
   )
 }
 
+# ---- hwsd_data.csv column contract (whep#596) --------------------------
+
+# hwsd_data.csv is derived locally, so an extract written before a column the
+# reader needs existed is an ordinary state. It must be named as such, not
+# surface as a dplyr missing-column error deep inside a reader.
+.write_hwsd_extract <- function(dir, attr = .hwsd_attr_fixture()) {
+  readr::write_csv(attr, file.path(dir, "hwsd_data.csv"))
+  dir
+}
+
+testthat::test_that(".hwsd_missing_columns reports an absent extract", {
+  empty <- withr::local_tempdir()
+
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(empty, whep:::.hwsd_clay_columns()),
+    "hwsd_data.csv"
+  )
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns("", whep:::.hwsd_clay_columns()),
+    "hwsd_data.csv"
+  )
+})
+
+testthat::test_that(".hwsd_missing_columns reports only absent columns", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  # The fixture carries the pH reader's columns but no t_clay.
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(dir, whep:::.hwsd_ph_columns()),
+    character()
+  )
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(dir, whep:::.hwsd_clay_columns()),
+    "t_clay"
+  )
+})
+
+testthat::test_that(".read_hwsd_attributes_local names the missing column", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(
+      dir,
+      required = whep:::.hwsd_clay_columns()
+    ),
+    "t_clay"
+  )
+  # ... and points at the script that writes a complete extract.
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(dir, required = "t_clay"),
+    "export_hwsd_attributes"
+  )
+})
+
+testthat::test_that(".read_hwsd_attributes_local reads a complete extract", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  out <- whep:::.read_hwsd_attributes_local(
+    dir,
+    required = whep:::.hwsd_ph_columns()
+  )
+
+  pointblank::expect_col_exists(out, whep:::.hwsd_ph_columns())
+  testthat::expect_equal(nrow(out), nrow(.hwsd_attr_fixture()))
+})
+
+testthat::test_that("read_soil_hydraulic names a missing texture column", {
+  testthat::skip_if_not_installed("terra")
+  attr <- .hwsd_attr_fixture() |> dplyr::select(-"t_usda_tex")
+  dir <- .write_hwsd_extract(withr::local_tempdir(), attr)
+
+  testthat::expect_error(
+    whep::read_soil_hydraulic(hwsd_dir = dir),
+    "t_usda_tex"
+  )
+})
+
+# ---- .derive_dominant_soil() -------------------------------------------
+
 testthat::test_that(".derive_dominant_soil picks dominant texture's pH", {
   result <- whep:::.derive_dominant_soil(.hwsd_attr_fixture())
 
@@ -300,10 +379,8 @@ testthat::test_that(".crop_to_target is a no-op without a target grid", {
 })
 
 testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
-  testthat::skip_if(
-    Sys.getenv("WHEP_HWSD_DIR") == "",
-    "WHEP_HWSD_DIR not set; skipping real-data smoke test."
-  )
+  testthat::skip_if_not_installed("terra")
+  .skip_unless_hwsd_columns(whep:::.hwsd_ph_columns())
 
   # Crop to a small Iberian target grid: classifying the full-resolution
   # global HWSD raster whole exhausts memory and crashes the R session.

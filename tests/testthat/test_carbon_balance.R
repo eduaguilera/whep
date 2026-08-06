@@ -816,15 +816,13 @@ test_that(".cb_clay_from_climate returns NULL without clay_pct", {
 })
 
 # Default per-cell clay reader against the real HWSD extract. Skipped on CI and
-# whenever HWSD is absent (never fetches a remote raster).
+# whenever HWSD is absent (never fetches a remote raster). The guard tests for
+# the clay column the reader needs, not merely for hwsd_data.csv: a partial
+# extract is a missing input, not a code fault (whep#596).
 test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
   testthat::skip_on_ci()
-  hwsd_dir <- Sys.getenv("WHEP_HWSD_DIR")
-  testthat::skip_if(
-    !nzchar(hwsd_dir) || !file.exists(file.path(hwsd_dir, "hwsd_data.csv")),
-    "HWSD extract not available"
-  )
   testthat::skip_if_not_installed("terra")
+  .skip_unless_hwsd_columns(whep:::.hwsd_clay_columns())
   cell_polity <- tibble::tribble(
     ~lon, ~lat, ~area_code,
     -3.75, 40.25, 203L,
