@@ -395,6 +395,9 @@
 #'   Set to `-Inf` to disable and match strictly by data year.
 #'
 #' @returns A tibble with added polity metadata columns.
+#' @seealso [polity_coverage_gaps()], which reports the stand-in rows of an
+#'   already-built table, whose published columns no longer carry
+#'   `mapping_status`.
 #' @export
 add_polity_code <- function(
   table,
@@ -421,6 +424,103 @@ add_polity_code <- function(
     data.table::setnames(out, "polity_code", polity_code_column)
   }
   tibble::as_tibble(out)
+}
+
+#' Find rows whose polity is a nearest-period stand-in
+#'
+#' @description
+#' [add_polity_code()] reports a nearest-period stand-in as
+#' `mapping_status == "out_of_span"`, but WHEP's published outputs do not carry
+#' that column: `reporting_polity_code` and `reporting_polity_name` say which
+#' polity a row was attributed to, and nothing says the polity did not exist in
+#' that row's year. This answers that question for a table that has already been
+#' built, so a consumer joining on `reporting_polity_code` can tell a real period
+#' hit from a stand-in without re-deriving the crosswalk.
+#'
+#' A stand-in is not an error and the row is not dropped. It means either that
+#' the area needs the missing period added to the crosswalk, or that the
+#' reporting area outlived (or predates) every polity mapped to it, so treat it
+#' as a coverage gap: the polygon, population and period of the returned polity
+#' describe a different year than the value does.
+#'
+#' The resolution here is the same one the builds use, including the back-cast
+#' anchor, so it reports what the table actually got rather than a second
+#' reading of the crosswalk. The area column may hold either a FAOSTAT
+#' `area_code` or the `polity_area_code` bucket that published outputs are keyed
+#' by; both resolve through the same lookup.
+#'
+#' @param table A data frame carrying an area-code column, and a year column if
+#'   the resolution is to be year-aware.
+#' @param code_column Name of the column holding numeric area codes.
+#' @param year_column Name of the column holding years. Set to `NULL`, or leave
+#'   it absent from `table`, to use the current/default mapping, which has no
+#'   stand-ins by construction.
+#' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data;
+#'   passed to the same resolution [add_polity_code()] documents.
+#'
+#' @returns A tibble with one row per `(area_code, year)` resolved by a
+#'   stand-in, ordered by area code and year, carrying `area_code`, `year`,
+#'   `polity_code`, `polity_name`, `polity_start_year`, `polity_end_year` and
+#'   `n_rows`, the number of rows of `table` that pair carries. Zero rows means
+#'   every row of `table` landed inside its polity's period, which is the
+#'   intended state.
+#'
+#' @seealso [add_polity_code()] for the resolution itself, and
+#'   [polity_bucket_coverage()] for the different defect of a bucket whose
+#'   polity covers only part of what it sums.
+#' @export
+#' @examples
+#' # FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
+#' # after `SUD-1956-2011` ends, so post-2011 rows are stand-ins.
+#' polity_coverage_gaps(
+#'   tibble::tibble(area_code = 206L, year = c(2005L, 2015L), value = 1)
+#' )
+polity_coverage_gaps <- function(
+  table,
+  code_column = "area_code",
+  year_column = "year",
+  backcast_anchor = 1961L
+) {
+  dt <- data.table::as.data.table(table)
+  if (!rlang::has_name(dt, code_column)) {
+    cli::cli_abort(
+      "Column {.field {code_column}} is required for {.arg table}."
+    )
+  }
+  year_col <- if (!is.null(year_column) && rlang::has_name(dt, year_column)) {
+    year_column
+  } else {
+    NULL
+  }
+
+  resolved <- .add_polity_columns_dt(
+    dt[, c(code_column, year_col), with = FALSE],
+    code_col = code_column,
+    year_col = year_col,
+    include_unmapped = TRUE,
+    backcast_anchor = backcast_anchor
+  )
+  data.table::setnames(resolved, code_column, "area_code")
+  if (is.null(year_col)) {
+    resolved[, year := NA_integer_]
+  } else if (year_col != "year") {
+    data.table::setnames(resolved, year_col, "year")
+  }
+
+  resolved[
+    !is.na(mapping_status) & mapping_status == "out_of_span",
+    .(n_rows = .N),
+    by = .(
+      area_code,
+      year,
+      polity_code,
+      polity_name,
+      polity_start_year,
+      polity_end_year
+    )
+  ] |>
+    tibble::as_tibble() |>
+    dplyr::arrange(.data$area_code, .data$year)
 }
 
 # ---- ISO3 -> numeric area_code -----------------------------------------
@@ -467,17 +567,88 @@ add_polity_code <- function(
   lookup$area_code[match(as.character(iso3c), lookup$iso3c)]
 }
 
+# The out-of-span signal on published output: available, and OFF by default.
+#
+# `add_polity_code()` says a nearest-period stand-in "is attributed to a polity
+# that did not exist in that year, so treat it as a coverage gap", and reports it
+# as `mapping_status == "out_of_span"`. The reporting-column boundary below then
+# deleted that column, so the documented uncertainty was visible in the resolver
+# and invisible in every built dataset (whep#545).
+#
+# Which of the two repairs to adopt is an owner decision, not a bug fix, because
+# either changes the schema of ~100 exported outputs and some consumers assert
+# exact column sets. So both are implemented and neither is imposed: the default
+# leaves every published schema exactly where it is, and
+# `options(whep.polity_mapping_status = )` selects
+#
+# - `"none"` (default): today's behaviour, no extra column.
+# - `"flag"`: one logical `reporting_polity_out_of_span` /
+#   `partner_polity_out_of_span`, the only part of the status a consumer can act
+#   on, leaving `"matched"`/`"manual"` provenance to `polity_area_crosswalk`.
+# - `"status"`: the full `reporting_mapping_status` / `partner_mapping_status`,
+#   which loses no information.
+#
+# One switch covers every call site, as with `whep.unfold_rest_of_world`, because
+# ~100 outputs disagreeing about whether they carry the column would be worse
+# than none of them carrying it. `polity_coverage_gaps()` answers the same
+# question for an already-built table without any schema change at all, and is
+# what a consumer should reach for first.
+.polity_status_mode <- function(mode = NULL) {
+  valid <- c("none", "flag", "status")
+  if (!is.null(mode)) {
+    return(rlang::arg_match(mode, valid))
+  }
+  # A mistyped option would otherwise be reported as a bad `mode` argument the
+  # caller never passed, and silently ignoring it would leave the signal off in
+  # exactly the run that asked for it.
+  mode <- getOption("whep.polity_mapping_status", "none")
+  if (!rlang::is_string(mode) || !mode %in% valid) {
+    cli::cli_abort(c(
+      "{.code options(whep.polity_mapping_status)} must be one of
+       {.val {valid}}.",
+      "x" = "It is {.val {mode}}."
+    ))
+  }
+  mode
+}
+
+# Both column names the switch can emit for a role, so a re-run drops whichever
+# the previous run left behind instead of appending a duplicate.
+.polity_status_cols <- function(prefix) {
+  paste0(prefix, c("mapping_status", "polity_out_of_span"))
+}
+
+# Returns the status column `dt` should keep for this role, adding the boolean
+# one by reference in `"flag"` mode. Empty when the switch is off, which makes
+# the caller's drop list the full set again.
+.keep_polity_status_col <- function(dt, prefix, mode) {
+  status_col <- paste0(prefix, "mapping_status")
+  if (mode == "none" || !status_col %in% names(dt)) {
+    return(character(0))
+  }
+  if (mode == "status") {
+    return(status_col)
+  }
+  flag_col <- paste0(prefix, "polity_out_of_span")
+  status <- dt[[status_col]]
+  dt[, (flag_col) := !is.na(status) & status == "out_of_span"]
+  flag_col
+}
+
 .add_reporting_polity_columns <- function(
   table,
-  code_column = "area_code"
+  code_column = "area_code",
+  mapping_status = NULL
 ) {
+  mode <- .polity_status_mode(mapping_status)
   dt <- data.table::as.data.table(table)
   drop_existing <- intersect(
     c(
       "polity_area_code",
       "reporting_polity_code",
       "reporting_polity_name",
-      "reporting_polity_has_geometry"
+      "reporting_polity_has_geometry",
+      .polity_status_cols("reporting_")
     ),
     names(dt)
   )
@@ -501,14 +672,18 @@ add_polity_code <- function(
     )
   }
   out[, polity_area_code := reporting_polity_area_code]
+  kept <- .keep_polity_status_col(out, "reporting_", mode)
   out[,
-    c(
-      "reporting_area_name",
-      "reporting_area_iso3c",
-      "reporting_polity_area_code",
-      "reporting_polity_start_year",
-      "reporting_polity_end_year",
-      "reporting_mapping_status"
+    setdiff(
+      c(
+        "reporting_area_name",
+        "reporting_area_iso3c",
+        "reporting_polity_area_code",
+        "reporting_polity_start_year",
+        "reporting_polity_end_year",
+        "reporting_mapping_status"
+      ),
+      kept
     ) := NULL
   ]
 
@@ -518,7 +693,8 @@ add_polity_code <- function(
     "polity_area_code",
     "reporting_polity_code",
     "reporting_polity_name",
-    "reporting_polity_has_geometry"
+    "reporting_polity_has_geometry",
+    kept
   )
   data.table::setcolorder(
     out,
@@ -546,14 +722,17 @@ add_polity_code <- function(
 
 .add_partner_polity_columns <- function(
   table,
-  code_column = "area_code_partner"
+  code_column = "area_code_partner",
+  mapping_status = NULL
 ) {
+  mode <- .polity_status_mode(mapping_status)
   dt <- data.table::as.data.table(table)
   drop_existing <- intersect(
     c(
       "partner_polity_code",
       "partner_polity_name",
-      "partner_polity_has_geometry"
+      "partner_polity_has_geometry",
+      .polity_status_cols("partner_")
     ),
     names(dt)
   )
@@ -578,13 +757,17 @@ add_polity_code <- function(
   }
   # Keep `partner_polity_area_code` so FABIO-collapsed partners are
   # canonicalized symmetrically with the reporting side's `polity_area_code`.
+  kept <- .keep_polity_status_col(out, "partner_", mode)
   out[,
-    c(
-      "partner_area_name",
-      "partner_area_iso3c",
-      "partner_polity_start_year",
-      "partner_polity_end_year",
-      "partner_mapping_status"
+    setdiff(
+      c(
+        "partner_area_name",
+        "partner_area_iso3c",
+        "partner_polity_start_year",
+        "partner_polity_end_year",
+        "partner_mapping_status"
+      ),
+      kept
     ) := NULL
   ]
 
@@ -594,7 +777,8 @@ add_polity_code <- function(
     "partner_polity_area_code",
     "partner_polity_code",
     "partner_polity_name",
-    "partner_polity_has_geometry"
+    "partner_polity_has_geometry",
+    kept
   )
   data.table::setcolorder(
     out,

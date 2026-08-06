@@ -44,3 +44,8 @@ to a polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it.
 }
+\seealso{
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the stand-in rows of an
+already-built table, whose published columns no longer carry
+\code{mapping_status}.
+}
