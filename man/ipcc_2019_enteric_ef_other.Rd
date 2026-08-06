@@ -5,18 +5,21 @@
 \alias{ipcc_2019_enteric_ef_other}
 \title{IPCC 2019 enteric EF for non-cattle.}
 \format{
-A tibble with \code{category}, \code{ef_kg_head_yr},
-\code{source}.
+A tibble with \code{category}, \code{ef_kg_head_yr}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10. The stored
+values are in fact the 2006 Guidelines defaults, from its
+developed-countries column; tracked in whep#601.
 }
 \usage{
 ipcc_2019_enteric_ef_other
 }
 \description{
-Table 10.11: Tier 1 enteric fermentation emission factors
-for non-cattle species (kg CH4/head/yr).
+Tier 1 enteric fermentation emission factors for non-cattle species
+(kg CH4/head/yr). Non-cattle species are Table 10.10 in both the
+2006 Guidelines and the 2019 Refinement; regional cattle factors are
+Table 10.11 (see \link{ipcc_2019_enteric_ef_cattle}).
 }
 \examples{
 ipcc_2019_enteric_ef_other
