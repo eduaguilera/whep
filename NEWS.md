@@ -53,14 +53,51 @@
   predecessor was capturing the ones its successors should have received. Note
   that `ref_year = 2025` now aborts: the vintage's open periods carry 2025 as
   their exclusive end, so they stop at 2024.
-* `citation("whep")` now returns two entries -- the package itself, carrying its
-  CRAN DOI and all five authors, and the FABIO paper the model builds on --
-  where it returned only the generated `DESCRIPTION` default before. The package
-  entry takes its year from `Date/Publication` rather than a hardcoded one. The
-  machine-readable equivalents, `CITATION.cff` and `codemeta.json`, ship
-  alongside it, and the package gained a
-  [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
-  README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* `inst/scripts/prepare_spatialize_all.R` no longer repairs
+  `mueller_synthetic_n`'s FAO-style legacy ISO codes with a hand-maintained
+  14-entry `recode()` list. The mapping now comes from
+  `whep::polity_label_aliases` through `resolve_polity_label()`, bridged back to
+  the country grid's numeric `area_code` through the polity's `iso3_code` and the
+  same `regions.csv` lookup the grid is rasterised from. **No published values
+  change**: the resulting `crop_synthetic` table is byte-identical, 5,043 rows
+  resolving to the same 156 area codes with a maximum rate difference of 0. Four
+  of the 14 list entries (`BHA`, `BAR`, `DMI`, `STL`) named codes the dataset
+  never uses.
+* New `polity_coverage_gaps()` reports the rows of a built table whose
+  `reporting_polity_code` is a nearest-period stand-in, i.e. a polity that did
+  not exist in that row's year. `add_polity_code()` has always reported these as
+  `mapping_status == "out_of_span"`, but the reporting-column boundary every
+  area-keyed output crosses dropped that column, so the documented uncertainty
+  was invisible in published data. Measured on the real FAOSTAT production path
+  (`.read_input("faostat-production")` aggregated to polities, 1961-2024),
+  **5,637 of 3,011,912 rows (0.19%)** are stand-ins, all of them bucket 206
+  "Sudan (former)" over 2012-2024 on `SUD-1956-2011`; on `faostat-fbs-old` it is
+  972 of 5,331,877 (0.018%), the same bucket over 2012-2013. Across the whole
+  crosswalk over 1961-2023 it is 922 of 16,658 resolved area-years in 28 areas,
+  in both directions. **No published value or column changes**: the new function
+  is a separate query, and carrying the signal on the outputs themselves is
+  opt-in through `options(whep.polity_mapping_status = "flag")` for a logical
+  `reporting_polity_out_of_span`, or `"status"` for the full
+  `reporting_mapping_status`. The default, `"none"`, is today's schema. Which of
+  the two to adopt as the default is an open decision (#545).
+* `build_energy_co2_extension()` gains a third `unclassified` treatment,
+  `"polity_region"`, for the **live** reporting areas `gleam_geographic_hierarchy`
+  has no row for. On today's crosswalk that is Nauru (area 148) and Tuvalu (227):
+  they exist, report under their own area codes, and their meat production left
+  the extension unpriced. `"polity_region"` groups them by running GLEAM's own
+  scheme rules on the continent their polity carries -- no grouping label is
+  added to the package -- so Tuvalu now lands on `"Least developed countries"`,
+  the classification `.energy_ldc_iso3()` already asserted for TUV while joining
+  against a table with no TUV row. Those rows are labelled
+  `"GLEAM_3.0_energy_meat_polity_region"` in `method_energy`. **No published
+  value changes**: the default is still `"drop"`, and the full 1850-2023 build is
+  bit-identical under both `"drop"` and `"global_mean"`. Measured, for the
+  decision: `"polity_region"` adds 366 rows and 2 areas (61,149 to 61,515),
+  moves no existing row by any amount, and raises total energy CO2e by
+  0.0000155%; it puts Nauru at 288,502 kg CO2e and Tuvalu at 424,851 kg over
+  1961-2023, against 664,412 and 1,775,719 under `"global_mean"`. Whether the
+  default should move is left open in whep#415.
+
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
@@ -358,6 +395,14 @@
   gone -- the user's `FAOSTAT` session state is left alone, and rows keep their
   input order instead of being sorted by area name by an internal `merge()`
   (#520).
+* `citation("whep")` now returns two entries -- the package itself, carrying its
+  CRAN DOI and all five authors, and the FABIO paper the model builds on --
+  where it returned only the generated `DESCRIPTION` default before. The package
+  entry takes its year from `Date/Publication` rather than a hardcoded one. The
+  machine-readable equivalents, `CITATION.cff` and `codemeta.json`, ship
+  alongside it, and the package gained a
+  [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
+  README to the contributing guide. Groundwork for rOpenSci peer review (#75).
 
 # whep 0.3.0
 

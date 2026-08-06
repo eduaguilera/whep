@@ -7,7 +7,7 @@
 build_energy_co2_extension(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "global_mean"),
+  unclassified = c("drop", "polity_region", "global_mean"),
   example = FALSE
 )
 }
@@ -22,10 +22,14 @@ its reader when absent.}
 \item{unclassified}{How to treat reporting areas \code{gleam_geographic_hierarchy}
 has no row for, and which therefore get no country energy intensity.
 \code{"drop"} (default) keeps the historical behaviour: their meat production
-leaves the extension, and a warning says how much. \code{"global_mean"} prices
-them at the unweighted world mean of the published GLEAM factors instead,
-marking those rows \code{"GLEAM_3.0_energy_meat_global_mean"} in
-\code{method_energy}.}
+leaves the extension, and a warning says how much. \code{"polity_region"} gives
+the \strong{live, self-reporting} ones among them a grouping derived from their
+polity in \code{polity_area_crosswalk}, running GLEAM's own scheme rules on that
+continent, and marks those rows \code{"GLEAM_3.0_energy_meat_polity_region"};
+the aggregate buckets and dissolved entities still drop.
+\code{"global_mean"} instead prices every unclassifiable area at the unweighted
+world mean of the published GLEAM factors, marking those rows
+\code{"GLEAM_3.0_energy_meat_global_mean"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -33,8 +37,10 @@ data. Defaults to \code{FALSE}.}
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (energy-use emissions in kilograms CO2e) and \code{method_energy}
-(\code{"GLEAM_3.0_energy_meat"}, or \code{"GLEAM_3.0_energy_meat_global_mean"} for
-rows priced at the world mean), plus the polity columns below.
+(\code{"GLEAM_3.0_energy_meat"}, \code{"GLEAM_3.0_energy_meat_polity_region"} for
+rows grouped from the polity crosswalk, or
+\code{"GLEAM_3.0_energy_meat_global_mean"} for rows priced at the world mean),
+plus the polity columns below.
 }
 \description{
 Aggregate GLEAM 3.0 on-farm (direct) and feed-production (embedded) energy
@@ -68,9 +74,12 @@ buckets (\code{polity_area_code} 999 "Rest of World" and the continental residua
 901-906) and the dissolved entities GLEAM's present-day country table cannot
 carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 Montenegro). The size of that loss is now \strong{reported} on every build rather
-than left to be inferred, and \code{unclassified = "global_mean"} prices those
-areas at the world-mean GLEAM intensity instead of losing them. The default
-keeps the historical behaviour; see whep#492.
+than left to be inferred, and two opt-in treatments recover it instead of
+losing it: \code{unclassified = "polity_region"} groups the \strong{live} reporting
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+\code{unclassified = "global_mean"} prices \strong{every} unclassifiable area at the
+world-mean GLEAM intensity. The default keeps the historical behaviour; see
+whep#415 and whep#492.
 }
 \section{Polity columns}{
 
@@ -97,6 +106,18 @@ Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
 \code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
 }
 
 \examples{

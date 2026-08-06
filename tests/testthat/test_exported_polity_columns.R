@@ -162,6 +162,54 @@ testthat::test_that("the attached polity columns are populated, not just present
   }
 })
 
+testthat::test_that("the mapping-status switch is off, and adds one column", {
+  # THE RECONCILIATION whep#545 needs. The pins above say the polity columns are
+  # PRESENT; this one says the default set is exactly those four, so the
+  # `out_of_span` signal cannot arrive on ~100 exported outputs without an
+  # explicit decision -- and that when it is asked for, it arrives as exactly one
+  # extra column rather than as a wider re-shaping.
+  cols <- c(
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
+  for (nm in c(
+    "build_primary_production",
+    "get_wide_cbs",
+    "get_arable_permanent_land"
+  )) {
+    base <- .run_example(nm)
+    testthat::expect_false(is.null(base), info = nm)
+    testthat::expect_setequal(grep("polity", names(base), value = TRUE), cols)
+
+    flagged <- withr::with_options(
+      list(whep.polity_mapping_status = "flag"),
+      .run_example(nm)
+    )
+    testthat::expect_equal(
+      setdiff(names(flagged), names(base)),
+      "reporting_polity_out_of_span",
+      info = nm
+    )
+    status <- withr::with_options(
+      list(whep.polity_mapping_status = "status"),
+      .run_example(nm)
+    )
+    testthat::expect_equal(
+      setdiff(names(status), names(base)),
+      "reporting_mapping_status",
+      info = nm
+    )
+    # Nothing else moves: same rows, same values in the shared columns.
+    testthat::expect_equal(
+      as.data.frame(flagged[names(base)]),
+      as.data.frame(base),
+      info = nm
+    )
+  }
+})
+
 testthat::test_that("the three carve-outs are carved out for the stated reason", {
   # The reasons are the load-bearing part of the exception list, so they are
   # asserted, not asserted-in-a-comment. If a `year` column ever appears on the
