@@ -1797,7 +1797,9 @@ utils::globalVariables(
     "member_name",
     # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
     # Bouwman region in an aggregate reporting bucket's herd
-    "region_weight"
+    "region_weight",
+    # gapfilling.R (#324) — previous-period aggregation weight of a proxy series
+    "lag_weight"
   )
 )
 

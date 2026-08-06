@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **`fill_proxy_growth()` weighted proxy specs work at all, and weight the
+  right period.** The documented `"var[weight]"` and `"var:group[weight]"`
+  forms both aborted with
+  `Items of 'old' not found in column names: [V1, V2]`: the weighted
+  aggregation renamed its output columns from `V1`/`V2`, but data.table names
+  them after the symbols in the returned `list()`. With the crash out of the
+  way, the weight lag proved wrong twice over — it was taken *after* the rows
+  without an individual growth rate had been dropped, and it was grouped by the
+  coarse aggregation group rather than by the individual series. The first
+  member of every group therefore lost its weight entirely and fell out of the
+  weighted mean, the next member picked up the previous member's weight, and a
+  member with an interior gap was weighted by the wrong year. The
+  previous-period weight is now carried alongside the value lag, over the full
+  series and within it. **No published values change**: no pipeline in the
+  package passes a weighted proxy spec, because until now any call that did
+  raised an error.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different

@@ -1252,7 +1252,7 @@ fill_proxy_growth <- function(
   }
 
   # 2. Compute Individual Row Growth (with Smoothing)
-  prep <- .fg_growth_calc_individual(prep, spec, smooth_window, time_col)
+  prep <- .fg_growth_calc_individual(prep, spec, smooth_window, time_col, .by)
 
   # 3. Aggregate to Groups
   summary_dt <- .fg_growth_aggregate(
@@ -1286,8 +1286,7 @@ fill_proxy_growth <- function(
     return(data.frame())
   }
 
-  lag_vars <- unique(c(.by, spec$present_group_vars))
-  lag_vars <- lag_vars[lag_vars %in% names(data)]
+  lag_vars <- .fg_series_vars(spec, .by, names(data))
 
   cols <- unique(c(time_col, lag_vars, spec$source_var, spec$weight_col))
   cols <- cols[!is.na(cols)]
@@ -1302,7 +1301,7 @@ fill_proxy_growth <- function(
   as.data.frame(dt)
 }
 
-.fg_growth_calc_individual <- function(data, spec, window, time_col) {
+.fg_growth_calc_individual <- function(data, spec, window, time_col, .by) {
   # Helper to manage lag vars
   by_vars <- if (length(spec$present_group_vars) > 0) {
     spec$present_group_vars
@@ -1319,20 +1318,20 @@ fill_proxy_growth <- function(
   }
 
   # Create Lags and Calculate Growth
-  dt <- data.table::as.data.table(data)
-  if (length(by_vars) > 0) {
-    dt[,
-      `:=`(
-        lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
-        lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
-      ),
-      by = by_vars
-    ]
-  } else {
-    dt[, `:=`(
-      lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
-      lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
-    )]
+  dt <- .fg_lag_one_period(
+    data.table::as.data.table(data),
+    c(lag_src = val_col, lag_yr = time_col),
+    by_vars
+  )
+  # A weight belongs to the period the growth rate is measured from, so lag it
+  # here, while every period is still present, and within the individual series
+  # rather than within the coarser aggregation group.
+  if (!is.null(spec$weight_col)) {
+    dt <- .fg_lag_one_period(
+      dt,
+      c(lag_weight = spec$weight_col),
+      .fg_series_vars(spec, .by, names(data))
+    )
   }
   dt[,
     ind_growth := data.table::fifelse(
@@ -1362,56 +1361,59 @@ fill_proxy_growth <- function(
     by_vars <- time_col
   }
 
-  # Setup weights
-  has_w <- !is.null(spec$weight_col)
-
   dt <- data.table::as.data.table(data)
 
-  if (has_w) {
-    # Shift weights to align with growth period (previous year weight)
-    grp <- if (length(spec$present_group_vars) > 0) {
-      spec$present_group_vars
-    } else {
-      NULL
-    }
-
-    if (length(grp) > 0) {
-      dt[,
-        w := data.table::shift(get(spec$weight_col), 1L, type = "lag"),
-        by = grp
-      ]
-    } else {
-      dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag")]
-    }
-
-    # Weighted aggregation
-    result <- dt[,
-      {
-        valid_w <- !is.na(w) & is.finite(w) & w > 0
-        g_val <- if (any(valid_w)) {
-          sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
-        } else {
-          mean(ind_growth)
-        }
-        o_val <- if (any(valid_w)) sum(valid_w) else .N
-        list(g_val, o_val)
-      },
-      by = by_vars
-    ]
-    data.table::setnames(result, c("V1", "V2"), c(growth_col, obs_col))
+  # `lag_weight` already holds the weight of the period each growth rate is
+  # measured from, carried over by .fg_growth_calc_individual().
+  result <- if (is.null(spec$weight_col)) {
+    dt[, .(g_val = mean(ind_growth), o_val = .N), by = by_vars]
   } else {
-    # Unweighted aggregation
-    result <- dt[,
-      .(
-        g_val = mean(ind_growth),
-        o_val = .N
-      ),
-      by = by_vars
-    ]
-    data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
+    dt[, .fg_weighted_growth(ind_growth, lag_weight), by = by_vars]
   }
 
+  data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
   as.data.frame(result)
+}
+
+# Weighted mean of one group's individual growth rates. Members whose weight is
+# missing, non-finite or non-positive cannot be weighted, so they are dropped;
+# if that leaves nothing, the group falls back to the unweighted mean.
+.fg_weighted_growth <- function(growth, weight) {
+  valid <- !is.na(weight) & is.finite(weight) & weight > 0
+  if (!any(valid)) {
+    return(list(g_val = mean(growth), o_val = length(growth)))
+  }
+  list(
+    g_val = sum(growth[valid] * weight[valid]) / sum(weight[valid]),
+    o_val = sum(valid)
+  )
+}
+
+# Lag a fixed set of columns by one period within `by_vars`. `lag_map` maps each
+# new column name to the column it lags, e.g. `c(lag_src = "gdp")`. Lagging them
+# in one pass keeps every lag pointing at the same source row.
+.fg_lag_one_period <- function(dt, lag_map, by_vars) {
+  new_cols <- names(lag_map)
+  src_cols <- unname(lag_map)
+  if (length(by_vars) > 0) {
+    dt[,
+      (new_cols) := data.table::shift(.SD, 1L, type = "lag"),
+      by = by_vars,
+      .SDcols = src_cols
+    ]
+  } else {
+    dt[,
+      (new_cols) := data.table::shift(.SD, 1L, type = "lag"),
+      .SDcols = src_cols
+    ]
+  }
+  dt
+}
+
+# Columns identifying an individual series: the caller's grouping plus the
+# proxy's own grouping columns, restricted to those the data actually carries.
+.fg_series_vars <- function(spec, .by, data_names) {
+  intersect(unique(c(.by, spec$present_group_vars)), data_names)
 }
 
 .fg_add_empty_cols <- function(data, g_col, o_col) {
