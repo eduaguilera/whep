@@ -43,7 +43,12 @@
 #' - `polity_code`: Stable WHEP polity identifier, usually
 #'   `PREFIX-start_year-end_year`.
 #' - `polity_name`: Human-readable polity name.
-#' - `start_year`, `end_year`: Inclusive validity years for the row.
+#' - `start_year`, `end_year`: Half-open validity interval for the row:
+#'   `start_year` is inclusive, `end_year` is **exclusive**, so the row covers
+#'   `start_year:(end_year - 1)` and hands over to its successor in `end_year`
+#'   (`F51-1947-1993` Czechoslovakia covers 1947-1992, and 1993 belongs to
+#'   `CZE-1993-2025` and `SVK-1993-2025`). Open periods carry the vintage's
+#'   horizon as `end_year`, so they too stop one year short of it.
 #' - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained as
 #'   a compatibility alias.
 #' - `wiki_status`: Upstream review state. `"retired"` and `"superseded"` mark a
@@ -71,7 +76,10 @@
 #' - `polity_code`, `polity_name`: Matched WHEP polity, or `NA` for
 #'   statistical composites that are not real polities.
 #' - `polity_start_year`, `polity_end_year`: Validity interval for the matched
-#'   polity. `polity_end_year` is exclusive.
+#'   polity. `polity_end_year` is exclusive, so the period covers
+#'   `polity_start_year:(polity_end_year - 1)`. [add_polity_code()] resolves a
+#'   year on that reading, widened to the inclusive `map_year_end` below where
+#'   the upstream map declares a reported year past the territorial span.
 #' - `mapping_source`: How the area-to-polity decision was reached.
 #'   `"upstream_map"` for the published `whep-polities` FAOSTAT area map, which
 #'   is the authority for the years FAOSTAT reports; `"prefix_outside_map"` for a

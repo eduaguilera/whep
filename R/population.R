@@ -47,7 +47,7 @@
 #' accidental -- those are the codes the commodity balances are keyed on, so a
 #' finer key would leave their food supply with no population denominator -- and
 #' every folded row is named in a message. The polity columns say the same
-#' thing: 999 resolves to `ROW-1850-2023` "Rest of World", and 206 to
+#' thing: 999 resolves to `ROW-1850-2025` "Rest of World", and 206 to
 #' `SUD-1956-2011`, the pre-secession territory its two members together cover.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`

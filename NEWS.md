@@ -1,5 +1,122 @@
 # whep (development version)
 
+* **An aggregation bucket now sums, and comes out under one name.** The reader
+  aggregation grouped rows by the member's polity **name** as well as by
+  `polity_area_code`, so a bucket folding members that resolve to different
+  polities was never actually summed: it came back as several rows under one
+  `area_code`, carrying different `area` labels. That is live on the shipped
+  crosswalk, not hypothetical — bucket 206 "Sudan (former)" folds FAOSTAT areas
+  276 Sudan and 277 South Sudan, which resolve to two polities from 2012 on.
+  Measured over the real pins, four sources came out split: `faostat-fbs-new`
+  (2,056 duplicate `(area_code, year, item, element, unit)` keys),
+  `faostat-trade-totals` (3,739), `faostat-production` (2,000) and
+  `faostat-emissions-livestock` (144). The label is now derived after the sum
+  from the **bucket's own** code — the same polity `polity_bucket_coverage()`
+  reports and the reporting columns resolve — so one `area_code` has one `area`
+  in one year. Each reader's total is **unchanged to the digit** and its row
+  count falls by exactly its duplicate-key count.
+  **Published values do move, for bucket 206 only**, because the duplicated keys
+  were mishandled downstream in both directions: `build_primary_production()`
+  changes 1,673 of 6,170,595 keys, all in 2012-2023, and against the raw pin the
+  new value is the right one — bucket 206 goats in 2018 were 14,449,249 head
+  (South Sudan alone, Sudan's 40,846,000 dropped) and are now 55,295,249, while
+  2019 sugar cane was 10,898,000 t against 5,449,000 t reported and is now
+  5,449,000 t. On a real 2005-2020 `build_commodity_balances()` the effect is
+  678 changed keys, 559 of them area 206; every other area moves by **43.4 t in
+  total across 119 keys** (largest single move 3.91 t, 4e-9% of the build).
+  Element totals over that range move by 1.79% on `stock_variation` and by less
+  than 0.03% on everything else. `reporting_polity_code` for bucket 206 is
+  `SUD-1956-2011` before and after.
+* `polity_end_year` / `end_year` is now read as **exclusive** everywhere, which
+  is the convention upstream `whep-polities` publishes: a successor's
+  `start_year` equals its predecessor's `end_year`, and 240 of the 245
+  FAOSTAT-map rows in `polity_area_crosswalk` carry
+  `polity_end_year == map_year_end + 1`. `add_polity_code()` used to join on
+  `polity_end_year >= year`, so a period answered for one year past its end.
+  Over the 1961-2024 grid for all 266 crosswalk areas that put **7** area-years
+  on their period's end year, of which **3 landed in a state that had already
+  dissolved** and still read `"matched"`/`"manual"`: 1993 Czechoslovakia
+  (`F51-1947-1993`), 2006 Serbia and Montenegro (`SCG-1992-2006`) and 1992
+  Yugoslav SFR (`F248-1991-1992`). Those three now report `"out_of_span"`. The
+  other four are years the upstream map explicitly declares the area reports
+  (`map_year_end`, inclusive), and the resolver keeps them: a reported year is
+  never dropped for being one past a polity's end. **No published value moves**:
+  over 1850-2024 x 266 areas, `polity_area_code` is unchanged on every row, the
+  resolved-row count is unchanged (46,336 with the default back-cast anchor),
+  and the only `polity_code` that moves is area 273 Montenegro in 1962, from
+  `MNE-1913-1918` to `MNE-2006-2025` -- a nearest-period stand-in either way,
+  now landing on the nearer period. `build_constant_territory_series()` reads
+  the same convention, so a dissolved polity no longer sits on top of its
+  successors in the hand-over year (238 polities carried a polygon in 1993 on
+  the old reading against 236, and 453 extra active polity-years over
+  1850-2024), where each grid cell goes to exactly one target and the
+  predecessor was capturing the ones its successors should have received. Note
+  that `ref_year = 2025` now aborts: the vintage's open periods carry 2025 as
+  their exclusive end, so they stop at 2024.
+* `inst/scripts/prepare_spatialize_all.R` no longer repairs
+  `mueller_synthetic_n`'s FAO-style legacy ISO codes with a hand-maintained
+  14-entry `recode()` list. The mapping now comes from
+  `whep::polity_label_aliases` through `resolve_polity_label()`, bridged back to
+  the country grid's numeric `area_code` through the polity's `iso3_code` and the
+  same `regions.csv` lookup the grid is rasterised from. **No published values
+  change**: the resulting `crop_synthetic` table is byte-identical, 5,043 rows
+  resolving to the same 156 area codes with a maximum rate difference of 0. Four
+  of the 14 list entries (`BHA`, `BAR`, `DMI`, `STL`) named codes the dataset
+  never uses.
+* New `polity_coverage_gaps()` reports the rows of a built table whose
+  `reporting_polity_code` is a nearest-period stand-in, i.e. a polity that did
+  not exist in that row's year. `add_polity_code()` has always reported these as
+  `mapping_status == "out_of_span"`, but the reporting-column boundary every
+  area-keyed output crosses dropped that column, so the documented uncertainty
+  was invisible in published data. Measured on the real FAOSTAT production path
+  (`.read_input("faostat-production")` aggregated to polities, 1961-2024),
+  **5,637 of 3,011,912 rows (0.19%)** are stand-ins, all of them bucket 206
+  "Sudan (former)" over 2012-2024 on `SUD-1956-2011`; on `faostat-fbs-old` it is
+  972 of 5,331,877 (0.018%), the same bucket over 2012-2013. Across the whole
+  crosswalk over 1961-2023 it is 922 of 16,658 resolved area-years in 28 areas,
+  in both directions. **No published value or column changes**: the new function
+  is a separate query, and carrying the signal on the outputs themselves is
+  opt-in through `options(whep.polity_mapping_status = "flag")` for a logical
+  `reporting_polity_out_of_span`, or `"status"` for the full
+  `reporting_mapping_status`. The default, `"none"`, is today's schema. Which of
+  the two to adopt as the default is an open decision (#545).
+* `build_energy_co2_extension()` gains a third `unclassified` treatment,
+  `"polity_region"`, for the **live** reporting areas `gleam_geographic_hierarchy`
+  has no row for. On today's crosswalk that is Nauru (area 148) and Tuvalu (227):
+  they exist, report under their own area codes, and their meat production left
+  the extension unpriced. `"polity_region"` groups them by running GLEAM's own
+  scheme rules on the continent their polity carries -- no grouping label is
+  added to the package -- so Tuvalu now lands on `"Least developed countries"`,
+  the classification `.energy_ldc_iso3()` already asserted for TUV while joining
+  against a table with no TUV row. Those rows are labelled
+  `"GLEAM_3.0_energy_meat_polity_region"` in `method_energy`. **No published
+  value changes**: the default is still `"drop"`, and the full 1850-2023 build is
+  bit-identical under both `"drop"` and `"global_mean"`. Measured, for the
+  decision: `"polity_region"` adds 366 rows and 2 areas (61,149 to 61,515),
+  moves no existing row by any amount, and raises total energy CO2e by
+  0.0000155%; it puts Nauru at 288,502 kg CO2e and Tuvalu at 424,851 kg over
+  1961-2023, against 664,412 and 1,775,719 under `"global_mean"`. Whether the
+  default should move is left open in whep#415.
+
+* `folded_reporting_areas()` no longer calls all 61 Rest-of-World folds a FABIO
+  convention, because for four of them it is not one. FABIO's own published
+  region list -- `io_codes.csv` of the v1.1 release (Zenodo record 2577067),
+  192 areas x 125 commodities, the file `inst/scripts/compare_fabio.R` already
+  downloads -- gives **153 New Caledonia, 154 North Macedonia, 209 Eswatini and
+  212 Syria** each their own commodity block, distinct from area 999 `RoW`; the
+  FABIO source repository marks all four `current == TRUE`, which is exactly the
+  flag its `replace_RoW()` keeps out of bucket 999. `regions_full` nonetheless
+  gives them `fabio_code` 999 while flagging them `cbs` `TRUE`, and Syria is the
+  single largest contributor to the fold (24,426 `faostat-production` rows).
+  Those four now come back as a third `fold_kind`, `"cbs_reporter_folded"`,
+  separating them from the 57 folds FABIO does make; a new
+  `options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only those
+  four, alongside the existing `TRUE` (equivalently `"all"`) for all 61. **No
+  published value changes**: `fabio_code`, `polity_area_code` and every polity
+  label are untouched on the default path, which the suite pins against the
+  committed crosswalk. Whether to correct `regions_full` is an open decision
+  (#556); doing so is the numeric un-fold of #563's option 3, and must not be
+  done at the polity level alone (#480, reverted in #561).
 * `build_feed_demand()` gains `region_fallback`, which decides how a reporting
   bucket the crosswalk leaves without a Bouwman feed region gets one. Rest of
   World (`area_code` 999) folds 62 FAOSTAT reporting areas, 58 of which have a
@@ -97,6 +214,22 @@
   the 13.7x feed inflation recorded in issue #419 does not reproduce, because
   that comparison predates the `dcast()` duplicate-key fix in
   `.select_best_source()` (#425).
+* `build_primary_production()` gains `federation_land`, controlling how the
+  pre-1962 LUH2 back-cast reaches an area whose territory is a dissolved
+  federation. LUH2 land use is keyed on present-day ISO3, so 15
+  Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and 248 Yugoslav SFR have no
+  land record of their own and their pre-1962 production has never been
+  back-cast at all -- 14.3% of 1961-62 FAOSTAT production tonnage, USSR alone
+  12.2%. `federation_land = "successor_union"` rebuilds each federation's land
+  series as the sum of its successor states' LUH2 land, resolved from the
+  `successor` relation published in `polities`, and reduces the unmatched areas
+  from 4 to 1 (only Belgium-Luxembourg, which upstream publishes no successor
+  for). **No published value changes by default**: `"none"` keeps current
+  behaviour. Measured on a 1850-1965 build, `"successor_union"` raises global
+  pre-1962 production tonnage by 13.9% (1850) to 19.4% (1960), moves exactly
+  three area codes (51, 228, 248) and moves no row at or after 1961; it also
+  closes the hard 0-to-704 Mt discontinuity USSR had at the 1961 splice
+  (1960/1961 now differ by 1.2%).
 
 * `polity_area_crosswalk` now takes its area-to-polity mapping from
   **upstream's published map** (`faostat_area_polity_map.csv`, read via
@@ -173,6 +306,20 @@
   `burnt_residue_n_t`. `residue_soil_dm_t` and their sum do not change (neither
   depends on `feed_use_fraction`), so `build_soil_carbon_inputs()`'s residue
   carbon is unaffected.
+* The pre-1962 commodity-balance fills now key their **proxies on the polity**
+  rather than on an area name. Three name vocabularies met at that join: the
+  frame carries the periodized `polity_name` (FAO area 3 arrives as
+  `"Albania (1913-2025)"`), the gdp/population pin carries its own labels
+  (`"Albania"`) and the LUH2 land table the crosswalk's static `area_name`. 57
+  of the pin's 196 names (8,263 rows, 27.8%) and 96 of the LUH2 labels (41.7% of
+  land rows) were names no builder emits, so those territories silently kept
+  their gaps. **This moves published values**: proxy coverage of the pre-1962
+  frame's (year, polity) cells rises from 13,664 to 18,480 of 22,624 for
+  population (43 polities gain a proxy, none lose one) and from 402 to 567 of
+  606 for agricultural land over 1900-1902 (55 gain, none lose). Aggregates that
+  are only reached by folding other territories into them (Rest of World, 999)
+  are still left without a proxy: what an aggregate's proxy should be is an open
+  methodological question (#493).
 * Every area-keyed exported output now carries the **reporting-polity columns**
   (`polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`), so a caller can tell which territory a row

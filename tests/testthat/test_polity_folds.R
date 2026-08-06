@@ -139,10 +139,14 @@ test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
     "Bucket 206"
   )
 
-  # No value moved: the two members keep their own rows and their own values,
-  # and both now sit under bucket code 206.
-  expect_equal(folded$area_code, c(206L, 206L))
-  expect_equal(sum(folded$value), 3405356)
+  # The bucket SUMS. Until whep#563 this came back as two rows under one code,
+  # 2,744,000 and 661,356, because the aggregator also grouped by the member's
+  # `polity_name` -- so the fold the warning describes was not actually being
+  # performed, and every consumer keyed on `(area_code, year, item, element)`
+  # saw a duplicated key.
+  expect_equal(nrow(folded), 1L)
+  expect_equal(folded$area_code, 206L)
+  expect_equal(folded$value, 3405356)
 
   withr::local_options(whep.warn_polity_folds = FALSE)
   expect_no_warning(
@@ -181,7 +185,7 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
   )
   testthat::expect_setequal(
     unique(folded$fold_kind),
-    c("fabio_rest_of_world", "successor_state")
+    c("fabio_rest_of_world", "cbs_reporter_folded", "successor_state")
   )
 
   # Every fold, by definition: the bucket is not the area's own code.
@@ -195,12 +199,45 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
   testthat::expect_setequal(unique(successor$area_code), c(62L, 276L, 277L))
   testthat::expect_setequal(unique(successor$polity_area_code), c(238L, 206L))
 
-  # Everything else is the FABIO Rest-of-World fold, and it lands on one bucket
-  # and one polity.
-  row_fold <- folded[folded$fold_kind == "fabio_rest_of_world", ]
+  # Everything else lands on one bucket and one polity, and splits in two.
+  row_fold <- folded[folded$fold_kind != "successor_state", ]
   testthat::expect_equal(unique(row_fold$polity_area_code), 999L)
   testthat::expect_equal(unique(row_fold$polity_code), "ROW-1850-2025")
   testthat::expect_equal(length(unique(row_fold$area_code)), 61L)
+})
+
+testthat::test_that("the four CBS reporters folded into 999 are named (#556)", {
+  # `"fabio_rest_of_world"` claimed something about FABIO that is false for four
+  # of the 61 members. FABIO's published region list -- `io_codes.csv` of the
+  # v1.1 release (Zenodo record 2577067), 192 areas x 125 commodities -- gives
+  # each of these four its own block, distinct from area 999 `RoW`, and the
+  # FABIO source repository marks all four `current == TRUE`, the flag its
+  # `replace_RoW()` keeps out of bucket 999. So this fold is WHEP's own, and
+  # `regions_full` says as much itself by flagging them `cbs`.
+  folded <- whep::folded_reporting_areas()
+  contradictory <- folded[folded$fold_kind == "cbs_reporter_folded", ]
+
+  testthat::expect_setequal(
+    unique(contradictory$area_code),
+    c(153L, 154L, 209L, 212L)
+  )
+  testthat::expect_equal(unique(contradictory$polity_area_code), 999L)
+  testthat::expect_equal(unique(contradictory$polity_code), "ROW-1850-2025")
+
+  # The other 57 are folds FABIO also makes, and none of them is a reporter.
+  agreed <- folded[folded$fold_kind == "fabio_rest_of_world", ]
+  testthat::expect_equal(length(unique(agreed$area_code)), 57L)
+  testthat::expect_length(
+    intersect(agreed$area_code, contradictory$area_code),
+    0L
+  )
+})
+
+testthat::test_that("folded_reporting_areas() needs the cbs flag", {
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  cw$cbs <- NULL
+
+  testthat::expect_error(whep::folded_reporting_areas(cw), "cbs")
 })
 
 testthat::test_that("the areas that report real data of their own are folded", {
@@ -364,7 +401,7 @@ testthat::test_that("the unfold switch promotes the whole pipeline and warns", {
     as.data.frame(whep::polity_area_crosswalk)
   ))
   members <- unique(
-    members$area_code[members$fold_kind == "fabio_rest_of_world"]
+    members$area_code[members$fold_kind != "successor_state"]
   )
   promoted <- cw[!is.na(cw$area_code) & cw$area_code %in% members, ]
   testthat::expect_true(all(
@@ -385,9 +422,136 @@ testthat::test_that("the unfold switch promotes the whole pipeline and warns", {
   )
 })
 
+testthat::test_that("the unfold switch can lift only the CBS reporters", {
+  # The narrower experiment #556 asks for: lift exactly the four folds FABIO
+  # does not make, and leave the 57 it does make standing.
+  testthat::skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_rest_of_world = "cbs_reporters")
+
+  testthat::expect_true(whep:::.unfold_rest_of_world_option())
+  testthat::expect_warning(
+    whep:::.polity_crosswalk(),
+    "promoted out of the FABIO"
+  )
+  cw <- as.data.frame(suppressWarnings(whep:::.polity_crosswalk()))
+  reporters <- c(153L, 154L, 209L, 212L)
+  lifted <- cw[!is.na(cw$area_code) & cw$area_code %in% reporters, ]
+  testthat::expect_true(all(lifted$polity_area_code == lifted$area_code))
+
+  # Both tables move together, or the two lookups disagree (#419).
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SYR"), 212L)
+  # A non-reporter FABIO also folds stays in the bucket, unlike under `"all"`.
+  testthat::expect_equal(whep:::.iso3c_to_area_code("FRO"), 999L)
+
+  still_folded <- suppressWarnings(whep::folded_reporting_areas())
+  testthat::expect_setequal(
+    unique(still_folded$fold_kind),
+    c("fabio_rest_of_world", "successor_state")
+  )
+  testthat::expect_equal(
+    length(unique(
+      still_folded$area_code[still_folded$fold_kind == "fabio_rest_of_world"]
+    )),
+    57L
+  )
+})
+
+testthat::test_that("an unrecognised unfold mode aborts instead of folding", {
+  testthat::skip_if_not_installed("withr")
+  withr::local_options(whep.unfold_rest_of_world = "reporters")
+
+  testthat::expect_error(
+    whep:::.unfold_rest_of_world_mode(),
+    "cbs_reporters"
+  )
+})
+
 testthat::test_that("folded_reporting_areas() rejects a frame it cannot read", {
   testthat::expect_error(
     whep::folded_reporting_areas(tibble::tibble(area_code = 1L)),
     "missing"
   )
+})
+
+# The bucket label, which is what whep#563 is about ---------------------------
+#
+# One `area_code` must come out under one `area`, whatever the members resolve
+# to, because `area` is a join key and a duplicated `(area_code, year, item,
+# element)` is what fed the `dcast()` `length()` fallback in whep#425.
+
+.bucket_fixture_rows <- function() {
+  data.table::data.table(
+    area_code = c(900L, 901L, 902L, 951L, 952L, 960L, 961L, 970L),
+    year = 2015L,
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    value = c(1, 2, 4, 8, 16, 32, 64, 128)
+  )
+}
+
+testthat::test_that("every bucket gets exactly one label, whatever it folds", {
+  .local_fold_crosswalk()
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(.bucket_fixture_rows(), item_prod_code)
+  )
+
+  # Four buckets, four rows, four labels -- not eight rows under four codes.
+  testthat::expect_equal(nrow(out), 4L)
+  labels <- stats::setNames(out$area, as.character(out$area_code))
+  testthat::expect_equal(
+    labels[c("900", "950", "960", "970")],
+    c(`900` = "Aggregate", `950` = "P", `960` = "R", `970` = "T")
+  )
+
+  # Bucket 900 is the shape whep#480 shipped: a member (901 "X", 902 "Y") with
+  # its own polity while `polity_area_code` stays on the aggregate. It sums.
+  totals <- stats::setNames(out$value, as.character(out$area_code))
+  testthat::expect_equal(unname(totals[["900"]]), 7)
+  testthat::expect_equal(unname(totals[["960"]]), 96)
+  testthat::expect_equal(sum(out$value), sum(.bucket_fixture_rows()$value))
+})
+
+testthat::test_that("a bucket with no row of its own falls back to a member", {
+  # Bucket 950 has no crosswalk row for its own code, so it cannot be labelled
+  # from the bucket. The member label is then used -- deterministically, the
+  # lowest `area_code`, so it does not depend on which member reported or on
+  # row order -- rather than leaving the rows unlabelled.
+  .local_fold_crosswalk()
+  rows <- .bucket_fixture_rows()[area_code %in% c(951L, 952L)]
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(data.table::copy(rows), item_prod_code)
+  )
+  testthat::expect_equal(out$area, "P")
+
+  reversed <- suppressWarnings(
+    whep:::.aggregate_to_polities(
+      data.table::copy(rows)[order(-area_code)],
+      item_prod_code
+    )
+  )
+  testthat::expect_equal(reversed$area, "P")
+  testthat::expect_false(any(is.na(out$area)))
+})
+
+testthat::test_that("labelling annotates the aggregate, it cannot filter it", {
+  # `.apply_bucket_area_labels()` is an update-join precisely so that a missing
+  # label costs a label and never a row -- the 702,166-row drop in whep#382 came
+  # from a labelling change meeting an inner join.
+  agg <- data.table::data.table(
+    year = c(2015L, 2015L),
+    polity_area_code = c(900L, 111L),
+    value = c(7, 5)
+  )
+  labels <- data.table::data.table(
+    polity_area_code = 900L,
+    year = 2015L,
+    area = "Aggregate"
+  )
+
+  out <- whep:::.apply_bucket_area_labels(agg, labels)
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_equal(names(out)[1:3], c("year", "area_code", "area"))
+  testthat::expect_equal(out$area, c("Aggregate", NA_character_))
 })

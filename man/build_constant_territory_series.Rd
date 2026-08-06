@@ -26,7 +26,10 @@ in \code{year} and carry a polygon).
 }}
 
 \item{ref_year}{Integer. Target boundaries are the polities active in this
-year (\verb{start_year <= ref_year <= end_year}).}
+year. \code{end_year} is exclusive (see \link{polities}), so "active" means
+\verb{start_year <= ref_year < end_year} and a polity does not answer for the
+year its successor takes over. The same reading selects the sources of
+each data year.}
 
 \item{polities}{An \code{sf} of polity polygons with \code{polity_code}, \code{start_year},
 \code{end_year} and geometry. Defaults to \code{\link[=get_polity_geometries]{get_polity_geometries()}}.}

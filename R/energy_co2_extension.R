@@ -32,9 +32,12 @@
 #' 901-906) and the dissolved entities GLEAM's present-day country table cannot
 #' carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 #' Montenegro). The size of that loss is now **reported** on every build rather
-#' than left to be inferred, and `unclassified = "global_mean"` prices those
-#' areas at the world-mean GLEAM intensity instead of losing them. The default
-#' keeps the historical behaviour; see whep#492.
+#' than left to be inferred, and two opt-in treatments recover it instead of
+#' losing it: `unclassified = "polity_region"` groups the **live** reporting
+#' areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+#' `unclassified = "global_mean"` prices **every** unclassifiable area at the
+#' world-mean GLEAM intensity. The default keeps the historical behaviour; see
+#' whep#415 and whep#492.
 #'
 #' @param method Estimation method. Only `"gleam"` (default), the GLEAM 3.0
 #'   per-live-weight factors, is currently available.
@@ -44,17 +47,23 @@
 #' @param unclassified How to treat reporting areas `gleam_geographic_hierarchy`
 #'   has no row for, and which therefore get no country energy intensity.
 #'   `"drop"` (default) keeps the historical behaviour: their meat production
-#'   leaves the extension, and a warning says how much. `"global_mean"` prices
-#'   them at the unweighted world mean of the published GLEAM factors instead,
-#'   marking those rows `"GLEAM_3.0_energy_meat_global_mean"` in
-#'   `method_energy`.
+#'   leaves the extension, and a warning says how much. `"polity_region"` gives
+#'   the **live, self-reporting** ones among them a grouping derived from their
+#'   polity in `polity_area_crosswalk`, running GLEAM's own scheme rules on that
+#'   continent, and marks those rows `"GLEAM_3.0_energy_meat_polity_region"`;
+#'   the aggregate buckets and dissolved entities still drop.
+#'   `"global_mean"` instead prices every unclassifiable area at the unweighted
+#'   world mean of the published GLEAM factors, marking those rows
+#'   `"GLEAM_3.0_energy_meat_global_mean"`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (energy-use emissions in kilograms CO2e) and `method_energy`
-#'   (`"GLEAM_3.0_energy_meat"`, or `"GLEAM_3.0_energy_meat_global_mean"` for
-#'   rows priced at the world mean), plus the polity columns below.
+#'   (`"GLEAM_3.0_energy_meat"`, `"GLEAM_3.0_energy_meat_polity_region"` for
+#'   rows grouped from the polity crosswalk, or
+#'   `"GLEAM_3.0_energy_meat_global_mean"` for rows priced at the world mean),
+#'   plus the polity columns below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -65,7 +74,7 @@
 build_energy_co2_extension <- function(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "global_mean"),
+  unclassified = c("drop", "polity_region", "global_mean"),
   example = FALSE
 ) {
   method <- match.arg(method)
@@ -80,9 +89,10 @@ build_energy_co2_extension <- function(
     data$primary_prod
   }
 
-  intensity <- .energy_intensity_by_country()
+  hierarchy <- .energy_hierarchy(unclassified)
+  intensity <- .energy_intensity_by_country(hierarchy)
   primary_prod |>
-    .energy_co2e_by_group(intensity, unclassified) |>
+    .energy_co2e_by_group(intensity, unclassified, hierarchy) |>
     .energy_allocate_to_sectors(primary_prod) |>
     .energy_finalise_extension(method) |>
     .add_reporting_polity_columns()
@@ -197,20 +207,22 @@ build_energy_co2_extension <- function(
 #
 # whep#415 lists Bermuda, Guam and Palau alongside those two. They are no longer
 # named here because the crosswalk now folds all three into FABIO bucket 999, so
-# they are no longer self-reporting; their raw area codes 17, 88 and 180 still
-# carry an iso3 GLEAM has no row for. Bucket 999 carries their production
-# instead, and it has no GLEAM row either -- that loss is whep#492 and is
-# reported by size in `.report_unpriced_meat()`.
+# they are no longer self-reporting. MEASURED on the real
+# `get_primary_production()` output (6,170,595 rows, 194 distinct reporting
+# areas): area codes 17, 88 and 180 carry ZERO rows, so this code path cannot
+# reach them individually at all -- bucket 999 carries their production, and it
+# has no GLEAM row either. That loss is whep#492 and is reported by size in
+# `.report_unpriced_meat()`; whether the three should be unfolded is whep#419.
 #
-# This WARNS rather than assigning a group. Which GLEAM region an area belongs to
-# is a modelling decision tracked in whep#415, and the source table is not
-# edited either: it is parsed from the GLEAM Excel workbook, so adding rows would
-# make this package's copy diverge from the published source with nothing
-# recording it.
-.warn_areas_gleam_cannot_group <- function() {
+# The source table is not edited: it is parsed from the GLEAM Excel workbook, so
+# adding rows would make this package's copy diverge from the published source
+# with nothing recording it. Instead `unclassified = "polity_region"` derives the
+# grouping consumer-side, from the polity crosswalk, and the default still only
+# warns.
+.areas_gleam_cannot_group <- function() {
   # `area_code == polity_area_code` keeps the areas that report as themselves,
   # dropping those aggregated into a FABIO bucket under another code.
-  gaps <- polity_area_crosswalk |>
+  polity_area_crosswalk |>
     tibble::as_tibble() |>
     dplyr::filter(
       !is.na(.data$area_code),
@@ -221,29 +233,121 @@ build_energy_co2_extension <- function(
       .data$polity_end_year >= 2020,
       !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
     ) |>
-    dplyr::distinct(.data$area_code, .data$area_name)
+    dplyr::distinct(
+      .data$area_code,
+      .data$area_name,
+      .data$area_iso3c,
+      .data$polity_area_code,
+      .data$continent
+    )
+}
+
+.warn_areas_gleam_cannot_group <- function(unclassified = "drop") {
+  gaps <- .areas_gleam_cannot_group()
   if (nrow(gaps) == 0L) {
     return(invisible(NULL))
   }
   n_gaps <- nrow(gaps)
   areas <- sort(gaps$area_name)
+  if (identical(unclassified, "polity_region")) {
+    cli::cli_inform(c(
+      "i" = "{n_gaps} live reporting area{?s} {?has/have} no row in
+         {.field gleam_geographic_hierarchy} and {?is/are} grouped from the
+         polity crosswalk instead: {.val {areas}}.",
+      "i" = "Those rows are labelled
+         {.val GLEAM_3.0_energy_meat_polity_region}; see whep#415."
+    ))
+    return(invisible(NULL))
+  }
   cli::cli_warn(c(
     "!" = "GLEAM cannot classify {n_gaps} live reporting area{?s}: no row in
        {.field gleam_geographic_hierarchy}, so the energy extension drops their
        production.",
     "i" = "Areas: {.val {areas}}.",
-    "i" = "Assigning them a GLEAM region is a modelling decision; see whep#415."
+    "i" = "Set {.arg unclassified} to {.val polity_region} to group them from
+       the polity crosswalk instead. Which treatment is right is a modelling
+       decision; see whep#415."
   ))
   invisible(NULL)
 }
 
+# The country universe the whole extension is derived from: GLEAM's own table,
+# plus -- only when the caller asks for it -- one row per live reporting area
+# GLEAM omits, built from the polity crosswalk.
+#
+# `ef_scope` rides with each country so `method_energy` can say afterwards which
+# rows were grouped from the crosswalk rather than read off GLEAM's table.
+.energy_hierarchy <- function(unclassified = "drop") {
+  .warn_areas_gleam_cannot_group(unclassified)
+  hierarchy <- gleam_geographic_hierarchy |>
+    tibble::as_tibble() |>
+    dplyr::mutate(ef_scope = "country")
+  if (!identical(unclassified, "polity_region")) {
+    return(hierarchy)
+  }
+  dplyr::bind_rows(hierarchy, .energy_polity_hierarchy_rows())
+}
+
+# Rows shaped like `gleam_geographic_hierarchy` for the live reporting areas it
+# has no row for, so `.energy_country_grouping()` can run GLEAM's OWN scheme
+# rules on them instead of a grouping typed in here. No group label is invented:
+# each of the three schemes below is evaluated by the same `case_when()` the 204
+# published countries go through.
+#
+# The three inputs those rules need:
+#
+# * `continent` comes from the polity crosswalk. Only the continents for which
+#   `continent` alone settles all three schemes are eligible -- see
+#   `.energy_scheme_continents()`.
+# * `oecd` and `eu27` are 0 by construction: all 38 OECD members and all 27 EU27
+#   members have a row in `gleam_geographic_hierarchy`, pinned by a test, so an
+#   iso3 absent from that table belongs to neither.
+# * `gleam_region`, which only feeds the dressing fraction, is taken from
+#   `.gleam_region_overrides()` -- the same merged whep#465 decision the Tier-1
+#   livestock EFs already use for these territories, rather than a second copy of
+#   it. An area with no override keeps `NA` and falls back to the world-mean
+#   dressing, exactly as an unknown region already did.
+#
+# `development3` therefore resolves per country from `.energy_ldc_iso3()`, which
+# is what makes Tuvalu land on "Least developed countries" -- the classification
+# this file already asserted for TUV while joining against a table that had no
+# row for it.
+.energy_polity_hierarchy_rows <- function() {
+  overrides <- .gleam_region_overrides()
+  .areas_gleam_cannot_group() |>
+    dplyr::filter(.data$continent %in% .energy_scheme_continents()) |>
+    dplyr::transmute(
+      iso3 = .data$area_iso3c,
+      continent = .data$continent,
+      faostat_region = NA_character_,
+      gleam_region = overrides$gleam_region[
+        match(.data$polity_area_code, overrides$polity_area_code)
+      ],
+      eu27 = 0L,
+      oecd = 0L,
+      ef_scope = "polity_region"
+    )
+}
+
+# The continents for which `continent` on its own settles all three GLEAM
+# schemes once `oecd` and `eu27` are 0. Asia is deliberately absent:
+# `detailed15` splits it into "Middle East" and "Asia" on `faostat_region`,
+# which `polity_area_crosswalk` does not carry, and guessing which side an area
+# falls on is exactly the kind of invented value this package forbids. No live
+# unclassifiable area is in Asia today, so the exclusion costs nothing now; if
+# one appears it stays unpriced and keeps being reported rather than being
+# quietly mis-grouped.
+.energy_scheme_continents <- function() {
+  c("Africa", "Americas", "Europe", "Oceania")
+}
+
 # Map each country to its grouping under each of the three GLEAM schemes.
-.energy_country_grouping <- function() {
+.energy_country_grouping <- function(hierarchy = .energy_hierarchy()) {
   ldc <- .energy_ldc_iso3()
-  .warn_areas_gleam_cannot_group()
-  gleam_geographic_hierarchy |>
+  hierarchy |>
     dplyr::transmute(
       iso3 = .data$iso3,
+      ef_scope = .data$ef_scope,
       development3 = dplyr::case_when(
         .data$oecd == 1 ~ "OECD",
         .data$iso3 %in% ldc ~ "Least developed countries",
@@ -283,8 +387,8 @@ build_energy_co2_extension <- function(
 
 # Total live-weight energy intensity (kg CO2e / kg LW) for every meat group and
 # country: embedded + direct, each collapsed across system and climate.
-.energy_intensity_by_country <- function() {
-  xwalk <- .energy_country_grouping()
+.energy_intensity_by_country <- function(hierarchy = .energy_hierarchy()) {
+  xwalk <- .energy_country_grouping(hierarchy)
   .energy_meat_groups() |>
     purrr::pmap(function(grp, emb_species, dir_species, herd, emb_scheme, ...) {
       emb <- .energy_mean_factor(emb_species, herd, "embedded") |>
@@ -300,7 +404,11 @@ build_energy_co2_extension <- function(
         )
     }) |>
     purrr::list_rbind() |>
-    dplyr::select("iso3", "grp", "ef_total")
+    dplyr::left_join(
+      dplyr::distinct(xwalk, .data$iso3, .data$ef_scope),
+      by = "iso3"
+    ) |>
+    dplyr::select("iso3", "grp", "ef_total", "ef_scope")
 }
 
 # World-mean live-weight energy intensity per meat group (kg CO2e / kg LW): the
@@ -357,7 +465,8 @@ build_energy_co2_extension <- function(
 .energy_co2e_by_group <- function(
   primary_prod,
   intensity,
-  unclassified = "drop"
+  unclassified = "drop",
+  hierarchy = .energy_hierarchy(unclassified)
 ) {
   groups <- .energy_meat_groups()
   area2iso <- .energy_area_iso3()
@@ -377,7 +486,7 @@ build_energy_co2_extension <- function(
       .by = c("year", "area_code", "grp")
     ) |>
     dplyr::inner_join(area2iso, by = "area_code") |>
-    .energy_join_dressing(dressing) |>
+    .energy_join_dressing(dressing, hierarchy) |>
     dplyr::left_join(intensity, by = c("iso3", "grp")) |>
     .energy_price_unclassified(unclassified) |>
     dplyr::mutate(
@@ -396,15 +505,22 @@ build_energy_co2_extension <- function(
 # and ends up in `method_energy`.
 .energy_price_unclassified <- function(priced, unclassified) {
   .report_unpriced_meat(priced, unclassified)
-  if (identical(unclassified, "drop")) {
-    return(dplyr::mutate(priced, ef_scope = "country"))
+  global <- identical(unclassified, "global_mean")
+  # `ef_scope` is NA exactly where the intensity join found no country row, so
+  # it names the treatment those rows get: dropped, or priced at the world mean.
+  priced <- dplyr::mutate(
+    priced,
+    ef_scope = dplyr::coalesce(
+      .data$ef_scope,
+      if (global) "global" else "country"
+    )
+  )
+  if (!global) {
+    return(priced)
   }
   priced |>
     dplyr::left_join(.energy_global_intensity(), by = "grp") |>
-    dplyr::mutate(
-      ef_scope = dplyr::if_else(is.na(.data$ef_total), "global", "country"),
-      ef_total = dplyr::coalesce(.data$ef_total, .data$ef_global)
-    )
+    dplyr::mutate(ef_total = dplyr::coalesce(.data$ef_total, .data$ef_global))
 }
 
 # Say how much meat production the intensity join cannot price, and how much of
@@ -444,7 +560,7 @@ build_energy_co2_extension <- function(
   n_areas <- nrow(unpriced)
   share <- .energy_share_label(sum(unpriced$carcass_t), total_t)
   largest <- .energy_unpriced_labels(unpriced)
-  if (identical(unclassified, "drop")) {
+  if (!identical(unclassified, "global_mean")) {
     cli::cli_warn(c(
       "!" = "{.field gleam_geographic_hierarchy} has no row for {n_areas}
          reporting area{?s}, so {share} of the meat carcass production in this
@@ -498,10 +614,17 @@ build_energy_co2_extension <- function(
 }
 
 # Attach a dressing fraction per (grp, country) with a global-mean fallback.
-.energy_join_dressing <- function(data, dressing) {
+# `hierarchy` rather than `gleam_geographic_hierarchy` so that an area grouped
+# from the polity crosswalk also takes its region's dressing fraction; without a
+# region it keeps the global-mean fallback it already had.
+.energy_join_dressing <- function(
+  data,
+  dressing,
+  hierarchy = .energy_hierarchy()
+) {
   global <- dressing |>
     dplyr::summarise(dressing_g = mean(.data$dressing), .by = "grp")
-  iso2reg <- gleam_geographic_hierarchy |>
+  iso2reg <- hierarchy |>
     dplyr::select("iso3", reg = "gleam_region")
   data |>
     dplyr::left_join(iso2reg, by = "iso3") |>
@@ -617,14 +740,15 @@ build_energy_co2_extension <- function(
     )
 }
 
-# Per row, because `unclassified = "global_mean"` prices only the areas GLEAM
-# cannot classify at the world mean and leaves every other row on its country
-# factor: a single label for the whole build would hide which is which.
+# Per row, because the non-default treatments touch only the areas GLEAM cannot
+# classify and leave every other row on its country factor: a single label for
+# the whole build would hide which is which.
 .energy_method_label <- function(method, ef_scope = "country") {
   label <- switch(method, gleam = "GLEAM_3.0_energy_meat")
-  dplyr::if_else(
-    ef_scope == "global",
-    paste0(label, "_global_mean"),
-    label
+  dplyr::case_match(
+    ef_scope,
+    "global" ~ paste0(label, "_global_mean"),
+    "polity_region" ~ paste0(label, "_polity_region"),
+    .default = label
   )
 }
