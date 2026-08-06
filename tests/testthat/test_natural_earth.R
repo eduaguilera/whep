@@ -18,10 +18,15 @@ test_that(".natural_earth_cache_dir sits inside the whep user cache", {
   dir <- whep:::.natural_earth_cache_dir()
 
   expect_equal(basename(dir), "naturalearth")
-  # dirname() expands "~", so the expectation has to as well.
+  # dirname() expands "~" and returns forward slashes, while user_cache_dir()
+  # uses the platform separator, so both sides are normalised to compare.
   expect_equal(
-    dirname(dir),
-    path.expand(rappdirs::user_cache_dir("whep"))
+    stringr::str_replace_all(dirname(dir), "\\\\", "/"),
+    stringr::str_replace_all(
+      path.expand(rappdirs::user_cache_dir("whep")),
+      "\\\\",
+      "/"
+    )
   )
 })
 
