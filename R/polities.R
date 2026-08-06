@@ -990,8 +990,8 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   #
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
-  alive <- is.na(polities$wiki_status) |
-    !polities$wiki_status %in% c("retired", "superseded")
+  # `.polity_is_live()` is the package's one reading of which rows are dead.
+  alive <- .polity_is_live(polities$wiki_status)
   pol <- data.frame(
     polity_code = polities$polity_code[alive],
     start_year = polities$start_year[alive],

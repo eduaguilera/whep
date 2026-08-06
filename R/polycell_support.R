@@ -286,8 +286,9 @@ polycell_shim_view <- function(support) {
     coverage_status = .pcs_coverage_status(usable$coverage_status, attrs),
     geometry = usable$geom
   )
-  live <- !(.pcs_col(attrs, "wiki_status", NA_character_) %in%
-    c("retired", "superseded")) &
+  # `.polity_is_live()` is the package's one reading of which rows are dead, so
+  # the producer's filter and `.active_polities()`'s tie-break cannot drift.
+  live <- .polity_is_live(.pcs_col(attrs, "wiki_status", NA_character_)) &
     !(.pcs_col(attrs, "polity_type", NA_character_) %in% "aggregate")
   out[live, ]
 }

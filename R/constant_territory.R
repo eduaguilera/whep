@@ -38,7 +38,8 @@
 #'   does not answer for the year its successor takes over. The same reading
 #'   selects the sources of each data year.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
-#'   `end_year` and geometry. Defaults to [get_polity_geometries()].
+#'   `end_year` and geometry, plus an **optional** `wiki_status` whose effect is
+#'   described below. Defaults to [get_polity_geometries()], which supplies it.
 #'   `start_year` is inclusive; `end_year` is **exclusive at a succession** and
 #'   **inclusive at the open end**. So 2014 resolves to `"RUS-2014-2025"`,
 #'   never to `"RUS-1991-2014"`, while 2025 still resolves to
@@ -46,7 +47,22 @@
 #'   when it ends on the last year the supplied table covers and no
 #'   later-starting interval of the same polity follows it. Where the table
 #'   still carries overlapping intervals for one polity, the interval starting
-#'   on the resolved year wins, then the latest-starting one.
+#'   on the resolved year wins, then the latest-starting one, and finally --
+#'   **only when `wiki_status` is supplied** -- a live interval beats a
+#'   `"retired"` or `"superseded"` one.
+#'
+#'   That last key is the one behavioural difference between the two call
+#'   styles, and it is stated here rather than left implicit. **Supplying only
+#'   the three required columns is legal and keeps the older, status-blind
+#'   ordering**, under which a shared start year is decided by nothing at all
+#'   and an interval upstream has already replaced can take the year from the
+#'   one that replaced it. On the shipped [polities] snapshot that is 1,344
+#'   polity-years across 10 polities, of which one moves territory rather than
+#'   only a label: 1913 and 1914 resolve to `"MNE-1913-1915"` (0.9923 Mha)
+#'   instead of `"MNE-1913-1918"` (1.5893 Mha), a Montenegro 37.6% too small.
+#'   Pass `wiki_status` -- as the default does -- to get the live interval.
+#'   `wiki_status` never selects which years an interval covers; it breaks a
+#'   tie between two intervals that both cover the resolved year.
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
 #'   `function(centroids_sf, year) -> numeric` returning a non-negative density
 #'   per grid-cell centroid (centroids are supplied in `crs_equal_area`).
@@ -135,7 +151,13 @@ build_constant_territory_series <- function(
   if (is.null(polities)) {
     polities <- get_polity_geometries()
   }
-  polities <- polities[, c("polity_code", "start_year", "end_year")]
+  # `wiki_status` is carried through when the caller supplies it, because
+  # `.active_polities()` tie-breaks on it (DA-29) and dropping it here would
+  # silently downgrade the DEFAULT table -- `get_polity_geometries()` publishes
+  # the column -- to the status-blind ordering documented for a caller who
+  # supplies only the three required columns.
+  keep <- c("polity_code", "start_year", "end_year")
+  polities <- polities[, c(keep, intersect("wiki_status", names(polities)))]
   # only polities that actually carry a polygon can host or receive mass
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
@@ -346,6 +368,22 @@ build_constant_territory_series <- function(
   stringr::str_remove(polity_code, "-\\d+-\\d+$")
 }
 
+# WHICH ROWS ARE DEAD, stated once for the whole package. `"retired"` and
+# `"superseded"` mark a row upstream has replaced; it stays published so a code
+# already held in older output remains resolvable, but it must never be a
+# resolution TARGET. `data-raw/table_mappings.R` filters the crosswalk on
+# exactly this, `resolve_polity_label()` filters its inference routes on it,
+# `.pcs_prepare_polities()` filters the producer's population on it, and
+# `.active_polities()` tie-breaks on it (DA-29).
+#
+# `%in%` never returns NA, so an unknown status (`NA`, or the constant NA a
+# caller supplying no `wiki_status` column gets) reads as LIVE. That is what
+# makes the column optional without a branch: with every row equally live the
+# extra ranking key below is constant and cannot reorder anything.
+.polity_is_live <- function(wiki_status) {
+  !wiki_status %in% c("retired", "superseded")
+}
+
 # THE CONVENTION (DA-24), stated once here and referred to from every other
 # resolver: `start_year` is inclusive; `end_year` is EXCLUSIVE at a succession
 # and INCLUSIVE at the open end.
@@ -433,7 +471,8 @@ build_constant_territory_series <- function(
 # smaller extent is dropped, so mass is lost and not merely relabelled.
 # Restricting to live, non-aggregate rows leaves 0 such polity-years on this
 # vintage (it was 86 across MNE and PER on the 740-row one), so the overlap is
-# now entirely between a live interval and a retired or superseded one.
+# now entirely between a live interval and a retired or superseded one -- which
+# is why the last key of the ranking is `wiki_status`.
 .active_polities <- function(polities, yr, open_ended = NULL) {
   covers <- .covers_year(
     polities$start_year,
@@ -454,8 +493,39 @@ build_constant_territory_series <- function(
   # but unreachable, the non-equi join having overwritten `join_start_year`), so
   # the surviving decision on both paths is the latest start.
   exact_start <- !is.na(active$start_year) & active$start_year == yr
-  ranked <- order(family, !exact_start, -active$start_year)
+  # DA-29: ON A SHARED START YEAR, A LIVE INTERVAL BEATS A DEAD ONE. Without
+  # this key the winner of a shared start is decided by nothing at all, and a
+  # `retired`/`superseded` row can take the year from the live row that replaced
+  # it: measured on the shipped 749-row table, 1,344 polity-years across 10
+  # polities resolved to a dead interval, and `MNE-1913-1915` (retired, 0.9923
+  # Mha) beat `MNE-1913-1918` (draft, 1.5893 Mha), so 1913 and 1914 resolved to
+  # a Montenegro 37.6% too small. It is the same principle the producer already
+  # applies by filtering dead rows out entirely (DA-7); this was the one place
+  # left where a dead row could win.
+  #
+  # IT RANKS BELOW THE START YEAR, not above it. A later start is a more
+  # specific epoch, and letting status outrank it resurrects a superseded WIDER
+  # period over the narrower one that succeeded it -- the C2 defect in reverse.
+  # Measured: ranking status above the start year would additionally move
+  # `BLX-1921-1999` -> `BLX-1850-1999` (77 years) and `IDN-1889-1945` ->
+  # `IDN-1800-1945` (55 years), replacing each with a broader epoch upstream
+  # deliberately narrowed.
+  #
+  # `wiki_status` is OPTIONAL: it is not among the three columns a caller must
+  # supply, and where it is absent every row reads as live, so this key is
+  # constant and the ordering is exactly the one that stood before.
+  dead <- !.polity_is_live(.polity_status_or_na(active))
+  ranked <- order(family, !exact_start, -active$start_year, dead)
   active[ranked, ][!duplicated(family[ranked]), ]
+}
+
+# `wiki_status` for a polity table that need not carry it. Returns the constant
+# NA vector when the column is absent, which `.polity_is_live()` reads as live.
+.polity_status_or_na <- function(polities) {
+  if (rlang::has_name(polities, "wiki_status")) {
+    return(polities$wiki_status)
+  }
+  rep(NA_character_, nrow(polities))
 }
 
 # Assign each centroid to the polity whose polygon contains it. Returns a
