@@ -27,9 +27,12 @@ buckets (polity_area_code 999 &quot;Rest of World&quot; and the continental resi
 901-906) and the dissolved entities GLEAM's present-day country table cannot
 carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 Montenegro). The size of that loss is now reported on every build rather
-than left to be inferred, and unclassified = &quot;global_mean&quot; prices those
-areas at the world-mean GLEAM intensity instead of losing them. The default
-keeps the historical behaviour; see whep#492."><meta property="og:description" content="Aggregate GLEAM 3.0 on-farm (direct) and feed-production (embedded) energy
+than left to be inferred, and two opt-in treatments recover it instead of
+losing it: unclassified = &quot;polity_region&quot; groups the live reporting
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+unclassified = &quot;global_mean&quot; prices every unclassifiable area at the
+world-mean GLEAM intensity. The default keeps the historical behaviour; see
+whep#415 and whep#492."><meta property="og:description" content="Aggregate GLEAM 3.0 on-farm (direct) and feed-production (embedded) energy
 use into a footprint extension keyed by (year, area_code, item_cbs_code),
 expressed in kilograms of carbon-dioxide equivalent (CO2e). This is the
 energy slice of the livestock greenhouse-gas basket and is designed to be
@@ -57,9 +60,12 @@ buckets (polity_area_code 999 &quot;Rest of World&quot; and the continental resi
 901-906) and the dissolved entities GLEAM's present-day country table cannot
 carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 Montenegro). The size of that loss is now reported on every build rather
-than left to be inferred, and unclassified = &quot;global_mean&quot; prices those
-areas at the world-mean GLEAM intensity instead of losing them. The default
-keeps the historical behaviour; see whep#492."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+than left to be inferred, and two opt-in treatments recover it instead of
+losing it: unclassified = &quot;polity_region&quot; groups the live reporting
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+unclassified = &quot;global_mean&quot; prices every unclassifiable area at the
+world-mean GLEAM intensity. The default keeps the historical behaviour; see
+whep#415 and whep#492."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -126,9 +132,12 @@ buckets (<code>polity_area_code</code> 999 "Rest of World" and the continental r
 901-906) and the dissolved entities GLEAM's present-day country table cannot
 carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 Montenegro). The size of that loss is now <strong>reported</strong> on every build rather
-than left to be inferred, and <code>unclassified = "global_mean"</code> prices those
-areas at the world-mean GLEAM intensity instead of losing them. The default
-keeps the historical behaviour; see whep#492.</p>
+than left to be inferred, and two opt-in treatments recover it instead of
+losing it: <code>unclassified = "polity_region"</code> groups the <strong>live</strong> reporting
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+<code>unclassified = "global_mean"</code> prices <strong>every</strong> unclassifiable area at the
+world-mean GLEAM intensity. The default keeps the historical behaviour; see
+whep#415 and whep#492.</p>
     </div>
 
     <div class="section level2">
@@ -136,7 +145,7 @@ keeps the historical behaviour; see whep#492.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_energy_co2_extension</span><span class="op">(</span></span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gleam"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  unclassified <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"global_mean"</span><span class="op">)</span>,</span>
+<span>  unclassified <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"polity_region"</span>, <span class="st">"global_mean"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -160,10 +169,14 @@ its reader when absent.</p></dd>
 <dd><p>How to treat reporting areas <code>gleam_geographic_hierarchy</code>
 has no row for, and which therefore get no country energy intensity.
 <code>"drop"</code> (default) keeps the historical behaviour: their meat production
-leaves the extension, and a warning says how much. <code>"global_mean"</code> prices
-them at the unweighted world mean of the published GLEAM factors instead,
-marking those rows <code>"GLEAM_3.0_energy_meat_global_mean"</code> in
-<code>method_energy</code>.</p></dd>
+leaves the extension, and a warning says how much. <code>"polity_region"</code> gives
+the <strong>live, self-reporting</strong> ones among them a grouping derived from their
+polity in <code>polity_area_crosswalk</code>, running GLEAM's own scheme rules on that
+continent, and marks those rows <code>"GLEAM_3.0_energy_meat_polity_region"</code>;
+the aggregate buckets and dissolved entities still drop.
+<code>"global_mean"</code> instead prices every unclassifiable area at the unweighted
+world mean of the published GLEAM factors, marking those rows
+<code>"GLEAM_3.0_energy_meat_global_mean"</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -175,8 +188,10 @@ data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns <code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>,
 <code>impact_u</code> (energy-use emissions in kilograms CO2e) and <code>method_energy</code>
-(<code>"GLEAM_3.0_energy_meat"</code>, or <code>"GLEAM_3.0_energy_meat_global_mean"</code> for
-rows priced at the world mean), plus the polity columns below.</p>
+(<code>"GLEAM_3.0_energy_meat"</code>, <code>"GLEAM_3.0_energy_meat_polity_region"</code> for
+rows grouped from the polity crosswalk, or
+<code>"GLEAM_3.0_energy_meat_global_mean"</code> for rows priced at the world mean),
+plus the polity columns below.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

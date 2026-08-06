@@ -37,9 +37,12 @@ the continental residuals 901-906) and the dissolved entities GLEAM's
 present-day country table cannot carry (USSR, Czechoslovakia,
 Yugoslavia, Belgium-Luxembourg, Serbia and Montenegro). The size of that
 loss is now **reported** on every build rather than left to be inferred,
-and `unclassified = "global_mean"` prices those areas at the world-mean
-GLEAM intensity instead of losing them. The default keeps the historical
-behaviour; see whep#492.
+and two opt-in treatments recover it instead of losing it:
+`unclassified = "polity_region"` groups the **live** reporting areas
+GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+`unclassified = "global_mean"` prices **every** unclassifiable area at
+the world-mean GLEAM intensity. The default keeps the historical
+behaviour; see whep#415 and whep#492.
 
 ## Usage
 
@@ -47,7 +50,7 @@ behaviour; see whep#492.
 build_energy_co2_extension(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "global_mean"),
+  unclassified = c("drop", "polity_region", "global_mean"),
   example = FALSE
 )
 ```
@@ -71,10 +74,15 @@ build_energy_co2_extension(
   How to treat reporting areas `gleam_geographic_hierarchy` has no row
   for, and which therefore get no country energy intensity. `"drop"`
   (default) keeps the historical behaviour: their meat production leaves
-  the extension, and a warning says how much. `"global_mean"` prices
-  them at the unweighted world mean of the published GLEAM factors
-  instead, marking those rows `"GLEAM_3.0_energy_meat_global_mean"` in
-  `method_energy`.
+  the extension, and a warning says how much. `"polity_region"` gives
+  the **live, self-reporting** ones among them a grouping derived from
+  their polity in `polity_area_crosswalk`, running GLEAM's own scheme
+  rules on that continent, and marks those rows
+  `"GLEAM_3.0_energy_meat_polity_region"`; the aggregate buckets and
+  dissolved entities still drop. `"global_mean"` instead prices every
+  unclassifiable area at the unweighted world mean of the published
+  GLEAM factors, marking those rows
+  `"GLEAM_3.0_energy_meat_global_mean"`.
 
 - example:
 
@@ -85,8 +93,10 @@ build_energy_co2_extension(
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (energy-use emissions in kilograms CO2e) and `method_energy`
-(`"GLEAM_3.0_energy_meat"`, or `"GLEAM_3.0_energy_meat_global_mean"` for
-rows priced at the world mean), plus the polity columns below.
+(`"GLEAM_3.0_energy_meat"`, `"GLEAM_3.0_energy_meat_polity_region"` for
+rows grouped from the polity crosswalk, or
+`"GLEAM_3.0_energy_meat_global_mean"` for rows priced at the world
+mean), plus the polity columns below.
 
 ## Polity columns
 
