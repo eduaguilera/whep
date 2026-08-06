@@ -3,10 +3,14 @@
 #
 # CONFIRMED FACTS (local files inspected; do not re-guess):
 # - The cell-polity parquet at Sys.getenv("WHEP_POLITY_FRACTION_PATH") has
-#   lon, lat, area_code, polity_frac already (68,527 rows) but no
-#   cell_area_ha; that is added here from latitude via the SAME formula
-#   .cell_area_ha_lat() in R/feed_lpjml.R (a private package helper, called
-#   directly, never redefined).
+#   lon, lat, area_code, polity_frac already but no cell_area_ha; that is
+#   added here from latitude via the SAME formula .cell_area_ha_lat() in
+#   R/feed_lpjml.R (a private package helper, called directly, never
+#   redefined).
+# - Its size is NOT fixed. This comment used to assert 68,527 rows; that is
+#   the pre-#381 vintage. The deployed file now measures 62,808 rows / 58,791
+#   cells / 182 area codes, after the producer restricted the crosswalk to
+#   the simulated grid. Do not re-assert a literal here.
 # - crop_patterns.parquet (Sys.getenv("WHEP_CROP_PATTERNS_PATH")): lon, lat,
 #   item_prod_code, harvest_fraction, a STATIC crop-pattern weight (no year
 #   dimension), 2,247,239 rows.
@@ -33,8 +37,45 @@
 #' [build_n_deposition()], [build_urban_n()], [get_soc_climate_drivers()])
 #' expects as a required input.
 #'
+#' @section Which area code the grid is keyed on:
+#' The parquet is rasterized from present-day polygons through
+#' `inst/extdata/regions.csv`, so its `area_code` is a raw reporting-area code
+#' and **not** necessarily a [polity_area_crosswalk] `polity_area_code`: the
+#' bucket every polity-keyed national table in whep is aggregated on. Grid
+#' codes that are not a bucket cannot join to national data at all: the join
+#' is silently empty on both sides.
+#'
+#' `area_key` selects which of the two the output carries. It is not a
+#' fallback: `"grid"` is the default, reproduces the parquet's own codes
+#' bit-for-bit, and warns naming the codes that cannot resolve;
+#' `"polity_area"` resolves each code to its bucket through
+#' [polity_area_crosswalk] and re-sums `polity_frac` within
+#' `(lon, lat, area_code)`, so a cell straddling two areas of the same bucket
+#' stays one row per bucket and each cell's fractions still sum to 1. It
+#' respects `options(whep.unfold_rest_of_world = TRUE)` (see
+#' [folded_reporting_areas()]), so the grid and the national tables agree
+#' about where a Rest-of-World member's rows belong.
+#'
+#' Under `"polity_area"` the raw reporting code is **carried, not replaced**:
+#' the output gains `grid_area_code` holding the parquet's own code, joined with
+#' `+` where a cell's areas collapse into one bucket. So the fold this performs
+#' is recoverable at the join rather than baked into the grid — a derived key
+#' silently overwriting the raw one it came from is what whep#582 reports from
+#' the output side, and the same fold is what dropped Sudan's 40.8 M goats and
+#' doubled its sugar cane in the published production series (whep#563).
+#'
+#' The output deliberately does **not** gain `polity_code` /
+#' `reporting_polity_*`. A bucket is not a polity: `999` holds up to 17
+#' territories at once and `206` holds Sudan and South Sudan together, so no
+#' polity code string is recoverable from this year-less grid. Carrying that
+#' identity needs the cell x polity x validity-interval unit tracked by epic
+#' whep#458, not a column added here.
+#'
 #' @param polity_fraction_path Path to the cell-polity fraction parquet.
 #'   Defaults to `Sys.getenv("WHEP_POLITY_FRACTION_PATH")`.
+#' @param area_key Which area code the output is keyed on: `"grid"` (default,
+#'   the parquet's own reporting-area codes) or `"polity_area"` (the
+#'   [polity_area_crosswalk] bucket national tables are aggregated on).
 #' @return A tibble with `lon`, `lat`, `area_code`, `polity_frac` and
 #'   `cell_area_ha`.
 #' @export
@@ -43,7 +84,11 @@
 #' if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {
 #'   build_cell_polity()
 #' }
-build_cell_polity <- function(polity_fraction_path = NULL) {
+build_cell_polity <- function(
+  polity_fraction_path = NULL,
+  area_key = c("grid", "polity_area")
+) {
+  area_key <- rlang::arg_match(area_key)
   path <- .resolve_polity_fraction_path(polity_fraction_path)
   raw <- nanoparquet::read_parquet(path) |> tibble::as_tibble()
   .check_columns(
@@ -51,7 +96,9 @@ build_cell_polity <- function(polity_fraction_path = NULL) {
     c("lon", "lat", "area_code", "polity_frac"),
     "cell_polity"
   )
-  dplyr::mutate(raw, cell_area_ha = .cell_area_ha_lat(.data$lat))
+  raw |>
+    .cell_polity_apply_area_key(area_key) |>
+    dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
 }
 
 #' Spatialize a polity-level nitrogen total to crops and grid cells.
@@ -135,6 +182,102 @@ spatialize_country_n_to_crops <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# Apply the requested area key. "grid" is today's behaviour, kept as the
+# default because switching moves published values for every gridded consumer;
+# it only gains the diagnostic that today's silence hides. The alternative is
+# selected, never a fallback.
+.cell_polity_apply_area_key <- function(raw, area_key) {
+  if (area_key == "grid") {
+    .warn_cell_polity_off_bucket(raw)
+    return(raw)
+  }
+  .cell_polity_to_bucket(raw)
+}
+
+# area_code -> polity_area_code, one row per code. Read through
+# .polity_crosswalk() rather than the shipped table so the unfold switch
+# reaches the grid too; a code mapping to two buckets would be a crosswalk
+# defect, so it aborts rather than picking a winner.
+.cell_polity_bucket_lookup <- function() {
+  lookup <- .polity_crosswalk() |>
+    tibble::as_tibble() |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      area_code = as.integer(.data$area_code),
+      polity_area_code = as.integer(.data$polity_area_code)
+    )
+  ambiguous <- lookup$area_code[duplicated(lookup$area_code)]
+  if (length(ambiguous) > 0) {
+    cli::cli_abort(c(
+      "{.field polity_area_crosswalk} maps {length(ambiguous)} area
+       code{?s} to more than one {.field polity_area_code}.",
+      x = "Ambiguous area code{?s}: {sort(unique(ambiguous))}."
+    ))
+  }
+  lookup
+}
+
+# Reporting-area codes present in the grid that are not a polity_area_code.
+# Their cells can never match a polity-keyed national table.
+.cell_polity_off_bucket <- function(raw) {
+  buckets <- unique(.cell_polity_bucket_lookup()$polity_area_code)
+  sort(setdiff(unique(as.integer(raw$area_code)), buckets))
+}
+
+.warn_cell_polity_off_bucket <- function(raw) {
+  codes <- .cell_polity_off_bucket(raw)
+  if (length(codes) == 0) {
+    return(invisible(raw))
+  }
+  affected <- raw[as.integer(raw$area_code) %in% codes, c("lon", "lat")]
+  n_cells <- nrow(unique(affected))
+  cli::cli_warn(c(
+    "!" = "{length(codes)} grid area code{?s} covering {n_cells} cell{?s}
+      cannot join to any polity-keyed national table: no
+      {.field polity_area_code} carries them.",
+    i = "Area code{cli::qty(length(codes))}{?s}: {codes}.",
+    i = "Pass {.code area_key = \"polity_area\"} to key the grid on the
+      buckets national tables are aggregated on."
+  ))
+  invisible(raw)
+}
+
+# Re-key the grid on polity_area_code. Border cells that held two areas of one
+# bucket (Sudan/South Sudan) collapse to a single row, so polity_frac is
+# re-summed within the cell; codes absent from the crosswalk keep their own
+# code rather than being dropped, so a gap stays visible.
+#
+# THE RAW CODE IS CARRIED, NOT REPLACED. The bucket arrives as an added
+# `grid_area_code` alongside the keyed `area_code`, so the fold this performs
+# stays recoverable at the join instead of becoming irrecoverable in the grid.
+# That asymmetry -- a derived key overwriting the raw one it was derived from --
+# is what whep#582 reports from the output side, and doing it here would put the
+# same ambiguity somewhere much harder to unwind: measured upstream, 41 cells /
+# 12.18 Mha fold two distinct polity codes onto bucket 206, which is the same
+# fold that dropped Sudan's 40.8 M goats and doubled its sugar cane in the
+# published production series (whep#563, fixed in whep#591).
+#
+# Where a cell's areas collapse into one bucket the raw codes are joined with a
+# separator rather than one of them being picked, because picking would be the
+# silent half of the same problem.
+.cell_polity_to_bucket <- function(raw) {
+  raw |>
+    dplyr::mutate(area_code = as.integer(.data$area_code)) |>
+    dplyr::left_join(.cell_polity_bucket_lookup(), by = "area_code") |>
+    dplyr::mutate(
+      grid_area_code = .data$area_code,
+      area_code = dplyr::coalesce(.data$polity_area_code, .data$area_code)
+    ) |>
+    dplyr::summarise(
+      polity_frac = sum(.data$polity_frac),
+      grid_area_code = paste(
+        sort(unique(.data$grid_area_code)),
+        collapse = "+"
+      ),
+      .by = c(lon, lat, area_code)
+    )
+}
 
 # Validate the two required inputs' columns.
 .n_check_totals_shares <- function(country_totals, crop_shares) {
