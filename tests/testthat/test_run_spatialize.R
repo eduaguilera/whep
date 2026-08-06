@@ -296,9 +296,9 @@ testthat::test_that(".load_landuse_inputs reads pinned inputs when input_dir is 
      0.75, 50.25, 2000L,          200
   )
   country_grid <- tibble::tribble(
-    ~lon,  ~lat, ~area_code,
-     0.25, 50.25,         1L,
-     0.75, 50.25,         1L
+    ~lon,  ~lat, ~area_code, ~cell_area_frac,
+     0.25, 50.25,         1L,               1,
+     0.75, 50.25,         1L,               1
   )
   nanoparquet::write_parquet(
     livestock_data,
@@ -357,4 +357,78 @@ testthat::test_that("run_spatialize(components = 'livestock') writes only livest
   meta <- yaml::read_yaml(file.path(tmp_out, "run_metadata.yaml"))
   testthat::expect_equal(meta$components, "livestock")
   testthat::expect_equal(meta$years, 2000L)
+})
+
+# --- The legacy inst/scripts runner -------------------------------------
+#
+# `inst/scripts/run_spatialize.R` is superseded by `run_spatialize()` but is
+# still documented (docs/SPATIALIZATION.md names its outputs) and is neither
+# linted (`.lintr` excludes `inst/scripts`) nor executed by any test, so the
+# two hazards C8 removed from it can be reintroduced with nothing to notice.
+# AM-5 risk 16 (re-attaching `country_grid` on (lon, lat), which under a
+# polycell grid is many-to-many in front of a join that already declares
+# "many-to-many") and risk 17 (a hand-copied compartment key drifting from
+# `.compartment_id_cols()`) are therefore pinned statically. Each check carries
+# a positive control, so a passing test means the pattern is absent and not
+# that the pattern never matched anything.
+.legacy_runner_source <- function() {
+  path <- system.file("scripts", "run_spatialize.R", package = "whep")
+  if (!nzchar(path)) {
+    path <- testthat::test_path(
+      "..",
+      "..",
+      "inst",
+      "scripts",
+      "run_spatialize.R"
+    )
+  }
+  if (!file.exists(path)) {
+    return(NULL)
+  }
+  paste(readLines(path, warn = FALSE), collapse = "\n")
+}
+
+testthat::test_that("the legacy runner keys on the compartment helper", {
+  src <- .legacy_runner_source()
+  testthat::skip_if(is.null(src), "inst/scripts/run_spatialize.R absent")
+
+  drifted <- 'intersect(c("polycell_id", "cell_id"), names(x))'
+  pattern <- 'intersect\\([[:space:]]*c\\("polycell_id"'
+  testthat::expect_match(drifted, pattern)
+  testthat::expect_no_match(src, pattern)
+  testthat::expect_match(src, "whep:::[.]compartment_id_cols\\(")
+})
+
+testthat::test_that("the legacy runner never re-attaches the grid on lon/lat", {
+  src <- .legacy_runner_source()
+  testthat::skip_if(is.null(src), "inst/scripts/run_spatialize.R absent")
+
+  reattach <- 'dplyr::inner_join(result_crops, country_grid, by = "lon")'
+  pattern <- "inner_join\\(result_crops, country_grid"
+  testthat::expect_match(reattach, pattern)
+  testthat::expect_no_match(src, pattern)
+  # The engine's own key is used directly, and the script asserts it rather
+  # than silently rebuilding it from the grid.
+  testthat::expect_match(
+    src,
+    'stopifnot\\("area_code" %in% names\\(result_crops\\)\\)'
+  )
+})
+
+testthat::test_that("the legacy runner calls the engine with its real signature", {
+  src <- .legacy_runner_source()
+  testthat::skip_if(is.null(src), "inst/scripts/run_spatialize.R absent")
+
+  # Until C8 the script passed `cft_mapping`/`type_cropland`/`type_mapping` as
+  # bare arguments, which `build_gridded_landuse()` has not accepted since the
+  # `config` list was introduced: an "unused arguments" error on the first call
+  # of the run. Nothing caught it, because the script is untested.
+  engine_args <- names(formals(whep::build_gridded_landuse))
+  testthat::expect_true("config" %in% engine_args)
+  testthat::expect_false("cft_mapping" %in% engine_args)
+  stale <- "country_grid = country_grid,\n  cft_mapping = NULL"
+  pattern <- "country_grid = country_grid,[[:space:]]*cft_mapping"
+  testthat::expect_match(stale, pattern)
+  testthat::expect_no_match(src, pattern)
+  testthat::expect_match(src, "config = list\\(")
 })

@@ -1,3 +1,262 @@
+# S-A5 -- the anti-centroid guard.
+#
+# `.normalize_country_grid()` used to default a missing share to
+# `cell_area_frac = 1`. The deployed `spatialize-country-grid` pin carries only
+# (lon, lat, area_code), so a border cell went WHOLLY to one polity and every
+# conservation check still passed, because a whole-cell share still sums the
+# national total correctly (EA4). Turning that default into an abort is what
+# makes the centroid convention mechanically detectable.
+
+# A centroid-resolved crosswalk: the exact shape of the deployed pin.
+.scg_centroid_grid <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    0.25, 50.25, 1L,
+    0.75, 50.25, 2L
+  )
+}
+
+.scg_landuse_args <- function(country_grid) {
+  list(
+    country_areas = tibble::tibble(
+      year = 2000L,
+      area_code = 1L,
+      item_prod_code = 15L,
+      harvested_area_ha = 100
+    ),
+    crop_patterns = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      item_prod_code = 15L,
+      harvest_fraction = 1
+    ),
+    gridded_cropland = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      year = 2000L,
+      cropland_ha = 1000
+    ),
+    country_grid = country_grid
+  )
+}
+
+.scg_livestock_args <- function(country_grid) {
+  list(
+    livestock_data = tibble::tibble(
+      year = 2000L,
+      area_code = 1L,
+      species_group = "cattle",
+      heads = 100
+    ),
+    gridded_pasture = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      year = 2000L,
+      pasture_ha = 100,
+      rangeland_ha = 0
+    ),
+    gridded_cropland = tibble::tibble(
+      lon = 0.25,
+      lat = 50.25,
+      year = 2000L,
+      cropland_ha = 100
+    ),
+    country_grid = country_grid
+  )
+}
+
+testthat::test_that("a centroid-resolved grid is refused, not defaulted to 1", {
+  testthat::expect_error(
+    whep:::.normalize_country_grid(.scg_centroid_grid()),
+    "carries no polity share"
+  )
+  testthat::expect_error(
+    whep:::.normalize_country_grid(.scg_centroid_grid()),
+    "cell_area_frac"
+  )
+  # Declaring the whole-cell convention is still allowed; only inferring it is
+  # not, so the abort cannot be satisfied by accident.
+  declared <- dplyr::mutate(.scg_centroid_grid(), cell_area_frac = 1)
+  testthat::expect_equal(
+    whep:::.normalize_country_grid(declared)$cell_area_frac,
+    c(1, 1)
+  )
+})
+
+testthat::test_that("both spatialization engines refuse a centroid grid", {
+  # The regression test S-A5 names: the centroid crosswalk must fail at the
+  # public entry points, not only in the helper.
+  testthat::expect_error(
+    do.call(
+      whep::build_gridded_landuse,
+      .scg_landuse_args(
+        .scg_centroid_grid()
+      )
+    ),
+    "carries no polity share"
+  )
+  testthat::expect_error(
+    do.call(
+      whep::build_gridded_livestock,
+      .scg_livestock_args(
+        .scg_centroid_grid()
+      )
+    ),
+    "carries no polity share"
+  )
+  # Both run once the share is declared, so the abort is about the share and
+  # not about some other property of the fixture.
+  declared <- dplyr::mutate(.scg_centroid_grid(), cell_area_frac = 1)
+  testthat::expect_equal(
+    sum(
+      do.call(
+        whep::build_gridded_landuse,
+        .scg_landuse_args(declared)
+      )$rainfed_ha
+    ),
+    100
+  )
+  testthat::expect_equal(
+    sum(
+      do.call(
+        whep::build_gridded_livestock,
+        .scg_livestock_args(declared)
+      )$heads
+    ),
+    100
+  )
+})
+
+testthat::test_that("a land fraction is refused, never read as a share", {
+  # AM-5 risk 7. `landfrac` was IN the alias list. It is the LPJmL/GADM land
+  # fraction: one value per cell, identical for every polity in it, so reading
+  # it as a share hands each polity of a border cell the same fraction and the
+  # cell is delivered once per polity. Aborting on a MISSING share is not
+  # enough if a different quantity can still be guessed at.
+  grid <- dplyr::mutate(.scg_centroid_grid(), landfrac = c(0.4, 0.4))
+  testthat::expect_error(
+    whep:::.normalize_country_grid(grid),
+    "not a polity share"
+  )
+  testthat::expect_error(whep:::.normalize_country_grid(grid), "landfrac")
+
+  # The same grid carrying a real share is accepted, and the share is the one
+  # that is used -- not the land fraction sitting beside it.
+  ok <- whep:::.normalize_country_grid(
+    dplyr::mutate(grid, polity_frac = c(0.25, 0.75))
+  )
+  testthat::expect_equal(ok$cell_area_frac, c(0.25, 0.75))
+
+  # Every other land-fraction spelling is refused too, so one more producer
+  # name cannot slip through as a share.
+  purrr::walk(
+    c("land_frac", "land_fraction", "cell_land_frac", "icwtr"),
+    \(nm) {
+      other <- .scg_centroid_grid()
+      other[[nm]] <- c(0.4, 0.4)
+      testthat::expect_error(
+        whep:::.normalize_country_grid(other),
+        "not a polity share",
+        info = nm
+      )
+    }
+  )
+})
+
+testthat::test_that("every accepted alias is honoured, with a fixed precedence", {
+  purrr::walk(c("polity_frac", "area_frac", "country_frac"), \(nm) {
+    grid <- .scg_centroid_grid()
+    grid[[nm]] <- c(0.25, 0.75)
+    testthat::expect_equal(
+      whep:::.normalize_country_grid(grid)$cell_area_frac,
+      c(0.25, 0.75),
+      info = nm
+    )
+  })
+  # An explicit `cell_area_frac` wins over any other spelling present.
+  both <- .scg_centroid_grid()
+  both$polity_frac <- c(0.1, 0.9)
+  both$cell_area_frac <- c(0.25, 0.75)
+  testthat::expect_equal(
+    whep:::.normalize_country_grid(both)$cell_area_frac,
+    c(0.25, 0.75)
+  )
+})
+
+testthat::test_that("an NA or out-of-range share is refused", {
+  # `NA` used to become 1 -- the same whole-cell gift as a missing column, one
+  # row at a time.
+  na_grid <- dplyr::mutate(
+    .scg_centroid_grid(),
+    cell_area_frac = c(0.5, NA_real_)
+  )
+  testthat::expect_error(
+    whep:::.normalize_country_grid(na_grid),
+    "used to become 1"
+  )
+
+  # An absolute area substituted for a normalised weight: the substitution C5
+  # existed to detect, caught here by the range instead of by a 11% signal.
+  area_grid <- dplyr::mutate(
+    .scg_centroid_grid(),
+    cell_area_frac = c(0.5, 3e5)
+  )
+  testthat::expect_error(
+    whep:::.normalize_country_grid(area_grid),
+    "absolute area"
+  )
+  neg <- dplyr::mutate(.scg_centroid_grid(), polity_frac = c(-0.2, 0.5))
+  testthat::expect_error(
+    whep:::.normalize_country_grid(neg),
+    "outside"
+  )
+
+  # Float noise is still clamped rather than refused, so a measured producer
+  # is not rejected for a 1e-16 overshoot.
+  noisy <- dplyr::mutate(
+    .scg_centroid_grid(),
+    cell_area_frac = c(1 + 1e-12, -1e-12)
+  )
+  testthat::expect_equal(
+    whep:::.normalize_country_grid(noisy)$cell_area_frac,
+    c(1, 0)
+  )
+})
+
+testthat::test_that("a compartment join refuses to degrade to lon/lat", {
+  # S-A6. `intersect()` alone silently drops a missing compartment id and joins
+  # on (lon, lat), which across a polycell grid is many-to-many.
+  allocated <- tibble::tibble(
+    polycell_id = "a",
+    area_code = 1L,
+    lon = 0.25,
+    lat = 50.25
+  )
+  full <- dplyr::mutate(allocated, rf_capacity = 1)
+  testthat::expect_equal(
+    whep:::.compartment_join_cols(allocated, full, "allocated", "capacity"),
+    c("polycell_id", "area_code", "lon", "lat")
+  )
+  testthat::expect_error(
+    whep:::.compartment_join_cols(
+      allocated,
+      dplyr::select(full, -"polycell_id"),
+      "allocated",
+      "capacity"
+    ),
+    "many-to-many"
+  )
+  testthat::expect_error(
+    whep:::.compartment_join_cols(
+      allocated,
+      dplyr::select(full, -"area_code"),
+      "allocated",
+      "capacity"
+    ),
+    "area_code"
+  )
+})
+
 # Year resolution for a time-varying country grid.
 #
 # `.filter_country_grid_year()` is the compartment path's epoch resolver. It is

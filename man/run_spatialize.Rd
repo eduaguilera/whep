@@ -142,9 +142,9 @@ gridded_cropland <- tibble::tribble(
    0.75, 50.25, 2000L,          500
 )
 country_grid <- tibble::tribble(
-  ~lon,  ~lat, ~area_code,
-   0.25, 50.25,         1L,
-   0.75, 50.25,         1L
+  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+   0.25, 50.25,         1L,               1,
+   0.75, 50.25,         1L,               1
 )
 build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,

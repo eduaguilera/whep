@@ -831,12 +831,19 @@ test_that("real Zenodo cache smoke test (skipped when not populated)", {
   }
   cat(
     "[no polycell support: real-states read on the centroid grid,",
-    "area_basis = 'luh2_fraction']\n"
+    "area_basis = 'luh2_fraction', cell_area_frac DECLARED = 1]\n"
   )
+  # C8/S-A5: `.normalize_country_grid()` no longer defaults a missing share to
+  # 1, so the centroid pin (`lon`, `lat`, `area_code` only) is refused. The
+  # whole-cell convention it implies is DECLARED here instead of inferred
+  # inside the normaliser -- same values, but the fallback can no longer be
+  # mistaken for a polity-resolved split. It is a smoke check on the reader,
+  # not a production path; the production path has no fallback (AM-38).
   list(
     basis = "luh2_fraction",
-    grid = whep::whep_read_file(
-      "spatialize-country-grid"
+    grid = dplyr::mutate(
+      whep::whep_read_file("spatialize-country-grid"),
+      cell_area_frac = 1
     )
   )
 }
