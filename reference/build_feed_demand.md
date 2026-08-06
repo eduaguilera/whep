@@ -14,6 +14,7 @@ example in land or nitrogen footprints) independently of the allocation.
 build_feed_demand(
   demand_tier = c("ipcc", "fcr"),
   by = c("category", "feed_type"),
+  region_fallback = c("member_mix", "none"),
   example = FALSE
 )
 ```
@@ -37,6 +38,17 @@ build_feed_demand(
   [`redistribute_feed()`](https://eduaguilera.github.io/whep/reference/redistribute_feed.md)
   consumes, so the two compose:
   `build_feed_demand(by = "feed_type") |> redistribute_feed(feed_avail)`.
+
+- region_fallback:
+
+  How to give a Bouwman feed region to a reporting bucket the crosswalk
+  leaves without one. `"member_mix"` (default) splits Rest of World
+  (`area_code` 999) across the Bouwman regions of the 62 reporting areas
+  folded into it, weighted by the livestock those members carry.
+  `"none"` leaves the bucket unmapped, which drops its whole feed demand
+  from the feed-type mix; that was the behaviour before whep#467 and is
+  kept selectable for comparison. Neither value affects any bucket the
+  crosswalk already resolves.
 
 - example:
 

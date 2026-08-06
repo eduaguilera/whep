@@ -58,6 +58,7 @@ nitrogen footprints) independently of the allocation.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_feed_demand</span><span class="op">(</span></span>
 <span>  demand_tier <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ipcc"</span>, <span class="st">"fcr"</span><span class="op">)</span>,</span>
 <span>  by <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"category"</span>, <span class="st">"feed_type"</span><span class="op">)</span>,</span>
+<span>  region_fallback <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"member_mix"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -79,6 +80,17 @@ The method actually used for each row is recorded in <code>method_demand</code>.
 category demand. <code>"feed_type"</code> splits it across feed types and returns the
 <code>feed_demand</code> table that <code><a href="redistribute_feed.html">redistribute_feed()</a></code> consumes, so the two compose:
 <code>build_feed_demand(by = "feed_type") |&gt; redistribute_feed(feed_avail)</code>.</p></dd>
+
+
+<dt id="arg-region-fallback">region_fallback<a class="anchor" aria-label="anchor" href="#arg-region-fallback"></a></dt>
+<dd><p>How to give a Bouwman feed region to a reporting
+bucket the crosswalk leaves without one. <code>"member_mix"</code> (default) splits
+Rest of World (<code>area_code</code> 999) across the Bouwman regions of the 62
+reporting areas folded into it, weighted by the livestock those members
+carry. <code>"none"</code> leaves the bucket unmapped, which drops its whole feed
+demand from the feed-type mix; that was the behaviour before whep#467 and
+is kept selectable for comparison. Neither value affects any bucket the
+crosswalk already resolves.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
