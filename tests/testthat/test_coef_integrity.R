@@ -44,7 +44,7 @@ test_that("residue recovery and feed fractions are in [0, 1] with a fallback", {
   testthat::expect_true(all(
     ff$feed_use_fraction >= 0 & ff$feed_use_fraction <= 1
   ))
-  testthat::expect_true("Global" %in% ff$region_hanpp)
+  testthat::expect_true("Global" %in% ff$region_un_sub)
   rk <- whep::whep_coef_table("residue_krausmann")
   rr <- rk$recovery_rates[!is.na(rk$recovery_rates)]
   testthat::expect_true(all(rr >= 0 & rr <= 1))

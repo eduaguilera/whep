@@ -352,13 +352,18 @@ reference:
   contents:
   - polities
   - polity_area_crosswalk
+  - polity_label_aliases
   - polities_cats
   - regions_full
   - add_polity_code
+  - polity_bucket_coverage
+  - polity_coverage_gaps
   - add_area_code
   - add_area_name
   - get_polity_geometries
+  - folded_reporting_areas
   - whep_polity_columns
+  - resolve_polity_label
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs

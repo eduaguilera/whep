@@ -34,7 +34,10 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year (`start_year <= ref_year <= end_year`).
+#'   year. `end_year` is exclusive (see [polities]), so "active" means
+#'   `start_year <= ref_year < end_year` and a polity does not answer for the
+#'   year its successor takes over. The same reading selects the sources of
+#'   each data year.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
 #'   `end_year` and geometry. Defaults to [get_polity_geometries()].
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
@@ -59,6 +62,9 @@
 #'   - `imputed`: mass added for uncovered cells
 #'   - `imputed_share`: covariate fraction imputed (0 = fully observed)
 #'   - `n_sources`: number of source polities contributing that year
+#'   - `unallocated`: total reported value from sources that could not be placed
+#'     on the grid that year (constant within a year; 0 when all were placed).
+#'     Kept out of `covered`/`imputed` so it is neither smeared nor lost.
 #'
 #' @examples
 #' # Self-contained toy: two adjacent square polities. Only "P1" reports a
@@ -127,8 +133,15 @@ build_constant_territory_series <- function(
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
+  # `end_year` is EXCLUSIVE (see [polities]), so a period covers
+  # `start_year:(end_year - 1)`. Reading it inclusively made a polity and its
+  # successors all active in the hand-over year -- 238 polities carry a polygon
+  # in 1993 on that reading, Czechoslovakia on top of Czechia and Slovakia, and
+  # 453 extra active polity-years over 1850-2024. Since `.assign_polity()` gives
+  # each cell exactly one source and one target, the dissolved predecessor was
+  # capturing the cells its successors should have received.
   .active <- function(yr) {
-    polities[polities$start_year <= yr & polities$end_year >= yr, ]
+    polities[polities$start_year <= yr & polities$end_year > yr, ]
   }
 
   target <- .active(ref_year)
@@ -212,18 +225,24 @@ build_constant_territory_series <- function(
     # ---- source intensities: value per unit covariate over each source's extent ----
     has_data <- !is.na(base$src) & base$src %in% names(vmap)
     denom <- tapply(base$w[has_data], base$src[has_data], sum)
-    # a source with data but zero gridded weight (too small for the grid) is lost
-    starved <- setdiff(names(vmap), names(denom[denom > 0]))
+    # a source with data but zero gridded weight (too small for the grid, or no
+    # covariate density over its extent) cannot be placed. Keep it out of the
+    # intensity map, the covered set and the donor pool so its value is neither
+    # smeared over gap cells nor silently lost; report it as `unallocated`.
+    placeable <- names(denom)[denom > 0]
+    starved <- setdiff(names(vmap), placeable)
+    unallocated <- sum(vmap[starved], na.rm = TRUE)
     if (length(starved) && verbose) {
       cli::cli_warn(
         "Year {y}: {length(starved)} source{?s} smaller than the grid resolution; refine `resolution` to capture {.val {starved}}."
       )
     }
-    intensity <- vmap[names(denom)] / denom # per source polity
+    intensity <- vmap[placeable] / denom[placeable] # per placeable source
+    has_data <- has_data & base$src %in% placeable
     base$e <- ifelse(has_data, base$w * intensity[base$src], NA_real_)
 
     # ---- donor intensity for uncovered target cells ----
-    tot_value <- sum(vmap[names(denom)], na.rm = TRUE) # value actually distributed
+    tot_value <- sum(vmap[placeable], na.rm = TRUE) # value actually distributed
     tot_w_data <- sum(base$w[has_data], na.rm = TRUE)
     i_donor <- if (donor == "regional" && tot_w_data > 0) {
       tot_value / tot_w_data
@@ -251,12 +270,13 @@ build_constant_territory_series <- function(
     })
     df <- do.call(rbind, agg)
     df$year <- y
-    df$n_sources <- length(denom[denom > 0])
+    df$n_sources <- length(placeable)
+    df$unallocated <- unallocated
     results[[k]] <- df
 
     if (verbose) {
       cli::cli_progress_step(
-        "Year {y}: {nrow(df)} target{?s}, {length(denom[denom>0])} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
+        "Year {y}: {nrow(df)} target{?s}, {length(placeable)} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
         .auto_close = TRUE
       )
     }
@@ -271,7 +291,8 @@ build_constant_territory_series <- function(
       covered = double(),
       imputed = double(),
       imputed_share = double(),
-      n_sources = integer()
+      n_sources = integer(),
+      unallocated = double()
     ))
   }
   rownames(out) <- NULL
@@ -282,14 +303,16 @@ build_constant_territory_series <- function(
     "covered",
     "imputed",
     "imputed_share",
-    "n_sources"
+    "n_sources",
+    "unallocated"
   )])
 }
 # nolint end
 
 # Assign each centroid to the polity whose polygon contains it. Returns a
 # character vector aligned to `centroids` order (NA where no polygon, first
-# match where polygons overlap).
+# match where polygons overlap). The code is coerced to character so that all
+# downstream keying is by name, never by numeric position (see issue #209).
 .assign_polity <- function(centroids, polys) {
   centroids$.cid <- seq_len(nrow(centroids))
   j <- sf::st_join(
@@ -301,5 +324,5 @@ build_constant_territory_series <- function(
   j <- sf::st_drop_geometry(j)
   j <- j[!duplicated(j$.cid), ] # keep first match on overlap
   j <- j[order(j$.cid), ]
-  j$polity_code
+  as.character(j$polity_code)
 }

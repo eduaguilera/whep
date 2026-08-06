@@ -884,6 +884,68 @@ cft_to_pft <- c(
   lookup[!duplicated(lookup$iso3c), ]
 }
 
+# Resolve a reference dataset's own country labels to the grid's `area_code`.
+#
+# The reference N datasets name countries in their own vocabulary, so each one
+# used to carry its own repair list in this script. `resolve_polity_label()`
+# decides those labels against `whep::polity_label_aliases`, the map published
+# by whep-polities, so the decision lives upstream instead of being re-stated
+# here (#494).
+#
+# THE RESOLVER ANSWERS A POLITY AND THIS SCRIPT IS KEYED ON AN AREA, so the
+# answer has to be bridged back, and WHICH bridge is not a free choice.
+# `polity_area_crosswalk$polity_area_code` is a different code space from the
+# one the grid carries: it holds 206 "Sudan (former)" where `regions.csv` holds
+# 276, and Ethiopia's two FAOSTAT areas (62 and 238) both sit under 238. Neither
+# 206 nor 62 is a code any grid cell has, so bridging through it would attach
+# Sudan's rates to cells that do not exist. The bridge therefore goes through
+# the polity's own `iso3_code` and back through the SAME iso3c -> area_code
+# table the grid is rasterised from, which is a relabelling of the join this
+# script already did rather than a change of code space.
+#
+# `area_lookup` is any data frame carrying `iso3c` and `area_code`; pass the
+# same one the caller joins with.
+.spatialize_label_area_code <- function(label, source, year, area_lookup) {
+  keys <- unique(data.frame(
+    label = as.character(label),
+    year = as.integer(year),
+    stringsAsFactors = FALSE
+  ))
+  polity <- whep::resolve_polity_label(
+    keys$label,
+    source = source,
+    year = keys$year
+  )
+  # `match()` treats NA as a value, so an unresolved label would otherwise pick
+  # up whatever row happens to carry an NA key. An unresolved label must stay
+  # unresolved through both hops.
+  iso <- .lookup_no_na(
+    polity,
+    whep::polities$polity_code,
+    whep::polities$iso3_code
+  )
+  area <- .lookup_no_na(iso, area_lookup$iso3c, area_lookup$area_code)
+  area[match(
+    paste(as.character(label), as.integer(year)),
+    paste(keys$label, keys$year)
+  )]
+}
+
+# `match()` with `NA` on either side, made to answer NA.
+.lookup_no_na <- function(x, from, to) {
+  hit <- match(x, from)
+  hit[is.na(x)] <- NA_integer_
+  to[hit]
+}
+
+# Mueller et al. (2012) publish crop-specific fertiliser application rates
+# "circa 2000" (Nature 490:254-257, doi:10.1038/nature11420; the archived
+# rasters are Zenodo record 5260732), and `whep::mueller_synthetic_n` carries no
+# year of its own. The year is load-bearing rather than cosmetic: the published
+# alias `SRM -> SCG-1992-2006` is scoped to 1992-2006, which is what makes the
+# dataset's "SRM" resolve to Serbia and Montenegro instead of to nothing.
+.mueller_base_year <- function() 2000L
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -2075,25 +2137,13 @@ prepare_nitrogen_inputs <- function(
     crop_synthetic <- whep::mueller_synthetic_n |>
       rename(crop_name = crop_process) |>
       mutate(
-        iso3c = recode(
+        area_code = .spatialize_label_area_code(
           iso3c,
-          "SRM" = "SCG",
-          "GUA" = "GTM",
-          "BZE" = "BLZ",
-          "COS" = "CRI",
-          "ELS" = "SLV",
-          "HAI" = "HTI",
-          "HON" = "HND",
-          "ROM" = "ROU",
-          "TRI" = "TTO",
-          "ZAR" = "COD",
-          "BHA" = "BHS",
-          "BAR" = "BRB",
-          "DMI" = "DMA",
-          "STL" = "LCA"
+          source = "mueller-synthetic-n",
+          year = .mueller_base_year(),
+          area_lookup = regions
         )
       ) |>
-      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
       filter(!is.na(area_code), !is.na(rate_value)) |>
       summarize(
         kg_n_ha_synth = mean(rate_value, na.rm = TRUE),
@@ -4809,9 +4859,42 @@ extend_lpjml_wind <- function(
 
   nc <- ncdf4::nc_create(out_path, var_def)
   on.exit(ncdf4::nc_close(nc), add = TRUE)
-  ncdf4::ncvar_put(nc, var_def, tail_cube)
+  ncdf4::ncvar_put(nc, var_def, .clamp_non_negative(tail_cube, variable))
 
   invisible(out_path)
+}
+
+# Every variable written through .write_climate_tail() is a non-negative
+# physical quantity (wind speed, downwelling shortwave, downwelling longwave),
+# so a negative value can only be numerical noise.
+#
+# It does occur. The remap onto the LPJmL grid interpolates, and interpolation
+# overshoots where the field has a sharp gradient -- for shortwave that is the
+# polar-night terminator, where the true flux is exactly zero. The overshoot is
+# ~1e-5 W/m2, symmetric about zero, and physically nothing; the 1901-2019
+# ISIMIP base contains no negatives at all, so it is introduced purely by the
+# ERA5 tail we build here.
+#
+# Left unclamped it is still not harmless: LPJmL's SAFE build rejects negative
+# shortwave for every affected cell-day (update_daily_cell.c) without clamping
+# it, which produced 138k ERROR038 lines and a 12 MB error log on the
+# 1901-2023 run -- enough to bury a real error. Clamped here rather than in the
+# model because the input is what is wrong.
+#
+# The count is reported rather than silently applied: a large count, or a
+# magnitude that is not round-off, would mean something else is broken.
+.clamp_non_negative <- function(cube, variable) {
+  negative <- !is.na(cube) & cube < 0
+  count <- sum(negative)
+  if (count == 0L) {
+    return(cube)
+  }
+  cli::cli_alert_info(
+    "{variable}: clamping {count} negative value{?s} to zero
+     (most negative {signif(min(cube[negative]), 3)})."
+  )
+  cube[negative] <- 0
+  cube
 }
 
 # Extend one ISIMIP radiation series (rsds or rlds) to `target_years` with a
@@ -4824,8 +4907,10 @@ extend_lpjml_wind <- function(
 # capped 5.9.7 at 2019 before its own ERA5 tail (issue #340).
 #
 # The correction is multiplicative per cell and calendar month, fitted on the
-# overlap, identical in form to extend_lpjml_wind(). Radiation is a strictly
-# non-negative flux, so a multiplicative factor cannot drive it below zero.
+# overlap, identical in form to extend_lpjml_wind(). A multiplicative factor
+# cannot itself drive a non-negative flux below zero, but the remap onto the
+# LPJmL grid can: see .clamp_non_negative(), which is why the tail is clamped
+# on the way out.
 extend_lpjml_radiation <- function(
   era5_path,
   isimip_path,

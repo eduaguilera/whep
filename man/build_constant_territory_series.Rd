@@ -26,7 +26,10 @@ in \code{year} and carry a polygon).
 }}
 
 \item{ref_year}{Integer. Target boundaries are the polities active in this
-year (\verb{start_year <= ref_year <= end_year}).}
+year. \code{end_year} is exclusive (see \link{polities}), so "active" means
+\verb{start_year <= ref_year < end_year} and a polity does not answer for the
+year its successor takes over. The same reading selects the sources of
+each data year.}
 
 \item{polities}{An \code{sf} of polity polygons with \code{polity_code}, \code{start_year},
 \code{end_year} and geometry. Defaults to \code{\link[=get_polity_geometries]{get_polity_geometries()}}.}
@@ -60,6 +63,9 @@ A tibble, one row per (\code{ref_year}-target, data \code{year}):
 \item \code{imputed}: mass added for uncovered cells
 \item \code{imputed_share}: covariate fraction imputed (0 = fully observed)
 \item \code{n_sources}: number of source polities contributing that year
+\item \code{unallocated}: total reported value from sources that could not be placed
+on the grid that year (constant within a year; 0 when all were placed).
+Kept out of \code{covered}/\code{imputed} so it is neither smeared nor lost.
 }
 }
 \description{

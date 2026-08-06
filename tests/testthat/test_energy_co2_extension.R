@@ -151,3 +151,133 @@ testthat::test_that("only the gleam method is available", {
     "should be"
   )
 })
+
+# Area 999 is the "Rest of World" reporting bucket: 62 FAOSTAT area codes fold
+# into it, and it has no row in `gleam_geographic_hierarchy`, so it gets no
+# energy intensity. Its carcass tonnage here is a fifth of the USA's 32.2 Mt,
+# which makes the reported share exactly one sixth of the input.
+.energy_unpriced_fixture <- function() {
+  .energy_prod_fixture() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+        2000L, 999L, 2731L, "tonnes", 6.44e6,
+        2000L, 999L, 961L, "slaughtered_heads", 3e6,
+        2000L, 999L, 946L, "slaughtered_heads", 1e6
+      )
+    )
+}
+
+testthat::test_that("unpriceable meat production is reported with its size", {
+  # The loss is real but was invisible: the intensity join leaves `ef_total` NA,
+  # `.energy_allocate_to_sectors()` sums that away to zero, and the
+  # `impact_u > 0` filter then removes the rows. Nothing said so. Measured on
+  # the full FAOSTAT input, 595 Mt of carcass production (3.48% of 1850-2023,
+  # 15% of 1961) left the extension this way, 25.5 Mt through bucket 999.
+  msgs <- testthat::capture_warnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_unpriced_fixture())
+    )
+  )
+  reported <- msgs[grepl("has no row for", msgs)]
+
+  testthat::expect_length(reported, 1L)
+  testthat::expect_match(reported, "RoW")
+  # Size published, not just the fact: 6.44 Mt of 32.44 Mt of carcass tonnage.
+  testthat::expect_match(reported, "6.4 Mt", fixed = TRUE)
+  testthat::expect_match(reported, "16.67%", fixed = TRUE)
+  testthat::expect_match(reported, "unclassified", fixed = TRUE)
+})
+
+testthat::test_that("the default still drops it, and taints nothing else", {
+  # Status quo pin: `unclassified = "drop"` must leave the published numbers
+  # exactly where they were, so adding unpriceable production to the input can
+  # neither add rows nor move any other area's value.
+  base <- whep::build_energy_co2_extension(
+    data = list(primary_prod = .energy_prod_fixture())
+  )
+  with_bucket <- suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_unpriced_fixture())
+    )
+  )
+
+  testthat::expect_false(999L %in% with_bucket$area_code)
+  testthat::expect_equal(with_bucket, base)
+})
+
+testthat::test_that("global_mean prices the bucket and says so per row", {
+  # The alternative treatment from whep#492, opt-in so nothing moves without
+  # consent. It must recover the bucket, label those rows as world-mean, and
+  # leave every classifiable area bit-identical.
+  base <- whep::build_energy_co2_extension(
+    data = list(primary_prod = .energy_prod_fixture())
+  )
+  result <- suppressMessages(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_unpriced_fixture()),
+      unclassified = "global_mean"
+    )
+  )
+
+  bucket <- dplyr::filter(result, area_code == 999L)
+  testthat::expect_setequal(bucket$item_cbs_code, c(961L, 946L))
+  testthat::expect_true(all(bucket$impact_u > 0))
+  testthat::expect_true(
+    all(bucket$method_energy == "GLEAM_3.0_energy_meat_global_mean")
+  )
+
+  usa <- dplyr::filter(result, area_code == 231L)
+  testthat::expect_true(all(usa$method_energy == "GLEAM_3.0_energy_meat"))
+  testthat::expect_equal(usa, base)
+})
+
+testthat::test_that("the world-mean intensity is the mean of GLEAM's factors", {
+  # No new coefficient enters the package: the world mean is the unweighted mean
+  # of `gleam_energy_use_ef` over the groupings of the same scheme the country
+  # factors use, recomputed here straight from the dataset.
+  expected_bovine <- mean(
+    whep::gleam_energy_use_ef$emission_factor[
+      whep::gleam_energy_use_ef$species == "cattle" &
+        whep::gleam_energy_use_ef$energy_type == "embedded" &
+        whep::gleam_energy_use_ef$denominator == "lw" &
+        whep::gleam_energy_use_ef$herd == "non_dairy"
+    ]
+  ) +
+    mean(
+      whep::gleam_energy_use_ef$emission_factor[
+        whep::gleam_energy_use_ef$species == "large_ruminants" &
+          whep::gleam_energy_use_ef$energy_type == "direct" &
+          whep::gleam_energy_use_ef$denominator == "lw" &
+          whep::gleam_energy_use_ef$herd == "non_dairy"
+      ]
+    )
+  global <- .energy_global_intensity()
+
+  testthat::expect_setequal(
+    global$grp,
+    c("bovine", "mutton_goat", "pig", "poultry")
+  )
+  testthat::expect_equal(
+    global$ef_global[global$grp == "bovine"],
+    expected_bovine
+  )
+  # A world mean must sit inside the spread of the country factors it averages,
+  # otherwise the collapse is wrong rather than merely coarse.
+  country <- suppressWarnings(.energy_intensity_by_country()) |>
+    dplyr::summarise(
+      lo = min(ef_total),
+      hi = max(ef_total),
+      .by = "grp"
+    ) |>
+    dplyr::inner_join(global, by = "grp")
+  testthat::expect_true(all(country$ef_global >= country$lo))
+  testthat::expect_true(all(country$ef_global <= country$hi))
+})
+
+testthat::test_that("unclassified only takes the two documented values", {
+  testthat::expect_error(
+    whep::build_energy_co2_extension(unclassified = "zero"),
+    class = "rlang_error"
+  )
+})

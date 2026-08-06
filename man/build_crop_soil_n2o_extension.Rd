@@ -64,6 +64,17 @@ to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net o
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 }
 
+Both country totals are read under raw FAOSTAT \verb{Area Code} values and
+harmonised to the whep polity \code{area_code} through \link{polity_area_crosswalk}
+before they are split to crops, so reporting units that FABIO folds into one
+bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
+Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
+to 999). FAOSTAT rows that are not territories carry no polity and are
+dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
+rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
+is a documented exception rather than a coverage gap, since a rollup has no
+crop shares of its own and would double count its members.
+
 N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 factors (climate-aggregated): direct \code{EF1 = 0.010}; indirect via
 volatilisation \code{EF4 = 0.010} applied to the volatilised fraction
@@ -101,6 +112,18 @@ Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
 \code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
 }
 
 \examples{

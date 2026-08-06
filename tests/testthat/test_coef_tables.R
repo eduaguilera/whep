@@ -8,7 +8,7 @@ test_that("bio_coefs loads, is item-keyed and unique", {
 
 test_that("residue_feed_fraction has a global fallback row", {
   x <- whep::whep_coef_table("residue_feed_fraction")
-  testthat::expect_true(any(x$region_hanpp == "Global"))
+  testthat::expect_true(any(x$region_un_sub == "Global"))
 })
 
 test_that("natural-grain ipcc tables share the snake_case ipcc_crop key", {

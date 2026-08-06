@@ -119,8 +119,113 @@ test_that("years with no usable source are skipped, output schema is stable", {
       "covered",
       "imputed",
       "imputed_share",
-      "n_sources"
+      "n_sources",
+      "unallocated"
     )
   )
   expect_equal(nrow(res), 0)
+})
+
+test_that("a starved (zero-weight) source is not smeared and is accounted", {
+  # SRC reports value 100, but the covariate density is zero everywhere over
+  # SRC's own extent (x < 100k) and positive only over the uncovered strip
+  # (x >= 100k). SRC therefore has cells but zero gridded weight: it cannot be
+  # placed. Its value must NOT inflate the donor intensity for the gap strip,
+  # and it must be reported via `unallocated`.
+  cov_fn <- function(centroids, year) {
+    x <- sf::st_coordinates(centroids)[, 1]
+    ifelse(x >= 100000, 1, 0)
+  }
+  expect_warning(
+    res <- build_constant_territory_series(
+      .reported,
+      ref_year = 2000,
+      polities = .synthetic_polities(),
+      covariate = cov_fn,
+      resolution = 10000,
+      verbose = TRUE
+    ),
+    "smaller than the grid resolution"
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  # No placeable source -> nothing is covered and nothing is smeared.
+  expect_equal(sum(res$covered), 0, tolerance = 1e-9)
+  expect_equal(sum(res$imputed), 0, tolerance = 1e-9)
+  expect_equal(sum(res$value), 0, tolerance = 1e-9)
+  expect_equal(res$n_sources, c(0, 0))
+
+  # The unallocatable value is accounted for, not silently dropped.
+  expect_equal(unique(res$unallocated), 100, tolerance = 1e-6)
+})
+
+test_that("numeric polity_code keys index by name, not position", {
+  # Same synthetic geometry, but with numeric polity codes and the source (code
+  # 30) listed LAST, so name- vs position-indexing give different answers.
+  polys <- sf::st_sf(
+    polity_code = c(10, 20, 30),
+    start_year = c(1990L, 1990L, 1850L),
+    end_year = c(2025L, 2025L, 1950L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 50000, 100000), # code 10  -> T_L
+      .rect(50000, 0, 150000, 100000), # code 20  -> T_R
+      .rect(0, 0, 100000, 100000), # code 30  -> SRC
+      crs = 6933
+    )
+  )
+  reported <- data.frame(year = 1900L, polity_code = 30, value = 100)
+  res <- build_constant_territory_series(
+    reported,
+    ref_year = 2000,
+    polities = polys,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  # Same expectations as the character-keyed uniform-density case: name-based
+  # indexing attaches the right intensity regardless of source ordering.
+  tl <- res[res$target_polity_code == "10", ]
+  tr <- res[res$target_polity_code == "20", ]
+  expect_equal(tl$value, 50, tolerance = 1e-6)
+  expect_equal(tr$covered, 50, tolerance = 1e-6)
+  expect_equal(tr$value, 100, tolerance = 1e-6)
+  expect_equal(sum(res$covered), 100, tolerance = 1e-6)
+})
+
+test_that("a polity is not active in its exclusive end year", {
+  # `end_year` is EXCLUSIVE (see [polities]), so a polity and its successors
+  # must not both be active in the hand-over year. Reading it inclusively made
+  # them overlap -- on the shipped snapshot, 238 polities carry a polygon in
+  # 1993 that way, Czechoslovakia sitting on top of Czechia and Slovakia --
+  # and each grid cell goes to exactly one target, so the dissolved
+  # predecessor captured the cells its successors should have received (#550).
+  #
+  # OLD covers the whole rectangle and ends in 1950; NEW_L and NEW_R split it
+  # and start in 1950. `ref_year` is the hand-over year 1950, so the targets
+  # must be exactly the two successors.
+  polys <- sf::st_sf(
+    polity_code = c("OLD", "NEW_L", "NEW_R"),
+    start_year = c(1850L, 1950L, 1950L),
+    end_year = c(1950L, 2025L, 2025L),
+    geometry = sf::st_sfc(
+      .rect(0, 0, 100000, 100000),
+      .rect(0, 0, 50000, 100000),
+      .rect(50000, 0, 100000, 100000),
+      crs = 6933
+    )
+  )
+  reported <- data.frame(year = 1900L, polity_code = "OLD", value = 100)
+  res <- build_constant_territory_series(
+    reported,
+    ref_year = 1950,
+    polities = polys,
+    resolution = 10000,
+    verbose = FALSE
+  )
+  res <- res[order(res$target_polity_code), ]
+
+  expect_equal(res$target_polity_code, c("NEW_L", "NEW_R"))
+  expect_equal(res$value, c(50, 50), tolerance = 1e-6)
+  expect_equal(sum(res$covered), 100, tolerance = 1e-6)
 })
