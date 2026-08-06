@@ -583,8 +583,15 @@ testthat::test_that("polity_coverage_gaps agrees with the resolver", {
   )
   # Every reported gap really is outside its polity's period, in one direction
   # or the other.
+  #
+  # `>=` on the upper bound, not `>`: `polity_end_year` is EXCLUSIVE (#550, and
+  # the resolver was made to read it that way in #577), so a row AT the end year
+  # is already outside the period and is correctly reported as a gap. Written
+  # with `>` this assertion silently encodes the old inclusive convention and
+  # fails on exactly those rows -- which is the same convention mismatch #550 is
+  # about, reappearing in a test rather than in the resolver.
   testthat::expect_true(all(
-    gaps$year < gaps$polity_start_year | gaps$year > gaps$polity_end_year
+    gaps$year < gaps$polity_start_year | gaps$year >= gaps$polity_end_year
   ))
 })
 
