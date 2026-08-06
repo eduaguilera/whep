@@ -611,4 +611,4 @@ Bruckner, M., Wood, R., Moran, D., Kuschnig, N., Wieland, H., Maus, V.,
 & Borner, J. (2019). FABIO — The Construction of the Food and
 Agriculture Biomass Input-Output Model. *Environmental Science &
 Technology*, 53(19), 11302–11312.
-<https://doi.org/10.1021/acs.est.8b03704>
+<https://doi.org/10.1021/acs.est.9b03554>

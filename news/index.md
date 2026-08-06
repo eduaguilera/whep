@@ -568,6 +568,17 @@
   name by an internal [`merge()`](https://rdrr.io/r/base/merge.html)
   ([\#520](https://github.com/eduaguilera/whep/issues/520)).
 
+- `citation("whep")` now returns two entries – the package itself,
+  carrying its CRAN DOI and all five authors, and the FABIO paper the
+  model builds on – where it returned only the generated `DESCRIPTION`
+  default before. The package entry takes its year from
+  `Date/Publication` rather than a hardcoded one. The machine-readable
+  equivalents, `CITATION.cff` and `codemeta.json`, ship alongside it,
+  and the package gained a [code of
+  conduct](https://ropensci.org/code-of-conduct/) and a link from the
+  README to the contributing guide. Groundwork for rOpenSci peer review
+  ([\#75](https://github.com/eduaguilera/whep/issues/75)).
+
 ## whep 0.3.0
 
 CRAN release: 2026-03-03

@@ -442,5 +442,11 @@ Be decent to each other. Assume the person on the other side of the
 review is acting in good faith and knows something you don’t. Critique
 the code and the method, not the person.
 
-Report unacceptable behaviour to the maintainers, who may remove
+This project is released with a [Contributor Code of
+Conduct](https://eduaguilera.github.io/whep/CODE_OF_CONDUCT.md), which
+is the [rOpenSci Code of Conduct](https://ropensci.org/code-of-conduct/)
+(also [available in
+Spanish](https://ropensci.org/es/codigo-de-conducta/)). By contributing,
+you agree to abide by its terms. It sets out what counts as unacceptable
+behaviour and how to report it; the maintainers may also remove
 comments, commits or contributors as needed.

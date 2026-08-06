@@ -89,24 +89,27 @@ page](https://eduaguilera.github.io/whep/reference/index.html).
 
 ## Contributing
 
-We try to follow best coding practices, specifically focused on R
-package creation. The process is roughly summarized in:
+We welcome contributions! Please see our [Contributing
+Guide](https://github.com/eduaguilera/whep/blob/main/.github/CONTRIBUTING.md)
+for how to find something to work on, set up the package, run the CI
+checks locally, and open a pull request.
 
-- Use git. Work on your own branch.
-- Declare dependencies in `DESCRIPTION`; CI tests against the latest
-  CRAN versions.
-- Add your new functionality inside `R/` directory as functions.
-- Add function documentation.
-- Write clean code. Follow [Tidyverse style
-  guide](https://style.tidyverse.org/).
-- Write tests for your code.
-- Create pull requests. Ask for review.
+If you’re new to R package development, we have written a **small free
+online book** covering both git and R package development. You can
+directly **access it
+[here](https://lbm364dl.github.io/follow-the-workflow/)**.
 
-The project is starting with **contributors** that are still learning
-about coding and best practices. For this reason, if you’re
-**inexperienced**, we have written a **small free online book**
-explaining most of the things you need from the previous steps, covering
-both git and R package development. You can directly **access it
-[here](https://lbm364dl.github.io/follow-the-workflow/)**. Anyone is
-welcome to contribute, but we highly recommend to go through this guide
-to become familiar with the workflow if you are still not used to it.
+## Citation
+
+To cite `whep` in publications, use:
+
+``` r
+
+citation("whep")
+```
+
+## Code of Conduct
+
+Please note that this package is released with a [Contributor Code of
+Conduct](https://ropensci.org/code-of-conduct/). By contributing to this
+project, you agree to abide by its terms.
