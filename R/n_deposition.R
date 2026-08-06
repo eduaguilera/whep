@@ -74,6 +74,14 @@ read_n_deposition <- function(
 #' `polity_area_ha` is split by. Either way the split is a share of the cell,
 #' so the source mass is redistributed and never created or destroyed.
 #'
+#' Each polity's share is then decomposed over the territory it lands on:
+#' land, inland water and ice, the three separately addressable categories
+#' `build_polycell_support()` carries. Deposition to freshwater is a real flux
+#' on the eutrophication pathway rather than a rounding error, so the three are
+#' reported side by side and the consumer chooses. A support with no category
+#' columns cannot be decomposed and carries the single `"territory"` category,
+#' which says the row is undecomposed rather than claiming it is land.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the inputs cover.
 #' @param data Optional named list of pre-loaded inputs: `nhx` and `noy`
@@ -86,16 +94,29 @@ read_n_deposition <- function(
 #'   that key and abort when it is absent. The resolved key is recorded in the
 #'   `method_polity_split` output column, so a table's split is readable from
 #'   the table.
+#' @param categories How each polity's share is decomposed over the territory
+#'   it lands on: `"auto"` (default) decomposes when the support carries
+#'   `land_area_ha`, `inland_water_ha` and `ice_area_ha` and emits the single
+#'   `"territory"` category otherwise, `"land_water_ice"` demands those columns
+#'   and aborts when they are absent, `"none"` keeps one undecomposed row per
+#'   polycell. The resolved choice is recorded in `method_area_split`.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
-#' @return A tibble with `lon`, `lat`, `area_code`, `year`,
-#'   `deposition_kgn_ha`, `deposition_n_t`, `method_deposition` and
-#'   `method_polity_split`, plus the polity columns below.
+#' @return A tibble with `lon`, `lat`, `area_code`, `year`, `area_category`,
+#'   `deposition_kgn_ha`, `deposition_n_t`, `method_deposition`,
+#'   `method_polity_split` and `method_area_split`, plus the polity columns
+#'   below.
+#'
+#'   `area_category` is `"land"`, `"inland_water"` or `"ice"` under
+#'   `"land_water_ice"`, and `"territory"` under `"none"`. Summing
+#'   `deposition_n_t` over the categories of a polycell recovers that
+#'   polycell's whole share, so an unfiltered sum over the table is still the
+#'   source mass; a consumer wanting one category **must filter**.
 #'
 #'   `deposition_kgn_ha` is the whole-cell mean rate: the cell's total mass
-#'   over its whole area, so every polity of a cell carries the same rate and
-#'   the rate is **not** conserved on re-aggregation. Only `deposition_n_t` is
-#'   a mass.
+#'   over its whole area, so every polity of a cell carries the same rate on
+#'   every category row and the rate is **not** conserved on re-aggregation.
+#'   Only `deposition_n_t` is a mass.
 #'
 #'   Rows are keyed on `area_code`. `build_polycell_support()` keys on
 #'   `polity_code` and does not derive the reporting vocabulary (DA-23), and
@@ -111,19 +132,23 @@ build_n_deposition <- function(
   years = NULL,
   data = list(),
   split = c("auto", "polity_area_ha", "polity_frac"),
+  categories = c("auto", "land_water_ice", "none"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
     return(.example_n_deposition())
   }
   split <- rlang::arg_match(split)
+  categories <- rlang::arg_match(categories)
   nhx <- data$nhx %||% read_n_deposition("nhx", years = years)
   noy <- data$noy %||% read_n_deposition("noy", years = years)
   nhx <- .nd_filter_years(nhx, years)
   noy <- .nd_filter_years(noy, years)
   polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code")
   key <- .nd_resolve_split(polity, split)
-  .nd_assemble(nhx, noy, .nd_polity_share(polity, key), key) |>
+  categories <- .nd_resolve_categories(polity, categories)
+  share <- .nd_category_shares(.nd_polity_share(polity, key), categories)
+  .nd_assemble(nhx, noy, share, key, categories) |>
     .add_reporting_polity_columns()
 }
 
@@ -299,9 +324,158 @@ build_n_deposition <- function(
   ))
 }
 
+# The DA-3 territory decomposition, in output-label order. `polity_area_ha` is
+# their sum, which is what makes the three shares a partition of the polity's
+# claim on the cell rather than three independent multipliers.
+.nd_category_cols <- function() {
+  c(
+    land = "land_area_ha",
+    inland_water = "inland_water_ha",
+    ice = "ice_area_ha"
+  )
+}
+
+# "auto" decomposes whenever the support can be decomposed. An explicit choice
+# is never silently downgraded, exactly as for the split key: asking for
+# "land_water_ice" without the columns aborts in .nd_category_shares() rather
+# than quietly returning one undecomposed row per polycell, which would look
+# identical to a decomposition whose water and ice happened to be zero.
+.nd_resolve_categories <- function(support, categories) {
+  if (categories != "auto") {
+    return(categories)
+  }
+  if (all(rlang::has_name(support, .nd_category_cols()))) {
+    "land_water_ice"
+  } else {
+    "none"
+  }
+}
+
+# Expand each polycell into one row per territory category, carrying
+# `category_frac`, the fraction of that polycell's own claim the category
+# holds. Multiplying `polity_share` by it keeps the cell's mass exactly
+# partitioned: the fractions sum to 1 per polycell (S-A1), so the categories
+# sum back to the polycell's share and the polycells sum back to the cell.
+.nd_category_shares <- function(support, categories) {
+  if (categories == "none") {
+    return(dplyr::mutate(
+      support,
+      area_category = "territory",
+      category_frac = 1
+    ))
+  }
+  cols <- .nd_category_cols()
+  .check_columns(support, c(unname(cols), "polity_area_ha"), "cell_polity")
+  .nd_check_category_values(support, cols)
+  .nd_check_category_sum(support, cols)
+  support |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(unname(cols)),
+      names_to = "area_category",
+      values_to = "category_area_ha"
+    ) |>
+    dplyr::mutate(
+      area_category = names(cols)[match(.data$area_category, cols)],
+      # A polycell holding no territory takes no mass either (its
+      # `polity_share` is 0), so its categories are all 0 and the ratio is
+      # 0/0. Left as NaN it would poison every downstream sum with NA.
+      category_frac = dplyr::if_else(
+        .data$polity_area_ha > 0,
+        .data$category_area_ha / .data$polity_area_ha,
+        0
+      )
+    ) |>
+    dplyr::select(-"category_area_ha")
+}
+
+# A negative or non-finite category is not a share of anything: it would let
+# one category borrow mass from another while the three still summed to the
+# polycell's territory, so the conservation check alone would not see it.
+.nd_check_category_values <- function(support, cols) {
+  bad <- purrr::map_lgl(unname(cols), function(col) {
+    value <- support[[col]]
+    !is.numeric(value) || anyNA(value) || any(!is.finite(value) | value < 0)
+  })
+  if (!any(bad)) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(
+    "{.field cell_polity${unname(cols)[bad]}} must be finite and
+     non-negative."
+  )
+}
+
+# S-A1: land + inland water + ice is the polity's territory in the cell. A
+# support that breaks it is not a decomposition, and splitting by it would
+# hand the cell's mass out in shares that do not add up to the polycell's own.
+.nd_check_category_sum <- function(support, cols) {
+  total <- Reduce(`+`, lapply(unname(cols), function(col) support[[col]]))
+  gap <- abs(total - support$polity_area_ha) /
+    pmax(support$polity_area_ha, .Machine$double.xmin)
+  if (max(gap, 0) <= 1e-9) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{.arg cell_polity} area categories must sum to
+     {.field polity_area_ha}.",
+    x = "{sum(gap > 1e-9)} row{?s} differ by more than 1e-9 relative
+         (worst {sprintf('%.3g', max(gap))}).",
+    i = "{.field {unname(cols)}} decompose {.field polity_area_ha}; they are
+         not independent of it."
+  ))
+}
+
+# The categories a consumer's scope resolves to, given how the table was
+# decomposed. Read from the table's own `method_area_split` so a consumer
+# cannot hardcode a label that silently stops matching.
+#
+# DA-14, decided 2026-08-06: "territory" -- land AND inland water AND ice -- is
+# the default, and it is a scientific position rather than a conservative one.
+# Nitrogen deposited on a lake or a glacier still drives indirect N2O and still
+# reaches the eutrophication pathway, so the impact terms have to account for
+# it; charging only the land share would discard real flux. "land" stays
+# selectable for the purposes that want the terrestrial surface alone.
+.nd_scope_categories <- function(scope, method) {
+  emitted <- .nd_emitted_categories(.nd_check_area_method(method))
+  if (scope == "territory") {
+    return(emitted)
+  }
+  if (!"land" %in% emitted) {
+    cli::cli_abort(c(
+      "Scope {.val land} needs a decomposed territory.",
+      x = "The deposition table records
+           {.code method_area_split = \"none\"}, which emits only
+           {.val {emitted}}.",
+      i = "Pass a {.arg cell_polity} carrying {.field land_area_ha},
+           {.field inland_water_ha} and {.field ice_area_ha}, or use scope
+           {.val territory}."
+    ))
+  }
+  "land"
+}
+
+# What a decomposition puts in `area_category`. "none" says the row is
+# undecomposed territory rather than claiming it is land, so the two are never
+# confusable after the fact.
+.nd_emitted_categories <- function(method) {
+  if (method == "none") {
+    "territory"
+  } else {
+    names(.nd_category_cols())
+  }
+}
+
+.nd_check_area_method <- function(method) {
+  method <- unique(method)
+  if (length(method) != 1L || !method %in% c("none", "land_water_ice")) {
+    cli::cli_abort("Unknown {.field method_area_split}: {.val {method}}.")
+  }
+  method
+}
+
 # Combine NHx + NOy mass, convert to a per-hectare rate using the true cell
 # area, and split that mass across the cell's polities by `polity_share`.
-.nd_assemble <- function(nhx, noy, polity, key) {
+.nd_assemble <- function(nhx, noy, polity, key, categories) {
   total <- dplyr::full_join(
     nhx,
     noy,
@@ -322,20 +496,24 @@ build_n_deposition <- function(
       # ~10% fall in every deposition total.
       deposition_n_t = .data$deposition_kgn_ha *
         .data$cell_area_ha *
-        .data$polity_share /
+        .data$polity_share *
+        .data$category_frac /
         1000,
       method_deposition = "hani",
-      method_polity_split = key
+      method_polity_split = key,
+      method_area_split = categories
     ) |>
     dplyr::select(
       "lon",
       "lat",
       "area_code",
       "year",
+      "area_category",
       "deposition_kgn_ha",
       "deposition_n_t",
       "method_deposition",
-      "method_polity_split"
+      "method_polity_split",
+      "method_area_split"
     )
 }
 
@@ -347,12 +525,19 @@ build_n_deposition <- function(
   )
 }
 
-# Toy fixture for the runnable example (one cell, one polity, one year).
+# Toy fixture for the runnable example (one cell, one polity, one year, its
+# territory 90% land / 8% inland water / 2% ice).
 .example_n_deposition <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~deposition_kgn_ha, ~deposition_n_t,
-    ~method_deposition, ~method_polity_split,
-    -0.25, -0.25, 1L, 2020L, 15, 46.2, "hani", "polity_area_ha"
+    ~lon, ~lat, ~area_code, ~year, ~area_category, ~deposition_kgn_ha,
+    ~deposition_n_t, ~method_deposition, ~method_polity_split,
+    ~method_area_split,
+    -0.25, -0.25, 1L, 2020L, "land", 15, 41.58, "hani", "polity_area_ha",
+    "land_water_ice",
+    -0.25, -0.25, 1L, 2020L, "inland_water", 15, 3.696, "hani",
+    "polity_area_ha", "land_water_ice",
+    -0.25, -0.25, 1L, 2020L, "ice", 15, 0.924, "hani", "polity_area_ha",
+    "land_water_ice"
   ) |>
     .add_reporting_polity_columns()
 }

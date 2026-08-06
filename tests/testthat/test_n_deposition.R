@@ -775,3 +775,338 @@ testthat::test_that("C3a: each cell is partitioned on its own, not with its neig
   )
   testthat::expect_equal(sort(per_cell$m), c(1000, 3000))
 })
+
+# ---- C3b: the polycell's share decomposed over land, water and ice -----
+#
+# DA-10 treats the HaNi cell value as a mass of deposition to land in that
+# cell, allocates it across the cell's polycells in proportion to territory
+# (C3a), and reports the land, inland-water and ice shares SEPARATELY. C3b
+# adds that decomposition. DA-14 leaves open whether the nitrogen ledger
+# should then take only the terrestrial share; nothing here decides it.
+#
+# The fixture is built so that the two failure modes this step can hide are
+# both visible:
+#
+#   * computing the land fraction on the CELL instead of on the polycell.
+#     Every polity of cell 1 would take 77.5% of its mass as land, which
+#     reproduces the correct GLOBAL land total to the tonne (3625 t either
+#     way) while moving 405 t between three polities. Only the per-polity
+#     figures separate the two, so those are what is asserted.
+#   * a decomposition that does not sum back to the polycell's own share,
+#     which loses or creates mass behind three individually plausible
+#     categories.
+#
+# So the polities of cell 1 hold territory that is 100%, 50% and 25% land,
+# and cell 2's hold 60% and 100%.
+
+.nd_c3b_cell_polity <- function() {
+  # The C3a fixture, with each polity's territory decomposed. polity_frac,
+  # cell_area_ha and polity_area_ha are unchanged, so the C3a numbers stay
+  # directly comparable and any movement is the decomposition's alone.
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~polity_frac,
+    ~cell_area_ha,
+    ~polity_area_ha,
+    ~land_area_ha,
+    ~inland_water_ha,
+    ~ice_area_ha,
+    -0.25, -0.25, 1L, 0.5, 308000, 120000, 120000, 0, 0,
+    -0.25, -0.25, 2L, 0.3, 308000, 60000, 30000, 30000, 0,
+    -0.25, -0.25, 3L, 0.2, 308000, 20000, 5000, 5000, 10000,
+    0.25, 59.75, 4L, 0.6, 155000, 35000, 21000, 7000, 7000,
+    0.25, 59.75, 5L, 0.4, 155000, 105000, 105000, 0, 0,
+    0.75, 0.25, 6L, 1.0, 308000, 250000, 200000, 50000, 0
+  )
+}
+
+.nd_c3b_build <- function(cell_polity = .nd_c3b_cell_polity(), ...) {
+  whep::build_n_deposition(
+    data = list(
+      nhx = .nd_c0_nhx(),
+      noy = .nd_c0_noy(),
+      cell_polity = cell_polity
+    ),
+    ...
+  )
+}
+
+# One column per category, ordered so a pinned vector stays readable.
+.nd_c3b_wide <- function(out) {
+  out |>
+    dplyr::select(area_code, area_category, deposition_n_t) |>
+    tidyr::pivot_wider(
+      names_from = area_category,
+      values_from = deposition_n_t
+    ) |>
+    dplyr::arrange(area_code)
+}
+
+testthat::test_that("C3b: the three categories conserve the source mass", {
+  out <- .nd_c3b_build()
+  source_g <- sum(.nd_c0_nhx()$value_g) + sum(.nd_c0_noy()$value_g)
+
+  testthat::expect_setequal(
+    unique(out$area_category),
+    c("land", "inland_water", "ice")
+  )
+  testthat::expect_identical(nrow(out), 18L)
+  # DA-18's locked 1e-9 relative bound, on the same source mass C3a's single
+  # category conserved. A decomposition redistributes within the polycell.
+  testthat::expect_equal(
+    sum(out$deposition_n_t) * 1e6,
+    source_g,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    sum(out$deposition_n_t),
+    sum(.nd_c3a_build()$deposition_n_t),
+    tolerance = 1e-9
+  )
+  # And it conserves per polycell, not merely in the global total: each
+  # polity's three categories add back to exactly the share C3a gave it.
+  per_polycell <- dplyr::summarise(
+    out,
+    m = sum(deposition_n_t),
+    .by = c(lon, lat, area_code)
+  )
+  testthat::expect_equal(
+    dplyr::arrange(per_polycell, area_code)$m,
+    dplyr::arrange(.nd_c3a_build(), area_code)$deposition_n_t,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("C3b: each category is the polycell's share, not the cell's", {
+  wide <- .nd_c3b_wide(.nd_c3b_build())
+
+  testthat::expect_equal(wide$land, c(1800, 450, 75, 150, 750, 400))
+  testthat::expect_equal(wide$inland_water, c(0, 450, 75, 50, 0, 100))
+  testthat::expect_equal(wide$ice, c(0, 0, 150, 50, 0, 0))
+  # The trap this fixture exists for: a land fraction taken over the whole
+  # cell gives 0.775 to all three polities of cell 1 (1395 / 697.5 / 232.5)
+  # and 0.9 to both of cell 2 (225 / 675). Those reproduce the global land
+  # total of 3625 t exactly, so a test on the total alone passes while
+  # 405 t sits in the wrong polities.
+  testthat::expect_equal(sum(wide$land), 3625)
+  testthat::expect_false(isTRUE(all.equal(
+    wide$land,
+    c(1395, 697.5, 232.5, 225, 675, 400)
+  )))
+  testthat::expect_equal(sum(wide$inland_water), 675)
+  testthat::expect_equal(sum(wide$ice), 200)
+})
+
+testthat::test_that("C3b: the rate is untouched by the decomposition", {
+  out <- .nd_c3b_build()
+  undecomposed <- .nd_c3a_build()
+
+  # AM-5 risk 1, in its C3b form: referencing the rate to the land the mass
+  # falls on would give a cell's polities three different rates AND make the
+  # ledger's rate x area recover the cell mass once per polity. The rate is
+  # a whole-cell mean, so it is the same on every category row of every
+  # polity of a cell -- and bit-identical to the undecomposed path's.
+  per_cell <- dplyr::summarise(
+    out,
+    n_rates = dplyr::n_distinct(deposition_kgn_ha),
+    .by = c(lon, lat)
+  )
+  testthat::expect_true(all(per_cell$n_rates == 1L))
+  joined <- dplyr::inner_join(
+    dplyr::filter(out, area_category == "land"),
+    dplyr::select(
+      undecomposed,
+      lon,
+      lat,
+      area_code,
+      rate_c3a = deposition_kgn_ha
+    ),
+    by = c("lon", "lat", "area_code")
+  )
+  testthat::expect_identical(joined$deposition_kgn_ha, joined$rate_c3a)
+  testthat::expect_equal(
+    unique(out$deposition_kgn_ha[out$area_code == 1L]),
+    3e9 / 1000 / 308000
+  )
+})
+
+testthat::test_that("C3b: the decomposition is a share, not an area", {
+  # Scaling every category and the territory together leaves the categories
+  # alone. This fails the moment an absolute hectare figure is substituted
+  # for the fraction, the same way C3a's scaling test guards the split key.
+  scaled <- .nd_c3b_build(
+    dplyr::mutate(
+      .nd_c3b_cell_polity(),
+      dplyr::across(
+        c(polity_area_ha, land_area_ha, inland_water_ha, ice_area_ha),
+        function(x) x * 7.5
+      )
+    )
+  )
+
+  testthat::expect_equal(scaled$deposition_n_t, .nd_c3b_build()$deposition_n_t)
+})
+
+testthat::test_that("C3b: category selection is explicit and recorded", {
+  decomposed <- .nd_c3b_build()
+  undecomposed <- .nd_c3a_build()
+
+  # A support carrying the three columns decomposes unless told otherwise.
+  testthat::expect_true(all(decomposed$method_area_split == "land_water_ice"))
+  testthat::expect_identical(
+    .nd_c3b_build(categories = "land_water_ice"),
+    decomposed
+  )
+  # A support that cannot be decomposed says so rather than calling its one
+  # undecomposed row "land", which would be a claim it cannot support.
+  testthat::expect_true(all(undecomposed$method_area_split == "none"))
+  testthat::expect_true(all(undecomposed$area_category == "territory"))
+  # "none" is reachable by name on a support that could decompose, so the
+  # two views are comparable on identical input.
+  none <- .nd_c3b_build(categories = "none")
+  testthat::expect_true(all(none$area_category == "territory"))
+  testthat::expect_equal(none$deposition_n_t, undecomposed$deposition_n_t)
+  # Asking for the decomposition without the columns aborts instead of
+  # quietly returning one undecomposed row per polycell, which would be
+  # indistinguishable from a decomposition whose water and ice were zero.
+  testthat::expect_error(
+    .nd_c3a_build(categories = "land_water_ice"),
+    "Missing columns.*cell_polity"
+  )
+  testthat::expect_error(
+    .nd_c3a_build(categories = "land_water_ice"),
+    "land_area_ha"
+  )
+  testthat::expect_error(.nd_c3b_build(categories = "terrestrial"))
+})
+
+testthat::test_that("C3b: a decomposition not summing to the territory aborts", {
+  cp <- .nd_c3b_cell_polity()
+
+  # S-A1. Categories that do not add up to polity_area_ha are not a
+  # decomposition of it: the shares would not sum to the polycell's own, so
+  # the cell's mass would be silently lost or duplicated behind three
+  # individually plausible numbers.
+  testthat::expect_error(
+    .nd_c3b_build(dplyr::mutate(cp, ice_area_ha = ice_area_ha + 1)),
+    "must sum to"
+  )
+  testthat::expect_error(
+    .nd_c3b_build(dplyr::mutate(cp, land_area_ha = land_area_ha * 0.5)),
+    "must sum to"
+  )
+  # 1e-9 relative is DA-18's bound, and it is a bound rather than a
+  # formality: float noise at that scale passes.
+  testthat::expect_no_error(
+    .nd_c3b_build(dplyr::mutate(
+      cp,
+      land_area_ha = land_area_ha * (1 + 1e-12)
+    ))
+  )
+})
+
+testthat::test_that("C3b: an unusable category column aborts", {
+  cp <- .nd_c3b_cell_polity()
+
+  testthat::expect_error(
+    .nd_c3b_build(dplyr::mutate(
+      cp,
+      land_area_ha = dplyr::if_else(area_code == 2L, NA_real_, land_area_ha)
+    )),
+    "land_area_ha.*finite"
+  )
+  # A negative category still summing to the territory would let one
+  # category borrow mass from another with conservation intact, so the sum
+  # check alone cannot see it.
+  testthat::expect_error(
+    .nd_c3b_build(dplyr::mutate(
+      cp,
+      inland_water_ha = inland_water_ha - 1000,
+      ice_area_ha = ice_area_ha + 1000
+    )),
+    "inland_water_ha.*finite"
+  )
+})
+
+testthat::test_that("C3b: a polycell holding no territory yields no NaN", {
+  # A zero-territory polycell takes no mass, so its category fraction is
+  # 0 / 0. Left as NaN it would turn every downstream sum into NA while the
+  # per-row values still looked fine.
+  cp <- dplyr::mutate(
+    .nd_c3b_cell_polity(),
+    dplyr::across(
+      c(polity_area_ha, land_area_ha, inland_water_ha, ice_area_ha),
+      function(x) dplyr::if_else(area_code == 3L, 0, x)
+    )
+  )
+  out <- .nd_c3b_build(cp)
+
+  testthat::expect_false(anyNA(out$deposition_n_t))
+  testthat::expect_equal(out$deposition_n_t[out$area_code == 3L], c(0, 0, 0))
+  # Cell 1's territory is now 180,000 ha over two polities, so its 3000 t
+  # goes 2000 / 1000 and none of it disappears.
+  testthat::expect_equal(sum(out$deposition_n_t) * 1e6, 4.5e9)
+  testthat::expect_equal(
+    dplyr::filter(out, area_code == 1L, area_category == "land")$deposition_n_t,
+    2000
+  )
+})
+
+testthat::test_that("C3b: a scope resolves to categories, per decomposition", {
+  # .n_inputs_deposition() reads the labels from the table's own
+  # method_area_split rather than hardcoding them, so a table produced under
+  # either decomposition resolves to the categories its scope covers.
+  #
+  # DA-14, decided 2026-08-06: "territory" is the DEFAULT and covers all
+  # three. Deposition on inland water and on ice is real flux driving
+  # indirect N2O and the eutrophication pathway; it is not discardable.
+  testthat::expect_identical(
+    whep:::.nd_scope_categories("territory", "land_water_ice"),
+    c("land", "inland_water", "ice")
+  )
+  testthat::expect_identical(
+    whep:::.nd_scope_categories("territory", "none"),
+    "territory"
+  )
+  testthat::expect_identical(
+    whep:::.nd_scope_categories("land", "land_water_ice"),
+    "land"
+  )
+  # No silent fallback: a support that never decomposed its territory cannot
+  # serve the land scope, and returning its undecomposed row under a "land"
+  # label would be a claim it cannot support.
+  testthat::expect_error(
+    whep:::.nd_scope_categories("land", "none"),
+    "needs a decomposed territory"
+  )
+  # An unrecognised method aborts. Silently returning NA would make the
+  # ledger's filter match nothing, which under .ni_empty() semantics reads
+  # as "no deposition input" rather than as a defect.
+  testthat::expect_error(
+    whep:::.nd_scope_categories("territory", "land"),
+    "Unknown.*method_area_split"
+  )
+  testthat::expect_error(
+    whep:::.nd_scope_categories(
+      "territory",
+      c("none", "land_water_ice")
+    ),
+    "Unknown.*method_area_split"
+  )
+})
+
+testthat::test_that("C3b: the land scope reproduces the measured land share", {
+  # The mirror of the default. On the C3b fixture the three categories carry
+  # 3625 / 675 / 200 t of the 4500 t source, so the land scope is 80.556% of
+  # the territory scope. The same construction measured 60.7385 Tg of 61.6285
+  # Tg on real 2014 HaNi input (AM-30), a 1.444% fall -- the number DA-14
+  # declined to take, pinned here so both scopes stay reproducible.
+  wide <- .nd_c3b_wide(.nd_c3b_build())
+  total <- sum(wide$land) + sum(wide$inland_water) + sum(wide$ice)
+
+  testthat::expect_equal(total, 4500)
+  testthat::expect_equal(sum(wide$land) / total, 0.8055555555555556)
+  testthat::expect_equal(1 - sum(wide$land) / total, 0.19444444444444442)
+})

@@ -1405,7 +1405,17 @@ utils::globalVariables(
     "deposition_n_t",
     "method_deposition",
     "method_polity_split",
+    "method_area_split",
     "polity_share",
+    "area_category",
+    "category_area_ha",
+    "category_frac",
+    "method_deposition_scope",
+    "scope_frac",
+    "rate_spread",
+    "in_scope_n_t",
+    "scope_n_t",
+    "total_n_t",
     # hyde_population.R (Module C, Task C3) — gridded HYDE population NSE
     # columns
     "urban_pop",

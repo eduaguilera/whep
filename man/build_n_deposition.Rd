@@ -8,6 +8,7 @@ build_n_deposition(
   years = NULL,
   data = list(),
   split = c("auto", "polity_area_ha", "polity_frac"),
+  categories = c("auto", "land_water_ice", "none"),
   example = FALSE
 )
 }
@@ -27,18 +28,32 @@ that key and abort when it is absent. The resolved key is recorded in the
 \code{method_polity_split} output column, so a table's split is readable from
 the table.}
 
+\item{categories}{How each polity's share is decomposed over the territory
+it lands on: \code{"auto"} (default) decomposes when the support carries
+\code{land_area_ha}, \code{inland_water_ha} and \code{ice_area_ha} and emits the single
+\code{"territory"} category otherwise, \code{"land_water_ice"} demands those columns
+and aborts when they are absent, \code{"none"} keeps one undecomposed row per
+polycell. The resolved choice is recorded in \code{method_area_split}.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year},
-\code{deposition_kgn_ha}, \code{deposition_n_t}, \code{method_deposition} and
-\code{method_polity_split}, plus the polity columns below.
+A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{area_category},
+\code{deposition_kgn_ha}, \code{deposition_n_t}, \code{method_deposition},
+\code{method_polity_split} and \code{method_area_split}, plus the polity columns
+below.
+
+\code{area_category} is \code{"land"}, \code{"inland_water"} or \code{"ice"} under
+\code{"land_water_ice"}, and \code{"territory"} under \code{"none"}. Summing
+\code{deposition_n_t} over the categories of a polycell recovers that
+polycell's whole share, so an unfiltered sum over the table is still the
+source mass; a consumer wanting one category \strong{must filter}.
 
 \code{deposition_kgn_ha} is the whole-cell mean rate: the cell's total mass
-over its whole area, so every polity of a cell carries the same rate and
-the rate is \strong{not} conserved on re-aggregation. Only \code{deposition_n_t} is
-a mass.
+over its whole area, so every polity of a cell carries the same rate on
+every category row and the rate is \strong{not} conserved on re-aggregation.
+Only \code{deposition_n_t} is a mass.
 
 Rows are keyed on \code{area_code}. \code{build_polycell_support()} keys on
 \code{polity_code} and does not derive the reporting vocabulary (DA-23), and
@@ -61,6 +76,14 @@ is quantised to 1/36 of a cell; it stays selectable so the two partitions
 can be compared, and it is what a support table carrying no
 \code{polity_area_ha} is split by. Either way the split is a share of the cell,
 so the source mass is redistributed and never created or destroyed.
+
+Each polity's share is then decomposed over the territory it lands on:
+land, inland water and ice, the three separately addressable categories
+\code{build_polycell_support()} carries. Deposition to freshwater is a real flux
+on the eutrophication pathway rather than a rounding error, so the three are
+reported side by side and the consumer chooses. A support with no category
+columns cannot be decomposed and carries the single \code{"territory"} category,
+which says the row is undecomposed rather than claiming it is land.
 }
 \section{Polity columns}{
 
