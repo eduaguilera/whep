@@ -34,8 +34,12 @@
 #'   case-insensitively), and `territory` a stringified `area_code` -- an
 #'   `iso3c` literal is still resolved but deprecated, see
 #'   [estimate_n_excretion()]);
-#'   `country_grid` and `crop_patterns` (the spatialization inputs,
-#'   `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area` (the
+#'   `country_grid`, the polycell support resolved to one row per cell and
+#'   `area_code` (`lon`, `lat`, `area_code`, `cell_area_frac`, the polycell's
+#'   share of the cell's land), refused when a cell-`area_code` group is
+#'   duplicated or `NA` (DA-23);
+#'   `crop_patterns` (the spatialization input carrying per-cell
+#'   `crop_area_ha`); `harvested_area` (the
 #'   FAOSTAT national harvested area per `area_code`, `item_prod_code`, `year`
 #'   in a `faostat_area_ha` column, used to renormalize each polity-crop-year's
 #'   spatialized cell area to the national total so per-hectare densities are
@@ -327,9 +331,10 @@ build_soil_carbon_inputs <- function(
   invisible(lost)
 }
 
-# Per-cell harvested area of each crop, scaled by the cell's land fraction.
+# Per-cell harvested area of each crop, split between the cell's polycells by
+# their share of the cell's land.
 .sci_cell_crop_area <- function(country_grid, crop_patterns) {
-  grid <- .normalize_country_grid(country_grid) |>
+  grid <- .normalize_carbon_support(country_grid) |>
     dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2))
   crop_patterns |>
     dplyr::mutate(
@@ -646,9 +651,13 @@ build_soil_carbon_inputs <- function(
     )
 }
 
-# The cell -> polity crosswalk from the spatialization country grid.
+# The carbon path's shared polycell support (see `.carbon_cell_support()` in
+# R/carbon_balance.R). Its `cell_area_frac` is the polycell's share of the
+# cell's LAND, which is the fraction a whole-cell crop area must be split by --
+# never `land_area_ha / cell_area_ha`, which would remove the water twice from
+# an already land-only quantity.
 .sci_read_country_grid <- function() {
-  whep_read_file("spatialize-country-grid")
+  .carbon_cell_support()
 }
 
 # Per-cell crop harvested area (ha) used to grid the polity-crop carbon masses.

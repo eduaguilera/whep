@@ -30,7 +30,16 @@ and \code{irrig} (LPJmL monthly, \code{lon}, \code{lat}, \code{year}, \code{mont
 \code{clay_pct}, required), \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, the polity
 crosswalk, required) and \code{soil_hydraulic} (\code{lon}, \code{lat}, \code{t_field},
 \code{t_wilt}, \code{porosity}; falls back to \code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}}, cropped to
-\code{cell_polity} when supplied).}
+\code{cell_polity} when supplied).
+
+\code{cell_polity} is used only to \strong{label} each cell with an \code{area_code} and
+to restrict the grid to the cells it covers; no quantity here is ever
+multiplied by an area. It therefore decides this function's \strong{footprint},
+and callers that pass different crosswalks get different footprints from
+one function. The carbon path passes the polycell support
+(\code{\link[=build_polycell_support]{build_polycell_support()}}, via \code{\link[=read_polycell_support]{read_polycell_support()}}); the water path
+still passes \code{\link[=build_cell_polity]{build_cell_polity()}} until it migrates, so the two footprints
+differ by the crosswalks' own difference until then.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}

@@ -898,3 +898,171 @@ test_that("progress feedback is on for real runs, off under testthat", {
   withr::local_envvar(TESTTHAT = "true")
   testthat::expect_false(whep:::.cb_show_progress())
 })
+
+# -- C7: the carbon path's shared polycell support ----------------------------
+
+# A three-polity cell (one polity holding most of the land) plus a whole-cell
+# polity, with land well short of the cell area so a `land_area_ha /
+# cell_area_ha` share is distinguishable from a land share.
+.c7_support_fixture <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~polity_code,
+    ~area_code,
+    ~cell_area_ha,
+    ~land_area_ha,
+    ~start_year,
+    ~end_year,
+    0.25, 40.25, "AAA-1900-2025", 1L, 100000, 20000, 1900L, 2025L,
+    0.25, 40.25, "BBB-1900-2025", 2L, 100000, 60000, 1900L, 2025L,
+    0.75, 40.25, "AAA-1900-2025", 1L, 100000, 40000, 1900L, 2025L
+  )
+}
+
+test_that("C7: cell_area_frac is a share of the cell's LAND, not of the cell", {
+  # AM-5 risk 3. Everything this fraction splits is already land-only, so
+  # `land_area_ha / cell_area_ha` would remove the water twice -- and would stay
+  # invisible, because per-polity shares still make national totals add up.
+  out <- whep:::.carbon_cell_support(.c7_support_fixture(), year = 2000L)
+  whole <- dplyr::filter(out, lon == 0.75)
+  testthat::expect_equal(whole$cell_area_frac, 1)
+  testthat::expect_false(isTRUE(all.equal(
+    whole$cell_area_frac,
+    whole$land_area_ha / whole$cell_area_ha
+  )))
+  shared <- dplyr::filter(out, lon == 0.25)
+  testthat::expect_equal(sort(shared$cell_area_frac), c(0.25, 0.75))
+})
+
+test_that("C7: the land shares of a cell sum to exactly one", {
+  out <- whep:::.carbon_cell_support(.c7_support_fixture(), year = 2000L)
+  totals <- out |>
+    dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(totals, rep(1, length(totals)))
+})
+
+test_that("C7: the support is resolved at one reference year", {
+  support <- dplyr::bind_rows(
+    dplyr::mutate(.c7_support_fixture(), start_year = 1900L, end_year = 1950L),
+    dplyr::mutate(
+      .c7_support_fixture(),
+      polity_code = "CCC-1950-2025",
+      area_code = c(9L, 10L, 9L),
+      start_year = 1950L,
+      end_year = 2025L
+    )
+  )
+  early <- whep:::.carbon_cell_support(support, year = 1920L)
+  late <- whep:::.carbon_cell_support(support, year = 2000L)
+  testthat::expect_setequal(early$area_code, c(1L, 2L))
+  testthat::expect_setequal(late$area_code, c(9L, 10L))
+  testthat::expect_equal(whep:::.carbon_support_year(), 2015L)
+})
+
+test_that("C7: polycells with no area_code are reported, never folded", {
+  support <- dplyr::mutate(
+    .c7_support_fixture(),
+    area_code = c(NA_integer_, 2L, 1L)
+  )
+  testthat::expect_warning(
+    out <- whep:::.carbon_cell_support(support, year = 2000L),
+    "no .*area_code"
+  )
+  testthat::expect_setequal(out$area_code, c(1L, 2L))
+  # The unkeyable polity's 20,000 ha is LOST, not handed to its neighbour: the
+  # survivor keeps its true 0.75 land share instead of being renormalised to 1.
+  shared <- dplyr::filter(out, lon == 0.25)
+  testthat::expect_equal(shared$land_area_ha, 60000)
+  testthat::expect_equal(shared$cell_area_frac, 0.75)
+})
+
+test_that("C7: two polity codes on one area_code are summed and reported", {
+  support <- dplyr::mutate(.c7_support_fixture(), area_code = c(206L, 206L, 1L))
+  testthat::expect_warning(
+    out <- whep:::.carbon_cell_support(support, year = 2000L),
+    "fold more than one"
+  )
+  folded <- dplyr::filter(out, lon == 0.25)
+  testthat::expect_equal(nrow(folded), 1L)
+  testthat::expect_equal(folded$land_area_ha, 80000)
+})
+
+test_that("C7: a cell holding no land carries no carbon support", {
+  support <- dplyr::mutate(.c7_support_fixture(), land_area_ha = c(0, 0, 40000))
+  testthat::expect_warning(
+    out <- whep:::.carbon_cell_support(support, year = 2000L),
+    "hold no land"
+  )
+  testthat::expect_setequal(out$lon, 0.75)
+})
+
+test_that("C7: a support that is not one row per cell-area_code is refused", {
+  # DA-23, the pattern C3a used: the fold belongs at the boundary that can
+  # report it, never inside a consumer where it looks like a partition.
+  dup <- dplyr::mutate(.c7_support_fixture(), area_code = c(206L, 206L, 1L))
+  testthat::expect_error(
+    whep:::.normalize_carbon_support(dup),
+    "one row per cell"
+  )
+  missing <- dplyr::mutate(
+    .c7_support_fixture(),
+    area_code = c(NA_integer_, 2L, 1L)
+  )
+  testthat::expect_error(
+    whep:::.normalize_carbon_support(missing),
+    "one row per cell"
+  )
+})
+
+test_that("C7: the whole carbon path resolves one support, not several", {
+  # AM-5 risk 2: a half-migrated path surfaces as an ordinary climate-coverage
+  # warning from `.cb_drop_uncovered_climate()`, not as an error. This pins that
+  # every default reader on the path goes through the same helper, so leaving
+  # one on the centroid grid cannot pass.
+  calls <- character()
+  testthat::local_mocked_bindings(
+    .carbon_cell_support = function(...) {
+      calls <<- c(calls, "support")
+      tibble::tibble(
+        lon = 0.25,
+        lat = 40.25,
+        area_code = 1L,
+        cell_area_ha = 100000,
+        land_area_ha = 20000,
+        cell_area_frac = 1
+      )
+    },
+    .package = "whep"
+  )
+  outs <- list(
+    whep:::.luh2_read_country_grid(),
+    whep:::.gn_read_country_grid(),
+    whep:::.sci_read_country_grid(),
+    whep:::.cb_read_cell_polity()
+  )
+  for (out in outs) {
+    testthat::expect_true(all(c("lon", "lat", "area_code") %in% names(out)))
+  }
+  testthat::expect_equal(length(calls), 4L)
+})
+
+test_that("C7: the climate-driver feed is the polycell footprint", {
+  # `get_soc_climate_drivers()` uses `cell_polity` only to label and restrict,
+  # never to multiply, so this feed IS the carbon path's footprint.
+  testthat::local_mocked_bindings(
+    .carbon_cell_support = function(...) {
+      tibble::tribble(
+        ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+        0.25, 40.25, 1L, 100000, 20000, 0.25,
+        0.25, 40.25, 2L, 100000, 60000, 0.75
+      )
+    },
+    .package = "whep"
+  )
+  out <- whep:::.cb_read_cell_polity()
+  testthat::expect_equal(names(out), c("lon", "lat", "area_code"))
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_setequal(out$area_code, c(1L, 2L))
+})

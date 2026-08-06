@@ -640,24 +640,39 @@
 }
 
 # Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
-# four carbon-balance classes. Per cell the four fractions tile to 1 and
-# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
-# output at "grid" resolution.
+# four carbon-balance classes. Sampled from a real
+# read_luh2_landuse(resolution = "grid", years = 2015) run on the LUH2-GCB2022
+# states and the polycell support, so it shows what the schema really looks
+# like: cell (9.25, 47.75) is a BORDER cell, shared between Germany (79) and
+# Switzerland (211), whose two polycells carry the SAME `fraction` -- LUH2's
+# share of the whole cell -- and different `area_ha`, each class's share of that
+# cell's LUH2 land spread over its own polycell's measured land.
 .example_luh2_landuse <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
-    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
-    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
-    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
-    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
-    35.25, -1.25, 79L, 2000L, "cropland", 0.30, 92709.98,
-    35.25, -1.25, 79L, 2000L, "grassland", 0.25, 77258.31,
-    35.25, -1.25, 79L, 2000L, "natural", 0.40, 123613.30,
-    35.25, -1.25, 79L, 2000L, "urban", 0.05, 15451.66,
-    9.25, 47.75, 11L, 2000L, "cropland", 0.25, 51958.29,
-    9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
-    9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
-    9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~year,
+    ~land_use,
+    ~fraction,
+    ~area_ha,
+    ~method_land_area,
+    -3.25, 40.25, 203L, 2015L, "cropland", 0.4717921, 111305.54, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "grassland", 0.2671119, 63017.22, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "natural", 0.2285400, 53917.33, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "urban", 0.0325560, 7680.63, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "cropland", 0.2331222, 33737.83, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "grassland", 0.2005688, 29026.65, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "natural", 0.3654755, 52892.21, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "urban", 0.0498313, 7211.67, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "cropland", 0.2331222, 14178.27, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "grassland", 0.2005688, 12198.40, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "natural", 0.3654755, 22227.86, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "urban", 0.0498313, 3030.69, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "cropland", 0.1634304, 50505.91, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "grassland", 0.4838348, 149522.47, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "natural", 0.3527347, 109007.80, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "urban", 0.0000000, 0.00, "polycell_land"
   ) |>
     .add_reporting_polity_columns()
 }

@@ -71,6 +71,19 @@ applying the model annual update plus a carbon-conserving land-use-change
 transfer, and derive the soil-organic-nitrogen change from the carbon rate
 via asymmetric soil carbon-to-nitrogen ratios.
 }
+\section{Spatial support}{
+
+Every default reader on the carbon path -- the land-use areas, the carbon
+inputs, the climate drivers and the clay -- resolves its cell-to-polity table
+through one polycell support (\code{\link[=read_polycell_support]{read_polycell_support()}}), read at a static
+reference year. A cell shared between polities therefore delivers to each
+only the land it holds there, and no reader can be left on a different
+crosswalk: half the path on one footprint and half on another would surface
+as an ordinary climate-coverage warning from the modifier join, not as an
+error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
+and dropped, never folded into another polity's.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

@@ -24,8 +24,12 @@ per \code{area_code}, \code{item_prod_code}, \code{year}, columns \code{residue_
 case-insensitively), and \code{territory} a stringified \code{area_code} -- an
 \code{iso3c} literal is still resolved but deprecated, see
 \code{\link[=estimate_n_excretion]{estimate_n_excretion()}});
-\code{country_grid} and \code{crop_patterns} (the spatialization inputs,
-\code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{harvested_area} (the
+\code{country_grid}, the polycell support resolved to one row per cell and
+\code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, the polycell's
+share of the cell's land), refused when a cell-\code{area_code} group is
+duplicated or \code{NA} (DA-23);
+\code{crop_patterns} (the spatialization input carrying per-cell
+\code{crop_area_ha}); \code{harvested_area} (the
 FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}
 in a \code{faostat_area_ha} column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are
