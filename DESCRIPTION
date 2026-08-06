@@ -34,7 +34,6 @@ Imports:
     readr,
     rlang,
     scales,
-    sf,
     stringr,
     tibble,
     tidyr,
@@ -63,6 +62,7 @@ Suggests:
     readxl,
     rmarkdown,
     RSQLite,
+    sf,
     terra,
     testthat (>= 3.0.0),
     zip
