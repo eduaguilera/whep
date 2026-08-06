@@ -393,6 +393,24 @@ testthat::test_that("C0: deposition mass conservation is inherited, not enforced
   testthat::expect_equal(sum(out$deposition_n_t) * 1e6, 0.9 * 3e9)
 })
 
+testthat::test_that("C0: the transitional key is still reachable by name", {
+  # `split = "polity_frac"` is what an unmigrated consumer keeps, so the C0
+  # numbers above must remain reproducible by asking for that key explicitly,
+  # not only by being handed a support that carries nothing else.
+  auto <- .nd_c0_build()
+  named <- whep::build_n_deposition(
+    data = list(
+      nhx = .nd_c0_nhx(),
+      noy = .nd_c0_noy(),
+      cell_polity = .nd_c0_cell_polity()
+    ),
+    split = "polity_frac"
+  )
+
+  testthat::expect_identical(named, auto)
+  testthat::expect_true(all(auto$method_polity_split == "polity_frac"))
+})
+
 testthat::test_that("C0: a HaNi cell absent from the crosswalk is dropped silently", {
   # R/n_deposition.R:194 joins with dplyr::inner_join(), so deposition
   # mass over a cell the crosswalk does not carry disappears with no
@@ -414,4 +432,346 @@ testthat::test_that("C0: a HaNi cell absent from the crosswalk is dropped silent
   # 1.2e9 g of the fixture's 4.5e9 lands on cells the crosswalk lacks and
   # is lost without trace.
   testthat::expect_equal(sum(out$deposition_n_t) * 1e6, 3e9)
+})
+
+# ---- C3a: the split key moves from polity_frac to polity_area_ha -------
+#
+# C3a swaps ONLY the partition the cell's deposited mass is split by: from
+# `polity_frac`, a subcell count quantised to 1/36 of a cell, to the share of
+# the cell's territory each polity holds, as build_polycell_support() measures
+# it geodesically. No category split (that is C3b), no new denominator.
+#
+# The fixture below deliberately makes the two partitions DISAGREE, and makes
+# the cell's territory sum to well under the whole cell -- 200,000 of 308,000
+# ha in the three-polity cell -- because both of the migration's silent
+# failure modes are invisible unless it does:
+#
+#   * dividing the allocated mass by each polycell's OWN territory gives every
+#     polity of a shared cell its own plausible rate and lets rate x area
+#     recover the whole cell mass once per polity;
+#   * splitting by `polity_area_ha / cell_area_ha` instead of by the polity's
+#     share of the cell's territory sheds the non-territorial fraction, which
+#     moves the global total DOWN by about the land fraction -- the direction
+#     a reviewer expects a genuine fix to move it.
+#
+# Mass conservation is the invariant that separates a partition swap from
+# either of those: a partition redistributes and never creates or destroys.
+
+.nd_c3a_cell_polity <- function() {
+  # Same cells, same polity_frac and cell_area_ha as the C0 fixture, so the
+  # legacy path stays comparable, plus the geodesic territory each polity
+  # holds. Shares by area are 0.6/0.3/0.1, 0.25/0.75 and 1.0 against
+  # polity_frac's 0.5/0.3/0.2, 0.6/0.4 and 1.0: two rows move up, two move
+  # down, one multi-polity row (area_code 2) is deliberately unmoved, and the
+  # single-polity cell cannot move at all.
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha, ~polity_area_ha,
+    -0.25, -0.25, 1L, 0.5, 308000, 120000,
+    -0.25, -0.25, 2L, 0.3, 308000, 60000,
+    -0.25, -0.25, 3L, 0.2, 308000, 20000,
+    0.25, 59.75, 4L, 0.6, 155000, 35000,
+    0.25, 59.75, 5L, 0.4, 155000, 105000,
+    0.75, 0.25, 6L, 1.0, 308000, 250000
+  )
+}
+
+.nd_c3a_build <- function(cell_polity = .nd_c3a_cell_polity(), ...) {
+  whep::build_n_deposition(
+    data = list(
+      nhx = .nd_c0_nhx(),
+      noy = .nd_c0_noy(),
+      cell_polity = cell_polity
+    ),
+    ...
+  )
+}
+
+.nd_c3a_total_g <- function() {
+  dplyr::mutate(
+    dplyr::full_join(
+      .nd_c0_nhx(),
+      .nd_c0_noy(),
+      by = c("lon", "lat", "year"),
+      suffix = c("_nhx", "_noy")
+    ),
+    value_g_total = dplyr::coalesce(value_g_nhx, 0) +
+      dplyr::coalesce(value_g_noy, 0)
+  )
+}
+
+testthat::test_that("C3a: the area split conserves the source mass exactly", {
+  out <- .nd_c3a_build()
+  source_g <- sum(.nd_c0_nhx()$value_g) + sum(.nd_c0_noy()$value_g)
+
+  testthat::expect_equal(source_g, 4.5e9)
+  # DA-18's locked 1e-9 relative bound. A partition swap redistributes: any
+  # movement in this total is a defect, not a result.
+  testthat::expect_equal(
+    sum(out$deposition_n_t) * 1e6,
+    source_g,
+    tolerance = 1e-9
+  )
+  # And the same total the transitional key gives, cell by cell. Splitting by
+  # `polity_area_ha / cell_area_ha` would pass a per-cell-share test and fail
+  # this one, having quietly shed the 35% of the three-polity cell that is
+  # not territory.
+  legacy <- .nd_c3a_build(split = "polity_frac")
+  per_cell <- function(x) {
+    dplyr::arrange(
+      dplyr::summarise(x, m = sum(deposition_n_t), .by = c(lon, lat)),
+      lon,
+      lat
+    )
+  }
+  testthat::expect_equal(per_cell(out)$m, per_cell(legacy)$m, tolerance = 1e-9)
+  testthat::expect_equal(
+    sum(out$deposition_n_t),
+    sum(legacy$deposition_n_t),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("C3a: deposition_n_t is the polity share of its cell territory", {
+  out <- .nd_c3a_build()
+  expected <- .nd_c3a_cell_polity() |>
+    dplyr::mutate(
+      share = polity_area_ha / sum(polity_area_ha),
+      .by = c(lon, lat)
+    ) |>
+    dplyr::inner_join(.nd_c3a_total_g(), by = c("lon", "lat")) |>
+    dplyr::mutate(expected_n_t = value_g_total * share / 1e6)
+
+  joined <- dplyr::inner_join(
+    out,
+    dplyr::select(expected, lon, lat, area_code, share, expected_n_t),
+    by = c("lon", "lat", "area_code")
+  )
+  testthat::expect_equal(nrow(joined), nrow(out))
+  testthat::expect_equal(
+    joined$deposition_n_t,
+    joined$expected_n_t,
+    tolerance = 1e-9
+  )
+  # The shares this fixture actually exercises, pinned so the block cannot go
+  # vacuous if the fixture is edited: the split really is by territory.
+  testthat::expect_equal(
+    dplyr::arrange(joined, area_code)$share,
+    c(0.6, 0.3, 0.1, 0.25, 0.75, 1)
+  )
+  testthat::expect_true(all(out$method_polity_split == "polity_area_ha"))
+})
+
+testthat::test_that("C3a: the key changed, and only where the partitions differ", {
+  new <- dplyr::arrange(.nd_c3a_build(), area_code)
+  old <- dplyr::arrange(.nd_c3a_build(split = "polity_frac"), area_code)
+
+  # 3000 t in the three-polity cell, 1000 t at high latitude, 500 t alone.
+  testthat::expect_equal(old$deposition_n_t, c(1500, 900, 600, 600, 400, 500))
+  testthat::expect_equal(new$deposition_n_t, c(1800, 900, 300, 250, 750, 500))
+  moved <- new$deposition_n_t != old$deposition_n_t
+  testthat::expect_identical(moved, c(TRUE, FALSE, TRUE, TRUE, TRUE, FALSE))
+  # The single-polity cell (area_code 6) takes the whole cell either way: a
+  # partition of one is 1 whatever measures it.
+  testthat::expect_equal(new$deposition_n_t[6], old$deposition_n_t[6])
+})
+
+testthat::test_that("C3a: the rate stays a whole-cell mean shared by a cell", {
+  out <- .nd_c3a_build()
+  per_cell <- dplyr::summarise(
+    out,
+    n_rates = dplyr::n_distinct(deposition_kgn_ha),
+    n_polities = dplyr::n_distinct(area_code),
+    .by = c(lon, lat)
+  )
+
+  testthat::expect_setequal(per_cell$n_polities, c(3L, 2L, 1L))
+  # AM-5 risk 1. Dividing the allocated mass by each polycell's own territory
+  # would give area_codes 1, 2 and 3 three different rates, each of which
+  # recovers the whole cell mass when multiplied back by that polity's area,
+  # so the cell would be emitted three times. One rate per cell is what makes
+  # that impossible.
+  testthat::expect_true(all(per_cell$n_rates == 1L))
+  # The rate does not depend on the split at all, so it is bit-identical to
+  # the transitional path's.
+  testthat::expect_identical(
+    out$deposition_kgn_ha,
+    .nd_c3a_build(split = "polity_frac")$deposition_kgn_ha
+  )
+  testthat::expect_equal(
+    out$deposition_kgn_ha[out$area_code == 1L],
+    3e9 / 1000 / 308000
+  )
+})
+
+testthat::test_that("C3a: cell_area_ha still cancels out of the mass", {
+  base <- .nd_c3a_build()
+  tripled <- .nd_c3a_build(
+    dplyr::mutate(.nd_c3a_cell_polity(), cell_area_ha = cell_area_ha * 3)
+  )
+
+  # AM-5 risk 5, carried onto the new key: substituting a territory area on
+  # one side of the cancellation moves every total ~10% down, which reads as
+  # the fix succeeding. The mass column must remain blind to cell_area_ha.
+  testthat::expect_identical(tripled$deposition_n_t, base$deposition_n_t)
+  testthat::expect_equal(tripled$deposition_kgn_ha, base$deposition_kgn_ha / 3)
+})
+
+testthat::test_that("C3a: the split is a share, not an area", {
+  # Scaling a cell's territory leaves the partition alone. This fails the
+  # moment an absolute hectare figure is substituted for the share, the
+  # single most likely way to turn a partition into a multiplier.
+  scaled <- .nd_c3a_build(
+    dplyr::mutate(.nd_c3a_cell_polity(), polity_area_ha = polity_area_ha * 7.5)
+  )
+
+  testthat::expect_equal(scaled$deposition_n_t, .nd_c3a_build()$deposition_n_t)
+})
+
+testthat::test_that("C3a: split selection is explicit and recorded", {
+  crosswalk <- .nd_c0_cell_polity()
+
+  # A support carrying both keys splits geodesically unless told otherwise.
+  testthat::expect_true(all(
+    .nd_c3a_build()$method_polity_split == "polity_area_ha"
+  ))
+  testthat::expect_true(all(
+    .nd_c3a_build(split = "polity_frac")$method_polity_split == "polity_frac"
+  ))
+  # Asking for a key the support does not carry aborts instead of quietly
+  # falling back to the coarser partition. The abort must be the package's own
+  # missing-column refusal naming the key, not an incidental error from
+  # whatever reads the absent column first: those two are indistinguishable to
+  # a bare expect_error(), and only the first is a contract.
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = .nd_c0_nhx(),
+        noy = .nd_c0_noy(),
+        cell_polity = crosswalk
+      ),
+      split = "polity_area_ha"
+    ),
+    "Missing columns.*cell_polity"
+  )
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = .nd_c0_nhx(),
+        noy = .nd_c0_noy(),
+        cell_polity = crosswalk
+      ),
+      split = "polity_area_ha"
+    ),
+    "polity_area_ha"
+  )
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = .nd_c0_nhx(),
+        noy = .nd_c0_noy(),
+        cell_polity = dplyr::select(.nd_c3a_cell_polity(), -polity_frac)
+      ),
+      split = "polity_frac"
+    ),
+    "Missing columns.*cell_polity"
+  )
+  testthat::expect_error(
+    whep::build_n_deposition(
+      data = list(
+        nhx = .nd_c0_nhx(),
+        noy = .nd_c0_noy(),
+        cell_polity = dplyr::select(.nd_c3a_cell_polity(), -polity_frac)
+      ),
+      split = "polity_frac"
+    ),
+    "polity_frac"
+  )
+  testthat::expect_error(.nd_c3a_build(split = "land_area_ha"))
+})
+
+testthat::test_that("C3a: an unusable territory column aborts", {
+  cp <- .nd_c3a_cell_polity()
+
+  testthat::expect_error(
+    .nd_c3a_build(dplyr::mutate(
+      cp,
+      polity_area_ha = dplyr::if_else(area_code == 2L, NA_real_, polity_area_ha)
+    )),
+    "finite"
+  )
+  testthat::expect_error(
+    .nd_c3a_build(dplyr::mutate(cp, polity_area_ha = -polity_area_ha)),
+    "finite"
+  )
+  # A cell with no territory has no partition; dividing by its total would
+  # hand every polity of it an NaN share that later sums away to nothing.
+  testthat::expect_error(
+    .nd_c3a_build(dplyr::mutate(
+      cp,
+      polity_area_ha = dplyr::if_else(lat == 59.75, 0, polity_area_ha)
+    )),
+    "no territory"
+  )
+})
+
+testthat::test_that("C3a: the polity vocabulary is not folded into area_code", {
+  # DA-23. build_polycell_support() keys on polity_code, and the area
+  # crosswalk merges distinct polities into one area_code (Sudan and South
+  # Sudan share 206) or leaves it NA. Deposition rows are keyed on area_code,
+  # so the conversion has to happen at the caller's boundary where it is
+  # visible, not here where it would look like a partition.
+  cp <- .nd_c3a_cell_polity()
+  folded <- dplyr::mutate(
+    cp,
+    area_code = dplyr::if_else(area_code == 3L, 1L, area_code)
+  )
+  unkeyed <- dplyr::mutate(
+    cp,
+    area_code = dplyr::if_else(area_code == 3L, NA_integer_, area_code)
+  )
+
+  testthat::expect_error(.nd_c3a_build(folded), "duplicated")
+  testthat::expect_error(.nd_c3a_build(unkeyed), "duplicated|NA")
+  # The transitional key is untouched by this: it is what unmigrated
+  # consumers still read, and C3a must not change their behaviour.
+  testthat::expect_no_error(.nd_c3a_build(folded, split = "polity_frac"))
+})
+
+testthat::test_that("C3a: each cell is partitioned on its own, not with its neighbours", {
+  # The cell key is (lon, lat). Every other fixture here puts each cell on its
+  # own longitude, so a share grouped by lon alone would pass them all while
+  # normalising a whole meridian as if it were one cell -- mass would leak
+  # between cells at the same longitude and only the global total would still
+  # add up. Two cells on one meridian, carrying different masses and very
+  # different territory totals, is what makes that visible.
+  nhx <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2000L, 3e9,
+    -0.25, 0.25, 2000L, 1e9
+  )
+  cp <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha, ~polity_area_ha,
+    -0.25, -0.25, 1L, 0.5, 308000, 240000,
+    -0.25, -0.25, 2L, 0.5, 308000, 60000,
+    -0.25, 0.25, 3L, 0.5, 308000, 5000,
+    -0.25, 0.25, 4L, 0.5, 308000, 15000
+  )
+  out <- dplyr::arrange(
+    whep::build_n_deposition(
+      data = list(nhx = nhx, noy = nhx[0, ], cell_polity = cp)
+    ),
+    area_code
+  )
+
+  # Territory shares are 0.8/0.2 within the southern cell and 0.25/0.75 within
+  # the northern one. Pooled over the meridian they would be 0.774/0.194/0.016
+  # /0.048, which conserves the global 4000 t while moving mass across a cell
+  # boundary -- so the per-cell figures, not the total, are the assertion.
+  testthat::expect_equal(out$deposition_n_t, c(2400, 600, 250, 750))
+  per_cell <- dplyr::summarise(
+    out,
+    m = sum(deposition_n_t),
+    .by = c(lon, lat)
+  )
+  testthat::expect_equal(sort(per_cell$m), c(1000, 3000))
 })

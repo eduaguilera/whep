@@ -4,7 +4,12 @@
 \alias{build_n_deposition}
 \title{Build gridded atmospheric nitrogen deposition inputs.}
 \usage{
-build_n_deposition(years = NULL, data = list(), example = FALSE)
+build_n_deposition(
+  years = NULL,
+  data = list(),
+  split = c("auto", "polity_area_ha", "polity_frac"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
@@ -13,22 +18,49 @@ keeps every year the inputs cover.}
 \item{data}{Optional named list of pre-loaded inputs: \code{nhx} and \code{noy}
 (each \code{lon}, \code{lat}, \code{year}, \code{value_g}, falling back to
 \code{\link[=read_n_deposition]{read_n_deposition()}} when absent) and \code{cell_polity} (\code{lon}, \code{lat},
-\code{area_code}, \code{polity_frac}, \code{cell_area_ha}, required).}
+\code{area_code}, \code{cell_area_ha} and the \code{split} key column, required).}
+
+\item{split}{Which polity share splits the cell's deposited mass:
+\code{"auto"} (default) takes \code{polity_area_ha} when the support carries it and
+\code{polity_frac} otherwise, \code{"polity_area_ha"} and \code{"polity_frac"} demand
+that key and abort when it is absent. The resolved key is recorded in the
+\code{method_polity_split} output column, so a table's split is readable from
+the table.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year},
-\code{deposition_kgn_ha}, \code{deposition_n_t} and \code{method_deposition}, plus the
-polity columns below.
+\code{deposition_kgn_ha}, \code{deposition_n_t}, \code{method_deposition} and
+\code{method_polity_split}, plus the polity columns below.
+
+\code{deposition_kgn_ha} is the whole-cell mean rate: the cell's total mass
+over its whole area, so every polity of a cell carries the same rate and
+the rate is \strong{not} conserved on re-aggregation. Only \code{deposition_n_t} is
+a mass.
+
+Rows are keyed on \code{area_code}. \code{build_polycell_support()} keys on
+\code{polity_code} and does not derive the reporting vocabulary (DA-23), and
+\code{polity_area_crosswalk} folds distinct polities into one \code{area_code}, so a
+support table must be converted to one row per cell and \code{area_code}
+\strong{before} it is passed here. That conversion is refused rather than
+performed silently.
 }
 \description{
 Combines HaNi NHx and NOy deposition into a total nitrogen deposition rate
 per WHEP grid cell, using the true latitude-dependent 0.5-degree cell area
-(from the cell-polity crosswalk) to convert the deposited mass into a
-per-hectare rate, and the crosswalk's polity land-area share to derive the
-absolute mass a polity receives.
+to convert the deposited mass into a per-hectare rate, and a polity share of
+the cell to derive the absolute mass a polity receives.
+
+The cell's deposited mass is split across the polities holding the cell in
+proportion to \code{polity_area_ha}, the geodesic territory each holds in it, as
+\code{\link[=build_polycell_support]{build_polycell_support()}} measures it. The transitional alternative is
+\code{polity_frac}, the subcell-count share \code{\link[=build_cell_polity]{build_cell_polity()}} carries, which
+is quantised to 1/36 of a cell; it stays selectable so the two partitions
+can be compared, and it is what a support table carrying no
+\code{polity_area_ha} is split by. Either way the split is a share of the cell,
+so the source mass is redistributed and never created or destroyed.
 }
 \section{Polity columns}{
 
