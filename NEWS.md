@@ -440,6 +440,14 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* A failed Natural Earth download now reports how to recover instead of dying
+  on its own error message. The abort interpolated the layer URL as
+  `{.url {.natural_earth_url(layer)}}`, and cli >= 3.4.0 reads a `{}`
+  expression starting with a dot as a style name, so the branch raised
+  `Invalid cli literal` and the instructions never reached the user. The
+  province typologies (`create_typologies_grafs_spain()`,
+  `create_typologies_of_josette()`) are the callers that reach it. No published
+  value changes (#594).
 
 # whep 0.3.0
 
