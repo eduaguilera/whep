@@ -1,5 +1,18 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+#
+# Linting the whole package takes ~630 s on a GitHub runner (348 R files, ~133k
+# lines), i.e. ten minutes on every push to a PR. On a pull request this lints
+# only the R files that PR touches; pushes to main still lint everything, so
+# nothing can rot unnoticed (#569).
+#
+# That is sound for lintr specifically rather than a corner cut: every linter in
+# the active set is a per-file static check, so a lint in one file cannot be
+# caused by editing another. The one package-scope linter, object_usage_linter,
+# is disabled. The same argument would NOT justify running only the tests a PR
+# touches, where a change elsewhere can break a file you never opened.
+#
+# The linter set lives in .lintr, not here, so the two paths below cannot drift.
 on:
   push:
     branches: [main, master]
@@ -16,6 +29,10 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the PR path diffs against the base commit, which a
+          # shallow clone does not contain.
+          fetch-depth: 0
 
       - uses: r-lib/actions/setup-r@v2
         with:
@@ -26,16 +43,51 @@ jobs:
           extra-packages: any::lintr, local::.
           needs: lint
 
-      - name: Lint
+      - name: Collect the R files this PR touches
+        if: github.event_name == 'pull_request'
+        id: changed
         run: |
-          lintr::lint_package(
-            linters = lintr::linters_with_defaults(
-              object_usage_linter = NULL,
-              line_length_linter = NULL,
-              indentation_linter = NULL,
-              commas_linter = NULL
-            )
-          )
+          set -euo pipefail
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          # Assert both ends of the range exist before trusting the diff. An
+          # empty list must mean "this PR changed no R files", never "the diff
+          # silently failed" -- the latter would make a broken step read green.
+          git cat-file -e "${base}^{commit}"
+          git cat-file -e "${head}^{commit}"
+          git diff --name-only --diff-filter=ACMR "${base}" "${head}" \
+            -- '*.R' '*.r' > changed_r_files.txt
+          count=$(grep -c . changed_r_files.txt || true)
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "Changed R files: ${count}"
+          cat changed_r_files.txt
+
+      - name: Lint changed files
+        if: github.event_name == 'pull_request' && steps.changed.outputs.count != '0'
+        run: |
+          files <- readLines("changed_r_files.txt")
+          files <- files[nzchar(files) & file.exists(files)]
+          # Linters and exclusions both come from .lintr, so this matches the
+          # whole-package run exactly.
+          lints <- unlist(lapply(files, lintr::lint), recursive = FALSE)
+          if (length(lints) > 0L) {
+            print(lints)
+            stop(sprintf(
+              "%d lint(s) across %d changed file(s).",
+              length(lints),
+              length(files)
+            ))
+          }
+          cat(sprintf("No lints in %d changed file(s).\n", length(files)))
+        shell: Rscript {0}
+
+      - name: No R files changed
+        if: github.event_name == 'pull_request' && steps.changed.outputs.count == '0'
+        run: echo "This PR changes no R files; nothing to lint."
+
+      - name: Lint whole package
+        if: github.event_name != 'pull_request'
+        run: lintr::lint_package()
         shell: Rscript {0}
         env:
           LINTR_ERROR_ON_LINT: true
