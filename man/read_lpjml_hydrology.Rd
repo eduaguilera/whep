@@ -7,7 +7,7 @@
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
     "runoff", "discharge", "swc", "cft_nir", "cft_consump_water_b",
-    "cft_consump_water_g"),
+    "cft_consump_water_g", "cftfrac"),
   run_dir = NULL,
   years = NULL,
   first_year = 1901L,
@@ -21,9 +21,11 @@ read_lpjml_hydrology(
 \item{var}{Logical variable name, one of \code{"drainage"}, \code{"transp"},
 \code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"},
 \code{"discharge"}, \code{"swc"}, \code{"cft_nir"} (per-CFT net irrigation requirement)
-or the per-CFT consumptive-water cubes \code{"cft_consump_water_b"} (blue) and
-\code{"cft_consump_water_g"} (green). The per-CFT variables keep their \code{band}
-dimension, and carry \code{band_name} when the file names its bands.}
+the per-CFT consumptive-water cubes \code{"cft_consump_water_b"} (blue) and
+\code{"cft_consump_water_g"} (green), or \code{"cftfrac"}, the per-CFT share of the
+cell each band occupies (the area weight for the other two). The per-CFT
+variables keep their \code{band} dimension, and carry \code{band_name} when the file
+names its bands.}
 
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}

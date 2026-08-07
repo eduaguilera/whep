@@ -94,57 +94,57 @@ water_livestock_blue <- livestock_src |>
 
 # 3. Grazing green water (water-grazing-green) ---------------------------------
 # Country-average green evapotranspiration of managed grassland (m3 ha^-1),
-# derived from the WHEP LPJmL run (LPJmL 5.9.7, daily grazing, "our_inputs",
-# global 1901-2009). Source variable: cft_consump_water_g, band 14 "rainfed
-# grassland" (mm/yr), averaged over 2000-2009; mm/yr x 10 = m3/ha. The country
-# value is the grassland-area-weighted mean (weight = CFTfrac band 14 x cell
-# area), with cells mapped to FAO area_code via country_grid.parquet.
-# Methodological reference: Schyns et al. (2019),
-# <https://doi.org/10.1073/pnas.1817380116>.
+# derived from the WHEP LPJmL production run. Source variable:
+# cft_consump_water_g, band "rainfed grassland" (mm/yr), averaged over
+# 2000-2009; mm/yr x 10 = m3/ha. The country value is the grassland-area-
+# weighted mean (weight = CFTfrac of the same band x cell area), with cells
+# mapped to FAO area_code via country_grid.parquet. Methodological reference:
+# Schyns et al. (2019), <https://doi.org/10.1073/pnas.1817380116>.
+#
+# The band is selected by NAME, never by index: which crop a given index
+# denotes is a property of how the run was configured, so a positional filter
+# would silently charge the wrong crop in a differently configured run. The run
+# directory comes from WHEP_LPJML_RUN_DIR (never hardcoded), and the annual
+# per-CFT time axis is decoded by read_lpjml_hydrology() rather than by hand.
 #
 # Occupation basis: this charges the FULL managed-grassland green ET, consistent
 # with the grassland land extension's "occupation" metric (whole grassland, not
-# the active-grazing sub-area). Global total ~13,700 km3/yr, within the
-# 8,258-12,960 km3/yr range published for total grazing-land ET, and ~6x the
-# "green WF of grazing" of Schyns (2,191 km3/yr) which restricts to the grazed
-# area at the necessary livestock density. Validation: total grassland area
-# 3,253 Mha matches FAO permanent pastures (~3,300 Mha).
-run <- path.expand(file.path(
-  "~/Nextcloud/WHEP_ERC 2025/Sources/datasets/unclassified_datasets/LPJmL",
-  "LPJmL_runs",
-  "global_1901-2009_spinup_200_our_inputs_grassland_livestock_npp_vegc_fix",
-  "output/scenario_1"
-))
-grass_band <- 14L
-yidx <- (2000:2009) - 1900 # time index: year 1901 = index 1
-read_band_mean <- function(file, var) {
-  nc <- ncdf4::nc_open(file.path(run, file))
-  on.exit(ncdf4::nc_close(nc))
-  arr <- ncdf4::ncvar_get(
-    nc,
-    var,
-    start = c(1, 1, grass_band, min(yidx)),
-    count = c(-1, -1, 1, length(yidx))
-  )
-  list(
-    lon = ncdf4::ncvar_get(nc, "lon"),
-    lat = ncdf4::ncvar_get(nc, "lat"),
-    val = apply(arr, c(1, 2), mean, na.rm = TRUE)
-  )
+# the active-grazing sub-area). Compare the "green WF of grazing" of Schyns
+# (2,191 km3/yr), which restricts to the grazed area at the necessary livestock
+# density and is therefore several times smaller. Validation targets: total
+# grassland area ~3,253 Mha against FAO permanent pastures (~3,300 Mha), and a
+# global total inside the 8,258-12,960 km3/yr range published for total
+# grazing-land ET.
+grass_band_name <- "rainfed grassland"
+grazing_years <- 2000:2009
+
+# One year at a time: the full per-CFT cube is 720 x 277 x 32 x 123, so reading
+# ten years of every band at once needs tens of millions of rows in memory when
+# only one band survives the filter.
+read_grass_band <- function(var, year) {
+  read_lpjml_hydrology(var, years = year) |>
+    dplyr::filter(band_name == grass_band_name) |>
+    dplyr::select(lon, lat, year, value)
 }
-cw <- read_band_mean("cft_consump_water_g.nc", "consump_water_g")
-fr <- read_band_mean("cftfrac.nc", "CFTfrac")
+read_grass_mean <- function(var) {
+  purrr::map(grazing_years, \(y) read_grass_band(var, y)) |>
+    dplyr::bind_rows() |>
+    dplyr::summarise(value = mean(value, na.rm = TRUE), .by = c(lon, lat))
+}
+
+consump <- read_grass_mean("cft_consump_water_g") |>
+  dplyr::rename(consump_mm = value)
+frac <- read_grass_mean("cftfrac") |>
+  dplyr::rename(frac = value)
+
 earth_r <- 6371007.181
 d2r <- pi / 180
-grid <- expand.grid(lon = cw$lon, lat = cw$lat)
-cell <- tibble(
-  lon = round(grid$lon, 2),
-  lat = round(grid$lat, 2),
-  consump_mm = as.vector(cw$val),
-  frac = as.vector(fr$val)
-) |>
+cell <- consump |>
+  inner_join(frac, by = c("lon", "lat")) |>
   filter(!is.na(consump_mm)) |>
   mutate(
+    lon = round(lon, 2),
+    lat = round(lat, 2),
     cell_area_ha = earth_r^2 *
       (0.5 * d2r) *
       (sin((lat + 0.25) * d2r) - sin((lat - 0.25) * d2r)) /
