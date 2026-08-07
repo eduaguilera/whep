@@ -47,7 +47,7 @@ carries Sudan plus South Sudan from 2012 on. The fold is required, not
 accidental -- those are the codes the commodity balances are keyed on, so a
 finer key would leave their food supply with no population denominator -- and
 every folded row is named in a message. The polity columns say the same
-thing: 999 resolves to \code{ROW-1850-2023} "Rest of World", and 206 to
+thing: 999 resolves to \code{ROW-1850-2025} "Rest of World", and 206 to
 \code{SUD-1956-2011}, the pre-secession territory its two members together cover.
 }
 \section{Polity columns}{
@@ -75,6 +75,18 @@ Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
 \code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
 }
 
 \examples{

@@ -83,3 +83,132 @@ testthat::test_that("buffalo dairy products use dairy Bouwman demand in builder"
   testthat::expect_lt(milk_grass, 1.1)
   testthat::expect_lt(milk_grass, meat_grass / 20)
 })
+
+# whep#467 --------------------------------------------------------------------
+#
+# Reporting bucket 999 (Rest of World) folds 62 FAOSTAT areas, 58 of which have
+# a Bouwman feed region of their own. The fold keeps none of them, so the bucket
+# row carried region = NA and every join keyed on the region missed. Measured on
+# a full get_primary_production() at the parent commit: bucket 999's 808,638,528
+# t of dry-matter demand (0.131% of world demand, demand_tier = "ipcc") was
+# dropped in full by .build_feed_mix(), and with demand_tier = "fcr" the bucket
+# produced no demand at all -- 191 areas instead of 194. The continent residuals
+# 901-905 have the same gap but carry no production row at all.
+
+testthat::test_that(".feed_region_lookup gives Rest of World a weighted mix", {
+  lookup <- whep:::.feed_region_lookup()
+  row <- dplyr::filter(lookup, .data$area_code == 999L)
+
+  testthat::expect_gt(nrow(row), 1L)
+  testthat::expect_equal(sum(row$region_weight), 1)
+  testthat::expect_true(all(!is.na(row$region_bouwman)))
+  # The mix must be expressible in the coefficient table it keys.
+  testthat::expect_true(all(
+    row$region_bouwman %in% whep::conv_bouwman$region_bouwman
+  ))
+})
+
+testthat::test_that("region_fallback 'none' is the pre-467 status quo", {
+  status_quo <- whep:::.feed_region_lookup(fallback = "none")
+
+  testthat::expect_false(999L %in% status_quo$area_code)
+  testthat::expect_true(all(status_quo$region_weight == 1))
+  # One area_code, one region: the fallback must not disturb resolved buckets.
+  testthat::expect_equal(
+    nrow(status_quo),
+    dplyr::n_distinct(status_quo$area_code)
+  )
+  resolved <- whep:::.feed_region_lookup() |>
+    dplyr::filter(.data$area_code != 999L)
+  testthat::expect_equal(
+    dplyr::arrange(resolved, .data$area_code),
+    dplyr::arrange(status_quo, .data$area_code)
+  )
+})
+
+testthat::test_that("the Rest-of-World weights come from real fold members", {
+  # Selected by the bucket they fold INTO, not by what the fold is called.
+  # `fold_kind` is a classification and it moves: #556 reclassified Syria (212),
+  # Eswatini (209), North Macedonia (154) and New Caledonia (153) from
+  # `fabio_rest_of_world` to `cbs_reporter_folded` while this branch was open,
+  # because they are CBS reporters as well as folds. All four still fold into
+  # 999 and still carry herds, so a `fold_kind` filter silently dropped four real
+  # members and this assertion failed on rows that were entirely correct.
+  members <- whep::folded_reporting_areas() |>
+    dplyr::filter(.data$polity_area_code == 999L)
+  herds <- whep:::.row_member_herds()
+
+  testthat::expect_true(all(herds$member_area_code %in% members$area_code))
+  testthat::expect_true(all(herds$livestock_units > 0))
+  # Each member's region is the one the crosswalk itself publishes for it, so a
+  # polities re-sync that moves a member shows up here rather than silently.
+  published <- whep::polity_area_crosswalk |>
+    tibble::as_tibble() |>
+    dplyr::distinct(
+      member_area_code = as.integer(.data$area_code),
+      region_bouwman = .data$region
+    ) |>
+    dplyr::filter(.data$member_area_code %in% herds$member_area_code)
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(herds, "member_area_code", "region_bouwman"),
+      .data$member_area_code
+    ),
+    dplyr::arrange(published, .data$member_area_code)
+  )
+})
+
+testthat::test_that("continent residuals stay unmapped, deliberately", {
+  # 901-905 (Africa/Asia/Europe/Latin America/North America Other) span several
+  # Bouwman regions each and carry no production row at all, so no weight can be
+  # measured for them. Pinned so it reads as a decision, not an oversight.
+  lookup <- whep:::.feed_region_lookup()
+  testthat::expect_equal(sum(lookup$area_code %in% 901:905), 0L)
+  # 906 (Oceania Other) is different: the crosswalk resolves it directly.
+  testthat::expect_equal(
+    dplyr::filter(lookup, .data$area_code == 906L)$region_bouwman,
+    "Oceania"
+  )
+})
+
+testthat::test_that("a weighted region lookup averages the regions it mixes", {
+  fcr <- whep:::.build_bouwman_fcr(whep::conv_bouwman, 1995L)
+  primary <- tibble::tibble(
+    year = 1995L,
+    area_code = 999L,
+    item_prod_code = 867,
+    unit = "tonnes",
+    value = 100
+  )
+  demand_of <- function(regs) {
+    whep:::.build_feed_demand_fcr(
+      primary,
+      whep::items_prod_full,
+      whep::animals_codes,
+      regs,
+      fcr
+    ) |>
+      dplyr::summarise(demand_aft = sum(.data$demand_aft), .by = "feed_type") |>
+      dplyr::arrange(.data$feed_type)
+  }
+
+  halves <- tibble::tibble(
+    area_code = 999L,
+    region_bouwman = c("Middle East", "OECD Europe"),
+    region_weight = c(0.5, 0.5)
+  )
+  mixed <- demand_of(halves)
+  expected <- halves$region_bouwman |>
+    purrr::map(\(r) {
+      demand_of(tibble::tibble(area_code = 999L, region_bouwman = r))
+    }) |>
+    dplyr::bind_rows() |>
+    dplyr::summarise(
+      demand_aft = sum(.data$demand_aft) / 2,
+      .by = "feed_type"
+    ) |>
+    dplyr::arrange(.data$feed_type)
+
+  testthat::expect_gt(nrow(mixed), 0L)
+  testthat::expect_equal(mixed, expected)
+})

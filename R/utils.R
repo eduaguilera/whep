@@ -72,6 +72,8 @@ utils::globalVariables(
     "live_anim_lookup_prod",
     "source_any",
     "source_prod",
+    # polities.R + build_production.R (dependency-to-sovereign attribution)
+    "sovereign_iso3c",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -1814,7 +1816,10 @@ utils::globalVariables(
     # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
     "n_successors",
     # polity_folds.R (#563) — bucket area-label derivation NSE columns
-    "member_name"
+    "member_name",
+    # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
+    # Bouwman region in an aggregate reporting bucket's herd
+    "region_weight"
   )
 )
 

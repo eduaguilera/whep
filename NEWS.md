@@ -185,6 +185,106 @@
   predecessor was capturing the ones its successors should have received. Note
   that `ref_year = 2025` now aborts: the vintage's open periods carry 2025 as
   their exclusive end, so they stop at 2024.
+* `inst/scripts/prepare_spatialize_all.R` no longer repairs
+  `mueller_synthetic_n`'s FAO-style legacy ISO codes with a hand-maintained
+  14-entry `recode()` list. The mapping now comes from
+  `whep::polity_label_aliases` through `resolve_polity_label()`, bridged back to
+  the country grid's numeric `area_code` through the polity's `iso3_code` and the
+  same `regions.csv` lookup the grid is rasterised from. **No published values
+  change**: the resulting `crop_synthetic` table is byte-identical, 5,043 rows
+  resolving to the same 156 area codes with a maximum rate difference of 0. Four
+  of the 14 list entries (`BHA`, `BAR`, `DMI`, `STL`) named codes the dataset
+  never uses.
+* New `polity_coverage_gaps()` reports the rows of a built table whose
+  `reporting_polity_code` is a nearest-period stand-in, i.e. a polity that did
+  not exist in that row's year. `add_polity_code()` has always reported these as
+  `mapping_status == "out_of_span"`, but the reporting-column boundary every
+  area-keyed output crosses dropped that column, so the documented uncertainty
+  was invisible in published data. Measured on the real FAOSTAT production path
+  (`.read_input("faostat-production")` aggregated to polities, 1961-2024),
+  **5,637 of 3,011,912 rows (0.19%)** are stand-ins, all of them bucket 206
+  "Sudan (former)" over 2012-2024 on `SUD-1956-2011`; on `faostat-fbs-old` it is
+  972 of 5,331,877 (0.018%), the same bucket over 2012-2013. Across the whole
+  crosswalk over 1961-2023 it is 922 of 16,658 resolved area-years in 28 areas,
+  in both directions. **No published value or column changes**: the new function
+  is a separate query, and carrying the signal on the outputs themselves is
+  opt-in through `options(whep.polity_mapping_status = "flag")` for a logical
+  `reporting_polity_out_of_span`, or `"status"` for the full
+  `reporting_mapping_status`. The default, `"none"`, is today's schema. Which of
+  the two to adopt as the default is an open decision (#545).
+* `build_energy_co2_extension()` gains a third `unclassified` treatment,
+  `"polity_region"`, for the **live** reporting areas `gleam_geographic_hierarchy`
+  has no row for. On today's crosswalk that is Nauru (area 148) and Tuvalu (227):
+  they exist, report under their own area codes, and their meat production left
+  the extension unpriced. `"polity_region"` groups them by running GLEAM's own
+  scheme rules on the continent their polity carries -- no grouping label is
+  added to the package -- so Tuvalu now lands on `"Least developed countries"`,
+  the classification `.energy_ldc_iso3()` already asserted for TUV while joining
+  against a table with no TUV row. Those rows are labelled
+  `"GLEAM_3.0_energy_meat_polity_region"` in `method_energy`. **No published
+  value changes**: the default is still `"drop"`, and the full 1850-2023 build is
+  bit-identical under both `"drop"` and `"global_mean"`. Measured, for the
+  decision: `"polity_region"` adds 366 rows and 2 areas (61,149 to 61,515),
+  moves no existing row by any amount, and raises total energy CO2e by
+  0.0000155%; it puts Nauru at 288,502 kg CO2e and Tuvalu at 424,851 kg over
+  1961-2023, against 664,412 and 1,775,719 under `"global_mean"`. Whether the
+  default should move is left open in whep#415.
+
+* `folded_reporting_areas()` no longer calls all 61 Rest-of-World folds a FABIO
+  convention, because for four of them it is not one. FABIO's own published
+  region list -- `io_codes.csv` of the v1.1 release (Zenodo record 2577067),
+  192 areas x 125 commodities, the file `inst/scripts/compare_fabio.R` already
+  downloads -- gives **153 New Caledonia, 154 North Macedonia, 209 Eswatini and
+  212 Syria** each their own commodity block, distinct from area 999 `RoW`; the
+  FABIO source repository marks all four `current == TRUE`, which is exactly the
+  flag its `replace_RoW()` keeps out of bucket 999. `regions_full` nonetheless
+  gives them `fabio_code` 999 while flagging them `cbs` `TRUE`, and Syria is the
+  single largest contributor to the fold (24,426 `faostat-production` rows).
+  Those four now come back as a third `fold_kind`, `"cbs_reporter_folded"`,
+  separating them from the 57 folds FABIO does make; a new
+  `options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only those
+  four, alongside the existing `TRUE` (equivalently `"all"`) for all 61. **No
+  published value changes**: `fabio_code`, `polity_area_code` and every polity
+  label are untouched on the default path, which the suite pins against the
+  committed crosswalk. Whether to correct `regions_full` is an open decision
+  (#556); doing so is the numeric un-fold of #563's option 3, and must not be
+  done at the polity level alone (#480, reverted in #561).
+* `build_feed_demand()` gains `region_fallback`, which decides how a reporting
+  bucket the crosswalk leaves without a Bouwman feed region gets one. Rest of
+  World (`area_code` 999) folds 62 FAOSTAT reporting areas, 58 of which have a
+  region of their own, and kept none of them; every region-keyed join therefore
+  missed and the bucket's feed demand went nowhere. The new default,
+  `"member_mix"`, splits the bucket across its members' regions weighted by the
+  livestock those members carry (Middle East 0.69, Southern Africa 0.18,
+  Oceania 0.045, Eastern Europe 0.045, then five smaller regions). `"none"`
+  restores the previous behaviour. **This moves published values, for area 999
+  only.** Measured over a full 1850-2023 `get_primary_production()`: with
+  `by = "feed_type"` the mix gains 5,500 keys and 926,327,446 t of dry matter
+  (world total +0.151%) where 808,638,528 t had been dropped outright, and no
+  key that existed before changes by more than 1e-6 t; at `by = "category"`
+  area 999 goes from 808,638,528 to 926,327,446 t (+14.6%) with
+  `demand_tier = "ipcc"`, and from 0 to 2,035,462,034 t with
+  `demand_tier = "fcr"`. All 191 other areas are bit-identical in both tiers.
+  The five continent residuals `901`-`905` stay unmapped on purpose: they span
+  several Bouwman regions each and carry no production row at all.
+* `build_cell_polity()` gains `area_key`, choosing which code the shared
+  cell-area grid every gridded consumer keys on. The grid is rasterized from
+  present-day polygons through `regions.csv`, so its `area_code` is a raw
+  reporting-area code, not the `polity_area_code` bucket every polity-keyed
+  national table in whep is aggregated on. On the deployed
+  `cell_polity_fraction` parquet **12 of its 182 codes (819 cells) are not a
+  bucket** -- Syria, Palestine, Eswatini, Equatorial Guinea, North Macedonia,
+  New Caledonia, Western Sahara, Andorra, Liechtenstein and San Marino (all
+  folded into `999` Rest of World), `62` Ethiopia PDR (into `238`) and `277`
+  South Sudan (into `206`) -- so their cells match nothing on either side of
+  the join. Measured against real 2010 harvested area, **21.09 Mha of national
+  cropland, 1.525% of the world total, cannot be placed on any grid cell**;
+  15.30 Mha of that is the whole of Ethiopia and 5.67 Mha is Rest of World.
+  `area_key = "polity_area"` re-keys the grid on the bucket and cuts that to
+  0.12 Mha (0.009%). **No published value changes**: the default `"grid"`
+  reproduces today's output bit-for-bit and only adds a warning naming the
+  codes, because switching moves every gridded consumer's territorial
+  attribution at once. Whether it should become the default is issue #460.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
@@ -482,6 +582,14 @@
   gone -- the user's `FAOSTAT` session state is left alone, and rows keep their
   input order instead of being sorted by area name by an internal `merge()`
   (#520).
+* `citation("whep")` now returns two entries -- the package itself, carrying its
+  CRAN DOI and all five authors, and the FABIO paper the model builds on --
+  where it returned only the generated `DESCRIPTION` default before. The package
+  entry takes its year from `Date/Publication` rather than a hardcoded one. The
+  machine-readable equivalents, `CITATION.cff` and `codemeta.json`, ship
+  alongside it, and the package gained a
+  [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
+  README to the contributing guide. Groundwork for rOpenSci peer review (#75).
 
 # whep 0.3.0
 

@@ -149,6 +149,14 @@ build_feed_intake_local <- function(
 #'   category demand. `"feed_type"` splits it across feed types and returns the
 #'   `feed_demand` table that [redistribute_feed()] consumes, so the two compose:
 #'   `build_feed_demand(by = "feed_type") |> redistribute_feed(feed_avail)`.
+#' @param region_fallback How to give a Bouwman feed region to a reporting
+#'   bucket the crosswalk leaves without one. `"member_mix"` (default) splits
+#'   Rest of World (`area_code` 999) across the Bouwman regions of the 62
+#'   reporting areas folded into it, weighted by the livestock those members
+#'   carry. `"none"` leaves the bucket unmapped, which drops its whole feed
+#'   demand from the feed-type mix; that was the behaviour before whep#467 and
+#'   is kept selectable for comparison. Neither value affects any bucket the
+#'   crosswalk already resolves.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
@@ -182,6 +190,7 @@ build_feed_intake_local <- function(
 build_feed_demand <- function(
   demand_tier = c("ipcc", "fcr"),
   by = c("category", "feed_type"),
+  region_fallback = c("member_mix", "none"),
   example = FALSE
 ) {
   by <- rlang::arg_match(by)
@@ -189,7 +198,8 @@ build_feed_demand <- function(
     return(.example_build_feed_demand(by))
   }
   demand_tier <- rlang::arg_match(demand_tier)
-  data <- .feed_demand_data()
+  region_fallback <- rlang::arg_match(region_fallback)
+  data <- .feed_demand_data(region_fallback)
   total <- .build_feed_demand_total(get_primary_production(), demand_tier, data)
   if (by == "category") {
     return(.add_reporting_polity_columns(total))
@@ -400,7 +410,7 @@ build_feed_demand <- function(
     data$items_prod_full,
     data$animals_codes,
     data$conv_krausmann,
-    data$polity_area_crosswalk,
+    .feed_region_of(data),
     fcr
   ) |>
     dplyr::summarise(
@@ -440,16 +450,29 @@ build_feed_demand <- function(
 }
 
 # Package datasets the demand engine needs, grouped so the signature stays
-# small and tests can inject fixtures.
-.feed_demand_data <- function() {
+# small and tests can inject fixtures. `region_fallback` travels with the data
+# rather than through every helper signature, so one argument reaches both
+# engines.
+.feed_demand_data <- function(region_fallback = "member_mix") {
   list(
     items_prod_full = whep::items_prod_full,
     animals_codes = whep::animals_codes,
     conv_krausmann = whep::conv_krausmann,
     conv_bouwman = whep::conv_bouwman,
     polity_area_crosswalk = whep::polity_area_crosswalk,
+    feed_region = .feed_region_lookup(
+      whep::polity_area_crosswalk,
+      fallback = region_fallback
+    ),
     crosswalk = .livestock_crosswalk()
   )
+}
+
+# The weighted Bouwman-region lookup a run is using. Fixture `data` lists built
+# by tests carry no `feed_region`, so fall back to deriving it from whatever
+# crosswalk they do carry.
+.feed_region_of <- function(data) {
+  data$feed_region %||% .feed_region_lookup(data$polity_area_crosswalk)
 }
 
 # Replace the ruminant codes' legacy FCR totals with IPCC Tier-2 energy totals,
@@ -682,7 +705,7 @@ build_feed_demand <- function(
   years <- sort(unique(as.integer(demand_total$year)))
   shares <- .bouwman_feedtype_shares(data$conv_bouwman, years)
   grazer_shares <- .grazer_feedtype_shares(shares)
-  region <- .feed_region_lookup(data$polity_area_crosswalk)
+  region <- .feed_region_of(data)
   # One bridge row per category: a category maps to a single Bouwman class (NA
   # for draft species). graniv_grazers is NOT a key here (a category can span
   # several graniv_grazers values, e.g. Other) and keeping it would fan a
@@ -692,7 +715,8 @@ build_feed_demand <- function(
   keyed <- demand_total |>
     dplyr::mutate(year = as.integer(year), area_code = as.integer(area_code)) |>
     dplyr::left_join(bridge, by = "livestock_category") |>
-    dplyr::left_join(region, by = "area_code")
+    dplyr::left_join(region, by = "area_code") |>
+    .with_region_weight()
   .warn_dropped_mix(keyed, data$crosswalk)
 
   keyed |>
@@ -724,7 +748,8 @@ build_feed_demand <- function(
       "No Bouwman region for {length(areas)} area{?s} ({.val {areas}}):
        {dropped} t of feed demand is dropped from the mix.",
       i = "Map the {cli::qty(length(areas))}area{?s} to a Bouwman region in
-        {.field polity_area_crosswalk}."
+        {.field polity_area_crosswalk}, or give the aggregate buckets one with
+        {.code region_fallback = \"member_mix\"}."
     ))
   }
   invisible(NULL)
@@ -801,7 +826,8 @@ build_feed_demand <- function(
 # feed_quality and a fixed_demand flag.
 .emit_feed_demand <- function(mix) {
   mix |>
-    dplyr::mutate(demand_ft = demand_dm_t * dm_share) |>
+    .with_region_weight() |>
+    dplyr::mutate(demand_ft = demand_dm_t * dm_share * region_weight) |>
     dplyr::filter(!is.na(feed_type), .data$demand_ft > 0) |>
     dplyr::left_join(.feedtype_feed_quality(), by = "feed_type") |>
     dplyr::summarise(

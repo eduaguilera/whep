@@ -7,6 +7,7 @@
 build_feed_demand(
   demand_tier = c("ipcc", "fcr"),
   by = c("category", "feed_type"),
+  region_fallback = c("member_mix", "none"),
   example = FALSE
 )
 }
@@ -21,6 +22,15 @@ The method actually used for each row is recorded in \code{method_demand}.}
 category demand. \code{"feed_type"} splits it across feed types and returns the
 \code{feed_demand} table that \code{\link[=redistribute_feed]{redistribute_feed()}} consumes, so the two compose:
 \code{build_feed_demand(by = "feed_type") |> redistribute_feed(feed_avail)}.}
+
+\item{region_fallback}{How to give a Bouwman feed region to a reporting
+bucket the crosswalk leaves without one. \code{"member_mix"} (default) splits
+Rest of World (\code{area_code} 999) across the Bouwman regions of the 62
+reporting areas folded into it, weighted by the livestock those members
+carry. \code{"none"} leaves the bucket unmapped, which drops its whole feed
+demand from the feed-type mix; that was the behaviour before whep#467 and
+is kept selectable for comparison. Neither value affects any bucket the
+crosswalk already resolves.}
 
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
@@ -79,6 +89,18 @@ Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
 \code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
 }
 
 \examples{
