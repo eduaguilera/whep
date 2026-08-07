@@ -209,10 +209,18 @@ spatialize_country_n_to_crops <- function(
     )
   ambiguous <- lookup$area_code[duplicated(lookup$area_code)]
   if (length(ambiguous) > 0) {
+    codes <- sort(unique(ambiguous))
+    n_ambiguous <- length(codes)
     cli::cli_abort(c(
-      "{.field polity_area_crosswalk} maps {length(ambiguous)} area
+      "{.field polity_area_crosswalk} maps {n_ambiguous} area
        code{?s} to more than one {.field polity_area_code}.",
-      x = "Ambiguous area code{?s}: {sort(unique(ambiguous))}."
+      # qty() pinned, and the codes pulled into a variable: with the marker
+      # ahead of them and nothing numeric before it, cli tries to read the
+      # quantity off the INTEGER code vector and dies on
+      # "length(object) == 1 is not TRUE" -- so the abort that is supposed to
+      # name the offending codes instead reports a cli internal, exactly when
+      # someone needs to know which codes. Same class as #618, see #621.
+      x = "{cli::qty(n_ambiguous)}Ambiguous area code{?s}: {codes}."
     ))
   }
   lookup
