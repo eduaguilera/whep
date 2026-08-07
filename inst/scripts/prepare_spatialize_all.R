@@ -946,6 +946,93 @@ cft_to_pft <- c(
 # dataset's "SRM" resolve to Serbia and Montenegro instead of to nothing.
 .mueller_base_year <- function() 2000L
 
+# The year that scopes an alias is the vintage of the LABEL VOCABULARY, not the
+# year the measurement refers to, and for `whep::crops_manure_n` the two are
+# decades apart. West et al. (2014) distribute their manure N over EarthStat's
+# circa-2000 harvested areas (Science 345:325-328,
+# doi:10.1126/science.1246067), but the dataset names countries in the ISO
+# 3166-1 vocabulary current when it was published: it carries `SRB`, `MNE`,
+# `SSD`, `CZE`, `SVK`, `COD` and `TLS`, and carries no `SCG`, `SUD`, `CSK`,
+# `YUG`, `ZAR` or `TMP`. `SSD` alone dates the vocabulary to 2011 or later.
+#
+# Reading these labels "in 2000", as whep#576 measured, would therefore fold
+# Serbia and Montenegro back into `SCG` and merge South Sudan into Sudan
+# (former) -- discarding a distinction the source itself makes, and attaching
+# the result to codes the present-day country grid has no cells for. Every year
+# from 2011 on maps all 183 country labels exactly as the plain `iso3c` join
+# does, so the constant is not load-bearing (test_prepare_nitrogen.R asserts
+# that over 2011-2023); 2014 is West et al.'s publication year.
+.crops_manure_label_year <- function() 2014L
+
+# West et al.'s `RoW` row is a residual over the countries they did not
+# itemise. The published alias map sends it to polity ROW and hence to area
+# 999, but WHEP's 999 is a DIFFERENTLY DEFINED residual -- since whep#628 it
+# holds only the territories that report nothing -- and the country grid is
+# rasterised from NaturalEarth ISO3 polygons, none of which carry it. Equating
+# the two residuals would attach 55,582 Mg of manure N (0.05 % of the 112.8 Mt
+# total) to an area code with no cells, so the reader drops it, exactly as the
+# straight `iso3c` join it replaces did.
+.rest_of_world_area_code <- function() 999L
+
+# Resolve `whep::lassaletta_grassland_share`'s country labels to the grid's
+# `area_code`. THE TWO ROUTES ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and they
+# disagree on 516 of 6,909 rows, so which one runs is the caller's choice:
+#
+#   "area_name"  joins the label onto `regions.csv`'s `area_name` (status quo).
+#   "alias_map"  decides it against `whep::polity_label_aliases` at the row's
+#                own year, then bridges polity -> iso3 -> area exactly as
+#                `.spatialize_label_area_code()` does for the other readers.
+#
+# Measured against real package data, `"alias_map"` resolves 6,682 rows where
+# `"area_name"` resolves 6,370: it gains 414 rows over 9 labels the name join
+# simply spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
+# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, Occupied
+# Palestinian Territory) and loses 102 over 5 the name join keeps but the
+# resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR 18,
+# Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the grid
+# is a present-day rasterisation, which argues for the modern successors; the
+# polity migration argues for the territory that existed in the data year --
+# so whep#576 leaves the choice open and the default stays where it was.
+.grass_share_area_code <- function(label, year, area_lookup, route) {
+  if (identical(route, "alias_map")) {
+    return(.spatialize_label_area_code(
+      label,
+      source = "lassaletta-grassland-share",
+      year = year,
+      area_lookup = area_lookup
+    ))
+  }
+  .lookup_no_na(label, area_lookup$area_name, area_lookup$area_code)
+}
+
+# `.distribute_n_to_crops()` joins the grassland share on (year, area_code), so
+# a second row for one key fans every national nitrogen row out -- a structural
+# break that no row count, mass total or area-code set on this reader's own
+# output would show (the shape of the whep#480 revert, whep#563).
+#
+# The name route never produces one. The alias route produces 49, all on area
+# 276: Lassaletta lists both "Sudan" and "Sudan (former)" for every year
+# 1961-2009 and both resolve to Sudan. Collapsing them is only safe while they
+# agree, which they do (both series are 0 throughout), so a disagreement aborts
+# instead of averaging the two shares or preferring one label -- either would
+# be a methodological choice, and this helper must not take it.
+.dedup_grass_share <- function(lass) {
+  shares <- dplyr::distinct(lass, year, area_code, grass_share)
+  clash <- shares |>
+    dplyr::add_count(year, area_code, name = "n_shares") |>
+    dplyr::filter(n_shares > 1)
+  if (nrow(clash) > 0) {
+    cli::cli_abort(c(
+      "Two grassland shares resolve to one {.field (year, area_code)} key.",
+      x = "{nrow(clash)} row{?s} over
+        {dplyr::n_distinct(clash$area_code)} area code{?s}.",
+      i = "Averaging them or preferring one label is a methodological
+        choice, so it is not made here."
+    ))
+  }
+  shares
+}
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -2025,9 +2112,14 @@ prepare_nitrogen_inputs <- function(
   l_files_dir,
   output_dir,
   year_range,
-  prod = NULL
+  prod = NULL,
+  grass_share_route = c("area_name", "alias_map")
 ) {
   cli::cli_h2("Section 7: Nitrogen / fertilizer inputs")
+  grass_share_route <- rlang::arg_match(grass_share_route)
+  cli::cli_alert_info(
+    "Lassaletta grassland share keyed by {.val {grass_share_route}}."
+  )
 
   regions <- readr::read_csv(
     system.file("extdata", "regions.csv", package = "whep"),
@@ -2079,7 +2171,7 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7c. Cropland/Grassland split (EuroAgriDB via pins) ----
-  .read_crop_grass_split_local <- function(regions) {
+  .read_crop_grass_split_local <- function(regions, route) {
     synth_eu <- whep::whep_read_file("eu-agridb-synthetic-fertilizer") |>
       filter(Symbol %in% c("Q_C", "Q_PG")) |>
       mutate(
@@ -2116,12 +2208,16 @@ prepare_nitrogen_inputs <- function(
 
     lass <- whep::lassaletta_grassland_share |>
       rename(lassaletta_name = Country) |>
-      left_join(
-        select(regions, iso3c, area_code, area_name),
-        by = c("lassaletta_name" = "area_name")
+      mutate(
+        area_code = .grass_share_area_code(
+          lassaletta_name,
+          year = as.integer(year),
+          area_lookup = regions,
+          route = route
+        )
       ) |>
       filter(!is.na(area_code)) |>
-      select(year, area_code, grass_share)
+      .dedup_grass_share()
 
     list(euadb = euadb, lassaletta = lass)
   }
@@ -2130,8 +2226,15 @@ prepare_nitrogen_inputs <- function(
   .read_crop_base_rates_local <- function(regions) {
     crop_manure <- whep::crops_manure_n |>
       rename(crop_name = Crop_name, iso3c = ISO, manure_mg_n = Manure_N_Mg) |>
-      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-      filter(!is.na(area_code)) |>
+      mutate(
+        area_code = .spatialize_label_area_code(
+          iso3c,
+          source = "crops-manure-n",
+          year = .crops_manure_label_year(),
+          area_lookup = regions
+        )
+      ) |>
+      filter(!is.na(area_code), area_code != .rest_of_world_area_code()) |>
       summarize(manure_mg_n = sum(manure_mg_n), .by = c(area_code, crop_name))
 
     crop_synthetic <- whep::mueller_synthetic_n |>
@@ -2614,7 +2717,7 @@ prepare_nitrogen_inputs <- function(
 
   n_totals <- .read_n_totals_local(regions, prod)
   pk_totals <- .read_faostat_pk_totals_local(regions)
-  lu_split <- .read_crop_grass_split_local(regions)
+  lu_split <- .read_crop_grass_split_local(regions, grass_share_route)
   base_rates <- .read_crop_base_rates_local(regions)
 
   # Spatial rate enhancements
@@ -2774,6 +2877,7 @@ prepare_nitrogen_inputs <- function(
     target_year <- max(as.integer(year_range))
     nitrogen_inputs <- bind_rows(all_parts) |>
       .fill_n_inputs_to_target_year(target_year) |>
+      mutate(method_grass_share = grass_share_route) |>
       arrange(year, area_code, crop_name, fert_type)
     .save_parquet(nitrogen_inputs, output_dir, "nitrogen_inputs")
     cli::cli_alert_success(
@@ -6766,7 +6870,8 @@ prepare_spatialize_all <- function(
   l_files_dir = "LPJmL_inputs",
   year_range = 1851:2023,
   target_res = 0.5,
-  cru_version = NULL
+  cru_version = NULL,
+  grass_share_route = c("area_name", "alias_map")
 ) {
   # For a quick test run use: year_range = 2000:2001
   #
@@ -6850,7 +6955,13 @@ prepare_spatialize_all <- function(
   )
 
   # Section 7: Nitrogen inputs
-  prepare_nitrogen_inputs(l_files_dir, output_dir, year_range, prod = prod)
+  prepare_nitrogen_inputs(
+    l_files_dir,
+    output_dir,
+    year_range,
+    prod = prod,
+    grass_share_route = grass_share_route
+  )
 
   # Section 8: Livestock inputs
   prepare_livestock_inputs(
