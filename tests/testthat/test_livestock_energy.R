@@ -307,3 +307,59 @@ testthat::test_that("cfi is NA-safe and does not affect rows without it", {
     estimate_energy_demand()
   testthat::expect_equal(with_na$ne_maintenance, no_col$ne_maintenance)
 })
+
+# .warn_inert_work_hours (issue #210) ---------------------------------------
+
+testthat::test_that("supplying work_hours_day without work_coef warns", {
+  # whep's own cw is 0, so the hours produce nothing. Returning 0 silently is
+  # the #210 complaint; the number is unchanged, the silence is not.
+  testthat::expect_warning(
+    result <- working_oxen_tier2_fixture(work_coef = NA_real_) |>
+      estimate_energy_demand(),
+    "work_hours_day"
+  )
+  testthat::expect_equal(result$ne_work, 0)
+})
+
+testthat::test_that("the inert-hours warning names work_coef as the remedy", {
+  testthat::expect_warning(
+    working_oxen_tier2_fixture(work_coef = NA_real_) |>
+      estimate_energy_demand(),
+    "work_coef"
+  )
+})
+
+testthat::test_that("supplying work_coef alongside the hours does not warn", {
+  testthat::expect_no_warning(
+    result <- working_oxen_tier2_fixture(work_coef = 0.10) |>
+      estimate_energy_demand()
+  )
+  testthat::expect_gt(result$ne_work, 0)
+})
+
+testthat::test_that("a defaulted work_hours_day never warns", {
+  # `livestock_production_defaults` carries non-zero work_hours_day for several
+  # species. Those are not a caller mistake, and warning about them would fire
+  # on ordinary pipeline runs -- the whole reason the caller-set flag exists.
+  testthat::expect_no_warning(
+    tibble::tibble(
+      species = "Buffalo",
+      cohort = "Adult Male",
+      weight = 450,
+      diet_quality = "Medium",
+      heads = 10
+    ) |>
+      estimate_energy_demand()
+  )
+})
+
+testthat::test_that("the helper column does not leak into the output", {
+  result <- suppressWarnings(
+    working_oxen_tier2_fixture(work_coef = NA_real_) |>
+      estimate_energy_demand()
+  )
+  testthat::expect_false(
+    rlang::has_name(result, "work_hours_set_by_caller")
+  )
+  testthat::expect_false(rlang::has_name(result, "cw_effective"))
+})
