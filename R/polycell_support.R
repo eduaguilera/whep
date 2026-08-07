@@ -583,7 +583,7 @@ expand_polycell_years <- function(support, years) {
 .pcs_intersect_polygonal <- function(x, y) {
   hit <- sf::st_intersection(sf::st_geometry(x), sf::st_geometry(y))
   if (length(hit) > 0L && !.pcs_has_intersection_index(hit)) {
-    return(.pcs_intersect_polygonal_by_source(x, y))
+    return(.pcs_intersect_by_source(x, y))
   }
   .pcs_restore_intersection_rows(x, hit)
 }
@@ -596,7 +596,7 @@ expand_polycell_years <- function(support, years) {
 # A few sf/GEOS combinations return an sfc result without a usable `idx`.
 # Recompute that exceptional case one source row at a time: this is slower than
 # the vectorized path, but the source identity is then exact by construction.
-.pcs_intersect_polygonal_by_source <- function(x, y) {
+.pcs_intersect_by_source <- function(x, y) {
   parts <- vector("list", nrow(x))
   for (i in seq_len(nrow(x))) {
     hit <- sf::st_intersection(sf::st_geometry(x)[i], sf::st_geometry(y))

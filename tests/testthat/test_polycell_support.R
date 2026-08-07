@@ -2402,7 +2402,7 @@ testthat::test_that("polygonal intersections restore the source row after droppi
   )
   sources <- rbind(source, source_b)
   clip <- sf::st_sfc(pcs_rect(10.1, 10.9, 45.1, 45.2), crs = 4326)
-  by_source <- whep:::.pcs_intersect_polygonal_by_source(sources, clip)
+  by_source <- whep:::.pcs_intersect_by_source(sources, clip)
   testthat::expect_equal(by_source$cell_id, c("cell-a", "cell-b"))
   testthat::expect_equal(by_source$piece, c(7L, 8L))
   testthat::expect_true(all(
