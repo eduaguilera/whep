@@ -519,3 +519,25 @@ testthat::test_that("a country-year with no positive rate falls back cleanly", {
     "area_share"
   )
 })
+
+# The abort that reports an ambiguous crosswalk used to lose its own message:
+# the plural marker sits ahead of the INTEGER code vector with nothing numeric
+# before it, so cli read the quantity off the vector and died on
+# "length(object) == 1 is not TRUE" -- hiding which codes were at fault, exactly
+# when someone needs them. Same class as #618; see #621.
+testthat::test_that("an ambiguous crosswalk names the offending area codes", {
+  testthat::local_mocked_bindings(
+    .polity_crosswalk = function() {
+      tibble::tribble(
+        ~area_code, ~polity_area_code,
+        41L, 41L,
+        41L, 214L,
+        96L, 96L,
+        96L, 344L
+      )
+    }
+  )
+
+  testthat::expect_error(.cell_polity_bucket_lookup(), "Ambiguous area code")
+  testthat::expect_error(.cell_polity_bucket_lookup(), "41")
+})
