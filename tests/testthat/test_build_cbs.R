@@ -294,6 +294,33 @@ test_that(".cbs_impute_trade tolerates missing destiny element columns", {
   ))
 })
 
+test_that(".cbs_impute_trade imputes production from destinies when missing", {
+  # Item with reported destinies + trade but NO production row: the
+  # domestic-supply residual should be imputed into production, not
+  # dumped into a large negative stock_variation (#142).
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "food", 3000, "FAOSTAT_FBS_New",
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  production <- result |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(value)
+  stock_variation <- result |>
+    dplyr::filter(element == "stock_variation") |>
+    dplyr::pull(value)
+
+  # The imputed production is the domestic-supply residual: supply 3000, less
+  # imports 500, plus exports 200, less a zero stock variation, giving 2700.
+  expect_equal(production, 2700)
+  # Balance closes: no spurious negative stock change.
+  expect_equal(stock_variation, 0)
+})
+
 
 # -- .select_best_source -------------------------------------------------------
 
