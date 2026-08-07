@@ -1145,3 +1145,81 @@
     2555L, "Soybeans"
   )
 }
+
+# Ten of the 50 provinces returned by create_typologies_grafs_spain() for its
+# default map_year of 1980, sampled from a real run.
+.ex_typologies_grafs_spain <- function() {
+  tibble::tribble(
+    ~Province_name, ~Typologie,
+    "Albacete", "Extensive cropping system",
+    "Alicante", "Extensive cropping system",
+    "Araba", "Extensive cropping system",
+    "Asturias", "Specialized livestock-farming system",
+    "Avila", "Extensive cropping system",
+    "Huelva", "Extensive cropping system",
+    "Jaen", "Extensive cropping system",
+    "Leon", "Extensive cropping system",
+    "Lleida", "Specialized livestock-farming system",
+    "Teruel", "Extensive cropping system"
+  )
+}
+
+# The three data elements create_typologies_of_josette() returns, sampled from
+# a real run at year 2020 over the first ten provinces alphabetically. The
+# fourth element of the real output is a ggplot, which is left out so the
+# example needs no plotting package.
+.example_typologies_josette <- function() {
+  list(
+    typologies_df = .ex_josette_typologies(),
+    n_input_df = .ex_josette_n_inputs(),
+    imported_feed_share_df = .ex_josette_feed_share()
+  )
+}
+
+.ex_josette_typologies <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~Typology,
+    2020, "A_Coruna", "Forage-based crop & livestock system",
+    2020, "Albacete", "Specialized stockless cropping system",
+    2020, "Alicante", "Urban system",
+    2020, "Almeria", "Forage-based crop & livestock system",
+    2020, "Araba", "Specialized stockless cropping system",
+    2020, "Asturias", "Grass-based crop & livestock system",
+    2020, "Avila", "Forage-based crop & livestock system",
+    2020, "Badajoz", "Forage-based crop & livestock system",
+    2020, "Barcelona", "Urban system",
+    2020, "Bizkaia", "Urban system"
+  )
+}
+
+.ex_josette_n_inputs <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~item, ~irrig_cat, ~Box, ~MgN_dep, ~MgN_fix, ~MgN_syn, ~MgN_manure, ~MgN_urban,
+    2020, "A_Coruna", "Fodder vegetables and roots", "Irrigated", "Cropland", 1.99, 1.06, 10.2, 0., 1.32,
+    2020, "Albacete", "Nuts and products", "Irrigated", "Cropland", 116., 85.1, 2190., 676., 11.4,
+    2020, "Albacete", "Maize and products", "Irrigated", "Cropland", 39.4, 16.6, 2070., 25.4, 3.87,
+    2020, "Albacete", "Peas", "Irrigated", "Cropland", 2.90, 33.5, 14.9, 0., 0.284,
+    2020, "Almeria", "Grapes and products (excl wine)", "Irrigated", "Cropland", 1.12, 1.00, 39.0, 0., 0.971,
+    2020, "Araba", "Beans", "Irrigated", "Cropland", 1.48, 7.46, 6.21, 0., 0.764,
+    2020, "Araba", "Soyabeans", "Rainfed", "Cropland", 0.0215, 0.146, 0.0798, 0., 0.0111,
+    2020, "Avila", "Rye and products", "Irrigated", "Cropland", 0.411, 0.242, 8.06, 0., 0.0729,
+    2020, "Badajoz", "Fodder legumes", "Rainfed", "Cropland", 65.9, 1660., 13.1, 212., 12.3,
+    2020, "Badajoz", "Firewood", "Rainfed", "semi_natural_agroecosystems", 6490., 12500., 0., 16400., 0.
+  )
+}
+
+.ex_josette_feed_share <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~LU_total, ~Feed_import_MgN, ~Domestic_feed_MgN, ~Total_feed_MgN, ~Imported_feed_share,
+    2020, "A_Coruna", 414814., 365672., 29936.3, 395608., 0.924,
+    2020, "Albacete", 178482., 157337., 8753.91, 166091., 0.947,
+    2020, "Alicante", 57203.3, 50426.5, 2561.46, 52987.9, 0.952,
+    2020, "Almeria", 224946., 198297., 11141.4, 209439., 0.947,
+    2020, "Araba", 87341.1, 76993.9, 2576.11, 79570.0, 0.968,
+    2020, "Asturias", 407178., 358940., 15068.6, 374009., 0.960,
+    2020, "Avila", 339709., 299464., 14377.8, 313842., 0.954,
+    2020, "Badajoz", 1005423., 886311., 37603.4, 923915., 0.959,
+    2020, "Barcelona", 776463., 684476., 39563.0, 724039., 0.945,
+    2020, "Bizkaia", 106968., 94295.4, 3505.52, 97800.9, 0.964
+  )
+}
