@@ -39,12 +39,14 @@ the continental residuals 901-906) and the dissolved entities GLEAM's
 present-day country table cannot carry (USSR, Czechoslovakia,
 Yugoslavia, Belgium-Luxembourg, Serbia and Montenegro). The size of that
 loss is now **reported** on every build rather than left to be inferred,
-and two opt-in treatments recover it instead of losing it:
+and three opt-in treatments recover it instead of losing it:
 `unclassified = "polity_region"` groups the **live** reporting areas
-GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
-`unclassified = "global_mean"` prices **every** unclassifiable area at
-the world-mean GLEAM intensity. The default keeps the historical
-behaviour; see whep#415 and whep#492.
+GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk,
+`unclassified = "historical_region"` additionally groups the
+**dissolved** entities from the membership they themselves held while
+they existed, and `unclassified = "global_mean"` prices **every**
+unclassifiable area at the world-mean GLEAM intensity. The default keeps
+the historical behaviour; see whep#415, whep#492 and whep#553.
 
 ## Usage
 
@@ -52,7 +54,7 @@ behaviour; see whep#415 and whep#492.
 build_energy_co2_extension(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "polity_region", "global_mean"),
+  unclassified = c("drop", "polity_region", "historical_region", "global_mean"),
   example = FALSE
 )
 ```
@@ -81,9 +83,14 @@ build_energy_co2_extension(
   their polity in `polity_area_crosswalk`, running GLEAM's own scheme
   rules on that continent, and marks those rows
   `"GLEAM_3.0_energy_meat_polity_region"`; the aggregate buckets and
-  dissolved entities still drop. `"global_mean"` instead prices every
-  unclassifiable area at the unweighted world mean of the published
-  GLEAM factors, marking those rows
+  dissolved entities still drop. `"historical_region"` does everything
+  `"polity_region"` does and also groups the **dissolved** entities
+  (USSR, Czechoslovakia, the Yugoslav SFR, Belgium-Luxembourg, Serbia
+  and Montenegro, the Netherlands Antilles) from the OECD and EU
+  membership they held while they existed, marking those rows
+  `"GLEAM_3.0_energy_meat_historical_region"`. `"global_mean"` instead
+  prices every unclassifiable area at the unweighted world mean of the
+  published GLEAM factors, marking those rows
   `"GLEAM_3.0_energy_meat_global_mean"`.
 
 - example:
@@ -96,7 +103,9 @@ build_energy_co2_extension(
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
 (energy-use emissions in kilograms CO2e) and `method_energy`
 (`"GLEAM_3.0_energy_meat"`, `"GLEAM_3.0_energy_meat_polity_region"` for
-rows grouped from the polity crosswalk, or
+rows grouped from the polity crosswalk,
+`"GLEAM_3.0_energy_meat_historical_region"` for dissolved entities
+grouped from their own era's memberships, or
 `"GLEAM_3.0_energy_meat_global_mean"` for rows priced at the world
 mean), plus the polity columns below.
 
