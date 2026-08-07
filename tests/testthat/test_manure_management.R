@@ -64,6 +64,156 @@ test_that("split_manure_management guards bad input", {
   expect_error(whep::split_manure_management(bad), "missing")
 })
 
+# Regional MMS shares (#466) -------------------------------------------------
+
+# One cattle row per territory, so the MMS fractions read straight off n_stream.
+.cattle_in <- function(territory) {
+  tibble::tibble(
+    year = 2020L,
+    territory = territory,
+    sub_territory = NA,
+    livestock_category = "Cattle_milk",
+    n_excretion = 100,
+    c_excretion = 1900,
+    vs_excretion = 60
+  )
+}
+
+.mms_fracs <- function(res) {
+  stats::setNames(res$n_stream / 100, res$mms_type)[
+    sort(res$mms_type)
+  ]
+}
+
+test_that("region_specific reaches the North America and Latin America mixes", {
+  # Regression for #466: .mms_shares() filtered regional_mms_distribution to
+  # region == "Global" unconditionally, so the 15 region-specific rows were
+  # unreachable and every territory got the Global split. area_code 231 is the
+  # USA (GLEAM "North America"), 21 Brazil (GLEAM "Central & South America",
+  # IPCC "Latin America").
+  opt <- list(mms_source = "region_specific")
+  usa <- whep::split_manure_management(.cattle_in("231"), options = opt)
+  bra <- whep::split_manure_management(.cattle_in("21"), options = opt)
+
+  expect_equal(
+    .mms_fracs(usa),
+    c(
+      "Daily Spread" = 0.05,
+      "Liquid/Slurry" = 0.40,
+      "Pasture/Range/Paddock" = 0.25,
+      "Solid Storage" = 0.30
+    )
+  )
+  expect_equal(
+    .mms_fracs(bra),
+    c(
+      "Daily Spread" = 0.10,
+      "Liquid/Slurry" = 0.05,
+      "Pasture/Range/Paddock" = 0.70,
+      "Solid Storage" = 0.15
+    )
+  )
+  # The Global cattle split is 0.50 grazing; neither region may collapse to it.
+  expect_false(isTRUE(all.equal(
+    unname(.mms_fracs(usa)[["Pasture/Range/Paddock"]]),
+    0.50
+  )))
+  expect_false(isTRUE(all.equal(
+    unname(.mms_fracs(bra)[["Pasture/Range/Paddock"]]),
+    0.50
+  )))
+})
+
+test_that("region_specific leaves the default split untouched", {
+  # The default is the status quo: every territory keeps the Global rows even
+  # where a region-specific row exists.
+  usa <- whep::split_manure_management(.cattle_in("231"))
+  expect_equal(
+    .mms_fracs(usa),
+    c(
+      "Daily Spread" = 0.05,
+      "Liquid/Slurry" = 0.15,
+      "Pasture/Range/Paddock" = 0.50,
+      "Solid Storage" = 0.30
+    )
+  )
+  expect_true(all(usa$method_mms == "regional_default"))
+})
+
+test_that("region_specific falls back to Global and conserves mass", {
+  opt <- list(mms_source = "region_specific")
+  # 231 = USA: cattle and swine have North American rows, sheep do not.
+  # 114 = Kenya (IPCC "Africa") has no regional rows at all.
+  # "ES" is neither an area code nor an ISO3: it must resolve to no region
+  # instead of aborting, and take the Global rows.
+  excretion <- dplyr::bind_rows(
+    .cattle_in("114"),
+    dplyr::mutate(.cattle_in("231"), livestock_category = "Sheep"),
+    dplyr::mutate(.cattle_in("ES"), livestock_category = "Cattle_milk")
+  )
+  res <- whep::split_manure_management(excretion, options = opt)
+
+  global <- whep::split_manure_management(excretion)
+  expect_equal(
+    dplyr::arrange(res, territory, mms_type)$n_stream,
+    dplyr::arrange(global, territory, mms_type)$n_stream
+  )
+  expect_true(all(res$method_mms == "region_specific"))
+  # Mass is conserved per input row under either source.
+  totals <- res |>
+    dplyr::summarise(
+      n = sum(n_stream),
+      c = sum(c_stream),
+      vs = sum(vs_stream),
+      .by = c(territory, livestock_category)
+    )
+  expect_true(all(abs(totals$n - 100) < 1e-9))
+  expect_true(all(abs(totals$c - 1900) < 1e-9))
+  expect_true(all(abs(totals$vs - 60) < 1e-9))
+})
+
+test_that("region_specific adds and drops no rows", {
+  opt <- list(mms_source = "region_specific")
+  excretion <- dplyr::bind_rows(
+    .cattle_in("231"),
+    .cattle_in("21"),
+    .cattle_in("114"),
+    dplyr::mutate(.cattle_in("231"), livestock_category = "Pigs")
+  )
+  a <- whep::split_manure_management(excretion)
+  b <- whep::split_manure_management(excretion, options = opt)
+  key <- function(d) {
+    d |>
+      dplyr::distinct(year, territory, sub_territory, livestock_category) |>
+      nrow()
+  }
+  expect_equal(key(a), key(b))
+  expect_equal(sum(a$n_stream), sum(b$n_stream))
+  # North American swine swap Daily Spread for an Anaerobic Lagoon, so the MMS
+  # vocabulary the split emits is allowed to differ; the territories are not.
+  expect_setequal(unique(a$territory), unique(b$territory))
+})
+
+test_that(".mms_region_of resolves an area-code territory to an IPCC region", {
+  # MEASURED: .gleam_region_of() given area_code alone resolves 2 of the 195
+  # territories the 2020 national manure chain carries, because its second leg
+  # only lists dissolved federations; with the ISO3 attached it resolves all
+  # 195. The region lookup must therefore attach the ISO3.
+  expect_equal(
+    whep:::.mms_region_of(c("231", "21", "79", "114", "ES", NA)),
+    c(
+      "North America",
+      "Latin America",
+      "Western Europe",
+      "Africa",
+      NA,
+      NA
+    )
+  )
+  # An ISO3 literal is the deprecated-but-accepted territory form.
+  expect_equal(whep:::.mms_region_of("ESP"), "Western Europe")
+})
+
 test_that("apply_management_losses conserves N (applied + losses = excreted)", {
   res <- whep::apply_management_losses(
     whep::split_manure_management(.toy_excretion())

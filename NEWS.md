@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **`split_manure_management()` can now use the region-specific MMS shares, via
+  the new `mms_source = "region_specific"`. The default is unchanged, so no
+  published value moves.** `regional_mms_distribution` ships 33 rows: 18 for
+  `region == "Global"` and 15 for North America (cattle, swine), Western Europe
+  (cattle) and Latin America (cattle). The function filtered the table to
+  `"Global"` unconditionally and never read the excretion's `territory`, so
+  those 15 rows were unreachable and every territory got the global split —
+  a global default, not a drop and not a silent zero. The territory is now
+  resolved to its IPCC region through the same GLEAM lookup the emission-factor
+  tables use (`.gleam_region_of()`, whep#465), with the Global rows as the
+  fallback for every region and species the table does not cover.
+
+  **What flipping the default would move**, measured on the real 2020 national
+  chain (90.06 Mt excreted N, 195 territories): 66 territories and 5.40 Mt N
+  (6.0% of the excreted nitrogen) change management system. The in-situ grazing
+  stream falls from 41.36 to 40.71 Mt N (−1.6%) and the collected stream rises
+  correspondingly; applied N moves −0.24%, volatilized N +0.94%, leached N
+  −4.67%, direct N2O-N +0.30% and indirect N2O-N +0.84%. Rows, keys and
+  territories are identical between the two sources, and mass is conserved per
+  input row under both. The default stays `"regional_default"` because the
+  region-specific rows are a coarse four-pair table (`data-raw` documents them
+  as "GLEAM 3.0 / FAO statistics (simplified)") whose provenance has not been
+  verified against a published GLEAM table; whether they are better than the
+  global average is the maintainer's call (#466).
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
