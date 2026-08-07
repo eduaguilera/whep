@@ -1,5 +1,24 @@
 # whep (development version)
 
+* **`calculate_soc_dynamics()` returns one schema for all five SOC models.**
+  It used to hand back whichever shape the selected model happened to produce:
+  `hsoc` (the default) came back long as `pool` / `year` / `stock_mgc_ha` /
+  `rate_mgc_ha` with **no** `soc_total`, while `rothc`, `icbm`, `amg` and
+  `century` came back wide with `soc_total` and their own mutually exclusive
+  pool columns (`dpm`/`rpm`/`bio`/`hum`/`iom`, `y`/`o`, `ca`/`cs`,
+  `str`/`met`/`act`/`slw`/`pas`) — no two of the five agreed, so a caller had
+  to branch on `model`. The selector now reshapes whichever model ran to the
+  long schema `year`, `pool`, `stock_mgc_ha`, `soc_total`, `method_soc`: pool
+  detail is kept, the model-specific part sits in the values of `pool` instead
+  of in column names, and the five runs of a sensitivity analysis stack with a
+  plain `dplyr::bind_rows()`. Total-only callers read
+  `dplyr::distinct(out, year, soc_total)`. `calculate_soc_hsoc()` itself is now
+  wide like its four siblings (`year`, `fresh`, `humus`, `iom`, `soc_total`) and
+  no longer returns the per-pool `rate_mgc_ha`, which was exactly the forward
+  annual difference of `stock_mgc_ha` and is recoverable from it. **No published
+  value changes**: every pool stock and every `build_carbon_balance()`
+  equilibrium is bit-identical before and after (checked across nine HSOC
+  parameterisations and the spin-up of all five models).
 * `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
   an `example = FALSE` argument, so both now have runnable examples like the
   rest of the package's remote-data functions. Their documented `@return` was

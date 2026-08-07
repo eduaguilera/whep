@@ -581,17 +581,24 @@
     .add_reporting_polity_columns()
 }
 
-# SOC dynamics selector output (ICBM model, six annual rows). Young and old
-# pool stocks plus their total, with the method_soc stamp naming the model.
+# SOC dynamics selector output (ICBM model, six years x two pools) in the
+# uniform long schema: the young and old pool stocks, the year's total repeated
+# on each pool row, and the method_soc stamp naming the model that ran.
 .example_soc_dynamics <- function() {
   tibble::tribble(
-    ~year, ~y, ~o, ~soc_total, ~method_soc,
-    0L, 2.7488, 47.2512, 50.0000, "icbm",
-    1L, 2.6118, 47.2077, 49.8195, "icbm",
-    2L, 2.5502, 47.1742, 49.7244, "icbm",
-    3L, 2.5226, 47.1453, 49.6679, "icbm",
-    4L, 2.5101, 47.1185, 49.6287, "icbm",
-    5L, 2.5046, 47.0928, 49.5974, "icbm"
+    ~year, ~pool, ~stock_mgc_ha, ~soc_total, ~method_soc,
+    0L, "y", 2.748751, 50.000000, "icbm",
+    0L, "o", 47.251249, 50.000000, "icbm",
+    1L, "y", 2.611771, 49.854975, "icbm",
+    1L, "o", 47.243204, 49.854975, "icbm",
+    2L, "y", 2.550222, 49.775657, "icbm",
+    2L, "o", 47.225435, 49.775657, "icbm",
+    3L, "y", 2.522566, 49.725947, "icbm",
+    3L, "o", 47.203381, 49.725947, "icbm",
+    4L, "y", 2.510140, 49.689628, "icbm",
+    4L, "o", 47.179488, 49.689628, "icbm",
+    5L, "y", 2.504556, 49.659408, "icbm",
+    5L, "o", 47.154852, 49.659408, "icbm"
   )
 }
 
