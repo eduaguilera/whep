@@ -947,6 +947,23 @@ get_polity_geometries <- function(polity_codes = NULL) {
   ))
 }
 
+# The years the contract is asserted over: FAOSTAT's first reported year to the
+# vintage's horizon.
+#
+# Both ends are derived, not written down. The lower end is
+# `add_polity_code()`'s `backcast_anchor`, which floors every lookup, so nothing
+# resolves under a pre-anchor year at all. The upper end is the largest
+# `polity_end_year` the crosswalk carries, the same open-period sentinel
+# `.current_area_lookup()` reads -- a literal would silently stop covering the
+# newest year the next time the snapshot moves, and it has moved twice in this
+# epic (#530, #551).
+.reporting_era_years <- function(crosswalk) {
+  seq.int(
+    eval(formals(add_polity_code)$backcast_anchor),
+    max(as.integer(crosswalk$polity_end_year), na.rm = TRUE)
+  )
+}
+
 # The same detection over the spans `add_polity_code()` ACTUALLY JOINS ON, which
 # are not the spans the crosswalk declares.
 #
@@ -966,13 +983,14 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # never shows up as a duplicated output row and cannot be seen downstream.
 # This is what makes the contract a property of the resolution rather than of
 # the table.
-.polity_join_conflicts <- function(crosswalk = NULL, years = 1961:2025) {
+.polity_join_conflicts <- function(crosswalk = NULL, years = NULL) {
   cw <- if (is.null(crosswalk)) {
     .polity_crosswalk(include_unmapped = TRUE)
   } else {
     crosswalk
   }
   cw <- as.data.frame(cw)
+  years <- years %||% .reporting_era_years(cw)
   if (!rlang::has_name(cw, "map_year_end")) {
     cw$map_year_end <- NA_integer_
   }
@@ -1010,10 +1028,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # what a consumer keying on the bucket gets is the resolution, including the
 # nearest-period stand-ins: 206 is ambiguous in every reported year, not only
 # in the years its three periods overlap.
-.bucket_year_polity_conflicts <- function(years = 1961:2025) {
-  areas <- sort(unique(stats::na.omit(
-    .polity_crosswalk(include_unmapped = TRUE)$area_code
-  )))
+.bucket_year_polity_conflicts <- function(years = NULL) {
+  cw <- .polity_crosswalk(include_unmapped = TRUE)
+  years <- years %||% .reporting_era_years(cw)
+  areas <- sort(unique(stats::na.omit(cw$area_code)))
   grid <- tibble::tibble(
     area_code = rep(as.integer(areas), each = length(years)),
     year = rep(as.integer(years), times = length(areas))
