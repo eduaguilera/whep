@@ -1,5 +1,74 @@
 # whep (development version)
 
+* **`build_carbon_balance()` is about a quarter faster, with output unchanged
+  to the last bit.** The RothC/HSOC climate modifier is now computed for every
+  cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
+  separate calls over five years, each of which allocated a list and accumulated
+  over twelve months. The deficit recurrence is sequential over months but
+  independent across cells, so the loop inverts. Measured on
+  `years = 1901:1905`: 820.4 s to 612.1 s. Peak memory is unaffected.
+
+  The per-group path stays in place as the reference and still runs for models
+  that do not use this modifier. The two agree exactly, not approximately:
+  `identical()` holds across all 1,166,220 rows and 17 columns of the five-year
+  build, so no result changes (#630).
+* **`build_energy_co2_extension(unclassified = "historical_region")` prices the
+  dissolved federations instead of losing them (#553).** Measured on the real
+  `get_primary_production()` output (6,305,656 rows, 1850-2023), 569.4 Mt of
+  meat carcass production — 3.33% of all of it, and 15.2% of the world's 1961
+  tonnage — gets no energy intensity and leaves the extension, because
+  `gleam_geographic_hierarchy` is a present-day country table with no row for
+  the USSR, Belgium-Luxembourg, Czechoslovakia, the Yugoslav SFR or Serbia and
+  Montenegro. Those five are now 99.998% of the loss: since the Rest-of-World
+  fold was lifted (#628) bucket 999 no longer contributes to it at all. The new
+  treatment groups them by running GLEAM's own scheme rules on the OECD and EU
+  membership they themselves held while they existed — Belgium and Luxembourg
+  were OECD founding members and EEC founders, so Belgium-Luxembourg is OECD/EU
+  27; no successor of the other four was in either body before the entity
+  dissolved, so they are non-OECD, non-EU. Rows carry
+  `method_energy = "GLEAM_3.0_energy_meat_historical_region"`, and the option
+  is a superset of `"polity_region"`.
+
+  **No published value changes**: the default `unclassified = "drop"` is
+  bit-identical on the full real input (181,831 rows, `sum(impact_u) =
+  6.530863856531e12` before and after, `identical()` TRUE). Opting in adds
+  1,190 rows and 7 areas, moves no shared row by any amount, and raises total
+  energy CO2e by **+2.40%** over 1850-2023 — **+12.0% in 1961**, +11.3% in
+  1990, +0.26% in 2000 and 0% from 2010 on.
+* **`polity_area_crosswalk$mapping_status` now uses the value it documented but
+  never shipped, and the confidence of a mapping is documented as the pair
+  `mapping_status` x `mapping_source`.** `not_a_reporting_area` sat below
+  `matched` in the build's `case_when`, so it could only fire for a row with
+  neither an `area_code` nor a `polity_code` — no such row exists, and it
+  shipped on 0 of 596 rows. The 20 rows it was written for (Aland, Saint
+  Barthelemy, Guernsey, Jersey, the Isle of Man and Sint Maarten, which
+  `regions_full` carries without a FAOSTAT code, plus the six regional
+  aggregate polities) match a polity and so read `matched`, indistinguishable
+  from a real area mapping even though they carry `NA` in both `area_code` and
+  `polity_area_code` and no consumer can join to them. Status counts move from
+  manual 27 / matched 568 / unmapped 1 to manual 27 / matched 548 /
+  not_a_reporting_area 20 / unmapped 1. No `polity_code`, `polity_area_code` or
+  any other column moves, and no code in the package filters the crosswalk on
+  `mapping_status == "matched"`, so no published number changes. A consumer that
+  does filter that way loses 20 unjoinable rows.
+
+  `mapping_status` says whether a polity was found, not how far to trust it:
+  `matched` covers a curated hit in upstream's FAOSTAT map (233 rows), a
+  prefix-inferred historical period (247), a prefix guess for an area the map
+  never mentions (6) and the FABIO Rest-of-World fold (62). `mapping_source`
+  already separates those and is non-`NA` on every row, so the fix for #544 is
+  to document the pair rather than add a third vocabulary that would duplicate
+  it (#544).
+* **`get_polity_geometries(polity_codes = )` now returns a usable `sf` object
+  in a session that has not loaded `sf`.** The row subset ran through
+  `[.data.frame` whenever the suggested `sf` namespace was not loaded, which
+  keeps class `sf` and `attr(, "sf_column")` but strips `sfc` off the column
+  they point at; the result passed every cheap structural check and then
+  aborted inside the first `sf` call, complaining about a column nobody had
+  renamed. The function now loads `sf` before subsetting, and aborts with class
+  `whep_sf_required` if `sf` is not installed instead of returning the broken
+  object. No published values change: the argument-less call is untouched, and
+  both in-package callers use it.
 * **`build_gridded_landuse()` and `build_gridded_livestock()` take an
   `area_key`, and say when their output cannot join a national table.** The
   spatialize chain allocates on the raw reporting codes its `country_areas`

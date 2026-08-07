@@ -956,6 +956,7 @@ utils::globalVariables(
     "is_tradeable",
     "other_mean",
     "scale_new_old",
+    "scale_raw",
     # spatialize.R — data.table i.* and computed cols
     ".cell_group",
     ".cross",
