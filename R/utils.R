@@ -1797,8 +1797,9 @@ utils::globalVariables(
     "member_name",
     # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
     # Bouwman region in an aggregate reporting bucket's herd
-    "region_weight"
+    "region_weight",
+    # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
+    "canonical_area",
+    "key_row"
   )
 )
-
-# -- Helpers for spatialize scripts -------------------------------------------

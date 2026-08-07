@@ -70,37 +70,40 @@
 #' # Self-contained toy: two adjacent square polities. Only "P1" reports a
 #' # value in 1900, so when the series is rebuilt onto the boundaries active in
 #' # `ref_year` 2000 (both polities), "P2" is imputed from "P1"'s intensity.
-#' make_square <- function(xmin, ymin, side) {
-#'   sf::st_polygon(list(rbind(
-#'     c(xmin, ymin),
-#'     c(xmin + side, ymin),
-#'     c(xmin + side, ymin + side),
-#'     c(xmin, ymin + side),
-#'     c(xmin, ymin)
-#'   )))
-#' }
-#' polities <- sf::st_sf(
-#'   polity_code = c("P1", "P2"),
-#'   start_year = c(1800L, 1800L),
-#'   end_year = c(2025L, 2025L),
-#'   geometry = sf::st_sfc(
-#'     make_square(0, 0, 2),
-#'     make_square(2, 0, 2),
-#'     crs = 4326
+#' # `sf` is a suggested dependency, so the example runs only when it is there.
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   make_square <- function(xmin, ymin, side) {
+#'     sf::st_polygon(list(rbind(
+#'       c(xmin, ymin),
+#'       c(xmin + side, ymin),
+#'       c(xmin + side, ymin + side),
+#'       c(xmin, ymin + side),
+#'       c(xmin, ymin)
+#'     )))
+#'   }
+#'   polities <- sf::st_sf(
+#'     polity_code = c("P1", "P2"),
+#'     start_year = c(1800L, 1800L),
+#'     end_year = c(2025L, 2025L),
+#'     geometry = sf::st_sfc(
+#'       make_square(0, 0, 2),
+#'       make_square(2, 0, 2),
+#'       crs = 4326
+#'     )
 #'   )
-#' )
-#' reported <- tibble::tibble(
-#'   year = 1900L,
-#'   polity_code = "P1",
-#'   value = 100
-#' )
-#' build_constant_territory_series(
-#'   reported,
-#'   ref_year = 2000,
-#'   polities = polities,
-#'   resolution = 50000,
-#'   verbose = FALSE
-#' )
+#'   reported <- tibble::tibble(
+#'     year = 1900L,
+#'     polity_code = "P1",
+#'     value = 100
+#'   )
+#'   build_constant_territory_series(
+#'     reported,
+#'     ref_year = 2000,
+#'     polities = polities,
+#'     resolution = 50000,
+#'     verbose = FALSE
+#'   )
+#' }
 #' @export
 build_constant_territory_series <- function(
   data,
@@ -113,6 +116,9 @@ build_constant_territory_series <- function(
   max_cells = 2e6,
   verbose = TRUE
 ) {
+  # Every step below is `sf::`, so fail with an instruction rather than with a
+  # bare "there is no package called 'sf'" from the first namespace call.
+  rlang::check_installed("sf", "to reallocate values across polity polygons.")
   donor <- match.arg(donor)
   required <- c("year", "polity_code", "value")
   missing <- setdiff(required, names(data))
