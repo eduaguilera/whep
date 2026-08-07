@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **Year-scoped production builds no longer drop crop yields their full-range
+  counterpart keeps.** `.fill_yields()` interpolates `yield_c` along the year
+  axis, so a window with no neighbouring years cannot reconstruct a yield the
+  full series reconstructs, and `.finalise_primary()` then drops the row when it
+  melts. At 2010 that was five `t_ha` rows (Cook Islands and North Macedonia:
+  chillies, lemons, grapefruit, coffee, spices) even though their `tonnes` and
+  `ha` rows both survived. Requested windows are now widened by 5 years either
+  side for the read and trimmed back afterwards, so scoped `t_ha` agrees exactly
+  with the full-range build instead of by 2.95e-04. A full-range request is
+  unaffected. A scoped 2010 build costs 31 s to 40 s for this (#667).
+
+* **Year-scoped builds no longer drop split-species slaughter counts.**
+  `.compute_stock_shares()` read the livestock stock series scoped to the
+  caller's window, but those shares are carried along the year axis precisely
+  because the `faostat-emissions-livestock` pin lags QCL slaughter by 1-2 years.
+  A narrow window left the carry-forward nothing to fill from, and the join in
+  `.split_slaughter_by_shares()` then dropped the slaughter row entirely. At
+  2010 that was 2 Singapore rows (Pigs, Hogs); `slaughtered_heads` now agrees
+  exactly with the full-range build instead of by 4.7e-06. The stock series is
+  read over its full span; full-range output is unchanged (#665).
+
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
