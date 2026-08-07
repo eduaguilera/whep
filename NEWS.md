@@ -1,5 +1,31 @@
 # whep (development version)
 
+* **`build_water_balance()` can now charge a single crop's water, and the
+  per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
+  gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
+  `build_water_balance(bands = )` restricts the consumptive-water and
+  `cft_nir` terms to named crop-functional-type bands, e.g.
+  `bands = "rainfed grassland"` to charge a grazing footprint the grassland
+  water alone rather than every crop in the cell. Bands are selected by the
+  `band_name` the file itself carries, never by index, so a run configured with
+  a different band set aborts instead of silently charging the wrong crop.
+  `bands = NULL` (the default) totals every band, so existing callers are
+  unaffected. Three fixes were needed to get there, each of which would have
+  produced wrong numbers rather than an error:
+  * The `cft_nir` map entry named `mcft_nir.nc` holding a monthly `cft_nir`
+    variable. **No WHEP run has ever written that file**: all nine runs, 5.9.7
+    and 6.1.1 alike, write `cft_nir.nc` holding annual `nir`. Reading it would
+    simply have failed; nothing called it yet.
+  * The reader assumed twelve time steps per year for every variable. The
+    per-CFT consumptive-water cubes are annual (`nstep` 1, mm/yr), so their
+    time axis was decoded as months, mapping year *y* to year 1901 + (y-1901)/12
+    and slicing the wrong years out of the file entirely.
+  * `ncvar_get()` drops length-1 dimensions, so slicing one year out of an
+    annual per-CFT cube returned a 3-D slab whose *band* axis was then decoded
+    as *time* — scrambling crops into years. Now read with
+    `collapse_degen = FALSE`. Monthly cubes never hit this, because a one-year
+    slice is still twelve steps.
+
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
