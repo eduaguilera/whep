@@ -9,9 +9,12 @@
   and "South Sudan" — under one `area_code`; `.dedup_production()` reads that
   as competing sources and kept one, dropping the other's pasture. The bucket
   now carries one label derived from its own code, so the two are summed.
-  (2) The pre-1962 `t_ha` back-cast grouped its proxy-growth fill on the
-  label, and "Rest of World" covers 62 reporting `area_code`s, so growth rates
-  were taken between different countries. **Published values move**: `ha`
+  (2) The `t_ha` proxy-growth fill grouped its series on the label, which is
+  wrong both ways: "Rest of World" covers 62 reporting `area_code`s, so growth
+  rates were taken between different countries, and the label is year-aware, so
+  one country's own series was cut in two at every periodization boundary
+  (`area_code` 79 is "Germany (divided, 1949-1990)" through 1989 and "Germany"
+  from 1990). **Published values move**: `ha`
   +1.04% (+5.56e9 ha-years, all of it bucket 206's recovered pasture over
   1850-2022) and `t_ha` -0.036% (464 cross-country fills removed, 5 real ones
   gained); `tonnes`, `heads`, `LU`, `t_head`, `t_LU` and `slaughtered_heads`
