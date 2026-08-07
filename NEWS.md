@@ -1,5 +1,137 @@
 # whep (development version)
 
+* **The polycell is now WHEP's spatial support unit, and it carries a measured
+  territory instead of a whole grid cell.** `build_polycell_support()` returns
+  one row per 0.5-degree cell intersected with a polity over that polity's
+  validity interval, with the territory decomposed into
+  `polity_area_ha = land_area_ha + inland_water_ha + ice_area_ha`, all geodesic
+  from a spherical (`s2`) intersection of the polity polygons. Aggregating
+  polycells to a polity changes no absolute value and no quantity crosses a
+  border it does not belong to, which neither of the two conventions it
+  replaces could offer: centroid assignment gave a whole border cell to one
+  polity, and the fractional crosswalk multiplied a valid partition of the land
+  by the **whole cell's** area. That last defect over-counted the global land
+  base by **11.0%** -- 14.3195 Gha of whole cells against 12.9931 Gha of LUH2
+  terrestrial area -- and it is the mechanism behind the inflated per-hectare
+  deposition rates. New: `build_polycell_support()`, `expand_polycell_years()`,
+  `read_polycell_support()`, `read_glwd_water()`, `read_glaciated_areas()`,
+  `read_luh2_terrestrial()` and `polycell_example_geometries()`.
+  * **Four definitions of "land" are live and they disagree by up to 10%**, so
+    a global area is only interpretable next to the one it was measured on. At
+    2015: whole 0.5-degree cells **14.3195 Gha**, HaNi's own land mask
+    **13.5977 Gha**, the union of the live polity polygons **13.2795 Gha**,
+    LUH2 terrestrial `(1 - icwtr) * carea` **12.9931 Gha**. The support table's
+    territory is the third; the fourth is a validation layer whose
+    disagreement is emitted in the `"unassigned"` attribute and never silently
+    reconciled; the first is the convention being replaced. A fifth mask (the
+    GLWD water layer's CRU mask, 67,420 cells) is reconciled in
+    `"water_unmatched"` rather than joined away. Re-derivable with
+    `inst/scripts/diagnose_polycell_support.R`; the polygon row moves with the
+    polity vintage and is measured by `inst/scripts/reconcile_polity_areas.R`.
+  * **`ice_area_ha` does not vary historically.** It comes from
+    `ne_10m_glaciated_areas`, a coarse present-day snapshot, so a historical
+    run carries today's ice extent and land that lay under ice in 1850 is
+    credited to `land_area_ha`. That is accepted **only** because ice is a
+    reporting category and not a driver: nothing divides by `ice_area_ha` or
+    drives a flux with it. If ice ever becomes a driver the source has to be
+    reopened. Inland water comes from the GLWD lakes-and-rivers layer at
+    30 arcmin (Ostberg et al. 2023,
+    <https://doi.org/10.5194/gmd-16-3375-2023>), not from
+    `ne_10m_lakes`, which carries roughly half of global inland water and omits
+    the Caspian.
+  * **The table keys on `polity_code` and nothing else.** `area_code` rides
+    along as a label. `polity_area_crosswalk` folds 505 polity codes into 201
+    reporting buckets, 113 of which hold more than one polity and one of which
+    (206) holds Sudan and South Sudan simultaneously, so a table whose purpose
+    is correct territorial attribution is not keyed on it. Consumers convert at
+    their own boundary, and **that conversion is where the lossy fold
+    happens** -- visible at the consumer rather than hidden in the support.
+    `build_n_deposition()` refuses an unconverted support instead of converting
+    one silently.
+  * The default grain is interval-keyed, one row per polycell per interval,
+    because no area column varies by year; `expand_polycell_years()` gives the
+    per-year view on demand. `start_year` is inclusive and `end_year` is
+    **exclusive at a succession** but **inclusive at the open end**, so a
+    handover year resolves to the successor alone and the current year still
+    resolves to the polity nothing succeeds.
+
+* **Atmospheric deposition is now split as a mass over territory, and its two
+  land definitions are separated.** `build_n_deposition()` splits each cell's
+  HaNi mass across the polities holding the cell in proportion to
+  `polity_area_ha` (`split = "auto"` takes it when the support carries it and
+  the old `polity_frac` otherwise; either can be demanded explicitly, and a
+  demand that cannot be met aborts), then decomposes each polity's share over
+  land, inland water and ice (`categories = "auto"`). Both choices are
+  recorded in `method_polity_split` and `method_area_split`, so a table's
+  split is readable from the table.
+  * **WHEP's territory governs *placement*; HaNi's land mask governs the
+    *total*.** The mass placed is HaNi's block sum, and HaNi is referenced to
+    the whole 5 arcmin cell inside a land-masked domain whose mask is a third
+    land definition at 13.5977 Gha. Nothing re-references the mass to WHEP's
+    land: forming a rate on the whole cell and multiplying by `land_area_ha`
+    would shed about 9% of the source mass, and re-referencing to HaNi's own
+    mask would move the global total by about 4.5%. A global sum out of this
+    function is therefore HaNi's total redistributed onto WHEP's territory,
+    conserved exactly against the source (34.77 Tg NHx in 2014). Source: Tian
+    et al. 2022, <https://doi.org/10.5194/essd-14-4551-2022>.
+  * **Deposition scope is selectable and defaults to the whole territory.**
+    `build_n_inputs(data = list(deposition_scope = ))` takes `"territory"`
+    (default: land plus inland water plus ice) or `"land"`, recorded in
+    `method_deposition_scope`. The default is a scientific choice, not a
+    conservative one: nitrogen deposited on a lake or a glacier still drives
+    indirect N2O and still reaches the eutrophication pathway, so restricting
+    the ledger to the terrestrial share would discard 0.89 Tg N of real flux
+    that the impact terms have to account for. `"land"` remains available for
+    the purposes that want it and aborts if the support cannot be decomposed,
+    rather than silently returning the whole territory. Under the default the
+    ledger output is bit-identical to before the split.
+  * **Known limitation, not a rounding error:** nine polities -- Sudan, South
+    Sudan, Syria, North Macedonia, Eswatini, Equatorial Guinea, Palestine, Fiji
+    and New Caledonia -- receive no deposition through the deployed crosswalk,
+    because their polity codes have no reporting `area_code` to convert to.
+    **The gap is identity, not extent**: of the six with a directly comparable
+    official area, all sit within 3.7% of it (Syria +0.90%, North Macedonia
+    -1.23%, Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%,
+    Equatorial Guinea -3.65%). It is the single largest lever left in the N
+    ledger.
+
+* **Migrating a consumer onto the polycell: what to change and what moved.**
+  The transitional shim that let `build_polycell_support()` masquerade as the
+  old crosswalk (a `polity_frac` column plus padding rows for cells the
+  intersection did not reproduce) is **gone**. A consumer that used to
+  multiply a rate by `cell_area_ha * polity_frac` now multiplies it by
+  `polity_area_ha`, or by `land_area_ha` when the quantity is genuinely
+  terrestrial, and converts `polity_code` to its own reporting vocabulary
+  before joining. Migrated here: deposition (`build_n_deposition()`), the
+  synthetic-N grid split, the carbon path (`build_carbon_balance()` and its
+  land inputs) and the compartment keying in `spatialize()` /
+  `spatialize_livestock()`, which now **abort** on a support carrying no
+  polity share instead of defaulting `cell_area_frac = 1` and handing a border
+  cell wholly to one polity.
+  * **Measured movement, at polity grain**, is entirely in the deposition
+    input term: `n_input_full_t` -0.504%, `n_balance_t` -2.252%,
+    `surplus_t` -1.055%, `total_gwp_co2e_kg` -0.137%. Of the -678,612.5 t N,
+    **95.6% (-648,491.3 t) is the nine unreachable polities above** and only
+    -30,121.2 t (0.107% of the term) is geometry, dominated by Canada
+    (-1.03%). The split key itself moves 27 of 28 ledger quantities by exactly
+    zero and the 28th by one ulp; the synthetic term moves by exactly 0 t.
+  * **The island states are fixed.** Against official land areas, Kiribati
+    goes from **34.3x** to **1.18**, Micronesia 17.5x to 1.00, French Polynesia
+    15.3x to 1.16, Maldives 10.3x to 0.58 -- they used to draw a whole
+    0.5-degree cell each while carrying no LUH2 terrestrial area at all.
+  * **Greenland reads as +419% against FAOSTAT and is not a defect**: FAO's
+    country area for Greenland "refers to area free from ice", so the
+    comparable quantity is WHEP's territory minus its 177.5 Mha of ice, which
+    reads -12.9%.
+  * **Five `polity_frac` call sites remain and are deliberate.** Dropping
+    `"polity_frac"` from `utils::globalVariables()` exposes exactly five
+    `no visible binding` sites: three in `water_balance.R` and one each in
+    `feed_lpjml.R` and `feed_intake_redistribute.R`. All three files are out of
+    scope for this migration -- the water balance is owned elsewhere and the
+    feed path is frozen -- and they are **not** an oversight or an unfinished
+    migration. The `R CMD check` NOTE count is unchanged either way, so the
+    lines sit inside a NOTE the package already had.
+
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and

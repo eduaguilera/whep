@@ -43,12 +43,24 @@
 #' - `polity_code`: Stable WHEP polity identifier, usually
 #'   `PREFIX-start_year-end_year`.
 #' - `polity_name`: Human-readable polity name.
-#' - `start_year`, `end_year`: Half-open validity interval for the row:
-#'   `start_year` is inclusive, `end_year` is **exclusive**, so the row covers
-#'   `start_year:(end_year - 1)` and hands over to its successor in `end_year`
-#'   (`F51-1947-1993` Czechoslovakia covers 1947-1992, and 1993 belongs to
-#'   `CZE-1993-2025` and `SVK-1993-2025`). Open periods carry the vintage's
-#'   horizon as `end_year`, so they too stop one year short of it.
+#' - `start_year`, `end_year`: Validity interval for the row. `start_year` is
+#'   inclusive; `end_year` is **exclusive at a succession** and **inclusive at
+#'   the open end**. Exclusive at a succession, so `F51-1947-1993`
+#'   Czechoslovakia covers 1947-1992 and 1993 belongs to `CZE-1993-2025` and
+#'   `SVK-1993-2025`, and 2014 belongs to `"RUS-2014-2025"` rather than to
+#'   `"RUS-1991-2014"` (filtering `year <= end_year` returns both epochs and
+#'   double-counts every boundary year). Inclusive at the open end, so 2025
+#'   still belongs to `"RUS-2014-2025"`, because no later interval of that
+#'   polity follows it and a uniformly exclusive read would leave the current
+#'   year with no polity at all. **Openness is absence of a successor, not a
+#'   comparison against the last year in the table.** 244 live polities have no
+#'   successor, 227 of them end in 2025, and no live polity ending in 2025
+#'   carries one, so the two readings agree on this vintage; the successor test
+#'   is the one that keeps agreeing when the horizon moves. The distinction is
+#'   not decoration: 237 of the 749 rows end in 2025 but only 229 are open,
+#'   because eight are succeeded there (`AGO-1816-2025` by `AGO-1975-2025`, and
+#'   likewise ARG, BLZ, BRA, CAN, GRC, IRQ and ROU), and opening those too would
+#'   count the terminal year twice.
 #' - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained as
 #'   a compatibility alias.
 #' - `wiki_status`: Upstream review state. `"retired"` and `"superseded"` mark a
@@ -76,10 +88,13 @@
 #' - `polity_code`, `polity_name`: Matched WHEP polity, or `NA` for
 #'   statistical composites that are not real polities.
 #' - `polity_start_year`, `polity_end_year`: Validity interval for the matched
-#'   polity. `polity_end_year` is exclusive, so the period covers
-#'   `polity_start_year:(polity_end_year - 1)`. [add_polity_code()] resolves a
-#'   year on that reading, widened to the inclusive `map_year_end` below where
-#'   the upstream map declares a reported year past the territorial span.
+#'   polity, on the same convention as [polities]: `polity_end_year` is
+#'   exclusive at a succession, so the period covers
+#'   `polity_start_year:(polity_end_year - 1)`, and inclusive at the open end,
+#'   so an interval nothing succeeds covers its own terminal year.
+#'   [add_polity_code()] resolves a year on that reading, widened further to the
+#'   inclusive `map_year_end` below where the upstream map declares a reported
+#'   year past the territorial span.
 #' - `mapping_source`: How the area-to-polity decision was reached.
 #'   `"upstream_map"` for the published `whep-polities` FAOSTAT area map, which
 #'   is the authority for the years FAOSTAT reports; `"prefix_outside_map"` for a

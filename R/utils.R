@@ -288,7 +288,6 @@ utils::globalVariables(
     "cell_area_ha",
     "grass_avail_dm_t_ha",
     "grass_avail_dm_t",
-    "polity_frac",
     "total",
     "grass_npp",
     "leftover",
@@ -1027,6 +1026,7 @@ utils::globalVariables(
     "harvested_area_ha",
     "increment",
     "ir_capacity",
+    "ir_over",
     "ir_pot_sum",
     "ir_potential",
     "ir_uniform",
@@ -1040,6 +1040,7 @@ utils::globalVariables(
     "rainfed_ha",
     "rainfed_target",
     "rf_capacity",
+    "rf_over",
     "rf_pot_sum",
     "rf_potential",
     "rf_uniform",
@@ -1415,6 +1416,18 @@ utils::globalVariables(
     "deposition_kgn_ha",
     "deposition_n_t",
     "method_deposition",
+    "method_polity_split",
+    "method_area_split",
+    "polity_share",
+    "area_category",
+    "category_area_ha",
+    "category_frac",
+    "method_deposition_scope",
+    "scope_frac",
+    "rate_spread",
+    "in_scope_n_t",
+    "scope_n_t",
+    "total_n_t",
     # hyde_population.R (Module C, Task C3) — gridded HYDE population NSE
     # columns
     "urban_pop",
@@ -1484,6 +1497,9 @@ utils::globalVariables(
     "weighted_ha",
     "group_ha",
     "cropland_share",
+    # n_balance_spatialize.R (C5) — the polity share of the cell that weights
+    # every grid cell, under whichever split key was resolved
+    "cell_frac",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
     # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
@@ -1707,6 +1723,12 @@ utils::globalVariables(
     "share_other",
     "total_gap",
     "total_production",
+    # polycell_support.R. The producer itself is written entirely in `.data$`
+    # form, so it needs no declarations; these two are the polycell keys the
+    # compartment helpers in spatialize_compartments.R already name, and they
+    # were absent, so any bare-symbol use of them fails `R CMD check`.
+    "polycell_id",
+    "cell_id",
     # sjos_n coefficient datasets (Module 0, Task 0.4)
     "n_boundary_params",
     "nourishment_thresholds",

@@ -388,11 +388,19 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   expected <- whep::polity_area_crosswalk |>
     dplyr::filter(area_iso3c == "ESP", !is.na(polity_code)) |>
     dplyr::distinct(polity_code, polity_start_year, polity_end_year)
+  # DA-24's convention, re-derived here rather than imported: `polity_end_year`
+  # is EXCLUSIVE at a succession and INCLUSIVE at the open end, so an interval
+  # ending where the crosswalk's coverage ends, with no later-starting interval
+  # of the same area after it, covers its own terminal year.
+  open_ended <- expected$polity_end_year == max(expected$polity_end_year) &
+    expected$polity_start_year >= max(expected$polity_start_year)
   resolved <- vapply(
     x$year,
     function(yr) {
       hit <- expected$polity_code[
-        expected$polity_start_year <= yr & expected$polity_end_year >= yr
+        expected$polity_start_year <= yr &
+          (yr < expected$polity_end_year |
+            (open_ended & yr == expected$polity_end_year))
       ]
       if (length(hit) == 1L) hit else NA_character_
     },

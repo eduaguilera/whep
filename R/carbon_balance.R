@@ -52,6 +52,17 @@
 #'   drivers).
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
+#' @section Spatial support:
+#' Every default reader on the carbon path -- the land-use areas, the carbon
+#' inputs, the climate drivers and the clay -- resolves its cell-to-polity table
+#' through one polycell support ([read_polycell_support()]), read at a static
+#' reference year. A cell shared between polities therefore delivers to each
+#' only the land it holds there, and no reader can be left on a different
+#' crosswalk: half the path on one footprint and half on another would surface
+#' as an ordinary climate-coverage warning from the modifier join, not as an
+#' error. Land the reporting vocabulary cannot key (no `area_code`) is reported
+#' and dropped, never folded into another polity's.
+#'
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
@@ -1298,12 +1309,230 @@ build_carbon_balance <- function(
   .cb_hwsd_clay(.cb_read_cell_polity())
 }
 
-# The cell -> polity crosswalk (lon, lat, area_code) from the spatialization
-# country grid, the same source grass_natural and LUH2 use.
+# The cell -> polity footprint (lon, lat, area_code) the climate drivers and the
+# HWSD clay are read on, from the same polycell support every other carbon
+# reader uses. `get_soc_climate_drivers()` consumes this only to LABEL each cell
+# with an area_code and to restrict the grid to it -- it never multiplies by an
+# area -- so what this feed decides is the carbon path's FOOTPRINT, and handing
+# it a different table from the one the land-use areas are measured on is what
+# made one exported function carry two crosswalks (EA4, AM-1).
 .cb_read_cell_polity <- function() {
-  whep_read_file("spatialize-country-grid") |>
-    .normalize_country_grid() |>
-    dplyr::select("lon", "lat", "area_code")
+  .carbon_cell_support() |>
+    dplyr::distinct(.data$lon, .data$lat, .data$area_code)
+}
+
+# -- The carbon path's spatial support ----------------------------------------
+#
+# One support for the whole carbon path (S-A5): `read_luh2_landuse()`,
+# `build_carbon_balance()`, `build_grass_natural_carbon_inputs()`,
+# `build_soil_carbon_inputs()` and `build_carbon_inputs()` all resolve their
+# cell-to-polity table through here, so the path cannot be half-migrated with
+# one reader left on the centroid grid -- the failure `.cb_join_modifier()` and
+# `.cb_drop_uncovered_climate()` would report as an ordinary climate gap.
+#
+# `cell_area_frac` is the polycell's share of the cell's LAND, never
+# `land_area_ha / cell_area_ha`: everything this fraction splits (LUH2 class
+# areas, crop-pattern hectares) is already land-only, so dividing by the whole
+# cell would subtract the water a second time -- invisibly, because a share's
+# denominator still makes the polity totals add up (AM-5 risk 3). The assertion
+# that the shares sum to 1 per cell is what makes that structural.
+
+# The reference year the static cell-to-polity assignment is read at. The carbon
+# path has always used a present-day snapshot -- LUH2 carries no territorial
+# history and `read_luh2_landuse()` documents a pre-modern year as "the
+# present-day cell's area read at that year". Migrating the EXTENT (DA-26) does
+# not migrate the ATTRIBUTION (DA-28, issue #549), so the snapshot is kept and
+# made explicit instead of being implicit in an undated pin.
+.carbon_support_year <- function() 2015L
+
+# Resolve the polycell support to the carbon path's grain: one row per cell and
+# `area_code`, carrying the cell's own area, the polycell's land, and the
+# polycell's share of the cell's land.
+.carbon_cell_support <- function(
+  support = NULL,
+  year = .carbon_support_year()
+) {
+  (support %||% read_polycell_support()) |>
+    .carbon_support_at_year(year) |>
+    .carbon_support_to_area_code()
+}
+
+# Take the interval covering `year`, using the package's own predicate so the
+# exclusive-at-a-succession / inclusive-at-the-open-end rule (DA-24) is stated
+# once. A support already expanded to one row per polycell-year is filtered on
+# its `year` column by the same helper.
+.carbon_support_at_year <- function(support, year) {
+  .check_columns(support, c("lon", "lat", "area_code"), "country_grid")
+  if (!.country_grid_is_dynamic(support)) {
+    return(support)
+  }
+  out <- .filter_country_grid_year(support, year)
+  if (nrow(out) == 0L) {
+    cli::cli_abort(c(
+      "No polycell support rows are valid at {year}.",
+      i = "The carbon path reads the support at a single reference year."
+    ))
+  }
+  out
+}
+
+# Collapse `polity_code` to the `area_code` the carbon path reports on.
+#
+# DA-23: the support keys on `polity_code` and `polity_area_crosswalk` is lossy
+# -- it folds Sudan and South Sudan onto 206 and leaves other polities with no
+# bucket at all. Both losses are made visible here rather than absorbed: rows
+# with no `area_code` are dropped with their land reported, and polycells that
+# share an `area_code` inside one cell are summed with the fold reported. The
+# sum is right for an EXTENT (bucket 206's territory really is Sudan plus South
+# Sudan) and would be wrong for a value, which is why it is done here, once, at
+# the boundary that owns it, and refused by `.normalize_carbon_support()`
+# everywhere else.
+.carbon_support_to_area_code <- function(support) {
+  .check_columns(
+    support,
+    c("lon", "lat", "area_code", "cell_area_ha", "land_area_ha"),
+    "country_grid"
+  )
+  # The share denominator is the cell's WHOLE measured land, taken before any
+  # row is dropped. Taking it after would renormalise the survivors over a
+  # smaller cell, handing an unkeyable polity's hectares to its neighbour --
+  # the absorption S-A11 exists to forbid, and invisible because the shares
+  # would still sum to 1.
+  cell_land <- support |>
+    dplyr::summarise(
+      cell_land_ha = sum(.data$land_area_ha, na.rm = TRUE),
+      .by = c("lon", "lat")
+    )
+  support |>
+    .carbon_drop_unkeyed() |>
+    .carbon_fold_area_code() |>
+    .carbon_attach_land_share(cell_land)
+}
+
+# Rows the reporting vocabulary cannot express: no `area_code`, or no measured
+# land. The second case was the DA-13 shim's `"crosswalk_only"` padding, which
+# was NA throughout; C9 removed the padding, so `build_polycell_support()` no
+# longer produces it, but the guard stays because this function takes a support
+# from the caller and an NA land area silently deletes one polity's claim while
+# the rest of the cell still looks like a complete partition.
+.carbon_drop_unkeyed <- function(support) {
+  keep <- !is.na(support$area_code) & !is.na(support$land_area_ha)
+  if (!all(keep)) {
+    lost <- support[!keep, , drop = FALSE]
+    .carbon_warn_unkeyed(lost)
+  }
+  support[keep, , drop = FALSE]
+}
+
+.carbon_warn_unkeyed <- function(lost) {
+  land <- sum(lost$land_area_ha, na.rm = TRUE)
+  codes <- if (rlang::has_name(lost, "polity_code")) {
+    lost |>
+      dplyr::summarise(
+        land = sum(.data$land_area_ha, na.rm = TRUE),
+        .by = "polity_code"
+      ) |>
+      dplyr::slice_max(.data$land, n = 3L) |>
+      dplyr::pull("polity_code")
+  } else {
+    character()
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(lost)} polycell{?s} ({round(land / 1e6, 2)} Mha of land) carry
+           no {.field area_code} and are outside the carbon ledger.",
+    i = "Largest: {.val {codes}}. The reporting vocabulary has no bucket for
+         them; they are dropped here rather than folded into one."
+  ))
+}
+
+# Sum the land of polycells sharing an `area_code` in one cell (DA-23's fold),
+# reporting it. `cell_area_ha` is a property of the cell, so it is taken once.
+.carbon_fold_area_code <- function(support) {
+  folded <- support |>
+    dplyr::summarise(
+      cell_area_ha = dplyr::first(.data$cell_area_ha),
+      land_area_ha = sum(.data$land_area_ha),
+      n_polities = dplyr::n(),
+      .by = c("lon", "lat", "area_code")
+    )
+  .carbon_warn_fold(folded, support)
+  dplyr::select(folded, -"n_polities")
+}
+
+.carbon_warn_fold <- function(folded, support) {
+  hit <- dplyr::filter(folded, .data$n_polities > 1L)
+  if (nrow(hit) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- if (rlang::has_name(support, "polity_code")) {
+    support |>
+      dplyr::semi_join(hit, by = c("lon", "lat", "area_code")) |>
+      dplyr::pull("polity_code") |>
+      unique() |>
+      sort()
+  } else {
+    character()
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(hit)} cell-{.field area_code} group{?s}
+           ({round(sum(hit$land_area_ha) / 1e6, 2)} Mha of land) fold more than
+           one {.field polity_code}.",
+    i = "Folded: {.val {codes}}. Their land is summed, which is correct for a
+         territorial EXTENT and would not be for a value."
+  ))
+}
+
+# The polycell's share of the cell's land. A cell whose polycells hold no land
+# at all has no share to take, so it is dropped rather than divided by zero.
+.carbon_attach_land_share <- function(support, cell_land) {
+  out <- dplyr::left_join(support, cell_land, by = c("lon", "lat"))
+  dry <- dplyr::filter(out, .data$cell_land_ha <= 0)
+  if (nrow(dry) > 0L) {
+    cli::cli_warn(
+      "{dplyr::n_distinct(dry$lon, dry$lat)} cell{?s} hold no land and carry no
+       carbon; dropped from the carbon support."
+    )
+  }
+  out |>
+    dplyr::filter(.data$cell_land_ha > 0) |>
+    dplyr::mutate(cell_area_frac = .data$land_area_ha / .data$cell_land_ha) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "cell_area_ha",
+      "land_area_ha",
+      "cell_area_frac"
+    )
+}
+
+# The single normaliser every carbon consumer runs its support through, whether
+# it came from `.carbon_cell_support()` or straight from the caller. A support
+# that is not already one row per cell and `area_code` is REFUSED here (the
+# pattern C3a used at `.nd_check_area_key()`): folding it silently would merge
+# two territories' land under one label, and the fold belongs at the boundary
+# that can report it.
+.normalize_carbon_support <- function(support, arg = "country_grid") {
+  .check_columns(support, c("lon", "lat", "area_code"), arg)
+  .carbon_check_support_key(support, arg)
+  .normalize_country_grid(support)
+}
+
+.carbon_check_support_key <- function(support, arg = "country_grid") {
+  dup <- support |>
+    dplyr::count(.data$lon, .data$lat, .data$area_code, name = "n_rows") |>
+    dplyr::filter(.data$n_rows > 1L | is.na(.data$area_code))
+  if (nrow(dup) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{.arg {arg}} must hold one row per cell and {.field area_code}.",
+    x = "{nrow(dup)} cell-{.field area_code} group{?s} {?is/are} duplicated
+         or {.val NA}.",
+    i = "Convert {.field polity_code} to {.field area_code} before calling;
+         the carbon path reports on {.field area_code} and will not fold two
+         polities into one silently."
+  ))
 }
 
 # Per-cell topsoil clay percent from HWSD: the map-unit share-weighted mean of

@@ -945,9 +945,14 @@ get_polity_geometries <- function(polity_codes = NULL) {
     return(.empty_conflict_frame())
   }
 
-  # One row per (area, year) a polity covers. `polity_end_year` is EXCLUSIVE, so a
-  # period [1920, 1947) covers 1920:1946 -- getting that wrong would report a
-  # spurious conflict at every boundary.
+  # One row per (area, year) a polity covers. `polity_end_year` is EXCLUSIVE at a
+  # succession, so a period [1920, 1947) covers 1920:1946 -- getting that wrong
+  # would report a spurious conflict at every boundary. DA-24's other half, that
+  # an interval nothing succeeds also covers its terminal year, is deliberately
+  # NOT applied here: this is an overlap detector, and its remit is the shipped
+  # crosswalk's succession boundaries. Measured on that crosswalk, adding the
+  # open end would change nothing -- 190 intervals are open and 0 areas resolve
+  # to more than one polity on the open end -- so the two readings agree today.
   spans <- Map(
     function(a, p, s, e) {
       if (e <= s) {
@@ -1179,8 +1184,8 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   #
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
-  alive <- is.na(polities$wiki_status) |
-    !polities$wiki_status %in% c("retired", "superseded")
+  # `.polity_is_live()` is the package's one reading of which rows are dead.
+  alive <- .polity_is_live(polities$wiki_status)
   pol <- data.frame(
     polity_code = polities$polity_code[alive],
     start_year = polities$start_year[alive],

@@ -36,10 +36,17 @@
 #' Read the LUH2 v2h gridded land-use "states" product and aggregate its 12
 #' subgrid states into the four carbon-balance classes (cropland, grassland,
 #' natural, urban). Per cell-year-class the `fraction` is the sum of the member
-#' states' grid-cell fractions (0..1); `area_ha` is that fraction times the
-#' spherical 0.5-degree cell area. At `resolution = "polity"` the areas are
-#' summed to each overlapping polity via the country grid; a border cell keeps
-#' every polity it overlaps.
+#' states' grid-cell fractions (0..1), LUH2's own share of the **whole** cell.
+#' `area_ha` is that class's area inside one polycell: by default the class's
+#' share of the cell's LUH2 land, spread over the polycell's own measured land
+#' (`area_basis = "polycell_land"`), so the four classes tile the polycell's land
+#' exactly and the carbon path uses the same land definition as the nitrogen
+#' path. At `resolution = "polity"` the areas are summed to each overlapping
+#' polity; a border cell keeps every polity it overlaps.
+#'
+#' The cell-to-polity assignment is a **static snapshot**, because LUH2 carries
+#' no territorial history: a pre-modern year is the snapshot polity's territory
+#' holding that year's land-use composition.
 #'
 #' The states grid comes from a `WHEP_LUH2_DIR` tree when there is one, else the
 #' reference LUH2-GCB2022 `states.nc` is downloaded on demand from Zenodo
@@ -52,6 +59,14 @@
 #'
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code` per year and class).
+#' @param area_basis Which land definition the class areas are measured on:
+#'   `"polycell_land"` (default) spreads each class's share of the cell's LUH2
+#'   land over the polycell's measured `land_area_ha`; `"luh2_fraction"` keeps
+#'   LUH2's own land total (`fraction` times the spherical cell area) and splits
+#'   it between the polycells of a cell by their share of the cell's land. Both
+#'   partition the cell identically and differ only in the total spread
+#'   (~12.78 Gha against ~12.99 Gha globally). The choice is recorded in the
+#'   `method_land_area` output column.
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year present in the source.
 #' @param states_source Which states source to read: `"auto"` (default, a
@@ -61,19 +76,25 @@
 #'   in the provenance record's `input_origin`.
 #' @param data Named list of pre-loaded inputs bypassing the readers: `states`
 #'   (raw per-cell-year-state fractions with `lon`, `lat`, `year`, `land_use`,
-#'   `fraction`) and `country_grid` (`lon`, `lat`, `area_code`,
-#'   `cell_area_frac`). Each falls back to its reader when absent.
+#'   `fraction`) and `country_grid`, the polycell support resolved to one row
+#'   per cell and `area_code` (`lon`, `lat`, `area_code`, `cell_area_frac` and,
+#'   for `area_basis = "polycell_land"`, `land_area_ha`). Each falls back to its
+#'   reader when absent. A support carrying more than one row per cell and
+#'   `area_code`, or an `NA` one, is refused rather than folded (DA-23).
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble with columns `lon`, `lat`, `area_code`, `year`, `land_use`,
-#'   `fraction` and `area_ha` at `"grid"` resolution; at `"polity"` resolution
-#'   `lon` and `lat` are dropped and `area_ha` is summed per
-#'   `(area_code, year, land_use)`. Both resolutions carry the polity columns
-#'   below, resolved from the `area_code` the cell grid assigns and the row's
-#'   `year`; the cell-to-area assignment itself is the static present-day grid,
-#'   which is what LUH2 has, so a pre-modern year is the present-day cell's area
-#'   read at that year. When the states grid was read from a NetCDF, a provenance
-#'   record naming the vintage is attached; read it back with [get_provenance()].
+#'   `fraction`, `area_ha` and `method_land_area` at `"grid"` resolution; at
+#'   `"polity"` resolution `lon` and `lat` are dropped and `area_ha` is summed
+#'   per `(area_code, year, land_use)`. `fraction` stays LUH2's share of the
+#'   whole cell and is repeated on every polycell of that cell, so under
+#'   `"polycell_land"` it is a source datum rather than a factor `area_ha` can
+#'   be recovered from. Both resolutions carry the polity columns below,
+#'   resolved from the `area_code` the support assigns and the row's `year`;
+#'   the cell-to-area assignment itself is a static snapshot, which is what LUH2
+#'   has, so a pre-modern year is the snapshot cell's area read at that year.
+#'   When the states grid was read from a NetCDF, a provenance record naming the
+#'   vintage is attached; read it back with [get_provenance()].
 #' @inheritSection whep_polity_columns Polity columns
 #' @source LUH2 v2h, Hurtt, G. C. et al. (2020). Harmonization of global land
 #'   use change and management for the period 850-2100 (LUH2) for CMIP6.
@@ -90,6 +111,7 @@ read_luh2_landuse <- function(
   resolution = c("grid", "polity"),
   years = NULL,
   states_source = c("auto", "local", "zenodo"),
+  area_basis = c("polycell_land", "luh2_fraction"),
   data = NULL,
   example = FALSE
 ) {
@@ -98,6 +120,7 @@ read_luh2_landuse <- function(
   }
   resolution <- rlang::arg_match(resolution)
   states_source <- rlang::arg_match(states_source)
+  area_basis <- rlang::arg_match(area_basis)
   data <- data %||% list()
   states <- data$states %||%
     .luh2_read_states_source(years = years, states_source = states_source)
@@ -112,7 +135,7 @@ read_luh2_landuse <- function(
 
   # attach_provenance() goes last: .add_reporting_polity_columns() reshapes the
   # table, and an attribute set before it would not survive.
-  .luh2_to_polity(grid, country_grid, resolution) |>
+  .luh2_to_polity(grid, country_grid, resolution, area_basis) |>
     .add_reporting_polity_columns() |>
     attach_provenance(get_provenance(states))
 }
@@ -165,16 +188,12 @@ read_luh2_landuse <- function(
   earth_radius_m^2 * lon_step_rad * band / 1e4
 }
 
-# Assign each cell to its overlapping polities via the country grid and, for
-# resolution "polity", sum area_ha to (area_code, year, land_use). A border
-# cell keeps every polity it overlaps (area split by cell_area_frac).
-.luh2_to_polity <- function(grid, country_grid, resolution) {
-  cg <- .normalize_country_grid(country_grid) |>
-    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
-
-  joined <- grid |>
-    dplyr::inner_join(cg, by = c("lon", "lat")) |>
-    dplyr::mutate(area_ha = .data$area_ha * .data$cell_area_frac)
+# Assign each cell to its overlapping polities via the support table and, for
+# resolution "polity", sum area_ha to (area_code, year, land_use). A border cell
+# keeps every polity it overlaps.
+.luh2_to_polity <- function(grid, country_grid, resolution, area_basis) {
+  joined <- .luh2_class_areas(grid, country_grid, area_basis) |>
+    dplyr::mutate(method_land_area = area_basis)
 
   if (resolution == "grid") {
     return(
@@ -186,7 +205,8 @@ read_luh2_landuse <- function(
           "year",
           "land_use",
           "fraction",
-          "area_ha"
+          "area_ha",
+          "method_land_area"
         ) |>
         tibble::as_tibble()
     )
@@ -195,9 +215,95 @@ read_luh2_landuse <- function(
   joined |>
     dplyr::summarise(
       area_ha = sum(.data$area_ha, na.rm = TRUE),
+      method_land_area = dplyr::first(.data$method_land_area),
       .by = c("area_code", "year", "land_use")
     ) |>
     tibble::as_tibble()
+}
+
+# Dispatch the class area onto the chosen land definition. The two bases split
+# the SAME cell between the same polities and differ only in the total they
+# spread: LUH2's own land (~12.99 Gha) or the support's measured land
+# (~12.78 Gha).
+.luh2_class_areas <- function(grid, country_grid, area_basis) {
+  cg <- .normalize_carbon_support(country_grid)
+  if (area_basis == "polycell_land") {
+    return(.luh2_areas_polycell_land(grid, cg))
+  }
+  .luh2_areas_luh2_fraction(grid, cg)
+}
+
+# DA-26. The class keeps its share of the cell's LUH2 land and that share is
+# spread over the polycell's own measured land, so cropland, grassland, natural
+# and urban tile the polycell's land exactly and the carbon path lands on the
+# same land definition as the nitrogen path.
+#
+# A cell whose LUH2 states carry no land at all has no composition to rescale;
+# its polycell land is emitted as zero class area rather than being handed an
+# invented composition, and the magnitude is reported.
+.luh2_areas_polycell_land <- function(grid, cg) {
+  .check_columns(cg, "land_area_ha", "country_grid")
+  shares <- grid |>
+    dplyr::mutate(
+      luh2_land_ha = sum(.data$area_ha, na.rm = TRUE),
+      .by = c("lon", "lat", "year")
+    ) |>
+    dplyr::mutate(
+      class_share = dplyr::if_else(
+        .data$luh2_land_ha > 0,
+        .data$area_ha / .data$luh2_land_ha,
+        0
+      )
+    )
+  out <- shares |>
+    dplyr::inner_join(
+      dplyr::select(cg, "lon", "lat", "area_code", "land_area_ha"),
+      by = c("lon", "lat"),
+      # Classes on one side, polities on the other: the cartesian product IS
+      # the polycell-class grain this function produces.
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(area_ha = .data$class_share * .data$land_area_ha)
+  .luh2_warn_composition_gap(out)
+  out
+}
+
+# The transitional basis: LUH2's own land total, split between the polycells of
+# a cell by their share of that cell's land. Reproduces the pre-DA-26 arithmetic
+# exactly on a support whose `cell_area_frac` is the crosswalk's, so the two
+# bases isolate the area change from the crosswalk change.
+.luh2_areas_luh2_fraction <- function(grid, cg) {
+  grid |>
+    dplyr::inner_join(
+      dplyr::select(cg, "lon", "lat", "area_code", "cell_area_frac"),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(area_ha = .data$area_ha * .data$cell_area_frac)
+}
+
+# Polycell land the LUH2 states describe no composition for. Reported, never
+# renormalised away: it is land the carbon balance cannot model, not land that
+# does not exist.
+.luh2_warn_composition_gap <- function(out) {
+  gap <- out |>
+    dplyr::filter(.data$luh2_land_ha <= 0) |>
+    dplyr::distinct(
+      .data$lon,
+      .data$lat,
+      .data$area_code,
+      .data$year,
+      .data$land_area_ha
+    )
+  if (nrow(gap) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(gap)} polycell-year{?s} ({round(sum(gap$land_area_ha) / 1e6, 2)}
+           Mha) hold land the LUH2 states give no land-use composition for.",
+    i = "Their class areas are zero; the land is not redistributed to the
+         classes LUH2 does describe."
+  ))
 }
 
 # -- States source dispatch ---------------------------------------------------
@@ -515,6 +621,10 @@ read_luh2_landuse <- function(
   invisible(path)
 }
 
+# The carbon path's shared polycell support (see `.carbon_cell_support()` in
+# R/carbon_balance.R). NOT the centroid country grid: that pin carries only
+# (lon, lat, area_code), so `.normalize_country_grid()` defaulted
+# `cell_area_frac` to 1 and gave a border cell's whole land to one polity (EA4).
 .luh2_read_country_grid <- function() {
-  whep_read_file("spatialize-country-grid")
+  .carbon_cell_support()
 }

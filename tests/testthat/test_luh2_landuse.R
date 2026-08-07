@@ -60,12 +60,16 @@
   })
 }
 
-# Minimal country grid: each fixture cell wholly inside one polity.
+# Minimal polycell support: each fixture cell wholly inside one polity, holding
+# less land than the cell has area (the coast/lake case). The gap between
+# `land_area_ha` and `cell_area_ha` is what makes the two `area_basis` choices
+# distinguishable, and what a `cell_area_frac = land_area_ha / cell_area_ha`
+# definition would remove a second time.
 .luh2_country_grid_fixture <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~cell_area_frac,
-    -3.25, 40.25, 203L, 1,
-    35.25, -1.25, 79L, 1
+    ~lon, ~lat, ~area_code, ~cell_area_frac, ~cell_area_ha, ~land_area_ha,
+    -3.25, 40.25, 203L, 1, whep:::.luh2_cell_area_ha(40.25), 200000,
+    35.25, -1.25, 79L, 1, whep:::.luh2_cell_area_ha(-1.25), 250000
   )
 }
 
@@ -73,12 +77,29 @@ test_that("example returns the documented schema", {
   ex <- whep::read_luh2_landuse(example = TRUE)
   pointblank::expect_col_exists(
     ex,
-    c("lon", "lat", "area_code", "year", "land_use", "fraction", "area_ha")
+    c(
+      "lon",
+      "lat",
+      "area_code",
+      "year",
+      "land_use",
+      "fraction",
+      "area_ha",
+      "method_land_area"
+    )
   )
   testthat::expect_true(all(
     ex$land_use %in% c("cropland", "grassland", "natural", "urban")
   ))
   testthat::expect_true(all(ex$fraction >= 0 & ex$fraction <= 1))
+  # the fixture carries a real border cell, so the schema example itself shows
+  # one `fraction` shared by two polycells with different `area_ha`
+  border <- ex |> dplyr::filter(lon == 9.25, lat == 47.75)
+  testthat::expect_setequal(border$area_code, c(79L, 211L))
+  testthat::expect_equal(
+    dplyr::n_distinct(round(border$fraction[border$land_use == "cropland"], 7)),
+    1L
+  )
 })
 
 test_that("class mapping sums member states and fractions tile to ~1", {
@@ -122,17 +143,192 @@ test_that(".luh2_cell_area_ha equator ~309100 ha and shrinks with latitude", {
   testthat::expect_equal(mid / eq, cos(45 * pi / 180), tolerance = 0.01)
 })
 
-test_that("area_ha equals fraction times cell_area_ha", {
+# RE-PINNED for DA-26 (C7). Before the migration `area_ha` was
+# `fraction * cell_area_ha`, and that identity held only because the centroid
+# grid gave every cell wholly to one polity: on a border cell it was already
+# false, because `area_ha` was scaled by the polity's share. DA-26 replaces the
+# whole-cell area with the polycell's measured land, so the identity that
+# survives is the one on the LAND: each class keeps its share of the cell's LUH2
+# land and that share is spread over `land_area_ha`. Pinning the old identity
+# would pin the defect, so it is restated rather than preserved.
+test_that("area_ha is the class share of LUH2 land times the polycell's land", {
   raw <- .luh2_raw_fixture()
+  cg <- .luh2_country_grid_fixture()
   out <- whep::read_luh2_landuse(
     resolution = "grid",
-    data = list(states = raw, country_grid = .luh2_country_grid_fixture())
+    data = list(states = raw, country_grid = cg)
   )
   chk <- out |>
     dplyr::mutate(
-      expected = fraction * whep:::.luh2_cell_area_ha(lat)
-    )
+      luh2_area = fraction * whep:::.luh2_cell_area_ha(lat),
+      class_share = luh2_area / sum(luh2_area),
+      .by = c(lon, lat, year)
+    ) |>
+    dplyr::left_join(
+      dplyr::select(cg, lon, lat, area_code, land_area_ha),
+      by = c("lon", "lat", "area_code")
+    ) |>
+    dplyr::mutate(expected = class_share * land_area_ha)
   testthat::expect_equal(chk$area_ha, chk$expected, tolerance = 1e-6)
+  # and the old identity is now false, by the land/cell-area gap
+  testthat::expect_false(isTRUE(all.equal(
+    chk$area_ha,
+    chk$luh2_area,
+    tolerance = 1e-6
+  )))
+})
+
+test_that("the four classes tile the polycell's own measured land", {
+  cg <- .luh2_country_grid_fixture()
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    data = list(states = .luh2_raw_fixture(), country_grid = cg)
+  )
+  tiled <- out |>
+    dplyr::summarise(
+      total_ha = sum(area_ha),
+      .by = c(lon, lat, area_code, year)
+    ) |>
+    dplyr::left_join(
+      dplyr::select(cg, lon, lat, area_code, land_area_ha),
+      by = c("lon", "lat", "area_code")
+    )
+  testthat::expect_equal(tiled$total_ha, tiled$land_area_ha, tolerance = 1e-9)
+})
+
+test_that("the class composition is unchanged by the rescale", {
+  raw <- .luh2_raw_fixture()
+  cg <- .luh2_country_grid_fixture()
+  shares <- function(basis) {
+    whep::read_luh2_landuse(
+      resolution = "grid",
+      area_basis = basis,
+      data = list(states = raw, country_grid = cg)
+    ) |>
+      dplyr::mutate(share = area_ha / sum(area_ha), .by = c(lon, lat, year)) |>
+      dplyr::arrange(lon, lat, year, land_use) |>
+      dplyr::pull(share)
+  }
+  testthat::expect_equal(shares("polycell_land"), shares("luh2_fraction"))
+})
+
+test_that("area_basis = 'luh2_fraction' reproduces the pre-DA-26 areas", {
+  # The transitional basis is the exact arithmetic C7 replaced, kept selectable
+  # so the crosswalk change and the area change can be measured apart.
+  raw <- .luh2_raw_fixture()
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    area_basis = "luh2_fraction",
+    data = list(states = raw, country_grid = .luh2_country_grid_fixture())
+  )
+  testthat::expect_equal(
+    out$area_ha,
+    out$fraction * whep:::.luh2_cell_area_ha(out$lat),
+    tolerance = 1e-6
+  )
+  testthat::expect_true(all(out$method_land_area == "luh2_fraction"))
+})
+
+test_that("the chosen area basis is recorded on the output", {
+  raw <- .luh2_raw_fixture()
+  cg <- .luh2_country_grid_fixture()
+  for (basis in c("polycell_land", "luh2_fraction")) {
+    for (res in c("grid", "polity")) {
+      out <- whep::read_luh2_landuse(
+        resolution = res,
+        area_basis = basis,
+        data = list(states = raw, country_grid = cg)
+      )
+      pointblank::expect_col_exists(out, "method_land_area")
+      testthat::expect_true(all(out$method_land_area == basis))
+    }
+  }
+})
+
+test_that("polycell_land refuses a support with no measured land", {
+  # A legacy country grid carries no land_area_ha. Falling back to LUH2's own
+  # area would be a silent downgrade of the caller's explicit default.
+  legacy <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    -3.25, 40.25, 203L, 1
+  )
+  testthat::expect_error(
+    whep::read_luh2_landuse(
+      resolution = "grid",
+      data = list(states = .luh2_raw_fixture(), country_grid = legacy)
+    ),
+    "land_area_ha"
+  )
+})
+
+test_that("a border cell's land is partitioned, never duplicated", {
+  states <- tibble::tibble(
+    lon = 0.25,
+    lat = 40.25,
+    year = 2000L,
+    land_use = c("c3ann", "pastr"),
+    fraction = c(0.4, 0.2)
+  )
+  support <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+    0.25, 40.25, 1L, 100000, 20000, 0.25,
+    0.25, 40.25, 2L, 100000, 60000, 0.75
+  )
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    data = list(states = states, country_grid = support)
+  ) |>
+    dplyr::arrange(area_code, land_use)
+  # each polycell's classes tile ITS land, and the two together tile the cell's
+  testthat::expect_equal(
+    out |>
+      dplyr::summarise(t = sum(area_ha), .by = area_code) |>
+      dplyr::pull(t),
+    c(20000, 60000)
+  )
+  testthat::expect_equal(sum(out$area_ha), 80000)
+  # composition identical in both polities (S-A3: no quantity crosses over)
+  testthat::expect_equal(
+    out$area_ha[out$area_code == 1L] / 20000,
+    out$area_ha[out$area_code == 2L] / 60000
+  )
+})
+
+test_that("land LUH2 gives no composition for is reported, not invented", {
+  states <- tibble::tibble(
+    lon = 0.25,
+    lat = 40.25,
+    year = 2000L,
+    land_use = "c3ann",
+    fraction = 0
+  )
+  support <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+    0.25, 40.25, 1L, 100000, 30000, 1
+  )
+  testthat::expect_warning(
+    out <- whep::read_luh2_landuse(
+      resolution = "grid",
+      data = list(states = states, country_grid = support)
+    ),
+    "no land-use composition"
+  )
+  testthat::expect_equal(sum(out$area_ha), 0)
+})
+
+test_that("read_luh2_landuse refuses a support that folds two polities", {
+  support <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_ha, ~land_area_ha, ~cell_area_frac,
+    0.25, 40.25, 206L, 100000, 20000, 0.25,
+    0.25, 40.25, 206L, 100000, 60000, 0.75
+  )
+  testthat::expect_error(
+    whep::read_luh2_landuse(
+      resolution = "grid",
+      data = list(states = .luh2_raw_fixture(), country_grid = support)
+    ),
+    "one row per cell"
+  )
 })
 
 test_that("build_cell_polity-shaped fractions split LUH2 border cells", {
@@ -144,7 +340,9 @@ test_that("build_cell_polity-shaped fractions split LUH2 border cells", {
     fraction = 1
   )
   # build_cell_polity() calls this column polity_frac; it has the same
-  # physical-cell compartment meaning as cell_area_frac.
+  # physical-cell compartment meaning as cell_area_frac. Under the transitional
+  # basis LUH2's own land total is preserved and only the split changes, which
+  # is what makes it the control for the crosswalk half of the migration.
   cell_polity <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha,
     0.25, 40.25, 1L, 0.25, 100,
@@ -153,6 +351,7 @@ test_that("build_cell_polity-shaped fractions split LUH2 border cells", {
 
   out <- whep::read_luh2_landuse(
     resolution = "grid",
+    area_basis = "luh2_fraction",
     data = list(states = states, country_grid = cell_polity)
   ) |>
     dplyr::arrange(.data$area_code)
@@ -561,7 +760,9 @@ test_that("read_luh2_landuse carries the vintage through to its output", {
         lon = -179.75,
         lat = 89.75,
         area_code = 1L,
-        cell_area_frac = 1
+        cell_area_frac = 1,
+        cell_area_ha = whep:::.luh2_cell_area_ha(89.75),
+        land_area_ha = 1000
       )
     },
     .package = "whep"
@@ -617,12 +818,48 @@ test_that("real Zenodo cache smoke test (skipped when not populated)", {
   file.path(whep:::.luh2_cache_dir(), "states.nc")
 }
 
+# The arguments a real-data read needs. C7 moved the default reader onto the
+# polycell support; when that artifact is not published the same states.nc is
+# still read, on the transitional basis over the centroid grid, so the reader
+# itself stays covered instead of the whole block skipping. Which basis ran is
+# printed, never left implicit.
+.luh2_test_read_args <- function() {
+  support <- try(whep:::.carbon_cell_support(), silent = TRUE)
+  if (!inherits(support, "try-error")) {
+    cat("[real-states read on the polycell support]\n")
+    return(list(basis = "polycell_land", grid = support))
+  }
+  cat(
+    "[no polycell support: real-states read on the centroid grid,",
+    "area_basis = 'luh2_fraction', cell_area_frac DECLARED = 1]\n"
+  )
+  # C8/S-A5: `.normalize_country_grid()` no longer defaults a missing share to
+  # 1, so the centroid pin (`lon`, `lat`, `area_code` only) is refused. The
+  # whole-cell convention it implies is DECLARED here instead of inferred
+  # inside the normaliser -- same values, but the fallback can no longer be
+  # mistaken for a polity-resolved split. It is a smoke check on the reader,
+  # not a production path; the production path has no fallback (AM-38).
+  list(
+    basis = "luh2_fraction",
+    grid = dplyr::mutate(
+      whep::whep_read_file("spatialize-country-grid"),
+      cell_area_frac = 1
+    )
+  )
+}
+
 test_that("the real states.nc reads at 0.5 deg with plausible year-2000 land use", {
   testthat::skip_if(
     !file.exists(.luh2_test_states_path()),
     "no real LUH2 states.nc present"
   )
-  out <- whep::read_luh2_landuse(resolution = "grid", years = 2000L)
+  args <- .luh2_test_read_args()
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    years = 2000L,
+    area_basis = args$basis,
+    data = list(country_grid = args$grid)
+  )
   local_states <- whep:::.luh2_read_states_nc(
     .luh2_test_states_path(),
     years = 2000L,
@@ -689,7 +926,13 @@ test_that("the real states.nc is readable for 1750", {
     !file.exists(.luh2_test_states_path()),
     "no real LUH2 states.nc present"
   )
-  out <- whep::read_luh2_landuse(resolution = "grid", years = 1750L)
+  args <- .luh2_test_read_args()
+  out <- whep::read_luh2_landuse(
+    resolution = "grid",
+    years = 1750L,
+    area_basis = args$basis,
+    data = list(country_grid = args$grid)
+  )
   testthat::expect_true(all(out$year == 1750L))
   testthat::expect_true(nrow(out) > 0L)
   testthat::expect_true(

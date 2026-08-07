@@ -62,8 +62,10 @@
 #'   managed-grassland stand fractions with columns `lon`, `lat`, `year`,
 #'   `name_pft`, `stand_frac`). Supplying all three of `npp`, `harvestc` and
 #'   `stand_frac` derives `net_c` without needing a run directory or the pin.
-#'   Also: `country_grid` (`lon`, `lat`, `area_code`,
-#'   `cell_area_frac`); `land_use` (per-cell class `area_ha`, used to spread
+#'   Also: `country_grid`, the polycell support resolved to one row per cell and
+#'   `area_code` (`lon`, `lat`, `area_code`, `cell_area_frac`), refused when a
+#'   cell-`area_code` group is duplicated or `NA` (DA-23);
+#'   `land_use` (per-cell class `area_ha`, used to spread
 #'   excreta and to area-weight polity output); `excreta` (the `applied` tibble
 #'   of [build_livestock_nutrient_flows()], grassland rows carry `applied_c`
 #'   tonnes C); `residue_humification` (defaults to [residue_humification]).
@@ -351,7 +353,7 @@ build_grass_natural_carbon_inputs <- function(
 # polity fraction, so the country-grid join only validates the compartment and
 # must not apply that fraction a second time.
 .gn_grass_area <- function(land_use, country_grid) {
-  cg <- .normalize_country_grid(country_grid) |>
+  cg <- .normalize_carbon_support(country_grid) |>
     dplyr::select("lon", "lat", "area_code")
   land_use |>
     dplyr::filter(stringr::str_to_lower(.data$land_use) == "grassland") |>
@@ -367,7 +369,7 @@ build_grass_natural_carbon_inputs <- function(
 # Attach the overlapping polities to each cell via the country grid; a border
 # cell keeps every polity it overlaps.
 .gn_attach_polity <- function(cells, country_grid) {
-  cg <- .normalize_country_grid(country_grid) |>
+  cg <- .normalize_carbon_support(country_grid) |>
     dplyr::select("lon", "lat", "area_code")
   cells |>
     dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2)) |>
@@ -497,8 +499,11 @@ build_grass_natural_carbon_inputs <- function(
   data.table::rbindlist(parts)
 }
 
+# The carbon path's shared polycell support (see `.carbon_cell_support()` in
+# R/carbon_balance.R), so the cells this path attaches polities to are exactly
+# the cells `read_luh2_landuse()` measured its areas on.
 .gn_read_country_grid <- function() {
-  whep_read_file("spatialize-country-grid")
+  .carbon_cell_support()
 }
 
 # Per-cell grassland (and other class) areas from LUH2 v2h.
