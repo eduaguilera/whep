@@ -18,6 +18,33 @@ fill_linear_fixture <- function() {
   )
 }
 
+# One series with an opening gap, an interior gap and a trailing gap, so that
+# all three fill directions are exercised at once.
+one_series_with_gaps <- function() {
+  tibble::tribble(
+    ~year, ~value,
+    2015, NA,
+    2016, 3,
+    2017, NA,
+    2018, NA,
+    2019, 0,
+    2020, NA
+  )
+}
+
+# The row orders an order-invariance check runs through: as given, fully
+# reversed (which is what breaks a positional carry-forward or a centered
+# moving average), and one scramble that also interleaves the groups.
+hostile_row_orders <- function(data) {
+  n <- nrow(data)
+  scramble <- c(seq(2L, n, by = 2L), seq(1L, n, by = 2L))
+  list(
+    as_given = data,
+    reversed = data[rev(seq_len(n)), ],
+    scrambled = data[scramble, ]
+  )
+}
+
 simple_linear_series <- function() {
   tibble::tribble(
     ~year, ~value,
@@ -561,6 +588,146 @@ testthat::test_that("fill_linear default arguments match linear behaviour (regre
       "Original",
       "Last value carried forward"
     ))
+})
+
+# fill_linear order invariance and smoothing edge cases ------------------------
+
+testthat::test_that("fill_linear ignores input row order without groups", {
+  filled <- purrr::map(
+    hostile_row_orders(one_series_with_gaps()),
+    \(df) whep::fill_linear(df, value)
+  )
+
+  # Every row order gives the same answer, and that answer is the time-ordered
+  # one: carrying a value forward or backward reads neighbouring rows, so a
+  # reversed input used to swap the two carry directions, and a scrambled one
+  # left both outer gaps unfilled.
+  testthat::expect_identical(filled$reversed, filled$as_given)
+  testthat::expect_identical(filled$scrambled, filled$as_given)
+  testthat::expect_equal(filled$as_given$year, 2015:2020)
+  testthat::expect_equal(filled$as_given$value, c(3, 3, 2, 1, 0, 0))
+  testthat::expect_equal(
+    filled$as_given$source_value,
+    c(
+      "First value carried backwards",
+      "Original",
+      "Linear interpolation",
+      "Linear interpolation",
+      "Original",
+      "Last value carried forward"
+    )
+  )
+})
+
+testthat::test_that("fill_linear ignores input row order within groups", {
+  plain <- purrr::map(
+    hostile_row_orders(fill_linear_fixture()),
+    \(df) whep::fill_linear(df, value, .by = "category")
+  )
+  testthat::expect_identical(plain$reversed, plain$as_given)
+  testthat::expect_identical(plain$scrambled, plain$as_given)
+
+  # The smoothing window takes the per-group fallback path, which sorts too.
+  smoothed <- purrr::map(
+    hostile_row_orders(fill_linear_fixture()),
+    \(df) {
+      whep::fill_linear(df, value, value_smooth_window = 3, .by = "category")
+    }
+  )
+  testthat::expect_identical(smoothed$reversed, smoothed$as_given)
+  testthat::expect_identical(smoothed$scrambled, smoothed$as_given)
+
+  # Log space is order-invariant as well, on both grouped paths.
+  logged <- purrr::map(
+    hostile_row_orders(fill_linear_fixture()),
+    \(df) whep::fill_linear(df, value, log_space = TRUE, .by = "category")
+  )
+  testthat::expect_identical(logged$reversed, logged$as_given)
+  testthat::expect_identical(logged$scrambled, logged$as_given)
+})
+
+testthat::test_that("fill_linear survives a smoothing window with no anchor", {
+  # The 3-year centered mean of a series whose gaps are one year apart is NA at
+  # every position, so the group has nothing to interpolate between or carry.
+  # The grouped path used to take `first_valid` from an empty vector and abort
+  # on `if (NA > 1L)`; the ungrouped path guarded it. Both now leave the gaps.
+  alternating <- tibble::tribble(
+    ~category, ~year, ~value,
+    "a", 2001, 1,
+    "a", 2002, NA,
+    "a", 2003, 2,
+    "a", 2004, NA,
+    "a", 2005, 3
+  )
+  expected_source <- c(
+    "Original",
+    "Gap not filled",
+    "Original",
+    "Gap not filled",
+    "Original"
+  )
+
+  grouped <- whep::fill_linear(
+    alternating,
+    value,
+    value_smooth_window = 3,
+    .by = "category"
+  )
+  testthat::expect_equal(grouped$value, c(1, NA, 2, NA, 3))
+  testthat::expect_equal(grouped$source_value, expected_source)
+
+  # Grouped and ungrouped must agree: they share one filling core precisely so
+  # that an edge case cannot be handled on one path and not the other.
+  ungrouped <- alternating |>
+    dplyr::select(-category) |>
+    whep::fill_linear(value, value_smooth_window = 3)
+  testthat::expect_equal(ungrouped$value, grouped$value)
+  testthat::expect_equal(ungrouped$source_value, grouped$source_value)
+
+  # A window wider than the group is the same situation, not an error either.
+  wider_than_group <- whep::fill_linear(
+    alternating,
+    value,
+    value_smooth_window = 7,
+    .by = "category"
+  )
+  testthat::expect_equal(wider_than_group$value, c(1, NA, 2, NA, 3))
+  testthat::expect_equal(wider_than_group$source_value, expected_source)
+})
+
+testthat::test_that("fill_linear re-sorts rows that moved since last call", {
+  # `fill_linear()` used to stamp a `.whep_sorted_by` attribute and trust it on
+  # the next call without looking at the rows. `setorderv()` drops a data.table
+  # key but keeps that attribute, so a caller that reordered its rows between
+  # two calls got the carry direction of the order it no longer had -- and a
+  # "sorted" key stamped on rows that were not in that order.
+  descending <- data.table::data.table(
+    category = "a",
+    year = 2004:2001,
+    value = c(4, NA, NA, NA)
+  )
+  data.table::setattr(descending, ".whep_sorted_by", c("category", "year"))
+
+  filled <- whep::fill_linear(
+    descending,
+    value,
+    fill_forward = FALSE,
+    .by = "category",
+    .copy = FALSE
+  )
+
+  # 2004 is the only observation, so the three earlier years can only be filled
+  # backwards -- which `fill_forward = FALSE` leaves as the sole option.
+  testthat::expect_equal(filled$year, 2001:2004)
+  testthat::expect_equal(filled$value, c(4, 4, 4, 4))
+  testthat::expect_equal(
+    filled$source_value,
+    c(rep("First value carried backwards", 3), "Original")
+  )
+  # Whatever sort the result claims, the rows must actually be in it.
+  testthat::expect_true(
+    whep:::.is_sorted_by(filled, c("category", "year"))
+  )
 })
 
 # fill_sum --------------------------------------------------------------------
@@ -1291,6 +1458,17 @@ test_that(".is_sorted_by detects sorted and unsorted data", {
   expect_false(whep:::.is_sorted_by(unsorted, c("a", "b")))
   expect_false(whep:::.is_sorted_by(ties, c("a", "b")))
   expect_true(whep:::.is_sorted_by(ties, "a"))
+
+  # A missing value has no place in an order, and every comparison against it
+  # answers NA: `c(2, NA, 1)` used to come back certified as sorted. A column
+  # that cannot be judged is not certified, so its caller sorts.
+  missing_middle <- data.frame(a = c(2, NA, 1))
+  expect_false(whep:::.is_sorted_by(missing_middle, "a"))
+  # Once earlier columns have broken every tie, later ones cannot change the
+  # answer, so a missing value there is still fine.
+  expect_true(
+    whep:::.is_sorted_by(data.frame(a = c(1, 2), b = c(NA, 1)), c("a", "b"))
+  )
 })
 
 test_that("fill_proxy_growth gives identical results regardless of input order", {
@@ -1337,6 +1515,75 @@ test_that("fill_proxy_growth gives identical results regardless of input order",
   }
 
   expect_equal(compare(res_sorted), compare(res_unsorted))
+})
+
+test_that("fill_proxy_growth weights a proxy by the previous period", {
+  # `pop` is the growth proxy, aggregated over the region and weighted by `pop`
+  # itself, which is the documented `"variable:group[weight]"` syntax. Country
+  # b's proxy has a hole in 2011, so b has no 2012 growth rate and that row is
+  # dropped. The weights used to be lagged *after* that drop, which made b's
+  # 2013 weight country a's 2014 population, and left the first surviving row of
+  # each group with no weight at all.
+  regional <- tibble::tribble(
+    ~country, ~region, ~year, ~gdp, ~pop,
+    "a",      "eu",    2010,    10,   100,
+    "a",      "eu",    2011,    11,   110,
+    "a",      "eu",    2012,    12,   120,
+    "a",      "eu",    2013,    NA,   130,
+    "a",      "eu",    2014,    NA,   140,
+    "b",      "eu",    2010,    20,  1000,
+    "b",      "eu",    2011,    21,    NA,
+    "b",      "eu",    2012,    22,  1000,
+    "b",      "eu",    2013,    23,  2000,
+    "b",      "eu",    2014,    24,  2000
+  )
+
+  filled <- whep::fill_proxy_growth(
+    regional,
+    gdp,
+    proxy_col = "pop:region[pop]",
+    time_col = year,
+    .by = "country",
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # 2013 growth: each country's own rate, weighted by its own 2012 population.
+  growth_a <- (130 - 120) / 120
+  growth_b <- (2000 - 1000) / 1000
+  expected <- (growth_a * 120 + growth_b * 1000) / (120 + 1000)
+  # What the previous-surviving-row weight gave instead: a's 2014 population.
+  wrong <- (growth_a * 120 + growth_b * 140) / (120 + 140)
+
+  growth_2013 <- filled$growth_1_pop_region_w[filled$year == 2013]
+  testthat::expect_equal(growth_2013, rep(expected, 2))
+  testthat::expect_false(isTRUE(all.equal(growth_2013[1], wrong)))
+
+  # And the number a user reads: a's 2013 gap grows off its 2012 value.
+  testthat::expect_equal(
+    filled$gdp[filled$country == "a" & filled$year == 2013],
+    12 * (1 + expected)
+  )
+  testthat::expect_equal(nrow(filled), nrow(regional))
+})
+
+test_that(".fg_weighted_growth falls back to the plain mean", {
+  # Weighted, and reporting how many rows carried a weight.
+  weighted <- whep:::.fg_weighted_growth(c(0.1, 1), c(100, 900))
+  testthat::expect_equal(weighted$g_val, (0.1 * 100 + 1 * 900) / 1000)
+  testthat::expect_equal(weighted$o_val, 2L)
+
+  # A missing, non-finite or non-positive weight carries nothing, so it drops
+  # out of both the mean and the count.
+  partial <- whep:::.fg_weighted_growth(c(0.1, 1, 2, 3), c(100, NA, Inf, 0))
+  testthat::expect_equal(partial$g_val, 0.1)
+  testthat::expect_equal(partial$o_val, 1L)
+
+  # With no usable weight left there is nothing to weight by, and the unweighted
+  # mean stands in rather than the cell going missing.
+  none <- whep:::.fg_weighted_growth(c(0.2, 0.4), c(NA, -1))
+  testthat::expect_equal(none$g_val, 0.3)
+  testthat::expect_equal(none$o_val, 2L)
 })
 
 test_that("fill_proxy_growth preserves sort order through chained calls", {

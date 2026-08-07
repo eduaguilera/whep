@@ -963,3 +963,44 @@ test_that(".read_land_areas separates LUH2's own sentinel from real territories"
   expect_true(any(grepl("-99", msgs, fixed = TRUE)))
   expect_true(any(grepl("no country assignment", msgs)))
 })
+
+test_that(".fodder_crop_liv reuses a table that already spans the fodder years", {
+  # The fodder chain interpolates along the year axis, so it needs yield_dm at
+  # every year the fodder sources cover (#623). A full-range build already holds
+  # those years, and must not pay for a second read.
+  i_fodder <- tibble::tribble(
+    ~year, ~value,
+    1961L, 1,
+    2013L, 2
+  )
+  spanning <- tibble::tribble(
+    ~year, ~unit, ~value,
+    1961L, "ha", 10,
+    2020L, "ha", 20
+  )
+
+  expect_identical(
+    whep:::.fodder_crop_liv(spanning, i_fodder),
+    spanning
+  )
+})
+
+test_that(".fodder_crop_liv ignores NA years when comparing spans", {
+  i_fodder <- tibble::tribble(
+    ~year, ~value,
+    1961L, 1,
+    NA_integer_, 2,
+    2013L, 3
+  )
+  spanning <- tibble::tribble(
+    ~year, ~unit, ~value,
+    1960L, "ha", 10,
+    NA_integer_, "ha", 15,
+    2014L, "ha", 20
+  )
+
+  expect_identical(
+    whep:::.fodder_crop_liv(spanning, i_fodder),
+    spanning
+  )
+})

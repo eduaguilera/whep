@@ -17,7 +17,10 @@
 #'   number, or one per sector. Zero means no uncertainty.
 #' @param options Named list overriding `n` (draws, default 200),
 #'   `probs` (lower/median/upper quantiles), `by` (grouping
-#'   columns) and `seed` (for reproducible draws).
+#'   columns) and `seed` (for reproducible draws). A `seed` is scoped
+#'   to this call: the caller's `.Random.seed` is restored on exit, so
+#'   drawing here does not reshuffle the surrounding session's RNG
+#'   stream.
 #'
 #' @return A tibble with the `by` columns plus `mean`, `sd`, `cv`,
 #'   `q_low`, `q_med` and `q_high` per output cell.
@@ -44,16 +47,20 @@ propagate_fp_uncertainty <- function(
 ) {
   .validate_run_fn(run_fn)
   opt <- .uncertainty_options(options)
-  if (!is.null(opt$seed)) {
-    set.seed(opt$seed)
+  if (is.null(opt$seed)) {
+    # Unseeded: consume the caller's stream, so repeated calls stay
+    # independent draws rather than repeats of the same one.
+    return(.propagate_draws(run_fn, extensions, cov, opt))
   }
-  factors <- .lognormal_factors(cov, length(extensions), opt$n)
-  purrr::map(seq_len(opt$n), function(k) {
-    .aggregate_run(run_fn, extensions * factors[, k], opt$by) |>
-      dplyr::mutate(.draw = k)
-  }) |>
-    purrr::list_rbind() |>
-    .summarise_draws(opt$by, opt$probs)
+  # Seeded: scope the seed to this call. A bare set.seed() leaves the
+  # caller's `.Random.seed` overwritten, which CRAN policy forbids.
+  # `withr::local_seed()` looks like the fix but is not: it defers a
+  # restore that registers its `on.exit()` on the already-exited frame
+  # that built it, so it never fires (checked against withr 3.0.2).
+  withr::with_preserve_seed({
+    set.seed(opt$seed)
+    .propagate_draws(run_fn, extensions, cov, opt)
+  })
 }
 
 #' Combine independent coefficient-of-variation components.
@@ -129,6 +136,16 @@ footprint_sensitivity <- function(run_fn, extensions, options = list()) {
 }
 
 # --- Helpers ---
+
+.propagate_draws <- function(run_fn, extensions, cov, opt) {
+  factors <- .lognormal_factors(cov, length(extensions), opt$n)
+  purrr::map(seq_len(opt$n), function(k) {
+    .aggregate_run(run_fn, extensions * factors[, k], opt$by) |>
+      dplyr::mutate(.draw = k)
+  }) |>
+    purrr::list_rbind() |>
+    .summarise_draws(opt$by, opt$probs)
+}
 
 .lognormal_factors <- function(cov, n_sector, n_draw) {
   cov <- if (length(cov) == 1) rep(cov, n_sector) else cov

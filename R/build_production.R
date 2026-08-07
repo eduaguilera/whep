@@ -636,6 +636,11 @@ build_primary_production <- function(
 
 # -- Fodder --------------------------------------------------------------------
 
+# Fodder rows are not read per year. `.fill_fodder_gaps()` takes the union of
+# (area, item) groups over every year and then interpolates along the year axis,
+# so a window narrower than the fodder sources both starts from a smaller group
+# universe and has no anchors to interpolate from -- which silently drops every
+# forage item (#623). Run the whole chain over the full span and trim at the end.
 .build_fodder <- function(fao_crop_liv, years = NULL) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
@@ -644,14 +649,14 @@ build_primary_production <- function(
   biomass <- whep::biomass_coefs
 
   # Old FAO fodder data
-  i_fodder <- .read_fodder_old(years = years)
+  i_fodder <- .read_fodder_old(years = NULL)
 
   # EU AgriDB fodder
-  fodder_euadb <- .read_fodder_euadb(years = years)
+  fodder_euadb <- .read_fodder_euadb(years = NULL)
 
   # DM yields for imputing fodder areas
   dm_yield <- .compute_dm_yield(
-    fao_crop_liv,
+    .fodder_crop_liv(fao_crop_liv, i_fodder),
     items_prod,
     biomass
   )
@@ -663,7 +668,22 @@ build_primary_production <- function(
     dm_yield,
     items_prod,
     biomass
-  )
+  ) |>
+    .filter_years(years)
+}
+
+# `dm_yield` supplies the `yield_dm` that turns fodder tonnage into area, so the
+# interpolation in `.fill_fodder_gaps()` needs it at every year the fodder
+# sources cover, not only the requested ones. Reuse the caller's table whenever
+# it already spans them -- a full-range build always does, so that path pays
+# nothing extra and its output is unchanged.
+.fodder_crop_liv <- function(fao_crop_liv, i_fodder) {
+  needed <- range(i_fodder$year, na.rm = TRUE)
+  have <- range(fao_crop_liv$year, na.rm = TRUE)
+  if (have[[1]] <= needed[[1]] && have[[2]] >= needed[[2]]) {
+    return(fao_crop_liv)
+  }
+  .read_fao_crop_liv(years = NULL)
 }
 
 .read_fodder_old <- function(years = NULL) {

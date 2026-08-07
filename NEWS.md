@@ -1,5 +1,77 @@
 # whep (development version)
 
+* **`fill_linear()` no longer depends on the order its rows arrive in.** Without
+  `.by`, it never sorted: carrying a value forward or backward and the
+  `value_smooth_window` moving average are all positional, so an unsorted input
+  filled the wrong way round. On a 2015-2020 series anchored at 2016 and 2019,
+  reversing the rows swapped the two carry labels, and interleaving them left
+  both outer gaps unfilled and moved two interpolated values. Both paths now
+  sort by `.by` and then `time_col` first, and **rows come back in that order**
+  — the grouped path already did through `setkeyv()`, the ungrouped one now
+  matches it. Grouped output is unchanged for already-sorted input, which is
+  every caller inside the package.
+  Three further gaps in the same file are closed. A `value_smooth_window` that
+  leaves a group with no valid anchor (gaps one year apart, or a window wider
+  than the group) aborted with `missing value where TRUE/FALSE needed`; both
+  paths now share one filling core, leave those gaps as `"Gap not filled"`, and
+  cannot diverge again. `fill_linear()` used to trust a `.whep_sorted_by`
+  attribute it had stamped on a previous call, which a `setorderv()` in between
+  does not clear, so a reordered data.table was filled in the wrong direction
+  and came back carrying a `sorted` key its rows did not obey; the sort is now
+  verified against the rows. And in `fill_proxy_growth()`, the documented
+  weighted proxy syntax (`"gdp:region[population]"`) aborted in `setnames()` on
+  every call, so it had never run; with that fixed, its weights are lagged
+  before the rows without a growth rate are dropped, which is what makes them
+  the previous period's weights rather than the previous surviving row's.
+* **One unvaluable 1:n split no longer erases observed data.**
+  `harmonize_interpolate()` summed the split 1:n contributions together with
+  the already-correct `"simple"` component using `sum()` without `na.rm`, so a
+  single contribution with a missing `value`, or with a share that could
+  neither be computed nor interpolated (every year of the group totalling
+  zero makes the shares `NaN`), turned the whole harmonized
+  `(item_code, year)` cell into `NA`/`NaN` — including the observed values
+  summed into it. Unvaluable contributions are now dropped with a warning
+  naming the affected cells, and the observed values survive. Published values
+  change only where the old output was `NA`/`NaN`: such a cell now holds its
+  observed `"simple"` sum, or disappears if it had none. No cell that was a
+  number before changes.
+
+* **`build_cbs_prices()` no longer drops crop residues into an NA bucket.**
+  The residue routing in `.add_residue_prices()` read
+  `Herb_Woody == "Woody"` inside a nested `fifelse()`, so every item whose
+  herbaceous/woody habit is missing got `NA` as its residue item. Those rows
+  were pooled into one `NA`-keyed group and then dropped, and the pool mixed
+  the mass and value of unrelated items on the way. On the real
+  `faostat-trade-bilateral` pin (1986-2021) that silently discarded **72 rows**
+  (36 years x 2 elements) of residue value. Residues are now generated only for
+  primary crops and grassland — processed and animal products never had a crop
+  residue — and a crop with no recorded habit takes the herbaceous default,
+  reported in a warning naming the items (currently Cottonseed, Palm kernels
+  and Palm Oil, whose `Name` is unset in `items_prod_full_raw.csv`).
+  **Published values move for one item, `Other crop residues` (2106)**: its
+  tonnage basis grows by 15.0% on average (2020 exports 345.6 Mt to 401.9 Mt)
+  and its price shifts by -2.6% on average (2020 exports -1.2%, largest single
+  move +6.8%). `Straw` (2105), `Firewood` (2107) and every non-residue item are
+  unchanged to the digit.
+* **`calculate_soc_dynamics()` returns one schema for all five SOC models.**
+  It used to hand back whichever shape the selected model happened to produce:
+  `hsoc` (the default) came back long as `pool` / `year` / `stock_mgc_ha` /
+  `rate_mgc_ha` with **no** `soc_total`, while `rothc`, `icbm`, `amg` and
+  `century` came back wide with `soc_total` and their own mutually exclusive
+  pool columns (`dpm`/`rpm`/`bio`/`hum`/`iom`, `y`/`o`, `ca`/`cs`,
+  `str`/`met`/`act`/`slw`/`pas`) — no two of the five agreed, so a caller had
+  to branch on `model`. The selector now reshapes whichever model ran to the
+  long schema `year`, `pool`, `stock_mgc_ha`, `soc_total`, `method_soc`: pool
+  detail is kept, the model-specific part sits in the values of `pool` instead
+  of in column names, and the five runs of a sensitivity analysis stack with a
+  plain `dplyr::bind_rows()`. Total-only callers read
+  `dplyr::distinct(out, year, soc_total)`. `calculate_soc_hsoc()` itself is now
+  wide like its four siblings (`year`, `fresh`, `humus`, `iom`, `soc_total`) and
+  no longer returns the per-pool `rate_mgc_ha`, which was exactly the forward
+  annual difference of `stock_mgc_ha` and is recoverable from it. **No published
+  value changes**: every pool stock and every `build_carbon_balance()`
+  equilibrium is bit-identical before and after (checked across nine HSOC
+  parameterisations and the spin-up of all five models).
 * **WHEP now models the Rest-of-World reporting members in their own right.**
   FABIO folds 61 FAOSTAT reporting areas into its single `Rest of World` column,
   and `polity_area_code` inherited that fold, so any territory outside FABIO's
@@ -502,6 +574,14 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called `set.seed()` and left it set, so every
+  random number drawn afterwards depended on having made the call, and in a
+  session that had not yet used the RNG it created `.Random.seed` where there
+  was none. The seed is now scoped to the call and the previous RNG state (or
+  its absence) is restored on return. Seeded results are bit-identical to
+  before; unseeded runs still consume the caller's stream, so consecutive
+  unseeded runs remain independent draws (#188).
 * A failed Natural Earth download now reports how to recover instead of dying
   on its own error message. The abort interpolated the layer URL as
   `{.url {.natural_earth_url(layer)}}`, and cli >= 3.4.0 reads a `{}`
