@@ -8,7 +8,7 @@
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input–output model "Food and Agriculture Biomass Input–Output" (FABIO) see Bruckner et al. (2019) \doi{10.1021/acs.est.9b03554}.
+A set of tools for processing and analyzing data developed in the context of the "Who Has Eaten the Planet" (WHEP) project, funded by the European Research Council (ERC). For more details on multi-regional input-output model "Food and Agriculture Biomass Input-Output" (FABIO) see Bruckner et al. (2019) \doi{10.1021/acs.est.9b03554}.
 }
 \seealso{
 Useful links:
