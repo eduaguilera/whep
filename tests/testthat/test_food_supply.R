@@ -184,6 +184,44 @@ testthat::test_that("an unmatched food item warns and is excluded", {
   )
 })
 
+testthat::test_that("an area with food but no population is named, not silent", {
+  # The inner join in .food_per_capita() makes such an area vanish from the
+  # output rather than appear wrong in it, which is why the loss has to be
+  # reported here (#543). Area 18 is Bhutan, one of the 15 real areas the
+  # gdp-population pin gives no denominator to.
+  cbs <- dplyr::bind_rows(
+    .food_cbs(),
+    tibble::tibble(
+      year = 2010L,
+      area_code = 18L,
+      item_cbs_code = 2511L,
+      food_t = 800
+    )
+  )
+  testthat::expect_warning(
+    out <- whep::build_food_supply(data = .food_data(cbs)),
+    "Bhutan \\(18, 1 area-year\\)"
+  )
+  # Reported AND still dropped: the warning is about visibility, and does not
+  # invent a denominator.
+  testthat::expect_false(18L %in% out$area_code)
+  testthat::expect_setequal(out$area_code, c(10L, 20L, 30L))
+})
+
+testthat::test_that("the food-supply coverage warning can be switched off", {
+  withr::local_options(whep.warn_missing_population = FALSE)
+  cbs <- dplyr::bind_rows(
+    .food_cbs(),
+    tibble::tibble(
+      year = 2010L,
+      area_code = 18L,
+      item_cbs_code = 2511L,
+      food_t = 800
+    )
+  )
+  testthat::expect_no_warning(whep::build_food_supply(data = .food_data(cbs)))
+})
+
 testthat::test_that("faostat_fbs passes the injected supply through", {
   fbs <- tibble::tribble(
     ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
