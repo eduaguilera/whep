@@ -430,6 +430,13 @@ testthat::test_that("agricultural support is derived when not supplied", {
 })
 
 testthat::test_that("non-item inputs abort when no support can be derived", {
+  # Dropping data$type_cropland does not remove the input, it makes the reader
+  # fall back to WHEP_TYPE_CROPLAND_PATH. Without pinning the variable the test
+  # reads whatever gridded cropland the machine happens to have configured and
+  # asserts "no land surface exists" while one is being loaded -- so it checks
+  # the branch it is named after only where the data is absent, which is never
+  # the machines that have it.
+  withr::local_envvar(WHEP_TYPE_CROPLAND_PATH = NA)
   data <- .nbi_full_data()
   data$ag_land_support <- NULL
   data$type_cropland <- NULL

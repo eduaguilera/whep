@@ -34,12 +34,14 @@
 #' 901-906) and the dissolved entities GLEAM's present-day country table cannot
 #' carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 #' Montenegro). The size of that loss is now **reported** on every build rather
-#' than left to be inferred, and two opt-in treatments recover it instead of
+#' than left to be inferred, and three opt-in treatments recover it instead of
 #' losing it: `unclassified = "polity_region"` groups the **live** reporting
-#' areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+#' areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk,
+#' `unclassified = "historical_region"` additionally groups the **dissolved**
+#' entities from the membership they themselves held while they existed, and
 #' `unclassified = "global_mean"` prices **every** unclassifiable area at the
 #' world-mean GLEAM intensity. The default keeps the historical behaviour; see
-#' whep#415 and whep#492.
+#' whep#415, whep#492 and whep#553.
 #'
 #' @param method Estimation method. Only `"gleam"` (default), the GLEAM 3.0
 #'   per-live-weight factors, is currently available.
@@ -54,6 +56,11 @@
 #'   polity in `polity_area_crosswalk`, running GLEAM's own scheme rules on that
 #'   continent, and marks those rows `"GLEAM_3.0_energy_meat_polity_region"`;
 #'   the aggregate buckets and dissolved entities still drop.
+#'   `"historical_region"` does everything `"polity_region"` does and also
+#'   groups the **dissolved** entities (USSR, Czechoslovakia, the Yugoslav SFR,
+#'   Belgium-Luxembourg, Serbia and Montenegro, the Netherlands Antilles) from
+#'   the OECD and EU membership they held while they existed, marking those rows
+#'   `"GLEAM_3.0_energy_meat_historical_region"`.
 #'   `"global_mean"` instead prices every unclassifiable area at the unweighted
 #'   world mean of the published GLEAM factors, marking those rows
 #'   `"GLEAM_3.0_energy_meat_global_mean"`.
@@ -63,7 +70,9 @@
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (energy-use emissions in kilograms CO2e) and `method_energy`
 #'   (`"GLEAM_3.0_energy_meat"`, `"GLEAM_3.0_energy_meat_polity_region"` for
-#'   rows grouped from the polity crosswalk, or
+#'   rows grouped from the polity crosswalk,
+#'   `"GLEAM_3.0_energy_meat_historical_region"` for dissolved entities grouped
+#'   from their own era's memberships, or
 #'   `"GLEAM_3.0_energy_meat_global_mean"` for rows priced at the world mean),
 #'   plus the polity columns below.
 #'
@@ -76,7 +85,7 @@
 build_energy_co2_extension <- function(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "polity_region", "global_mean"),
+  unclassified = c("drop", "polity_region", "historical_region", "global_mean"),
   example = FALSE
 ) {
   method <- match.arg(method)
@@ -251,7 +260,7 @@ build_energy_co2_extension <- function(
   }
   n_gaps <- nrow(gaps)
   areas <- sort(gaps$area_name)
-  if (identical(unclassified, "polity_region")) {
+  if (unclassified %in% .energy_derived_treatments()) {
     cli::cli_inform(c(
       "i" = "{n_gaps} live reporting area{?s} {?has/have} no row in
          {.field gleam_geographic_hierarchy} and {?is/are} grouped from the
@@ -273,9 +282,33 @@ build_energy_co2_extension <- function(
   invisible(NULL)
 }
 
+# The two treatments that DERIVE a grouping for an area GLEAM omits, rather than
+# dropping it or averaging the world. `"historical_region"` is a superset of
+# `"polity_region"`: it adds the dissolved entities to the live areas.
+.energy_derived_treatments <- function() {
+  c("polity_region", "historical_region")
+}
+
+.inform_dissolved_grouped <- function() {
+  rows <- .energy_dissolved_rows()
+  if (nrow(rows) == 0L) {
+    return(invisible(NULL))
+  }
+  n <- nrow(rows)
+  cli::cli_inform(c(
+    "i" = "{n} dissolved reporting entit{?y/ies} {?is/are} grouped from the
+       OECD and EU membership {?it/they} held while {?it/they} existed:
+       {.val {sort(rows$iso3)}}.",
+    "i" = "Those rows are labelled
+       {.val GLEAM_3.0_energy_meat_historical_region}; see whep#553."
+  ))
+  invisible(NULL)
+}
+
 # The country universe the whole extension is derived from: GLEAM's own table,
 # plus -- only when the caller asks for it -- one row per live reporting area
-# GLEAM omits, built from the polity crosswalk.
+# GLEAM omits, built from the polity crosswalk, and under
+# `"historical_region"` one row per dissolved entity as well.
 #
 # `ef_scope` rides with each country so `method_energy` can say afterwards which
 # rows were grouped from the crosswalk rather than read off GLEAM's table.
@@ -284,10 +317,15 @@ build_energy_co2_extension <- function(
   hierarchy <- gleam_geographic_hierarchy |>
     tibble::as_tibble() |>
     dplyr::mutate(ef_scope = "country")
-  if (!identical(unclassified, "polity_region")) {
+  if (!unclassified %in% .energy_derived_treatments()) {
     return(hierarchy)
   }
-  dplyr::bind_rows(hierarchy, .energy_polity_hierarchy_rows())
+  derived <- .energy_polity_hierarchy_rows()
+  if (identical(unclassified, "historical_region")) {
+    .inform_dissolved_grouped()
+    derived <- dplyr::bind_rows(derived, .energy_dissolved_rows())
+  }
+  dplyr::bind_rows(hierarchy, derived)
 }
 
 # Rows shaped like `gleam_geographic_hierarchy` for the live reporting areas it
@@ -317,6 +355,7 @@ build_energy_co2_extension <- function(
 .energy_polity_hierarchy_rows <- function() {
   overrides <- .gleam_region_overrides()
   .areas_gleam_cannot_group() |>
+    dplyr::mutate(continent = .energy_gleam_continent(.data$continent)) |>
     dplyr::filter(.data$continent %in% .energy_scheme_continents()) |>
     dplyr::transmute(
       iso3 = .data$area_iso3c,
@@ -341,6 +380,120 @@ build_energy_co2_extension <- function(
 # quietly mis-grouped.
 .energy_scheme_continents <- function() {
   c("Africa", "Americas", "Europe", "Oceania")
+}
+
+# `polity_area_crosswalk` splits the Americas into "North America" and
+# "South America"; `gleam_geographic_hierarchy`, whose vocabulary the scheme
+# rules above are written against, has one "Americas". Without this, a crosswalk
+# row for an American area would match no branch of `region5` and fall through
+# its `.default` to "Non-OECD Asia". MEASURED: no area reaching either derived
+# treatment today is in the Americas with production (the live pair is Nauru and
+# Tuvalu, both Oceania; the Netherlands Antilles is dissolved and produces no
+# meat), so this maps a latent mis-grouping, not a live one.
+.energy_gleam_continent <- function(continent) {
+  dplyr::case_match(
+    continent,
+    c("North America", "South America") ~ "Americas",
+    .default = continent
+  )
+}
+
+# ---- dissolved entities ----------------------------------------------------
+
+# The self-reporting areas GLEAM omits that no longer exist: every polity period
+# the crosswalk gives them ended before the crosswalk's open end. That is what
+# separates them from the live omissions (Nauru, Tuvalu) and from the aggregate
+# buckets 901-906 and 999, whose periods all run to the open end. Derived rather
+# than listed so a crosswalk revision cannot leave a hardcoded list behind.
+.energy_dissolved_areas <- function() {
+  crosswalk <- tibble::as_tibble(polity_area_crosswalk)
+  open_end <- max(crosswalk$polity_end_year, na.rm = TRUE)
+  crosswalk |>
+    dplyr::filter(
+      !is.na(.data$area_code),
+      !is.na(.data$area_iso3c),
+      !is.na(.data$polity_end_year),
+      .data$area_code == .data$polity_area_code,
+      !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
+    ) |>
+    dplyr::summarise(
+      last_year = max(.data$polity_end_year),
+      .by = c(
+        "area_code",
+        "area_name",
+        "area_iso3c",
+        "polity_area_code",
+        "continent"
+      )
+    ) |>
+    dplyr::filter(.data$last_year < open_end)
+}
+
+# The OECD and EU membership each dissolved entity held WHILE IT EXISTED. This
+# is the whep#553 decision, and it is deliberately contemporaneous rather than
+# inherited from the successor states as they stand today.
+#
+# Every value is a membership date, not an estimate:
+#
+# * Belgium and Luxembourg both signed the OECD Convention on 14 December 1960
+#   and are founding members (in force 30 September 1961), and both are founding
+#   members of the EEC (Treaty of Rome 1957, in force 1 January 1958). So
+#   Belgium-Luxembourg was OECD and EU for the whole 1961-1999 span it reports.
+# * No successor of Czechoslovakia, the USSR, the Yugoslav SFR or Serbia and
+#   Montenegro was in either body during the entity's own lifetime: Czechia
+#   joined the OECD on 21 December 1995 and Slovakia on 14 December 2000, both
+#   after the 1992 dissolution, and both joined the EU on 1 May 2004; Slovenia
+#   joined the OECD in 2010; no Soviet successor is an OECD member. So those
+#   four are non-OECD and non-EU throughout, with no weighting between
+#   successors needed -- the successors agree, they were all outside.
+# * The Netherlands Antilles never held either membership in its own right: the
+#   OECD member is the Kingdom of the Netherlands, and its Caribbean territories
+#   are EU Overseas Countries and Territories, associated with the Union but
+#   outside its territory.
+#
+# Taking the successors' PRESENT-DAY flags instead would make Czechoslovakia
+# OECD and EU 27 in 1990, which is anachronistic; that alternative is quantified
+# in whep#553 and is the open question there. An entity with no row here stays
+# unpriced and keeps being reported, rather than defaulting to zeros.
+.energy_dissolved_membership <- function() {
+  tibble::tribble(
+    ~polity_area_code, ~oecd, ~eu27,
+    15L,               1L,    1L, # Belgium-Luxembourg
+    51L,               0L,    0L, # Czechoslovakia
+    151L,              0L,    0L, # Netherlands Antilles
+    186L,              0L,    0L, # Serbia and Montenegro
+    228L,              0L,    0L, # USSR
+    248L,              0L,    0L # Yugoslav SFR
+  )
+}
+
+# Rows shaped like `gleam_geographic_hierarchy` for the dissolved entities, so
+# `.energy_country_grouping()` runs GLEAM's OWN scheme rules on them. As with
+# the live areas, no grouping label is typed in here: only the three inputs
+# those rules read are supplied -- the continent from the crosswalk, the
+# memberships above, and the GLEAM region from the merged whep#465 override
+# table (which only feeds the dressing fraction). An entity the membership
+# table does not cover is dropped by the inner join and stays reported.
+.energy_dissolved_rows <- function() {
+  overrides <- .gleam_region_overrides()
+  .energy_dissolved_areas() |>
+    dplyr::inner_join(
+      .energy_dissolved_membership(),
+      by = "polity_area_code"
+    ) |>
+    dplyr::mutate(continent = .energy_gleam_continent(.data$continent)) |>
+    dplyr::filter(.data$continent %in% .energy_scheme_continents()) |>
+    dplyr::transmute(
+      iso3 = .data$area_iso3c,
+      continent = .data$continent,
+      faostat_region = NA_character_,
+      gleam_region = overrides$gleam_region[
+        match(.data$polity_area_code, overrides$polity_area_code)
+      ],
+      eu27 = .data$eu27,
+      oecd = .data$oecd,
+      ef_scope = "historical_region"
+    )
 }
 
 # Map each country to its grouping under each of the three GLEAM schemes.
@@ -789,6 +942,7 @@ build_energy_co2_extension <- function(
     ef_scope,
     "global" ~ paste0(label, "_global_mean"),
     "polity_region" ~ paste0(label, "_polity_region"),
+    "historical_region" ~ paste0(label, "_historical_region"),
     .default = label
   )
 }

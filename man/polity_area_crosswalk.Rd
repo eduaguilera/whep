@@ -32,9 +32,16 @@ assigns to this area-polity pair, \code{NA} unless \code{mapping_source} is
 \item \code{map_match_route}: Upstream's record of how it decided the row
 (\code{"iso-equal"}, \code{"registry"}, \code{"manual-route"}, \code{"manual-replace"},
 \code{"manual-span"}), \code{NA} unless \code{mapping_source} is \code{"upstream_map"}.
-\item \code{mapping_status}: \code{"matched"}, \code{"manual"}, \code{"unmapped"}, or
-\code{"not_a_reporting_area"}.
-\item \code{mapping_note}: Explanation for manual or unmapped rows.
+\item \code{mapping_status}: Whether a polity was found, \strong{not} how much to trust it.
+\code{"matched"} when a live polity resolved; \code{"manual"} when the decision was
+curated by hand, either by upstream (a \verb{manual-*} \code{map_match_route}) or by
+this package's own area-prefix overrides; \code{"unmapped"} when no real polity
+is available, which is FAOSTAT area 351 "China" alone, deliberately left
+unmapped so it cannot double-count its own components; and
+\code{"not_a_reporting_area"} for a territory that carries no FAOSTAT/FABIO area
+at all, which has \code{NA} in both \code{area_code} and \code{polity_area_code} and so
+can never be joined to reported data.
+\item \code{mapping_note}: Explanation for manual, unmapped and non-reporting rows.
 }
 }
 \source{
@@ -49,4 +56,23 @@ polity_area_crosswalk
 Year-aware bridge from numeric reporting \code{area_code} values used by
 FAOSTAT/FABIO-derived WHEP data to periodized WHEP \code{polity_code} values.
 }
+\section{Confidence is the pair, not \code{mapping_status} alone}{
+
+\code{"matched"} covers outcomes of very different confidence -- a curated hit in
+upstream's published FAOSTAT map, a prefix-inferred period outside every span
+that map declares, a prefix guess for an area the map does not cover, and the
+FABIO Rest-of-World fold. \strong{\code{mapping_source} is the column that separates
+them}, and it is non-\code{NA} on every row, so read the two together rather than
+filtering on \code{mapping_status == "matched"} and assuming a curated decision:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{dplyr::count(polity_area_crosswalk, mapping_status, mapping_source)
+}\if{html}{\out{</div>}}
+
+Curated rows are \code{mapping_source == "upstream_map"}; everything a prefix
+decided is \code{"prefix_outside_map"} or \code{"prefix_fallback"}. Prefix inference
+never overrides the map where the map speaks: a prefix-derived period whose
+years overlap any span the map declares for that area is dropped at build
+time, so the two branches cannot disagree about a reported year.
+}
+
 \keyword{datasets}

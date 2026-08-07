@@ -1,5 +1,122 @@
 # whep (development version)
 
+* **`build_carbon_balance()` is about a quarter faster, with output unchanged
+  to the last bit.** The RothC/HSOC climate modifier is now computed for every
+  cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
+  separate calls over five years, each of which allocated a list and accumulated
+  over twelve months. The deficit recurrence is sequential over months but
+  independent across cells, so the loop inverts. Measured on
+  `years = 1901:1905`: 820.4 s to 612.1 s. Peak memory is unaffected.
+
+  The per-group path stays in place as the reference and still runs for models
+  that do not use this modifier. The two agree exactly, not approximately:
+  `identical()` holds across all 1,166,220 rows and 17 columns of the five-year
+  build, so no result changes (#630).
+* **`build_energy_co2_extension(unclassified = "historical_region")` prices the
+  dissolved federations instead of losing them (#553).** Measured on the real
+  `get_primary_production()` output (6,305,656 rows, 1850-2023), 569.4 Mt of
+  meat carcass production — 3.33% of all of it, and 15.2% of the world's 1961
+  tonnage — gets no energy intensity and leaves the extension, because
+  `gleam_geographic_hierarchy` is a present-day country table with no row for
+  the USSR, Belgium-Luxembourg, Czechoslovakia, the Yugoslav SFR or Serbia and
+  Montenegro. Those five are now 99.998% of the loss: since the Rest-of-World
+  fold was lifted (#628) bucket 999 no longer contributes to it at all. The new
+  treatment groups them by running GLEAM's own scheme rules on the OECD and EU
+  membership they themselves held while they existed — Belgium and Luxembourg
+  were OECD founding members and EEC founders, so Belgium-Luxembourg is OECD/EU
+  27; no successor of the other four was in either body before the entity
+  dissolved, so they are non-OECD, non-EU. Rows carry
+  `method_energy = "GLEAM_3.0_energy_meat_historical_region"`, and the option
+  is a superset of `"polity_region"`.
+
+  **No published value changes**: the default `unclassified = "drop"` is
+  bit-identical on the full real input (181,831 rows, `sum(impact_u) =
+  6.530863856531e12` before and after, `identical()` TRUE). Opting in adds
+  1,190 rows and 7 areas, moves no shared row by any amount, and raises total
+  energy CO2e by **+2.40%** over 1850-2023 — **+12.0% in 1961**, +11.3% in
+  1990, +0.26% in 2000 and 0% from 2010 on.
+* **`polity_area_crosswalk$mapping_status` now uses the value it documented but
+  never shipped, and the confidence of a mapping is documented as the pair
+  `mapping_status` x `mapping_source`.** `not_a_reporting_area` sat below
+  `matched` in the build's `case_when`, so it could only fire for a row with
+  neither an `area_code` nor a `polity_code` — no such row exists, and it
+  shipped on 0 of 596 rows. The 20 rows it was written for (Aland, Saint
+  Barthelemy, Guernsey, Jersey, the Isle of Man and Sint Maarten, which
+  `regions_full` carries without a FAOSTAT code, plus the six regional
+  aggregate polities) match a polity and so read `matched`, indistinguishable
+  from a real area mapping even though they carry `NA` in both `area_code` and
+  `polity_area_code` and no consumer can join to them. Status counts move from
+  manual 27 / matched 568 / unmapped 1 to manual 27 / matched 548 /
+  not_a_reporting_area 20 / unmapped 1. No `polity_code`, `polity_area_code` or
+  any other column moves, and no code in the package filters the crosswalk on
+  `mapping_status == "matched"`, so no published number changes. A consumer that
+  does filter that way loses 20 unjoinable rows.
+
+  `mapping_status` says whether a polity was found, not how far to trust it:
+  `matched` covers a curated hit in upstream's FAOSTAT map (233 rows), a
+  prefix-inferred historical period (247), a prefix guess for an area the map
+  never mentions (6) and the FABIO Rest-of-World fold (62). `mapping_source`
+  already separates those and is non-`NA` on every row, so the fix for #544 is
+  to document the pair rather than add a third vocabulary that would duplicate
+  it (#544).
+* **`get_polity_geometries(polity_codes = )` now returns a usable `sf` object
+  in a session that has not loaded `sf`.** The row subset ran through
+  `[.data.frame` whenever the suggested `sf` namespace was not loaded, which
+  keeps class `sf` and `attr(, "sf_column")` but strips `sfc` off the column
+  they point at; the result passed every cheap structural check and then
+  aborted inside the first `sf` call, complaining about a column nobody had
+  renamed. The function now loads `sf` before subsetting, and aborts with class
+  `whep_sf_required` if `sf` is not installed instead of returning the broken
+  object. No published values change: the argument-less call is untouched, and
+  both in-package callers use it.
+* **`build_gridded_landuse()` and `build_gridded_livestock()` take an
+  `area_key`, and say when their output cannot join a national table.** The
+  spatialize chain allocates on the raw reporting codes its `country_areas`
+  and `country_grid` are keyed on, while whep's polity-keyed national tables
+  are aggregated on `polity_area_code`. A reporting code that is not itself a
+  bucket therefore left every output row carrying two territorial keys that
+  disagree — `area_code = 276` beside `polity_area_code = 206` — so whether a
+  consumer joined on one or the other decided whether Sudan existed in its
+  result (#582). Measured against the deployed pins, `country_grid` holds 831
+  such cells under 2 codes (276 Sudan, 277 South Sudan) and `country_areas`
+  0.64% of its harvested area; the other six codes the issue listed are no
+  longer off-bucket, because #628 gave Syria, North Macedonia, Eswatini,
+  Equatorial Guinea, New Caledonia and Palestine their own published codes.
+  The default `area_key = "grid"` is unchanged bit-for-bit and now warns
+  naming the codes that cannot join; `"polity_area"` re-keys the output on the
+  bucket before the polity columns are attached, so the two keys agree in
+  every row. **No published value changes** unless `"polity_area"` is asked
+  for: on a 2020 Sudan/South Sudan run it conserved 21,894,526 ha and 230.7 M
+  head exactly, kept the row count, and moved 13,447 crop rows and 3,671
+  livestock rows from a key no national table carries onto `206`. Under
+  `"polity_area"` the raw code is carried, not replaced, as `grid_area_code`,
+  the shape `build_cell_polity()` adopted in #579. `run_spatialize()` accepts
+  `area_key` in `overrides`.
+
+* **`estimate_energy_demand()` now warns when `work_hours_day` is supplied
+  without a work coefficient.** `whep` ships `cw = 0` for every species, so
+  draft work is opt-in per call via `work_coef` — passing only the hours
+  produced `ne_work = 0` with no indication that the input had been ignored
+  (#210). The numbers are unchanged; only the silence is. Hours filled in from
+  `livestock_production_defaults` never warn, since several species carry a
+  non-zero default and warning about those would fire on ordinary runs.
+* **The FABIO comparison's EU aggregate is derived, and now covers the
+  dissolved predecessors.** `inst/scripts/compare_fabio_footprints.R` carried a
+  28-element ISO3 literal for EU28. It is now built by `.eu_aggregate_iso3()`
+  from the published `regions_full$EU27` flag plus `GBR`, the one membership
+  fact no table in the package states, selected through the new
+  `WHEP_EU_AGGREGATE` environment variable
+  (`"eu28_territory"`, the default, `"eu27_territory"`, `"eu28_states"`,
+  `"eu27_states"`). The literal omitted `BLX` (Belgium-Luxembourg) and `CSK`
+  (Czechoslovakia), under which FABIO *and* WHEP's own CBS both book Belgium,
+  Luxembourg, Czechia and Slovakia before those successions, so all four read
+  as exactly zero in the 1986 benchmark year on both sides of the comparison
+  and normally in 2000 and 2013. **This moves a published number:** the FABIO
+  EU land footprint for 1986 goes from 210.4 Mha to 222.7 Mha (+12.3 Mha,
+  +5.9%); 2000 and 2013 are bit-identical, because the predecessors carry no
+  demand there. `WHEP_EU_AGGREGATE=eu28_states`
+  reproduces the old list, and the old numbers, exactly. Whether the comparison
+  should report EU28 or EU27 at all is left open (#421).
 * **`build_food_supply()` and `build_n_percapita()` now name the areas they
   drop for having no population denominator.** Both inner-join the
   `read_population()` table, so an area the `gdp-population` pin does not cover
