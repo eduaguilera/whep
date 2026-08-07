@@ -25,13 +25,14 @@
 #' - `"unlabelled"`: the bucket code resolves to no polity, so rows carry `NA`
 #'   and the gap is at least visible rather than wrong.
 #'
-#' Only members whose polity is **in span** for the year count towards a fold.
-#' A year-aware lookup answers every `(area_code, year)` pair, standing in with
-#' the nearest period and flagging it `out_of_span`, so asking it about an area
-#' that does not report in that year invents a member. FAOSTAT reports area 206
-#' for 1961-2011 and areas 276/277 for 2012-2024, never in the same year, so
-#' counting the stand-ins reported bucket 206 as a three-way fold in all 65
-#' years rather than a two-way fold in the 14 it is one (whep#414).
+#' An area counts as a member only in the years it **reports**: its polity must
+#' be in span, and the upstream FAOSTAT map must report the area that year. A
+#' year-aware lookup answers every `(area_code, year)` pair regardless, standing
+#' in with the nearest period, so asking it about an area that does not report
+#' in that year invents a member. FAOSTAT reports area 206 for 1961-2011 and
+#' areas 276/277 for 2012-2024, never in the same year, so counting the stand-ins
+#' reported bucket 206 as a three-way fold in all 65 years rather than a two-way
+#' fold in the 14 it is one (whep#414).
 #'
 #' Bucket 206 is the one fold reported today, `"predecessor"` from 2012: it sums
 #' FAOSTAT areas 276 Sudan and 277 South Sudan and is labelled `SUD-1956-2011`,
