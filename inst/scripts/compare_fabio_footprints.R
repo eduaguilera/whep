@@ -24,6 +24,7 @@ usable_grass_yield_dm_t_ha <- as.numeric(
   Sys.getenv("WHEP_USABLE_GRASS_YIELD_DM_T_HA", "2.06")
 )
 max_column_sum <- as.numeric(Sys.getenv("WHEP_A_MAX_COLUMN_SUM", "100"))
+eu_basis <- tolower(Sys.getenv("WHEP_EU_AGGREGATE", "eu28_territory"))
 
 if (!grassland_metric %in% c("occupation", "active_grazing", "both")) {
   stop(
@@ -42,6 +43,17 @@ if (
 ) {
   stop(
     "`WHEP_A_MAX_COLUMN_SUM` must be a positive finite number.",
+    call. = FALSE
+  )
+}
+# Checked here rather than at first use so a typo fails before the download.
+if (
+  !eu_basis %in%
+    c("eu28_territory", "eu27_territory", "eu28_states", "eu27_states")
+) {
+  stop(
+    "`WHEP_EU_AGGREGATE` must be one of \"eu28_territory\", ",
+    "\"eu27_territory\", \"eu28_states\" or \"eu27_states\".",
     call. = FALSE
   )
 }
@@ -71,40 +83,20 @@ download_fabio_file <- function(file) {
 
 invisible(vapply(fabio_files, download_fabio_file, character(1)))
 
-eu28_iso3 <- c(
-  "AUT",
-  "BEL",
-  "BGR",
-  "HRV",
-  "CYP",
-  "CZE",
-  "DNK",
-  "EST",
-  "FIN",
-  "FRA",
-  "DEU",
-  "GRC",
-  "HUN",
-  "IRL",
-  "ITA",
-  "LVA",
-  "LTU",
-  "LUX",
-  "MLT",
-  "NLD",
-  "POL",
-  "PRT",
-  "ROU",
-  "SVK",
-  "SVN",
-  "ESP",
-  "SWE",
-  "GBR"
-)
+# The EU aggregate used to be a 28-element ISO3 literal here. It is derived
+# now, from the published `regions_full$EU27` flag plus the one membership fact
+# no published table in this package states (`GBR`); see `R/eu_aggregate.R` for
+# what each basis means and why the default carries the dissolved predecessors.
+#
+# `WHEP_EU_AGGREGATE=eu28_states` reproduces the literal exactly, and with it
+# the numbers this script printed before: it drops `BLX` and `CSK`, under which
+# FABIO books Belgium, Luxembourg, Czechia and Slovakia in the years before
+# those successions, so the 1986 EU footprint comes out 5.9% lower.
+eu_iso3 <- whep:::.eu_aggregate_iso3(eu_basis)
 
 targets <- tibble(
-  target = c("CHN", "USA", "EU28"),
-  iso3c = list("CHN", "USA", eu28_iso3)
+  target = c("CHN", "USA", toupper(eu_basis)),
+  iso3c = list("CHN", "USA", eu_iso3)
 )
 
 fd_levels <- c("food", "other")
