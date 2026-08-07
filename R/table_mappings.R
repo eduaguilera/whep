@@ -116,7 +116,7 @@
 #' The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
 #' `ANG-1905-1975` records no successor upstream and so is widened by a year
 #' into `AGO-1975-2025`'s first year. Resolution still returns `AGO-1975-2025`
-#' there, but by row order rather than by the data.
+#' there, but by row order rather than by the data. See #683.
 #'
 #' @section `polity_area_code` is a bucket, and does not carry the contract:
 #' `polity_area_code` is the key rows are **aggregated on** for the matrix

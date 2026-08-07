@@ -68,7 +68,7 @@ code rather than lost by it.
 The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
 \code{ANG-1905-1975} records no successor upstream and so is widened by a year
 into \code{AGO-1975-2025}'s first year. Resolution still returns \code{AGO-1975-2025}
-there, but by row order rather than by the data.
+there, but by row order rather than by the data. See #683.
 }
 
 \section{\code{polity_area_code} is a bucket, and does not carry the contract}{

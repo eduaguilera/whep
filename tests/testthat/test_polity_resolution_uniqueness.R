@@ -151,10 +151,11 @@ testthat::test_that("one area-year has one candidate, but for Angola 1975", {
   #
   # No published value moves today: the `polity_start_year DESC` tie-break lands
   # 1975 on `AGO-1975-2025`, which is the right answer. It is right BY ORDERING,
-  # which is the state this detector exists to make visible. Filed as its own
-  # issue rather than fixed here -- the root cause is a missing `successor` in
+  # which is the state this detector exists to make visible. Filed as #683
+  # rather than fixed here -- the root cause is a missing `successor` in
   # `whep-polities`, and deciding between patching the widening rule and fixing
-  # the upstream record is not this test's call.
+  # the upstream record is not this test's call. Whichever fix lands, tighten
+  # this to zero in the same PR.
   out <- whep:::.polity_join_conflicts()
 
   testthat::expect_equal(out$area_code, 7L)
