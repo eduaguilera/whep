@@ -85,7 +85,10 @@ number, or one per sector. Zero means no uncertainty.</p></dd>
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
 <dd><p>Named list overriding <code>n</code> (draws, default 200),
 <code>probs</code> (lower/median/upper quantiles), <code>by</code> (grouping
-columns) and <code>seed</code> (for reproducible draws).</p></dd>
+columns) and <code>seed</code> (for reproducible draws). A <code>seed</code> is scoped
+to this call: the caller's <code>.Random.seed</code> is restored on exit, so
+drawing here does not reshuffle the surrounding session's RNG
+stream.</p></dd>
 
 </dl></div>
     <div class="section level2">

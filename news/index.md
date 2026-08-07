@@ -638,6 +638,19 @@
   README to the contributing guide. Groundwork for rOpenSci peer review
   ([\#75](https://github.com/eduaguilera/whep/issues/75)).
 
+- **[`propagate_fp_uncertainty()`](https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.md)
+  no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called
+  [`set.seed()`](https://rdrr.io/r/base/Random.html) and left it set, so
+  every random number drawn afterwards depended on having made the call,
+  and in a session that had not yet used the RNG it created
+  `.Random.seed` where there was none. The seed is now scoped to the
+  call and the previous RNG state (or its absence) is restored on
+  return. Seeded results are bit-identical to before; unseeded runs
+  still consume the caller’s stream, so consecutive unseeded runs remain
+  independent draws
+  ([\#188](https://github.com/eduaguilera/whep/issues/188)).
+
 - A failed Natural Earth download now reports how to recover instead of
   dying on its own error message. The abort interpolated the layer URL
   as `{.url {.natural_earth_url(layer)}}`, and cli \>= 3.4.0 reads a

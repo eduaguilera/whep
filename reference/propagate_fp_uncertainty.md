@@ -36,7 +36,9 @@ propagate_fp_uncertainty(run_fn, extensions, cov = 0.1, options = list())
 
   Named list overriding `n` (draws, default 200), `probs`
   (lower/median/upper quantiles), `by` (grouping columns) and `seed`
-  (for reproducible draws).
+  (for reproducible draws). A `seed` is scoped to this call: the
+  caller's `.Random.seed` is restored on exit, so drawing here does not
+  reshuffle the surrounding session's RNG stream.
 
 ## Value
 
