@@ -896,3 +896,141 @@ test_that("progress feedback is on for real runs, off under testthat", {
   withr::local_envvar(TESTTHAT = "true")
   testthat::expect_false(whep:::.cb_show_progress())
 })
+
+# The RothC/HSOC climate modifier is computed for every cell-year at once
+# (.cb_rothc_modifier_vectorised) rather than once per group. The per-group path
+# remains the reference, so what matters is that the two agree exactly -- and on
+# the edges, not just clean data: NA months poison a group's later deficits, and
+# below -18.27 C the RothC expression wraps back to ~47.91 instead of zero.
+.cbv_fixture <- function(n_groups, n_months = 12L, seed = 42L) {
+  withr::local_seed(seed)
+  g <- tidyr::expand_grid(
+    lon = seq_len(n_groups) + 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    land_use = "cropland",
+    month = seq_len(n_months)
+  )
+  g$temp_c <- stats::rnorm(nrow(g), 12, 14)
+  g$water_minus_pet_mm <- stats::rnorm(nrow(g), -10, 40)
+  g$soil_cover <- stats::runif(nrow(g))
+  g$clay_pct <- rep(stats::runif(n_groups, 5, 45), each = n_months)
+  g
+}
+
+.cbv_keys <- function() {
+  c("lon", "lat", "area_code", "year", "land_use")
+}
+
+.cbv_per_group <- function(d) {
+  dplyr::summarise(
+    d,
+    climate_modifier = .cb_year_climate_modifier(
+      "hsoc",
+      dplyr::pick(dplyr::everything()),
+      dplyr::first(.data$clay_pct)
+    ),
+    .by = dplyr::all_of(.cbv_keys())
+  )
+}
+
+testthat::test_that("vectorised RothC modifier equals the per-group path", {
+  d <- .cbv_fixture(60L)
+  fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  slow <- .cbv_per_group(d)
+  joined <- dplyr::inner_join(
+    fast,
+    slow,
+    by = .cbv_keys(),
+    suffix = c(".f", ".s")
+  )
+
+  testthat::expect_equal(nrow(joined), 60L)
+  testthat::expect_equal(
+    joined$climate_modifier.f,
+    joined$climate_modifier.s,
+    tolerance = 0
+  )
+})
+
+testthat::test_that("vectorised RothC modifier matches with NA months present", {
+  d <- .cbv_fixture(40L)
+  d$temp_c[seq(1L, nrow(d), by = 7L)] <- NA_real_
+  d$water_minus_pet_mm[seq(3L, nrow(d), by = 11L)] <- NA_real_
+  fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  slow <- .cbv_per_group(d)
+  joined <- dplyr::inner_join(
+    fast,
+    slow,
+    by = .cbv_keys(),
+    suffix = c(".f", ".s")
+  )
+
+  testthat::expect_equal(
+    joined$climate_modifier.f,
+    joined$climate_modifier.s,
+    tolerance = 0
+  )
+})
+
+testthat::test_that("vectorised RothC modifier matches below the -18.27 C asymptote", {
+  d <- .cbv_fixture(30L)
+  d$temp_c <- d$temp_c - 40
+  fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  slow <- .cbv_per_group(d)
+  joined <- dplyr::inner_join(
+    fast,
+    slow,
+    by = .cbv_keys(),
+    suffix = c(".f", ".s")
+  )
+
+  testthat::expect_equal(
+    joined$climate_modifier.f,
+    joined$climate_modifier.s,
+    tolerance = 0
+  )
+})
+
+# Ragged groups would misalign months across cells in the matrix reshape, so the
+# fast path must decline them rather than guess.
+testthat::test_that("vectorised RothC modifier declines ragged groups", {
+  d <- .cbv_fixture(10L)
+  d <- d[-1L, ]
+
+  testthat::expect_null(
+    .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  )
+})
+
+testthat::test_that("vectorised RothC modifier declines other models and missing drivers", {
+  d <- .cbv_fixture(10L)
+
+  testthat::expect_null(.cb_rothc_modifier_vectorised(d, "icbm", .cbv_keys()))
+  testthat::expect_null(
+    .cb_rothc_modifier_vectorised(
+      dplyr::select(d, -"clay_pct"),
+      "hsoc",
+      .cbv_keys()
+    )
+  )
+})
+
+# as_tibble() on a data.table carries .internal.selfref out with it, which makes
+# the fast path compare unequal to the per-group path under all.equal() even when
+# every column matches. The two paths must be indistinguishable, attributes and
+# all, because either can be the one that runs.
+testthat::test_that("vectorised RothC modifier is indistinguishable from the reference", {
+  d <- .cbv_fixture(25L)
+  d <- dplyr::bind_rows(d, dplyr::mutate(d, land_use = "perennial"))
+  fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  slow <- .cbv_per_group(d)
+  sorted <- function(x) {
+    dplyr::arrange(x, dplyr::across(dplyr::all_of(.cbv_keys())))
+  }
+
+  testthat::expect_true(tibble::is_tibble(fast))
+  testthat::expect_false(".internal.selfref" %in% names(attributes(fast)))
+  testthat::expect_equal(sorted(fast), sorted(slow), tolerance = 0)
+})
