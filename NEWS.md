@@ -1,7 +1,7 @@
 # whep (development version)
 
-* **Four documented examples said which territory their rows belong to, and
-  four of them could not.** `build_supply_use(example = TRUE)` shipped a row
+* **Four documented examples could not say which territory their rows belong
+  to.** `build_supply_use(example = TRUE)` shipped a row
   with no `area_code` at all (an epsilon `3.33e-14` husbandry use) and
   `get_feed_intake(example = TRUE)` two more, so their polity columns came out
   `NA`; `build_feed_intake_local(example = TRUE)` and
