@@ -2,6 +2,23 @@
 
 ## whep (development version)
 
+- **[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  is about a quarter faster, with output unchanged to the last bit.**
+  The RothC/HSOC climate modifier is now computed for every cell-year at
+  once instead of once per (cell, year, land use) – roughly 1.2e6
+  separate calls over five years, each of which allocated a list and
+  accumulated over twelve months. The deficit recurrence is sequential
+  over months but independent across cells, so the loop inverts.
+  Measured on `years = 1901:1905`: 820.4 s to 612.1 s. Peak memory is
+  unaffected.
+
+  The per-group path stays in place as the reference and still runs for
+  models that do not use this modifier. The two agree exactly, not
+  approximately: [`identical()`](https://rdrr.io/r/base/identical.html)
+  holds across all 1,166,220 rows and 17 columns of the five-year build,
+  so no result changes
+  ([\#630](https://github.com/eduaguilera/whep/issues/630)).
+
 - **[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   and
