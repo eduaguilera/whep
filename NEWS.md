@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **`build_gridded_landuse()` and `build_gridded_livestock()` now name the
+  reporting areas their `country_grid` cannot represent at all**, once per
+  call, with the national total at stake. The existing diagnostics fire per
+  (country, crop) per year and per (species, year), so a country the grid has
+  no cell for anywhere was reported as one more line in a list that already
+  names 178 codes. On today's pinned centroid grid at 2015 the new warning
+  reads 18 reporting areas carrying 0.109 Mha — all island or city states.
+  Substitute the fractional crosswalk and it reads 20 areas carrying 28.90
+  Mha, because that parquet still keys Ethiopia `62` and Sudan `206` where the
+  centroid grid and today's `regions.csv` use `238` and `276`. No published
+  value changes: this is a diagnostic only (#461).
+* **`run_spatialize()` gains the `country_grid` override**, `"centroid"`
+  (default, today's `spatialize-country-grid` pin) or `"fraction"`
+  (`cell_polity_fraction.parquet`, which splits each border cell by fractional
+  coverage instead of giving it whole to one polity). The engines already read
+  `polity_frac` as `cell_area_frac`, so this is data wiring, not an engine
+  change, and the resolved choice is recorded in `run_metadata.yaml`. The
+  default is unchanged, so no published value moves. Measured at 2015, the
+  alternative moves 6,828 of 7,557 (country, crop) cell-share vectors, by a
+  median L1 of 0.060 and a harvested-area-weighted mean of 0.040, and raises
+  the compartments receiving an allocation from 33,614 to 36,226 (#461).
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
