@@ -118,6 +118,11 @@
 #'   (default), all years present in `livestock_data` are processed.
 #'   When supplied, `livestock_data`, `gridded_pasture`, and
 #'   `gridded_cropland` are filtered to this set before processing.
+#' @param area_key Which area code the output is keyed on: `"grid"`
+#'   (default, the reporting codes `livestock_data` and `country_grid` are
+#'   keyed on) or `"polity_area"` (the [polity_area_crosswalk] bucket
+#'   national tables are aggregated on). See
+#'   [build_gridded_landuse()]'s *Which area code the output is keyed on*.
 #'
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
@@ -125,6 +130,8 @@
 #'   - `polity_area_code`, `reporting_polity_code`,
 #'     `reporting_polity_name`, `reporting_polity_has_geometry`: Polity
 #'     metadata for `area_code`.
+#'   - `grid_area_code`: Only under `area_key = "polity_area"`; the
+#'     reporting code the engine allocated on.
 #'   - `polycell_id`, `cell_id`: Preserved when supplied in
 #'     `country_grid`.
 #'   - `year`: Integer year.
@@ -132,6 +139,8 @@
 #'   - `heads`: Allocated live animal count.
 #'   - Any additional numeric columns from `livestock_data`
 #'     (e.g. `enteric_ch4_kt`, `manure_ch4_kt`).
+#'
+#' @inheritSection build_gridded_landuse Which area code the output is keyed on
 #'
 #' @export
 #'
@@ -168,8 +177,10 @@ build_gridded_livestock <- function(
   manure_pattern = NULL,
   glw_density = NULL,
   grass_productivity = NULL,
-  years = NULL
+  years = NULL,
+  area_key = c("grid", "polity_area")
 ) {
+  area_key <- rlang::arg_match(area_key)
   .validate_livestock_inputs(
     livestock_data,
     gridded_pasture,
@@ -242,6 +253,7 @@ build_gridded_livestock <- function(
     dplyr::bind_rows()
 
   result |>
+    .spatialize_apply_area_key(area_key, numeric_cols) |>
     .add_reporting_polity_columns()
 }
 

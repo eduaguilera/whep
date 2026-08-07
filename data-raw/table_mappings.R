@@ -520,10 +520,21 @@ polity_area_crosswalk <- dplyr::bind_rows(
     decided_by_hand = !is.na(.data$manual_polity_prefix) |
       (!is.na(.data$map_match_route) &
         startsWith(.data$map_match_route, "manual")),
+    # NO REPORTING AREA IS TESTED FIRST, and that ordering is the whole point.
+    # `not_a_reporting_area` used to sit below `matched`, so it could only fire
+    # for a row that had neither an `area_code` NOR a `polity_code` -- and no
+    # such row exists. The 20 rows the value was written for (Aland, Saint
+    # Barthelemy, Guernsey, Jersey, the Isle of Man and Sint Maarten, which
+    # `regions_full` carries without a FAOSTAT code, plus the six regional
+    # aggregate polities)
+    # all match a polity, so every one of them shipped as `matched` while
+    # `not_a_reporting_area` shipped on nothing. They carry `NA` in BOTH
+    # `area_code` and `polity_area_code`, so no consumer can join reported data
+    # to them; saying so is the honest label.
     mapping_status = dplyr::case_when(
+      is.na(.data$area_code) ~ "not_a_reporting_area",
       .data$decided_by_hand & !is.na(.data$polity_code) ~ "manual",
       !is.na(.data$polity_code) ~ "matched",
-      is.na(.data$area_code) ~ "not_a_reporting_area",
       TRUE ~ "unmapped"
     ),
     mapping_note = dplyr::case_when(
@@ -532,6 +543,8 @@ polity_area_crosswalk <- dplyr::bind_rows(
         .data$fabio_code == 999L &
         .data$area_code !=
           999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
+      .data$mapping_status ==
+        "not_a_reporting_area" ~ "No FAOSTAT/FABIO reporting area exists for this territory, so nothing can be joined to this row; it records which polity the territory belongs to.",
       .data$mapping_status ==
         "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       .data$mapping_status == "manual" ~ paste0(
@@ -609,13 +622,23 @@ if (length(shadowed_areas) > 0L) {
 }
 
 source_counts <- table(polity_area_crosswalk$mapping_source)
+# `mapping_status` alone does not say how confident a row is -- `matched` covers
+# a curated upstream hit and a prefix guess alike -- so the build reports the
+# PAIR. It is `mapping_status` x `mapping_source` that identifies the branch,
+# and printing it here is what makes a drift in either one visible at build time.
+status_source <- polity_area_crosswalk |>
+  dplyr::count(.data$mapping_status, .data$mapping_source) |>
+  dplyr::mutate(
+    cell = paste0(.data$mapping_status, "/", .data$mapping_source, " ", .data$n)
+  )
 cli::cli_inform(c(
   "Built {nrow(polity_area_crosswalk)} crosswalk rows from
    {nrow(faostat_area_map)} upstream map rows covering
    {dplyr::n_distinct(faostat_area_map$area_code)} areas.",
   "i" = "Rows by mapping source:
          {paste0(names(source_counts), ' ', as.integer(source_counts),
-         collapse = ', ')}."
+         collapse = ', ')}.",
+  "i" = "Rows by status/source: {paste0(status_source$cell, collapse = ', ')}."
 ))
 
 usethis::use_data(items_cbs, overwrite = TRUE)
