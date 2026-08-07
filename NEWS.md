@@ -35,6 +35,30 @@
   1,190 rows and 7 areas, moves no shared row by any amount, and raises total
   energy CO2e by **+2.40%** over 1850-2023 — **+12.0% in 1961**, +11.3% in
   1990, +0.26% in 2000 and 0% from 2010 on.
+* **`polity_area_crosswalk$mapping_status` now uses the value it documented but
+  never shipped, and the confidence of a mapping is documented as the pair
+  `mapping_status` x `mapping_source`.** `not_a_reporting_area` sat below
+  `matched` in the build's `case_when`, so it could only fire for a row with
+  neither an `area_code` nor a `polity_code` — no such row exists, and it
+  shipped on 0 of 596 rows. The 20 rows it was written for (Aland, Saint
+  Barthelemy, Guernsey, Jersey, the Isle of Man and Sint Maarten, which
+  `regions_full` carries without a FAOSTAT code, plus the six regional
+  aggregate polities) match a polity and so read `matched`, indistinguishable
+  from a real area mapping even though they carry `NA` in both `area_code` and
+  `polity_area_code` and no consumer can join to them. Status counts move from
+  manual 27 / matched 568 / unmapped 1 to manual 27 / matched 548 /
+  not_a_reporting_area 20 / unmapped 1. No `polity_code`, `polity_area_code` or
+  any other column moves, and no code in the package filters the crosswalk on
+  `mapping_status == "matched"`, so no published number changes. A consumer that
+  does filter that way loses 20 unjoinable rows.
+
+  `mapping_status` says whether a polity was found, not how far to trust it:
+  `matched` covers a curated hit in upstream's FAOSTAT map (233 rows), a
+  prefix-inferred historical period (247), a prefix guess for an area the map
+  never mentions (6) and the FABIO Rest-of-World fold (62). `mapping_source`
+  already separates those and is non-`NA` on every row, so the fix for #544 is
+  to document the pair rather than add a third vocabulary that would duplicate
+  it (#544).
 
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
