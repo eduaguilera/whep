@@ -14,14 +14,26 @@
 # silent drop here is the difference between a world total and a countries-only
 # total.
 #
-# The second regrouping is larger and is deliberate: `polity_area_code` is a
-# bucket, not an identity, so several ISO3 codes share one code and are summed
-# into one row. In the real pin that is Syria, North Macedonia, Palestine,
-# Eswatini, Equatorial Guinea and French Guiana on 999 "Rest of World", plus
-# Sudan and South Sudan on 206 "Sudan (former)" from 2012 on. Those buckets are
-# what the commodity balances carry, so folding is what lets the per-capita
-# join find a denominator at all -- but it means a row is not always one
-# country, which is why `.pop_report_folded()` names it (#482).
+# The second regrouping is deliberate: `polity_area_code` is a bucket, not an
+# identity, so several ISO3 codes can share one code and are summed into one
+# row. Since WHEP models the reporting members of bucket 999 in their own right
+# (#628), the only fold the real pin still exercises by default is Sudan plus
+# South Sudan on 206 "Sudan (former)" from 2012 on; restoring the Rest-of-World
+# fold with `options(whep.unfold_rest_of_world = "none")` puts Syria, North
+# Macedonia, Palestine, Eswatini, Equatorial Guinea and French Guiana back on
+# 999. A row is therefore not always one country, which is why
+# `.pop_report_folded()` names it (#482).
+#
+# COVERAGE, which is the other half of the same story (#543). The pin does not
+# reach every area WHEP models: measured on the real pin, 190 of the 256 area
+# codes the crosswalk resolves get a population row and 66 get none. The two
+# per-capita consumers -- `build_food_supply()` and `build_n_percapita()` --
+# inner-join this table, so an area with no row does not come out understated,
+# it does not come out at all. `.warn_missing_population()` lives here and is
+# called from both, because the omission is a property of the denominator and
+# neither `.pop_report_unmapped()` (which measures its drops against WORLD
+# population, 0.07%) nor `.pop_report_folded()` can see which uncovered area
+# actually reports food.
 
 #' Read national population on WHEP area codes.
 #'
@@ -40,15 +52,23 @@
 #'
 #' `area_code` here is `polity_area_code`, which is a **bucket, not an
 #' identity**: several ISO3 codes can share one code, and this function sums
-#' them, so some rows are aggregates of more than one territory. With the real
-#' pin, code 999 "Rest of World" carries Syria, North Macedonia, Palestine,
-#' Eswatini, Equatorial Guinea and French Guiana, and code 206 "Sudan (former)"
-#' carries Sudan plus South Sudan from 2012 on. The fold is required, not
-#' accidental -- those are the codes the commodity balances are keyed on, so a
-#' finer key would leave their food supply with no population denominator -- and
-#' every folded row is named in a message. The polity columns say the same
-#' thing: 999 resolves to `ROW-1850-2025` "Rest of World", and 206 to
-#' `SUD-1956-2011`, the pre-secession territory its two members together cover.
+#' them, so some rows are aggregates of more than one territory. WHEP models the
+#' reporting members of bucket 999 in their own right, so with the real pin and
+#' the default options the only such row is code 206 "Sudan (former)", carrying
+#' Sudan plus South Sudan from 2012 on; it resolves to `SUD-1956-2011`, the
+#' pre-secession territory its two members together cover. Under
+#' `options(whep.unfold_rest_of_world = "none")` code 999 folds Syria, North
+#' Macedonia, Palestine, Eswatini, Equatorial Guinea and French Guiana as well.
+#' Every folded row is named in a message.
+#'
+#' The pin does not cover every area WHEP models, and that is a bigger gap than
+#' the fold. On the real pin 190 of the 256 area codes the crosswalk resolves
+#' get a population row; the 66 that do not include Bhutan, Comoros, New
+#' Caledonia and the Faroe Islands, all of which the commodity balances do give
+#' food to. [build_food_supply()] and [build_n_percapita()] inner-join this
+#' table, so those areas are absent from their per-capita output rather than
+#' wrong in it. Both warn and name them instead of dropping them silently;
+#' `options(whep.warn_missing_population = FALSE)` silences that warning.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   (default) keeps every year the pin covers.
@@ -61,9 +81,9 @@
 #' @return A tibble with `year`, `area_code` and `population` (persons), one row
 #'   per area code and year, sorted by year then area code, plus the polity
 #'   columns below. A row is one country in the common case, but `area_code` is
-#'   an aggregation bucket: rows on 999 ("Rest of World") and, from 2012,
-#'   206 ("Sudan (former)") are sums over several territories rather than a
-#'   single country.
+#'   an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
+#'   over several territories rather than a single country, as are rows on 999
+#'   ("Rest of World") when the Rest-of-World fold is restored.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -176,6 +196,87 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
     ) |>
     dplyr::arrange(.data$area_code) |>
     dplyr::mutate(label = paste0(.data$area_code, " (", .data$codes, ")"))
+}
+
+# ---- The denominator a per-capita divide could not find --------------------
+
+# Warn about the country-years a per-capita divide drops for lack of a
+# population row, naming the areas and the share of the quantity that goes with
+# them.
+#
+# `build_food_supply()` and `build_n_percapita()` both inner-join the population
+# table, so an uncovered area is not understated -- it is absent, and the output
+# looks complete. Until this warned, the only diagnostics were the two messages
+# above, and neither can see the omission: `.pop_report_unmapped()` measures the
+# five continental residuals it drops against WORLD population (0.07%), which is
+# true and says nothing about whether an area that reports food has a
+# denominator (#543).
+#
+# Warn rather than inform, for the same reason `.warn_folded_areas()` does: the
+# whole defect is that the loss was reportable and unreported.
+.warn_missing_population <- function(agg, population, mass_col, quantity) {
+  if (!isTRUE(getOption("whep.warn_missing_population", TRUE))) {
+    return(invisible(NULL))
+  }
+  dropped <- .missing_denominator_areas(agg, population, mass_col)
+  if (nrow(dropped) == 0L) {
+    return(invisible(dropped))
+  }
+  total <- sum(agg[[mass_col]], na.rm = TRUE)
+  share <- if (total > 0) sum(dropped$mass) / total else NA_real_
+  cli::cli_warn(c(
+    "!" = "{nrow(dropped)} area{?s} carrying {quantity}
+           {cli::qty(nrow(dropped))}{?has/have} no population
+           row, so {cli::qty(sum(dropped$area_years))}
+           {sum(dropped$area_years)} area-year{?s} {?is/are} dropped from the
+           per-capita output rather than reported.",
+    stats::setNames(dropped$label, rep("*", nrow(dropped))),
+    "i" = "{.val {signif(100 * share, 3)}}% of the {quantity} in range goes
+           with them. See {.fun read_population} for what the denominator
+           covers."
+  ))
+  invisible(dropped)
+}
+
+# The areas of `agg` with no (year, area_code) match in `population`, heaviest
+# first, one row per area with the quantity and the area-year count it takes
+# with it. Keyed on `area_code`, never on a name: the same bucket can carry
+# different labels across years (#589).
+.missing_denominator_areas <- function(agg, population, mass_col) {
+  agg |>
+    dplyr::anti_join(
+      dplyr::distinct(population, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    ) |>
+    dplyr::summarise(
+      mass = sum(.data[[mass_col]], na.rm = TRUE),
+      area_years = dplyr::n(),
+      .by = "area_code"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$mass)) |>
+    .missing_denominator_labels()
+}
+
+# One "Name (code, n area-years)" bullet per dropped area. The name is attached
+# here, at the reporting stage, and only for the message.
+.missing_denominator_labels <- function(dropped) {
+  if (nrow(dropped) == 0L) {
+    return(dplyr::mutate(dropped, label = character(0)))
+  }
+  dropped |>
+    add_area_name() |>
+    dplyr::mutate(
+      label = paste0(
+        dplyr::coalesce(.data$area_name, "unnamed area"),
+        " (",
+        .data$area_code,
+        ", ",
+        .data$area_years,
+        " area-year",
+        dplyr::if_else(.data$area_years == 1L, "", "s"),
+        ")"
+      )
+    )
 }
 
 # A real read_population() slice: the five largest countries in 2010, with the

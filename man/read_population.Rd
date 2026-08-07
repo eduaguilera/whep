@@ -21,9 +21,9 @@ data. Defaults to \code{FALSE}.}
 A tibble with \code{year}, \code{area_code} and \code{population} (persons), one row
 per area code and year, sorted by year then area code, plus the polity
 columns below. A row is one country in the common case, but \code{area_code} is
-an aggregation bucket: rows on 999 ("Rest of World") and, from 2012,
-206 ("Sudan (former)") are sums over several territories rather than a
-single country.
+an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
+over several territories rather than a single country, as are rows on 999
+("Rest of World") when the Rest-of-World fold is restored.
 }
 \description{
 Reads the \code{gdp-population} pin and returns population per country and year on
@@ -40,15 +40,23 @@ the result a countries-only total rather than a world total.
 
 \code{area_code} here is \code{polity_area_code}, which is a \strong{bucket, not an
 identity}: several ISO3 codes can share one code, and this function sums
-them, so some rows are aggregates of more than one territory. With the real
-pin, code 999 "Rest of World" carries Syria, North Macedonia, Palestine,
-Eswatini, Equatorial Guinea and French Guiana, and code 206 "Sudan (former)"
-carries Sudan plus South Sudan from 2012 on. The fold is required, not
-accidental -- those are the codes the commodity balances are keyed on, so a
-finer key would leave their food supply with no population denominator -- and
-every folded row is named in a message. The polity columns say the same
-thing: 999 resolves to \code{ROW-1850-2025} "Rest of World", and 206 to
-\code{SUD-1956-2011}, the pre-secession territory its two members together cover.
+them, so some rows are aggregates of more than one territory. WHEP models the
+reporting members of bucket 999 in their own right, so with the real pin and
+the default options the only such row is code 206 "Sudan (former)", carrying
+Sudan plus South Sudan from 2012 on; it resolves to \code{SUD-1956-2011}, the
+pre-secession territory its two members together cover. Under
+\code{options(whep.unfold_rest_of_world = "none")} code 999 folds Syria, North
+Macedonia, Palestine, Eswatini, Equatorial Guinea and French Guiana as well.
+Every folded row is named in a message.
+
+The pin does not cover every area WHEP models, and that is a bigger gap than
+the fold. On the real pin 190 of the 256 area codes the crosswalk resolves
+get a population row; the 66 that do not include Bhutan, Comoros, New
+Caledonia and the Faroe Islands, all of which the commodity balances do give
+food to. \code{\link[=build_food_supply]{build_food_supply()}} and \code{\link[=build_n_percapita]{build_n_percapita()}} inner-join this
+table, so those areas are absent from their per-capita output rather than
+wrong in it. Both warn and name them instead of dropping them silently;
+\code{options(whep.warn_missing_population = FALSE)} silences that warning.
 }
 \section{Polity columns}{
 

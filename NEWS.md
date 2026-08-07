@@ -1,5 +1,31 @@
 # whep (development version)
 
+* **`build_food_supply()` and `build_n_percapita()` now name the areas they
+  drop for having no population denominator.** Both inner-join the
+  `read_population()` table, so an area the `gdp-population` pin does not cover
+  was absent from their per-capita output rather than wrong in it, and nothing
+  said so. Measured on a real `get_wide_cbs(years = c(2010, 2015, 2021))` plus
+  the real pin, `build_food_supply()` silently lost **16 areas over 43
+  area-years** — Bhutan, Comoros, New Caledonia, Tonga, Micronesia, Seychelles,
+  the Faroe Islands, bucket 999 and others — carrying 0.0304% of the food
+  protein in range. They are still dropped (no denominator is invented) but
+  each is now named in a warning, with the share of the quantity that leaves
+  with it. `options(whep.warn_missing_population = FALSE)` silences it.
+  **No published value changes**: with the warning suppressed a real
+  `build_food_supply()` run is `identical()` to the one before this change.
+
+  This closes #543, whose measurement it also corrects. That issue reported the
+  area-999 denominator as covering 6 of its 62 territories and so overstating
+  every per-capita quantity keyed on 999 by 15-43%. Since the Rest-of-World
+  un-fold (#628) that is no longer the shape of the defect: the 6 covered
+  members have their own area codes, `read_population()` emits **no 999 row at
+  all**, and CBS 999 carries **zero food** in 2010, 2015 and 2021 — so nothing
+  per-capita is keyed on 999 and nothing is overstated. Routing the pin's five
+  continental "Other" residuals into 999, the fix the issue proposed first,
+  would now be wrong: it would give a bucket with no food a denominator of
+  5.9 M people (2010) and attribute Reunion's, Greenland's and New Caledonia's
+  population to a code that no longer carries their food.
+
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
   instead of building 1850-2023 and discarding the rest. Measured for 2010:

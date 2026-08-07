@@ -39,6 +39,12 @@
 #' dropped. The `"faostat_fbs"` method returns the injected FAOSTAT Food
 #' Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
 #'
+#' An area with food but no `population` row has no denominator, so it is
+#' absent from the output rather than wrong in it. Those areas are named in a
+#' warning with the share of food protein that leaves with them; on the real
+#' `gdp-population` pin they are 15 areas headed by Bhutan and Comoros
+#' (#543). `options(whep.warn_missing_population = FALSE)` silences it.
+#'
 #' @param method Supply source: `"whep_native"` (default, commodity-balance
 #'   food tonnes times `whep::biomass_coefs` divided by population) or
 #'   `"faostat_fbs"` (the injected FAOSTAT FBS per-capita supply).
@@ -258,8 +264,11 @@ build_food_supply <- function(
 
 # Divide the country-year totals by population and 365 days. Protein tonnes to
 # grams is 1e6; gross-energy megajoules to kilocalories is division by 0.004184
-# (1 kcal = 0.004184 MJ). Country-years with no population are dropped.
+# (1 kcal = 0.004184 MJ). Country-years with no population are dropped -- and
+# named, because the inner join makes their food vanish from the output rather
+# than appear wrong in it (#543).
 .food_per_capita <- function(agg, population) {
+  .warn_missing_population(agg, population, "protein_t", "food protein")
   agg |>
     dplyr::inner_join(population, by = c("year", "area_code")) |>
     dplyr::transmute(
