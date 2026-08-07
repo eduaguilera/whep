@@ -123,6 +123,11 @@ testthat::test_that("build_cell_polity keeps on-bucket grids silent", {
 })
 
 testthat::test_that("area_key = polity_area re-keys the grid on buckets", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   path <- .nbs_write_grid(.nbs_off_bucket_grid())
 
   result <- whep::build_cell_polity(

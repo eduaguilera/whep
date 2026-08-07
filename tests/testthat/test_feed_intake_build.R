@@ -127,6 +127,11 @@ testthat::test_that("region_fallback 'none' is the pre-467 status quo", {
 })
 
 testthat::test_that("the Rest-of-World weights come from real fold members", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Selected by the bucket they fold INTO, not by what the fold is called.
   # `fold_kind` is a classification and it moves: #556 reclassified Syria (212),
   # Eswatini (209), North Macedonia (154) and New Caledonia (153) from

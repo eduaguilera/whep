@@ -59,26 +59,25 @@ test_that(".aggregate_to_polities works without fao_flag", {
 test_that("a bucket comes out of the aggregator under exactly one area label", {
   # THE INVARIANT THAT VALUE-NEUTRALITY CHECKS CANNOT SEE (whep#563).
   #
-  # `.aggregate_to_polities()` used to group by `polity_name` as well as
-  # `polity_area_code`, and renames the pair to `area`/`area_code`. So a change
-  # that gives two members of one FABIO bucket different polities split the
-  # bucket's rows WITHOUT moving any value: mass still conserves, the bucket keeps
-  # its members, `polity_area_code` is untouched, and every check anyone thought
-  # to run passes. What breaks is downstream -- `area` is a join key, four inner
-  # joins use `c("area", "area_code")`, and duplicate `(area_code, year, item)`
-  # keys are what fed the `dcast()` `length()` fallback in whep#425.
+  # `.aggregate_to_polities()` renames `polity_area_code`/`polity_name` onto
+  # `area_code`/`area`. A change that gives two members of one bucket different
+  # polities splits the bucket's rows WITHOUT moving a value: mass conserves,
+  # membership is unchanged, `polity_area_code` is untouched, and every check
+  # anyone thought to run passes. What breaks is downstream -- `area` is a join
+  # key, four inner joins use `c("area", "area_code")`, and duplicate
+  # `(area_code, year, item)` keys are what fed the `dcast()` fallback in #425.
   #
-  # PR whep#480 did exactly this and had to be reverted (whep#561): FAOSTAT area
-  # 212 Syria was un-folded onto `SYR-*` while keeping bucket 999, so
-  # `999 Rest of World 340` became `999 Syrian Arab Republic 300` plus
-  # `999 Rest of World 40`. 347 tonnes in, 347 tonnes out, and a split bucket.
-  #
-  # Areas 212 and 999 are the live pair: both carry `polity_area_code` 999 today.
+  # KEYED ON BUCKET 206, not 999. The first version of this guard used areas 212
+  # and 999, and both reviewers of #563 pointed out that it could not fail:
+  # bucket 999's members all resolved to `Rest of World`, so the one bucket that
+  # WAS splitting -- 206, folding Sudan and South Sudan -- went unnoticed while
+  # it corrupted the published production series. 999 is now un-folded outright
+  # (#459), so 206 is both the honest case and the only remaining one.
   raw <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code, ~element,     ~unit,    ~value,
-    2010L, 212L,       2511,           "production", "tonnes", 300,
-    2010L, 999L,       2511,           "production", "tonnes", 40,
-    2010L, 40L,        2511,           "production", "tonnes", 7
+    2015L, 276L,       2511,           "production", "tonnes", 100,
+    2015L, 277L,       2511,           "production", "tonnes", 25,
+    2015L, 40L,        2511,           "production", "tonnes", 7
   )
 
   out <- suppressWarnings(
@@ -88,15 +87,15 @@ test_that("a bucket comes out of the aggregator under exactly one area label", {
     )
   )
 
-  # One label per bucket. This is the assertion the reverted change failed.
+  # One label per bucket. This is the assertion the reverted #480 failed.
   labels_per_code <- tapply(out$area, out$area_code, function(x) {
     length(unique(x))
   })
   expect_true(all(labels_per_code == 1L))
 
   # And the fold therefore SUMS rather than merely conserving.
-  expect_equal(nrow(out[out$area_code == 999L, ]), 1L)
-  expect_equal(sum(out$value[out$area_code == 999L]), 340)
+  expect_equal(nrow(out[out$area_code == 206L, ]), 1L)
+  expect_equal(sum(out$value[out$area_code == 206L]), 125)
 
   # Mass conservation is asserted too, but note it holds either way -- which is
   # precisely why it is not sufficient on its own.
