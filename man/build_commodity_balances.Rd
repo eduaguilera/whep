@@ -11,6 +11,7 @@ build_commodity_balances(
   smooth_carry_forward = FALSE,
   example = FALSE,
   historical_data = NULL,
+  format = c("long", "wide"),
   .fixed_data = NULL
 )
 }
@@ -36,17 +37,25 @@ one of \code{area_code} or \code{polity_area_code}, one of \code{item_cbs_code} 
 \code{element} are accepted as \code{production} when their unit is tonnes. Default
 \code{NULL}.}
 
+\item{format}{One of \code{"long"} (default) or \code{"wide"}. \code{"long"} returns one row
+per element. \code{"wide"} pivots the elements into columns, adds the live-animal
+rows that the FAO sheet omits, and checks the supply-use identity. Both are
+the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
+
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
 supplied, \code{primary_all} is ignored and the pipeline skips directly
 to \code{.qc_cbs()}. Default \code{NULL}.}
 }
 \value{
-A tibble in long format with columns: \code{year}, legacy numeric
+For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 \code{area_code}, numeric \code{polity_area_code}, \code{reporting_polity_code},
 \code{reporting_polity_name}, \code{reporting_polity_has_geometry},
 \code{item_cbs_code}, \code{element} (e.g. \code{"production"}, \code{"import"}, \code{"food"}),
-\code{value}, \code{source}, and \code{fao_flag}.
+\code{value}, \code{source}, and \code{fao_flag}. For \code{format = "wide"}, the elements
+become one column each, \code{stock_variation} is split into the non-negative
+\code{stock_addition} and \code{stock_withdrawal}, and \code{domestic_supply} is total use
+excluding \code{export}.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

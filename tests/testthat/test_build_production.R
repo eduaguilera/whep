@@ -807,9 +807,9 @@ test_that("build_primary_production output has no duplicate keys", {
 
 test_that(".split_stock_share splits proportionally when both sub-items have data", {
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, 30,
-    2000, "A", "866", 100, 70
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, 30,
+    2000, 1L, "866", 100, 70
   )
 
   result <- .split_stock_share(data)
@@ -826,9 +826,9 @@ test_that(".split_stock_share does not double-count when one sub-item is entirel
   # NA sub-item made the whole group's share NA, and BOTH sub-rows fell back
   # to the full unsplit `value` -- doubling the country's herd count.
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, NA_real_,
-    2000, "A", "866", 100, 40
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, NA_real_,
+    2000, 1L, "866", 100, 40
   )
 
   result <- .split_stock_share(data)
@@ -844,10 +844,10 @@ test_that(".split_stock_share splits equally when every sub-item is NA", {
   # every sub-item the full total) is the only way to keep the total heads
   # conserved without an arbitrary preference for one sub-item.
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 90, NA_real_,
-    2000, "A", "866", 90, NA_real_,
-    2000, "A", "866", 90, NA_real_
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 90, NA_real_,
+    2000, 1L, "866", 90, NA_real_,
+    2000, 1L, "866", 90, NA_real_
   )
 
   result <- .split_stock_share(data)
@@ -861,25 +861,25 @@ test_that(".split_stock_share keeps the full value for a single-item group", {
   # non-dairy-style split) should always receive the whole unsplit value,
   # whether or not it happens to have its own value_st.
   with_data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "976", 50, 12
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "976", 50, 12
   )
   without_data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "976", 50, NA_real_
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "976", 50, NA_real_
   )
 
   expect_equal(.split_stock_share(with_data)$value_comb, 50)
   expect_equal(.split_stock_share(without_data)$value_comb, 50)
 })
 
-test_that(".split_stock_share keeps groups (year, area, item_prod_code) independent", {
+test_that(".split_stock_share keeps groups (year, area_code, item_prod_code) independent", {
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, NA_real_,
-    2000, "A", "866", 100, 60,
-    2000, "B", "866", 200, 10,
-    2000, "B", "866", 200, 30
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, NA_real_,
+    2000, 1L, "866", 100, 60,
+    2000, 2L, "866", 200, 10,
+    2000, 2L, "866", 200, 30
   )
 
   result <- .split_stock_share(data)
@@ -1003,4 +1003,36 @@ test_that(".fodder_crop_liv ignores NA years when comparing spans", {
     whep:::.fodder_crop_liv(spanning, i_fodder),
     spanning
   )
+})
+
+test_that(".split_stock_share keys on the code, so a shared label cannot dilute", {
+  # THE #589 REGRESSION, in one fixture.
+  #
+  # `.unfold_rest_of_world()` promotes `polity_area_code` but leaves
+  # `polity_code`/`polity_name` alone, so every promoted Rest-of-World member
+  # comes out of `.aggregate_to_polities()` with its own `area_code` and the
+  # SHARED label "Rest of World". Grouped by `area`, all 13 reporting members
+  # landed in one group, `sum(value_st)` summed across all of them, and each
+  # member's share collapsed to roughly 1/13 of its own stock.
+  #
+  # Measured before this fix: Syria's 2000 livestock came to 3,408,857 head
+  # against 38,048,415 after, and the published values carried fractional
+  # animals (1227745.45) -- the signature of a share that should have been 1.
+  # `slaughtered_heads` was unaffected throughout, because it never passes
+  # through this splitter, which is what made the defect look like a unit bug.
+  #
+  # Two areas, same label, one parent item: if the grouping keys on the label
+  # each gets half its own value; on the code each keeps all of it.
+  data <- tibble::tribble(
+    ~year, ~area_code, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, 212L, "Rest of World", "976", 100, 40,
+    2000, 64L, "Rest of World", "976", 60, 60
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, c(100, 60))
+  expect_equal(sum(result$value_comb), 160)
+  # Whole numbers: a single-member group has share 1, never 1/n.
+  expect_equal(result$value_comb, round(result$value_comb))
 })

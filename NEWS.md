@@ -1,5 +1,51 @@
 # whep (development version)
 
+* **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
+  take a `years` argument.** A scoped request now builds only that window
+  instead of building 1850-2023 and discarding the rest. Measured for 2010:
+  wide CBS 256 s / 23.3 GB peak to 12.6 s / 6.8 GB, primary production 168 s /
+  14.7 GB to 29.5 s / 2.9 GB. The full wide-CBS build peaking above 16 GB is
+  what had been failing the r-universe check on macOS and Linux. `years = NULL`
+  is unchanged in every respect, including its cache slot, so existing callers
+  keep today's behaviour and today's numbers. The primary-production to CBS to
+  processing-coefficient chain and its cache keys are now shared with
+  `build_io_model()`, which previously carried a private copy (#367).
+
+  A scoped window is close to, but not identical with, building the full range
+  and filtering. Against the full range at 2010, wide-CBS quantity totals agree
+  to 3.8e-04 and primary-production totals to 3.0e-04, with `ha`, `t_ha`, `LU`
+  and `heads` exact. The residual sits in `import` and in the livestock ratios
+  (#625). Use `years = NULL` when exact agreement with the published series
+  matters.
+
+* **Year-scoped production builds no longer drop every forage crop.** Fodder
+  rows are synthesised across the whole year axis — `.fill_fodder_gaps()` takes
+  the union of (area, item) groups over all years and interpolates between them
+  — so a narrow window silently lost all six forage items (`Forage and silage,
+  *`, `Cabbage for fodder`, `Forage products`). At 2010 that was 137 rows,
+  **1.16% of production tonnes, 1.85% of `t_ha` and 1.36% of wide-CBS `feed`**,
+  and it affected `build_io_model(years = )` on every release that had it. The
+  fodder chain now runs over the full span and trims afterwards. Full-range
+  output is unchanged (#623).
+* **Livestock stocks are split on the area CODE, not the area label (#589).**
+  `.split_stock_share()` divides a parent item's production across its sub-items
+  in proportion to their stocks, grouped by `(year, area, item_prod_code)`. When
+  several reporting areas share one label the group spans all of them, the share
+  denominator sums across areas, and each area keeps only its own fraction.
+  That became live when the Rest-of-World fold was lifted: `.unfold_rest_of_world()`
+  promotes `polity_area_code` but leaves `polity_code`/`polity_name` alone, so all
+  13 reporting members came out with their own `area_code` and the shared label
+  `"Rest of World"`. Measured: Syria's 2000 livestock read **3,408,857** head
+  against **38,048,415** after the fix, with fractional animals (`1227745.45`) as
+  the visible symptom of a share that should have been 1. `slaughtered_heads` was
+  never affected, because it does not pass through this splitter — which is what
+  made the defect look like a unit-conversion bug.
+
+  The stock join, the carry-forward and the row-count grouping are re-keyed the
+  same way. Globally this moves `heads` **+0.22%** and `LU` +0.13%; `ha`,
+  `tonnes` and `slaughtered_heads` are bit-identical, because only areas sharing
+  a label were ever affected.
+
 * **`fill_linear()` no longer depends on the order its rows arrive in.** Without
   `.by`, it never sorted: carrying a value forward or backward and the
   `value_smooth_window` moving average are all positional, so an unsorted input

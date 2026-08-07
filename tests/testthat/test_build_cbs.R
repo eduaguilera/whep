@@ -294,6 +294,33 @@ test_that(".cbs_impute_trade tolerates missing destiny element columns", {
   ))
 })
 
+test_that(".cbs_impute_trade imputes production from destinies when missing", {
+  # Item with reported destinies + trade but NO production row: the
+  # domestic-supply residual should be imputed into production, not
+  # dumped into a large negative stock_variation (#142).
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "food", 3000, "FAOSTAT_FBS_New",
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  production <- result |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(value)
+  stock_variation <- result |>
+    dplyr::filter(element == "stock_variation") |>
+    dplyr::pull(value)
+
+  # The imputed production is the domestic-supply residual: supply 3000, less
+  # imports 500, plus exports 200, less a zero stock variation, giving 2700.
+  expect_equal(production, 2700)
+  # Balance closes: no spurious negative stock change.
+  expect_equal(stock_variation, 0)
+})
+
 
 # -- .select_best_source -------------------------------------------------------
 
@@ -1038,4 +1065,131 @@ test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", 
     whep:::.canonicalise_gdp_pop_area(numeric_code),
     numeric_code
   )
+})
+
+test_that("build_commodity_balances defaults to the long format", {
+  long <- whep::build_commodity_balances(example = TRUE)
+
+  expect_true(rlang::has_name(long, "element"))
+  expect_false(rlang::has_name(long, "production"))
+})
+
+test_that("build_commodity_balances format = 'wide' pivots the elements", {
+  # Same dataset, one column per element instead of one row per element, with
+  # stock_variation split into the two non-negative directions.
+  wide <- whep::build_commodity_balances(example = TRUE, format = "wide")
+
+  expect_false(rlang::has_name(wide, "element"))
+  expect_true(all(
+    c("production", "import", "food", "feed", "domestic_supply") %in%
+      names(wide)
+  ))
+  expect_true(all(c("stock_addition", "stock_withdrawal") %in% names(wide)))
+})
+
+test_that("build_commodity_balances rejects an unknown format", {
+  expect_error(
+    whep::build_commodity_balances(example = TRUE, format = "matrix"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances needs primary_all for the wide format", {
+  # The live-animal rows come from primary production, so the wide format
+  # cannot be assembled from .fixed_data alone. Aborting beats silently
+  # returning a sheet with no live animals in it.
+  expect_error(
+    whep::build_commodity_balances(
+      format = "wide",
+      .fixed_data = readRDS(
+        testthat::test_path("fixtures", "cbs_fixed_small.rds")
+      )
+    ),
+    "primary_all"
+  )
+})
+
+# -- .cbs_fix_final_balance (issue #162) --------------------------------------
+
+test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
+  dt <- data.table::data.table(
+    production = c(0, 100, 50),
+    import = c(10, 5, 5),
+    stock_variation = c(20, 0, 0),
+    domestic_supply = c(-5, -30, 40),
+    export = c(0, 10, 15),
+    balance = c(-3, -2, 1)
+  )
+
+  result <- whep:::.cbs_fix_final_balance(dt)
+
+  # Domestic supply is clamped at 0 before the export fix reads it.
+  expect_true(all(result$domestic_supply >= 0))
+  # No negative exports survive.
+  expect_true(all(result$export >= 0))
+  # Row 1: 0 + 10 - 20 - 0 = -10 -> clamped to 0.
+  expect_equal(result$export[1], 0)
+  # Row 2: reads clamped DS (0), 100 + 5 - 0 - 0 = 105 (not 135 pre-clamp).
+  expect_equal(result$export[2], 105)
+  # Row 3: balance >= 0, export left untouched.
+  expect_equal(result$export[3], 15)
+})
+
+
+# -- FBS scaling ratio bounds (issue #161) ------------------------------------
+
+test_that(".select_best_source clamps extreme FBS scaling ratio", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # Raw ratio is 100x; clamp caps it at 5x -> 100 * 5 = 500, not 10000.
+  expect_equal(val_2005, 500)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old_scaled")
+})
+
+test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # A single overlap year is not extrapolated: value stays unscaled.
+  expect_equal(val_2005, 100)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old")
 })

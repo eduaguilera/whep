@@ -23,7 +23,9 @@
 #' its factors by production system and climate zone but the package has no
 #' country-level system or climate shares, the intensities are collapsed to one
 #' value per country by an unweighted mean across systems and climate zones;
-#' this choice is recorded in `method_energy`.
+#' this choice is recorded in `method_energy`. A meat group with carcass output
+#' but no slaughtered-head counts keeps its energy CO2e, split equally across
+#' the group's live-animal sectors, and triggers a warning.
 #'
 #' `gleam_geographic_hierarchy` is the country universe of the whole extension,
 #' so a reporting area absent from it gets no energy intensity and its meat
@@ -689,11 +691,21 @@ build_energy_co2_extension <- function(
 # ---- attribution to live-animal sectors -----------------------------------
 
 # Spread each (year, area_code, grp) CO2e across its live-animal sectors in
-# proportion to slaughtered head counts.
+# proportion to slaughtered head counts. Every group is expanded to its full
+# sector set from the sector map (via a left join to head counts) so a
+# country-year is never silently dropped for lacking `slaughtered_heads` rows;
+# when a group has no head counts its CO2e is split equally across its sectors.
 .energy_allocate_to_sectors <- function(co2e, primary_prod) {
-  shares <- .energy_slaughter_shares(primary_prod)
-  co2e |>
-    dplyr::inner_join(shares, by = c("year", "area_code", "grp")) |>
+  heads <- .energy_slaughter_heads(primary_prod)
+  allocated <- co2e |>
+    dplyr::inner_join(.energy_sector_map(), by = "grp") |>
+    dplyr::left_join(
+      heads,
+      by = c("year", "area_code", "grp", "item_cbs_code")
+    ) |>
+    .energy_apply_head_shares()
+  .energy_warn_missing_shares(allocated)
+  allocated |>
     dplyr::mutate(impact_u = .data$co2e_kg * .data$share) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),
@@ -701,7 +713,9 @@ build_energy_co2_extension <- function(
     )
 }
 
-.energy_slaughter_shares <- function(primary_prod) {
+# Slaughtered head counts per (year, area_code, grp, item_cbs_code); may be
+# absent for a group when `primary_prod` has no matching rows.
+.energy_slaughter_heads <- function(primary_prod) {
   sector_map <- .energy_sector_map()
   primary_prod |>
     dplyr::filter(
@@ -712,12 +726,38 @@ build_energy_co2_extension <- function(
     dplyr::summarise(
       heads = sum(.data$value, na.rm = TRUE),
       .by = c("year", "area_code", "grp", "item_cbs_code")
-    ) |>
+    )
+}
+
+# Within each (year, area_code, grp), turn head counts into allocation shares.
+# When the group has no positive head count, fall back to an equal split across
+# its sectors (this also guards the `0 / 0 = NaN` share case).
+.energy_apply_head_shares <- function(allocated) {
+  allocated |>
     dplyr::mutate(
-      share = .data$heads / sum(.data$heads),
+      total_heads = sum(.data$heads, na.rm = TRUE),
+      share = dplyr::if_else(
+        .data$total_heads > 0,
+        dplyr::coalesce(.data$heads, 0) / .data$total_heads,
+        1 / dplyr::n()
+      ),
       .by = c("year", "area_code", "grp")
-    ) |>
-    dplyr::select("year", "area_code", "grp", "item_cbs_code", "share")
+    )
+}
+
+# Warn once when any group lacked head counts and used the equal-split fallback.
+.energy_warn_missing_shares <- function(allocated) {
+  missing <- allocated |>
+    dplyr::filter(.data$total_heads == 0) |>
+    dplyr::distinct(.data$year, .data$area_code, .data$grp)
+  n <- nrow(missing)
+  if (n > 0) {
+    cli::cli_warn(c(
+      "!" = "{n} country-year meat group{?s} lack slaughtered-head counts.",
+      "i" = "Their energy CO2e was split equally across the group's sectors."
+    ))
+  }
+  invisible(allocated)
 }
 
 # ---- finalise --------------------------------------------------------------

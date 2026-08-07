@@ -1128,12 +1128,12 @@ build_primary_production <- function(
         ) |>
         dplyr::select(
           year,
-          area,
+          area_code,
           item_cbs_code,
           item_st,
           value_st
         ),
-      by = c("year", "area", "item_cbs_code")
+      by = c("year", "area_code", "item_cbs_code")
     ) |>
     # Carry value_st forward (and back) in time per (area, item_cbs_code)
     # so years that fall outside the faostat-emissions-livestock pin's
@@ -1146,13 +1146,13 @@ build_primary_production <- function(
     fill_linear(
       value_st,
       time_col = year,
-      .by = c("area", "item_cbs_code")
+      .by = c("area_code", "item_cbs_code")
     ) |>
     .split_stock_share() |>
     dplyr::filter(!is.na(area_code)) |>
     dplyr::mutate(
       n = dplyr::n(),
-      .by = c(area, item_cbs, item_cbs_code)
+      .by = c(area_code, item_cbs, item_cbs_code)
     ) |>
     tidyr::complete(
       year,
@@ -1224,7 +1224,7 @@ build_primary_production <- function(
         1 / dplyr::n()
       ),
       value_comb = value * share,
-      .by = c(year, area, item_prod_code)
+      .by = c(year, area_code, item_prod_code)
     ) |>
     dplyr::select(-sum_value_st, -share)
 }
