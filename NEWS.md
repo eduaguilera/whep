@@ -1,5 +1,17 @@
 # whep (development version)
 
+* **`build_carbon_balance()` is about a quarter faster, with output unchanged
+  to the last bit.** The RothC/HSOC climate modifier is now computed for every
+  cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
+  separate calls over five years, each of which allocated a list and accumulated
+  over twelve months. The deficit recurrence is sequential over months but
+  independent across cells, so the loop inverts. Measured on
+  `years = 1901:1905`: 820.4 s to 612.1 s. Peak memory is unaffected.
+
+  The per-group path stays in place as the reference and still runs for models
+  that do not use this modifier. The two agree exactly, not approximately:
+  `identical()` holds across all 1,166,220 rows and 17 columns of the five-year
+  build, so no result changes (#630).
 * **`build_energy_co2_extension(unclassified = "historical_region")` prices the
   dissolved federations instead of losing them (#553).** Measured on the real
   `get_primary_production()` output (6,305,656 rows, 1850-2023), 569.4 Mt of
