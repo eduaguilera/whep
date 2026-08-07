@@ -211,6 +211,11 @@ test_that(".read_land_areas_wide keys its output on polity_code", {
 })
 
 test_that(".read_land_areas_wide holds back folded aggregate buckets", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Equatorial Guinea and Syria both fold into the Rest of World bucket (999).
   # Summing their agricultural land into it would give the bucket an extent that
   # is neither member's nor the real rest of the world's, so proxies are not
@@ -624,6 +629,11 @@ test_that(".fill_with_proxies keys its proxies on the polity, not the name", {
 })
 
 test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Syria folds into the Rest of World bucket (999), so the pin's Syrian
   # population is not the bucket's population and a per-capita rate against it
   # would mean nothing. Deciding what an aggregate's proxy should be is a
@@ -923,6 +933,11 @@ test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
 })
 
 test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
   # ROW-1850-2025 is of type "aggregate". .add_polity_columns_dt refuses to
   # extend aggregate reporting areas outside their range, so an 1830 figure has
@@ -956,6 +971,11 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
 })
 
 test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
   # and the two sides speak different vocabularies. Everything that comes through
   # `.aggregate_to_polities()` carries the period-specific `polity_name`, while the

@@ -143,6 +143,11 @@ testthat::test_that("missing required columns abort", {
 # to which ISO3 codes land on 999 or 206 has to fail something (#482).
 
 testthat::test_that("the Rest-of-World fold is reported, not silent", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   testthat::expect_message(
     whep::read_population(data = list(gdp_population = .popf_folded())),
     "aggregate"
@@ -159,6 +164,11 @@ testthat::test_that("the Rest-of-World fold is reported, not silent", {
 })
 
 testthat::test_that("the folded rows carry the summed population", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   out <- suppressMessages(
     whep::read_population(data = list(gdp_population = .popf_folded()))
   )
@@ -184,6 +194,11 @@ testthat::test_that("the folded rows carry the summed population", {
 })
 
 testthat::test_that("the fold-bucket summary lists members per bucket", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   parsed <- whep:::.pop_parse(.popf_folded(), NULL)
   folded <- whep:::.pop_folded_buckets(whep:::.pop_folded_cells(parsed))
   testthat::expect_equal(folded$area_code, c(206L, 999L))

@@ -38,7 +38,11 @@
 #' @return A tibble data frame (ungrouped) where gaps in value_col have been
 #'   filled, and a new "source" variable has been created indicating if the
 #'   value is original or, in case it has been estimated, the gapfilling method
-#'   that has been used.
+#'   that has been used. Rows come back sorted by `.by` and then `time_col`,
+#'   which is the order the filling is defined in: carrying a value forward or
+#'   backward, and the moving average behind `value_smooth_window`, all read
+#'   neighbouring rows, so the result cannot depend on the order the rows were
+#'   handed over in.
 #'
 #' @export
 #'
@@ -80,6 +84,19 @@ fill_linear <- function(
     cli::cli_abort("`log_space` must be a single `TRUE` or `FALSE`.")
   }
 
+  cols <- list(
+    value = value_col_name,
+    time = time_col_name,
+    source = source_col_name,
+    by = by_cols
+  )
+  opts <- list(
+    interpolate = interpolate,
+    log_space = log_space,
+    fill_forward = fill_forward,
+    fill_backward = fill_backward
+  )
+
   n <- nrow(data)
   if (n == 0L) {
     data[[source_col_name]] <- character(0)
@@ -114,32 +131,9 @@ fill_linear <- function(
     }
   }
 
-  # No groups: simple path
+  # No groups: single series, sorted by time first (see the helper).
   if (length(by_cols) == 0L) {
-    orig_vals <- data[[value_col_name]]
-    times <- data[[time_col_name]]
-    smooth_vals <- if (!is.null(value_smooth_window)) {
-      zoo::rollmean(
-        orig_vals,
-        k = value_smooth_window,
-        fill = NA,
-        align = "center"
-      )
-    } else {
-      orig_vals
-    }
-    res <- .fill_linear_vec(
-      orig_vals,
-      smooth_vals,
-      times,
-      interpolate,
-      log_space,
-      fill_forward,
-      fill_backward
-    )
-    data[[value_col_name]] <- res$value
-    data[[source_col_name]] <- res$source
-    return(data)
+    return(.fill_linear_ungrouped(data, cols, opts, value_smooth_window))
   }
 
   # Grouped path: fully vectorized using nafill + boundary correction.
@@ -151,14 +145,8 @@ fill_linear <- function(
     # Smoothing requires per-group evaluation; fall back to by= path.
     return(.fill_linear_by_group(
       dt_work,
-      value_col_name,
-      time_col_name,
-      source_col_name,
-      by_cols,
-      interpolate,
-      log_space,
-      fill_forward,
-      fill_backward,
+      cols,
+      opts,
       value_smooth_window,
       is_dt
     ))
@@ -166,14 +154,7 @@ fill_linear <- function(
 
   dt <- dt_work
   sort_cols <- c(by_cols, time_col_name)
-  prev_sorted <- attr(data, ".whep_sorted_by")
-  already_sorted <- identical(data.table::key(dt), sort_cols) ||
-    identical(prev_sorted, sort_cols)
-  if (!already_sorted) {
-    data.table::setkeyv(dt, sort_cols)
-  } else if (is.null(data.table::key(dt))) {
-    data.table::setattr(dt, "sorted", sort_cols)
-  }
+  .ensure_sorted_by(dt, sort_cols)
 
   val <- dt[[value_col_name]]
   tm <- as.numeric(dt[[time_col_name]])
@@ -259,7 +240,6 @@ fill_linear <- function(
   data.table::set(dt, j = source_col_name, value = source)
   data.table::setcolorder(dt, names(data))
   if (is_dt) {
-    attr(dt, ".whep_sorted_by") <- sort_cols
     dt
   } else {
     .dt_to_tibble(dt)
@@ -359,80 +339,40 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   .interp_vec_apply_log(anchors, xout, linear, method)
 }
 
-# Fallback grouped path for smoothing case (rare).
+# Fallback grouped path for the smoothing case (rare): a centered moving average
+# has to be taken per group, so this path evaluates one R expression per group
+# instead of the fully vectorized `nafill()` route in `fill_linear()`. It runs
+# the same `.fill_linear_vec()` core as the ungrouped path, which is what keeps
+# their edge cases identical -- notably a smoothing window that leaves a group
+# with no valid anchor at all, which this path used to hit `if (NA)` on (#171).
 .fill_linear_by_group <- function(
   data,
-  value_col_name,
-  time_col_name,
-  source_col_name,
-  by_cols,
-  interpolate,
-  log_space,
-  fill_forward,
-  fill_backward,
+  cols,
+  opts,
   value_smooth_window,
   is_dt
 ) {
   dt <- data
-  sort_cols <- c(by_cols, time_col_name)
-  if (!identical(data.table::key(dt), sort_cols)) {
-    data.table::setkeyv(dt, sort_cols)
-  }
+  by_cols <- cols$by
+  .ensure_sorted_by(dt, c(by_cols, cols$time))
 
   dt[,
-    c(value_col_name, source_col_name) := {
-      v <- .SD[[1L]]
-      tm <- .SD[[2L]]
-      m <- .N
-      src <- rep("Original", m)
-      filled <- v
-      nna <- is.na(v)
-
-      if (any(nna) && !all(nna)) {
-        sv <- zoo::rollmean(
-          v,
-          k = value_smooth_window,
-          fill = NA,
-          align = "center"
-        )
-        valid <- which(!is.na(sv))
-        first_v <- valid[1L]
-        last_v <- valid[length(valid)]
-
-        if (interpolate && length(valid) >= 2L && first_v < last_v) {
-          interp <- .interp_series(sv, tm, log_space)
-          if (length(interp$value) == m) {
-            mask <- nna &
-              !is.na(interp$value) &
-              seq_len(m) > first_v &
-              seq_len(m) < last_v
-            filled[mask] <- interp$value[mask]
-            src[mask] <- .interp_source_label(interp$kind[mask])
-          }
-        }
-        if (fill_backward && first_v > 1L) {
-          mask <- nna & seq_len(m) < first_v
-          filled[mask] <- sv[first_v]
-          src[mask] <- "First value carried backwards"
-        }
-        if (fill_forward && last_v < m) {
-          mask <- nna & seq_len(m) > last_v
-          filled[mask] <- sv[last_v]
-          src[mask] <- "Last value carried forward"
-        }
-        src[is.na(filled)] <- "Gap not filled"
-      } else if (all(nna)) {
-        src[] <- "Gap not filled"
-      }
-      list(filled, src)
+    c(cols$value, cols$source) := {
+      vals <- .SD[[1L]]
+      res <- .fill_linear_vec(
+        vals,
+        .smooth_centered(vals, value_smooth_window),
+        .SD[[2L]],
+        opts
+      )
+      list(res$value, res$source)
     },
     by = by_cols,
-    .SDcols = c(value_col_name, time_col_name)
+    .SDcols = c(cols$value, cols$time)
   ]
 
   data.table::setcolorder(dt, names(data))
   if (is_dt) {
-    attr(dt, ".whep_sorted_by") <- c(by_cols, time_col_name)
     dt
   } else {
     .dt_to_tibble(dt)
@@ -458,6 +398,58 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   result
 }
 
+# Ungrouped `fill_linear()`: one single series. Carrying forward, carrying
+# backward and the centered moving average are all positional, so the rows are
+# put in time order first -- otherwise unsorted input (2020 first, say) carries
+# a late value into earlier years and averages non-adjacent times, and the
+# answer depends on the order the caller handed the rows over in (#171). Sorting
+# is what the grouped path already did through `setkeyv()`, so both paths now
+# return their rows in key order. `method = "radix"` matches its C-locale
+# ordering, so a character time column sorts the same way on either path.
+.fill_linear_ungrouped <- function(data, cols, opts, value_smooth_window) {
+  ord <- order(data[[cols$time]], method = "radix")
+  if (!identical(ord, seq_along(ord))) {
+    data <- data[ord, , drop = FALSE]
+  }
+  orig_vals <- data[[cols$value]]
+  res <- .fill_linear_vec(
+    orig_vals,
+    .smooth_centered(orig_vals, value_smooth_window),
+    data[[cols$time]],
+    opts
+  )
+  data[[cols$value]] <- res$value
+  data[[cols$source]] <- res$source
+  data
+}
+
+# Centered moving average applied before gap-filling, or the values untouched
+# when no window was asked for. A window wider than the series leaves every
+# position NA, which the callers read as "no anchor" rather than as an error.
+.smooth_centered <- function(vals, window) {
+  if (is.null(window)) {
+    return(vals)
+  }
+  zoo::rollmean(vals, k = window, fill = NA, align = "center")
+}
+
+# Sort `dt` by `sort_cols` in place unless it verifiably already is in that
+# order. A data.table key is trusted because data.table drops it whenever the
+# rows move; anything else is verified with `.is_sorted_by()`. An earlier
+# version instead trusted a `.whep_sorted_by` attribute stamped by the previous
+# call, which survives a `setorderv()` on the same object: a caller that
+# reordered its rows between two calls got carry-forward/backward over the wrong
+# order, and a "sorted" key stamped on rows that were not sorted (#171).
+.ensure_sorted_by <- function(dt, sort_cols) {
+  if (identical(data.table::key(dt), sort_cols)) {
+    return(invisible(dt))
+  }
+  if (!.is_sorted_by(dt, sort_cols)) {
+    data.table::setkeyv(dt, sort_cols)
+  }
+  invisible(dt)
+}
+
 # Convert a data.table to tibble, stripping all data.table attributes.
 .dt_to_tibble <- function(dt) {
   tibble::as_tibble(as.data.frame(dt))
@@ -476,6 +468,13 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
       return(TRUE)
     }
     x <- data[[col]]
+    # A missing value has no position in an order, so both comparisons below
+    # answer NA for it and the `na.rm` sweep would read that as "in order":
+    # `c(2, NA, 1)` came back sorted. Refuse to certify instead, and let the
+    # caller sort.
+    if (anyNA(x)) {
+      return(FALSE)
+    }
     prev <- x[-n]
     curr <- x[-1L]
     if (any(ties & (curr < prev), na.rm = TRUE)) {
@@ -486,16 +485,10 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   TRUE
 }
 
-# Base R vectorized core for fill_linear (no dplyr)
-.fill_linear_vec <- function(
-  orig_vals,
-  smooth_vals,
-  times,
-  interpolate,
-  log_space,
-  fill_forward,
-  fill_backward
-) {
+# Base R vectorized core for fill_linear (no dplyr). Expects `times` ascending;
+# both callers sort first. `opts` carries the four filling switches, named as
+# in `fill_linear()` itself.
+.fill_linear_vec <- function(orig_vals, smooth_vals, times, opts) {
   n <- length(orig_vals)
   filled <- orig_vals
   source <- rep("Gap not filled", n)
@@ -514,7 +507,7 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   last_valid <- valid[length(valid)]
 
   # Carry backward (left region)
-  if (fill_backward && first_valid > 1L) {
+  if (opts$fill_backward && first_valid > 1L) {
     left_idx <- seq_len(first_valid - 1L)
     na_left <- left_idx[is.na(filled[left_idx])]
     if (length(na_left) > 0L) {
@@ -524,7 +517,7 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   }
 
   # Carry forward (right region)
-  if (fill_forward && last_valid < n) {
+  if (opts$fill_forward && last_valid < n) {
     right_idx <- (last_valid + 1L):n
     na_right <- right_idx[is.na(filled[right_idx])]
     if (length(na_right) > 0L) {
@@ -534,12 +527,12 @@ interp_vec <- function(x, y, xout, log_space = FALSE, rule = 1) {
   }
 
   # Interpolate (middle region)
-  if (interpolate && length(valid) >= 2L) {
+  if (opts$interpolate && length(valid) >= 2L) {
     mid_idx <- (first_valid + 1L):(last_valid - 1L)
     if (length(mid_idx) > 0L) {
       na_mid <- mid_idx[is.na(filled[mid_idx])]
       if (length(na_mid) > 0L) {
-        interp <- .interp_series(smooth_vals, times, log_space)
+        interp <- .interp_series(smooth_vals, times, opts$log_space)
         if (length(interp$value) == n) {
           fill_mask <- na_mid[!is.na(interp$value[na_mid])]
           filled[fill_mask] <- interp$value[fill_mask]
@@ -1320,19 +1313,16 @@ fill_proxy_growth <- function(
 
   # Create Lags and Calculate Growth
   dt <- data.table::as.data.table(data)
-  if (length(by_vars) > 0) {
-    dt[,
-      `:=`(
-        lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
-        lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
-      ),
-      by = by_vars
-    ]
-  } else {
-    dt[, `:=`(
-      lag_src = data.table::shift(get(val_col), 1L, type = "lag"),
-      lag_yr = data.table::shift(get(time_col), 1L, type = "lag")
-    )]
+  .add_lag_col(dt, "lag_src", val_col, by_vars)
+  .add_lag_col(dt, "lag_yr", time_col, by_vars)
+  # The aggregation weight belongs to the period a growth rate was measured
+  # over, so it is lagged here, in the same shift as the value it pairs with,
+  # and before the filter below drops the rows with no growth rate. Lagging it
+  # afterwards took the weight of the previous *surviving* row -- years, or a
+  # whole other series, away as soon as the proxy had holes -- and left the
+  # first surviving row of each group with no weight at all (#171).
+  if (!is.null(spec$weight_col)) {
+    .add_lag_col(dt, "lag_weight", spec$weight_col, by_vars)
   }
   dt[,
     ind_growth := data.table::fifelse(
@@ -1350,6 +1340,21 @@ fill_proxy_growth <- function(
   as.data.frame(dt)
 }
 
+# Add `new_col` to `dt` as the one-row lag of `col` within `by_vars`, by
+# reference. One column at a time, so that a weight column which is also the
+# source column stays a single `.SDcols` entry.
+.add_lag_col <- function(dt, new_col, col, by_vars) {
+  if (length(by_vars) > 0) {
+    dt[,
+      (new_col) := data.table::shift(get(col), 1L, type = "lag"),
+      by = by_vars
+    ]
+  } else {
+    dt[, (new_col) := data.table::shift(get(col), 1L, type = "lag")]
+  }
+  invisible(dt)
+}
+
 .fg_growth_aggregate <- function(
   data,
   spec,
@@ -1362,56 +1367,37 @@ fill_proxy_growth <- function(
     by_vars <- time_col
   }
 
-  # Setup weights
-  has_w <- !is.null(spec$weight_col)
+  # Setup weights. `lag_weight` is the weight of the period each growth rate was
+  # measured over, aligned by .fg_growth_calc_individual() before it dropped the
+  # rows without a growth rate.
+  has_w <- !is.null(spec$weight_col) && rlang::has_name(data, "lag_weight")
 
   dt <- data.table::as.data.table(data)
 
-  if (has_w) {
-    # Shift weights to align with growth period (previous year weight)
-    grp <- if (length(spec$present_group_vars) > 0) {
-      spec$present_group_vars
-    } else {
-      NULL
-    }
-
-    if (length(grp) > 0) {
-      dt[,
-        w := data.table::shift(get(spec$weight_col), 1L, type = "lag"),
-        by = grp
-      ]
-    } else {
-      dt[, w := data.table::shift(get(spec$weight_col), 1L, type = "lag")]
-    }
-
-    # Weighted aggregation
-    result <- dt[,
-      {
-        valid_w <- !is.na(w) & is.finite(w) & w > 0
-        g_val <- if (any(valid_w)) {
-          sum(ind_growth[valid_w] * w[valid_w]) / sum(w[valid_w])
-        } else {
-          mean(ind_growth)
-        }
-        o_val <- if (any(valid_w)) sum(valid_w) else .N
-        list(g_val, o_val)
-      },
-      by = by_vars
-    ]
-    data.table::setnames(result, c("V1", "V2"), c(growth_col, obs_col))
+  result <- if (has_w) {
+    dt[, .fg_weighted_growth(ind_growth, lag_weight), by = by_vars]
   } else {
-    # Unweighted aggregation
-    result <- dt[,
-      .(
-        g_val = mean(ind_growth),
-        o_val = .N
-      ),
-      by = by_vars
-    ]
-    data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
+    dt[, .(g_val = mean(ind_growth), o_val = .N), by = by_vars]
   }
-
+  data.table::setnames(result, c("g_val", "o_val"), c(growth_col, obs_col))
   as.data.frame(result)
+}
+
+# Weighted mean growth rate for one (time, group) cell, and the number of rows
+# behind it. A row whose aligned weight is missing or non-positive cannot be
+# weighted; if that leaves no weight at all, the plain mean stands in. Names the
+# two results explicitly: the weighted branch used to rename `V1`/`V2`, which
+# data.table has never called them here, so every weighted proxy spec -- the
+# documented `"gdp[population]"` syntax -- aborted in `setnames()` (#171).
+.fg_weighted_growth <- function(growth, weight) {
+  usable <- !is.na(weight) & is.finite(weight) & weight > 0
+  if (!any(usable)) {
+    return(list(g_val = mean(growth), o_val = length(growth)))
+  }
+  list(
+    g_val = sum(growth[usable] * weight[usable]) / sum(weight[usable]),
+    o_val = sum(usable)
+  )
 }
 
 .fg_add_empty_cols <- function(data, g_col, o_col) {

@@ -467,6 +467,11 @@ testthat::test_that("the iso3c lookup is unique per code", {
 })
 
 testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Unique per iso3c (above) says nothing about the other direction, and the
   # other direction is where the aggregation lives: `polity_area_code` is a
   # bucket, so 257 ISO3 codes share 195 codes. Anything reading a population or

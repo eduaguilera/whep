@@ -24,8 +24,8 @@
 #' @param climate_modifier Annual climate rate modifier (dimensionless).
 #' @param humification_fraction Fraction of carbon input humified into the
 #'   humus pool (the remainder feeds the fresh pool).
-#' @return A tibble with one row per year and pool: \code{year}, \code{pool}
-#'   (fresh, humus, iom), \code{stock_mgc_ha} and \code{rate_mgc_ha}.
+#' @return A tibble with one row per year: \code{year}, \code{fresh},
+#'   \code{humus}, \code{iom} and \code{soc_total}.
 #' @source Coleman, K. & Jenkinson, D. S. (1996).
 #'   \doi{10.1007/978-3-642-61094-3_17}; inert organic matter:
 #'   Falloon, P. et al. (1998). \doi{10.1016/S0038-0717(97)00256-3}.
@@ -258,30 +258,22 @@ calculate_soc_century <- function(
 # -- HSOC helpers -------------------------------------------------------------
 
 .hsoc_evolve <- function(inputs, rates, climate_modifier, years, iom) {
-  pools <- names(inputs)
-  evolved <- purrr::map(
-    pools,
-    \(p) {
-      stock_eq <- inputs[[p]] / (rates[[p]] * climate_modifier)
-      .hsoc_pool_series(
-        stock_eq,
-        inputs[[p]],
-        rates[[p]] * climate_modifier,
-        years
-      )
-    }
+  decays <- rates[names(inputs)] * climate_modifier
+  stocks <- purrr::map2(
+    inputs,
+    decays,
+    \(input, decay) .hsoc_pool_stocks(input / decay, input, decay, years)
   )
-  iom_series <- tibble::tibble(
+  tibble::tibble(
     year = 0:years,
-    pool = "iom",
-    stock_mgc_ha = iom,
-    rate_mgc_ha = 0
-  )
-  dplyr::bind_rows(purrr::set_names(evolved, pools), .id = "pool") |>
-    dplyr::bind_rows(iom_series)
+    fresh = stocks[["fresh"]],
+    humus = stocks[["humus"]],
+    iom = iom
+  ) |>
+    dplyr::mutate(soc_total = .data$fresh + .data$humus + .data$iom)
 }
 
-.hsoc_pool_series <- function(stock_eq, input, decay, years) {
+.hsoc_pool_stocks <- function(stock_eq, input, decay, years) {
   # Closed form of the linear recurrence stock_{t+1} = stock_t (1 - decay) +
   # input, evaluated at 0:years. Replaces an O(years) purrr::accumulate loop
   # (5000 steps per input combination in the carbon-balance spin-up) with an
@@ -289,17 +281,10 @@ calculate_soc_century <- function(
   # stock_eq = input / decay, so the series is flat; the closed form keeps this
   # exact for any decay while avoiding the per-combo loop.
   yr <- 0:years
-  stocks <- if (decay == 0) {
-    stock_eq + input * yr
-  } else {
-    decayed <- (1 - decay)^yr
-    input / decay + (stock_eq - input / decay) * decayed
+  if (decay == 0) {
+    return(stock_eq + input * yr)
   }
-  tibble::tibble(
-    year = yr,
-    stock_mgc_ha = stocks,
-    rate_mgc_ha = input - stocks * decay
-  )
+  input / decay + (stock_eq - input / decay) * (1 - decay)^yr
 }
 
 # -- RothC helpers ------------------------------------------------------------

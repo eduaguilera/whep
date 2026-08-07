@@ -33,8 +33,8 @@ calculate_soc_hsoc(
 humus pool (the remainder feeds the fresh pool).}
 }
 \value{
-A tibble with one row per year and pool: \code{year}, \code{pool}
-(fresh, humus, iom), \code{stock_mgc_ha} and \code{rate_mgc_ha}.
+A tibble with one row per year: \code{year}, \code{fresh},
+\code{humus}, \code{iom} and \code{soc_total}.
 }
 \description{
 Annual HSOC trajectory (Spain historical pipeline): a fresh and a humus

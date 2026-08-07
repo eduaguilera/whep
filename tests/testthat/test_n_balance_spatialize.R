@@ -123,6 +123,11 @@ testthat::test_that("build_cell_polity keeps on-bucket grids silent", {
 })
 
 testthat::test_that("area_key = polity_area re-keys the grid on buckets", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   path <- .nbs_write_grid(.nbs_off_bucket_grid())
 
   result <- whep::build_cell_polity(
@@ -518,4 +523,26 @@ testthat::test_that("a country-year with no positive rate falls back cleanly", {
     shares$method_synthetic[shares$area_code == 20L],
     "area_share"
   )
+})
+
+# The abort that reports an ambiguous crosswalk used to lose its own message:
+# the plural marker sits ahead of the INTEGER code vector with nothing numeric
+# before it, so cli read the quantity off the vector and died on
+# "length(object) == 1 is not TRUE" -- hiding which codes were at fault, exactly
+# when someone needs them. Same class as #618; see #621.
+testthat::test_that("an ambiguous crosswalk names the offending area codes", {
+  testthat::local_mocked_bindings(
+    .polity_crosswalk = function() {
+      tibble::tribble(
+        ~area_code, ~polity_area_code,
+        41L, 41L,
+        41L, 214L,
+        96L, 96L,
+        96L, 344L
+      )
+    }
+  )
+
+  testthat::expect_error(.cell_polity_bucket_lookup(), "Ambiguous area code")
+  testthat::expect_error(.cell_polity_bucket_lookup(), "41")
 })
