@@ -727,6 +727,20 @@
   README to the contributing guide. Groundwork for rOpenSci peer review
   ([\#75](https://github.com/eduaguilera/whep/issues/75)).
 
+- The HWSD readers now say which column a local `hwsd_data.csv` is
+  missing.
+  [`read_soil_ph()`](https://eduaguilera.github.io/whep/reference/read_soil_ph.md),
+  [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
+  and the soil-carbon clay driver check the extract against the columns
+  they are about to read and abort naming the absent ones plus the
+  script that re-exports a complete extract, where a partial extract
+  previously surfaced as a `dplyr` error
+  (`Column t_clay not found in .data`) that read as a code fault rather
+  than a stale input. `inst/scripts/export_hwsd_attributes.R` now
+  exports `t_clay`, so a re-run produces an extract the clay driver can
+  read. No published value changes: a complete extract is read exactly
+  as before ([\#596](https://github.com/eduaguilera/whep/issues/596)).
+
 - **[`propagate_fp_uncertainty()`](https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.md)
   no longer reseeds the calling session.** Given
   `options = list(seed = )` it called
