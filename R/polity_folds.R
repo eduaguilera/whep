@@ -1,11 +1,12 @@
-#' Report reporting buckets whose polity covers less than the bucket
+#' Report reporting buckets that sum more than one territory
 #'
 #' @description
 #' `polity_area_code` is an aggregation bucket, not an identity: FABIO folds
 #' several FAOSTAT reporting areas into one numeric code, and WHEP's builds sum
 #' them under it. `reporting_polity_code` is then resolved from that bucket
 #' code, so a bucket folding more than one live territory can end up labelled
-#' with a polity covering only part of what the value covers.
+#' with a polity that covers only part of what the value covers, or that covers
+#' the whole of it but in a period that has ended.
 #'
 #' This lists every `(polity_area_code, year)` that folds more than one polity
 #' and classifies whether the bucket's own label covers the fold:
@@ -13,17 +14,34 @@
 #' - `"aggregate"`: the bucket resolves to an aggregate polity (Rest of World,
 #'   Belgium-Luxembourg, the FAOSTAT combined-reporting entities), whose name
 #'   and polygon already mean the union of its members. Honest.
+#' - `"predecessor"`: the bucket is labelled with a polity that has **ended**,
+#'   and whose published `successor` set is exactly the set of polities the
+#'   bucket folds. The extent is right — that predecessor's territory is the
+#'   union of its successors — but the period is not, so a consumer filtering
+#'   polities by span drops the rows.
 #' - `"partial"`: the bucket sums several territories but is labelled with a
-#'   single-territory polity, so the value and its polity describe different
-#'   extents. This is the defect.
+#'   polity covering only part of them, so the value and its polity describe
+#'   different extents. This is the worst case, and no bucket is in it today.
 #' - `"unlabelled"`: the bucket code resolves to no polity, so rows carry `NA`
 #'   and the gap is at least visible rather than wrong.
 #'
-#' The known `"partial"` case is bucket 206, which folds FAOSTAT areas 276
-#' Sudan and 277 South Sudan after the 2011 secession while no live polity
-#' means "Sudan and South Sudan" (whep#414). `.aggregate_to_polities()` warns
-#' when it builds such a bucket; set `options(whep.warn_polity_folds = FALSE)`
-#' to silence that warning.
+#' Only members whose polity is **in span** for the year count towards a fold.
+#' A year-aware lookup answers every `(area_code, year)` pair, standing in with
+#' the nearest period and flagging it `out_of_span`, so asking it about an area
+#' that does not report in that year invents a member. FAOSTAT reports area 206
+#' for 1961-2011 and areas 276/277 for 2012-2024, never in the same year, so
+#' counting the stand-ins reported bucket 206 as a three-way fold in all 65
+#' years rather than a two-way fold in the 14 it is one (whep#414).
+#'
+#' Bucket 206 is the one fold reported today, `"predecessor"` from 2012: it sums
+#' FAOSTAT areas 276 Sudan and 277 South Sudan and is labelled `SUD-1956-2011`,
+#' whose successors are exactly `SDN-2011-2025` and `SSD-2011-2025`. No **live**
+#' polity means "Sudan and South Sudan"; whether to mint one upstream, or to
+#' stop folding the two areas, is the open decision in whep#414. The un-fold is
+#' costed in whep#680 — it moves nothing outside the region and loses 4.2% of
+#' the region's own tonnage, so it is not a switch-flip.
+#' `.aggregate_to_polities()` warns when it builds such a bucket; set
+#' `options(whep.warn_polity_folds = FALSE)` to silence that warning.
 #'
 #' The polity reported here as the bucket's own is also the `area` label the
 #' builds attach to the summed row, and the one the reporting columns resolve.
@@ -53,6 +71,11 @@ polity_bucket_coverage <- function(years = NULL) {
         is.na(.data$bucket_polity_code) ~ "unlabelled",
         !is.na(.data$bucket_polity_type) &
           .data$bucket_polity_type == "aggregate" ~ "aggregate",
+        .bucket_is_predecessor(
+          .data$bucket_polity_code,
+          .data$bucket_mapping_status,
+          .data$member_polity_codes
+        ) ~ "predecessor",
         TRUE ~ "partial"
       )
     ) |>
@@ -86,11 +109,61 @@ polity_bucket_coverage <- function(years = NULL) {
     include_unmapped = FALSE
   ) |>
     tibble::as_tibble() |>
-    dplyr::filter(!is.na(.data$polity_code))
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::left_join(.area_first_reported_year(), by = "area_code")
+}
+
+# The first year the upstream FAOSTAT map reports each area at all.
+#
+# The resolver bounds a period BELOW by `polity_start_year`, not by the map's
+# reporting years, so it answers "which polity would area 276 be in 2011?" with
+# `SDN-2011-2025` even though FAOSTAT does not report area 276 before 2012.
+# That is right for the resolver -- a row that exists must resolve -- and wrong
+# for this diagnostic, which asks which areas a bucket actually sums.
+.area_first_reported_year <- function() {
+  crosswalk <- .polity_crosswalk(include_unmapped = FALSE)
+  empty <- tibble::tibble(
+    area_code = integer(0),
+    first_reported_year = integer(0)
+  )
+  if (!rlang::has_name(crosswalk, "map_year_start")) {
+    return(empty)
+  }
+  tibble::as_tibble(crosswalk) |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$map_year_start)) |>
+    dplyr::summarise(
+      first_reported_year = min(.data$map_year_start),
+      .by = "area_code"
+    )
+}
+
+# Only an area that REPORTS in the year is folded in that year.
+#
+# `.add_polity_columns_dt()` answers every `(area_code, year)` pair, standing in
+# with the nearest period and reporting `out_of_span`. So resolving all three
+# Sudan areas for 1990 returns SUD-1956-2011 (the one FAOSTAT actually reports)
+# plus SDN-2011-2025 and SSD-2011-2025 as stand-ins, and counting those made the
+# bucket look like a three-way fold in a year where only one area reports at
+# all. Two bounds are needed because the resolver applies neither for this
+# purpose: `out_of_span` drops a stand-in above a period, and the upstream map's
+# first reported year drops one below it -- area 276 resolves to SDN-2011-2025
+# from 2011 because that polity starts then, while FAOSTAT begins reporting the
+# area in 2012.
+#
+# Measured on the FAOSTAT production pin, the reporting spans do not overlap:
+# area 206 carries 13,759 rows over 1961-2011, area 276 carries 3,467 over
+# 2012-2024 and area 277 carries 2,170 over 2012-2024.
+.in_span_members <- function(resolved) {
+  resolved |>
+    dplyr::filter(
+      is.na(.data$mapping_status) | .data$mapping_status != "out_of_span",
+      is.na(.data$first_reported_year) |
+        .data$year >= .data$first_reported_year
+    )
 }
 
 .fold_members <- function(resolved) {
-  resolved |>
+  .in_span_members(resolved) |>
     dplyr::summarise(
       n_member_polities = dplyr::n_distinct(.data$polity_code),
       member_polity_codes = paste(
@@ -122,6 +195,43 @@ polity_bucket_coverage <- function(years = NULL) {
     )
 }
 
+# TRUE where the bucket's label is the folded members' shared predecessor.
+#
+# `SUD-1956-2011` labels bucket 206 from 2012 only because the year-aware lookup
+# has nothing later to offer, so the label is flagged `out_of_span`. That reads
+# as a defect until the extent is checked: the polities database publishes
+# `SUD-1956-2011`'s successors as `SDN-2011-2025; SSD-2011-2025`, which is
+# exactly the member set the bucket folds, so the label's territory IS the sum.
+# Requiring both conditions keeps the class narrow -- a live polity has no
+# successors yet, and an ended one whose successors are only some of the members
+# stays `"partial"`.
+.bucket_is_predecessor <- function(bucket_code, bucket_status, member_codes) {
+  ended <- !is.na(bucket_status) & bucket_status == "out_of_span"
+  successors <- .polity_successor_keys()
+  key <- successors$successor_key[match(bucket_code, successors$polity_code)]
+  ended & !is.na(key) & key == member_codes
+}
+
+# One row per polity, with its published successors written the same way
+# `.fold_members()` writes a member set, so the two compare as plain strings.
+.polity_successor_keys <- function() {
+  polities <- whep::polities
+  tibble::tibble(
+    polity_code = as.character(polities$polity_code),
+    successor_key = .successor_key(polities$successor)
+  ) |>
+    dplyr::filter(!is.na(.data$successor_key))
+}
+
+.successor_key <- function(successor) {
+  successor |>
+    stringr::str_split(";") |>
+    purrr::map_chr(\(codes) {
+      codes <- sort(unique(stringr::str_trim(codes[!is.na(codes)])))
+      if (length(codes) == 0L) NA_character_ else paste(codes, collapse = ", ")
+    })
+}
+
 .polity_type_lookup <- function() {
   .polity_crosswalk(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
@@ -144,29 +254,54 @@ polity_bucket_coverage <- function(years = NULL) {
   if (length(buckets) == 0L || length(years) == 0L) {
     return(invisible(NULL))
   }
-  partial <- polity_bucket_coverage(years = years) |>
+  flagged <- polity_bucket_coverage(years = years) |>
     dplyr::filter(
-      .data$coverage == "partial",
+      .data$coverage %in% c("partial", "predecessor"),
       .data$polity_area_code %in% buckets
     )
-  if (nrow(partial) > 0L) {
-    .warn_bucket_coverage(partial)
+  if (nrow(flagged) > 0L) {
+    .warn_bucket_coverage(flagged)
   }
   invisible(NULL)
 }
 
-.warn_bucket_coverage <- function(partial) {
-  folds <- partial |>
+.warn_bucket_coverage <- function(flagged) {
+  folds <- flagged |>
     dplyr::summarise(
       year_range = paste0(min(.data$year), "-", max(.data$year)),
       .by = c(
         "polity_area_code",
         "member_polity_codes",
-        "bucket_polity_code"
+        "bucket_polity_code",
+        "coverage"
       )
     )
   n <- nrow(folds)
-  bullets <- paste0(
+  cli::cli_warn(c(
+    "!" = paste(
+      "{n} reporting bucket{?s} {?sums/sum} more than one territory under",
+      "one polity."
+    ),
+    rlang::set_names(.bucket_coverage_bullets(folds), "*"),
+    "i" = paste(
+      "A {.val predecessor} label has the right extent but has ended; a",
+      "{.val partial} one covers less than the value does. See",
+      "{.fn polity_bucket_coverage}."
+    ),
+    "i" = "Silence with {.code options(whep.warn_polity_folds = FALSE)}."
+  ))
+}
+
+# Say which of the two defects each bucket has, because they need different
+# answers: a `"partial"` label is arithmetically wrong about the territory, a
+# `"predecessor"` one names the right territory in a period that has ended.
+.bucket_coverage_bullets <- function(folds) {
+  verdict <- dplyr::if_else(
+    folds$coverage == "predecessor",
+    ", their ended predecessor.",
+    ", which covers less."
+  )
+  paste0(
     "Bucket ",
     folds$polity_area_code,
     " (",
@@ -175,20 +310,8 @@ polity_bucket_coverage <- function(years = NULL) {
     folds$member_polity_codes,
     " but is labelled ",
     folds$bucket_polity_code,
-    "."
+    verdict
   )
-  cli::cli_warn(c(
-    "!" = paste(
-      "{n} reporting bucket{?s} {?sums/sum} more than one territory but",
-      "{?carries/carry} a single-territory polity."
-    ),
-    rlang::set_names(bullets, "*"),
-    "i" = paste(
-      "The value and its {.field reporting_polity_code} describe different",
-      "extents. See {.fn polity_bucket_coverage}."
-    ),
-    "i" = "Silence with {.code options(whep.warn_polity_folds = FALSE)}."
-  ))
 }
 
 # Reporting-area folds -------------------------------------------------------
