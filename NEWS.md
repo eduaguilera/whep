@@ -1,5 +1,18 @@
 # whep (development version)
 
+* **One unvaluable 1:n split no longer erases observed data.**
+  `harmonize_interpolate()` summed the split 1:n contributions together with
+  the already-correct `"simple"` component using `sum()` without `na.rm`, so a
+  single contribution with a missing `value`, or with a share that could
+  neither be computed nor interpolated (every year of the group totalling
+  zero makes the shares `NaN`), turned the whole harmonized
+  `(item_code, year)` cell into `NA`/`NaN` — including the observed values
+  summed into it. Unvaluable contributions are now dropped with a warning
+  naming the affected cells, and the observed values survive. Published values
+  change only where the old output was `NA`/`NaN`: such a cell now holds its
+  observed `"simple"` sum, or disappears if it had none. No cell that was a
+  number before changes.
+
 * **`build_cbs_prices()` no longer drops crop residues into an NA bucket.**
   The residue routing in `.add_residue_prices()` read
   `Herb_Woody == "Woody"` inside a nested `fifelse()`, so every item whose
