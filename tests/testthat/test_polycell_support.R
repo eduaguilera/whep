@@ -48,9 +48,10 @@
 #                  (R = 6,371,000 m, `.cell_area_ha_lat()`) agree to <= 9.5e-6
 #                  relative over latitudes 0-85, so 1e-4 accepts either
 #                  spherical convention. It deliberately does NOT accept a
-#                  WGS84-ellipsoid engine: `terra::expanse()` differs from s2
-#                  by 0.45% at the equator and 0.86% at latitude 84.75. EA1
-#                  blesses WHEP's spherical geometry and EA7 specifies "a true
+#                  WGS84-ellipsoid engine: signed `terra / s2 - 1` is -0.447%
+#                  at the equator, crosses zero near 35.32 degrees, and reaches
+#                  +0.888% at latitude 84.75. EA1 blesses WHEP's spherical
+#                  geometry and EA7 specifies "a true
 #                  sf intersection", so an ellipsoid swap would be a silent ~1%
 #                  shift in exactly the quantity this PR exists to fix, and it
 #                  must fail loudly rather than pass quietly.
@@ -1603,8 +1604,8 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # The spread behind the tolerances is measured on this polity rather than
   # assumed: over its 55 s2-readable pieces `terra::expanse()` differs from
   # `sf::st_area()` by +2.23e-04 to +9.88e-04 relative, area-weighted
-  # +6.88e-04. The 0.45%-0.86% band quoted at `.pcs_measure_pieces()` is the
-  # global one and does not apply here -- the WGS84-over-sphere area ratio
+  # +6.88e-04. The global signed range (-0.447% at the equator to +0.888% at
+  # latitude 84.75) does not apply here -- the WGS84-over-sphere area ratio
   # crosses 1 near latitude 35.3 and this polity spans 36.25 to 39.75.
   greece <- whep::get_polity_geometries("GRC-1881-1913")
   testthat::expect_equal(nrow(whep:::.pcs_prepare_polities(greece)), 1L)
@@ -2086,14 +2087,15 @@ testthat::test_that("interval diagnostics carry the interval they describe", {
 testthat::test_that("a border stored as one long segment is enumerated", {
   testthat::skip_if_not_installed("sf")
 
-  # DA-22 (issue #529). `cshapes-2.0` stores the 49th parallel between the USA
-  # and Canada as a SINGLE segment between vertices 27.6039 degrees of
-  # longitude apart. s2 draws that as a great circle rising 0.8294 degrees
-  # north of the parallel, which books roughly 123,276 km2 of Canadian prairie
-  # to the USA. Both polities are clipped against the same curve, so their
-  # shares still sum to 1.0000 in every cell and no conservation check can see
-  # it. The producer changes no area -- the segment is what the source says the
-  # border is -- so the defect is made visible instead.
+  # DA-22 (issue #529). CShapes 2.0 carries 124 vertices along the 49th parallel
+  # (widest gap 1.95 degrees), but whep-polities'
+  # `SimplifyPreserveTopology(0.01)` removes the collinear run. The shipped WHEP
+  # CAN rings therefore carry one 27.6036-degree segment. s2 draws that as a
+  # great circle rising 0.8294 degrees north, which books roughly 123,276 km2
+  # of Canadian prairie to the USA. Both polities are clipped against the same
+  # curve, so their shares still sum to 1.0000 in every cell and no conservation
+  # check can see it. The producer changes no area -- the received segment is
+  # made visible instead.
   # Egypt and Sudan carry the same defect on the 22nd parallel. Naming a few
   # codes here was itself a wrong belief: `EGY-1922-2025` does not exist, and
   # every EGY interval after 1899 carries two 22nd-parallel edges. The

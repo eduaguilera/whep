@@ -15,15 +15,17 @@
 #        interval counts a cell once per epoch and inflates it. Reported at a
 #        historical year, at the modern year, and then over EVERY interval at a
 #        year inside its own validity, which is the only view that shows the
-#        whole exception list: two of its five members are live in neither
-#        1900 nor 2015.
+#        whole exception list: three of its five members are live in neither
+#        1900 nor 2015, and none of the five is live in 2015.
 #   S-A4 the global land denominator against the whole-cell base.
 #   DA-12 the deployed crosswalk, today's producer and the polycell footprint.
 #   DA-13 that the transitional shim is GONE. Until C9 this asserted the shim
 #        reproduced build_cell_polity() bit-for-bit; it now aborts if a
 #        `polity_frac` column, a crosswalk-only padding row or an unmeasured
 #        row has come back.
-#   DA-15 polities with no usable polygon, and pieces measured with terra.
+#   DA-15 whole-table completeness on every runtime, plus the coverage classes
+#        and pieces measured with terra against the reference-runtime census in
+#        `.vps_expected_census()`.
 #   DA-19 inland water clamped to the polycell's territory, and the cells the
 #        water layer and the polycells do not share.
 #   S-A9/S-A11 the LUH2 reconciliation, in BOTH directions, and the
@@ -64,6 +66,176 @@
 .vps_env <- function(name) {
   value <- Sys.getenv(name, "")
   if (nzchar(value)) value else NULL
+}
+
+# A subset must be held against the request made BEFORE the build. Deriving its
+# expected membership from the returned support is circular: an empty build
+# then expects zero and reports success. The preflight also makes retired,
+# aggregate, missing, empty and invalid requested polities explicit rather than
+# silently treating them as a clean zero-row verification.
+.vps_polities <- function(path = file.path("data", "polities.rda")) {
+  if (!file.exists(path)) {
+    cli::cli_abort(
+      "Cannot load the verified polity snapshot: {.file {path}} is absent."
+    )
+  }
+  store <- new.env(parent = emptyenv())
+  objects <- load(path, envir = store)
+  if (!identical(objects, "polities") || !inherits(store$polities, "sf")) {
+    cli::cli_abort(
+      "{.file {path}} must contain exactly one {.cls sf} object named
+       {.val polities}; found {.val {objects}}."
+    )
+  }
+  store$polities
+}
+
+.vps_geometries <- function(requested) {
+  # Read the same repository file `.vps_snapshot_gate()` fingerprints. Using
+  # `whep::polities` here would let an older installed namespace pass the source
+  # file's blob gate and then build a different object, especially on a subset
+  # where the whole-table census is intentionally skipped.
+  geometries <- .vps_polities()
+  if (is.null(requested)) {
+    return(geometries)
+  }
+  keep <- geometries$polity_code %in% requested
+  attrs <- sf::st_drop_geometry(geometries)[keep, , drop = FALSE]
+  # Construct from the intact full-table sfc explicitly. On the pinned snapshot
+  # `get_polity_geometries(codes)` loses the sfc class on its geometry column,
+  # which is a separate accessor defect and made the advertised fast verifier
+  # subset fail before it could check anything.
+  sf::st_sf(attrs, geometry = sf::st_geometry(geometries)[keep])
+}
+
+.vps_subset_codes <- function(requested, geometries) {
+  if (is.null(requested)) {
+    return(NULL)
+  }
+  requested <- sort(unique(requested[!is.na(requested) & nzchar(requested)]))
+  if (length(requested) == 0L) {
+    cli::cli_abort("The requested polity subset contains no non-empty codes.")
+  }
+  returned <- sort(unique(as.character(geometries$polity_code)))
+  missing <- setdiff(requested, returned)
+  unexpected <- setdiff(returned, requested)
+  if (length(missing) > 0L || length(unexpected) > 0L) {
+    cli::cli_abort(c(
+      "The geometry lookup did not preserve the requested polity subset.",
+      "x" = "Missing: {.val {missing}}.",
+      "x" = "Unexpected: {.val {unexpected}}."
+    ))
+  }
+  prepared <- whep:::.pcs_prepare_polities(geometries)
+  usable <- sort(unique(prepared$polity_code[
+    prepared$coverage_status %in% c("has_geometry", "s2_repaired")
+  ]))
+  unavailable <- setdiff(requested, usable)
+  if (length(unavailable) > 0L) {
+    cli::cli_abort(
+      "Requested polities are not live, non-aggregate, interval-valid readable
+       geometries and cannot form a verification subset: {.val {unavailable}}."
+    )
+  }
+  usable
+}
+
+.vps_subset_gate <- function(expected_codes, support) {
+  if (is.null(expected_codes)) {
+    return(invisible(NULL))
+  }
+  got <- sort(unique(as.character(support$polity_code)))
+  missing <- setdiff(expected_codes, got)
+  unexpected <- setdiff(got, expected_codes)
+  if (length(missing) > 0L || length(unexpected) > 0L) {
+    cli::cli_abort(c(
+      "The built support does not match the requested usable polity subset.",
+      "x" = "Missing: {.val {missing}}.",
+      "x" = "Unexpected: {.val {unexpected}}."
+    ))
+  }
+  cli::cli_alert_success(
+    "Subset identity matches all {length(expected_codes)} requested usable
+     polit{?y/ies}: {.val {expected_codes}}."
+  )
+  invisible(NULL)
+}
+
+# Engine selection is a property of the geometry stack as well as the input
+# blob. s2 validity can turn on ULP-level degeneracy, so the exact terra census
+# below is authoritative only on this complete reference-runtime fingerprint.
+.vps_reference_runtime <- function() {
+  c(
+    os = "Windows 11 x64",
+    R = "4.5.2",
+    platform = "x86_64-w64-mingw32",
+    sf = "1.0.22",
+    s2 = "1.1.9",
+    terra = "1.8.80",
+    GEOS = "3.13.1"
+  )
+}
+
+.vps_runtime <- function() {
+  os <- if (.Platform$OS.type == "windows") {
+    sub(" \\(build [^)]+\\)$", "", utils::win.version())
+  } else {
+    paste(
+      unname(Sys.info()[c("sysname", "release", "machine")]),
+      collapse = " "
+    )
+  }
+  c(
+    os = os,
+    R = paste(R.version$major, R.version$minor, sep = "."),
+    platform = R.version$platform,
+    sf = as.character(utils::packageVersion("sf")),
+    s2 = as.character(utils::packageVersion("s2")),
+    terra = as.character(utils::packageVersion("terra")),
+    GEOS = unname(sf::sf_extSoftVersion()[["GEOS"]])
+  )
+}
+
+.vps_runtime_text <- function(runtime) {
+  paste(names(runtime), unname(runtime), sep = " ", collapse = "; ")
+}
+
+# The census comments name a Git blob, so the executable pin checks that blob
+# rather than treating its row count as an identity. This script is a
+# repository verification harness and is intentionally run from the repository
+# root; aborting when either the data file or Git is unavailable is safer than
+# silently weakening an identity gate to aggregate counts.
+.vps_polities_blob <- function(path = file.path("data", "polities.rda")) {
+  if (!file.exists(path)) {
+    cli::cli_abort(
+      "Cannot fingerprint the polity snapshot: {.file {path}} is absent.
+       Run this verifier from the WHEP repository root."
+    )
+  }
+  git <- Sys.which("git")
+  if (!nzchar(git)) {
+    cli::cli_abort(
+      "Cannot fingerprint {.file {path}} because {.command git} is unavailable."
+    )
+  }
+  blob <- suppressWarnings(system2(
+    git,
+    c("hash-object", path),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  status <- attr(blob, "status")
+  if (
+    (!is.null(status) && status != 0L) ||
+      length(blob) != 1L ||
+      !grepl("^[0-9a-f]{40}$", blob)
+  ) {
+    cli::cli_abort(
+      "Could not read a Git blob identity for {.file {path}}: {paste(blob,
+        collapse = ' ')}."
+    )
+  }
+  unname(blob[[1]])
 }
 
 # ---- Inputs -----------------------------------------------------------------
@@ -159,27 +331,40 @@
 }
 
 # The S-A2 exception list, checked over EVERY interval at a year inside its
-# own validity rather than at one calendar year. Measured across all 567
-# clipped intervals: max 6.6957e-05, median 1.1962e-14, five above 1e-6. All
-# five carry pieces the spherical engine could not read, so their residual is
-# the terra/s2 engine substitution and nothing else; a polity appearing here
-# without terra pieces is a new defect. Two of the five are not live in 1900 or
-# 2015, which is why a single-year check reports three and misses them.
-.vps_exception_list <- function(polycells) {
+# own validity rather than at one calendar year. On the reference runtime
+# (Windows 11 x64, R 4.5.2, sf 1.0-22, s2 1.1.9, terra 1.8-80, GEOS 3.13.1),
+# measured across all 653 clipped polities in polities 749 / 9320e033
+# (`data/polities.rda` at git blob
+# 9320e033e6ceb98a48d2d43634adae1620cb2db4): max 5.3257e-05, median
+# 1.2354e-14, five above 1e-6. All five carry pieces the spherical engine could
+# not read, so their residual is the terra/s2 engine substitution and nothing
+# else; a polity appearing here without terra pieces is a new defect. Three of
+# the five are live in neither 1900 nor 2015 and none is live in 2015, which is
+# why a single-year check reports two and misses the rest. Exact membership is
+# runtime-dependent; the property checked below is adaptive.
+#
+# THE EXPECTED SET IS DERIVED FROM THE BUILD, not listed by name. The criterion
+# is the engine substitution, so the polities that may legitimately exceed the
+# tolerance are exactly those carrying an `area_engine == "terra"` piece -- and
+# on the shipped table the two sets coincide exactly, 5 for 5. A hardcoded list
+# cannot say that, and it rots: the previous one named GRC-1830-1913, which the
+# 749-row `whep::polities` marks `superseded`, so DA-7's live filter drops it
+# before the clip and the name could never match again.
+#
+# Derivation alone would be circular -- an expectation read off the build
+# agrees with the build by construction -- so `.vps_expected_census()` pins the
+# census the derivation rests on and `.vps_census_gate()` fails loudly the
+# moment the polity table moves under it. The two together keep the property
+# the list existed for: the set cannot grow unnoticed.
+.vps_exception_list <- function(polycells, whole_table, expected_codes = NULL) {
   .vps_h("S-A2: the exception list, over every interval at its own year")
-  expected <- c(
-    "GRC-1830-1913",
-    "DEU-1800-1866",
-    "DEU-1866-1871",
-    "GBR-1800-1921",
-    "FRA-1800-1919"
-  )
   # ONE interval per polycell, never a total over interval rows. Summing every
-  # row of a polity counts each of its cells once per epoch: GRC-1830-1913 has
-  # 51 polycells across 62 interval rows, and the total reads 5,194,796 ha
-  # against a 4,624,216 ha polygon, a spurious 0.1234 where the truth at a year
-  # is 6.696e-05. TUR-1800-1913 carries 1,399 split polycells, so a gate built
-  # that way fires on dozens of polities that are correct.
+  # row of a polity counts each of its cells once per epoch: GRC-1881-1913 has
+  # 63 polycells across 98 interval rows, and the total reads 10,293,823 ha
+  # against a 6,356,682 ha polygon, a spurious 0.6194 where the truth at a year
+  # is 5.3257e-05. TUR-1800-1913 carries 1,622 interval rows over 396
+  # polycells, so a gate built that way fires on dozens of polities that are
+  # correct.
   #
   # The probe is the polity's own earliest interval start, which every one of
   # its polycells covers because the splits partition the polity's validity.
@@ -202,59 +387,197 @@
       terra_pieces = sum(.data$area_engine == "terra"),
       .by = c("polity_code", "probe_year")
     )
-  comparison <- measured |>
+  assessed <- measured |>
     dplyr::inner_join(
       .vps_own_areas(measured$polity_code),
       by = "polity_code"
     ) |>
-    dplyr::mutate(rel = abs(.data$got_ha - .data$own_ha) / .data$own_ha) |>
+    dplyr::mutate(rel = abs(.data$got_ha - .data$own_ha) / .data$own_ha)
+  comparison <- assessed |>
     dplyr::filter(.data$rel > 1e-6) |>
     dplyr::arrange(dplyr::desc(.data$rel))
   print(as.data.frame(comparison), digits = 6)
-  # SET EQUALITY, reported in both directions and as counts. "Within the
-  # expected five" passes just as happily on an EMPTY list, so a relaxed
-  # tolerance or a broken measurement reads as success; the machine-checkable
-  # line below cannot. `present` is restricted to the subset actually built, so
-  # running on a handful of polities does not read as a shrunken list.
-  built <- intersect(expected, polycells$polity_code)
+  # SET EQUALITY against the derived expectation, in both directions and as
+  # counts. "Within the expected five" passed just as happily on an EMPTY list,
+  # so a relaxed tolerance or a broken measurement read as success; the
+  # machine-checkable lines below cannot, because the vacuity guard runs first
+  # and asks whether anything was measured at all.
+  expected <- sort(unique(
+    polycells$polity_code[polycells$area_engine %in% "terra"]
+  ))
   unexpected <- setdiff(comparison$polity_code, expected)
-  missing <- setdiff(built, comparison$polity_code)
-  no_terra <- comparison$polity_code[comparison$terra_pieces == 0L]
+  quiet <- setdiff(expected, comparison$polity_code)
   cli::cli_text(
-    "exception list: expected {length(built)}, present
-     {length(intersect(comparison$polity_code, built))}, unexpected
-     {length(unexpected)}, missing {length(missing)}, without terra
-     {length(no_terra)}."
+    "exception list: over tolerance {nrow(comparison)}, carrying terra
+     {length(expected)}, over tolerance WITHOUT terra {length(unexpected)},
+     terra but UNDER tolerance {length(quiet)}."
   )
-  if (length(unexpected) > 0L) {
-    cli::cli_alert_danger(
-      "The S-A2 exception list GREW: {.val {unexpected}}. Investigate before
-       accepting this build."
-    )
-  }
-  if (length(missing) > 0L) {
-    cli::cli_alert_danger(
-      "The S-A2 exception list SHRANK: {.val {missing}} no longer exceeds the
-       tolerance. That is not automatically good -- it also happens when the
-       measurement stops measuring."
-    )
-  }
-  if (length(no_terra) > 0L) {
-    cli::cli_alert_danger(
-      "Over tolerance WITHOUT a terra piece: {.val {no_terra}}. That is not
-       the engine substitution and needs its own explanation."
-    )
-  }
-  if (length(c(unexpected, missing, no_terra)) == 0L) {
-    cli::cli_alert_success(
-      "Exception list is exactly the expected {length(built)}: {.val {built}}."
-    )
-  }
+  .vps_exception_alerts(
+    measured,
+    assessed,
+    comparison,
+    polycells,
+    expected,
+    quiet,
+    whole_table,
+    expected_codes
+  )
   invisible(comparison)
 }
 
+# Every way this gate can read green while measuring nothing, made loud. Exact
+# equality between terra carriers and over-tolerance polities is a property of
+# the pinned runtime, not of the blob alone: T-A15 showed that ULP-level s2
+# validity changes the fallback membership across geometry stacks. Elsewhere we
+# still require a complete, finite assessment and forbid every over-tolerance
+# polity that lacks a terra piece, but do not require every terra piece to push
+# its polity above the threshold. The engine substitution does have a
+# platform-independent magnitude envelope: over the global 0.5-degree grid the
+# measured extrema of `terra/s2 - 1` are -0.447% and +0.888%. The 1% bound below
+# rounds the larger magnitude outward, permits any platform-specific mix of the
+# two engines, and still rejects the 10.07% missing-piece defect this gate was
+# introduced to catch.
+.vps_exception_alerts <- function(
+  measured,
+  assessed,
+  comparison,
+  polycells,
+  expected,
+  quiet,
+  whole_table,
+  expected_codes = NULL,
+  runtime = .vps_runtime()
+) {
+  polities <- if (whole_table) {
+    .vps_expected_census()$clipped_polities
+  } else {
+    if (is.null(expected_codes)) {
+      cli::cli_abort(
+        "A subset exception check requires the independently preserved
+         requested/usable polity codes."
+      )
+    }
+    length(expected_codes)
+  }
+  unexpected <- setdiff(comparison$polity_code, expected)
+  exact_runtime <- identical(runtime, .vps_reference_runtime())
+  issues <- character()
+  if (nrow(measured) != polities) {
+    issues <- c(
+      issues,
+      paste0(
+        "The probe covered ",
+        nrow(measured),
+        " of ",
+        polities,
+        " expected polities."
+      )
+    )
+  }
+  if (nrow(assessed) != polities) {
+    issues <- c(
+      issues,
+      paste0(
+        "The own-area join assessed ",
+        nrow(assessed),
+        " of ",
+        polities,
+        " expected polities."
+      )
+    )
+  }
+  bad_measured <- !is.finite(measured$got_ha) |
+    measured$got_ha <= 0 |
+    !is.finite(measured$polycells) |
+    measured$polycells < 1 |
+    !is.finite(measured$terra_pieces) |
+    measured$terra_pieces < 0
+  bad_assessed <- !is.finite(assessed$own_ha) |
+    assessed$own_ha <= 0 |
+    !is.finite(assessed$rel) |
+    assessed$rel < 0
+  excessive <- which(is.finite(assessed$rel) & assessed$rel > 1e-2)
+  if (any(bad_measured) || any(bad_assessed)) {
+    issues <- c(
+      issues,
+      paste0(
+        sum(bad_measured),
+        " probe rows and ",
+        sum(bad_assessed),
+        " own-area rows are non-finite or outside their physical bounds."
+      )
+    )
+  }
+  if (length(excessive) > 0L) {
+    issues <- c(
+      issues,
+      paste0(
+        length(excessive),
+        " polity residual",
+        if (length(excessive) == 1L) "" else "s",
+        " exceed the 1% terra/s2 substitution envelope (max ",
+        format(max(assessed$rel[excessive]), digits = 6L),
+        ")."
+      )
+    )
+  }
+  if (
+    exact_runtime &&
+      nrow(comparison) == 0L &&
+      length(expected) > 0L
+  ) {
+    issues <- c(
+      issues,
+      paste0(
+        "Nothing exceeds the tolerance while ",
+        length(expected),
+        " polities carry terra pieces."
+      )
+    )
+  }
+  if (length(unexpected) > 0L) {
+    issues <- c(
+      issues,
+      paste0(
+        "Over tolerance without a terra piece: ",
+        paste(unexpected, collapse = ", "),
+        "."
+      )
+    )
+  }
+  if (exact_runtime && length(quiet) > 0L) {
+    issues <- c(
+      issues,
+      paste0(
+        "Carries terra pieces but is under the tolerance: ",
+        paste(quiet, collapse = ", "),
+        "."
+      )
+    )
+  }
+  if (length(issues) > 0L) {
+    cli::cli_abort(c(
+      "The S-A2 exception gate failed.",
+      stats::setNames(issues, rep("x", length(issues)))
+    ))
+  }
+  if (!exact_runtime) {
+    cli::cli_alert_success(
+      "All {polities} polities have finite measurements; exact exception
+       membership is not pinned off the reference runtime, and all
+       {nrow(comparison)} over-tolerance polities carry terra pieces."
+    )
+    return(invisible(NULL))
+  }
+  cli::cli_alert_success(
+    "Exception list is exactly the {length(expected)} terra-carrying
+     polit{?y/ies}: {.val {expected}}."
+  )
+  invisible(NULL)
+}
+
 .vps_own_areas <- function(codes) {
-  polities <- whep::get_polity_geometries(codes)
+  polities <- .vps_geometries(codes)
   fixed <- whep:::.s2_repair(sf::st_geometry(polities))
   usable <- fixed$status != "invalid"
   own_ha <- rep(NA_real_, nrow(polities))
@@ -322,16 +645,54 @@
   )
 }
 
-.vps_coverage <- function(support) {
+.vps_coverage <- function(support, whole_table, expected_codes = NULL) {
   .vps_h("DA-15: polygon coverage and substituted area engines")
-  print(as.data.frame(dplyr::count(attr(support, "coverage"), coverage_status)))
+  diagnostic <- attr(support, "coverage")
+  if (is.null(diagnostic)) {
+    if (whole_table) {
+      cli::cli_abort(
+        "The whole-table build has no {.field coverage} diagnostic. On the
+         pinned snapshot at least the 36 {.val no_geometry} rows require that
+         diagnostic on every runtime; absence cannot be interpreted as an
+         all-readable table."
+      )
+    }
+    # The producer deliberately omits this attribute when every prepared row is
+    # `has_geometry`. Use the independent pre-build membership, never the output
+    # row count that an empty subset could make agree with itself.
+    if (is.null(expected_codes)) {
+      cli::cli_abort(
+        "A subset coverage check requires the independently preserved
+         requested/usable polity codes."
+      )
+    }
+    coverage <- tibble::tibble(
+      coverage_status = "has_geometry",
+      n = as.integer(length(expected_codes))
+    )
+  } else {
+    coverage <- dplyr::count(diagnostic, coverage_status)
+  }
+  clipped_polities <- if (whole_table) {
+    dplyr::n_distinct(support$polity_code)
+  } else {
+    length(expected_codes)
+  }
+  print(as.data.frame(coverage))
   terra_measured <- attr(support, "terra_measured")
   if (is.null(terra_measured)) {
     cli::cli_alert_success("Every piece was measured by the spherical engine.")
+    .vps_census_gate(
+      coverage,
+      terra_measured,
+      clipped_polities,
+      whole_table
+    )
     return(invisible(NULL))
   }
   cli::cli_text(
-    "{nrow(terra_measured)} pieces measured with terra::expanse():
+    "{dplyr::n_distinct(terra_measured$polycell_id)} polycells measured with
+     terra::expanse() over {nrow(terra_measured)} interval rows:
      {round(sum(terra_measured$polity_area_ha) / 1e6, 4)} Mha."
   )
   print(as.data.frame(dplyr::summarise(
@@ -340,6 +701,217 @@
     ha = sum(.data$polity_area_ha),
     .by = "polity_code"
   )))
+  .vps_census_gate(
+    coverage,
+    terra_measured,
+    clipped_polities,
+    whole_table
+  )
+}
+
+# THE PINNED WHOLE-TABLE CENSUS, measured on `whep::polities` at **749 rows**,
+# `data/polities.rda` at git blob **9320e033e6ceb98a48d2d43634adae1620cb2db4**.
+# The snapshot is part of the pin, not context. The exact s2/terra split is also
+# pinned to the reference runtime because T-A15 proved that piece readability
+# varies by platform. On another runtime the snapshot/live/clipped counts still
+# run, while exact engine counts are reported but not compared.
+#
+# `origin/main` already carries WHEP PR #662: 751 rows at blob 0e52f1ff after
+# the upstream geometry repair. This branch still carries the old snapshot
+# until reconciliation, so the snapshot count below is expected to fail at the
+# merge and force a re-measurement.
+# `.vps_exception_list()` derives its expectation from the build, which cannot
+# notice a build that MOVED -- a derived expectation agrees with its own build
+# by construction. This is the half that can: it names what the derivation
+# rests on, so a refreshed polity table fails here, by number, instead of
+# quietly re-deriving a different answer and calling it a pass.
+#
+# `terra_polycells` is the DISTINCT polycell count, not the interval-row count:
+# the interval split subdivides a polycell in time and would inflate a row
+# count without any piece changing. On this vintage they happen to coincide at
+# 22, and pinning the stable one is what keeps that a coincidence rather than a
+# hidden assumption.
+#
+# Re-measure this and `.pcs_measure_pieces()`'s comment in
+# `R/polycell_support.R` together; they are the same numbers, and letting them
+# drift apart is what left GRC-1830-1913 in a hardcoded list here after the
+# upstream re-sync had already marked it `superseded`.
+.vps_expected_census <- function() {
+  list(
+    snapshot_blob = "9320e033e6ceb98a48d2d43634adae1620cb2db4",
+    snapshot_rows = 749L,
+    live_rows = 692L,
+    clipped_polities = 653L,
+    runtime = .vps_reference_runtime(),
+    coverage = c(
+      has_geometry = 647L,
+      no_geometry = 36L,
+      s2_repaired = 6L,
+      s2_invalid = 3L
+    ),
+    terra_polycells = 22L,
+    terra_polities = 5L,
+    terra_ha = 1483487.60
+  )
+}
+
+.vps_snapshot_gate <- function() {
+  expected <- .vps_expected_census()$snapshot_blob
+  got <- .vps_polities_blob()
+  if (!identical(got, expected)) {
+    cli::cli_abort(
+      "The polity snapshot MOVED: {.file data/polities.rda} is Git blob
+       {.val {got}}, pinned as {.val {expected}}. Re-measure the whole-table
+       census before running this verifier."
+    )
+  }
+  cli::cli_alert_success(
+    "Polity snapshot matches pinned Git blob {.val {expected}}."
+  )
+  invisible(NULL)
+}
+
+.vps_census_gate <- function(
+  coverage,
+  terra_measured,
+  clipped_polities,
+  whole_table,
+  runtime = .vps_runtime()
+) {
+  if (!whole_table) {
+    cli::cli_alert_info(
+      "Subset run: the whole-table census pin is not checked, because a subset
+       legitimately measures less."
+    )
+    return(invisible(NULL))
+  }
+  expected <- .vps_expected_census()
+  got <- .vps_measured_census(
+    coverage,
+    terra_measured,
+    clipped_polities,
+    runtime
+  )
+  exact_runtime <- identical(got$runtime, expected$runtime)
+  moved <- .vps_census_diff(expected, got, exact_runtime)
+  if (length(moved) > 0L) {
+    cli::cli_abort(
+      "The whole-table census MOVED against the pin in
+     {.val {names(moved)}}. Re-measure, then update BOTH
+     {.fn .vps_expected_census} and the {.fn .pcs_measure_pieces} comment in
+     {.file R/polycell_support.R}: {paste(moved, collapse = '; ')}."
+    )
+  }
+  if (!exact_runtime) {
+    got_runtime <- .vps_runtime_text(got$runtime)
+    reference_runtime <- .vps_runtime_text(expected$runtime)
+    cli::cli_alert_info(
+      "Snapshot completeness matches, but the exact engine census is skipped:
+       runtime {.val {got_runtime}} differs from the reference
+       {.val {reference_runtime}}."
+    )
+    return(invisible(NULL))
+  }
+  cli::cli_alert_success(
+    "Whole-table census matches the reference-runtime pin:
+     {got$terra_polycells} terra polycells, {round(got$terra_ha)} ha,
+     {got$terra_polities} polities; coverage
+     {paste(names(got$coverage), got$coverage, collapse = ', ')}."
+  )
+  invisible(NULL)
+}
+
+.vps_measured_census <- function(
+  coverage,
+  terra_measured,
+  clipped_polities,
+  runtime = .vps_runtime()
+) {
+  classes <- c("has_geometry", "no_geometry", "s2_repaired", "s2_invalid")
+  counts <- stats::setNames(
+    as.integer(coverage$n[match(classes, coverage$coverage_status)]),
+    classes
+  )
+  counts[is.na(counts)] <- 0L
+  list(
+    snapshot_blob = .vps_polities_blob(),
+    snapshot_rows = nrow(.vps_polities()),
+    live_rows = sum(counts),
+    clipped_polities = as.integer(clipped_polities),
+    runtime = runtime,
+    coverage = counts,
+    terra_polycells = if (is.null(terra_measured)) {
+      0L
+    } else {
+      dplyr::n_distinct(terra_measured$polycell_id)
+    },
+    terra_polities = if (is.null(terra_measured)) {
+      0L
+    } else {
+      dplyr::n_distinct(terra_measured$polity_code)
+    },
+    terra_ha = if (is.null(terra_measured)) {
+      0
+    } else {
+      sum(terra_measured$polity_area_ha)
+    }
+  )
+}
+
+# Hectares are compared to the pin's own precision (0.01 ha), which is far
+# tighter than any real movement and far looser than float noise over 22 terms.
+.vps_census_diff <- function(expected, got, exact_runtime) {
+  moved <- character()
+  for (nm in c(
+    "snapshot_blob",
+    "snapshot_rows",
+    "live_rows",
+    "clipped_polities"
+  )) {
+    if (!identical(got[[nm]], expected[[nm]])) {
+      moved[[nm]] <- paste0(
+        nm,
+        " pinned ",
+        expected[[nm]],
+        ", measured ",
+        got[[nm]]
+      )
+    }
+  }
+  if (!exact_runtime) {
+    return(moved)
+  }
+  for (nm in names(expected$coverage)) {
+    if (!identical(got$coverage[[nm]], expected$coverage[[nm]])) {
+      moved[[nm]] <- paste0(
+        nm,
+        " pinned ",
+        expected$coverage[[nm]],
+        ", measured ",
+        got$coverage[[nm]]
+      )
+    }
+  }
+  for (nm in c("terra_polycells", "terra_polities")) {
+    if (!identical(got[[nm]], expected[[nm]])) {
+      moved[[nm]] <- paste0(
+        nm,
+        " pinned ",
+        expected[[nm]],
+        ", measured ",
+        got[[nm]]
+      )
+    }
+  }
+  if (abs(got$terra_ha - expected$terra_ha) > 0.01) {
+    moved[["terra_ha"]] <- paste0(
+      "terra_ha pinned ",
+      format(expected$terra_ha, nsmall = 2L),
+      ", measured ",
+      format(round(got$terra_ha, 2L), nsmall = 2L)
+    )
+  }
+  moved
 }
 
 .vps_water_clamp <- function(support, polycells, year) {
@@ -463,29 +1035,41 @@
 # ---- Run --------------------------------------------------------------------
 
 # `polity_codes` restricts the build to a subset. The default is the whole
-# table, which is the production call and takes about an hour; a subset runs in
-# minutes and is what makes it practical to EXECUTE this script after editing
-# it. `inst/scripts/` is under no test, so an unexecuted change here is
+# table, which is the production call: on polities 749 / 9320e033 under the
+# reference runtime, the polity clip alone is 6,352 s over 653 polities and
+# 412,177 measured pieces, of which 412,176 remain after the 1e-6 ha area floor.
+# Budget hours rather than the "about an hour" this note used to claim. A subset
+# runs in minutes and is what makes it practical to EXECUTE this script after
+# editing it. `inst/scripts/` is under no test, so an unexecuted change here is
 # unverified by construction, which is exactly how a broken S-A2 gate once
 # shipped from this file. Set WHEP_VPS_POLITY_CODES to a comma-separated list
 # to drive it from the shell.
+#
+# Whether the run is the WHOLE TABLE is carried to the census and exception
+# gates, because a subset legitimately measures less. Checking whole-table
+# counts on it would train a reader to ignore the alert that catches drift.
 .vps_main <- function(
   year = 2015L,
   historical_year = 1900L,
   polity_codes = .vps_codes_from_env()
 ) {
   rlang::check_installed(c("sf", "terra"))
+  .vps_snapshot_gate()
+  whole_table <- is.null(polity_codes)
+  geometries <- .vps_geometries(polity_codes)
+  expected_codes <- .vps_subset_codes(polity_codes, geometries)
   water <- .vps_water()
   ice <- .vps_ice()
   luh2 <- .vps_luh2()
   crosswalk <- .vps_crosswalk()
   cli::cli_alert_info("Building the polycell support table...")
   support <- whep::build_polycell_support(
-    geometries = whep::get_polity_geometries(polity_codes),
+    geometries = geometries,
     water = water,
     ice = ice,
     data = list(luh2 = luh2, crosswalk = crosswalk, crosswalk_year = year)
   )
+  .vps_subset_gate(expected_codes, support)
   .vps_shim_removed(support)
   # Every row is a measured polycell since C9 removed the padding, so this is
   # the whole table rather than a filtered view of it.
@@ -497,10 +1081,10 @@
   .vps_identity(polycells)
   .vps_reaggregation(polycells, historical_year)
   .vps_reaggregation(polycells, year)
-  .vps_exception_list(polycells)
+  .vps_exception_list(polycells, whole_table, expected_codes)
   .vps_denominator(polycells, year)
   .vps_footprints(support, crosswalk)
-  .vps_coverage(support)
+  .vps_coverage(support, whole_table, expected_codes)
   .vps_water_clamp(support, polycells, year)
   .vps_water_unmatched(support, year)
   .vps_unassigned(support, polycells, luh2, year)

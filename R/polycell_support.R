@@ -273,6 +273,34 @@ expand_polycell_years <- function(support, years) {
   attr(geometries, "geometry_source") %||% "whep::polities"
 }
 
+# -- THE SNAPSHOT AND RUNTIME EACH CENSUS BELOW WAS MEASURED AGAINST ----------
+#
+# Every census below is a property of one upstream snapshot, not of the
+# producer. Engine-specific figures are ALSO properties of the geometry
+# runtime: T-A15 proved that ULP-level s2 validity differs by platform. The
+# snapshot is `whep::polities` at **749 rows**, `data/polities.rda` at git blob
+# **9320e033e6ceb98a48d2d43634adae1620cb2db4**. The reference runtime is
+# Windows 11 x64, R 4.5.2, sf 1.0-22, s2 1.1.9, terra 1.8-80 and GEOS 3.13.1.
+# Sites repeat "polities 749 / 9320e033" and, where engine choice matters,
+# "reference runtime" at the point of use.
+#
+# This is not bookkeeping. The figures these comments used to carry rotted
+# precisely because they read as facts about WHEP while being facts about a
+# snapshot: nothing named the vintage, so nothing could detect the drift, and a
+# superseded `GRC-1830-1913` stayed the worked example, and a hardcoded
+# fixture, until a CI failure on an unrelated platform surfaced it. A stamped
+# figure fails loudly and locally at the next refresh; an unstamped one rots
+# again in silence. A runtime stamp prevents a valid macOS result being
+# misreported as snapshot drift.
+#
+# The next refresh has already landed on `origin/main`: WHEP PR #662 carries
+# 751 rows at blob 0e52f1ff after upstream geometry repairs. This branch still
+# carries the 749-row snapshot until its pending reconciliation, so the pin in
+# `inst/scripts/verify_polycell_support.R` is expected to fire at that merge.
+# Re-measure then; do not carry these figures onto the refreshed snapshot.
+# `inst/scripts/verify_polycell_support.R` carries the same census as a pin and
+# aborts when it moves; re-measure with that and update both together.
+
 # Normalise the geometry source: keep the columns the producer reads, coerce to
 # WGS84 and drop dead and aggregate rows NA-explicitly. `%in%` is FALSE for NA,
 # so `!(x %in% dead)` KEEPS an NA row, unlike `dplyr::filter(x != dead)`, which
@@ -306,8 +334,11 @@ expand_polycell_years <- function(support, years) {
 
 # How usable each polity polygon is, recorded on every polycell it produces and
 # in the "coverage" diagnostic, so a missing or unusable geometry is never a
-# silent zero area. On the shipped table: 563 `has_geometry`, 23 `no_geometry`,
-# 4 `s2_repaired` and 3 `s2_invalid`. Only the first two classes are clipped.
+# silent zero area. Over the 692 live non-aggregate rows of polities 749 /
+# 9320e033 under the reference runtime: 647 `has_geometry`, 36 `no_geometry`,
+# 6 `s2_repaired` and 3 `s2_invalid`. `has_geometry` and `s2_repaired` are the
+# classes that get clipped, so the other 39 polities receive no polycell at
+# all.
 .pcs_usable_geometry <- function(geom) {
   empty <- sf::st_is_empty(geom)
   fixed <- .s2_repair(.pcs_geom_4326(geom))
@@ -435,25 +466,55 @@ expand_polycell_years <- function(support, years) {
 }
 
 # The spherical engine can emit a clipped piece it then refuses to read back:
-# most carry a duplicate vertex -- 8 of Russia's 12,730 pieces, all on the
-# antimeridian -- and a planar repair removes the zero-length edge without
-# changing the area (714,451.732 ha either way).
+# most carry a duplicate vertex -- 155 of the 177 it refuses among the 412,177
+# pieces the clip measures on polities 749 / 9320e033 under the reference
+# runtime, 8 of them
+# RUS-2014-2025's 12,730, all on the antimeridian. Planar repair leaves their
+# terra area unchanged at 719,356.393 ha before and after; s2 reads the repaired
+# pieces as 714,451.732 ha. Repair stability and cross-engine disagreement are
+# different comparisons.
 #
 # A minority stay invalid even after that repair, and they are NOT slivers. On
-# the shipped polities that is 21 pieces holding 1,419,140.84 ha across 5
-# polities, among them seven Peloponnese and Aegean pieces worth 466,032 ha,
-# 10.08% of GRC-1830-1913. They are pieces of cells, not whole cells: their
-# shares of their cells run 0.858, 0.388, 0.354, 0.172, 0.125, 0.0245 and
-# 1.7e-05. Dropping them deleted real territory, broke S-A2
+# polities 749 / 9320e033 under the reference runtime that is 22 pieces holding
+# 1,483,487.60 ha across 5 polities, among them eight Ionian, Peloponnese and
+# Aegean pieces worth 530,378.73 ha, 8.34% of GRC-1881-1913. They are pieces of
+# cells, not whole cells: across the 22 the share of the cell runs from 0.995
+# down to 0.0077, and Greece's eight are 0.858, 0.388, 0.354, 0.188, 0.171,
+# 0.124, 0.076 and 0.0245. Dropping them deleted real territory, broke S-A2
 # re-aggregation at every pre-1950 year, and re-emerged as fake unclaimed land
 # in the S-A11 diagnostic. They are therefore kept and measured with
 # `terra::expanse()`, which does not go through s2, exactly as the ice reader
 # already does.
 #
-# `area_engine` records which engine measured each row, because terra is a
-# WGS84 ellipsoid and differs from s2 by 0.45% at the equator to 0.86% at
-# latitude 84.75: a consumer must be able to see where that substitution
-# happened rather than infer it.
+# A cleaner upstream snapshot does not remove the need for this. GEOS validity
+# is not s2 validity, and an upstream gate written against shapely cannot see
+# the difference, so a polygon can pass validation there and still be
+# unreadable here -- which is why the fix belongs at the consumer, either as a
+# repair before intersecting or as the engine substitution below. That the two
+# validity notions disagree is an upstream finding; what is measured here is
+# that 22 pieces survive this producer's own planar repair and still cannot be
+# read back under the reference runtime. Other platforms may assign a different
+# subset to s2 without changing the no-piece-dropped property.
+#
+# `area_engine` records which engine measured each row, because terra measures
+# on the WGS84 ellipsoid and s2 on a sphere, and the two disagree by a SIGNED
+# amount that depends on latitude. Under the convention `terra / s2 - 1`,
+# measured on whole 0.5-degree cells under the reference runtime, it is
+# **-0.447%** at the equator, crosses **zero at latitude 35.32**, and reaches
+# **+0.888%** at latitude 84.75.
+#
+# The old wording here, "0.45% at the equator to 0.86% at latitude 84.75", read
+# as a magnitude bound and was wrong twice over: the equatorial figure is
+# NEGATIVE -- terra reads smaller there, not larger -- and anywhere near the
+# crossing the disagreement is far below either end rather than between them.
+#
+# So do not size a tolerance off that global range. Where the substitution
+# actually lands on the shipped table -- the 1,129 readable pieces of the five
+# terra-carrying polities, latitude 36.3 to 60.8 -- the offset is +0.022% to
+# +0.576%, area-weighted +0.342%; over GRC-1881-1913's 55 alone it is +0.022%
+# to +0.099%, area-weighted +0.069%, an order of magnitude under the global
+# figure. A consumer must be able to see where the substitution happened
+# rather than infer it.
 .pcs_measure_pieces <- function(inter) {
   fixed <- .s2_repair(sf::st_geometry(inter))
   sf::st_geometry(inter) <- fixed$geom
@@ -685,10 +746,15 @@ expand_polycell_years <- function(support, years) {
 # spherical engine cannot read, so their area is recoverable. That means no s2
 # operation may be run across the whole column: `sf::st_intersects()` aborts on
 # the first such piece, and with the shipped table and the real ice layer that
-# killed the production call outright at any year, because GRC-1830-1913 is in
-# the table and `years` is applied only after every polity has been clipped.
-# The two populations are therefore separated before either engine is asked to
-# do anything: s2 clips the pieces it can read, terra clips the rest.
+# killed the production call outright at any year, because `years` is applied
+# only after every polity has been clipped. The hazard is live rather than
+# historical: on polities 749 / 9320e033 under the reference runtime,
+# GRC-1881-1913 clips to 63 pieces of which 8 are unreadable, and it is one of
+# 5 polities carrying such pieces.
+# (The example used to be GRC-1830-1913, which that vintage marks `superseded`,
+# so DA-7's live filter now drops it before the clip ever sees it.) The two
+# populations are therefore separated before either engine is asked to do
+# anything: s2 clips the pieces it can read, terra clips the rest.
 .pcs_ice_areas <- function(polycells_sf, ice_union) {
   out <- rep(0, nrow(polycells_sf))
   on_s2 <- polycells_sf$area_engine %in% "s2"
@@ -1161,12 +1227,28 @@ expand_polycell_years <- function(support, years) {
     dplyr::mutate(excess_ha = .data$territory_ha - .data$cell_area_ha)
 }
 
-# DA-22 (issue #529). A source that stores a border following a parallel as ONE
+# DA-22 (issue #529). A polygon that stores a border following a parallel as ONE
 # segment between distant vertices hands s2 a great circle, and s2 renders it
-# bulging poleward. `cshapes-2.0` writes the 49th parallel as a single 27.6039
-# degree segment, whose great circle rises 0.8294 degrees north of the
-# parallel and books roughly 123,276 km2 of Canadian prairie to the USA;
-# Egypt and Sudan on the 22nd parallel are the same defect at 2,359 km2.
+# bulging poleward. Measured on polities 749 / 9320e033: 43 such edges across
+# 30 polities. The 49th parallel is the worst -- the shipped `CAN-*` rings
+# carry a single 27.6036 degree segment and `USA-1867-1959` a 27.6445 degree
+# one, with NO intermediate vertex between longitude -122.76 and -95.15, and
+# their great circles rise 0.8294 and 0.8319 degrees north of the parallel.
+# Egypt and Sudan on the 22nd parallel are the same defect over a 12.2036
+# degree span at a 0.1133 degree bulge.
+#
+# ATTRIBUTION CORRECTED. This comment used to blame `cshapes-2.0` for storing
+# that edge sparsely. Upstream reports that CShapes 2.0 in fact carries 124
+# vertices along the parallel with a widest gap of 1.95 degrees, and that the
+# single long segment is manufactured by whep-polities' own
+# `SimplifyPreserveTopology(0.01)`: Douglas-Peucker measures deviation from the
+# chord in planar degrees, and every vertex sitting ON a parallel lies exactly
+# on that chord, so the whole run is deleted. Only the WHEP-side half of that
+# is re-measured here -- the sparse edge is demonstrably in the polygons this
+# package receives, per the vertex lists above; what CShapes itself contains is
+# taken from the upstream report. The ~123,276 km2 of Canadian prairie DA-22
+# measured as displaced to the USA is that task's figure and is NOT
+# re-measured here.
 #
 # Nothing here changes an area. The segment IS what the source says the border
 # is, and re-drawing it would be a territorial judgement the producer must not
