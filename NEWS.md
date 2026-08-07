@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **Four documented examples could not say which territory their rows belong
+  to.** `build_supply_use(example = TRUE)` shipped a row
+  with no `area_code` at all (an epsilon `3.33e-14` husbandry use) and
+  `get_feed_intake(example = TRUE)` two more, so their polity columns came out
+  `NA`; `build_feed_intake_local(example = TRUE)` and
+  `build_grass_natural_carbon_inputs(example = TRUE)` keyed cells by an
+  ISO-3166 numeric code (724 Spain, 300 Greece) where the FAOSTAT area code
+  belongs, which resolves to nothing -- and one sibling row's ISO code for
+  Argentina, 32, is FAOSTAT's Cameroon, so a cell in the pampas was labelled
+  Cameroon. The two feed fixtures also predated the redistribute-feed
+  migration and showed a 10% feed loss the current allocator cannot produce.
+  All four fixtures are now sampled from real builds (the gridded ones keyed
+  by the code the cell grid actually assigns: 203, 84, 9), and
+  `build_supply_use(example = TRUE)` now covers all five documented process
+  groups instead of three. **No published value changes** -- these are
+  documentation fixtures, not pipeline outputs (#417).
+
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
