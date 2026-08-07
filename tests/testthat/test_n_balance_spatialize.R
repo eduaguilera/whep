@@ -584,9 +584,12 @@ testthat::test_that("the refusal does not reach the transitional key", {
 })
 
 testthat::test_that("an NA or negative land area aborts", {
-  # `coverage_status == "crosswalk_only"` rows of the transitional shim carry
-  # NA in every area column. Weighting them would delete one polity's claim
-  # while the rest of the cell still looked like a complete partition.
+  # The DA-13 shim's `coverage_status == "crosswalk_only"` rows carried NA in
+  # every area column; C9 removed them, so the producer no longer emits any.
+  # The support still arrives from the caller, and weighting an NA would delete
+  # one polity's claim while the rest of the cell still looked like a complete
+  # partition, so the refusal is asserted on a hand-made NA rather than retired
+  # with the padding that used to produce one.
   padded <- .nbs_support()
   padded$land_area_ha[2] <- NA_real_
   negative <- .nbs_support()

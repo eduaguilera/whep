@@ -19,7 +19,10 @@
 #        1900 nor 2015.
 #   S-A4 the global land denominator against the whole-cell base.
 #   DA-12 the deployed crosswalk, today's producer and the polycell footprint.
-#   DA-13 the transitional shim against build_cell_polity(), bit-for-bit.
+#   DA-13 that the transitional shim is GONE. Until C9 this asserted the shim
+#        reproduced build_cell_polity() bit-for-bit; it now aborts if a
+#        `polity_frac` column, a crosswalk-only padding row or an unmeasured
+#        row has come back.
 #   DA-15 polities with no usable polygon, and pieces measured with terra.
 #   DA-19 inland water clamped to the polycell's territory, and the cells the
 #        water layer and the polycells do not share.
@@ -39,7 +42,9 @@
 #   WHEP_LUH2_DIR             staticData_quarterdeg.nc. Optional; the DA-5
 #                             reconciliation and S-A11 are skipped when unset.
 #   WHEP_POLITY_FRACTION_PATH cell_polity_fraction.parquet. Optional; the
-#                             DA-12/DA-13 sections are skipped when unset.
+#                             DA-12 reconciliation is skipped when unset. The
+#                             DA-13 check always runs -- it is about the
+#                             producer's own output, not about the crosswalk.
 #
 # Note for anyone whose environment variables look unset: R reads `.Renviron`
 # in the working directory INSTEAD of `~/.Renviron`, and this repository has
@@ -107,7 +112,9 @@
 
 .vps_crosswalk <- function() {
   if (is.null(.vps_env("WHEP_POLITY_FRACTION_PATH"))) {
-    cli::cli_alert_warning("WHEP_POLITY_FRACTION_PATH unset: no shim check.")
+    cli::cli_alert_warning(
+      "WHEP_POLITY_FRACTION_PATH unset: no DA-12 crosswalk reconciliation."
+    )
     return(NULL)
   }
   whep::build_cell_polity()
@@ -269,19 +276,49 @@
 }
 
 .vps_footprints <- function(support, crosswalk) {
-  .vps_h("DA-12/DA-13: footprints and the transitional shim")
+  .vps_h("DA-12: the three footprints")
   print(as.data.frame(attr(support, "footprints")))
   if (is.null(crosswalk)) {
     return(invisible(NULL))
   }
-  shim <- whep::polycell_shim_view(support) |>
-    dplyr::arrange(.data$lon, .data$lat, .data$area_code)
-  today <- crosswalk |>
-    dplyr::select("lon", "lat", "area_code", "polity_frac", "cell_area_ha") |>
-    dplyr::arrange(.data$lon, .data$lat, .data$area_code)
+  diff <- attr(support, "footprint_diff")
   cli::cli_text(
-    "shim {nrow(shim)} rows against build_cell_polity() {nrow(today)};
-     identical: {identical(as.data.frame(shim), as.data.frame(today))}."
+    "build_cell_polity() {nrow(crosswalk)} rows;
+     {nrow(diff)} cell-area_code pairs on which the three footprints disagree."
+  )
+}
+
+# DA-13, flipped at C9. This check used to print "identical: TRUE" for the shim
+# against `build_cell_polity()`. The shim is gone, so the check is now that it
+# has NOT come back -- and it ABORTS rather than reporting, because a diagnostic
+# that prints a false line is exactly what a re-introduced shim would produce.
+# It runs on the support built WITH `data$crosswalk` supplied, which is the
+# input that used to produce the shim -- checking a support built without one
+# would pass on a path where the shim could not have appeared anyway.
+.vps_shim_removed <- function(support) {
+  .vps_h("DA-13: the transitional shim is gone")
+  if (rlang::has_name(support, "polity_frac")) {
+    cli::cli_abort(
+      "The support carries {.field polity_frac}: the DA-13 shim is back."
+    )
+  }
+  if (any(support$coverage_status == "crosswalk_only")) {
+    cli::cli_abort(
+      "{sum(support$coverage_status == 'crosswalk_only')} crosswalk-only
+       padding row{?s}: the DA-13 shim is back."
+    )
+  }
+  if (anyNA(support$polity_code) || anyNA(support$land_area_ha)) {
+    cli::cli_abort(
+      "{sum(is.na(support$polity_code))} row{?s} carry no {.field polity_code}
+       and {sum(is.na(support$land_area_ha))} no {.field land_area_ha}: every
+       row of this table must be a measured polycell."
+    )
+  }
+  cli::cli_alert_success(
+    "No shim column, no padding row; sum(land_area_ha) =
+     {round(sum(support$land_area_ha) / 1e9, 4)} Gha over
+     {nrow(support)} interval rows, not NA."
   )
 }
 
@@ -449,7 +486,10 @@
     ice = ice,
     data = list(luh2 = luh2, crosswalk = crosswalk, crosswalk_year = year)
   )
-  polycells <- dplyr::filter(support, .data$coverage_status != "crosswalk_only")
+  .vps_shim_removed(support)
+  # Every row is a measured polycell since C9 removed the padding, so this is
+  # the whole table rather than a filtered view of it.
+  polycells <- support
   cli::cli_alert_success(
     "{nrow(support)} interval rows
      ({dplyr::n_distinct(polycells$polycell_id)} polycells)."

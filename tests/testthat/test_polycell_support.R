@@ -87,10 +87,12 @@
 #     the cell's territory or over the whole cell changes `inland_water_ha`,
 #     and DA-6 does not settle it. The water fixtures below use a fully covered
 #     cell, where the two rules coincide.
-#   * The schema check is a subset check, so DA-13's transitional `polity_frac`
-#     and DA-12's second footprint may ride alongside. Both are claims about
-#     the interim crosswalk geometry, which these polygon fixtures do not
-#     exercise; they belong to T-A5's before-and-after measurement.
+#   * The schema check is a subset check, so DA-12's second footprint may ride
+#     alongside. That is a claim about the interim crosswalk geometry, which
+#     these polygon fixtures do not exercise; it belongs to T-A5's
+#     before-and-after measurement. DA-13's transitional `polity_frac` used to
+#     be the other rider; C9 removed it, and its ABSENCE is now asserted
+#     positively rather than tolerated by the subset check.
 
 # Helper fixtures --------------------------------------------------------------
 
@@ -1012,9 +1014,10 @@ testthat::test_that("a shared cell carries no quantity across the border", {
 #
 # The 18 blocks above are the T-A3 contract and are left untouched. What
 # follows covers the decisions taken after that contract was written: the
-# interval grain (DA-16), the interim shim (DA-13), the two footprints (DA-12),
-# the water clamp (DA-19), unusable polity geometry (DA-15) and the recorded
-# LUH2 vintage (DA-9). All fixtures stay self-contained.
+# interval grain (DA-16), the removal of the interim shim (DA-13, at C9), the
+# two footprints (DA-12), the water clamp (DA-19), unusable polity geometry
+# (DA-15) and the recorded LUH2 vintage (DA-9). All fixtures stay
+# self-contained.
 
 testthat::test_that("the default grain is interval-keyed, not per-year", {
   testthat::skip_if_not_installed("sf")
@@ -1156,14 +1159,19 @@ testthat::test_that("the window widens in longitude as well as latitude", {
   testthat::expect_equal(window[["ymin"]], box[["ymin"]])
 })
 
-testthat::test_that("the shim reproduces the crosswalk bit-for-bit", {
+testthat::test_that("the DA-13 shim is gone and a crosswalk cannot revive it", {
   testthat::skip_if_not_installed("sf")
 
-  # DA-13. The crosswalk is a present-day product with no epochs, so its
-  # `polity_frac` cannot be recomputed from the geodesic intersection without
-  # moving border shares by up to a whole 1/36 subcell. It is carried through
-  # instead, and the claim that an unmigrated consumer is unchanged is asserted
-  # with `identical()`, not with a tolerance.
+  # DA-13, flipped at C9. This block used to assert the shim reproduced the
+  # crosswalk bit-for-bit; it now asserts the shim is ABSENT under exactly the
+  # input that used to produce it -- a crosswalk carrying `polity_frac`, a
+  # border cell it splits 0.7/0.3, and a cell (99.75) the intersection never
+  # reaches, which is what used to be appended as `crosswalk_only` padding.
+  #
+  # Asserted on the SAME fixture as the old validator so the two are directly
+  # comparable, and with `data$crosswalk` supplied rather than omitted: a
+  # removal proved only on the no-crosswalk path would pass while the shim was
+  # still live on the path that had it.
   crosswalk <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac,
     10.25, 45.25, 11L, 0.7,
@@ -1188,22 +1196,24 @@ testthat::test_that("the shim reproduces the crosswalk bit-for-bit", {
     data = list(crosswalk = crosswalk)
   )
 
-  shim <- whep::polycell_shim_view(result) |>
-    dplyr::arrange(.data$lon, .data$area_code)
-  expected <- crosswalk |>
-    dplyr::select("lon", "lat", "area_code", "polity_frac", "cell_area_ha") |>
-    dplyr::arrange(.data$lon, .data$area_code)
-
-  testthat::expect_identical(shim$polity_frac, expected$polity_frac)
-  testthat::expect_identical(shim$cell_area_ha, expected$cell_area_ha)
-  testthat::expect_identical(shim$area_code, expected$area_code)
-  testthat::expect_equal(shim, expected)
-
-  # The crosswalk cell the intersection never reaches is still carried, and it
-  # is flagged rather than silently invented as a polycell.
-  orphan <- dplyr::filter(result, .data$lon == 99.75)
-  testthat::expect_equal(orphan$coverage_status, "crosswalk_only")
-  testthat::expect_true(is.na(orphan$polity_area_ha))
+  # 1. No shim column.
+  testthat::expect_false(rlang::has_name(result, "polity_frac"))
+  # 2. No padding row: the crosswalk-only cell is NOT carried, and every row is
+  #    a real polycell the intersection measured.
+  testthat::expect_false(any(result$coverage_status == "crosswalk_only"))
+  testthat::expect_equal(nrow(dplyr::filter(result, .data$lon == 99.75)), 0L)
+  testthat::expect_false(anyNA(result$polity_code))
+  testthat::expect_false(anyNA(result$polycell_id))
+  # 3. The padding was the reason an unfiltered sum used to return NA. It no
+  #    longer does, which is the property a consumer actually relies on.
+  testthat::expect_false(is.na(sum(result$land_area_ha)))
+  testthat::expect_gt(sum(result$land_area_ha), 0)
+  # 4. `cell_area_ha` is NOT shim and must survive: `build_n_deposition()`
+  #    divides the cell mass by it and the carbon support carries it.
+  testthat::expect_true(rlang::has_name(result, "cell_area_ha"))
+  # 5. The projection function is gone from the namespace, so a consumer that
+  #    still calls it fails loudly instead of finding a stale export.
+  testthat::expect_false("polycell_shim_view" %in% getNamespaceExports("whep"))
 })
 
 testthat::test_that("both footprints are emitted and reconciled", {
@@ -2388,8 +2398,9 @@ testthat::test_that("terra measures a collection the same either way", {
 #
 # `end_year` is EXCLUSIVE at a succession and INCLUSIVE at the open end. The
 # producer had kept the uniformly exclusive read at three sites, so
-# `expand_polycell_years(..., <domain end>)` returned nothing, the shim
-# attached no `polity_frac` and the footprint reconciliation came back empty.
+# `expand_polycell_years(..., <domain end>)` returned nothing, the shim (then
+# still live) attached no `polity_frac` and the footprint reconciliation came
+# back empty.
 #
 # These blocks assert the PROPERTY over every year of a fixture built to carry
 # every shape the rule has to survive, not a handful of named years. The
@@ -2696,15 +2707,20 @@ testthat::test_that("the producer and the polity resolver agree on the year", {
   )
 })
 
-testthat::test_that("the shim attaches on a crosswalk year at the open end", {
+testthat::test_that("the footprint resolves a crosswalk year at the open end", {
   testthat::skip_if_not_installed("sf")
 
-  # `.pcs_add_shim()` and `.pcs_polycell_footprint()` resolve
-  # `data$crosswalk_year` the same way. Under the uniformly exclusive read a
-  # crosswalk describing the domain end attached to NOTHING: every crosswalk
-  # row fell through to `crosswalk_only` and the footprint reconciliation --
-  # the diagnostic that exists to measure the migration's movement -- came back
-  # empty while still reporting a row for itself.
+  # `.pcs_polycell_footprint()` resolves `data$crosswalk_year` with the
+  # package's own predicate. Under the uniformly exclusive read a crosswalk
+  # describing the domain end matched NOTHING, so the footprint reconciliation
+  # -- the diagnostic that exists to measure the migration's movement -- came
+  # back empty while still reporting a row for itself.
+  #
+  # Before C9 this block also pinned the shim's `polity_frac` attachment and
+  # its `crosswalk_only` padding; both are gone, so what is left is the year
+  # resolution and the requirement that a crosswalk cell the intersection
+  # cannot reproduce stays OUT of the polycell footprint. That is now the only
+  # thing keeping the reconciliation from agreeing with itself by construction.
   geometries <- pcs_da24_geometries()
   base <- whep::build_polycell_support(years = 2015L, geometries = geometries)
   crosswalk <- base |>
@@ -2714,8 +2730,7 @@ testthat::test_that("the shim attaches on a crosswalk year at the open end", {
         dplyr::first(.data$cell_area_ha),
       .by = c("lon", "lat", "area_code")
     ) |>
-    # two cells the intersection cannot reproduce, so the crosswalk-only path
-    # is live and can be seen NOT to leak into the polycell footprint
+    # two cells the intersection cannot reproduce
     dplyr::bind_rows(tibble::tibble(
       lon = c(-179.75, -179.25),
       lat = c(-89.75, -89.25),
@@ -2732,39 +2747,44 @@ testthat::test_that("the shim attaches on a crosswalk year at the open end", {
   mid <- built(2015L)
   at_end <- built(2025L)
 
-  testthat::expect_gt(sum(!is.na(mid$polity_frac)), 0L)
-  testthat::expect_equal(
-    sum(!is.na(at_end$polity_frac)),
-    sum(!is.na(mid$polity_frac))
-  )
-  testthat::expect_equal(sum(mid$coverage_status == "crosswalk_only"), 2L)
-  testthat::expect_equal(
-    sum(at_end$coverage_status == "crosswalk_only"),
-    sum(mid$coverage_status == "crosswalk_only")
-  )
+  # No crosswalk column and no padding row, on either year.
+  testthat::expect_false(rlang::has_name(mid, "polity_frac"))
+  testthat::expect_false(rlang::has_name(at_end, "polity_frac"))
+  testthat::expect_false(any(mid$coverage_status == "crosswalk_only"))
+  testthat::expect_false(any(at_end$coverage_status == "crosswalk_only"))
+  testthat::expect_equal(nrow(at_end), nrow(mid))
+
   polycell_row <- \(x) {
     fp <- attr(x, "footprints")
     fp[fp$footprint == "polycell", c("rows", "cells")]
   }
   testthat::expect_equal(polycell_row(at_end), polycell_row(mid))
   # The footprint is the POLYCELLS covering the year, and nothing else: the two
-  # crosswalk-only cells must not be counted into it.
+  # unreproducible crosswalk cells must not be counted into it.
   testthat::expect_equal(
     polycell_row(mid)$rows,
     nrow(dplyr::distinct(base, .data$lon, .data$lat, .data$area_code))
   )
   testthat::expect_gt(polycell_row(at_end)$rows, 0L)
+  # And they ARE still reported, as a footprint disagreement rather than as
+  # rows of the support -- otherwise the removal would have lost information
+  # rather than moved it.
+  diff <- attr(mid, "footprint_diff")
+  testthat::expect_setequal(
+    dplyr::filter(diff, !.data$polycell)$area_code,
+    c(9001L, 9002L)
+  )
 })
 
-testthat::test_that("the shim's own padding never defines the open end", {
+testthat::test_that("an unreproducible crosswalk cell adds no row at all", {
   testthat::skip_if_not_installed("sf")
 
-  # `.pcs_append_crosswalk_only()` pins its rows to
-  # `[crosswalk_year, crosswalk_year + 1)`. With `crosswalk_year` one year
-  # short of the domain end that synthetic window ENDS on the domain end, so
-  # counting it would move the table's coverage past the real intervals and
-  # close every one of them. The padding carries no `polity_code`, which is
-  # what keeps it out of both the domain and the open-end test.
+  # C9's sharpest padding case, kept as a regression. `.pcs_append_crosswalk_
+  # only()` pinned its rows to `[crosswalk_year, crosswalk_year + 1)`, so with
+  # `crosswalk_year` one year short of the domain end the synthetic window
+  # ENDED on the domain end. Only its NA `polity_code` kept it from moving the
+  # table's coverage past the real intervals and closing every one of them.
+  # With the padding gone the hazard is structural rather than guarded.
   geometries <- pcs_da24_geometries()
   crosswalk <- tibble::tibble(
     lon = c(-179.75, -179.25),
@@ -2772,22 +2792,36 @@ testthat::test_that("the shim's own padding never defines the open end", {
     area_code = c(9001L, 9002L),
     polity_frac = c(0.5, 1)
   )
+  bare <- whep::build_polycell_support(geometries = geometries)
   support <- whep::build_polycell_support(
     geometries = geometries,
     data = list(crosswalk = crosswalk, crosswalk_year = 2024L)
   )
-  padding <- dplyr::filter(support, .data$coverage_status == "crosswalk_only")
-  testthat::expect_equal(nrow(padding), 2L)
+  # Supplying the crosswalk changes no row and no VALUE of the support at all;
+  # it only adds the DA-12 footprint diagnostics, which ride as attributes.
+  # Compared as frames these two would differ on those attributes alone, which
+  # is not what this block is about, so the comparison is column by column.
+  testthat::expect_identical(names(support), names(bare))
+  testthat::expect_identical(nrow(support), nrow(bare))
+  purrr::walk(names(bare), \(nm) {
+    testthat::expect_identical(support[[nm]], bare[[nm]], info = nm)
+  })
+  # ... and the footprint diagnostics ARE the difference, so the crosswalk is
+  # doing something and this is not a comparison of two identical calls.
+  testthat::expect_null(attr(bare, "footprints"))
+  testthat::expect_equal(nrow(attr(support, "footprints")), 2L)
+  testthat::expect_false(any(support$coverage_status == "crosswalk_only"))
+  testthat::expect_false(anyNA(support$polity_code))
   testthat::expect_equal(max(support$end_year), 2025L)
-  testthat::expect_true(all(is.na(padding$polity_code)))
 
   # The real intervals still resolve on the domain end ...
   at_end <- whep::expand_polycell_years(support, 2025L)
   testthat::expect_gt(nrow(at_end), 0L)
   testthat::expect_true(all(!is.na(at_end$polity_code)))
-  # ... and the padding covers 2024 only, never 2025.
+  # ... and 2024 carries no polity-less row for the padding to have been.
   in_2024 <- whep::expand_polycell_years(support, 2024L)
-  testthat::expect_equal(sum(is.na(in_2024$polity_code)), 2L)
+  testthat::expect_equal(sum(is.na(in_2024$polity_code)), 0L)
+  testthat::expect_gt(nrow(in_2024), 0L)
 })
 
 testthat::test_that("the open-end key is the cell and the polity family", {
@@ -2845,12 +2879,18 @@ testthat::test_that("the open-end key is the cell and the polity family", {
   )
   testthat::expect_equal(covered(2026L), character())
 
-  # The polity-less row is the shim's padding: it can never be open, and its
-  # `end_year` must not define the domain either. Pushed one year past every
-  # real interval it takes `max(end_year)` with it, and if it were counted the
-  # real intervals would no longer reach the end and every one of them would
-  # close. They must not: the padding still covers 2025 here, but only because
-  # its own half-open window plainly does.
+  # The polity-less row can never be open, and its `end_year` must not define
+  # the domain either. Pushed one year past every real interval it takes
+  # `max(end_year)` with it, and if it were counted the real intervals would no
+  # longer reach the end and every one of them would close. They must not: the
+  # polity-less row still covers 2025 here, but only because its own half-open
+  # window plainly does.
+  #
+  # Until C9 the DA-13 shim's `crosswalk_only` padding was the only thing that
+  # produced such a row. The padding is gone, and this fixture is why the
+  # `!is.na(polity_code)` guard in `.pcs_open_intervals()` stayed: `polity_code`
+  # is taken from the geometry source as supplied, and `.pcs_open_intervals()`
+  # is called on tables the caller builds.
   padded <- dplyr::mutate(
     tbl,
     end_year = dplyr::if_else(is.na(.data$polity_code), 2026L, .data$end_year)

@@ -40,17 +40,20 @@
 #'   geodesic intersection.
 #' @param data Optional named list of auxiliary layers: `luh2` the validation
 #'   layer (`lon`, `lat`, `terrestrial_ha`, e.g. [read_luh2_terrestrial()]);
-#'   `crosswalk` the deployed [build_cell_polity()] table carrying the
-#'   transitional `polity_frac`; `producer_crosswalk` a freshly built
-#'   `build_cell_polity_fraction()` table; and `crosswalk_year`, the year whose
-#'   polycells the crosswalk's present-day geometry describes (default 2015).
+#'   `crosswalk` the deployed [build_cell_polity()] table; `producer_crosswalk`
+#'   a freshly built `build_cell_polity_fraction()` table; and
+#'   `crosswalk_year`, the year whose polycells the crosswalk's present-day
+#'   geometry describes (default 2015). The two crosswalks are read **only** by
+#'   the DA-12 footprint reconciliation: no crosswalk column is carried into
+#'   the output, and no crosswalk row the intersection did not reproduce is
+#'   appended to it.
 #'
 #' @return A `tibble` whose columns are a superset of `polycell_id`, `cell_id`,
 #'   `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 #'   `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 #'   `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-#'   `coverage_status`, `area_engine`, `luh2_vintage` and the transitional
-#'   `polity_frac`, plus `year` when `years` is supplied. `area_engine` is
+#'   `coverage_status`, `area_engine` and `luh2_vintage`, plus `year` when
+#'   `years` is supplied. `area_engine` is
 #'   `"s2"` except on the pieces the spherical engine cannot read back, which
 #'   are measured with `terra::expanse()` rather than dropped. Diagnostics ride
 #'   as attributes:
@@ -76,12 +79,12 @@
 #'   is the difference between 1,343 clamped polycells over all epochs and 94 in
 #'   2015.
 #'
-#'   When `data$crosswalk` is supplied the table also carries the crosswalk rows
-#'   the intersection did not reproduce, so the transitional shim stays
-#'   row-complete. Those rows have `coverage_status == "crosswalk_only"` and
-#'   carry **`NA`** in every area column, `polity_code` and `polycell_id`, so an
-#'   unfiltered `sum(land_area_ha)` over the output returns `NA`. Filter them
-#'   out before aggregating, as [polycell_shim_view()] and every diagnostic do.
+#'   Every row is a real polycell: `polity_code`, `polycell_id` and the area
+#'   columns are populated on all of them, so `sum(land_area_ha)` over the
+#'   output is the land the intersection measured. The DA-13 transition, which
+#'   padded the table with the crosswalk rows the intersection did not
+#'   reproduce and carried `polity_frac` alongside, ended with C9; the
+#'   footprint diagnostics below are where that disagreement is now reported.
 #' @export
 #'
 #' @examples
@@ -200,60 +203,6 @@ expand_polycell_years <- function(support, years) {
         dplyr::mutate(year = yr, .after = "area_code")
     }) |>
     dplyr::bind_rows()
-}
-
-#' View the polycell support as today's cell-polity crosswalk
-#'
-#' @description
-#' Returns the transitional shim: the `lon`, `lat`, `area_code`, `polity_frac`
-#' and `cell_area_ha` columns a consumer of [build_cell_polity()] reads today.
-#' Under the interim geometry this reproduces that crosswalk bit-for-bit, so
-#' consumers migrate to the polycell columns one at a time instead of all on
-#' the commit that reshapes the shared object. The shim is a transition device
-#' with a scheduled removal, not a permanent contract.
-#'
-#' @param support A [build_polycell_support()] table built with
-#'   `data$crosswalk` supplied.
-#'
-#' @return A `tibble` with `lon`, `lat`, `area_code`, `polity_frac` and
-#'   `cell_area_ha`.
-#' @export
-#'
-#' @examples
-#' if (requireNamespace("sf", quietly = TRUE)) {
-#'   build_polycell_support(
-#'     years = 2015L,
-#'     geometries = polycell_example_geometries(),
-#'     data = list(
-#'       crosswalk = tibble::tibble(
-#'         lon = c(10.25, 10.75, 11.25),
-#'         lat = 45.25,
-#'         area_code = 11L,
-#'         polity_frac = 1
-#'       )
-#'     )
-#'   ) |>
-#'     polycell_shim_view()
-#' }
-polycell_shim_view <- function(support) {
-  .pcs_require_cols(
-    support,
-    c("lon", "lat", "area_code", "polity_frac", "cell_area_ha"),
-    "support"
-  )
-  out <- support |>
-    dplyr::filter(!is.na(.data$polity_frac)) |>
-    dplyr::distinct(
-      .data$lon,
-      .data$lat,
-      .data$area_code,
-      .data$polity_frac,
-      .data$cell_area_ha
-    )
-  # The shim is a drop-in for `build_cell_polity()`, so it must not carry the
-  # producer's diagnostics: dplyr copies user attributes onto every derived
-  # frame, and a consumer comparing its result would see them.
-  .pcs_strip_diagnostics(out)
 }
 
 # -- Geometry source ----------------------------------------------------------
@@ -832,12 +781,15 @@ polycell_shim_view <- function(support) {
 #
 # What is decided HERE is the two things the predicate needs from THIS table.
 #
-# THE DOMAIN. A row with no `polity_code` is the shim's crosswalk-only padding
-# (`.pcs_append_crosswalk_only()`), carried so an unmigrated consumer still
-# sees every row it sees today. Its `[crosswalk_year, crosswalk_year + 1)`
-# window is a synthetic pin, not a validity interval: it can never be open, and
-# it must not be allowed to sit at `max(end_year)` and move the domain end off
-# the year the real intervals actually reach.
+# THE DOMAIN. Only a row with a `polity_code` can be open. Until C9 the shim's
+# `crosswalk_only` padding was the one thing that produced rows without one,
+# and its synthetic `[crosswalk_year, crosswalk_year + 1)` window could not be
+# allowed to sit at `max(end_year)` and move the domain end off the year the
+# real intervals reach. The padding is gone, but the guard is kept and is not
+# vacuous: `polity_code` is taken from the geometry source as supplied
+# (`.pcs_prepare_polities()` coerces, it does not require non-NA), so an NA
+# there must still be excluded from the succession rather than pasted into a
+# key, where it would stringify and collapse every such row into one group.
 #
 # THE GROUP is the physical cell plus the polity FAMILY -- the two things that
 # do NOT change when one epoch succeeds another. Getting it wrong is silent in
@@ -960,7 +912,6 @@ polycell_shim_view <- function(support) {
 # EA10 required this disagreement handled explicitly rather than absorbed.
 .pcs_water_unmatched <- function(support, water) {
   covered <- support |>
-    dplyr::filter(.data$coverage_status != "crosswalk_only") |>
     dplyr::distinct(
       .data$lon,
       .data$lat,
@@ -1006,7 +957,6 @@ polycell_shim_view <- function(support) {
       luh2_vintage = .pcs_luh2_vintage(data$luh2)
     ) |>
     .pcs_add_split_method() |>
-    .pcs_add_shim(data) |>
     dplyr::select(
       dplyr::all_of(.pcs_output_cols()),
       dplyr::everything()
@@ -1053,88 +1003,34 @@ polycell_shim_view <- function(support) {
     "split_method",
     "coverage_status",
     "area_engine",
-    "luh2_vintage",
-    "polity_frac"
+    "luh2_vintage"
   )
 }
 
-# -- The transitional shim ----------------------------------------------------
-
-# The crosswalk is a present-day product with no epochs, so its `polity_frac`
-# is attached only to the intervals covering the year it describes. Everything
-# else carries NA, and `polycell_shim_view()` drops those rows, which is what
-# makes the shim reproduce the crosswalk exactly instead of approximately.
+# -- The DA-13 transitional shim, removed at C9 -------------------------------
 #
-# "Covering" is the package convention, not a plain half-open test: a crosswalk
-# describing the last year the polities reach must attach to the polity that is
-# still open there, or the whole crosswalk falls through to
-# `.pcs_append_crosswalk_only()` and the shim degenerates to a copy of its own
-# input. The join runs first because it can duplicate a row, and the flag has
-# to be aligned to the rows the mutate actually sees.
-.pcs_add_shim <- function(pieces, data) {
-  crosswalk <- data$crosswalk
-  if (is.null(crosswalk)) {
-    pieces$polity_frac <- rep(NA_real_, nrow(pieces))
-    return(pieces)
-  }
-  .pcs_require_cols(
-    crosswalk,
-    c("lon", "lat", "area_code", "polity_frac"),
-    "data$crosswalk"
-  )
-  yr <- as.integer(data$crosswalk_year %||% 2015L)
-  joined <- dplyr::left_join(
-    pieces,
-    dplyr::distinct(
-      crosswalk,
-      .data$lon,
-      .data$lat,
-      .data$area_code,
-      .data$polity_frac
-    ),
-    by = c("lon", "lat", "area_code")
-  )
-  joined |>
-    dplyr::mutate(
-      polity_frac = dplyr::if_else(
-        .pcs_covers_year(joined, yr),
-        .data$polity_frac,
-        NA_real_
-      )
-    ) |>
-    .pcs_append_crosswalk_only(crosswalk, yr)
-}
-
-# Crosswalk rows the intersection did not reproduce are appended so the shim
-# view stays row-complete: an unmigrated consumer must see exactly the rows it
-# sees today, and a missing row is a silent change of its result.
-.pcs_append_crosswalk_only <- function(pieces, crosswalk, yr) {
-  extra <- crosswalk |>
-    dplyr::distinct(
-      .data$lon,
-      .data$lat,
-      .data$area_code,
-      .data$polity_frac
-    ) |>
-    dplyr::anti_join(
-      dplyr::filter(pieces, !is.na(.data$polity_frac)),
-      by = c("lon", "lat", "area_code")
-    )
-  if (nrow(extra) == 0L) {
-    return(pieces)
-  }
-  dplyr::bind_rows(
-    pieces,
-    dplyr::mutate(
-      extra,
-      cell_area_ha = .cell_area_ha_lat(.data$lat),
-      start_year = yr,
-      end_year = yr + 1L,
-      coverage_status = "crosswalk_only",
-      split_method = "crosswalk_only"
-    )
-  )
-}
+# `.pcs_add_shim()` and `.pcs_append_crosswalk_only()` lived here. Together they
+# made this table readable as `build_cell_polity()`'s: the first joined the
+# deployed crosswalk's `polity_frac` onto the intervals covering the crosswalk's
+# year, the second appended the crosswalk rows the intersection did not
+# reproduce as `coverage_status == "crosswalk_only"` padding, and
+# `polycell_shim_view()` projected the pair back out. That let each consumer
+# migrate on its own commit while every unmigrated one stayed provably
+# unchanged, which is the only reason the movement of C3a, C3b, C5, C7 and C8
+# could be attributed to a commit each.
+#
+# All three are gone, and none should return. The padding is the reason
+# `sum(land_area_ha)` over this table used to be `NA`, and the reason four
+# diagnostics and the domain rule each carried their own `crosswalk_only`
+# guard; `cell_area_ha` STAYS, because it is not shim -- it is the cell's own
+# area, which `build_n_deposition()` divides the cell mass by to form
+# `deposition_kgn_ha` and the carbon support carries through
+# `.carbon_support_to_area_code()`.
+#
+# `data$crosswalk` and `data$crosswalk_year` are still read, by
+# `.pcs_footprints()` and `.pcs_footprint_diff()` alone (DA-12). That is a
+# reconciliation of three footprints, not a shim: it reports the disagreement
+# instead of papering over it with padding rows.
 
 # -- Diagnostics --------------------------------------------------------------
 
@@ -1185,7 +1081,6 @@ polycell_shim_view <- function(support) {
 # the double count is visible where it lands rather than buried in a total.
 .pcs_overlap <- function(support) {
   support |>
-    dplyr::filter(.data$coverage_status != "crosswalk_only") |>
     dplyr::summarise(
       territory_ha = sum(.data$polity_area_ha),
       polities = dplyr::n(),
@@ -1424,17 +1319,17 @@ polycell_shim_view <- function(support) {
 # against them would count a cell once per epoch and make the reconciliation
 # meaningless: on the shipped table that is 129,047 rows against 68,527.
 #
-# Dropping the crosswalk-only rows first is what keeps the SHIM's own padding
-# out of the polycell footprint; keeping it out of the DOMAIN is a separate
-# guard, inside `.pcs_open_intervals()`. The two are independent and both are
-# needed. `distinct()` below means a wrongly OPENED interval could not
-# double-count here -- the risk this diagnostic runs is the other one, a
-# wrongly CLOSED interval dropping a cell from the footprint and manufacturing
-# the very disagreement against the two crosswalks that it exists to measure.
+# Until C9 this also had to drop the shim's `crosswalk_only` padding, or the
+# polycell footprint would have contained the very crosswalk rows it is
+# measured against and agreed with itself by construction. The padding is gone,
+# so only the year filter remains. `distinct()` below means a wrongly OPENED
+# interval could not double-count here -- the risk this diagnostic runs is the
+# other one, a wrongly CLOSED interval dropping a cell from the footprint and
+# manufacturing the very disagreement against the two crosswalks that it exists
+# to measure.
 .pcs_polycell_footprint <- function(support, data) {
   yr <- as.integer(data$crosswalk_year %||% 2015L)
-  live <- dplyr::filter(support, .data$coverage_status != "crosswalk_only")
-  live[which(.pcs_covers_year(live, yr)), , drop = FALSE] |>
+  support[which(.pcs_covers_year(support, yr)), , drop = FALSE] |>
     dplyr::distinct(.data$lon, .data$lat, .data$area_code)
 }
 
@@ -1488,7 +1383,6 @@ polycell_shim_view <- function(support) {
 .pcs_unassigned <- function(support, luh2) {
   .pcs_require_cols(luh2, c("lon", "lat", "terrestrial_ha"), "data$luh2")
   claimed <- support |>
-    dplyr::filter(.data$coverage_status != "crosswalk_only") |>
     dplyr::summarise(
       claimed_land_ha = sum(.data$land_area_ha),
       .by = c("lon", "lat", "start_year", "end_year")
@@ -1601,12 +1495,12 @@ polycell_shim_view <- function(support) {
   })
 }
 
-.pcs_strip_diagnostics <- function(out) {
-  purrr::reduce(.pcs_diagnostic_names(), .init = out, \(acc, nm) {
-    attr(acc, nm) <- NULL
-    acc
-  })
-}
+# `.pcs_strip_diagnostics()` lived here until C9. Its only caller was
+# `polycell_shim_view()`, which had to hand a consumer a table indistinguishable
+# from `build_cell_polity()`'s: dplyr copies user attributes onto every derived
+# frame, so an unstripped shim leaked the producer's diagnostics into a
+# comparison that had nothing to do with them. With the shim gone the producer's
+# own table is the only thing it returns, and its diagnostics belong on it.
 
 .pcs_diagnostic_names <- function() {
   c(

@@ -1299,7 +1299,11 @@ build_carbon_balance <- function(
 }
 
 # Rows the reporting vocabulary cannot express: no `area_code`, or no measured
-# land (the `"crosswalk_only"` rows the shim carries, which are NA throughout).
+# land. The second case was the DA-13 shim's `"crosswalk_only"` padding, which
+# was NA throughout; C9 removed the padding, so `build_polycell_support()` no
+# longer produces it, but the guard stays because this function takes a support
+# from the caller and an NA land area silently deletes one polity's claim while
+# the rest of the cell still looks like a complete partition.
 .carbon_drop_unkeyed <- function(support) {
   keep <- !is.na(support$area_code) & !is.na(support$land_area_ha)
   if (!all(keep)) {

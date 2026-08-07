@@ -230,9 +230,10 @@ spatialize_country_n_to_crops <- function(
 
 # A share needs a finite, non-negative land area on every row. An `NA` would
 # delete one polity's claim while leaving the rest of the cell looking like a
-# complete partition -- and `NA` is exactly what a `coverage_status ==
-# "crosswalk_only"` row of the transitional shim carries, so this is the guard
-# that stops that padding from being weighted as if it were territory.
+# complete partition. `NA` was exactly what a `coverage_status ==
+# "crosswalk_only"` row of the DA-13 shim carried; C9 removed that padding, so
+# `build_polycell_support()` no longer emits any, but the guard stays because
+# the support comes from the caller and the failure it catches is invisible.
 .n_check_land_values <- function(support) {
   land <- support$land_area_ha
   if (!is.numeric(land) || anyNA(land) || any(!is.finite(land) | land < 0)) {

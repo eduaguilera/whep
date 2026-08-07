@@ -35,18 +35,21 @@ geodesic intersection.}
 
 \item{data}{Optional named list of auxiliary layers: \code{luh2} the validation
 layer (\code{lon}, \code{lat}, \code{terrestrial_ha}, e.g. \code{\link[=read_luh2_terrestrial]{read_luh2_terrestrial()}});
-\code{crosswalk} the deployed \code{\link[=build_cell_polity]{build_cell_polity()}} table carrying the
-transitional \code{polity_frac}; \code{producer_crosswalk} a freshly built
-\code{build_cell_polity_fraction()} table; and \code{crosswalk_year}, the year whose
-polycells the crosswalk's present-day geometry describes (default 2015).}
+\code{crosswalk} the deployed \code{\link[=build_cell_polity]{build_cell_polity()}} table; \code{producer_crosswalk}
+a freshly built \code{build_cell_polity_fraction()} table; and
+\code{crosswalk_year}, the year whose polycells the crosswalk's present-day
+geometry describes (default 2015). The two crosswalks are read \strong{only} by
+the DA-12 footprint reconciliation: no crosswalk column is carried into
+the output, and no crosswalk row the intersection did not reproduce is
+appended to it.}
 }
 \value{
 A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
 \code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
 \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
 \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
-\code{coverage_status}, \code{area_engine}, \code{luh2_vintage} and the transitional
-\code{polity_frac}, plus \code{year} when \code{years} is supplied. \code{area_engine} is
+\code{coverage_status}, \code{area_engine} and \code{luh2_vintage}, plus \code{year} when
+\code{years} is supplied. \code{area_engine} is
 \code{"s2"} except on the pieces the spherical engine cannot read back, which
 are measured with \code{terra::expanse()} rather than dropped. Diagnostics ride
 as attributes:
@@ -72,12 +75,12 @@ interest counts the same cell once per epoch. On the shipped polities that
 is the difference between 1,343 clamped polycells over all epochs and 94 in
 2015.
 
-When \code{data$crosswalk} is supplied the table also carries the crosswalk rows
-the intersection did not reproduce, so the transitional shim stays
-row-complete. Those rows have \code{coverage_status == "crosswalk_only"} and
-carry \strong{\code{NA}} in every area column, \code{polity_code} and \code{polycell_id}, so an
-unfiltered \code{sum(land_area_ha)} over the output returns \code{NA}. Filter them
-out before aggregating, as \code{\link[=polycell_shim_view]{polycell_shim_view()}} and every diagnostic do.
+Every row is a real polycell: \code{polity_code}, \code{polycell_id} and the area
+columns are populated on all of them, so \code{sum(land_area_ha)} over the
+output is the land the intersection measured. The DA-13 transition, which
+padded the table with the crosswalk rows the intersection did not
+reproduce and carried \code{polity_frac} alongside, ended with C9; the
+footprint diagnostics below are where that disagreement is now reported.
 }
 \description{
 Produce WHEP's canonical spatial support unit, the \strong{polycell}: a

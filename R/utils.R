@@ -283,7 +283,6 @@ utils::globalVariables(
     "cell_area_ha",
     "grass_avail_dm_t_ha",
     "grass_avail_dm_t",
-    "polity_frac",
     "total",
     "grass_npp",
     "leftover",
