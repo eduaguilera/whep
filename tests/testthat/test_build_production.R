@@ -145,6 +145,111 @@ test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
 })
 
 
+# -- EU AgriDB region crosswalk ------------------------------------------------
+
+# `.read_fodder_euadb()` resolves the source's `Region` through
+# `regions_full$ADB_Region`. A missing key leaves `area_code` NA and
+# `.fill_fodder_gaps()`'s `dt[!is.na(area)]` then discards the rows in silence,
+# so the country falls back to the dry-matter-yield estimator while its peers
+# use the source. `AT` and `GB` were missing, costing 2030 rows -- 8.8% of the
+# input -- for Austria and the United Kingdom over 1961-2019 (#585).
+#
+# The 28 codes are the distinct `Region` values of the `eu-agridb-fodder` pin,
+# read on 2026-08-07. They are listed here rather than read from the pin so
+# the check stays offline; a region the pin adds later is caught at runtime by
+# `.warn_unmapped_adb_regions()` instead.
+
+test_that("regions_full keys every EU AgriDB region, incl. AT and GB", {
+  euadb_regions <- c(
+    "AT",
+    "BE",
+    "BE_LU",
+    "BG",
+    "CZ",
+    "CZ_SK",
+    "DE",
+    "DK",
+    "EE",
+    "ES",
+    "FI",
+    "FR",
+    "GB",
+    "GR",
+    "HR",
+    "HU",
+    "IE",
+    "IT",
+    "LT",
+    "LU",
+    "LV",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SE",
+    "SI",
+    "SK"
+  )
+  keys <- whep::regions_full$ADB_Region
+
+  expect_equal(setdiff(euadb_regions, keys), character(0))
+
+  austria <- whep::regions_full |>
+    dplyr::filter(.data$ADB_Region == "AT")
+  expect_equal(austria$polity_code, "AUT")
+  expect_equal(austria$code, 11L)
+
+  uk <- whep::regions_full |>
+    dplyr::filter(.data$ADB_Region == "GB")
+  expect_equal(uk$polity_code, "GBR")
+  expect_equal(uk$code, 229L)
+})
+
+test_that("an ADB region resolving to no area warns and is named", {
+  euadb <- tibble::tribble(
+    ~adb_region, ~area_code,
+    "XX",        NA_integer_,
+    "XX",        NA_integer_,
+    "FR",        68L
+  )
+
+  expect_warning(
+    result <- whep:::.warn_unmapped_adb_regions(euadb),
+    "XX"
+  )
+  # the warning names how many rows go, and passes the table through untouched
+  expect_warning(whep:::.warn_unmapped_adb_regions(euadb), "2 fodder rows")
+  expect_equal(result, euadb)
+})
+
+test_that(".read_fodder_euadb warns on a region it cannot resolve", {
+  # The warning is only useful if the reader is actually wired to it, so drive
+  # the reader itself over a stubbed pin rather than the helper alone.
+  fake_pin <- tibble::tribble(
+    ~Region, ~Crop,   ~Year, ~Value, ~Label,           ~Unit,
+    "FR",    "G3000", 2000L, 1.0,    "Harvested area", "Mha",
+    "ZZ",    "G3000", 2000L, 2.0,    "Harvested area", "Mha"
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(...) fake_pin
+  )
+
+  expect_warning(result <- whep:::.read_fodder_euadb(), "ZZ")
+  expect_equal(result$area_code, c(68L, NA_integer_))
+})
+
+test_that("a fully mapped ADB table passes through without a warning", {
+  euadb <- tibble::tribble(
+    ~adb_region, ~area_code,
+    "FR",        68L,
+    "DE",        79L
+  )
+
+  expect_no_warning(result <- whep:::.warn_unmapped_adb_regions(euadb))
+  expect_equal(result, euadb)
+})
+
+
 # -- combine_primary -----------------------------------------------------------
 
 test_that(".combine_primary_raw aggregates and keeps item_prod columns", {

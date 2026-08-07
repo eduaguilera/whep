@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **EU AgriDB fodder now reaches Austria and the United Kingdom.**
+  `.read_fodder_euadb()` resolves the source's `Region` through
+  `regions_full$ADB_Region`, and that column had a key for 26 of the pin's 28
+  regions: `AT` and `GB` were missing, so 2030 rows (8.8% of the input,
+  1961-2019) resolved to no area and were discarded without a message. Those
+  two countries had their fodder estimated from dry-matter yields
+  (`source = "DM_yield_estimate"`) while their 26 EU peers used the source.
+  Adding the two keys moves published values for area codes 11 and 229 only,
+  and for no other area: harvested-area totals over 1850-2023 rise 6.4%
+  (Austria) and 14.0% (United Kingdom), fodder tonnage 33.4% and 65.7%; the
+  global harvested-area total moves +0.07% and global tonnage +1.2%. Fodder
+  production is copied one-for-one into `feed` by `.primary_to_cbs()`, so
+  those areas' `feed` moves by the same tonnage. A region the source adds in
+  future that `regions_full` does not key now raises a warning naming it,
+  instead of vanishing (#585).
+
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
   instead of building 1850-2023 and discarding the rest. Measured for 2010:

@@ -754,6 +754,7 @@ build_primary_production <- function(
       area_bridge,
       by = "polity_code"
     ) |>
+    .warn_unmapped_adb_regions() |>
     dplyr::select(-polity_code) |>
     dplyr::select(
       year,
@@ -764,6 +765,31 @@ build_primary_production <- function(
       Unit,
       value = Value
     )
+}
+
+# EU AgriDB rows that resolve to no WHEP area are dropped without trace by
+# `.fill_fodder_gaps()`'s `dt[!is.na(area)]`, and the affected country then
+# gets its fodder estimated from dry-matter yields while its peers use the
+# source -- with nothing in the output saying so. That is how Austria and the
+# United Kingdom lost 2030 rows, 8.8% of the input (#585). Name the gap.
+.warn_unmapped_adb_regions <- function(euadb) {
+  unmapped <- euadb |>
+    dplyr::filter(is.na(.data$area_code)) |>
+    dplyr::count(.data$adb_region)
+  if (nrow(unmapped) == 0L) {
+    return(euadb)
+  }
+  regions <- unmapped$adb_region
+  dropped <- sum(unmapped$n)
+  cli::cli_warn(c(
+    "!" = "{length(regions)} EU AgriDB region{?s} resolve{?s/} to no WHEP
+      area, so {dropped} fodder row{?s} will be dropped.",
+    "*" = "Unmapped {.field ADB_Region}: {.val {regions}}.",
+    "i" = "Add the key in
+      {.file inst/extdata/harmonization/regions_full.csv}, then rerun
+      {.file data-raw/harmonization_tables.R}."
+  ))
+  euadb
 }
 
 .compute_dm_yield <- function(fao_crop_liv, items_prod, biomass) {
