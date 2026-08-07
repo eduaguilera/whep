@@ -134,6 +134,26 @@
   carry a non-zero default and warning about those would fire on
   ordinary runs.
 
+- **The FABIO comparison’s EU aggregate is derived, and now covers the
+  dissolved predecessors.** `inst/scripts/compare_fabio_footprints.R`
+  carried a 28-element ISO3 literal for EU28. It is now built by
+  `.eu_aggregate_iso3()` from the published `regions_full$EU27` flag
+  plus `GBR`, the one membership fact no table in the package states,
+  selected through the new `WHEP_EU_AGGREGATE` environment variable
+  (`"eu28_territory"`, the default, `"eu27_territory"`, `"eu28_states"`,
+  `"eu27_states"`). The literal omitted `BLX` (Belgium-Luxembourg) and
+  `CSK` (Czechoslovakia), under which FABIO *and* WHEP’s own CBS both
+  book Belgium, Luxembourg, Czechia and Slovakia before those
+  successions, so all four read as exactly zero in the 1986 benchmark
+  year on both sides of the comparison and normally in 2000 and 2013.
+  **This moves a published number:** the FABIO EU land footprint for
+  1986 goes from 210.4 Mha to 222.7 Mha (+12.3 Mha, +5.9%); 2000 and
+  2013 are bit-identical, because the predecessors carry no demand
+  there. `WHEP_EU_AGGREGATE=eu28_states` reproduces the old list, and
+  the old numbers, exactly. Whether the comparison should report EU28 or
+  EU27 at all is left open
+  ([\#421](https://github.com/eduaguilera/whep/issues/421)).
+
 - **[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   and
