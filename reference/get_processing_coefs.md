@@ -7,10 +7,17 @@ items.
 ## Usage
 
 ``` r
-get_processing_coefs(example = FALSE)
+get_processing_coefs(years = NULL, example = FALSE)
 ```
 
 ## Arguments
+
+- years:
+
+  Optional integer vector of years to build. When `NULL` (default) the
+  whole series is built. Supplying a window builds only that range
+  rather than building 1850-2023 and discarding the rest, and caches it
+  under a window-specific key.
 
 - example:
 

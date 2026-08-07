@@ -2,6 +2,43 @@
 
 ## whep (development version)
 
+- **[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
+  and
+  [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
+  take a `years` argument.** A scoped request now builds only that
+  window instead of building 1850-2023 and discarding the rest. Measured
+  for 2010: wide CBS 256 s / 23.3 GB peak to 12.6 s / 6.8 GB, primary
+  production 168 s / 14.7 GB to 29.5 s / 2.9 GB. The full wide-CBS build
+  peaking above 16 GB is what had been failing the r-universe check on
+  macOS and Linux. `years = NULL` is unchanged in every respect,
+  including its cache slot, so existing callers keep today’s behaviour
+  and today’s numbers. The primary-production to CBS to
+  processing-coefficient chain and its cache keys are now shared with
+  [`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md),
+  which previously carried a private copy
+  ([\#367](https://github.com/eduaguilera/whep/issues/367)).
+
+  A scoped window is close to, but not identical with, building the full
+  range and filtering. Against the full range at 2010, wide-CBS quantity
+  totals agree to 3.8e-04 and primary-production totals to 3.0e-04, with
+  `ha`, `t_ha`, `LU` and `heads` exact. The residual sits in `import`
+  and in the livestock ratios
+  ([\#625](https://github.com/eduaguilera/whep/issues/625)). Use
+  `years = NULL` when exact agreement with the published series matters.
+
+- **Year-scoped production builds no longer drop every forage crop.**
+  Fodder rows are synthesised across the whole year axis —
+  `.fill_fodder_gaps()` takes the union of (area, item) groups over all
+  years and interpolates between them — so a narrow window silently lost
+  all six forage items (`Forage and silage, *`, `Cabbage for fodder`,
+  `Forage products`). At 2010 that was 137 rows, **1.16% of production
+  tonnes, 1.85% of `t_ha` and 1.36% of wide-CBS `feed`**, and it
+  affected `build_io_model(years = )` on every release that had it. The
+  fodder chain now runs over the full span and trims afterwards.
+  Full-range output is unchanged
+  ([\#623](https://github.com/eduaguilera/whep/issues/623)).
+
 - **[`fill_linear()`](https://eduaguilera.github.io/whep/reference/fill_linear.md)
   no longer depends on the order its rows arrive in.** Without `.by`, it
   never sorted: carrying a value forward or backward and the

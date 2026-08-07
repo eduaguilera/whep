@@ -44,14 +44,28 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_production</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_primary_production</span><span class="op">(</span>years <span class="op">=</span> <span class="cn">NULL</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
+<dl><dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
+<dd><p>Optional integer vector of years to build. When <code>NULL</code>
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key.</p>
+<p>A window is not guaranteed to reproduce the full-range result value for
+value, because some steps look across the years present. Measured for 2010
+against the full range, <code>area_code</code>-level totals agree exactly for <code>ha</code>,
+<code>t_ha</code>, <code>LU</code> and <code>heads</code>; the largest disagreement is 3.0e-04, in the
+livestock ratios (<code>t_head</code>, <code>t_LU</code>) and <code>slaughtered_heads</code>, tracked in
+issue #625. Use <code>NULL</code> when exact agreement with the published series
+matters.</p></dd>
+
+
+<dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small example output without downloading
 remote data. Default is <code>FALSE</code>.</p></dd>
 

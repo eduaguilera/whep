@@ -69,6 +69,7 @@ destiny filling, and final balancing.</p></li>
 <span>  smooth_carry_forward <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  format <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"long"</span>, <span class="st">"wide"</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -110,6 +111,13 @@ one of <code>area_code</code> or <code>polity_area_code</code>, one of <code>ite
 <code>NULL</code>.</p></dd>
 
 
+<dt id="arg-format">format<a class="anchor" aria-label="anchor" href="#arg-format"></a></dt>
+<dd><p>One of <code>"long"</code> (default) or <code>"wide"</code>. <code>"long"</code> returns one row
+per element. <code>"wide"</code> pivots the elements into columns, adds the live-animal
+rows that the FAO sheet omits, and checks the supply-use identity. Both are
+the same dataset; <code>"wide"</code> is what the IO model and the extensions consume.</p></dd>
+
+
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
 <dd><p>Optional tibble with the same structure as the
 output of the internal <code>.read_cbs() |&gt; .fix_cbs()</code> steps. When
@@ -119,11 +127,14 @@ to <code>.qc_cbs()</code>. Default <code>NULL</code>.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble in long format with columns: <code>year</code>, legacy numeric
+    <p>For <code>format = "long"</code>, a tibble with columns: <code>year</code>, legacy numeric
 <code>area_code</code>, numeric <code>polity_area_code</code>, <code>reporting_polity_code</code>,
 <code>reporting_polity_name</code>, <code>reporting_polity_has_geometry</code>,
 <code>item_cbs_code</code>, <code>element</code> (e.g. <code>"production"</code>, <code>"import"</code>, <code>"food"</code>),
-<code>value</code>, <code>source</code>, and <code>fao_flag</code>.</p>
+<code>value</code>, <code>source</code>, and <code>fao_flag</code>. For <code>format = "wide"</code>, the elements
+become one column each, <code>stock_variation</code> is split into the non-negative
+<code>stock_addition</code> and <code>stock_withdrawal</code>, and <code>domestic_supply</code> is total use
+excluding <code>export</code>.</p>
     </div>
 
     <div class="section level2">

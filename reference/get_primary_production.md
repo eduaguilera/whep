@@ -5,10 +5,25 @@ Get amount of crops, livestock and livestock products.
 ## Usage
 
 ``` r
-get_primary_production(example = FALSE)
+get_primary_production(years = NULL, example = FALSE)
 ```
 
 ## Arguments
+
+- years:
+
+  Optional integer vector of years to build. When `NULL` (default) the
+  whole series is built. Supplying a window builds only that range
+  rather than building 1850-2023 and discarding the rest, and caches it
+  under a window-specific key.
+
+  A window is not guaranteed to reproduce the full-range result value
+  for value, because some steps look across the years present. Measured
+  for 2010 against the full range, `area_code`-level totals agree
+  exactly for `ha`, `t_ha`, `LU` and `heads`; the largest disagreement
+  is 3.0e-04, in the livestock ratios (`t_head`, `t_LU`) and
+  `slaughtered_heads`, tracked in issue \#625. Use `NULL` when exact
+  agreement with the published series matters.
 
 - example:
 

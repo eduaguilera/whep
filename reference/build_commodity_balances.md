@@ -20,6 +20,7 @@ build_commodity_balances(
   smooth_carry_forward = FALSE,
   example = FALSE,
   historical_data = NULL,
+  format = c("long", "wide"),
   .fixed_data = NULL
 )
 ```
@@ -59,6 +60,14 @@ build_commodity_balances(
   without `element` are accepted as `production` when their unit is
   tonnes. Default `NULL`.
 
+- format:
+
+  One of `"long"` (default) or `"wide"`. `"long"` returns one row per
+  element. `"wide"` pivots the elements into columns, adds the
+  live-animal rows that the FAO sheet omits, and checks the supply-use
+  identity. Both are the same dataset; `"wide"` is what the IO model and
+  the extensions consume.
+
 - .fixed_data:
 
   Optional tibble with the same structure as the output of the internal
@@ -68,11 +77,14 @@ build_commodity_balances(
 
 ## Value
 
-A tibble in long format with columns: `year`, legacy numeric
+For `format = "long"`, a tibble with columns: `year`, legacy numeric
 `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 `reporting_polity_name`, `reporting_polity_has_geometry`,
 `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-`value`, `source`, and `fao_flag`.
+`value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
+become one column each, `stock_variation` is split into the non-negative
+`stock_addition` and `stock_withdrawal`, and `domestic_supply` is total
+use excluding `export`.
 
 ## Examples
 

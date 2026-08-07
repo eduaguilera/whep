@@ -50,14 +50,23 @@ columns following the FABIO methodology.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_wide_cbs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_wide_cbs</span><span class="op">(</span>years <span class="op">=</span> <span class="cn">NULL</span>, example <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
+<dl><dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
+<dd><p>Optional integer vector of years to build. When <code>NULL</code>
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key. The window is widened internally to 2011 when
+it reaches 2013, because that overlap is what splices the old FBS series
+onto <code>FAOSTAT_FBS_New</code>.</p></dd>
+
+
+<dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
 <dd><p>If <code>TRUE</code>, return a small example output without
 downloading remote data. Default is <code>FALSE</code>.</p></dd>
 
