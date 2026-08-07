@@ -1,6 +1,7 @@
 # IPCC 2019 direct N2O emission factors.
 
-Table 10.21: EF3 values (kg N2O-N/kg N) by manure management system.
+Table 10.21: EF3 values (kg N2O-N per kg N excreted) by manure
+management system.
 
 ## Usage
 
@@ -10,11 +11,13 @@ ipcc_2019_n2o_ef_direct
 
 ## Format
 
-A tibble with `mms_type`, `ef3_kg_n2on_kg_n`, `source`.
+A tibble with `system`, `ef_kg_n2o_n_per_kg_n`.
 
 ## Source
 
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21. Several rows match
+neither the 2019 Refinement nor the 2006 Guidelines (daily spread 0.010
+against 0 in both, dry lot 0.005 against 0.02); tracked in whep#601.
 
 ## Examples
 

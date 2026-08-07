@@ -108,3 +108,37 @@ compute_fp_product_paths(
 A tibble with `origin_area`, `origin_item`, `product_area`,
 `product_item`, `target_area`, role-specific polity metadata,
 `target_fd`, and `value`.
+
+## Examples
+
+``` r
+# Same two-sector economy as [compute_footprint_paths()], decomposed by the
+# product that reaches final demand instead of by the first intermediate
+# use. The path totals of the two functions agree with each other and with
+# [compute_footprint()] under a shared `max_column_sum`.
+z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+labels <- tibble::tibble(
+  area_code = c(1L, 1L),
+  item_cbs_code = c(10L, 20L)
+)
+
+compute_fp_product_paths(
+  z_mat = z_mat,
+  x_vec = c(100, 200),
+  y_mat = matrix(c(10, 100), nrow = 2),
+  extensions = c(200, 0),
+  labels = labels,
+  fd_labels = tibble::tibble(area_code = 2L, fd_col = "food"),
+  conserve_extensions = FALSE
+) |>
+  dplyr::select(origin_item, product_area, product_item, value)
+#> ℹ Computing final-product footprint paths for 1 origin sector.
+#>   Final demand: 1 column.
+#> Decomposing final-product paths...
+#> ✔ Final-product paths complete: 2 non-zero flows.
+#> # A tibble: 2 × 4
+#>   origin_item product_area product_item value
+#>         <int>        <int>        <int> <dbl>
+#> 1          10            1           10  20.0
+#> 2          10            1           20  50.0
+```

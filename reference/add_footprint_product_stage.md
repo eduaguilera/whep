@@ -65,3 +65,35 @@ add_footprint_product_stage(
 `footprints` with `product_area`, `product_area_name`, `product_item`,
 and `product_share` columns. `value` is replaced by the split path
 value.
+
+## Examples
+
+``` r
+# One footprint row of 100, split over the two areas that supply item 20 to
+# the final demand of area 1 in the shares observed in `y_mat` (80 / 20).
+footprints <- tibble::tibble(
+  origin_area = 1L,
+  origin_item = 10L,
+  target_area = 1L,
+  target_area_name = "Target",
+  target_item = 20L,
+  target_fd = "food",
+  value = 100
+)
+
+add_footprint_product_stage(
+  footprints = footprints,
+  y_mat = Matrix::Matrix(c(80, 20), nrow = 2, sparse = TRUE),
+  labels = tibble::tibble(
+    area_code = c(1L, 2L),
+    item_cbs_code = c(20L, 20L)
+  ),
+  fd_labels = tibble::tibble(area_code = 1L, fd_col = "food")
+) |>
+  dplyr::select(origin_item, product_area, product_share, value)
+#> # A tibble: 2 × 4
+#>   origin_item product_area product_share value
+#>         <int>        <int>         <dbl> <dbl>
+#> 1          10            1           0.8    80
+#> 2          10            2           0.2    20
+```

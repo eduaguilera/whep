@@ -62,3 +62,26 @@ A tibble with added polity metadata columns.
 [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
 which reports the stand-in rows of an already-built table, whose
 published columns no longer carry `mapping_status`.
+
+## Examples
+
+``` r
+# The same area code resolves to different polities in different years:
+# area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
+tibble::tibble(area_code = c(16L, 16L), year = c(1965L, 2000L)) |>
+  add_polity_code() |>
+  dplyr::select(area_code, year, polity_code, polity_name, mapping_status)
+#> # A tibble: 2 × 5
+#>   area_code  year polity_code   polity_name               mapping_status
+#>       <int> <int> <chr>         <chr>                     <chr>         
+#> 1        16  1965 BGD-1947-1971 East Pakistan (1947-1971) matched       
+#> 2        16  2000 BGD-1971-2025 Bangladesh                matched       
+
+# Without a year column the current/default mapping is used.
+add_polity_code(tibble::tibble(area_code = 231L), year_column = NULL) |>
+  dplyr::select(area_code, polity_code, polity_name)
+#> # A tibble: 1 × 3
+#>   area_code polity_code   polity_name             
+#>       <int> <chr>         <chr>                   
+#> 1       231 USA-1959-2025 United States of America
+```

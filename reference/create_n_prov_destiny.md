@@ -1,8 +1,8 @@
 # GRAFS Nitrogen (N) flows
 
-Provides N flows of the spanish agro-food system on a provincial level
-between 1860 and 2020. This dataset is the the base of the GRAFS model
-and contains data in megagrams of N (MgN) for each year, province, item,
+Provides N flows of the Spanish agro-food system on a provincial level
+between 1860 and 2020. This dataset is the base of the GRAFS model and
+contains data in megagrams of N (MgN) for each year, province, item,
 origin and destiny. Thereby, the origin column represents where N comes
 from, which includes N soil inputs, imports and production. The destiny
 column shows where N goes to, which includes export, population food,

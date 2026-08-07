@@ -51,3 +51,36 @@ redistribute_feed(feed_demand, feed_avail, options = list())
 A tibble of realised intake per demand row. When `maintenance_share` is
 supplied alongside `grass_availability`, a `grass_deficit_diagnosis`
 attribute lists demand rows underfed below maintenance.
+
+## Examples
+
+``` r
+# Two variable-demand categories in one territory competing for a single
+# feed item. Availability (150) falls short of demand (200), so the
+# remaining-share principle underfeeds both by the same factor rather than
+# letting either exceed what is there.
+feed_demand <- tibble::tribble(
+  ~year, ~territory, ~sub_territory, ~livestock_category,
+  ~item_cbs_code, ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+  2000L, "79", "79", "Cattle_milk",
+  NA_integer_, NA_character_, "high_quality", 120, FALSE,
+  2000L, "79", "79", "Pigs",
+  NA_integer_, NA_character_, "high_quality", 80, FALSE
+)
+
+feed_avail <- tibble::tribble(
+  ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+  ~feed_quality, ~avail_dm_t, ~feed_scale,
+  2000L, "79", "79", 2514L, "cereals", "high_quality", 150, "national"
+)
+
+redistribute_feed(feed_demand, feed_avail)
+#> # A tibble: 2 × 14
+#>    year territory sub_territory livestock_category item_cbs_code feed_group
+#>   <int> <chr>     <chr>         <chr>                      <int> <chr>     
+#> 1  2000 79        79            Cattle_milk                 2514 cereals   
+#> 2  2000 79        79            Pigs                        2514 cereals   
+#> # ℹ 8 more variables: feed_quality <chr>, demand_dm_t <dbl>, intake_dm_t <dbl>,
+#> #   scaling_factor <dbl>, hierarchy_level <chr>, requested_item <int>,
+#> #   source_compartment <chr>, fixed_demand <lgl>
+```

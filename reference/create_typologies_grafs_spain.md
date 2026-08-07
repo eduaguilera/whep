@@ -10,7 +10,8 @@ classification maps and data frames.
 create_typologies_grafs_spain(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  example = FALSE
 )
 ```
 
@@ -32,31 +33,49 @@ create_typologies_grafs_spain(
 
   The year for which the typology map is created.
 
+- example:
+
+  If `TRUE`, return a small example output without reading the remote
+  inputs or the Natural Earth layer. Default is `FALSE`.
+
 ## Value
 
-A tibble with the classification of Spanish provinces into typologies.
-It contains the following columns:
+A tibble with the classification of Spanish provinces into typologies
+for `map_year`. It contains the following columns:
 
-- `year`: The year in which the classification is performed.
+- `Province_name`: The name of the Spanish province.
 
-- `province_name`: The name of the Spanish province.
+- `Typologie`: Assigned typology category for each province. This is
+  based on thresholds in livestock density (livestock units per hectare
+  of agricultural area), crop N productivity (kg N harvested per hectare
+  of cropland), and the semi-natural and imported shares of feed. The
+  typologies are:
 
-- `livestock_density`: Livestock units (LU) per hectare of agricultural
-  area (UAA). Reflects the intensity of animal farming.
+  - `Specialized cropping system`
 
-- `productivity_kgN_ha`: Crop N productivity, in kilograms of N
-  harvested per hectare of cropland.
+  - `Extensive cropping system`
 
-- `semi_nat_share`: Share of total feed coming from semi-natural
-  agroecosystems. Expressed between 0 and 1.
+  - `Extensive mixed crop-livestock system`
 
-- `feed_imported_share`: Share of feed that is imported. Expressed
-  between 0 and 1.
+  - `Intensive mixed crop-livestock system`
 
-- `typology`: Assigned typology category for each province. This is
-  based on thresholds in livestock density, crop productivity, and feed
-  patterns. The typologies include: - `Specialized cropping system` -
-  `Extensive cropping system` -
-  `Extensive mixed crop-livestock system` -
-  `Intensive mixed crop-livestock system` -
-  `Specialized livestock-farming system`
+  - `Specialized livestock-farming system`
+
+## Examples
+
+``` r
+create_typologies_grafs_spain(example = TRUE)
+#> # A tibble: 10 × 2
+#>    Province_name Typologie                           
+#>    <chr>         <chr>                               
+#>  1 Albacete      Extensive cropping system           
+#>  2 Alicante      Extensive cropping system           
+#>  3 Araba         Extensive cropping system           
+#>  4 Asturias      Specialized livestock-farming system
+#>  5 Avila         Extensive cropping system           
+#>  6 Huelva        Extensive cropping system           
+#>  7 Jaen          Extensive cropping system           
+#>  8 Leon          Extensive cropping system           
+#>  9 Lleida        Specialized livestock-farming system
+#> 10 Teruel        Extensive cropping system           
+```

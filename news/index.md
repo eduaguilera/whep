@@ -2,6 +2,20 @@
 
 ## whep (development version)
 
+- [`create_typologies_of_josette()`](https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.md)
+  and
+  [`create_typologies_grafs_spain()`](https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.md)
+  gained an `example = FALSE` argument, so both now have runnable
+  examples like the rest of the package’s remote-data functions. Their
+  documented `@return` was also wrong and is corrected:
+  [`create_typologies_of_josette()`](https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.md)
+  returns a named list of three tibbles plus a `ggplot`, not a single
+  tibble, and
+  [`create_typologies_grafs_spain()`](https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.md)
+  returns `Province_name` and `Typologie` for `map_year` only, not a
+  seven-column series over all years. No published value changes — the
+  only new code path is the `example = TRUE` early return.
+
 - **An aggregation bucket now sums, and comes out under one name.** The
   reader aggregation grouped rows by the member’s polity **name** as
   well as by `polity_area_code`, so a bucket folding members that
@@ -623,6 +637,17 @@
   conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review
   ([\#75](https://github.com/eduaguilera/whep/issues/75)).
+
+- A failed Natural Earth download now reports how to recover instead of
+  dying on its own error message. The abort interpolated the layer URL
+  as `{.url {.natural_earth_url(layer)}}`, and cli \>= 3.4.0 reads a
+  [`{}`](https://rdrr.io/r/base/Paren.html) expression starting with a
+  dot as a style name, so the branch raised `Invalid cli literal` and
+  the instructions never reached the user. The province typologies
+  ([`create_typologies_grafs_spain()`](https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.md),
+  [`create_typologies_of_josette()`](https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.md))
+  are the callers that reach it. No published value changes
+  ([\#594](https://github.com/eduaguilera/whep/issues/594)).
 
 ## whep 0.3.0
 

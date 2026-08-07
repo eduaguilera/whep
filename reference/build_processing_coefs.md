@@ -19,8 +19,12 @@ build_processing_coefs(
 
 - cbs:
 
-  A tibble of final CBS in wide format, as returned by
+  A tibble of final CBS in long format (one row per `element`), as
+  returned by
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md).
+  The legacy wide format, one column per element as returned by
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md),
+  is still accepted.
 
 - start_year:
 

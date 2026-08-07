@@ -1,7 +1,9 @@
 # IPCC 2019 MCF for manure management.
 
-Table 10.17: Methane Conversion Factors by manure management system and
-annual average temperature.
+Table 10.17: methane conversion factors (percent) by manure management
+system and climate zone. The IPCC table resolves ten climate zones
+grouped under cool, temperate and warm; this table keeps the three
+groups, and uses `"All"` for the systems that take a single factor.
 
 ## Usage
 
@@ -11,7 +13,7 @@ ipcc_2019_mcf_manure
 
 ## Format
 
-A tibble with `system`, `annual_temp_c`, `mcf_percent`.
+A tibble with `system`, `climate_zone`, `mcf_percent`.
 
 ## Source
 

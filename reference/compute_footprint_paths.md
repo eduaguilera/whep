@@ -108,3 +108,40 @@ compute_footprint_paths(
 A tibble with `origin_area`, `origin_item`, `use_area`, `use_item`,
 `target_area`, `target_item`, role-specific polity metadata,
 `target_fd`, `path_type`, and `value`.
+
+## Examples
+
+``` r
+# A two-sector economy: sector 1 (item 10) carries the whole extension and
+# supplies 50 of intermediate input to sector 2 (item 20). Its footprint
+# therefore splits into a direct final-demand path and a first-use path
+# through item 20.
+z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+x_vec <- c(100, 200)
+y_mat <- matrix(c(10, 100), nrow = 2)
+labels <- tibble::tibble(
+  area_code = c(1L, 1L),
+  item_cbs_code = c(10L, 20L)
+)
+fd_labels <- tibble::tibble(area_code = 2L, fd_col = "food")
+
+compute_footprint_paths(
+  z_mat = z_mat,
+  x_vec = x_vec,
+  y_mat = y_mat,
+  extensions = c(200, 0),
+  labels = labels,
+  fd_labels = fd_labels,
+  conserve_extensions = FALSE
+) |>
+  dplyr::select(origin_item, use_item, target_area, path_type, value)
+#> ℹ Computing first-use footprint paths for 1 origin sector.
+#>   Final demand: 1 column.
+#> Decomposing first-use paths...
+#> ✔ First-use paths complete: 2 non-zero flows.
+#> # A tibble: 2 × 5
+#>   origin_item use_item target_area path_type    value
+#>         <int>    <int>       <int> <chr>        <dbl>
+#> 1          10       10           2 final_demand  20  
+#> 2          10       20           2 intermediate  50.0
+```

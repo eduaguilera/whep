@@ -599,6 +599,21 @@ When modifying CSV files in `inst/extdata/harmonization/`:
     `items_*.csv` changed.
 4.  Run `Rscript data-raw/whep_inputs.R` if `whep_inputs.csv` changed.
 
+Skipping the rebuild is a defect, not an omission: `data/*.rda` is a
+committed build product, so an edited CSV that was never rebuilt ships a
+table disagreeing with its own source, and it looks exactly like a fresh
+one (#384 — that is how `regions_full` came to resolve eight areas to
+polities upstream had retired).
+`tests/testthat/test_data_raw_freshness.R` is the gate. It re-runs every
+builder whose inputs live inside the repo, with the
+[`usethis::use_data()`](https://usethis.r-lib.org/reference/use_data.html)
+calls stripped so nothing is written, and compares each rebuilt object
+with the committed `.rda` by content. It covers 49 of the 56 tables; the
+seven it cannot rebuild (the whep-polities GeoPackage, the Coello CSV,
+the GLEAM workbook) are listed there with the input that blocks each
+one, and the list is asserted to be exactly the complement, so a new
+dataset cannot arrive both unchecked and unexcluded.
+
 ## This is the only agent instruction file
 
 The repo used to carry per-tool copies of these rules
