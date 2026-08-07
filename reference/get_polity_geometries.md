@@ -14,7 +14,9 @@ get_polity_geometries(polity_codes = NULL)
 
 - polity_codes:
 
-  Optional character vector of WHEP polity codes.
+  Optional character vector of WHEP polity codes. Subsetting by code
+  needs the suggested package `sf` to be installed; the whole table is
+  returned without it.
 
 ## Value
 

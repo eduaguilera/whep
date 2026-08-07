@@ -78,6 +78,29 @@
   the pair rather than add a third vocabulary that would duplicate it
   ([\#544](https://github.com/eduaguilera/whep/issues/544)).
 
+- **`get_polity_geometries(polity_codes = )` now returns a usable `sf`
+  object in a session that has not loaded `sf`.** The row subset ran
+  through `[.data.frame` whenever the suggested `sf` namespace was not
+  loaded, which keeps class `sf` and `attr(, "sf_column")` but strips
+  `sfc` off the column they point at; the result passed every cheap
+  structural check and then aborted inside the first `sf` call,
+  complaining about a column nobody had renamed. The function now loads
+  `sf` before subsetting, and aborts with class `whep_sf_required` if
+  `sf` is not installed instead of returning the broken object. No
+  published values change: the argument-less call is untouched, and both
+  in-package callers use it.
+
+- **[`estimate_energy_demand()`](https://eduaguilera.github.io/whep/reference/estimate_energy_demand.md)
+  now warns when `work_hours_day` is supplied without a work
+  coefficient.** `whep` ships `cw = 0` for every species, so draft work
+  is opt-in per call via `work_coef` — passing only the hours produced
+  `ne_work = 0` with no indication that the input had been ignored
+  ([\#210](https://github.com/eduaguilera/whep/issues/210)). The numbers
+  are unchanged; only the silence is. Hours filled in from
+  `livestock_production_defaults` never warn, since several species
+  carry a non-zero default and warning about those would fire on
+  ordinary runs.
+
 - **[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   and
