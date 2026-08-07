@@ -179,6 +179,30 @@
   those areas' `feed` moves by the same tonnage. A region the source adds in
   future that `regions_full` does not key now raises a warning naming it,
   instead of vanishing (#585).
+* **The last two ad-hoc country-label joins in the spatialization script are
+  gone (#576).** `inst/scripts/prepare_spatialize_all.R` matched
+  `whep::crops_manure_n` on a raw `iso3c` join and
+  `whep::lassaletta_grassland_share` on a country *name*. The manure reader now
+  goes through `whep::polity_label_aliases` like the Mueller reader does, read
+  at the vintage of its own labels rather than at Mueller's circa-2000 base
+  year: `crops_manure_n` names Serbia, Montenegro and South Sudan separately
+  and names no Serbia and Montenegro, Sudan (former), Czechoslovakia or Zaire,
+  so its vocabulary is post-2011, and every year from 2011 on maps all 183 of
+  its country labels exactly as the retired join did. **No published value
+  changes**: same 31,476 rows, same 183 area codes, maximum difference 0 Mg.
+  West et al.'s `RoW` aggregate is still dropped rather than equated with
+  WHEP's residual bucket 999, which since #628 means something else.
+
+  The grassland-share reader gains a `grass_share_route` argument on
+  `prepare_nitrogen_inputs()` and `prepare_spatialize_all()`, recorded in
+  `nitrogen_inputs.parquet` as `method_grass_share`. The default,
+  `"area_name"`, is the existing name join and is byte-identical to it.
+  `"alias_map"` resolves each label at its own row's year instead: 6,633 rows
+  against 6,370 and 137 area codes against 130, gaining China, Cote d'Ivoire,
+  DPRepublic of Korea, Cape Verde, Swaziland, Ethiopia PDR, Belgium-Luxemburg
+  and Occupied Palestinian Territory, and losing South Sudan and the years in
+  which Yugoslav SFR, Czechoslovakia, Viet Nam and Botswana had no polity.
+  Which route is right is an open question (#576); nothing switches by itself.
 
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
