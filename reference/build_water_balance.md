@@ -22,13 +22,14 @@ budget: `prec_mm` (precipitation) and `irrig_mm` (applied irrigation,
 the gross blue-water volume), which satisfy
 `water_input_mm = prec_mm + irrig_mm`; `blue_consump_mm` and
 `green_consump_mm`, the LPJmL-native consumptive blue and green water
-(the per-CFT `cft_consump_water_b` / `cft_consump_water_g` totals when
-supplied, otherwise the blue and green AET); and `cft_nir_mm`, the net
-irrigation requirement (LPJmL `cft_nir`), the net blue-water demand,
-summed to cell level when `data$cft_nir` is supplied and `NA` otherwise.
-Potential evapotranspiration (`pet_mm`) comes from the CRU climate
-forcing that drives the LPJmL run and is `NA` until that forcing is
-wired (see `data$pet`); no PET formula is fabricated here.
+(the per-CFT `cft_consump_water_b` / `cft_consump_water_g` cubes when
+supplied, summed over the bands `bands` selects, otherwise the blue and
+green AET); and `cft_nir_mm`, the net irrigation requirement (LPJmL
+`cft_nir`), the net blue-water demand, summed to cell level when
+`data$cft_nir` is supplied and `NA` otherwise. Potential
+evapotranspiration (`pet_mm`) comes from the CRU climate forcing that
+drives the LPJmL run and is `NA` until that forcing is wired (see
+`data$pet`); no PET formula is fabricated here.
 
 ## Usage
 
@@ -37,6 +38,7 @@ build_water_balance(
   method = list(),
   resolution = c("grid", "polity"),
   data = list(),
+  bands = NULL,
   example = FALSE
 )
 ```
@@ -73,7 +75,23 @@ build_water_balance(
   `area_code`, `polity_frac`, `cell_area_ha`). Each falls back to
   [`read_lpjml_hydrology()`](https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.md)
   when absent, except `cft_nir` (see Details), `pet` and the
-  consumptive-water inputs.
+  consumptive-water inputs. Read the latter with
+  `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
+  names their CFT bands so `bands` can select among them.
+
+- bands:
+
+  Optional character vector of LPJmL crop-functional-type band names
+  restricting which bands the per-CFT consumptive-water and net
+  irrigation terms are summed over, e.g. `"rainfed grassland"` to charge
+  a grazing footprint the grassland water alone. `NULL` (default) sums
+  every band, the whole-cell total. Bands are matched on the `band_name`
+  the file itself carries, so an unknown name aborts rather than
+  silently returning the whole-cell total; the band index is never used,
+  because which crop a given index denotes is a property of how the run
+  was configured. Only the consumptive-water and `cft_nir` terms are
+  per-CFT, so this leaves the water budget itself (AET, runoff,
+  drainage) untouched.
 
 - example:
 

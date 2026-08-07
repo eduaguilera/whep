@@ -17,7 +17,8 @@ prec_mm (precipitation) and irrig_mm (applied irrigation, the gross
 blue-water volume), which satisfy water_input_mm = prec_mm + irrig_mm;
 blue_consump_mm and green_consump_mm, the LPJmL-native consumptive blue
 and green water (the per-CFT cft_consump_water_b / cft_consump_water_g
-totals when supplied, otherwise the blue and green AET); and cft_nir_mm,
+cubes when supplied, summed over the bands bands selects, otherwise the
+blue and green AET); and cft_nir_mm,
 the net irrigation requirement (LPJmL cft_nir), the net blue-water demand,
 summed to cell level when data$cft_nir is supplied and NA otherwise.
 Potential evapotranspiration (pet_mm) comes from the CRU climate forcing
@@ -40,7 +41,8 @@ prec_mm (precipitation) and irrig_mm (applied irrigation, the gross
 blue-water volume), which satisfy water_input_mm = prec_mm + irrig_mm;
 blue_consump_mm and green_consump_mm, the LPJmL-native consumptive blue
 and green water (the per-CFT cft_consump_water_b / cft_consump_water_g
-totals when supplied, otherwise the blue and green AET); and cft_nir_mm,
+cubes when supplied, summed over the bands bands selects, otherwise the
+blue and green AET); and cft_nir_mm,
 the net irrigation requirement (LPJmL cft_nir), the net blue-water demand,
 summed to cell level when data$cft_nir is supplied and NA otherwise.
 Potential evapotranspiration (pet_mm) comes from the CRU climate forcing
@@ -103,7 +105,8 @@ aggregated to polity totals when <code>resolution = "polity"</code>.</p>
 blue-water volume), which satisfy <code>water_input_mm = prec_mm + irrig_mm</code>;
 <code>blue_consump_mm</code> and <code>green_consump_mm</code>, the LPJmL-native consumptive blue
 and green water (the per-CFT <code>cft_consump_water_b</code> / <code>cft_consump_water_g</code>
-totals when supplied, otherwise the blue and green AET); and <code>cft_nir_mm</code>,
+cubes when supplied, summed over the bands <code>bands</code> selects, otherwise the
+blue and green AET); and <code>cft_nir_mm</code>,
 the net irrigation requirement (LPJmL <code>cft_nir</code>), the net blue-water demand,
 summed to cell level when <code>data$cft_nir</code> is supplied and <code>NA</code> otherwise.
 Potential evapotranspiration (<code>pet_mm</code>) comes from the CRU climate forcing
@@ -117,6 +120,7 @@ that drives the LPJmL run and is <code>NA</code> until that forcing is wired (se
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  bands <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -152,7 +156,23 @@ net-irrigation-requirement input (<code>lon</code>, <code>lat</code>, <code>year
 summed to cell level when supplied; exposed as <code>cft_nir_mm</code>, else <code>NA</code>)
 and a <code>cell_polity</code> crosswalk (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>polity_frac</code>,
 <code>cell_area_ha</code>). Each falls back to <code><a href="read_lpjml_hydrology.html">read_lpjml_hydrology()</a></code> when absent,
-except <code>cft_nir</code> (see Details), <code>pet</code> and the consumptive-water inputs.</p></dd>
+except <code>cft_nir</code> (see Details), <code>pet</code> and the consumptive-water inputs.
+Read the latter with
+<code>read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)</code>, which
+names their CFT bands so <code>bands</code> can select among them.</p></dd>
+
+
+<dt id="arg-bands">bands<a class="anchor" aria-label="anchor" href="#arg-bands"></a></dt>
+<dd><p>Optional character vector of LPJmL crop-functional-type band
+names restricting which bands the per-CFT consumptive-water and net
+irrigation terms are summed over, e.g. <code>"rainfed grassland"</code> to charge a
+grazing footprint the grassland water alone. <code>NULL</code> (default) sums every
+band, the whole-cell total. Bands are matched on the <code>band_name</code> the file
+itself carries, so an unknown name aborts rather than silently returning
+the whole-cell total; the band index is never used, because which crop a
+given index denotes is a property of how the run was configured. Only the
+consumptive-water and <code>cft_nir</code> terms are per-CFT, so this leaves the
+water budget itself (AET, runoff, drainage) untouched.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

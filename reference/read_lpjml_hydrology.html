@@ -64,7 +64,8 @@ components (transpiration, evaporation, interception).</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">read_lpjml_hydrology</span><span class="op">(</span></span>
 <span>  var <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drainage"</span>, <span class="st">"transp"</span>, <span class="st">"evap"</span>, <span class="st">"interc"</span>, <span class="st">"aet"</span>, <span class="st">"prec"</span>, <span class="st">"rain"</span>, <span class="st">"irrig"</span>,</span>
-<span>    <span class="st">"runoff"</span>, <span class="st">"discharge"</span>, <span class="st">"swc"</span>, <span class="st">"cft_nir"</span><span class="op">)</span>,</span>
+<span>    <span class="st">"runoff"</span>, <span class="st">"discharge"</span>, <span class="st">"swc"</span>, <span class="st">"cft_nir"</span>, <span class="st">"cft_consump_water_b"</span>,</span>
+<span>    <span class="st">"cft_consump_water_g"</span><span class="op">)</span>,</span>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  first_year <span class="op">=</span> <span class="fl">1901L</span>,</span>
@@ -82,7 +83,10 @@ components (transpiration, evaporation, interception).</p>
 <dl><dt id="arg-var">var<a class="anchor" aria-label="anchor" href="#arg-var"></a></dt>
 <dd><p>Logical variable name, one of <code>"drainage"</code>, <code>"transp"</code>,
 <code>"evap"</code>, <code>"interc"</code>, <code>"aet"</code>, <code>"prec"</code>, <code>"rain"</code>, <code>"irrig"</code>, <code>"runoff"</code>,
-<code>"discharge"</code>, <code>"swc"</code> or <code>"cft_nir"</code> (per-CFT net irrigation requirement).</p></dd>
+<code>"discharge"</code>, <code>"swc"</code>, <code>"cft_nir"</code> (per-CFT net irrigation requirement)
+or the per-CFT consumptive-water cubes <code>"cft_consump_water_b"</code> (blue) and
+<code>"cft_consump_water_g"</code> (green). The per-CFT variables keep their <code>band</code>
+dimension, and carry <code>band_name</code> when the file names its bands.</p></dd>
 
 
 <dt id="arg-run-dir">run_dir<a class="anchor" aria-label="anchor" href="#arg-run-dir"></a></dt>
@@ -102,7 +106,10 @@ keeps every year present in the file.</p></dd>
 <dt id="arg-monthly">monthly<a class="anchor" aria-label="anchor" href="#arg-monthly"></a></dt>
 <dd><p>If <code>TRUE</code>, return one row per cell-month; if <code>FALSE</code>,
 aggregate the 12 months of each year per cell (flux variables summed,
-soil water content averaged).</p></dd>
+soil water content averaged). Immaterial for the annual per-CFT
+consumptive-water variables, which LPJmL writes one step per year: they
+carry no <code>month</code> column either way, and aggregating them groups rows that
+are already one per cell-year-band.</p></dd>
 
 
 <dt id="arg-agg">agg<a class="anchor" aria-label="anchor" href="#arg-agg"></a></dt>
@@ -124,8 +131,9 @@ data. Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns <code>lon</code>, <code>lat</code>, <code>year</code>, <code>value</code> (plus <code>month</code>
-when <code>monthly = TRUE</code>, <code>layer</code> for <code>"swc"</code>, and <code>band</code> for
-<code>"cft_nir"</code>).</p>
+for the monthly variables when <code>monthly = TRUE</code>, <code>layer</code> for <code>"swc"</code>, and
+<code>band</code> plus <code>band_name</code> for the per-CFT variables). The annual per-CFT
+consumptive-water variables never carry <code>month</code>.</p>
     </div>
 
     <div class="section level2">

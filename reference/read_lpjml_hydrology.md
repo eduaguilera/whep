@@ -13,7 +13,8 @@ components (transpiration, evaporation, interception).
 ``` r
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
-    "runoff", "discharge", "swc", "cft_nir"),
+    "runoff", "discharge", "swc", "cft_nir", "cft_consump_water_b",
+    "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
   first_year = 1901L,
@@ -30,8 +31,11 @@ read_lpjml_hydrology(
 
   Logical variable name, one of `"drainage"`, `"transp"`, `"evap"`,
   `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-  `"discharge"`, `"swc"` or `"cft_nir"` (per-CFT net irrigation
-  requirement).
+  `"discharge"`, `"swc"`, `"cft_nir"` (per-CFT net irrigation
+  requirement) or the per-CFT consumptive-water cubes
+  `"cft_consump_water_b"` (blue) and `"cft_consump_water_g"` (green).
+  The per-CFT variables keep their `band` dimension, and carry
+  `band_name` when the file names its bands.
 
 - run_dir:
 
@@ -51,7 +55,10 @@ read_lpjml_hydrology(
 
   If `TRUE`, return one row per cell-month; if `FALSE`, aggregate the 12
   months of each year per cell (flux variables summed, soil water
-  content averaged).
+  content averaged). Immaterial for the annual per-CFT consumptive-water
+  variables, which LPJmL writes one step per year: they carry no `month`
+  column either way, and aggregating them groups rows that are already
+  one per cell-year-band.
 
 - agg:
 
@@ -71,8 +78,10 @@ read_lpjml_hydrology(
 
 ## Value
 
-A tibble with columns `lon`, `lat`, `year`, `value` (plus `month` when
-`monthly = TRUE`, `layer` for `"swc"`, and `band` for `"cft_nir"`).
+A tibble with columns `lon`, `lat`, `year`, `value` (plus `month` for
+the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
+`band` plus `band_name` for the per-CFT variables). The annual per-CFT
+consumptive-water variables never carry `month`.
 
 ## Examples
 
