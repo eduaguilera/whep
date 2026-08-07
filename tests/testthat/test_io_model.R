@@ -281,9 +281,11 @@ testthat::test_that("IO default build helpers scope cache keys by requested year
   testthat::expect_true(.io_years_are_contiguous(c(2001, 1999, 2000)))
   testthat::expect_false(.io_years_are_contiguous(c(2001, 1999)))
   testthat::expect_null(.context_years(NULL))
-  testthat::expect_equal(.context_years(2001:2005), 2001:2005)
-  testthat::expect_equal(.context_years(2013), 2011:2013)
-  testthat::expect_equal(.context_years(2016:2020), 2011:2020)
+  # Without a margin the two rules are visible on their own: a window clear of
+  # the FBS overlap is unchanged, one reaching 2013 reaches back to 2011.
+  testthat::expect_equal(.context_years(2001:2005, margin = 0L), 2001:2005)
+  testthat::expect_equal(.context_years(2013, margin = 0L), 2011:2013)
+  testthat::expect_equal(.context_years(2016:2020, margin = 0L), 2011:2020)
   testthat::expect_equal(
     .cache_key("primary_prod", NULL),
     "primary_prod"
@@ -487,4 +489,27 @@ testthat::test_that(".endogenize_losses conserves X across source blocks", {
   # Losses columns are dropped from Y and fd_cols.
   testthat::expect_equal(endo$fd_cols, "food")
   testthat::expect_equal(ncol(endo$Y), 2L)
+})
+
+testthat::test_that("the context margin widens a scoped window on both sides", {
+  # The trade and stock imputation reads neighbouring years, so a bare window
+  # leaves stock_addition and import visibly off (9.2e-03 at 2010 against the
+  # full-range build, versus 3.8e-04 with the default margin). See
+  # .context_years() for the measured margin sweep.
+  testthat::expect_equal(.context_years(2000, margin = 5L), 1995:2005)
+  testthat::expect_equal(.context_years(2000:2002, margin = 3L), 1997:2005)
+
+  # The margin composes with the FBS splice rule rather than replacing it:
+  # widening to 2015 crosses 2013, so the start still reaches back to 2011.
+  testthat::expect_equal(.context_years(2010, margin = 5L), 2005:2015)
+  testthat::expect_equal(.context_years(2014, margin = 1L), 2011:2015)
+
+  # A wider window keeps whichever start is earlier.
+  testthat::expect_equal(min(.context_years(2016:2020, margin = 5L)), 2011L)
+})
+
+testthat::test_that("the context margin never precedes the first year", {
+  # Widening must not ask a build for years before the series starts.
+  testthat::expect_equal(min(.context_years(1850, margin = 5L)), 1850L)
+  testthat::expect_equal(min(.context_years(1852:1860, margin = 5L)), 1850L)
 })

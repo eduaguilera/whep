@@ -67,18 +67,36 @@ whep_clear_cache <- function() {
   seq.int(min(years, na.rm = TRUE), max(years, na.rm = TRUE))
 }
 
-# Widen a year window to the context the CBS build needs. FBS_New is the
-# reference series and the 2010-2013 overlap is what splices the old series onto
-# it (see .reestimate_domestic_supply), so a request reaching 2013 must build
-# 2011 too or the splice silently changes. The pre-1961 back-cast needs no such
-# guard here: .read_production() already widens its own reads (see
-# R/build_production.R) and trims afterwards.
-.context_years <- function(years) {
+# Widen a year window to the context the CBS build needs, for two reasons.
+#
+# The trade and stock imputation looks at neighbouring years, so a bare window
+# leaves `stock_addition` and `import` visibly off. Measured at 2010 against the
+# full-range build, the largest relative error across the wide-CBS quantity
+# columns falls from 9.2e-03 with no margin to 5.2e-04 at +/-3, 3.8e-04 at +/-5
+# and 2.1e-04 at +/-10. `import` bottoms out at 2.1e-04 (identical at +/-5 and
+# +/-10), so that is the achievable floor and more margin only buys build time.
+# +/-5 sits past the knee and keeps a scoped build several times cheaper than
+# the full one.
+#
+# On top of that, FBS_New is the reference series and the 2010-2013 overlap is
+# what splices the old series onto it (see .reestimate_domestic_supply), so a
+# request reaching 2013 must build 2011 too or the splice silently changes.
+#
+# The pre-1961 back-cast needs no guard here: .read_production() already widens
+# its own reads (see R/build_production.R) and trims afterwards.
+.context_margin <- 5L
+
+# The first year the series covers, matching the `start_year` default of
+# build_primary_production() and build_commodity_balances(). The margin is
+# clamped to it so widening never asks a build for years that precede the data.
+.whep_first_year <- 1850L
+
+.context_years <- function(years, margin = .context_margin) {
   if (is.null(years)) {
     return(years)
   }
-  start_year <- min(years, na.rm = TRUE)
-  end_year <- max(years, na.rm = TRUE)
+  start_year <- max(min(years, na.rm = TRUE) - margin, .whep_first_year)
+  end_year <- max(years, na.rm = TRUE) + margin
   if (end_year >= 2013L) {
     start_year <- min(start_year, 2011L)
   }
