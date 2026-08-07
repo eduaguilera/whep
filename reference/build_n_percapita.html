@@ -10,7 +10,11 @@ locked Campbell / Global framing; recycled or internal terms (manure,
 deposition, urban, soil-organic-matter mineralization) are excluded. Any
 finer grid key (lon, lat, item_cbs_code) is aggregated away to the
 country total, and country-years without a matching population row are
-dropped. The chosen framing is stamped on every row."><meta property="og:description" content="Aggregates a build_n_inputs() long-format nitrogen-input tibble to the
+dropped – in a warning naming those areas and the share of anthropogenic
+nitrogen that leaves with them, since an area with no denominator is absent
+from the output rather than wrong in it (#543);
+options(whep.warn_missing_population = FALSE) silences it. The chosen
+framing is stamped on every row."><meta property="og:description" content="Aggregates a build_n_inputs() long-format nitrogen-input tibble to the
 total anthropogenic reactive nitrogen entering each country's agricultural
 land and divides by population, giving the per-capita reactive nitrogen
 (kg N/cap/yr) that build_n_boundary_percapita() consumes as its
@@ -21,7 +25,11 @@ locked Campbell / Global framing; recycled or internal terms (manure,
 deposition, urban, soil-organic-matter mineralization) are excluded. Any
 finer grid key (lon, lat, item_cbs_code) is aggregated away to the
 country total, and country-years without a matching population row are
-dropped. The chosen framing is stamped on every row."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+dropped – in a warning naming those areas and the share of anthropogenic
+nitrogen that leaves with them, since an area with no denominator is absent
+from the output rather than wrong in it (#543);
+options(whep.warn_missing_population = FALSE) silences it. The chosen
+framing is stamped on every row."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -72,7 +80,11 @@ locked Campbell / Global framing; recycled or internal terms (manure,
 deposition, urban, soil-organic-matter mineralization) are excluded. Any
 finer grid key (<code>lon</code>, <code>lat</code>, <code>item_cbs_code</code>) is aggregated away to the
 country total, and country-years without a matching population row are
-dropped. The chosen framing is stamped on every row.</p>
+dropped – in a warning naming those areas and the share of anthropogenic
+nitrogen that leaves with them, since an area with no denominator is absent
+from the output rather than wrong in it (#543);
+<code>options(whep.warn_missing_population = FALSE)</code> silences it. The chosen
+framing is stamped on every row.</p>
     </div>
 
     <div class="section level2">

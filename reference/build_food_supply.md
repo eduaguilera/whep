@@ -25,6 +25,12 @@ silently dropped. The `"faostat_fbs"` method returns the injected
 FAOSTAT Food Balance Sheet per-capita supply unchanged, as a cross-check
 / sensitivity.
 
+An area with food but no `population` row has no denominator, so it is
+absent from the output rather than wrong in it. Those areas are named in
+a warning with the share of food protein that leaves with them; on the
+real `gdp-population` pin they are 15 areas headed by Bhutan and Comoros
+(#543). `options(whep.warn_missing_population = FALSE)` silences it.
+
 ## Usage
 
 ``` r

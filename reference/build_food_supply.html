@@ -20,7 +20,12 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped. The "faostat_fbs" method returns the injected FAOSTAT Food
-Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.'><meta property="og:description" content='Assembles per-capita protein and dietary-energy supply, the state variable
+Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+An area with food but no population row has no denominator, so it is
+absent from the output rather than wrong in it. Those areas are named in a
+warning with the share of food protein that leaves with them; on the real
+gdp-population pin they are 15 areas headed by Bhutan and Comoros
+(#543). options(whep.warn_missing_population = FALSE) silences it.'><meta property="og:description" content='Assembles per-capita protein and dietary-energy supply, the state variable
 for the SJOS-N nourishment ("just") axis. Protein is the SJOS-N nourishment
 axis; dietary energy is a secondary cross-check. The default "whep_native"
 method multiplies the WHEP commodity-balance food element (tonnes fresh
@@ -41,7 +46,12 @@ Atwater factors could refine it (O-B). Food items with no protein
 coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped. The "faostat_fbs" method returns the injected FAOSTAT Food
-Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
+An area with food but no population row has no denominator, so it is
+absent from the output rather than wrong in it. Those areas are named in a
+warning with the share of food protein that leaves with them; on the real
+gdp-population pin they are 15 areas headed by Bhutan and Comoros
+(#543). options(whep.warn_missing_population = FALSE) silences it.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -103,6 +113,11 @@ coefficient after the coalesce chain are excluded with a warning naming the
 count and a few examples (the residual gap-fill, O-B), never silently
 dropped. The <code>"faostat_fbs"</code> method returns the injected FAOSTAT Food
 Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.</p>
+<p>An area with food but no <code>population</code> row has no denominator, so it is
+absent from the output rather than wrong in it. Those areas are named in a
+warning with the share of food protein that leaves with them; on the real
+<code>gdp-population</code> pin they are 15 areas headed by Bhutan and Comoros
+(#543). <code>options(whep.warn_missing_population = FALSE)</code> silences it.</p>
     </div>
 
     <div class="section level2">

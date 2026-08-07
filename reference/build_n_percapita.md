@@ -13,8 +13,12 @@ and biological-nitrogen- fixation input terms using
 framing; recycled or internal terms (manure, deposition, urban,
 soil-organic-matter mineralization) are excluded. Any finer grid key
 (`lon`, `lat`, `item_cbs_code`) is aggregated away to the country total,
-and country-years without a matching population row are dropped. The
-chosen framing is stamped on every row.
+and country-years without a matching population row are dropped – in a
+warning naming those areas and the share of anthropogenic nitrogen that
+leaves with them, since an area with no denominator is absent from the
+output rather than wrong in it (#543);
+`options(whep.warn_missing_population = FALSE)` silences it. The chosen
+framing is stamped on every row.
 
 ## Usage
 
