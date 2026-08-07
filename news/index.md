@@ -193,6 +193,35 @@
   people (2010) and attribute Reunion’s, Greenland’s and New Caledonia’s
   population to a code that no longer carries their food.
 
+- **LUH2 land is no longer discarded when one aggregation bucket holds
+  two territories, and the pre-1962 yield back-cast no longer mixes
+  countries that share a polity label.** Two sites keyed on the `area`
+  *label* where an `area_code` was available, which is whep#632’s defect
+  at two further sites.
+
+  1.  The LUH2 area bridge paired each bucket’s code with its *member’s*
+      name, so bucket 206 reached grassland construction as two rows —
+      “Sudan (former)” and “South Sudan” — under one `area_code`;
+      `.dedup_production()` reads that as competing sources and kept
+      one, dropping the other’s pasture. The bucket now carries one
+      label derived from its own code, so the two are summed.
+  2.  The `t_ha` proxy-growth fill grouped its series on the label,
+      which is wrong both ways: “Rest of World” covers 62 reporting
+      `area_code`s, so growth rates were taken between different
+      countries, and the label is year-aware, so one country’s own
+      series was cut in two at every periodization boundary (`area_code`
+      79 is “Germany (divided, 1949-1990)” through 1989 and “Germany”
+      from 1990). **Published values move**: `ha` +1.04% (+5.56e9
+      ha-years, all of it bucket 206’s recovered pasture over 1850-2022)
+      and `t_ha` -0.036% (464 cross-country fills removed, 5 real ones
+      gained); `tonnes`, `heads`, `LU`, `t_head`, `t_LU` and
+      `slaughtered_heads` are bit-identical. Comparing the Rest-of-World
+      fold against the default un-folded build over its 62 areas, `ha`
+      goes from 2.38x to 0.99x and `tonnes` from 0.59x to 0.82x, with
+      the whole remainder in the pre-1962 back-cast and the observed
+      1962-2023 era conserved to 0.04%
+      ([\#633](https://github.com/eduaguilera/whep/issues/633)).
+
 - **[`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md),
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   and
