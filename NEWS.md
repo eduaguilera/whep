@@ -69,6 +69,29 @@
   `whep_sf_required` if `sf` is not installed instead of returning the broken
   object. No published values change: the argument-less call is untouched, and
   both in-package callers use it.
+* **`build_gridded_landuse()` and `build_gridded_livestock()` take an
+  `area_key`, and say when their output cannot join a national table.** The
+  spatialize chain allocates on the raw reporting codes its `country_areas`
+  and `country_grid` are keyed on, while whep's polity-keyed national tables
+  are aggregated on `polity_area_code`. A reporting code that is not itself a
+  bucket therefore left every output row carrying two territorial keys that
+  disagree — `area_code = 276` beside `polity_area_code = 206` — so whether a
+  consumer joined on one or the other decided whether Sudan existed in its
+  result (#582). Measured against the deployed pins, `country_grid` holds 831
+  such cells under 2 codes (276 Sudan, 277 South Sudan) and `country_areas`
+  0.64% of its harvested area; the other six codes the issue listed are no
+  longer off-bucket, because #628 gave Syria, North Macedonia, Eswatini,
+  Equatorial Guinea, New Caledonia and Palestine their own published codes.
+  The default `area_key = "grid"` is unchanged bit-for-bit and now warns
+  naming the codes that cannot join; `"polity_area"` re-keys the output on the
+  bucket before the polity columns are attached, so the two keys agree in
+  every row. **No published value changes** unless `"polity_area"` is asked
+  for: on a 2020 Sudan/South Sudan run it conserved 21,894,526 ha and 230.7 M
+  head exactly, kept the row count, and moved 13,447 crop rows and 3,671
+  livestock rows from a key no national table carries onto `206`. Under
+  `"polity_area"` the raw code is carried, not replaced, as `grid_area_code`,
+  the shape `build_cell_polity()` adopted in #579. `run_spatialize()` accepts
+  `area_key` in `overrides`.
 
 * **`estimate_energy_demand()` now warns when `work_hours_day` is supplied
   without a work coefficient.** `whep` ships `cw = 0` for every species, so

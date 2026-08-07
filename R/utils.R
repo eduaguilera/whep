@@ -1807,6 +1807,11 @@ utils::globalVariables(
     "lag_weight",
     # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
     "canonical_area",
-    "key_row"
+    "key_row",
+    # spatialize_compartments.R (#582) - .spatialize_to_bucket() data.table NSE
+    # columns: the carried raw reporting code and the bucket joined onto it
+    "grid_area_code",
+    "polity_bucket",
+    "i.polity_area_code"
   )
 )
