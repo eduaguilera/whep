@@ -214,6 +214,29 @@ pcs_in_cell <- function(result, lon, lat) {
   )
 }
 
+# How many of a polity's clipped pieces the spherical engine emits and then
+# refuses to read back. It repeats the producer's clip -- the same candidate
+# cells, the same intersection, the same repair -- but takes the verdict from
+# `.s2_repair()` rather than from the `area_engine` column, so it reports what
+# the platform's own geometry stack does and stays true under any mutation of
+# how the producer picks an engine. The two blocks that exist for that hazard
+# use it as a liveness precondition: s2 validity turns on ULP-level degeneracy,
+# so a build that read every piece back would leave them passing while
+# exercising nothing. Returns 0 for a polity the live filter drops, so a
+# superseded fixture fails the precondition rather than erroring.
+pcs_s2_refuses <- function(geometries) {
+  polity <- whep:::.pcs_prepare_polities(geometries)
+  if (nrow(polity) == 0L) {
+    return(0L)
+  }
+  geom <- sf::st_geometry(polity)
+  cells <- whep:::.pcs_cells_sf(whep:::.pcs_candidate_cells(geom))
+  cells <- cells[lengths(sf::st_intersects(cells, geom)) > 0L, ]
+  sf::st_agr(cells) <- "constant"
+  pieces <- sf::st_intersection(cells, geom)
+  sum(whep:::.s2_repair(sf::st_geometry(pieces))$status == "invalid")
+}
+
 # Output contract --------------------------------------------------------------
 
 testthat::test_that("build_polycell_support returns the polycell grain", {
@@ -1569,8 +1592,26 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # does not. The liveness precondition is asserted rather than assumed, so a
   # future supersession fails by name instead of cascading through nine
   # downstream expectations.
+  #
+  # PLATFORM INDEPENDENCE (T-A15). WHICH engine measured a piece is the
+  # platform's decision, not WHEP's: s2 validity turns on ULP-level degeneracy,
+  # so pieces the Windows and Linux runners refuse are read on macOS ARM64.
+  # Pinning the engine failed there on five expectations. This block therefore
+  # asserts the property -- no piece is dropped, every piece carries a positive
+  # finite area, the recovered area matches an engine-independent reference,
+  # and the partition still sums to the polity -- and never which engine ran.
+  # The spread behind the tolerances is measured on this polity rather than
+  # assumed: over its 55 s2-readable pieces `terra::expanse()` differs from
+  # `sf::st_area()` by +2.23e-04 to +9.88e-04 relative, area-weighted
+  # +6.88e-04. The 0.45%-0.86% band quoted at `.pcs_measure_pieces()` is the
+  # global one and does not apply here -- the WGS84-over-sphere area ratio
+  # crosses 1 near latitude 35.3 and this polity spans 36.25 to 39.75.
   greece <- whep::get_polity_geometries("GRC-1881-1913")
   testthat::expect_equal(nrow(whep:::.pcs_prepare_polities(greece)), 1L)
+  # The hazard must still be present, read from the geometry stack rather than
+  # from the producer's own report: with no unreadable piece left there is
+  # nothing to recover and the block would pass while exercising nothing.
+  testthat::expect_gt(pcs_s2_refuses(greece), 0L)
   vanished <- c(
     401255L,
     404252L,
@@ -1582,54 +1623,86 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
     409255L
   )
 
-  testthat::expect_warning(
-    result <- whep::build_polycell_support(geometries = greece),
-    "could not measure"
+  # The substitution is announced. Asserted as a LINK rather than as a bare
+  # `expect_warning()`, which would itself pin the engine: the producer must
+  # warn exactly when it substituted, so a platform that needs no substitution
+  # stays silent and legal while a producer that substitutes silently still
+  # fails here.
+  warned <- testthat::capture_warnings(
+    result <- whep::build_polycell_support(geometries = greece)
+  )
+  testthat::expect_equal(
+    any(stringr::str_detect(warned, "could not measure")),
+    any(result$area_engine == "terra")
   )
 
-  # Every cell the drop used to swallow is present and carries real area.
+  # MEASURED, NEVER DROPPED. The census is exact and engine-independent by
+  # construction: the pieces come out of the s2 clip, and the only filter after
+  # it is the 1e-6 ha area floor, which sits 4.9e+08 times below this polity's
+  # smallest piece (490.82 ha). No engine difference of ~1e-03 relative can
+  # move a piece across that floor, so the count cannot depend on the engine.
+  testthat::expect_equal(nrow(result), 63L)
   testthat::expect_true(all(vanished %in% result$cell_id))
   recovered <- dplyr::filter(result, .data$cell_id %in% vanished)
   testthat::expect_equal(nrow(recovered), length(vanished))
-  testthat::expect_true(all(recovered$polity_area_ha > 0))
-  testthat::expect_equal(unique(recovered$area_engine), "terra")
+  # Both engines return a finite positive area or the piece was never measured,
+  # so this holds for any mix and catches the NA a half-filled branch leaves.
+  testthat::expect_true(all(is.finite(result$polity_area_ha)))
+  testthat::expect_true(all(result$polity_area_ha > 0))
 
-  # The substitution is addressable, not inferred: the row column and the
-  # diagnostic agree, and the rest of the polity stays on the spherical engine.
-  testthat::expect_setequal(
-    dplyr::filter(result, .data$area_engine == "terra")$cell_id,
-    vanished
-  )
+  # The substitution is addressable, not inferred: whichever pieces went to
+  # terra, the diagnostic names exactly those and books exactly their area.
+  # That is an internal-consistency property of one output, so it holds for
+  # every engine mix, including the empty one.
+  terra_rows <- dplyr::filter(result, .data$area_engine == "terra")
   terra_measured <- attr(result, "terra_measured")
-  testthat::expect_equal(nrow(terra_measured), length(vanished))
-  testthat::expect_equal(
-    sum(terra_measured$polity_area_ha),
-    sum(recovered$polity_area_ha)
-  )
+  if (nrow(terra_rows) == 0L) {
+    testthat::expect_null(terra_measured)
+  } else {
+    testthat::expect_setequal(terra_measured$cell_id, terra_rows$cell_id)
+    testthat::expect_equal(
+      sum(terra_measured$polity_area_ha),
+      sum(terra_rows$polity_area_ha)
+    )
+  }
 
   # The recovered area is real land, not a degenerate sliver, and the reference
   # shares neither engine with the producer: clipping the same eight cells with
   # s2 switched off and measuring the pieces in a Lambert azimuthal equal-area
-  # projection gives 530,417.74 ha, 7.4e-05 relative from the 530,378.73 ha the
-  # producer books through `terra::expanse()`.
+  # projection gives 530,417.74 ha (re-measured here at 530,418.32), against
+  # the 530,378.73 ha the producer books through `terra::expanse()`.
+  #
+  # TOLERANCE 2e-03, derived rather than rounded. Only two terms can move this
+  # sum between platforms: the measured engine spread on this polity's own
+  # pieces, at most 9.88e-04 relative, and the 7.5e-05 planar-clip-against-
+  # s2-clip gap between the reference and the producer -- 1.06e-03 together,
+  # so 2e-03 carries 1.9x headroom. It stays 5.7x tighter than the smallest
+  # defect it must catch, dropping the smallest of the eight pieces
+  # (6,110.99 ha, 1.15e-02 of the sum).
   testthat::expect_gt(sum(recovered$polity_area_ha), 5e5)
-  testthat::expect_lt(
-    abs(sum(recovered$polity_area_ha) / 530418 - 1),
-    0.01
+  testthat::expect_equal(
+    sum(recovered$polity_area_ha),
+    530417.74,
+    tolerance = 2e-3
   )
-  # A 1% band cannot separate the two area engines, so the share of the polity
-  # carries the "material, not rounding" half of the claim on its own.
+  # Material rather than rounding: the eight pieces are 8.3% of the polity. A
+  # mixed engine flip moves numerator and denominator by at most 9.1e-04
+  # relative between them, so the same 2e-03 applies, and dropping the smallest
+  # piece still moves the share by 1.15e-02.
   testthat::expect_equal(
     sum(recovered$polity_area_ha) / sum(result$polity_area_ha),
     0.083432,
-    tolerance = 1e-4
+    tolerance = 2e-3
   )
 
-  # And the polity re-aggregates: no piece is missing from the total.
+  # And the polity re-aggregates: no piece is missing from the total. The
+  # residual is exactly the terra-measured share times the engine offset, so it
+  # runs from 0 with no piece substituted to the area-weighted 6.88e-04 with
+  # every piece substituted; 2e-03 covers that whole range with 2.9x headroom.
   testthat::expect_equal(
     sum(result$polity_area_ha),
     as.numeric(sf::st_area(sf::st_geometry(greece))) / 1e4,
-    tolerance = 1e-3
+    tolerance = 2e-3
   )
 })
 
@@ -1711,84 +1784,128 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
   # with another (plan AM-25). The census pins below exist so that can never
   # read as green again.
   #
-  # The ice rectangle is chosen to give `.pcs_ice_areas_terra()` a VALUE to
-  # meet, not a sign. It covers cells 407256 and 408256 -- which hold two of
-  # Greece's eight terra pieces and no s2 piece -- exactly and entirely, so
-  # their ice must equal their whole territory; every other polycell, including
-  # the six remaining terra pieces, must come back at exactly zero. Asserting
-  # only `sum(ice) > 0` admits a helper that returns the whole piece, one that
-  # crops too small, and one that halves the ice.
+  # The ice rectangle is chosen to give the ice reader a VALUE to meet, not a
+  # sign. It covers cells 407256 and 408256 exactly and entirely, so their ice
+  # must equal their whole territory; every other polycell must come back at
+  # essentially zero. Asserting only `sum(ice) > 0` admits a helper that
+  # returns the whole piece, one that crops too small, and one that halves the
+  # ice.
+  #
+  # PLATFORM INDEPENDENCE (T-A15). Which engine measured a piece is the
+  # platform's decision -- s2 validity turns on ULP-level degeneracy -- so
+  # three expectations here that pinned `area_engine` failed on macOS ARM64 and
+  # are gone. The two engines also disagree about the rectangle's own edges,
+  # and that is measured against the shipped Greek polygon rather than assumed:
+  # under s2 a lon/lat rectangle's east-west edges are great circles, so this
+  # 1-degree-wide rectangle bulges 1.06e-03 degrees poleward of its stated
+  # parallels while the 0.5-degree cells the pieces were clipped from bulge
+  # only 2.65e-04. That puts
+  #   * 271.31 ha of Greek land inside the two covered cells BELOW the
+  #     rectangle's southern arc, which an s2 ice clip misses and a planar one
+  #     covers (247.42 of it in cell 407256, 1.19e-03 of its territory);
+  #   *  92.76 ha above the parallel 38.5 but inside those cells, which a
+  #     planar ice clip misses and an s2 one covers;
+  #   * 476.27 ha above the parallel 38.5 in the cells NORTH of it, which an s2
+  #     ice clip books onto polycells outside the rectangle and a planar one
+  #     does not.
+  # Every tolerance below is derived from those three figures, so the block
+  # accepts either engine on any piece and nothing looser.
   covered <- c(407256L, 408256L)
   greece <- whep::get_polity_geometries("GRC-1881-1913")
   testthat::expect_equal(nrow(whep:::.pcs_prepare_polities(greece)), 1L)
+  # The unreadable piece this block is named for must still exist, read from
+  # the geometry stack and not from the producer's own report: with none left
+  # there is no s2 predicate to abort on and the block would pass vacuously.
+  testthat::expect_gt(pcs_s2_refuses(greece), 0L)
   aegean <- sf::st_sf(
     geometry = sf::st_sfc(pcs_rect(23.5, 24.5, 38.0, 38.5), crs = 4326)
   )
 
-  testthat::expect_warning(
+  # The substitution is announced, asserted as a link rather than as a bare
+  # `expect_warning()`; see "an unreadable clip piece is measured, never
+  # dropped" for why that phrasing is the engine-independent one.
+  iced <- testthat::capture_warnings(
     result <- whep::build_polycell_support(
       geometries = greece,
       ice = aegean
-    ),
-    "could not measure"
+    )
+  )
+  testthat::expect_equal(
+    any(stringr::str_detect(iced, "could not measure")),
+    any(result$area_engine == "terra")
   )
 
   # It completes, and it completes with the same polycells as without ice.
-  testthat::expect_warning(
-    bare <- whep::build_polycell_support(geometries = greece),
-    "could not measure"
+  plain <- testthat::capture_warnings(
+    bare <- whep::build_polycell_support(geometries = greece)
+  )
+  testthat::expect_equal(
+    any(stringr::str_detect(plain, "could not measure")),
+    any(bare$area_engine == "terra")
   )
   # NON-VACUITY. `expect_setequal()` holds between two empty vectors and a sum
   # over an empty frame equals a sum over another empty frame, so both of the
   # next two expectations pass when the build returns nothing. Pin the census
   # and a positive total first; then the comparisons have something to compare.
+  # The census is engine-independent: the pieces come out of the s2 clip and
+  # the only filter after it is the 1e-6 ha area floor, 4.9e+08 times below the
+  # smallest piece.
   testthat::expect_equal(nrow(result), 63L)
   testthat::expect_equal(nrow(bare), 63L)
   testthat::expect_gt(sum(bare$polity_area_ha), 6e6)
   testthat::expect_setequal(result$cell_id, bare$cell_id)
+  # Both builds ran on one platform, so they made the same engine choice on
+  # every piece and this equality is exact whichever choice that was.
   testthat::expect_equal(sum(result$polity_area_ha), sum(bare$polity_area_ha))
 
-  # The two fully covered cells are terra rows, and their ice is their whole
-  # territory: a crop that misses part of the cell cannot reach this, and a
-  # halved ice area cannot either.
-  # The rectangle's edges are straight in longitude and latitude while the cell
-  # edges the pieces were clipped against are great circles, so the cover is
-  # 99.98% rather than 100%. That is three orders of magnitude tighter than any
-  # of the failures it has to exclude: a crop shrunk by 20% loses tens of
-  # percent, and halved ice loses half.
+  # The two fully covered cells hold ice over their whole territory: a crop
+  # that misses part of the cell cannot reach this, and a halved ice area
+  # cannot either.
+  # TOLERANCE 3e-03. The uncovered remainder is whichever edge strip the engine
+  # that ran leaves behind: 3.33e-04 of the larger cell's territory planar-side
+  # (69.37 of 208,242 ha, measured 99.982% cover) and 1.19e-03 spherical-side
+  # (247.42 ha), so 3e-03 clears the worse of the two by 2.5x. The failures it
+  # must exclude are two orders of magnitude larger -- a crop shrunk by 20%
+  # loses tens of percent, halved ice loses half.
   under_ice <- dplyr::filter(result, .data$cell_id %in% covered)
   testthat::expect_equal(nrow(under_ice), 2L)
-  testthat::expect_equal(unique(under_ice$area_engine), "terra")
   testthat::expect_equal(
     under_ice$ice_area_ha,
     under_ice$polity_area_ha,
-    tolerance = 1e-3
+    tolerance = 3e-3
   )
   testthat::expect_true(all(
-    under_ice$ice_area_ha / under_ice$polity_area_ha > 0.999
+    under_ice$ice_area_ha / under_ice$polity_area_ha > 0.995
   ))
   testthat::expect_true(all(
-    under_ice$land_area_ha < 1e-3 * under_ice$polity_area_ha
+    under_ice$land_area_ha < 5e-3 * under_ice$polity_area_ha
   ))
 
-  # Every other polycell is untouched by the rectangle, including the six
-  # terra pieces outside it: a helper that ignored the ice geometry and handed
-  # back the whole piece would light these up. A zero sum over an empty frame
-  # would light nothing up, so both populations are counted before they are
-  # summed.
+  # Every other polycell is essentially untouched by the rectangle: a helper
+  # that ignored the ice geometry and handed back the whole piece would light
+  # these up with 6.06e+06 ha. The bound is the 476.27 ha the rectangle's
+  # northern arc can reach into the cells above the parallel, so it is scaled
+  # off the two covered cells' territory (294,136 ha) -- a quantity the ice
+  # reader does not produce -- at 1e-02, clearing the arc by 6.2x and still
+  # sitting 2,060x below the whole-piece failure. A zero sum over an empty
+  # frame would light nothing up, so both populations are counted before they
+  # are summed.
   outside <- dplyr::filter(result, !.data$cell_id %in% covered)
   testthat::expect_equal(nrow(outside), 61L)
-  testthat::expect_equal(sum(outside$ice_area_ha), 0)
-  testthat::expect_equal(sum(outside$area_engine == "terra"), 6L)
-  testthat::expect_equal(
-    sum(dplyr::filter(outside, .data$area_engine == "terra")$ice_area_ha),
-    0
+  testthat::expect_lt(
+    sum(outside$ice_area_ha),
+    1e-2 * sum(under_ice$polity_area_ha)
   )
-  testthat::expect_equal(
-    sum(result$ice_area_ha),
-    sum(under_ice$polity_area_ha),
-    tolerance = 1e-3
-  )
+  # The ice actually placed is the polity's own land inside the rectangle,
+  # against a reference that shares neither engine with the producer: the same
+  # rectangle clipped with `sf_use_s2(FALSE)` and measured in Lambert azimuthal
+  # equal-area gives 294,181.62 ha against the producer's 294,078.84,
+  # 3.5e-04 relative. TOLERANCE 1e-02: the three edge strips bound the
+  # engine disagreement at (271.31 + 92.76 + 476.27) / 294,182 = 2.86e-03 and
+  # the area engines add at most 9.88e-04, so 1e-02 clears 3.85e-03 by 2.6x
+  # while still failing a helper that hands back the whole piece (21.6x), one
+  # that crops 20% short, and one that halves the ice.
+  testthat::expect_equal(sum(result$ice_area_ha), 294181.62, tolerance = 1e-2)
 
   # And the identity still holds on every row, whichever engine measured it.
   testthat::expect_equal(
