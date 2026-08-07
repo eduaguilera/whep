@@ -2347,9 +2347,10 @@ testthat::test_that("polygonal intersections restore the source row after droppi
 
   # macOS GEOS can return these two geometries from one ice clip. Calling the
   # sf data-frame method tries to put both on its one source row before the
-  # zero-length line can be discarded. The sfc method instead records that
-  # both results came from source row 1 in `idx`; the normalizer must retain
-  # the polygon and reattach that row exactly once.
+  # zero-length line can be discarded. The sfc method normally records that
+  # both results came from source row 1 in `idx`, but some macOS sf/GEOS builds
+  # omit `idx` for a one-row x one-row intersection. Either way, the normalizer
+  # must retain the polygon and reattach that row exactly once.
   source <- sf::st_sf(
     cell_id = "cell-a",
     piece = 7L,
@@ -2379,6 +2380,19 @@ testthat::test_that("polygonal intersections restore the source row after droppi
   testthat::expect_equal(
     sf::st_as_text(sf::st_geometry(restored)),
     sf::st_as_text(sf::st_sfc(polygon, crs = 4326))
+  )
+
+  unindexed <- hit
+  attr(unindexed, "idx") <- NULL
+  testthat::expect_equal(
+    whep:::.pcs_restore_intersection_rows(source, unindexed),
+    restored
+  )
+  # With more than one possible source row, absence of `idx` is ambiguous and
+  # must fail closed rather than attach a plausible but incorrect identity.
+  testthat::expect_error(
+    whep:::.pcs_restore_intersection_rows(rbind(source, source), unindexed),
+    "did not retain its source-row mapping"
   )
 
   line_only <- sf::st_sfc(zero_line, crs = 4326)

@@ -590,6 +590,12 @@ expand_polycell_years <- function(support, years) {
   if (length(hit) == 0L) {
     return(x[0, ])
   }
+  # Some sf/GEOS builds omit `idx` for a one-row x one-row intersection. That
+  # mapping is still exact: every returned component came from source row 1.
+  # Never make the same guess when several source rows are possible.
+  if (is.null(idx) && nrow(x) == 1L) {
+    idx <- matrix(1L, nrow = length(hit), ncol = 1L)
+  }
   if (is.null(idx) || ncol(idx) < 1L || nrow(idx) != length(hit)) {
     cli::cli_abort(
       "The sfc intersection did not retain its source-row mapping."
