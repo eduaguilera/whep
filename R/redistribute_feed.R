@@ -36,6 +36,28 @@
 #'   attribute lists demand rows underfed below maintenance.
 #'
 #' @export
+#'
+#' @examples
+#' # Two variable-demand categories in one territory competing for a single
+#' # feed item. Availability (150) falls short of demand (200), so the
+#' # remaining-share principle underfeeds both by the same factor rather than
+#' # letting either exceed what is there.
+#' feed_demand <- tibble::tribble(
+#'   ~year, ~territory, ~sub_territory, ~livestock_category,
+#'   ~item_cbs_code, ~feed_group, ~feed_quality, ~demand_dm_t, ~fixed_demand,
+#'   2000L, "79", "79", "Cattle_milk",
+#'   NA_integer_, NA_character_, "high_quality", 120, FALSE,
+#'   2000L, "79", "79", "Pigs",
+#'   NA_integer_, NA_character_, "high_quality", 80, FALSE
+#' )
+#'
+#' feed_avail <- tibble::tribble(
+#'   ~year, ~territory, ~sub_territory, ~item_cbs_code, ~feed_group,
+#'   ~feed_quality, ~avail_dm_t, ~feed_scale,
+#'   2000L, "79", "79", 2514L, "cereals", "high_quality", 150, "national"
+#' )
+#'
+#' redistribute_feed(feed_demand, feed_avail)
 redistribute_feed <- function(feed_demand, feed_avail, options = list()) {
   options <- .redistribute_feed_options(options)
   .validate_feed_inputs(feed_demand, feed_avail)

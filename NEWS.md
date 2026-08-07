@@ -13,6 +13,50 @@
   observed `"simple"` sum, or disappears if it had none. No cell that was a
   number before changes.
 
+* **`build_cbs_prices()` no longer drops crop residues into an NA bucket.**
+  The residue routing in `.add_residue_prices()` read
+  `Herb_Woody == "Woody"` inside a nested `fifelse()`, so every item whose
+  herbaceous/woody habit is missing got `NA` as its residue item. Those rows
+  were pooled into one `NA`-keyed group and then dropped, and the pool mixed
+  the mass and value of unrelated items on the way. On the real
+  `faostat-trade-bilateral` pin (1986-2021) that silently discarded **72 rows**
+  (36 years x 2 elements) of residue value. Residues are now generated only for
+  primary crops and grassland — processed and animal products never had a crop
+  residue — and a crop with no recorded habit takes the herbaceous default,
+  reported in a warning naming the items (currently Cottonseed, Palm kernels
+  and Palm Oil, whose `Name` is unset in `items_prod_full_raw.csv`).
+  **Published values move for one item, `Other crop residues` (2106)**: its
+  tonnage basis grows by 15.0% on average (2020 exports 345.6 Mt to 401.9 Mt)
+  and its price shifts by -2.6% on average (2020 exports -1.2%, largest single
+  move +6.8%). `Straw` (2105), `Firewood` (2107) and every non-residue item are
+  unchanged to the digit.
+* **`calculate_soc_dynamics()` returns one schema for all five SOC models.**
+  It used to hand back whichever shape the selected model happened to produce:
+  `hsoc` (the default) came back long as `pool` / `year` / `stock_mgc_ha` /
+  `rate_mgc_ha` with **no** `soc_total`, while `rothc`, `icbm`, `amg` and
+  `century` came back wide with `soc_total` and their own mutually exclusive
+  pool columns (`dpm`/`rpm`/`bio`/`hum`/`iom`, `y`/`o`, `ca`/`cs`,
+  `str`/`met`/`act`/`slw`/`pas`) — no two of the five agreed, so a caller had
+  to branch on `model`. The selector now reshapes whichever model ran to the
+  long schema `year`, `pool`, `stock_mgc_ha`, `soc_total`, `method_soc`: pool
+  detail is kept, the model-specific part sits in the values of `pool` instead
+  of in column names, and the five runs of a sensitivity analysis stack with a
+  plain `dplyr::bind_rows()`. Total-only callers read
+  `dplyr::distinct(out, year, soc_total)`. `calculate_soc_hsoc()` itself is now
+  wide like its four siblings (`year`, `fresh`, `humus`, `iom`, `soc_total`) and
+  no longer returns the per-pool `rate_mgc_ha`, which was exactly the forward
+  annual difference of `stock_mgc_ha` and is recoverable from it. **No published
+  value changes**: every pool stock and every `build_carbon_balance()`
+  equilibrium is bit-identical before and after (checked across nine HSOC
+  parameterisations and the spin-up of all five models).
+* `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
+  an `example = FALSE` argument, so both now have runnable examples like the
+  rest of the package's remote-data functions. Their documented `@return` was
+  also wrong and is corrected: `create_typologies_of_josette()` returns a named
+  list of three tibbles plus a `ggplot`, not a single tibble, and
+  `create_typologies_grafs_spain()` returns `Province_name` and `Typologie` for
+  `map_year` only, not a seven-column series over all years. No published value
+  changes — the only new code path is the `example = TRUE` early return.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different
@@ -148,6 +192,24 @@
   `demand_tier = "fcr"`. All 191 other areas are bit-identical in both tiers.
   The five continent residuals `901`-`905` stay unmapped on purpose: they span
   several Bouwman regions each and carry no production row at all.
+* `build_cell_polity()` gains `area_key`, choosing which code the shared
+  cell-area grid every gridded consumer keys on. The grid is rasterized from
+  present-day polygons through `regions.csv`, so its `area_code` is a raw
+  reporting-area code, not the `polity_area_code` bucket every polity-keyed
+  national table in whep is aggregated on. On the deployed
+  `cell_polity_fraction` parquet **12 of its 182 codes (819 cells) are not a
+  bucket** -- Syria, Palestine, Eswatini, Equatorial Guinea, North Macedonia,
+  New Caledonia, Western Sahara, Andorra, Liechtenstein and San Marino (all
+  folded into `999` Rest of World), `62` Ethiopia PDR (into `238`) and `277`
+  South Sudan (into `206`) -- so their cells match nothing on either side of
+  the join. Measured against real 2010 harvested area, **21.09 Mha of national
+  cropland, 1.525% of the world total, cannot be placed on any grid cell**;
+  15.30 Mha of that is the whole of Ethiopia and 5.67 Mha is Rest of World.
+  `area_key = "polity_area"` re-keys the grid on the bucket and cuts that to
+  0.12 Mha (0.009%). **No published value changes**: the default `"grid"`
+  reproduces today's output bit-for-bit and only adds a warning naming the
+  codes, because switching moves every gridded consumer's territorial
+  attribution at once. Whether it should become the default is issue #460.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
@@ -453,6 +515,22 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called `set.seed()` and left it set, so every
+  random number drawn afterwards depended on having made the call, and in a
+  session that had not yet used the RNG it created `.Random.seed` where there
+  was none. The seed is now scoped to the call and the previous RNG state (or
+  its absence) is restored on return. Seeded results are bit-identical to
+  before; unseeded runs still consume the caller's stream, so consecutive
+  unseeded runs remain independent draws (#188).
+* A failed Natural Earth download now reports how to recover instead of dying
+  on its own error message. The abort interpolated the layer URL as
+  `{.url {.natural_earth_url(layer)}}`, and cli >= 3.4.0 reads a `{}`
+  expression starting with a dot as a style name, so the branch raised
+  `Invalid cli literal` and the instructions never reached the user. The
+  province typologies (`create_typologies_grafs_spain()`,
+  `create_typologies_of_josette()`) are the callers that reach it. No published
+  value changes (#594).
 
 # whep 0.3.0
 

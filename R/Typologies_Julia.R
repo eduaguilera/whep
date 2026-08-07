@@ -15,34 +15,37 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
+#' @param example If `TRUE`, return a small example output without reading the
+#'   remote inputs or the Natural Earth layer. Default is `FALSE`.
+#'
 #' @returns
-#' A tibble with the classification of Spanish provinces into typologies.
-#' It contains the following columns:
-#' - `year`: The year in which the classification is performed.
-#' - `province_name`: The name of the Spanish province.
-#' - `livestock_density`: Livestock units (LU) per hectare of agricultural area
-#'                        (UAA). Reflects the intensity of animal farming.
-#' - `productivity_kgN_ha`: Crop N productivity, in kilograms of N harvested
-#'                          per hectare of cropland.
-#' - `semi_nat_share`: Share of total feed coming from semi-natural
-#'                     agroecosystems. Expressed between 0 and 1.
-#' - `feed_imported_share`: Share of feed that is imported. Expressed between
-#'                          0 and 1.
-#' - `typology`: Assigned typology category for each province.
-#'               This is based on thresholds in livestock density, crop
-#'               productivity, and feed patterns. The typologies include:
-#'               - `Specialized cropping system`
-#'               - `Extensive cropping system`
-#'               - `Extensive mixed crop-livestock system`
-#'               - `Intensive mixed crop-livestock system`
-#'               - `Specialized livestock-farming system`
+#' A tibble with the classification of Spanish provinces into typologies for
+#' `map_year`. It contains the following columns:
+#' - `Province_name`: The name of the Spanish province.
+#' - `Typologie`: Assigned typology category for each province. This is based
+#'                on thresholds in livestock density (livestock units per
+#'                hectare of agricultural area), crop N productivity (kg N
+#'                harvested per hectare of cropland), and the semi-natural and
+#'                imported shares of feed. The typologies are:
+#'   - `Specialized cropping system`
+#'   - `Extensive cropping system`
+#'   - `Extensive mixed crop-livestock system`
+#'   - `Intensive mixed crop-livestock system`
+#'   - `Specialized livestock-farming system`
 #'
 #' @export
+#'
+#' @examples
+#' create_typologies_grafs_spain(example = TRUE)
 create_typologies_grafs_spain <- function(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  example = FALSE
 ) {
+  if (example) {
+    return(.ex_typologies_grafs_spain())
+  }
   shapefile_path <- .provinces_shapefile(shapefile_path)
 
   # Load datasets

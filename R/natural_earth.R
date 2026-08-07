@@ -54,12 +54,17 @@
   }
 
   zip <- file.path(dir, paste0(layer, ".zip"))
+  # Resolved into a local rather than interpolated inline: cli >= 3.4.0 reads
+  # a `{}` expression starting with a dot as a style name, so
+  # `{.url {.natural_earth_url(layer)}}` aborted with "Invalid cli literal"
+  # instead of showing this function's own recovery instructions.
+  url <- .natural_earth_url(layer)
   cli::cli_alert_info("Downloading {layer} from Natural Earth...")
 
   ok <- tryCatch(
     {
       utils::download.file(
-        .natural_earth_url(layer),
+        url,
         zip,
         mode = "wb",
         quiet = TRUE
@@ -78,7 +83,7 @@
     cli::cli_abort(c(
       "Could not download the Natural Earth layer {.val {layer}}.",
       x = if (inherits(ok, "error")) conditionMessage(ok),
-      i = "Download {.url {.natural_earth_url(layer)}} manually and pass the
+      i = "Download {.url {url}} manually and pass the
            unzipped {.file .shp} via {.arg shapefile_path}, or set
            {.code options(whep.provinces_shapefile = \"<path>\")}."
     ))

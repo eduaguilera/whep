@@ -78,6 +78,113 @@ testthat::test_that("build_cell_polity adds cell_area_ha from latitude", {
   testthat::expect_true(all(result$cell_area_ha > 0))
 })
 
+# The grid is rasterized from regions.csv, so it carries reporting-area codes
+# that are folded away in polity_area_crosswalk: 212 Syria and 299 Palestine
+# both live in bucket 999, and 277 South Sudan in bucket 206 alongside 276
+# Sudan. On the deployed cell_polity_fraction parquet 12 such codes cover 819
+# cells, and every one of them is invisible to the polity-keyed national
+# tables every gridded consumer joins against.
+.nbs_off_bucket_grid <- function() {
+  tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~polity_frac,
+    0.25, 50.25,       212L,          1.0,
+    0.75, 50.25,       299L,          0.4,
+    0.75, 50.25,        68L,          0.6,
+    1.25, 50.25,       276L,          0.7,
+    1.25, 50.25,       277L,          0.3
+  )
+}
+
+.nbs_write_grid <- function(raw, envir = parent.frame()) {
+  path <- withr::local_tempfile(fileext = ".parquet", .local_envir = envir)
+  nanoparquet::write_parquet(raw, path)
+  path
+}
+
+testthat::test_that("build_cell_polity warns on off-bucket grid codes", {
+  path <- .nbs_write_grid(.nbs_off_bucket_grid())
+
+  testthat::expect_warning(
+    result <- whep::build_cell_polity(polity_fraction_path = path),
+    "cannot join"
+  )
+  # The default reproduces the parquet's own codes bit-for-bit.
+  testthat::expect_equal(result$area_code, c(212L, 299L, 68L, 276L, 277L))
+})
+
+testthat::test_that("build_cell_polity keeps on-bucket grids silent", {
+  path <- .nbs_write_grid(
+    dplyr::filter(.nbs_off_bucket_grid(), area_code == 68L)
+  )
+
+  testthat::expect_no_warning(
+    whep::build_cell_polity(polity_fraction_path = path)
+  )
+})
+
+testthat::test_that("area_key = polity_area re-keys the grid on buckets", {
+  path <- .nbs_write_grid(.nbs_off_bucket_grid())
+
+  result <- whep::build_cell_polity(
+    polity_fraction_path = path,
+    area_key = "polity_area"
+  )
+
+  # 212 and 299 resolve to Rest of World, 276 and 277 both to Sudan (former).
+  pointblank::expect_col_vals_in_set(
+    result,
+    columns = "area_code",
+    set = c(68L, 206L, 999L)
+  )
+  # The Sudan cell held two areas of one bucket: they collapse to one row.
+  sudan <- dplyr::filter(result, lon == 1.25)
+  testthat::expect_equal(nrow(sudan), 1L)
+  testthat::expect_equal(sudan$area_code, 206L)
+  testthat::expect_equal(sudan$polity_frac, 1)
+})
+
+testthat::test_that("area_key = polity_area conserves each cell's fractions", {
+  path <- .nbs_write_grid(.nbs_off_bucket_grid())
+
+  result <- whep::build_cell_polity(
+    polity_fraction_path = path,
+    area_key = "polity_area"
+  )
+
+  sums <- result |>
+    dplyr::summarise(total = sum(polity_frac), .by = c(lon, lat))
+  pointblank::expect_col_vals_equal(sums, columns = "total", value = 1)
+  # No cell is lost and no code appears twice in one cell.
+  testthat::expect_equal(
+    nrow(dplyr::distinct(result, lon, lat)),
+    nrow(dplyr::distinct(.nbs_off_bucket_grid(), lon, lat))
+  )
+  testthat::expect_equal(
+    nrow(dplyr::distinct(result, lon, lat, area_code)),
+    nrow(result)
+  )
+})
+
+testthat::test_that("area_key = polity_area emits no off-bucket code", {
+  path <- .nbs_write_grid(.nbs_off_bucket_grid())
+
+  result <- whep::build_cell_polity(
+    polity_fraction_path = path,
+    area_key = "polity_area"
+  )
+
+  testthat::expect_equal(whep:::.cell_polity_off_bucket(result), integer(0))
+})
+
+testthat::test_that("build_cell_polity rejects an unknown area_key", {
+  path <- .nbs_write_grid(.nbs_off_bucket_grid())
+
+  testthat::expect_error(
+    whep::build_cell_polity(polity_fraction_path = path, area_key = "polity"),
+    class = "rlang_error"
+  )
+})
+
 # spatialize_country_n_to_crops --------------------------------------------
 
 testthat::test_that("polity_crop resolution splits totals by area share", {

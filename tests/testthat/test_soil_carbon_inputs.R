@@ -634,3 +634,44 @@ test_that(".sci_read_manure wires the turnkey chain to cropland applied_c", {
   # item_prod_code -- never on the grassland row.
   testthat::expect_setequal(unique(cropland$crop), c("15", "27"))
 })
+
+# The unspatialized-carbon warning used to abort instead of warning once more
+# than one crop went unmatched, because item_prod_code is INTEGER and cli then
+# could not tell which value the plural markers referred to. It killed
+# build_carbon_balance() on any multi-year span -- 1901-1905 warned fine,
+# 1901-1910 died -- so a single-year run never showed it.
+testthat::test_that("unspatialized carbon warns, and does not abort, for many crops", {
+  components <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~c_mass_mg,
+    68L, 15L, 100.5,
+    68L, 56L, 200.25,
+    68L, 71L, 300.125
+  )
+  # No weights at all, so every component is unmatched.
+  weights <- tibble::tibble(
+    area_code = integer(),
+    item_prod_code = integer()
+  )
+
+  testthat::expect_warning(
+    lost <- .sci_warn_unspatialized(components, weights),
+    "had no crop-pattern cells"
+  )
+  testthat::expect_equal(nrow(lost), 3L)
+})
+
+testthat::test_that("unspatialized carbon warning reads singular for one crop", {
+  components <- tibble::tribble(
+    ~area_code, ~item_prod_code, ~c_mass_mg,
+    68L, 15L, 100.5
+  )
+  weights <- tibble::tibble(
+    area_code = integer(),
+    item_prod_code = integer()
+  )
+
+  testthat::expect_warning(
+    .sci_warn_unspatialized(components, weights),
+    "1 polity-crop carbon component"
+  )
+})

@@ -78,3 +78,28 @@ origin sector \eqn{i} and final-demand target, the origin requirement
 intermediate use \eqn{A_{ij} x_j}. Values are multiplied by the origin
 extension intensity \eqn{e_i / X_i}.
 }
+\examples{
+# A two-sector economy: sector 1 (item 10) carries the whole extension and
+# supplies 50 of intermediate input to sector 2 (item 20). Its footprint
+# therefore splits into a direct final-demand path and a first-use path
+# through item 20.
+z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+x_vec <- c(100, 200)
+y_mat <- matrix(c(10, 100), nrow = 2)
+labels <- tibble::tibble(
+  area_code = c(1L, 1L),
+  item_cbs_code = c(10L, 20L)
+)
+fd_labels <- tibble::tibble(area_code = 2L, fd_col = "food")
+
+compute_footprint_paths(
+  z_mat = z_mat,
+  x_vec = x_vec,
+  y_mat = y_mat,
+  extensions = c(200, 0),
+  labels = labels,
+  fd_labels = fd_labels,
+  conserve_extensions = FALSE
+) |>
+  dplyr::select(origin_item, use_item, target_area, path_type, value)
+}
