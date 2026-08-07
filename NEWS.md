@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **`build_water_balance()` and `get_soc_climate_drivers()` now say when a
+  cell-year is attributed to a polity that did not yet exist, and can refuse to
+  do it (#462).** The cell-polity crosswalk is a present-day rasterization with
+  no year dimension, while polity validity is year-scoped, so a cell labelled
+  `area_code` 52 carried that label in 1901 as readily as in 2009 and the
+  polity resolution silently substituted the nearest period, `AZE-1991-2025`.
+  Measured on the deployed `cell_polity_fraction.parquet` over the 1901-2009
+  LPJmL run: **1,948 of 19,838 `(area_code, year)` keys, 21 of 182 area codes,
+  14,761 of 58,791 cells** — the post-Soviet and post-Yugoslav successors plus
+  South Sudan. Both functions gain `polity_validity`: `"keep"` (default) is the
+  previous behaviour plus a warning naming the rows, years and area codes;
+  `"flag"` adds the per-row logical `reporting_polity_out_of_span`; `"drop"`
+  removes those rows. **No published value changes on the default**, and
+  `"flag"` is numerically identical to it. `"drop"` removes 20.4% of the run's
+  cell-years and makes South Sudan disappear from it entirely, which is why it
+  is opt-in.
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
