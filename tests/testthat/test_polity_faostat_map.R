@@ -160,3 +160,102 @@ testthat::test_that("the FABIO Rest-of-World fold still outranks the map", {
     testthat::expect_true(area %in% folded)
   }
 })
+
+testthat::test_that("mapping_status and mapping_source are read as a pair", {
+  # `mapping_status` answers "was a polity found", NOT "how much do I trust it".
+  # A curated hit in the upstream map, a prefix-inferred historical period, a
+  # prefix guess for an area the map never mentions and the FABIO Rest-of-World
+  # fold all read `matched`, which is #544. The resolution is not missing --
+  # `mapping_source` carries it, on every row -- so this pins the pair rather
+  # than a second status vocabulary that would only duplicate it.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+
+  testthat::expect_false(any(is.na(cw$mapping_source)))
+
+  # `matched` really does span curated and inferred. If a later change splits
+  # the status vocabulary, this is what tells it the documented pair has to
+  # move with it.
+  matched_sources <- unique(cw$mapping_source[cw$mapping_status == "matched"])
+  testthat::expect_setequal(
+    matched_sources,
+    c("upstream_map", "prefix_outside_map", "prefix_fallback", "fabio_row_fold")
+  )
+
+  pair <- table(cw$mapping_status, cw$mapping_source)
+  testthat::expect_equal(pair["matched", "upstream_map"], 233L)
+  testthat::expect_equal(pair["matched", "prefix_outside_map"], 247L)
+  testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
+  testthat::expect_equal(pair["matched", "fabio_row_fold"], 62L)
+  # A hand-made decision is labelled one whether upstream made it or this
+  # package did, so `manual` straddles the map and the prefix overrides.
+  testthat::expect_equal(sum(cw$mapping_status == "manual"), 27L)
+  # Only FAOSTAT 351 "China" is left deliberately unmapped.
+  testthat::expect_equal(cw$area_code[cw$mapping_status == "unmapped"], 351L)
+})
+
+testthat::test_that("a row with no reporting area is labelled as one", {
+  # `not_a_reporting_area` used to be documented and ship on ZERO rows: it sat
+  # BELOW `matched` in the build's `case_when`, so it could only fire for a row
+  # with neither an `area_code` nor a `polity_code`, and no such row exists.
+  # The 20 rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
+  # the Isle of Man and Sint Maarten, which `regions_full` carries without a
+  # FAOSTAT code, plus the six regional aggregate polities -- all match a polity
+  # and so shipped as `matched`, indistinguishable from a real area mapping.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  no_area <- cw[cw$mapping_status == "not_a_reporting_area", ]
+
+  testthat::expect_equal(nrow(no_area), 20L)
+  # The label means exactly one thing, in both directions.
+  testthat::expect_equal(
+    which(cw$mapping_status == "not_a_reporting_area"),
+    which(is.na(cw$area_code))
+  )
+  # And these rows are unjoinable, which is why the distinction is worth
+  # publishing: no consumer keyed on either area column can reach them.
+  testthat::expect_true(all(is.na(no_area$polity_area_code)))
+  testthat::expect_true(all(is.na(no_area$fabio_code)))
+  testthat::expect_true(all(!is.na(no_area$mapping_note)))
+  testthat::expect_setequal(
+    stats::na.omit(no_area$area_iso3c),
+    c("ALA", "BLM", "GGY", "IMN", "JEY", "SXM")
+  )
+})
+
+testthat::test_that("prefix inference never contradicts the upstream map", {
+  # The second question #544 wanted answerable by filtering: is any area whose
+  # two branches DISAGREE resolved by the weaker one? The build drops a
+  # prefix-derived period whose years overlap any span the map declares for that
+  # area, so the answer must be none -- and this asserts it on the shipped table
+  # instead of trusting the build comment. 95 areas carry rows from both
+  # branches, so the check has something to bite on.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  curated <- cw[cw$mapping_source == "upstream_map", ]
+  inferred <- cw[
+    cw$mapping_source %in%
+      c("prefix_outside_map", "prefix_fallback") &
+      !is.na(cw$area_code),
+  ]
+
+  testthat::expect_gte(
+    length(intersect(curated$area_code, inferred$area_code)),
+    95L
+  )
+
+  clash <- merge(
+    inferred[, c(
+      "area_code",
+      "polity_code",
+      "polity_start_year",
+      "polity_end_year"
+    )],
+    curated[, c("area_code", "map_year_start", "map_year_end")],
+    by = "area_code"
+  )
+  # `polity_end_year` is EXCLUSIVE, `map_year_end` INCLUSIVE.
+  overlapping <- clash[
+    clash$polity_start_year <= clash$map_year_end &
+      clash$polity_end_year - 1L >= clash$map_year_start,
+  ]
+
+  testthat::expect_equal(nrow(overlapping), 0L)
+})
