@@ -1,5 +1,28 @@
 # whep (development version)
 
+* **`fill_linear()` no longer depends on the order its rows arrive in.** Without
+  `.by`, it never sorted: carrying a value forward or backward and the
+  `value_smooth_window` moving average are all positional, so an unsorted input
+  filled the wrong way round. On a 2015-2020 series anchored at 2016 and 2019,
+  reversing the rows swapped the two carry labels, and interleaving them left
+  both outer gaps unfilled and moved two interpolated values. Both paths now
+  sort by `.by` and then `time_col` first, and **rows come back in that order**
+  — the grouped path already did through `setkeyv()`, the ungrouped one now
+  matches it. Grouped output is unchanged for already-sorted input, which is
+  every caller inside the package.
+  Three further gaps in the same file are closed. A `value_smooth_window` that
+  leaves a group with no valid anchor (gaps one year apart, or a window wider
+  than the group) aborted with `missing value where TRUE/FALSE needed`; both
+  paths now share one filling core, leave those gaps as `"Gap not filled"`, and
+  cannot diverge again. `fill_linear()` used to trust a `.whep_sorted_by`
+  attribute it had stamped on a previous call, which a `setorderv()` in between
+  does not clear, so a reordered data.table was filled in the wrong direction
+  and came back carrying a `sorted` key its rows did not obey; the sort is now
+  verified against the rows. And in `fill_proxy_growth()`, the documented
+  weighted proxy syntax (`"gdp:region[population]"`) aborted in `setnames()` on
+  every call, so it had never run; with that fixed, its weights are lagged
+  before the rows without a growth rate are dropped, which is what makes them
+  the previous period's weights rather than the previous surviving row's.
 * **One unvaluable 1:n split no longer erases observed data.**
   `harmonize_interpolate()` summed the split 1:n contributions together with
   the already-correct `"simple"` component using `sum()` without `na.rm`, so a

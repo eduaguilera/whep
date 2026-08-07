@@ -1798,6 +1798,9 @@ utils::globalVariables(
     # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
     # Bouwman region in an aggregate reporting bucket's herd
     "region_weight",
+    # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
+    # period its growth rate was measured over
+    "lag_weight",
     # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
     "canonical_area",
     "key_row"
