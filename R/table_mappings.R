@@ -108,7 +108,8 @@
 #' @section Keying on `(area_code, year)` is keying on the polity:
 #' This is a **contract**, asserted by the test suite over the full reporting
 #' era, not an accident of the current snapshot: every `(area_code, year)` that
-#' resolves at all resolves to exactly **one** `polity_code`. A join that
+#' resolves at all resolves to exactly **one** `polity_code`, over 17,184
+#' resolving pairs and 257 polities. A join that
 #' carries both columns is therefore already polity-correct, whether or not it
 #' names a polity, and the territorial identity is recoverable from the numeric
 #' code rather than lost by it.

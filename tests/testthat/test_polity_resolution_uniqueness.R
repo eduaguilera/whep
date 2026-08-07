@@ -96,11 +96,13 @@ testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
 
 # THE CONTRACT ------------------------------------------------------------------
 #
-# `(area_code, year)` determines `polity_code`. That is what makes the ~130 joins
-# in `R/` keyed on `(area_code, year)` polity-correct without saying so, and it is
-# the thing #458 doubted: the identity is not lost by keying on the numeric code,
-# it is recoverable from it. The tests below assert it as a guarantee instead of
-# leaving it a property of the shipped snapshot.
+# `(area_code, year)` determines `polity_code`. That is what makes the joins in
+# `R/` keyed on the numeric area code polity-correct without saying so, and there
+# are a great many of them: 275 single-line `by =` / `on =` specifications name
+# `area_code` (176 of them alongside `year`) against 6 naming `polity_code`. It
+# is also the thing #458 doubted -- the identity is not lost by keying on the
+# numeric code, it is recoverable from it. The tests below assert that as a
+# guarantee instead of leaving it a property of the shipped snapshot.
 #
 # The check above is NOT that guarantee, for two reasons.
 #

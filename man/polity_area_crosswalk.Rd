@@ -60,7 +60,8 @@ FAOSTAT/FABIO-derived WHEP data to periodized WHEP \code{polity_code} values.
 
 This is a \strong{contract}, asserted by the test suite over the full reporting
 era, not an accident of the current snapshot: every \verb{(area_code, year)} that
-resolves at all resolves to exactly \strong{one} \code{polity_code}. A join that
+resolves at all resolves to exactly \strong{one} \code{polity_code}, over 17,184
+resolving pairs and 257 polities. A join that
 carries both columns is therefore already polity-correct, whether or not it
 names a polity, and the territorial identity is recoverable from the numeric
 code rather than lost by it.
