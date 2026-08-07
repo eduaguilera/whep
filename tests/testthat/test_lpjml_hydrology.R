@@ -302,3 +302,102 @@ testthat::test_that("an unresolvable variable name aborts naming the file", {
     "totally_new"
   )
 })
+
+# Write a tiny annual per-CFT NetCDF (2 lon x 2 lat x 3 band x n_years), the
+# shape LPJmL writes for cft_consump_water_*: one time step per year, mm/yr,
+# with the band names carried in NamePFT the way a real run does.
+.lpjml_hydro_cft_fixture <- function(
+  var_name = "consump_water_g",
+  file = "cft_consump_water_g.nc",
+  first_year = 1901L,
+  n_years = 3L,
+  band_names = c("rainfed maize", "rainfed grassland", "irrigated grassland")
+) {
+  dir <- withr::local_tempdir(.local_envir = parent.frame())
+  lon <- c(-179.75, -179.25)
+  lat <- c(0.25, 0.75)
+  dim_lon <- ncdf4::ncdim_def("lon", "degrees_east", lon)
+  dim_lat <- ncdf4::ncdim_def("lat", "degrees_north", lat)
+  dim_pft <- ncdf4::ncdim_def("pft", "", seq_along(band_names))
+  dim_len <- ncdf4::ncdim_def("len", "", seq_len(max(nchar(band_names))))
+  dim_time <- ncdf4::ncdim_def("time", "years", seq_len(n_years))
+  var <- ncdf4::ncvar_def(
+    var_name,
+    "mm/yr",
+    list(dim_lon, dim_lat, dim_pft, dim_time),
+    missval = -9999
+  )
+  name_var <- ncdf4::ncvar_def(
+    "NamePFT",
+    "",
+    list(dim_len, dim_pft),
+    prec = "char"
+  )
+  path <- file.path(dir, file)
+  nc <- ncdf4::nc_create(path, list(var, name_var))
+  # value = band * 100 + year offset, so band and year are both identifiable.
+  vals <- array(
+    rep(seq_along(band_names) * 100, each = length(lon) * length(lat)) +
+      rep(
+        seq_len(n_years) - 1L,
+        each = length(lon) * length(lat) * length(band_names)
+      ),
+    dim = c(length(lon), length(lat), length(band_names), n_years)
+  )
+  ncdf4::ncvar_put(nc, var, vals)
+  ncdf4::ncvar_put(nc, name_var, band_names)
+  ncdf4::nc_close(nc)
+  list(dir = dir, n_cells = length(lon) * length(lat), band_names = band_names)
+}
+
+testthat::test_that("annual per-CFT cube decodes years, not months", {
+  cube <- .lpjml_hydro_cft_fixture(n_years = 3L)
+
+  result <- whep::read_lpjml_hydrology(
+    "cft_consump_water_g",
+    run_dir = cube$dir,
+    first_year = 1901L
+  )
+
+  # One row per cell-band-year, and no month axis invented from an annual file.
+  testthat::expect_false("month" %in% names(result))
+  testthat::expect_setequal(result$year, 1901:1903)
+  testthat::expect_equal(nrow(result), cube$n_cells * 3L * 3L)
+})
+
+testthat::test_that("per-CFT bands are named from the file, not by index", {
+  cube <- .lpjml_hydro_cft_fixture()
+
+  result <- whep::read_lpjml_hydrology(
+    "cft_consump_water_g",
+    run_dir = cube$dir,
+    first_year = 1901L
+  )
+
+  testthat::expect_true(all(c("band", "band_name") %in% names(result)))
+  testthat::expect_setequal(result$band_name, cube$band_names)
+  # Band 2 is grassland here; its value encodes band 2 (200 + year offset).
+  grass <- dplyr::filter(
+    result,
+    band_name == "rainfed grassland",
+    year == 1901L
+  )
+  testthat::expect_equal(unique(grass$value), 200)
+  testthat::expect_equal(unique(grass$band), 2L)
+})
+
+testthat::test_that("years= slices an annual cube on the annual time axis", {
+  cube <- .lpjml_hydro_cft_fixture(first_year = 1901L, n_years = 5L)
+
+  result <- whep::read_lpjml_hydrology(
+    "cft_consump_water_g",
+    run_dir = cube$dir,
+    first_year = 1901L,
+    years = 1903L
+  )
+
+  # A monthly time index would have read the wrong slice entirely.
+  testthat::expect_setequal(result$year, 1903L)
+  grass <- dplyr::filter(result, band_name == "rainfed grassland")
+  testthat::expect_equal(unique(grass$value), 202)
+})
