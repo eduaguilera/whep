@@ -81,6 +81,19 @@ output is the land the intersection measured. The DA-13 transition, which
 padded the table with the crosswalk rows the intersection did not
 reproduce and carried \code{polity_frac} alongside, ended with C9; the
 footprint diagnostics below are where that disagreement is now reported.
+
+\strong{Identity is \code{polity_code}, and only \code{polity_code}.} \code{area_code} rides
+along as a label and is not a key: \code{polity_area_crosswalk} folds 505
+polity codes into 201 reporting buckets, 113 of which hold more than one
+polity and one of which (206) holds Sudan and South Sudan at the same
+time. A table whose whole purpose is correct territorial attribution
+cannot be keyed on a bucket that merges two countries, so this one is
+not, and no \code{reporting_polity_code} or \code{polity_area_code} is derived
+here. A consumer joining to a reporting-vocabulary output converts at its
+own boundary, and \strong{that conversion is where the lossy fold happens} --
+deliberately visible at the consumer rather than hidden in the support.
+\code{\link[=build_n_deposition]{build_n_deposition()}} refuses an unconverted support instead of
+converting one silently.
 }
 \description{
 Produce WHEP's canonical spatial support unit, the \strong{polycell}: a
@@ -104,6 +117,59 @@ Supply \code{years} to expand to one row per polycell-year, which is what
 \code{\link[=expand_polycell_years]{expand_polycell_years()}} does on demand. No area varies within an interval,
 so the interval grain is the form to store.
 }
+\section{Land definitions in play}{
+
+Four definitions of "land" are live in this pipeline and they disagree by
+up to 10\%, so a global area only means something next to the definition it
+was measured on. At 2015:\tabular{ll}{
+   Definition \tab Global area \cr
+   Whole 0.5-degree cells holding any land \tab 14.3195 Gha \cr
+   HaNi's own land mask \tab 13.5977 Gha \cr
+   Union of the live polity polygons \tab 13.2795 Gha \cr
+   LUH2 terrestrial, \code{(1 - icwtr) * carea} \tab 12.9931 Gha \cr
+}
+
+
+\code{polity_area_ha} is the third row: this table's territory is the polity
+polygons, decomposed into land, inland water and ice. The first row is the
+convention this table replaces -- a per-hectare rate multiplied by
+\code{cell_area_ha} -- and it over-counts by 11.0\%. The fourth is the DA-5
+validation layer: its disagreement with the polygons is emitted in the
+\code{"unassigned"} attribute and never silently reconciled, and the polygons
+exceeding it by about 2.2\% is what \code{inland_water_ha + ice_area_ha} has to
+account for. The second belongs to the deposition source and governs a
+different quantity -- see \code{\link[=build_n_deposition]{build_n_deposition()}}, where WHEP's territory
+decides \emph{placement} while HaNi's mask decides the \emph{total}.
+
+Only the first and fourth rows are constants of the inputs;
+\code{inst/scripts/diagnose_polycell_support.R} re-derives both. The polygon row
+moves with the polity vintage, so read it back off the table in hand rather
+than quoting it -- \code{inst/scripts/reconcile_polity_areas.R} measures it.
+
+A fifth land mask is present but deliberately absent from the ladder,
+because nothing is measured on it: the GLWD water layer carries the CRU
+mask (67,420 cells against LUH2's 64,493 terrestrial), so cells one carries
+and the other does not are reported in \code{"water_unmatched"} rather than
+dropped by an inner join.
+}
+
+\section{What does not vary historically}{
+
+\code{ice_area_ha} comes from \code{ne_10m_glaciated_areas} (see
+\code{\link[=read_glaciated_areas]{read_glaciated_areas()}}), a coarse \strong{present-day snapshot}, so it is the
+same number in 1850 as in 2015: a historical run carries today's ice
+extent, and land that lay under ice in 1850 is credited to
+\code{land_area_ha}. This is accepted only because ice is a \strong{reporting
+category and not a driver} -- nothing in the package divides by
+\code{ice_area_ha} or drives a flux with it. If ice ever becomes a driver, the
+source has to be reopened rather than the caveat restated.
+
+Polity geometry is likewise constant within an interval, and the GLWD file
+carries a single time step. That is why the default grain is
+interval-keyed: no area column varies by year, so a per-year grain would
+repeat identical rows about 173 times.
+}
+
 \examples{
 if (requireNamespace("sf", quietly = TRUE)) {
   build_polycell_support(

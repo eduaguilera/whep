@@ -37,6 +37,15 @@
 #' @return A tibble with `lon`, `lat`, `year`, `value_g` (total grams N
 #'   deposited in the 0.5-degree cell that year).
 #' @export
+#'
+#' @source
+#'   Tian, H., Bian, Z., Shi, H., Qin, X., Pan, N., Lu, C., Pan, S.,
+#'   Tubiello, F. N., Chang, J., Conchedda, G., Liu, J., Mueller, N.,
+#'   Nishina, K., Xu, R., Yang, J., You, L. and Zhang, B. (2022). History of
+#'   anthropogenic Nitrogen inputs (HaNi) to the terrestrial biosphere: a
+#'   5 arcmin resolution annual dataset from 1860 to 2019. *Earth System
+#'   Science Data* 14(10), 4551-4568. \doi{10.5194/essd-14-4551-2022}
+#'
 #' @examples
 #' read_n_deposition(example = TRUE)
 read_n_deposition <- function(
@@ -124,6 +133,33 @@ read_n_deposition <- function(
 #'   support table must be converted to one row per cell and `area_code`
 #'   **before** it is passed here. That conversion is refused rather than
 #'   performed silently.
+#'
+#' @section Which land definition governs what:
+#' Two different land definitions meet in this function and they govern
+#' different things, which is the single fact most likely to be misread from
+#' the output.
+#'
+#' **WHEP's territory governs placement.** Where a cell's deposited mass goes
+#' -- which polity receives it, and how much of it lands on land, on inland
+#' water or on ice -- is decided entirely by
+#' [build_polycell_support()]'s `polity_area_ha` and its three categories.
+#'
+#' **HaNi's own land mask governs the total.** The mass being placed is the
+#' HaNi block sum, and HaNi is referenced to the whole 5 arcmin cell inside a
+#' land-masked domain: its mask is a **third** land definition, measuring
+#' 13.5977 Gha against 14.3195 Gha of whole cells and 12.9931 Gha of LUH2
+#' terrestrial. Nothing here re-references the mass to WHEP's land, and that
+#' is deliberate. Forming a rate on the whole cell and multiplying it by
+#' `land_area_ha` would shed about 9% of the source mass, because the rate's
+#' denominator includes ocean while land plus inland water plus ice is
+#' territory; re-referencing to HaNi's own mask instead is the cleanest
+#' per-hectare rate but moves the global total by about 4.5%.
+#'
+#' So a global sum out of this function is HaNi's total, redistributed onto
+#' WHEP's territory -- not WHEP's land multiplied by a WHEP rate. Conservation
+#' is exact against the source (34.77 Tg NHx in 2014), and the reconciliation
+#' that is *not* available is `rate * (land + inland_water + ice) == source
+#' mass`, which does not hold as an identity and is not asserted anywhere.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples

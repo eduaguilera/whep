@@ -85,6 +85,68 @@
 #'   padded the table with the crosswalk rows the intersection did not
 #'   reproduce and carried `polity_frac` alongside, ended with C9; the
 #'   footprint diagnostics below are where that disagreement is now reported.
+#'
+#'   **Identity is `polity_code`, and only `polity_code`.** `area_code` rides
+#'   along as a label and is not a key: `polity_area_crosswalk` folds 505
+#'   polity codes into 201 reporting buckets, 113 of which hold more than one
+#'   polity and one of which (206) holds Sudan and South Sudan at the same
+#'   time. A table whose whole purpose is correct territorial attribution
+#'   cannot be keyed on a bucket that merges two countries, so this one is
+#'   not, and no `reporting_polity_code` or `polity_area_code` is derived
+#'   here. A consumer joining to a reporting-vocabulary output converts at its
+#'   own boundary, and **that conversion is where the lossy fold happens** --
+#'   deliberately visible at the consumer rather than hidden in the support.
+#'   [build_n_deposition()] refuses an unconverted support instead of
+#'   converting one silently.
+#'
+#' @section Land definitions in play:
+#' Four definitions of "land" are live in this pipeline and they disagree by
+#' up to 10%, so a global area only means something next to the definition it
+#' was measured on. At 2015:
+#'
+#' | Definition | Global area |
+#' |------------|-------------|
+#' | Whole 0.5-degree cells holding any land | 14.3195 Gha |
+#' | HaNi's own land mask | 13.5977 Gha |
+#' | Union of the live polity polygons | 13.2795 Gha |
+#' | LUH2 terrestrial, `(1 - icwtr) * carea` | 12.9931 Gha |
+#'
+#' `polity_area_ha` is the third row: this table's territory is the polity
+#' polygons, decomposed into land, inland water and ice. The first row is the
+#' convention this table replaces -- a per-hectare rate multiplied by
+#' `cell_area_ha` -- and it over-counts by 11.0%. The fourth is the DA-5
+#' validation layer: its disagreement with the polygons is emitted in the
+#' `"unassigned"` attribute and never silently reconciled, and the polygons
+#' exceeding it by about 2.2% is what `inland_water_ha + ice_area_ha` has to
+#' account for. The second belongs to the deposition source and governs a
+#' different quantity -- see [build_n_deposition()], where WHEP's territory
+#' decides *placement* while HaNi's mask decides the *total*.
+#'
+#' Only the first and fourth rows are constants of the inputs;
+#' `inst/scripts/diagnose_polycell_support.R` re-derives both. The polygon row
+#' moves with the polity vintage, so read it back off the table in hand rather
+#' than quoting it -- `inst/scripts/reconcile_polity_areas.R` measures it.
+#'
+#' A fifth land mask is present but deliberately absent from the ladder,
+#' because nothing is measured on it: the GLWD water layer carries the CRU
+#' mask (67,420 cells against LUH2's 64,493 terrestrial), so cells one carries
+#' and the other does not are reported in `"water_unmatched"` rather than
+#' dropped by an inner join.
+#'
+#' @section What does not vary historically:
+#' `ice_area_ha` comes from `ne_10m_glaciated_areas` (see
+#' [read_glaciated_areas()]), a coarse **present-day snapshot**, so it is the
+#' same number in 1850 as in 2015: a historical run carries today's ice
+#' extent, and land that lay under ice in 1850 is credited to
+#' `land_area_ha`. This is accepted only because ice is a **reporting
+#' category and not a driver** -- nothing in the package divides by
+#' `ice_area_ha` or drives a flux with it. If ice ever becomes a driver, the
+#' source has to be reopened rather than the caveat restated.
+#'
+#' Polity geometry is likewise constant within an interval, and the GLWD file
+#' carries a single time step. That is why the default grain is
+#' interval-keyed: no area column varies by year, so a per-year grain would
+#' repeat identical rows about 173 times.
 #' @export
 #'
 #' @examples

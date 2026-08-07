@@ -85,6 +85,34 @@ reported side by side and the consumer chooses. A support with no category
 columns cannot be decomposed and carries the single \code{"territory"} category,
 which says the row is undecomposed rather than claiming it is land.
 }
+\section{Which land definition governs what}{
+
+Two different land definitions meet in this function and they govern
+different things, which is the single fact most likely to be misread from
+the output.
+
+\strong{WHEP's territory governs placement.} Where a cell's deposited mass goes
+-- which polity receives it, and how much of it lands on land, on inland
+water or on ice -- is decided entirely by
+\code{\link[=build_polycell_support]{build_polycell_support()}}'s \code{polity_area_ha} and its three categories.
+
+\strong{HaNi's own land mask governs the total.} The mass being placed is the
+HaNi block sum, and HaNi is referenced to the whole 5 arcmin cell inside a
+land-masked domain: its mask is a \strong{third} land definition, measuring
+13.5977 Gha against 14.3195 Gha of whole cells and 12.9931 Gha of LUH2
+terrestrial. Nothing here re-references the mass to WHEP's land, and that
+is deliberate. Forming a rate on the whole cell and multiplying it by
+\code{land_area_ha} would shed about 9\% of the source mass, because the rate's
+denominator includes ocean while land plus inland water plus ice is
+territory; re-referencing to HaNi's own mask instead is the cleanest
+per-hectare rate but moves the global total by about 4.5\%.
+
+So a global sum out of this function is HaNi's total, redistributed onto
+WHEP's territory -- not WHEP's land multiplied by a WHEP rate. Conservation
+is exact against the source (34.77 Tg NHx in 2014), and the reconciliation
+that is \emph{not} available is \verb{rate * (land + inland_water + ice) == source mass}, which does not hold as an identity and is not asserted anywhere.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in

@@ -20,7 +20,7 @@
 #   H    whether the HaNi deposition mass is referenced to the whole grid
 #        cell or to the land inside it (the A2 deposition migration depends
 #        on this).
-#   P    the shipped `polities` vocabulary a geometry consumer must filter on.
+#   P    the polity vocabulary a geometry consumer must filter on.
 #
 # Run:
 #   Rscript inst/scripts/diagnose_polycell_support.R
@@ -30,24 +30,35 @@
 #                             Report which LUH2 vintage it holds: the base
 #                             v2h release stops at 2015, the Global Carbon
 #                             Budget variants run further, and EA1's residual
-#                             differs between them.
+#                             differs between them. The time origin is read
+#                             from the file's own `time` units, never assumed,
+#                             because DA-9 makes the vintage selectable.
 #   WHEP_POLITY_FRACTION_PATH cell_polity_fraction.parquet. REQUIRED.
 #   WHEP_HANI_DIR             ndep_nhx.nc. Optional; section H is skipped
 #                             when unset.
 #   WHEP_NE_COUNTRIES_PATH    ne_10m_admin_0_countries.shp. Optional; the
 #                             Natural Earth half of section Z is skipped when
 #                             unset. No download is performed.
+#   WHEP_POLITIES_PATH        A polity table to check INSTEAD of the one this
+#                             build ships: an `sf` object saved with
+#                             `saveRDS()`, or any layer `sf::st_read()` opens.
+#                             Optional. Section P's findings are properties of
+#                             a polity VINTAGE, not of this package, so the
+#                             upstream integration table has to be reachable
+#                             without rebuilding the package around it.
+#   WHEP_DIAGNOSE_YEAR        Evidence year for every section. Optional,
+#                             default 2015. The plan's HaNi figures in DA-10
+#                             and EA9 (34.77 Tg NHx, coastal median 0.9937)
+#                             were measured at 2014, so pass 2014 to reproduce
+#                             those specific numbers.
 #
-# Note for anyone whose environment variables look unset: R reads `.Renviron`
-# in the working directory INSTEAD of `~/.Renviron`, and this repository has
-# its own. Run with R_ENVIRON_USER pointing at the user file, or export the
-# variables in the shell.
+# Note for anyone whose environment variables look unset: R reads a `.Renviron`
+# in the working directory INSTEAD of `~/.Renviron`. Run with R_ENVIRON_USER
+# pointing at the user file, or export the variables in the shell.
 
 suppressPackageStartupMessages({
   library(data.table)
 })
-
-pc_year <- 2015L
 
 .pc_states <- c(
   "c3ann",
@@ -81,6 +92,51 @@ pc_year <- 2015L
 .pc_optional_env <- function(var) {
   path <- Sys.getenv(var, "")
   if (nzchar(path) && file.exists(path)) path else NULL
+}
+
+# One evidence year for every section. Section H used to carry its own
+# hardcoded 2014 while the rest of the script ran at 2015, so two numbers in
+# the same report described two different years without saying so.
+.pc_evidence_year <- function(default = 2015L) {
+  raw <- Sys.getenv("WHEP_DIAGNOSE_YEAR", "")
+  if (!nzchar(raw)) {
+    return(default)
+  }
+  year <- suppressWarnings(as.integer(raw))
+  if (is.na(year)) {
+    cli::cli_abort("{.envvar WHEP_DIAGNOSE_YEAR} is not a year: {.val {raw}}.")
+  }
+  year
+}
+
+# The calendar years a NetCDF time axis covers, READ from the file rather than
+# assumed. CF units are "<interval> since <origin>"; only a yearly interval is
+# handled, and anything else aborts instead of being misread confidently. This
+# matters because DA-9 makes the LUH2 vintage a selectable input: a tree with a
+# different origin would otherwise be sliced at the wrong year and every number
+# below it would still look plausible.
+.pc_nc_years <- function(nc, what) {
+  units <- nc$dim$time$units
+  origin <- stringr::str_match(units, "^\\s*years\\s+since\\s+(-?[0-9]+)-")
+  if (is.na(origin[1, 1])) {
+    cli::cli_abort(c(
+      "{what}'s time axis is not expressed in years since a calendar year.",
+      i = "Its {.field units} attribute reads {.val {units}}."
+    ))
+  }
+  as.integer(origin[1, 2]) + as.integer(round(nc$dim$time$vals))
+}
+
+# Position of `year` on a time axis, or an abort naming the covered span.
+.pc_time_index <- function(years, year, what) {
+  idx <- match(year, years)
+  if (is.na(idx)) {
+    cli::cli_abort(
+      "Year {year} is outside {what}'s time axis
+       ({min(years)}-{max(years)})."
+    )
+  }
+  idx
 }
 
 # Spherical area (ha) of a cell of side `step` degrees centred at `lat`. The
@@ -125,14 +181,12 @@ pc_year <- 2015L
   on.exit(ncdf4::nc_close(nc), add = TRUE)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
-  time_len <- nc$dim$time$len
+  years <- .pc_nc_years(nc, "states.nc")
   cli::cli_alert_info(
-    "LUH2 states.nc: {time_len} time steps, years 850-{850 + time_len - 1}."
+    "LUH2 states.nc: {length(years)} time steps, years
+     {min(years)}-{max(years)}, from {.val {nc$dim$time$units}}."
   )
-  time_idx <- year - 850L + 1L
-  if (time_idx < 1L || time_idx > time_len) {
-    cli::cli_abort("Year {year} is outside the LUH2 file's time axis.")
-  }
+  time_idx <- .pc_time_index(years, year, "states.nc")
   states_sum <- NULL
   for (state in .pc_states) {
     slab <- ncdf4::ncvar_get(
@@ -569,7 +623,7 @@ pc_year <- 2015L
 # towards their land fraction (~0.5 on average) relative to their inland
 # neighbours. If it is referenced to the whole cell, coastal and inland cells
 # agree. The control run (interior against interior) sets the null.
-.pc_hani <- function(hani_dir) {
+.pc_hani <- function(hani_dir, year) {
   .pc_h1("H - what the HaNi deposition mass is referenced to")
   path <- file.path(hani_dir, "ndep_nhx.nc")
   if (!file.exists(path)) {
@@ -581,15 +635,20 @@ pc_year <- 2015L
   attrs <- ncdf4::ncatt_get(nc, "ndep_nhx")
   cli::cli_text("long_name: {.val {attrs$long_name}}")
   cli::cli_text("units: {.val {attrs$units}}")
+  years <- .pc_nc_years(nc, "ndep_nhx.nc")
+  cli::cli_text(
+    "time axis: {min(years)}-{max(years)}, from {.val {nc$dim$time$units}}"
+  )
   lat <- ncdf4::ncvar_get(nc, "lat")
   values <- ncdf4::ncvar_get(
     nc,
     "ndep_nhx",
-    start = c(1L, 1L, 2014L - 1850L + 1L),
+    start = c(1L, 1L, .pc_time_index(years, year, "ndep_nhx.nc")),
     count = c(-1L, -1L, 1L)
   )
   cli::cli_text(sprintf(
-    "cells %d, NA (ocean) %d, positive %d, global sum %.2f Tg N",
+    "%d: cells %d, NA (ocean) %d, positive %d, global sum %.2f Tg N",
+    year,
     length(values),
     sum(is.na(values)),
     sum(values > 0, na.rm = TRUE),
@@ -652,15 +711,43 @@ pc_year <- 2015L
   out
 }
 
-# ---- P: the shipped polity vocabulary ---------------------------------------
+# ---- P: the polity vocabulary -----------------------------------------------
+
+# Resolve which polity table section P reads. Everything section P reports --
+# the status vocabularies, the dead-row count, the DA-2 code-versus-column
+# disagreement -- is a property of the polity VINTAGE, not of this package, and
+# the shipped table is one snapshot of one vintage. Reading `whep::polities`
+# and nothing else meant the report could only ever describe the snapshot that
+# happened to be embedded, so a finding measured upstream could not be checked
+# here at all. The default stays the shipped table; the override reaches any
+# other one.
+.pc_polity_source <- function() {
+  path <- .pc_optional_env("WHEP_POLITIES_PATH")
+  if (is.null(path)) {
+    return(list(
+      label = "whep::polities (embedded in this build)",
+      table = whep::polities
+    ))
+  }
+  table <- if (stringr::str_detect(path, "(?i)\\.rds$")) {
+    readRDS(path)
+  } else {
+    sf::st_read(path, quiet = TRUE)
+  }
+  if (!inherits(table, "sf")) {
+    cli::cli_abort("{.file {path}} does not hold an {.cls sf} polity table.")
+  }
+  list(label = path, table = table)
+}
 
 # A geometry consumer must filter `wiki_status` and drop
 # `polity_type == "aggregate"` (DA-7). Both vocabularies have changed between
-# polity releases, so print what THIS build actually ships rather than
+# polity releases, so print what the table in hand actually carries rather than
 # trusting a remembered list.
-.pc_polities <- function() {
-  .pc_h1("P - the polity vocabulary this build ships")
-  polities <- whep::polities
+.pc_polities <- function(source, year) {
+  .pc_h1("P - the polity vocabulary this table carries")
+  polities <- source$table
+  cli::cli_text("source: {source$label}")
   cli::cli_text("class: {paste(class(polities), collapse = ' / ')}")
   cli::cli_text("rows: {nrow(polities)}")
   flat <- tibble::as_tibble(sf::st_drop_geometry(polities))
@@ -675,7 +762,7 @@ pc_year <- 2015L
   cli::cli_text("rows with NA wiki_status: {sum(is.na(flat$wiki_status))}")
   cli::cli_text("rows with NA polity_type: {sum(is.na(flat$polity_type))}")
 
-  .pc_h2("polity_code carries its own validity interval")
+  .pc_h2("polity_code carries its own validity interval (DA-2)")
   years <- stringr::str_match(flat$polity_code, "-([0-9]{4})-([0-9]{4})$")
   mismatch <- which(
     as.integer(years[, 2]) != flat$start_year |
@@ -688,6 +775,12 @@ pc_year <- 2015L
   if (length(mismatch) > 0L) {
     print(flat[mismatch, c("polity_code", "start_year", "end_year")])
   }
+  cli::cli_alert_info(
+    "This count belongs to the polity vintage above, not to this package: it
+     moves whenever the table does. DA-2's correction measured 2 on
+     `polities-integration`. Any count above zero means year resolution must
+     read `start_year`/`end_year` and never parse the code."
+  )
 
   .pc_h2("Antarctica (DA-7)")
   antarctic <- flat[
@@ -701,10 +794,10 @@ pc_year <- 2015L
     !flat$wiki_status %in% dead &
       !is.na(flat$polity_type) &
       flat$polity_type != "aggregate" &
-      flat$start_year <= pc_year &
-      flat$end_year > pc_year,
+      flat$start_year <= year &
+      flat$end_year > year,
   ]
-  cli::cli_text("live real polities valid in {pc_year}: {nrow(live)}")
+  cli::cli_text("live real polities valid in {year}: {nrow(live)}")
   cli::cli_text("of which without geometry: {sum(!live$has_geometry)}")
   invisible(flat)
 }
@@ -718,8 +811,10 @@ crosswalk_path <- .pc_require_env(
 )
 hani_dir <- .pc_optional_env("WHEP_HANI_DIR")
 ne_path <- .pc_optional_env("WHEP_NE_COUNTRIES_PATH")
+polity_source <- .pc_polity_source()
+pc_year <- .pc_evidence_year()
 
-cli::cli_alert_info("Evidence year: {pc_year}.")
+cli::cli_alert_info("Evidence year: {pc_year} (every section, including H).")
 grid <- .pc_read_luh2(luh2_dir, pc_year)
 crosswalk <- .pc_read_crosswalk(crosswalk_path)
 
@@ -730,9 +825,9 @@ crosswalk_cells <- .pc_ea3(crosswalk, half_degree)
 .pc_ea6(crosswalk, crosswalk_cells, half_degree)
 .pc_zero_cells(grid, crosswalk, crosswalk_cells, ne_path)
 if (!is.null(hani_dir)) {
-  .pc_hani(hani_dir)
+  .pc_hani(hani_dir, pc_year)
 } else {
   cli::cli_alert_warning("WHEP_HANI_DIR unset: skipping section H.")
 }
-.pc_polities()
+.pc_polities(polity_source, pc_year)
 cli::cli_alert_success("Done.")
