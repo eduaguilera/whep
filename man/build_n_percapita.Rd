@@ -48,7 +48,11 @@ locked Campbell / Global framing; recycled or internal terms (manure,
 deposition, urban, soil-organic-matter mineralization) are excluded. Any
 finer grid key (\code{lon}, \code{lat}, \code{item_cbs_code}) is aggregated away to the
 country total, and country-years without a matching population row are
-dropped. The chosen framing is stamped on every row.
+dropped -- in a warning naming those areas and the share of anthropogenic
+nitrogen that leaves with them, since an area with no denominator is absent
+from the output rather than wrong in it (#543);
+\code{options(whep.warn_missing_population = FALSE)} silences it. The chosen
+framing is stamped on every row.
 }
 \section{Polity columns}{
 

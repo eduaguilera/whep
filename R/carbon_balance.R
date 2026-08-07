@@ -226,18 +226,136 @@ build_carbon_balance <- function(
       dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
     ))
   }
-  climate |>
+  prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes) |>
+    .cb_attach_soil_cover(land_use_classes)
+  group_keys <- c(keys, "land_use")
+
+  # Vectorised across cell-years where the shape allows it; NULL means fall
+  # through to the per-group path below, which stays the reference.
+  fast <- .cb_rothc_modifier_vectorised(prepared, model, group_keys)
+  if (!is.null(fast)) {
+    return(fast)
+  }
+  prepared |>
     dplyr::summarise(
       climate_modifier = .cb_year_climate_modifier(
         model,
         dplyr::pick(dplyr::everything()),
         dplyr::first(.data$clay_pct)
       ),
-      .by = dplyr::all_of(c(keys, "land_use"))
+      .by = dplyr::all_of(group_keys)
     )
+}
+
+# The RothC/HSOC climate modifier for EVERY cell-year at once.
+#
+# The per-group path calls .cb_year_climate_modifier() once per
+# (cell, year, land_use) -- ~1.2e6 groups over five years -- and each call
+# allocates a list, dispatches rlang::has_name(), and runs purrr::accumulate()
+# over twelve months. Profiling put ~20% of the march in tidyverse per-group
+# machinery and ~9% in the accumulate, with no single line above 4.9%: the cost
+# is dispatch, not arithmetic (#630).
+#
+# The topsoil-moisture-deficit recurrence is sequential over MONTHS but
+# independent across CELLS, so the loop inverts: twelve vectorised steps over all
+# groups, instead of ~1.2e6 twelve-step accumulations. The arithmetic below is
+# the same as soc_rate_modifier_rothc() and .rothc_moisture_factor(), kept
+# deliberately line-for-line comparable with them.
+#
+# Returns NULL -- deferring to the per-group path -- when this cannot be trusted:
+# a non-RothC model, a missing driver, or ragged groups (unequal month counts),
+# where the matrix reshape would silently misalign months across cells.
+.cb_rothc_modifier_vectorised <- function(prepared, model, group_keys) {
+  if (!model %in% c("hsoc", "rothc")) {
+    return(NULL)
+  }
+  drivers <- c("temp_c", "water_minus_pet_mm", "clay_pct", "soil_cover")
+  if (!all(purrr::map_lgl(drivers, \(d) rlang::has_name(prepared, d)))) {
+    return(NULL)
+  }
+  if (!rlang::has_name(prepared, "month")) {
+    return(NULL)
+  }
+
+  dt <- data.table::as.data.table(prepared)
+  # Number the groups by FIRST APPEARANCE, and order by that rather than by the
+  # key columns, so the output row order matches the per-group path exactly.
+  # Sorted order would carry the same values, but it reaches the downstream
+  # aggregates in a different sequence, and floating-point addition is not
+  # associative: it perturbed mineralization/rate/son_change by ~1e-15 -- small,
+  # but this change has to be a no-op, not nearly one.
+  dt[, ".grp" := .GRP, by = group_keys]
+  data.table::setorderv(dt, c(".grp", "month"))
+  counts <- dt[, list(.n = .N), by = c(group_keys, ".grp")]
+  data.table::setorderv(counts, ".grp")
+  if (data.table::uniqueN(counts$.n) != 1L) {
+    return(NULL)
+  }
+  n_months <- counts$.n[[1L]]
+  if (n_months < 1L) {
+    return(NULL)
+  }
+
+  # byrow: rows are groups, columns months, matching the sort above.
+  as_mat <- function(x) matrix(x, ncol = n_months, byrow = TRUE)
+  temp <- as_mat(dt$temp_c)
+  balance <- as_mat(dt$water_minus_pet_mm)
+  cover <- as_mat(dt$soil_cover)
+  # clay is a per-group scalar; the per-group path takes dplyr::first().
+  clay <- as_mat(dt$clay_pct)[, 1L]
+
+  # Undefined at -18.27 C: below the asymptote the expression wraps back to ~47.91
+  # instead of zero decomposition, so it is floored, exactly as in the scalar fn.
+  a <- ifelse(temp <= -18.27, 0, 47.91 / (1 + exp(106.06 / (temp + 18.27))))
+
+  max_tsmd <- 0.3 * 100 * (-(20 + 1.3 * clay - 0.01 * clay^2)) / 23
+
+  # tsmd[, 1] = max(min(balance_1, 0), max_tsmd), then carried forward. pmin/pmax
+  # propagate NA the same way min/max do here (both na.rm = FALSE), so an NA month
+  # still poisons its group's later months as before.
+  tsmd <- matrix(NA_real_, nrow = nrow(balance), ncol = n_months)
+  tsmd[, 1L] <- pmax(pmin(balance[, 1L], 0), max_tsmd)
+  for (m in seq_len(n_months)[-1L]) {
+    tsmd[, m] <- pmax(pmin(tsmd[, m - 1L] + balance[, m], 0), max_tsmd)
+  }
+
+  threshold <- 0.444 * max_tsmd
+  max_mat <- matrix(max_tsmd, nrow = nrow(tsmd), ncol = n_months)
+  thr_mat <- matrix(threshold, nrow = nrow(tsmd), ncol = n_months)
+  b <- ifelse(
+    tsmd > thr_mat,
+    1,
+    0.2 + 0.8 * (max_mat - tsmd) / (max_mat - thr_mat)
+  )
+  b <- pmax(b, 0.2)
+
+  cover_factor <- 0.6 + 0.4 * (1 - cover)
+
+  # Reduce with the same mean() the scalar path calls, NOT rowMeans(). mean()
+  # accumulates in long double and applies a second-pass correction that
+  # rowMeans() omits, so the two disagree by 1 ulp roughly once in 3e5 rows --
+  # rare enough to survive a 200-group test, but with ~1.2e6 cell-years it hits,
+  # and the march amplifies it to ~1e-15 in mineralization and ~1e-13 in
+  # son_change. Replicating the correction in R does not help: R arithmetic is
+  # double, not long double, and lands further away than rowMeans does. At ~3 s
+  # per million groups against the ~200 s this function saves, calling the real
+  # mean() is the cheap way to stay exact. Do not "optimise" this to rowMeans().
+  products <- a * b * cover_factor
+  modifier <- vapply(
+    seq_len(nrow(products)),
+    function(i) mean(products[i, ], na.rm = TRUE),
+    numeric(1)
+  )
+
+  out <- counts[, group_keys, with = FALSE]
+  out[, "climate_modifier" := modifier]
+  # as.data.frame() first: as_tibble() on a data.table carries its
+  # .internal.selfref pointer out as an attribute, which makes the result
+  # compare unequal to the per-group path under all.equal() despite every
+  # column being identical.
+  tibble::as_tibble(as.data.frame(out))
 }
 
 # get_soc_climate_drivers() already embeds clay_pct in its own output (RothC/

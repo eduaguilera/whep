@@ -213,6 +213,123 @@ testthat::test_that("the fold-bucket summary lists members per bucket", {
   testthat::expect_null(whep:::.pop_report_folded(unfolded))
 })
 
+# ---- The areas the denominator never covers --------------------------------
+#
+# The fold above is the small half of #543. The large half is coverage: the pin
+# reaches 190 of the 256 area codes the crosswalk resolves, and both per-capita
+# consumers inner-join this table, so an uncovered area is missing from their
+# output rather than wrong in it. These pin the report that says so.
+
+# Two areas the real pin does not cover (Bhutan 18, Comoros 45), one it does
+# (Spain 203), and Bhutan appearing in two years so the area-year count cannot
+# be confused with the area count.
+.popf_agg <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~protein_t,
+    2010L, 18L,        30,
+    2010L, 45L,        20,
+    2010L, 203L,       950,
+    2011L, 18L,        10
+  )
+}
+
+.popf_denominator <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~population,
+    2010L, 203L,       46431344
+  )
+}
+
+testthat::test_that("areas with no denominator are named, not dropped silently", {
+  testthat::expect_warning(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    ),
+    "Bhutan \\(18, 2 area-years\\)"
+  )
+  testthat::expect_warning(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    ),
+    "Comoros \\(45, 1 area-year\\)"
+  )
+  # Three area-years over two areas: counting areas alone would say 2, and the
+  # 2011 Bhutan row is a separate loss.
+  testthat::expect_warning(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    ),
+    "2 areas .* 3 area-years"
+  )
+})
+
+testthat::test_that("the share is of the quantity in range, not of the world", {
+  dropped <- suppressWarnings(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    )
+  )
+  # Heaviest first, one row per area, keyed on area_code and never on a label.
+  testthat::expect_equal(dropped$area_code, c(18L, 45L))
+  testthat::expect_equal(dropped$mass, c(40, 20))
+  testthat::expect_equal(dropped$area_years, c(2L, 1L))
+  # 60 of the 1010 protein tonnes in range = 5.94%, the number the message
+  # quotes. Measuring it against world population instead is what let a 19%
+  # loss read as 0.07% (#543).
+  testthat::expect_warning(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    ),
+    "5\\.94"
+  )
+})
+
+testthat::test_that("a fully covered denominator says nothing", {
+  covered <- tibble::tribble(
+    ~year, ~area_code, ~population,
+    2010L, 18L,        750000,
+    2010L, 45L,        700000,
+    2010L, 203L,       46431344,
+    2011L, 18L,        755000
+  )
+  testthat::expect_silent(
+    out <- whep:::.warn_missing_population(
+      .popf_agg(),
+      covered,
+      "protein_t",
+      "food protein"
+    )
+  )
+  testthat::expect_equal(nrow(out), 0L)
+})
+
+testthat::test_that("the coverage warning can be switched off", {
+  withr::local_options(whep.warn_missing_population = FALSE)
+  testthat::expect_silent(
+    whep:::.warn_missing_population(
+      .popf_agg(),
+      .popf_denominator(),
+      "protein_t",
+      "food protein"
+    )
+  )
+})
+
 testthat::test_that("a bucket with one member in a year is not a fold", {
   # 206 carries Sudan alone before South Sudan exists, so that row IS a country
   # and must not be counted as an aggregate. Counting per bucket instead of per
