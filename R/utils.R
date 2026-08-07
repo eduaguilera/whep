@@ -1812,6 +1812,9 @@ utils::globalVariables(
     # columns: the carried raw reporting code and the bucket joined onto it
     "grid_area_code",
     "polity_bucket",
-    "i.polity_area_code"
+    "i.polity_area_code",
+    # build_production.R (#633) — LUH2 land bucket-label derivation NSE columns
+    "bucket_area",
+    "member_code"
   )
 )

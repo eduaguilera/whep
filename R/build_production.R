@@ -451,9 +451,10 @@ build_primary_production <- function(
   cli::cli_progress_step("Reading land areas")
   area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
     !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
+    .(iso3c = area_iso3c, area_code = polity_area_code)
   ]
   area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge <- .add_land_bucket_label(area_bridge)
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
@@ -502,6 +503,46 @@ build_primary_production <- function(
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
   .fix_luh2_crop_collapse(dt)
+}
+
+# The `area` label a LUH2 aggregation bucket carries, one per bucket code.
+#
+# `.current_area_lookup()` pairs each reporting area's OWN name with the
+# `polity_area_code` of the bucket it is summed into, so labelling a bucket
+# from a member gives one `area_code` several `area` values -- exactly the
+# defect whep#563 fixed in `.aggregate_to_polities()`, on the land path.
+# Bucket 206 then reaches `.build_grassland()` as two rows, "Sudan (former)"
+# and "South Sudan", sharing `area_code` 206, and its group key contains both
+# columns so the two are never summed. `.dedup_production()` keys on
+# (year, area_code, item_prod_code, unit), sees them as competing sources and
+# keeps ONE, discarding the other's pasture instead of adding it.
+#
+# The label therefore has to be a property of the bucket: the bucket code's
+# own reporting-area name, falling back to the lowest-coded member for a
+# bucket that is not itself a reporting area. Deterministic either way, so it
+# cannot depend on row order or on which member happens to report.
+.add_land_bucket_label <- function(area_bridge) {
+  lookup <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_code),
+    .(area_code = as.integer(area_code), bucket_area = area_name)
+  ]
+  lookup <- unique(lookup, by = "area_code")
+  out <- merge(area_bridge, lookup, by = "area_code", all.x = TRUE)
+  fallback <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(polity_area_code) & !is.na(area_name),
+    .(
+      area_code = as.integer(polity_area_code),
+      member_code = as.integer(area_code),
+      area_name
+    )
+  ]
+  data.table::setorderv(fallback, c("area_code", "member_code"))
+  fallback <- unique(fallback, by = "area_code")
+  fallback[, member_code := NULL]
+  out <- merge(out, fallback, by = "area_code", all.x = TRUE)
+  out[, area := data.table::fcoalesce(bucket_area, area_name)]
+  out[, c("bucket_area", "area_name") := NULL]
+  out
 }
 
 # Relabel a dependency's LUH2 rows with its sovereign's ISO3, so the ordinary
@@ -3060,12 +3101,21 @@ build_primary_production <- function(
     )
   ]
 
+  # Keyed on the CODES, not the labels. `area` is a polity label and one label
+  # can cover several reporting `area_code`s -- every Rest-of-World member that
+  # `.unfold_rest_of_world()` promotes keeps the shared "Rest of World" name
+  # (whep#589). Grouping on the label then puts N areas' series in one group
+  # with N rows per year, and `fill_proxy_growth()` computes its year-on-year
+  # growth over that interleaved sequence, so the pre-1962 back-cast of `t_ha`
+  # -- and through `tonnes = ha * t_ha` below, the back-cast tonnage itself --
+  # comes out of a lag between two different countries. This is whep#632's fix
+  # applied to the second site the same mismatch reaches.
   wide <- fill_proxy_growth(
     wide,
     value_col = t_ha,
     proxy_col = "yield",
     time_col = year,
-    .by = c("area", "item_prod"),
+    .by = c("area_code", "item_prod_code"),
     verbose = FALSE
   )
   if (!data.table::is.data.table(wide)) {
