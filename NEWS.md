@@ -72,6 +72,42 @@
   value changes**: every pool stock and every `build_carbon_balance()`
   equilibrium is bit-identical before and after (checked across nine HSOC
   parameterisations and the spin-up of all five models).
+* **WHEP now models the Rest-of-World reporting members in their own right.**
+  FABIO folds 61 FAOSTAT reporting areas into its single `Rest of World` column,
+  and `polity_area_code` inherited that fold, so any territory outside FABIO's
+  192-country layout was published as `ROW`. FABIO's layout is a methodology this
+  package compares against, not a constraint on which territories it represents,
+  and the country set is WHEP's own decision (#459).
+
+  The fold was also not doing what its name suggests. Of the 61 members only
+  about a third report anything; the rest contribute no rows, so folding them is
+  arithmetically a no-op. Everything the bucket carried came from the members
+  that DO file returns, and the fold discarded whose data it was — Syria's
+  production was published as "Rest of World" despite Syria filing its own
+  FAOSTAT returns. Promotion is therefore self-limiting: an area with no rows is
+  unaffected either way, so no hand-maintained list of "which ones to promote"
+  is needed.
+
+  Measured on two full-range `get_wide_cbs()` builds (1850-2023): the published
+  area count goes **195 → 216**, and 21 territories become standalone —
+  Bermuda, Cayman Islands, Cook Islands, Equatorial Guinea, Faroe Islands,
+  French Guiana, Greenland, Guadeloupe, Martinique, New Caledonia, North
+  Macedonia, Niue, Réunion, Eswatini, Syria, Palestine and five more. Global
+  totals move by at most **0.99%** (`stock_addition`), every other column inside
+  0.4%. **Bucket 999 survives** as a genuine residual for the territories that
+  report nothing, shrinking from 15,507 rows to 516.
+
+  `options(whep.unfold_rest_of_world = "none")` restores the fold, which is what
+  reproducing a number published before this change requires; it warns on every
+  crosswalk read, because such a run no longer matches the published series.
+  The `"successor_state"` folds (Sudan/South Sudan into bucket 206) are
+  untouched — those are territorial identities, not a FABIO convention, and
+  remain the subject of #414.
+
+  An earlier measurement in #419 put this change at up to 13.7x on `feed`. That
+  comparison predates the `dcast()` duplicate-key fix (#425/#429) and does not
+  reproduce; #555 re-measured it at 1.0000.
+
 * `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
   an `example = FALSE` argument, so both now have runnable examples like the
   rest of the package's remote-data functions. Their documented `@return` was

@@ -73,6 +73,11 @@ testthat::test_that("faostat_pasture drops aggregates via the polity crosswalk",
 })
 
 testthat::test_that("faostat_pasture collapses ROW territories to a polity key", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Small territories FABIO buckets into Rest of World (e.g. American Samoa 5,
   # Andorra 6) carry an iso3c, so the old filter kept them under their raw
   # FAOSTAT codes -- a different key basis than the LUH2 source. The crosswalk

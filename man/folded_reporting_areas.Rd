@@ -78,26 +78,37 @@ because \code{polity_area_code} is derived from \code{fabio_code}, so the contra
 is left standing and reported here instead (issue 556).
 }
 
-\section{Measuring the alternative}{
+\section{The Rest-of-World fold is no longer applied}{
 
-\code{options(whep.unfold_rest_of_world = TRUE)} promotes every Rest-of-World
-member to its own \code{polity_area_code} for the whole pipeline, which is the
-experiment the decision needs. It is \strong{off by default and not a production
-mode}: published WHEP values assume the fold, so every read of the crosswalk
-warns while it is set. The \code{"successor_state"} folds are never lifted by it,
-since those are territorial identities rather than a FABIO convention.
+WHEP models every reporting member of bucket 999 in its own right. FABIO's
+192-country layout is a methodology this package compares against, not a
+constraint on which territories it represents, and the choice of country set
+is WHEP's to make (issue 459).
 
-\code{options(whep.unfold_rest_of_world = "cbs_reporters")} promotes only the four
-\code{"cbs_reporter_folded"} areas, which is the narrower experiment issue 556
-asks for: it lifts exactly the folds FABIO does not make and leaves the 57
-folds FABIO agrees with in place. \code{TRUE} and \code{"all"} are the same mode.
+That matters because the fold was never doing what its name suggests. Of the
+61 members, only about a third report anything at all; the rest contribute no
+rows and folding them is arithmetically a no-op. Everything the bucket
+actually carried came from the members that DO file returns -- Syria,
+Eswatini, North Macedonia, New Caledonia, the Faroe Islands, Palestine,
+Greenland and the like -- and folding them discarded whose data it was. So
+promotion is self-limiting: an area with no rows is unaffected either way.
 
-Measured with it on a full-range \code{get_wide_cbs()} (1850-2023, all 61 members
-promoted), global totals move by at most 1.2\% (\code{stock_addition}) and by less
-than 0.1\% for \code{feed}, \code{production} and \code{processing}. An earlier measurement
-recorded in issue 419 reported up to 13.7x; that comparison predates the
-\code{dcast()} duplicate-key fix in \code{.select_best_source()} (issue 425) and does
-not reproduce.
+Bucket 999 survives as a genuine residual for the territories that report
+nothing. Measured on a full-range \code{get_wide_cbs()} (1850-2023), promotion
+takes the published area count from 195 to 216 and moves global totals by at
+most 0.99\% (\code{stock_addition}), with every other column inside 0.4\%.
+
+\code{options(whep.unfold_rest_of_world = "none")} restores the fold, which is
+what reproducing a number published before this change requires. Because that
+no longer matches the published series, every read of the crosswalk warns
+while it is set. \code{"cbs_reporters"} re-folds all but the four
+\code{"cbs_reporter_folded"} areas and warns for the same reason. The
+\code{"successor_state"} folds are never lifted by any mode, since those are
+territorial identities rather than a FABIO convention.
+
+An earlier measurement recorded in issue 419 reported this change at up to
+13.7x on \code{feed}; that comparison predates the \code{dcast()} duplicate-key fix in
+\code{.select_best_source()} (issue 425) and does not reproduce.
 }
 
 \examples{

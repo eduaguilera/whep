@@ -257,25 +257,36 @@ polity_bucket_coverage <- function(years = NULL) {
 #' because `polity_area_code` is derived from `fabio_code`, so the contradiction
 #' is left standing and reported here instead (issue 556).
 #'
-#' @section Measuring the alternative:
-#' `options(whep.unfold_rest_of_world = TRUE)` promotes every Rest-of-World
-#' member to its own `polity_area_code` for the whole pipeline, which is the
-#' experiment the decision needs. It is **off by default and not a production
-#' mode**: published WHEP values assume the fold, so every read of the crosswalk
-#' warns while it is set. The `"successor_state"` folds are never lifted by it,
-#' since those are territorial identities rather than a FABIO convention.
+#' @section The Rest-of-World fold is no longer applied:
+#' WHEP models every reporting member of bucket 999 in its own right. FABIO's
+#' 192-country layout is a methodology this package compares against, not a
+#' constraint on which territories it represents, and the choice of country set
+#' is WHEP's to make (issue 459).
 #'
-#' `options(whep.unfold_rest_of_world = "cbs_reporters")` promotes only the four
-#' `"cbs_reporter_folded"` areas, which is the narrower experiment issue 556
-#' asks for: it lifts exactly the folds FABIO does not make and leaves the 57
-#' folds FABIO agrees with in place. `TRUE` and `"all"` are the same mode.
+#' That matters because the fold was never doing what its name suggests. Of the
+#' 61 members, only about a third report anything at all; the rest contribute no
+#' rows and folding them is arithmetically a no-op. Everything the bucket
+#' actually carried came from the members that DO file returns -- Syria,
+#' Eswatini, North Macedonia, New Caledonia, the Faroe Islands, Palestine,
+#' Greenland and the like -- and folding them discarded whose data it was. So
+#' promotion is self-limiting: an area with no rows is unaffected either way.
 #'
-#' Measured with it on a full-range `get_wide_cbs()` (1850-2023, all 61 members
-#' promoted), global totals move by at most 1.2% (`stock_addition`) and by less
-#' than 0.1% for `feed`, `production` and `processing`. An earlier measurement
-#' recorded in issue 419 reported up to 13.7x; that comparison predates the
-#' `dcast()` duplicate-key fix in `.select_best_source()` (issue 425) and does
-#' not reproduce.
+#' Bucket 999 survives as a genuine residual for the territories that report
+#' nothing. Measured on a full-range `get_wide_cbs()` (1850-2023), promotion
+#' takes the published area count from 195 to 216 and moves global totals by at
+#' most 0.99% (`stock_addition`), with every other column inside 0.4%.
+#'
+#' `options(whep.unfold_rest_of_world = "none")` restores the fold, which is
+#' what reproducing a number published before this change requires. Because that
+#' no longer matches the published series, every read of the crosswalk warns
+#' while it is set. `"cbs_reporters"` re-folds all but the four
+#' `"cbs_reporter_folded"` areas and warns for the same reason. The
+#' `"successor_state"` folds are never lifted by any mode, since those are
+#' territorial identities rather than a FABIO convention.
+#'
+#' An earlier measurement recorded in issue 419 reported this change at up to
+#' 13.7x on `feed`; that comparison predates the `dcast()` duplicate-key fix in
+#' `.select_best_source()` (issue 425) and does not reproduce.
 #'
 #' @param crosswalk Crosswalk to inspect. Defaults to [polity_area_crosswalk].
 #'
@@ -473,7 +484,7 @@ folded_reporting_areas <- function(crosswalk = NULL) {
 }
 
 .unfold_rest_of_world_mode <- function() {
-  value <- getOption("whep.unfold_rest_of_world", FALSE)
+  value <- getOption("whep.unfold_rest_of_world", "all")
   if (isTRUE(value)) {
     return("all")
   }
@@ -489,10 +500,6 @@ folded_reporting_areas <- function(crosswalk = NULL) {
      {.val FALSE} or one of {.val {modes}}.",
     "x" = "Got {.val {value}}."
   ))
-}
-
-.unfold_rest_of_world_option <- function() {
-  .unfold_rest_of_world_mode() != "none"
 }
 
 # The ONE predicate deciding which members a mode promotes. `regions_full` and
@@ -516,21 +523,30 @@ folded_reporting_areas <- function(crosswalk = NULL) {
 .unfold_rest_of_world <- function(crosswalk) {
   mode <- .unfold_rest_of_world_mode()
   promoted <- .rest_of_world_members(crosswalk, mode)
+  # The WARNING FOLLOWS THE DEFAULT, and the default is now `"all"`. It used to
+  # fire whenever anything was promoted, because the fold was what WHEP
+  # published; now promotion IS what WHEP publishes, so the thing worth warning
+  # about is the opposite -- a run that re-folds and therefore does not match
+  # anything published.
+  #
+  # Warned on EVERY read rather than once per session: the crosswalk is read
+  # dozens of times in a build, and a run whose numbers do not match the
+  # published series should be impossible to mistake for one that does.
+  # Session-level "once" state would also make the warning untestable.
+  if (mode != "all") {
+    cli::cli_warn(c(
+      "!" = "{.code whep.unfold_rest_of_world} is set to {.val {mode}}:
+             the FABIO Rest-of-World fold is being applied to
+             {sum(!promoted & .rest_of_world_members(crosswalk, 'all'))}
+             reporting area{?s} that WHEP models in their own right.",
+      "i" = "Published WHEP values do NOT fold them. This is a sensitivity
+             setting for issues 419 and 556, not the production mode."
+    ))
+  }
   if (!any(promoted)) {
     return(crosswalk)
   }
   crosswalk[promoted, polity_area_code := area_code]
-  # Warned on EVERY read rather than once per session: the crosswalk is read
-  # dozens of times in a build, and a run whose numbers do not match anything
-  # published should be impossible to mistake for one that does. Session-level
-  # "once" state would also make the warning untestable.
-  cli::cli_warn(c(
-    "!" = "{.code whep.unfold_rest_of_world} is set to {.val {mode}}:
-           {sum(promoted)} crosswalk row{?s} promoted out of the FABIO
-           Rest-of-World bucket.",
-    "i" = "Published WHEP values assume the fold. This is a sensitivity setting
-           for issues 419 and 556, not a supported production mode."
-  ))
   crosswalk
 }
 
