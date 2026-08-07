@@ -19,6 +19,14 @@
   value changes**: every pool stock and every `build_carbon_balance()`
   equilibrium is bit-identical before and after (checked across nine HSOC
   parameterisations and the spin-up of all five models).
+* `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
+  an `example = FALSE` argument, so both now have runnable examples like the
+  rest of the package's remote-data functions. Their documented `@return` was
+  also wrong and is corrected: `create_typologies_of_josette()` returns a named
+  list of three tibbles plus a `ggplot`, not a single tibble, and
+  `create_typologies_grafs_spain()` returns `Province_name` and `Typologie` for
+  `map_year` only, not a seven-column series over all years. No published value
+  changes — the only new code path is the `example = TRUE` early return.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different
@@ -154,6 +162,24 @@
   `demand_tier = "fcr"`. All 191 other areas are bit-identical in both tiers.
   The five continent residuals `901`-`905` stay unmapped on purpose: they span
   several Bouwman regions each and carry no production row at all.
+* `build_cell_polity()` gains `area_key`, choosing which code the shared
+  cell-area grid every gridded consumer keys on. The grid is rasterized from
+  present-day polygons through `regions.csv`, so its `area_code` is a raw
+  reporting-area code, not the `polity_area_code` bucket every polity-keyed
+  national table in whep is aggregated on. On the deployed
+  `cell_polity_fraction` parquet **12 of its 182 codes (819 cells) are not a
+  bucket** -- Syria, Palestine, Eswatini, Equatorial Guinea, North Macedonia,
+  New Caledonia, Western Sahara, Andorra, Liechtenstein and San Marino (all
+  folded into `999` Rest of World), `62` Ethiopia PDR (into `238`) and `277`
+  South Sudan (into `206`) -- so their cells match nothing on either side of
+  the join. Measured against real 2010 harvested area, **21.09 Mha of national
+  cropland, 1.525% of the world total, cannot be placed on any grid cell**;
+  15.30 Mha of that is the whole of Ethiopia and 5.67 Mha is Rest of World.
+  `area_key = "polity_area"` re-keys the grid on the bucket and cuts that to
+  0.12 Mha (0.009%). **No published value changes**: the default `"grid"`
+  reproduces today's output bit-for-bit and only adds a warning naming the
+  codes, because switching moves every gridded consumer's territorial
+  attribution at once. Whether it should become the default is issue #460.
 * `polities` and `polity_area_crosswalk` are re-synced against upstream
   `whep-polities` at `eb02dcb` (740 rows to **749**), which retired or superseded
   **14** codes this package had been treating as live and published a replacement
@@ -459,6 +485,22 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called `set.seed()` and left it set, so every
+  random number drawn afterwards depended on having made the call, and in a
+  session that had not yet used the RNG it created `.Random.seed` where there
+  was none. The seed is now scoped to the call and the previous RNG state (or
+  its absence) is restored on return. Seeded results are bit-identical to
+  before; unseeded runs still consume the caller's stream, so consecutive
+  unseeded runs remain independent draws (#188).
+* A failed Natural Earth download now reports how to recover instead of dying
+  on its own error message. The abort interpolated the layer URL as
+  `{.url {.natural_earth_url(layer)}}`, and cli >= 3.4.0 reads a `{}`
+  expression starting with a dot as a style name, so the branch raised
+  `Invalid cli literal` and the instructions never reached the user. The
+  province typologies (`create_typologies_grafs_spain()`,
+  `create_typologies_of_josette()`) are the callers that reach it. No published
+  value changes (#594).
 
 # whep 0.3.0
 

@@ -19,7 +19,10 @@ number, or one per sector. Zero means no uncertainty.}
 
 \item{options}{Named list overriding \code{n} (draws, default 200),
 \code{probs} (lower/median/upper quantiles), \code{by} (grouping
-columns) and \code{seed} (for reproducible draws).}
+columns) and \code{seed} (for reproducible draws). A \code{seed} is scoped
+to this call: the caller's \code{.Random.seed} is restored on exit, so
+drawing here does not reshuffle the surrounding session's RNG
+stream.}
 }
 \value{
 A tibble with the \code{by} columns plus \code{mean}, \code{sd}, \code{cv},

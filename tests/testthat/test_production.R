@@ -71,3 +71,77 @@ testthat::test_that(".warn_residues_no_area stays quiet when every row resolved"
 
   testthat::expect_no_warning(.warn_residues_no_area(dt))
 })
+
+# get_primary_production / get_primary_residues --------------------------------
+
+testthat::test_that("get_primary_production(example = TRUE) needs no remote", {
+  out <- whep::get_primary_production(example = TRUE)
+
+  testthat::expect_s3_class(out, "tbl_df")
+  testthat::expect_true(nrow(out) > 0)
+  testthat::expect_true(
+    all(
+      c("year", "area_code", "item_prod_code", "unit", "value") %in%
+        names(out)
+    )
+  )
+})
+
+# The `crop_residues` pin, in the mixed-case schema the builder lowercases.
+# "Tanzania" is deliberately a label the polity crosswalk does not hold, which
+# is how the unresolved-area branch is reached.
+residues_pin_fixture <- function() {
+  tibble::tribble(
+    ~Area,      ~Product_residue, ~Item_cbs,             ~Prod_ygpit_Mg,
+    "Spain",    "Residue",        "Straw",               100,
+    "Spain",    "Residue",        "Straw",               50,
+    "Spain",    "Product",        "Straw",               999,
+    "Spain",    "Residue",        "Other crop residues", 0,
+    "Tanzania", "Residue",        "Straw",               7
+  ) |>
+    dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+}
+
+testthat::test_that("get_primary_residues aggregates residues on codes", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residues_pin_fixture()
+  })
+
+  testthat::expect_warning(
+    out <- whep::get_primary_residues(),
+    "crop-residue"
+  )
+
+  spain <- out |> dplyr::filter(area_code == 203L)
+  # The two Spanish straw rows are summed, the "Product" row (999) is not a
+  # residue and the zero-tonne residue row is dropped.
+  testthat::expect_equal(nrow(spain), 1)
+  testthat::expect_equal(spain$value, 150)
+  testthat::expect_equal(spain$item_cbs_code_crop, 2511)
+  testthat::expect_equal(spain$item_cbs_code_residue, 2105)
+  testthat::expect_false(any(out$value == 999))
+})
+
+testthat::test_that("get_primary_residues keeps unresolved areas visible", {
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    residues_pin_fixture()
+  })
+
+  out <- suppressWarnings(whep::get_primary_residues())
+
+  # The row whose area label did not resolve is reported, not dropped, so the
+  # gap stays visible downstream instead of silently shrinking the totals.
+  unresolved <- out |> dplyr::filter(is.na(area_code))
+  testthat::expect_equal(unresolved$value, 7)
+  testthat::expect_true(is.na(unresolved$reporting_polity_code))
+  testthat::expect_equal(sum(out$value), 157)
+})
+
+testthat::test_that("get_primary_residues(example = TRUE) needs no remote", {
+  out <- whep::get_primary_residues(example = TRUE)
+
+  testthat::expect_s3_class(out, "tbl_df")
+  testthat::expect_true(
+    all(c("year", "area_code", "item_cbs_code_crop", "value") %in% names(out))
+  )
+})

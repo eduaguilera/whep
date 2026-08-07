@@ -419,13 +419,17 @@
 #' IPCC 2019 enteric EF for cattle.
 #'
 #' @description
-#' Table 10.10: Tier 1 enteric fermentation emission factors
-#' for cattle by region (kg CH4/head/yr).
+#' Tier 1 enteric fermentation emission factors for cattle by region
+#' (kg CH4/head/yr). Regional cattle factors are Table 10.11 in both
+#' the 2006 Guidelines and the 2019 Refinement; Table 10.10 holds the
+#' non-cattle species (see [ipcc_2019_enteric_ef_other]).
 #'
-#' @format A tibble with `region`, `category`,
-#'   `ef_kg_head_yr`, `source`.
+#' @format A tibble with `region`, `category`, `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11. The stored
+#'   values are in fact the 2006 Guidelines defaults (128 and 53
+#'   kg CH4/head/yr for North American dairy and other cattle, where
+#'   the 2019 Refinement gives 138 and 64); tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_cattle
@@ -434,13 +438,16 @@
 #' IPCC 2019 enteric EF for non-cattle.
 #'
 #' @description
-#' Table 10.11: Tier 1 enteric fermentation emission factors
-#' for non-cattle species (kg CH4/head/yr).
+#' Tier 1 enteric fermentation emission factors for non-cattle species
+#' (kg CH4/head/yr). Non-cattle species are Table 10.10 in both the
+#' 2006 Guidelines and the 2019 Refinement; regional cattle factors are
+#' Table 10.11 (see [ipcc_2019_enteric_ef_cattle]).
 #'
-#' @format A tibble with `category`, `ef_kg_head_yr`,
-#'   `source`.
+#' @format A tibble with `category`, `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10. The stored
+#'   values are in fact the 2006 Guidelines defaults, from its
+#'   developed-countries column; tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_other
@@ -478,11 +485,13 @@
 #' IPCC 2019 MCF for manure management.
 #'
 #' @description
-#' Table 10.17: Methane Conversion Factors by manure management
-#' system and annual average temperature.
+#' Table 10.17: methane conversion factors (percent) by manure
+#' management system and climate zone. The IPCC table resolves ten
+#' climate zones grouped under cool, temperate and warm; this table
+#' keeps the three groups, and uses `"All"` for the systems that take a
+#' single factor.
 #'
-#' @format A tibble with `system`, `annual_temp_c`,
-#'   `mcf_percent`.
+#' @format A tibble with `system`, `climate_zone`, `mcf_percent`.
 #'
 #' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
 #'
@@ -493,13 +502,18 @@
 #' IPCC 2019 nitrogen excretion rates.
 #'
 #' @description
-#' Table 10.19: Daily N excretion rates by species and region
-#' (kg N/1000 kg animal mass/day).
+#' Default nitrogen excretion by animal category and region, stored as
+#' annual excretion per head (kg N/head/yr). That is the form the Tier 1
+#' manure N2O path consumes, and the same quantity the Tier 2 path
+#' derives from the energy balance.
 #'
-#' @format A tibble with `region`, `category`,
-#'   `nex_kg_per_1000kg_day`.
+#' @format A tibble with `region`, `category`, `nex_kg_n_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19. That table
+#'   publishes the rate per 1000 kg animal mass per day (0.59 kg N for
+#'   North American dairy cattle); the annual per-head values stored
+#'   here (105 kg N for the same cell) do not follow from it by any
+#'   recorded conversion; tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_n_excretion
@@ -508,13 +522,15 @@
 #' IPCC 2019 direct N2O emission factors.
 #'
 #' @description
-#' Table 10.21: EF3 values (kg N2O-N/kg N) by manure
+#' Table 10.21: EF3 values (kg N2O-N per kg N excreted) by manure
 #' management system.
 #'
-#' @format A tibble with `mms_type`, `ef3_kg_n2on_kg_n`,
-#'   `source`.
+#' @format A tibble with `system`, `ef_kg_n2o_n_per_kg_n`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21. Several rows
+#'   match neither the 2019 Refinement nor the 2006 Guidelines (daily
+#'   spread 0.010 against 0 in both, dry lot 0.005 against 0.02);
+#'   tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_n2o_ef_direct

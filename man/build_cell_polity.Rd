@@ -4,11 +4,18 @@
 \alias{build_cell_polity}
 \title{Assemble WHEP's cell-polity crosswalk with true grid-cell area.}
 \usage{
-build_cell_polity(polity_fraction_path = NULL)
+build_cell_polity(
+  polity_fraction_path = NULL,
+  area_key = c("grid", "polity_area")
+)
 }
 \arguments{
 \item{polity_fraction_path}{Path to the cell-polity fraction parquet.
 Defaults to \code{Sys.getenv("WHEP_POLITY_FRACTION_PATH")}.}
+
+\item{area_key}{Which area code the output is keyed on: \code{"grid"} (default,
+the parquet's own reporting-area codes) or \code{"polity_area"} (the
+\link{polity_area_crosswalk} bucket national tables are aggregated on).}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{polity_frac} and
@@ -23,6 +30,42 @@ same 0.5-degree cell-area formula used across the package (see
 \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}, \code{\link[=get_soc_climate_drivers]{get_soc_climate_drivers()}})
 expects as a required input.
 }
+\section{Which area code the grid is keyed on}{
+
+The parquet is rasterized from present-day polygons through
+\code{inst/extdata/regions.csv}, so its \code{area_code} is a raw reporting-area code
+and \strong{not} necessarily a \link{polity_area_crosswalk} \code{polity_area_code}: the
+bucket every polity-keyed national table in whep is aggregated on. Grid
+codes that are not a bucket cannot join to national data at all: the join
+is silently empty on both sides.
+
+\code{area_key} selects which of the two the output carries. It is not a
+fallback: \code{"grid"} is the default, reproduces the parquet's own codes
+bit-for-bit, and warns naming the codes that cannot resolve;
+\code{"polity_area"} resolves each code to its bucket through
+\link{polity_area_crosswalk} and re-sums \code{polity_frac} within
+\verb{(lon, lat, area_code)}, so a cell straddling two areas of the same bucket
+stays one row per bucket and each cell's fractions still sum to 1. It
+respects \code{options(whep.unfold_rest_of_world = TRUE)} (see
+\code{\link[=folded_reporting_areas]{folded_reporting_areas()}}), so the grid and the national tables agree
+about where a Rest-of-World member's rows belong.
+
+Under \code{"polity_area"} the raw reporting code is \strong{carried, not replaced}:
+the output gains \code{grid_area_code} holding the parquet's own code, joined with
+\code{+} where a cell's areas collapse into one bucket. So the fold this performs
+is recoverable at the join rather than baked into the grid — a derived key
+silently overwriting the raw one it came from is what whep#582 reports from
+the output side, and the same fold is what dropped Sudan's 40.8 M goats and
+doubled its sugar cane in the published production series (whep#563).
+
+The output deliberately does \strong{not} gain \code{polity_code} /
+\verb{reporting_polity_*}. A bucket is not a polity: \code{999} holds up to 17
+territories at once and \code{206} holds Sudan and South Sudan together, so no
+polity code string is recoverable from this year-less grid. Carrying that
+identity needs the cell x polity x validity-interval unit tracked by epic
+whep#458, not a column added here.
+}
+
 \examples{
 # Requires WHEP_POLITY_FRACTION_PATH to be set; not run without it.
 if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {

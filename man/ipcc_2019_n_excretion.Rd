@@ -5,18 +5,23 @@
 \alias{ipcc_2019_n_excretion}
 \title{IPCC 2019 nitrogen excretion rates.}
 \format{
-A tibble with \code{region}, \code{category},
-\code{nex_kg_per_1000kg_day}.
+A tibble with \code{region}, \code{category}, \code{nex_kg_n_head_yr}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19. That table
+publishes the rate per 1000 kg animal mass per day (0.59 kg N for
+North American dairy cattle); the annual per-head values stored
+here (105 kg N for the same cell) do not follow from it by any
+recorded conversion; tracked in whep#601.
 }
 \usage{
 ipcc_2019_n_excretion
 }
 \description{
-Table 10.19: Daily N excretion rates by species and region
-(kg N/1000 kg animal mass/day).
+Default nitrogen excretion by animal category and region, stored as
+annual excretion per head (kg N/head/yr). That is the form the Tier 1
+manure N2O path consumes, and the same quantity the Tier 2 path
+derives from the energy balance.
 }
 \examples{
 ipcc_2019_n_excretion
