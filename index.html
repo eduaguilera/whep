@@ -67,8 +67,109 @@
 </div>
 <!-- badges: start -->
 
+<p><code>whep</code> harmonises the scattered public record of world agriculture — what each country produced, fed, traded, processed and consumed — into one set of tidy tables reaching back to 1850, and models the environmental pressures that follow from it: soil carbon and nitrogen balances, greenhouse gas emissions, land, water, and the footprints these leave along international trade chains.</p>
 <div class="section level2">
-<h2 id="project">Project<a class="anchor" aria-label="anchor" href="#project"></a>
+<h2 id="why-this-package-exists">Why this package exists<a class="anchor" aria-label="anchor" href="#why-this-package-exists"></a>
+</h2>
+<p>The environmental history of food is a data problem before it is a modelling problem. The quantities a researcher needs live in a dozen archives that do not agree on item lists, country codes, units or years — and most of them begin in 1961, when FAOSTAT does. Work on the last sixty years is therefore abundant, while the century of agricultural change that produced today’s food system is, as the project abstract below puts it, “very poorly quantified before 1961”.</p>
+<p><code>whep</code> is the code that closes that gap for the WHEP project, released as a package so the same pipeline can be read, re-run and criticised by anyone else. It does three things, each a chain of functions you can call individually, inspect and swap:</p>
+<ul>
+<li>
+<strong>Harmonise.</strong> FAOSTAT, LUH2 land use, HYDE population, CRU climate, LPJmL model output and HWSD soils are mapped onto one item/region/unit vocabulary, gap-filled where the record is silent, and extended back to 1850 — <code><a href="reference/build_primary_production.html">build_primary_production()</a></code>, <code><a href="reference/build_commodity_balances.html">build_commodity_balances()</a></code>, <code><a href="reference/build_detailed_trade.html">build_detailed_trade()</a></code>, <code><a href="reference/build_food_supply.html">build_food_supply()</a></code>.</li>
+<li>
+<strong>Model the biophysics.</strong> Gridded soil carbon dynamics (five selectable models), the full soil nitrogen balance (inputs, ammonia, direct and indirect nitrous oxide, leaching), the soil water budget, and livestock feed intake and emissions — <code><a href="reference/build_carbon_balance.html">build_carbon_balance()</a></code>, <code><a href="reference/build_nitrogen_balance.html">build_nitrogen_balance()</a></code>, <code><a href="reference/build_water_balance.html">build_water_balance()</a></code>, <code><a href="reference/get_feed_intake.html">get_feed_intake()</a></code>.</li>
+<li>
+<strong>Trace pressures through trade.</strong> A physical multi-regional input–output core with one extension per stressor, so a pressure caused where production happens is attributed to the consumption that drove it — <code><a href="reference/build_io_model.html">build_io_model()</a></code>, <code><a href="reference/build_footprint.html">build_footprint()</a></code>.</li>
+</ul>
+<div class="section level3">
+<h3 id="who-it-is-for">Who it is for<a class="anchor" aria-label="anchor" href="#who-it-is-for"></a>
+</h3>
+<p>Researchers in food-system, agro-environmental and environmental-history work who are comfortable in R and want the accounting itself rather than a finished figure: the intermediate tables, the coefficients behind them, and the freedom to change a method and see what moves. It is a research pipeline, not a general-purpose data-download tool, and it assumes you want to know how each number was made.</p>
+</div>
+<div class="section level3">
+<h3 id="how-it-relates-to-fabio">How it relates to FABIO<a class="anchor" aria-label="anchor" href="#how-it-relates-to-fabio"></a>
+</h3>
+<p>The footprint core deliberately follows FABIO, the physical multi-regional input–output model of global agriculture and forestry (Bruckner et al. 2019, <a href="https://doi.org/10.1021/acs.est.9b03554" class="external-link">doi:10.1021/acs.est.9b03554</a>), and reuses its item and region code conventions, so results stay comparable and the method is a published one. What <code>whep</code> adds is the reason it exists:</p>
+<ul>
+<li>
+<strong>Time span.</strong> The published FABIO tables start in 1986; <code>whep</code> builds its own supply-use base from 1850.</li>
+<li>
+<strong>Territories that change.</strong> Borders move over 170 years, so the harmonised tables record the polity a row belonged to in that year (<code>ESP-1800-2025</code>, <code>BLX-1850-1999</code>) next to the FAOSTAT-style area code, instead of assuming today’s country list held in 1900.</li>
+<li>
+<strong>Biophysics computed, not attached.</strong> Soil carbon, nitrogen and water are modelled here, gridded and dynamic, so an extension can be traced back to the mechanism and the coefficients that produced it.</li>
+<li>
+<strong>Methods stay selectable.</strong> Where more than one defensible method exists it is a <code>method =</code> (or <code>tier =</code>) argument, never a silent fallback: the default is the most rigorous available, and the choice is recorded in a <code>method_*</code> column of the output.</li>
+</ul>
+</div>
+</div>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>The package is under constant development. Initial stable releases are available from both CRAN and <a href="https://eduaguilera.r-universe.dev/whep" class="external-link">R-universe</a>.</p>
+<p>You can install the stable version on CRAN:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'whep'</span><span class="op">)</span></span></code></pre></div>
+<p>If you want the development version of <code>whep</code>, you can:</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"eduaguilera/whep"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Install from R-universe</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span></span>
+<span>  <span class="st">"whep"</span>,</span>
+<span>  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://eduaguilera.r-universe.dev"</span>, <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
+</h2>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://eduaguilera.github.io/whep/">whep</a></span><span class="op">)</span></span></code></pre></div>
+<p>Every pipeline builder returns a tidy tibble keyed by year, area and item. A full build reads pinned inputs or multi-gigabyte rasters and takes minutes to hours, so each builder also accepts <code>example = TRUE</code> and returns a small fixture of its own output — enough to see the schema and try a join without downloading anything:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/build_commodity_balances.html">build_commodity_balances</a></span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="reference/add_item_cbs_name.html">add_item_cbs_name</a></span><span class="op">(</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="va">year</span>, <span class="va">reporting_polity_name</span>, <span class="va">item_cbs_name</span>, <span class="va">element</span>, <span class="va">value</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 10 × 5</span></span>
+<span><span class="co">#&gt;     year reporting_polity_name     item_cbs_name           element             value</span></span>
+<span><span class="co">#&gt;    &lt;dbl&gt; &lt;chr&gt;                     &lt;chr&gt;                   &lt;chr&gt;               &lt;dbl&gt;</span></span>
+<span><span class="co">#&gt;  1  2010 Laos                      Bovine Meat             import           1.76e+ 3</span></span>
+<span><span class="co">#&gt;  2  1981 Tunisia                   Poultry Meat            domestic_supply  4.1 e+ 4</span></span>
+<span><span class="co">#&gt;  3  1906 Spain                     Wine                    processing       6.35e+ 4</span></span>
+<span><span class="co">#&gt;  4  1899 Guinea-Bissau (1886-1974) Eggs                    food             7.26e+ 1</span></span>
+<span><span class="co">#&gt;  5  2018 Costa Rica                Palm kernels            domestic_supply  1.20e+ 5</span></span>
+<span><span class="co">#&gt;  6  1871 Australia                 Wool (Clean Eq.)        stock_variation -7.28e-12</span></span>
+<span><span class="co">#&gt;  7  1938 Uganda (1926-1962)        Milk - Excluding Butter production       1.51e+ 5</span></span>
+<span><span class="co">#&gt;  8  1924 Austria                   Sunflower seed          production       1.61e+ 2</span></span>
+<span><span class="co">#&gt;  9  1928 Hong Kong                 Fruits, Other           domestic_supply  1.85e+ 4</span></span>
+<span><span class="co">#&gt; 10  1879 Venezuela                 Peas                    seed             3.83e- 8</span></span></code></pre></div>
+<p>Joins and grouping happen on integer codes throughout, because country and item names change over the period covered; the <code>add_*_name()</code> helpers attach human-readable labels at the end, as above. Each row also carries the polity it belonged to in that year (<code>reporting_polity_code</code>, <code>reporting_polity_name</code>), which is why the 1899 row above reads <em>Guinea-Bissau (1886-1974)</em> and not today’s Guinea-Bissau.</p>
+<p>The estimation functions work on your own numbers, not only on pipeline output. Direct soil nitrous oxide from applied nitrogen, using the default IPCC 2019 Tier 1 emission factors:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">n_applied</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span>
+<span>  <span class="op">~</span><span class="va">area_code</span>, <span class="op">~</span><span class="va">climate</span>, <span class="op">~</span><span class="va">irrig_type</span>, <span class="op">~</span><span class="va">n_input_t</span>,</span>
+<span>  <span class="fl">203</span>, <span class="st">"MED"</span>, <span class="st">"Rainfed"</span>, <span class="fl">1000</span>,</span>
+<span>  <span class="fl">11</span>, <span class="st">"ATL"</span>, <span class="st">"Rainfed"</span>, <span class="fl">1000</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o</a></span><span class="op">(</span><span class="va">n_applied</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 2 × 6</span></span>
+<span><span class="co">#&gt;   area_code climate irrig_type n_input_t n2o_direct_n_t method_soil_n2o</span></span>
+<span><span class="co">#&gt;       &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;          &lt;dbl&gt; &lt;chr&gt;          </span></span>
+<span><span class="co">#&gt; 1       203 MED     Rainfed         1000              5 ipcc2019       </span></span>
+<span><span class="co">#&gt; 2        11 ATL     Rainfed         1000             10 ipcc2019</span></span></code></pre></div>
+<p>Alternative methods are arguments rather than hidden defaults, and the one used is recorded in the output, so a sensitivity analysis is a one-line change — here the older IPCC 2006 factors, which do not distinguish the two climates:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/calculate_soil_n2o.html">calculate_soil_n2o</a></span><span class="op">(</span><span class="va">n_applied</span>, method <span class="op">=</span> <span class="st">"ipcc2006"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 2 × 6</span></span>
+<span><span class="co">#&gt;   area_code climate irrig_type n_input_t n2o_direct_n_t method_soil_n2o</span></span>
+<span><span class="co">#&gt;       &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;          &lt;dbl&gt; &lt;chr&gt;          </span></span>
+<span><span class="co">#&gt; 1       203 MED     Rainfed         1000             10 ipcc2006       </span></span>
+<span><span class="co">#&gt; 2        11 ATL     Rainfed         1000             10 ipcc2006</span></span></code></pre></div>
+<p>Running a pipeline for real needs its external inputs: WHEP-curated datasets are fetched with <code><a href="reference/whep_read_file.html">whep_read_file()</a></code> from the board listed in <code>whep_inputs</code>, and the large third-party archives (CRU, LUH2, LPJmL, HYDE, HWSD) are read from local disk through documented <code>WHEP_*</code> environment variables, with each reader telling you what to set. Tracing a pressure through trade is covered end-to-end in the <a href="https://eduaguilera.github.io/whep/articles/footprint-analysis.html">Environmental footprint analysis</a> vignette, and every function is listed on the <a href="https://eduaguilera.github.io/whep/reference/index.html">reference page</a>.</p>
+</div>
+<div class="section level2">
+<h2 id="the-whep-project">The WHEP project<a class="anchor" aria-label="anchor" href="#the-whep-project"></a>
 </h2>
 <div class="section level4">
 <h4 id="who-has-eaten-the-planet-the-paths-of-food-systems-beyond-the-safe-and-just-operating-space-1850-2020">
@@ -95,34 +196,6 @@
 </div>
 </div>
 <div class="section level2">
-<h2 id="r-package">R package<a class="anchor" aria-label="anchor" href="#r-package"></a>
-</h2>
-<p>The WHEP project heavily relies on data. We use the R programming language. This repository is built as an R package containing functionality that we think might be useful to share to others as part of the project. This will also include functions for easily downloading the data gathered by the project.</p>
-</div>
-<div class="section level2">
-<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
-</h2>
-<p>The package is under constant development. Initial stable releases are available from both CRAN and <a href="https://eduaguilera.r-universe.dev/whep" class="external-link">R-universe</a>.</p>
-<p>You can install the stable version on CRAN:</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">'whep'</span><span class="op">)</span></span></code></pre></div>
-<p>If you want the development version of <code>whep</code>, you can:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
-<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"eduaguilera/whep"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Install from R-universe</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span></span>
-<span>  <span class="st">"whep"</span>,</span>
-<span>  repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://eduaguilera.r-universe.dev"</span>, <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
-</h2>
-<p>You can read more about the package’s functionalities from the documentation at the <a href="https://eduaguilera.github.io/whep/reference/index.html">reference page</a>.</p>
-</div>
-<div class="section level2">
 <h2 id="contributing">Contributing<a class="anchor" aria-label="anchor" href="#contributing"></a>
 </h2>
 <p>We welcome contributions! Please see our <a href="https://github.com/eduaguilera/whep/blob/main/.github/CONTRIBUTING.md" class="external-link">Contributing Guide</a> for how to find something to work on, set up the package, run the CI checks locally, and open a pull request.</p>
@@ -132,7 +205,7 @@
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
 </h2>
 <p>To cite <code>whep</code> in publications, use:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/citation.html" class="external-link">citation</a></span><span class="op">(</span><span class="st">"whep"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
