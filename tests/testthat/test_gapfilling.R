@@ -1943,9 +1943,9 @@ testthat::test_that("interp_vec rejects invalid arguments", {
 # Weighted proxy-growth specs ------------------------------------------------
 #
 # Ported from #324 (PR #606), whose fix for the weighted branch landed via
-# #171 (PR #617) as a character-identical `.fg_weighted_growth()`. These four
+# #171 (PR #617) as a character-identical weighted-growth helper. These four
 # cases exercise it independently of the tests that came with that PR, and
-# cover the ungrouped `"var:[weight]"` form which they do not.
+# cover the ungrouped "var:[weight]" form, which they do not.
 
 weighted_proxy_fixture <- function() {
   tibble::tribble(
