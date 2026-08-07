@@ -921,3 +921,189 @@ testthat::test_that("the pin error names both ways out", {
     "WHEP_LPJML_RUN_DIR"
   )
 })
+
+# ---- Year-scoped polity validity (whep#462) ---------------------------------
+#
+# `data$cell_polity` is a present-day rasterization with no year dimension,
+# while polity validity IS year-scoped, so a cell labelled `area_code` 52
+# (Azerbaijan) carries that label in 1901 as readily as in 2009 and the polity
+# resolution falls back to `AZE-1991-2025`, a state that did not exist then.
+# Two cells, one whose area code is valid across the whole span (11, Austria)
+# and one that is not, over two years straddling AZE-1991-2025's start, so the
+# same cell is a stand-in in one year and a real period hit in the other.
+.wb_validity_inputs <- function(years = c(1990L, 2000L)) {
+  cells <- tibble::tribble(
+    ~lon, ~lat, ~area_code,
+    9.25, 47.75, 11L,
+    47.75, 40.25, 52L
+  )
+  flux <- tidyr::expand_grid(cells, year = years, month = 1:12) |>
+    dplyr::mutate(
+      transp = 40,
+      evap = 15,
+      interc = 5,
+      irrig = 8,
+      runoff = 12,
+      seepage = 10,
+      prec = 100
+    )
+  swc <- tidyr::expand_grid(cells, year = years, month = 1:12, layer = 1:6) |>
+    dplyr::mutate(value = 0.4)
+  to_long <- function(var) {
+    dplyr::select(flux, lon, lat, year, month, value = dplyr::all_of(var))
+  }
+  list(
+    transp = to_long("transp"),
+    evap = to_long("evap"),
+    interc = to_long("interc"),
+    prec = to_long("prec"),
+    irrig = to_long("irrig"),
+    runoff = to_long("runoff"),
+    seepage = to_long("seepage"),
+    swc = swc,
+    cell_polity = dplyr::mutate(cells, polity_frac = 1, cell_area_ha = 30000)
+  )
+}
+
+# blue_green is pinned to irrig_share so the per-CFT fallback warning does not
+# compete with the validity warning these tests are about.
+.wb_validity_call <- function(...) {
+  whep::build_water_balance(
+    data = .wb_validity_inputs(),
+    method = list(blue_green = "irrig_share"),
+    ...
+  )
+}
+
+testthat::test_that("a pre-independence cell-year is named, not silent", {
+  testthat::expect_warning(
+    wb <- .wb_validity_call(resolution = "polity"),
+    "did not exist in that row's year"
+  )
+
+  az <- dplyr::filter(wb, area_code == 52L)
+  testthat::expect_setequal(az$year, c(1990L, 2000L))
+  # Both years land on the same post-1991 polity: that is the defect, and the
+  # warning above is the only thing on the default path that says so.
+  testthat::expect_setequal(az$reporting_polity_code, "AZE-1991-2025")
+})
+
+testthat::test_that("the validity warning names the count and the codes", {
+  testthat::expect_warning(
+    .wb_validity_call(resolution = "polity"),
+    "1 row over 1 area code"
+  )
+  testthat::expect_warning(
+    .wb_validity_call(resolution = "polity"),
+    "1990-1990"
+  )
+  testthat::expect_warning(.wb_validity_call(resolution = "polity"), "52")
+})
+
+testthat::test_that("flag marks exactly the out-of-span rows", {
+  testthat::expect_warning(
+    wb <- .wb_validity_call(resolution = "polity", polity_validity = "flag"),
+    "kept and flagged"
+  )
+
+  pointblank::expect_col_exists(wb, "reporting_polity_out_of_span")
+  flagged <- dplyr::filter(wb, reporting_polity_out_of_span)
+  testthat::expect_equal(nrow(flagged), 1L)
+  testthat::expect_equal(flagged$area_code, 52L)
+  testthat::expect_equal(flagged$year, 1990L)
+})
+
+testthat::test_that("drop removes only the out-of-span rows", {
+  testthat::expect_warning(
+    .wb_validity_call(resolution = "polity"),
+    "kept as-is"
+  )
+  testthat::expect_warning(
+    .wb_validity_call(resolution = "polity", polity_validity = "drop"),
+    "dropped"
+  )
+  kept <- suppressWarnings(.wb_validity_call(resolution = "polity"))
+  dropped <- suppressWarnings(
+    .wb_validity_call(resolution = "polity", polity_validity = "drop")
+  )
+
+  testthat::expect_equal(nrow(kept), 4L)
+  testthat::expect_equal(nrow(dropped), 3L)
+  gone <- dplyr::anti_join(kept, dropped, by = c("area_code", "year"))
+  testthat::expect_equal(gone$area_code, 52L)
+  testthat::expect_equal(gone$year, 1990L)
+  # The surviving rows are untouched: dropping must not re-weight anything.
+  testthat::expect_equal(
+    dplyr::semi_join(kept, dropped, by = c("area_code", "year")),
+    dropped,
+    ignore_attr = TRUE
+  )
+})
+
+testthat::test_that("the grid resolution reports validity too", {
+  testthat::expect_warning(
+    grid <- .wb_validity_call(resolution = "grid", polity_validity = "drop"),
+    "did not exist in that row's year"
+  )
+
+  testthat::expect_equal(nrow(grid), 3L)
+  testthat::expect_false(any(grid$area_code == 52L & grid$year == 1990L))
+})
+
+testthat::test_that("keep is the default and leaves the numbers alone", {
+  testthat::expect_warning(
+    .wb_validity_call(resolution = "polity", polity_validity = "keep"),
+    "kept as-is"
+  )
+  explicit <- suppressWarnings(
+    .wb_validity_call(resolution = "polity", polity_validity = "keep")
+  )
+  default <- suppressWarnings(.wb_validity_call(resolution = "polity"))
+
+  testthat::expect_equal(default, explicit)
+  testthat::expect_false(
+    rlang::has_name(default, "reporting_polity_out_of_span")
+  )
+})
+
+testthat::test_that("an in-span build warns about nothing", {
+  testthat::expect_no_warning(
+    whep::build_water_balance(resolution = "polity", example = TRUE)
+  )
+  testthat::expect_no_warning(whep::get_soc_climate_drivers(example = TRUE))
+})
+
+testthat::test_that("an invalid polity_validity is rejected", {
+  testthat::expect_error(
+    whep::build_water_balance(polity_validity = "nonsense"),
+    "polity_validity"
+  )
+  testthat::expect_error(
+    whep::get_soc_climate_drivers(polity_validity = "nonsense"),
+    "polity_validity"
+  )
+})
+
+testthat::test_that("SOC drivers honour polity_validity as well", {
+  data <- .socd_synthetic()
+  monthly <- c("temp", "pet", "prec", "irrig", "swc")
+  data[monthly] <- purrr::map(
+    data[monthly],
+    \(x) dplyr::mutate(x, year = 1950L)
+  )
+  data$cell_polity <- dplyr::mutate(data$cell_polity, area_code = 52L)
+
+  testthat::expect_warning(
+    drv <- whep::get_soc_climate_drivers(data = data, polity_validity = "flag"),
+    "did not exist in that row's year"
+  )
+  testthat::expect_true(all(drv$reporting_polity_out_of_span))
+  testthat::expect_warning(
+    empty <- whep::get_soc_climate_drivers(
+      data = data,
+      polity_validity = "drop"
+    ),
+    "dropped"
+  )
+  testthat::expect_equal(nrow(empty), 0L)
+})
