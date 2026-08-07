@@ -232,9 +232,10 @@ test_that("the open end is read from the data and admits no sibling", {
       "ROU-1940-2025"
     )
   )
-  # 237 intervals end on the domain end and 229 are open, so the year test and
+  # PR #662 adds one open interval without changing the eight succeeded ones:
+  # 238 intervals end on the domain end and 230 are open, so the year test and
   # the successor test do NOT agree here and only the latter is right.
-  expect_equal(sum(flat$end_year == domain_end), 229L + length(succeeded))
+  expect_equal(sum(flat$end_year == domain_end), 230L + length(succeeded))
 
   # Upstream's own `successor` column is the independent witness: no live polity
   # ending on the domain end is without a successor's counterpart, and every
@@ -538,15 +539,15 @@ test_that("only Montenegro moves territory; the rest is relabelling", {
   # POLYGON AT ALL, two are `st_equals()` duplicates, and exactly one moves
   # ground.
   area_mha <- function(code) {
-    g <- whep::polities[whep::polities$polity_code == code, ]
+    g <- whep::get_polity_geometries(code)
     if (sf::st_is_empty(g)) {
       return(NA_real_)
     }
     as.numeric(sf::st_area(sf::st_make_valid(g))) / 1e10
   }
   equal_polygons <- function(a, b) {
-    ga <- whep::polities[whep::polities$polity_code == a, ]
-    gb <- whep::polities[whep::polities$polity_code == b, ]
+    ga <- whep::get_polity_geometries(a)
+    gb <- whep::get_polity_geometries(b)
     length(sf::st_equals(ga, gb)[[1]]) > 0L
   }
 
@@ -576,7 +577,9 @@ test_that("only Montenegro moves territory; the rest is relabelling", {
   expect_true(equal_polygons("IDN-1800-1889", "IDN-1800-1945"))
   expect_equal(area_mha("CAN-1886-1948"), area_mha("CAN-1886-1949"))
   expect_equal(area_mha("IDN-1800-1889"), area_mha("IDN-1800-1945"))
-  expect_equal(area_mha("CAN-1886-1948"), 937.96, tolerance = 1e-4)
+  # PR #662 repairs the shared Canadian geometry; equality is the behavioural
+  # property, while the refreshed snapshot's common area is 950.1444 Mha.
+  expect_equal(area_mha("CAN-1886-1948"), 950.1444, tolerance = 1e-4)
 
   # The seven reporting aggregates: the dead side carries no polygon, so it
   # could never have received data. `build_constant_territory_series()` drops
