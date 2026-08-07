@@ -447,7 +447,11 @@ expand_polycell_years <- function(support, years) {
     return(NULL)
   }
   sf::st_agr(cells) <- "constant"
-  inter <- .pcs_measure_pieces(sf::st_intersection(cells, geom))
+  inter <- .pcs_intersect_polygonal(cells, geom)
+  if (nrow(inter) == 0L) {
+    return(NULL)
+  }
+  inter <- .pcs_measure_pieces(inter)
   inter <- inter[inter$polity_area_ha > .pcs_area_floor_ha(), ]
   if (nrow(inter) == 0L) {
     return(NULL)
@@ -578,6 +582,50 @@ expand_polycell_years <- function(support, years) {
   on.exit(suppressMessages(sf::sf_use_s2(old)), add = TRUE)
   suppressMessages(sf::sf_use_s2(FALSE))
   suppressWarnings(sf::st_collection_extract(geom, "POLYGON"))
+}
+
+# `st_intersection.sf()` restores attributes before it has discarded non-area
+# output. If one source feature produces both a zero-length line and a polygon,
+# that asks sf to attach two geometries to one row. Intersect the geometry
+# columns instead, filter to polygonal pieces, then restore the attributes with
+# the source-row index that the sfc method records in `idx`.
+.pcs_intersect_polygonal <- function(x, y) {
+  hit <- sf::st_intersection(sf::st_geometry(x), sf::st_geometry(y))
+  .pcs_restore_intersection_rows(x, hit)
+}
+
+.pcs_restore_intersection_rows <- function(x, hit) {
+  idx <- attr(hit, "idx")
+  if (length(hit) == 0L) {
+    return(x[0, ])
+  }
+  if (is.null(idx) || ncol(idx) < 1L || nrow(idx) != length(hit)) {
+    cli::cli_abort(
+      "The sfc intersection did not retain its source-row mapping."
+    )
+  }
+
+  # `st_collection_extract()` can split one GEOMETRYCOLLECTION into several
+  # polygons, so normalize one result at a time and repeat its source index.
+  parts <- list()
+  source_rows <- integer()
+  for (i in seq_along(hit)) {
+    polygonal <- .pcs_polygonal_part(hit[i])
+    if (length(polygonal) == 0L) {
+      next
+    }
+    parts[[length(parts) + 1L]] <- polygonal
+    source_rows <- c(source_rows, rep.int(idx[i, 1L], length(polygonal)))
+  }
+  if (length(parts) == 0L) {
+    return(x[0, ])
+  }
+
+  geometry <- do.call(c, parts)
+  sf::st_sf(
+    sf::st_drop_geometry(x)[source_rows, , drop = FALSE],
+    geometry = geometry
+  )
 }
 
 # Two polygons that only touch intersect in a line, whose area is zero. The
@@ -778,10 +826,11 @@ expand_polycell_years <- function(support, years) {
     return(out)
   }
   sf::st_agr(sub) <- "constant"
-  hit <- .pcs_measure_pieces(sf::st_intersection(sub, ice_union))
+  hit <- .pcs_intersect_polygonal(sub, ice_union)
   if (nrow(hit) == 0L) {
     return(out)
   }
+  hit <- .pcs_measure_pieces(hit)
   .pcs_warn_terra(hit, "ice clip")
   areas <- tapply(hit$polity_area_ha, hit$piece, sum)
   out[as.integer(names(areas))] <- as.numeric(areas)

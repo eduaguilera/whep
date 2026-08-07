@@ -2490,6 +2490,57 @@ testthat::test_that("a terra measurement totals every polygonal part", {
   )
 })
 
+testthat::test_that("polygonal intersections restore the source row after dropping lines", {
+  testthat::skip_if_not_installed("sf")
+
+  # macOS GEOS can return these two geometries from one ice clip. Calling the
+  # sf data-frame method tries to put both on its one source row before the
+  # zero-length line can be discarded. The sfc method instead records that
+  # both results came from source row 1 in `idx`; the normalizer must retain
+  # the polygon and reattach that row exactly once.
+  source <- sf::st_sf(
+    cell_id = "cell-a",
+    piece = 7L,
+    geometry = sf::st_sfc(pcs_cell(10.25, 45.25), crs = 4326)
+  )
+  zero_line <- sf::st_linestring(cbind(
+    c(10, 10, 10),
+    c(45.05, 45.05, 45.05)
+  ))
+  polygon <- pcs_rect(10.1, 10.2, 45.1, 45.2)
+  hit <- sf::st_sfc(zero_line, polygon, crs = 4326)
+  attr(hit, "idx") <- matrix(
+    c(1L, 1L, 1L, 1L),
+    ncol = 2L,
+    dimnames = list(NULL, c("x", "y"))
+  )
+
+  restored <- whep:::.pcs_restore_intersection_rows(source, hit)
+
+  testthat::expect_equal(nrow(restored), 1L)
+  testthat::expect_equal(restored$cell_id, "cell-a")
+  testthat::expect_equal(restored$piece, 7L)
+  testthat::expect_equal(
+    as.character(sf::st_geometry_type(restored)),
+    "POLYGON"
+  )
+  testthat::expect_equal(
+    sf::st_as_text(sf::st_geometry(restored)),
+    sf::st_as_text(sf::st_sfc(polygon, crs = 4326))
+  )
+
+  line_only <- sf::st_sfc(zero_line, crs = 4326)
+  attr(line_only, "idx") <- matrix(
+    c(1L, 1L),
+    ncol = 2L,
+    dimnames = list(NULL, c("x", "y"))
+  )
+  testthat::expect_equal(
+    nrow(whep:::.pcs_restore_intersection_rows(source, line_only)),
+    0L
+  )
+})
+
 testthat::test_that("the ice union is repaired before it is used", {
   testthat::skip_if_not_installed("sf")
 
