@@ -199,10 +199,7 @@ build_primary_production <- function(
   )
 
   # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(
-    fao_combined,
-    years = years
-  )
+  fao_slaughter <- .build_livestock_slaughter(fao_combined)
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -1339,7 +1336,7 @@ build_primary_production <- function(
     dplyr::filter(value > 0)
 }
 
-.split_slaughter_by_shares <- function(slaughter_raw, years) {
+.split_slaughter_by_shares <- function(slaughter_raw) {
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1362,7 +1359,7 @@ build_primary_production <- function(
   # QCL's most recent years, mirroring the value_st fill in
   # .combine_livestock(). Without this the inner_join drops those years and
   # cattle/swine/chicken slaughtered_heads silently vanish.
-  shares <- .compute_stock_shares(years) |>
+  shares <- .compute_stock_shares() |>
     .carry_forward_shares(sort(unique(needs_split$year)))
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
@@ -1397,8 +1394,16 @@ build_primary_production <- function(
     dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.compute_stock_shares <- function(years) {
-  fao_stocks <- .read_livestock_stocks(years = years)
+.compute_stock_shares <- function() {
+  # Read the stock series over its full span rather than the caller's window.
+  # `.carry_forward_shares()` fills these shares along the year axis precisely
+  # because the pin lags QCL slaughter, so it needs the years either side of the
+  # requested window to fill from; a scoped read leaves it nothing to carry and
+  # the inner_join in `.split_slaughter_by_shares()` then drops the row (#665).
+  # This is safe because a share is a within-year ratio: extra years add rows
+  # without changing any existing year's value, and that join restricts the
+  # result to the requested years anyway.
+  fao_stocks <- .read_livestock_stocks(years = NULL)
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1432,12 +1437,12 @@ build_primary_production <- function(
     dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+.build_livestock_slaughter <- function(fao_combined) {
   cli::cli_progress_step("Building livestock slaughter counts")
   items <- whep::items_cbs
   smap <- .build_slaughter_map()
   raw <- .read_slaughter_raw(fao_combined, smap)
-  result <- .split_slaughter_by_shares(raw, years)
+  result <- .split_slaughter_by_shares(raw)
 
   result |>
     dplyr::left_join(
