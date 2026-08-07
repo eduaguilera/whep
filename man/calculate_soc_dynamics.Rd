@@ -34,8 +34,17 @@ modifier of 1.}
 instead of running the model.}
 }
 \value{
-A tibble of the selected model's trajectory with an added
-\code{method_soc} column naming the model.
+A tibble in the same long schema for every model, one row per year
+and pool: \code{year}, \code{pool} (the running model's native pool name),
+\code{stock_mgc_ha} (that pool's stock), \code{soc_total} (the year's total
+over all pools, repeated on each pool row) and \code{method_soc} (the
+model that ran). Long rather than wide because the five models have
+different pool sets, so only a long shape can carry the pool detail under
+identical column names; total-only callers read
+\code{dplyr::distinct(out, year, soc_total)} without branching on the
+model. The per-model functions such as
+\code{\link{calculate_soc_hsoc}} still return their native wide
+trajectory.
 }
 \description{
 Run one of the five soil-organic-carbon turnover models (HSOC, RothC, ICBM,

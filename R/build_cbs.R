@@ -425,8 +425,10 @@ build_commodity_balances <- function(
 #' building pipeline. These can be used independently for footprint
 #' calculations.
 #'
-#' @param cbs A tibble of final CBS in wide format, as returned by
-#'   [build_commodity_balances()].
+#' @param cbs A tibble of final CBS in long format (one row per
+#'   `element`), as returned by [build_commodity_balances()]. The legacy
+#'   wide format, one column per element as returned by
+#'   [get_wide_cbs()], is still accepted.
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2023`.
 #' @param example Logical. If `TRUE`, return a small hardcoded dataset
@@ -454,7 +456,8 @@ build_processing_coefs <- function(
   cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   years <- start_year:end_year
 
-  # Convert wide CBS (from build_commodity_balances()) back to long with names
+  # build_commodity_balances() is already long: this only adds item names
+  # (and still converts a legacy wide CBS if one is passed in).
   cbs <- .wide_cbs_to_long(cbs) |>
     .filter_years(years)
 

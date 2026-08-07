@@ -311,3 +311,82 @@ testthat::test_that("calculate_system_nue example returns valid tibble", {
     "nue_system"
   )
 })
+
+testthat::test_that("grafs Spain typologies example returns valid tibble", {
+  result <- whep::create_typologies_grafs_spain(example = TRUE)
+
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_equal(nrow(result), 10)
+  pointblank::expect_col_exists(
+    result,
+    columns = c("Province_name", "Typologie")
+  )
+  pointblank::expect_col_vals_in_set(
+    result,
+    columns = "Typologie",
+    set = c(
+      "Specialized cropping system",
+      "Extensive cropping system",
+      "Extensive mixed crop-livestock system",
+      "Intensive mixed crop-livestock system",
+      "Specialized livestock-farming system"
+    )
+  )
+})
+
+testthat::test_that("Josette typologies example returns the data elements", {
+  result <- whep::create_typologies_of_josette(example = TRUE)
+
+  testthat::expect_type(result, "list")
+  testthat::expect_named(
+    result,
+    c("typologies_df", "n_input_df", "imported_feed_share_df")
+  )
+  purrr::walk(result, ~ testthat::expect_s3_class(.x, "tbl_df"))
+  purrr::walk(result, ~ testthat::expect_equal(nrow(.x), 10))
+
+  pointblank::expect_col_exists(
+    result$typologies_df,
+    columns = c("Year", "Province_name", "Typology")
+  )
+  pointblank::expect_col_exists(
+    result$n_input_df,
+    columns = c(
+      "Year",
+      "Province_name",
+      "item",
+      "irrig_cat",
+      "Box",
+      "MgN_dep",
+      "MgN_fix",
+      "MgN_syn",
+      "MgN_manure",
+      "MgN_urban"
+    )
+  )
+  pointblank::expect_col_exists(
+    result$imported_feed_share_df,
+    columns = c(
+      "Year",
+      "Province_name",
+      "LU_total",
+      "Feed_import_MgN",
+      "Domestic_feed_MgN",
+      "Total_feed_MgN",
+      "Imported_feed_share"
+    )
+  )
+  # The share is a share, and the feed total is the sum of its two parts.
+  pointblank::expect_col_vals_between(
+    result$imported_feed_share_df,
+    columns = "Imported_feed_share",
+    left = 0,
+    right = 1
+  )
+  testthat::expect_equal(
+    result$imported_feed_share_df$Total_feed_MgN,
+    result$imported_feed_share_df$Feed_import_MgN +
+      result$imported_feed_share_df$Domestic_feed_MgN,
+    tolerance = 1e-3
+  )
+})

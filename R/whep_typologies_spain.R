@@ -11,6 +11,41 @@
 #' @return A data frame with Year, Province_name, decision variables,
 #' and Category.
 #' @export
+#'
+#' @examples
+#' # Minimal stand-ins for the two real inputs, carrying only the columns the
+#' # decision variables read. Lugo feeds its livestock mostly on local grass;
+#' # Barcelona feeds them mostly on imported N.
+#' prod_destiny <- tibble::tribble(
+#'   ~year, ~province_name, ~box, ~item, ~origin, ~destiny, ~mg_n,
+#'   2020, "Lugo", "Cropland", "Wheat and products",
+#'   "Cropland", "population_food", 100,
+#'   2020, "Lugo", "semi_natural_agroecosystems", "Grassland",
+#'   "semi_natural_agroecosystems", "livestock_rum", 800,
+#'   2020, "Lugo", "Cropland", "Maize and products",
+#'   "Cropland", "livestock_rum", 200,
+#'   2020, "Lugo", "Cropland", "Soyabean cake",
+#'   "Outside", "livestock_mono", 50,
+#'   2020, "Barcelona", "Cropland", "Wheat and products",
+#'   "Cropland", "population_food", 100,
+#'   2020, "Barcelona", "Cropland", "Soyabean cake",
+#'   "Outside", "livestock_mono", 900,
+#'   2020, "Barcelona", "Cropland", "Maize and products",
+#'   "Cropland", "livestock_mono", 100
+#' )
+#'
+#' prod_n <- tibble::tribble(
+#'   ~year, ~province_name, ~box, ~production_n,
+#'   2020, "Lugo", "Cropland", 300,
+#'   2020, "Barcelona", "Cropland", 200
+#' )
+#'
+#' create_typologies_whep(
+#'   prod_destiny = prod_destiny,
+#'   prod_n = prod_n,
+#'   years = 2020
+#' ) |>
+#'   dplyr::select(year, province_name, human_share, import_share, Category)
 create_typologies_whep <- function(
   prod_destiny = create_n_prov_destiny(),
   prod_n = create_n_production() |> dplyr::rename(production_n = prod),
