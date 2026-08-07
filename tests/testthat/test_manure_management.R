@@ -194,6 +194,39 @@ test_that("region_specific adds and drops no rows", {
   expect_setequal(unique(a$territory), unique(b$territory))
 })
 
+test_that("the loss stage handles the MMS only region_specific can emit", {
+  # "Anaerobic Lagoon" appears in regional_mms_distribution only for North
+  # American swine, so the Global-only split could never emit it and the
+  # downstream loss tables were never exercised on it. apply_management_losses()
+  # aborts on a missing EF3, loss fraction or post-storage C:N, so reaching it
+  # at all is the assertion.
+  swine <- dplyr::mutate(.cattle_in("231"), livestock_category = "Pigs")
+  split <- whep::split_manure_management(
+    swine,
+    options = list(mms_source = "region_specific")
+  )
+  expect_true("Anaerobic Lagoon" %in% split$mms_type)
+  expect_false(
+    "Anaerobic Lagoon" %in% whep::split_manure_management(swine)$mms_type
+  )
+
+  res <- whep::apply_management_losses(split)
+  lagoon <- res[res$mms_type == "Anaerobic Lagoon", ]
+  expect_equal(nrow(lagoon), 1L)
+  expect_true(all(!is.na(lagoon$applied_n) & lagoon$applied_n > 0))
+  expect_equal(
+    sum(
+      res$applied_n +
+        res$n_volatilized +
+        res$n_leached +
+        res$n2o_direct_n +
+        res$n2_n
+    ),
+    100,
+    tolerance = 1e-8
+  )
+})
+
 test_that(".mms_region_of resolves an area-code territory to an IPCC region", {
   # MEASURED: .gleam_region_of() given area_code alone resolves 2 of the 195
   # territories the 2020 national manure chain carries, because its second leg
