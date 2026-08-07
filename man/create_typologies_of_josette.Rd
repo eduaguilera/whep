@@ -7,7 +7,8 @@
 create_typologies_of_josette(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  example = FALSE
 )
 }
 \arguments{
@@ -20,12 +21,23 @@ cached locally; set \code{options(whep.provinces_shapefile = )} to point at
 an existing copy instead.}
 
 \item{map_year}{The year for which the typology map is created.}
+
+\item{example}{If \code{TRUE}, return a small example output without reading the
+remote inputs or the Natural Earth layer. Default is \code{FALSE}. The example
+output carries the three data elements only, not the \code{df_inputs_plots}
+plot, so that it needs no plotting package.}
 }
 \value{
-A tibble with the typology classification per year and province.
+A named list with \code{typologies_df} (the typology classification per
+year and province), \code{n_input_df} (the N soil inputs the classification
+read), \code{imported_feed_share_df} (the imported-feed share per year and
+province) and \code{df_inputs_plots} (a \code{ggplot} of N inputs by typology).
 }
 \description{
 Typologies of provinces in Spain based on nitrogen (N) production
 data of crops and livestock, considering multiple data inputs and
 producing classification maps and data frames.
+}
+\examples{
+create_typologies_of_josette(example = TRUE)$typologies_df
 }
