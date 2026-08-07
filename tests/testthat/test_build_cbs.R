@@ -1081,3 +1081,88 @@ test_that("build_commodity_balances needs primary_all for the wide format", {
     "primary_all"
   )
 })
+
+# -- .cbs_fix_final_balance (issue #162) --------------------------------------
+
+test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
+  dt <- data.table::data.table(
+    production = c(0, 100, 50),
+    import = c(10, 5, 5),
+    stock_variation = c(20, 0, 0),
+    domestic_supply = c(-5, -30, 40),
+    export = c(0, 10, 15),
+    balance = c(-3, -2, 1)
+  )
+
+  result <- whep:::.cbs_fix_final_balance(dt)
+
+  # Domestic supply is clamped at 0 before the export fix reads it.
+  expect_true(all(result$domestic_supply >= 0))
+  # No negative exports survive.
+  expect_true(all(result$export >= 0))
+  # Row 1: 0 + 10 - 20 - 0 = -10 -> clamped to 0.
+  expect_equal(result$export[1], 0)
+  # Row 2: reads clamped DS (0), 100 + 5 - 0 - 0 = 105 (not 135 pre-clamp).
+  expect_equal(result$export[2], 105)
+  # Row 3: balance >= 0, export left untouched.
+  expect_equal(result$export[3], 15)
+})
+
+
+# -- FBS scaling ratio bounds (issue #161) ------------------------------------
+
+test_that(".select_best_source clamps extreme FBS scaling ratio", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # Raw ratio is 100x; clamp caps it at 5x -> 100 * 5 = 500, not 10000.
+  expect_equal(val_2005, 500)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old_scaled")
+})
+
+test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # A single overlap year is not extrapolated: value stays unscaled.
+  expect_equal(val_2005, 100)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old")
+})
