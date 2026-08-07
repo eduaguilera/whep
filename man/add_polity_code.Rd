@@ -44,6 +44,17 @@ to a polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it.
 }
+\examples{
+# The same area code resolves to different polities in different years:
+# area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
+tibble::tibble(area_code = c(16L, 16L), year = c(1965L, 2000L)) |>
+  add_polity_code() |>
+  dplyr::select(area_code, year, polity_code, polity_name, mapping_status)
+
+# Without a year column the current/default mapping is used.
+add_polity_code(tibble::tibble(area_code = 231L), year_column = NULL) |>
+  dplyr::select(area_code, polity_code, polity_name)
+}
 \seealso{
 \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the stand-in rows of an
 already-built table, whose published columns no longer carry

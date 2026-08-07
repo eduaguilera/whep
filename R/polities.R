@@ -399,6 +399,17 @@
 #'   already-built table, whose published columns no longer carry
 #'   `mapping_status`.
 #' @export
+#'
+#' @examples
+#' # The same area code resolves to different polities in different years:
+#' # area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
+#' tibble::tibble(area_code = c(16L, 16L), year = c(1965L, 2000L)) |>
+#'   add_polity_code() |>
+#'   dplyr::select(area_code, year, polity_code, polity_name, mapping_status)
+#'
+#' # Without a year column the current/default mapping is used.
+#' add_polity_code(tibble::tibble(area_code = 231L), year_column = NULL) |>
+#'   dplyr::select(area_code, polity_code, polity_name)
 add_polity_code <- function(
   table,
   code_column = "area_code",
@@ -882,6 +893,17 @@ polity_coverage_gaps <- function(
 #'
 #' @returns An sf data frame.
 #' @export
+#'
+#' @examples
+#' # sf is only suggested, and its methods are what make the geometry column
+#' # printable, so guard the example on it.
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   codes <- add_polity_code(
+#'     tibble::tibble(area_code = c(203L, 68L), year = c(2000L, 2000L))
+#'   )$polity_code
+#'   geometries <- get_polity_geometries(codes)
+#'   print(geometries[, c("polity_code", "polity_name", "polygon_source")])
+#' }
 get_polity_geometries <- function(polity_codes = NULL) {
   out <- polities
   if (!is.null(polity_codes)) {
