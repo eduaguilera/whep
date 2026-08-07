@@ -1,5 +1,16 @@
 # whep (development version)
 
+* **`get_polity_geometries(polity_codes = )` now returns a usable `sf` object
+  in a session that has not loaded `sf`.** The row subset ran through
+  `[.data.frame` whenever the suggested `sf` namespace was not loaded, which
+  keeps class `sf` and `attr(, "sf_column")` but strips `sfc` off the column
+  they point at; the result passed every cheap structural check and then
+  aborted inside the first `sf` call, complaining about a column nobody had
+  renamed. The function now loads `sf` before subsetting, and aborts with class
+  `whep_sf_required` if `sf` is not installed instead of returning the broken
+  object. No published values change: the argument-less call is untouched, and
+  both in-package callers use it.
+
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
   instead of building 1850-2023 and discarding the rest. Measured for 2010:

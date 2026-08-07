@@ -890,6 +890,8 @@ polity_coverage_gaps <- function(
 #' [add_polity_code()].
 #'
 #' @param polity_codes Optional character vector of WHEP polity codes.
+#'   Subsetting by code needs the suggested package `sf` to be installed; the
+#'   whole table is returned without it.
 #'
 #' @returns An sf data frame.
 #' @export
@@ -905,11 +907,10 @@ polity_coverage_gaps <- function(
 #'   print(geometries[, c("polity_code", "polity_name", "polygon_source")])
 #' }
 get_polity_geometries <- function(polity_codes = NULL) {
-  out <- polities
-  if (!is.null(polity_codes)) {
-    out <- out[out$polity_code %in% polity_codes, ]
+  if (is.null(polity_codes)) {
+    return(polities)
   }
-  out
+  .subset_polity_geometries(polities, polity_codes)
 }
 
 #' Find FAOSTAT areas whose polity resolution is ambiguous
@@ -1380,4 +1381,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
 
 .polity_iso3_lookup <- function() {
   rlang::set_names(polities$iso3_code, polities$polity_code)
+}
+
+# Row-subsetting an sf data frame only keeps its geometry column an `sfc`
+# through `[.sf`, and that method exists only once the sf namespace is loaded.
+# sf is suggested here, not imported, so nothing guarantees it is. Without the
+# guard below `[.data.frame` ran instead and returned an object that still
+# claimed class `sf` and still carried `attr(, "sf_column") == "geom"`, while
+# the column those point at came back a bare list -- so it passed every cheap
+# structural check and only aborted later, inside sf, complaining about a
+# column nobody had renamed (whep#620). `.sf_namespace_available()` both
+# states the requirement and loads the namespace, which registers the method.
+.subset_polity_geometries <- function(geometries, polity_codes) {
+  if (!.sf_namespace_available()) {
+    cli::cli_abort(
+      c(
+        "Package {.pkg sf} is required to subset polity geometries by code.",
+        i = "Install {.pkg sf}, or call {.fn get_polity_geometries} without
+             {.arg polity_codes} to get the whole table."
+      ),
+      class = "whep_sf_required"
+    )
+  }
+  geometries[geometries$polity_code %in% polity_codes, ]
+}
+
+.sf_namespace_available <- function() {
+  requireNamespace("sf", quietly = TRUE)
 }
