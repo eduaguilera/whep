@@ -74,6 +74,9 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    # build_cbs.R (.canonicalise_gdp_pop_area)
+    "canonical_area",
+    "key_row",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
