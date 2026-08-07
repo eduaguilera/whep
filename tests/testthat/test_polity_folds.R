@@ -1,16 +1,18 @@
 # test_polity_folds.R -- tests for R/polity_folds.R
 #
 # `polity_area_code` is an aggregation bucket, not an identity. FABIO folds
-# FAOSTAT areas 276 Sudan and 277 South Sudan into bucket 206, so a post-2011
-# bucket-206 value covers both territories while the polity resolved from the
-# bucket code covers one of them (whep#414). Measured on real FAOSTAT
-# production for 2015, bucket 206 carries Sudan 53,124,088 t and South Sudan
-# 14,876,146 t -- South Sudan is 21.9% of the bucket -- and the reporting
-# columns label it `SUD-1956-2011`, a polity that had ended by then, with the
-# `out_of_span` status dropped on the way out.
+# FAOSTAT areas 276 Sudan and 277 South Sudan into bucket 206, so from 2012 a
+# bucket-206 value covers both territories (whep#414). Measured on real FAOSTAT
+# production for 2015, bucket 206 carries Sudan 54,040,755 t and South Sudan
+# 14,876,146 t -- South Sudan is 21.6% of the bucket -- and the reporting
+# columns label it `SUD-1956-2011`, a polity that had ended by then.
 #
-# These tests pin that the mismatch is now reported and warned about, and that
-# a fold whose bucket polity IS an aggregate is not falsely flagged.
+# The label is right about the TERRITORY and wrong about the PERIOD:
+# `SUD-1956-2011`'s published successors are exactly `SDN-2011-2025` and
+# `SSD-2011-2025`, the two the bucket folds, so its extent is the sum. These
+# tests pin that distinction, that the fold is reported for the 14 years it
+# happens rather than all 65, and that a fold whose bucket polity IS an
+# aggregate is not flagged at all.
 
 # A crosswalk fixture exercising all four outcomes in one pass. `polity_type`
 # aggregate on bucket 900's own label makes that fold honest; bucket 950 has no
