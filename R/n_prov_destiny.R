@@ -625,7 +625,12 @@ create_n_nat_destiny <- function(example = FALSE) {
       Seeds_used_MgFM = Area_ha * dplyr::coalesce(Seed_rate_per_ha, 0)
     )
 
-  # Substracting the Seed data from Production in grafs_prod_combined.
+  # Subtract seed from production. Seed is grain, so it comes out of the
+  # `Product` stream only: `grafs_prod_combined` also carries `Residue` and
+  # `Grass` rows for the same (Year, Province_name, Item), and the join attaches
+  # the same per-item seed mass to every one of them. Subtracting from all three
+  # removed up to ~2x the real seed use and understated residue biomass, and the
+  # 50% cap was likewise applied per row against the wrong denominator (#147).
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
       seed_rates |>
@@ -635,9 +640,13 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::mutate(
       Seeds_used_MgFM = dplyr::coalesce(Seeds_used_MgFM, 0),
       Seeds_used_capped = dplyr::if_else(
-        Seeds_used_MgFM > 0.5 * production_fm,
-        0.5 * production_fm,
-        Seeds_used_MgFM
+        prod_type == "Product",
+        dplyr::if_else(
+          Seeds_used_MgFM > 0.5 * production_fm,
+          0.5 * production_fm,
+          Seeds_used_MgFM
+        ),
+        0
       ),
       production_fm = production_fm - Seeds_used_capped
     ) |>
