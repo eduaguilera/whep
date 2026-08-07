@@ -6,6 +6,32 @@
   }
 }
 
+.rng_state <- function() {
+  if (!exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+    return(NULL)
+  }
+  get(".Random.seed", envir = globalenv(), inherits = FALSE)
+}
+
+# Runs `code` as a session that has never drawn a random number. Putting the
+# suite's own RNG state back is `with_preserve_seed()`'s job here; only the
+# assertion inside `code` is under test.
+.with_no_rng_state <- function(code) {
+  withr::with_preserve_seed({
+    suppressWarnings(rm(list = ".Random.seed", envir = globalenv()))
+    force(code)
+  })
+}
+
+.spread_run <- function(seed = NULL) {
+  whep::propagate_fp_uncertainty(
+    .linear_run_fn(),
+    extensions = c(60, 40),
+    cov = 0.2,
+    options = list(n = 20, seed = seed)
+  )
+}
+
 testthat::test_that("zero CoV gives a degenerate (zero-spread) interval", {
   res <- whep::propagate_fp_uncertainty(
     .linear_run_fn(),
@@ -68,6 +94,42 @@ testthat::test_that("sensitivity elasticity equals the contribution share", {
   by_sector <- sens |> dplyr::arrange(sector)
   # For a linear total, elasticity to sector i is its share.
   testthat::expect_equal(by_sector$elasticity, c(0.6, 0.4), tolerance = 1e-6)
+})
+
+testthat::test_that("a seeded run leaves the caller's RNG state untouched", {
+  set.seed(999)
+  before <- .rng_state()
+
+  invisible(.spread_run(seed = 1))
+
+  testthat::expect_identical(.rng_state(), before)
+})
+
+testthat::test_that("a seeded run does not create .Random.seed from nothing", {
+  .with_no_rng_state({
+    invisible(.spread_run(seed = 3))
+    testthat::expect_null(.rng_state())
+  })
+})
+
+testthat::test_that("a seeded run ignores the surrounding RNG state", {
+  set.seed(1)
+  first <- .spread_run(seed = 7)
+  set.seed(2)
+  second <- .spread_run(seed = 7)
+
+  testthat::expect_equal(first, second)
+})
+
+testthat::test_that("an unseeded run keeps consuming the caller's stream", {
+  # The seed is restored only when one was asked for. Restoring unconditionally
+  # would make consecutive unseeded runs repeat one draw instead of taking
+  # independent ones.
+  set.seed(11)
+  first <- .spread_run()
+  second <- .spread_run()
+
+  testthat::expect_false(isTRUE(all.equal(first$sd, second$sd)))
 })
 
 testthat::test_that("uncertainty rejects unknown options and non-functions", {

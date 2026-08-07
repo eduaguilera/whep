@@ -132,6 +132,398 @@
     migration. The `R CMD check` NOTE count is unchanged either way, so the
     lines sit inside a NOTE the package already had.
 
+* **`build_water_balance()` can now charge a single crop's water, and the
+  per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
+  gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
+  `build_water_balance(bands = )` restricts the consumptive-water and
+  `cft_nir` terms to named crop-functional-type bands, e.g.
+  `bands = "rainfed grassland"` to charge a grazing footprint the grassland
+  water alone rather than every crop in the cell. Bands are selected by the
+  `band_name` the file itself carries, never by index, so a run configured with
+  a different band set aborts instead of silently charging the wrong crop.
+  `bands = NULL` (the default) totals every band, so existing callers are
+  unaffected. Three fixes were needed to get there, each of which would have
+  produced wrong numbers rather than an error:
+  * The `cft_nir` map entry named `mcft_nir.nc` holding a monthly `cft_nir`
+    variable. **No WHEP run has ever written that file**: all nine runs, 5.9.7
+    and 6.1.1 alike, write `cft_nir.nc` holding annual `nir`. Reading it would
+    simply have failed; nothing called it yet.
+  * The reader assumed twelve time steps per year for every variable. The
+    per-CFT consumptive-water cubes are annual (`nstep` 1, mm/yr), so their
+    time axis was decoded as months, mapping year *y* to year 1901 + (y-1901)/12
+    and slicing the wrong years out of the file entirely.
+  * `ncvar_get()` drops length-1 dimensions, so slicing one year out of an
+    annual per-CFT cube returned a 3-D slab whose *band* axis was then decoded
+    as *time* — scrambling crops into years. Now read with
+    `collapse_degen = FALSE`. Monthly cubes never hit this, because a one-year
+    slice is still twelve steps.
+
+* **`build_carbon_balance()` is about a quarter faster, with output unchanged
+  to the last bit.** The RothC/HSOC climate modifier is now computed for every
+  cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
+  separate calls over five years, each of which allocated a list and accumulated
+  over twelve months. The deficit recurrence is sequential over months but
+  independent across cells, so the loop inverts. Measured on
+  `years = 1901:1905`: 820.4 s to 612.1 s. Peak memory is unaffected.
+
+  The per-group path stays in place as the reference and still runs for models
+  that do not use this modifier. The two agree exactly, not approximately:
+  `identical()` holds across all 1,166,220 rows and 17 columns of the five-year
+  build, so no result changes (#630).
+* **`build_energy_co2_extension(unclassified = "historical_region")` prices the
+  dissolved federations instead of losing them (#553).** Measured on the real
+  `get_primary_production()` output (6,305,656 rows, 1850-2023), 569.4 Mt of
+  meat carcass production — 3.33% of all of it, and 15.2% of the world's 1961
+  tonnage — gets no energy intensity and leaves the extension, because
+  `gleam_geographic_hierarchy` is a present-day country table with no row for
+  the USSR, Belgium-Luxembourg, Czechoslovakia, the Yugoslav SFR or Serbia and
+  Montenegro. Those five are now 99.998% of the loss: since the Rest-of-World
+  fold was lifted (#628) bucket 999 no longer contributes to it at all. The new
+  treatment groups them by running GLEAM's own scheme rules on the OECD and EU
+  membership they themselves held while they existed — Belgium and Luxembourg
+  were OECD founding members and EEC founders, so Belgium-Luxembourg is OECD/EU
+  27; no successor of the other four was in either body before the entity
+  dissolved, so they are non-OECD, non-EU. Rows carry
+  `method_energy = "GLEAM_3.0_energy_meat_historical_region"`, and the option
+  is a superset of `"polity_region"`.
+
+  **No published value changes**: the default `unclassified = "drop"` is
+  bit-identical on the full real input (181,831 rows, `sum(impact_u) =
+  6.530863856531e12` before and after, `identical()` TRUE). Opting in adds
+  1,190 rows and 7 areas, moves no shared row by any amount, and raises total
+  energy CO2e by **+2.40%** over 1850-2023 — **+12.0% in 1961**, +11.3% in
+  1990, +0.26% in 2000 and 0% from 2010 on.
+* **`polity_area_crosswalk$mapping_status` now uses the value it documented but
+  never shipped, and the confidence of a mapping is documented as the pair
+  `mapping_status` x `mapping_source`.** `not_a_reporting_area` sat below
+  `matched` in the build's `case_when`, so it could only fire for a row with
+  neither an `area_code` nor a `polity_code` — no such row exists, and it
+  shipped on 0 of 596 rows. The 20 rows it was written for (Aland, Saint
+  Barthelemy, Guernsey, Jersey, the Isle of Man and Sint Maarten, which
+  `regions_full` carries without a FAOSTAT code, plus the six regional
+  aggregate polities) match a polity and so read `matched`, indistinguishable
+  from a real area mapping even though they carry `NA` in both `area_code` and
+  `polity_area_code` and no consumer can join to them. Status counts move from
+  manual 27 / matched 568 / unmapped 1 to manual 27 / matched 548 /
+  not_a_reporting_area 20 / unmapped 1. No `polity_code`, `polity_area_code` or
+  any other column moves, and no code in the package filters the crosswalk on
+  `mapping_status == "matched"`, so no published number changes. A consumer that
+  does filter that way loses 20 unjoinable rows.
+
+  `mapping_status` says whether a polity was found, not how far to trust it:
+  `matched` covers a curated hit in upstream's FAOSTAT map (233 rows), a
+  prefix-inferred historical period (247), a prefix guess for an area the map
+  never mentions (6) and the FABIO Rest-of-World fold (62). `mapping_source`
+  already separates those and is non-`NA` on every row, so the fix for #544 is
+  to document the pair rather than add a third vocabulary that would duplicate
+  it (#544).
+* **`get_polity_geometries(polity_codes = )` now returns a usable `sf` object
+  in a session that has not loaded `sf`.** The row subset ran through
+  `[.data.frame` whenever the suggested `sf` namespace was not loaded, which
+  keeps class `sf` and `attr(, "sf_column")` but strips `sfc` off the column
+  they point at; the result passed every cheap structural check and then
+  aborted inside the first `sf` call, complaining about a column nobody had
+  renamed. The function now loads `sf` before subsetting, and aborts with class
+  `whep_sf_required` if `sf` is not installed instead of returning the broken
+  object. No published values change: the argument-less call is untouched, and
+  both in-package callers use it.
+* **`build_gridded_landuse()` and `build_gridded_livestock()` take an
+  `area_key`, and say when their output cannot join a national table.** The
+  spatialize chain allocates on the raw reporting codes its `country_areas`
+  and `country_grid` are keyed on, while whep's polity-keyed national tables
+  are aggregated on `polity_area_code`. A reporting code that is not itself a
+  bucket therefore left every output row carrying two territorial keys that
+  disagree — `area_code = 276` beside `polity_area_code = 206` — so whether a
+  consumer joined on one or the other decided whether Sudan existed in its
+  result (#582). Measured against the deployed pins, `country_grid` holds 831
+  such cells under 2 codes (276 Sudan, 277 South Sudan) and `country_areas`
+  0.64% of its harvested area; the other six codes the issue listed are no
+  longer off-bucket, because #628 gave Syria, North Macedonia, Eswatini,
+  Equatorial Guinea, New Caledonia and Palestine their own published codes.
+  The default `area_key = "grid"` is unchanged bit-for-bit and now warns
+  naming the codes that cannot join; `"polity_area"` re-keys the output on the
+  bucket before the polity columns are attached, so the two keys agree in
+  every row. **No published value changes** unless `"polity_area"` is asked
+  for: on a 2020 Sudan/South Sudan run it conserved 21,894,526 ha and 230.7 M
+  head exactly, kept the row count, and moved 13,447 crop rows and 3,671
+  livestock rows from a key no national table carries onto `206`. Under
+  `"polity_area"` the raw code is carried, not replaced, as `grid_area_code`,
+  the shape `build_cell_polity()` adopted in #579. `run_spatialize()` accepts
+  `area_key` in `overrides`.
+
+* **`estimate_energy_demand()` now warns when `work_hours_day` is supplied
+  without a work coefficient.** `whep` ships `cw = 0` for every species, so
+  draft work is opt-in per call via `work_coef` — passing only the hours
+  produced `ne_work = 0` with no indication that the input had been ignored
+  (#210). The numbers are unchanged; only the silence is. Hours filled in from
+  `livestock_production_defaults` never warn, since several species carry a
+  non-zero default and warning about those would fire on ordinary runs.
+* **The FABIO comparison's EU aggregate is derived, and now covers the
+  dissolved predecessors.** `inst/scripts/compare_fabio_footprints.R` carried a
+  28-element ISO3 literal for EU28. It is now built by `.eu_aggregate_iso3()`
+  from the published `regions_full$EU27` flag plus `GBR`, the one membership
+  fact no table in the package states, selected through the new
+  `WHEP_EU_AGGREGATE` environment variable
+  (`"eu28_territory"`, the default, `"eu27_territory"`, `"eu28_states"`,
+  `"eu27_states"`). The literal omitted `BLX` (Belgium-Luxembourg) and `CSK`
+  (Czechoslovakia), under which FABIO *and* WHEP's own CBS both book Belgium,
+  Luxembourg, Czechia and Slovakia before those successions, so all four read
+  as exactly zero in the 1986 benchmark year on both sides of the comparison
+  and normally in 2000 and 2013. **This moves a published number:** the FABIO
+  EU land footprint for 1986 goes from 210.4 Mha to 222.7 Mha (+12.3 Mha,
+  +5.9%); 2000 and 2013 are bit-identical, because the predecessors carry no
+  demand there. `WHEP_EU_AGGREGATE=eu28_states`
+  reproduces the old list, and the old numbers, exactly. Whether the comparison
+  should report EU28 or EU27 at all is left open (#421).
+* **`build_food_supply()` and `build_n_percapita()` now name the areas they
+  drop for having no population denominator.** Both inner-join the
+  `read_population()` table, so an area the `gdp-population` pin does not cover
+  was absent from their per-capita output rather than wrong in it, and nothing
+  said so. Measured on a real `get_wide_cbs(years = c(2010, 2015, 2021))` plus
+  the real pin, `build_food_supply()` silently lost **16 areas over 43
+  area-years** — Bhutan, Comoros, New Caledonia, Tonga, Micronesia, Seychelles,
+  the Faroe Islands, bucket 999 and others — carrying 0.0304% of the food
+  protein in range. They are still dropped (no denominator is invented) but
+  each is now named in a warning, with the share of the quantity that leaves
+  with it. `options(whep.warn_missing_population = FALSE)` silences it.
+  **No published value changes**: with the warning suppressed a real
+  `build_food_supply()` run is `identical()` to the one before this change.
+
+  This closes #543, whose measurement it also corrects. That issue reported the
+  area-999 denominator as covering 6 of its 62 territories and so overstating
+  every per-capita quantity keyed on 999 by 15-43%. Since the Rest-of-World
+  un-fold (#628) that is no longer the shape of the defect: the 6 covered
+  members have their own area codes, `read_population()` emits **no 999 row at
+  all**, and CBS 999 carries **zero food** in 2010, 2015 and 2021 — so nothing
+  per-capita is keyed on 999 and nothing is overstated. Routing the pin's five
+  continental "Other" residuals into 999, the fix the issue proposed first,
+  would now be wrong: it would give a bucket with no food a denominator of
+  5.9 M people (2010) and attribute Reunion's, Greenland's and New Caledonia's
+  population to a code that no longer carries their food.
+* **LUH2 land is no longer discarded when one aggregation bucket holds two
+  territories, and the pre-1962 yield back-cast no longer mixes countries that
+  share a polity label.** Two sites keyed on the `area` *label* where an
+  `area_code` was available, which is whep#632's defect at two further sites.
+  (1) The LUH2 area bridge paired each bucket's code with its *member's* name,
+  so bucket 206 reached grassland construction as two rows — "Sudan (former)"
+  and "South Sudan" — under one `area_code`; `.dedup_production()` reads that
+  as competing sources and kept one, dropping the other's pasture. The bucket
+  now carries one label derived from its own code, so the two are summed.
+  (2) The `t_ha` proxy-growth fill grouped its series on the label, which is
+  wrong both ways: "Rest of World" covers 62 reporting `area_code`s, so growth
+  rates were taken between different countries, and the label is year-aware, so
+  one country's own series was cut in two at every periodization boundary
+  (`area_code` 79 is "Germany (divided, 1949-1990)" through 1989 and "Germany"
+  from 1990). **Published values move**: `ha`
+  +1.04% (+5.56e9 ha-years, all of it bucket 206's recovered pasture over
+  1850-2022) and `t_ha` -0.036% (464 cross-country fills removed, 5 real ones
+  gained); `tonnes`, `heads`, `LU`, `t_head`, `t_LU` and `slaughtered_heads`
+  are bit-identical. Comparing the Rest-of-World fold against the default
+  un-folded build over its 62 areas, `ha` goes from 2.38x to 0.99x and
+  `tonnes` from 0.59x to 0.82x, with the whole remainder in the pre-1962
+  back-cast and the observed 1962-2023 era conserved to 0.04% (#633).
+* **EU AgriDB fodder now reaches Austria and the United Kingdom.**
+  `.read_fodder_euadb()` resolves the source's `Region` through
+  `regions_full$ADB_Region`, and that column had a key for 26 of the pin's 28
+  regions: `AT` and `GB` were missing, so 2030 rows (8.8% of the input,
+  1961-2019) resolved to no area and were discarded without a message. Those
+  two countries had their fodder estimated from dry-matter yields
+  (`source = "DM_yield_estimate"`) while their 26 EU peers used the source.
+  Adding the two keys moves published values for area codes 11 and 229 only,
+  and for no other area: harvested-area totals over 1850-2023 rise 6.4%
+  (Austria) and 14.0% (United Kingdom), fodder tonnage 33.4% and 65.7%; the
+  global harvested-area total moves +0.07% and global tonnage +1.2%. Fodder
+  production is copied one-for-one into `feed` by `.primary_to_cbs()`, so
+  those areas' `feed` moves by the same tonnage. A region the source adds in
+  future that `regions_full` does not key now raises a warning naming it,
+  instead of vanishing (#585).
+* **The last two ad-hoc country-label joins in the spatialization script are
+  gone (#576).** `inst/scripts/prepare_spatialize_all.R` matched
+  `whep::crops_manure_n` on a raw `iso3c` join and
+  `whep::lassaletta_grassland_share` on a country *name*. The manure reader now
+  goes through `whep::polity_label_aliases` like the Mueller reader does, read
+  at the vintage of its own labels rather than at Mueller's circa-2000 base
+  year: `crops_manure_n` names Serbia, Montenegro and South Sudan separately
+  and names no Serbia and Montenegro, Sudan (former), Czechoslovakia or Zaire,
+  so its vocabulary is post-2011, and every year from 2011 on maps all 183 of
+  its country labels exactly as the retired join did. **No published value
+  changes**: same 31,476 rows, same 183 area codes, maximum difference 0 Mg.
+  West et al.'s `RoW` aggregate is still dropped rather than equated with
+  WHEP's residual bucket 999, which since #628 means something else.
+
+  The grassland-share reader gains a `grass_share_route` argument on
+  `prepare_nitrogen_inputs()` and `prepare_spatialize_all()`, recorded in
+  `nitrogen_inputs.parquet` as `method_grass_share`. The default,
+  `"area_name"`, is the existing name join and is byte-identical to it.
+  `"alias_map"` resolves each label at its own row's year instead: 6,633 rows
+  against 6,370 and 137 area codes against 130, gaining China, Cote d'Ivoire,
+  DPRepublic of Korea, Cape Verde, Swaziland, Ethiopia PDR, Belgium-Luxemburg
+  and Occupied Palestinian Territory, and losing South Sudan and the years in
+  which Yugoslav SFR, Czechoslovakia, Viet Nam and Botswana had no polity.
+  Which route is right is an open question (#576); nothing switches by itself.
+
+* **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
+  take a `years` argument.** A scoped request now builds only that window
+  instead of building 1850-2023 and discarding the rest. Measured for 2010:
+  wide CBS 256 s / 23.3 GB peak to 12.6 s / 6.8 GB, primary production 168 s /
+  14.7 GB to 29.5 s / 2.9 GB. The full wide-CBS build peaking above 16 GB is
+  what had been failing the r-universe check on macOS and Linux. `years = NULL`
+  is unchanged in every respect, including its cache slot, so existing callers
+  keep today's behaviour and today's numbers. The primary-production to CBS to
+  processing-coefficient chain and its cache keys are now shared with
+  `build_io_model()`, which previously carried a private copy (#367).
+
+  A scoped window is close to, but not identical with, building the full range
+  and filtering. Against the full range at 2010, wide-CBS quantity totals agree
+  to 3.8e-04 and primary-production totals to 3.0e-04, with `ha`, `t_ha`, `LU`
+  and `heads` exact. The residual sits in `import` and in the livestock ratios
+  (#625). Use `years = NULL` when exact agreement with the published series
+  matters.
+
+* **Year-scoped production builds no longer drop every forage crop.** Fodder
+  rows are synthesised across the whole year axis — `.fill_fodder_gaps()` takes
+  the union of (area, item) groups over all years and interpolates between them
+  — so a narrow window silently lost all six forage items (`Forage and silage,
+  *`, `Cabbage for fodder`, `Forage products`). At 2010 that was 137 rows,
+  **1.16% of production tonnes, 1.85% of `t_ha` and 1.36% of wide-CBS `feed`**,
+  and it affected `build_io_model(years = )` on every release that had it. The
+  fodder chain now runs over the full span and trims afterwards. Full-range
+  output is unchanged (#623).
+* **Livestock stocks are split on the area CODE, not the area label (#589).**
+  `.split_stock_share()` divides a parent item's production across its sub-items
+  in proportion to their stocks, grouped by `(year, area, item_prod_code)`. When
+  several reporting areas share one label the group spans all of them, the share
+  denominator sums across areas, and each area keeps only its own fraction.
+  That became live when the Rest-of-World fold was lifted: `.unfold_rest_of_world()`
+  promotes `polity_area_code` but leaves `polity_code`/`polity_name` alone, so all
+  13 reporting members came out with their own `area_code` and the shared label
+  `"Rest of World"`. Measured: Syria's 2000 livestock read **3,408,857** head
+  against **38,048,415** after the fix, with fractional animals (`1227745.45`) as
+  the visible symptom of a share that should have been 1. `slaughtered_heads` was
+  never affected, because it does not pass through this splitter — which is what
+  made the defect look like a unit-conversion bug.
+
+  The stock join, the carry-forward and the row-count grouping are re-keyed the
+  same way. Globally this moves `heads` **+0.22%** and `LU` +0.13%; `ha`,
+  `tonnes` and `slaughtered_heads` are bit-identical, because only areas sharing
+  a label were ever affected.
+
+* **`fill_linear()` no longer depends on the order its rows arrive in.** Without
+  `.by`, it never sorted: carrying a value forward or backward and the
+  `value_smooth_window` moving average are all positional, so an unsorted input
+  filled the wrong way round. On a 2015-2020 series anchored at 2016 and 2019,
+  reversing the rows swapped the two carry labels, and interleaving them left
+  both outer gaps unfilled and moved two interpolated values. Both paths now
+  sort by `.by` and then `time_col` first, and **rows come back in that order**
+  — the grouped path already did through `setkeyv()`, the ungrouped one now
+  matches it. Grouped output is unchanged for already-sorted input, which is
+  every caller inside the package.
+  Three further gaps in the same file are closed. A `value_smooth_window` that
+  leaves a group with no valid anchor (gaps one year apart, or a window wider
+  than the group) aborted with `missing value where TRUE/FALSE needed`; both
+  paths now share one filling core, leave those gaps as `"Gap not filled"`, and
+  cannot diverge again. `fill_linear()` used to trust a `.whep_sorted_by`
+  attribute it had stamped on a previous call, which a `setorderv()` in between
+  does not clear, so a reordered data.table was filled in the wrong direction
+  and came back carrying a `sorted` key its rows did not obey; the sort is now
+  verified against the rows. And in `fill_proxy_growth()`, the documented
+  weighted proxy syntax (`"gdp:region[population]"`) aborted in `setnames()` on
+  every call, so it had never run; with that fixed, its weights are lagged
+  before the rows without a growth rate are dropped, which is what makes them
+  the previous period's weights rather than the previous surviving row's.
+* **One unvaluable 1:n split no longer erases observed data.**
+  `harmonize_interpolate()` summed the split 1:n contributions together with
+  the already-correct `"simple"` component using `sum()` without `na.rm`, so a
+  single contribution with a missing `value`, or with a share that could
+  neither be computed nor interpolated (every year of the group totalling
+  zero makes the shares `NaN`), turned the whole harmonized
+  `(item_code, year)` cell into `NA`/`NaN` — including the observed values
+  summed into it. Unvaluable contributions are now dropped with a warning
+  naming the affected cells, and the observed values survive. Published values
+  change only where the old output was `NA`/`NaN`: such a cell now holds its
+  observed `"simple"` sum, or disappears if it had none. No cell that was a
+  number before changes.
+
+* **`build_cbs_prices()` no longer drops crop residues into an NA bucket.**
+  The residue routing in `.add_residue_prices()` read
+  `Herb_Woody == "Woody"` inside a nested `fifelse()`, so every item whose
+  herbaceous/woody habit is missing got `NA` as its residue item. Those rows
+  were pooled into one `NA`-keyed group and then dropped, and the pool mixed
+  the mass and value of unrelated items on the way. On the real
+  `faostat-trade-bilateral` pin (1986-2021) that silently discarded **72 rows**
+  (36 years x 2 elements) of residue value. Residues are now generated only for
+  primary crops and grassland — processed and animal products never had a crop
+  residue — and a crop with no recorded habit takes the herbaceous default,
+  reported in a warning naming the items (currently Cottonseed, Palm kernels
+  and Palm Oil, whose `Name` is unset in `items_prod_full_raw.csv`).
+  **Published values move for one item, `Other crop residues` (2106)**: its
+  tonnage basis grows by 15.0% on average (2020 exports 345.6 Mt to 401.9 Mt)
+  and its price shifts by -2.6% on average (2020 exports -1.2%, largest single
+  move +6.8%). `Straw` (2105), `Firewood` (2107) and every non-residue item are
+  unchanged to the digit.
+* **`calculate_soc_dynamics()` returns one schema for all five SOC models.**
+  It used to hand back whichever shape the selected model happened to produce:
+  `hsoc` (the default) came back long as `pool` / `year` / `stock_mgc_ha` /
+  `rate_mgc_ha` with **no** `soc_total`, while `rothc`, `icbm`, `amg` and
+  `century` came back wide with `soc_total` and their own mutually exclusive
+  pool columns (`dpm`/`rpm`/`bio`/`hum`/`iom`, `y`/`o`, `ca`/`cs`,
+  `str`/`met`/`act`/`slw`/`pas`) — no two of the five agreed, so a caller had
+  to branch on `model`. The selector now reshapes whichever model ran to the
+  long schema `year`, `pool`, `stock_mgc_ha`, `soc_total`, `method_soc`: pool
+  detail is kept, the model-specific part sits in the values of `pool` instead
+  of in column names, and the five runs of a sensitivity analysis stack with a
+  plain `dplyr::bind_rows()`. Total-only callers read
+  `dplyr::distinct(out, year, soc_total)`. `calculate_soc_hsoc()` itself is now
+  wide like its four siblings (`year`, `fresh`, `humus`, `iom`, `soc_total`) and
+  no longer returns the per-pool `rate_mgc_ha`, which was exactly the forward
+  annual difference of `stock_mgc_ha` and is recoverable from it. **No published
+  value changes**: every pool stock and every `build_carbon_balance()`
+  equilibrium is bit-identical before and after (checked across nine HSOC
+  parameterisations and the spin-up of all five models).
+* **WHEP now models the Rest-of-World reporting members in their own right.**
+  FABIO folds 61 FAOSTAT reporting areas into its single `Rest of World` column,
+  and `polity_area_code` inherited that fold, so any territory outside FABIO's
+  192-country layout was published as `ROW`. FABIO's layout is a methodology this
+  package compares against, not a constraint on which territories it represents,
+  and the country set is WHEP's own decision (#459).
+
+  The fold was also not doing what its name suggests. Of the 61 members only
+  about a third report anything; the rest contribute no rows, so folding them is
+  arithmetically a no-op. Everything the bucket carried came from the members
+  that DO file returns, and the fold discarded whose data it was — Syria's
+  production was published as "Rest of World" despite Syria filing its own
+  FAOSTAT returns. Promotion is therefore self-limiting: an area with no rows is
+  unaffected either way, so no hand-maintained list of "which ones to promote"
+  is needed.
+
+  Measured on two full-range `get_wide_cbs()` builds (1850-2023): the published
+  area count goes **195 → 216**, and 21 territories become standalone —
+  Bermuda, Cayman Islands, Cook Islands, Equatorial Guinea, Faroe Islands,
+  French Guiana, Greenland, Guadeloupe, Martinique, New Caledonia, North
+  Macedonia, Niue, Réunion, Eswatini, Syria, Palestine and five more. Global
+  totals move by at most **0.99%** (`stock_addition`), every other column inside
+  0.4%. **Bucket 999 survives** as a genuine residual for the territories that
+  report nothing, shrinking from 15,507 rows to 516.
+
+  `options(whep.unfold_rest_of_world = "none")` restores the fold, which is what
+  reproducing a number published before this change requires; it warns on every
+  crosswalk read, because such a run no longer matches the published series.
+  The `"successor_state"` folds (Sudan/South Sudan into bucket 206) are
+  untouched — those are territorial identities, not a FABIO convention, and
+  remain the subject of #414.
+
+  An earlier measurement in #419 put this change at up to 13.7x on `feed`. That
+  comparison predates the `dcast()` duplicate-key fix (#425/#429) and does not
+  reproduce; #555 re-measured it at 1.0000.
+
+* `create_typologies_of_josette()` and `create_typologies_grafs_spain()` gained
+  an `example = FALSE` argument, so both now have runnable examples like the
+  rest of the package's remote-data functions. Their documented `@return` was
+  also wrong and is corrected: `create_typologies_of_josette()` returns a named
+  list of three tibbles plus a `ggplot`, not a single tibble, and
+  `create_typologies_grafs_spain()` returns `Province_name` and `Typologie` for
+  `map_year` only, not a seven-column series over all years. No published value
+  changes — the only new code path is the `example = TRUE` early return.
 * **An aggregation bucket now sums, and comes out under one name.** The reader
   aggregation grouped rows by the member's polity **name** as well as by
   `polity_area_code`, so a bucket folding members that resolve to different
@@ -590,6 +982,31 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* The HWSD readers now say which column a local `hwsd_data.csv` is missing.
+  `read_soil_ph()`, `read_soil_hydraulic()` and the soil-carbon clay driver
+  check the extract against the columns they are about to read and abort naming
+  the absent ones plus the script that re-exports a complete extract, where a
+  partial extract previously surfaced as a `dplyr` error (`Column t_clay not
+  found in .data`) that read as a code fault rather than a stale input.
+  `inst/scripts/export_hwsd_attributes.R` now exports `t_clay`, so a re-run
+  produces an extract the clay driver can read. No published value changes: a
+  complete extract is read exactly as before (#596).
+* **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
+  `options = list(seed = )` it called `set.seed()` and left it set, so every
+  random number drawn afterwards depended on having made the call, and in a
+  session that had not yet used the RNG it created `.Random.seed` where there
+  was none. The seed is now scoped to the call and the previous RNG state (or
+  its absence) is restored on return. Seeded results are bit-identical to
+  before; unseeded runs still consume the caller's stream, so consecutive
+  unseeded runs remain independent draws (#188).
+* A failed Natural Earth download now reports how to recover instead of dying
+  on its own error message. The abort interpolated the layer URL as
+  `{.url {.natural_earth_url(layer)}}`, and cli >= 3.4.0 reads a `{}`
+  expression starting with a dot as a style name, so the branch raised
+  `Invalid cli literal` and the instructions never reached the user. The
+  province typologies (`create_typologies_grafs_spain()`,
+  `create_typologies_of_josette()`) are the callers that reach it. No published
+  value changes (#594).
 
 # whep 0.3.0
 

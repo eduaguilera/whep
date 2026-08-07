@@ -611,3 +611,114 @@ test_that(".build_proxy_grid leaves cropland proxy unaffected by grass productiv
   out <- whep:::.build_proxy_grid("cropland", NULL, cropland, cg, NULL, gp)
   expect_equal(out$weight[out$lon == 0.25], out$weight[out$lon == 1.25])
 })
+
+# -- area_key ----------------------------------------------------------
+
+# 276 Sudan and 277 South Sudan are both reporting areas of bucket 206; 68 is
+# its own bucket and must come through the re-key untouched.
+off_bucket_livestock <- function() {
+  list(
+    livestock_data = tibble::tribble(
+      ~year, ~area_code, ~species_group, ~heads, ~manure_n_mg,
+      2000L,       276L,       "cattle",  10000,         50.0,
+      2000L,       277L,       "cattle",   4000,         20.0,
+      2000L,        68L,       "cattle",   2000,         10.0
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,       276L,             1.0,
+      0.75, 50.25,       276L,             0.6,
+      0.75, 50.25,       277L,             0.4,
+      1.25, 50.25,        68L,             1.0
+    )
+  )
+}
+
+test_that("build_gridded_livestock warns on off-bucket area codes", {
+  fix <- off_bucket_livestock()
+
+  expect_warning(
+    result <- whep::build_gridded_livestock(
+      fix$livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      fix$country_grid,
+      years = 2000L
+    ),
+    "cannot join"
+  )
+  expect_setequal(result$area_code, c(276L, 277L, 68L))
+  expect_gt(sum(result$area_code != result$polity_area_code), 0L)
+  expect_false(rlang::has_name(result, "grid_area_code"))
+})
+
+test_that("livestock area_key = polity_area leaves no disagreeing key", {
+  fix <- off_bucket_livestock()
+
+  result <- whep::build_gridded_livestock(
+    fix$livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    fix$country_grid,
+    years = 2000L,
+    area_key = "polity_area"
+  )
+
+  expect_equal(sum(result$area_code != result$polity_area_code), 0L)
+  expect_equal(whep:::.cell_polity_off_bucket(result), integer(0))
+  labels <- dplyr::distinct(
+    result,
+    area_code,
+    reporting_polity_code,
+    reporting_polity_name
+  )
+  expect_equal(nrow(labels), dplyr::n_distinct(result$area_code))
+})
+
+test_that("livestock area_key = polity_area carries the raw code and mass", {
+  fix <- off_bucket_livestock()
+
+  keyed <- whep::build_gridded_livestock(
+    fix$livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    fix$country_grid,
+    years = 2000L,
+    area_key = "polity_area"
+  )
+  raw <- suppressWarnings(whep::build_gridded_livestock(
+    fix$livestock_data,
+    gridded_pasture,
+    gridded_cropland,
+    fix$country_grid,
+    years = 2000L
+  ))
+
+  expect_equal(sum(keyed$heads), sum(raw$heads), tolerance = 1e-9)
+  expect_equal(sum(keyed$manure_n_mg), sum(raw$manure_n_mg), tolerance = 1e-9)
+  shared <- dplyr::filter(keyed, lon == 0.75)
+  expect_equal(nrow(shared), 1L)
+  expect_equal(shared$grid_area_code, "276+277")
+  expect_equal(
+    shared$heads,
+    sum(dplyr::filter(raw, lon == 0.75)$heads),
+    tolerance = 1e-9
+  )
+  expect_equal(dplyr::filter(keyed, area_code == 68L)$grid_area_code, "68")
+})
+
+test_that("build_gridded_livestock rejects an unknown area_key", {
+  fix <- off_bucket_livestock()
+
+  expect_error(
+    whep::build_gridded_livestock(
+      fix$livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      fix$country_grid,
+      years = 2000L,
+      area_key = "polity"
+    ),
+    class = "rlang_error"
+  )
+})

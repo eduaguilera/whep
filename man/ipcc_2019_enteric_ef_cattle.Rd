@@ -5,18 +5,22 @@
 \alias{ipcc_2019_enteric_ef_cattle}
 \title{IPCC 2019 enteric EF for cattle.}
 \format{
-A tibble with \code{region}, \code{category},
-\code{ef_kg_head_yr}, \code{source}.
+A tibble with \code{region}, \code{category}, \code{ef_kg_head_yr}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11. The stored
+values are in fact the 2006 Guidelines defaults (128 and 53
+kg CH4/head/yr for North American dairy and other cattle, where
+the 2019 Refinement gives 138 and 64); tracked in whep#601.
 }
 \usage{
 ipcc_2019_enteric_ef_cattle
 }
 \description{
-Table 10.10: Tier 1 enteric fermentation emission factors
-for cattle by region (kg CH4/head/yr).
+Tier 1 enteric fermentation emission factors for cattle by region
+(kg CH4/head/yr). Regional cattle factors are Table 10.11 in both
+the 2006 Guidelines and the 2019 Refinement; Table 10.10 holds the
+non-cattle species (see \link{ipcc_2019_enteric_ef_other}).
 }
 \examples{
 ipcc_2019_enteric_ef_cattle

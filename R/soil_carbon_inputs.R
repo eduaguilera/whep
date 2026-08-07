@@ -74,20 +74,47 @@ build_soil_carbon_inputs <- function(
   }
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  gridded <- .sci_to_grid(
-    components,
-    d$country_grid,
-    d$crop_patterns,
-    d$harvested_area
-  )
-  .sci_finalise(gridded, resolution, d$residue_humification) |>
+  .sci_grid_and_finalise(components, d, resolution) |>
     .add_reporting_polity_columns()
 }
 
 # Private helpers ----
 
+# Spatialize and aggregate ONE YEAR AT A TIME, then bind.
+#
+# The spatial weights are time-invariant (crop_patterns has no year), so joining
+# every requested year at once inflates the intermediate by the number of years
+# for no benefit: 2.25e6 cell-crop weights x 3 input types x 123 years is 8.3e8
+# rows, ~49 GB of payload, and dplyr's copies through the join took a 1901-2023
+# run to 89 GB before the kernel killed it (#624). The crop dimension only
+# collapses later in .ci_cropland_class(), so chunking the join alone would not
+# help -- .sci_finalise() has to be inside the loop too, which is why this wraps
+# both.
+#
+# Output is unchanged: `year` is one of the .sci_finalise() grouping keys, so
+# grouping within a year gives exactly what grouping across years gave, and the
+# weights each year sees are identical.
+.sci_grid_and_finalise <- function(components, d, resolution) {
+  weights <- .sci_grid_weights(d$country_grid, d$crop_patterns)
+  # Once, over all components: this reports totals, so warning per year would
+  # both spam the caller and change the numbers it reports.
+  .sci_warn_unspatialized(components, weights)
+
+  # Split ONCE rather than filtering inside the loop. Filtering per year rescans
+  # the whole component table every iteration -- 6.7e6 rows x 123 years is 8.3e8
+  # row-scans for work that one pass does -- so the memory fix would have cost
+  # time. split() keeps it at one pass, and the pieces are what the loop needs.
+  by_year <- split(components, components$year)
+  parts <- lapply(by_year[order(as.integer(names(by_year)))], function(chunk) {
+    chunk |>
+      .sci_join_weights(weights, d$harvested_area) |>
+      .sci_finalise(resolution, d$residue_humification)
+  })
+  dplyr::bind_rows(parts)
+}
+
 # harvested_area is the FAOSTAT national harvested area per (area_code,
-# item_prod_code, year); .sci_to_grid renormalizes each polity-crop-year's
+# item_prod_code, year); .sci_join_weights() renormalizes each polity-crop-year's
 # spatialized cell area so its cell-sum equals this national truth (see there).
 # It is paired with the default NPP reader: the turnkey path derives it from the
 # same get_primary_production() table the NPP chain starts from, while a
@@ -231,14 +258,10 @@ build_soil_carbon_inputs <- function(
 # national density and conserving the polity carbon mass (see
 # .sci_rescale_cell_area). This leaves area_weight, and therefore the cell mass
 # distribution, unchanged.
-.sci_to_grid <- function(
-  components,
-  country_grid,
-  crop_patterns,
-  harvested_area = NULL
-) {
-  cells <- .sci_cell_crop_area(country_grid, crop_patterns)
-  weights <- cells |>
+# The per-cell share of each polity-crop's area. Time-invariant, so it is built
+# once and reused for every year (see .sci_grid_and_finalise()).
+.sci_grid_weights <- function(country_grid, crop_patterns) {
+  .sci_cell_crop_area(country_grid, crop_patterns) |>
     # Zero, missing and non-finite harvested areas provide no spatial support.
     # Keeping a zero-only group here would divide 0 by 0 and silently turn its
     # carbon mass into NaN; dropping it lets .sci_warn_unspatialized() report
@@ -252,7 +275,10 @@ build_soil_carbon_inputs <- function(
         sum(.data$crop_area_ha),
       .by = c("area_code", "item_prod_code")
     )
-  .sci_warn_unspatialized(components, weights)
+}
+
+# Fan one year's polity-crop components out onto that polity-crop's cells.
+.sci_join_weights <- function(components, weights, harvested_area = NULL) {
   components |>
     dplyr::inner_join(
       weights,
@@ -321,12 +347,27 @@ build_soil_carbon_inputs <- function(
     return(invisible(NULL))
   }
   crops <- sort(unique(lost$item_prod_code))
+  # Every plural marker gets its quantity pinned with cli::qty(), and the numbers
+  # are precomputed into scalars instead of being interpolated inline.
+  #
+  # Left to infer, cli has to decide which value each marker refers to, and with
+  # two numbers in the first bullet and a vector in the second it can conclude
+  # the answer is ambiguous and throw "Multiple quantities for pluralization" --
+  # from inside the warning, so the abort lands on the caller. That killed
+  # build_carbon_balance(1901:2023) outright after ~10 minutes of work, and only
+  # on multi-year spans: 1901-1905 warns fine, 1901-1910 dies. No single-year
+  # test would have caught it. polity_folds.R already pins a marker this way.
+  n_lost <- nrow(lost)
+  n_crops <- length(crops)
+  lost_mass <- round(sum(lost$c_mass_mg), 3)
   cli::cli_warn(c(
-    "!" = "{nrow(lost)} polity-crop carbon component{?s}
-           ({round(sum(lost$c_mass_mg), 3)} Mg C) had no crop-pattern cells and
-           {?was/were} dropped from the gridded soil carbon input.",
-    i = "Unspatialized item_prod_code{?s}: {.val {crops}}. Add {?its/their}
-         cells to {.field crop_patterns} to retain the carbon."
+    "!" = "{cli::qty(n_lost)}{n_lost} polity-crop carbon component{?s}
+           ({lost_mass} Mg C) had no crop-pattern cells and
+           {cli::qty(n_lost)}{?was/were} dropped from the gridded soil carbon
+           input.",
+    i = "{cli::qty(n_crops)}Unspatialized item_prod_code{?s}: {.val {crops}}.
+         Add {cli::qty(n_crops)}{?its/their} cells to {.field crop_patterns} to
+         retain the carbon."
   ))
   invisible(lost)
 }
@@ -488,17 +529,17 @@ build_soil_carbon_inputs <- function(
 # residue fraction) -> calculate_npp_carbon_nitrogen() (the carbon partition,
 # including residue_soil_c_t, root_c_t and weed_npp_c_t).
 .sci_read_npp <- function(years = NULL) {
-  .sci_npp_from_primary_prod(.filter_years(get_primary_production(), years))
+  .sci_npp_from_primary_prod(get_primary_production(years = years))
 }
 
 # FAOSTAT national harvested area (ha) per (area_code, item_prod_code, year),
-# the truth .sci_to_grid renormalizes the spatialized cell area to. Read from
+# the truth .sci_join_weights() renormalizes the spatialized cell area to. Read from
 # the same get_primary_production() table the NPP chain starts from, filtered to
 # crop harvested-area rows (grassland and livestock dropped, matching
 # .sci_crop_prod_wide). One table serves every input_type (residue/root/weed and
 # manure), all keyed by (area_code, item_prod_code, year).
 .sci_read_harvested_area <- function(years = NULL) {
-  .sci_harvested_area(.filter_years(get_primary_production(), years))
+  .sci_harvested_area(get_primary_production(years = years))
 }
 
 .sci_harvested_area <- function(primary_prod) {
@@ -603,8 +644,8 @@ build_soil_carbon_inputs <- function(
 # harvested area. The `crop` it emits is the item_prod_code, so it resolves
 # straight back through .sci_manure_crop_prod_code().
 .sci_read_manure <- function(years = NULL) {
-  production <- .filter_years(get_primary_production(), years)
-  cbs <- .filter_years(get_wide_cbs(), years)
+  production <- get_primary_production(years = years)
+  cbs <- get_wide_cbs(years = years)
   intake <- .run_redistribute_national(
     production = production,
     cbs = cbs,
@@ -625,7 +666,7 @@ build_soil_carbon_inputs <- function(
 # it resolves straight back through .sci_manure_crop_prod_code();
 # manure_n_receptivity is the harvested area, so collected manure is spread
 # across a polity's crops in proportion to each crop's area (the same basis
-# .sci_to_grid re-grids by); the fixed_ceiling cap needs only crop_area_ha.
+# .sci_join_weights() re-grids by); the fixed_ceiling cap needs only crop_area_ha.
 # Grassland and livestock rows are excluded, matching .sci_crop_prod_wide().
 .sci_manure_crop_layer <- function(production) {
   grass <- c(3000L, 3002L, 3003L)

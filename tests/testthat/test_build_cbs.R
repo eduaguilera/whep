@@ -211,6 +211,11 @@ test_that(".read_land_areas_wide keys its output on polity_code", {
 })
 
 test_that(".read_land_areas_wide holds back folded aggregate buckets", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Equatorial Guinea and Syria both fold into the Rest of World bucket (999).
   # Summing their agricultural land into it would give the bucket an extent that
   # is neither member's nor the real rest of the world's, so proxies are not
@@ -233,7 +238,13 @@ test_that(".read_land_areas_wide holds back folded aggregate buckets", {
   result <- whep:::.read_land_areas_wide(years = 1950L)
 
   expect_equal(result$polity_code, "ESP-1800-2025")
-  expect_false("ROW-1850-2023" %in% result$polity_code)
+  # NO Rest-of-World BUCKET AT ALL, matched by prefix rather than by exact code.
+  # This asserted `ROW-1850-2023` until the seven reporting buckets were extended to
+  # 2025 upstream and that code was retired -- at which point the assertion could
+  # never fail again, because it named a code the table can no longer contain. A
+  # prefix check keeps testing the thing meant here (a real country must not fall
+  # into the residual bucket) across the next rename too.
+  expect_false(any(startsWith(result$polity_code, "ROW-")))
 })
 
 test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
@@ -287,6 +298,33 @@ test_that(".cbs_impute_trade tolerates missing destiny element columns", {
     ) %in%
       result$element
   ))
+})
+
+test_that(".cbs_impute_trade imputes production from destinies when missing", {
+  # Item with reported destinies + trade but NO production row: the
+  # domestic-supply residual should be imputed into production, not
+  # dumped into a large negative stock_variation (#142).
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "food", 3000, "FAOSTAT_FBS_New",
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  production <- result |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(value)
+  stock_variation <- result |>
+    dplyr::filter(element == "stock_variation") |>
+    dplyr::pull(value)
+
+  # The imputed production is the domestic-supply residual: supply 3000, less
+  # imports 500, plus exports 200, less a zero stock variation, giving 2700.
+  expect_equal(production, 2700)
+  # Balance closes: no spurious negative stock change.
+  expect_equal(stock_variation, 0)
 })
 
 
@@ -624,6 +662,11 @@ test_that(".fill_with_proxies keys its proxies on the polity, not the name", {
 })
 
 test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Syria folds into the Rest of World bucket (999), so the pin's Syrian
   # population is not the bucket's population and a per-capita rate against it
   # would mean nothing. Deciding what an aggregate's proxy should be is a
@@ -923,6 +966,11 @@ test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
 })
 
 test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
   # ROW-1850-2025 is of type "aggregate". .add_polity_columns_dt refuses to
   # extend aggregate reporting areas outside their range, so an 1830 figure has
@@ -956,6 +1004,11 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
 })
 
 test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
   # and the two sides speak different vocabularies. Everything that comes through
   # `.aggregate_to_polities()` carries the period-specific `polity_name`, while the
@@ -1018,4 +1071,131 @@ test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", 
     whep:::.canonicalise_gdp_pop_area(numeric_code),
     numeric_code
   )
+})
+
+test_that("build_commodity_balances defaults to the long format", {
+  long <- whep::build_commodity_balances(example = TRUE)
+
+  expect_true(rlang::has_name(long, "element"))
+  expect_false(rlang::has_name(long, "production"))
+})
+
+test_that("build_commodity_balances format = 'wide' pivots the elements", {
+  # Same dataset, one column per element instead of one row per element, with
+  # stock_variation split into the two non-negative directions.
+  wide <- whep::build_commodity_balances(example = TRUE, format = "wide")
+
+  expect_false(rlang::has_name(wide, "element"))
+  expect_true(all(
+    c("production", "import", "food", "feed", "domestic_supply") %in%
+      names(wide)
+  ))
+  expect_true(all(c("stock_addition", "stock_withdrawal") %in% names(wide)))
+})
+
+test_that("build_commodity_balances rejects an unknown format", {
+  expect_error(
+    whep::build_commodity_balances(example = TRUE, format = "matrix"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances needs primary_all for the wide format", {
+  # The live-animal rows come from primary production, so the wide format
+  # cannot be assembled from .fixed_data alone. Aborting beats silently
+  # returning a sheet with no live animals in it.
+  expect_error(
+    whep::build_commodity_balances(
+      format = "wide",
+      .fixed_data = readRDS(
+        testthat::test_path("fixtures", "cbs_fixed_small.rds")
+      )
+    ),
+    "primary_all"
+  )
+})
+
+# -- .cbs_fix_final_balance (issue #162) --------------------------------------
+
+test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
+  dt <- data.table::data.table(
+    production = c(0, 100, 50),
+    import = c(10, 5, 5),
+    stock_variation = c(20, 0, 0),
+    domestic_supply = c(-5, -30, 40),
+    export = c(0, 10, 15),
+    balance = c(-3, -2, 1)
+  )
+
+  result <- whep:::.cbs_fix_final_balance(dt)
+
+  # Domestic supply is clamped at 0 before the export fix reads it.
+  expect_true(all(result$domestic_supply >= 0))
+  # No negative exports survive.
+  expect_true(all(result$export >= 0))
+  # Row 1: 0 + 10 - 20 - 0 = -10 -> clamped to 0.
+  expect_equal(result$export[1], 0)
+  # Row 2: reads clamped DS (0), 100 + 5 - 0 - 0 = 105 (not 135 pre-clamp).
+  expect_equal(result$export[2], 105)
+  # Row 3: balance >= 0, export left untouched.
+  expect_equal(result$export[3], 15)
+})
+
+
+# -- FBS scaling ratio bounds (issue #161) ------------------------------------
+
+test_that(".select_best_source clamps extreme FBS scaling ratio", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # Raw ratio is 100x; clamp caps it at 5x -> 100 * 5 = 500, not 10000.
+  expect_equal(val_2005, 500)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old_scaled")
+})
+
+test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # A single overlap year is not extrapolated: value stays unscaled.
+  expect_equal(val_2005, 100)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old")
 })

@@ -15,14 +15,29 @@
 #'
 #' @param map_year The year for which the typology map is created.
 #'
-#' @return A tibble with the typology classification per year and province.
+#' @param example If `TRUE`, return a small example output without reading the
+#'   remote inputs or the Natural Earth layer. Default is `FALSE`. The example
+#'   output carries the three data elements only, not the `df_inputs_plots`
+#'   plot, so that it needs no plotting package.
+#'
+#' @return A named list with `typologies_df` (the typology classification per
+#'   year and province), `n_input_df` (the N soil inputs the classification
+#'   read), `imported_feed_share_df` (the imported-feed share per year and
+#'   province) and `df_inputs_plots` (a `ggplot` of N inputs by typology).
 #'
 #' @export
+#'
+#' @examples
+#' create_typologies_of_josette(example = TRUE)$typologies_df
 create_typologies_of_josette <- function(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  example = FALSE
 ) {
+  if (example) {
+    return(.example_typologies_josette())
+  }
   shapefile_path <- .provinces_shapefile(shapefile_path)
 
   # Load datasets

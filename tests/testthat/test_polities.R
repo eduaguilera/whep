@@ -373,6 +373,7 @@ test_that("current mapping picks the open (latest-ending) period", {
 })
 
 test_that("get_polity_geometries returns requested polygon rows", {
+  skip_if_not_installed("sf")
   geoms <- get_polity_geometries(c(
     "AFG-1919-2025",
     "NCL-1800-2025",
@@ -384,6 +385,59 @@ test_that("get_polity_geometries returns requested polygon rows", {
     c("AFG-1919-2025", "NCL-1800-2025", "ROW-1850-2025")
   )
   expect_true(all(geoms$has_geometry))
+  # class(geoms) and attr(, "sf_column") both survive a plain `[.data.frame`,
+  # so the column they point at is what has to be checked (whep#620).
+  expect_s3_class(geoms[[attr(geoms, "sf_column")]], "sfc")
+  expect_s3_class(sf::st_geometry(geoms), "sfc")
+})
+
+test_that("get_polity_geometries subsets in a session that never loaded sf", {
+  # The geometry column only survives a row subset through `[.sf` (whep#620),
+  # and that method is registered when the sf namespace loads. sf is suggested
+  # rather than imported, so the broken state is a session that never loaded
+  # it -- which cannot be recreated in this one. Earlier test files call
+  # `sf::`, and `unloadNamespace("sf")` does NOT undo the S3 registration, so
+  # `[.sf` keeps dispatching after an unload and an in-process test passes on
+  # the unfixed code. A fresh process is the only faithful reproduction.
+  skip_if_not_installed("sf")
+  skip_if_not_installed("callr")
+  installed <- tryCatch(
+    file.exists(file.path(find.package("whep"), "Meta", "package.rds")),
+    error = function(cnd) FALSE
+  )
+  skip_if_not(installed, "whep is not installed in a library")
+
+  probe <- callr::r(
+    function() {
+      library(whep)
+      loaded_before <- "sf" %in% loadedNamespaces()
+      geoms <- get_polity_geometries(c("AFG-1919-2025", "NCL-1800-2025"))
+      list(
+        loaded_before = loaded_before,
+        rows = nrow(geoms),
+        geometry_class = class(geoms[[attr(geoms, "sf_column")]])
+      )
+    },
+    libpath = .libPaths()
+  )
+
+  expect_false(probe$loaded_before)
+  expect_equal(probe$rows, 2L)
+  expect_true("sfc" %in% probe$geometry_class)
+})
+
+test_that("get_polity_geometries says why it cannot subset without sf", {
+  local_mocked_bindings(
+    .sf_namespace_available = function() FALSE,
+    .package = "whep"
+  )
+
+  expect_error(
+    whep::get_polity_geometries("AFG-1919-2025"),
+    class = "whep_sf_required"
+  )
+  # the whole-table path never subsets, so it must keep working without sf
+  expect_equal(nrow(whep::get_polity_geometries()), nrow(whep::polities))
 })
 
 # ---- Dissolved-federation successor closure ---------------------------------
@@ -467,6 +521,11 @@ testthat::test_that("the iso3c lookup is unique per code", {
 })
 
 testthat::test_that("the iso3c lookup is many-to-one, deliberately", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Unique per iso3c (above) says nothing about the other direction, and the
   # other direction is where the aggregation lives: `polity_area_code` is a
   # bucket, so 257 ISO3 codes share 195 codes. Anything reading a population or

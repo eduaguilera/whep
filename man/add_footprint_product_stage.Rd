@@ -49,3 +49,27 @@ origin-sector by product-sector Leontief cube. Instead, each existing
 footprint row is allocated over the product-area shares observed in final
 demand for the same \code{target_area}, \code{target_fd}, and \code{target_item}.
 }
+\examples{
+# One footprint row of 100, split over the two areas that supply item 20 to
+# the final demand of area 1 in the shares observed in `y_mat` (80 / 20).
+footprints <- tibble::tibble(
+  origin_area = 1L,
+  origin_item = 10L,
+  target_area = 1L,
+  target_area_name = "Target",
+  target_item = 20L,
+  target_fd = "food",
+  value = 100
+)
+
+add_footprint_product_stage(
+  footprints = footprints,
+  y_mat = Matrix::Matrix(c(80, 20), nrow = 2, sparse = TRUE),
+  labels = tibble::tibble(
+    area_code = c(1L, 2L),
+    item_cbs_code = c(20L, 20L)
+  ),
+  fd_labels = tibble::tibble(area_code = 1L, fd_col = "food")
+) |>
+  dplyr::select(origin_item, product_area, product_share, value)
+}

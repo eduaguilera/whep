@@ -7,7 +7,7 @@
 build_energy_co2_extension(
   method = c("gleam"),
   data = list(),
-  unclassified = c("drop", "polity_region", "global_mean"),
+  unclassified = c("drop", "polity_region", "historical_region", "global_mean"),
   example = FALSE
 )
 }
@@ -27,6 +27,11 @@ the \strong{live, self-reporting} ones among them a grouping derived from their
 polity in \code{polity_area_crosswalk}, running GLEAM's own scheme rules on that
 continent, and marks those rows \code{"GLEAM_3.0_energy_meat_polity_region"};
 the aggregate buckets and dissolved entities still drop.
+\code{"historical_region"} does everything \code{"polity_region"} does and also
+groups the \strong{dissolved} entities (USSR, Czechoslovakia, the Yugoslav SFR,
+Belgium-Luxembourg, Serbia and Montenegro, the Netherlands Antilles) from
+the OECD and EU membership they held while they existed, marking those rows
+\code{"GLEAM_3.0_energy_meat_historical_region"}.
 \code{"global_mean"} instead prices every unclassifiable area at the unweighted
 world mean of the published GLEAM factors, marking those rows
 \code{"GLEAM_3.0_energy_meat_global_mean"}.}
@@ -38,7 +43,9 @@ data. Defaults to \code{FALSE}.}
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (energy-use emissions in kilograms CO2e) and \code{method_energy}
 (\code{"GLEAM_3.0_energy_meat"}, \code{"GLEAM_3.0_energy_meat_polity_region"} for
-rows grouped from the polity crosswalk, or
+rows grouped from the polity crosswalk,
+\code{"GLEAM_3.0_energy_meat_historical_region"} for dissolved entities grouped
+from their own era's memberships, or
 \code{"GLEAM_3.0_energy_meat_global_mean"} for rows priced at the world mean),
 plus the polity columns below.
 }
@@ -65,7 +72,9 @@ sectors in proportion to their slaughtered head counts. Because GLEAM reports
 its factors by production system and climate zone but the package has no
 country-level system or climate shares, the intensities are collapsed to one
 value per country by an unweighted mean across systems and climate zones;
-this choice is recorded in \code{method_energy}.
+this choice is recorded in \code{method_energy}. A meat group with carcass output
+but no slaughtered-head counts keeps its energy CO2e, split equally across
+the group's live-animal sectors, and triggers a warning.
 
 \code{gleam_geographic_hierarchy} is the country universe of the whole extension,
 so a reporting area absent from it gets no energy intensity and its meat
@@ -74,12 +83,14 @@ buckets (\code{polity_area_code} 999 "Rest of World" and the continental residua
 901-906) and the dissolved entities GLEAM's present-day country table cannot
 carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
 Montenegro). The size of that loss is now \strong{reported} on every build rather
-than left to be inferred, and two opt-in treatments recover it instead of
+than left to be inferred, and three opt-in treatments recover it instead of
 losing it: \code{unclassified = "polity_region"} groups the \strong{live} reporting
-areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk, and
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk,
+\code{unclassified = "historical_region"} additionally groups the \strong{dissolved}
+entities from the membership they themselves held while they existed, and
 \code{unclassified = "global_mean"} prices \strong{every} unclassifiable area at the
 world-mean GLEAM intensity. The default keeps the historical behaviour; see
-whep#415 and whep#492.
+whep#415, whep#492 and whep#553.
 }
 \section{Polity columns}{
 

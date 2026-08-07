@@ -321,6 +321,10 @@
     dplyr::inner_join(.vps_own_areas(got$polity_code), by = "polity_code") |>
     dplyr::mutate(rel = abs(.data$got_ha - .data$own_ha) / .data$own_ha) |>
     dplyr::arrange(dplyr::desc(.data$rel))
+  if (nrow(comparison) == 0L) {
+    cli::cli_alert_info("No assessed polities are active in {year}.")
+    return(invisible(comparison))
+  }
   cli::cli_text(
     "{nrow(comparison)} polities: max {signif(max(comparison$rel), 3)},
      median {signif(stats::median(comparison$rel), 3)},
@@ -333,22 +337,22 @@
 # The S-A2 exception list, checked over EVERY interval at a year inside its
 # own validity rather than at one calendar year. On the reference runtime
 # (Windows 11 x64, R 4.5.2, sf 1.0-22, s2 1.1.9, terra 1.8-80, GEOS 3.13.1),
-# measured across all 653 clipped polities in polities 749 / 9320e033
+# measured across all 664 clipped polities in polities 751 / 0e52f1ff
 # (`data/polities.rda` at git blob
-# 9320e033e6ceb98a48d2d43634adae1620cb2db4): max 5.3257e-05, median
-# 1.2354e-14, five above 1e-6. All five carry pieces the spherical engine could
-# not read, so their residual is the terra/s2 engine substitution and nothing
-# else; a polity appearing here without terra pieces is a new defect. Three of
-# the five are live in neither 1900 nor 2015 and none is live in 2015, which is
-# why a single-year check reports two and misses the rest. Exact membership is
+# 0e52f1ffd8e92598d3563bb569f30900729f2a35): max 2.8976e-05 and nine
+# above 1e-6. All nine carry pieces the spherical engine could not read, so
+# their residual is the terra/s2 engine substitution and nothing else; a polity
+# appearing here without terra pieces is a new defect. None is live in 2015,
+# which is why a single current-year check misses them. Exact membership is
 # runtime-dependent; the property checked below is adaptive.
 #
 # THE EXPECTED SET IS DERIVED FROM THE BUILD, not listed by name. The criterion
 # is the engine substitution, so the polities that may legitimately exceed the
 # tolerance are exactly those carrying an `area_engine == "terra"` piece -- and
-# on the shipped table the two sets coincide exactly, 5 for 5. A hardcoded list
+# on the shipped table and reference runtime the two sets coincide exactly, 9
+# for 9. A hardcoded list
 # cannot say that, and it rots: the previous one named GRC-1830-1913, which the
-# 749-row `whep::polities` marks `superseded`, so DA-7's live filter drops it
+# 751-row `whep::polities` marks `superseded`, so DA-7's live filter drops it
 # before the clip and the name could never match again.
 #
 # Derivation alone would be circular -- an expectation read off the build
@@ -359,12 +363,10 @@
 .vps_exception_list <- function(polycells, whole_table, expected_codes = NULL) {
   .vps_h("S-A2: the exception list, over every interval at its own year")
   # ONE interval per polycell, never a total over interval rows. Summing every
-  # row of a polity counts each of its cells once per epoch: GRC-1881-1913 has
-  # 63 polycells across 98 interval rows, and the total reads 10,293,823 ha
-  # against a 6,356,682 ha polygon, a spurious 0.6194 where the truth at a year
-  # is 5.3257e-05. TUR-1800-1913 carries 1,622 interval rows over 396
-  # polycells, so a gate built that way fires on dozens of polities that are
-  # correct.
+  # row of a polity counts each of its cells once per epoch. GRC-1881-1913 has
+  # 63 polycells but more interval rows; summing those rows inflates its area,
+  # while the probe below counts each piece once. A gate built on the interval
+  # sum fires on polities that are correct.
   #
   # The probe is the polity's own earliest interval start, which every one of
   # its polycells covers because the splits partition the polity's validity.
@@ -398,7 +400,7 @@
     dplyr::arrange(dplyr::desc(.data$rel))
   print(as.data.frame(comparison), digits = 6)
   # SET EQUALITY against the derived expectation, in both directions and as
-  # counts. "Within the expected five" passed just as happily on an EMPTY list,
+  # counts. "Within the expected set" passed just as happily on an EMPTY list,
   # so a relaxed tolerance or a broken measurement read as success; the
   # machine-checkable lines below cannot, because the vacuity guard runs first
   # and asks whether anything was measured at all.
@@ -652,7 +654,7 @@
     if (whole_table) {
       cli::cli_abort(
         "The whole-table build has no {.field coverage} diagnostic. On the
-         pinned snapshot at least the 36 {.val no_geometry} rows require that
+         pinned snapshot at least the 28 {.val no_geometry} rows require that
          diagnostic on every runtime; absence cannot be interpreted as an
          all-readable table."
       )
@@ -709,17 +711,16 @@
   )
 }
 
-# THE PINNED WHOLE-TABLE CENSUS, measured on `whep::polities` at **749 rows**,
-# `data/polities.rda` at git blob **9320e033e6ceb98a48d2d43634adae1620cb2db4**.
+# THE PINNED WHOLE-TABLE CENSUS, measured on `whep::polities` at **751 rows**,
+# `data/polities.rda` at git blob **0e52f1ffd8e92598d3563bb569f30900729f2a35**.
 # The snapshot is part of the pin, not context. The exact s2/terra split is also
 # pinned to the reference runtime because T-A15 proved that piece readability
 # varies by platform. On another runtime the snapshot/live/clipped counts still
 # run, while exact engine counts are reported but not compared.
 #
-# `origin/main` already carries WHEP PR #662: 751 rows at blob 0e52f1ff after
-# the upstream geometry repair. This branch still carries the old snapshot
-# until reconciliation, so the snapshot count below is expected to fail at the
-# merge and force a re-measurement.
+# WHEP PR #662 supplied this 751-row snapshot after upstream geometry repair.
+# The census below was re-measured after reconciliation rather than copied from
+# the previous 749-row pin.
 # `.vps_exception_list()` derives its expectation from the build, which cannot
 # notice a build that MOVED -- a derived expectation agrees with its own build
 # by construction. This is the half that can: it names what the derivation
@@ -729,7 +730,7 @@
 # `terra_polycells` is the DISTINCT polycell count, not the interval-row count:
 # the interval split subdivides a polycell in time and would inflate a row
 # count without any piece changing. On this vintage they happen to coincide at
-# 22, and pinning the stable one is what keeps that a coincidence rather than a
+# 21, and pinning the stable one is what keeps that a coincidence rather than a
 # hidden assumption.
 #
 # Re-measure this and `.pcs_measure_pieces()`'s comment in
@@ -738,20 +739,20 @@
 # upstream re-sync had already marked it `superseded`.
 .vps_expected_census <- function() {
   list(
-    snapshot_blob = "9320e033e6ceb98a48d2d43634adae1620cb2db4",
-    snapshot_rows = 749L,
+    snapshot_blob = "0e52f1ffd8e92598d3563bb569f30900729f2a35",
+    snapshot_rows = 751L,
     live_rows = 692L,
-    clipped_polities = 653L,
+    clipped_polities = 664L,
     runtime = .vps_reference_runtime(),
     coverage = c(
-      has_geometry = 647L,
-      no_geometry = 36L,
-      s2_repaired = 6L,
-      s2_invalid = 3L
+      has_geometry = 664L,
+      no_geometry = 28L,
+      s2_repaired = 0L,
+      s2_invalid = 0L
     ),
-    terra_polycells = 22L,
-    terra_polities = 5L,
-    terra_ha = 1483487.60
+    terra_polycells = 21L,
+    terra_polities = 9L,
+    terra_ha = 1429276.70
   )
 }
 
@@ -859,7 +860,7 @@
 }
 
 # Hectares are compared to the pin's own precision (0.01 ha), which is far
-# tighter than any real movement and far looser than float noise over 22 terms.
+# tighter than any real movement and far looser than float noise over 21 terms.
 .vps_census_diff <- function(expected, got, exact_runtime) {
   moved <- character()
   for (nm in c(
@@ -869,7 +870,7 @@
     "clipped_polities"
   )) {
     if (!identical(got[[nm]], expected[[nm]])) {
-      moved[[nm]] <- paste0(
+      moved[nm] <- paste0(
         nm,
         " pinned ",
         expected[[nm]],
@@ -883,7 +884,7 @@
   }
   for (nm in names(expected$coverage)) {
     if (!identical(got$coverage[[nm]], expected$coverage[[nm]])) {
-      moved[[nm]] <- paste0(
+      moved[nm] <- paste0(
         nm,
         " pinned ",
         expected$coverage[[nm]],
@@ -894,7 +895,7 @@
   }
   for (nm in c("terra_polycells", "terra_polities")) {
     if (!identical(got[[nm]], expected[[nm]])) {
-      moved[[nm]] <- paste0(
+      moved[nm] <- paste0(
         nm,
         " pinned ",
         expected[[nm]],
@@ -904,7 +905,7 @@
     }
   }
   if (abs(got$terra_ha - expected$terra_ha) > 0.01) {
-    moved[["terra_ha"]] <- paste0(
+    moved["terra_ha"] <- paste0(
       "terra_ha pinned ",
       format(expected$terra_ha, nsmall = 2L),
       ", measured ",
@@ -1035,9 +1036,9 @@
 # ---- Run --------------------------------------------------------------------
 
 # `polity_codes` restricts the build to a subset. The default is the whole
-# table, which is the production call: on polities 749 / 9320e033 under the
-# reference runtime, the polity clip alone is 6,352 s over 653 polities and
-# 412,177 measured pieces, of which 412,176 remain after the 1e-6 ha area floor.
+# table, which is the production call: on polities 751 / 0e52f1ff under the
+# reference runtime, the polity clip alone is 3,843 s over 664 polities and
+# 414,479 measured pieces, all retained after the 1e-6 ha area floor.
 # Budget hours rather than the "about an hour" this note used to claim. A subset
 # runs in minutes and is what makes it practical to EXECUTE this script after
 # editing it. `inst/scripts/` is under no test, so an unexecuted change here is

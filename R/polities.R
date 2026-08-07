@@ -399,6 +399,17 @@
 #'   already-built table, whose published columns no longer carry
 #'   `mapping_status`.
 #' @export
+#'
+#' @examples
+#' # The same area code resolves to different polities in different years:
+#' # area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
+#' tibble::tibble(area_code = c(16L, 16L), year = c(1965L, 2000L)) |>
+#'   add_polity_code() |>
+#'   dplyr::select(area_code, year, polity_code, polity_name, mapping_status)
+#'
+#' # Without a year column the current/default mapping is used.
+#' add_polity_code(tibble::tibble(area_code = 231L), year_column = NULL) |>
+#'   dplyr::select(area_code, polity_code, polity_name)
 add_polity_code <- function(
   table,
   code_column = "area_code",
@@ -879,15 +890,27 @@ polity_coverage_gaps <- function(
 #' [add_polity_code()].
 #'
 #' @param polity_codes Optional character vector of WHEP polity codes.
+#'   Subsetting by code needs the suggested package `sf` to be installed; the
+#'   whole table is returned without it.
 #'
 #' @returns An sf data frame.
 #' @export
+#'
+#' @examples
+#' # sf is only suggested, and its methods are what make the geometry column
+#' # printable, so guard the example on it.
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   codes <- add_polity_code(
+#'     tibble::tibble(area_code = c(203L, 68L), year = c(2000L, 2000L))
+#'   )$polity_code
+#'   geometries <- get_polity_geometries(codes)
+#'   print(geometries[, c("polity_code", "polity_name", "polygon_source")])
+#' }
 get_polity_geometries <- function(polity_codes = NULL) {
-  out <- polities
-  if (!is.null(polity_codes)) {
-    out <- out[out$polity_code %in% polity_codes, ]
+  if (is.null(polity_codes)) {
+    return(polities)
   }
-  out
+  .subset_polity_geometries(polities, polity_codes)
 }
 
 #' Find FAOSTAT areas whose polity resolution is ambiguous
@@ -1363,4 +1386,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
 
 .polity_iso3_lookup <- function() {
   rlang::set_names(polities$iso3_code, polities$polity_code)
+}
+
+# Row-subsetting an sf data frame only keeps its geometry column an `sfc`
+# through `[.sf`, and that method exists only once the sf namespace is loaded.
+# sf is suggested here, not imported, so nothing guarantees it is. Without the
+# guard below `[.data.frame` ran instead and returned an object that still
+# claimed class `sf` and still carried `attr(, "sf_column") == "geom"`, while
+# the column those point at came back a bare list -- so it passed every cheap
+# structural check and only aborted later, inside sf, complaining about a
+# column nobody had renamed (whep#620). `.sf_namespace_available()` both
+# states the requirement and loads the namespace, which registers the method.
+.subset_polity_geometries <- function(geometries, polity_codes) {
+  if (!.sf_namespace_available()) {
+    cli::cli_abort(
+      c(
+        "Package {.pkg sf} is required to subset polity geometries by code.",
+        i = "Install {.pkg sf}, or call {.fn get_polity_geometries} without
+             {.arg polity_codes} to get the whole table."
+      ),
+      class = "whep_sf_required"
+    )
+  }
+  geometries[geometries$polity_code %in% polity_codes, ]
+}
+
+.sf_namespace_available <- function() {
+  requireNamespace("sf", quietly = TRUE)
 }

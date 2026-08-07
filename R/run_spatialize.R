@@ -37,6 +37,9 @@
 #'     `cft_mapping.csv` drives CFT aggregation: `cft_name`
 #'     (granular 33-class WHEP taxonomy) or `cft_lpjml`
 #'     (12 LPJmL crop CFTs + single `others` bucket).
+#'   - `area_key`: one of `"grid"` (default) or `"polity_area"`,
+#'     forwarded to both engines. See [build_gridded_landuse()]'s
+#'     *Which area code the output is keyed on*.
 #' @param paths Named list of filesystem paths. Recognised entries:
 #'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
 #'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
@@ -173,6 +176,7 @@ run_spatialize <- function(
       preset,
       years,
       resolved_years,
+      config,
       input_dir,
       out_dir
     )
@@ -237,7 +241,8 @@ run_spatialize <- function(
       multicropping = lu_inputs$multicropping,
       years = resolved_years,
       max_iterations = config$max_iterations,
-      expansion_threshold = config$expansion_threshold
+      expansion_threshold = config$expansion_threshold,
+      area_key = config$area_key
     )
   )
   list(
@@ -256,6 +261,7 @@ run_spatialize <- function(
   preset,
   years,
   resolved_years,
+  config,
   input_dir,
   out_dir
 ) {
@@ -279,7 +285,8 @@ run_spatialize <- function(
     country_grid = ls_inputs$country_grid,
     species_proxy = ls_inputs$species_proxy,
     manure_pattern = ls_inputs$manure_pattern,
-    years = resolved_years
+    years = resolved_years,
+    area_key = config$area_key
   )
   list(
     years = resolved_years,
@@ -293,13 +300,15 @@ run_spatialize <- function(
       use_type_constraint = FALSE,
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
-      expansion_threshold = 100L
+      expansion_threshold = 100L,
+      area_key = "grid"
     ),
     whep = list(
       use_type_constraint = TRUE,
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
-      expansion_threshold = 100L
+      expansion_threshold = 100L,
+      area_key = "grid"
     )
   )
 }
@@ -310,7 +319,8 @@ run_spatialize <- function(
     "aggregate_to_cft",
     "max_iterations",
     "expansion_threshold",
-    "cft_target"
+    "cft_target",
+    "area_key"
   )
 }
 

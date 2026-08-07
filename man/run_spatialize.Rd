@@ -41,6 +41,9 @@ landuse engine.
 \code{cft_mapping.csv} drives CFT aggregation: \code{cft_name}
 (granular 33-class WHEP taxonomy) or \code{cft_lpjml}
 (12 LPJmL crop CFTs + single \code{others} bucket).
+\item \code{area_key}: one of \code{"grid"} (default) or \code{"polity_area"},
+forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s
+\emph{Which area code the output is keyed on}.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:

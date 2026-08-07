@@ -173,6 +173,78 @@
   cols
 }
 
+#' Validate the area key a spatialize engine was asked for.
+#' @noRd
+.resolve_spatialize_area_key <- function(area_key) {
+  if (is.null(area_key)) {
+    area_key <- "grid"
+  }
+  rlang::arg_match0(area_key, c("grid", "polity_area"), arg_nm = "area_key")
+}
+
+#' Apply the requested area key to a spatialized output.
+#'
+#' The spatialize chain allocates *from* a national table keyed on
+#' `area_code` and *into* a `country_grid` keyed the same way, so both sides
+#' speak the raw reporting vocabulary the grid was rasterized in. WHEP's
+#' polity-keyed national tables are aggregated on `polity_area_code` instead,
+#' so a reporting code that is not itself a bucket leaves the output carrying
+#' two territorial keys that disagree within one row -- `area_code = 276`
+#' beside `polity_area_code = 206` -- and a consumer's choice of join column
+#' silently decides whether Sudan exists in its result (whep#582).
+#'
+#' `"grid"` is today's behaviour, kept as the default because switching moves
+#' published values for every consumer joining gridded output on `area_code`;
+#' it only gains the diagnostic that today's silence hides. The alternative is
+#' selected, never a fallback.
+#' @noRd
+.spatialize_apply_area_key <- function(result, area_key, value_cols) {
+  if (area_key == "grid") {
+    .warn_cell_polity_off_bucket(result)
+    return(result)
+  }
+  .spatialize_to_bucket(result, value_cols)
+}
+
+#' Re-key a spatialized output on `polity_area_code`.
+#'
+#' THE RAW CODE IS CARRIED, NOT REPLACED, exactly as `build_cell_polity()`
+#' does under `area_key = "polity_area"` (whep#579): the reporting code the
+#' engine allocated on arrives as an added `grid_area_code`, so the fold this
+#' performs stays recoverable at the join instead of becoming irrecoverable in
+#' the output. Where two reporting areas of one bucket meet in a cell their
+#' rows collapse, their values are summed, and the raw codes are joined with a
+#' separator rather than one of them being picked -- picking would be the
+#' silent half of the same problem. Codes absent from the crosswalk keep their
+#' own code, so a gap stays visible rather than turning into an `NA` key.
+#' @noRd
+.spatialize_to_bucket <- function(result, value_cols) {
+  value_cols <- intersect(value_cols, names(result))
+  dt <- data.table::as.data.table(result)
+  dt[, area_code := as.integer(area_code)]
+  lookup <- data.table::as.data.table(.cell_polity_bucket_lookup())
+  dt[lookup, polity_bucket := i.polity_area_code, on = "area_code"]
+  dt[, grid_area_code := area_code]
+  dt[!is.na(polity_bucket), area_code := polity_bucket]
+  dt[, polity_bucket := NULL]
+  group_cols <- setdiff(names(dt), c(value_cols, "grid_area_code"))
+  out <- dt[,
+    c(
+      lapply(.SD, sum, na.rm = TRUE),
+      list(
+        grid_area_code = paste(sort(unique(grid_area_code)), collapse = "+")
+      )
+    ),
+    by = group_cols,
+    .SDcols = value_cols
+  ]
+  data.table::setcolorder(
+    out,
+    c(intersect(names(result), names(out)), "grid_area_code")
+  )
+  tibble::as_tibble(out)
+}
+
 #' Detect whether a country grid changes through time.
 #' @noRd
 .country_grid_is_dynamic <- function(country_grid) {

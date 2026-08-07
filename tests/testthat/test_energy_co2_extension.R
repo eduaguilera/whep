@@ -330,6 +330,29 @@ testthat::test_that("area -> iso3 needs no tie-break across polity periods", {
   testthat::expect_false(351L %in% area2iso$area_code)
 })
 
+testthat::test_that("carcass with no slaughter heads is not dropped", {
+  # Bovine carcass output but zero slaughtered-head rows for the group.
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 231L, 2731L, "tonnes", 1e7
+  )
+  testthat::expect_warning(
+    result <- whep::build_energy_co2_extension(
+      data = list(primary_prod = prod)
+    ),
+    "slaughtered-head"
+  )
+
+  # The group's CO2e survives and is split equally across both sectors.
+  testthat::expect_setequal(result$item_cbs_code, c(961L, 946L))
+  testthat::expect_true(all(result$impact_u > 0))
+  testthat::expect_false(any(is.na(result$impact_u)))
+  testthat::expect_equal(
+    result$impact_u[result$item_cbs_code == 961L],
+    result$impact_u[result$item_cbs_code == 946L]
+  )
+})
+
 testthat::test_that("only the gleam method is available", {
   testthat::expect_error(
     whep::build_energy_co2_extension(method = "fao"),
@@ -487,4 +510,227 @@ testthat::test_that("unclassified only takes the documented values", {
     whep::build_energy_co2_extension(unclassified = "zero"),
     class = "rlang_error"
   )
+})
+
+# ---- whep#553: the dissolved entities --------------------------------------
+
+# The USSR (area 228) is 437 Mt of the 569 Mt of carcass production that no
+# GLEAM grouping can price, measured on the real `get_primary_production()`
+# output. Belgium-Luxembourg (area 15) is the one dissolved entity that was
+# itself OECD and EU while it reported, so the two are fixtured together.
+.energy_dissolved_fixture <- function() {
+  .energy_prod_fixture() |>
+    dplyr::bind_rows(
+      tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+        1980L, 228L, 2731L, "tonnes", 6.5e6,
+        1980L, 228L, 961L, "slaughtered_heads", 3e7,
+        1980L, 228L, 946L, "slaughtered_heads", 1e6,
+        1980L, 15L, 2733L, "tonnes", 7e5,
+        1980L, 15L, 1049L, "slaughtered_heads", 8e6,
+        1980L, 15L, 1051L, "slaughtered_heads", 1e5
+      )
+    )
+}
+
+testthat::test_that("the dissolved set is derived, not typed in", {
+  # What separates a dissolved entity from the live omissions and from the
+  # aggregate buckets is a property of the crosswalk, not a list: every polity
+  # period a dissolved area carries ended before the crosswalk's open end.
+  dissolved <- .energy_dissolved_areas()
+
+  testthat::expect_setequal(
+    dissolved$area_code,
+    c(15L, 51L, 151L, 186L, 228L, 248L)
+  )
+  # The live omissions stay with whep#415's treatment ...
+  testthat::expect_false(any(c(148L, 227L) %in% dissolved$area_code))
+  # ... and the aggregate buckets stay with whep#492's, because their periods
+  # run to the open end rather than stopping at a dissolution.
+  testthat::expect_false(
+    any(c(901L, 902L, 903L, 904L, 905L, 906L, 999L) %in% dissolved$area_code)
+  )
+  open_end <- max(whep::polity_area_crosswalk$polity_end_year, na.rm = TRUE)
+  testthat::expect_true(all(dissolved$last_year < open_end))
+  # One row per area, so the hierarchy cannot gain a duplicate iso3 and
+  # duplicate every production row it joins to.
+  testthat::expect_equal(anyDuplicated(dissolved$area_code), 0L)
+  testthat::expect_equal(
+    anyDuplicated(.energy_dissolved_rows()$iso3),
+    0L
+  )
+  hierarchy <- suppressMessages(suppressWarnings(
+    .energy_hierarchy("historical_region")
+  ))
+  testthat::expect_equal(anyDuplicated(hierarchy$iso3), 0L)
+})
+
+testthat::test_that("a dissolved entity is grouped as it was, not as now", {
+  # The whep#553 decision, made visible: memberships are taken as of the
+  # entity's own existence. Belgium and Luxembourg both signed the OECD
+  # Convention in 1960 and both are EEC founders, so Belgium-Luxembourg reports
+  # its whole 1961-1999 span as an OECD/EU member and must land exactly where
+  # Belgium and Luxembourg do. Czechoslovakia's successors joined the OECD in
+  # 1995 and 2000 and the EU in 2004 -- all after the 1992 dissolution -- so it
+  # must NOT inherit their present-day groupings.
+  grouping <- suppressMessages(suppressWarnings(
+    .energy_country_grouping(.energy_hierarchy("historical_region"))
+  ))
+  at <- function(code) {
+    as.list(dplyr::filter(grouping, .data$iso3 == code))
+  }
+
+  testthat::expect_equal(at("BLX")$development3, at("BEL")$development3)
+  testthat::expect_equal(at("BLX")$region5, at("BEL")$region5)
+  testthat::expect_equal(at("BLX")$detailed15, at("BEL")$detailed15)
+  testthat::expect_equal(at("BLX")$detailed15, at("LUX")$detailed15)
+  testthat::expect_equal(at("BLX")$detailed15, "EU 27")
+
+  testthat::expect_equal(at("CSK")$development3, "Others")
+  testthat::expect_equal(at("CSK")$detailed15, "Non-OECD Europe")
+  testthat::expect_false(identical(at("CSK")$detailed15, at("CZE")$detailed15))
+  testthat::expect_false(identical(at("CSK")$detailed15, at("SVK")$detailed15))
+  # The Yugoslav successors were outside both bodies while the federation
+  # existed and Serbia still is, so there the two readings agree.
+  testthat::expect_equal(at("YUG")$detailed15, at("SRB")$detailed15)
+  testthat::expect_equal(at("SCG")$detailed15, at("SRB")$detailed15)
+  # The Netherlands Antilles is the reason the crosswalk's continent has to be
+  # translated: it says "North America" where GLEAM's rules say "Americas".
+  testthat::expect_equal(.energy_gleam_continent("North America"), "Americas")
+  testthat::expect_equal(.energy_gleam_continent("South America"), "Americas")
+  testthat::expect_equal(.energy_gleam_continent("Europe"), "Europe")
+  testthat::expect_equal(at("ANT")$region5, at("CUB")$region5)
+})
+
+testthat::test_that("historical_region recovers the dissolved entities", {
+  # whep#553's fix, opt-in so nothing moves without consent: the areas must come
+  # back with their own factors, be labelled as such, and leave every
+  # GLEAM-classified area bit-identical -- structure included.
+  base <- suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture())
+    )
+  )
+  result <- suppressWarnings(suppressMessages(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture()),
+      unclassified = "historical_region"
+    )
+  ))
+
+  testthat::expect_false(any(c(15L, 228L) %in% base$area_code))
+  recovered <- dplyr::filter(result, .data$area_code %in% c(15L, 228L))
+  testthat::expect_setequal(
+    recovered$item_cbs_code,
+    c(961L, 946L, 1049L, 1051L)
+  )
+  testthat::expect_true(all(recovered$impact_u > 0))
+  testthat::expect_true(all(
+    recovered$method_energy == "GLEAM_3.0_energy_meat_historical_region"
+  ))
+
+  usa <- dplyr::filter(result, .data$area_code == 231L)
+  testthat::expect_equal(usa, dplyr::filter(base, .data$area_code == 231L))
+  testthat::expect_equal(nrow(result), nrow(base) + nrow(recovered))
+  testthat::expect_setequal(
+    setdiff(result$area_code, base$area_code),
+    c(15L, 228L)
+  )
+  testthat::expect_length(setdiff(base$area_code, result$area_code), 0L)
+  # One area_code, one label: recovering an area must not split its key.
+  testthat::expect_equal(
+    max(
+      dplyr::summarise(
+        result,
+        n = dplyr::n_distinct(.data$polity_area_code),
+        .by = "area_code"
+      )$n
+    ),
+    1L
+  )
+})
+
+testthat::test_that("the default still drops the dissolved entities", {
+  # Status quo pin: `unclassified = "drop"` publishes the same numbers it did
+  # before whep#553, so adding dissolved-entity production can neither add rows
+  # nor move another area's value.
+  base <- suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_prod_fixture())
+    )
+  )
+  with_dissolved <- suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture())
+    )
+  )
+
+  testthat::expect_equal(with_dissolved, base)
+  reported <- testthat::capture_warnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture())
+    )
+  )
+  testthat::expect_match(reported, "USSR", all = FALSE)
+})
+
+testthat::test_that("historical_region keeps the live areas on whep#415", {
+  # It is a superset of `polity_region`, not a replacement: Tuvalu must still be
+  # grouped from the crosswalk and still carry that label, so the two decisions
+  # stay distinguishable row by row.
+  prod <- dplyr::bind_rows(
+    .energy_omitted_area_fixture(),
+    dplyr::filter(.energy_dissolved_fixture(), .data$area_code == 228L)
+  )
+  result <- suppressWarnings(suppressMessages(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = prod),
+      unclassified = "historical_region"
+    )
+  ))
+
+  testthat::expect_true(all(
+    result$method_energy[result$area_code == 227L] ==
+      "GLEAM_3.0_energy_meat_polity_region"
+  ))
+  testthat::expect_true(all(
+    result$method_energy[result$area_code == 228L] ==
+      "GLEAM_3.0_energy_meat_historical_region"
+  ))
+  testthat::expect_true(all(
+    result$method_energy[result$area_code == 231L] == "GLEAM_3.0_energy_meat"
+  ))
+})
+
+testthat::test_that("an uncovered dissolved entity stays unpriced", {
+  # The membership table is the whep#553 decision itself, so an entity it does
+  # not cover must fall out of the join and keep being reported, rather than
+  # defaulting to non-OECD/non-EU zeros nobody decided on.
+  testthat::local_mocked_bindings(
+    .energy_dissolved_membership = function() {
+      tibble::tibble(
+        polity_area_code = 51L,
+        oecd = 0L,
+        eu27 = 0L
+      )
+    }
+  )
+  rows <- .energy_dissolved_rows()
+  testthat::expect_setequal(rows$iso3, "CSK")
+
+  msgs <- testthat::capture_warnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture()),
+      unclassified = "historical_region"
+    )
+  )
+  result <- suppressMessages(suppressWarnings(
+    whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_dissolved_fixture()),
+      unclassified = "historical_region"
+    )
+  ))
+  testthat::expect_false(any(c(15L, 228L) %in% result$area_code))
+  testthat::expect_match(msgs, "has no row for", all = FALSE)
+  testthat::expect_match(msgs, "USSR", all = FALSE)
 })

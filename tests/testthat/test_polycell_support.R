@@ -1573,17 +1573,16 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   testthat::skip_if_not_installed("terra")
 
   # Real-data regression, on shipped package data so it needs no pins and no
-  # network. `sf::st_intersection()` emits pieces the spherical engine will not
-  # read back, and a planar repair does not always fix them. Discarding those
-  # pieces deleted real territory: on this polity eight Ionian, Peloponnese and
-  # Aegean pieces worth 530,378.73 ha -- 8.34% of GRC-1881-1913 -- while the
-  # polity still reported `coverage_status == "has_geometry"`. They are pieces
-  # of cells, not whole cells: their shares of their cells run 0.858, 0.388,
-  # 0.354, 0.188, 0.171, 0.124, 0.076 and 0.0245. The loss broke S-A2
-  # re-aggregation at every pre-1950 year and re-emerged as fake unclaimed land
-  # in the S-A11 diagnostic, so it is pinned here.
+  # network. `sf::st_intersection()` can emit pieces the spherical engine will not
+  # read back, and a planar repair does not always fix them. The original defect
+  # exposed eight Ionian, Peloponnese and Aegean risk pieces worth about 530,418
+  # ha -- 8.34% of GRC-1881-1913. On polities 751 / 0e52f1ff the reference runtime
+  # reads four through s2 and substitutes terra for four; another platform may
+  # choose a different mix. All eight remain the engine-independent loss fixture.
+  # They are pieces of cells, not whole cells, and dropping any of them broke S-A2
+  # re-aggregation and re-emerged as fake unclaimed land in the S-A11 diagnostic.
   #
-  # FIXTURE RE-PINNED from GRC-1830-1913, which the 749-row `whep::polities`
+  # FIXTURE RE-PINNED from GRC-1830-1913, which the 751-row `whep::polities`
   # refresh marks `superseded`. DA-7's live filter then drops it, the build
   # returns zero rows with no error and no warning, and every assertion below
   # runs against an absent frame (plan AM-25). Its live successor
@@ -1602,9 +1601,9 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # finite area, the recovered area matches an engine-independent reference,
   # and the partition still sums to the polity -- and never which engine ran.
   # The spread behind the tolerances is measured on this polity rather than
-  # assumed: over its 55 s2-readable pieces `terra::expanse()` differs from
-  # `sf::st_area()` by +2.23e-04 to +9.88e-04 relative, area-weighted
-  # +6.88e-04. The global signed range (-0.447% at the equator to +0.888% at
+  # assumed: over its 59 s2-readable pieces `terra::expanse()` differs from
+  # `sf::st_area()` by +2.09e-04 to +9.88e-04 relative, area-weighted
+  # +6.85e-04. The global signed range (-0.447% at the equator to +0.888% at
   # latitude 84.75) does not apply here -- the WGS84-over-sphere area ratio
   # crosses 1 near latitude 35.3 and this polity spans 36.25 to 39.75.
   greece <- whep::get_polity_geometries("GRC-1881-1913")
@@ -1670,8 +1669,8 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # The recovered area is real land, not a degenerate sliver, and the reference
   # shares neither engine with the producer: clipping the same eight cells with
   # s2 switched off and measuring the pieces in a Lambert azimuthal equal-area
-  # projection gives 530,417.74 ha (re-measured here at 530,418.32), against
-  # the 530,378.73 ha the producer books through `terra::expanse()`.
+  # projection gives 530,417.74 ha (re-measured here at 530,418.32). The
+  # producer's mixed s2/terra result must stay within the derived envelope.
   #
   # TOLERANCE 2e-03, derived rather than rounded. Only two terms can move this
   # sum between platforms: the measured engine spread on this polity's own
@@ -1779,7 +1778,7 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
   #
   # FIXTURE RE-PINNED from GRC-1830-1913 to its live successor GRC-1881-1913
   # for the reason given in "an unreadable clip piece is measured, never
-  # dropped": the 749-row table marks the former `superseded`, DA-7's live
+  # dropped": the 751-row table marks the former `superseded`, DA-7's live
   # filter drops it, and the build then returns zero rows. Two assertions in
   # this block passed VACUOUSLY while that was true, comparing one empty frame
   # with another (plan AM-25). The census pins below exist so that can never
@@ -2084,182 +2083,35 @@ testthat::test_that("interval diagnostics carry the interval they describe", {
   })
 })
 
-testthat::test_that("a border stored as one long segment is enumerated", {
+testthat::test_that("the shipped snapshot has no unresolved long parallel", {
   testthat::skip_if_not_installed("sf")
 
-  # DA-22 (issue #529). CShapes 2.0 carries 124 vertices along the 49th parallel
-  # (widest gap 1.95 degrees), but whep-polities'
-  # `SimplifyPreserveTopology(0.01)` removes the collinear run. The shipped WHEP
-  # CAN rings therefore carry one 27.6036-degree segment. s2 draws that as a
-  # great circle rising 0.8294 degrees north, which books roughly 123,276 km2
-  # of Canadian prairie to the USA. Both polities are clipped against the same
-  # curve, so their shares still sum to 1.0000 in every cell and no conservation
-  # check can see it. The producer changes no area -- the received segment is
-  # made visible instead.
-  # Egypt and Sudan carry the same defect on the 22nd parallel. Naming a few
-  # codes here was itself a wrong belief: `EGY-1922-2025` does not exist, and
-  # every EGY interval after 1899 carries two 22nd-parallel edges. The
-  # enumeration is therefore asserted over the WHOLE shipped table, so a polity
-  # nobody thought of cannot be quietly absent.
-  #
-  # CENSUS RE-PINNED on the 749-row `whep::polities` (42 -> 43 edges, 30
-  # polities either way). The physical defect did not move: the 49th parallel
-  # is the same single segment at the same span and the same bulge, and it is
-  # asserted below as one identical triple shared by every interval that holds
-  # it. What moved are the Canadian LABELS. `CAN-1866-1886`, `CAN-1886-1948`
-  # and `CAN-1948-2025` are now `retired` and DA-7's live filter drops them in
-  # favour of `CAN-1870-1886`, `CAN-1886-1949` and `CAN-1949-2025` on the same
-  # `cshapes-2.0` feature 20. `CAN-1800-1866` leaves the census outright, and
-  # that one is a data improvement rather than a relabelling: its polygon is
-  # now a `gadm-composed-union` of ON+QC+NB+NS+PE, four eastern provinces that
-  # correctly never reach the 49th parallel (plan AM-25).
+  # DA-22 (issue #529). CShapes 2.0 carries intermediate vertices along the
+  # 49th parallel, but an earlier whep-polities simplification removed that
+  # collinear run and manufactured long great-circle segments. Polities 749 /
+  # 9320e033 exposed 43 such edges across 30 polities. WHEP PR #662 repaired the
+  # source geometries, and the refreshed polities 751 / 0e52f1ff census is
+  # exactly zero. The following synthetic block separately proves that the
+  # detector still finds a long parallel and rejects short or sloping edges.
   edges <- whep:::.pcs_long_edges(
     whep:::.pcs_prepare_polities(whep::get_polity_geometries())
   )
 
   testthat::expect_s3_class(edges, "data.frame")
-  testthat::expect_equal(nrow(edges), 43L)
-  testthat::expect_equal(dplyr::n_distinct(edges$polity_code), 30L)
-  testthat::expect_true(all(
+  testthat::expect_named(
+    edges,
     c(
-      "USA-1867-1959",
-      "USA-1959-2025",
-      "CAN-1870-1886",
-      "CAN-1886-1949",
-      "CAN-1949-2025",
-      "SUD-1899-1934",
-      "SDN-2011-2025",
-      "EGY-1899-1925",
-      "EGY-1925-1967",
-      "EGY-1967-1979",
-      "EGY-1979-2025"
-    ) %in%
-      edges$polity_code
-  ))
-  # The relabelling is a fact about the shipped table, not an inference from
-  # the census: the three codes this block used to name are still there and
-  # still hold the border, but they are dead and the producer must not read
-  # them.
-  retired <- whep::get_polity_geometries(
-    c("CAN-1866-1886", "CAN-1886-1948", "CAN-1948-2025")
-  )
-  testthat::expect_equal(nrow(retired), 3L)
-  testthat::expect_equal(unique(retired$wiki_status), "retired")
-  testthat::expect_false(any(retired$polity_code %in% edges$polity_code))
-  # The Egypt interval that never existed, and the four that do.
-  testthat::expect_false("EGY-1922-2025" %in% edges$polity_code)
-  testthat::expect_equal(
-    sum(stringr::str_starts(edges$polity_code, "EGY-")),
-    8L
-  )
-
-  # The 49th parallel, from both sides and across every epoch that carries it:
-  # three Canadian intervals and two American ones, all the same segment.
-  forty_ninth <- edges |>
-    dplyr::filter(.data$span_deg > 20) |>
-    dplyr::arrange(.data$polity_code)
-  testthat::expect_equal(nrow(forty_ninth), 5L)
-  testthat::expect_setequal(
-    forty_ninth$polity_code,
-    c(
-      "CAN-1870-1886",
-      "CAN-1886-1949",
-      "CAN-1949-2025",
-      "USA-1867-1959",
-      "USA-1959-2025"
+      "polity_code",
+      "start_year",
+      "end_year",
+      "lon_from",
+      "lon_to",
+      "lat",
+      "span_deg",
+      "bulge_deg"
     )
   )
-  testthat::expect_true(all(abs(forty_ninth$lat - 49) < 0.02))
-  testthat::expect_equal(
-    dplyr::filter(forty_ninth, .data$polity_code == "USA-1959-2025")$span_deg,
-    27.60362128,
-    tolerance = 1e-8
-  )
-  testthat::expect_equal(
-    dplyr::filter(forty_ninth, .data$polity_code == "USA-1959-2025")$bulge_deg,
-    0.8293695404,
-    tolerance = 1e-8
-  )
-  testthat::expect_equal(
-    dplyr::filter(forty_ninth, .data$polity_code == "CAN-1949-2025")$bulge_deg,
-    0.8293601982,
-    tolerance = 1e-8
-  )
-  # The segment, not the label, is what DA-22 is about: all three live Canadian
-  # intervals are clipped against ONE curve, so their whole geometry triple is
-  # identical to the last bit. A relabelling upstream moves the codes above; it
-  # cannot move this.
-  canada <- dplyr::filter(
-    forty_ninth,
-    stringr::str_starts(.data$polity_code, "CAN-")
-  )
-  testthat::expect_equal(nrow(canada), 3L)
-  testthat::expect_equal(
-    nrow(dplyr::distinct(
-      canada,
-      .data$lon_from,
-      .data$lon_to,
-      .data$lat,
-      .data$span_deg,
-      .data$bulge_deg
-    )),
-    1L
-  )
-
-  # The 22nd parallel, both segments, pinned the same way.
-  twenty_second <- edges |>
-    dplyr::filter(.data$polity_code == "SDN-2011-2025") |>
-    dplyr::arrange(dplyr::desc(.data$span_deg))
-  testthat::expect_equal(nrow(twenty_second), 2L)
-  testthat::expect_equal(
-    twenty_second$span_deg,
-    c(6.2728820, 5.4304409),
-    tolerance = 1e-6
-  )
-  testthat::expect_equal(
-    twenty_second$bulge_deg,
-    c(0.029847583, 0.022361890),
-    tolerance = 1e-6
-  )
-  testthat::expect_true(all(abs(twenty_second$lat - 22) < 0.01))
-
-  # Egypt's worst 22nd-parallel edge is four times Sudan's and the largest
-  # outside the 49th parallel: 12.2 degrees of longitude bulging 0.1133
-  # degrees, about 12.6 km. Its twin on the Sudanese side of the same era,
-  # SUD-1899-1934, is the same segment traversed the other way.
-  egypt <- edges |>
-    dplyr::filter(.data$polity_code == "EGY-1899-1925") |>
-    dplyr::arrange(dplyr::desc(.data$bulge_deg))
-  testthat::expect_equal(nrow(egypt), 2L)
-  testthat::expect_equal(egypt$span_deg[[1L]], 12.2035593, tolerance = 1e-7)
-  testthat::expect_equal(egypt$lat[[1L]], 21.998745, tolerance = 1e-6)
-  testthat::expect_equal(egypt$bulge_deg[[1L]], 0.113289925, tolerance = 1e-6)
-  testthat::expect_gt(egypt$bulge_deg[[1L]], 3 * max(twenty_second$bulge_deg))
-
-  # And the ranking as a whole: above Egypt sit only the five 49th-parallel
-  # intervals and the two Sudanese intervals holding the SAME 22nd-parallel
-  # segment traversed the other way, at 0.1133110 against Egypt's 0.1132899.
-  bigger <- edges |>
-    dplyr::filter(.data$bulge_deg > egypt$bulge_deg[[1L]]) |>
-    dplyr::pull(.data$polity_code)
-  testthat::expect_setequal(
-    bigger,
-    c(
-      "USA-1867-1959",
-      "USA-1959-2025",
-      "CAN-1870-1886",
-      "CAN-1886-1949",
-      "CAN-1949-2025",
-      "SUD-1899-1934",
-      "SUD-1934-1956"
-    )
-  )
-  testthat::expect_equal(
-    max(dplyr::filter(edges, .data$polity_code == "SUD-1899-1934")$bulge_deg),
-    0.1133110267,
-    tolerance = 1e-8
-  )
-  testthat::expect_equal(max(edges$bulge_deg), 0.8319039990, tolerance = 1e-8)
+  testthat::expect_equal(nrow(edges), 0L)
 
   # The bulge is the great-circle maximum, not a linear interpolation: a
   # segment half as long bulges roughly a quarter as far.

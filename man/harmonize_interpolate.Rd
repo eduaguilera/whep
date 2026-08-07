@@ -48,6 +48,13 @@ example, to disaggregate "wheatrice":
 
 Do not provide a single row; the function will not create
 duplicates automatically.
+
+A 1:n contribution can turn out to be unvaluable, because its
+\code{value} is missing or because its share could neither be computed
+nor interpolated (e.g. every year of the group has a zero total).
+Such contributions are dropped with a warning rather than summed,
+so that one missing value cannot turn the observed \code{"simple"}
+values of the same \verb{(item_code, year)} cell into \code{NA}.
 }
 \examples{
 # Simple-only data (no 1:n rows)

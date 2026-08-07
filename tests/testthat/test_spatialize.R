@@ -1059,3 +1059,187 @@ testthat::test_that("time-varying country grids select the valid polity year", {
   testthat::expect_equal(actual$area_code, c(1L, 2L))
   testthat::expect_equal(actual$rainfed_ha, c(100, 200), tolerance = 1e-6)
 })
+
+# area_key ----------------------------------------------------------------
+
+# 276 Sudan and 277 South Sudan are both reporting areas of bucket 206, so a
+# grid keyed on them cannot join a polity-keyed national table; 68 is its own
+# bucket and stands in for the rest of the world, which must stay untouched.
+off_bucket_fixture <- function() {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,       276L,             15L,               1000,
+      2000L,       277L,             15L,                500,
+      2000L,        68L,             15L,                300
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      0.75, 50.25,             15L,               1.0,
+      1.25, 50.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat, ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,        10000,
+      0.75, 50.25, 2000L,        10000,
+      1.25, 50.25, 2000L,        10000
+    ),
+    # The middle cell is shared by two areas of one bucket: that is the fold
+    # the re-key has to collapse without picking a winner.
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,       276L,             1.0,
+      0.75, 50.25,       276L,             0.6,
+      0.75, 50.25,       277L,             0.4,
+      1.25, 50.25,        68L,             1.0
+    )
+  )
+}
+
+testthat::test_that("build_gridded_landuse warns on off-bucket area codes", {
+  fix <- off_bucket_fixture()
+
+  testthat::expect_warning(
+    result <- whep::build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid
+    ),
+    "cannot join"
+  )
+  # The default reproduces the engine's own codes, disagreement and all.
+  testthat::expect_setequal(result$area_code, c(276L, 277L, 68L))
+  testthat::expect_equal(
+    sum(result$area_code != result$polity_area_code),
+    3L
+  )
+  testthat::expect_false(rlang::has_name(result, "grid_area_code"))
+})
+
+testthat::test_that("build_gridded_landuse keeps on-bucket grids silent", {
+  fix <- off_bucket_fixture()
+  on_bucket <- dplyr::filter(fix$country_grid, area_code == 68L)
+  on_bucket_patterns <- dplyr::filter(fix$crop_patterns, lon == 1.25)
+  on_bucket_cropland <- dplyr::filter(fix$gridded_cropland, lon == 1.25)
+
+  testthat::expect_no_warning(
+    whep::build_gridded_landuse(
+      dplyr::filter(fix$country_areas, area_code == 68L),
+      on_bucket_patterns,
+      on_bucket_cropland,
+      on_bucket
+    )
+  )
+})
+
+testthat::test_that("area_key = polity_area leaves no disagreeing key", {
+  fix <- off_bucket_fixture()
+
+  result <- whep::build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(area_key = "polity_area")
+  )
+
+  # The invariant #582 asks for: no row carries two territorial keys that
+  # disagree, and every key is one a polity-keyed national table publishes.
+  testthat::expect_equal(
+    sum(result$area_code != result$polity_area_code),
+    0L
+  )
+  testthat::expect_equal(whep:::.cell_polity_off_bucket(result), integer(0))
+  pointblank::expect_col_vals_in_set(
+    result,
+    columns = "area_code",
+    set = c(68L, 206L)
+  )
+  # One area_code carries one polity label.
+  labels <- dplyr::distinct(
+    result,
+    area_code,
+    reporting_polity_code,
+    reporting_polity_name
+  )
+  testthat::expect_equal(nrow(labels), dplyr::n_distinct(result$area_code))
+})
+
+testthat::test_that("area_key = polity_area carries the raw code and mass", {
+  fix <- off_bucket_fixture()
+
+  keyed <- whep::build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(area_key = "polity_area")
+  )
+  raw <- suppressWarnings(whep::build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid
+  ))
+
+  testthat::expect_equal(
+    sum(keyed$rainfed_ha + keyed$irrigated_ha),
+    sum(raw$rainfed_ha + raw$irrigated_ha),
+    tolerance = 1e-9
+  )
+  # The shared cell folds two reporting areas into one bucket row, and both
+  # raw codes survive the fold rather than one being picked.
+  shared <- dplyr::filter(keyed, lon == 0.75)
+  testthat::expect_equal(nrow(shared), 1L)
+  testthat::expect_equal(shared$grid_area_code, "276+277")
+  testthat::expect_equal(
+    shared$rainfed_ha + shared$irrigated_ha,
+    sum(
+      dplyr::filter(raw, lon == 0.75) |>
+        dplyr::pull(rainfed_ha),
+      dplyr::filter(raw, lon == 0.75) |>
+        dplyr::pull(irrigated_ha)
+    ),
+    tolerance = 1e-9
+  )
+  # An area that is already its own bucket keeps its code unchanged.
+  testthat::expect_equal(
+    dplyr::filter(keyed, area_code == 68L)$grid_area_code,
+    "68"
+  )
+})
+
+testthat::test_that("build_gridded_landuse rejects an unknown area_key", {
+  fix <- off_bucket_fixture()
+
+  testthat::expect_error(
+    whep::build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid,
+      config = list(area_key = "polity")
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the re-key keeps a code the crosswalk does not carry", {
+  # A gap must stay visible as its own code rather than becoming an NA key.
+  unknown <- tibble::tibble(
+    year = 2000L,
+    area_code = 99999L,
+    lon = 0.25,
+    lat = 50.25,
+    rainfed_ha = 5,
+    irrigated_ha = 1
+  )
+
+  out <- whep:::.spatialize_to_bucket(unknown, c("rainfed_ha", "irrigated_ha"))
+
+  testthat::expect_equal(out$area_code, 99999L)
+  testthat::expect_equal(out$grid_area_code, "99999")
+  testthat::expect_equal(out$rainfed_ha, 5)
+})

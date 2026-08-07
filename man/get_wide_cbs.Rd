@@ -4,9 +4,16 @@
 \alias{get_wide_cbs}
 \title{Commodity balance sheet data.}
 \usage{
-get_wide_cbs(example = FALSE)
+get_wide_cbs(years = NULL, example = FALSE)
 }
 \arguments{
+\item{years}{Optional integer vector of years to build. When \code{NULL}
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key. The window is widened internally to 2011 when
+it reaches 2013, because that overlap is what splices the old FBS series
+onto \code{FAOSTAT_FBS_New}.}
+
 \item{example}{If \code{TRUE}, return a small example output without
 downloading remote data. Default is \code{FALSE}.}
 }

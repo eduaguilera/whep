@@ -37,7 +37,8 @@
 #' blue-water volume), which satisfy `water_input_mm = prec_mm + irrig_mm`;
 #' `blue_consump_mm` and `green_consump_mm`, the LPJmL-native consumptive blue
 #' and green water (the per-CFT `cft_consump_water_b` / `cft_consump_water_g`
-#' totals when supplied, otherwise the blue and green AET); and `cft_nir_mm`,
+#' cubes when supplied, summed over the bands `bands` selects, otherwise the
+#' blue and green AET); and `cft_nir_mm`,
 #' the net irrigation requirement (LPJmL `cft_nir`), the net blue-water demand,
 #' summed to cell level when `data$cft_nir` is supplied and `NA` otherwise.
 #' Potential evapotranspiration (`pet_mm`) comes from the CRU climate forcing
@@ -53,6 +54,16 @@
 #'   left out take their default.
 #' @param resolution `"grid"` (per cell, default) or `"polity"` (aggregated to
 #'   `year` and `area_code`).
+#' @param bands Optional character vector of LPJmL crop-functional-type band
+#'   names restricting which bands the per-CFT consumptive-water and net
+#'   irrigation terms are summed over, e.g. `"rainfed grassland"` to charge a
+#'   grazing footprint the grassland water alone. `NULL` (default) sums every
+#'   band, the whole-cell total. Bands are matched on the `band_name` the file
+#'   itself carries, so an unknown name aborts rather than silently returning
+#'   the whole-cell total; the band index is never used, because which crop a
+#'   given index denotes is a property of how the run was configured. Only the
+#'   consumptive-water and `cft_nir` terms are per-CFT, so this leaves the
+#'   water budget itself (AET, runoff, drainage) untouched.
 #' @param data Optional named list of pre-loaded inputs to avoid NetCDF reads:
 #'   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`, `runoff`
 #'   and `seepage` (each `lon`, `lat`, `year`, `value`; annual-summed
@@ -65,6 +76,9 @@
 #'   and a `cell_polity` crosswalk (`lon`, `lat`, `area_code`, `polity_frac`,
 #'   `cell_area_ha`). Each falls back to [read_lpjml_hydrology()] when absent,
 #'   except `cft_nir` (see Details), `pet` and the consumptive-water inputs.
+#'   Read the latter with
+#'   `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
+#'   names their CFT bands so `bands` can select among them.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`,
@@ -81,6 +95,7 @@ build_water_balance <- function(
   method = list(),
   resolution = c("grid", "polity"),
   data = list(),
+  bands = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -88,7 +103,7 @@ build_water_balance <- function(
   if (isTRUE(example)) {
     return(.wb_example(method, resolution))
   }
-  .wb_read_inputs(data, method) |>
+  .wb_read_inputs(data, method, bands) |>
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
@@ -220,7 +235,7 @@ get_soc_climate_drivers <- function(
 # it and join on the cell-year key into one wide tibble. The seepage term uses
 # the reader's logical "drainage" var (mseepage.nc) but the data override key is
 # `seepage`. The soil-water-change term is appended from the layered swc.
-.wb_read_inputs <- function(data, method) {
+.wb_read_inputs <- function(data, method, bands = NULL) {
   # name -> reader logical var; data overrides use the name (e.g. data$seepage).
   flux_vars <- c(
     transp = "transp",
@@ -246,7 +261,7 @@ get_soc_climate_drivers <- function(
     dplyr::inner_join,
     by = c("lon", "lat", "year")
   )
-  .wb_attach_cft_consump(wide, data)
+  .wb_attach_cft_consump(wide, data, bands)
 }
 
 # Attach cell-level blue/green consumptive water and net irrigation requirement
@@ -254,26 +269,59 @@ get_soc_climate_drivers <- function(
 # `cft_nir` inputs, summing the crop-band values per cell-year. Columns are NA
 # when the corresponding per-CFT input is not supplied; the all-NA blue/green
 # consumptive columns make the cft_native split fall back (see .wb_blue_green()).
-.wb_attach_cft_consump <- function(wide, data) {
+# `bands` restricts which CFT bands are summed (see .wb_filter_bands()).
+.wb_attach_cft_consump <- function(wide, data, bands = NULL) {
   band_inputs <- list(
     consump_blue_mm = data$cft_consump_water_b,
     consump_green_mm = data$cft_consump_water_g,
     cft_nir_mm = data$cft_nir
   )
   purrr::reduce2(
-    band_inputs,
+    purrr::map(band_inputs, .wb_filter_bands, bands = bands),
     names(band_inputs),
     .wb_join_cell_band,
     .init = wide
   )
 }
 
+# Keep only the named CFT bands of a per-CFT input before it is summed to the
+# cell. `bands = NULL` keeps every band, the whole-cell total.
+#
+# Selection is by `band_name` ("rainfed grassland"), never by band index: the
+# index is a property of how a run was configured, so a positional filter would
+# keep charging band 14 even in a run whose band 14 is a different crop. An
+# input without `band_name` therefore cannot be filtered, and asking to filter
+# one is an error rather than a silent whole-cell total.
+.wb_filter_bands <- function(raw, bands) {
+  if (is.null(raw) || is.null(bands)) {
+    return(raw)
+  }
+  if (!rlang::has_name(raw, "band_name")) {
+    cli::cli_abort(c(
+      "Cannot select CFT bands from an input without {.field band_name}.",
+      i = "{.arg bands} was {.val {bands}}.",
+      i = "Read the input with {.fun read_lpjml_hydrology}, which names the \\
+           bands from the file, or drop {.arg bands} to total every band."
+    ))
+  }
+  missing <- setdiff(bands, unique(raw$band_name))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "CFT band{?s} {.val {missing}} {?is/are} not in this input.",
+      i = "Available: {.val {sort(unique(raw$band_name))}}."
+    ))
+  }
+  dplyr::filter(raw, .data$band_name %in% bands)
+}
+
 # Join one per-CFT band input summed to cell-year as `out_col`, or add an all-NA
 # column when the input is absent.
-# TODO(cft_nir): optionally wire read_lpjml_hydrology("cft_nir") here once
-# build_water_balance() has a run-directory/year contract. Until then
-# cft_nir_mm is NA unless `data$cft_nir` is supplied as a cell-year (or
-# per-band) `lon`,`lat`,`year`,`value` tibble.
+# cft_nir stays opt-in: read_lpjml_hydrology("cft_nir") now resolves (its map
+# entry was corrected in 2026-08, having named a file no run ever wrote), but
+# the cube is ~3 GB and nothing consumes cft_nir_mm yet, so reading it by
+# default would cost every caller for an unused column. cft_nir_mm is NA unless
+# `data$cft_nir` is supplied as a cell-year (or per-band) `lon`,`lat`,`year`,
+# `value` tibble.
 .wb_join_cell_band <- function(wide, raw, out_col) {
   summed <- .wb_cell_consump(raw, out_col)
   if (is.null(summed)) {

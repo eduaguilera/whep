@@ -292,6 +292,11 @@ testthat::test_that("polity self-trade is removed after aggregation", {
 })
 
 testthat::test_that("intra-aggregate distinct-origin trade survives collapse", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # American Samoa (5) and Andorra (6) both collapse to the Rest of World
   # aggregate polity (999). A real flow 5 -> 6 becomes 999 -> 999, which the
   # naive polity-level self-trade filter would delete. It must survive: these

@@ -1077,3 +1077,90 @@ testthat::test_that("coello_synthetic_n has the expected schema + range", {
   testthat::expect_true(all(x$kg_n_ha <= 1000))
   testthat::expect_gt(nrow(x), 0L)
 })
+
+# -- Documented @format columns match the built data ---------------------------
+
+# Nothing checked a dataset's @format against the dataset itself, which is how
+# #173 happened: five documented datasets named columns that do not exist
+# (`nex_kg_per_1000kg_day`, `annual_temp_c`, `mms_type`, ...), and only one had
+# been spotted. Report the column names the \format section of one Rd topic
+# claims but its dataset does not have.
+format_column_mismatches <- function(rd_path, ignore) {
+  lines <- readLines(rd_path, warn = FALSE)
+  topic <- stringr::str_match(lines, "^\\\\name\\{(.+)\\}$")[, 2]
+  topic <- topic[!is.na(topic)][1]
+  obj <- tryCatch(
+    getExportedValue("whep", topic),
+    error = function(e) NULL
+  )
+  claimed <- rd_format_claims(lines)
+  if (!is.data.frame(obj) || length(claimed) == 0L) {
+    return(character(0))
+  }
+  missing <- setdiff(claimed, c(names(obj), ignore))
+  if (length(missing) == 0L) {
+    return(character(0))
+  }
+  paste0(
+    topic,
+    " @format names ",
+    paste(missing, collapse = ", "),
+    "; columns are ",
+    paste(names(obj), collapse = ", ")
+  )
+}
+
+# Column names claimed by the prose part of a \format section, i.e. the
+# "A tibble with \code{a}, \code{b}." form. Per-column \itemize / \describe
+# lists are left out: their bullets mix column names with the column's own
+# values and cross-references, so reading them as column names would flag
+# prose. Only snake_case tokens can be column names here.
+rd_format_claims <- function(lines) {
+  block <- rd_section_lines(lines, "format")
+  listed <- stringr::str_which(block, "\\\\(itemize|describe|tabular)\\{")
+  if (length(listed) > 0L) {
+    block <- block[seq_len(listed[1] - 1L)]
+  }
+  tokens <- stringr::str_match_all(block, "\\\\code\\{([^{}]+)\\}")
+  tokens <- unique(unlist(lapply(tokens, function(m) m[, 2])))
+  tokens[stringr::str_detect(tokens, "^[a-z][a-z0-9_]*$")]
+}
+
+# Lines of one Rd section, delimited by brace depth so nested environments
+# stay whole.
+rd_section_lines <- function(lines, tag) {
+  start <- which(stringr::str_detect(lines, paste0("^\\\\", tag, "\\{")))[1]
+  if (is.na(start)) {
+    return(character(0))
+  }
+  depth <- cumsum(
+    stringr::str_count(lines, stringr::fixed("{")) -
+      stringr::str_count(lines, stringr::fixed("}"))
+  )
+  end <- which(depth == 0L)
+  end <- end[end >= start][1]
+  if (is.na(end)) {
+    return(character(0))
+  }
+  lines[start:end]
+}
+
+testthat::test_that("documented @format columns exist in the dataset", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  # A token naming another documented object is a cross-reference, not a
+  # column, and \code{tibble} is prose.
+  ignore <- c(
+    getNamespaceExports("whep"),
+    utils::data(package = "whep")$results[, "Item"],
+    "tibble"
+  )
+  mismatches <- list.files(man_dir, pattern = "\\.Rd$", full.names = TRUE) |>
+    lapply(format_column_mismatches, ignore = ignore) |>
+    unlist() |>
+    as.character()
+  testthat::expect_equal(mismatches, character(0))
+})

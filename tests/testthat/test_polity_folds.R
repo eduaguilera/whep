@@ -168,6 +168,11 @@ test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
 # loud instead of reporting a clean match. See #419.
 
 testthat::test_that("folded_reporting_areas() names every fold and its kind", {
+  # Scoped to the explicit fold, because it is no longer the default: WHEP
+  # now models the reporting members in their own right (#459). What this
+  # pins is the fold ITSELF -- its membership and its kinds -- which still
+  # has to work, because reproducing a published-before number depends on it.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   folded <- whep::folded_reporting_areas()
 
   testthat::expect_s3_class(folded, "tbl_df")
@@ -207,6 +212,11 @@ testthat::test_that("folded_reporting_areas() names every fold and its kind", {
 })
 
 testthat::test_that("the four CBS reporters folded into 999 are named (#556)", {
+  # Scoped to the explicit fold, because it is no longer the default: WHEP
+  # now models the reporting members in their own right (#459). What this
+  # pins is the fold ITSELF -- its membership and its kinds -- which still
+  # has to work, because reproducing a published-before number depends on it.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # `"fabio_rest_of_world"` claimed something about FABIO that is false for four
   # of the 61 members. FABIO's published region list -- `io_codes.csv` of the
   # v1.1 release (Zenodo record 2577067), 192 areas x 125 commodities -- gives
@@ -241,6 +251,11 @@ testthat::test_that("folded_reporting_areas() needs the cbs flag", {
 })
 
 testthat::test_that("the areas that report real data of their own are folded", {
+  # Scoped to the explicit fold, because it is no longer the default: WHEP
+  # now models the reporting members in their own right (#459). What this
+  # pins is the fold ITSELF -- its membership and its kinds -- which still
+  # has to work, because reproducing a published-before number depends on it.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # Measured against the raw FAOSTAT pins at the base commit: these are the
   # reporting areas FABIO folds into Rest of World that carry observed rows,
   # with their `faostat-production` row counts. The fold is left standing on
@@ -278,6 +293,11 @@ testthat::test_that("the areas that report real data of their own are folded", {
 })
 
 testthat::test_that("regions_full and the crosswalk state the fold alike", {
+  # Scoped to the explicit fold, because it is no longer the default: WHEP
+  # now models the reporting members in their own right (#459). What this
+  # pins is the fold ITSELF -- its membership and its kinds -- which still
+  # has to work, because reproducing a published-before number depends on it.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # The promotion this pins against survived one round of withdrawal by being
   # written down twice and only one table being rebuilt. `regions_full` feeds
   # `.iso3c_area_code_lookup()` and the crosswalk feeds every polity join, so
@@ -312,6 +332,11 @@ testthat::test_that("regions_full and the crosswalk state the fold alike", {
 })
 
 testthat::test_that(".aggregate_to_polities() sums a fold and reports it", {
+  # Scoped to the explicit fold: Syria is a standalone area by default now
+  # (#459), so there is no fold here to sum unless one is asked for. The
+  # summing behaviour itself still has to be right, because bucket 206 folds
+  # regardless of this option and the same code path serves both.
+  withr::local_options(whep.unfold_rest_of_world = "none")
   # The whole defect in one fixture: Syria's row keeps its value but comes back
   # under area 999, added to Rest of World's own row. Nothing is dropped, so the
   # only way a build can know is the warning.
@@ -376,26 +401,54 @@ testthat::test_that("nothing is reported when nothing is folded", {
   )
 })
 
-testthat::test_that("the fold stands unless it is switched off explicitly", {
-  # The default must be byte-identical to the committed crosswalk, because that
-  # is what every published number assumes.
+testthat::test_that("the un-fold is the default and the fold is now opt-in", {
+  # THIS TEST ASSERTED THE OPPOSITE until the fold stopped being WHEP's country
+  # set. FABIO's 192-country layout is a methodology this package compares
+  # against, not a constraint on which territories it models: WHEP decides that
+  # for itself, and 21 of the folded areas file their own FAOSTAT returns.
+  #
+  # So the committed crosswalk is no longer the published shape -- it is the raw
+  # input, and `.polity_crosswalk()` promotes on read. Syria is the clearest
+  # case: it reports its own production and was being published as
+  # "Rest of World".
+  cw <- as.data.frame(whep:::.polity_crosswalk())
+  testthat::expect_equal(whep:::.iso3c_to_area_code("SYR"), 212L)
+  testthat::expect_equal(whep:::.unfold_rest_of_world_mode(), "all")
+
+  # Only bucket 999 itself still carries 999: every member has been promoted.
+  still_folded <- unique(cw$area_code[which(cw$polity_area_code == 999L)])
+  testthat::expect_equal(still_folded, 999L)
+
+  # The bucket survives, and that matters -- it is a genuine residual for the
+  # territories that report nothing, not an empty shell. Of the 61 members only
+  # about a third ever report, so promotion is self-limiting: an area with no
+  # rows contributes none either way.
+  testthat::expect_true(999L %in% cw$area_code)
+
+  # And the fold is still reachable, because reproducing a published-before
+  # number has to stay possible.
+  refolded <- as.data.frame(
+    withr::with_options(
+      list(whep.unfold_rest_of_world = "none"),
+      suppressWarnings(whep:::.polity_crosswalk())
+    )
+  )
   testthat::expect_equal(
-    whep:::.polity_crosswalk()$polity_area_code,
+    refolded$polity_area_code,
     as.data.frame(whep::polity_area_crosswalk)$polity_area_code
   )
-  testthat::expect_equal(whep:::.iso3c_to_area_code("SYR"), 999L)
-  testthat::expect_false(whep:::.unfold_rest_of_world_option())
 })
 
-testthat::test_that("the unfold switch promotes the whole pipeline and warns", {
+testthat::test_that("promotion reaches the whole pipeline, silently by default", {
   testthat::skip_if_not_installed("withr")
-  withr::local_options(whep.unfold_rest_of_world = TRUE)
+  # This asserted a WARNING when promotion happened, because the fold was what
+  # WHEP published. Promotion is now the published shape (#459), so warning on it
+  # would fire on every read of every build. The warning moved to the opposite
+  # case -- re-folding -- and is asserted below.
+  withr::local_options(whep.unfold_rest_of_world = "all")
 
-  testthat::expect_true(whep:::.unfold_rest_of_world_option())
-  testthat::expect_warning(
-    whep:::.polity_crosswalk(),
-    "promoted out of the FABIO"
-  )
+  testthat::expect_equal(whep:::.unfold_rest_of_world_mode(), "all")
+  testthat::expect_no_warning(whep:::.polity_crosswalk())
   cw <- as.data.frame(suppressWarnings(whep:::.polity_crosswalk()))
   members <- suppressWarnings(whep::folded_reporting_areas(
     as.data.frame(whep::polity_area_crosswalk)
@@ -428,10 +481,13 @@ testthat::test_that("the unfold switch can lift only the CBS reporters", {
   testthat::skip_if_not_installed("withr")
   withr::local_options(whep.unfold_rest_of_world = "cbs_reporters")
 
-  testthat::expect_true(whep:::.unfold_rest_of_world_option())
+  # It warns because it is NARROWER than the default: 57 areas that WHEP now
+  # models in their own right get re-folded, so the run does not match the
+  # published series and has to say so.
+  testthat::expect_equal(whep:::.unfold_rest_of_world_mode(), "cbs_reporters")
   testthat::expect_warning(
     whep:::.polity_crosswalk(),
-    "promoted out of the FABIO"
+    "Rest-of-World fold is being applied"
   )
   cw <- as.data.frame(suppressWarnings(whep:::.polity_crosswalk()))
   reporters <- c(153L, 154L, 209L, 212L)

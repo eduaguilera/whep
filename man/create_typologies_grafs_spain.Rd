@@ -7,7 +7,8 @@
 create_typologies_grafs_spain(
   make_map = TRUE,
   shapefile_path = NULL,
-  map_year = 1980
+  map_year = 1980,
+  example = FALSE
 )
 }
 \arguments{
@@ -20,33 +21,34 @@ cached locally; set \code{options(whep.provinces_shapefile = )} to point at
 an existing copy instead.}
 
 \item{map_year}{The year for which the typology map is created.}
+
+\item{example}{If \code{TRUE}, return a small example output without reading the
+remote inputs or the Natural Earth layer. Default is \code{FALSE}.}
 }
 \value{
-A tibble with the classification of Spanish provinces into typologies.
-It contains the following columns:
+A tibble with the classification of Spanish provinces into typologies for
+\code{map_year}. It contains the following columns:
 \itemize{
-\item \code{year}: The year in which the classification is performed.
-\item \code{province_name}: The name of the Spanish province.
-\item \code{livestock_density}: Livestock units (LU) per hectare of agricultural area
-(UAA). Reflects the intensity of animal farming.
-\item \code{productivity_kgN_ha}: Crop N productivity, in kilograms of N harvested
-per hectare of cropland.
-\item \code{semi_nat_share}: Share of total feed coming from semi-natural
-agroecosystems. Expressed between 0 and 1.
-\item \code{feed_imported_share}: Share of feed that is imported. Expressed between
-0 and 1.
-\item \code{typology}: Assigned typology category for each province.
-This is based on thresholds in livestock density, crop
-productivity, and feed patterns. The typologies include:
-- \verb{Specialized cropping system}
-- \verb{Extensive cropping system}
-- \verb{Extensive mixed crop-livestock system}
-- \verb{Intensive mixed crop-livestock system}
-- \verb{Specialized livestock-farming system}
+\item \code{Province_name}: The name of the Spanish province.
+\item \code{Typologie}: Assigned typology category for each province. This is based
+on thresholds in livestock density (livestock units per
+hectare of agricultural area), crop N productivity (kg N
+harvested per hectare of cropland), and the semi-natural and
+imported shares of feed. The typologies are:
+\itemize{
+\item \verb{Specialized cropping system}
+\item \verb{Extensive cropping system}
+\item \verb{Extensive mixed crop-livestock system}
+\item \verb{Intensive mixed crop-livestock system}
+\item \verb{Specialized livestock-farming system}
+}
 }
 }
 \description{
 Typologies of provinces in Spain based on nitrogen (N) production
 data of crops and livestock, using various input datasets and generating
 classification maps and data frames.
+}
+\examples{
+create_typologies_grafs_spain(example = TRUE)
 }

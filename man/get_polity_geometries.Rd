@@ -7,7 +7,9 @@
 get_polity_geometries(polity_codes = NULL)
 }
 \arguments{
-\item{polity_codes}{Optional character vector of WHEP polity codes.}
+\item{polity_codes}{Optional character vector of WHEP polity codes.
+Subsetting by code needs the suggested package \code{sf} to be installed; the
+whole table is returned without it.}
 }
 \value{
 An sf data frame.
@@ -16,4 +18,15 @@ An sf data frame.
 Returns the periodized polity database, including geometry. Pass
 \code{polity_codes} to retrieve a subset that can be joined to outputs from
 \code{\link[=add_polity_code]{add_polity_code()}}.
+}
+\examples{
+# sf is only suggested, and its methods are what make the geometry column
+# printable, so guard the example on it.
+if (requireNamespace("sf", quietly = TRUE)) {
+  codes <- add_polity_code(
+    tibble::tibble(area_code = c(203L, 68L), year = c(2000L, 2000L))
+  )$polity_code
+  geometries <- get_polity_geometries(codes)
+  print(geometries[, c("polity_code", "polity_name", "polygon_source")])
+}
 }

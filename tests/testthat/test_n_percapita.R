@@ -98,11 +98,27 @@ testthat::test_that("the output contract carries the key, value and framing", {
   testthat::expect_true(all(out$framing == "synthetic_bnf"))
 })
 
-testthat::test_that("country-years without a population row drop out", {
+testthat::test_that("country-years without a population row drop out, loudly", {
   pop_partial <- dplyr::filter(.npc_population(), area_code == 10L)
-  out <- whep::build_n_percapita(.npc_n_inputs(), pop_partial)
+  # Still dropped -- no denominator is invented -- but no longer silently: an
+  # area absent from a per-capita output looks exactly like an area with no
+  # nitrogen (#543).
+  testthat::expect_warning(
+    out <- whep::build_n_percapita(.npc_n_inputs(), pop_partial),
+    "no population row"
+  )
   testthat::expect_equal(out$area_code, 10L)
   testthat::expect_false(20L %in% out$area_code)
+})
+
+testthat::test_that("the dropped area and its nitrogen share are named", {
+  pop_partial <- dplyr::filter(.npc_population(), area_code == 10L)
+  ratio <- (109 + 33) / (0.85 * 109)
+  dropped <- (10 * ratio + 4) / (5 * ratio + 3 + 10 * ratio + 4)
+  testthat::expect_warning(
+    whep::build_n_percapita(.npc_n_inputs(), pop_partial),
+    as.character(signif(100 * dropped, 3))
+  )
 })
 
 testthat::test_that("zero population aborts instead of producing infinity", {
