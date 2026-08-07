@@ -4,9 +4,22 @@
 \alias{get_primary_production}
 \title{Primary items production}
 \usage{
-get_primary_production(example = FALSE)
+get_primary_production(years = NULL, example = FALSE)
 }
 \arguments{
+\item{years}{Optional integer vector of years to build. When \code{NULL}
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key.
+
+A window is not guaranteed to reproduce the full-range result value for
+value, because some steps look across the years present. Measured for 2010
+against the full range, \code{area_code}-level totals agree exactly for \code{ha},
+\code{t_ha}, \code{LU} and \code{heads}; the largest disagreement is 3.0e-04, in the
+livestock ratios (\code{t_head}, \code{t_LU}) and \code{slaughtered_heads}, tracked in
+issue #625. Use \code{NULL} when exact agreement with the published series
+matters.}
+
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
 }
