@@ -1551,15 +1551,36 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
   # Real-data regression, on shipped package data so it needs no pins and no
   # network. `sf::st_intersection()` emits pieces the spherical engine will not
   # read back, and a planar repair does not always fix them. Discarding those
-  # pieces deleted 1,419,140.84 ha over 21 pieces and 5 polities, among them
-  # seven Peloponnese and Aegean pieces worth 466,032 ha -- 10.08% of
-  # GRC-1830-1913 -- while the polity still reported
-  # `coverage_status == "has_geometry"`. They are pieces of cells, not whole
-  # cells: their shares run 0.858 down to 1.7e-05. The loss broke S-A2
+  # pieces deleted real territory: on this polity eight Ionian, Peloponnese and
+  # Aegean pieces worth 530,378.73 ha -- 8.34% of GRC-1881-1913 -- while the
+  # polity still reported `coverage_status == "has_geometry"`. They are pieces
+  # of cells, not whole cells: their shares of their cells run 0.858, 0.388,
+  # 0.354, 0.188, 0.171, 0.124, 0.076 and 0.0245. The loss broke S-A2
   # re-aggregation at every pre-1950 year and re-emerged as fake unclaimed land
   # in the S-A11 diagnostic, so it is pinned here.
-  greece <- whep::get_polity_geometries("GRC-1830-1913")
-  vanished <- c(404252L, 405252L, 407256L, 407257L, 408256L, 408257L, 409255L)
+  #
+  # FIXTURE RE-PINNED from GRC-1830-1913, which the 749-row `whep::polities`
+  # refresh marks `superseded`. DA-7's live filter then drops it, the build
+  # returns zero rows with no error and no warning, and every assertion below
+  # runs against an absent frame (plan AM-25). Its live successor
+  # GRC-1881-1913 carries the same `cshapes-europe` feature 350 at a later
+  # vintage and reproduces the defect on all seven originally pinned cells,
+  # plus 401255 in the Ionian islands the 1886 polygon adds and the 1835 one
+  # does not. The liveness precondition is asserted rather than assumed, so a
+  # future supersession fails by name instead of cascading through nine
+  # downstream expectations.
+  greece <- whep::get_polity_geometries("GRC-1881-1913")
+  testthat::expect_equal(nrow(whep:::.pcs_prepare_polities(greece)), 1L)
+  vanished <- c(
+    401255L,
+    404252L,
+    405252L,
+    407256L,
+    407257L,
+    408256L,
+    408257L,
+    409255L
+  )
 
   testthat::expect_warning(
     result <- whep::build_polycell_support(geometries = greece),
@@ -1586,12 +1607,22 @@ testthat::test_that("an unreadable clip piece is measured, never dropped", {
     sum(recovered$polity_area_ha)
   )
 
-  # The recovered area is real land, not a degenerate sliver: an independent
-  # `terra::expanse()` of the polity's own polygon puts it near 466,032 ha.
-  testthat::expect_gt(sum(recovered$polity_area_ha), 4e5)
+  # The recovered area is real land, not a degenerate sliver, and the reference
+  # shares neither engine with the producer: clipping the same eight cells with
+  # s2 switched off and measuring the pieces in a Lambert azimuthal equal-area
+  # projection gives 530,417.74 ha, 7.4e-05 relative from the 530,378.73 ha the
+  # producer books through `terra::expanse()`.
+  testthat::expect_gt(sum(recovered$polity_area_ha), 5e5)
   testthat::expect_lt(
-    abs(sum(recovered$polity_area_ha) / 466032 - 1),
+    abs(sum(recovered$polity_area_ha) / 530418 - 1),
     0.01
+  )
+  # A 1% band cannot separate the two area engines, so the share of the polity
+  # carries the "material, not rounding" half of the claim on its own.
+  testthat::expect_equal(
+    sum(recovered$polity_area_ha) / sum(result$polity_area_ha),
+    0.083432,
+    tolerance = 1e-4
   )
 
   # And the polity re-aggregates: no piece is missing from the total.
@@ -1665,22 +1696,31 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
   # no s2 predicate may be run across the whole column: `sf::st_intersects()`
   # aborts on the first such piece with "Loop 0 is not valid". With the shipped
   # polities and the real ice layer that killed the production call at EVERY
-  # year, because `years` is applied after the clipping and GRC-1830-1913 is
-  # always in the table.
+  # year, because `years` is applied after the clipping and a Greek interval
+  # carrying invalid pieces is always in the table.
   #
   # The two earlier ice tests used synthetic geometry with no invalid pieces,
   # and the terra test passed no `ice` at all, so nothing exercised the pair.
   # This does: Greece from shipped package data, with ice over the Aegean.
   #
+  # FIXTURE RE-PINNED from GRC-1830-1913 to its live successor GRC-1881-1913
+  # for the reason given in "an unreadable clip piece is measured, never
+  # dropped": the 749-row table marks the former `superseded`, DA-7's live
+  # filter drops it, and the build then returns zero rows. Two assertions in
+  # this block passed VACUOUSLY while that was true, comparing one empty frame
+  # with another (plan AM-25). The census pins below exist so that can never
+  # read as green again.
+  #
   # The ice rectangle is chosen to give `.pcs_ice_areas_terra()` a VALUE to
   # meet, not a sign. It covers cells 407256 and 408256 -- which hold two of
-  # Greece's seven terra pieces and no s2 piece -- exactly and entirely, so
+  # Greece's eight terra pieces and no s2 piece -- exactly and entirely, so
   # their ice must equal their whole territory; every other polycell, including
-  # the five remaining terra pieces, must come back at exactly zero. Asserting
+  # the six remaining terra pieces, must come back at exactly zero. Asserting
   # only `sum(ice) > 0` admits a helper that returns the whole piece, one that
   # crops too small, and one that halves the ice.
   covered <- c(407256L, 408256L)
-  greece <- whep::get_polity_geometries("GRC-1830-1913")
+  greece <- whep::get_polity_geometries("GRC-1881-1913")
+  testthat::expect_equal(nrow(whep:::.pcs_prepare_polities(greece)), 1L)
   aegean <- sf::st_sf(
     geometry = sf::st_sfc(pcs_rect(23.5, 24.5, 38.0, 38.5), crs = 4326)
   )
@@ -1698,6 +1738,13 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
     bare <- whep::build_polycell_support(geometries = greece),
     "could not measure"
   )
+  # NON-VACUITY. `expect_setequal()` holds between two empty vectors and a sum
+  # over an empty frame equals a sum over another empty frame, so both of the
+  # next two expectations pass when the build returns nothing. Pin the census
+  # and a positive total first; then the comparisons have something to compare.
+  testthat::expect_equal(nrow(result), 63L)
+  testthat::expect_equal(nrow(bare), 63L)
+  testthat::expect_gt(sum(bare$polity_area_ha), 6e6)
   testthat::expect_setequal(result$cell_id, bare$cell_id)
   testthat::expect_equal(sum(result$polity_area_ha), sum(bare$polity_area_ha))
 
@@ -1724,11 +1771,15 @@ testthat::test_that("an ice layer over an unreadable piece does not abort", {
     under_ice$land_area_ha < 1e-3 * under_ice$polity_area_ha
   ))
 
-  # Every other polycell is untouched by the rectangle, including the five
+  # Every other polycell is untouched by the rectangle, including the six
   # terra pieces outside it: a helper that ignored the ice geometry and handed
-  # back the whole piece would light these up.
+  # back the whole piece would light these up. A zero sum over an empty frame
+  # would light nothing up, so both populations are counted before they are
+  # summed.
   outside <- dplyr::filter(result, !.data$cell_id %in% covered)
+  testthat::expect_equal(nrow(outside), 61L)
   testthat::expect_equal(sum(outside$ice_area_ha), 0)
+  testthat::expect_equal(sum(outside$area_engine == "terra"), 6L)
   testthat::expect_equal(
     sum(dplyr::filter(outside, .data$area_engine == "terra")$ice_area_ha),
     0
@@ -1931,20 +1982,32 @@ testthat::test_that("a border stored as one long segment is enumerated", {
   # every EGY interval after 1899 carries two 22nd-parallel edges. The
   # enumeration is therefore asserted over the WHOLE shipped table, so a polity
   # nobody thought of cannot be quietly absent.
+  #
+  # CENSUS RE-PINNED on the 749-row `whep::polities` (42 -> 43 edges, 30
+  # polities either way). The physical defect did not move: the 49th parallel
+  # is the same single segment at the same span and the same bulge, and it is
+  # asserted below as one identical triple shared by every interval that holds
+  # it. What moved are the Canadian LABELS. `CAN-1866-1886`, `CAN-1886-1948`
+  # and `CAN-1948-2025` are now `retired` and DA-7's live filter drops them in
+  # favour of `CAN-1870-1886`, `CAN-1886-1949` and `CAN-1949-2025` on the same
+  # `cshapes-2.0` feature 20. `CAN-1800-1866` leaves the census outright, and
+  # that one is a data improvement rather than a relabelling: its polygon is
+  # now a `gadm-composed-union` of ON+QC+NB+NS+PE, four eastern provinces that
+  # correctly never reach the 49th parallel (plan AM-25).
   edges <- whep:::.pcs_long_edges(
     whep:::.pcs_prepare_polities(whep::get_polity_geometries())
   )
 
   testthat::expect_s3_class(edges, "data.frame")
-  testthat::expect_equal(nrow(edges), 42L)
+  testthat::expect_equal(nrow(edges), 43L)
   testthat::expect_equal(dplyr::n_distinct(edges$polity_code), 30L)
   testthat::expect_true(all(
     c(
       "USA-1867-1959",
       "USA-1959-2025",
-      "CAN-1800-1866",
-      "CAN-1866-1948",
-      "CAN-1948-2025",
+      "CAN-1870-1886",
+      "CAN-1886-1949",
+      "CAN-1949-2025",
       "SUD-1899-1934",
       "SDN-2011-2025",
       "EGY-1899-1925",
@@ -1954,6 +2017,16 @@ testthat::test_that("a border stored as one long segment is enumerated", {
     ) %in%
       edges$polity_code
   ))
+  # The relabelling is a fact about the shipped table, not an inference from
+  # the census: the three codes this block used to name are still there and
+  # still hold the border, but they are dead and the producer must not read
+  # them.
+  retired <- whep::get_polity_geometries(
+    c("CAN-1866-1886", "CAN-1886-1948", "CAN-1948-2025")
+  )
+  testthat::expect_equal(nrow(retired), 3L)
+  testthat::expect_equal(unique(retired$wiki_status), "retired")
+  testthat::expect_false(any(retired$polity_code %in% edges$polity_code))
   # The Egypt interval that never existed, and the four that do.
   testthat::expect_false("EGY-1922-2025" %in% edges$polity_code)
   testthat::expect_equal(
@@ -1970,9 +2043,9 @@ testthat::test_that("a border stored as one long segment is enumerated", {
   testthat::expect_setequal(
     forty_ninth$polity_code,
     c(
-      "CAN-1800-1866",
-      "CAN-1866-1948",
-      "CAN-1948-2025",
+      "CAN-1870-1886",
+      "CAN-1886-1949",
+      "CAN-1949-2025",
       "USA-1867-1959",
       "USA-1959-2025"
     )
@@ -1989,9 +2062,29 @@ testthat::test_that("a border stored as one long segment is enumerated", {
     tolerance = 1e-8
   )
   testthat::expect_equal(
-    dplyr::filter(forty_ninth, .data$polity_code == "CAN-1948-2025")$bulge_deg,
+    dplyr::filter(forty_ninth, .data$polity_code == "CAN-1949-2025")$bulge_deg,
     0.8293601982,
     tolerance = 1e-8
+  )
+  # The segment, not the label, is what DA-22 is about: all three live Canadian
+  # intervals are clipped against ONE curve, so their whole geometry triple is
+  # identical to the last bit. A relabelling upstream moves the codes above; it
+  # cannot move this.
+  canada <- dplyr::filter(
+    forty_ninth,
+    stringr::str_starts(.data$polity_code, "CAN-")
+  )
+  testthat::expect_equal(nrow(canada), 3L)
+  testthat::expect_equal(
+    nrow(dplyr::distinct(
+      canada,
+      .data$lon_from,
+      .data$lon_to,
+      .data$lat,
+      .data$span_deg,
+      .data$bulge_deg
+    )),
+    1L
   )
 
   # The 22nd parallel, both segments, pinned the same way.
@@ -2035,9 +2128,9 @@ testthat::test_that("a border stored as one long segment is enumerated", {
     c(
       "USA-1867-1959",
       "USA-1959-2025",
-      "CAN-1800-1866",
-      "CAN-1866-1948",
-      "CAN-1948-2025",
+      "CAN-1870-1886",
+      "CAN-1886-1949",
+      "CAN-1949-2025",
       "SUD-1899-1934",
       "SUD-1934-1956"
     )
