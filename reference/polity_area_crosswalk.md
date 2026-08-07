@@ -51,10 +51,19 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
   (`"iso-equal"`, `"registry"`, `"manual-route"`, `"manual-replace"`,
   `"manual-span"`), `NA` unless `mapping_source` is `"upstream_map"`.
 
-- `mapping_status`: `"matched"`, `"manual"`, `"unmapped"`, or
-  `"not_a_reporting_area"`.
+- `mapping_status`: Whether a polity was found, **not** how much to
+  trust it. `"matched"` when a live polity resolved; `"manual"` when the
+  decision was curated by hand, either by upstream (a `manual-*`
+  `map_match_route`) or by this package's own area-prefix overrides;
+  `"unmapped"` when no real polity is available, which is FAOSTAT area
+  351 "China" alone, deliberately left unmapped so it cannot
+  double-count its own components; and `"not_a_reporting_area"` for a
+  territory that carries no FAOSTAT/FABIO area at all, which has `NA` in
+  both `area_code` and `polity_area_code` and so can never be joined to
+  reported data.
 
-- `mapping_note`: Explanation for manual or unmapped rows.
+- `mapping_note`: Explanation for manual, unmapped and non-reporting
+  rows.
 
 ## Source
 
@@ -62,3 +71,22 @@ Derived from
 [polities](https://eduaguilera.github.io/whep/reference/polities.md),
 `~/whep-polities/data/final/faostat_area_polity_map.csv` and
 `inst/extdata/harmonization/regions_full.csv`.
+
+## Confidence is the pair, not `mapping_status` alone
+
+`"matched"` covers outcomes of very different confidence – a curated hit
+in upstream's published FAOSTAT map, a prefix-inferred period outside
+every span that map declares, a prefix guess for an area the map does
+not cover, and the FABIO Rest-of-World fold. **`mapping_source` is the
+column that separates them**, and it is non-`NA` on every row, so read
+the two together rather than filtering on `mapping_status == "matched"`
+and assuming a curated decision:
+
+    dplyr::count(polity_area_crosswalk, mapping_status, mapping_source)
+
+Curated rows are `mapping_source == "upstream_map"`; everything a prefix
+decided is `"prefix_outside_map"` or `"prefix_fallback"`. Prefix
+inference never overrides the map where the map speaks: a prefix-derived
+period whose years overlap any span the map declares for that area is
+dropped at build time, so the two branches cannot disagree about a
+reported year.
