@@ -4,9 +4,14 @@
 \alias{get_processing_coefs}
 \title{Processed products share factors}
 \usage{
-get_processing_coefs(example = FALSE)
+get_processing_coefs(years = NULL, example = FALSE)
 }
 \arguments{
+\item{years}{Optional integer vector of years to build. When \code{NULL}
+(default) the whole series is built. Supplying a window builds only that
+range rather than building 1850-2023 and discarding the rest, and caches it
+under a window-specific key.}
+
 \item{example}{If \code{TRUE}, return a small example output without downloading
 remote data. Default is \code{FALSE}.}
 }

@@ -24,16 +24,23 @@
 #'   `item_prod_code`, and preferably `element`. Production-shaped rows without
 #'   `element` are accepted as `production` when their unit is tonnes. Default
 #'   `NULL`.
+#' @param format One of `"long"` (default) or `"wide"`. `"long"` returns one row
+#'   per element. `"wide"` pivots the elements into columns, adds the live-animal
+#'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
+#'   the same dataset; `"wide"` is what the IO model and the extensions consume.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
 #'   to `.qc_cbs()`. Default `NULL`.
 #'
-#' @returns A tibble in long format with columns: `year`, legacy numeric
+#' @returns For `format = "long"`, a tibble with columns: `year`, legacy numeric
 #'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 #'   `reporting_polity_name`, `reporting_polity_has_geometry`,
 #'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-#'   `value`, `source`, and `fao_flag`.
+#'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
+#'   become one column each, `stock_variation` is split into the non-negative
+#'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
+#'   excluding `export`.
 #'
 #' @export
 #'
@@ -46,10 +53,24 @@ build_commodity_balances <- function(
   smooth_carry_forward = FALSE,
   example = FALSE,
   historical_data = NULL,
+  format = c("long", "wide"),
   .fixed_data = NULL
 ) {
+  format <- rlang::arg_match(format)
   if (example) {
-    return(.example_build_commodity_bal())
+    return(
+      if (format == "wide") {
+        .example_get_wide_cbs()
+      } else {
+        .example_build_commodity_bal()
+      }
+    )
+  }
+  if (format == "wide" && missing(primary_all)) {
+    cli::cli_abort(c(
+      "{.arg primary_all} is required when {.arg format} is {.val wide}.",
+      "i" = "The live-animal rows are derived from primary production."
+    ))
   }
   if (is.null(.fixed_data)) {
     fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
@@ -62,10 +83,41 @@ build_commodity_balances <- function(
     }
     fixed <- .fixed_data
   }
-  fixed |>
+  long <- fixed |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
     .qc_cbs(smooth = smooth_carry_forward) |>
     .format_cbs_output()
+
+  if (format == "long") {
+    return(long)
+  }
+  .cbs_long_to_wide(long, primary_all, start_year:end_year)
+}
+
+# The pivot plus the live-animal rows the FAO sheet omits: the part of the wide
+# CBS every caller needs. Kept apart from .cbs_long_to_wide() because
+# build_io_model() consumes the matrix-ready table without the polity name
+# columns (see the name-column rule in CLAUDE.md) or the supply-use QC pass.
+.cbs_wide_core <- function(cbs_long, primary_all, years) {
+  cli::cli_progress_step("Adding livestock CBS rows")
+  livestock_cbs <- primary_all |>
+    .filter_years(years) |>
+    get_livestock_cbs() |>
+    .filter_years(years)
+
+  cbs_long |>
+    .pivot_cbs_wide() |>
+    dplyr::bind_rows(livestock_cbs)
+}
+
+# The wide CBS dataset as users consume it. It lives beside the long build so
+# the two formats of one dataset cannot drift apart.
+.cbs_long_to_wide <- function(cbs_long, primary_all, years) {
+  wide <- .cbs_wide_core(cbs_long, primary_all, years) |>
+    .add_reporting_polity_columns()
+
+  .qc_supply_use_balance(wide)
+  wide
 }
 
 .format_cbs_output <- function(df) {
