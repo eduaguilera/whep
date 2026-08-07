@@ -12,8 +12,10 @@ build_processing_coefs(
 )
 }
 \arguments{
-\item{cbs}{A tibble of final CBS in wide format, as returned by
-\code{\link[=build_commodity_balances]{build_commodity_balances()}}.}
+\item{cbs}{A tibble of final CBS in long format (one row per
+\code{element}), as returned by \code{\link[=build_commodity_balances]{build_commodity_balances()}}. The legacy
+wide format, one column per element as returned by
+\code{\link[=get_wide_cbs]{get_wide_cbs()}}, is still accepted.}
 
 \item{start_year}{Integer. First year to include. Default \code{1850}.}
 

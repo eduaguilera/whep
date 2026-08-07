@@ -294,6 +294,77 @@ test_that("1:n split conserves mass in a partially observed year", {
     expect_equal(50)
 })
 
+test_that("an NA 1:n value keeps the observed simple value", {
+  # 2001 has a real observation for item 1 (7) and an unusable 1:n row
+  # whose value is missing. Summing the missing value into the cell used
+  # to turn the observed 7 into NA (#203); the 1:n contribution must be
+  # dropped with a warning and the observation kept.
+  input <- tibble::tribble(
+    ~item, ~item_code_harm, ~year, ~value, ~type,
+    "wheat", 1, 2000, 6, "simple",
+    "rice", 2, 2000, 4, "simple",
+    "wheat", 1, 2001, 7, "simple",
+    "wheatrice", 1, 2001, NA, "1:n",
+    "wheatrice", 2, 2001, NA, "1:n",
+    "wheat", 1, 2002, 8, "simple",
+    "rice", 2, 2002, 2, "simple"
+  )
+
+  testthat::expect_warning(
+    result <- whep::harmonize_interpolate(input),
+    class = "whep_harmonize_unusable_split"
+  )
+
+  result |>
+    dplyr::filter(year == 2001) |>
+    dplyr::pull(value) |>
+    expect_equal(7)
+
+  # No other cell may be touched, and none may become missing.
+  result |>
+    dplyr::arrange(year, item_code) |>
+    dplyr::pull(value) |>
+    expect_equal(c(6, 4, 7, 8, 2))
+})
+
+test_that("unfillable value shares do not poison harmonized cells", {
+  # Every year of the group totals zero, so all shares are NaN and
+  # `fill_linear()` has nothing to interpolate from. The 1:n mass cannot
+  # be split, but the cell must stay a number rather than NaN.
+  input <- tibble::tribble(
+    ~item, ~item_code_harm, ~year, ~value, ~type,
+    "wheat", 1, 2000, 0, "simple",
+    "rice", 2, 2000, 0, "simple",
+    "wheat", 1, 2001, 0, "simple",
+    "rice", 2, 2001, 0, "simple",
+    "wheatrice", 1, 2001, 20, "1:n",
+    "wheatrice", 2, 2001, 20, "1:n"
+  )
+
+  testthat::expect_warning(
+    result <- whep::harmonize_interpolate(input),
+    class = "whep_harmonize_unusable_split"
+  )
+
+  result |>
+    dplyr::pull(value) |>
+    is.na() |>
+    any() |>
+    expect_false()
+})
+
+test_that("harmonize_interpolate is silent when every split is valued", {
+  input <- tibble::tribble(
+    ~item, ~item_code_harm, ~year, ~value, ~type,
+    "wheat", 1, 2000, 6, "simple",
+    "rice", 2, 2000, 4, "simple",
+    "wheatrice", 1, 2001, 10, "1:n",
+    "wheatrice", 2, 2001, 10, "1:n"
+  )
+
+  testthat::expect_no_warning(whep::harmonize_interpolate(input))
+})
+
 test_that("harmonize_interpolate preserves simple values unchanged", {
   input <- tibble::tribble(
     ~item, ~item_code_harm, ~year, ~value, ~type,

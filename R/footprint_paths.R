@@ -45,6 +45,31 @@
 #'   `target_fd`, `path_type`, and `value`.
 #'
 #' @export
+#'
+#' @examples
+#' # A two-sector economy: sector 1 (item 10) carries the whole extension and
+#' # supplies 50 of intermediate input to sector 2 (item 20). Its footprint
+#' # therefore splits into a direct final-demand path and a first-use path
+#' # through item 20.
+#' z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+#' x_vec <- c(100, 200)
+#' y_mat <- matrix(c(10, 100), nrow = 2)
+#' labels <- tibble::tibble(
+#'   area_code = c(1L, 1L),
+#'   item_cbs_code = c(10L, 20L)
+#' )
+#' fd_labels <- tibble::tibble(area_code = 2L, fd_col = "food")
+#'
+#' compute_footprint_paths(
+#'   z_mat = z_mat,
+#'   x_vec = x_vec,
+#'   y_mat = y_mat,
+#'   extensions = c(200, 0),
+#'   labels = labels,
+#'   fd_labels = fd_labels,
+#'   conserve_extensions = FALSE
+#' ) |>
+#'   dplyr::select(origin_item, use_item, target_area, path_type, value)
 compute_footprint_paths <- function(
   z_mat,
   x_vec,
@@ -477,6 +502,28 @@ compute_footprint_paths <- function(
 #'   `target_fd`, and `value`.
 #'
 #' @export
+#'
+#' @examples
+#' # Same two-sector economy as [compute_footprint_paths()], decomposed by the
+#' # product that reaches final demand instead of by the first intermediate
+#' # use. The path totals of the two functions agree with each other and with
+#' # [compute_footprint()] under a shared `max_column_sum`.
+#' z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+#' labels <- tibble::tibble(
+#'   area_code = c(1L, 1L),
+#'   item_cbs_code = c(10L, 20L)
+#' )
+#'
+#' compute_fp_product_paths(
+#'   z_mat = z_mat,
+#'   x_vec = c(100, 200),
+#'   y_mat = matrix(c(10, 100), nrow = 2),
+#'   extensions = c(200, 0),
+#'   labels = labels,
+#'   fd_labels = tibble::tibble(area_code = 2L, fd_col = "food"),
+#'   conserve_extensions = FALSE
+#' ) |>
+#'   dplyr::select(origin_item, product_area, product_item, value)
 compute_fp_product_paths <- function(
   z_mat,
   x_vec,
@@ -707,6 +754,30 @@ compute_fp_product_paths <- function(
 #'   split path value.
 #'
 #' @export
+#'
+#' @examples
+#' # One footprint row of 100, split over the two areas that supply item 20 to
+#' # the final demand of area 1 in the shares observed in `y_mat` (80 / 20).
+#' footprints <- tibble::tibble(
+#'   origin_area = 1L,
+#'   origin_item = 10L,
+#'   target_area = 1L,
+#'   target_area_name = "Target",
+#'   target_item = 20L,
+#'   target_fd = "food",
+#'   value = 100
+#' )
+#'
+#' add_footprint_product_stage(
+#'   footprints = footprints,
+#'   y_mat = Matrix::Matrix(c(80, 20), nrow = 2, sparse = TRUE),
+#'   labels = tibble::tibble(
+#'     area_code = c(1L, 2L),
+#'     item_cbs_code = c(20L, 20L)
+#'   ),
+#'   fd_labels = tibble::tibble(area_code = 1L, fd_col = "food")
+#' ) |>
+#'   dplyr::select(origin_item, product_area, product_share, value)
 add_footprint_product_stage <- function(
   footprints,
   y_mat,

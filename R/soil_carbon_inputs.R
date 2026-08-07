@@ -317,12 +317,27 @@ build_soil_carbon_inputs <- function(
     return(invisible(NULL))
   }
   crops <- sort(unique(lost$item_prod_code))
+  # Every plural marker gets its quantity pinned with cli::qty(), and the numbers
+  # are precomputed into scalars instead of being interpolated inline.
+  #
+  # Left to infer, cli has to decide which value each marker refers to, and with
+  # two numbers in the first bullet and a vector in the second it can conclude
+  # the answer is ambiguous and throw "Multiple quantities for pluralization" --
+  # from inside the warning, so the abort lands on the caller. That killed
+  # build_carbon_balance(1901:2023) outright after ~10 minutes of work, and only
+  # on multi-year spans: 1901-1905 warns fine, 1901-1910 dies. No single-year
+  # test would have caught it. polity_folds.R already pins a marker this way.
+  n_lost <- nrow(lost)
+  n_crops <- length(crops)
+  lost_mass <- round(sum(lost$c_mass_mg), 3)
   cli::cli_warn(c(
-    "!" = "{nrow(lost)} polity-crop carbon component{?s}
-           ({round(sum(lost$c_mass_mg), 3)} Mg C) had no crop-pattern cells and
-           {?was/were} dropped from the gridded soil carbon input.",
-    i = "Unspatialized item_prod_code{?s}: {.val {crops}}. Add {?its/their}
-         cells to {.field crop_patterns} to retain the carbon."
+    "!" = "{cli::qty(n_lost)}{n_lost} polity-crop carbon component{?s}
+           ({lost_mass} Mg C) had no crop-pattern cells and
+           {cli::qty(n_lost)}{?was/were} dropped from the gridded soil carbon
+           input.",
+    i = "{cli::qty(n_crops)}Unspatialized item_prod_code{?s}: {.val {crops}}.
+         Add {cli::qty(n_crops)}{?its/their} cells to {.field crop_patterns} to
+         retain the carbon."
   ))
   invisible(lost)
 }

@@ -1800,8 +1800,9 @@ utils::globalVariables(
     "region_weight",
     # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
     # period its growth rate was measured over
-    "lag_weight"
+    "lag_weight",
+    # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
+    "canonical_area",
+    "key_row"
   )
 )
-
-# -- Helpers for spatialize scripts -------------------------------------------

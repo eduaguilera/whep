@@ -103,7 +103,11 @@ build_primary_prices <- function(
 #' processed products and crop residues. Prices are derived from trade
 #' data, with special handling for items without direct trade prices
 #' (palm kernels, soy hulls, brans, etc.). Crop residue prices are
-#' estimated as a fraction of the product price.
+#' estimated as a fraction of the product price: only primary crops and
+#' grassland bear residues, routed to straw (cereals and pulses),
+#' firewood (woody crops) or other crop residues. Crops whose
+#' herbaceous/woody habit is unknown take the herbaceous default and are
+#' reported in a warning.
 #'
 #' @param cbs A tibble of commodity balance sheets, as returned by
 #'   [build_commodity_balances()] or [get_wide_cbs()].
@@ -502,65 +506,15 @@ build_cbs_prices <- function(
 
 .add_residue_prices <- function(dt, residue_price_factor) {
   cli::cli_progress_step("Adding residue prices")
-  items_prod <- data.table::as.data.table(whep::items_prod_full)
   items <- data.table::as.data.table(whep::items_full)
-
-  # Build per-item Cat_1 + Herb_Woody bridge
-  herb_woody <- unique(
-    items_prod[
-      !is.na(Herb_Woody) & !is.na(item_cbs_code),
-      .(item_cbs_code, Herb_Woody)
-    ]
-  )
-  herb_woody <- herb_woody[
-    !duplicated(item_cbs_code),
-  ]
-
-  # Add category info
-  items_cats <- unique(items[, .(item_cbs, item_cbs_code, Cat_1)])
-  dt <- merge(
-    dt,
-    items_cats,
-    by = c("item_cbs", "item_cbs_code"),
-    all.x = TRUE
-  )
-  dt <- merge(dt, herb_woody, by = "item_cbs_code", all.x = TRUE)
+  dt <- .add_residue_item_traits(dt)
 
   # Ensure tonnes and kdollars are filled for proxy items
   dt[is.na(tonnes), tonnes := 1000]
   dt[is.na(kdollars), kdollars := tonnes * price]
 
-  # Create product and residue rows
-  product <- data.table::copy(dt)
-  product[, product_residue := "Product"]
-
-  residue <- data.table::copy(dt)
-  residue[, product_residue := "Residue"]
-
-  combined <- data.table::rbindlist(list(product, residue))
-  combined[, land_use := "Cropland"]
-
-  # Apply residues_as_items logic (from afsetools)
-  combined[
-    product_residue == "Residue",
-    item_cbs := data.table::fifelse(
-      Cat_1 %in% c("Cereals", "Pulses"),
-      "Straw",
-      data.table::fifelse(
-        land_use != "Cropland" | Herb_Woody == "Woody",
-        "Firewood",
-        "Other crop residues"
-      )
-    )
-  ]
-
-  # Scale residue prices
-  combined[
-    product_residue == "Residue",
-    kdollars := kdollars * residue_price_factor
-  ]
-
-  # Reaggregate
+  # Reaggregate products and their residues onto CBS items
+  combined <- .bind_product_and_residue(dt, residue_price_factor)
   combined <- combined[,
     .(
       tonnes = sum(tonnes, na.rm = TRUE),
@@ -578,8 +532,102 @@ build_cbs_prices <- function(
     by = "item_cbs",
     all.x = TRUE
   )
+  .warn_unmapped_price_items(combined)
   combined[, source := "original"]
   combined
+}
+
+# Attach the CBS category (`Cat_1`) and the herbaceous/woody habit needed
+# to route an item's residues. `Herb_Woody` comes from the production
+# items and is missing for every CBS item without a matching primary
+# crop, so it is only read through .residue_item_cbs(), which defaults a
+# missing habit instead of returning NA (#228).
+.add_residue_item_traits <- function(dt) {
+  items <- data.table::as.data.table(whep::items_full)
+  items_prod <- data.table::as.data.table(whep::items_prod_full)
+
+  herb_woody <- unique(
+    items_prod[
+      !is.na(Herb_Woody) & !is.na(item_cbs_code),
+      .(item_cbs_code, Herb_Woody)
+    ]
+  )
+  herb_woody <- herb_woody[
+    !duplicated(item_cbs_code),
+  ]
+
+  items_cats <- unique(items[, .(item_cbs, item_cbs_code, Cat_1, group)])
+  dt <- merge(
+    dt,
+    items_cats,
+    by = c("item_cbs", "item_cbs_code"),
+    all.x = TRUE
+  )
+  merge(dt, herb_woody, by = "item_cbs_code", all.x = TRUE)
+}
+
+.bind_product_and_residue <- function(dt, residue_price_factor) {
+  product <- data.table::copy(dt)
+  product[, product_residue := "Product"]
+
+  residue <- .residue_bearing_items(dt)
+  .warn_missing_crop_habit(residue)
+  residue[, `:=`(
+    product_residue = "Residue",
+    item_cbs = .residue_item_cbs(Cat_1, Herb_Woody),
+    kdollars = kdollars * residue_price_factor
+  )]
+
+  data.table::rbindlist(list(product, residue))
+}
+
+# Only primary crops and grassland bear crop residues. Processed and
+# animal products have none, and giving them a residue row pooled their
+# mass and value into a bucket that was silently dropped later on.
+.residue_bearing_items <- function(dt) {
+  dt[group %in% c("Primary crops", "Grass") | !is.na(Herb_Woody)]
+}
+
+# Residue routing of afsetools' residues_as_items(): cereal and pulse
+# residues are straw, woody crops give firewood, and everything else is
+# lumped into other crop residues. A missing habit takes the herbaceous
+# default (the majority class), which .warn_missing_crop_habit() reports.
+.residue_item_cbs <- function(cat_1, herb_woody) {
+  is_woody <- !is.na(herb_woody) & herb_woody == "Woody"
+  data.table::fifelse(
+    cat_1 %in% c("Cereals", "Pulses"),
+    "Straw",
+    data.table::fifelse(is_woody, "Firewood", "Other crop residues")
+  )
+}
+
+.warn_missing_crop_habit <- function(residue) {
+  habitless <- unique(residue[is.na(Herb_Woody), item_cbs])
+  if (length(habitless) == 0) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    paste(
+      "No herbaceous/woody habit for {length(habitless)} residue-bearing",
+      "item{?s}; assuming herbaceous."
+    ),
+    "i" = "Item{?s}: {.val {habitless}}.",
+    "i" = paste(
+      "Set {.field Name} in {.file items_prod_full_raw.csv} to route",
+      "residues explicitly."
+    )
+  ))
+}
+
+.warn_unmapped_price_items <- function(combined) {
+  unmapped <- unique(combined[is.na(item_cbs_code), item_cbs])
+  if (length(unmapped) == 0) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "Dropping {length(unmapped)} priced item{?s} with no CBS item code.",
+    "i" = "Item{?s}: {.val {unmapped}}."
+  ))
 }
 
 .add_proxy_prices <- function(dt) {
