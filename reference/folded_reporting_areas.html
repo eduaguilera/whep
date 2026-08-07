@@ -170,25 +170,34 @@ because <code>polity_area_code</code> is derived from <code>fabio_code</code>, s
 is left standing and reported here instead (issue 556).</p>
     </div>
     <div class="section level2">
-    <h2 id="measuring-the-alternative">Measuring the alternative<a class="anchor" aria-label="anchor" href="#measuring-the-alternative"></a></h2>
+    <h2 id="the-rest-of-world-fold-is-no-longer-applied">The Rest-of-World fold is no longer applied<a class="anchor" aria-label="anchor" href="#the-rest-of-world-fold-is-no-longer-applied"></a></h2>
 
 
-<p><code>options(whep.unfold_rest_of_world = TRUE)</code> promotes every Rest-of-World
-member to its own <code>polity_area_code</code> for the whole pipeline, which is the
-experiment the decision needs. It is <strong>off by default and not a production
-mode</strong>: published WHEP values assume the fold, so every read of the crosswalk
-warns while it is set. The <code>"successor_state"</code> folds are never lifted by it,
-since those are territorial identities rather than a FABIO convention.</p>
-<p><code>options(whep.unfold_rest_of_world = "cbs_reporters")</code> promotes only the four
-<code>"cbs_reporter_folded"</code> areas, which is the narrower experiment issue 556
-asks for: it lifts exactly the folds FABIO does not make and leaves the 57
-folds FABIO agrees with in place. <code>TRUE</code> and <code>"all"</code> are the same mode.</p>
-<p>Measured with it on a full-range <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> (1850-2023, all 61 members
-promoted), global totals move by at most 1.2% (<code>stock_addition</code>) and by less
-than 0.1% for <code>feed</code>, <code>production</code> and <code>processing</code>. An earlier measurement
-recorded in issue 419 reported up to 13.7x; that comparison predates the
-<code>dcast()</code> duplicate-key fix in <code>.select_best_source()</code> (issue 425) and does
-not reproduce.</p>
+<p>WHEP models every reporting member of bucket 999 in its own right. FABIO's
+192-country layout is a methodology this package compares against, not a
+constraint on which territories it represents, and the choice of country set
+is WHEP's to make (issue 459).</p>
+<p>That matters because the fold was never doing what its name suggests. Of the
+61 members, only about a third report anything at all; the rest contribute no
+rows and folding them is arithmetically a no-op. Everything the bucket
+actually carried came from the members that DO file returns – Syria,
+Eswatini, North Macedonia, New Caledonia, the Faroe Islands, Palestine,
+Greenland and the like – and folding them discarded whose data it was. So
+promotion is self-limiting: an area with no rows is unaffected either way.</p>
+<p>Bucket 999 survives as a genuine residual for the territories that report
+nothing. Measured on a full-range <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> (1850-2023), promotion
+takes the published area count from 195 to 216 and moves global totals by at
+most 0.99% (<code>stock_addition</code>), with every other column inside 0.4%.</p>
+<p><code>options(whep.unfold_rest_of_world = "none")</code> restores the fold, which is
+what reproducing a number published before this change requires. Because that
+no longer matches the published series, every read of the crosswalk warns
+while it is set. <code>"cbs_reporters"</code> re-folds all but the four
+<code>"cbs_reporter_folded"</code> areas and warns for the same reason. The
+<code>"successor_state"</code> folds are never lifted by any mode, since those are
+territorial identities rather than a FABIO convention.</p>
+<p>An earlier measurement recorded in issue 419 reported this change at up to
+13.7x on <code>feed</code>; that comparison predates the <code>dcast()</code> duplicate-key fix in
+<code>.select_best_source()</code> (issue 425) and does not reproduce.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -202,7 +211,7 @@ Input-Output Model. Environmental Science &amp; Technology 53(19), 11302-11312.
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">folded</span> <span class="op">&lt;-</span> <span class="fu">folded_reporting_areas</span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">folded</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 72</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 11</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">folded</span><span class="op">[</span><span class="va">folded</span><span class="op">$</span><span class="va">fold_kind</span> <span class="op">==</span> <span class="st">"successor_state"</span>, <span class="op">]</span>, <span class="fl">4</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 7</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   area_code area_name    area_iso3c polity_area_code polity_code   polity_name  </span>
@@ -213,14 +222,10 @@ Input-Output Model. Environmental Science &amp; Technology 53(19), 11302-11312.
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>        62 Ethiopia PDR ETH                     238 ETH-1902-1907 Ethiopia (19…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: fold_kind &lt;chr&gt;</span></span>
 <span class="r-in"><span><span class="va">folded</span><span class="op">[</span><span class="va">folded</span><span class="op">$</span><span class="va">fold_kind</span> <span class="op">==</span> <span class="st">"cbs_reporter_folded"</span>, <span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 4 × 7</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   area_code area_name        area_iso3c polity_area_code polity_code polity_name</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>       153 New Caledonia    NCL                     999 ROW-1850-2… Rest of Wo…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>       154 North Macedonia  MKD                     999 ROW-1850-2… Rest of Wo…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>       209 Eswatini         SWZ                     999 ROW-1850-2… Rest of Wo…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>       212 Syrian Arab Rep… SYR                     999 ROW-1850-2… Rest of Wo…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: fold_kind &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 0 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 7 variables: area_code &lt;int&gt;, area_name &lt;chr&gt;, area_iso3c &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   polity_area_code &lt;int&gt;, polity_code &lt;chr&gt;, polity_name &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fold_kind &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
