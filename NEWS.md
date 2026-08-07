@@ -70,6 +70,14 @@
   object. No published values change: the argument-less call is untouched, and
   both in-package callers use it.
 
+* **`estimate_energy_demand()` now warns when `work_hours_day` is supplied
+  without a work coefficient.** `whep` ships `cw = 0` for every species, so
+  draft work is opt-in per call via `work_coef` — passing only the hours
+  produced `ne_work = 0` with no indication that the input had been ignored
+  (#210). The numbers are unchanged; only the silence is. Hours filled in from
+  `livestock_production_defaults` never warn, since several species carry a
+  non-zero default and warning about those would fire on ordinary runs.
+
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
   instead of building 1850-2023 and discarding the rest. Measured for 2010:
