@@ -135,6 +135,10 @@ build_gridded_landuse(
     allowed to expand into cells without an existing pattern. Default:
     `100L`.
 
+  - `area_key`: Which area code the output is keyed on, `"grid"`
+    (default) or `"polity_area"`. See *Which area code the output is
+    keyed on*.
+
 ## Value
 
 A tibble with gridded crop (or CFT) harvested areas. Columns:
@@ -148,6 +152,9 @@ A tibble with gridded crop (or CFT) harvested areas. Columns:
 - `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
   `reporting_polity_has_geometry`: Polity metadata for `area_code`.
 
+- `grid_area_code`: Only under `area_key = "polity_area"`; the reporting
+  code the engine allocated on.
+
 - `polycell_id`, `cell_id`: Preserved when supplied in `country_grid`.
 
 - `crop_name` or `cft_name`: Crop or CFT identifier.
@@ -155,6 +162,38 @@ A tibble with gridded crop (or CFT) harvested areas. Columns:
 - `rainfed_ha`: Rainfed harvested area in the cell.
 
 - `irrigated_ha`: Irrigated harvested area in the cell.
+
+## Which area code the output is keyed on
+
+The chain allocates *from* a national table keyed on `area_code` and
+*into* a `country_grid` keyed the same way, so both sides speak the raw
+reporting vocabulary the grid was rasterized in. WHEP's polity-keyed
+national tables are aggregated on `polity_area_code` instead, a bucket
+that a reporting code need not equal: `276` Sudan and `277` South Sudan
+both fall in bucket `206`. Every such output row therefore carries two
+territorial keys that disagree, and whether a consumer joins on
+`area_code` or on `polity_area_code` decides whether Sudan exists in its
+result (whep#582).
+
+`area_key` selects which of the two the output carries. It is not a
+fallback: `"grid"` is the default, reproduces today's codes bit-for-bit,
+and warns naming the codes that cannot join; `"polity_area"` resolves
+each code to its bucket through
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+before the polity columns are attached, so `area_code` and
+`polity_area_code` agree in every row. It respects
+`options(whep.unfold_rest_of_world)` (see
+[`folded_reporting_areas()`](https://eduaguilera.github.io/whep/reference/folded_reporting_areas.md)),
+so the output and the national tables agree about where a Rest-of-World
+member's rows belong.
+
+Under `"polity_area"` the raw reporting code is **carried, not
+replaced**: the output gains `grid_area_code`, joined with `+` where two
+reporting areas of one bucket meet in a cell and their rows collapse. So
+the fold stays recoverable at the join rather than baked into the
+output, the shape
+[`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+adopted for the same reason (whep#579).
 
 ## Methodology
 

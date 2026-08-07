@@ -184,7 +184,8 @@ LSU/ha reference for use with the <code>glw_density</code> parameter.</p>
 <span>  manure_pattern <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  glw_density <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  grass_productivity <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  years <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  area_key <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity_area"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -287,6 +288,14 @@ proxies are used alone.</p></dd>
 When supplied, <code>livestock_data</code>, <code>gridded_pasture</code>, and
 <code>gridded_cropland</code> are filtered to this set before processing.</p></dd>
 
+
+<dt id="arg-area-key">area_key<a class="anchor" aria-label="anchor" href="#arg-area-key"></a></dt>
+<dd><p>Which area code the output is keyed on: <code>"grid"</code>
+(default, the reporting codes <code>livestock_data</code> and <code>country_grid</code> are
+keyed on) or <code>"polity_area"</code> (the <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> bucket
+national tables are aggregated on). See
+<code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>'s <em>Which area code the output is keyed on</em>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -295,6 +304,8 @@ When supplied, <code>livestock_data</code>, <code>gridded_pasture</code>, and
 <li><p><code>polity_area_code</code>, <code>reporting_polity_code</code>,
 <code>reporting_polity_name</code>, <code>reporting_polity_has_geometry</code>: Polity
 metadata for <code>area_code</code>.</p></li>
+<li><p><code>grid_area_code</code>: Only under <code>area_key = "polity_area"</code>; the
+reporting code the engine allocated on.</p></li>
 <li><p><code>polycell_id</code>, <code>cell_id</code>: Preserved when supplied in
 <code>country_grid</code>.</p></li>
 <li><p><code>year</code>: Integer year.</p></li>
@@ -303,6 +314,34 @@ metadata for <code>area_code</code>.</p></li>
 <li><p>Any additional numeric columns from <code>livestock_data</code>
 (e.g. <code>enteric_ch4_kt</code>, <code>manure_ch4_kt</code>).</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="which-area-code-the-output-is-keyed-on">Which area code the output is keyed on<a class="anchor" aria-label="anchor" href="#which-area-code-the-output-is-keyed-on"></a></h2>
+
+
+<p>The chain allocates <em>from</em> a national table keyed on <code>area_code</code> and
+<em>into</em> a <code>country_grid</code> keyed the same way, so both sides speak the raw
+reporting vocabulary the grid was rasterized in. WHEP's polity-keyed
+national tables are aggregated on <code>polity_area_code</code> instead, a bucket
+that a reporting code need not equal: <code>276</code> Sudan and <code>277</code> South Sudan
+both fall in bucket <code>206</code>. Every such output row therefore carries two
+territorial keys that disagree, and whether a consumer joins on
+<code>area_code</code> or on <code>polity_area_code</code> decides whether Sudan exists in its
+result (whep#582).</p>
+<p><code>area_key</code> selects which of the two the output carries. It is not a
+fallback: <code>"grid"</code> is the default, reproduces today's codes
+bit-for-bit, and warns naming the codes that cannot join;
+<code>"polity_area"</code> resolves each code to its bucket through
+<a href="polity_area_crosswalk.html">polity_area_crosswalk</a> before the polity columns are attached, so
+<code>area_code</code> and <code>polity_area_code</code> agree in every row. It respects
+<code>options(whep.unfold_rest_of_world)</code> (see <code><a href="folded_reporting_areas.html">folded_reporting_areas()</a></code>),
+so the output and the national tables agree about where a Rest-of-World
+member's rows belong.</p>
+<p>Under <code>"polity_area"</code> the raw reporting code is <strong>carried, not
+replaced</strong>: the output gains <code>grid_area_code</code>, joined with <code>+</code> where two
+reporting areas of one bucket meet in a cell and their rows collapse. So
+the fold stays recoverable at the join rather than baked into the output,
+the shape <code><a href="build_cell_polity.html">build_cell_polity()</a></code> adopted for the same reason (whep#579).</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
