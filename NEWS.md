@@ -12,6 +12,29 @@
   that do not use this modifier. The two agree exactly, not approximately:
   `identical()` holds across all 1,166,220 rows and 17 columns of the five-year
   build, so no result changes (#630).
+* **`build_energy_co2_extension(unclassified = "historical_region")` prices the
+  dissolved federations instead of losing them (#553).** Measured on the real
+  `get_primary_production()` output (6,305,656 rows, 1850-2023), 569.4 Mt of
+  meat carcass production — 3.33% of all of it, and 15.2% of the world's 1961
+  tonnage — gets no energy intensity and leaves the extension, because
+  `gleam_geographic_hierarchy` is a present-day country table with no row for
+  the USSR, Belgium-Luxembourg, Czechoslovakia, the Yugoslav SFR or Serbia and
+  Montenegro. Those five are now 99.998% of the loss: since the Rest-of-World
+  fold was lifted (#628) bucket 999 no longer contributes to it at all. The new
+  treatment groups them by running GLEAM's own scheme rules on the OECD and EU
+  membership they themselves held while they existed — Belgium and Luxembourg
+  were OECD founding members and EEC founders, so Belgium-Luxembourg is OECD/EU
+  27; no successor of the other four was in either body before the entity
+  dissolved, so they are non-OECD, non-EU. Rows carry
+  `method_energy = "GLEAM_3.0_energy_meat_historical_region"`, and the option
+  is a superset of `"polity_region"`.
+
+  **No published value changes**: the default `unclassified = "drop"` is
+  bit-identical on the full real input (181,831 rows, `sum(impact_u) =
+  6.530863856531e12` before and after, `identical()` TRUE). Opting in adds
+  1,190 rows and 7 areas, moves no shared row by any amount, and raises total
+  energy CO2e by **+2.40%** over 1850-2023 — **+12.0% in 1961**, +11.3% in
+  1990, +0.26% in 2000 and 0% from 2010 on.
 
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
