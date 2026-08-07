@@ -101,8 +101,17 @@ instead of running the model.</p></dd>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble of the selected model's trajectory with an added
-<code>method_soc</code> column naming the model.</p>
+    <p>A tibble in the same long schema for every model, one row per year
+and pool: <code>year</code>, <code>pool</code> (the running model's native pool name),
+<code>stock_mgc_ha</code> (that pool's stock), <code>soc_total</code> (the year's total
+over all pools, repeated on each pool row) and <code>method_soc</code> (the
+model that ran). Long rather than wide because the five models have
+different pool sets, so only a long shape can carry the pool detail under
+identical column names; total-only callers read
+<code>dplyr::distinct(out, year, soc_total)</code> without branching on the
+model. The per-model functions such as
+<code><a href="calculate_soc_hsoc.html">calculate_soc_hsoc</a></code> still return their native wide
+trajectory.</p>
     </div>
 
     <div class="section level2">
@@ -111,15 +120,21 @@ instead of running the model.</p></dd>
 <span class="r-in"><span>  model <span class="op">=</span> <span class="st">"icbm"</span>,</span></span>
 <span class="r-in"><span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>initial_soc_mgc_ha <span class="op">=</span> <span class="fl">50</span>, c_input_mgc_ha_yr <span class="op">=</span> <span class="fl">2</span>, years <span class="op">=</span> <span class="fl">5</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year     y     o soc_total method_soc</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>     0  2.75  47.3      50   icbm      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>     1  2.61  47.2      49.9 icbm      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span>     2  2.55  47.2      49.8 icbm      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span>     3  2.52  47.2      49.7 icbm      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span>     4  2.51  47.2      49.7 icbm      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span>     5  2.50  47.2      49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 12 × 5</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year pool  stock_mgc_ha soc_total method_soc</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>     0 y             2.75      50   icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>     0 o            47.3       50   icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>     1 y             2.61      49.9 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>     1 o            47.2       49.9 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>     2 y             2.55      49.8 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>     2 o            47.2       49.8 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>     3 y             2.52      49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>     3 o            47.2       49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>     4 y             2.51      49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>     4 o            47.2       49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span>     5 y             2.50      49.7 icbm      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">12</span>     5 o            47.2       49.7 icbm      </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

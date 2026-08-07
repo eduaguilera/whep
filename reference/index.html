@@ -463,7 +463,7 @@
       </dl></div><div class="section level2">
       <h2 id="soil-balances-carbon-soc-models-">Soil balances - carbon (SOC models)<a class="anchor" aria-label="anchor" href="#soil-balances-carbon-soc-models-"></a></h2>
 
-      <div class="section-desc"><p>Soil-organic-carbon turnover models sharing a common annual call contract. HSOC (two pools plus inert organic matter) and RothC (five pools) step forward in time; ICBM (two pools) and AMG (active plus stable) are analytical; Century (five pools) integrates an ODE. Each pulls its rate constants from <code>soc_turnover_params</code> and takes an annual climate modifier. <code>calculate_soc_dynamics</code> is the selector that dispatches to any of them and builds the per-model native climate modifier from supplied climate drivers.</p></div>
+      <div class="section-desc"><p>Soil-organic-carbon turnover models sharing a common annual call contract. HSOC (two pools plus inert organic matter) and RothC (five pools) step forward in time; ICBM (two pools) and AMG (active plus stable) are analytical; Century (five pools) integrates an ODE. Each pulls its rate constants from <code>soc_turnover_params</code> and takes an annual climate modifier. <code>calculate_soc_dynamics</code> is the selector that dispatches to any of them and builds the per-model native climate modifier from supplied climate drivers. Each model function returns its own wide pool columns; the selector normalises all five to one long schema (<code>year</code>, <code>pool</code>, <code>stock_mgc_ha</code>, <code>soc_total</code>, <code>method_soc</code>) so callers never branch on the model.</p></div>
 
       <dl></dl></div><div class="section level2">
 

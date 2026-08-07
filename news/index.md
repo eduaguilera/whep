@@ -2,6 +2,65 @@
 
 ## whep (development version)
 
+- **One unvaluable 1:n split no longer erases observed data.**
+  [`harmonize_interpolate()`](https://eduaguilera.github.io/whep/reference/harmonize_interpolate.md)
+  summed the split 1:n contributions together with the already-correct
+  `"simple"` component using [`sum()`](https://rdrr.io/r/base/sum.html)
+  without `na.rm`, so a single contribution with a missing `value`, or
+  with a share that could neither be computed nor interpolated (every
+  year of the group totalling zero makes the shares `NaN`), turned the
+  whole harmonized `(item_code, year)` cell into `NA`/`NaN` — including
+  the observed values summed into it. Unvaluable contributions are now
+  dropped with a warning naming the affected cells, and the observed
+  values survive. Published values change only where the old output was
+  `NA`/`NaN`: such a cell now holds its observed `"simple"` sum, or
+  disappears if it had none. No cell that was a number before changes.
+
+- **[`build_cbs_prices()`](https://eduaguilera.github.io/whep/reference/build_cbs_prices.md)
+  no longer drops crop residues into an NA bucket.** The residue routing
+  in `.add_residue_prices()` read `Herb_Woody == "Woody"` inside a
+  nested `fifelse()`, so every item whose herbaceous/woody habit is
+  missing got `NA` as its residue item. Those rows were pooled into one
+  `NA`-keyed group and then dropped, and the pool mixed the mass and
+  value of unrelated items on the way. On the real
+  `faostat-trade-bilateral` pin (1986-2021) that silently discarded **72
+  rows** (36 years x 2 elements) of residue value. Residues are now
+  generated only for primary crops and grassland — processed and animal
+  products never had a crop residue — and a crop with no recorded habit
+  takes the herbaceous default, reported in a warning naming the items
+  (currently Cottonseed, Palm kernels and Palm Oil, whose `Name` is
+  unset in `items_prod_full_raw.csv`). **Published values move for one
+  item, `Other crop residues` (2106)**: its tonnage basis grows by 15.0%
+  on average (2020 exports 345.6 Mt to 401.9 Mt) and its price shifts by
+  -2.6% on average (2020 exports -1.2%, largest single move +6.8%).
+  `Straw` (2105), `Firewood` (2107) and every non-residue item are
+  unchanged to the digit.
+
+- **[`calculate_soc_dynamics()`](https://eduaguilera.github.io/whep/reference/calculate_soc_dynamics.md)
+  returns one schema for all five SOC models.** It used to hand back
+  whichever shape the selected model happened to produce: `hsoc` (the
+  default) came back long as `pool` / `year` / `stock_mgc_ha` /
+  `rate_mgc_ha` with **no** `soc_total`, while `rothc`, `icbm`, `amg`
+  and `century` came back wide with `soc_total` and their own mutually
+  exclusive pool columns (`dpm`/`rpm`/`bio`/`hum`/`iom`, `y`/`o`,
+  `ca`/`cs`, `str`/`met`/`act`/`slw`/`pas`) — no two of the five agreed,
+  so a caller had to branch on `model`. The selector now reshapes
+  whichever model ran to the long schema `year`, `pool`, `stock_mgc_ha`,
+  `soc_total`, `method_soc`: pool detail is kept, the model-specific
+  part sits in the values of `pool` instead of in column names, and the
+  five runs of a sensitivity analysis stack with a plain
+  [`dplyr::bind_rows()`](https://dplyr.tidyverse.org/reference/bind_rows.html).
+  Total-only callers read `dplyr::distinct(out, year, soc_total)`.
+  [`calculate_soc_hsoc()`](https://eduaguilera.github.io/whep/reference/calculate_soc_hsoc.md)
+  itself is now wide like its four siblings (`year`, `fresh`, `humus`,
+  `iom`, `soc_total`) and no longer returns the per-pool `rate_mgc_ha`,
+  which was exactly the forward annual difference of `stock_mgc_ha` and
+  is recoverable from it. **No published value changes**: every pool
+  stock and every
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  equilibrium is bit-identical before and after (checked across nine
+  HSOC parameterisations and the spin-up of all five models).
+
 - [`create_typologies_of_josette()`](https://eduaguilera.github.io/whep/reference/create_typologies_of_josette.md)
   and
   [`create_typologies_grafs_spain()`](https://eduaguilera.github.io/whep/reference/create_typologies_grafs_spain.md)

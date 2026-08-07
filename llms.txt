@@ -461,7 +461,10 @@ stable) are analytical; Century (five pools) integrates an ODE. Each
 pulls its rate constants from `soc_turnover_params` and takes an annual
 climate modifier. `calculate_soc_dynamics` is the selector that
 dispatches to any of them and builds the per-model native climate
-modifier from supplied climate drivers.
+modifier from supplied climate drivers. Each model function returns its
+own wide pool columns; the selector normalises all five to one long
+schema (`year`, `pool`, `stock_mgc_ha`, `soc_total`, `method_soc`) so
+callers never branch on the model.
 
 - [`calculate_soc_dynamics()`](https://eduaguilera.github.io/whep/reference/calculate_soc_dynamics.md)
   : Simulate soil organic carbon dynamics with a selectable model.

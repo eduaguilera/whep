@@ -57,8 +57,8 @@ Coleman, K. & Jenkinson, D. S. (1996).
 
 ## Value
 
-A tibble with one row per year and pool: `year`, `pool` (fresh, humus,
-iom), `stock_mgc_ha` and `rate_mgc_ha`.
+A tibble with one row per year: `year`, `fresh`, `humus`, `iom` and
+`soc_total`.
 
 ## Examples
 
@@ -68,25 +68,13 @@ calculate_soc_hsoc(
   c_input_mgc_ha_yr = 2,
   years = 5
 )
-#> # A tibble: 18 × 4
-#>    pool   year stock_mgc_ha rate_mgc_ha
-#>    <chr> <int>        <dbl>       <dbl>
-#>  1 fresh     0         2.92           0
-#>  2 fresh     1         2.92           0
-#>  3 fresh     2         2.92           0
-#>  4 fresh     3         2.92           0
-#>  5 fresh     4         2.92           0
-#>  6 fresh     5         2.92           0
-#>  7 humus     0        30              0
-#>  8 humus     1        30              0
-#>  9 humus     2        30              0
-#> 10 humus     3        30              0
-#> 11 humus     4        30              0
-#> 12 humus     5        30              0
-#> 13 iom       0         4.22           0
-#> 14 iom       1         4.22           0
-#> 15 iom       2         4.22           0
-#> 16 iom       3         4.22           0
-#> 17 iom       4         4.22           0
-#> 18 iom       5         4.22           0
+#> # A tibble: 6 × 5
+#>    year fresh humus   iom soc_total
+#>   <int> <dbl> <dbl> <dbl>     <dbl>
+#> 1     0  2.92    30  4.22      37.1
+#> 2     1  2.92    30  4.22      37.1
+#> 3     2  2.92    30  4.22      37.1
+#> 4     3  2.92    30  4.22      37.1
+#> 5     4  2.92    30  4.22      37.1
+#> 6     5  2.92    30  4.22      37.1
 ```

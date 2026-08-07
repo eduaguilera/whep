@@ -53,8 +53,17 @@ and
 
 ## Value
 
-A tibble of the selected model's trajectory with an added `method_soc`
-column naming the model.
+A tibble in the same long schema for every model, one row per year and
+pool: `year`, `pool` (the running model's native pool name),
+`stock_mgc_ha` (that pool's stock), `soc_total` (the year's total over
+all pools, repeated on each pool row) and `method_soc` (the model that
+ran). Long rather than wide because the five models have different pool
+sets, so only a long shape can carry the pool detail under identical
+column names; total-only callers read
+`dplyr::distinct(out, year, soc_total)` without branching on the model.
+The per-model functions such as
+[`calculate_soc_hsoc`](https://eduaguilera.github.io/whep/reference/calculate_soc_hsoc.md)
+still return their native wide trajectory.
 
 ## Examples
 
@@ -63,13 +72,19 @@ calculate_soc_dynamics(
   model = "icbm",
   data = list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 5)
 )
-#> # A tibble: 6 × 5
-#>    year     y     o soc_total method_soc
-#>   <int> <dbl> <dbl>     <dbl> <chr>     
-#> 1     0  2.75  47.3      50   icbm      
-#> 2     1  2.61  47.2      49.9 icbm      
-#> 3     2  2.55  47.2      49.8 icbm      
-#> 4     3  2.52  47.2      49.7 icbm      
-#> 5     4  2.51  47.2      49.7 icbm      
-#> 6     5  2.50  47.2      49.7 icbm      
+#> # A tibble: 12 × 5
+#>     year pool  stock_mgc_ha soc_total method_soc
+#>    <int> <chr>        <dbl>     <dbl> <chr>     
+#>  1     0 y             2.75      50   icbm      
+#>  2     0 o            47.3       50   icbm      
+#>  3     1 y             2.61      49.9 icbm      
+#>  4     1 o            47.2       49.9 icbm      
+#>  5     2 y             2.55      49.8 icbm      
+#>  6     2 o            47.2       49.8 icbm      
+#>  7     3 y             2.52      49.7 icbm      
+#>  8     3 o            47.2       49.7 icbm      
+#>  9     4 y             2.51      49.7 icbm      
+#> 10     4 o            47.2       49.7 icbm      
+#> 11     5 y             2.50      49.7 icbm      
+#> 12     5 o            47.2       49.7 icbm      
 ```

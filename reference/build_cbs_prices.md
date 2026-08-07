@@ -4,7 +4,10 @@ Compute prices for all commodity balance sheet items, including
 processed products and crop residues. Prices are derived from trade
 data, with special handling for items without direct trade prices (palm
 kernels, soy hulls, brans, etc.). Crop residue prices are estimated as a
-fraction of the product price.
+fraction of the product price: only primary crops and grassland bear
+residues, routed to straw (cereals and pulses), firewood (woody crops)
+or other crop residues. Crops whose herbaceous/woody habit is unknown
+take the herbaceous default and are reported in a warning.
 
 ## Usage
 

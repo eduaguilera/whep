@@ -16,7 +16,13 @@ Row 2: item = "wheatrice", item_code_harm = 2
 
 
 Do not provide a single row; the function will not create
-duplicates automatically.'><meta property="og:description" content='Harmonize data containing "simple" and "1:n"
+duplicates automatically.
+A 1:n contribution can turn out to be unvaluable, because its
+value is missing or because its share could neither be computed
+nor interpolated (e.g. every year of the group has a zero total).
+Such contributions are dropped with a warning rather than summed,
+so that one missing value cannot turn the observed "simple"
+values of the same (item_code, year) cell into NA.'><meta property="og:description" content='Harmonize data containing "simple" and "1:n"
 mappings. "simple" covers both 1:1 and N:1 relationships
 (values are summed). For "1:n" groups (one original item
 splits into several harmonized items) this function computes
@@ -33,7 +39,13 @@ Row 2: item = "wheatrice", item_code_harm = 2
 
 
 Do not provide a single row; the function will not create
-duplicates automatically.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+duplicates automatically.
+A 1:n contribution can turn out to be unvaluable, because its
+value is missing or because its share could neither be computed
+nor interpolated (e.g. every year of the group has a zero total).
+Such contributions are dropped with a warning rather than summed,
+so that one missing value cannot turn the observed "simple"
+values of the same (item_code, year) cell into NA.'><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -88,6 +100,12 @@ example, to disaggregate "wheatrice":</p><ul><li><p>Row 1: <code>item</code> = "
 <li><p>Row 2: <code>item</code> = "wheatrice", <code>item_code_harm</code> = 2</p></li>
 </ul><p>Do not provide a single row; the function will not create
 duplicates automatically.</p>
+<p>A 1:n contribution can turn out to be unvaluable, because its
+<code>value</code> is missing or because its share could neither be computed
+nor interpolated (e.g. every year of the group has a zero total).
+Such contributions are dropped with a warning rather than summed,
+so that one missing value cannot turn the observed <code>"simple"</code>
+values of the same <code>(item_code, year)</code> cell into <code>NA</code>.</p>
     </div>
 
     <div class="section level2">
