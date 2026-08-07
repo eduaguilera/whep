@@ -1939,3 +1939,193 @@ testthat::test_that("interp_vec rejects invalid arguments", {
     "rule"
   )
 })
+
+# Weighted proxy-growth specs ------------------------------------------------
+#
+# Ported from #324 (PR #606), whose fix for the weighted branch landed via
+# #171 (PR #617) as a character-identical weighted-growth helper. These four
+# cases exercise it independently of the tests that came with that PR, and
+# cover the ungrouped "var:[weight]" form, which they do not.
+
+weighted_proxy_fixture <- function() {
+  tibble::tribble(
+    ~region, ~country, ~year, ~gdp, ~pop, ~value,
+    "eu",    "ESP",     2000,  100,   10,     50,
+    "eu",    "ESP",     2001,  110,   10,     NA,
+    "eu",    "ESP",     2002,  121,   10,     NA,
+    "eu",    "FRA",     2000,  200,   90,     80,
+    "eu",    "FRA",     2001,  200,   90,     NA,
+    "eu",    "FRA",     2002,  200,   90,     NA,
+    "am",    "USA",     2000,  300,   50,     30,
+    "am",    "USA",     2001,  360,   50,     NA,
+    "am",    "USA",     2002,  432,   50,     NA
+  )
+}
+
+test_that("fill_proxy_growth accepts a weighted proxy spec", {
+  # Regression: the weighted branch of .fg_growth_aggregate() renamed the
+  # aggregated columns from "V1"/"V2", but data.table names them after the
+  # symbols in the `list()`, so every weighted spec aborted with
+  # "Items of 'old' not found in column names: [V1, V2]".
+  data <- weighted_proxy_fixture()
+
+  expect_no_error(
+    whep::fill_proxy_growth(
+      data,
+      value_col = value,
+      proxy_col = "gdp[pop]",
+      .by = "country",
+      verbose = FALSE
+    )
+  )
+  expect_no_error(
+    whep::fill_proxy_growth(
+      data,
+      value_col = value,
+      proxy_col = "gdp:region[pop]",
+      .by = "country",
+      verbose = FALSE
+    )
+  )
+
+  # "gdp[pop]" aggregates within `.by`, so each group holds a single member and
+  # the weight cannot change the result: it must match the unweighted spec.
+  weighted <- whep::fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp[pop]",
+    .by = "country",
+    verbose = FALSE
+  )
+  unweighted <- whep::fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  expect_equal(weighted$value, unweighted$value, tolerance = 1e-9)
+})
+
+test_that("fill_proxy_growth weights grouped growth by own-series weight", {
+  # Regression: the weight lag was taken after the rows without an individual
+  # growth had been dropped, and grouped by the coarse aggregation group. The
+  # first member of each group therefore lost its weight entirely and the next
+  # member picked up the previous member's weight.
+  result <- whep::fill_proxy_growth(
+    weighted_proxy_fixture(),
+    value_col = value,
+    proxy_col = "gdp:region[pop]",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # Weighted region growth, weights being the previous year's `pop`:
+  #   eu = (0.10 * 10 + 0.00 * 90) / 100 = 0.01 in both 2001 and 2002,
+  #   am = 0.20 in both years (USA is alone in its region).
+  expect_equal(
+    result |>
+      dplyr::filter(country == "ESP") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(50, 50 * 1.01, 50 * 1.01^2),
+    tolerance = 1e-9
+  )
+  expect_equal(
+    result |>
+      dplyr::filter(country == "FRA") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(80, 80 * 1.01, 80 * 1.01^2),
+    tolerance = 1e-9
+  )
+  expect_equal(
+    result |>
+      dplyr::filter(country == "USA") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(30, 36, 43.2),
+    tolerance = 1e-9
+  )
+
+  # Under the bug ESP's 2001 weight was NA, so its 0.10 growth dropped out of
+  # the region mean and eu grew by FRA's 0.00 alone, leaving 2001 at 50.
+  expect_gt(
+    result |>
+      dplyr::filter(country == "ESP", year == 2001) |>
+      dplyr::pull(value),
+    50
+  )
+})
+
+test_that("fill_proxy_growth weights an ungrouped proxy over all series", {
+  # The "var:[weight]" form has no grouping columns, so the weighted mean runs
+  # over every series in the year and must differ from the region-grouped one.
+  result <- whep::fill_proxy_growth(
+    weighted_proxy_fixture(),
+    value_col = value,
+    proxy_col = "gdp:[pop]",
+    .by = "country",
+    verbose = FALSE
+  )
+
+  # (0.10 * 10 + 0.00 * 90 + 0.20 * 50) / 150 = 11 / 150, in both years.
+  global_growth <- 1 + 11 / 150
+  expect_equal(
+    result |>
+      dplyr::filter(country == "ESP") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(50, 50 * global_growth, 50 * global_growth^2),
+    tolerance = 1e-9
+  )
+  expect_equal(
+    result |>
+      dplyr::filter(country == "USA") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(30, 30 * global_growth, 30 * global_growth^2),
+    tolerance = 1e-9
+  )
+})
+
+test_that("fill_proxy_growth takes the weight from the previous year", {
+  # ESP has no 2002 `gdp`, so it contributes a growth rate in 2001 and 2004
+  # only. Lagging the weight after the intervening rows were dropped handed
+  # 2004 the 2001 weight instead of the 2003 one.
+  data <- tibble::tribble(
+    ~region, ~country, ~year, ~gdp, ~pop, ~value,
+    "eu",    "ESP",     2000,  100,    1,     50,
+    "eu",    "ESP",     2001,  110,    2,     NA,
+    "eu",    "ESP",     2002,   NA,    3,     NA,
+    "eu",    "ESP",     2003,  130,    4,     NA,
+    "eu",    "ESP",     2004,  143,    5,     NA,
+    "eu",    "FRA",     2000,  100,   10,     80,
+    "eu",    "FRA",     2001,  100,   10,     NA,
+    "eu",    "FRA",     2002,  100,   10,     NA,
+    "eu",    "FRA",     2003,  100,   10,     NA,
+    "eu",    "FRA",     2004,  100,   10,     NA
+  )
+
+  esp <- whep::fill_proxy_growth(
+    data,
+    value_col = value,
+    proxy_col = "gdp:region[pop]",
+    .by = "country",
+    verbose = FALSE
+  ) |>
+    dplyr::filter(country == "ESP") |>
+    dplyr::arrange(year) |>
+    dplyr::pull(value)
+
+  # 2001 growth = (0.10 * 1 + 0.00 * 10) / 11; 2002 and 2003 have FRA only, so
+  # they grow by 0; 2004 growth = (0.10 * 4 + 0.00 * 10) / 14.
+  step_2001 <- 1 + 0.1 / 11
+  step_2004 <- 1 + 0.4 / 14
+  expect_equal(
+    esp,
+    50 * c(1, step_2001, step_2001, step_2001, step_2001 * step_2004),
+    tolerance = 1e-9
+  )
+})
