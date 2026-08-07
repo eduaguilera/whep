@@ -594,20 +594,13 @@ build_carbon_balance <- function(
     dplyr::pull(.data$value)
 }
 
-# Collapse any model's per-year output to a single total stock per year.
+# Collapse the selector's long per-pool output to a single total stock per year.
+# Every model reports the same `soc_total` on each of a year's pool rows (#350),
+# so no per-model branch is needed here.
 .cb_total_stock <- function(traj) {
-  if (rlang::has_name(traj, "soc_total")) {
-    return(dplyr::transmute(
-      traj,
-      year = .data$year,
-      stock_mgc_ha = .data$soc_total
-    ))
-  }
   traj |>
-    dplyr::summarise(
-      stock_mgc_ha = sum(.data$stock_mgc_ha),
-      .by = "year"
-    )
+    dplyr::distinct(.data$year, .data$soc_total) |>
+    dplyr::rename(stock_mgc_ha = "soc_total")
 }
 
 # Initialise each cell from the earliest year: every class starts at the

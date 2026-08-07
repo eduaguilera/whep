@@ -74,6 +74,9 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    # build_cbs.R (.canonicalise_gdp_pop_area)
+    "canonical_area",
+    "key_row",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -1798,6 +1801,9 @@ utils::globalVariables(
     # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
     # Bouwman region in an aggregate reporting bucket's herd
     "region_weight",
+    # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
+    # period its growth rate was measured over
+    "lag_weight",
     # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
     "canonical_area",
     "key_row"

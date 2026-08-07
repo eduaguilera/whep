@@ -167,34 +167,32 @@ test_that("HSOC returns the three pools and conserves at equilibrium", {
     c_input_mgc_ha_yr = 2,
     years = 10
   )
-  testthat::expect_setequal(unique(out$pool), c("fresh", "humus", "iom"))
-  testthat::expect_equal(nrow(out), 3L * 11L)
-  testthat::expect_true(all(out$stock_mgc_ha > 0))
+  # Wide, like the four sibling models: one row per year, its own pool columns
+  # and a soc_total (#350).
+  testthat::expect_named(out, c("year", "fresh", "humus", "iom", "soc_total"))
+  testthat::expect_equal(nrow(out), 11L)
+  testthat::expect_true(all(out$soc_total > 0))
+  testthat::expect_equal(out$soc_total, out$fresh + out$humus + out$iom)
   # Each pool starts at its equilibrium input / (k) and, under constant input
   # and modifier = 1, stays there: a flat (trivially monotone) series.
-  humus <- out |> dplyr::filter(pool == "humus")
-  testthat::expect_equal(
-    humus$stock_mgc_ha[1],
-    utils::tail(humus$stock_mgc_ha, 1)
-  )
+  testthat::expect_equal(out$humus[1], utils::tail(out$humus, 1))
 })
 
 test_that("HSOC pools sit at their analytical equilibrium input / k", {
   # The dynamic pools initialise at StockEq = input / (k * modifier) and, under
-  # constant input, stay there: the net rate (input - stock * k) is ~0 and the
-  # stock equals the closed-form steady state for every year.
+  # constant input, stay there: the net annual change (input - stock * k) is ~0
+  # and the stock equals the closed-form steady state for every year.
   out <- whep::calculate_soc_hsoc(
     initial_soc_mgc_ha = 40,
     c_input_mgc_ha_yr = 5,
     years = 100
   )
-  testthat::expect_true(all(out$stock_mgc_ha > 0))
-  testthat::expect_true(all(abs(out$rate_mgc_ha) < 1e-8))
-  fresh <- out |> dplyr::filter(pool == "fresh")
-  humus <- out |> dplyr::filter(pool == "humus")
+  testthat::expect_true(all(out$soc_total > 0))
+  testthat::expect_true(all(abs(diff(out$fresh)) < 1e-8))
+  testthat::expect_true(all(abs(diff(out$humus)) < 1e-8))
   # Humified fraction 0.3: fresh input 3.5, humus input 1.5; k = 0.48 / 0.02.
-  testthat::expect_equal(fresh$stock_mgc_ha[1], 3.5 / 0.48, tolerance = 1e-8)
-  testthat::expect_equal(humus$stock_mgc_ha[1], 1.5 / 0.02, tolerance = 1e-8)
+  testthat::expect_equal(out$fresh[1], 3.5 / 0.48, tolerance = 1e-8)
+  testthat::expect_equal(out$humus[1], 1.5 / 0.02, tolerance = 1e-8)
 })
 
 test_that("RothC stock is positive, converges and is monotone", {

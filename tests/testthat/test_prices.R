@@ -724,7 +724,12 @@ testthat::test_that("build_cbs_prices estimates palm kernel from palm oil ratio"
     2020L, 2, 2562
   )
 
-  result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices)
+  # Oil palm has no Herb_Woody in items_prod_full, so its residues take
+  # the herbaceous default and .warn_missing_crop_habit() reports it.
+  testthat::expect_warning(
+    result <- build_cbs_prices(cbs = cbs, trade_prices = trade_prices),
+    "habit"
+  )
 
   pk <- result |> dplyr::filter(item_cbs_code == 2562)
   # Palm kernels should have prices for all 3 years (2018 estimated)
@@ -931,6 +936,160 @@ testthat::test_that("build_cbs_prices adds sugar non-centrifugal proxy", {
 
   testthat::expect_true(nrow(sugar_nc) > 0)
   testthat::expect_true(nrow(ricebran) > 0)
+})
+
+# Residue bucket mapping -------------------------------------------------------
+
+# CBS codes of the three residue buckets in whep::items_full.
+.straw_code <- 2105
+.other_residues_code <- 2106
+.firewood_code <- 2107
+
+testthat::test_that(".residue_item_cbs routes cereals and pulses to straw", {
+  testthat::expect_equal(
+    whep:::.residue_item_cbs(
+      c("Cereals", "Pulses"),
+      c("Herbaceous", NA_character_)
+    ),
+    c("Straw", "Straw")
+  )
+})
+
+testthat::test_that(".residue_item_cbs routes woody crops to firewood", {
+  testthat::expect_equal(
+    whep:::.residue_item_cbs("Fruits", "Woody"),
+    "Firewood"
+  )
+})
+
+testthat::test_that(".residue_item_cbs defaults a missing habit", {
+  # A missing Herb_Woody used to make the nested fifelse() return NA,
+  # which collapsed every such item into one dropped bucket (#228).
+  testthat::expect_equal(
+    whep:::.residue_item_cbs(
+      c("Oilseeds", "Oilseeds", NA_character_),
+      c("Herbaceous", NA_character_, NA_character_)
+    ),
+    rep("Other crop residues", 3)
+  )
+})
+
+testthat::test_that("build_cbs_prices keeps residues of a habitless crop", {
+  # Cottonseed (trade code 329, CBS 2559) is a primary crop whose
+  # Herb_Woody is missing in items_prod_full, so its residues used to
+  # vanish instead of feeding "Other crop residues" (2106).
+  trade_prices <- data.table::data.table(
+    year = 2020L,
+    item_trade = "Cottonseed",
+    item_code_trade = 329,
+    element = "export",
+    kdollars = 500,
+    tonnes = 1000,
+    price = 0.5
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2559
+  )
+
+  testthat::expect_warning(
+    result <- whep::build_cbs_prices(
+      cbs = cbs,
+      trade_prices = trade_prices,
+      residue_price_factor = 0.1
+    ),
+    "habit"
+  )
+
+  residues <- result |>
+    dplyr::filter(item_cbs_code == .other_residues_code)
+  testthat::expect_equal(nrow(residues), 1)
+  # Residue price is the product price scaled by residue_price_factor.
+  testthat::expect_equal(residues$price, 0.05)
+})
+
+testthat::test_that("build_cbs_prices keeps residues of a woody crop", {
+  # Cotton lint (trade code 767, CBS 2661) is Herbaceous, oranges
+  # (trade code 490, CBS 2611) are Woody: each keeps its own bucket.
+  trade_prices <- data.table::data.table(
+    year = c(2020L, 2020L),
+    item_trade = c("Cotton lint", "Oranges"),
+    item_code_trade = c(767, 490),
+    element = c("export", "export"),
+    kdollars = c(1000, 400),
+    tonnes = c(500, 2000),
+    price = c(2.0, 0.2)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2661,
+    2020L, 2, 2611
+  )
+
+  result <- whep::build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices,
+    residue_price_factor = 0.1
+  )
+
+  firewood <- result |>
+    dplyr::filter(item_cbs_code == .firewood_code)
+  other <- result |>
+    dplyr::filter(item_cbs_code == .other_residues_code)
+
+  testthat::expect_equal(firewood$price, 0.02)
+  testthat::expect_equal(other$price, 0.2)
+})
+
+testthat::test_that("build_cbs_prices gives no residues to animal products", {
+  # Bovine Meat (trade code 867, CBS 2731) bears no crop residue, so no
+  # residue bucket may pick up its mass or value.
+  trade_prices <- data.table::data.table(
+    year = 2020L,
+    item_trade = "Meat, cattle",
+    item_code_trade = 867,
+    element = "export",
+    kdollars = 8000,
+    tonnes = 2000,
+    price = 4.0
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    2020L, 2, 2731
+  )
+
+  result <- whep::build_cbs_prices(
+    cbs = cbs,
+    trade_prices = trade_prices
+  )
+
+  buckets <- c(.straw_code, .other_residues_code, .firewood_code)
+  testthat::expect_equal(
+    nrow(dplyr::filter(result, item_cbs_code %in% buckets)),
+    0
+  )
+})
+
+testthat::test_that(".add_residue_prices warns on items with no CBS code", {
+  # An item absent from whep::items_full loses its code in the final
+  # bridge join and is dropped downstream; that must not be silent.
+  dt <- data.table::data.table(
+    year = 2020L,
+    element = "export",
+    item_cbs = "Not a WHEP item",
+    item_cbs_code = 99999,
+    tonnes = 1000,
+    kdollars = 500,
+    price = 0.5
+  )
+
+  testthat::expect_warning(
+    whep:::.add_residue_prices(dt, residue_price_factor = 0.1),
+    "no CBS item code"
+  )
 })
 
 # Integration tests (example mode) --------------------------------------------
