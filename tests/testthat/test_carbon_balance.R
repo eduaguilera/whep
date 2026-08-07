@@ -935,6 +935,20 @@ test_that("progress feedback is on for real runs, off under testthat", {
   )
 }
 
+# Row order is part of the contract, not cosmetic: the modifier table feeds
+# downstream aggregates, and reaching them in a different sequence perturbs
+# floating-point sums in the last bits. Sorted-vs-first-appearance order alone
+# moved mineralization/rate/son_change by ~1e-15 on a real five-year build.
+testthat::test_that("vectorised RothC modifier preserves input group order", {
+  d <- .cbv_fixture(12L)
+  d$lon <- rev(d$lon)
+  fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())
+  slow <- .cbv_per_group(d)
+
+  testthat::expect_false(identical(fast$lon, sort(fast$lon)))
+  testthat::expect_equal(fast, slow, tolerance = 0)
+})
+
 testthat::test_that("vectorised RothC modifier equals the per-group path", {
   d <- .cbv_fixture(60L)
   fast <- .cb_rothc_modifier_vectorised(d, "hsoc", .cbv_keys())

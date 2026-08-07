@@ -280,8 +280,16 @@ build_carbon_balance <- function(
   }
 
   dt <- data.table::as.data.table(prepared)
-  data.table::setorderv(dt, c(group_keys, "month"))
-  counts <- dt[, list(.n = .N), by = group_keys]
+  # Number the groups by FIRST APPEARANCE, and order by that rather than by the
+  # key columns, so the output row order matches the per-group path exactly.
+  # Sorted order would carry the same values, but it reaches the downstream
+  # aggregates in a different sequence, and floating-point addition is not
+  # associative: it perturbed mineralization/rate/son_change by ~1e-15 -- small,
+  # but this change has to be a no-op, not nearly one.
+  dt[, ".grp" := .GRP, by = group_keys]
+  data.table::setorderv(dt, c(".grp", "month"))
+  counts <- dt[, list(.n = .N), by = c(group_keys, ".grp")]
+  data.table::setorderv(counts, ".grp")
   if (data.table::uniqueN(counts$.n) != 1L) {
     return(NULL)
   }
@@ -324,7 +332,22 @@ build_carbon_balance <- function(
   b <- pmax(b, 0.2)
 
   cover_factor <- 0.6 + 0.4 * (1 - cover)
-  modifier <- rowMeans(a * b * cover_factor, na.rm = TRUE)
+
+  # Reduce with the same mean() the scalar path calls, NOT rowMeans(). mean()
+  # accumulates in long double and applies a second-pass correction that
+  # rowMeans() omits, so the two disagree by 1 ulp roughly once in 3e5 rows --
+  # rare enough to survive a 200-group test, but with ~1.2e6 cell-years it hits,
+  # and the march amplifies it to ~1e-15 in mineralization and ~1e-13 in
+  # son_change. Replicating the correction in R does not help: R arithmetic is
+  # double, not long double, and lands further away than rowMeans does. At ~3 s
+  # per million groups against the ~200 s this function saves, calling the real
+  # mean() is the cheap way to stay exact. Do not "optimise" this to rowMeans().
+  products <- a * b * cover_factor
+  modifier <- vapply(
+    seq_len(nrow(products)),
+    function(i) mean(products[i, ], na.rm = TRUE),
+    numeric(1)
+  )
 
   out <- counts[, group_keys, with = FALSE]
   out[, "climate_modifier" := modifier]
