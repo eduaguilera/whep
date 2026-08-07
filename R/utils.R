@@ -1800,5 +1800,3 @@ utils::globalVariables(
     "region_weight"
   )
 )
-
-# -- Helpers for spatialize scripts -------------------------------------------
