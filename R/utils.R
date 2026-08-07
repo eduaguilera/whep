@@ -1806,6 +1806,9 @@ utils::globalVariables(
     "lag_weight",
     # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
     "canonical_area",
-    "key_row"
+    "key_row",
+    # build_production.R (#633) — LUH2 land bucket-label derivation NSE columns
+    "bucket_area",
+    "member_code"
   )
 )

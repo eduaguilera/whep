@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **LUH2 land is no longer discarded when one aggregation bucket holds two
+  territories, and the pre-1962 yield back-cast no longer mixes countries that
+  share a polity label.** Two sites keyed on the `area` *label* where an
+  `area_code` was available, which is whep#632's defect at two further sites.
+  (1) The LUH2 area bridge paired each bucket's code with its *member's* name,
+  so bucket 206 reached grassland construction as two rows — "Sudan (former)"
+  and "South Sudan" — under one `area_code`; `.dedup_production()` reads that
+  as competing sources and kept one, dropping the other's pasture. The bucket
+  now carries one label derived from its own code, so the two are summed.
+  (2) The pre-1962 `t_ha` back-cast grouped its proxy-growth fill on the
+  label, and "Rest of World" covers 62 reporting `area_code`s, so growth rates
+  were taken between different countries. **Published values move**: `ha`
+  +1.04% (+5.56e9 ha-years, all of it bucket 206's recovered pasture over
+  1850-2022) and `t_ha` -0.036% (464 cross-country fills removed, 5 real ones
+  gained); `tonnes`, `heads`, `LU`, `t_head`, `t_LU` and `slaughtered_heads`
+  are bit-identical. Comparing the Rest-of-World fold against the default
+  un-folded build over its 62 areas, `ha` goes from 2.38x to 0.99x and
+  `tonnes` from 0.59x to 0.82x, with the whole remainder in the pre-1962
+  back-cast and the observed 1962-2023 era conserved to 0.04% (#633).
+
 * **`get_primary_production()`, `get_wide_cbs()` and `get_processing_coefs()`
   take a `years` argument.** A scoped request now builds only that window
   instead of building 1850-2023 and discarding the rest. Measured for 2010:
