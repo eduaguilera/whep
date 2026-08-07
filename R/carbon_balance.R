@@ -1196,7 +1196,10 @@ build_carbon_balance <- function(
 .cb_hwsd_clay <- function(cell_polity) {
   rlang::check_installed("terra")
   hwsd_dir <- .resolve_hwsd_dir(NULL)
-  mu_clay <- .read_hwsd_attributes_local(hwsd_dir) |>
+  mu_clay <- .read_hwsd_attributes_local(
+    hwsd_dir,
+    required = .hwsd_clay_columns()
+  ) |>
     dplyr::filter(!is.na(.data$t_clay)) |>
     dplyr::summarise(
       clay_pct = stats::weighted.mean(.data$t_clay, .data$share),

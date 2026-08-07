@@ -58,7 +58,8 @@ read_soil_ph <- function(hwsd_dir = NULL, data = list(), example = FALSE) {
   }
   rlang::check_installed("terra")
   dir <- .resolve_hwsd_dir(hwsd_dir)
-  mu_soils <- .read_hwsd_attributes_local(dir) |> .derive_dominant_soil()
+  mu_soils <- .read_hwsd_attributes_local(dir, required = .hwsd_ph_columns()) |>
+    .derive_dominant_soil()
   soil_grid <- .aggregate_hwsd(
     dir,
     mu_soils,
@@ -110,7 +111,11 @@ read_soil_hydraulic <- function(
   }
   rlang::check_installed("terra")
   dir <- .resolve_hwsd_dir(hwsd_dir)
-  mu_hyd <- .read_hwsd_attributes_local(dir) |> .derive_map_unit_hydraulic()
+  mu_hyd <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_texture_columns()
+  ) |>
+    .derive_map_unit_hydraulic()
   grid <- .aggregate_hwsd_hydraulic(dir, mu_hyd, data$cell_polity)
   if (is.null(data$cell_polity)) {
     return(grid)
@@ -119,6 +124,23 @@ read_soil_hydraulic <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The hwsd_data.csv columns each HWSD reader needs, named once so a caller's
+# column contract and a test's skip guard cannot drift apart.
+.hwsd_ph_columns <- function() {
+  c("mu_global", "share", "t_usda_tex", "t_ph_h2o")
+}
+
+.hwsd_texture_columns <- function() {
+  c("mu_global", "share", "t_usda_tex")
+}
+
+# Topsoil clay fraction (% weight), HWSD field T_CLAY: FAO/IIASA/ISRIC/ISSCAS/
+# JRC (2012) "Harmonized World Soil Database version 1.2", attribute database
+# field list ("T_CLAY: Topsoil Clay Fraction, % wt.").
+.hwsd_clay_columns <- function() {
+  c("mu_global", "share", "t_clay")
+}
 
 # Resolve the HWSD data directory from the argument, else the env var.
 .resolve_hwsd_dir <- function(hwsd_dir) {
@@ -132,13 +154,41 @@ read_soil_hydraulic <- function(
   resolved
 }
 
-# Read the HWSD map-unit x texture-class attribute table.
-.read_hwsd_attributes_local <- function(hwsd_dir) {
+# Read the HWSD map-unit x texture-class attribute table, checking it carries
+# the columns the caller is about to read. hwsd_data.csv is derived locally
+# (inst/scripts/export_hwsd_attributes.R or download/download_hwsd.R), so a
+# partial extract is an ordinary state: without this contract a missing column
+# surfaced as a dplyr "Column `t_clay` not found in `.data`" error, which names
+# a tidyselect internal instead of the stale extract (whep#596).
+.read_hwsd_attributes_local <- function(hwsd_dir, required = character()) {
   csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
   if (!file.exists(csv_path)) {
     cli::cli_abort("HWSD CSV not found at {.file {csv_path}}.")
   }
+  absent <- .hwsd_missing_columns(hwsd_dir, required)
+  if (length(absent) > 0) {
+    cli::cli_abort(c(
+      "The HWSD extract at {.file {csv_path}} lacks the column{?s}
+       {.field {absent}}.",
+      i = "Re-export it with
+           {.path inst/scripts/export_hwsd_attributes.R}, which writes every
+           column the HWSD readers need."
+    ))
+  }
   readr::read_csv(csv_path, show_col_types = FALSE)
+}
+
+# Which of `required` a local HWSD extract does not carry, or "hwsd_data.csv"
+# when the extract itself is absent. Reads the header only, so a test's skip
+# guard can call it cheaply and state the same precondition the reader
+# enforces instead of drifting from it.
+.hwsd_missing_columns <- function(hwsd_dir, required) {
+  csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
+  if (!.has_path(hwsd_dir) || !file.exists(csv_path)) {
+    return("hwsd_data.csv")
+  }
+  header <- readr::read_csv(csv_path, n_max = 0, show_col_types = FALSE)
+  required[!rlang::has_name(header, required)]
 }
 
 # For each map unit, pick the dominant (largest summed share) USDA texture

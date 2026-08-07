@@ -538,6 +538,15 @@
   alongside it, and the package gained a
   [code of conduct](https://ropensci.org/code-of-conduct/) and a link from the
   README to the contributing guide. Groundwork for rOpenSci peer review (#75).
+* The HWSD readers now say which column a local `hwsd_data.csv` is missing.
+  `read_soil_ph()`, `read_soil_hydraulic()` and the soil-carbon clay driver
+  check the extract against the columns they are about to read and abort naming
+  the absent ones plus the script that re-exports a complete extract, where a
+  partial extract previously surfaced as a `dplyr` error (`Column t_clay not
+  found in .data`) that read as a code fault rather than a stale input.
+  `inst/scripts/export_hwsd_attributes.R` now exports `t_clay`, so a re-run
+  produces an extract the clay driver can read. No published value changes: a
+  complete extract is read exactly as before (#596).
 * **`propagate_fp_uncertainty()` no longer reseeds the calling session.** Given
   `options = list(seed = )` it called `set.seed()` and left it set, so every
   random number drawn afterwards depended on having made the call, and in a
