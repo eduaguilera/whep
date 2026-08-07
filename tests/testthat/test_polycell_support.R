@@ -2395,6 +2395,20 @@ testthat::test_that("polygonal intersections restore the source row after droppi
     "did not retain its source-row mapping"
   )
 
+  source_b <- sf::st_sf(
+    cell_id = "cell-b",
+    piece = 8L,
+    geometry = sf::st_sfc(pcs_cell(10.75, 45.25), crs = 4326)
+  )
+  sources <- rbind(source, source_b)
+  clip <- sf::st_sfc(pcs_rect(10.1, 10.9, 45.1, 45.2), crs = 4326)
+  by_source <- whep:::.pcs_intersect_polygonal_by_source(sources, clip)
+  testthat::expect_equal(by_source$cell_id, c("cell-a", "cell-b"))
+  testthat::expect_equal(by_source$piece, c(7L, 8L))
+  testthat::expect_true(all(
+    sf::st_geometry_type(by_source) %in% c("POLYGON", "MULTIPOLYGON")
+  ))
+
   line_only <- sf::st_sfc(zero_line, crs = 4326)
   attr(line_only, "idx") <- matrix(
     c(1L, 1L),

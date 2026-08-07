@@ -582,7 +582,38 @@ expand_polycell_years <- function(support, years) {
 # the source-row index that the sfc method records in `idx`.
 .pcs_intersect_polygonal <- function(x, y) {
   hit <- sf::st_intersection(sf::st_geometry(x), sf::st_geometry(y))
+  if (length(hit) > 0L && !.pcs_has_intersection_index(hit)) {
+    return(.pcs_intersect_polygonal_by_source(x, y))
+  }
   .pcs_restore_intersection_rows(x, hit)
+}
+
+.pcs_has_intersection_index <- function(hit) {
+  idx <- attr(hit, "idx")
+  is.matrix(idx) && ncol(idx) >= 1L && nrow(idx) == length(hit)
+}
+
+# A few sf/GEOS combinations return an sfc result without a usable `idx`.
+# Recompute that exceptional case one source row at a time: this is slower than
+# the vectorized path, but the source identity is then exact by construction.
+.pcs_intersect_polygonal_by_source <- function(x, y) {
+  parts <- vector("list", nrow(x))
+  for (i in seq_len(nrow(x))) {
+    hit <- sf::st_intersection(sf::st_geometry(x)[i], sf::st_geometry(y))
+    polygonal <- .pcs_polygonal_part(hit)
+    if (length(polygonal) == 0L) {
+      next
+    }
+    parts[[i]] <- sf::st_sf(
+      sf::st_drop_geometry(x)[rep.int(i, length(polygonal)), , drop = FALSE],
+      geometry = polygonal
+    )
+  }
+  parts <- purrr::compact(parts)
+  if (length(parts) == 0L) {
+    return(x[0, ])
+  }
+  do.call(rbind, parts)
 }
 
 .pcs_restore_intersection_rows <- function(x, hit) {
@@ -595,8 +626,9 @@ expand_polycell_years <- function(support, years) {
   # Never make the same guess when several source rows are possible.
   if (is.null(idx) && nrow(x) == 1L) {
     idx <- matrix(1L, nrow = length(hit), ncol = 1L)
+    attr(hit, "idx") <- idx
   }
-  if (is.null(idx) || ncol(idx) < 1L || nrow(idx) != length(hit)) {
+  if (!.pcs_has_intersection_index(hit)) {
     cli::cli_abort(
       "The sfc intersection did not retain its source-row mapping."
     )
