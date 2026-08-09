@@ -1,5 +1,17 @@
 # whep (development version)
 
+* **BNF coefficients now ship with cell-level provenance (#497).** The long
+  `bnf_provenance` sidecar is readable with
+  `whep_coef_table("bnf_provenance")` and accounts for every one of the 60
+  non-missing numeric cells in `bnf.csv` exactly once: 32 are asserted against
+  a publication, 15 are explicit derivations, and 13 retain their existing
+  values with genuinely unresolved authority and no guessed source
+  attribution. It distinguishes nitrogen harvest index from Herridge's
+  dry-matter harvest index and identifies Lassaletta et al.
+  (2014) as the *Environmental Research Letters* 9:105011 Supplementary
+  Methods authority. **No published value changes:** `bnf.csv` is byte-
+  identical and BNF runtime outputs are unchanged.
+
 * **Breaking: `whep::biomass_coefs` no longer exposes five unused legacy
   below-ground fields (#524).** `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`,
   `Root_kgC_kgDM`, `Rhizodeposits_mass_kgC_kgDM`, and
