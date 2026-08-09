@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **Breaking: `whep::biomass_coefs` no longer exposes five unused legacy
+  below-ground fields (#524).** `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`,
+  `Root_kgC_kgDM`, `Rhizodeposits_mass_kgC_kgDM`, and
+  `Rhizodeposits_N_kgN_kgRootN` have been physically removed. Modern
+  calculations use the item-keyed `bio_coefs` fields
+  `bg_biomass_dm_kg_ha`, `root_shoot_ratio`, `root_c_kgdm`,
+  `rhizodeposit_mass_c_kgdm`, and `rhizodeposit_n_kgn_krootn` under their
+  existing contract, respectively. The first two are fallbacks when
+  `ipcc_root_coefs$bg_ref_dm_t_ha` and `ipcc_root_coefs$rs_default`,
+  respectively, are unavailable; `rhizodeposit_mass_c_kgdm` is an integrity
+  and documentation component already included in `root_c_kgdm`, not a
+  separate calculation input. **No published number changes:** the removed
+  columns had no runtime consumer, both modern coefficient tables are
+  byte-identical, and representative NPP, BNF, SOC, and nitrogen-input outputs
+  are unchanged.
+
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
