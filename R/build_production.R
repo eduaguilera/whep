@@ -160,6 +160,23 @@ build_primary_production <- function(
 #'
 #' @keywords internal
 #' @noRd
+# Years read either side of a requested window so the year-axis interpolation in
+# .fill_yields() has anchors to work from. Swept at 2010 against the full-range
+# build, warm cache, measuring the whole scoped build:
+#
+#   margin 0   31.3 s   t_ha off by 2.954e-04
+#   margin 1   35.7 s   t_ha exact
+#   margin 2   40.1 s   t_ha exact
+#   margin 3   39.5 s   t_ha exact      <- chosen
+#   margin 5   44.7 s   t_ha exact, no better than 3
+#
+# 1 is enough at this year, but that is one year's anchor spacing and leaves no
+# headroom, so 3 is used: it is the smallest margin that also reaches the floor
+# on the other units, and 5 buys nothing for a further 5 s. The margin only
+# widens the read -- the output is trimmed back to the requested years, and a
+# full-range request takes the historical branch and is unaffected.
+.yield_year_margin <- 3L
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
@@ -173,11 +190,17 @@ build_primary_production <- function(
   # we must also read the FAOSTAT anchor years to extrapolate from.
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
+  #
+  # A requested window is also widened by a margin either side, for the same
+  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
+  # window with no neighbouring years cannot reconstruct a yield the full-range
+  # build reconstructs, and the row is dropped instead (#666). A full-range
+  # request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
   } else {
-    output_years
+    max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
   # 1. Read commodity balances (for gap-filling)
