@@ -86,8 +86,8 @@ category is stamped in <code>method_n_exceedance</code>.</p>
 negative crop-surplus contribution receives its approved signed share of a
 positive cell overshoot. <code><a href="build_sjos_n_footprint.html">build_sjos_n_footprint()</a></code> traces positive and
 negative parts separately through the non-negative footprint engine and
-recombines them linearly.</p>
-<p>If the upstream result contains a zero/near-zero-denominator cell residual,
+recombines them linearly.
+If the upstream result contains a zero/near-zero-denominator cell residual,
 this function raises a typed undefined-attribution error: a mandatory crop
 footprint cannot silently discard or invent an allocation for that residual.</p>
 <p>The per-crop (<code>item_cbs_code</code>) granularity is preserved so the footprint can

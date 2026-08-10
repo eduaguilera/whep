@@ -508,6 +508,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Report reporting buckets that sum more than one territory
 - [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md)
   : Find rows whose polity is a nearest-period stand-in
+- [`polity_mapping_provenance()`](https://eduaguilera.github.io/whep/reference/polity_mapping_provenance.md)
+  : Report which authority a row's territorial identity rests on
 - [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
   : Get area codes from area names
 - [`add_area_name()`](https://eduaguilera.github.io/whep/reference/add_area_name.md)

@@ -14,12 +14,10 @@ a negative crop-surplus contribution receives its approved signed share
 of a positive cell overshoot.
 [`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)
 traces positive and negative parts separately through the non-negative
-footprint engine and recombines them linearly.
-
-If the upstream result contains a zero/near-zero-denominator cell
-residual, this function raises a typed undefined-attribution error: a
-mandatory crop footprint cannot silently discard or invent an allocation
-for that residual.
+footprint engine and recombines them linearly. If the upstream result
+contains a zero/near-zero-denominator cell residual, this function
+raises a typed undefined-attribution error: a mandatory crop footprint
+cannot silently discard or invent an allocation for that residual.
 
 The per-crop (`item_cbs_code`) granularity is preserved so the footprint
 can be traced to origin (locked plan decision 14). Rows with a missing
