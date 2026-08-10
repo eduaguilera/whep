@@ -133,6 +133,7 @@ build_cell_polity <- function(
 #'   `year`/`area_code`/`item_cbs_code` totals only) or `"grid"` (also
 #'   distributes to `lon`/`lat` grid cells; requires `crop_patterns` and
 #'   `type_cropland` in `data`).
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded grid inputs, used only when
 #'   `resolution = "grid"`: `crop_patterns` (`lon`, `lat`, `item_prod_code`,
 #'   `harvest_fraction`) and `type_cropland` (`lon`, `lat`, `year`,
@@ -144,7 +145,10 @@ build_cell_polity <- function(
 #'   [build_crop_land_extension()] uses).
 #' @return A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 #'   `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
-#'   `area_code`, `year`, `item_cbs_code`, `n_t`.
+#'   `area_code`, `year`, `item_cbs_code`, `n_t`. Either gains
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`; this
+#'   output carries no reporting-polity columns, so the flag is attached
+#'   directly rather than derived from them.
 #' @export
 #' @examples
 #' spatialize_country_n_to_crops(
@@ -165,20 +169,27 @@ spatialize_country_n_to_crops <- function(
   crop_shares,
   cell_polity,
   resolution = c("polity_crop", "grid"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list()
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   .n_check_totals_shares(country_totals, crop_shares)
   polity_crop <- .n_polity_crop_totals(country_totals, crop_shares)
   if (resolution == "polity_crop") {
-    return(polity_crop)
+    return(.apply_polity_validity(
+      polity_crop,
+      polity_validity,
+      attach_flag = TRUE
+    ))
   }
   .check_columns(
     cell_polity,
     c("lon", "lat", "area_code", "polity_frac", "cell_area_ha"),
     "cell_polity"
   )
-  .n_grid_totals(polity_crop, cell_polity, data)
+  .n_grid_totals(polity_crop, cell_polity, data) |>
+    .apply_polity_validity(polity_validity, attach_flag = TRUE)
 }
 
 # ---- Private helpers --------------------------------------------------

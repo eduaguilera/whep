@@ -70,9 +70,17 @@ current_area_polities <- polity_area_crosswalk |>
     reporting_polity_code = .data$polity_code,
     reporting_polity_name = .data$polity_name,
     reporting_polity_has_geometry = .data$has_geometry,
-    legacy_polity_code = sub("-.*", "", .data$polity_code)
+    crosswalk_polity_prefix = sub("-.*", "", .data$polity_code)
   )
 
+# `legacy_polity_prefix` is the ISO3-LIKE STEM the vendored table has always
+# carried ("AFG", "ROW", "RAFR"), and it is not a polity code: not one of its
+# values is in `polities$polity_code`. It was named `polity_code` until #687,
+# where the name promising an identity the column does not hold made every join
+# from these tables to `polities` or `polity_area_crosswalk` come back empty
+# with nothing warning. The real carrier is `reporting_polity_code`, resolved
+# just above. The stem is still filled from the crosswalk where the vendored
+# table leaves it NA, so the coalesce below is the only place the two meet.
 add_current_area_polities <- function(table) {
   table |>
     dplyr::select(
@@ -81,22 +89,22 @@ add_current_area_polities <- function(table) {
         "reporting_polity_code",
         "reporting_polity_name",
         "reporting_polity_has_geometry",
-        "legacy_polity_code"
+        "crosswalk_polity_prefix"
       ))
     ) |>
     dplyr::mutate(code = as.integer(.data$code)) |>
     dplyr::left_join(current_area_polities, by = "code") |>
     dplyr::mutate(
-      polity_code = dplyr::coalesce(
-        .data$polity_code,
-        .data$legacy_polity_code
+      legacy_polity_prefix = dplyr::coalesce(
+        .data$legacy_polity_prefix,
+        .data$crosswalk_polity_prefix
       ),
       polity_name = dplyr::coalesce(
         .data$polity_name,
         .data$reporting_polity_name
       )
     ) |>
-    dplyr::select(-"legacy_polity_code")
+    dplyr::select(-"crosswalk_polity_prefix")
 }
 
 regions_full <- add_current_area_polities(regions_full)
@@ -141,7 +149,7 @@ if (length(unknown_codes) > 0) {
 # and is deliberately not decided here: these values are exactly what the table
 # shipped before it became derived.
 rest_of_world_folds <- tibble::tribble(
-  ~code, ~polity_code, ~polity_name, ~cbs, ~fabio_code,
+  ~code, ~legacy_polity_prefix, ~polity_name, ~cbs, ~fabio_code,
   18L, "RASI", "Asia Other", FALSE, 999,
   45L, "RAFR", "Africa Other", FALSE, 999
 )
