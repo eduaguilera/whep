@@ -2011,15 +2011,17 @@ build_processing_coefs <- function(
 # that reports the code earliest in `.cbs_area_label_source_order()`, its
 # earliest year, then the label alphabetically. On the real 1850-2023
 # `cbs_raw_all` that reproduces all 216 of today's labels exactly, so it removes
-# the order dependence WITHOUT moving a published value -- deliberately, because
-# `area` is also the key `.polity_code_from_labels()` reads the pre-1962 frame's
-# polity out of (whep#698), and changing which period names a code redistributes
-# which countries find a population and land proxy. That redistribution is a
-# decision, not a tidy-up: it is blocked on whep#493 and measured in whep#698.
-# Two alternative rules were measured here and are NOT taken for that reason --
-# labelling from the code's most recent reporting year costs area 248
-# (Yugoslavia) its entire pre-1961 proxy fill, 32,677 keys, and labelling from
-# the 1961 back-cast anchor moves the resolved polity of 40 codes.
+# the order dependence WITHOUT moving a published value. That mattered most
+# because `area` used to be the key `.polity_code_from_labels()` read the
+# pre-1962 frame's polity out of, so which period named a code decided which
+# countries found a population and land proxy. **whep#698 removed that read**:
+# `.fill_with_proxies()` keys on the reporting bucket now, and no label decides
+# an identity here any more. The two alternative rules measured at the time
+# still say what the label is worth -- labelling from the code's most recent
+# reporting year cost area 248 (Yugoslavia) its entire pre-1961 proxy fill,
+# 32,677 keys, and labelling from the 1961 back-cast anchor moved the resolved
+# polity of 40 codes -- but the second of those is now moot and the first is a
+# question about `area` as a GROUPING key, which is what it still is.
 #
 # It stays ONE label per code on purpose. Labelling per `(area_code, year)` is
 # more faithful still, but `area` sits in four inner-join keys and in
