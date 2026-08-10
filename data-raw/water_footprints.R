@@ -107,6 +107,15 @@ water_livestock_blue <- livestock_src |>
 # directory comes from WHEP_LPJML_RUN_DIR (never hardcoded), and the annual
 # per-CFT time axis is decoded by read_lpjml_hydrology() rather than by hand.
 #
+# VINTAGE: the published pin values are derived from the 5.9.7 run
+# (global_1901-2009_spinup_200_our_inputs_grassland_livestock_npp_vegc_fix),
+# NOT from the current 6.1.1 production run, because 6.1.1's blue/green split
+# is broken: band 14 is rainfed, yet 6.1.1 reports 382 mm/yr of BLUE water on
+# it and only 134 mm/yr green, against 0 and 435 in 5.9.7. See whep#710.
+# Regenerating from 6.1.1 would drop the global total from 13,683 to 3,923
+# km3/yr -- that is the bug, not physics. Point WHEP_LPJML_RUN_DIR at a run
+# with a correct split and re-run this section to regenerate.
+#
 # Occupation basis: this charges the FULL managed-grassland green ET, consistent
 # with the grassland land extension's "occupation" metric (whole grassland, not
 # the active-grazing sub-area). Compare the "green WF of grazing" of Schyns
