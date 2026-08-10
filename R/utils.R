@@ -1817,6 +1817,10 @@ utils::globalVariables(
     "bucket_area",
     "member_code",
     # build_cbs.R (#580) — .cbs_area_labels() data.table NSE column
-    "label_source_rank"
+    "label_source_rank",
+    # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
+    # columns for the canonical-area tie-break
+    "is_canonical",
+    "keep"
   )
 )

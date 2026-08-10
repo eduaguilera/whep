@@ -165,3 +165,83 @@ test_that("the aggregator labels a bucket from the bucket's own code", {
     ][[1]]
   )
 })
+
+# -- .iso3_to_fao_area_code tie-break (#586) -----------------------------------
+
+test_that("an ISO3 naming two areas resolves to the canonical one", {
+  # FAOSTAT keeps a pre-split entity beside its successor, so two ISO3 codes
+  # name two reporting areas each: ETH is 62 ("Ethiopia PDR", dissolved 1993)
+  # and 238 ("Ethiopia"); SDN is 206 ("Sudan (former)") and 276 ("Sudan").
+  # The tie used to be broken by `unique(bridge, by = "iso3c")` -- row order --
+  # and `.current_area_lookup()` orders by `area_code`, so it kept the LOWEST,
+  # which for ETH is the dissolved 62, for every year.
+  bridge <- whep:::.iso3_area_code_bridge()
+
+  expect_equal(bridge$area_code_fao[bridge$iso3c == "ETH"], 238L)
+  # 276 folds into bucket 206, so 206 is the canonical area for SDN and this
+  # one was already right; it is pinned so the fix cannot move it.
+  expect_equal(bridge$area_code_fao[bridge$iso3c == "SDN"], 206L)
+  expect_equal(bridge$area_code_fao[bridge$iso3c == "SSD"], 277L)
+})
+
+test_that("the ISO3 bridge is one row per ISO3 and never the dissolved area", {
+  # An invariant rather than two hand-picked codes: whenever an ISO3 names any
+  # area that IS its polity's `polity_area_code`, that is the one chosen. This
+  # is what row order got wrong, and it holds for every ISO3, not just ETH.
+  bridge <- whep:::.iso3_area_code_bridge()
+  expect_false(any(duplicated(bridge$iso3c)))
+
+  lookup <- whep:::.current_area_lookup(include_unmapped = FALSE)
+  lookup <- lookup[!is.na(lookup$area_iso3c), ]
+  canonical <- lookup[
+    !is.na(lookup$polity_area_code) &
+      lookup$area_code == lookup$polity_area_code,
+    c("area_iso3c", "area_code")
+  ]
+  data.table::setnames(
+    canonical,
+    c("area_iso3c", "area_code"),
+    c("iso3c", "canonical_code")
+  )
+  checked <- merge(bridge, canonical, by = "iso3c")
+  expect_gt(nrow(checked), 0L)
+  expect_equal(checked$area_code_fao, checked$canonical_code)
+})
+
+test_that(".iso3_to_fao_area_code stamps the canonical code on real rows", {
+  dt <- data.table::data.table(
+    area_code = c("ETH", "SDN", "ESP"),
+    year = c(2000L, 2000L, 2000L),
+    value = c(1, 2, 3)
+  )
+
+  out <- whep:::.iso3_to_fao_area_code(dt)
+  out <- out[order(out$value), ]
+
+  expect_equal(out$area_code, c(238L, 206L, 203L))
+  # The values ride along untouched: this helper only restamps the key.
+  expect_equal(out$value, c(1, 2, 3))
+  expect_equal(nrow(out), 3L)
+})
+
+test_that("an ISO3 still ambiguous after the rule aborts instead of guessing", {
+  # The ISO3 codes that fold into an aggregate have no canonical area at all,
+  # so the rule cannot decide for them. Today each names exactly one area, but
+  # that is a property of the data, not a guarantee -- so the function must
+  # refuse rather than silently take whichever row came first.
+  fake <- data.table::data.table(
+    area_code = c(900L, 901L),
+    area_iso3c = c("XXX", "XXX"),
+    polity_area_code = c(999L, 999L),
+    polity_code = c("ROW-1850-2025", "ROW-1850-2025")
+  )
+  testthat::local_mocked_bindings(
+    .current_area_lookup = function(...) fake,
+    .package = "whep"
+  )
+
+  expect_error(
+    whep:::.iso3_area_code_bridge(),
+    class = "whep_ambiguous_iso3_area"
+  )
+})
