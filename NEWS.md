@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`read_soil_hydraulic()` no longer holds three full-resolution HWSD rasters
+  at once.** It classifies the 30-arcsec HWSD grid once per hydraulic property
+  (`t_field`, `t_wilt`, `porosity`), each costing ~11 GB of transient raster for
+  a 3 MB result. That memory is reclaimable, but nothing triggered the collector
+  between passes, so they accumulated (11.4 -> 22.1 -> 32.8 GB). Reclaiming
+  between passes takes the reader's peak from 38.2 GB to 16.8 GB, with output
+  `identical()` and no time cost (64 s vs 68 s). This is a fixed cost on every
+  `build_carbon_balance()` and `get_soc_climate_drivers()` call, independent of
+  how many years are requested (#624).
+
+* **A year-scoped production build no longer depends on the window for which
+  livestock stock combinations exist.** `.build_livestock_stocks()` read the
+  stock series scoped to the caller's window, but `.combine_livestock()`
+  completes the year axis against the (area, item) combinations that read
+  produced — so a combination absent from the window was absent from the
+  completion, and the completed rows are what give a livestock-product row its
+  unit downstream. The series is now read over its full span and trimmed
+  afterwards; full-range output is unchanged. This narrows the remaining
+  year-scoping gap (`t_LU` at 2010: 2.18e-04 to 1.61e-04) but does not close
+  #666 — a scoped build still derives `LU` as NA where a full build derives 0.
 * **`build_carbon_balance()` no longer grows its memory with the length of the
   span.** The RothC/HSOC climate modifier is now reduced one year at a time.
   Attaching soil cover crosses the monthly climate table with every land-use
@@ -211,6 +231,22 @@
   proxy rises 1.47x. No `(area_code, year)` changes its reporting polity and
   no `area_code` gains a second label.
 
+* **The pre-1962 CBS extension is keyed on `area_code`, not on the `area`
+  label.** `area` is the *periodized* polity name ("Algeria (1919-1962)") and
+  it was a key in five places in the historical extension, including the year
+  skeleton, which is crossed with the year axis. Two labels for one code
+  therefore gave that code two full year skeletons rather than only a wrong
+  name. `build_commodity_balances(historical_data = )` reaches exactly that:
+  `.prepare_historical_cbs()` names its rows from the crosswalk's static
+  `area_name` while the FAOSTAT rows carry the periodized polity name, and for
+  97 of the 262 codes in that lookup the static name is not any of the code's
+  polity names, so the two can never agree. Measured on a fixture, one such
+  overlap turned 77 keys into 154 rows and had the cell's two candidate values
+  summed downstream instead of reconciled — 240 t where the answer is 140 t.
+  The extension now reconciles on the code, takes the best source as it always
+  intended to, and re-attaches the code's one display label afterwards. **No
+  published value changes** without `historical_data`: `1850–2023` is identical
+  before and after, key for key.
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
