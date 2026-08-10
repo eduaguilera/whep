@@ -9,11 +9,17 @@ extension: `"exceedance"` (the default) carries `exceedance_n_t`,
 carries `production_n_t` (harvested product plus used residue plus
 grazed forage). The chosen category is stamped in `method_n_exceedance`.
 
-The three categories are traced as three separate extension passes (one
-call per category), not one signed impact: the footprint framework
-carries a single non-negative `impact_u`, so the within-boundary and
-exceedance parts are run as distinct passes and compared afterwards,
-never combined into one signed intensity.
+Signed crop-attributed values are retained. They arise legitimately when
+a negative crop-surplus contribution receives its approved signed share
+of a positive cell overshoot.
+[`build_sjos_n_footprint()`](https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.md)
+traces positive and negative parts separately through the non-negative
+footprint engine and recombines them linearly.
+
+If the upstream result contains a zero/near-zero-denominator cell
+residual, this function raises a typed undefined-attribution error: a
+mandatory crop footprint cannot silently discard or invent an allocation
+for that residual.
 
 The per-crop (`item_cbs_code`) granularity is preserved so the footprint
 can be traced to origin (locked plan decision 14). Rows with a missing

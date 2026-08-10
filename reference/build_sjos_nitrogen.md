@@ -129,7 +129,7 @@ build_sjos_nitrogen(example = TRUE)
 #> 
 #> $boundary_surplus
 #> $boundary_surplus$grid
-#> # A tibble: 7 × 22
+#> # A tibble: 7 × 53
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -139,15 +139,16 @@ build_sjos_nitrogen(example = TRUE)
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 7  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 17 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
-#> #   lat <dbl>, item_cbs_code <int>, area_ha <dbl>, critical_kgn_ha <dbl>,
-#> #   actual_kgn_ha <dbl>, exceed_share <dbl>, exceedance_kgn_ha <dbl>,
-#> #   within_boundary_kgn_ha <dbl>, exceedance_n_t <dbl>,
-#> #   within_boundary_n_t <dbl>, actual_n_t <dbl>, production_n_t <dbl>,
-#> #   metric <chr>, land_use <chr>, method_boundary <chr>
+#> # ℹ 48 more variables: reporting_polity_has_geometry <lgl>, cell_id <int>,
+#> #   source_row <int>, source_col <int>, lon <dbl>, lat <dbl>,
+#> #   item_cbs_code <int>, actual_year <int>, critical_reference_year <int>,
+#> #   area_ha <dbl>, source_area_ha <dbl>, image_region <int>,
+#> #   critical_threshold <chr>, actual_n_t <dbl>, pressure_share <dbl>,
+#> #   pressure_condition_ratio <dbl>, critical_n_t <dbl>,
+#> #   crop_critical_n_t <dbl>, signed_margin_n_t <dbl>, …
 #> 
 #> $boundary_surplus$country
-#> # A tibble: 6 × 14
+#> # A tibble: 6 × 34
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2010         1                1 ARM-1991-2025         Armenia              
@@ -156,9 +157,13 @@ build_sjos_nitrogen(example = TRUE)
 #> 4  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 5  2010         2                2 AFG-1919-2025         Afghanistan          
 #> 6  2010         2                2 AFG-1919-2025         Afghanistan          
-#> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
-#> #   exceedance_n_t <dbl>, within_boundary_n_t <dbl>, actual_n_t <dbl>,
-#> #   production_n_t <dbl>, metric <chr>, land_use <chr>, method_boundary <chr>
+#> # ℹ 29 more variables: reporting_polity_has_geometry <lgl>,
+#> #   item_cbs_code <int>, actual_n_t <dbl>, critical_n_t <dbl>,
+#> #   signed_margin_n_t <dbl>, crop_critical_n_t <dbl>,
+#> #   positive_overshoot_n_t <dbl>, exceedance_n_t <dbl>,
+#> #   within_boundary_n_t <dbl>, unallocated_critical_n_t <dbl>,
+#> #   unallocated_signed_margin_n_t <dbl>,
+#> #   unallocated_positive_overshoot_n_t <dbl>, production_n_t <dbl>, …
 #> 
 #> 
 #> $boundary_pathway
@@ -202,12 +207,12 @@ build_sjos_nitrogen(example = TRUE)
 #> # A tibble: 6 × 9
 #>    year area_code item_cbs_code exceedance_n_t within_boundary_n_t actual_n_t
 #>   <int>     <int>         <int>          <dbl>               <dbl>      <dbl>
-#> 1  2010         1          2511             58                  29         87
-#> 2  2010         1          2513              0                   1          1
-#> 3  2010         1          2555              0                   0          0
-#> 4  2010         2          2511             11                   4         15
-#> 5  2010         2          2513              0                   1          1
-#> 6  2010         2          2555              2                   2          4
+#> 1  2010         1          2511         17.8                69.2           87
+#> 2  2010         1          2513          0.712               0.288          1
+#> 3  2010         1          2555          0                  -2             -2
+#> 4  2010         2          2511          0                  15             15
+#> 5  2010         2          2513          0                   1              1
+#> 6  2010         2          2555          0                   4              4
 #> # ℹ 3 more variables: nourish <chr>, boundary_side <chr>, sjos_class <fct>
 #> 
 #> $footprint

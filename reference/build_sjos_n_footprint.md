@@ -22,6 +22,12 @@ Two outputs are returned, mirroring Global's `FP_all_N` and
 final-demand categories, `fp_food` is the subset consumed as food
 (`target_fd == "food"`).
 
+Signed crop attributions are traced as separate positive and negative
+linear extensions and recombined. Explicit undefined-attribution
+residuals are rejected by
+[`build_n_exceedance_extension()`](https://eduaguilera.github.io/whep/reference/build_n_exceedance_extension.md)
+before tracing.
+
 ## Usage
 
 ``` r

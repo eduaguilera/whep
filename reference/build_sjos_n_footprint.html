@@ -12,7 +12,10 @@ then a domestic-versus-traded relabelling of the tidy flows: a flow is
 area (origin_area == target_area) and &quot;Traded&quot; otherwise. Two outputs are
 returned, mirroring Global's FP_all_N and FP_food_all_N: fp_all is the
 embodied nitrogen across all final-demand categories, fp_food is the subset
-consumed as food (target_fd == &quot;food&quot;)."><meta property="og:description" content="Trace a per-crop nitrogen category through the FABIO footprint framework and
+consumed as food (target_fd == &quot;food&quot;).
+Signed crop attributions are traced as separate positive and negative linear
+extensions and recombined. Explicit undefined-attribution residuals are
+rejected by build_n_exceedance_extension() before tracing."><meta property="og:description" content="Trace a per-crop nitrogen category through the FABIO footprint framework and
 return the consumption-side embodied nitrogen split into domestic and traded
 flows. The category selects which nitrogen mass is carried as the footprint
 intensity (see build_n_exceedance_extension()): &quot;exceedance&quot; (default),
@@ -25,7 +28,10 @@ then a domestic-versus-traded relabelling of the tidy flows: a flow is
 area (origin_area == target_area) and &quot;Traded&quot; otherwise. Two outputs are
 returned, mirroring Global's FP_all_N and FP_food_all_N: fp_all is the
 embodied nitrogen across all final-demand categories, fp_food is the subset
-consumed as food (target_fd == &quot;food&quot;)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+consumed as food (target_fd == &quot;food&quot;).
+Signed crop attributions are traced as separate positive and negative linear
+extensions and recombined. Explicit undefined-attribution residuals are
+rejected by build_n_exceedance_extension() before tracing."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -79,6 +85,9 @@ area (<code>origin_area == target_area</code>) and <code>"Traded"</code> otherwi
 returned, mirroring Global's <code>FP_all_N</code> and <code>FP_food_all_N</code>: <code>fp_all</code> is the
 embodied nitrogen across all final-demand categories, <code>fp_food</code> is the subset
 consumed as food (<code>target_fd == "food"</code>).</p>
+<p>Signed crop attributions are traced as separate positive and negative linear
+extensions and recombined. Explicit undefined-attribution residuals are
+rejected by <code><a href="build_n_exceedance_extension.html">build_n_exceedance_extension()</a></code> before tracing.</p>
     </div>
 
     <div class="section level2">

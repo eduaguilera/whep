@@ -26,7 +26,8 @@ read_critical_n(
   land_use = c("all", "ara", "igl"),
   dir = NULL,
   data = NULL,
-  example = FALSE
+  example = FALSE,
+  verify_source = TRUE
 )
 ```
 
@@ -79,19 +80,28 @@ read_critical_n(
   If `TRUE`, return a small fixture instead of reading data. Defaults to
   `FALSE`.
 
+- verify_source:
+
+  If `TRUE` (default), real archive reads verify the selected critical
+  raster and its source-area/IMAGE support rasters against the package's
+  versioned content manifest before parsing. Ignored for `data` and
+  `example` injection.
+
 ## Value
 
 A tibble with `lon`, `lat` (0.5-degree cell centres), `value` (kg N per
 hectare per year; a categorical impact code for `binding_threshold`) and
 retained layer provenance: `critical_var`, `critical_threshold`,
-`critical_land_use`, `critical_year` and `critical_source`. NODATA cells
+`critical_land_use`, `critical_year` and `critical_source`, canonical
+integer `cell_id`/row/column keys, deposited `source_area_ha`,
+IMAGE-region membership, DOI/version and archive checksum. NODATA cells
 are dropped.
 
 ## Examples
 
 ``` r
 read_critical_n(example = TRUE)
-#> # A tibble: 6 × 8
+#> # A tibble: 6 × 16
 #>     lon   lat value critical_var       critical_threshold critical_land_use
 #>   <dbl> <dbl> <dbl> <chr>              <chr>              <chr>            
 #> 1 -0.75  51.8     9 critical_n_surplus mi                 all              
@@ -100,5 +110,8 @@ read_critical_n(example = TRUE)
 #> 4 -0.75  51.2   120 critical_n_surplus mi                 all              
 #> 5 -0.25  51.2    47 critical_n_surplus mi                 all              
 #> 6  0.25  51.2    63 critical_n_surplus mi                 all              
-#> # ℹ 2 more variables: critical_year <int>, critical_source <chr>
+#> # ℹ 10 more variables: critical_year <int>, critical_source <chr>,
+#> #   cell_id <int>, source_row <int>, source_col <int>, source_area_ha <dbl>,
+#> #   image_region <int>, critical_source_doi <chr>,
+#> #   critical_source_version <chr>, archive_md5 <chr>
 ```

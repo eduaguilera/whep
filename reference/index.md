@@ -317,7 +317,7 @@ becomes the intensity of an embodied-nitrogen trade footprint extension.
 - [`calculate_n_surplus()`](https://eduaguilera.github.io/whep/reference/calculate_n_surplus.md)
   : Calculate the gridded soil-surface nitrogen surplus.
 - [`build_n_boundary_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.md)
-  : Build the surplus-mode critical-nitrogen boundary exceedance.
+  : Build source-exact gridded critical-nitrogen exceedance.
 - [`build_n_pathway_exceedance()`](https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.md)
   : Build the pathway-mode critical-nitrogen boundary exceedance.
 - [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
