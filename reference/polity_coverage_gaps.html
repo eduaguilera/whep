@@ -11,6 +11,26 @@ the area needs the missing period added to the crosswalk, or that the
 reporting area outlived (or predates) every polity mapped to it, so treat it
 as a coverage gap: the polygon, population and period of the returned polity
 describe a different year than the value does.
+The two directions are not the same defect, so gap_kind names which one a
+row is:
+&quot;polity_not_started&quot;: the polity begins after the row's year. This is
+mostly WHEP's own back-cast convention rather than a hole – pre-1961
+series are back-cast onto the anchor-year territory, so a Soviet
+republic's 1900 land is attributed to the republic that reports it today.
+&quot;polity_ended&quot;: the polity had ended by the row's year, so the value
+covers a territory that entity no longer describes. This is the harder
+case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
+Sudan fold into bucket 206, whose label SUD-1956-2011 ended at the
+secession, and no live polity means &quot;Sudan and South Sudan&quot;.
+
+
+gap_kind is not derivable from the returned columns, which is why it is
+returned rather than left to the caller. The comparison is against the year
+the resolver actually matched on, which the back-cast anchor floors at
+backcast_anchor: an 1850 row for FAOSTAT area 273 Montenegro is matched as
+1961 and lands on MNE-1913-1918, so it is &quot;polity_ended&quot;, while
+year &amp;lt; polity_start_year on the same row would call it
+&quot;polity_not_started&quot;.
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -27,6 +47,26 @@ the area needs the missing period added to the crosswalk, or that the
 reporting area outlived (or predates) every polity mapped to it, so treat it
 as a coverage gap: the polygon, population and period of the returned polity
 describe a different year than the value does.
+The two directions are not the same defect, so gap_kind names which one a
+row is:
+&quot;polity_not_started&quot;: the polity begins after the row's year. This is
+mostly WHEP's own back-cast convention rather than a hole – pre-1961
+series are back-cast onto the anchor-year territory, so a Soviet
+republic's 1900 land is attributed to the republic that reports it today.
+&quot;polity_ended&quot;: the polity had ended by the row's year, so the value
+covers a territory that entity no longer describes. This is the harder
+case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
+Sudan fold into bucket 206, whose label SUD-1956-2011 ended at the
+secession, and no live polity means &quot;Sudan and South Sudan&quot;.
+
+
+gap_kind is not derivable from the returned columns, which is why it is
+returned rather than left to the caller. The comparison is against the year
+the resolver actually matched on, which the back-cast anchor floors at
+backcast_anchor: an 1850 row for FAOSTAT area 273 Montenegro is matched as
+1961 and lands on MNE-1913-1918, so it is &quot;polity_ended&quot;, while
+year &amp;lt; polity_start_year on the same row would call it
+&quot;polity_not_started&quot;.
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -83,6 +123,23 @@ the area needs the missing period added to the crosswalk, or that the
 reporting area outlived (or predates) every polity mapped to it, so treat it
 as a coverage gap: the polygon, population and period of the returned polity
 describe a different year than the value does.</p>
+<p>The two directions are not the same defect, so <code>gap_kind</code> names which one a
+row is:</p><ul><li><p><code>"polity_not_started"</code>: the polity begins after the row's year. This is
+mostly WHEP's own back-cast convention rather than a hole – pre-1961
+series are back-cast onto the anchor-year territory, so a Soviet
+republic's 1900 land is attributed to the republic that reports it today.</p></li>
+<li><p><code>"polity_ended"</code>: the polity had ended by the row's year, so the value
+covers a territory that entity no longer describes. This is the harder
+case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
+Sudan fold into bucket 206, whose label <code>SUD-1956-2011</code> ended at the
+secession, and no live polity means "Sudan and South Sudan".</p></li>
+</ul><p><code>gap_kind</code> is not derivable from the returned columns, which is why it is
+returned rather than left to the caller. The comparison is against the year
+the resolver actually matched on, which the back-cast anchor floors at
+<code>backcast_anchor</code>: an 1850 row for FAOSTAT area 273 Montenegro is matched as
+1961 and lands on <code>MNE-1913-1918</code>, so it is <code>"polity_ended"</code>, while
+<code>year &lt; polity_start_year</code> on the same row would call it
+<code>"polity_not_started"</code>.</p>
 <p>The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -128,10 +185,10 @@ passed to the same resolution <code><a href="add_polity_code.html">add_polity_co
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with one row per <code>(area_code, year)</code> resolved by a
 stand-in, ordered by area code and year, carrying <code>area_code</code>, <code>year</code>,
-<code>polity_code</code>, <code>polity_name</code>, <code>polity_start_year</code>, <code>polity_end_year</code> and
-<code>n_rows</code>, the number of rows of <code>table</code> that pair carries. Zero rows means
-every row of <code>table</code> landed inside its polity's period, which is the
-intended state.</p>
+<code>polity_code</code>, <code>polity_name</code>, <code>polity_start_year</code>, <code>polity_end_year</code>,
+<code>gap_kind</code> (<code>"polity_not_started"</code> or <code>"polity_ended"</code>) and <code>n_rows</code>, the
+number of rows of <code>table</code> that pair carries. Zero rows means every row of
+<code>table</code> landed inside its polity's period, which is the intended state.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -147,11 +204,11 @@ more than one territory, and whether their label covers the sum.</p></div>
 <span class="r-in"><span><span class="fu">polity_coverage_gaps</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span>area_code <span class="op">=</span> <span class="fl">206L</span>, year <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2005L</span>, <span class="fl">2015L</span><span class="op">)</span>, value <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 7</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 8</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   area_code  year polity_code   polity_name    polity_start_year polity_end_year</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>       206  <span style="text-decoration: underline;">2</span>015 SUD-1956-2011 Sudan (1956-2…              <span style="text-decoration: underline;">1</span>956            <span style="text-decoration: underline;">2</span>011</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 1 more variable: n_rows &lt;int&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: gap_kind &lt;chr&gt;, n_rows &lt;int&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

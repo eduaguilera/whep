@@ -15,6 +15,29 @@ the reporting area outlived (or predates) every polity mapped to it, so
 treat it as a coverage gap: the polygon, population and period of the
 returned polity describe a different year than the value does.
 
+The two directions are not the same defect, so `gap_kind` names which
+one a row is:
+
+- `"polity_not_started"`: the polity begins after the row's year. This
+  is mostly WHEP's own back-cast convention rather than a hole –
+  pre-1961 series are back-cast onto the anchor-year territory, so a
+  Soviet republic's 1900 land is attributed to the republic that reports
+  it today.
+
+- `"polity_ended"`: the polity had ended by the row's year, so the value
+  covers a territory that entity no longer describes. This is the harder
+  case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277
+  South Sudan fold into bucket 206, whose label `SUD-1956-2011` ended at
+  the secession, and no live polity means "Sudan and South Sudan".
+
+`gap_kind` is not derivable from the returned columns, which is why it
+is returned rather than left to the caller. The comparison is against
+the year the resolver actually matched on, which the back-cast anchor
+floors at `backcast_anchor`: an 1850 row for FAOSTAT area 273 Montenegro
+is matched as 1961 and lands on `MNE-1913-1918`, so it is
+`"polity_ended"`, while `year < polity_start_year` on the same row would
+call it `"polity_not_started"`.
+
 The resolution here is the same one the builds use, including the
 back-cast anchor, so it reports what the table actually got rather than
 a second reading of the crosswalk. The area column may hold either a
@@ -60,10 +83,11 @@ polity_coverage_gaps(
 
 A tibble with one row per `(area_code, year)` resolved by a stand-in,
 ordered by area code and year, carrying `area_code`, `year`,
-`polity_code`, `polity_name`, `polity_start_year`, `polity_end_year` and
-`n_rows`, the number of rows of `table` that pair carries. Zero rows
-means every row of `table` landed inside its polity's period, which is
-the intended state.
+`polity_code`, `polity_name`, `polity_start_year`, `polity_end_year`,
+`gap_kind` (`"polity_not_started"` or `"polity_ended"`) and `n_rows`,
+the number of rows of `table` that pair carries. Zero rows means every
+row of `table` landed inside its polity's period, which is the intended
+state.
 
 ## See also
 
@@ -81,9 +105,9 @@ and whether their label covers the sum.
 polity_coverage_gaps(
   tibble::tibble(area_code = 206L, year = c(2005L, 2015L), value = 1)
 )
-#> # A tibble: 1 × 7
+#> # A tibble: 1 × 8
 #>   area_code  year polity_code   polity_name    polity_start_year polity_end_year
 #>       <int> <int> <chr>         <chr>                      <int>           <int>
 #> 1       206  2015 SUD-1956-2011 Sudan (1956-2…              1956            2011
-#> # ℹ 1 more variable: n_rows <int>
+#> # ℹ 2 more variables: gap_kind <chr>, n_rows <int>
 ```
