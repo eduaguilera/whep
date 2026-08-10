@@ -684,7 +684,14 @@ testthat::test_that("the gap direction is read at the back-cast anchor", {
   # `backcast_anchor`. FAOSTAT area 273 Montenegro in 1850 is matched as 1961
   # and lands on `MNE-1913-1918`, a polity that had ENDED by the year the
   # resolver used -- so the raw-year comparison would mislabel it. On a real
-  # `get_primary_production()` that is 165 rows, areas 178 and 273.
+  # `get_primary_production()` that was 165 rows, areas 178 and 273.
+  #
+  # The stand-in rule that produced it is now opt-in: whep#705 made the
+  # fallback prefer a not-yet-started period, which is why 273 no longer lands
+  # there by default. Pinned under `"nearest"` because the divergence the
+  # anchored comparison exists for is a property of the resolution, not of one
+  # crosswalk vintage, and a later vintage can bring it back to the default.
+  withr::local_options(whep.polity_stand_in = "nearest")
   anchored <- whep::polity_coverage_gaps(
     tibble::tibble(area_code = 273L, year = 1850L)
   )
@@ -724,6 +731,93 @@ testthat::test_that("gap_kind agrees with the anchored comparison", {
   testthat::expect_setequal(
     unique(gaps$gap_kind),
     c("polity_ended", "polity_not_started")
+  )
+})
+
+testthat::test_that("a stand-in never splits one area between two entities", {
+  # whep#705. The fallback used to rank candidate periods by distance in years
+  # alone, so a reporting area with no period at the back-cast anchor was
+  # attributed to whichever of its periods happened to be nearer -- and that
+  # flipped mid-series, with nothing in the data marking the break. FAOSTAT
+  # area 178 Eritrea read `ERI-1889-1952`, the Italian colonial administration,
+  # through 1972 and `ERI-1993-2025` from 1973; area 273 Montenegro flipped at
+  # 1961 on a margin of ONE year (1961 - 1918 + 1 = 44 against 2006 - 1961 =
+  # 45). Preferring the not-yet-started period keeps each area on one entity.
+  span <- expand.grid(area_code = c(178L, 273L), year = 1850:2023)
+  resolved <- whep::add_polity_code(span)
+  per_area <- tapply(
+    resolved$polity_code,
+    resolved$area_code,
+    function(x) length(unique(x))
+  )
+
+  testthat::expect_equal(as.vector(per_area), c(1L, 1L))
+  testthat::expect_equal(
+    unique(resolved$polity_code[resolved$area_code == 178L]),
+    "ERI-1993-2025"
+  )
+  testthat::expect_equal(
+    unique(resolved$polity_code[resolved$area_code == 273L]),
+    "MNE-2006-2025"
+  )
+
+  # `"nearest"` is the pre-#705 ranking and is what the split looked like, so
+  # the option really selects the two behaviours rather than being inert.
+  withr::local_options(whep.polity_stand_in = "nearest")
+  split <- whep::add_polity_code(span)
+  testthat::expect_setequal(
+    unique(split$polity_code[split$area_code == 178L]),
+    c("ERI-1889-1952", "ERI-1993-2025")
+  )
+  testthat::expect_equal(
+    max(split$year[split$polity_code == "ERI-1889-1952"]),
+    1972L
+  )
+  testthat::expect_setequal(
+    unique(split$polity_code[split$area_code == 273L]),
+    c("MNE-1913-1918", "MNE-2006-2025")
+  )
+})
+
+testthat::test_that("no area ends on a dead polity and revives on a later one", {
+  # The invariant behind the two areas above, asserted over the whole shipped
+  # crosswalk so an upstream re-sync that reintroduces the shape at some other
+  # area fails here rather than shipping. Once a reporting area is standing in
+  # on a polity that had ENDED, it cannot go back to standing in on one that
+  # has NOT STARTED in a later year: that ordering can only come from a
+  # distance metric flipping, never from succession.
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = 1850:2025
+  )
+  revived <- function() {
+    gaps <- whep::polity_coverage_gaps(grid)
+    ended <- gaps |>
+      dplyr::filter(.data$gap_kind == "polity_ended") |>
+      dplyr::summarise(last_ended = max(.data$year), .by = "area_code")
+    not_started <- gaps |>
+      dplyr::filter(.data$gap_kind == "polity_not_started") |>
+      dplyr::summarise(first_not_started = min(.data$year), .by = "area_code")
+    ended |>
+      dplyr::inner_join(not_started, by = "area_code") |>
+      dplyr::filter(.data$first_not_started > .data$last_ended) |>
+      dplyr::pull("area_code")
+  }
+
+  testthat::expect_equal(revived(), integer(0))
+
+  # And the invariant is load-bearing: the pre-#705 ranking breaks it, at
+  # exactly the two areas whep#705 measured.
+  withr::local_options(whep.polity_stand_in = "nearest")
+  testthat::expect_setequal(revived(), c(178L, 273L))
+})
+
+testthat::test_that("the stand-in option rejects a value it cannot honour", {
+  withr::local_options(whep.polity_stand_in = "closest")
+  testthat::expect_error(
+    whep::add_polity_code(tibble::tibble(area_code = 178L, year = 1900L)),
+    "whep.polity_stand_in"
   )
 })
 

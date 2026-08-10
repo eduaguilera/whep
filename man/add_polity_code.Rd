@@ -37,13 +37,30 @@ a table with FAOSTAT/FABIO \code{area_code} values. If a \code{year} column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.
 
-When no mapped period covers a row's year, the nearest period of the same
-area is used as a stand-in and \code{mapping_status} reports \code{"out_of_span"}
-rather than the crosswalk's \code{"matched"}/\code{"manual"}. Such a row is attributed
-to a polity that did not exist in that year, so treat it as a coverage gap:
+When no mapped period covers a row's year, another period of the same area
+is used as a stand-in and \code{mapping_status} reports \code{"out_of_span"} rather
+than the crosswalk's \code{"matched"}/\code{"manual"}. Such a row is attributed to a
+polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it.
 }
+\section{Which stand-in is picked}{
+
+A period that has \strong{not started yet} is preferred over one that has
+already \strong{ended}, and only then is the nearest in years taken. Ranking by
+distance alone split one reporting area's series between two entities at
+whichever year the arithmetic flipped: FAOSTAT area 178 Eritrea read
+\code{ERI-1889-1952} (the Italian colonial administration) up to 1972 and
+\code{ERI-1993-2025} from 1973, and area 273 Montenegro split at 1961 between
+\code{MNE-1913-1918} and \code{MNE-2006-2025} on a one-year margin. Preferring the
+not-yet-started period keeps each area on one entity and agrees with the
+back-cast anchor, whose purpose is to avoid resolving back-cast rows onto a
+larger historical-extent period. Set
+\code{options(whep.polity_stand_in = "nearest")} to restore ranking by distance
+alone; it changes 235 of the crosswalk's 46,640 \verb{(area, year)} pairs over
+1850-2025, all of them areas 178 and 273 (whep#705).
+}
+
 \examples{
 # The same area code resolves to different polities in different years:
 # area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
