@@ -68,17 +68,27 @@ testthat::test_that("only three reporting areas fail to resolve", {
   )
 })
 
-testthat::test_that("one bucket carries one polity name per year, except 206", {
+testthat::test_that("two buckets carry one polity name per year, no more", {
   # The shipped-data counterpart of the three-row fixture in
   # `test_read_raw_inputs.R`. That one proves the aggregator sums a bucket;
   # this one proves the crosswalk hands it a bucket that can be summed.
   #
-  # Bucket 206 is the single live exception and is already filed: FAOSTAT areas
-  # 206 "Sudan (former)", 276 "Sudan" and 277 "South Sudan" share
-  # `polity_area_code` 206 under three different polity names, so the
-  # aggregator emits three rows for one key. That is why
-  # `.select_best_source()`'s `fun.aggregate = sum` is load-bearing (whep#557),
-  # and why the bucket's own label is contested (whep#546, whep#414).
+  # The two live exceptions are exactly the two buckets that fold a member
+  # outside Rest-of-World, and both are filed:
+  #
+  #   206  FAOSTAT areas 206 "Sudan (former)", 276 "Sudan" and 277
+  #        "South Sudan" share it under three different polity names, so the
+  #        aggregator emits three rows for one key. That is why
+  #        `.select_best_source()`'s `fun.aggregate = sum` is load-bearing
+  #        (whep#557), and why the bucket's own label is contested
+  #        (whep#546, whep#414).
+  #   238  FAOSTAT areas 62 "Ethiopia PDR" and 238 "Ethiopia" share it, and
+  #        from 1993 the dissolved area 62 stands in with `ETH-1952-1993`
+  #        while 238 is a period hit on `ETH-1993-2025`. New with whep#741,
+  #        which stopped the crosswalk handing dead area 62 the live polity
+  #        the map awards to 238; that row was manufacturing the agreement,
+  #        not preventing the split. Area 62 publishes nothing after 1992, so
+  #        the aggregator never sees two labels for one key here.
   resolved <- .resolution_grid()
   resolved <- resolved[!is.na(polity_area_code)]
 
@@ -88,5 +98,5 @@ testthat::test_that("one bucket carries one polity name per year, except 206", {
   ]
   split_buckets <- sort(unique(labels$polity_area_code[labels$n_labels > 1L]))
 
-  testthat::expect_equal(split_buckets, 206L)
+  testthat::expect_equal(split_buckets, c(206L, 238L))
 })

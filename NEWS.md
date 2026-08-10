@@ -1,5 +1,30 @@
 # whep (development version)
 
+* **`polity_area_crosswalk` no longer gives an area a polity the upstream map
+  awarded outside its fold (#741).** The prefix expansion removed a candidate
+  only when it overlapped a map span of *its own* area, so nothing ever asked
+  whether upstream had already named that polity elsewhere. FAOSTAT area 62
+  Ethiopia PDR was therefore handed `ETH-1993-2025`, which area 238 owns, and
+  it escaped the same-area test on a boundary year (1993 is not `<= 1992`).
+  The exclusion now also fires when the map's owner sits outside the
+  candidate's fold, and the crosswalk goes from 596 to 595 rows. The mirror-
+  image row `(238, ETH-1952-1993)` is deliberately kept: area 62 folds into
+  bucket 238, `reporting_polity_code` is resolved from the bucket code, and
+  that row is the bucket's whole pre-1993 coverage. **One published identity
+  moves, no quantity does.** `regions_full`'s row for area 62 "Ethiopia PDR"
+  now carries `reporting_polity_code = "ETH-1952-1993"` / "Ethiopia
+  (1952-1993)" instead of `"ETH-1993-2025"` / "Ethiopia" -- that area
+  dissolved in 1993 and never was the modern republic, so this is a
+  correction. It is the only row of the only dataset that moves. Resolving all
+  266 area/bucket codes over 1850-2025 (46,816 pairs) moves 33, all of them
+  area 62 in 1993-2025, years in which area 62 both published nothing and no
+  longer existed. Confirmed on a real 6,310,390-row
+  `get_primary_production()`: area 62 contributes 0 rows, and Ethiopia's
+  bucket-238 rows still split 35,558 pre-1993 to `ETH-1952-1993` and 10,057
+  from 1993 to `ETH-1993-2025`. One consequence is now visible rather than
+  hidden: `.bucket_year_polity_conflicts()` reports bucket 238 alongside
+  bucket 206 for 1993-2025, because the removed row was manufacturing
+  agreement between a dead reporting area and a live one.
 * **New diagnostic `polity_mapping_provenance()` says which authority a row's
   territorial identity rests on (#740).** `polity_area_crosswalk` is not the
   upstream FAOSTAT-to-polity map: it is that map (245 of 596 rows) plus rows

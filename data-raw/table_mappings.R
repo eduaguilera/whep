@@ -506,8 +506,80 @@ shadowed_by_map <- prefix_candidates |>
   ) |>
   dplyr::distinct(.data$area_code, .data$polity_code)
 
+# AND A POLITY THE MAP AWARDED OUTSIDE THIS FOLD IS NOT AVAILABLE.
+# `shadowed_by_map` joins `by = "area_code"`, so it only ever asks whether a
+# candidate period overlaps a span of ITS OWN area. Nothing asked the other
+# question -- whether the upstream map has already named that polity somewhere
+# else -- and the two Ethiopia codes are exactly the pair that slips between
+# them (#741). The map is unambiguous, one high-confidence row each:
+#
+#   62  1961-1992  ETH-1952-1993  Ethiopia PDR
+#   238 1993-2024  ETH-1993-2025  Ethiopia
+#
+# Both areas carry the `ETH` prefix, so each is a prefix candidate for the
+# other's polity, and each escapes the same-area overlap test on a boundary
+# year: `ETH-1993-2025` starts in 1993, which is not `<= 1992`, so it is not
+# shadowed for area 62; `ETH-1952-1993` ends (exclusively) in 1993, so
+# `1992 >= 1993` is false and it is not shadowed for area 238. Neither test can
+# see the other area at all. The result was area 62 holding the polity 238 owns
+# and vice versa.
+#
+# THE EXCEPTION IS THE BUCKET THE OWNER FOLDS INTO, and that is the whole
+# subtlety, because it is asymmetric where the defect looks symmetric.
+# `.bucket_area_labels()` resolves a published row's `reporting_polity_code` by
+# handing `.add_polity_columns_dt()` the `polity_area_code` -- the BUCKET code
+# -- not the reporting area's own code. Area 62 folds into bucket 238, so
+# bucket 238 sums Ethiopia PDR's 1961-1992 data, and `(238, ETH-1952-1993)` is
+# the only period bucket 238 has before 1993: it is what attributes those years
+# to the entity that actually reported them. Removing it on the symmetric "a
+# different AREA owns it" reading is not a no-op -- measured over 1850-2025 it
+# sends 176 (area, year) pairs to `ETH-1993-2025` as an out-of-span stand-in,
+# which is a published value moving. The reverse row has no such role: nothing
+# folds into bucket 62, area 238 is its own bucket, and area 62 stopped
+# reporting in 1992, so `(62, ETH-1993-2025)` answers a question no consumer
+# can ask correctly. One row goes, one stays.
+#
+# So a candidate survives only if its area IS the owner (the map's own row,
+# which `shadowed_by_map` already covers) or its area is the bucket the owner
+# folds into. The map is one row per polity -- 281 rows, 281 distinct codes
+# over 228 areas -- so ownership is a statement about upstream rather than a
+# tie-break invented here. Only three areas fold into a bucket that is not
+# their own code (62 into 238, and 276/277 into 206); the ROW fold never
+# reaches this branch because `fabio_row_prefix` routes it to `prefix_areas`.
+#
+# Prefix inference remains the only route to the periods the map does not
+# reach: `ETH-1800-1889` through `ETH-1941-1952` are named by no map row, so
+# both areas keep all seven, which is what `.resolve_hist_trade_polities()`
+# needs.
+map_owners <- faostat_area_map |>
+  dplyr::distinct(.data$polity_code, owner_area = .data$area_code) |>
+  dplyr::left_join(
+    reporting_areas |>
+      dplyr::distinct(owner_area = .data$area_code, .data$fabio_code),
+    by = "owner_area"
+  ) |>
+  dplyr::transmute(
+    .data$polity_code,
+    .data$owner_area,
+    owner_bucket = dplyr::coalesce(.data$fabio_code, .data$owner_area)
+  )
+
+owned_elsewhere <- prefix_candidates |>
+  dplyr::distinct(.data$area_code, .data$polity_code) |>
+  dplyr::inner_join(
+    map_owners,
+    by = "polity_code",
+    relationship = "many-to-many"
+  ) |>
+  dplyr::filter(
+    .data$area_code != .data$owner_area,
+    .data$area_code != .data$owner_bucket
+  ) |>
+  dplyr::distinct(.data$area_code, .data$polity_code)
+
 outside_map_areas <- prefix_candidates |>
   dplyr::anti_join(shadowed_by_map, by = c("area_code", "polity_code")) |>
+  dplyr::anti_join(owned_elsewhere, by = c("area_code", "polity_code")) |>
   dplyr::mutate(mapping_source = "prefix_outside_map")
 
 polity_area_crosswalk <- dplyr::bind_rows(
