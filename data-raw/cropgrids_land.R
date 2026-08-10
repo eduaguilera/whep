@@ -76,7 +76,7 @@ xwalk <- cg2fao |>
 # it is joined against uses. Do not pre-aggregate here.
 iso2area <- whep::regions_full |>
   filter(!is.na(code)) |>
-  transmute(iso3 = polity_code, area_code = as.integer(code)) |>
+  transmute(iso3 = legacy_polity_prefix, area_code = as.integer(code)) |>
   distinct(iso3, .keep_all = TRUE)
 
 read_cou <- function(sheet, valcol) {

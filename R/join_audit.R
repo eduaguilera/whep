@@ -139,8 +139,11 @@
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
     "identity_lookup", "Attaches the one label the code carries.",
-    ".read_fodder_euadb", "left_join", "polity_code", 1L, "identity_lookup",
-    "Keyed on the polity itself.",
+    ".read_fodder_euadb", "left_join", "legacy_polity_prefix, area_iso3c", 1L,
+    "identity_lookup",
+    "ISO3 -> bucket bridge. It read as a polity join until whep#687 renamed
+     `regions_full$polity_code`, which was never a polity code but the vendored
+     ISO3-like stem; the key now names both vocabularies it actually bridges.",
     ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
     ".read_luh2_cft", "merge", "iso3c", 1L, "identity_lookup",
@@ -208,6 +211,9 @@
     "polity_area_code",
     "polity_code",
     "reporting_polity_code",
+    # Not a polity code: `regions_full`'s vendored ISO3-like stem (whep#687).
+    # Listed so renaming a column cannot be a way out of the audit.
+    "legacy_polity_prefix",
     "grid_area_code",
     "iso3",
     "iso3c",

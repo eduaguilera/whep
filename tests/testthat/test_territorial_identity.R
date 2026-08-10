@@ -138,13 +138,20 @@ test_that("a carried polity column really holds polity codes", {
   })
 })
 
-test_that("regions_full's legacy polity_code is not a polity code", {
+test_that("the legacy polity prefix is not a polity code, and says so", {
   # Documented on both datasets as a legacy ISO3-like prefix. Pinned here so
   # the two vocabularies cannot be quietly conflated: if this column is ever
   # migrated to real codes, the register and the docs must move with it.
+  #
+  # The name is pinned too. whep#687 renamed it away from `polity_code`,
+  # because a column named for an identity it does not hold is what made a
+  # join from these tables to `polities` come back empty with nothing warning;
+  # a future rebuild reinstating that name would restore the trap silently.
   purrr::walk(c("regions_full", "polities_cats"), function(object) {
     value <- .registry_object(object)
-    stems <- stats::na.omit(value$polity_code)
+    expect_false("polity_code" %in% names(value))
+    expect_true("legacy_polity_prefix" %in% names(value))
+    stems <- stats::na.omit(value$legacy_polity_prefix)
     expect_gt(length(stems), 0L)
     expect_equal(sum(stems %in% whep::polities$polity_code), 0L)
   })
