@@ -108,12 +108,18 @@ test_that("only the recorded areas resolve through a WHEP prefix guess", {
     unique() |>
     sort()
 
-  # 62 Ethiopia PDR and 238 Ethiopia (`ETH-1952-1993`), the three Baltic areas
-  # on their Soviet-annexation periods, and the six FAOSTAT regional "Other"
-  # buckets, which the upstream map does not mention at all.
+  # 238 Ethiopia (`ETH-1952-1993`), the three Baltic areas on their
+  # Soviet-annexation periods, and the six FAOSTAT regional "Other" buckets,
+  # which the upstream map does not mention at all.
+  #
+  # 62 Ethiopia PDR left this list in whep#741: its only guessed row was
+  # `ETH-1993-2025`, a period the upstream map awards to 238, and #743 stopped
+  # the prefix expansion handing an area a polity outside its own fold. That is
+  # the ratchet moving the right way -- lower it when a guess is retired, never
+  # raise it to admit one.
   expect_equal(
     guessed,
-    c(62L, 63L, 119L, 126L, 238L, 901L, 902L, 903L, 904L, 905L, 906L)
+    c(63L, 119L, 126L, 238L, 901L, 902L, 903L, 904L, 905L, 906L)
   )
 
   # The narrower population whep#740 proposes deleting outright.
@@ -123,16 +129,20 @@ test_that("only the recorded areas resolve through a WHEP prefix guess", {
 
   expect_equal(
     sort(unique(outside_map$area_code)),
-    c(62L, 63L, 119L, 126L, 238L)
+    c(63L, 119L, 126L, 238L)
   )
 
-  # 262 `prefix_outside_map` rows are shipped and 5 of them are ever the answer
-  # to an `(area_code, year)`. The other 257 decide nothing, which is why #740
-  # is a deletion rather than a replacement.
-  expect_equal(nrow(outside_map), 5L)
+  # 261 `prefix_outside_map` rows are shipped and 4 of them are ever the answer
+  # to an `(area_code, year)`. The other 257 decide nothing -- which is why #740
+  # is NOT the 288-row deletion its title claims: the live population is tiny,
+  # and one of the four (238 -> `ETH-1952-1993`) is load-bearing for 35,558 rows,
+  # so it wants an upstream answer rather than a delete.
+  #
+  # Both numbers fell by one in whep#741/#743; see the note above.
+  expect_equal(nrow(outside_map), 4L)
   expect_equal(
     sum(whep::polity_area_crosswalk$mapping_source == "prefix_outside_map"),
-    262L
+    261L
   )
 })
 

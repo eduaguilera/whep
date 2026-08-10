@@ -38,7 +38,6 @@ negative crop-surplus contribution receives its approved signed share of a
 positive cell overshoot. \code{\link[=build_sjos_n_footprint]{build_sjos_n_footprint()}} traces positive and
 negative parts separately through the non-negative footprint engine and
 recombines them linearly.
-
 If the upstream result contains a zero/near-zero-denominator cell residual,
 this function raises a typed undefined-attribution error: a mandatory crop
 footprint cannot silently discard or invent an allocation for that residual.
