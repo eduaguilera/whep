@@ -1270,9 +1270,13 @@ testthat::test_that("the re-key keeps a code the crosswalk does not carry", {
       0.25, 50.25, 2000L,          5000,
       0.75, 50.25, 2000L,          5000
     ),
-    # Each cell here is held whole by one reporting area, so the explicit
-    # share `.normalize_country_grid()` now requires is 1. This fixture is
-    # about which CODES the grid carries, not about how a cell is split.
+    # `cell_area_frac` is explicit because C8/S-A5 forbids the share-less grid
+    # this fixture arrived with: `.abort_missing_polity_share()` refuses a
+    # crosswalk carrying no share rather than defaulting it to 1 and handing a
+    # border cell wholly to one polity. `1` is the honest value here -- each of
+    # these cells is owned outright by the single polity keyed on it -- so the
+    # missing-reporter behaviour under test is unchanged and the guard is not
+    # weakened to accommodate the fixture.
     live_grid = tibble::tribble(
       ~lon,  ~lat, ~area_code, ~cell_area_frac,
       0.25, 50.25,       238L,               1,

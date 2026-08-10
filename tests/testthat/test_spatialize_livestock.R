@@ -738,13 +738,16 @@ test_that("build_gridded_livestock rejects an unknown area_key", {
 # deletes such a country outright; report that once, on its own, with the
 # heads at stake.
 test_that("a re-keyed grid names the countries it deletes, with heads", {
-  # One reporting area per cell, so the explicit share is 1: this fixture is
-  # about the codes the grid carries, not about splitting a cell.
+  # `cell_area_frac` is explicit because C8/S-A5 forbids the share-less grid
+  # this fixture arrived with: `.abort_missing_polity_share()` refuses a
+  # crosswalk carrying no share rather than defaulting it to 1. `1` is the
+  # honest value here -- each cell is owned outright by the polity keyed on it
+  # -- so the deleted-country behaviour under test is unchanged.
   retired_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code, ~cell_area_frac,
-    0.25, 50.25, 1L, 1,
-    0.75, 50.25, 1L, 1,
-    1.25, 50.25, 62L, 1
+    ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25,         1L,               1,
+    0.75, 50.25,         1L,               1,
+    1.25, 50.25,        62L,               1
   )
 
   warnings <- testthat::capture_warnings(

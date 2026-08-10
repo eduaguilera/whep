@@ -90,6 +90,12 @@
     "single_year", "`cbs_yr` is one year of the CBS.",
     ".build_sw_domestic", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS.",
+    ".carbon_warn_fold", "semi_join", "lon, lat, area_code", 1L, "diagnostic",
+    "Both sides are the SAME carbon support, already filtered to
+     `.carbon_support_year()` by `.carbon_support_at_year()`, so there is no
+     second year for a key to disagree about. The join only selects which
+     `polity_code`s to name in the DA-23 fold warning; it reaches no value and
+     cannot move one.",
     ".cb_apply_equilibrium_climate", "left_join",
     "lon, lat, area_code, land_use", 1L, "time_invariant",
     "The equilibrium modifier is one number per cell and land use by
@@ -99,11 +105,6 @@
      disagrees, so a year predicate cannot change the answer.",
     ".cells_to_polity_area", "left_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, as above.",
-    ".carbon_warn_fold", "semi_join", "lon, lat, area_code", 1L, "diagnostic",
-    "Names the polity codes DA-23's fold merged, for the warning text alone --
-     it cannot reach a number. Both sides are the one polycell support snapshot
-     `.carbon_support_year()` already resolved, so there is no second year for
-     a key to disagree about.",
     ".compute_su_used", "full_join", "area_code, item_cbs_code", 1L,
     "single_year", "Both sides are one year's supply-use.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",

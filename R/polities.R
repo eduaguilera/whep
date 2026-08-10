@@ -1311,6 +1311,16 @@ get_polity_geometries <- function(polity_codes = NULL) {
     !is.na(cw$polity_start_year) &
     !is.na(cw$polity_end_year)
   cw <- cw[keep, ]
+  # DA-24's other half -- that an interval nothing succeeds also covers
+  # its terminal year -- is deliberately NOT applied here: this detector's
+  # remit is the crosswalk's DECLARED succession boundaries. The reading
+  # the resolver actually joins on is `.polity_join_conflicts()`, which
+  # widens the open end. On polities 751 / `0e52f1ff` (596 crosswalk rows,
+  # 262 widened by that rule) the two readings DISAGREE: declared spans
+  # report 0 ambiguous `(area_code, year)` pairs and the widened spans
+  # report 1 -- area 7 at 1975, `AGO-1975-2025` against `ANG-1905-1975`,
+  # which is #683. An earlier note here claimed the two agreed; that was
+  # measured on a snapshot since superseded.
   .area_year_span_conflicts(data.frame(
     area_code = cw$area_code,
     polity_code = cw$polity_code,
