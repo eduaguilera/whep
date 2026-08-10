@@ -56,14 +56,12 @@ quantities into biomass flows, nutrient budgets, and energy content.</p>
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A tibble where each row corresponds to one product or item. It contains
-68 columns:</p><ul><li><p><code>Code</code>: Item code (character), corresponding to FAOSTAT production codes.</p></li>
+63 columns:</p><ul><li><p><code>Code</code>: Item code (character), corresponding to FAOSTAT production codes.</p></li>
 <li><p><code>Name_biomass</code>: Item name as used in biomass accounting.</p></li>
 <li><p><code>Equiv</code>: Reference equivalence item used when coefficients are borrowed
 from another similar commodity (e.g., <code>"Wheat"</code> for oats).</p></li>
 <li><p><code>Category</code>: Broad commodity category (e.g., <code>"Cereals, other"</code>,
 <code>"Barley"</code>, <code>"Vegetables"</code>).</p></li>
-<li><p><code>BG_Biomass_kgDM_ha</code>: Below-ground biomass in kg dry matter per hectare.</p></li>
-<li><p><code>Root_Shoot_ratio</code>: Ratio of root to aerial biomass (dimensionless).</p></li>
 <li><p><code>Product_kgDM_kgFM</code>: Product dry-matter content in kg DM per kg fresh
 matter.</p></li>
 <li><p><code>Residue_kgDM_kgFM</code>: Residue dry-matter content in kg DM per kg fresh
@@ -129,18 +127,12 @@ matter.</p></li>
 <li><p><code>Residue_humified_kgC_kgC</code>: Humification coefficient of residue carbon
 (fraction of residue C stabilised as soil organic matter).</p></li>
 <li><p><code>MgDM_m3</code>: Megagrams dry matter per cubic metre (bulk density proxy).</p></li>
-<li><p><code>Root_kgC_kgDM</code>: Root plus rhizodeposit carbon in kg C per kg root dry
-matter.</p></li>
 <li><p><code>Root_humified_kgC_kgC</code>: Humification coefficient for root carbon.</p></li>
 <li><p><code>Root_mass_kgC_kgDM</code>: Root carbon mass in kg C per kg crop dry matter.</p></li>
-<li><p><code>Rhizodeposits_mass_kgC_kgDM</code>: Rhizodeposit carbon in kg C per kg crop
-dry matter.</p></li>
 <li><p><code>Residue_C_N</code>: Carbon-to-nitrogen ratio of the residue.</p></li>
 <li><p><code>Root_kgN_kgDM</code>: Nitrogen content of roots in kg N per kg root dry
 matter.</p></li>
 <li><p><code>GE_Roots_MJ_kgDM</code>: Gross energy of roots in MJ per kg dry matter.</p></li>
-<li><p><code>Rhizodeposits_N_kgN_kgRootN</code>: Rhizodeposit nitrogen as a fraction of
-root nitrogen.</p></li>
 <li><p><code>Fiber_g_kgFM</code>: Dietary fibre content in g per kg fresh matter.</p></li>
 <li><p><code>SFA_g_kgFM</code>: Saturated fatty acid content in g per kg fresh matter.</p></li>
 <li><p><code>MUFA_g_kgFM</code>: Monounsaturated fatty acid content in g per kg fresh
@@ -167,26 +159,41 @@ matter.</p></li>
     <p>Compiled from multiple sources including FAO food composition data,
 crop physiology literature, and IPCC Tier 1 coefficients.</p>
     </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>Five runtime-dead below-ground fields were retired from this legacy table:
+<code>BG_Biomass_kgDM_ha</code>, <code>Root_Shoot_ratio</code>, <code>Root_kgC_kgDM</code>,
+<code>Rhizodeposits_mass_kgC_kgDM</code>, and <code>Rhizodeposits_N_kgN_kgRootN</code>. Their
+related item-keyed fields in <code>bio_coefs</code> are, respectively,
+<code>bg_biomass_dm_kg_ha</code>, <code>root_shoot_ratio</code>, <code>root_c_kgdm</code>,
+<code>rhizodeposit_mass_c_kgdm</code>, and <code>rhizodeposit_n_kgn_krootn</code>. This is not a
+universal one-to-one row mapping. <code><a href="calculate_crop_roots.html">calculate_crop_roots()</a></code> uses
+<code>ipcc_root_coefs$bg_ref_dm_t_ha</code> and <code>ipcc_root_coefs$rs_default</code> when they
+are available, with the corresponding <code>bio_coefs</code> fields as fallbacks.
+<code>root_c_kgdm</code> and <code>rhizodeposit_n_kgn_krootn</code> are direct calculation inputs.
+<code>rhizodeposit_mass_c_kgdm</code> is an integrity and documentation component that
+is already included in <code>root_c_kgdm</code>, rather than a separate runtime input.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">biomass_coefs</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 68</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Code  Name_biomass Equiv Category       BG_Biomass_kgDM_ha Root_Shoot_ratio</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 75    Oats         Wheat Cereals, other              <span style="text-decoration: underline;">3</span>393.           0.402 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> 44    Barley       Wheat Barley                      <span style="text-decoration: underline;">1</span>544.           0.210 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> 27    Rice         <span style="color: #BB0000;">NA</span>    Rice                          <span style="color: #BB0000;">NA</span>            0.22  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> 79    Millet       Maize Cereals, other                <span style="color: #BB0000;">NA</span>            0.25  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> 71    Rye          <span style="color: #BB0000;">NA</span>    Cereals, other                <span style="color: #BB0000;">NA</span>            0.14  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> 83    Sorghum      Maize Cereals, other                <span style="color: #BB0000;">NA</span>            0.086<span style="text-decoration: underline;">2</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 62 more variables: Product_kgDM_kgFM &lt;dbl&gt;, Residue_kgDM_kgFM &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   Conventional_kgDM_ha &lt;dbl&gt;, Organic_kgDM_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 63</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   Code  Name_biomass Equiv Category       Product_kgDM_kgFM Residue_kgDM_kgFM</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> 75    Oats         Wheat Cereals, other             0.867             0.907</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> 44    Barley       Wheat Barley                     0.885             0.864</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> 27    Rice         <span style="color: #BB0000;">NA</span>    Rice                       0.864             0.91 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> 79    Millet       Maize Cereals, other             0.880             0.9  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> 71    Rye          <span style="color: #BB0000;">NA</span>    Cereals, other             0.876             0.924</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> 83    Sorghum      Maize Cereals, other             0.865             0.87 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 57 more variables: Conventional_kgDM_ha &lt;dbl&gt;, Organic_kgDM_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   GE_product_edible_portion_MJ_kgFM &lt;dbl&gt;, GE_product_residue_MJ_kgFM &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   GE_product_MJ_kgFM &lt;dbl&gt;, GE_residue_MJ_kg &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   kg_product_kg_aerial_biomass &lt;dbl&gt;, kg_residue_kg_aerial_biomass_FM &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   kg_residue_kg_product_FM &lt;dbl&gt;, Carcass_to_LW &lt;lgl&gt;, Edible_portion &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   N_kgN_kgFM &lt;dbl&gt;, Lipids_g_kgFM &lt;dbl&gt;, Carbohydrates_g_kgFM &lt;dbl&gt;, …</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   N_kgN_kgFM &lt;dbl&gt;, Lipids_g_kgFM &lt;dbl&gt;, Carbohydrates_g_kgFM &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   Calcium_mg_kgFM &lt;dbl&gt;, VitaminA_microg_kgFM &lt;dbl&gt;, …</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

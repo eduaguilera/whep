@@ -14,7 +14,7 @@ biomass_coefs
 ## Format
 
 A tibble where each row corresponds to one product or item. It contains
-68 columns:
+63 columns:
 
 - `Code`: Item code (character), corresponding to FAOSTAT production
   codes.
@@ -26,11 +26,6 @@ A tibble where each row corresponds to one product or item. It contains
 
 - `Category`: Broad commodity category (e.g., `"Cereals, other"`,
   `"Barley"`, `"Vegetables"`).
-
-- `BG_Biomass_kgDM_ha`: Below-ground biomass in kg dry matter per
-  hectare.
-
-- `Root_Shoot_ratio`: Ratio of root to aerial biomass (dimensionless).
 
 - `Product_kgDM_kgFM`: Product dry-matter content in kg DM per kg fresh
   matter.
@@ -142,15 +137,9 @@ A tibble where each row corresponds to one product or item. It contains
 
 - `MgDM_m3`: Megagrams dry matter per cubic metre (bulk density proxy).
 
-- `Root_kgC_kgDM`: Root plus rhizodeposit carbon in kg C per kg root dry
-  matter.
-
 - `Root_humified_kgC_kgC`: Humification coefficient for root carbon.
 
 - `Root_mass_kgC_kgDM`: Root carbon mass in kg C per kg crop dry matter.
-
-- `Rhizodeposits_mass_kgC_kgDM`: Rhizodeposit carbon in kg C per kg crop
-  dry matter.
 
 - `Residue_C_N`: Carbon-to-nitrogen ratio of the residue.
 
@@ -158,9 +147,6 @@ A tibble where each row corresponds to one product or item. It contains
   matter.
 
 - `GE_Roots_MJ_kgDM`: Gross energy of roots in MJ per kg dry matter.
-
-- `Rhizodeposits_N_kgN_kgRootN`: Rhizodeposit nitrogen as a fraction of
-  root nitrogen.
 
 - `Fiber_g_kgFM`: Dietary fibre content in g per kg fresh matter.
 
@@ -205,24 +191,41 @@ A tibble where each row corresponds to one product or item. It contains
 Compiled from multiple sources including FAO food composition data, crop
 physiology literature, and IPCC Tier 1 coefficients.
 
+## Details
+
+Five runtime-dead below-ground fields were retired from this legacy
+table: `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`, `Root_kgC_kgDM`,
+`Rhizodeposits_mass_kgC_kgDM`, and `Rhizodeposits_N_kgN_kgRootN`. Their
+related item-keyed fields in `bio_coefs` are, respectively,
+`bg_biomass_dm_kg_ha`, `root_shoot_ratio`, `root_c_kgdm`,
+`rhizodeposit_mass_c_kgdm`, and `rhizodeposit_n_kgn_krootn`. This is not
+a universal one-to-one row mapping.
+[`calculate_crop_roots()`](https://eduaguilera.github.io/whep/reference/calculate_crop_roots.md)
+uses `ipcc_root_coefs$bg_ref_dm_t_ha` and `ipcc_root_coefs$rs_default`
+when they are available, with the corresponding `bio_coefs` fields as
+fallbacks. `root_c_kgdm` and `rhizodeposit_n_kgn_krootn` are direct
+calculation inputs. `rhizodeposit_mass_c_kgdm` is an integrity and
+documentation component that is already included in `root_c_kgdm`,
+rather than a separate runtime input.
+
 ## Examples
 
 ``` r
 head(biomass_coefs)
-#> # A tibble: 6 × 68
-#>   Code  Name_biomass Equiv Category       BG_Biomass_kgDM_ha Root_Shoot_ratio
-#>   <chr> <chr>        <chr> <chr>                       <dbl>            <dbl>
-#> 1 75    Oats         Wheat Cereals, other              3393.           0.402 
-#> 2 44    Barley       Wheat Barley                      1544.           0.210 
-#> 3 27    Rice         NA    Rice                          NA            0.22  
-#> 4 79    Millet       Maize Cereals, other                NA            0.25  
-#> 5 71    Rye          NA    Cereals, other                NA            0.14  
-#> 6 83    Sorghum      Maize Cereals, other                NA            0.0862
-#> # ℹ 62 more variables: Product_kgDM_kgFM <dbl>, Residue_kgDM_kgFM <dbl>,
-#> #   Conventional_kgDM_ha <dbl>, Organic_kgDM_ha <dbl>,
+#> # A tibble: 6 × 63
+#>   Code  Name_biomass Equiv Category       Product_kgDM_kgFM Residue_kgDM_kgFM
+#>   <chr> <chr>        <chr> <chr>                      <dbl>             <dbl>
+#> 1 75    Oats         Wheat Cereals, other             0.867             0.907
+#> 2 44    Barley       Wheat Barley                     0.885             0.864
+#> 3 27    Rice         NA    Rice                       0.864             0.91 
+#> 4 79    Millet       Maize Cereals, other             0.880             0.9  
+#> 5 71    Rye          NA    Cereals, other             0.876             0.924
+#> 6 83    Sorghum      Maize Cereals, other             0.865             0.87 
+#> # ℹ 57 more variables: Conventional_kgDM_ha <dbl>, Organic_kgDM_ha <dbl>,
 #> #   GE_product_edible_portion_MJ_kgFM <dbl>, GE_product_residue_MJ_kgFM <dbl>,
 #> #   GE_product_MJ_kgFM <dbl>, GE_residue_MJ_kg <dbl>,
 #> #   kg_product_kg_aerial_biomass <dbl>, kg_residue_kg_aerial_biomass_FM <dbl>,
 #> #   kg_residue_kg_product_FM <dbl>, Carcass_to_LW <lgl>, Edible_portion <dbl>,
-#> #   N_kgN_kgFM <dbl>, Lipids_g_kgFM <dbl>, Carbohydrates_g_kgFM <dbl>, …
+#> #   N_kgN_kgFM <dbl>, Lipids_g_kgFM <dbl>, Carbohydrates_g_kgFM <dbl>,
+#> #   Calcium_mg_kgFM <dbl>, VitaminA_microg_kgFM <dbl>, …
 ```

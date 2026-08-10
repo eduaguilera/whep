@@ -3,7 +3,9 @@
 Reads one of the coefficient tables shipped as CSV under
 `inst/extdata/coefs`. These tables are small and versioned inside the
 package (read at runtime, not stored remotely), so no download is
-needed.
+needed. The long `bnf_provenance` sidecar records cell-level evidence
+for every non-missing numeric value in `bnf`; it documents the runtime
+table but does not replace it as a coefficient input.
 
 ## Usage
 
@@ -15,8 +17,8 @@ whep_coef_table(name)
 
 - name:
 
-  Coefficient table name (the file stem), for example `"bio_coefs"` or
-  `"ipcc_residue_coefs"`.
+  Coefficient table name (the file stem), for example `"bio_coefs"`,
+  `"bnf"` or `"bnf_provenance"`.
 
 ## Value
 

@@ -2,6 +2,44 @@
 
 ## whep (development version)
 
+- **BNF coefficients now ship with cell-level provenance
+  ([\#497](https://github.com/eduaguilera/whep/issues/497)).** The long
+  `bnf_provenance` sidecar is readable with
+  `whep_coef_table("bnf_provenance")` and accounts for every one of the
+  60 non-missing numeric cells in `bnf.csv` exactly once: 32 are
+  asserted against a publication, 15 are explicit derivations, and 13
+  retain their existing values with genuinely unresolved authority and
+  no guessed source attribution. It distinguishes nitrogen harvest index
+  from Herridge’s dry-matter harvest index and identifies Lassaletta et
+  al.
+
+  2014. as the *Environmental Research Letters* 9:105011 Supplementary
+        Methods authority. **No published value changes:** `bnf.csv` is
+        byte- identical and BNF runtime outputs are unchanged. Two
+        invariants that the provenance rewrite would otherwise have
+        dropped are kept: a mixed stand’s `leguminous_share` must stay
+        strictly inside 0 and 1, and no Anglade-cited coefficient may
+        coincide with a sample size reported on its own Table 1 row.
+
+- **Breaking:
+  [`whep::biomass_coefs`](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
+  no longer exposes five unused legacy below-ground fields
+  ([\#524](https://github.com/eduaguilera/whep/issues/524)).**
+  `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`, `Root_kgC_kgDM`,
+  `Rhizodeposits_mass_kgC_kgDM`, and `Rhizodeposits_N_kgN_kgRootN` have
+  been physically removed. Modern calculations use the item-keyed
+  `bio_coefs` fields `bg_biomass_dm_kg_ha`, `root_shoot_ratio`,
+  `root_c_kgdm`, `rhizodeposit_mass_c_kgdm`, and
+  `rhizodeposit_n_kgn_krootn` under their existing contract,
+  respectively. The first two are fallbacks when
+  `ipcc_root_coefs$bg_ref_dm_t_ha` and `ipcc_root_coefs$rs_default`,
+  respectively, are unavailable; `rhizodeposit_mass_c_kgdm` is an
+  integrity and documentation component already included in
+  `root_c_kgdm`, not a separate calculation input. **No published number
+  changes:** the removed columns had no runtime consumer, both modern
+  coefficient tables are byte-identical, and representative NPP, BNF,
+  SOC, and nitrogen-input outputs are unchanged.
+
 - **[`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
   no longer holds three full-resolution HWSD rasters at once.** It
   classifies the 30-arcsec HWSD grid once per hydraulic property
