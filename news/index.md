@@ -2,6 +2,22 @@
 
 ## whep (development version)
 
+- **[`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md)
+  no longer holds three full-resolution HWSD rasters at once.** It
+  classifies the 30-arcsec HWSD grid once per hydraulic property
+  (`t_field`, `t_wilt`, `porosity`), each costing ~11 GB of transient
+  raster for a 3 MB result. That memory is reclaimable, but nothing
+  triggered the collector between passes, so they accumulated (11.4 -\>
+  22.1 -\> 32.8 GB). Reclaiming between passes takes the reader’s peak
+  from 38.2 GB to 16.8 GB, with output
+  [`identical()`](https://rdrr.io/r/base/identical.html) and no time
+  cost (64 s vs 68 s). This is a fixed cost on every
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  and
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  call, independent of how many years are requested
+  ([\#624](https://github.com/eduaguilera/whep/issues/624)).
+
 - **[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
   no longer grows its memory with the length of the span.** The
   RothC/HSOC climate modifier is now reduced one year at a time.
