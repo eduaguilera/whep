@@ -1,5 +1,19 @@
 # whep (development version)
 
+* **An ISO3 code naming two FAOSTAT areas no longer resolves by row order, so
+  Ethiopian ISO3-keyed input stops being stamped with a country that dissolved
+  in 1993.** FAOSTAT keeps a pre-split entity beside its successor, so `ETH`
+  names both 62 ("Ethiopia PDR") and 238 ("Ethiopia"), and `SDN` names both 206
+  and 276. `.iso3_to_fao_area_code()` broke that tie with
+  `unique(bridge, by = "iso3c")` — row order, which kept the lowest code, i.e.
+  the dissolved 62 for `ETH`, in every year. The tie is now broken on the
+  polities database instead: the area code that IS its polity's
+  `polity_area_code` wins, which picks 238 for `ETH` and leaves `SDN` at 206;
+  an ISO3 still ambiguous after that rule aborts rather than being guessed.
+  Exactly one of the 263 ISO3 codes changes. **No published values move**: both
+  live callers reduce to `polity_code`, which is the same either way, and the
+  population totals the historical CBS proxy fill sees are byte-identical.
+
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
