@@ -385,14 +385,24 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   # disagree. Spain happens to be one continuous polity over 1860-2022, so this
   # currently expects one distinct code -- the check is written per row anyway,
   # because the point of the column is that it can differ by year.
+  #
+  # `polity_end_year` is EXCLUSIVE at a succession and inclusive only at an open
+  # end (#577), so the containment test is `>`, widened by one year for a polity
+  # nothing succeeds. This re-derivation used to read the bound inclusively; it
+  # was the fifth site to do so and was inert only because ESP is a single
+  # interval (#565). It is still spelled out here rather than delegated to
+  # `whep:::.iso3_year_to_polity_code()`, so it stays independent of the code the
+  # builder used.
   expected <- whep::polity_area_crosswalk |>
     dplyr::filter(area_iso3c == "ESP", !is.na(polity_code)) |>
     dplyr::distinct(polity_code, polity_start_year, polity_end_year)
+  covered_to <- expected$polity_end_year +
+    (expected$polity_code %in% whep:::.open_polity_codes())
   resolved <- vapply(
     x$year,
     function(yr) {
       hit <- expected$polity_code[
-        expected$polity_start_year <= yr & expected$polity_end_year >= yr
+        expected$polity_start_year <= yr & covered_to > yr
       ]
       if (length(hit) == 1L) hit else NA_character_
     },

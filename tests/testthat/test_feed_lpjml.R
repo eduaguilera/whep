@@ -169,6 +169,61 @@ test_that("aggregate_grass_to_polity splits a border cell by polity_frac", {
   expect_equal(agg$grass_avail_dm_t[agg$area_code == 2L], 30)
 })
 
+# ---- polity_validity (#675) -------------------------------------------
+
+# Area 277 is South Sudan (SSD-2011-2025); a 2000 grass row on a cell the
+# present-day crosswalk labels 277 names a state that did not exist then.
+.fl_out_of_span_grass <- function() {
+  tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(0.25, 0.25),
+    year = c(2000L, 2020L),
+    grass_avail_dm_t = c(100, 200)
+  )
+}
+
+.fl_out_of_span_cp <- function() {
+  tibble::tibble(lon = 0.25, lat = 0.25, area_code = 277L, polity_frac = 1)
+}
+
+test_that("aggregate_grass_to_polity names an anachronistic polity", {
+  expect_warning(
+    agg <- whep::aggregate_grass_to_polity(
+      .fl_out_of_span_grass(),
+      .fl_out_of_span_cp()
+    ),
+    "did not exist in that row's year"
+  )
+
+  # "keep" is the default: both years survive and the totals do not move.
+  expect_equal(nrow(agg), 2L)
+  expect_equal(sum(agg$grass_avail_dm_t), 300)
+})
+
+test_that("aggregate_grass_to_polity honours drop and flag", {
+  expect_warning(
+    dropped <- whep::aggregate_grass_to_polity(
+      .fl_out_of_span_grass(),
+      .fl_out_of_span_cp(),
+      polity_validity = "drop"
+    )
+  )
+  expect_warning(
+    flagged <- whep::aggregate_grass_to_polity(
+      .fl_out_of_span_grass(),
+      .fl_out_of_span_cp(),
+      polity_validity = "flag"
+    )
+  )
+
+  expect_equal(dropped$year, 2020L)
+  expect_equal(dropped$grass_avail_dm_t, 200)
+  # The flag arrives without dragging polity columns onto an output whose
+  # published schema has none.
+  expect_equal(flagged$reporting_polity_out_of_span, flagged$year == 2000L)
+  expect_false("reporting_polity_code" %in% names(flagged))
+})
+
 test_that("read_lpjml_grass_productivity(example = TRUE) returns the tidy schema", {
   gp <- whep::read_lpjml_grass_productivity(example = TRUE)
   expect_s3_class(gp, "tbl_df")
