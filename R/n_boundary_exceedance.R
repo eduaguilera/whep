@@ -90,14 +90,18 @@ build_n_boundary_exceedance <- function(
       indicator
     )
   }
-  if (!is.null(land_class)) land_use <- land_class
+  if (!is.null(land_class)) {
+    land_use <- land_class
+  }
   land_use <- rlang::arg_match(land_use)
   resolution <- rlang::arg_match(resolution)
   metric <- .nbx_match_metric(metric)
   allocation_scenario <- .nbx_match_scenario(allocation_scenario)
   .nbx_validate_supported(metric, allocation_scenario)
   if (is.null(surplus) || is.null(critical)) {
-    cli::cli_abort("Both actual pressure and its boundary surface are required.")
+    cli::cli_abort(
+      "Both actual pressure and its boundary surface are required."
+    )
   }
   critical <- .nbx_normalize_critical(critical, metric, land_use, impact_scope)
   .nbx_validate_years(surplus, critical, actual_year, critical_reference_year)
@@ -106,8 +110,14 @@ build_n_boundary_exceedance <- function(
   .check_columns(
     critical,
     c(
-      "lon", "lat", "value", "source_area_ha", "image_region",
-      "critical_var", "critical_land_use", "critical_year"
+      "lon",
+      "lat",
+      "value",
+      "source_area_ha",
+      "image_region",
+      "critical_var",
+      "critical_land_use",
+      "critical_year"
     ),
     "critical"
   )
@@ -137,9 +147,14 @@ build_n_boundary_exceedance <- function(
 }
 
 .nbx_match_metric <- function(metric) {
-  if (length(metric) > 1L) metric <- metric[[1L]]
-  if (!is.character(metric) || length(metric) != 1L ||
-      !metric %in% c("surplus", "input", "new_fixation")) {
+  if (length(metric) > 1L) {
+    metric <- metric[[1L]]
+  }
+  if (
+    !is.character(metric) ||
+      length(metric) != 1L ||
+      !metric %in% c("surplus", "input", "new_fixation")
+  ) {
     cli::cli_abort(
       "{.arg metric} must be one of {.val surplus}, {.val input}, or
        {.val new_fixation}."
@@ -149,9 +164,14 @@ build_n_boundary_exceedance <- function(
 }
 
 .nbx_match_scenario <- function(x) {
-  if (length(x) > 1L) x <- x[[1L]]
-  if (!is.character(x) || length(x) != 1L ||
-      !x %in% c("yield_gap", "no_increase", "new_fixation")) {
+  if (length(x) > 1L) {
+    x <- x[[1L]]
+  }
+  if (
+    !is.character(x) ||
+      length(x) != 1L ||
+      !x %in% c("yield_gap", "no_increase", "new_fixation")
+  ) {
     cli::cli_abort(
       "{.arg allocation_scenario} must be {.val yield_gap},
        {.val no_increase}, or {.val new_fixation}."
@@ -177,12 +197,16 @@ build_n_boundary_exceedance <- function(
 }
 
 .nbx_normalize_critical <- function(x, metric, land_use, impact_scope) {
-  if (rlang::has_name(x, "critical_kgn_ha") &&
-      !rlang::has_name(x, "value")) {
+  if (
+    rlang::has_name(x, "critical_kgn_ha") &&
+      !rlang::has_name(x, "value")
+  ) {
     x <- dplyr::rename(x, value = "critical_kgn_ha")
   }
-  if (rlang::has_name(x, "source_land_area_ha") &&
-      !rlang::has_name(x, "source_area_ha")) {
+  if (
+    rlang::has_name(x, "source_land_area_ha") &&
+      !rlang::has_name(x, "source_area_ha")
+  ) {
     x <- dplyr::rename(x, source_area_ha = "source_land_area_ha")
   }
   if (!rlang::has_name(x, "critical_var")) {
@@ -231,7 +255,12 @@ build_n_boundary_exceedance <- function(
   x
 }
 
-.nbx_validate_years <- function(surplus, critical, actual_year, reference_year) {
+.nbx_validate_years <- function(
+  surplus,
+  critical,
+  actual_year,
+  reference_year
+) {
   .check_columns(surplus, "year", "surplus")
   years <- sort(unique(surplus$year[!is.na(surplus$year)]))
   if (is.null(actual_year)) {
@@ -241,8 +270,11 @@ build_n_boundary_exceedance <- function(
            fixed 2010 critical surface."
     ))
   }
-  if (length(actual_year) != 1L || !is.finite(actual_year) ||
-      !actual_year %in% years) {
+  if (
+    length(actual_year) != 1L ||
+      !is.finite(actual_year) ||
+      !actual_year %in% years
+  ) {
     cli::cli_abort("{.arg actual_year} must select exactly one available year.")
   }
   if (is.null(reference_year)) {
@@ -250,7 +282,10 @@ build_n_boundary_exceedance <- function(
       "{.arg critical_reference_year = 2010} must be supplied explicitly."
     )
   }
-  if (length(reference_year) != 1L || !identical(as.integer(reference_year), 2010L)) {
+  if (
+    length(reference_year) != 1L ||
+      !identical(as.integer(reference_year), 2010L)
+  ) {
     cli::cli_abort(
       "The deposited yield-gap surfaces require
        {.arg critical_reference_year = 2010}."
@@ -266,9 +301,15 @@ build_n_boundary_exceedance <- function(
 }
 
 .nbx_validate_critical <- function(critical, metric, land_use) {
-  expected <- if (metric == "input") "critical_n_input" else "critical_n_surplus"
+  expected <- if (metric == "input") {
+    "critical_n_input"
+  } else {
+    "critical_n_surplus"
+  }
   vars <- unique(critical$critical_var[!is.na(critical$critical_var)])
-  scopes <- unique(critical$critical_land_use[!is.na(critical$critical_land_use)])
+  scopes <- unique(critical$critical_land_use[
+    !is.na(critical$critical_land_use)
+  ])
   if (!identical(vars, expected)) {
     cli::cli_abort(c(
       "The critical layer does not match {.arg metric = {metric}}.",
@@ -282,22 +323,30 @@ build_n_boundary_exceedance <- function(
     ))
   }
   if (any(!is.finite(critical$source_area_ha) | critical$source_area_ha < 0)) {
-    cli::cli_abort("Critical source areas must be finite non-negative hectares.")
+    cli::cli_abort(
+      "Critical source areas must be finite non-negative hectares."
+    )
   }
   invisible(TRUE)
 }
 
 .nbx_surplus_required <- function(metric) {
   base <- c("lon", "lat", "area_code", "item_cbs_code", "year", "area_ha")
-  if (metric == "input") return(c(base, "n_input_std_t"))
+  if (metric == "input") {
+    return(c(base, "n_input_std_t"))
+  }
   base
 }
 
 .nbx_filter_land_use <- function(surplus, land_use) {
   grass <- c(3000L, 3002L, 3003L)
   x <- dplyr::filter(surplus, !is.na(.data$item_cbs_code))
-  if (land_use == "ara") return(dplyr::filter(x, !.data$item_cbs_code %in% grass))
-  if (land_use == "igl") return(dplyr::filter(x, .data$item_cbs_code %in% grass))
+  if (land_use == "ara") {
+    return(dplyr::filter(x, !.data$item_cbs_code %in% grass))
+  }
+  if (land_use == "igl") {
+    return(dplyr::filter(x, .data$item_cbs_code %in% grass))
+  }
   x
 }
 
@@ -316,8 +365,16 @@ build_n_boundary_exceedance <- function(
   keyed <- .nbx_add_cell_key(x, "actual pressure")
   dplyr::select(
     keyed,
-    "cell_id", "source_row", "source_col", "lon", "lat", "area_code",
-    "item_cbs_code", "year", "area_ha", "actual_n_t",
+    "cell_id",
+    "source_row",
+    "source_col",
+    "lon",
+    "lat",
+    "area_code",
+    "item_cbs_code",
+    "year",
+    "area_ha",
+    "actual_n_t",
     dplyr::any_of("production_n_t")
   )
 }
@@ -346,8 +403,12 @@ build_n_boundary_exceedance <- function(
   row <- round((89.75 - x$lat) / 0.5) + 1L
   lon_expected <- -179.75 + (col - 1L) * 0.5
   lat_expected <- 89.75 - (row - 1L) * 0.5
-  bad <- !is.finite(x$lon) | !is.finite(x$lat) |
-    col < 1L | col > 720L | row < 1L | row > 360L |
+  bad <- !is.finite(x$lon) |
+    !is.finite(x$lat) |
+    col < 1L |
+    col > 720L |
+    row < 1L |
+    row > 360L |
     abs(x$lon - lon_expected) > 1e-9 |
     abs(x$lat - lat_expected) > 1e-9
   if (any(bad)) {
@@ -372,7 +433,9 @@ build_n_boundary_exceedance <- function(
   }
   bad_region <- !is.na(x$image_region) & !x$image_region %in% 1:26
   if (any(bad_region)) {
-    cli::cli_abort("The critical-domain IMAGE crosswalk must use regions 1--26.")
+    cli::cli_abort(
+      "The critical-domain IMAGE crosswalk must use regions 1--26."
+    )
   }
   x
 }
@@ -380,8 +443,16 @@ build_n_boundary_exceedance <- function(
 .nbx_build_cells <- function(actual, support, actual_year, metric, land_use) {
   actual_cell <- dplyr::summarise(
     actual,
-    cell_actual_n_t = if (any(is.na(.data$actual_n_t))) NA_real_ else sum(.data$actual_n_t),
-    absolute_pressure_n_t = if (any(is.na(.data$actual_n_t))) NA_real_ else sum(abs(.data$actual_n_t)),
+    cell_actual_n_t = if (any(is.na(.data$actual_n_t))) {
+      NA_real_
+    } else {
+      sum(.data$actual_n_t)
+    },
+    absolute_pressure_n_t = if (any(is.na(.data$actual_n_t))) {
+      NA_real_
+    } else {
+      sum(abs(.data$actual_n_t))
+    },
     .by = c("cell_id", "source_row", "source_col", "lon", "lat", "year")
   )
   full <- dplyr::full_join(
@@ -434,7 +505,14 @@ build_n_boundary_exceedance <- function(
   full
 }
 
-.nbx_stamp <- function(x, metric, land_use, scenario, actual_year, reference_year) {
+.nbx_stamp <- function(
+  x,
+  metric,
+  land_use,
+  scenario,
+  actual_year,
+  reference_year
+) {
   dplyr::mutate(
     x,
     actual_year = as.integer(actual_year),
@@ -458,15 +536,36 @@ build_n_boundary_exceedance <- function(
 .nbx_attribute_crops <- function(actual, cells, metric) {
   valid <- dplyr::filter(cells, .data$coverage_state == "valid")
   cell_cols <- c(
-    "cell_id", "source_row", "source_col", "lon", "lat", "year",
-    "source_area_ha", "image_region", "critical_threshold",
-    "cell_actual_n_t", "absolute_pressure_n_t", "critical_kgn_ha",
-    "cell_critical_n_t", "cell_actual_kgn_ha", "cell_signed_margin_n_t",
-    "cell_positive_overshoot_n_t", "pressure_condition_ratio",
-    "coverage_state", "actual_year", "critical_reference_year", "metric",
-    "indicator", "land_use", "allocation_scenario", "method_boundary",
-    "critical_source_doi", "critical_source_version", "archive_md5",
-    "urban_treatment", "provisional_reason"
+    "cell_id",
+    "source_row",
+    "source_col",
+    "lon",
+    "lat",
+    "year",
+    "source_area_ha",
+    "image_region",
+    "critical_threshold",
+    "cell_actual_n_t",
+    "absolute_pressure_n_t",
+    "critical_kgn_ha",
+    "cell_critical_n_t",
+    "cell_actual_kgn_ha",
+    "cell_signed_margin_n_t",
+    "cell_positive_overshoot_n_t",
+    "pressure_condition_ratio",
+    "coverage_state",
+    "actual_year",
+    "critical_reference_year",
+    "metric",
+    "indicator",
+    "land_use",
+    "allocation_scenario",
+    "method_boundary",
+    "critical_source_doi",
+    "critical_source_version",
+    "archive_md5",
+    "urban_treatment",
+    "provisional_reason"
   )
   joined <- dplyr::inner_join(
     actual,
@@ -550,8 +649,7 @@ build_n_boundary_exceedance <- function(
       within_boundary_n_t = NA_real_,
       unallocated_critical_n_t = .data$cell_critical_n_t,
       unallocated_signed_margin_n_t = .data$cell_signed_margin_n_t,
-      unallocated_positive_overshoot_n_t =
-        .data$cell_positive_overshoot_n_t,
+      unallocated_positive_overshoot_n_t = .data$cell_positive_overshoot_n_t,
       attribution_record_type = "cell_residual"
     )
   .nbx_assert_reconciliation(dplyr::bind_rows(joined, residual))
@@ -579,19 +677,29 @@ build_n_boundary_exceedance <- function(
   )
   scale <- pmax(
     1,
-    abs(check$cell_actual), abs(check$cell_critical),
-    abs(check$cell_margin), abs(check$cell_overshoot)
+    abs(check$cell_actual),
+    abs(check$cell_critical),
+    abs(check$cell_margin),
+    abs(check$cell_overshoot)
   )
   residual <- pmax(
     abs(check$allocated_actual - check$cell_actual),
-    abs(check$allocated_critical + check$residual_critical - check$cell_critical),
+    abs(
+      check$allocated_critical + check$residual_critical - check$cell_critical
+    ),
     abs(check$allocated_margin + check$residual_margin - check$cell_margin),
-    abs(check$allocated_overshoot + check$residual_overshoot - check$cell_overshoot)
+    abs(
+      check$allocated_overshoot +
+        check$residual_overshoot -
+        check$cell_overshoot
+    )
   )
   allocated_scale <- pmax(
     1,
-    check$allocated_abs_actual, check$allocated_abs_critical,
-    check$allocated_abs_margin, check$allocated_abs_overshoot
+    check$allocated_abs_actual,
+    check$allocated_abs_critical,
+    check$allocated_abs_margin,
+    check$allocated_abs_overshoot
   )
   numerical_bound <- pmax(
     tolerance * scale,
@@ -606,21 +714,43 @@ build_n_boundary_exceedance <- function(
 .nbx_cell_cols <- function(x) {
   dplyr::select(
     x,
-    "cell_id", "source_row", "source_col", "lon", "lat", "year",
-    "actual_year", "critical_reference_year", "source_area_ha",
-    "image_region", "critical_threshold", "critical_kgn_ha",
-    "cell_actual_kgn_ha", "cell_actual_n_t", "cell_critical_n_t",
-    "cell_signed_margin_n_t", "cell_positive_overshoot_n_t",
-    "pressure_condition_ratio", "coverage_state", "metric", "indicator",
-    "land_use", "allocation_scenario", "method_boundary",
-    "critical_source_doi", "critical_source_version", "archive_md5",
-    "urban_treatment", "provisional_reason"
+    "cell_id",
+    "source_row",
+    "source_col",
+    "lon",
+    "lat",
+    "year",
+    "actual_year",
+    "critical_reference_year",
+    "source_area_ha",
+    "image_region",
+    "critical_threshold",
+    "critical_kgn_ha",
+    "cell_actual_kgn_ha",
+    "cell_actual_n_t",
+    "cell_critical_n_t",
+    "cell_signed_margin_n_t",
+    "cell_positive_overshoot_n_t",
+    "pressure_condition_ratio",
+    "coverage_state",
+    "metric",
+    "indicator",
+    "land_use",
+    "allocation_scenario",
+    "method_boundary",
+    "critical_source_doi",
+    "critical_source_version",
+    "archive_md5",
+    "urban_treatment",
+    "provisional_reason"
   ) |>
     tibble::as_tibble()
 }
 
 .nbx_resolve <- function(crop, resolution) {
-  if (resolution == "grid") return(.nbx_grid_cols(crop))
+  if (resolution == "grid") {
+    return(.nbx_grid_cols(crop))
+  }
   key <- if (resolution == "image_region") {
     c("image_region", "item_cbs_code", "year")
   } else {
@@ -632,22 +762,54 @@ build_n_boundary_exceedance <- function(
 .nbx_grid_cols <- function(x) {
   dplyr::select(
     x,
-    "cell_id", "source_row", "source_col", "lon", "lat", "area_code",
-    "item_cbs_code", "year", "actual_year", "critical_reference_year",
-    "area_ha", "source_area_ha", "image_region", "critical_threshold",
-    "actual_n_t", "pressure_share", "pressure_condition_ratio",
-    "critical_n_t", "crop_critical_n_t", "signed_margin_n_t",
+    "cell_id",
+    "source_row",
+    "source_col",
+    "lon",
+    "lat",
+    "area_code",
+    "item_cbs_code",
+    "year",
+    "actual_year",
+    "critical_reference_year",
+    "area_ha",
+    "source_area_ha",
+    "image_region",
+    "critical_threshold",
+    "actual_n_t",
+    "pressure_share",
+    "pressure_condition_ratio",
+    "critical_n_t",
+    "crop_critical_n_t",
+    "signed_margin_n_t",
     "positive_overshoot_n_t",
-    "unallocated_critical_n_t", "unallocated_signed_margin_n_t",
-    "unallocated_positive_overshoot_n_t", "attribution_record_type",
-    "exceedance_n_t", "within_boundary_n_t", dplyr::any_of("production_n_t"),
-    "cell_actual_kgn_ha", "cell_actual_n_t", "critical_kgn_ha",
-    "cell_critical_n_t", "cell_signed_margin_n_t",
-    "cell_positive_overshoot_n_t", "coverage_state", "attribution_method",
-    "attribution_status", "attribution_state", "land_scope_status",
-    "metric", "indicator", "land_use",
-    "allocation_scenario", "method_boundary", "critical_source_doi",
-    "critical_source_version", "archive_md5", "urban_treatment",
+    "unallocated_critical_n_t",
+    "unallocated_signed_margin_n_t",
+    "unallocated_positive_overshoot_n_t",
+    "attribution_record_type",
+    "exceedance_n_t",
+    "within_boundary_n_t",
+    dplyr::any_of("production_n_t"),
+    "cell_actual_kgn_ha",
+    "cell_actual_n_t",
+    "critical_kgn_ha",
+    "cell_critical_n_t",
+    "cell_signed_margin_n_t",
+    "cell_positive_overshoot_n_t",
+    "coverage_state",
+    "attribution_method",
+    "attribution_status",
+    "attribution_state",
+    "land_scope_status",
+    "metric",
+    "indicator",
+    "land_use",
+    "allocation_scenario",
+    "method_boundary",
+    "critical_source_doi",
+    "critical_source_version",
+    "archive_md5",
+    "urban_treatment",
     "provisional_reason"
   ) |>
     tibble::as_tibble()
@@ -656,10 +818,15 @@ build_n_boundary_exceedance <- function(
 .nbx_aggregate <- function(x, key) {
   mass <- intersect(
     c(
-      "actual_n_t", "critical_n_t", "signed_margin_n_t",
+      "actual_n_t",
+      "critical_n_t",
+      "signed_margin_n_t",
       "crop_critical_n_t",
-      "positive_overshoot_n_t", "exceedance_n_t", "within_boundary_n_t",
-      "unallocated_critical_n_t", "unallocated_signed_margin_n_t",
+      "positive_overshoot_n_t",
+      "exceedance_n_t",
+      "within_boundary_n_t",
+      "unallocated_critical_n_t",
+      "unallocated_signed_margin_n_t",
       "unallocated_positive_overshoot_n_t",
       "production_n_t"
     ),
@@ -667,11 +834,22 @@ build_n_boundary_exceedance <- function(
   )
   stamps <- intersect(
     c(
-      "actual_year", "critical_reference_year", "metric", "indicator",
-      "land_use", "allocation_scenario", "method_boundary",
-      "critical_source_doi", "critical_source_version", "archive_md5",
-      "urban_treatment", "provisional_reason", "attribution_method",
-      "attribution_status", "attribution_state", "attribution_record_type"
+      "actual_year",
+      "critical_reference_year",
+      "metric",
+      "indicator",
+      "land_use",
+      "allocation_scenario",
+      "method_boundary",
+      "critical_source_doi",
+      "critical_source_version",
+      "archive_md5",
+      "urban_treatment",
+      "provisional_reason",
+      "attribution_method",
+      "attribution_status",
+      "attribution_state",
+      "attribution_record_type"
     ),
     names(x)
   )
@@ -697,7 +875,9 @@ build_n_boundary_exceedance <- function(
   uncovered <- is.finite(joined$area_ha) &
     joined$area_ha > 0 &
     is.na(joined[[value_col]])
-  if (!any(uncovered)) return(joined)
+  if (!any(uncovered)) {
+    return(joined)
+  }
   cells <- joined[uncovered, c("lon", "lat"), drop = FALSE] |>
     dplyr::distinct()
   first_cells <- utils::head(sprintf("(%s, %s)", cells$lon, cells$lat), 5L)
@@ -705,9 +885,14 @@ build_n_boundary_exceedance <- function(
     "Critical-layer coverage is incomplete.",
     x = sprintf(
       "%s positive-area row(s) in %s cell(s) lack a non-missing value from %s.",
-      sum(uncovered), nrow(cells), source
+      sum(uncovered),
+      nrow(cells),
+      source
     ),
-    i = sprintf("First uncovered cell(s): %s.", paste(first_cells, collapse = ", "))
+    i = sprintf(
+      "First uncovered cell(s): %s.",
+      paste(first_cells, collapse = ", ")
+    )
   ))
 }
 

@@ -88,12 +88,15 @@ build_n_exceedance_extension <- function(
   residual <- rlang::has_name(x, "attribution_record_type") &&
     any(x$attribution_record_type == "cell_residual", na.rm = TRUE)
   if (undefined || residual) {
-    cli::cli_abort(c(
-      "Crop-level nitrogen attribution is undefined for one or more cells.",
-      x = "The cell result and explicit residual are preserved upstream.",
-      i = "A footprint requires complete crop attribution and cannot fabricate
+    cli::cli_abort(
+      c(
+        "Crop-level nitrogen attribution is undefined for one or more cells.",
+        x = "The cell result and explicit residual are preserved upstream.",
+        i = "A footprint requires complete crop attribution and cannot fabricate
            a fallback share."
-    ), class = "whep_n_attribution_undefined")
+      ),
+      class = "whep_n_attribution_undefined"
+    )
   }
   invisible(TRUE)
 }

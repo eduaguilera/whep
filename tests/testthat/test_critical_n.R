@@ -32,12 +32,25 @@
   )
   dir.create(input, recursive = TRUE, showWarnings = FALSE)
   header <- c(
-    "ncols 3", "nrows 2", "xllcorner 0", "yllcorner 0", "cellsize 0.5",
+    "ncols 3",
+    "nrows 2",
+    "xllcorner 0",
+    "yllcorner 0",
+    "cellsize 0.5",
     "NODATA_value -9999"
   )
-  writeLines(c(header, "100 200 300", "400 500 600"), file.path(input, "a_crop.asc"))
-  writeLines(c(header, "10 20 30", "40 50 60"), file.path(input, "a_gr_int.asc"))
-  writeLines(c(header, "1 2 3", "4 5 6"), file.path(input, "image_region28.asc"))
+  writeLines(
+    c(header, "100 200 300", "400 500 600"),
+    file.path(input, "a_crop.asc")
+  )
+  writeLines(
+    c(header, "10 20 30", "40 50 60"),
+    file.path(input, "a_gr_int.asc")
+  )
+  writeLines(
+    c(header, "1 2 3", "4 5 6"),
+    file.path(input, "image_region28.asc")
+  )
   invisible(dir)
 }
 

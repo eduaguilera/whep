@@ -1,4 +1,8 @@
-.cell_first_critical <- function(value = 50, area = 100, var = "critical_n_surplus") {
+.cell_first_critical <- function(
+  value = 50,
+  area = 100,
+  var = "critical_n_surplus"
+) {
   tibble::tibble(
     lon = 0.25,
     lat = 0.25,
@@ -104,8 +108,14 @@ testthat::test_that("undefined zero denominators become explicit residuals", {
     actual_year = 2015L,
     critical_reference_year = 2010L
   )
-  crops <- dplyr::filter(out, .data$attribution_record_type == "crop_allocation")
-  residual <- dplyr::filter(out, .data$attribution_record_type == "cell_residual")
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
   testthat::expect_true(all(is.na(crops$pressure_share)))
   testthat::expect_equal(sum(crops$positive_overshoot_n_t), 0)
   testthat::expect_equal(residual$unallocated_positive_overshoot_n_t, 2)
@@ -124,8 +134,14 @@ testthat::test_that("near-cancelling surplus is residualized conservatively", {
     actual_year = 2015L,
     critical_reference_year = 2010L
   )
-  crops <- dplyr::filter(out, .data$attribution_record_type == "crop_allocation")
-  residual <- dplyr::filter(out, .data$attribution_record_type == "cell_residual")
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
   testthat::expect_true(all(is.na(crops$pressure_share)))
   testthat::expect_lt(unique(out$pressure_condition_ratio), 1e-11)
   testthat::expect_equal(

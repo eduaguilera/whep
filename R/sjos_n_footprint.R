@@ -121,7 +121,9 @@ build_sjos_n_footprint <- function(
       impact_u = pmax(sign * .data$impact_u, 0)
     ) |>
       dplyr::filter(.data$impact_u > 0)
-    if (nrow(part) == 0L) return(NULL)
+    if (nrow(part) == 0L) {
+      return(NULL)
+    }
     build_footprint(
       part,
       years = years,

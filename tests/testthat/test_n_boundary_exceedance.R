@@ -102,8 +102,14 @@ testthat::test_that("signed surplus shares retain negative contributions", {
 
 testthat::test_that("near-zero signed surplus is preserved as a residual", {
   out <- .nbx_run(c(1, -0.999999999), critical_kgn_ha = -10)
-  crops <- dplyr::filter(out, .data$attribution_record_type == "crop_allocation")
-  residual <- dplyr::filter(out, .data$attribution_record_type == "cell_residual")
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
   testthat::expect_true(all(is.na(crops$pressure_share)))
   testthat::expect_true(all(
     crops$attribution_status == "undefined_near_zero_denominator"
@@ -122,8 +128,14 @@ testthat::test_that("near-zero signed surplus is preserved as a residual", {
 
 testthat::test_that("zero pressure with a zero allowance has a zero allocation", {
   out <- .nbx_run(c(1, -1), critical_kgn_ha = 0)
-  crops <- dplyr::filter(out, .data$attribution_record_type == "crop_allocation")
-  residual <- dplyr::filter(out, .data$attribution_record_type == "cell_residual")
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
   testthat::expect_true(all(is.na(crops$pressure_share)))
   testthat::expect_equal(crops$crop_critical_n_t, c(0, 0))
   testthat::expect_equal(crops$signed_margin_n_t, c(0, 0))

@@ -100,15 +100,19 @@ read_critical_n <- function(
     data
   } else {
     resolved_dir <- .resolve_critical_n_dir(dir)
-    if (isTRUE(verify_source) &&
+    if (
+      isTRUE(verify_source) &&
         var %in% c("critical_n_surplus", "critical_n_input") &&
-        .critn_has_source_geometry(resolved_dir, var, threshold, land_use)) {
+        .critn_has_source_geometry(resolved_dir, var, threshold, land_use)
+    ) {
       .critn_verify_selected(resolved_dir, var, threshold, land_use)
     }
     .read_critical_n_file(resolved_dir, var, threshold, land_use)
   }
-  if (!is.null(resolved_dir) &&
-      var %in% c("critical_n_surplus", "critical_n_input")) {
+  if (
+    !is.null(resolved_dir) &&
+      var %in% c("critical_n_surplus", "critical_n_input")
+  ) {
     grid <- .critical_n_attach_support(grid, resolved_dir, land_use)
   }
   .critical_n_finalize(grid, var, threshold, land_use)
@@ -205,9 +209,11 @@ read_critical_n <- function(
     size <- unname(file.info(path)$size)
     md5 <- unname(tools::md5sum(path))
     sha256 <- unname(tools::sha256sum(path))
-    if (!identical(as.numeric(size), as.numeric(expected$bytes[[i]])) ||
+    if (
+      !identical(as.numeric(size), as.numeric(expected$bytes[[i]])) ||
         !identical(md5, expected$md5[[i]]) ||
-        !identical(sha256, expected$sha256[[i]])) {
+        !identical(sha256, expected$sha256[[i]])
+    ) {
       cli::cli_abort(c(
         "A Schulte-Uebbing source raster failed content verification.",
         x = "File: {.file {expected$relative_path[[i]]}}.",
@@ -226,7 +232,9 @@ read_critical_n <- function(
     spec$subdir,
     spec$file
   )
-  if (!file.exists(path)) return(FALSE)
+  if (!file.exists(path)) {
+    return(FALSE)
+  }
   header <- .read_asc_header(path)
   isTRUE(all.equal(unname(header[["ncols"]]), 720)) &&
     isTRUE(all.equal(unname(header[["nrows"]]), 360)) &&
@@ -354,7 +362,11 @@ read_critical_n <- function(
 .critical_n_attach_support <- function(grid, dir, land_use) {
   root <- .critn_root_path(dir)
   area <- .critical_n_source_area(root, land_use)
-  image <- .read_esri_asc(file.path(root, "Input_files", "image_region28.asc")) |>
+  image <- .read_esri_asc(file.path(
+    root,
+    "Input_files",
+    "image_region28.asc"
+  )) |>
     dplyr::rename(image_region = value) |>
     .nbx_add_cell_key("deposited IMAGE-region raster") |>
     dplyr::select("cell_id", "image_region")
@@ -372,9 +384,13 @@ read_critical_n <- function(
       dplyr::transmute(cell_id = .data$cell_id, source_area_ha = .data$value)
   }
   crop <- read_area("a_crop.asc")
-  if (land_use == "ara") return(crop)
+  if (land_use == "ara") {
+    return(crop)
+  }
   grass <- read_area("a_gr_int.asc")
-  if (land_use == "igl") return(grass)
+  if (land_use == "igl") {
+    return(grass)
+  }
   dplyr::full_join(
     dplyr::transmute(
       crop,
@@ -485,8 +501,12 @@ read_critical_n <- function(
   if (!rlang::has_name(grid, "cell_id")) {
     grid <- .nbx_add_cell_key(grid, "critical-N grid")
   }
-  if (!rlang::has_name(grid, "source_area_ha")) grid$source_area_ha <- NA_real_
-  if (!rlang::has_name(grid, "image_region")) grid$image_region <- NA_integer_
+  if (!rlang::has_name(grid, "source_area_ha")) {
+    grid$source_area_ha <- NA_real_
+  }
+  if (!rlang::has_name(grid, "image_region")) {
+    grid$image_region <- NA_integer_
+  }
   grid |>
     dplyr::transmute(
       lon = .data$lon,
