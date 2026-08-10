@@ -123,6 +123,33 @@
   `polity_code` and 0 change `mapping_status`; the joined-span conflict
   count goes from 1 to 0.
 
+- **A row with no mapped period now stands in on a polity that has not
+  started yet rather than on one that had already ended.** When
+  [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
+  finds no period covering a row’s (anchored) year it falls back to
+  another period of the same reporting area; that fallback ranked
+  candidates purely by distance in years, which split a single reporting
+  area’s series between two entities at whatever year the arithmetic
+  flipped. FAOSTAT area 178 Eritrea read `ERI-1889-1952`, the Italian
+  colonial administration, for 1850-1972 and `ERI-1993-2025` from 1973;
+  area 273 Montenegro split at 1961 between `MNE-1913-1918` and
+  `MNE-2006-2025`, on a margin of one year (44 against 45). A
+  not-yet-started period is now preferred over an ended one, so each of
+  those areas resolves to one entity across 1850-2023, which is also
+  what the other 22 areas with no period at the back-cast anchor — the
+  post-Soviet and post-Yugoslav ones — already did. **No published
+  quantity changes**; 235 of the crosswalk’s 46,640 `(area, year)` pairs
+  over 1850-2025 change which polity they name, all of them areas 178
+  and 273. On a real full-range
+  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+  (6,310,390 rows) the out-of-span set is unchanged at 2,301 pairs /
+  7,247 rows, and 347 of those rows move from
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md)’s
+  `"polity_ended"` class to `"polity_not_started"`, WHEP’s documented
+  back-cast convention, leaving `"polity_ended"` as FAOSTAT area 206
+  alone. `options(whep.polity_stand_in = "nearest")` restores ranking by
+  distance alone.
+
 - **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket’s polity in

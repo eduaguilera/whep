@@ -27,10 +27,8 @@ secession, and no live polity means &quot;Sudan and South Sudan&quot;.
 gap_kind is not derivable from the returned columns, which is why it is
 returned rather than left to the caller. The comparison is against the year
 the resolver actually matched on, which the back-cast anchor floors at
-backcast_anchor: an 1850 row for FAOSTAT area 273 Montenegro is matched as
-1961 and lands on MNE-1913-1918, so it is &quot;polity_ended&quot;, while
-year &amp;lt; polity_start_year on the same row would call it
-&quot;polity_not_started&quot;.
+backcast_anchor, so a pre-anchor row is classified as the anchor year it
+was resolved as rather than as the year it carries.
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -63,10 +61,8 @@ secession, and no live polity means &quot;Sudan and South Sudan&quot;.
 gap_kind is not derivable from the returned columns, which is why it is
 returned rather than left to the caller. The comparison is against the year
 the resolver actually matched on, which the back-cast anchor floors at
-backcast_anchor: an 1850 row for FAOSTAT area 273 Montenegro is matched as
-1961 and lands on MNE-1913-1918, so it is &quot;polity_ended&quot;, while
-year &amp;lt; polity_start_year on the same row would call it
-&quot;polity_not_started&quot;.
+backcast_anchor, so a pre-anchor row is classified as the anchor year it
+was resolved as rather than as the year it carries.
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -136,10 +132,8 @@ secession, and no live polity means "Sudan and South Sudan".</p></li>
 </ul><p><code>gap_kind</code> is not derivable from the returned columns, which is why it is
 returned rather than left to the caller. The comparison is against the year
 the resolver actually matched on, which the back-cast anchor floors at
-<code>backcast_anchor</code>: an 1850 row for FAOSTAT area 273 Montenegro is matched as
-1961 and lands on <code>MNE-1913-1918</code>, so it is <code>"polity_ended"</code>, while
-<code>year &lt; polity_start_year</code> on the same row would call it
-<code>"polity_not_started"</code>.</p>
+<code>backcast_anchor</code>, so a pre-anchor row is classified as the anchor year it
+was resolved as rather than as the year it carries.</p>
 <p>The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT

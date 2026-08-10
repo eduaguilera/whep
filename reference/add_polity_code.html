@@ -3,19 +3,19 @@
 a table with FAOSTAT/FABIO area_code values. If a year column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.
-When no mapped period covers a row's year, the nearest period of the same
-area is used as a stand-in and mapping_status reports &quot;out_of_span&quot;
-rather than the crosswalk's &quot;matched&quot;/&quot;manual&quot;. Such a row is attributed
-to a polity that did not exist in that year, so treat it as a coverage gap:
+When no mapped period covers a row's year, another period of the same area
+is used as a stand-in and mapping_status reports &quot;out_of_span&quot; rather
+than the crosswalk's &quot;matched&quot;/&quot;manual&quot;. Such a row is attributed to a
+polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it."><meta property="og:description" content="Adds periodized polity_code information from polity_area_crosswalk to
 a table with FAOSTAT/FABIO area_code values. If a year column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.
-When no mapped period covers a row's year, the nearest period of the same
-area is used as a stand-in and mapping_status reports &quot;out_of_span&quot;
-rather than the crosswalk's &quot;matched&quot;/&quot;manual&quot;. Such a row is attributed
-to a polity that did not exist in that year, so treat it as a coverage gap:
+When no mapped period covers a row's year, another period of the same area
+is used as a stand-in and mapping_status reports &quot;out_of_span&quot; rather
+than the crosswalk's &quot;matched&quot;/&quot;manual&quot;. Such a row is attributed to a
+polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -61,10 +61,10 @@ reporting area outlived (or predates) every polity mapped to it."><meta property
 a table with FAOSTAT/FABIO <code>area_code</code> values. If a <code>year</code> column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.</p>
-<p>When no mapped period covers a row's year, the nearest period of the same
-area is used as a stand-in and <code>mapping_status</code> reports <code>"out_of_span"</code>
-rather than the crosswalk's <code>"matched"</code>/<code>"manual"</code>. Such a row is attributed
-to a polity that did not exist in that year, so treat it as a coverage gap:
+<p>When no mapped period covers a row's year, another period of the same area
+is used as a stand-in and <code>mapping_status</code> reports <code>"out_of_span"</code> rather
+than the crosswalk's <code>"matched"</code>/<code>"manual"</code>. Such a row is attributed to a
+polity that did not exist in that year, so treat it as a coverage gap:
 either the area needs the missing period added to the crosswalk, or the
 reporting area outlived (or predates) every polity mapped to it.</p>
     </div>
@@ -112,6 +112,24 @@ Set to <code>-Inf</code> to disable and match strictly by data year.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with added polity metadata columns.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="which-stand-in-is-picked">Which stand-in is picked<a class="anchor" aria-label="anchor" href="#which-stand-in-is-picked"></a></h2>
+
+
+<p>A period that has <strong>not started yet</strong> is preferred over one that has
+already <strong>ended</strong>, and only then is the nearest in years taken. Ranking by
+distance alone split one reporting area's series between two entities at
+whichever year the arithmetic flipped: FAOSTAT area 178 Eritrea read
+<code>ERI-1889-1952</code> (the Italian colonial administration) up to 1972 and
+<code>ERI-1993-2025</code> from 1973, and area 273 Montenegro split at 1961 between
+<code>MNE-1913-1918</code> and <code>MNE-2006-2025</code> on a one-year margin. Preferring the
+not-yet-started period keeps each area on one entity and agrees with the
+back-cast anchor, whose purpose is to avoid resolving back-cast rows onto a
+larger historical-extent period. Set
+<code>options(whep.polity_stand_in = "nearest")</code> to restore ranking by distance
+alone; it changes 235 of the crosswalk's 46,640 <code>(area, year)</code> pairs over
+1850-2025, all of them areas 178 and 273 (whep#705).</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

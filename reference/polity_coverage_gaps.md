@@ -33,10 +33,8 @@ one a row is:
 `gap_kind` is not derivable from the returned columns, which is why it
 is returned rather than left to the caller. The comparison is against
 the year the resolver actually matched on, which the back-cast anchor
-floors at `backcast_anchor`: an 1850 row for FAOSTAT area 273 Montenegro
-is matched as 1961 and lands on `MNE-1913-1918`, so it is
-`"polity_ended"`, while `year < polity_start_year` on the same row would
-call it `"polity_not_started"`.
+floors at `backcast_anchor`, so a pre-anchor row is classified as the
+anchor year it was resolved as rather than as the year it carries.
 
 The resolution here is the same one the builds use, including the
 back-cast anchor, so it reports what the table actually got rather than
