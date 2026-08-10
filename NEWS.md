@@ -1,5 +1,24 @@
 # whep (development version)
 
+* **`build_primary_production()` gains `polity_vocabulary`, which lets a row's
+  `source` decide whether its polity is looked up at its own year or at the
+  1961 back-cast anchor (#739).** The anchor floor itself is not new -- it has
+  applied to every pre-1962 row since `256b37a1`, whatever the source -- so
+  `"anchor"`, the default, keeps doing exactly that. `"observed_period"` gives
+  the own-year polity to genuinely observed `historical_data` rows and
+  `"historical_period"` extends that to the three `historical_LUH2_*` /
+  `historical_fill_linear` labels; both add a `method_reporting_polity` column
+  saying which route each row took. **No published value changes:** the default
+  `get_primary_production()` output is `identical()` across all 6,310,390 rows
+  and 12 columns, `get_wide_cbs()` likewise, and because a default build
+  carries **no** `historical_*` row at all, so are the two non-default
+  vocabularies -- the switch is inert until `historical_data` is wired in.
+  The open question it does not settle is a different one from the one #739
+  states: a back-cast row's *level* is its area's 1961 value while its
+  *year-on-year movement* is a present-day-ISO3 LUH2 land ratio, so for the
+  43 of 217 published areas whose territory changed after 1961 (747,758
+  pre-1961 rows) the value and its label describe two different extents.
+
 * **`build_carbon_inputs()` no longer attaches reporting polity columns to an
   intermediate that discards them.** `build_soil_carbon_inputs()` produced a
   5.0e7-row gridded table for a 40-year span, and adding the four reporting

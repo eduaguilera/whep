@@ -1107,3 +1107,54 @@ testthat::test_that("the status switch always re-resolves", {
     "out_of_span"
   )
 })
+
+# -- Per-row back-cast anchor (whep#739) ---------------------------------------
+
+testthat::test_that(".backcast_anchor_by_row recycles or aborts", {
+  testthat::expect_equal(
+    whep:::.backcast_anchor_by_row(1961L, 3L),
+    c(1961, 1961, 1961)
+  )
+  testthat::expect_equal(
+    whep:::.backcast_anchor_by_row(c(-Inf, 1961), 2L),
+    c(-Inf, 1961)
+  )
+  # A length that is neither 1 nor one-per-row would recycle silently against
+  # the wrong rows, which is the one failure mode a vector anchor introduces.
+  testthat::expect_error(
+    whep:::.backcast_anchor_by_row(c(1961, 1961), 3L),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a per-row anchor resolves one key two ways", {
+  # Two rows with the SAME (area_code, year): only the anchor differs, so any
+  # difference in the answer is the anchor's doing and nothing else's.
+  keys <- tibble::tibble(area_code = c(238L, 238L), year = c(1850L, 1850L))
+
+  out <- whep:::.add_reporting_polity_columns(
+    keys,
+    backcast_anchor = c(1961L, -Inf)
+  )
+
+  testthat::expect_equal(
+    out$reporting_polity_code,
+    c("ETH-1952-1993", "ETH-1800-1889")
+  )
+  # The bucket is the same territory either way; only the identity moves.
+  testthat::expect_equal(out$polity_area_code, c(238L, 238L))
+})
+
+testthat::test_that("a non-default anchor cannot be served by the carry", {
+  # The carried fast path republishes an identity resolved at the default
+  # anchor. Serving a `-Inf` request from it would silently return the
+  # anchored answer to a caller that asked for the own-year one.
+  carried <- .carried_frame(4L)
+  carried$year <- 1850L
+
+  out <- whep:::.add_reporting_polity_columns(carried, backcast_anchor = -Inf)
+
+  testthat::expect_false(
+    identical(out$reporting_polity_code, carried$reporting_polity_code)
+  )
+})

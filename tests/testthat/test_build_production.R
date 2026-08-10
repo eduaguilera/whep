@@ -1213,3 +1213,125 @@ test_that(".split_stock_share keys on the code, so a shared label cannot dilute"
   # Whole numbers: a single-member group has share 1, never 1/n.
   expect_equal(result$value_comb, round(result$value_comb))
 })
+
+# -- Polity vocabulary (whep#739) ----------------------------------------------
+
+# One area, one pre-anchor year, one row per source class, plus a FAOSTAT-era
+# row. Area 238 is the case whep#739 argues from: its crosswalk carries eight
+# pre-1993 Ethiopian periods, so "the polity of 1850" and "the polity of the
+# 1961 anchor" are different polygons and the choice between them is visible.
+.make_vocabulary_raw <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code, ~unit, ~value, ~source,
+    1850L, "Ethiopia", 238L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_integer_, "tonnes", 100, "historical_Federico",
+    1850L, "Ethiopia", 238L, "Maize (corn)", 56L, "Maize and products", 2514L, NA_character_, NA_integer_, "tonnes", 200, "historical_LUH2_cropland",
+    1850L, "Ethiopia", 238L, "Barley", 44L, "Barley and products", 2513L, NA_character_, NA_integer_, "tonnes", 300, "LUH2_cropland",
+    1990L, "Ethiopia", 238L, "Wheat", 15L, "Wheat and products", 2511L, NA_character_, NA_integer_, "tonnes", 400, "FAOSTAT_prod"
+  )
+}
+
+# Sorted, so the four rows always arrive in the order the expectations name:
+#   1  1850 wheat   15  historical_Federico       observed in 1850
+#   2  1850 barley  44  LUH2_cropland             pure back-cast
+#   3  1850 maize   56  historical_LUH2_cropland  observation x modern ratio
+#   4  1990 wheat   15  FAOSTAT_prod              past the anchor
+.vocabulary_polities <- function(vocabulary) {
+  whep::build_primary_production(
+    .raw_data = .make_vocabulary_raw(),
+    polity_vocabulary = vocabulary
+  ) |>
+    dplyr::arrange(year, item_prod_code)
+}
+
+test_that(".prod_period_rows names only the sources that say own-year", {
+  sources <- c(
+    "FAOSTAT_prod",
+    "LUH2_cropland",
+    "LUH2_agriland",
+    "fill_linear_historical",
+    "LUH2_grassland",
+    "historical_Federico",
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland",
+    "historical_fill_linear"
+  )
+
+  # The default names none of them, which is what every published build did.
+  expect_false(any(whep:::.prod_period_rows(sources, "anchor")))
+
+  # A source nobody classified keeps the anchor rather than silently acquiring
+  # a historical polygon, so every reconstruction is FALSE under every value.
+  observed <- whep:::.prod_period_rows(sources, "observed_period")
+  expect_identical(sources[observed], "historical_Federico")
+
+  historical <- whep:::.prod_period_rows(sources, "historical_period")
+  expect_identical(
+    sources[historical],
+    c(
+      "historical_Federico",
+      "historical_LUH2_cropland",
+      "historical_LUH2_agriland",
+      "historical_fill_linear"
+    )
+  )
+
+  # NA is not an own-year observation.
+  expect_false(whep:::.prod_period_rows(NA_character_, "historical_period"))
+})
+
+test_that("the default vocabulary anchors every pre-1962 row", {
+  result <- .vocabulary_polities("anchor")
+
+  expect_equal(result$reporting_polity_code, rep("ETH-1952-1993", 4))
+  # The default schema is the published one: no method column, because under
+  # the default the rule is one fact about the whole build, not a per-row one.
+  expect_false(rlang::has_name(result, "method_reporting_polity"))
+})
+
+test_that("observed_period gives an observed row its own year's polity", {
+  result <- .vocabulary_polities("observed_period")
+
+  expect_equal(
+    result$reporting_polity_code,
+    c("ETH-1800-1889", "ETH-1952-1993", "ETH-1952-1993", "ETH-1952-1993")
+  )
+  expect_equal(
+    result$method_reporting_polity,
+    c("period", "anchor", "anchor", "period")
+  )
+})
+
+test_that("historical_period extends that to the LUH2-shaped rows", {
+  result <- .vocabulary_polities("historical_period")
+
+  # Only row 3, `historical_LUH2_cropland`, moves against observed_period;
+  # that single row IS the open decision in whep#739.
+  expect_equal(
+    result$reporting_polity_code,
+    c("ETH-1800-1889", "ETH-1952-1993", "ETH-1800-1889", "ETH-1952-1993")
+  )
+  expect_equal(
+    result$method_reporting_polity,
+    c("period", "anchor", "period", "period")
+  )
+})
+
+test_that("the vocabulary moves the identity, never the aggregation bucket", {
+  buckets <- purrr::map(
+    c("anchor", "observed_period", "historical_period"),
+    \(v) .vocabulary_polities(v)$polity_area_code
+  )
+
+  expect_equal(buckets[[2]], buckets[[1]])
+  expect_equal(buckets[[3]], buckets[[1]])
+})
+
+test_that("build_primary_production rejects an unknown polity_vocabulary", {
+  expect_error(
+    whep::build_primary_production(
+      .raw_data = .make_vocabulary_raw(),
+      polity_vocabulary = "historical"
+    ),
+    class = "rlang_error"
+  )
+})

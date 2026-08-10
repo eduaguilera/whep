@@ -339,6 +339,28 @@
   )
 }
 
+# The year floor the polity lookup applies, one value per row.
+#
+# A scalar floors every row at the same anchor, which is what every caller did
+# before whep#739 and what both published routes still are: `1961L` for WHEP's
+# back-cast production series, `-Inf` for a genuine historical source reported
+# under its own year's borders (`.resolve_hist_trade_polities()`). A vector
+# lets one build mix the two, so a frame whose rows are not all reconstructions
+# can resolve each row in the vocabulary its own `source` calls for.
+.backcast_anchor_by_row <- function(backcast_anchor, n) {
+  anchor <- as.numeric(backcast_anchor)
+  if (length(anchor) == 1L) {
+    return(rep(anchor, n))
+  }
+  if (length(anchor) != n) {
+    cli::cli_abort(c(
+      "{.arg backcast_anchor} must be length 1 or one value per row.",
+      "x" = "It has {length(anchor)} value{?s} for {n} row{?s}."
+    ))
+  }
+  anchor
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
@@ -351,6 +373,7 @@
     data.table::setDT(data)
   }
   dt <- data.table::copy(data)
+  row_anchor <- .backcast_anchor_by_row(backcast_anchor, nrow(dt))
 
   if (!code_col %in% names(dt)) {
     cli::cli_abort("Column {.field {code_col}} is required for polity mapping.")
@@ -433,12 +456,15 @@
     # modern republic; USSR/Yugoslavia/Czechoslovakia for entities that only
     # dissolved AFTER 1961) instead of a larger historical-extent period.
     # Genuine historical-source data (reported under real historical borders) is
-    # handled separately, keyed directly to its polity, not via this lookup.
+    # handled separately, either by a caller passing `backcast_anchor = -Inf`
+    # for a whole dataset (`.resolve_hist_trade_polities()`) or, since whep#739,
+    # by passing a per-row anchor so one build can resolve its reconstructed
+    # rows at the anchor and its observed ones at their own year.
     join_data <- dt[,
       .(
         ..whep_polity_rowid = get(rowid_col),
         area_code = get(code_col),
-        year = pmax(as.numeric(get(year_col)), as.numeric(backcast_anchor))
+        year = pmax(as.numeric(get(year_col)), row_anchor)
       )
     ]
     matches <- lookup[
@@ -984,14 +1010,28 @@ polity_coverage_gaps <- function(
   any(both & x != y)
 }
 
+# The carried fast path republishes an identity that was resolved under the
+# default anchor, so it can only stand in for a call asking for that same
+# anchor. Anything else -- a whole-dataset `-Inf`, or the per-row vector
+# whep#739 introduced -- has to resolve, or the requested vocabulary would be
+# silently replaced by the carried one. The literal matches the formal default
+# of `.add_polity_columns_dt()`.
+.default_backcast_anchor <- function(backcast_anchor) {
+  length(backcast_anchor) == 1L && isTRUE(backcast_anchor == 1961L)
+}
+
 .add_reporting_polity_columns <- function(
   table,
   code_column = "area_code",
-  mapping_status = NULL
+  mapping_status = NULL,
+  backcast_anchor = 1961L
 ) {
   mode <- .polity_status_mode(mapping_status)
   dt <- data.table::as.data.table(table)
-  if (.carried_reporting_polity(dt, code_column, mode)) {
+  if (
+    .default_backcast_anchor(backcast_anchor) &&
+      .carried_reporting_polity(dt, code_column, mode)
+  ) {
     # A copy, because `as.data.table()` hands back the caller's own data.table
     # when it is given one, and the resolving path below never reorders the
     # input's columns by reference.
@@ -1026,7 +1066,8 @@ polity_coverage_gaps <- function(
     code_col = code_column,
     year_col = year_col,
     prefix = "reporting_",
-    include_unmapped = TRUE
+    include_unmapped = TRUE,
+    backcast_anchor = backcast_anchor
   )
   if ("reporting_has_geometry" %in% names(out)) {
     data.table::setnames(

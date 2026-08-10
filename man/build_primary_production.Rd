@@ -12,6 +12,7 @@ build_primary_production(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
+  polity_vocabulary = c("anchor", "observed_period", "historical_period"),
   .raw_data = NULL
 )
 }
@@ -52,6 +53,40 @@ published in \link{polities}. This back-casts 14.3\% more of the 1961-62
 production tonnage and therefore moves published pre-1962 values.
 }}
 
+\item{polity_vocabulary}{Character. Which polity a pre-1962 row is named by.
+A pre-1962 WHEP row is a reconstruction, not an observation: its \strong{level}
+is the area's 1961 reported value, and its \strong{year-on-year movement} is the
+ratio of LUH2 land, which is keyed on present-day ISO3. Neither is the
+territory that governed the ground in the row's own year, so the polity
+lookup floors its year at the 1961 anchor -- and has done since \verb{256b37a1},
+for every pre-1962 row whatever its source. This argument makes that floor
+answer to \code{source} instead, which is what whep#739 asks for; what it does
+\strong{not} address is that the level and the movement describe two different
+extents wherever a territory changed after 1961 (43 of 217 published areas,
+747,758 pre-1961 rows -- see whep#739).
+\itemize{
+\item \code{"anchor"} (default, current published behaviour) names \strong{every}
+pre-1962 row by the polity active at the 1961 anchor, whatever its
+source.
+\item \code{"observed_period"} names a genuinely observed historical row -- one
+supplied through \code{historical_data}, which keeps its own
+\verb{historical_*} source -- by the polity active in its \strong{own} year, and
+leaves every reconstruction anchored.
+\item \code{"historical_period"} does the same and additionally gives the own-year
+polity to \code{historical_LUH2_cropland}, \code{historical_LUH2_agriland} and
+\code{historical_fill_linear} rows, which are a real historical observation
+grown by a modern-border land ratio. Whether those belong with the
+observations or with the reconstructions is an open question: their
+level describes the historical territory and their year-on-year movement
+the modern one.
+}
+
+The two non-default values additionally emit a \code{method_reporting_polity}
+column recording, per row, whether its polity was resolved at the anchor
+(\code{"anchor"}) or in its own year (\code{"period"}). With
+\code{historical_data = NULL} all three values give the same result, because
+the build then contains no observed pre-1962 row at all.}
+
 \item{.raw_data}{Optional tibble with the same structure as the output
 of the internal \code{.read_production()} step. When supplied, the
 remote-data read is skipped entirely and the pipeline starts from
@@ -68,7 +103,11 @@ A tibble with the same columns as \code{\link[=get_primary_production]{get_prima
 \code{live_anim_code}, \code{unit}, \code{value}, and \code{source}.
 Item names can be recovered via \code{\link[=add_item_prod_name]{add_item_prod_name()}} and related helpers.
 When \code{show_duplicates = TRUE}, returns a wide tibble with one
-column per source showing the competing values.
+column per source showing the competing values. A non-default
+\code{polity_vocabulary} adds \code{method_reporting_polity}; the default schema is
+unchanged, because under \code{"anchor"} the rule is one fact about the whole
+build -- every row before the anchor year is anchored -- and \code{year} already
+says which rows those are.
 }
 \description{
 Construct the full primary production dataset from raw FAOSTAT inputs.

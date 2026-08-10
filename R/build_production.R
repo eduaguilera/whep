@@ -37,6 +37,37 @@
 #'     its successor states' LUH2 land, resolved from the `successor` relation
 #'     published in [polities]. This back-casts 14.3% more of the 1961-62
 #'     production tonnage and therefore moves published pre-1962 values.
+#' @param polity_vocabulary Character. Which polity a pre-1962 row is named by.
+#'   A pre-1962 WHEP row is a reconstruction, not an observation: its **level**
+#'   is the area's 1961 reported value, and its **year-on-year movement** is the
+#'   ratio of LUH2 land, which is keyed on present-day ISO3. Neither is the
+#'   territory that governed the ground in the row's own year, so the polity
+#'   lookup floors its year at the 1961 anchor -- and has done since `256b37a1`,
+#'   for every pre-1962 row whatever its source. This argument makes that floor
+#'   answer to `source` instead, which is what whep#739 asks for; what it does
+#'   **not** address is that the level and the movement describe two different
+#'   extents wherever a territory changed after 1961 (43 of 217 published areas,
+#'   747,758 pre-1961 rows -- see whep#739).
+#'   * `"anchor"` (default, current published behaviour) names **every**
+#'     pre-1962 row by the polity active at the 1961 anchor, whatever its
+#'     source.
+#'   * `"observed_period"` names a genuinely observed historical row -- one
+#'     supplied through `historical_data`, which keeps its own
+#'     `historical_*` source -- by the polity active in its **own** year, and
+#'     leaves every reconstruction anchored.
+#'   * `"historical_period"` does the same and additionally gives the own-year
+#'     polity to `historical_LUH2_cropland`, `historical_LUH2_agriland` and
+#'     `historical_fill_linear` rows, which are a real historical observation
+#'     grown by a modern-border land ratio. Whether those belong with the
+#'     observations or with the reconstructions is an open question: their
+#'     level describes the historical territory and their year-on-year movement
+#'     the modern one.
+#'
+#'   The two non-default values additionally emit a `method_reporting_polity`
+#'   column recording, per row, whether its polity was resolved at the anchor
+#'   (`"anchor"`) or in its own year (`"period"`). With
+#'   `historical_data = NULL` all three values give the same result, because
+#'   the build then contains no observed pre-1962 row at all.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -52,7 +83,11 @@
 #'   `live_anim_code`, `unit`, `value`, and `source`.
 #'   Item names can be recovered via [add_item_prod_name()] and related helpers.
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
-#'   column per source showing the competing values.
+#'   column per source showing the competing values. A non-default
+#'   `polity_vocabulary` adds `method_reporting_polity`; the default schema is
+#'   unchanged, because under `"anchor"` the rule is one fact about the whole
+#'   build -- every row before the anchor year is anchored -- and `year` already
+#'   says which rows those are.
 #'
 #' @export
 #'
@@ -66,12 +101,14 @@ build_primary_production <- function(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
+  polity_vocabulary = c("anchor", "observed_period", "historical_period"),
   .raw_data = NULL
 ) {
   if (example) {
     return(.example_build_primary_prod())
   }
   federation_land <- rlang::arg_match(federation_land)
+  polity_vocabulary <- rlang::arg_match(polity_vocabulary)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
@@ -122,7 +159,7 @@ build_primary_production <- function(
       source,
       dplyr::any_of("fao_flag")
     ) |>
-    .add_reporting_polity_columns()
+    .resolve_prod_polities(polity_vocabulary)
 
   attr(result, ".cb_extracts") <- cb_extracts
   result
@@ -3333,6 +3370,66 @@ build_primary_production <- function(
     source == "LUH2_grassland" ~ 11L,
     source == "Estimated" ~ 12L,
     TRUE ~ 13L
+  )
+}
+
+# The three `source` values `.fill_pre_faostat()` stamps on a row it grew from a
+# genuine historical observation with a modern-border LUH2 land ratio. They
+# share the `historical_` prefix with the observations themselves, because
+# `.prepare_historical_production()` gives every `historical_data` source that
+# prefix and `.historical_anchor` keys on it -- so the prefix alone says
+# "descends from an observation", and only these three names say "reconstructed
+# from one".
+.prod_hist_recon_sources <- function() {
+  c(
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland",
+    "historical_fill_linear"
+  )
+}
+
+# Which rows are named by the polity of their own year rather than the anchor's
+# (whep#739). The default names none of them that way, which is what every
+# published build has done.
+#
+# The test is positive and closed: a row earns the own-year polity only by
+# carrying a source that says it was observed in that year, so a source label
+# nobody has classified keeps the anchor rather than silently acquiring a
+# historical polygon. Pure reconstructions -- `LUH2_cropland`, `LUH2_agriland`,
+# `fill_linear_historical`, and the `LUH2_grassland` series, which is LUH2
+# pasture read on present-day ISO3 for every year -- therefore stay anchored
+# under every value.
+.prod_period_rows <- function(source, vocabulary) {
+  from_history <- !is.na(source) & stringr::str_starts(source, "historical_")
+  switch(
+    vocabulary,
+    anchor = rep(FALSE, length(source)),
+    observed_period = from_history &
+      !(source %in% .prod_hist_recon_sources()),
+    historical_period = from_history
+  )
+}
+
+.resolve_prod_polities <- function(table, vocabulary, anchor = 1961L) {
+  row_anchor <- dplyr::if_else(
+    .prod_period_rows(table$source, vocabulary),
+    -Inf,
+    as.numeric(anchor)
+  )
+  out <- .add_reporting_polity_columns(table, backcast_anchor = row_anchor)
+  if (identical(vocabulary, "anchor")) {
+    return(out)
+  }
+  # `.add_reporting_polity_columns()` preserves row order, so `row_anchor` still
+  # lines up. A row at or after its own floor is named by the polity of its own
+  # year whatever the vocabulary says, because flooring changes nothing there.
+  dplyr::mutate(
+    out,
+    method_reporting_polity = dplyr::if_else(
+      dplyr::coalesce(.data$year >= row_anchor, FALSE),
+      "period",
+      "anchor"
+    )
   )
 }
 
