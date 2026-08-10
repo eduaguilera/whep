@@ -22,8 +22,8 @@
 
 # The classification of every join in the package that keys on a territory and
 # not on a year, one row per distinct (owner, join function, key) signature with
-# the number of calls carrying it. Four verdicts, and two more for the two joins
-# that still name the LABEL in their key:
+# the number of calls carrying it. Four verdicts, and one more for the single
+# join that still names the LABEL in its key:
 #
 #   single_year      the call site is already scoped to one year, so the year is
 #                    a constant there and adding it to the key changes nothing.
@@ -41,10 +41,13 @@
 #                    come from one frame here, so the label cannot disagree, but
 #                    keying on a label is the shape behind whep#589/#563 and
 #                    this entry exists so it stays visible.
-#   label_identity   the key names `area` and the label is LOAD-BEARING: it is
-#                    where the identity comes from, and the code+year route is
-#                    measurably not the same join. Removing it needs a decision
-#                    first, not a refactor. One case, whep#698.
+#
+# A sixth verdict, `label_identity`, is GONE and is deliberately not in the
+# vocabulary any more. It covered one join, `.polity_code_from_labels()`, which
+# read the pre-1962 CBS frame's polity out of its `area` label; whep#698 keyed
+# that frame on the reporting bucket it already carries and deleted the
+# function. Re-introducing the class means re-arguing that a label may be an
+# identity, which is the whole thing this audit exists to stop.
 #
 # Adding a row is not a way to pass the gate: it is a statement, reviewed like
 # any other, that the join means the same thing in 1850 and in 2023.
@@ -136,13 +139,6 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
-    ".polity_code_from_labels", "merge", "area_code, area", 1L,
-    "label_identity",
-    "The label is where the polity comes from here, and the year-aware code
-     route is a different join, not a tidier one: measured on a real 1955-1965
-     CBS frame it changes 42 of 1,267 keys and hands nine promoted
-     Rest-of-World members the aggregate's own population as their growth
-     proxy. Needs whep#493's decision first; whep#698 carries the numbers.",
     ".prepare_historical_cbs", "merge", "area_code", 1L, "identity_lookup",
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
