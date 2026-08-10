@@ -138,7 +138,7 @@ Input-Output Model. Environmental Science & Technology 53(19),
 ``` r
 folded <- folded_reporting_areas()
 nrow(folded)
-#> [1] 11
+#> [1] 10
 head(folded[folded$fold_kind == "successor_state", ], 4)
 #> # A tibble: 4 × 7
 #>   area_code area_name    area_iso3c polity_area_code polity_code   polity_name  
