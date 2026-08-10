@@ -274,13 +274,6 @@ read_soil_hydraulic <- function(
       value_col = col,
       out_col = col
     )
-    # Each pass classifies the full 30-arcsec HWSD raster, which costs ~11 GB
-    # of terra intermediates for a 3 MB result. That memory is reclaimable, but
-    # R's collector does not run on its own here, so three passes accumulate
-    # (11.4 -> 22.1 -> 32.8 GB) instead of reusing one pass's worth. Reclaiming
-    # between passes holds it at ~11 GB and is invisible against the ~60 s each
-    # pass already takes.
-    invisible(gc(full = TRUE))
     grid
   })
   purrr::reduce(grids, dplyr::inner_join, by = c("lon", "lat"))
@@ -336,21 +329,19 @@ read_soil_hydraulic <- function(
   if (!file.exists(hwsd_path)) {
     cli::cli_abort("HWSD raster not found at {.file {hwsd_path}}.")
   }
-  hwsd_rast <- .crop_to_target(terra::rast(hwsd_path), target_grid, target_res)
-  agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
-
+  # terra::rast() only opens the file; the pixels stay on disk until a band asks
+  # for them. Cropping the whole grid up front would pull all ~11 GB into memory
+  # before any aggregation happens, which is the cost this banding avoids.
+  src <- terra::rast(hwsd_path)
+  extent <- .hwsd_target_extent(src, target_grid, target_res)
   rcl <- as.matrix(mu_soils[, c("mu_global", value_col)])
-  val_rast <- terra::classify(hwsd_rast, rcl, others = NA)
-  val_coarse <- terra::aggregate(
-    val_rast,
-    fact = agg_factor,
-    fun = "mean",
-    na.rm = TRUE
-  )
-
-  val_df <- terra::as.data.frame(val_coarse, xy = TRUE, na.rm = TRUE)
-  names(val_df) <- c("lon", "lat", out_col)
-  tibble::as_tibble(val_df) |>
+  values <- purrr::map(
+    .hwsd_band_extents(extent, target_res),
+    \(band) .hwsd_band_values(src, band, rcl, target_res)
+  ) |>
+    dplyr::bind_rows()
+  names(values) <- c("lon", "lat", out_col)
+  tibble::as_tibble(values) |>
     dplyr::mutate(
       lon = round(.data$lon, 2),
       lat = round(.data$lat, 2),
@@ -358,21 +349,62 @@ read_soil_hydraulic <- function(
     )
 }
 
-# Crop the native HWSD raster to a target grid's bounding box, padded half a
-# target cell on each side. Returns the raster unchanged when no target grid
-# is supplied (the documented global path).
-.crop_to_target <- function(rast, target_grid, target_res) {
+# The extent to aggregate over: the target grid's bounding box padded by half a
+# target cell, or the whole raster when no target grid is given.
+.hwsd_target_extent <- function(src, target_grid, target_res) {
   if (is.null(target_grid)) {
-    return(rast)
+    return(terra::ext(src))
   }
   pad <- target_res / 2
-  extent <- terra::ext(
+  terra::ext(
     min(target_grid$lon) - pad,
     max(target_grid$lon) + pad,
     min(target_grid$lat) - pad,
     max(target_grid$lat) + pad
   )
-  terra::crop(rast, extent)
+}
+
+# Split an extent into latitude bands, each a whole number of target rows tall.
+# Whole target rows is what makes this safe: every aggregated cell's source
+# pixels then lie inside exactly one band, so banding cannot change a single
+# aggregated value.
+.hwsd_band_extents <- function(extent, target_res) {
+  n_rows <- as.integer(round((extent$ymax - extent$ymin) / target_res))
+  starts <- seq(0L, max(n_rows - 1L, 0L), by = .hwsd_band_rows())
+  purrr::map(starts, function(start) {
+    rows <- min(.hwsd_band_rows(), n_rows - start)
+    terra::ext(
+      extent$xmin,
+      extent$xmax,
+      extent$ymax - (start + rows) * target_res,
+      extent$ymax - start * target_res
+    )
+  })
+}
+
+# Target rows per band. 32 keeps a global 0.5-degree pass near 2 GB; the value
+# only trades peak memory against the number of passes, never the result.
+.hwsd_band_rows <- function() {
+  32L
+}
+
+# Classify and mean-aggregate one latitude band, releasing its full-resolution
+# intermediates before the next band allocates its own.
+.hwsd_band_values <- function(src, band, rcl, target_res) {
+  sub <- terra::crop(src, band)
+  agg_factor <- as.integer(target_res / terra::res(sub)[1])
+  classified <- terra::classify(sub, rcl, others = NA)
+  coarse <- terra::aggregate(
+    classified,
+    fact = agg_factor,
+    fun = "mean",
+    na.rm = TRUE
+  )
+  values <- terra::as.data.frame(coarse, xy = TRUE, na.rm = TRUE)
+  names(values) <- c("lon", "lat", "value")
+  rm(sub, classified, coarse)
+  invisible(gc(full = TRUE))
+  values
 }
 
 # Gap-fill cells present in the target grid but missing from the aggregated
