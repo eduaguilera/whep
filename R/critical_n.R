@@ -201,25 +201,37 @@ read_critical_n <- function(
     cli::cli_abort("The critical-N source manifest is incomplete.")
   }
   root <- .critn_root_path(dir)
-  for (i in seq_len(nrow(expected))) {
-    path <- file.path(root, expected$relative_path[[i]])
-    if (!file.exists(path)) {
-      cli::cli_abort("Manifest-pinned source file is missing: {.file {path}}.")
+  purrr::pwalk(
+    list(expected$relative_path, expected$bytes, expected$md5, expected$sha256),
+    \(relative_path, bytes, md5, sha256) {
+      .critn_verify_one(
+        file.path(root, relative_path),
+        relative_path,
+        bytes,
+        md5,
+        sha256
+      )
     }
-    size <- unname(file.info(path)$size)
-    md5 <- unname(tools::md5sum(path))
-    sha256 <- unname(tools::sha256sum(path))
-    if (
-      !identical(as.numeric(size), as.numeric(expected$bytes[[i]])) ||
-        !identical(md5, expected$md5[[i]]) ||
-        !identical(sha256, expected$sha256[[i]])
-    ) {
-      cli::cli_abort(c(
-        "A Schulte-Uebbing source raster failed content verification.",
-        x = "File: {.file {expected$relative_path[[i]]}}.",
-        i = "Use the unmodified Zenodo record 6395016 archive."
-      ))
-    }
+  )
+  invisible(TRUE)
+}
+
+.critn_verify_one <- function(path, relative_path, bytes, md5, sha256) {
+  if (!file.exists(path)) {
+    cli::cli_abort("Manifest-pinned source file is missing: {.file {path}}.")
+  }
+  matches <- identical(
+    as.numeric(unname(file.info(path)$size)),
+    as.numeric(bytes)
+  ) &&
+    identical(unname(tools::md5sum(path)), md5) &&
+    identical(unname(tools::sha256sum(path)), sha256)
+  if (!matches) {
+    cli::cli_abort(c(
+      "A Schulte-Uebbing source raster failed content verification.",
+      x = "File: {.file {relative_path}}.",
+      i = "Use the unmodified Zenodo record 6395016 archive."
+    ))
   }
   invisible(TRUE)
 }
