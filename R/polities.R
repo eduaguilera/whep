@@ -477,8 +477,8 @@ add_polity_code <- function(
 #'   intended state.
 #'
 #' @seealso [add_polity_code()] for the resolution itself, and
-#'   [polity_bucket_coverage()] for the different defect of a bucket whose
-#'   polity covers only part of what it sums.
+#'   [polity_bucket_coverage()] for the related question of which buckets sum
+#'   more than one territory, and whether their label covers the sum.
 #' @export
 #' @examples
 #' # FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
