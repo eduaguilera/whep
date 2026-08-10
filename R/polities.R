@@ -141,6 +141,93 @@
   unique(p$polity_code[open])
 }
 
+# Resolve an (ISO3 area label, data year) pair to the polity code active in that
+# year, against the polity's own span in `polity_area_crosswalk`.
+#
+# This is what `data-raw/balance_coefficients.R` stamps `urban_n_reference` with.
+# It lives here rather than in the builder because the year predicate IS the
+# package-wide `polity_end_year` convention, and that convention had four
+# independent re-implementations, three of which read the bound inclusively
+# (#550, #577). The builder's copy was the fourth and the only silent one: on a
+# boundary year it answered with the interval that had ENDED on it, so a
+# coefficient was attributed to a polity that no longer existed, with no error
+# and no warning (#565). Here it is one definition with one test.
+#
+# Deliberately NOT `add_polity_code()`: a vendored national series reports each
+# benchmark year under the borders that year actually had, while WHEP's pre-1961
+# FAOSTAT series are back-cast onto the 1961 anchor territory and need that
+# resolver's floor. Deliberately not `resolve_polity_label()` either -- that
+# answers `NA` on ambiguity, and a builder writing packaged data must stop rather
+# than ship a row whose territory it could not decide.
+.iso3_year_to_polity_code <- function(
+  iso3,
+  year,
+  crosswalk = polity_area_crosswalk,
+  open_codes = .open_polity_codes()
+) {
+  spans <- .iso3_polity_spans(crosswalk, open_codes, iso3)
+  found <- purrr::map2(
+    iso3,
+    year,
+    function(one_iso3, one_year) {
+      spans$polity_code[
+        spans$area_iso3c == one_iso3 &
+          spans$from_year <= one_year &
+          spans$to_year > one_year
+      ]
+    }
+  )
+  .abort_polity_year_misses(found, paste(iso3, year))
+  unlist(found, use.names = FALSE)
+}
+
+# The candidate periods of the named ISO3 areas, with the half-open year bounds
+# the containment test above uses.
+.iso3_polity_spans <- function(crosswalk, open_codes, iso3) {
+  crosswalk |>
+    dplyr::filter(.data$area_iso3c %in% iso3, !is.na(.data$polity_code)) |>
+    dplyr::distinct(
+      .data$area_iso3c,
+      .data$polity_code,
+      .data$polity_start_year,
+      .data$polity_end_year
+    ) |>
+    dplyr::mutate(
+      # A missing start bound is unbounded below. The upper bound is EXCLUSIVE at
+      # a succession and INCLUSIVE at an open end, which is exactly what
+      # `.polity_join_end_year()` encodes for the main resolver; no `map_year_end`
+      # is passed because this series is keyed to its real historical borders,
+      # not to a FAOSTAT reporting area's declared years.
+      from_year = dplyr::coalesce(as.numeric(.data$polity_start_year), -Inf),
+      to_year = .polity_join_end_year(
+        .data$polity_end_year,
+        NA_integer_,
+        .data$polity_code %in% open_codes
+      )
+    )
+}
+
+# A build error, not a fallback: a re-dated or split territory has to be looked
+# at rather than resolved by whichever candidate sorted first.
+.abort_polity_year_misses <- function(found, labels) {
+  unresolved <- labels[lengths(found) == 0]
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Cannot resolve an ISO3 area label and year to a polity code.",
+      "x" = "No polity active in polity_area_crosswalk: {.val {unresolved}}."
+    ))
+  }
+  ambiguous <- labels[lengths(found) > 1]
+  if (length(ambiguous) > 0) {
+    cli::cli_abort(c(
+      "An ISO3 area label and year map to more than one polity.",
+      "x" = "Ambiguous: {.val {ambiguous}}.",
+      "i" = "Label the source rows with the polity they cover."
+    ))
+  }
+  invisible(NULL)
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",

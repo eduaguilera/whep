@@ -298,6 +298,82 @@ test_that("a still-open period covers its terminal year, a succeeded one does no
   expect_true(all(handover$mapping_status == "out_of_span"))
 })
 
+test_that(".iso3_year_to_polity_code gives a boundary year to the successor", {
+  # The fourth re-implementation of the `polity_end_year` convention lived in
+  # `data-raw/balance_coefficients.R` and read the bound INCLUSIVELY (#565).
+  # It is the only one of the four that was silent: where a successor sits under
+  # a DIFFERENT ISO3 there is no second candidate to trip the ambiguity abort,
+  # so the boundary year resolved to the interval that ended on it and a
+  # coefficient was booked to a polity that no longer existed.
+  #
+  # Synthetic spans, because the real defect cannot be witnessed on the one
+  # dataset the builder stamps: `urban_n_reference` is Spain over 1860-2022 and
+  # `ESP-1800-2025` covers every benchmark year on either reading.
+  crosswalk <- tibble::tribble(
+    ~area_iso3c, ~polity_code,    ~polity_start_year, ~polity_end_year,
+    "XAA",       "XAA-1900-1950", 1900L,              1950L,
+    "XAA",       "XAA-1950-2025", 1950L,              2025L,
+    "XBB",       "XBB-1900-1950", 1900L,              1950L
+  )
+  open <- "XAA-1950-2025"
+  resolve <- function(iso3, year) {
+    whep:::.iso3_year_to_polity_code(iso3, year, crosswalk, open)
+  }
+
+  # The hand-over year belongs to the successor, and is not ambiguous.
+  expect_equal(resolve("XAA", 1950L), "XAA-1950-2025")
+  expect_equal(resolve("XAA", 1949L), "XAA-1900-1950")
+  # Vectorised, because the builder resolves a whole column at once.
+  expect_equal(
+    resolve(c("XAA", "XAA"), c(1949L, 1950L)),
+    c("XAA-1900-1950", "XAA-1950-2025")
+  )
+
+  # INCLUSIVE AT THE OPEN END: nothing succeeds `XAA-1950-2025`, so there is no
+  # double-count to prevent and excluding 2025 would simply delete a year.
+  expect_equal(resolve("XAA", 2025L), "XAA-1950-2025")
+  expect_error(resolve("XAA", 2026L), "No polity active")
+
+  # THE SILENT CASE. `XBB-1900-1950` ends in 1950 and no `XBB` interval follows,
+  # so the inclusive read answered "XBB-1900-1950" for 1950 with no complaint.
+  # The builder must stop instead.
+  expect_error(resolve("XBB", 1950L), "No polity active")
+  expect_equal(resolve("XBB", 1949L), "XBB-1900-1950")
+})
+
+test_that(".iso3_year_to_polity_code aborts rather than pick a candidate", {
+  crosswalk <- tibble::tribble(
+    ~area_iso3c, ~polity_code,    ~polity_start_year, ~polity_end_year,
+    "XCC",       "XCC-1900-2000", 1900L,              2000L,
+    "XCC",       "XCC-1950-2000", 1950L,              2000L
+  )
+  expect_error(
+    whep:::.iso3_year_to_polity_code("XCC", 1960L, crosswalk, character()),
+    "more than one polity"
+  )
+  expect_error(
+    whep:::.iso3_year_to_polity_code("XZZ", 1960L, crosswalk, character()),
+    "No polity active"
+  )
+})
+
+test_that("urban_n_reference is stamped with the polity live in that year", {
+  # The shipped end of the same fix: every benchmark row of the one dataset the
+  # builder stamps must name a polity whose span really covers its year, under
+  # the exclusive-at-a-succession / inclusive-at-an-open-end reading.
+  spans <- whep::polity_area_crosswalk |>
+    dplyr::filter(!is.na(polity_code)) |>
+    dplyr::distinct(polity_code, polity_start_year, polity_end_year)
+  covered_to <- spans$polity_end_year +
+    (spans$polity_code %in% whep:::.open_polity_codes())
+
+  urban <- whep::urban_n_reference
+  idx <- match(urban$polity_code, spans$polity_code)
+  expect_false(anyNA(idx))
+  expect_true(all(spans$polity_start_year[idx] <= urban$year))
+  expect_true(all(covered_to[idx] > urban$year))
+})
+
 test_that("add_polity_code floors pre-1961 back-cast years to the anchor territory", {
   # WHEP's pre-1962 series are back-cast onto ~1961 borders, so a 1900 figure
   # represents 1961 territory and must map to the entity active in 1961, not a

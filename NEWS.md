@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **The last site reading `polity_end_year` as inclusive has been removed.**
+  `data-raw/balance_coefficients.R` stamped `urban_n_reference` with a polity
+  code through its own copy of the year resolver, and that copy matched
+  `polity_end_year >= year` while the column is exclusive at a succession
+  everywhere else. Over the shipped crosswalk the two readings disagree on 313
+  `(ISO3, year)` pairs; 299 of those abort with two candidates, and 14 resolved
+  silently to the interval that had *ended* on that year, booking a coefficient
+  to a polity that no longer existed. The resolver now lives in `R/polities.R`
+  as `.iso3_year_to_polity_code()`, takes its upper bound from
+  `.polity_join_end_year()` like every other call site (exclusive at a
+  succession, inclusive at an open end), and aborts rather than answer with a
+  dissolved polity. **No published value changes**: the one dataset the builder
+  stamps is Spain over 1860–2022, covered by the single interval
+  `ESP-1800-2025` on either reading, and all 23 tables the builder writes come
+  back `identical()` to the committed ones.
+
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
