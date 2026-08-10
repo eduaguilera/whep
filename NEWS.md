@@ -116,6 +116,34 @@
   `"polity_not_started"`, WHEP's documented back-cast convention, leaving
   `"polity_ended"` as FAOSTAT area 206 alone. `options(whep.polity_stand_in =
   "nearest")` restores ranking by distance alone.
+* **The pre-1962 CBS proxy fill no longer reads a territory's identity out of
+  its label.** `.fill_with_proxies()` recovered the frame's polity by matching
+  its `(area_code, area)` pair — the bucket AND the LABEL — against the
+  crosswalk's `(polity_area_code, polity_name)`, while the population and land
+  proxies were resolved from the code, year-aware. The two sides disagreed.
+  Measured on a real `build_commodity_balances(prim, 1955, 1965)` run (121,191
+  frame rows, 1,267 `(area_code, area, year)` keys): 35 keys resolved to a
+  *different* polity through the label than through the code, and 70 to no
+  polity at all. Both proxies are now keyed on the reporting bucket the frame
+  already carries, so no label is consulted and no resolution is needed on the
+  frame side. **Published values move, in 1955-1960 only** (1961 onwards is
+  byte-identical): total tonnage -0.064% to -0.068% a year, -0.0289% over the
+  1955-1965 build; 9,623 of 528,769 cells change, 234 appear and 696 vanish.
+  Burundi, Equatorial Guinea, French Guiana, Papua New Guinea, Singapore,
+  Syria and Oman gain a population proxy they never had, and eleven areas gain
+  an agricultural-land proxy. Eswatini stops growing on 5,409 thousand people
+  and grows on its own 353 thousand: it, Bermuda and New Caledonia carry the
+  shared `"Rest of World"` label, which used to join them onto one
+  `ROW-1850-2025` proxy row holding the SUM of four promoted members'
+  populations — the whep#589 shape. Bermuda and the Rest-of-World bucket have
+  no proxy of their own and so lose their pre-1961 rows entirely (12
+  `(area_code, year)` pairs, 92.99 Mt) rather than keep a series synthesised
+  from other territories' populations; what an artificial aggregate's proxy
+  should be stays open (whep#493). Sudan (former, area 206) is the one bucket
+  whose agricultural land was split across two polities: it now sums Sudan and
+  South Sudan, which is what its CBS numerator already did, and its `agriland`
+  proxy rises 1.47x. No `(area_code, year)` changes its reporting polity and
+  no `area_code` gains a second label.
 
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**

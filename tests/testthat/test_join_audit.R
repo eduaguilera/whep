@@ -6,8 +6,9 @@
 # are mostly not wrong numbers -- a single-year scope, a table with no time
 # dimension, an identity lookup or a diagnostic -- but before this file nothing
 # said so, and the difference between a decision and an oversight was
-# invisible. One of them (`.polity_code_from_labels`) is a real defect, and
-# saying so is what the classification is for.
+# invisible. One of them (`.polity_code_from_labels`) was a real defect, and
+# saying so is what the classification is for -- whep#698 then fixed it, which
+# is the first time the ratchet moved DOWN: 58 back to 57.
 #
 # The audit reads the NAMESPACE, not `R/`, because `R/` is not shipped to where
 # tests run under `R CMD check` while the parsed bodies always are.
@@ -55,14 +56,22 @@ test_that("the enumerated baseline can only shrink", {
   # Lower this number when a join is fixed. It rises only for a join that had
   # to be added to make something MORE year-aware, and only with the reason
   # written into the row -- never to admit a new year-blind read. 57 was the
-  # count on the commit that introduced the gate; 58 adds
+  # count on the commit that introduced the gate; 58 added
   # `.resolve_all_area_years`, the first-reported-year bound that turned
   # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 59
-  # adds `.handed_over_polity_codes`, the succession self-join that stops
+  # added `.handed_over_polity_codes`, the succession self-join that stops
   # `.polity_join_end_year()` widening a period into the first year of the
   # successor upstream recorded only in the inverse direction (whep#683).
-  expect_lte(sum(baseline$n), 59L)
+  #
+  # 58 is where those two land together: whep#698 keyed the pre-1962 proxy fill
+  # on the reporting bucket the frame already carries, `.polity_code_from_labels()`
+  # stopped existing, and the ratchet came down by one for the first time. The
+  # number is the merge of a rise and a fall, not either one alone.
+  expect_lte(sum(baseline$n), 58L)
   expect_true(all(nzchar(baseline$why)))
+  # `label_identity` is deliberately absent: it classified exactly one join,
+  # the one whep#698 removed. Putting it back means arguing again that a label
+  # may be an identity.
   expect_true(all(
     baseline$class %in%
       c(
@@ -70,25 +79,22 @@ test_that("the enumerated baseline can only shrink", {
         "time_invariant",
         "identity_lookup",
         "diagnostic",
-        "label_redundant",
-        "label_identity"
+        "label_redundant"
       )
   ))
 })
 
 test_that("no year-free join keys on the area LABEL beyond those registered", {
   # Keying on `area` rather than `area_code` is the shape behind whep#589 (a
-  # shared label diluted Syria's livestock by 12x) and whep#563. Two survive,
-  # one redundant (whep#691) and one load-bearing (whep#698); a third must not
-  # appear unnoticed.
+  # shared label diluted Syria's livestock by 12x) and whep#563. ONE survives,
+  # redundant (whep#691): whep#698 removed the load-bearing one. A second must
+  # not appear unnoticed.
   labelled <- whep:::.territorial_joins() |>
     dplyr::filter(!.data$has_year, .data$has_label) |>
     dplyr::pull(.data$owner) |>
     sort()
   registered <- whep:::.territorial_join_baseline() |>
-    dplyr::filter(
-      .data$class %in% c("label_redundant", "label_identity")
-    ) |>
+    dplyr::filter(.data$class == "label_redundant") |>
     dplyr::pull(.data$owner) |>
     sort()
   expect_equal(labelled, registered)
