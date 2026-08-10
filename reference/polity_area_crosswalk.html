@@ -95,6 +95,35 @@ can never be joined to reported data.</p></li>
 <code>inst/extdata/harmonization/regions_full.csv</code>.</p>
     </div>
     <div class="section level2">
+    <h2 id="keying-on-area-code-year-is-keying-on-the-polity">Keying on <code>(area_code, year)</code> is keying on the polity<a class="anchor" aria-label="anchor" href="#keying-on-area-code-year-is-keying-on-the-polity"></a></h2>
+
+
+<p>This is a <strong>contract</strong>, asserted by the test suite over the full reporting
+era, not an accident of the current snapshot: every <code>(area_code, year)</code> that
+resolves at all resolves to exactly <strong>one</strong> <code>polity_code</code>, over 17,184
+resolving pairs and 257 polities. A join that
+carries both columns is therefore already polity-correct, whether or not it
+names a polity, and the territorial identity is recoverable from the numeric
+code rather than lost by it.</p>
+<p>The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
+<code>ANG-1905-1975</code> records no successor upstream and so is widened by a year
+into <code>AGO-1975-2025</code>'s first year. Resolution still returns <code>AGO-1975-2025</code>
+there, but by row order rather than by the data. See #683.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="polity-area-code-is-a-bucket-and-does-not-carry-the-contract"><code>polity_area_code</code> is a bucket, and does not carry the contract<a class="anchor" aria-label="anchor" href="#polity-area-code-is-a-bucket-and-does-not-carry-the-contract"></a></h2>
+
+
+<p><code>polity_area_code</code> is the key rows are <strong>aggregated on</strong> for the matrix
+workflows, and several <code>area_code</code> values can share one. Where a bucket has
+one member, or its members agree, <code>(polity_area_code, year)</code> recovers the
+polity too. Over 1961-2025 exactly one bucket does not: <strong>206</strong>, which holds
+Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
+polities in all 65 reported years. See #414. To say which territory a row
+belongs to, read <code>reporting_polity_code</code>, or resolve through
+<code><a href="add_polity_code.html">add_polity_code()</a></code>; do not infer it from the bucket.</p>
+    </div>
+    <div class="section level2">
     <h2 id="confidence-is-the-pair-not-mapping-status-alone">Confidence is the pair, not <code>mapping_status</code> alone<a class="anchor" aria-label="anchor" href="#confidence-is-the-pair-not-mapping-status-alone"></a></h2>
 
 

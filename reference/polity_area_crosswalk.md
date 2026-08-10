@@ -72,6 +72,35 @@ Derived from
 `~/whep-polities/data/final/faostat_area_polity_map.csv` and
 `inst/extdata/harmonization/regions_full.csv`.
 
+## Keying on `(area_code, year)` is keying on the polity
+
+This is a **contract**, asserted by the test suite over the full
+reporting era, not an accident of the current snapshot: every
+`(area_code, year)` that resolves at all resolves to exactly **one**
+`polity_code`, over 17,184 resolving pairs and 257 polities. A join that
+carries both columns is therefore already polity-correct, whether or not
+it names a polity, and the territorial identity is recoverable from the
+numeric code rather than lost by it.
+
+The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
+`ANG-1905-1975` records no successor upstream and so is widened by a
+year into `AGO-1975-2025`'s first year. Resolution still returns
+`AGO-1975-2025` there, but by row order rather than by the data. See
+\#683.
+
+## `polity_area_code` is a bucket, and does not carry the contract
+
+`polity_area_code` is the key rows are **aggregated on** for the matrix
+workflows, and several `area_code` values can share one. Where a bucket
+has one member, or its members agree, `(polity_area_code, year)`
+recovers the polity too. Over 1961-2025 exactly one bucket does not:
+**206**, which holds Sudan (former) 206, Sudan 276 and South Sudan 277
+and answers with three polities in all 65 reported years. See \#414. To
+say which territory a row belongs to, read `reporting_polity_code`, or
+resolve through
+[`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md);
+do not infer it from the bucket.
+
 ## Confidence is the pair, not `mapping_status` alone
 
 `"matched"` covers outcomes of very different confidence – a curated hit
