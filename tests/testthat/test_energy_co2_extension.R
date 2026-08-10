@@ -119,25 +119,75 @@ testthat::test_that("areas GLEAM cannot classify are named, not dropped mutely",
   testthat::expect_match(areas, "Tuvalu", all = FALSE)
 })
 
-testthat::test_that("Bermuda, Guam and Palau cannot be reached individually", {
-  # whep#415 names five live areas; three of them no longer report as themselves.
-  # Measured on the real `get_primary_production()` output (6,170,595 rows, 194
-  # distinct reporting areas): area codes 17, 88 and 180 carry ZERO rows, so no
-  # treatment on this code path can reach them -- bucket 999 carries their
-  # production. This pins the crosswalk state that makes that true, so if
-  # whep#419 ever unfolds them the omission stops being silent.
-  folded <- whep::polity_area_crosswalk |>
+testthat::test_that("the crosswalk read follows the Rest-of-World unfold", {
+  # whep#646. This file used to read the shipped `polity_area_crosswalk` object
+  # directly, while every other consumer reads it through `.polity_crosswalk()`,
+  # the one place `.unfold_rest_of_world()` is applied. The gate the energy
+  # helpers use is `area_code == polity_area_code`, which is exactly the column
+  # the unfold moves, so the two reads disagree about which areas report as
+  # themselves for all 61 Rest-of-World members.
+  #
+  # Bermuda (17), Guam (88) and Palau (180) are the three whep#415 named. On the
+  # shipped table they still carry `polity_area_code == 999`; under the default
+  # `whep.unfold_rest_of_world = "all"` (whep#628) they carry their own code.
+  shipped <- whep::polity_area_crosswalk |>
     tibble::as_tibble() |>
     dplyr::filter(.data$area_code %in% c(17L, 88L, 180L)) |>
-    dplyr::distinct(.data$area_code, .data$polity_area_code, .data$polity_type)
+    dplyr::distinct(.data$area_code, .data$polity_area_code)
+  testthat::expect_equal(nrow(shipped), 3L)
+  testthat::expect_true(all(shipped$polity_area_code == 999L))
 
-  testthat::expect_equal(nrow(folded), 3L)
-  testthat::expect_true(all(folded$polity_area_code == 999L))
-  testthat::expect_true(all(folded$polity_type == "aggregate"))
-  # ... which is exactly why the warning above does not name them.
+  gaps <- .energy_self_reporting_gaps()
+  testthat::expect_true(all(c(17L, 88L, 180L) %in% gaps$area_code))
+
+  # ... and re-folding takes them straight back out, which a read of the shipped
+  # table could not do either: it is invariant to the option.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  refolded <- suppressWarnings(.energy_self_reporting_gaps())
+  testthat::expect_false(any(c(17L, 88L, 180L) %in% refolded$area_code))
+})
+
+testthat::test_that("Bermuda, Guam and Palau still cannot be grouped", {
+  # They report as themselves now (previous test), so the OLD reason recorded
+  # here -- "bucket 999 carries their production" -- is gone. What keeps them
+  # out is that `.unfold_rest_of_world()` promotes `polity_area_code` only: the
+  # polity is still the Rest-of-World aggregate, and the crosswalk gives that
+  # polity `continent = "World"`, which is not one of the four continents the
+  # GLEAM scheme rules can settle. So the warning does not name them and
+  # `unclassified = "polity_region"` could not group them if it did. Whether a
+  # promoted member should carry a polity and a continent of its own is a
+  # crosswalk question, whep#646.
+  rows <- .energy_self_reporting_gaps() |>
+    dplyr::filter(.data$area_code %in% c(17L, 88L, 180L))
+
+  testthat::expect_equal(nrow(rows), 3L)
+  testthat::expect_true(all(rows$polity_type == "aggregate"))
+  testthat::expect_true(all(rows$continent == "World"))
+  testthat::expect_false(
+    .energy_gleam_continent("World") %in% .energy_scheme_continents()
+  )
+
   testthat::expect_false(any(
     c(17L, 88L, 180L) %in% .areas_gleam_cannot_group()$area_code
   ))
+  grouped <- suppressMessages(.energy_hierarchy("polity_region"))
+  testthat::expect_false(any(c("BMU", "GUM", "PLW") %in% grouped$iso3))
+})
+
+testthat::test_that("the unfold does not move what the energy file reads", {
+  # The whep#646 fix is a correctness fix with no numbers behind it TODAY, and
+  # this is that claim as a guard rather than as a sentence in a PR body: the
+  # three surfaces the crosswalk feeds are identical under both fold states, so
+  # the first time a promoted Rest-of-World member starts mattering, this fails
+  # instead of the change being silent.
+  gaps <- .areas_gleam_cannot_group()
+  dissolved <- .energy_dissolved_areas()
+  iso3 <- .energy_area_iso3()
+
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  testthat::expect_equal(suppressWarnings(.areas_gleam_cannot_group()), gaps)
+  testthat::expect_equal(suppressWarnings(.energy_dissolved_areas()), dissolved)
+  testthat::expect_equal(suppressWarnings(.energy_area_iso3()), iso3)
 })
 
 testthat::test_that("polity_region groups an omitted area like its GLEAM peers", {

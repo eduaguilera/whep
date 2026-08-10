@@ -1815,6 +1815,12 @@ utils::globalVariables(
     "i.polity_area_code",
     # build_production.R (#633) — LUH2 land bucket-label derivation NSE columns
     "bucket_area",
-    "member_code"
+    "member_code",
+    # build_cbs.R (#580) — .cbs_area_labels() data.table NSE column
+    "label_source_rank",
+    # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
+    # columns for the canonical-area tie-break
+    "is_canonical",
+    "keep"
   )
 )

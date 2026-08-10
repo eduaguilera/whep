@@ -190,7 +190,7 @@ regions_for_crosswalk <- dplyr::bind_rows(
       by = "area_code"
     ) |>
     dplyr::transmute(
-      polity_code = .data$iso3c,
+      legacy_polity_prefix = .data$iso3c,
       polity_name = .data$area_name,
       code = as.integer(.data$area_code),
       iso3c = .data$iso3c,
@@ -339,7 +339,13 @@ reporting_areas <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    reporting_polity_code = .data$polity_code,
+    # NOT a polity code, and the published crosswalk column keeps the name it
+    # has always had so this rename is not two schema breaks at once: it is the
+    # vendored ISO3-LIKE STEM (`legacy_polity_prefix` since #687), used a few
+    # lines below only as a candidate PREFIX for polity inference. Every real
+    # answer this script emits is `polity_code`, resolved from the upstream map.
+    # Renaming the crosswalk's own column is whep#711.
+    reporting_polity_code = .data$legacy_polity_prefix,
     reporting_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),

@@ -385,6 +385,101 @@ test_that(".select_best_source keys on area_code, not periodized name", {
 })
 
 
+# -- .cbs_area_labels (whep#580) ----------------------------------------------
+
+# One code, whose `area` label legitimately changes at a period boundary: `area`
+# is the periodized polity name, so a multi-year build offers several labels for
+# one code. On a real 1850-2023 `cbs_raw_all`, 75 of the 216 codes do (up to
+# four labels each) and shuffling the rows flipped the label for 13.
+.period_rows <- function() {
+  tibble::tribble(
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_Old",
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_Old"
+  )
+}
+
+test_that("a code's area label survives any reordering of the input", {
+  # whep#580: the lookup kept the FIRST row seen for an `area_code`, so which
+  # period named the code for the whole build was decided by what happened to
+  # sort first, and nothing pinned it.
+  rows <- .period_rows()
+
+  forward <- whep:::.select_best_source(rows)
+  reversed <- whep:::.select_best_source(rows[c(2L, 1L), ])
+
+  expect_equal(unique(forward$area), "Utopia (1900-1950)")
+  expect_equal(unique(reversed$area), unique(forward$area))
+})
+
+test_that("the label comes from the highest-priority source, not the first row", {
+  # The order `.assemble_cbs_sources()` binds its sources in is what actually
+  # decided the label, and it is now stated instead of implied: FBS_New outranks
+  # FBS_Old wherever it reports the code, however the rows arrive.
+  rows <- tibble::tribble(
+    ~area,          ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Old vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 100,    "FAOSTAT_FBS_Old",
+    "New vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 90,     "FAOSTAT_FBS_New"
+  )
+
+  expect_equal(unique(whep:::.select_best_source(rows)$area), "New vintage")
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "New vintage"
+  )
+})
+
+test_that("within one source the earliest year names the code", {
+  # The second criterion, and the one whep#580 is about: a code's label is a
+  # period name, so which YEAR is consulted decides it. Reversing the rows used
+  # to swap the answer.
+  rows <- tibble::tribble(
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_New",
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_New"
+  )
+
+  expect_equal(
+    unique(whep:::.select_best_source(rows)$area),
+    "Utopia (1900-1950)"
+  )
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "Utopia (1900-1950)"
+  )
+})
+
+test_that("an unranked source still labels a code it alone reports", {
+  # `trade_hist` is not in the source order, so it ranks last -- but a code only
+  # that source reports must still come out labelled. `area` is a join key, and
+  # an NA there drops the code from four inner joins.
+  rows <- tibble::tribble(
+    ~area,      ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
+    "Zedland",  400L,       "Wheat",   2511L,          "import", 1950L, 100,    "trade_hist",
+    "Aardland", 400L,       "Wheat",   2511L,          "import", 1950L, 90,     "trade_hist"
+  )
+
+  expect_equal(unique(whep:::.select_best_source(rows)$area), "Aardland")
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "Aardland"
+  )
+})
+
+test_that("one area_code still yields exactly one area label", {
+  # The invariant the value-neutrality checks cannot see (whep#563): a second
+  # label for one code splits every join keyed on the area label and its code,
+  # without moving a single value.
+  labels <- whep:::.cbs_area_labels(
+    data.table::as.data.table(.period_rows())
+  )
+
+  expect_equal(nrow(labels), 1L)
+  expect_equal(labels$area_code, 300L)
+  expect_false(anyNA(labels$area))
+})
+
+
 # -- .test_cbs -----------------------------------------------------------------
 
 test_that(".test_cbs adds balance check columns", {

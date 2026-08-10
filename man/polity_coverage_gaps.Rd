@@ -27,10 +27,10 @@ passed to the same resolution \code{\link[=add_polity_code]{add_polity_code()}} 
 \value{
 A tibble with one row per \verb{(area_code, year)} resolved by a
 stand-in, ordered by area code and year, carrying \code{area_code}, \code{year},
-\code{polity_code}, \code{polity_name}, \code{polity_start_year}, \code{polity_end_year} and
-\code{n_rows}, the number of rows of \code{table} that pair carries. Zero rows means
-every row of \code{table} landed inside its polity's period, which is the
-intended state.
+\code{polity_code}, \code{polity_name}, \code{polity_start_year}, \code{polity_end_year},
+\code{gap_kind} (\code{"polity_not_started"} or \code{"polity_ended"}) and \code{n_rows}, the
+number of rows of \code{table} that pair carries. Zero rows means every row of
+\code{table} landed inside its polity's period, which is the intended state.
 }
 \description{
 \code{\link[=add_polity_code]{add_polity_code()}} reports a nearest-period stand-in as
@@ -47,6 +47,26 @@ reporting area outlived (or predates) every polity mapped to it, so treat it
 as a coverage gap: the polygon, population and period of the returned polity
 describe a different year than the value does.
 
+The two directions are not the same defect, so \code{gap_kind} names which one a
+row is:
+\itemize{
+\item \code{"polity_not_started"}: the polity begins after the row's year. This is
+mostly WHEP's own back-cast convention rather than a hole -- pre-1961
+series are back-cast onto the anchor-year territory, so a Soviet
+republic's 1900 land is attributed to the republic that reports it today.
+\item \code{"polity_ended"}: the polity had ended by the row's year, so the value
+covers a territory that entity no longer describes. This is the harder
+case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
+Sudan fold into bucket 206, whose label \code{SUD-1956-2011} ended at the
+secession, and no live polity means "Sudan and South Sudan".
+}
+
+\code{gap_kind} is not derivable from the returned columns, which is why it is
+returned rather than left to the caller. The comparison is against the year
+the resolver actually matched on, which the back-cast anchor floors at
+\code{backcast_anchor}, so a pre-anchor row is classified as the anchor year it
+was resolved as rather than as the year it carries.
+
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
 reading of the crosswalk. The area column may hold either a FAOSTAT
@@ -62,6 +82,6 @@ polity_coverage_gaps(
 }
 \seealso{
 \code{\link[=add_polity_code]{add_polity_code()}} for the resolution itself, and
-\code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} for the different defect of a bucket whose
-polity covers only part of what it sums.
+\code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} for the related question of which buckets sum
+more than one territory, and whether their label covers the sum.
 }
