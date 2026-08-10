@@ -735,4 +735,16 @@ testthat::test_that("a fallback label does not borrow the member's polity", {
   )
   testthat::expect_equal(out$area, "P")
   testthat::expect_true(is.na(out$reporting_polity_code))
+  testthat::expect_true(is.na(out$reporting_polity_name))
+  testthat::expect_true(is.na(out$polity_area_code))
+
+  # Which is the same answer as resolving the bucket at the tail. Borrowing any
+  # part of the member's identity here -- its code, its name, or its bucket --
+  # would make the two paths differ on exactly these rows.
+  stripped <- data.table::copy(out)
+  stripped[, (whep:::.reporting_polity_cols()) := NULL]
+  testthat::expect_equal(
+    as.data.frame(whep:::.add_reporting_polity_columns(out)),
+    as.data.frame(whep:::.add_reporting_polity_columns(stripped))
+  )
 })
