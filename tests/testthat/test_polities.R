@@ -764,3 +764,103 @@ testthat::test_that("a mistyped mapping-status option aborts", {
     class = "rlang_error"
   )
 })
+
+# Keeping a carried identity instead of resolving it twice (whep#670) ---------
+#
+# `.aggregate_to_polities()` now emits the reporting identity, so the tail
+# helper keeps it rather than re-deriving it over the whole frame. What has to
+# be true for that to be safe is tested here: it only keeps an identity that
+# still describes the frame's key, and it checks that claim rather than
+# trusting it.
+
+.carried_frame <- function(n_rows = 500L) {
+  # What the fold emits: one identity per (area_code, year), repeated across the
+  # many item rows that share it.
+  keys <- tibble::tibble(
+    area_code = c(40L, 206L),
+    year = c(2015L, 2015L)
+  )
+  base <- whep:::.add_reporting_polity_columns(keys)
+  base[rep(seq_len(nrow(base)), length.out = n_rows), ] |>
+    dplyr::mutate(value = seq_len(n_rows))
+}
+
+testthat::test_that("a carried identity is kept, not resolved row by row", {
+  carried <- .carried_frame(500L)
+  seen <- integer(0)
+  # Held before mocking, because the mock replaces the namespace binding the
+  # real helper would otherwise be reached through.
+  resolve <- whep:::.add_polity_columns_dt
+  testthat::local_mocked_bindings(
+    .add_polity_columns_dt = function(data, ...) {
+      seen <<- c(seen, nrow(data))
+      resolve(data, ...)
+    }
+  )
+
+  out <- whep:::.add_reporting_polity_columns(carried)
+  testthat::expect_equal(as.data.frame(out), as.data.frame(carried))
+  # The only resolution left is the check, over the 2 distinct keys rather than
+  # the 500 rows. Dropping the carried columns puts the full resolution back.
+  testthat::expect_equal(seen, 2L)
+
+  seen <- integer(0)
+  stripped <- dplyr::select(
+    carried,
+    -dplyr::all_of(
+      whep:::.reporting_polity_cols()
+    )
+  )
+  again <- whep:::.add_reporting_polity_columns(stripped)
+  testthat::expect_equal(seen, 500L)
+  testthat::expect_equal(as.data.frame(again), as.data.frame(carried))
+})
+
+testthat::test_that("a re-keyed frame is resolved again, not kept", {
+  # Bucket codes are fixed points, so an identity that no longer matches the
+  # key it sits next to is one someone re-keyed: 40 (Chile) relabelled 231.
+  carried <- .carried_frame(4L)
+  carried$area_code <- 231L
+
+  out <- whep:::.add_reporting_polity_columns(carried)
+  testthat::expect_equal(unique(out$reporting_polity_code), "USA-1959-2025")
+  testthat::expect_equal(unique(out$polity_area_code), 231L)
+})
+
+testthat::test_that("a contradicting carried identity warns and re-resolves", {
+  carried <- .carried_frame(4L)
+  carried$reporting_polity_code <- "XXX-1900-2000"
+
+  testthat::expect_warning(
+    out <- whep:::.add_reporting_polity_columns(carried),
+    "contradicts"
+  )
+  testthat::expect_equal(
+    sort(unique(out$reporting_polity_code)),
+    c("CHL-1902-2025", "SUD-1956-2011")
+  )
+})
+
+testthat::test_that("an incomplete carry re-resolves without warning", {
+  # `bind_rows()` with rows the fold never saw leaves NA in the carried columns.
+  # That is a gap, not a contradiction, so it is filled silently.
+  carried <- .carried_frame(4L)
+  carried$reporting_polity_code[2:3] <- NA_character_
+
+  out <- testthat::expect_no_warning(
+    whep:::.add_reporting_polity_columns(carried)
+  )
+  testthat::expect_false(any(is.na(out$reporting_polity_code)))
+})
+
+testthat::test_that("the status switch always re-resolves", {
+  # `reporting_mapping_status` is not part of the carried set, so a run that
+  # asks for it has to resolve rather than keep.
+  withr::local_options(whep.polity_mapping_status = "status")
+  out <- whep:::.add_reporting_polity_columns(.carried_frame(4L))
+  testthat::expect_true("reporting_mapping_status" %in% names(out))
+  testthat::expect_equal(
+    unique(out$reporting_mapping_status[out$area_code == 206L]),
+    "out_of_span"
+  )
+})

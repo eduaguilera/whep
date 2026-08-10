@@ -603,11 +603,136 @@ testthat::test_that("labelling annotates the aggregate, it cannot filter it", {
   labels <- data.table::data.table(
     polity_area_code = 900L,
     year = 2015L,
-    area = "Aggregate"
+    area = "Aggregate",
+    reporting_polity_area_code = 900L,
+    reporting_polity_code = "AGG-1900-2000",
+    reporting_polity_name = "Aggregate",
+    reporting_polity_has_geometry = TRUE
   )
 
   out <- whep:::.apply_bucket_area_labels(agg, labels)
   testthat::expect_equal(nrow(out), 2L)
+  # The prefix is where it always was: the identity is added, not inserted.
   testthat::expect_equal(names(out)[1:3], c("year", "area_code", "area"))
   testthat::expect_equal(out$area, c("Aggregate", NA_character_))
+  # The identity travels with the label, and an unlabelled bucket keeps NA
+  # rather than borrowing the labelled one's polity.
+  testthat::expect_equal(
+    out$reporting_polity_code,
+    c("AGG-1900-2000", NA_character_)
+  )
+  # `polity_area_code` survives the rename as the bucket's own resolution: the
+  # fixed point that lets `.add_reporting_polity_columns()` tell a carried
+  # identity from a stale one, NA for the bucket that resolves to nothing.
+  testthat::expect_equal(out$polity_area_code, c(900L, NA_integer_))
+})
+
+# The identity the fold emits, which is what whep#670 is about ----------------
+#
+# `.aggregate_to_polities()` has always resolved the bucket's polity to label it
+# and then dropped the code, leaving ~100 outputs to re-derive it at the tail.
+# It now emits it. These tests pin the property that makes that safe: the
+# emitted identity is the SAME FUNCTION of (area_code, year) as the tail
+# helper's, not a second opinion resolved somewhere else.
+
+testthat::test_that(".aggregate_to_polities() emits the reporting identity", {
+  rows <- data.table::data.table(
+    area_code = c(276L, 277L, 40L, 255L),
+    year = c(2015L, 2015L, 2015L, 1990L),
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    value = c(1, 2, 4, 8)
+  )
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(data.table::copy(rows), item_prod_code)
+  )
+  testthat::expect_true(all(whep:::.reporting_polity_cols() %in% names(out)))
+  # Sudan (276) and South Sudan (277) fold into bucket 206, which carries the
+  # bucket's own polity rather than either member's.
+  bucket <- out[out$area_code == 206L, ]
+  testthat::expect_equal(nrow(bucket), 1L)
+  testthat::expect_equal(bucket$value, 3)
+  testthat::expect_equal(bucket$reporting_polity_code, "SUD-1956-2011")
+  testthat::expect_equal(
+    out$reporting_polity_code[out$area_code == 40L],
+    "CHL-1902-2025"
+  )
+})
+
+testthat::test_that("the emitted identity equals the tail resolution", {
+  rows <- data.table::data.table(
+    area_code = c(276L, 277L, 40L, 255L, 256L, 15L),
+    year = c(2015L, 2015L, 2015L, 1990L, 1990L, 1970L),
+    element = "production",
+    unit = "t",
+    item_prod_code = "83",
+    value = c(1, 2, 4, 8, 16, 32)
+  )
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(data.table::copy(rows), item_prod_code)
+  )
+
+  stripped <- data.table::copy(out)
+  stripped[, (whep:::.reporting_polity_cols()) := NULL]
+
+  # Keeping what the fold emitted and resolving it from scratch produce the same
+  # published table, down to column order and type.
+  kept <- whep:::.add_reporting_polity_columns(out)
+  resolved <- whep:::.add_reporting_polity_columns(stripped)
+  testthat::expect_equal(as.data.frame(kept), as.data.frame(resolved))
+  testthat::expect_true(
+    all(whep:::.reporting_polity_cols() %in% names(kept))
+  )
+})
+
+testthat::test_that("every bucket resolves the same way on both paths", {
+  # The contract whep#670 needs before the fold's answer can be trusted
+  # downstream: over every bucket code the crosswalk knows and every year the
+  # package covers, resolving the bucket at the fold and resolving it at the
+  # tail are the same function. The two calls differ in one argument -- the
+  # fold excludes unmapped crosswalk rows and the tail keeps them -- and a
+  # bucket code is mapped by construction, so they must agree everywhere.
+  buckets <- whep:::.polity_crosswalk(include_unmapped = FALSE)
+  grid <- data.table::CJ(
+    area_code = sort(unique(stats::na.omit(buckets$polity_area_code))),
+    year = seq(1850L, 2030L, by = 1L)
+  )
+  at_fold <- whep:::.add_polity_columns_dt(
+    data.table::copy(grid),
+    include_unmapped = FALSE
+  )
+  at_tail <- whep:::.add_polity_columns_dt(
+    data.table::copy(grid),
+    include_unmapped = TRUE
+  )
+
+  testthat::expect_gt(nrow(grid), 40000L)
+  testthat::expect_equal(at_fold$polity_code, at_tail$polity_code)
+  testthat::expect_equal(at_fold$polity_name, at_tail$polity_name)
+  testthat::expect_equal(at_fold$has_geometry, at_tail$has_geometry)
+  # And a bucket code is a fixed point wherever it resolves at all, which is
+  # what lets the tail helper tell a carried identity from one left behind by a
+  # re-keying. It is NA, never another bucket, in the years no polity covers.
+  testthat::expect_true(all(
+    is.na(at_tail$polity_area_code) |
+      at_tail$polity_area_code == at_tail$area_code
+  ))
+  testthat::expect_gt(sum(is.na(at_tail$polity_area_code)), 0L)
+})
+
+testthat::test_that("a fallback label does not borrow the member's polity", {
+  # Bucket 950 has no crosswalk row of its own, so the label falls back to the
+  # member's. The polity code does NOT: a member's polity is not the bucket's
+  # identity, and the tail helper resolving 950 would return NA. Borrowing it
+  # here would be the one way the two paths could disagree.
+  .local_fold_crosswalk()
+  rows <- .bucket_fixture_rows()[area_code %in% c(951L, 952L)]
+
+  out <- suppressWarnings(
+    whep:::.aggregate_to_polities(data.table::copy(rows), item_prod_code)
+  )
+  testthat::expect_equal(out$area, "P")
+  testthat::expect_true(is.na(out$reporting_polity_code))
 })

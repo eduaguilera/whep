@@ -1,5 +1,23 @@
 # whep (development version)
 
+* **The polity a row belongs to is now carried from where it is resolved
+  instead of re-derived at the end of every output.**
+  `.aggregate_to_polities()` has always resolved the bucket's polity in order
+  to label the fold and then discarded the code, leaving the ~70 call sites of
+  `.add_reporting_polity_columns()` to resolve it a second time from the same
+  crosswalk. The fold now emits `polity_area_code`, `reporting_polity_code`,
+  `reporting_polity_name` and `reporting_polity_has_geometry` — the published
+  names, so no new vocabulary and no schema change — and the tail helper keeps
+  a carried identity rather than resolving it again. It keeps it only after
+  checking it: the identity must still match the key it sits next to (a bucket
+  code resolves to itself, so a re-keyed frame fails that test), and the
+  distinct `(area_code, year)` pairs are re-resolved and compared, which costs
+  a fraction of the full resolution it replaces. Two non-`NA` answers for one
+  key now warn instead of one of them being published silently. **No published
+  value changes**: `get_primary_production()` (6,310,390 rows) and
+  `get_wide_cbs()` (2,098,818 rows) are identical before and after, column for
+  column.
+
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
