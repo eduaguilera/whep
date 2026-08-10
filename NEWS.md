@@ -222,6 +222,16 @@
   `"flag"` is numerically identical to it. `"drop"` removes 20.4% of the run's
   cell-years and makes South Sudan disappear from it entirely, which is why it
   is opt-in.
+
+* **Year-scoped builds no longer drop split-species slaughter counts.**
+  `.compute_stock_shares()` read the livestock stock series scoped to the
+  caller's window, but those shares are carried along the year axis precisely
+  because the `faostat-emissions-livestock` pin lags QCL slaughter by 1-2 years.
+  A narrow window left the carry-forward nothing to fill from, and the join in
+  `.split_slaughter_by_shares()` then dropped the slaughter row entirely. At
+  2010 that was 2 Singapore rows (Pigs, Hogs); `slaughtered_heads` now agrees
+  exactly with the full-range build instead of by 4.7e-06. The stock series is
+  read over its full span; full-range output is unchanged (#665).
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
