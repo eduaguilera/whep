@@ -72,7 +72,12 @@ test_that("the enumerated baseline can only shrink", {
   # so the count gains that one lookup while the label-keyed surface this file's
   # third test guards drops to a single redundant join. Read the two together --
   # this number alone would have called that change a regression.
-  expect_lte(sum(baseline$n), 59L)
+  #
+  # 58 is the second fall: `.nbx_image_region` left too, because the deposited
+  # Schulte-Uebbing crosswalk carries IMAGE membership on the canonical cell
+  # key, so the gridded boundary no longer reaches IMAGE through a year-free
+  # country join at all.
+  expect_lte(sum(baseline$n), 58L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

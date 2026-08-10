@@ -11,7 +11,8 @@ read_critical_n(
   land_use = c("all", "ara", "igl"),
   dir = NULL,
   data = NULL,
-  example = FALSE
+  example = FALSE,
+  verify_source = TRUE
 )
 }
 \arguments{
@@ -49,13 +50,20 @@ Defaults to \code{NULL}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
+
+\item{verify_source}{If \code{TRUE} (default), real archive reads verify the
+selected critical raster and its source-area/IMAGE support rasters against
+the package's versioned content manifest before parsing. Ignored for
+\code{data} and \code{example} injection.}
 }
 \value{
 A tibble with \code{lon}, \code{lat} (0.5-degree cell centres), \code{value}
 (kg N per hectare per year; a categorical impact code for
 \code{binding_threshold}) and retained layer provenance: \code{critical_var},
 \code{critical_threshold}, \code{critical_land_use}, \code{critical_year} and
-\code{critical_source}. NODATA cells are dropped.
+\code{critical_source}, canonical integer \code{cell_id}/row/column keys, deposited
+\code{source_area_ha}, IMAGE-region membership, DOI/version and archive checksum.
+NODATA cells are dropped.
 }
 \description{
 Reads one 0.5-degree gridded critical-nitrogen layer from the

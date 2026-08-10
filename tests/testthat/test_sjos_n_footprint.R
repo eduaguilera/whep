@@ -133,6 +133,28 @@ testthat::test_that("total embodied N conserves the extension total", {
   testthat::expect_equal(sum(out$fp_all$impact_u), extension_total)
 })
 
+testthat::test_that("signed crop attribution is traced linearly and conserves", {
+  signed <- .sjos_fp_exceedance() |>
+    dplyr::mutate(
+      exceedance_n_t = dplyr::if_else(
+        .data$area_code == 1L & .data$item_cbs_code == 20L,
+        -20,
+        .data$exceedance_n_t
+      ),
+      attribution_method = "signed_crop_surplus_share"
+    )
+  out <- suppressMessages(
+    whep::build_sjos_n_footprint(
+      signed,
+      io = .sjos_fp_io(),
+      category = "exceedance"
+    )
+  )
+  extension_total <- sum(signed$exceedance_n_t)
+  testthat::expect_equal(sum(out$fp_all$impact_u), extension_total)
+  testthat::expect_true(any(out$fp_all$impact_u < 0))
+})
+
 testthat::test_that("the category stamp is carried and dispatched", {
   out <- .sjos_fp_run(category = "within_boundary")
   testthat::expect_true(all(out$fp_all$category == "within_boundary"))

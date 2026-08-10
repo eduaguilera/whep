@@ -61,6 +61,60 @@
   (362 s vs 365 s at five years). Output is identical: `identical()` holds
   across all 1,166,220 rows and 17 columns of a five-year build, row order
   included (#624).
+* **A grid cell now spends its critical-nitrogen allowance once, instead of
+  handing the whole allowance to every crop that shares the cell.**
+  `build_n_boundary_exceedance()` compared each crop's per-hectare pressure
+  against the cell's single critical value independently, so a cell with *n*
+  crops was measured against *n* copies of one allowance and the crop
+  exceedances did not add up to anything the source defines. The calculation is
+  now cell-first: every crop and polity contribution in a source cell is
+  aggregated, that one pressure is compared with that one allowance, and the
+  resulting cell allowance, signed margin and positive overshoot are only then
+  attributed back to crops — by input shares for `metric = "input"` and by
+  signed surplus-contribution shares for `metric = "surplus"` (which may be
+  negative or exceed one). **Published exceedance values move, and the two
+  metrics move differently.** For `metric = "input"`, where crop pressure
+  cannot be negative, the cell overshoot `max(sum(a) - c, 0)` is greater than
+  or equal to the old per-crop sum `sum(max(a - c, 0))` for every input, so
+  reported
+  overshoot rises (or is unchanged when one crop holds the cell, or when
+  neither form overshoots): on the package's two-crop fixture, two crops of
+  4 t N against a 5 t N allowance went from 0 to 3 t N. For
+  `metric = "surplus"` it can move either way, because a negative crop
+  contribution now offsets a positive one inside the cell instead of being
+  clipped to zero crop by crop. The global magnitude is not quantified here —
+  that needs the restricted archive and a full gridded surplus build, not
+  something CI can reach. The new `resolution = "cell"` grain returns the
+  undivided source-cell result, and the crop grains reconcile back to it
+  algebraically.
+* **The critical surface is pinned to the deposited rasters by checksum.**
+  `read_critical_n()` checks every raster a call actually reads — the selected
+  critical surface plus the three shared input layers — against
+  `inst/extdata/critical_n_source_manifest.csv` before parsing, on byte count,
+  MD5 *and* SHA-256, and aborts naming the file and the Zenodo record (6395016)
+  if any differs. The manifest pins all 27 files of the archive (3 input layers,
+  12 critical-input and 12 critical-surplus surfaces, all 27 checksums
+  distinct), so a partially substituted archive cannot go unnoticed on the path
+  that consumes it. The layer also carries the
+  deposited `source_area_ha` and `image_region` per cell, so IMAGE membership
+  and source land area now arrive on the canonical integer cell key from the
+  archive itself rather than through a year-free country-to-IMAGE join —
+  which is why that join leaves the territorial-join baseline (whep#669).
+* **Unsupported boundary modes hard-error rather than resolve to something
+  else.** Only the source-exact `allocation_scenario = "yield_gap"` is
+  implemented on the grid; `"no_increase"` and `"new_fixation"` abort. An
+  annual actual pressure requires an explicit `actual_year`, and
+  `critical_reference_year` must be `2010`, matching the fixed deposited
+  reference surface — the year is a stated selector, not an inferred one. Where
+  a cell's pressure denominator is exactly or near zero, the cell result is
+  kept whole and an explicit `cell_residual` record carries the unallocated
+  allowance, margin and overshoot; callers that require complete crop
+  attribution raise a typed undefined-attribution error instead of discarding
+  or inventing the residual. Country equal-per-capita allocation is unchanged
+  and separate, and dynamic critical values remain out of scope (whep#702).
+  Urban N stays provisionally inside WHEP actual pressure, and
+  manure-management boundary comparability and intensive-grass scope remain
+  recorded provenance rather than settled choices.
 
 * **Six more gridded builds now say when a cell-year names a polity that did
   not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained
