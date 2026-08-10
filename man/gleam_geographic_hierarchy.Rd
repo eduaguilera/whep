@@ -12,6 +12,11 @@ A tibble with columns:
 \item{continent}{Continent.}
 \item{faostat_region}{FAOSTAT regional grouping.}
 \item{gleam_region}{GLEAM regional grouping.}
+\item{eu27}{1 for an EU-27 member, 0 otherwise.}
+\item{oecd}{1 for an OECD member, 0 otherwise.}
+\item{reporting_polity_code}{The \link{polities} code \code{iso3} resolves to in the
+present day, \code{NA} where WHEP has no polity for the territory.}
+\item{reporting_polity_name}{The name of that polity.}
 }
 }
 \source{
@@ -24,6 +29,13 @@ gleam_geographic_hierarchy
 \description{
 Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
 and classification indicators.
+
+This is GLEAM's own registry of the countries that exist today, so
+\code{\link[=polity_identity_conventions]{polity_identity_conventions()}} types it \code{"present_day_polity"} and it
+carries the polity its \code{iso3} resolves to in the present day, as
+\link{regions_full} does. Three of the 204 rows keep \code{NA}: ATF, SGS and WLF have
+no WHEP polity at all, and a gap stays visible rather than being guessed at.
+The 204 GLEAM regions themselves are unchanged.
 }
 \examples{
 gleam_geographic_hierarchy

@@ -41,6 +41,7 @@
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year `data$urban_population` covers.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs: `urban_population`
 #'   (`lon`, `lat`, `year`, `urban_pop`, falling back to
 #'   [read_hyde_population()] when absent), `cell_polity` (`lon`, `lat`,
@@ -53,14 +54,21 @@
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `urban_n_t` and
-#'   `method_urban`, plus the polity columns below.
+#'   `method_urban`, plus the polity columns below, plus
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_urban_n(example = TRUE)
-build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
+build_urban_n <- function(
+  years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
+  data = list(),
+  example = FALSE
+) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_urban_n())
+    return(.resolve_polity_validity(.example_urban_n(), polity_validity))
   }
   urban_pop <- data$urban_population %||% read_hyde_population(years = years)
   urban_pop <- .urban_filter_years(urban_pop, years)
@@ -76,7 +84,7 @@ build_urban_n <- function(years = NULL, data = list(), example = FALSE) {
   sink_cells <- .urban_sink_cells(cropland)
   flows <- allocate_manure_transport(source_cells, sink_cells)
   .urban_finalise(flows) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------

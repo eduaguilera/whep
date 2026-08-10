@@ -54,10 +54,16 @@ test_that("the enumerated baseline can only shrink", {
   baseline <- whep:::.territorial_join_baseline()
   # Lower this number when a join is fixed. It rises only for a join that had
   # to be added to make something MORE year-aware, and only with the reason
-  # written into the row -- never to admit a new year-blind read. 57 is the
-  # current ceiling after the former country-to-IMAGE join was replaced by
-  # the deposited canonical cell-key crosswalk.
-  expect_lte(sum(baseline$n), 57L)
+  # written into the row -- never to admit a new year-blind read. 57 was the
+  # count on the commit that introduced the gate; 58 adds
+  # `.resolve_all_area_years`, the first-reported-year bound that turned
+  # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 59
+  # adds `.handed_over_polity_codes`, the succession self-join that stops
+  # `.polity_join_end_year()` widening a period into the first year of the
+  # successor upstream recorded only in the inverse direction (whep#683). 58
+  # is where it stands now: `.nbx_image_region` left, because the deposited
+  # canonical cell-key crosswalk replaced that country-to-IMAGE join.
+  expect_lte(sum(baseline$n), 58L)
   expect_true(all(nzchar(baseline$why)))
   expect_true(all(
     baseline$class %in%

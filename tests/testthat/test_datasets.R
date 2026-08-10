@@ -634,11 +634,13 @@ test_that("gleam_geographic_hierarchy has correct types", {
       "faostat_region",
       "gleam_region",
       "eu27",
-      "oecd"
+      "oecd",
+      "reporting_polity_code",
+      "reporting_polity_name"
     ),
     min_rows = 200L
   )
-  expect_equal(ncol(obj), 7L)
+  expect_equal(ncol(obj), 9L)
   expect_true(
     is.integer(obj$eu27),
     info = "eu27 must be integer, not character"

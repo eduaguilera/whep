@@ -84,13 +84,14 @@ why a bare \code{code} is not one of them: \code{biomass_coefs$Code} is a crop.
 }
 
 \section{The trap this register exists to make visible}{
-\link{regions_full} and \link{polities_cats} carry a column literally named
-\code{polity_code}, and \strong{none of its values is a \link{polities} code} -- it is a
-legacy ISO3-like prefix kept for older callers, documented as such on both
-datasets. Their real carrier is \code{reporting_polity_code}, a \link{polities} code
-on all 259 of \code{regions_full}'s non-\code{NA} rows and all 198 of
-\code{polities_cats}'s. Reading identity off the column whose name promises it
-returns an empty join against every other polity-keyed table in WHEP.
+\link{regions_full} and \link{polities_cats} carry a column of ISO3-like stems
+(\code{"AFG"}, \code{"ROW"}, \code{"RAFR"}) kept for older callers, of which \strong{not one value
+is a \link{polities} code}. Until whep#687 that column was literally named
+\code{polity_code}, so a join from either dataset to \link{polities} or
+\link{polity_area_crosswalk} on the one column whose name promised identity came
+back empty and nothing warned. It is now \code{legacy_polity_prefix}, which claims
+nothing. Their real carrier is \code{reporting_polity_code}, a \link{polities} code on
+all 259 of \code{regions_full}'s non-\code{NA} rows and all 198 of \code{polities_cats}'s.
 }
 
 \examples{
