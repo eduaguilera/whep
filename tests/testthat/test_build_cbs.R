@@ -1428,9 +1428,13 @@ test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
       area_code = "DZA",
       pop = 1:11
     ),
+    # Keyed on the reporting bucket, matching what `.read_land_areas_wide()`
+    # emits since whep#698 re-keyed it off the label. `.two_label_frame()`'s
+    # code is Algeria's 4, and the point of this fixture is that its TWO labels
+    # must not split that one code -- so the land proxy has to reach it by code.
     land_areas_wide = tibble::tibble(
       year = 1950:1960,
-      polity_code = "DZA-1919-1962",
+      area_code = 4L,
       Cropland = 1,
       Pasture = 0,
       agriland = 1
