@@ -162,6 +162,59 @@ testthat::test_that("the attached polity columns are populated, not just present
   }
 })
 
+testthat::test_that("every example row resolves to a polity", {
+  # whep#417. The test above asks only that SOME row resolved, which four
+  # fixtures satisfied while shipping rows that identify no territory at all:
+  #
+  #  - build_supply_use carried 1 row with `area_code = NA` (an epsilon
+  #    3.33e-14 husbandry use) and get_feed_intake 2 more. Both were sampled in
+  #    February 2026, from a feed pipeline the redistribute-feed migration has
+  #    since replaced, and neither is reproducible today: over 1967-2021 the
+  #    real get_feed_intake() has 0 area-less rows of 291,916, and every one of
+  #    build_supply_use()'s 515 area-less rows is a crop_production SUPPLY of a
+  #    residue item (2105/2106/2107), never a husbandry use. Those 515 are a
+  #    real defect -- get_primary_residues() resolves its source by area NAME --
+  #    filed as whep#684; they are not what these fixtures showed.
+  #  - build_feed_intake_local and build_grass_natural_carbon_inputs keyed
+  #    cells by an ISO-3166 numeric code (724 Spain, 300 Greece) where the
+  #    FAOSTAT area code belongs. Neither exists in the FAOSTAT code space, so
+  #    both resolved to nothing -- and 32, the sibling row's ISO code for
+  #    Argentina, is FAOSTAT's Cameroon, so that row resolved to the wrong
+  #    country rather than to NA.
+  #
+  # On real data an unresolved row is legitimate and kept visible as NA. In a
+  # documented example it is not: the example is the reader's first sight of the
+  # output, and a fixture that cannot say whose territory a row is says nothing
+  # about the pipeline, only about itself. So the exception list is empty by
+  # identity, not by count.
+  fns <- .exports_with_example()
+  testthat::expect_gt(length(fns), 50L)
+
+  checked <- character()
+  unresolved <- character()
+  for (nm in fns) {
+    out <- .run_example(nm)
+    frame <- tryCatch(as.data.frame(out), error = function(e) NULL)
+    if (is.null(frame)) {
+      next
+    }
+    cols <- grep("_polity_code$", names(frame), value = TRUE)
+    if (length(cols) == 0L) {
+      next
+    }
+    checked <- c(checked, nm)
+    for (col in cols) {
+      n_na <- sum(is.na(frame[[col]]))
+      if (n_na > 0L) {
+        unresolved <- c(unresolved, sprintf("%s$%s (%d rows)", nm, col, n_na))
+      }
+    }
+  }
+  # Non-vacuous: the sweep must actually reach the polity-carrying exports.
+  testthat::expect_gt(length(checked), 25L)
+  testthat::expect_setequal(unresolved, character())
+})
+
 testthat::test_that("the mapping-status switch is off, and adds one column", {
   # THE RECONCILIATION whep#545 needs. The pins above say the polity columns are
   # PRESENT; this one says the default set is exactly those four, so the
