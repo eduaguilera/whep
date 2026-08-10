@@ -120,6 +120,9 @@ landuse engine.</p></li>
 <li><p><code>area_key</code>: one of <code>"grid"</code> (default) or <code>"polity_area"</code>,
 forwarded to both engines. See <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code>'s
 <em>Which area code the output is keyed on</em>.</p></li>
+<li><p><code>country_grid</code>: which cell-to-polity crosswalk the engines
+allocate into, <code>"centroid"</code> (default) or <code>"fraction"</code>. See
+<em>Which cell-to-polity crosswalk</em>.</p></li>
 </ul></dd>
 
 
@@ -174,6 +177,28 @@ historical year range present in <code>country_areas</code>.</p></dd>
 manure-intensity weighting if present).</p></li>
 <li><p><code>livestock_mapping.csv</code> from the installed package.</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="which-cell-to-polity-crosswalk">Which cell-to-polity crosswalk<a class="anchor" aria-label="anchor" href="#which-cell-to-polity-crosswalk"></a></h2>
+
+
+<p>The producer builds two crosswalks from the same polygons.
+<code>"centroid"</code> is the deployed <code>spatialize-country-grid</code> pin: one
+<code>area_code</code> per 0.5-degree cell, winner-take-all at a border, no share
+column, so a whole border cell goes to a single polity. <code>"fraction"</code> is
+<code>cell_polity_fraction.parquet</code>, which splits each border cell by
+fractional coverage; the engines already read its <code>polity_frac</code> as
+<code>cell_area_frac</code>, so no engine change is involved.</p>
+<p>They are alternatives, never a fallback, and <code>"centroid"</code> remains the
+default because the two are not interchangeable as deployed. The
+fractional parquet was rasterized through an older <code>iso3c -&gt; area_code</code>
+lookup: it keys Ethiopia <code>62</code> and Sudan <code>206</code> where the centroid grid and
+today's <code>regions.csv</code> use <code>238</code> and <code>276</code>, so substituting it drops both
+countries entirely (whep#461). It also cannot rescue a polity smaller than
+a cell, because its producer restricts it to the cells the centroid grid
+already has. Whichever is selected, <code><a href="build_gridded_landuse.html">build_gridded_landuse()</a></code> and
+<code><a href="build_gridded_livestock.html">build_gridded_livestock()</a></code> now warn once per call naming every reporting
+area the chosen grid has no cell for and the national total at stake.</p>
+    </div>
     <div class="section level2">
     <h2 id="outputs-written-to-out-dir">Outputs written to <code>out_dir</code><a class="anchor" aria-label="anchor" href="#outputs-written-to-out-dir"></a></h2>
 
