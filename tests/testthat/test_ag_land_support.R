@@ -281,3 +281,50 @@ testthat::test_that("cropland cells with no pattern warn instead of vanishing", 
   )
   testthat::expect_equal(nrow(out), 0L)
 })
+
+# ---- polity_validity (#675) -------------------------------------------
+
+# The same fixture re-keyed onto area 277 (South Sudan, SSD-2011-2025), whose
+# polity postdates the fixture's 2010 year.
+.alsf_out_of_span_data <- function() {
+  data <- .alsf_data()
+  data$cell_polity <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    0.25, 50.25, 277L, 1
+  )
+  data
+}
+
+testthat::test_that("build_ag_land_support names an anachronistic polity", {
+  testthat::expect_warning(
+    out <- whep::build_ag_land_support(data = .alsf_out_of_span_data()),
+    "did not exist in that row's year"
+  )
+
+  testthat::expect_gt(nrow(out), 0L)
+  testthat::expect_true(all(out$reporting_polity_code == "SSD-2011-2025"))
+})
+
+testthat::test_that("build_ag_land_support honours drop and flag", {
+  testthat::expect_warning(
+    dropped <- whep::build_ag_land_support(
+      data = .alsf_out_of_span_data(),
+      polity_validity = "drop"
+    )
+  )
+  testthat::expect_warning(
+    flagged <- whep::build_ag_land_support(
+      data = .alsf_out_of_span_data(),
+      polity_validity = "flag"
+    )
+  )
+
+  testthat::expect_equal(nrow(dropped), 0L)
+  testthat::expect_true(all(flagged$reporting_polity_out_of_span))
+})
+
+testthat::test_that("build_ag_land_support is silent on an in-span polity", {
+  testthat::expect_no_warning(
+    whep::build_ag_land_support(data = .alsf_data())
+  )
+})

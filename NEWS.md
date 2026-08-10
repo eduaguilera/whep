@@ -1,5 +1,23 @@
 # whep (development version)
 
+* **Six more gridded builds now say when a cell-year names a polity that did
+  not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained
+  `polity_validity = c("keep", "flag", "drop")` in whep#462; every other
+  consumer of the same year-less `data$cell_polity` grid had the same defect
+  silently. `build_n_deposition()`, `build_urban_n()`,
+  `build_ag_land_support()`, `aggregate_grass_to_polity()`,
+  `spatialize_country_n_to_crops()` and `build_carbon_balance()` now take the
+  same argument, with the same three values, the same `"keep"` default and the
+  same warning, routed through one shared helper so the eight entry points
+  cannot drift apart. The HWSD clay/pH readers (`read_soil_ph()`,
+  `read_soil_hydraulic()`) are documented as exempt: they use the crosswalk as
+  a spatial extent and their output has neither `year` nor `area_code`.
+  **No published value changes on the default path** — `"keep"` reproduces
+  today's rows and numbers and only adds a warning, and `"flag"` adds one
+  logical column. `"drop"` does move values and is opt-in: measured on the real
+  58,795-cell country grid, it removes 3,181 of 30,438 `(area_code, year)` keys
+  over 1850-2020 (22 of 178 area codes, 21.4% of cell-years), and 34 of 3,738
+  keys over 2000-2020 alone.
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
