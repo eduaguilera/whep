@@ -1282,15 +1282,34 @@ build_processing_coefs <- function(
   )
 }
 
+# One observation per (year, territory, item, element), from the best source
+# that reports it.
+#
+# The territory is the `area_code`, NOT the `area` label. `area` is the
+# PERIODIZED polity name, and the frames this collapses speak two vocabularies
+# of it: `.select_best_source()` stamps one periodized name per code
+# ("Algeria (1919-1962)") while `.prepare_historical_cbs()` names its rows from
+# the crosswalk's static `area_name` ("Algeria") -- and for 97 of the 262 codes
+# in that lookup the static name is not ANY of the code's polity names, so the
+# two can never agree. With the label in the key those are two territories:
+# nothing collapses, both rows survive, and downstream they are summed rather
+# than reconciled. whep#709.
+#
+# The label is re-attached from `.cbs_area_labels()` afterwards, which is the
+# same deterministic per-code rule `.select_best_source()` uses (whep#580), so
+# the frame keeps exactly one label per code on the way out.
 .collapse_cbs_observations <- function(df) {
   dt <- data.table::as.data.table(df)
   if (!"source" %in% names(dt)) {
     dt[, source := NA_character_]
   }
 
+  # A row with no label cannot name its code, and `setorderv()` sorts NA first,
+  # so an unlabelled row would otherwise win the lookup for a code that has a
+  # perfectly good label elsewhere.
+  area_lookup <- .cbs_area_labels(dt[!is.na(area)])
   key_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1305,7 +1324,18 @@ build_processing_coefs <- function(
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
   out <- dt[dt[, .I[1L], by = key_cols]$V1]
   out[, .source_rank := NULL]
-  tibble::as_tibble(out)
+  tibble::as_tibble(.attach_cbs_area_label(out, area_lookup))
+}
+
+# Put a code's one display label back on a frame that is keyed on the code.
+.attach_cbs_area_label <- function(df, area_lookup) {
+  dt <- data.table::as.data.table(df)
+  if ("area" %in% names(dt)) {
+    dt[, area := NULL]
+  }
+  dt[area_lookup, on = "area_code", area := i.area]
+  data.table::setcolorder(dt, c("year", "area", "area_code"))
+  dt[]
 }
 
 .cbs_source_rank <- function(source, year) {
@@ -2020,9 +2050,15 @@ build_processing_coefs <- function(
 # the 1961 back-cast anchor moves the resolved polity of 40 codes.
 #
 # It stays ONE label per code on purpose. Labelling per `(area_code, year)` is
-# more faithful still, but `area` sits in four inner-join keys and in
-# `.cbs_complete_year_nesting_dt()`'s skeleton, so a second label for one code
-# splits those keys -- the whep#563 shape.
+# more faithful still, and whep#709 has taken the historical extension off the
+# label -- the year skeleton, the observed-source join, the share fills and the
+# proxy fills are all keyed on the code now, so a second label no longer
+# multiplies rows there. Three joins still read the label and each needs a
+# decision before it can be re-keyed: `.polity_code_from_labels()` (whep#698,
+# blocked on whep#493), the `primary_area` seed join (whep#699, which also
+# needs the seed expression settled) and `.interpolate_destiny_shares()`
+# (whep#691). Until those three are gone, a second label for one code is still
+# the whep#563 shape, so this stays one label per code.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
@@ -2070,13 +2106,24 @@ build_processing_coefs <- function(
     ) |>
     .collapse_cbs_observations()
 
+  # Every key below is the CODE, never the `area` label. The label is one
+  # display name per code (`.cbs_area_labels()`, whep#580) and it is detached
+  # here and put back once the skeleton exists, because this is where a second
+  # label for one code stops being cosmetic: the skeleton is CROSSED with the
+  # year axis, so two labels give a code two full year skeletons, and the
+  # observed-source join then matches only the half whose label agrees. That is
+  # the whep#563 shape, and whep#382 measured a 702,166-row drop from it.
+  # whep#709.
+  area_lookup <- .cbs_area_labels(
+    data.table::as.data.table(cbs_hist)[!is.na(area)]
+  )
+
   # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
   # sort NA/unrecognised sources last, then take the first (best) source per
   # group. Keeps every !is.na(value) group so all-NA-source groups still yield
   # observed_source = NA, matching the per-group call.
   obs_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -2098,13 +2145,14 @@ build_processing_coefs <- function(
   data.table::setnames(observed_sources, "source", "observed_source")
 
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of("source"))
+    dplyr::select(-dplyr::any_of(c("source", "area")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
-    id_cols = c("area", "area_code", "item_cbs", "item_cbs_code", "element"),
+    id_cols = c("area_code", "item_cbs", "item_cbs_code", "element"),
     years = years[years < 1962]
   ) |>
+    .attach_cbs_area_label(area_lookup) |>
     .fill_historical_destinies(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
@@ -2116,14 +2164,7 @@ build_processing_coefs <- function(
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
       tibble::as_tibble(observed_sources),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "element"
-      )
+      by = obs_keys
     ) |>
     dplyr::mutate(
       source = dplyr::coalesce(
@@ -2236,8 +2277,10 @@ build_processing_coefs <- function(
     "processing_primary_share",
     "seed_rate"
   )
+  # Grouped and ordered on the CODE alone: the label adds nothing to a key the
+  # code already determines, and a second label would split the run-length
+  # groups below without moving a value (whep#709).
   by_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code"
@@ -2420,7 +2463,10 @@ build_processing_coefs <- function(
 }
 
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
-  by_cols <- c("area", "area_code", "item_cbs", "item_cbs_code")
+  # The CODE, not the label: `fill_proxy_growth()` carries a value forward
+  # within a group, so a second label for one code would break the series in
+  # two and each half would be filled from its own end (whep#709).
+  by_cols <- c("area_code", "item_cbs", "item_cbs_code")
   sort_cols <- c(by_cols, "year")
 
   # Both proxies used to be joined on `area`, and three name vocabularies meet

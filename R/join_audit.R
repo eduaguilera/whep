@@ -68,6 +68,12 @@
     ".allocate_livestock_to_grid", "inner_join", "area_code", 1L, "single_year",
     "Called inside the per-year, per-species-group loop that stamps `year`
      afterwards.",
+    ".attach_cbs_area_label", "[", "area_code", 1L, "identity_lookup",
+    "Puts a code's ONE display label back on a frame that has already been
+     keyed on the code (whep#709). It exists because the label came OUT of the
+     pre-1962 year skeleton and the observed-source join, where a second label
+     for one code doubled the skeleton rather than only mislabelling it: the
+     label's identity role is now this one lookup instead of four keys.",
     ".build_fd_flat", "left_join", "area_code, item_cbs_code", 1L, "single_year",
     "`cbs_yr` is one year of the CBS.",
     ".build_feed_demand_fcr", "left_join", "area_code", 1L, "time_invariant",
