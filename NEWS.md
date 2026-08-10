@@ -57,6 +57,29 @@
     `collapse_degen = FALSE`. Monthly cubes never hit this, because a one-year
     slice is still twelve steps.
 
+* **New `polity_identity_conventions()` states, per object, what territorial
+  identity a WHEP table with no year dimension carries (#671).** A polity code
+  is year-scoped, so for a year-less object "attach the polity code" has no
+  single answer: measured on the deployed `spatialize-country-grid` pin, 52,420
+  of its 58,795 cells (89.2%) sit under an `area_code` that
+  `polity_area_crosswalk` maps to more than one polity over time, and 33 of
+  `mueller_synthetic_n`'s 156 `iso3c` labels, 37 of `crops_manure_n`'s 184
+  `ISO` labels and 38 of `gleam_geographic_hierarchy`'s 204 `iso3` labels name
+  a *different* polity at 1961 than at 2020. The register records which of
+  #458's three answers each object takes — present-day polity, polity-period
+  rows, or deliberately identity-free — and the new
+  `tests/testthat/test_territorial_identity.R` checks each claim against the
+  object it is made about, so a year-less territory-keyed dataset can no longer
+  arrive without one. No published value moves; nothing but the register and
+  its guards is added.
+
+  Two things it makes visible. `regions_full` and `polities_cats` really do
+  carry the present-day polity, in `reporting_polity_code`, and it is exactly
+  what `add_polity_code(year_column = NULL)` resolves for all 272 and 198 rows
+  respectively — now asserted rather than assumed. And their column literally
+  named `polity_code` is **not** a polity code: none of its 271 values appears
+  in `polities`, because it is a legacy ISO3-like prefix, which is pinned so
+  the two vocabularies cannot be quietly conflated.
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
