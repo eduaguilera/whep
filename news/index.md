@@ -2,6 +2,25 @@
 
 ## whep (development version)
 
+- **[`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+  no longer attaches reporting polity columns to an intermediate that
+  discards them.**
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  produced a 5.0e7-row gridded table for a 40-year span, and adding the
+  four reporting polity columns to it cost +20.4 GB and 20 s – two of
+  them are character columns. `.ci_cropland_class()` then collapsed that
+  table 42-fold, to 1.2e6 rows, discarding all four, and
+  [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+  re-added them to its own output. The internal path now skips them and
+  only the exported
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  pays. Peak for a 40-year
+  [`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
+  goes from 37.8 GB to 25.4 GB, slightly faster (725 s vs 742 s), with
+  output [`identical()`](https://rdrr.io/r/base/identical.html) across
+  all 5,275,974 rows and 12 columns
+  ([\#624](https://github.com/eduaguilera/whep/issues/624)).
+
 - **BNF coefficients now ship with cell-level provenance
   ([\#497](https://github.com/eduaguilera/whep/issues/497)).** The long
   `bnf_provenance` sidecar is readable with
