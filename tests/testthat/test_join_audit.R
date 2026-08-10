@@ -58,16 +58,21 @@ test_that("the enumerated baseline can only shrink", {
   # written into the row -- never to admit a new year-blind read. 57 was the
   # count on the commit that introduced the gate; 58 added
   # `.resolve_all_area_years`, the first-reported-year bound that turned
-  # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 59
-  # added `.handed_over_polity_codes`, the succession self-join that stops
+  # `polity_bucket_coverage()` from a 65-year report into a 14-year one;
+  # `.handed_over_polity_codes` added the succession self-join that stops
   # `.polity_join_end_year()` widening a period into the first year of the
-  # successor upstream recorded only in the inverse direction (whep#683).
+  # successor upstream recorded only in the inverse direction (whep#683);
+  # whep#698 then took the ratchet DOWN for the first time by keying the
+  # pre-1962 proxy fill on the reporting bucket, deleting
+  # `.polity_code_from_labels()`.
   #
-  # 58 is where those two land together: whep#698 keyed the pre-1962 proxy fill
-  # on the reporting bucket the frame already carries, `.polity_code_from_labels()`
-  # stopped existing, and the ratchet came down by one for the first time. The
-  # number is the merge of a rise and a fall, not either one alone.
-  expect_lte(sum(baseline$n), 58L)
+  # 59 is where whep#709 lands on top of those. It is a rise in the COUNT and a
+  # fall in what matters: the pre-1962 extension stopped keying on the `area`
+  # label in four places and `.attach_cbs_area_label` attaches it once instead,
+  # so the count gains that one lookup while the label-keyed surface this file's
+  # third test guards drops to a single redundant join. Read the two together --
+  # this number alone would have called that change a regression.
+  expect_lte(sum(baseline$n), 59L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

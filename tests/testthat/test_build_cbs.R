@@ -1389,3 +1389,121 @@ test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
     dplyr::pull(source)
   expect_equal(src_2005, "FAOSTAT_FBS_Old")
 })
+
+# whep#709: `area` is the periodized polity name and it was a KEY in the
+# pre-1962 extension. The public `historical_data` argument reaches that key --
+# `.prepare_historical_cbs()` names its rows from the crosswalk's static
+# `area_name` while `.select_best_source()` stamps the periodized polity name,
+# and for 97 of the 262 codes in that lookup the static name is not any of the
+# code's polity names. Two labels for one code, and the whep#563 shape follows.
+
+.two_label_frame <- function() {
+  dplyr::bind_rows(
+    tibble::tribble(
+      ~year, ~area,                 ~area_code, ~item_cbs,            ~item_cbs_code, ~element,     ~value, ~source,
+      1950L, "Algeria (1919-1962)", 4L,         "Wheat and products", 2511L,          "production", 100,    "FAOSTAT_prod",
+      1955L, "Algeria (1919-1962)", 4L,         "Wheat and products", 2511L,          "production", 200,    "FAOSTAT_prod"
+    ),
+    tibble::tribble(
+      ~year, ~area,     ~area_code, ~item_cbs,            ~item_cbs_code, ~element,     ~value, ~source,
+      1950L, "Algeria", 4L,         "Wheat and products", 2511L,          "production", 140,    "historical_test",
+      1955L, "Algeria", 4L,         "Wheat and products", 2511L,          "production", 240,    "historical_test"
+    )
+  )
+}
+
+.algeria_hist_inputs <- function() {
+  list(
+    primary_cbs_area = tibble::tibble(
+      year = integer(),
+      area = character(),
+      area_code = integer(),
+      item_cbs = character(),
+      item_cbs_code = integer(),
+      area_ha = numeric()
+    ),
+    gdp_pop = tibble::tibble(
+      year = 1950:1960,
+      area = "Algeria",
+      area_code = "DZA",
+      pop = 1:11
+    ),
+    # Keyed on the reporting bucket, matching what `.read_land_areas_wide()`
+    # emits since whep#698 re-keyed it off the label. `.two_label_frame()`'s
+    # code is Algeria's 4, and the point of this fixture is that its TWO labels
+    # must not split that one code -- so the land proxy has to reach it by code.
+    land_areas_wide = tibble::tibble(
+      year = 1950:1960,
+      area_code = 4L,
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+}
+
+test_that("two labels for one code collapse to one observation", {
+  # Before whep#709 `.collapse_cbs_observations()` keyed on `area`, so the two
+  # rows were two territories: nothing collapsed, both survived, and
+  # `.format_cbs_output()` summed them into 240 t for a cell whose answer is
+  # 140 t.
+  result <- whep:::.collapse_cbs_observations(.two_label_frame())
+
+  expect_equal(nrow(result), 2L)
+  expect_equal(unique(result$area), "Algeria (1919-1962)")
+  expect_equal(
+    result |> dplyr::filter(.data$year == 1950L) |> dplyr::pull(.data$value),
+    140
+  )
+  # Pre-1961 a `historical_` source outranks FAOSTAT (`.cbs_source_rank()`), so
+  # reconciling on the code picks it rather than keeping both.
+  expect_equal(
+    result |> dplyr::filter(.data$year == 1950L) |> dplyr::pull(.data$source),
+    "historical_test"
+  )
+})
+
+test_that("a second area label does not double the historical skeleton", {
+  # The whep#563 shape, and the one that multiplies rows rather than only
+  # mislabelling them: `.cbs_complete_year_nesting_dt()` crosses its id_cols
+  # with the year axis, so a code with two labels used to get two full year
+  # skeletons -- 154 rows over 77 keys, every value counted twice.
+  result <- whep:::.cbs_extend_historical(
+    .two_label_frame(),
+    .algeria_hist_inputs(),
+    1950:1961
+  )
+
+  keys <- result |>
+    dplyr::distinct(
+      .data$year,
+      .data$area_code,
+      .data$item_cbs_code,
+      .data$element
+    )
+  expect_equal(nrow(result), nrow(keys))
+
+  production <- result |>
+    dplyr::filter(.data$element == "production", .data$year == 1950L)
+  expect_equal(nrow(production), 1L)
+  expect_equal(production$value, 140)
+})
+
+test_that("the historical extension keeps one area label per code", {
+  # The invariant a value comparison cannot see (whep#563). It has to hold on
+  # the frame that leaves the extension, not only on the lookup that built it.
+  result <- whep:::.cbs_extend_historical(
+    .two_label_frame(),
+    .algeria_hist_inputs(),
+    1950:1961
+  )
+
+  per_code <- result |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = "area_code"
+    )
+
+  expect_equal(per_code$n_labels, 1L)
+  expect_equal(unique(result$area), "Algeria (1919-1962)")
+})

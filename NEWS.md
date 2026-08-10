@@ -166,6 +166,22 @@
   proxy rises 1.47x. No `(area_code, year)` changes its reporting polity and
   no `area_code` gains a second label.
 
+* **The pre-1962 CBS extension is keyed on `area_code`, not on the `area`
+  label.** `area` is the *periodized* polity name ("Algeria (1919-1962)") and
+  it was a key in five places in the historical extension, including the year
+  skeleton, which is crossed with the year axis. Two labels for one code
+  therefore gave that code two full year skeletons rather than only a wrong
+  name. `build_commodity_balances(historical_data = )` reaches exactly that:
+  `.prepare_historical_cbs()` names its rows from the crosswalk's static
+  `area_name` while the FAOSTAT rows carry the periodized polity name, and for
+  97 of the 262 codes in that lookup the static name is not any of the code's
+  polity names, so the two can never agree. Measured on a fixture, one such
+  overlap turned 77 keys into 154 rows and had the cell's two candidate values
+  summed downstream instead of reconciled — 240 t where the answer is 140 t.
+  The extension now reconciles on the code, takes the best source as it always
+  intended to, and re-attaches the code's one display label afterwards. **No
+  published value changes** without `historical_data`: `1850–2023` is identical
+  before and after, key for key.
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
