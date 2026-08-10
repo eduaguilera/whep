@@ -105,6 +105,24 @@
   [`identical()`](https://rdrr.io/r/base/identical.html) to the
   committed ones.
 
+- **Upstream’s succession relation is now read in both directions, so a
+  period whose successor is only recorded on the successor’s side is no
+  longer widened into that successor’s first year.**
+  `.polity_join_end_year()` extends an OPEN period by one year, and
+  “open” was read from `polities$successor` alone. `AGO-1975-2025` names
+  `ANG-1905-1975` as its predecessor while colonial Angola names no
+  successor, so ANG was widened into 1975 and FAOSTAT area 7 had two
+  resolution candidates for that year, separated only by the
+  `polity_start_year DESC` tie-break. A period another period both names
+  as its predecessor and begins exactly at the end of now counts as
+  succeeded; the begin-at-end test is what distinguishes a hand-over
+  from a partial carve-out such as `TRS-1947-1954` out of
+  `ITA-1919-2025`, whose predecessor goes on existing. **No published
+  value changes**: measured over every `(area_code, year)` pair of the
+  crosswalk for 1961–2025 and for 1850–2025, 0 pairs change
+  `polity_code` and 0 change `mapping_status`; the joined-span conflict
+  count goes from 1 to 0.
+
 - **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket’s polity in
