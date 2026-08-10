@@ -1,5 +1,17 @@
 # whep (development version)
 
+* **`build_carbon_balance()` no longer grows its memory with the length of the
+  span.** The RothC/HSOC climate modifier is now reduced one year at a time.
+  Attaching soil cover crosses the monthly climate table with every land-use
+  class, which measures 0.452 GB per simulated year against 0.097 GB for the
+  drivers themselves, and that intermediate used to be held for the whole span.
+  Measured peaks: a 40-year build went from 61 GB (OOM-killed before finishing)
+  to 49.9 GB (completed), while a 20-year build is unchanged at ~51 GB -- the
+  fix removes the per-year slope, not the fixed plateau. Runtime is unchanged
+  (362 s vs 365 s at five years). Output is identical: `identical()` holds
+  across all 1,166,220 rows and 17 columns of a five-year build, row order
+  included (#624).
+
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
