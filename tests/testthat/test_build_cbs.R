@@ -182,7 +182,7 @@ test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture row
   expect_equal(nrow(result), 0L)
 })
 
-test_that(".read_land_areas_wide keys its output on polity_code", {
+test_that(".read_land_areas_wide keys its output on the reporting bucket", {
   # The frame this table feeds is labelled with `polity_name`, but
   # .read_land_areas() labels its rows with the crosswalk's STATIC `area_name`.
   # Those two vocabularies diverge for most territories -- FAO area 3 is
@@ -191,6 +191,10 @@ test_that(".read_land_areas_wide keys its output on polity_code", {
   # on main, 96 of the LUH2 labels (41.7% of land rows) are names no builder
   # emits, and frame coverage of `agriland` over 1900-1902 was 402 of 606
   # (year, polity) cells against 567 once keyed on the polity.
+  #
+  # The key is `polity_area_code`, renamed to `area_code`, not `polity_code`:
+  # the frame this fills is aggregated to buckets and its `area_code` IS the
+  # bucket, so this is the key that needs no label to reach it (whep#698).
   local_mocked_bindings(
     .read_land_areas = function(years = NULL) {
       tibble::tibble(
@@ -205,8 +209,9 @@ test_that(".read_land_areas_wide keys its output on polity_code", {
 
   result <- whep:::.read_land_areas_wide(years = 1950L)
 
-  expect_equal(result$polity_code, "ALB-1913-2025")
+  expect_equal(result$area_code, 3L)
   expect_false("area" %in% names(result))
+  expect_false("polity_code" %in% names(result))
   expect_equal(result$agriland, 5)
 })
 
@@ -237,14 +242,11 @@ test_that(".read_land_areas_wide holds back folded aggregate buckets", {
 
   result <- whep:::.read_land_areas_wide(years = 1950L)
 
-  expect_equal(result$polity_code, "ESP-1800-2025")
-  # NO Rest-of-World BUCKET AT ALL, matched by prefix rather than by exact code.
-  # This asserted `ROW-1850-2023` until the seven reporting buckets were extended to
-  # 2025 upstream and that code was retired -- at which point the assertion could
-  # never fail again, because it named a code the table can no longer contain. A
-  # prefix check keeps testing the thing meant here (a real country must not fall
-  # into the residual bucket) across the next rename too.
-  expect_false(any(startsWith(result$polity_code, "ROW-")))
+  expect_equal(result$area_code, 203L)
+  # NO Rest-of-World BUCKET AT ALL. This named the polity code until whep#698
+  # re-keyed the table on the reporting bucket; 999 is that bucket's code and
+  # is what a folded member would land on now.
+  expect_false(999L %in% result$area_code)
 })
 
 test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
@@ -677,8 +679,8 @@ test_that(".cbs_extend_historical preserves observed historical sources", {
       area_ha = 1
     ),
     # The gdp/population pin is keyed by ISO3 in a column called `area_code`,
-    # and .read_land_areas_wide() emits a polity_code: both proxies are resolved
-    # onto the frame's polity key rather than joined on an area label.
+    # and .read_land_areas_wide() emits the reporting bucket: both proxies are
+    # resolved onto the frame's own `area_code` rather than joined on a label.
     gdp_pop = tibble::tibble(
       year = 1950:1961,
       area = "Spain",
@@ -687,7 +689,7 @@ test_that(".cbs_extend_historical preserves observed historical sources", {
     ),
     land_areas_wide = tibble::tibble(
       year = 1950:1961,
-      polity_code = "ESP-1800-2025",
+      area_code = 203L,
       Cropland = 1,
       Pasture = 0,
       agriland = 1
@@ -740,7 +742,7 @@ test_that(".fill_with_proxies keys its proxies on the polity, not the name", {
   )
   land_wide <- tibble::tibble(
     year = 1950:1953,
-    polity_code = "ALB-1913-2025",
+    area_code = 3L,
     Cropland = 1,
     Pasture = 1,
     agriland = c(2, 2.2, 2.4, 2.6)
@@ -754,6 +756,95 @@ test_that(".fill_with_proxies keys its proxies on the polity, not the name", {
   expect_equal(result$feed, c(10, 11, 12, 13))
   expect_equal(nrow(result), nrow(frame))
   expect_false("polity_code" %in% names(result))
+})
+
+test_that(".fill_with_proxies reaches a bucket its label misnames", {
+  # whep#698. The frame's `area` is ONE label for the whole build, so it names
+  # one period of a code; the proxy side resolves per year with the pre-1962
+  # back-cast anchored at 1961. For FAO area 29 those are two different
+  # polities -- the label says `BDI-1962-2025`, the anchor says
+  # `BDI-1922-1962` -- and while the fill was keyed on `polity_code` the two
+  # never met, so Burundi's whole pre-1962 series went through the historical
+  # fill with no population proxy at all. Measured on a real
+  # `build_commodity_balances(prim, 1955, 1965)` frame: 35 of 1,267
+  # (`area_code`, `area`, `year`) keys resolved to a different polity that way
+  # and 70 more to none.
+  #
+  # Keyed on the reporting bucket both sides say 29 and the label is not
+  # consulted at all.
+  frame <- tibble::tibble(
+    year = 1955:1957,
+    area = "Burundi",
+    area_code = 29L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = 1955:1957,
+    area = "Burundi",
+    area_code = "BDI",
+    pop = c(1000, 1100, 1210)
+  )
+  land_wide <- tibble::tibble(
+    year = 1955:1957,
+    area_code = 29L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_false(any(is.na(result$pop)))
+  expect_equal(result$food, c(100, 110, 121))
+})
+
+test_that(".fill_with_proxies gives a promoted member its own population", {
+  # The other half of whep#698, and the reason re-keying on `polity_code` would
+  # have been wrong. `.unfold_rest_of_world()` promotes a member's
+  # `polity_area_code` but NOT its `polity_code`, so every promoted member
+  # still answers `ROW-1850-2025` and carries the shared label "Rest of World".
+  # Keyed on the polity, all of them collapsed onto one proxy row holding the
+  # SUM of their populations -- measured on the real pin, four pin rows shared
+  # `(year, ROW-1850-2025)` while no two shared a `(year, polity_area_code)` --
+  # and four buckets of a real 1955-1965 frame were being grown on that sum.
+  #
+  # Equatorial Guinea's population is flat here and Syria's quadruples, so the
+  # bucket-keyed fill leaves food flat while the polity-keyed one would have
+  # nearly doubled it.
+  frame <- tibble::tibble(
+    year = 1955:1957,
+    area = "Rest of World",
+    area_code = 61L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = rep(1955:1957, 2L),
+    area = rep(c("Equatorial Guinea", "Syria"), each = 3L),
+    area_code = rep(c("GNQ", "SYR"), each = 3L),
+    pop = c(100, 100, 100, 1000, 2000, 4000)
+  )
+  land_wide <- tibble::tibble(
+    year = 1955:1957,
+    area_code = 61L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_equal(result$pop, c(100, 100, 100))
+  expect_equal(result$food, c(100, 100, 100))
 })
 
 test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
@@ -784,9 +875,12 @@ test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
     area_code = "SYR",
     pop = c(1000, 1100, 1200)
   )
+  # Keyed on Syria's OWN reporting area, which is what `.read_land_areas_wide()`
+  # emits for it -- the fold sends the bucket's code to 999, so nothing here
+  # reaches the frame.
   land_wide <- tibble::tibble(
     year = 1950:1952,
-    polity_code = "SYR-1946-2025",
+    area_code = 212L,
     Cropland = 1,
     Pasture = 1,
     agriland = c(2, 2.2, 2.4)
@@ -795,6 +889,7 @@ test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
   result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
 
   expect_true(all(is.na(result$pop)))
+  expect_true(all(is.na(result$agriland)))
   expect_equal(result$food, c(100, NA, NA))
 })
 
@@ -878,9 +973,9 @@ test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
       item_cbs_code = 2511L,
       area_ha = 1
     ),
-    # Both proxies are resolved onto the frame's polity key, not joined on an
-    # area label: the gdp/population pin is keyed by ISO3 in `area_code`, and
-    # .read_land_areas_wide() emits a polity_code.
+    # Both proxies are resolved onto the frame's own `area_code`, not joined on
+    # an area label: the gdp/population pin is keyed by ISO3 in `area_code`, and
+    # .read_land_areas_wide() emits the reporting bucket.
     gdp_pop = tibble::tibble(
       year = 1950L,
       area = "Spain",
@@ -889,7 +984,7 @@ test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
     ),
     land_areas_wide = tibble::tibble(
       year = 1950L,
-      polity_code = "ESP-1800-2025",
+      area_code = 203L,
       Cropland = 1,
       Pasture = 0,
       agriland = 1

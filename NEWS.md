@@ -9,6 +9,17 @@
   `identical()` and no time cost (64 s vs 68 s). This is a fixed cost on every
   `build_carbon_balance()` and `get_soc_climate_drivers()` call, independent of
   how many years are requested (#624).
+* **`build_carbon_balance()` no longer grows its memory with the length of the
+  span.** The RothC/HSOC climate modifier is now reduced one year at a time.
+  Attaching soil cover crosses the monthly climate table with every land-use
+  class, which measures 0.452 GB per simulated year against 0.097 GB for the
+  drivers themselves, and that intermediate used to be held for the whole span.
+  Measured peaks: a 40-year build went from 61 GB (OOM-killed before finishing)
+  to 49.9 GB (completed), while a 20-year build is unchanged at ~51 GB -- the
+  fix removes the per-year slope, not the fixed plateau. Runtime is unchanged
+  (362 s vs 365 s at five years). Output is identical: `identical()` holds
+  across all 1,166,220 rows and 17 columns of a five-year build, row order
+  included (#624).
 
 * **Six more gridded builds now say when a cell-year names a polity that did
   not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained
@@ -90,6 +101,70 @@
   stamps is Spain over 1860–2022, covered by the single interval
   `ESP-1800-2025` on either reading, and all 23 tables the builder writes come
   back `identical()` to the committed ones.
+* **Upstream's succession relation is now read in both directions, so a period
+  whose successor is only recorded on the successor's side is no longer widened
+  into that successor's first year.** `.polity_join_end_year()` extends an OPEN
+  period by one year, and "open" was read from `polities$successor` alone.
+  `AGO-1975-2025` names `ANG-1905-1975` as its predecessor while colonial
+  Angola names no successor, so ANG was widened into 1975 and FAOSTAT area 7
+  had two resolution candidates for that year, separated only by the
+  `polity_start_year DESC` tie-break. A period another period both names as its
+  predecessor and begins exactly at the end of now counts as succeeded; the
+  begin-at-end test is what distinguishes a hand-over from a partial carve-out
+  such as `TRS-1947-1954` out of `ITA-1919-2025`, whose predecessor goes on
+  existing. **No published value changes**: measured over every
+  `(area_code, year)` pair of the crosswalk for 1961–2025 and for 1850–2025,
+  0 pairs change `polity_code` and 0 change `mapping_status`; the joined-span
+  conflict count goes from 1 to 0.
+* **A row with no mapped period now stands in on a polity that has not started
+  yet rather than on one that had already ended.** When `add_polity_code()`
+  finds no period covering a row's (anchored) year it falls back to another
+  period of the same reporting area; that fallback ranked candidates purely by
+  distance in years, which split a single reporting area's series between two
+  entities at whatever year the arithmetic flipped. FAOSTAT area 178 Eritrea
+  read `ERI-1889-1952`, the Italian colonial administration, for 1850-1972 and
+  `ERI-1993-2025` from 1973; area 273 Montenegro split at 1961 between
+  `MNE-1913-1918` and `MNE-2006-2025`, on a margin of one year (44 against
+  45). A not-yet-started period is now preferred over an ended one, so each of
+  those areas resolves to one entity across 1850-2023, which is also what the
+  other 22 areas with no period at the back-cast anchor — the post-Soviet and
+  post-Yugoslav ones — already did. **No published quantity changes**; 235 of
+  the crosswalk's 46,640 `(area, year)` pairs over 1850-2025 change which
+  polity they name, all of them areas 178 and 273. On a real full-range
+  `get_primary_production()` (6,310,390
+  rows) the out-of-span set is unchanged at 2,301 pairs / 7,247 rows, and 347
+  of those rows move from `polity_coverage_gaps()`'s `"polity_ended"` class to
+  `"polity_not_started"`, WHEP's documented back-cast convention, leaving
+  `"polity_ended"` as FAOSTAT area 206 alone. `options(whep.polity_stand_in =
+  "nearest")` restores ranking by distance alone.
+* **The pre-1962 CBS proxy fill no longer reads a territory's identity out of
+  its label.** `.fill_with_proxies()` recovered the frame's polity by matching
+  its `(area_code, area)` pair — the bucket AND the LABEL — against the
+  crosswalk's `(polity_area_code, polity_name)`, while the population and land
+  proxies were resolved from the code, year-aware. The two sides disagreed.
+  Measured on a real `build_commodity_balances(prim, 1955, 1965)` run (121,191
+  frame rows, 1,267 `(area_code, area, year)` keys): 35 keys resolved to a
+  *different* polity through the label than through the code, and 70 to no
+  polity at all. Both proxies are now keyed on the reporting bucket the frame
+  already carries, so no label is consulted and no resolution is needed on the
+  frame side. **Published values move, in 1955-1960 only** (1961 onwards is
+  byte-identical): total tonnage -0.064% to -0.068% a year, -0.0289% over the
+  1955-1965 build; 9,623 of 528,769 cells change, 234 appear and 696 vanish.
+  Burundi, Equatorial Guinea, French Guiana, Papua New Guinea, Singapore,
+  Syria and Oman gain a population proxy they never had, and eleven areas gain
+  an agricultural-land proxy. Eswatini stops growing on 5,409 thousand people
+  and grows on its own 353 thousand: it, Bermuda and New Caledonia carry the
+  shared `"Rest of World"` label, which used to join them onto one
+  `ROW-1850-2025` proxy row holding the SUM of four promoted members'
+  populations — the whep#589 shape. Bermuda and the Rest-of-World bucket have
+  no proxy of their own and so lose their pre-1961 rows entirely (12
+  `(area_code, year)` pairs, 92.99 Mt) rather than keep a series synthesised
+  from other territories' populations; what an artificial aggregate's proxy
+  should be stays open (whep#493). Sudan (former, area 206) is the one bucket
+  whose agricultural land was split across two polities: it now sums Sudan and
+  South Sudan, which is what its CBS numerator already did, and its `agriland`
+  proxy rises 1.47x. No `(area_code, year)` changes its reporting polity and
+  no `area_code` gains a second label.
 
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
