@@ -185,3 +185,68 @@ testthat::test_that("build_n_deposition example fixture is schema-complete", {
   )
   pointblank::expect_col_vals_gte(out, "deposition_kgn_ha", 0)
 })
+
+# ---- polity_validity (#675) -------------------------------------------
+
+# Area 277 (South Sudan) exists only from 2011, so a cell the present-day
+# crosswalk labels 277 names a state that did not exist in any earlier year.
+.nd_out_of_span_cell_polity <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac, ~cell_area_ha,
+    -0.25, -0.25, 277L, 1, 300000
+  )
+}
+
+.nd_out_of_span_data <- function() {
+  species <- tibble::tribble(
+    ~lon, ~lat, ~year, ~value_g,
+    -0.25, -0.25, 2000L, 1000000,
+    -0.25, -0.25, 2020L, 1000000
+  )
+  list(
+    nhx = species,
+    noy = species,
+    cell_polity = .nd_out_of_span_cell_polity()
+  )
+}
+
+testthat::test_that("build_n_deposition names an anachronistic polity", {
+  testthat::expect_warning(
+    out <- whep::build_n_deposition(data = .nd_out_of_span_data()),
+    "did not exist in that row's year"
+  )
+
+  # "keep" is the default and keeps both rows, so nothing published moves.
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_equal(
+    out$reporting_polity_code[out$year == 2000L],
+    "SSD-2011-2025"
+  )
+})
+
+testthat::test_that("build_n_deposition honours drop and flag", {
+  testthat::expect_warning(
+    dropped <- whep::build_n_deposition(
+      data = .nd_out_of_span_data(),
+      polity_validity = "drop"
+    )
+  )
+  testthat::expect_warning(
+    flagged <- whep::build_n_deposition(
+      data = .nd_out_of_span_data(),
+      polity_validity = "flag"
+    )
+  )
+
+  testthat::expect_equal(dropped$year, 2020L)
+  testthat::expect_equal(
+    flagged$reporting_polity_out_of_span,
+    flagged$year == 2000L
+  )
+})
+
+testthat::test_that("build_n_deposition is silent when every year is in span", {
+  testthat::expect_no_warning(
+    whep::build_n_deposition(years = 2020L, data = .nd_out_of_span_data())
+  )
+})

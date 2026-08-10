@@ -58,10 +58,16 @@ test_that("the enumerated baseline can only shrink", {
   # written into the row -- never to admit a new year-blind read. 57 was the
   # count on the commit that introduced the gate; 58 added
   # `.resolve_all_area_years`, the first-reported-year bound that turned
-  # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 57
-  # again once whep#698 keyed the pre-1962 proxy fill on the reporting bucket
-  # and `.polity_code_from_labels()` stopped existing.
-  expect_lte(sum(baseline$n), 57L)
+  # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 59
+  # added `.handed_over_polity_codes`, the succession self-join that stops
+  # `.polity_join_end_year()` widening a period into the first year of the
+  # successor upstream recorded only in the inverse direction (whep#683).
+  #
+  # 58 is where those two land together: whep#698 keyed the pre-1962 proxy fill
+  # on the reporting bucket the frame already carries, `.polity_code_from_labels()`
+  # stopped existing, and the ratchet came down by one for the first time. The
+  # number is the merge of a rise and a fall, not either one alone.
+  expect_lte(sum(baseline$n), 58L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

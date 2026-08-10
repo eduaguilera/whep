@@ -22,6 +22,14 @@
 #   static coefficient tables (e.g. `whep::soil_cn_ratios`).
 # - Local dev data dir is read from Sys.getenv("WHEP_HWSD_DIR"); never
 #   hardcode an absolute path in committed code.
+#
+# EXEMPT from the `polity_validity` year-check (whep#675). These readers take
+# `data$cell_polity` as a spatial EXTENT and gap-fill target only: they never
+# join a territory onto a year, and their output carries neither `year` nor
+# `area_code`. There is therefore no (area_code, year) pair that could name a
+# polity which did not exist -- a soil property is about the place, not the
+# state, which is #671's option 3. The same holds for `.cb_hwsd_clay()` in
+# R/carbon_balance.R, which reuses `.aggregate_hwsd()` the same way.
 
 #' Read gridded soil pH onto WHEP's grid.
 #'

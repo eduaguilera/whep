@@ -56,13 +56,14 @@
 #'
 #' # The trap this register exists to make visible
 #'
-#' [regions_full] and [polities_cats] carry a column literally named
-#' `polity_code`, and **none of its values is a [polities] code** -- it is a
-#' legacy ISO3-like prefix kept for older callers, documented as such on both
-#' datasets. Their real carrier is `reporting_polity_code`, a [polities] code
-#' on all 259 of `regions_full`'s non-`NA` rows and all 198 of
-#' `polities_cats`'s. Reading identity off the column whose name promises it
-#' returns an empty join against every other polity-keyed table in WHEP.
+#' [regions_full] and [polities_cats] carry a column of ISO3-like stems
+#' (`"AFG"`, `"ROW"`, `"RAFR"`) kept for older callers, of which **not one value
+#' is a [polities] code**. Until whep#687 that column was literally named
+#' `polity_code`, so a join from either dataset to [polities] or
+#' [polity_area_crosswalk] on the one column whose name promised identity came
+#' back empty and nothing warned. It is now `legacy_polity_prefix`, which claims
+#' nothing. Their real carrier is `reporting_polity_code`, a [polities] code on
+#' all 259 of `regions_full`'s non-`NA` rows and all 198 of `polities_cats`'s.
 #'
 #' @param kind Optional character vector restricting the result to one or more
 #'   of `"package_data"`, `"input_pin"` and `"function_output"`. `NULL`
@@ -142,18 +143,17 @@ polity_identity_conventions <- function(kind = NULL) {
     ~rationale,
     "regions_full",
     "package_data",
-    "polity_code, polity_name, iso3c, uISO3c, polity_area_code,
+    "legacy_polity_prefix, polity_name, iso3c, uISO3c, polity_area_code,
      reporting_polity_code",
     "present_day_polity",
     "carried",
     "reporting_polity_code",
     "add_polity_code(year_column = NULL)",
     "A registry of the areas that report today, so the present-day polity is
-     what it means; the column named polity_code is a legacy ISO3-like prefix
-     and is not one.",
+     what it means; legacy_polity_prefix is an ISO3-like stem and is not one.",
     "polities_cats",
     "package_data",
-    "polity_code, polity_name, iso3c, uISO3c, polity_area_code,
+    "legacy_polity_prefix, polity_name, iso3c, uISO3c, polity_area_code,
      reporting_polity_code",
     "present_day_polity",
     "carried",
@@ -163,13 +163,14 @@ polity_identity_conventions <- function(kind = NULL) {
      carries the same present-day identity.",
     "gleam_geographic_hierarchy",
     "package_data",
-    "iso3, country",
+    "iso3, country, reporting_polity_code",
     "present_day_polity",
-    "recommended",
-    NA_character_,
+    "carried",
+    "reporting_polity_code",
     "resolve_polity_label(iso3, year = )",
     "GLEAM's own present-day country registry, the same shape as regions_full
-     and the same answer, but it carries no polity column yet.",
+     and the same answer; it carries the polity the present-day year resolves
+     its iso3 to, NA for the three territories upstream has no polity for.",
     "mueller_synthetic_n",
     "package_data",
     "iso3c",
@@ -273,6 +274,29 @@ polity_identity_conventions <- function(kind = NULL) {
   ifelse(is.na(x), NA_character_, stringr::str_squish(x))
 }
 
+# The year "the present day" means when a LABEL is resolved to its present-day
+# polity, i.e. the year `resolve_polity_label()` has to be asked about for the
+# open period to be the one it answers with.
+#
+# The numeric route needs no such year: `add_polity_code(year_column = NULL)`
+# goes through `.current_area_lookup()`, which picks the period reaching the
+# crosswalk's open-period sentinel, `max(polity_end_year)`. The label route has
+# no equivalent, and its year filter is `start_year <= y < end_year` with no
+# open-end exception -- whep#577's "inclusive at an open end" rule lives in
+# `.polity_join_end_year()`, on the crosswalk route only, which is whep#712.
+# MEASURED on the
+# shipped snapshot: of `gleam_geographic_hierarchy`'s 204 iso3 values,
+# `resolve_polity_label()` answers for 201 at the sentinel minus one and for
+# ONE at the sentinel itself, because 227 live polities end there.
+#
+# So the present day is the last year the open period covers, derived from the
+# data rather than written down: the sentinel moves when the snapshot does, and
+# `sentinel - 1` keeps resolving to the same open period whether or not the
+# label route ever gains the inclusive-open-end rule.
+.present_day_polity_year <- function() {
+  as.integer(max(polities$end_year, na.rm = TRUE)) - 1L
+}
+
 # The column names that make a table say which *territory* a row is about.
 # Deliberately an explicit list rather than a pattern. A bare "code" matches
 # item codes -- biomass_coefs$Code is a crop -- and a supra-national grouping
@@ -290,6 +314,9 @@ polity_identity_conventions <- function(kind = NULL) {
     "country",
     "country_code",
     "polity_code",
+    # Names a territory without claiming to be an identity (whep#687). Listed
+    # so the register keeps covering the column the rename moved.
+    "legacy_polity_prefix",
     "polity_name",
     "polity_area_code",
     "reporting_polity_code"

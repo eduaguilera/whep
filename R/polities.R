@@ -107,7 +107,7 @@
   # A boundary between two epochs belongs to the successor, which is what the
   # exclusive reading buys. But a still-open interval has nothing after it, so
   # there is no double-count to prevent and excluding its terminal year simply
-  # deletes a year. Measured on the shipped snapshot: 227 live polities end at
+  # deletes a year. Measured on the shipped snapshot: 228 live polities end at
   # 2025 and a strictly exclusive rule left NONE of them covering 2025, so every
   # current-year row degraded from `matched` to `out_of_span` -- resolved only by
   # the nearest-period fallback, which is the pathology this epic removes.
@@ -116,8 +116,8 @@
   # to the table maximum. The year test re-introduces the double-count for any
   # polity whose last interval ends at the maximum AND has a successor, and the
   # maximum itself moves (#530 took the table from 740 rows to 749). Measured:
-  # 244 live polities have no successor, 227 of them end at 2025, and ZERO live
-  # polities ending at 2025 have one -- so the two agree today and the successor
+  # 242 live polities are open, 228 of them end at 2025, and ZERO live polities
+  # ending at 2025 are succeeded -- so the two agree today and the successor
   # test is the one that keeps agreeing.
   # `fifelse()` will not recycle its test, so a scalar `is_open` (which is what a
   # caller testing one period naturally passes) has to be widened here.
@@ -134,11 +134,209 @@
 # Which polity codes upstream declares nothing succeeds. Read from `polities`
 # rather than the crosswalk because succession is a fact about the polity, and
 # the crosswalk does not carry the relation.
+#
+# READ IN BOTH DIRECTIONS, because upstream fills the two sides of that relation
+# independently. `AGO-1975-2025` names `ANG-1905-1975` as its predecessor while
+# `ANG-1905-1975` names no successor, so the forward column alone calls colonial
+# Angola open, `.polity_join_end_year()` widens it into 1975 -- the year
+# `AGO-1975-2025` starts -- and FAOSTAT area 7 gets two candidates for 1975,
+# decided by row order (#683). Reading `predecessor` as well is not a second
+# authority on succession, which is what the paragraph above argues against: it
+# is the same upstream record, read symmetrically.
 .open_polity_codes <- function() {
   p <- polities
   succ <- p$successor
   open <- is.na(succ) | !nzchar(trimws(succ))
-  unique(p$polity_code[open])
+  setdiff(unique(p$polity_code[open]), .handed_over_polity_codes())
+}
+
+# Periods some other period is recorded as taking over from, AT THEIR END YEAR.
+#
+# THE YEAR TEST IS LOAD-BEARING, because `predecessor` records two different
+# relations. One is a hand-over, where the predecessor stops: `AGO-1975-2025`
+# from `ANG-1905-1975`, `BMU-1968-2025` from `BMU-1684-1968`, `REU-1946-2025`
+# from `REU-1816-1946`. The other is a partial derivation, where a piece was
+# carved out and the predecessor went on existing: `TRS-1947-1954` names
+# `ITA-1919-2025`, `SYC-1903-2025` names `MUS-1800-2025`, `SWE-1905-2025` names
+# `NOR-1800-2025`. Only the first ends the period, and requiring the successor
+# to BEGIN where the predecessor ENDS (`polity_end_year` is exclusive, #577) is
+# what separates them.
+#
+# Measured on the shipped snapshot: 8 codes are named as somebody's predecessor
+# while recording no successor of their own, and exactly 3 begin-at-end --
+# `ANG-1905-1975`, `BMU-1684-1968`, `REU-1816-1946`, all genuine hand-overs.
+# Dropping the year test closes the other 5 as well, and 5 FAOSTAT areas then
+# lose 2025 to the nearest-period fallback: the exact regression the widening
+# exists to prevent.
+#
+# The `inner_join()` below is keyed on `polity_code` with no `year`, so it is
+# registered in `.territorial_join_baseline()`. It is written as a join, and the
+# renaming spelled in `by =` rather than in an upstream `select()`, so the audit
+# in `R/join_audit.R` can see it: hiding it would be the debt that gate exists
+# to stop.
+.handed_over_polity_codes <- function(periods = polities) {
+  # Column by column rather than `as.data.frame()`: `polities` is an `sf`
+  # object, and materialising it whole to drop the geometry costs more than
+  # everything else here put together, on a helper the resolver calls once per
+  # lookup build.
+  p <- tibble::tibble(
+    polity_code = periods$polity_code,
+    start_year = periods$start_year,
+    end_year = periods$end_year,
+    predecessor = periods$predecessor
+  )
+  named <- p |>
+    dplyr::select("polity_code", "start_year", "predecessor") |>
+    dplyr::filter(!is.na(.data$predecessor), nzchar(.data$predecessor)) |>
+    tidyr::separate_longer_delim("predecessor", delim = ";") |>
+    dplyr::mutate(predecessor = stringr::str_trim(.data$predecessor)) |>
+    dplyr::filter(nzchar(.data$predecessor))
+
+  named |>
+    dplyr::inner_join(
+      dplyr::select(p, "polity_code", "end_year"),
+      by = c("predecessor" = "polity_code")
+    ) |>
+    dplyr::filter(.data$end_year == .data$start_year) |>
+    dplyr::pull("predecessor") |>
+    unique()
+}
+
+# Resolve an (ISO3 area label, data year) pair to the polity code active in that
+# year, against the polity's own span in `polity_area_crosswalk`.
+#
+# This is what `data-raw/balance_coefficients.R` stamps `urban_n_reference` with.
+# It lives here rather than in the builder because the year predicate IS the
+# package-wide `polity_end_year` convention, and that convention had four
+# independent re-implementations, three of which read the bound inclusively
+# (#550, #577). The builder's copy was the fourth and the only silent one: on a
+# boundary year it answered with the interval that had ENDED on it, so a
+# coefficient was attributed to a polity that no longer existed, with no error
+# and no warning (#565). Here it is one definition with one test.
+#
+# Deliberately NOT `add_polity_code()`: a vendored national series reports each
+# benchmark year under the borders that year actually had, while WHEP's pre-1961
+# FAOSTAT series are back-cast onto the 1961 anchor territory and need that
+# resolver's floor. Deliberately not `resolve_polity_label()` either -- that
+# answers `NA` on ambiguity, and a builder writing packaged data must stop rather
+# than ship a row whose territory it could not decide.
+.iso3_year_to_polity_code <- function(
+  iso3,
+  year,
+  crosswalk = polity_area_crosswalk,
+  open_codes = .open_polity_codes()
+) {
+  spans <- .iso3_polity_spans(crosswalk, open_codes, iso3)
+  found <- purrr::map2(
+    iso3,
+    year,
+    function(one_iso3, one_year) {
+      spans$polity_code[
+        spans$area_iso3c == one_iso3 &
+          spans$from_year <= one_year &
+          spans$to_year > one_year
+      ]
+    }
+  )
+  .abort_polity_year_misses(found, paste(iso3, year))
+  unlist(found, use.names = FALSE)
+}
+
+# The candidate periods of the named ISO3 areas, with the half-open year bounds
+# the containment test above uses.
+.iso3_polity_spans <- function(crosswalk, open_codes, iso3) {
+  crosswalk |>
+    dplyr::filter(.data$area_iso3c %in% iso3, !is.na(.data$polity_code)) |>
+    dplyr::distinct(
+      .data$area_iso3c,
+      .data$polity_code,
+      .data$polity_start_year,
+      .data$polity_end_year
+    ) |>
+    dplyr::mutate(
+      # A missing start bound is unbounded below. The upper bound is EXCLUSIVE at
+      # a succession and INCLUSIVE at an open end, which is exactly what
+      # `.polity_join_end_year()` encodes for the main resolver; no `map_year_end`
+      # is passed because this series is keyed to its real historical borders,
+      # not to a FAOSTAT reporting area's declared years.
+      from_year = dplyr::coalesce(as.numeric(.data$polity_start_year), -Inf),
+      to_year = .polity_join_end_year(
+        .data$polity_end_year,
+        NA_integer_,
+        .data$polity_code %in% open_codes
+      )
+    )
+}
+
+# A build error, not a fallback: a re-dated or split territory has to be looked
+# at rather than resolved by whichever candidate sorted first.
+.abort_polity_year_misses <- function(found, labels) {
+  unresolved <- labels[lengths(found) == 0]
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Cannot resolve an ISO3 area label and year to a polity code.",
+      "x" = "No polity active in polity_area_crosswalk: {.val {unresolved}}."
+    ))
+  }
+  ambiguous <- labels[lengths(found) > 1]
+  if (length(ambiguous) > 0) {
+    cli::cli_abort(c(
+      "An ISO3 area label and year map to more than one polity.",
+      "x" = "Ambiguous: {.val {ambiguous}}.",
+      "i" = "Label the source rows with the polity they cover."
+    ))
+  }
+  invisible(NULL)
+}
+
+# Which stand-in a row gets when NO mapped period covers its (anchored) year.
+#
+# `"forward"` (default) prefers a period that has NOT STARTED yet over one that
+# has already ENDED; `"nearest"` is the pre-#705 behaviour, pure year distance.
+# Both then break ties on distance and on the earlier start.
+#
+# Distance alone splits one reporting area's series between two entities at the
+# year the arithmetic happens to flip, with nothing in the data marking the
+# break. FAOSTAT area 178 Eritrea resolved 1850-1972 to `ERI-1889-1952`, the
+# Italian colonial administration, and 1973-1992 to `ERI-1993-2025` -- 1973 is
+# simply where 1993 gets nearer than 1952. Area 273 Montenegro split at 1961
+# between `MNE-1913-1918` and `MNE-2006-2025`, and that one turned on a SINGLE
+# year: 1961 - 1918 + 1 = 44 against 2006 - 1961 = 45.
+#
+# Preferring the not-yet-started period keeps each area on one entity and keeps
+# the back-cast anchor's own intent, which is to map pre-anchor data to the
+# 1961 territory "instead of a larger historical-extent period". When no period
+# covers 1961 the nearest one behind it is exactly such a historical-extent
+# period. It also makes the two areas consistent with the other 22 that have no
+# period at the anchor -- the post-Soviet and post-Yugoslav areas, whose only
+# period starts in 1991/1992 and which therefore already resolve forward.
+#
+# Measured over the whole crosswalk x 1850-2025: 235 of 46,640 (area, year)
+# pairs change, all of them areas 178 and 273. See whep#705.
+.polity_stand_in_mode <- function() {
+  valid <- c("forward", "nearest")
+  mode <- getOption("whep.polity_stand_in", "forward")
+  if (!rlang::is_string(mode) || !mode %in% valid) {
+    cli::cli_abort(c(
+      "{.code options(whep.polity_stand_in)} must be one of {.val {valid}}.",
+      "x" = "It is {.val {mode}}."
+    ))
+  }
+  mode
+}
+
+.order_stand_in_matches <- function(matches, rowid_col) {
+  keys <- if (identical(.polity_stand_in_mode(), "forward")) {
+    c(rowid_col, "stand_in_ended", "year_distance", "join_start_year")
+  } else {
+    c(rowid_col, "year_distance", "join_start_year")
+  }
+  data.table::setorderv(
+    matches,
+    keys,
+    order = rep(1L, length(keys)),
+    na.last = TRUE
+  )
 }
 
 .add_polity_columns_dt <- function(
@@ -314,12 +512,10 @@
             default = 0
           )
         ]
-        data.table::setorderv(
-          fallback_matches,
-          c("..whep_polity_rowid", "year_distance", "join_start_year"),
-          order = c(1L, 1L, 1L),
-          na.last = TRUE
-        )
+        fallback_matches[,
+          "stand_in_ended" := as.integer(!(year < join_start_year))
+        ]
+        .order_stand_in_matches(fallback_matches, rowid_col)
         fallback_matches <- unique(
           fallback_matches,
           by = "..whep_polity_rowid"
@@ -376,12 +572,27 @@
 #' present, the mapping is year-aware; otherwise the current/default mapping
 #' is used.
 #'
-#' When no mapped period covers a row's year, the nearest period of the same
-#' area is used as a stand-in and `mapping_status` reports `"out_of_span"`
-#' rather than the crosswalk's `"matched"`/`"manual"`. Such a row is attributed
-#' to a polity that did not exist in that year, so treat it as a coverage gap:
+#' When no mapped period covers a row's year, another period of the same area
+#' is used as a stand-in and `mapping_status` reports `"out_of_span"` rather
+#' than the crosswalk's `"matched"`/`"manual"`. Such a row is attributed to a
+#' polity that did not exist in that year, so treat it as a coverage gap:
 #' either the area needs the missing period added to the crosswalk, or the
 #' reporting area outlived (or predates) every polity mapped to it.
+#'
+#' @section Which stand-in is picked:
+#' A period that has **not started yet** is preferred over one that has
+#' already **ended**, and only then is the nearest in years taken. Ranking by
+#' distance alone split one reporting area's series between two entities at
+#' whichever year the arithmetic flipped: FAOSTAT area 178 Eritrea read
+#' `ERI-1889-1952` (the Italian colonial administration) up to 1972 and
+#' `ERI-1993-2025` from 1973, and area 273 Montenegro split at 1961 between
+#' `MNE-1913-1918` and `MNE-2006-2025` on a one-year margin. Preferring the
+#' not-yet-started period keeps each area on one entity and agrees with the
+#' back-cast anchor, whose purpose is to avoid resolving back-cast rows onto a
+#' larger historical-extent period. Set
+#' `options(whep.polity_stand_in = "nearest")` to restore ranking by distance
+#' alone; it changes 235 of the crosswalk's 46,640 `(area, year)` pairs over
+#' 1850-2025, all of them areas 178 and 273 (whep#705).
 #'
 #' @param table A data frame.
 #' @param code_column Name of the column containing numeric area codes.
@@ -470,10 +681,8 @@ add_polity_code <- function(
 #' `gap_kind` is not derivable from the returned columns, which is why it is
 #' returned rather than left to the caller. The comparison is against the year
 #' the resolver actually matched on, which the back-cast anchor floors at
-#' `backcast_anchor`: an 1850 row for FAOSTAT area 273 Montenegro is matched as
-#' 1961 and lands on `MNE-1913-1918`, so it is `"polity_ended"`, while
-#' `year < polity_start_year` on the same row would call it
-#' `"polity_not_started"`.
+#' `backcast_anchor`, so a pre-anchor row is classified as the anchor year it
+#' was resolved as rather than as the year it carries.
 #'
 #' The resolution here is the same one the builds use, including the back-cast
 #' anchor, so it reports what the table actually got rather than a second
@@ -567,11 +776,14 @@ polity_coverage_gaps <- function(
 #
 # The comparison is against the year the resolver matched on, not the row's
 # year: `.add_polity_columns_dt()` floors the lookup year at `backcast_anchor`,
-# so a pre-anchor row is matched as the anchor year and can land on a polity
-# that had already ENDED by then (FAOSTAT area 273 Montenegro back-casts onto
-# `MNE-1913-1918`). Comparing the raw year would call every such row
-# `"polity_not_started"` -- 165 rows of a real `get_primary_production()`,
-# areas 178 and 273.
+# so a pre-anchor row is matched as the anchor year and could land on a polity
+# that had already ENDED by then, which comparing the raw year would call
+# `"polity_not_started"`. The two answers used to differ for 165 rows of a real
+# `get_primary_production()`, areas 178 and 273; whep#705 made the stand-in
+# prefer a not-yet-started period, so on the shipped snapshot they now agree
+# for every (area, year) pair of the crosswalk. Keep the matched year anyway --
+# it is what the resolver decided on, and a future crosswalk with an area whose
+# only periods all lie behind the anchor brings the divergence back.
 #
 # A polity with no published start year cannot be one this row precedes, so it
 # is reported as ended: `mapping_status == "out_of_span"` already established
@@ -1132,8 +1344,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # resolver reads it through `.polity_join_end_year()`, which widens an OPEN
 # period by one year (exclusive at a succession, inclusive at an open end,
 # #577) and to the inclusive `map_year_end` where the upstream map declares a
-# reported year past the territorial span. 264 of the shipped crosswalk's
-# area-polity rows are widened that way today.
+# reported year past the territorial span. 263 of the shipped crosswalk's
+# area-polity rows are widened that way today -- 264 before #683 closed
+# `ANG-1905-1975`, whose successor upstream records only in the inverse
+# direction.
 #
 # So the declared-period check can be clean while the resolution is still
 # ambiguous: give an area an open period ending 2025 and a successor starting

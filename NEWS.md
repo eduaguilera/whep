@@ -1,5 +1,121 @@
 # whep (development version)
 
+* **Six more gridded builds now say when a cell-year names a polity that did
+  not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained
+  `polity_validity = c("keep", "flag", "drop")` in whep#462; every other
+  consumer of the same year-less `data$cell_polity` grid had the same defect
+  silently. `build_n_deposition()`, `build_urban_n()`,
+  `build_ag_land_support()`, `aggregate_grass_to_polity()`,
+  `spatialize_country_n_to_crops()` and `build_carbon_balance()` now take the
+  same argument, with the same three values, the same `"keep"` default and the
+  same warning, routed through one shared helper so the eight entry points
+  cannot drift apart. The HWSD clay/pH readers (`read_soil_ph()`,
+  `read_soil_hydraulic()`) are documented as exempt: they use the crosswalk as
+  a spatial extent and their output has neither `year` nor `area_code`.
+  **No published value changes on the default path** — `"keep"` reproduces
+  today's rows and numbers and only adds a warning, and `"flag"` adds one
+  logical column. `"drop"` does move values and is opt-in: measured on the real
+  58,795-cell country grid, it removes 3,181 of 30,438 `(area_code, year)` keys
+  over 1850-2020 (22 of 178 area codes, 21.4% of cell-years), and 34 of 3,738
+  keys over 2000-2020 alone.
+* **An ISO3 code naming two FAOSTAT areas no longer resolves by row order, so
+  Ethiopian ISO3-keyed input stops being stamped with a country that dissolved
+  in 1993.** FAOSTAT keeps a pre-split entity beside its successor, so `ETH`
+  names both 62 ("Ethiopia PDR") and 238 ("Ethiopia"), and `SDN` names both 206
+  and 276. `.iso3_to_fao_area_code()` broke that tie with
+  `unique(bridge, by = "iso3c")` — row order, which kept the lowest code, i.e.
+  the dissolved 62 for `ETH`, in every year. The tie is now broken on the
+  polities database instead: the area code that IS its polity's
+  `polity_area_code` wins, which picks 238 for `ETH` and leaves `SDN` at 206;
+  an ISO3 still ambiguous after that rule aborts rather than being guessed.
+  Exactly one of the 263 ISO3 codes changes. **No published values move**: both
+  live callers reduce to `polity_code`, which is the same either way, and the
+  population totals the historical CBS proxy fill sees are byte-identical.
+
+* **`gleam_geographic_hierarchy` now carries the polity of each country it
+  lists.** The table is GLEAM's own registry of the countries that exist today
+  — it has a row for South Sudan and none for any dissolved entity — but it
+  carried no polity column at all, so every consumer resolved one ad hoc and
+  joined on the bare `iso3`. That join has no year, and 38 of the 204 `iso3`
+  values name a *different* polity at 1961 than at 2010, so which one an
+  unyeared join picked was decided by nothing. The new
+  `reporting_polity_code` / `reporting_polity_name` columns hold the polity the
+  present day resolves each `iso3` to, and
+  `polity_identity_conventions()` moves the table from `"recommended"` to
+  `"carried"`. 201 of the 204 resolve, every one of them to a period that
+  reaches the snapshot's open end with nothing succeeding it. Three keep `NA`
+  and stay visible: `ATF`, `SGS` and `WLF` are territories whep-polities has no
+  polity for at all (upstream whep-polities#187). **No published value
+  changes** — the seven existing columns are byte-identical and no consumer
+  reads the new ones yet; switching a consumer's join from `iso3` to the polity
+  would move values and is deliberately not done here.
+* **`regions_full` and `polities_cats` no longer carry a column named
+  `polity_code` that is not a polity code.** Both shipped a legacy ISO3-like
+  stem (`"AFG"`, `"ROW"`, `"RAFR"`) under that name, of which 0 of 271 non-`NA`
+  values was a `polities$polity_code`, so a join from either table to `polities`
+  or `polity_area_crosswalk` on the one column whose name promised identity came
+  back completely empty and nothing warned. The column is now
+  `legacy_polity_prefix`, which claims nothing; the real carrier remains
+  `reporting_polity_code` (259/259 and 198/198 non-`NA`, all real). **This is a
+  breaking schema change for any caller reading `regions_full$polity_code` or
+  `polities_cats$polity_code`** — rename the read, and if the intent was a
+  polity, switch to `reporting_polity_code`. **No published value changes**: the
+  two rebuilt tables are `identical()` to their predecessors once the column is
+  renamed back, and the one join in `R/` that used the old name
+  (`.read_fodder_euadb()`'s EU AgriDB bridge, which was really an ISO3 join
+  wearing a polity name) resolves the same 28 ADB regions to the same area
+  codes.
+* **The last site reading `polity_end_year` as inclusive has been removed.**
+  `data-raw/balance_coefficients.R` stamped `urban_n_reference` with a polity
+  code through its own copy of the year resolver, and that copy matched
+  `polity_end_year >= year` while the column is exclusive at a succession
+  everywhere else. Over the shipped crosswalk the two readings disagree on 313
+  `(ISO3, year)` pairs; 299 of those abort with two candidates, and 14 resolved
+  silently to the interval that had *ended* on that year, booking a coefficient
+  to a polity that no longer existed. The resolver now lives in `R/polities.R`
+  as `.iso3_year_to_polity_code()`, takes its upper bound from
+  `.polity_join_end_year()` like every other call site (exclusive at a
+  succession, inclusive at an open end), and aborts rather than answer with a
+  dissolved polity. **No published value changes**: the one dataset the builder
+  stamps is Spain over 1860–2022, covered by the single interval
+  `ESP-1800-2025` on either reading, and all 23 tables the builder writes come
+  back `identical()` to the committed ones.
+* **Upstream's succession relation is now read in both directions, so a period
+  whose successor is only recorded on the successor's side is no longer widened
+  into that successor's first year.** `.polity_join_end_year()` extends an OPEN
+  period by one year, and "open" was read from `polities$successor` alone.
+  `AGO-1975-2025` names `ANG-1905-1975` as its predecessor while colonial
+  Angola names no successor, so ANG was widened into 1975 and FAOSTAT area 7
+  had two resolution candidates for that year, separated only by the
+  `polity_start_year DESC` tie-break. A period another period both names as its
+  predecessor and begins exactly at the end of now counts as succeeded; the
+  begin-at-end test is what distinguishes a hand-over from a partial carve-out
+  such as `TRS-1947-1954` out of `ITA-1919-2025`, whose predecessor goes on
+  existing. **No published value changes**: measured over every
+  `(area_code, year)` pair of the crosswalk for 1961–2025 and for 1850–2025,
+  0 pairs change `polity_code` and 0 change `mapping_status`; the joined-span
+  conflict count goes from 1 to 0.
+* **A row with no mapped period now stands in on a polity that has not started
+  yet rather than on one that had already ended.** When `add_polity_code()`
+  finds no period covering a row's (anchored) year it falls back to another
+  period of the same reporting area; that fallback ranked candidates purely by
+  distance in years, which split a single reporting area's series between two
+  entities at whatever year the arithmetic flipped. FAOSTAT area 178 Eritrea
+  read `ERI-1889-1952`, the Italian colonial administration, for 1850-1972 and
+  `ERI-1993-2025` from 1973; area 273 Montenegro split at 1961 between
+  `MNE-1913-1918` and `MNE-2006-2025`, on a margin of one year (44 against
+  45). A not-yet-started period is now preferred over an ended one, so each of
+  those areas resolves to one entity across 1850-2023, which is also what the
+  other 22 areas with no period at the back-cast anchor — the post-Soviet and
+  post-Yugoslav ones — already did. **No published quantity changes**; 235 of
+  the crosswalk's 46,640 `(area, year)` pairs over 1850-2025 change which
+  polity they name, all of them areas 178 and 273. On a real full-range
+  `get_primary_production()` (6,310,390
+  rows) the out-of-span set is unchanged at 2,301 pairs / 7,247 rows, and 347
+  of those rows move from `polity_coverage_gaps()`'s `"polity_ended"` class to
+  `"polity_not_started"`, WHEP's documented back-cast convention, leaving
+  `"polity_ended"` as FAOSTAT area 206 alone. `options(whep.polity_stand_in =
+  "nearest")` restores ranking by distance alone.
 * **The pre-1962 CBS proxy fill no longer reads a territory's identity out of
   its label.** `.fill_with_proxies()` recovered the frame's polity by matching
   its `(area_code, area)` pair — the bucket AND the LABEL — against the
