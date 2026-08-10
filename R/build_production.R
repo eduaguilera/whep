@@ -1138,7 +1138,24 @@ build_primary_production <- function(
   animals <- whep::animals_codes
   liv_lu <- whep::liv_lu_coefs
 
-  fao_stocks <- .read_livestock_stocks(years = years)
+  # Read the stock series over its full span, not the caller's window, for the
+  # same reason as `.compute_stock_shares()`: `.combine_livestock()` completes
+  # the year axis against the (area, item) combinations the read produced, so a
+  # combination absent from the window is absent from the completion too. Those
+  # completed rows are what give a livestock-product row its `unit` downstream in
+  # `.calculate_raw_yields()`, and without a unit the row is dropped. Measured at
+  # 2010, Italy, Kazakhstan and Latvia have no duck stock row of their own that
+  # year, so a scoped read never formed the combination at all.
+  #
+  # This is a partial improvement, not a fix for #666. It does now form the
+  # combination -- the rows appear -- but a scoped build still derives `LU` as NA
+  # where a full build derives 0, so the duck-product rows are still lost at 2010
+  # and 1995 and only half recovered at 2015. `LU` = heads * LU_head via a join
+  # on `Animal_class`, which the completion's `nesting()` does not carry; why the
+  # full build nonetheless lands on 0 is the open question. See #666.
+  #
+  # Trimmed back below, so only the read widens: full-range output is unchanged.
+  fao_stocks <- .read_livestock_stocks(years = NULL)
 
   fao_liv_raw <- .combine_livestock(
     fao_combined,
@@ -1146,7 +1163,8 @@ build_primary_production <- function(
     animals
   )
 
-  .finalise_livestock(fao_liv_raw, animals, liv_lu)
+  .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
+    .filter_years(years)
 }
 
 .read_livestock_stocks <- function(years = NULL) {
