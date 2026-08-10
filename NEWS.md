@@ -1,5 +1,15 @@
 # whep (development version)
 
+* **`read_soil_hydraulic()` no longer holds three full-resolution HWSD rasters
+  at once.** It classifies the 30-arcsec HWSD grid once per hydraulic property
+  (`t_field`, `t_wilt`, `porosity`), each costing ~11 GB of transient raster for
+  a 3 MB result. That memory is reclaimable, but nothing triggered the collector
+  between passes, so they accumulated (11.4 -> 22.1 -> 32.8 GB). Reclaiming
+  between passes takes the reader's peak from 38.2 GB to 16.8 GB, with output
+  `identical()` and no time cost (64 s vs 68 s). This is a fixed cost on every
+  `build_carbon_balance()` and `get_soc_climate_drivers()` call, independent of
+  how many years are requested (#624).
+
 * **Six more gridded builds now say when a cell-year names a polity that did
   not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained
   `polity_validity = c("keep", "flag", "drop")` in whep#462; every other
