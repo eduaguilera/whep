@@ -73,8 +73,9 @@ testthat::test_that("green water sums crop rainfed and grazing per hectare", {
       primary_prod = .water_primary_prod(),
       crop_water = .water_crop_coef(),
       grazing_water = tibble::tribble(
-        ~area_code, ~m3_per_ha,
-        2L, 1500
+        ~year, ~area_code, ~m3_per_ha,
+        2000L, 2L, 1500,
+        2001L, 2L, 9999
       )
     )
   )
@@ -130,4 +131,33 @@ testthat::test_that("water is summed onto the polity, not the legacy area", {
   # 100 t x 1000 m3/t + 400 t x 10 m3/t = 104,000 m3. A mean intensity would
   # have given 505 m3/t x 500 t = 252,500 m3 instead.
   testthat::expect_equal(result$impact_u, 104000, tolerance = 1e-8)
+})
+
+testthat::test_that("grazing water uses the coefficient of the row's own year", {
+  # The 2001 coefficient is deliberately far from 2000's: if the join ignored
+  # the year, 2000 pasture would pick up the wrong one (or duplicate rows).
+  prod <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_prod_code, ~item_cbs_code,
+    ~unit, ~value,
+    2000L, 2L, 2L, NA_integer_, 3000L, "ha", 1000,
+    2001L, 2L, 2L, NA_integer_, 3000L, "ha", 1000
+  )
+  coef <- tibble::tribble(
+    ~year, ~area_code, ~m3_per_ha,
+    2000L, 2L, 1500,
+    2001L, 2L, 4000
+  )
+
+  result <- whep::build_water_extension(
+    component = "green",
+    data = list(
+      primary_prod = prod,
+      crop_water = .water_crop_coef(),
+      grazing_water = coef
+    )
+  ) |>
+    dplyr::arrange(year)
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_equal(result$impact_u, c(1.5e6, 4.0e6))
 })

@@ -93,85 +93,93 @@ water_livestock_blue <- livestock_src |>
 # upload_csv(<written water_livestock_blue>, "water-livestock-blue") via ~/whep_inputs
 
 # 3. Grazing green water (water-grazing-green) ---------------------------------
-# Country-average green evapotranspiration of managed grassland (m3 ha^-1),
+# Green evapotranspiration of managed grassland (m3 ha^-1) PER COUNTRY AND YEAR,
 # derived from the WHEP LPJmL production run. Source variable:
-# cft_consump_water_g, band "rainfed grassland" (mm/yr), averaged over
-# 2000-2009; mm/yr x 10 = m3/ha. The country value is the grassland-area-
-# weighted mean (weight = CFTfrac of the same band x cell area), with cells
-# mapped to FAO area_code via country_grid.parquet. Methodological reference:
-# Schyns et al. (2019), <https://doi.org/10.1073/pnas.1817380116>.
+# cft_consump_water_g, band "rainfed grassland" (mm/yr); mm/yr x 10 = m3/ha. The
+# country value is the grassland-area-weighted mean (weight = CFTfrac of the
+# same band x cell area), with cells mapped to FAO area_code via
+# country_grid.parquet. Methodological reference: Schyns et al. (2019),
+# <https://doi.org/10.1073/pnas.1817380116>.
 #
-# The band is selected by NAME, never by index: which crop a given index
-# denotes is a property of how the run was configured, so a positional filter
-# would silently charge the wrong crop in a differently configured run. The run
-# directory comes from WHEP_LPJML_RUN_DIR (never hardcoded), and the annual
-# per-CFT time axis is decoded by read_lpjml_hydrology() rather than by hand.
+# ANNUAL, not a climatological mean. An earlier vintage averaged 2000-2009 into
+# one value per country and applied it to every year from 1850, which froze
+# grazing water at one decade's climate and grassland extent and made the
+# coefficient join year-free (the shape whep#669's audit exists to surface).
+# The underlying cube is annual, so there is no reason to throw that away.
 #
-# VINTAGE: the published pin values are derived from the 5.9.7 run
-# (global_1901-2009_spinup_200_our_inputs_grassland_livestock_npp_vegc_fix),
-# NOT from the current 6.1.1 production run, because 6.1.1's blue/green split
-# is broken: band 14 is rainfed, yet 6.1.1 reports 382 mm/yr of BLUE water on
-# it and only 134 mm/yr green, against 0 and 435 in 5.9.7. See whep#710.
-# Regenerating from 6.1.1 would drop the global total from 13,683 to 3,923
-# km3/yr -- that is the bug, not physics. Point WHEP_LPJML_RUN_DIR at a run
-# with a correct split and re-run this section to regenerate.
+# CORRECTED GREEN = green + blue. LPJmL 6.x books infiltrating rain as blue
+# (whep#710): 5.x infiltrated through infil_perc_rain() with frac_g_influx=1 and
+# infil_perc_irr() with 0, and 6.x merged them into one call with the summed
+# parcel while keeping the irrigation constant. Band "rainfed grassland" cannot
+# receive irrigation, so its blue is exactly that misassignment and belongs back
+# in green. Fixed in lbm364dl/LPJmL#3; the fix is a PURE REPARTITION -- verified
+# by rebuilding the parent commit and running both binaries on one config, where
+# total consumptive water moves by +0.0011% and pre(green+blue) equals
+# post(green) cell by cell. So green+blue from the existing run equals what a
+# rerun with the fix produces, and no rerun is needed to regenerate this pin.
 #
-# Occupation basis: this charges the FULL managed-grassland green ET, consistent
-# with the grassland land extension's "occupation" metric (whole grassland, not
-# the active-grazing sub-area). Compare the "green WF of grazing" of Schyns
-# (2,191 km3/yr), which restricts to the grazed area at the necessary livestock
-# density and is therefore several times smaller. Validation targets: total
-# grassland area ~3,253 Mha against FAO permanent pastures (~3,300 Mha), and a
-# global total inside the 8,258-12,960 km3/yr range published for total
-# grazing-land ET.
+# The band is selected by NAME, never by index: which crop a given index denotes
+# is a property of how the run was configured. The run directory comes from
+# WHEP_LPJML_RUN_DIR (never hardcoded), and the annual per-CFT time axis is
+# decoded by read_lpjml_hydrology() rather than by hand.
+#
+# Occupation basis: this charges the FULL managed-grassland ET, consistent with
+# the grassland land extension's "occupation" metric. NOTE the resulting global
+# total (15,735 km3/yr on the 6.1.1 basis, 13,683 on 5.9.7) sits ABOVE the
+# published 8,258-12,960 km3/yr range for total grazing-land ET; Schyns' "green
+# WF of grazing" (2,191 km3/yr) restricts to the grazed area at the necessary
+# livestock density and is far smaller. That gap is the occupation-basis choice,
+# not a defect, and is open for review (whep#681, whep#116).
 grass_band_name <- "rainfed grassland"
-grazing_years <- 2000:2009
-
-# One year at a time: the full per-CFT cube is 720 x 277 x 32 x 123, so reading
-# ten years of every band at once needs tens of millions of rows in memory when
-# only one band survives the filter.
-read_grass_band <- function(var, year) {
-  read_lpjml_hydrology(var, years = year) |>
-    dplyr::filter(band_name == grass_band_name) |>
-    dplyr::select(lon, lat, year, value)
-}
-read_grass_mean <- function(var) {
-  purrr::map(grazing_years, \(y) read_grass_band(var, y)) |>
-    dplyr::bind_rows() |>
-    dplyr::summarise(value = mean(value, na.rm = TRUE), .by = c(lon, lat))
-}
-
-consump <- read_grass_mean("cft_consump_water_g") |>
-  dplyr::rename(consump_mm = value)
-frac <- read_grass_mean("cftfrac") |>
-  dplyr::rename(frac = value)
-
+grazing_years <- 1901:2023
 earth_r <- 6371007.181
 d2r <- pi / 180
-cell <- consump |>
-  inner_join(frac, by = c("lon", "lat")) |>
-  filter(!is.na(consump_mm)) |>
-  mutate(
-    lon = round(lon, 2),
-    lat = round(lat, 2),
-    cell_area_ha = earth_r^2 *
-      (0.5 * d2r) *
-      (sin((lat + 0.25) * d2r) - sin((lat - 0.25) * d2r)) /
-      1e4,
-    grass_area_ha = pmax(frac, 0) * cell_area_ha,
-    m3_per_ha = consump_mm * 10
-  )
+
 # country_grid.parquet is in the gitignored WHEP LPJmL_inputs tree.
 country_grid <- nanoparquet::read_parquet(
   "~/WHEP/LPJmL_inputs/whep/inputs/country_grid.parquet"
 ) |>
   mutate(lon = round(lon, 2), lat = round(lat, 2))
-water_grazing_green <- cell |>
-  inner_join(country_grid, by = c("lon", "lat")) |>
-  filter(grass_area_ha > 0, !is.na(area_code)) |>
-  summarise(
-    m3_per_ha = round(sum(m3_per_ha * grass_area_ha) / sum(grass_area_ha), 1),
-    .by = area_code
-  ) |>
-  filter(m3_per_ha > 0)
+
+# One band of one variable for one year. Read a year at a time: the per-CFT cube
+# is 720 x 277 x 32 x 123, and only one band of it survives the filter.
+read_grass_band <- function(var, year) {
+  read_lpjml_hydrology(var, years = year) |>
+    filter(band_name == grass_band_name) |>
+    select(lon, lat, value)
+}
+
+grazing_water_year <- function(year) {
+  green <- read_grass_band("cft_consump_water_g", year) |> rename(gv = value)
+  blue <- read_grass_band("cft_consump_water_b", year) |> rename(bv = value)
+  frac <- read_grass_band("cftfrac", year) |> rename(fv = value)
+  green |>
+    inner_join(blue, by = c("lon", "lat")) |>
+    inner_join(frac, by = c("lon", "lat")) |>
+    filter(!is.na(gv), !is.na(fv)) |>
+    mutate(
+      lon = round(lon, 2),
+      lat = round(lat, 2),
+      cell_area_ha = earth_r^2 *
+        (0.5 * d2r) *
+        (sin((lat + 0.25) * d2r) - sin((lat - 0.25) * d2r)) /
+        1e4,
+      grass_area_ha = pmax(fv, 0) * cell_area_ha,
+      m3_per_ha = (gv + bv) * 10
+    ) |>
+    inner_join(country_grid, by = c("lon", "lat")) |>
+    filter(grass_area_ha > 0, !is.na(area_code)) |>
+    summarise(
+      m3_per_ha = round(
+        sum(m3_per_ha * grass_area_ha) / sum(grass_area_ha),
+        1
+      ),
+      .by = area_code
+    ) |>
+    filter(m3_per_ha > 0) |>
+    mutate(year = as.integer(year), .before = 1)
+}
+
+water_grazing_green <- purrr::map(grazing_years, grazing_water_year) |>
+  bind_rows()
 # upload_csv(<written water_grazing_green>, "water-grazing-green") via ~/whep_inputs

@@ -30,7 +30,8 @@
 #'   emphasise, hence the default.
 #' - `"green"`: rain water. **Crops** use the per-tonne green intensity
 #'   (`wfg_m3_t`) times production; **grazing** uses a per-hectare green-water
-#'   coefficient times grazed grassland area (LUH2 pasture and rangeland).
+#'   coefficient, annual by country, times grazed grassland area (LUH2 pasture
+#'   and rangeland).
 #'
 #' Crop intensities (cubic metres per tonne) are joined to whep's own crop
 #' production (the `"tonnes"` rows of [get_primary_production()]) by FAO crop
@@ -188,7 +189,7 @@ build_water_extension <- function(
       area_ha = sum(.data$value, na.rm = TRUE),
       .by = c(year, area_code, polity_area_code, item_cbs_code)
     ) |>
-    dplyr::inner_join(coef, by = "area_code") |>
+    dplyr::inner_join(coef, by = c("year", "area_code")) |>
     dplyr::transmute(
       year,
       polity_area_code,
@@ -209,10 +210,13 @@ build_water_extension <- function(
 }
 
 # Per-hectare grazing green-water coefficient (cubic metres per hectare) keyed
-# by country.
+# by country-year. The coefficient is annual rather than one climatological
+# mean, so grazing water follows the year's own climate and grassland extent
+# instead of being frozen at a single decade.
 .grazing_water_coef <- function(grazing_water) {
   grazing_water |>
     dplyr::transmute(
+      year = as.integer(.data$year),
       area_code = as.integer(.data$area_code),
       m3_per_ha = as.numeric(.data$m3_per_ha)
     ) |>

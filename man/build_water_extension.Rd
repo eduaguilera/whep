@@ -60,7 +60,8 @@ Blue water is the scarcity-relevant pressure most footprint studies
 emphasise, hence the default.
 \item \code{"green"}: rain water. \strong{Crops} use the per-tonne green intensity
 (\code{wfg_m3_t}) times production; \strong{grazing} uses a per-hectare green-water
-coefficient times grazed grassland area (LUH2 pasture and rangeland).
+coefficient, annual by country, times grazed grassland area (LUH2 pasture
+and rangeland).
 }
 
 Crop intensities (cubic metres per tonne) are joined to whep's own crop
