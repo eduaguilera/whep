@@ -3065,3 +3065,26 @@ testthat::test_that("expanding a year needs the succession key present", {
     "cell_id"
   )
 })
+
+testthat::test_that("a water layer that matches almost nothing is called out", {
+  testthat::skip_if_not_installed("sf")
+  # Off-grid by 1e-13: too small to print, enough to miss every join. Without
+  # the guard this builds "successfully" with every hectare of water booked as
+  # land.
+  support <- whep::build_polycell_support(
+    geometries = whep::polycell_example_geometries()
+  )
+  drifted <- tibble::tibble(
+    lon = unique(support$lon) + 1e-13,
+    lat = unique(support$lat)[[1L]],
+    water_frac = 0.5
+  )
+
+  testthat::expect_warning(
+    whep::build_polycell_support(
+      geometries = whep::polycell_example_geometries(),
+      water = drifted
+    ),
+    "booked as DRY"
+  )
+})

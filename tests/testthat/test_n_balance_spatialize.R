@@ -898,3 +898,82 @@ testthat::test_that("an ambiguous crosswalk names the offending area codes", {
   testthat::expect_error(.cell_polity_bucket_lookup(), "Ambiguous area code")
   testthat::expect_error(.cell_polity_bucket_lookup(), "41")
 })
+
+# ---- polity_validity (#675) -------------------------------------------
+
+# The same fixtures re-keyed onto area 277 (South Sudan, SSD-2011-2025),
+# whose polity postdates the fixture's 2010 year.
+.nbs_out_of_span_totals <- function() {
+  dplyr::mutate(.nbs_country_totals(), area_code = 277L)
+}
+
+.nbs_out_of_span_shares <- function() {
+  dplyr::mutate(.nbs_crop_shares(), area_code = 277L)
+}
+
+testthat::test_that("polity_crop resolution names an anachronistic polity", {
+  testthat::expect_warning(
+    result <- whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_out_of_span_totals(),
+      crop_shares = .nbs_out_of_span_shares(),
+      cell_polity = NULL,
+      resolution = "polity_crop"
+    ),
+    "did not exist in that row's year"
+  )
+
+  # "keep" is the default: every row and the whole 100 t survive.
+  testthat::expect_equal(sum(result$n_t), 100)
+})
+
+testthat::test_that("spatialize_country_n_to_crops honours drop and flag", {
+  testthat::expect_warning(
+    dropped <- whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_out_of_span_totals(),
+      crop_shares = .nbs_out_of_span_shares(),
+      cell_polity = NULL,
+      resolution = "polity_crop",
+      polity_validity = "drop"
+    )
+  )
+  testthat::expect_warning(
+    flagged <- whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_out_of_span_totals(),
+      crop_shares = .nbs_out_of_span_shares(),
+      cell_polity = NULL,
+      resolution = "polity_crop",
+      polity_validity = "flag"
+    )
+  )
+
+  testthat::expect_equal(nrow(dropped), 0L)
+  testthat::expect_true(all(flagged$reporting_polity_out_of_span))
+})
+
+testthat::test_that("grid resolution reports validity too", {
+  cell_polity <- dplyr::mutate(.nbs_cell_polity(), area_code = 277L)
+
+  testthat::expect_warning(
+    result <- whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_out_of_span_totals(),
+      crop_shares = .nbs_out_of_span_shares(),
+      cell_polity = cell_polity,
+      resolution = "grid",
+      data = .nbs_grid_data()
+    ),
+    "did not exist in that row's year"
+  )
+
+  testthat::expect_equal(sum(result$n_t), 100)
+})
+
+testthat::test_that("an in-span key reports nothing", {
+  testthat::expect_no_warning(
+    whep::spatialize_country_n_to_crops(
+      country_totals = .nbs_country_totals(),
+      crop_shares = .nbs_crop_shares(),
+      cell_polity = NULL,
+      resolution = "polity_crop"
+    )
+  )
+})

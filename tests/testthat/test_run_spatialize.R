@@ -268,9 +268,11 @@ testthat::test_that(".load_landuse_inputs reads pinned inputs when input_dir is 
     whep_read_file = function(file_alias, ...) pins[[file_alias]],
     .package = "whep"
   )
+  # `country_grid` is named explicitly: the default is the polycell support,
+  # which is a pin, and what this test exercises is the OTHER pins' wiring.
   inputs <- getFromNamespace(".load_landuse_inputs", "whep")(
     NULL,
-    list(use_type_constraint = TRUE)
+    list(use_type_constraint = TRUE, country_grid = "centroid")
   )
   testthat::expect_equal(inputs$input_dir, NULL)
   testthat::expect_equal(inputs$country_grid$area_code, 1L)
@@ -336,6 +338,11 @@ testthat::test_that("run_spatialize(components = 'livestock') writes only livest
     preset = "whep",
     years = 2000L,
     components = "livestock",
+    # The fixture is a centroid grid, and the default crosswalk is now the
+    # polycell support pin. What this test asserts is which OUTPUTS a
+    # components selection writes, so it pins the crosswalk rather than
+    # depending on one being published.
+    overrides = list(country_grid = "centroid"),
     paths = list(
       input_dir = tmp_in,
       out_dir = tmp_out,
@@ -447,13 +454,51 @@ testthat::test_that("the legacy runner calls the engine with its real signature"
   )
 }
 
-testthat::test_that("the default crosswalk is the centroid grid", {
+testthat::test_that("the default crosswalk is the polycell support", {
+  # The default moved off the centroid grid with the polycell epic: a grid
+  # carrying no polity share is refused outright now, so defaulting to one
+  # would make an unparameterised run abort. Asserted through the resolver
+  # rather than by reading the support, which is a pin this test must not need.
   tmp <- withr::local_tempdir()
   .write_livestock_fixture(tmp)
   .write_fraction_grid(tmp)
   fn <- getFromNamespace(".load_country_grid", "whep")
 
+  testthat::expect_equal(
+    formals(fn)$source,
+    NULL
+  )
+  # `NULL` must resolve to "polycell", which reads the SUPPORT rather than the
+  # centroid parquet sitting in `tmp`. Asserted by standing a marker in front
+  # of the support reader: an assertion that merely expected an error when the
+  # pin was unpublished stopped testing anything the moment it was published.
+  testthat::local_mocked_bindings(
+    .carbon_cell_support = function(...) {
+      tibble::tibble(
+        lon = 0.25,
+        lat = 50.25,
+        area_code = 999L,
+        cell_area_ha = 1,
+        land_area_ha = 1,
+        cell_area_frac = 1
+      )
+    },
+    .package = "whep"
+  )
+
   grid <- fn(tmp, NULL)
+
+  testthat::expect_setequal(grid$area_code, 999L)
+  testthat::expect_true(rlang::has_name(grid, "cell_area_frac"))
+})
+
+testthat::test_that("country_grid = 'centroid' still loads the centroid grid", {
+  tmp <- withr::local_tempdir()
+  .write_livestock_fixture(tmp)
+  .write_fraction_grid(tmp)
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  grid <- fn(tmp, "centroid")
 
   testthat::expect_false(rlang::has_name(grid, "polity_frac"))
   testthat::expect_setequal(grid$area_code, 1L)
@@ -475,7 +520,10 @@ testthat::test_that("country_grid = 'fraction' loads the fractional crosswalk", 
 testthat::test_that("an unknown country_grid source is rejected", {
   fn <- getFromNamespace(".load_country_grid", "whep")
 
-  testthat::expect_error(fn(NULL, "polycell"), class = "rlang_error")
+  # `"polycell"` used to be the unknown value here; it is now one of the three
+  # accepted sources and the default, so the check needs a name that is still
+  # genuinely unknown or it passes vacuously.
+  testthat::expect_error(fn(NULL, "not_a_crosswalk"), class = "rlang_error")
 })
 
 testthat::test_that("a fractional run does not silently read another dir", {

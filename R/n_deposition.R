@@ -93,6 +93,7 @@ read_n_deposition <- function(
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the inputs cover.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs: `nhx` and `noy`
 #'   (each `lon`, `lat`, `year`, `value_g`, falling back to
 #'   [read_n_deposition()] when absent) and `cell_polity` (`lon`, `lat`,
@@ -114,7 +115,8 @@ read_n_deposition <- function(
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `area_category`,
 #'   `deposition_kgn_ha`, `deposition_n_t`, `method_deposition`,
 #'   `method_polity_split` and `method_area_split`, plus the polity columns
-#'   below.
+#'   below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
 #'
 #'   `area_category` is `"land"`, `"inland_water"` or `"ice"` under
 #'   `"land_water_ice"`, and `"territory"` under `"none"`. Summing
@@ -169,10 +171,15 @@ build_n_deposition <- function(
   data = list(),
   split = c("auto", "polity_area_ha", "polity_frac"),
   categories = c("auto", "land_water_ice", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_n_deposition())
+    return(.resolve_polity_validity(
+      .example_n_deposition(),
+      polity_validity
+    ))
   }
   split <- rlang::arg_match(split)
   categories <- rlang::arg_match(categories)
@@ -180,12 +187,17 @@ build_n_deposition <- function(
   noy <- data$noy %||% read_n_deposition("noy", years = years)
   nhx <- .nd_filter_years(nhx, years)
   noy <- .nd_filter_years(noy, years)
-  polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code")
+  polity <- .wb_require_input(
+    data$cell_polity,
+    "cell_polity",
+    c("area_code", "cell_area_ha")
+  )
   key <- .nd_resolve_split(polity, split)
   categories <- .nd_resolve_categories(polity, categories)
   share <- .nd_category_shares(.nd_polity_share(polity, key), categories)
   .nd_assemble(nhx, noy, share, key, categories) |>
-    .add_reporting_polity_columns()
+    .add_reporting_polity_columns() |>
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------

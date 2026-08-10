@@ -20,6 +20,15 @@
 #' transfer, and derive the soil-organic-nitrogen change from the carbon rate
 #' via asymmetric soil carbon-to-nitrogen ratios.
 #'
+#' @details
+#' \code{polity_validity} governs this function's own output. The internal
+#' \code{\link{get_soc_climate_drivers}} read it falls back on always keeps its
+#' rows: the march needs a climate modifier for every cell-year it steps
+#' through, so dropping driver rows for an anachronistic polity label would
+#' break the trajectory rather than relabel it. The driver read therefore warns
+#' on its own key space (whep#462) while this argument decides the fate of the
+#' balance rows.
+#'
 #' @param model Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
 #'   \code{"icbm"}, \code{"amg"} or \code{"century"}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
@@ -31,6 +40,7 @@
 #'   (\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
 #'   \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
 #'   \code{data}.
+#' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
@@ -67,7 +77,9 @@
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 #'   \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-#'   \code{area_ha} and \code{method_soc}, plus the polity columns below.
+#'   \code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+#'   \code{reporting_polity_out_of_span} when
+#'   \code{polity_validity = "flag"}.
 #' @inheritSection whep_polity_columns Polity columns
 #' @source Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
 #'   \doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
@@ -78,12 +90,17 @@
 build_carbon_balance <- function(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_carbon_balance())
+    return(.resolve_polity_validity(
+      .example_carbon_balance(),
+      polity_validity
+    ))
   }
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
@@ -108,7 +125,7 @@ build_carbon_balance <- function(
     .cb_derive_son() |>
     dplyr::mutate(method_soc = model) |>
     .cb_finalise(resolution) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # -- Input resolution ---------------------------------------------------------
@@ -237,6 +254,40 @@ build_carbon_balance <- function(
       dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
     ))
   }
+  # One year at a time. Each cell-year's modifier is reduced from its own twelve
+  # monthly rows, so nothing crosses years -- but attaching soil cover crosses
+  # the MONTHLY table with every land-use class, which measures 0.452 GB per
+  # simulated year against 0.097 GB for the drivers themselves. Held for the
+  # whole span that intermediate is ~55 GB at 1901-2022, and it is what took the
+  # full-span build to a 95.5 GB peak before it could reach the march (#624).
+  groups <- .cb_year_row_groups(climate)
+  parts <- lapply(groups, function(rows) {
+    .cb_chunk_modifier(
+      climate[rows, , drop = FALSE],
+      clay,
+      model,
+      keys,
+      land_use_classes
+    )
+  })
+  dplyr::bind_rows(parts)
+}
+
+# Row indices of each year, as ONE pass over the year column. Filtering the
+# table per year instead (climate[climate$year == yr, ]) rescans every row once
+# per year, which cost 12% of the build at a five-year span and would scale with
+# the square of the span. Returning indices rather than frames also keeps the
+# chunks lazy, so only one year is materialised at a time instead of a second
+# copy of the whole table. A table with no year column is one group.
+.cb_year_row_groups <- function(climate) {
+  if (!rlang::has_name(climate, "year") || nrow(climate) == 0L) {
+    return(list(seq_len(nrow(climate))))
+  }
+  split(seq_len(nrow(climate)), climate$year)
+}
+
+# The modifier for one chunk of the monthly climate table.
+.cb_chunk_modifier <- function(climate, clay, model, keys, land_use_classes) {
   prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
@@ -1540,6 +1591,10 @@ build_carbon_balance <- function(
 # (cropped to `cell_polity`) via the shared HWSD aggregation helper. Reuses the
 # HWSD attribute/raster path read_soil_hydraulic() uses so the clay driver is
 # consistent with the hydraulic drivers.
+#
+# EXEMPT from the `polity_validity` year-check (whep#675), for the reason given
+# in R/soil_ph.R: `cell_polity` is a spatial extent here, the output has no
+# `year` and no `area_code`, so no row can name a polity that did not exist.
 .cb_hwsd_clay <- function(cell_polity) {
   rlang::check_installed("terra")
   hwsd_dir <- .resolve_hwsd_dir(NULL)

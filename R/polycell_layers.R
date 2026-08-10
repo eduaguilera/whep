@@ -141,6 +141,20 @@ glwd_water_fraction <- function(glwd_dir, cells = NULL) {
   ))
 }
 
+# Snap a raster-derived coordinate onto WHEP's canonical half-degree centre,
+# `k * 0.5 + 0.25`, which is how `.pcs_cells_sf()` forms it.
+#
+# `terra::xyFromCell()` accumulates float error walking out from the raster
+# origin, so a centre it reports as -130.25 is -130.24999999999994. That prints
+# identically and compares FALSE, and the water layer joins to the polycells on
+# `c("lon", "lat")` -- so without this the join matched 36 of 720 longitudes,
+# `inland_water_ha` came out 0.00 Mha worldwide, and every hectare of inland
+# water was silently booked as land. Nothing errored: a missing water row is
+# legitimately "this cell is dry".
+.glwd_snap <- function(x) {
+  floor(x / 0.5) * 0.5 + 0.25
+}
+
 .glwd_water_classes <- function(version) {
   if (version == "v2") {
     return(c(lake = 1L, lake = 2L, lake = 3L, river = 7L))
@@ -199,12 +213,15 @@ glwd_water_fraction <- function(glwd_dir, cells = NULL) {
     xy <- terra::xyFromCell(frac, seq_len(terra::ncell(frac)))
     values <- terra::values(frac)[, 1L]
     return(tibble::tibble(
-      lon = xy[, 1L],
-      lat = xy[, 2L],
+      lon = .glwd_snap(xy[, 1L]),
+      lat = .glwd_snap(xy[, 2L]),
       water_frac = pmin(1, pmax(0, dplyr::coalesce(values, 0)))
     ))
   }
   .pcs_require_cols(cells, c("lon", "lat"), "cells")
+  # A caller's own coordinates are returned unchanged: they are the key the
+  # caller will join on, and snapping them would be this function deciding
+  # what grid the caller is using.
   values <- terra::values(frac)[
     terra::cellFromXY(frac, as.matrix(cells[, c("lon", "lat")])),
     1L

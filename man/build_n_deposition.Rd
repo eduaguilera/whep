@@ -9,6 +9,7 @@ build_n_deposition(
   data = list(),
   split = c("auto", "polity_area_ha", "polity_frac"),
   categories = c("auto", "land_water_ice", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   example = FALSE
 )
 }
@@ -35,6 +36,17 @@ it lands on: \code{"auto"} (default) decomposes when the support carries
 and aborts when they are absent, \code{"none"} keeps one undecomposed row per
 polycell. The resolved choice is recorded in \code{method_area_split}.}
 
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
@@ -42,7 +54,8 @@ Defaults to \code{FALSE}.}
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{area_category},
 \code{deposition_kgn_ha}, \code{deposition_n_t}, \code{method_deposition},
 \code{method_polity_split} and \code{method_area_split}, plus the polity columns
-below.
+below, plus \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 
 \code{area_category} is \code{"land"}, \code{"inland_water"} or \code{"ice"} under
 \code{"land_water_ice"}, and \code{"territory"} under \code{"none"}. Summing

@@ -1282,15 +1282,34 @@ build_processing_coefs <- function(
   )
 }
 
+# One observation per (year, territory, item, element), from the best source
+# that reports it.
+#
+# The territory is the `area_code`, NOT the `area` label. `area` is the
+# PERIODIZED polity name, and the frames this collapses speak two vocabularies
+# of it: `.select_best_source()` stamps one periodized name per code
+# ("Algeria (1919-1962)") while `.prepare_historical_cbs()` names its rows from
+# the crosswalk's static `area_name` ("Algeria") -- and for 97 of the 262 codes
+# in that lookup the static name is not ANY of the code's polity names, so the
+# two can never agree. With the label in the key those are two territories:
+# nothing collapses, both rows survive, and downstream they are summed rather
+# than reconciled. whep#709.
+#
+# The label is re-attached from `.cbs_area_labels()` afterwards, which is the
+# same deterministic per-code rule `.select_best_source()` uses (whep#580), so
+# the frame keeps exactly one label per code on the way out.
 .collapse_cbs_observations <- function(df) {
   dt <- data.table::as.data.table(df)
   if (!"source" %in% names(dt)) {
     dt[, source := NA_character_]
   }
 
+  # A row with no label cannot name its code, and `setorderv()` sorts NA first,
+  # so an unlabelled row would otherwise win the lookup for a code that has a
+  # perfectly good label elsewhere.
+  area_lookup <- .cbs_area_labels(dt[!is.na(area)])
   key_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1305,7 +1324,18 @@ build_processing_coefs <- function(
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
   out <- dt[dt[, .I[1L], by = key_cols]$V1]
   out[, .source_rank := NULL]
-  tibble::as_tibble(out)
+  tibble::as_tibble(.attach_cbs_area_label(out, area_lookup))
+}
+
+# Put a code's one display label back on a frame that is keyed on the code.
+.attach_cbs_area_label <- function(df, area_lookup) {
+  dt <- data.table::as.data.table(df)
+  if ("area" %in% names(dt)) {
+    dt[, area := NULL]
+  }
+  dt[area_lookup, on = "area_code", area := i.area]
+  data.table::setcolorder(dt, c("year", "area", "area_code"))
+  dt[]
 }
 
 .cbs_source_rank <- function(source, year) {
@@ -1408,11 +1438,13 @@ build_processing_coefs <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
-  # Keyed on polity_code, not on the label .read_land_areas() attaches: that
-  # label is the crosswalk's static area_name, while the frame this feeds
-  # carries the periodized polity_name. See .fill_with_proxies().
+  # Keyed on the reporting bucket, not on the label .read_land_areas() attaches:
+  # that label is the crosswalk's static area_name, while the frame this feeds
+  # carries the periodized polity_name. `polity_area_code` rather than
+  # `polity_code` because the frame is aggregated to buckets and its `area_code`
+  # IS the bucket -- see .fill_with_proxies().
   land_wide <- land_areas |>
-    .proxy_polity_key(iso3_col = "iso3c") |>
+    .proxy_bucket_key(iso3_col = "iso3c") |>
     dplyr::mutate(
       land_use = dplyr::if_else(
         Land_Use %in% varnames_cropland,
@@ -1423,7 +1455,7 @@ build_processing_coefs <- function(
     dplyr::filter(land_use != "Other") |>
     dplyr::summarise(
       area_mha = sum(Area_Mha, na.rm = TRUE),
-      .by = c(year, polity_code, land_use)
+      .by = c(year, area_code, land_use)
     ) |>
     tidyr::pivot_wider(
       names_from = land_use,
@@ -2009,20 +2041,28 @@ build_processing_coefs <- function(
 # that reports the code earliest in `.cbs_area_label_source_order()`, its
 # earliest year, then the label alphabetically. On the real 1850-2023
 # `cbs_raw_all` that reproduces all 216 of today's labels exactly, so it removes
-# the order dependence WITHOUT moving a published value -- deliberately, because
-# `area` is also the key `.polity_code_from_labels()` reads the pre-1962 frame's
-# polity out of (whep#698), and changing which period names a code redistributes
-# which countries find a population and land proxy. That redistribution is a
-# decision, not a tidy-up: it is blocked on whep#493 and measured in whep#698.
-# Two alternative rules were measured here and are NOT taken for that reason --
-# labelling from the code's most recent reporting year costs area 248
-# (Yugoslavia) its entire pre-1961 proxy fill, 32,677 keys, and labelling from
-# the 1961 back-cast anchor moves the resolved polity of 40 codes.
+# the order dependence WITHOUT moving a published value. That mattered most
+# because `area` used to be the key `.polity_code_from_labels()` read the
+# pre-1962 frame's polity out of, so which period named a code decided which
+# countries found a population and land proxy. **whep#698 removed that read**:
+# `.fill_with_proxies()` keys on the reporting bucket now, and no label decides
+# an identity here any more. The two alternative rules measured at the time
+# still say what the label is worth -- labelling from the code's most recent
+# reporting year cost area 248 (Yugoslavia) its entire pre-1961 proxy fill,
+# 32,677 keys, and labelling from the 1961 back-cast anchor moved the resolved
+# polity of 40 codes -- but the second of those is now moot and the first is a
+# question about `area` as a GROUPING key, which is what it still is.
 #
 # It stays ONE label per code on purpose. Labelling per `(area_code, year)` is
-# more faithful still, but `area` sits in four inner-join keys and in
-# `.cbs_complete_year_nesting_dt()`'s skeleton, so a second label for one code
-# splits those keys -- the whep#563 shape.
+# more faithful still, and whep#709 has taken the historical extension off the
+# label -- the year skeleton, the observed-source join, the share fills and the
+# proxy fills are all keyed on the code now, so a second label no longer
+# multiplies rows there. Three joins still read the label and each needs a
+# decision before it can be re-keyed: `.polity_code_from_labels()` (whep#698,
+# blocked on whep#493), the `primary_area` seed join (whep#699, which also
+# needs the seed expression settled) and `.interpolate_destiny_shares()`
+# (whep#691). Until those three are gone, a second label for one code is still
+# the whep#563 shape, so this stays one label per code.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
@@ -2070,13 +2110,24 @@ build_processing_coefs <- function(
     ) |>
     .collapse_cbs_observations()
 
+  # Every key below is the CODE, never the `area` label. The label is one
+  # display name per code (`.cbs_area_labels()`, whep#580) and it is detached
+  # here and put back once the skeleton exists, because this is where a second
+  # label for one code stops being cosmetic: the skeleton is CROSSED with the
+  # year axis, so two labels give a code two full year skeletons, and the
+  # observed-source join then matches only the half whose label agrees. That is
+  # the whep#563 shape, and whep#382 measured a 702,166-row drop from it.
+  # whep#709.
+  area_lookup <- .cbs_area_labels(
+    data.table::as.data.table(cbs_hist)[!is.na(area)]
+  )
+
   # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
   # sort NA/unrecognised sources last, then take the first (best) source per
   # group. Keeps every !is.na(value) group so all-NA-source groups still yield
   # observed_source = NA, matching the per-group call.
   obs_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -2098,13 +2149,14 @@ build_processing_coefs <- function(
   data.table::setnames(observed_sources, "source", "observed_source")
 
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of("source"))
+    dplyr::select(-dplyr::any_of(c("source", "area")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
-    id_cols = c("area", "area_code", "item_cbs", "item_cbs_code", "element"),
+    id_cols = c("area_code", "item_cbs", "item_cbs_code", "element"),
     years = years[years < 1962]
   ) |>
+    .attach_cbs_area_label(area_lookup) |>
     .fill_historical_destinies(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
@@ -2116,14 +2168,7 @@ build_processing_coefs <- function(
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
       tibble::as_tibble(observed_sources),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "element"
-      )
+      by = obs_keys
     ) |>
     dplyr::mutate(
       source = dplyr::coalesce(
@@ -2236,8 +2281,10 @@ build_processing_coefs <- function(
     "processing_primary_share",
     "seed_rate"
   )
+  # Grouped and ordered on the CODE alone: the label adds nothing to a key the
+  # code already determines, and a second label would split the run-length
+  # groups below without moving a value (whep#709).
   by_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code"
@@ -2349,38 +2396,7 @@ build_processing_coefs <- function(
     )
 }
 
-# Recover the polity identity that .aggregate_to_polities() flattened into
-# labels: it renames polity_area_code -> area_code and polity_name -> area, so
-# the pair every builder emits is a polity code in disguise. polity_name is
-# unique per polity_code across the crosswalk (476 names, 476 codes), which
-# makes this a lookup on the crosswalk's own two columns rather than a match
-# between two independent name vocabularies.
-#
-# This still reads a period out of a NAME, which is whep#698: the label is one
-# per `area_code` for the whole build while `.proxy_polity_key()` resolves its
-# side per year, so the two only agree where the stamped period happens to be
-# the 1961-anchored one -- 139 of the 194 codes carrying pre-1962 rows. Re-keying
-# it onto (`area_code`, `year`) is measured there and blocked on whep#493: it
-# would hand thirteen promoted Rest-of-World members the whole aggregate's
-# population as their growth proxy. So whep#580 only makes the label
-# deterministic and deliberately leaves the resolution alone -- see
-# `.cbs_area_labels()`, which is written to keep every code on the polity it
-# resolves to today.
-.polity_code_from_labels <- function(dt) {
-  bridge <- .polity_crosswalk(include_unmapped = FALSE)[
-    !is.na(polity_name) & !is.na(polity_area_code),
-    .(
-      area_code = as.integer(polity_area_code),
-      area = polity_name,
-      polity_code
-    )
-  ]
-  bridge <- unique(bridge, by = c("area_code", "area"))
-  dt[, area_code := as.integer(area_code)]
-  merge(dt, bridge, by = c("area_code", "area"), all.x = TRUE, sort = FALSE)
-}
-
-# Put a proxy table keyed by ISO3 on the same polity key. Rows whose ISO3 has no
+# Put a proxy table keyed by ISO3 on the same bucket key. Rows whose ISO3 has no
 # polity are dropped, and so are rows that would only reach an artificial
 # aggregate by folding into it from somewhere else: summing the six crosswalk
 # members that fold into Rest of World (999) would give the bucket a population
@@ -2419,8 +2435,25 @@ build_processing_coefs <- function(
   ]
 }
 
+# The same table on the key the frames being filled actually carry: their
+# `area_code` is the reporting bucket, because `.aggregate_to_polities()`
+# groups on `polity_area_code` and renames it. Overwriting `area_code` with the
+# bucket is therefore the whole conversion -- and it is a rename, not a
+# regrouping: `.proxy_polity_key()` has already dropped every row that would
+# only reach a bucket by folding into it, so no member's proxy is being summed
+# into an aggregate here (whep#493 stays open, and the two `.read_land_areas_wide`
+# / `.fill_with_proxies` tests that pin the fold still hold).
+.proxy_bucket_key <- function(df, iso3_col) {
+  dt <- .proxy_polity_key(df, iso3_col = iso3_col)
+  dt[, area_code := as.integer(polity_area_code)]
+  dt
+}
+
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
-  by_cols <- c("area", "area_code", "item_cbs", "item_cbs_code")
+  # The CODE, not the label: `fill_proxy_growth()` carries a value forward
+  # within a group, so a second label for one code would break the series in
+  # two and each half would be filled from its own end (whep#709).
+  by_cols <- c("area_code", "item_cbs", "item_cbs_code")
   sort_cols <- c(by_cols, "year")
 
   # Both proxies used to be joined on `area`, and three name vocabularies meet
@@ -2428,21 +2461,39 @@ build_processing_coefs <- function(
   # its own labels and the LUH2 land table the crosswalk's static area_name.
   # Measured on the pin, 57 of its 196 names (8,263 rows, 27.8%) are names no
   # builder emits, and 96 LUH2 labels (41.7% of land rows) likewise -- all of
-  # them resolving on the polity key. So both sides are keyed on polity_code.
-  dt <- .polity_code_from_labels(data.table::as.data.table(df))
-  pop_dt <- .proxy_polity_key(gdp_pop, iso3_col = "area_code")
-  # One row per polity: a no-op on the current pin (no two of its ISO3 codes
-  # share a non-aggregate polity), but it keeps a future fold from fanning the
-  # frame out on the merge below.
+  # them resolving on the polity key.
+  #
+  # The key is the REPORTING BUCKET, `polity_area_code`, and the frame's own
+  # `area_code` already is one: `.aggregate_to_polities()` groups on it and
+  # renames it. So the frame side needs no resolution at all, which is what
+  # whep#698 asked for -- it used to recover a polity_code by matching the
+  # frame's (`area_code`, `area`) pair against the crosswalk's
+  # (`polity_area_code`, `polity_name`), reading an identity out of a LABEL that
+  # is one per code for the whole build while this side resolves per year.
+  # Measured on a real 1955-1965 build (121,191 frame rows, 1,267
+  # (`area_code`, `area`, `year`) keys): 35 keys resolved to a DIFFERENT polity
+  # than the code, 70 to none at all, and four buckets whose label happened to
+  # be "Rest of World" were joined onto a single `ROW-1850-2025` proxy row
+  # holding the SUM of four promoted members' populations.
+  #
+  # Keying on the bucket removes that sum rather than deciding it: measured on
+  # the pin, no two surviving proxy rows share a (year, `polity_area_code`),
+  # while up to four shared a (year, `polity_code`). Nothing is summed into an
+  # aggregate here -- `.proxy_polity_key()` still holds back members that only
+  # reach a bucket by folding, which is whep#493's open question.
+  dt <- data.table::as.data.table(df)
+  dt[, area_code := as.integer(area_code)]
+  pop_dt <- .proxy_bucket_key(gdp_pop, iso3_col = "area_code")
+  # One row per bucket: a no-op on the current pin, but it keeps a future fold
+  # from fanning the frame out on the merge below.
   pop_dt <- pop_dt[,
     .(pop = sum(pop, na.rm = TRUE)),
-    by = .(year, polity_code)
+    by = .(year, area_code)
   ]
   land_dt <- data.table::as.data.table(land_wide)
-  join_cols <- c("year", "polity_code")
+  join_cols <- c("year", "area_code")
   dt <- merge(dt, pop_dt, by = join_cols, all.x = TRUE, sort = FALSE)
   dt <- merge(dt, land_dt, by = join_cols, all.x = TRUE, sort = FALSE)
-  dt[, polity_code := NULL]
   data.table::setorderv(dt, sort_cols)
 
   # Four consecutive fills sharing the sort established above.

@@ -1216,3 +1216,67 @@ testthat::test_that("vectorised RothC modifier is indistinguishable from the ref
   testthat::expect_false(".internal.selfref" %in% names(attributes(fast)))
   testthat::expect_equal(sorted(fast), sorted(slow), tolerance = 0)
 })
+
+# ---- polity_validity (#675) -------------------------------------------
+
+# One cell over two years on area 277 (South Sudan, SSD-2011-2025): the 2000
+# rows name a state that did not exist that year, the 2020 rows do not.
+.cbpv_data <- function() {
+  keys <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 277L,
+    year = c(2000L, 2020L)
+  )
+  list(
+    land_use = dplyr::mutate(keys, land_use = "cropland", area_ha = 100),
+    c_inputs = dplyr::mutate(
+      keys,
+      land_use = "cropland",
+      c_input_mgc_ha_yr = 2.5,
+      humified_fraction = 0.3
+    ),
+    climate = dplyr::mutate(keys, climate_modifier = 1),
+    clay = tibble::tribble(~lon, ~lat, ~clay_pct, 0.25, 0.25, 20)
+  )
+}
+
+testthat::test_that("build_carbon_balance names an anachronistic polity", {
+  testthat::expect_warning(
+    out <- whep::build_carbon_balance(data = .cbpv_data()),
+    "did not exist in that row's year"
+  )
+
+  # "keep" is the default: both years survive and the stocks do not move.
+  testthat::expect_setequal(out$year, c(2000L, 2020L))
+  testthat::expect_true(all(out$reporting_polity_code == "SSD-2011-2025"))
+})
+
+testthat::test_that("build_carbon_balance honours drop and flag", {
+  testthat::expect_warning(
+    kept <- whep::build_carbon_balance(data = .cbpv_data())
+  )
+  testthat::expect_warning(
+    dropped <- whep::build_carbon_balance(
+      data = .cbpv_data(),
+      polity_validity = "drop"
+    )
+  )
+  testthat::expect_warning(
+    flagged <- whep::build_carbon_balance(
+      data = .cbpv_data(),
+      polity_validity = "flag"
+    )
+  )
+
+  testthat::expect_equal(unique(dropped$year), 2020L)
+  testthat::expect_equal(
+    flagged$reporting_polity_out_of_span,
+    flagged$year == 2000L
+  )
+  # "flag" is "keep" plus one logical column: no number moves.
+  testthat::expect_equal(
+    dplyr::select(flagged, -"reporting_polity_out_of_span"),
+    kept
+  )
+})

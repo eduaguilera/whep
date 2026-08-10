@@ -210,7 +210,11 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]
     expect_polity_match(data, "code", "reporting_polity_code", FALSE)
-    testthat::expect_false(any(is.na(data$polity_code)))
+    # `[[` rather than `$`: a partial-matching `$` on a renamed column returns
+    # NULL, and `any(is.na(NULL))` is FALSE, so this assertion would pass
+    # vacuously instead of failing (which is what it did through whep#687's
+    # rename until it was noticed).
+    testthat::expect_false(any(is.na(data[["legacy_polity_prefix"]])))
     coded_rows <- !is.na(data$code)
     testthat::expect_true(all(data$reporting_polity_has_geometry[coded_rows]))
   }

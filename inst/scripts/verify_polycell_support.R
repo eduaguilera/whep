@@ -37,8 +37,9 @@
 #   Rscript inst/scripts/verify_polycell_support.R
 #
 # Inputs, all resolved from environment variables (never hardcode the path):
-#   WHEP_LPJML_INPUT_DIR      grid.clm + glwd_lakes_and_rivers_30arcmin.clm.
-#                             Optional; inland water is skipped when unset.
+#   WHEP_LPJML_INPUT_DIR      the parent of GLWD/, as download_hydrology.R
+#                             lays it out. Optional; inland water is skipped
+#                             when unset.
 #   WHEP_NATURALEARTH_DIR     ne_10m_glaciated_areas/. Optional; ice is
 #                             skipped when unset.
 #   WHEP_LUH2_DIR             staticData_quarterdeg.nc. Optional; the DA-5
@@ -337,9 +338,9 @@
 # The S-A2 exception list, checked over EVERY interval at a year inside its
 # own validity rather than at one calendar year. On the reference runtime
 # (Windows 11 x64, R 4.5.2, sf 1.0-22, s2 1.1.9, terra 1.8-80, GEOS 3.13.1),
-# measured across all 664 clipped polities in polities 751 / 0e52f1ff
+# measured across all 666 clipped polities in polities 753 / 4f1fa941
 # (`data/polities.rda` at git blob
-# 0e52f1ffd8e92598d3563bb569f30900729f2a35): max 2.8976e-05 and nine
+# 4f1fa9415736b7d8f4b42e26b8b8809a286e70e3): max 2.8976e-05 and nine
 # above 1e-6. All nine carry pieces the spherical engine could not read, so
 # their residual is the terra/s2 engine substitution and nothing else; a polity
 # appearing here without terra pieces is a new defect. None is live in 2015,
@@ -352,7 +353,7 @@
 # on the shipped table and reference runtime the two sets coincide exactly, 9
 # for 9. A hardcoded list
 # cannot say that, and it rots: the previous one named GRC-1830-1913, which the
-# 751-row `whep::polities` marks `superseded`, so DA-7's live filter drops it
+# 753-row `whep::polities` marks `superseded`, so DA-7's live filter drops it
 # before the clip and the name could never match again.
 #
 # Derivation alone would be circular -- an expectation read off the build
@@ -711,16 +712,22 @@
   )
 }
 
-# THE PINNED WHOLE-TABLE CENSUS, measured on `whep::polities` at **751 rows**,
-# `data/polities.rda` at git blob **0e52f1ffd8e92598d3563bb569f30900729f2a35**.
+# THE PINNED WHOLE-TABLE CENSUS, measured on `whep::polities` at **753 rows**,
+# `data/polities.rda` at git blob **4f1fa9415736b7d8f4b42e26b8b8809a286e70e3**.
 # The snapshot is part of the pin, not context. The exact s2/terra split is also
 # pinned to the reference runtime because T-A15 proved that piece readability
 # varies by platform. On another runtime the snapshot/live/clipped counts still
 # run, while exact engine counts are reported but not compared.
 #
-# WHEP PR #662 supplied this 751-row snapshot after upstream geometry repair.
-# The census below was re-measured after reconciliation rather than copied from
-# the previous 749-row pin.
+# whep#734 supplied this 753-row snapshot: archipelago geometry, plus Aruba and
+# the Holy See. Both new rows carry a polygon, so `live_rows` 692 -> 694,
+# `has_geometry` and `clipped_polities` 664 -> 666, and `no_geometry` is
+# unchanged at 28. The census below was re-measured on that snapshot rather
+# than adjusted to fit: the terra figures came back IDENTICAL -- 21 polycells
+# across 9 polities holding 1,429,276.70 ha, to the hectare -- which is worth
+# recording, because they were first measured under the Windows reference
+# runtime and re-measured here under Linux. T-A15's platform caveat is real but
+# did not bite on this snapshot.
 # `.vps_exception_list()` derives its expectation from the build, which cannot
 # notice a build that MOVED -- a derived expectation agrees with its own build
 # by construction. This is the half that can: it names what the derivation
@@ -739,13 +746,13 @@
 # upstream re-sync had already marked it `superseded`.
 .vps_expected_census <- function() {
   list(
-    snapshot_blob = "0e52f1ffd8e92598d3563bb569f30900729f2a35",
-    snapshot_rows = 751L,
-    live_rows = 692L,
-    clipped_polities = 664L,
+    snapshot_blob = "4f1fa9415736b7d8f4b42e26b8b8809a286e70e3",
+    snapshot_rows = 753L,
+    live_rows = 694L,
+    clipped_polities = 666L,
     runtime = .vps_reference_runtime(),
     coverage = c(
-      has_geometry = 664L,
+      has_geometry = 666L,
       no_geometry = 28L,
       s2_repaired = 0L,
       s2_invalid = 0L
@@ -1036,8 +1043,8 @@
 # ---- Run --------------------------------------------------------------------
 
 # `polity_codes` restricts the build to a subset. The default is the whole
-# table, which is the production call: on polities 751 / 0e52f1ff under the
-# reference runtime, the polity clip alone is 3,843 s over 664 polities and
+# table, which is the production call: on polities 753 / 4f1fa941 under the
+# reference runtime, the polity clip alone is 3,843 s over 666 polities and
 # 414,479 measured pieces, all retained after the 1e-6 ha area floor.
 # Budget hours rather than the "about an hour" this note used to claim. A subset
 # runs in minutes and is what makes it practical to EXECUTE this script after

@@ -876,16 +876,25 @@ test_that("the real states.nc reads at 0.5 deg with plausible year-2000 land use
   # fractions in 0..1
   testthat::expect_true(all(out$fraction >= -1e-9 & out$fraction <= 1 + 1e-6))
 
-  # per-cell 4-class totals: inland cells tile to ~1; coastal cells fall short
-  # by their ocean fraction, so no cell exceeds ~1 and inland cells hit 1.
+  # Per-COMPARTMENT 4-class totals: inland cells tile to ~1; coastal cells fall
+  # short by their ocean fraction, so nothing exceeds ~1 and inland hits 1.
+  #
+  # Grouped on `area_code` as well as the cell. `fraction` is a share of the
+  # COMPARTMENT under `area_basis = "polycell_land"`, so summing a border cell
+  # over `(lon, lat)` alone adds one whole partition per polity sharing it and
+  # reads 2, 3 or 4. That is not an over-tiling: measured on the published
+  # support, 4,603 cells exceed 1.02 that way and NONE does per compartment.
+  # The grouping was equivalent while the centroid grid gave every cell exactly
+  # one row, which is why it survived until the polycell basis first ran.
   totals <- out |>
-    dplyr::summarise(tot = sum(fraction), .by = c(lon, lat))
+    dplyr::summarise(tot = sum(fraction), .by = c(lon, lat, area_code))
   testthat::expect_true(all(totals$tot < 1.02))
-  # a fully-inland central-Europe cell tiles to ~1
+  # a fully-inland central-Europe cell tiles to ~1, whichever polity holds it
   ce_tot <- totals |>
     dplyr::filter(abs(lon - 9.25) < 0.01, abs(lat - 48.25) < 0.01) |>
     dplyr::pull(tot)
-  testthat::expect_true(length(ce_tot) == 1L && abs(ce_tot - 1) < 0.02)
+  testthat::expect_true(length(ce_tot) >= 1L)
+  testthat::expect_true(all(abs(ce_tot - 1) < 0.02))
 
   # that central-Europe cell has meaningful cropland
   crop_ce <- out |>

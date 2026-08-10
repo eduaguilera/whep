@@ -230,3 +230,20 @@ testthat::test_that("read_polycell_support prefers a local parquet", {
     "not found"
   )
 })
+
+testthat::test_that("sampled centres land on WHEP's canonical half-degree grid", {
+  skip_if_not_installed("terra")
+  # `terra::xyFromCell()` walks out from the raster origin and accumulates float
+  # error, so it returns -130.25 as -130.24999999999994. The polycells form
+  # their centres as `k * 0.5 + 0.25` exactly and the two are joined on
+  # `c("lon", "lat")`, so a drift far below printing precision is enough to miss
+  # every cell -- which it did: 36 of 720 longitudes matched and the build
+  # reported 0.00 Mha of inland water worldwide.
+  dir <- pcl_write_glwd(classes = rep(1L, 16L))
+
+  water <- whep::glwd_water_fraction(file.path(dir, "GLWD"))
+
+  canonical <- floor(water$lon / 0.5) * 0.5 + 0.25
+  testthat::expect_identical(water$lon, canonical)
+  testthat::expect_identical(water$lat, floor(water$lat / 0.5) * 0.5 + 0.25)
+})

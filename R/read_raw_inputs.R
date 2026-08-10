@@ -7,17 +7,36 @@
 # -- Area code conversion ------------------------------------------------------
 
 #' Convert ISO3 area_code to FAOSTAT numeric area_code
+#'
+#' @details
+#' An ISO3 code can name more than one FAOSTAT reporting area, because FAOSTAT
+#' keeps the pre-split entity alongside its successor: `ETH` names both 62
+#' ("Ethiopia PDR", dissolved 1993) and 238 ("Ethiopia"), and `SDN` names both
+#' 206 ("Sudan (former)") and 276 ("Sudan").
+#'
+#' The tie used to be broken with `unique(bridge, by = "iso3c")`, i.e. on row
+#' order. `.current_area_lookup()` happens to order by `area_code`, so that kept
+#' the LOWEST code, which for `ETH` is the dissolved 62 — for every year, 2021
+#' included.
+#'
+#' The tie is now broken on the polities database instead: prefer the area code
+#' that IS its polity's `polity_area_code`, i.e. the canonical reporting area
+#' WHEP aggregates that polity to. That picks 238 for `ETH` and leaves `SDN` at
+#' 206 (276 folds into bucket 206, so 206 is the canonical one).
+#'
+#' ISO3 codes with no canonical area are the territories that fold into an
+#' aggregate bucket, whose code never equals their own. Each of those names
+#' exactly one area, so they need no tie-break — but rather than assume it, all
+#' rows are kept for such an ISO3 and the function aborts if any is still
+#' ambiguous, instead of guessing as before.
+#'
 #' @noRd
 .iso3_to_fao_area_code <- function(df) {
   if (!data.table::is.data.table(df)) {
     data.table::setDT(df)
   }
   dt <- df
-  bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area_code_fao = area_code)
-  ]
-  bridge <- unique(bridge, by = "iso3c")
+  bridge <- .iso3_area_code_bridge()
 
   dt <- merge(
     dt,
@@ -30,6 +49,40 @@
   dt[, area_code := NULL]
   data.table::setnames(dt, "area_code_fao", "area_code")
   dt
+}
+
+# One FAOSTAT `area_code` per ISO3, with the tie broken on the polities
+# database rather than on row order. See `.iso3_to_fao_area_code()`.
+.iso3_area_code_bridge <- function() {
+  bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(
+      iso3c = area_iso3c,
+      area_code_fao = area_code,
+      is_canonical = !is.na(polity_area_code) & area_code == polity_area_code
+    )
+  ]
+  bridge <- unique(bridge)
+  # Keep the canonical rows for an ISO3 when it has any, all of them otherwise.
+  bridge[, keep := if (any(is_canonical)) is_canonical else TRUE, by = "iso3c"]
+  bridge <- bridge[keep == TRUE][, c("is_canonical", "keep") := NULL]
+
+  ambiguous <- sort(unique(bridge$iso3c[duplicated(bridge$iso3c)]))
+  if (length(ambiguous) > 0L) {
+    cli::cli_abort(
+      c(
+        "Cannot map {length(ambiguous)} ISO3 code{?s} to one FAOSTAT area.",
+        x = "Still ambiguous after the canonical-area rule: {.val {ambiguous}}.",
+        i = paste(
+          "Give the intended reporting area a matching",
+          "{.field polity_area_code} in the polities database, rather than",
+          "letting row order decide."
+        )
+      ),
+      class = "whep_ambiguous_iso3_area"
+    )
+  }
+  bridge
 }
 
 #' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name

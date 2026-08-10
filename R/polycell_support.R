@@ -278,10 +278,10 @@ expand_polycell_years <- function(support, years) {
 # Every census below is a property of one upstream snapshot, not of the
 # producer. Engine-specific figures are ALSO properties of the geometry
 # runtime: T-A15 proved that ULP-level s2 validity differs by platform. The
-# snapshot is `whep::polities` at **751 rows**, `data/polities.rda` at git blob
-# **0e52f1ffd8e92598d3563bb569f30900729f2a35**. The reference runtime is
+# snapshot is `whep::polities` at **753 rows**, `data/polities.rda` at git blob
+# **4f1fa9415736b7d8f4b42e26b8b8809a286e70e3**. The reference runtime is
 # Windows 11 x64, R 4.5.2, sf 1.0-22, s2 1.1.9, terra 1.8-80 and GEOS 3.13.1.
-# Sites repeat "polities 751 / 0e52f1ff" and, where engine choice matters,
+# Sites repeat "polities 753 / 4f1fa941" and, where engine choice matters,
 # "reference runtime" at the point of use.
 #
 # This is not bookkeeping. The figures these comments used to carry rotted
@@ -293,9 +293,9 @@ expand_polycell_years <- function(support, years) {
 # again in silence. A runtime stamp prevents a valid macOS result being
 # misreported as snapshot drift.
 #
-# WHEP PR #662 refreshed the snapshot and repaired upstream geometry. Its
-# 751-row / 0e52f1ff census was re-measured here after reconciliation; do not
-# carry these figures onto another refresh.
+# whep#734 refreshed the snapshot again (archipelago geometry, plus Aruba and
+# the Holy See). Its 753-row / 4f1fa941 census was re-measured here rather than
+# adjusted; do not carry these figures onto another refresh.
 # `inst/scripts/verify_polycell_support.R` carries the same census as a pin and
 # aborts when it moves; re-measure with that and update both together.
 
@@ -332,10 +332,10 @@ expand_polycell_years <- function(support, years) {
 
 # How usable each polity polygon is, recorded on every polycell it produces and
 # in the "coverage" diagnostic, so a missing or unusable geometry is never a
-# silent zero area. Over the 692 live non-aggregate rows of polities 751 /
-# 0e52f1ff under the reference runtime: 664 `has_geometry` and 28
+# silent zero area. Over the 694 live non-aggregate rows of polities 753 /
+# 4f1fa941 under the reference runtime: 666 `has_geometry` and 28
 # `no_geometry`; none require input-level s2 repair and none remain s2-invalid.
-# The 664 readable polities get clipped, while the other 28 receive no
+# The 666 readable polities get clipped, while the other 28 receive no
 # polycell at all.
 .pcs_usable_geometry <- function(geom) {
   empty <- sf::st_is_empty(geom)
@@ -468,12 +468,12 @@ expand_polycell_years <- function(support, years) {
 }
 
 # The spherical engine can emit a clipped piece it then refuses to read back.
-# Of the 414,479 pieces measured on polities 751 / 0e52f1ff under the reference
+# Of the 414,485 pieces measured on polities 753 / 4f1fa941 under the reference
 # runtime, planar repair makes 160 readable and leaves 21 unreadable. None of
 # RUS-2014-2025's 12,730 pieces needs terra measurement on this snapshot.
 #
 # A minority stay invalid even after that repair, and they are NOT assumed to
-# be slivers. On polities 751 / 0e52f1ff under the reference runtime that is 21
+# be slivers. On polities 753 / 4f1fa941 under the reference runtime that is 21
 # pieces holding 1,429,276.70 ha across 9 polities, including four pieces worth
 # 227,311.58 ha in GRC-1881-1913. Dropping such pieces deleted real territory,
 # broke S-A2 re-aggregation, and re-emerged as fake unclaimed land in the S-A11
@@ -845,7 +845,7 @@ expand_polycell_years <- function(support, years) {
 # the first such piece, and with the shipped table and the real ice layer that
 # killed the production call outright at any year, because `years` is applied
 # only after every polity has been clipped. The hazard is live rather than
-# historical: on polities 751 / 0e52f1ff under the reference runtime,
+# historical: on polities 753 / 4f1fa941 under the reference runtime,
 # GRC-1881-1913 clips to 63 pieces of which 4 are unreadable, and it is one of
 # 9 polities carrying such pieces.
 # (The example used to be GRC-1830-1913, which that vintage marks `superseded`,
@@ -1089,6 +1089,7 @@ expand_polycell_years <- function(support, years) {
     return(pieces)
   }
   .pcs_require_cols(water, c("lon", "lat", "water_frac"), "water")
+  .pcs_warn_water_footprint(pieces, water)
   pieces |>
     dplyr::left_join(
       dplyr::distinct(water, .data$lon, .data$lat, .data$water_frac),
@@ -1115,6 +1116,43 @@ expand_polycell_years <- function(support, years) {
       water_excess_ha = .data$water_pro_rata_ha - .data$inland_water_ha
     ) |>
     dplyr::select(-"water_frac", -"water_pro_rata_ha")
+}
+
+# A water layer that joins to almost nothing is indistinguishable, downstream,
+# from a world with almost no lakes: the join is a `left_join` and a missing row
+# legitimately means "this cell is dry", so every unmatched hectare of water
+# silently becomes land and no total moves in a direction anyone would question.
+#
+# This is not hypothetical. `terra::xyFromCell()` returns a centre of -130.25 as
+# -130.24999999999994, which prints identically and compares FALSE; the layer
+# then matched 36 of 720 longitudes and the whole build reported 0.00 Mha of
+# inland water without a single warning. `.pcs_water_unmatched()` recorded it
+# faithfully in an attribute nobody had to read.
+#
+# The threshold is deliberately loose. A genuine footprint disagreement between
+# the CRU mask and the polity polygons is a few thousand cells out of tens of
+# thousands; missing more than HALF the polycells means the grids do not share a
+# convention, which is a different kind of fact and the only one worth stopping
+# a build for.
+.pcs_warn_water_footprint <- function(pieces, water) {
+  cells <- dplyr::distinct(pieces, .data$lon, .data$lat)
+  matched <- nrow(dplyr::semi_join(
+    cells,
+    dplyr::distinct(water, .data$lon, .data$lat),
+    by = c("lon", "lat")
+  ))
+  if (matched > nrow(cells) / 2) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "The {.arg water} layer matches {matched} of {nrow(cells)} covered
+     cell{?s}.",
+    x = "Unmatched cells are booked as DRY, so their inland water becomes
+         land silently.",
+    i = "Check that {.field lon}/{.field lat} are on the same half-degree
+         centres as the polycells: a float drift too small to print is enough
+         to miss every one."
+  ))
 }
 
 # The water layer carries the CRU land mask and the polycells carry the polity
@@ -1329,7 +1367,7 @@ expand_polycell_years <- function(support, years) {
 # segment between distant vertices hands s2 a great circle, and s2 renders it
 # bulging poleward. Polities 749 / 9320e033 exposed 43 such edges across 30
 # polities, led by the 49th and 22nd parallels. WHEP PR #662 repaired those
-# upstream geometries: polities 751 / 0e52f1ff has zero edges above this
+# upstream geometries: polities 753 / 4f1fa941 has zero edges above this
 # detector's threshold. The zero census is pinned in the regression test, while
 # synthetic long, short and sloping edges keep the detector itself exercised.
 #
