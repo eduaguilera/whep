@@ -17,6 +17,26 @@
   value changes**: `get_primary_production()` (6,310,390 rows) and
   `get_wide_cbs()` (2,098,818 rows) are identical before and after, column for
   column.
+* **`polity_coverage_gaps()` now says which direction a stand-in fell in, and
+  the two directions are not the same defect.** The new `gap_kind` column takes
+  `"polity_ended"` (the polity had ended by the row's year, so the value covers
+  a territory that entity no longer describes — whep#414's case) or
+  `"polity_not_started"` (the polity begins later, which is mostly WHEP's
+  documented pre-1961 back-cast onto the anchor-year territory). No published
+  value changes; this is a diagnostic gaining a column.
+  Measured on a real full-range `get_primary_production()` (6.3M rows), 7,247
+  rows — 0.115% — are attributed to a polity that was not live in the row's
+  year, and they split **3,285 rows across 3 areas** `"polity_ended"` against
+  **3,962 rows across 16 areas** `"polity_not_started"`. Bucket 206 is 2,938 of
+  the ended ones, 89%; the other two, FAOSTAT area 178 Eritrea (123 rows,
+  `ERI-1889-1952`) and area 273 Montenegro (224 rows, `MNE-1913-1918`), were
+  not previously named anywhere.
+  The classification is read at the year the resolver actually matched on, not
+  the row's year, because `backcast_anchor` floors the lookup year: a
+  pre-anchor row is matched as 1961 and can land on a polity that had already
+  ended by then. That is exactly 165 rows of areas 178 and 273, which the
+  raw-year comparison a caller could write for itself would label
+  `"polity_not_started"` instead.
 
 * **Every join that keys on a territory but not on a year is now classified,
   and the list can only shrink.** A key of `area_code` with no `year` spans

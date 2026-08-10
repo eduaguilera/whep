@@ -654,6 +654,79 @@ testthat::test_that("polity_coverage_gaps agrees with the resolver", {
   ))
 })
 
+testthat::test_that("polity_coverage_gaps names the direction of the gap", {
+  # The two directions are different defects and #414 is only one of them, so
+  # a consumer counting "rows attributed to a polity that did not exist" needs
+  # to be able to separate them. Bucket 206 post-secession is the `"ended"`
+  # case: the label `SUD-1956-2011` stopped at the secession while the bucket
+  # keeps summing both successors. Area 1 Armenia before 1991 is the
+  # `"not_started"` case, which is WHEP's documented back-cast convention.
+  gaps <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = c(206L, 1L), year = c(2015L, 1900L))
+  )
+
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 206L],
+    "polity_ended"
+  )
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 1L],
+    "polity_not_started"
+  )
+  testthat::expect_true(all(
+    gaps$gap_kind %in% c("polity_ended", "polity_not_started")
+  ))
+})
+
+testthat::test_that("the gap direction is read at the back-cast anchor", {
+  # The load-bearing half: `gap_kind` is NOT `year < polity_start_year`, and
+  # cannot be, because `.add_polity_columns_dt()` floors the lookup year at
+  # `backcast_anchor`. FAOSTAT area 273 Montenegro in 1850 is matched as 1961
+  # and lands on `MNE-1913-1918`, a polity that had ENDED by the year the
+  # resolver used -- so the raw-year comparison would mislabel it. On a real
+  # `get_primary_production()` that is 165 rows, areas 178 and 273.
+  anchored <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 273L, year = 1850L)
+  )
+  testthat::expect_equal(anchored$polity_code, "MNE-1913-1918")
+  testthat::expect_lt(anchored$polity_end_year, 1961L)
+  testthat::expect_equal(anchored$gap_kind, "polity_ended")
+  # And the raw-year reading is what the same row gives once the anchor is
+  # switched off, which is the pair of answers the column exists to keep apart.
+  raw <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 273L, year = 1850L),
+    backcast_anchor = -Inf
+  )
+  testthat::expect_gt(raw$polity_start_year, 1850L)
+  testthat::expect_equal(raw$gap_kind, "polity_not_started")
+})
+
+testthat::test_that("gap_kind agrees with the anchored comparison", {
+  # An invariant over the whole shipped crosswalk rather than two hand-picked
+  # areas: whatever upstream re-syncs do to the polity set, `gap_kind` must
+  # stay the answer to "was the matched year before this polity started?".
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = c(1850L, 1900L, 1961L, 1990L, 2015L, 2025L)
+  )
+  gaps <- whep::polity_coverage_gaps(grid)
+  expected <- ifelse(
+    !is.na(gaps$polity_start_year) &
+      pmax(gaps$year, 1961L) < gaps$polity_start_year,
+    "polity_not_started",
+    "polity_ended"
+  )
+
+  testthat::expect_gt(nrow(gaps), 0L)
+  testthat::expect_equal(gaps$gap_kind, expected)
+  # Both directions really occur, so neither branch is untested by accident.
+  testthat::expect_setequal(
+    unique(gaps$gap_kind),
+    c("polity_ended", "polity_not_started")
+  )
+})
+
 testthat::test_that("polity_coverage_gaps needs the area column", {
   testthat::expect_error(
     whep::polity_coverage_gaps(tibble::tibble(year = 2015L)),
