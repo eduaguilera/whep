@@ -56,13 +56,14 @@
 #'
 #' # The trap this register exists to make visible
 #'
-#' [regions_full] and [polities_cats] carry a column literally named
-#' `polity_code`, and **none of its values is a [polities] code** -- it is a
-#' legacy ISO3-like prefix kept for older callers, documented as such on both
-#' datasets. Their real carrier is `reporting_polity_code`, a [polities] code
-#' on all 259 of `regions_full`'s non-`NA` rows and all 198 of
-#' `polities_cats`'s. Reading identity off the column whose name promises it
-#' returns an empty join against every other polity-keyed table in WHEP.
+#' [regions_full] and [polities_cats] carry a column of ISO3-like stems
+#' (`"AFG"`, `"ROW"`, `"RAFR"`) kept for older callers, of which **not one value
+#' is a [polities] code**. Until whep#687 that column was literally named
+#' `polity_code`, so a join from either dataset to [polities] or
+#' [polity_area_crosswalk] on the one column whose name promised identity came
+#' back empty and nothing warned. It is now `legacy_polity_prefix`, which claims
+#' nothing. Their real carrier is `reporting_polity_code`, a [polities] code on
+#' all 259 of `regions_full`'s non-`NA` rows and all 198 of `polities_cats`'s.
 #'
 #' @param kind Optional character vector restricting the result to one or more
 #'   of `"package_data"`, `"input_pin"` and `"function_output"`. `NULL`
@@ -142,18 +143,17 @@ polity_identity_conventions <- function(kind = NULL) {
     ~rationale,
     "regions_full",
     "package_data",
-    "polity_code, polity_name, iso3c, uISO3c, polity_area_code,
+    "legacy_polity_prefix, polity_name, iso3c, uISO3c, polity_area_code,
      reporting_polity_code",
     "present_day_polity",
     "carried",
     "reporting_polity_code",
     "add_polity_code(year_column = NULL)",
     "A registry of the areas that report today, so the present-day polity is
-     what it means; the column named polity_code is a legacy ISO3-like prefix
-     and is not one.",
+     what it means; legacy_polity_prefix is an ISO3-like stem and is not one.",
     "polities_cats",
     "package_data",
-    "polity_code, polity_name, iso3c, uISO3c, polity_area_code,
+    "legacy_polity_prefix, polity_name, iso3c, uISO3c, polity_area_code,
      reporting_polity_code",
     "present_day_polity",
     "carried",
@@ -290,6 +290,9 @@ polity_identity_conventions <- function(kind = NULL) {
     "country",
     "country_code",
     "polity_code",
+    # Names a territory without claiming to be an identity (whep#687). Listed
+    # so the register keeps covering the column the rename moved.
+    "legacy_polity_prefix",
     "polity_name",
     "polity_area_code",
     "reporting_polity_code"

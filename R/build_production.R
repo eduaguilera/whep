@@ -769,14 +769,20 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
+  # The bridge is an ISO3-to-bucket lookup and now says so. It used to rename
+  # `area_iso3c` to `polity_code` so it would line up with `regions_full`'s
+  # column of that name, which was never a polity code but the vendored
+  # ISO3-like stem -- so this one join spoke a polity vocabulary it was not in
+  # (whep#687). Both sides keep their own name and the rename happens in the
+  # key, where it is visible.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
-      polity_code = area_iso3c,
-      area_code = polity_area_code
+      "area_iso3c",
+      area_code = "polity_area_code"
     ) |>
-    dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$area_iso3c)) |>
+    dplyr::distinct(.data$area_iso3c, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -785,18 +791,18 @@ build_primary_production <- function(
     dplyr::left_join(
       regions |>
         dplyr::select(
-          adb_region = ADB_Region,
-          area = polity_name,
-          polity_code
+          adb_region = "ADB_Region",
+          area = "polity_name",
+          "legacy_polity_prefix"
         ),
       by = "adb_region"
     ) |>
     dplyr::left_join(
       area_bridge,
-      by = "polity_code"
+      by = c(legacy_polity_prefix = "area_iso3c")
     ) |>
     .warn_unmapped_adb_regions() |>
-    dplyr::select(-polity_code) |>
+    dplyr::select(-"legacy_polity_prefix") |>
     dplyr::select(
       year,
       area,

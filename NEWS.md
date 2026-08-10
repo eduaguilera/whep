@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`regions_full` and `polities_cats` no longer carry a column named
+  `polity_code` that is not a polity code.** Both shipped a legacy ISO3-like
+  stem (`"AFG"`, `"ROW"`, `"RAFR"`) under that name, of which 0 of 271 non-`NA`
+  values was a `polities$polity_code`, so a join from either table to `polities`
+  or `polity_area_crosswalk` on the one column whose name promised identity came
+  back completely empty and nothing warned. The column is now
+  `legacy_polity_prefix`, which claims nothing; the real carrier remains
+  `reporting_polity_code` (259/259 and 198/198 non-`NA`, all real). **This is a
+  breaking schema change for any caller reading `regions_full$polity_code` or
+  `polities_cats$polity_code`** — rename the read, and if the intent was a
+  polity, switch to `reporting_polity_code`. **No published value changes**: the
+  two rebuilt tables are `identical()` to their predecessors once the column is
+  renamed back, and the one join in `R/` that used the old name
+  (`.read_fodder_euadb()`'s EU AgriDB bridge, which was really an ISO3 join
+  wearing a polity name) resolves the same 28 ADB regions to the same area
+  codes.
+
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
