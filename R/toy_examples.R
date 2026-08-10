@@ -145,7 +145,8 @@
     2000L, 2L, 2511L, 9.80e8, "WFN_blue", # Afghanistan wheat, blue
     2000L, 2L, 961L, 4.50e7, "WFN_blue", # Afghanistan cattle, blue
     2010L, 2L, 2514L, 4.10e8, "WFN_blue"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_get_primary_prod <- function() {

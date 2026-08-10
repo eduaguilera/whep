@@ -3,13 +3,25 @@ testthat::test_that("build_water_extension example has expected structure", {
 
   pointblank::expect_col_exists(
     result,
-    c("year", "area_code", "item_cbs_code", "impact_u", "method_water")
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "impact_u",
+      "method_water",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry"
+    )
   )
   pointblank::expect_col_vals_gt(result, "impact_u", 0)
 })
 
 # Shared inputs: maize (two prod items aggregating to one CBS), a crop without a
 # coefficient, cattle heads, grazed pasture and rotational fallow.
+# Carries both area codes, as get_primary_production() does: coefficients join
+# on the legacy area_code, output is keyed on polity_area_code.
 .water_primary_prod <- function() {
   tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~unit, ~value,
@@ -19,7 +31,8 @@ testthat::test_that("build_water_extension example has expected structure", {
     2000L, 2L, 866L, 961L, "heads", 10,
     2000L, 2L, NA_integer_, 3000L, "ha", 1000,
     2000L, 2L, NA_integer_, 3003L, "ha", 5000
-  )
+  ) |>
+    dplyr::mutate(polity_area_code = .data$area_code)
 }
 
 .water_crop_coef <- function() {
@@ -81,4 +94,40 @@ testthat::test_that("build_water_extension rejects an unknown component", {
     whep::build_water_extension(component = "grey"),
     "component"
   )
+})
+
+testthat::test_that("water is summed onto the polity, not the legacy area", {
+  # Two legacy reporting areas (a split territory) sharing one polity bucket.
+  # Their coefficients differ, which is the point: an intensity cannot be
+  # averaged across them without a weight, but the resulting cubic metres add.
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~polity_area_code, ~item_prod_code, ~item_cbs_code,
+    ~unit, ~value,
+    2000L, 2L, 2L, 56L, 2514L, "tonnes", 100,
+    2000L, 277L, 2L, 56L, 2514L, "tonnes", 400
+  )
+  crop_coef <- tibble::tribble(
+    ~crop_code, ~country_code, ~year, ~wfg_m3_t, ~wfb_cr_m3_t, ~wfb_i_m3_t,
+    56L, 2L, 2000L, 300, 0, 1000,
+    56L, 277L, 2000L, 300, 0, 10
+  )
+
+  result <- whep::build_water_extension(
+    component = "blue",
+    data = list(
+      primary_prod = primary_prod,
+      crop_water = crop_coef,
+      livestock_water = tibble::tribble(
+        ~item_cbs_code, ~m3_per_head,
+        961L, 25
+      )
+    )
+  )
+
+  # One row for the shared polity, not one per legacy area.
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$area_code, 2L)
+  # 100 t x 1000 m3/t + 400 t x 10 m3/t = 104,000 m3. A mean intensity would
+  # have given 505 m3/t x 500 t = 252,500 m3 instead.
+  testthat::expect_equal(result$impact_u, 104000, tolerance = 1e-8)
 })

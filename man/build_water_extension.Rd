@@ -25,7 +25,9 @@ data. Defaults to \code{FALSE}.}
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (water use in cubic metres) and \code{method_water} (the chosen
-component, e.g. \code{"WFN_blue"}).
+component, e.g. \code{"WFN_blue"}), plus the polity columns below. \code{area_code}
+is a \code{polity_area_code}, the key the sibling extensions and the IO model
+share.
 }
 \description{
 Aggregate Water Footprint Network green/blue water intensities into a
@@ -64,10 +66,51 @@ coefficient times grazed grassland area (LUH2 pasture and rangeland).
 Crop intensities (cubic metres per tonne) are joined to whep's own crop
 production (the \code{"tonnes"} rows of \code{\link[=get_primary_production]{get_primary_production()}}) by FAO crop
 code and country-year, so the footprint tracks whep production rather than
-the source's. Crops, countries or years absent from the coefficient table
+the source's. The coefficient tables are keyed by the legacy FAOSTAT area
+code they were published in, and are joined on it; only the resulting water
+volumes, which add, are then collapsed onto \code{polity_area_code}. Crops, countries or years absent from the coefficient table
 contribute no water; the WFN crop table currently spans 1990-2019, so years
 outside that range yield no crop water until extrapolation is added.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_water_extension(example = TRUE)
 }

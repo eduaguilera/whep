@@ -35,7 +35,9 @@
 #' Crop intensities (cubic metres per tonne) are joined to whep's own crop
 #' production (the `"tonnes"` rows of [get_primary_production()]) by FAO crop
 #' code and country-year, so the footprint tracks whep production rather than
-#' the source's. Crops, countries or years absent from the coefficient table
+#' the source's. The coefficient tables are keyed by the legacy FAOSTAT area
+#' code they were published in, and are joined on it; only the resulting water
+#' volumes, which add, are then collapsed onto `polity_area_code`. Crops, countries or years absent from the coefficient table
 #' contribute no water; the WFN crop table currently spans 1990-2019, so years
 #' outside that range yield no crop water until extrapolation is added.
 #'
@@ -50,7 +52,11 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (water use in cubic metres) and `method_water` (the chosen
-#'   component, e.g. `"WFN_blue"`).
+#'   component, e.g. `"WFN_blue"`), plus the polity columns below. `area_code`
+#'   is a `polity_area_code`, the key the sibling extensions and the IO model
+#'   share.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -115,7 +121,7 @@ build_water_extension <- function(
     dplyr::filter(.data$unit == "tonnes", !is.na(.data$item_cbs_code)) |>
     dplyr::summarise(
       production_t = sum(.data$value, na.rm = TRUE),
-      .by = c(year, area_code, item_prod_code, item_cbs_code)
+      .by = c(year, area_code, polity_area_code, item_prod_code, item_cbs_code)
     ) |>
     dplyr::inner_join(
       intensity,
@@ -123,7 +129,7 @@ build_water_extension <- function(
     ) |>
     dplyr::transmute(
       year,
-      area_code,
+      polity_area_code,
       item_cbs_code,
       impact_u = .data$production_t * .data$water_m3_t
     )
@@ -159,12 +165,12 @@ build_water_extension <- function(
     dplyr::filter(.data$unit == "heads", !is.na(.data$item_cbs_code)) |>
     dplyr::summarise(
       heads = sum(.data$value, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, area_code, polity_area_code, item_cbs_code)
     ) |>
     dplyr::inner_join(coef, by = "item_cbs_code") |>
     dplyr::transmute(
       year,
-      area_code,
+      polity_area_code,
       item_cbs_code,
       impact_u = .data$heads * .data$m3_per_head
     )
@@ -180,12 +186,12 @@ build_water_extension <- function(
     dplyr::filter(.data$unit == "ha", .data$item_cbs_code %in% grass) |>
     dplyr::summarise(
       area_ha = sum(.data$value, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, area_code, polity_area_code, item_cbs_code)
     ) |>
     dplyr::inner_join(coef, by = "area_code") |>
     dplyr::transmute(
       year,
-      area_code,
+      polity_area_code,
       item_cbs_code,
       impact_u = .data$area_ha * .data$m3_per_ha
     )
@@ -214,20 +220,29 @@ build_water_extension <- function(
 }
 
 # Combine crop and non-crop water, sum to the IO grain, drop empties and label.
+#
+# The sum is taken on polity_area_code, the key the sibling extensions and the
+# IO model share. Coefficients are joined upstream on the legacy area_code that
+# both they and production carry, so what gets collapsed here is water in cubic
+# metres -- an extensive quantity that adds. Translating the coefficient tables
+# instead would mean averaging intensities (m3/t, m3/head, m3/ha) across the
+# legacy areas that share a polity, which needs a weight and would silently
+# pick the wrong one.
 .water_extension <- function(crop, other, component) {
   dplyr::bind_rows(crop, other) |>
     dplyr::summarise(
       impact_u = sum(.data$impact_u, na.rm = TRUE),
-      .by = c(year, area_code, item_cbs_code)
+      .by = c(year, polity_area_code, item_cbs_code)
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
-    dplyr::mutate(
+    dplyr::transmute(
       year = as.integer(.data$year),
-      area_code = as.integer(.data$area_code),
+      area_code = as.integer(.data$polity_area_code),
       item_cbs_code = as.integer(.data$item_cbs_code),
+      impact_u = .data$impact_u,
       method_water = .water_method_label(component)
     ) |>
-    dplyr::select(year, area_code, item_cbs_code, impact_u, method_water)
+    .add_reporting_polity_columns()
 }
 
 .water_method_label <- function(component) {
