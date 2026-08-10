@@ -33,6 +33,65 @@
     )
 }
 
+#' Warn about reporting areas the grid cannot represent at all.
+#'
+#' `.warn_unallocated_crops()` fires per (country, crop) per year and
+#' `.warn_unallocated_livestock()` per (species, year), so a reporting area
+#' the `country_grid` holds no cell for **at all** is reported as more of the
+#' same routine per-crop leakage and is impossible to separate from it. That is
+#' exactly the failure mode a `country_grid` substitution produces: two grids
+#' rasterized through different vintages of `regions.csv` disagree about which
+#' reporting codes exist, and every area whose code the new grid does not use
+#' loses its entire national total in silence. Report it once per call, on its
+#' own, with the national quantity at stake.
+#' @noRd
+.warn_grid_missing_reporters <- function(
+  national,
+  country_grid,
+  value_col,
+  quantity
+) {
+  codes <- sort(setdiff(
+    unique(as.integer(national$area_code)),
+    unique(as.integer(country_grid$area_code))
+  ))
+  if (length(codes) == 0L) {
+    return(invisible(NULL))
+  }
+  at_stake <- .grid_missing_quantity(national, codes, value_col)
+  stake_msg <- if (is.na(at_stake)) {
+    ""
+  } else {
+    paste0(", carrying ", round(at_stake), " ", quantity)
+  }
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  cli::cli_warn(c(
+    paste0(
+      "{length(codes)} reporting area{?s} in the national table have no ",
+      "cell in {.arg country_grid} at all",
+      stake_msg,
+      ":"
+    ),
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}.",
+    "i" = "Their whole national total is dropped. A jump here between two
+       {.arg country_grid} tables means the grids disagree about which
+       reporting codes exist, not that the allocation improved."
+  ))
+}
+
+#' National quantity carried by area codes the grid cannot represent.
+#' @noRd
+.grid_missing_quantity <- function(national, codes, value_col) {
+  if (!rlang::has_name(national, value_col)) {
+    return(NA_real_)
+  }
+  national |>
+    dplyr::filter(as.integer(area_code) %in% codes) |>
+    dplyr::pull(dplyr::all_of(value_col)) |>
+    sum(na.rm = TRUE)
+}
+
 #' Columns that identify a polity compartment within a physical cell.
 #' @noRd
 .compartment_id_cols <- function(data) {
