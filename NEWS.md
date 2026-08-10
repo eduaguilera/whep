@@ -1,5 +1,35 @@
 # whep (development version)
 
+* **New: `build_water_extension()`, the blue/green water footprint extension
+  (#107).** Returns a tidy `(year, area_code, item_cbs_code, impact_u,
+  method_water)` extension in m3, keyed on `polity_area_code` and carrying the
+  reporting-polity columns, so it feeds `build_footprint()` exactly as the land
+  and GHG extensions do. `component` selects blue (crop irrigation + livestock
+  drinking/service water) or green (crop rainfed + grazing). Coefficients come
+  from three pins -- Mialyk et al. (2024) crop intensities, Chapagain & Hoekstra
+  (2003) livestock water, and grassland green ET from the WHEP LPJmL run -- and
+  no coefficient value is hardcoded.
+  * Coefficients are joined on the **legacy** FAOSTAT `area_code` that both they
+    and `get_primary_production()` carry; only the resulting cubic metres are
+    collapsed onto the polity. Intensities (m3/t, m3/head, m3/ha) cannot be
+    averaged across the legacy areas sharing a polity without a weight, and
+    volumes add, so the collapse happens after the multiplication.
+  * The grazing coefficient is **annual** (1901-2023) rather than one 2000-2009
+    climatological mean, so grazing water follows each year's own climate and
+    grassland extent, and the join keys on `(year, area_code)`.
+  * Its values correct the LPJmL 6.x green/blue defect (#710) by taking
+    `green + blue` on the rainfed grassland band, which is exact because the
+    upstream fix is a pure repartition.
+  * **Grazing is charged the full managed-grassland ET**, consistent with
+    `build_grassland_land_extension(grassland_metric = "occupation")`. The
+    resulting global total (15,735 km3/yr) sits above the published
+    8,258-12,960 km3/yr range for total grazing-land ET; the narrower
+    "green WF of grazing" of Schyns et al. (2019) restricts to the grazed area
+    at the necessary livestock density. See #681.
+
+* **`read_lpjml_hydrology()` gains `"cftfrac"`**, the per-CFT share of the cell
+  each band occupies -- the area weight the per-CFT consumptive-water cubes need.
+
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
