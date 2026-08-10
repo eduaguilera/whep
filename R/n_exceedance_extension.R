@@ -67,7 +67,7 @@ build_n_exceedance_extension <- function(
     c("year", "area_code", "item_cbs_code", .nex_category_col(category)),
     "exceedance"
   )
-  .nex_validate_complete_attribution(exceedance)
+  .nex_validate_attribution(exceedance)
   exceedance |>
     .nex_select_impact(category) |>
     .nex_drop_bad_keys() |>
@@ -82,7 +82,7 @@ build_n_exceedance_extension <- function(
     )
 }
 
-.nex_validate_complete_attribution <- function(x) {
+.nex_validate_attribution <- function(x) {
   undefined <- rlang::has_name(x, "attribution_status") &&
     any(grepl("^undefined_", x$attribution_status), na.rm = TRUE)
   residual <- rlang::has_name(x, "attribution_record_type") &&
