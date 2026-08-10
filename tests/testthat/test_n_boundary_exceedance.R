@@ -336,3 +336,62 @@ testthat::test_that("build_n_boundary_exceedance example uses the real path", {
     )
   )
 })
+
+# The land class decides which crop rows enter the cell aggregate at all, so it
+# decides every number downstream of it. `"igl"` is new here and the old
+# per-crop file's grass-scope guard did not survive the rewrite.
+.nbx_run_scope <- function(land_class) {
+  actual <- .nbx_actual(c(4, 4), indicator = "total_input")
+  actual$item_cbs_code <- c(2501L, 3000L)
+  boundary <- .nbx_boundary()
+  boundary$indicator <- "total_input"
+  boundary$land_class <- land_class
+  whep::build_n_boundary_exceedance(
+    actual = actual,
+    boundary = boundary,
+    indicator = "total_input",
+    land_class = land_class,
+    impact_scope = "mi",
+    allocation_scenario = "yield_gap",
+    resolution = "grid",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
+}
+
+testthat::test_that("the land class selects which crop rows are compared", {
+  arable <- .nbx_run_scope("ara")
+  testthat::expect_equal(arable$item_cbs_code, 2501L)
+  testthat::expect_equal(unique(arable$cell_actual_n_t), 4)
+
+  grass <- .nbx_run_scope("igl")
+  testthat::expect_equal(grass$item_cbs_code, 3000L)
+  testthat::expect_equal(unique(grass$cell_actual_n_t), 4)
+
+  # "all" is the sensitivity scope: it keeps both, so the one allowance is
+  # spread over twice the pressure rather than being consumed twice.
+  both <- .nbx_run_scope("all")
+  testthat::expect_equal(sort(both$item_cbs_code), c(2501L, 3000L))
+  testthat::expect_equal(unique(both$cell_actual_n_t), 8)
+  testthat::expect_equal(sum(both$crop_critical_n_t), 5)
+})
+
+testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
+  actual <- .nbx_actual(c(4, 4), indicator = "total_input")
+  actual$item_cbs_code <- c(2501L, NA_integer_)
+  boundary <- .nbx_boundary()
+  boundary$indicator <- "total_input"
+  out <- whep::build_n_boundary_exceedance(
+    actual = actual,
+    boundary = boundary,
+    indicator = "total_input",
+    land_class = "ara",
+    impact_scope = "mi",
+    allocation_scenario = "yield_gap",
+    resolution = "grid",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
+  testthat::expect_equal(out$item_cbs_code, 2501L)
+  testthat::expect_equal(unique(out$cell_actual_n_t), 4)
+})
