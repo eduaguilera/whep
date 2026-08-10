@@ -7,6 +7,7 @@
 build_water_balance(
   method = list(),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   bands = NULL,
   example = FALSE
@@ -23,6 +24,17 @@ left out take their default.}
 
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid NetCDF reads:
 hydrology tibbles \code{transp}, \code{evap}, \code{interc}, \code{prec}, \code{irrig}, \code{runoff}
@@ -60,7 +72,8 @@ A tibble. For \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_cod
 \code{aet_blue_mm}, \code{aet_green_mm}, \code{blue_consump_mm}, \code{green_consump_mm},
 \code{cft_nir_mm}, \code{drainage_mm}, \code{runoff_mm}, \code{soil_water_change_mm} and
 \code{method_water}. For \code{resolution = "polity"}: the same terms aggregated to
-\code{year} and \code{area_code}. Both resolutions carry the polity columns below.
+\code{year} and \code{area_code}. Both resolutions carry the polity columns below,
+plus \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{
 Combines LPJmL monthly hydrology outputs into an annual per-cell water

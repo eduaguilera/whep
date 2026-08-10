@@ -1,5 +1,36 @@
 # whep (development version)
 
+* **Every join that keys on a territory but not on a year is now classified,
+  and the list can only shrink.** A key of `area_code` with no `year` spans
+  every period of a territory's history, so it asserts that the area means one
+  thing for all time. Usually that is right -- 57 of the package's 163
+  territorial joins carry no year, and nearly all are a single-year scope, a
+  table with no time dimension (a coefficient, a single-vintage map, a grid
+  mask), an identity lookup or a diagnostic -- but nothing said which, so a
+  decision and an oversight looked alike. `.territorial_join_baseline()` now
+  records the verdict and the reason for each, and `test_join_audit.R` fails
+  when a new year-free territorial join appears unclassified, when a classified
+  one disappears without its entry, or when a further join starts keying on the
+  `area` label. Classifying them turned up one real defect, filed as #698 with
+  its measurement rather than fixed here, because removing it needs #493's
+  decision first. No published value changes (#669).
+* **Four documented examples could not say which territory their rows belong
+  to.** `build_supply_use(example = TRUE)` shipped a row
+  with no `area_code` at all (an epsilon `3.33e-14` husbandry use) and
+  `get_feed_intake(example = TRUE)` two more, so their polity columns came out
+  `NA`; `build_feed_intake_local(example = TRUE)` and
+  `build_grass_natural_carbon_inputs(example = TRUE)` keyed cells by an
+  ISO-3166 numeric code (724 Spain, 300 Greece) where the FAOSTAT area code
+  belongs, which resolves to nothing -- and one sibling row's ISO code for
+  Argentina, 32, is FAOSTAT's Cameroon, so a cell in the pampas was labelled
+  Cameroon. The two feed fixtures also predated the redistribute-feed
+  migration and showed a 10% feed loss the current allocator cannot produce.
+  All four fixtures are now sampled from real builds (the gridded ones keyed
+  by the code the cell grid actually assigns: 203, 84, 9), and
+  `build_supply_use(example = TRUE)` now covers all five documented process
+  groups instead of three. **No published value changes** -- these are
+  documentation fixtures, not pipeline outputs (#417).
+
 * **`split_manure_management()` can now use the region-specific MMS shares, via
   the new `mms_source = "region_specific"`. The default is unchanged, so no
   published value moves.** `regional_mms_distribution` ships 33 rows: 18 for
@@ -50,6 +81,45 @@
     `collapse_degen = FALSE`. Monthly cubes never hit this, because a one-year
     slice is still twelve steps.
 
+* **New `polity_identity_conventions()` states, per object, what territorial
+  identity a WHEP table with no year dimension carries (#671).** A polity code
+  is year-scoped, so for a year-less object "attach the polity code" has no
+  single answer: measured on the deployed `spatialize-country-grid` pin, 52,420
+  of its 58,795 cells (89.2%) sit under an `area_code` that
+  `polity_area_crosswalk` maps to more than one polity over time, and 33 of
+  `mueller_synthetic_n`'s 156 `iso3c` labels, 37 of `crops_manure_n`'s 184
+  `ISO` labels and 38 of `gleam_geographic_hierarchy`'s 204 `iso3` labels name
+  a *different* polity at 1961 than at 2020. The register records which of
+  #458's three answers each object takes — present-day polity, polity-period
+  rows, or deliberately identity-free — and the new
+  `tests/testthat/test_territorial_identity.R` checks each claim against the
+  object it is made about, so a year-less territory-keyed dataset can no longer
+  arrive without one. No published value moves; nothing but the register and
+  its guards is added.
+
+  Two things it makes visible. `regions_full` and `polities_cats` really do
+  carry the present-day polity, in `reporting_polity_code`, and it is exactly
+  what `add_polity_code(year_column = NULL)` resolves for all 272 and 198 rows
+  respectively — now asserted rather than assumed. And their column literally
+  named `polity_code` is **not** a polity code: none of its 271 values appears
+  in `polities`, because it is a legacy ISO3-like prefix, which is pinned so
+  the two vocabularies cannot be quietly conflated.
+* **`build_water_balance()` and `get_soc_climate_drivers()` now say when a
+  cell-year is attributed to a polity that did not yet exist, and can refuse to
+  do it (#462).** The cell-polity crosswalk is a present-day rasterization with
+  no year dimension, while polity validity is year-scoped, so a cell labelled
+  `area_code` 52 carried that label in 1901 as readily as in 2009 and the
+  polity resolution silently substituted the nearest period, `AZE-1991-2025`.
+  Measured on the deployed `cell_polity_fraction.parquet` over the 1901-2009
+  LPJmL run: **1,948 of 19,838 `(area_code, year)` keys, 21 of 182 area codes,
+  14,761 of 58,791 cells** — the post-Soviet and post-Yugoslav successors plus
+  South Sudan. Both functions gain `polity_validity`: `"keep"` (default) is the
+  previous behaviour plus a warning naming the rows, years and area codes;
+  `"flag"` adds the per-row logical `reporting_polity_out_of_span`; `"drop"`
+  removes those rows. **No published value changes on the default**, and
+  `"flag"` is numerically identical to it. `"drop"` removes 20.4% of the run's
+  cell-years and makes South Sudan disappear from it entirely, which is why it
+  is opt-in.
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6
