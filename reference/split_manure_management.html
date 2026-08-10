@@ -71,9 +71,15 @@ the per-species MMS shares sum to one.</p>
 
 
 <dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
-<dd><p>A named list. <code>mms_source</code> selects the MMS-share table
-(<code>"regional_default"</code>, the global IPCC/GLEAM default in
-<code>regional_mms_distribution</code>).</p></dd>
+<dd><p>A named list. <code>mms_source</code> selects how the MMS shares in
+<code>regional_mms_distribution</code> are read:</p><ul><li><p><code>"regional_default"</code> (default): every territory takes the table's
+<code>region == "Global"</code> rows, the IPCC/GLEAM global default.</p></li>
+<li><p><code>"region_specific"</code>: each territory takes the rows of the region it
+resolves to, and the Global rows when its region has none. Only four
+<code>(region, species)</code> pairs carry region-specific rows (North America
+cattle and swine, Western Europe cattle, Latin America cattle), so
+every other row is unchanged.</p></li>
+</ul></dd>
 
 </dl></div>
     <div class="section level2">

@@ -26,9 +26,17 @@ split_manure_management(excretion, options = list())
 
 - options:
 
-  A named list. `mms_source` selects the MMS-share table
-  (`"regional_default"`, the global IPCC/GLEAM default in
-  `regional_mms_distribution`).
+  A named list. `mms_source` selects how the MMS shares in
+  `regional_mms_distribution` are read:
+
+  - `"regional_default"` (default): every territory takes the table's
+    `region == "Global"` rows, the IPCC/GLEAM global default.
+
+  - `"region_specific"`: each territory takes the rows of the region it
+    resolves to, and the Global rows when its region has none. Only four
+    `(region, species)` pairs carry region-specific rows (North America
+    cattle and swine, Western Europe cattle, Latin America cattle), so
+    every other row is unchanged.
 
 ## Value
 
