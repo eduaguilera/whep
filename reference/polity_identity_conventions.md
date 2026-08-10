@@ -113,16 +113,19 @@ crop.
 [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md)
 and
 [polities_cats](https://eduaguilera.github.io/whep/reference/polities_cats.md)
-carry a column literally named `polity_code`, and **none of its values
-is a
+carry a column of ISO3-like stems (`"AFG"`, `"ROW"`, `"RAFR"`) kept for
+older callers, of which **not one value is a
 [polities](https://eduaguilera.github.io/whep/reference/polities.md)
-code** – it is a legacy ISO3-like prefix kept for older callers,
-documented as such on both datasets. Their real carrier is
-`reporting_polity_code`, a
+code**. Until whep#687 that column was literally named `polity_code`, so
+a join from either dataset to
+[polities](https://eduaguilera.github.io/whep/reference/polities.md) or
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+on the one column whose name promised identity came back empty and
+nothing warned. It is now `legacy_polity_prefix`, which claims nothing.
+Their real carrier is `reporting_polity_code`, a
 [polities](https://eduaguilera.github.io/whep/reference/polities.md)
 code on all 259 of `regions_full`'s non-`NA` rows and all 198 of
-`polities_cats`'s. Reading identity off the column whose name promises
-it returns an empty join against every other polity-keyed table in WHEP.
+`polities_cats`'s.
 
 ## See also
 

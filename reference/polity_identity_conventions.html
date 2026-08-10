@@ -151,13 +151,14 @@ why a bare <code>code</code> is not one of them: <code>biomass_coefs$Code</code>
     </div>
     <div class="section level2">
     <h2 id="the-trap-this-register-exists-to-make-visible">The trap this register exists to make visible<a class="anchor" aria-label="anchor" href="#the-trap-this-register-exists-to-make-visible"></a></h2>
-    <p><a href="regions_full.html">regions_full</a> and <a href="polities_cats.html">polities_cats</a> carry a column literally named
-<code>polity_code</code>, and <strong>none of its values is a <a href="polities.html">polities</a> code</strong> – it is a
-legacy ISO3-like prefix kept for older callers, documented as such on both
-datasets. Their real carrier is <code>reporting_polity_code</code>, a <a href="polities.html">polities</a> code
-on all 259 of <code>regions_full</code>'s non-<code>NA</code> rows and all 198 of
-<code>polities_cats</code>'s. Reading identity off the column whose name promises it
-returns an empty join against every other polity-keyed table in WHEP.</p>
+    <p><a href="regions_full.html">regions_full</a> and <a href="polities_cats.html">polities_cats</a> carry a column of ISO3-like stems
+(<code>"AFG"</code>, <code>"ROW"</code>, <code>"RAFR"</code>) kept for older callers, of which <strong>not one value
+is a <a href="polities.html">polities</a> code</strong>. Until whep#687 that column was literally named
+<code>polity_code</code>, so a join from either dataset to <a href="polities.html">polities</a> or
+<a href="polity_area_crosswalk.html">polity_area_crosswalk</a> on the one column whose name promised identity came
+back empty and nothing warned. It is now <code>legacy_polity_prefix</code>, which claims
+nothing. Their real carrier is <code>reporting_polity_code</code>, a <a href="polities.html">polities</a> code on
+all 259 of <code>regions_full</code>'s non-<code>NA</code> rows and all 198 of <code>polities_cats</code>'s.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

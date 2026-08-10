@@ -16,8 +16,16 @@ A tibble where each row corresponds to one polity or aggregate region.
 It contains the following columns (same definitions as `polities_cats`,
 minus the five trailing `0...36`–`0...40` artefact columns):
 
-- `polity_code`: Legacy current polity prefix. This is kept for
-  compatibility with older code that expected ISO3-like values.
+- `legacy_polity_prefix`: Legacy current polity prefix, kept for
+  compatibility with older code that expected ISO3-like values. **Not a
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  code**: it was called `polity_code` until whep#687, where the name
+  promised an identity none of its 271 non-`NA` values holds, so a join
+  to
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  or
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+  on it returned nothing. Read `reporting_polity_code` for the polity.
 
 - `polity_name`: Current polity, country, territory, or aggregate name.
 
@@ -124,19 +132,19 @@ for the subset restricted to sovereign countries.
 ``` r
 head(regions_full)
 #> # A tibble: 6 × 39
-#>   polity_code polity_name    V1  code iso3c FAOSTAT_name EU27  name  eia   iea  
-#>   <chr>       <chr>       <dbl> <int> <chr> <chr>        <lgl> <chr> <chr> <chr>
-#> 1 ROW         Rest of Wo…    30    30 ATA   NA           FALSE Anta… Anta… NA   
-#> 2 NA          NA            259   351 NA    China        FALSE China NA    NA   
-#> 3 ROW         Rest of Wo…   149   152 NTZ   NA           FALSE Neut… NA    NA   
-#> 4 ROW         Rest of Wo…   245   254 OXY   NA           FALSE Othe… NA    NA   
-#> 5 ROW         Rest of Wo…   260   999 ROW   NA           FALSE RoW   NA    NA   
-#> 6 ROW         Rest of Wo…   244   252 UXY   NA           FALSE Unsp… NA    NA   
-#> # ℹ 29 more variables: water_code <dbl>, water_area <chr>, baci <dbl>,
-#> #   fish <dbl>, region_code <dbl>, cbs <lgl>, fabio_code <dbl>,
-#> #   ADB_Region <chr>, region <chr>, uISO3c <dbl>, Lassaletta <chr>,
-#> #   region_krausmann <chr>, region_HANPP <chr>, region_krausmann2 <chr>,
-#> #   region_UN_sub <chr>, region_UN <chr>, region_ILO1 <chr>, region_ILO2 <chr>,
-#> #   region_ILO3 <chr>, region_IEA <chr>, region_IPCC <chr>,
-#> #   region_labour <chr>, region_labour_agg <chr>, region_labour_mech <chr>, …
+#>   legacy_polity_prefix polity_name      V1  code iso3c FAOSTAT_name EU27  name  
+#>   <chr>                <chr>         <dbl> <int> <chr> <chr>        <lgl> <chr> 
+#> 1 ROW                  Rest of World    30    30 ATA   NA           FALSE Antar…
+#> 2 NA                   NA              259   351 NA    China        FALSE China 
+#> 3 ROW                  Rest of World   149   152 NTZ   NA           FALSE Neutr…
+#> 4 ROW                  Rest of World   245   254 OXY   NA           FALSE Other…
+#> 5 ROW                  Rest of World   260   999 ROW   NA           FALSE RoW   
+#> 6 ROW                  Rest of World   244   252 UXY   NA           FALSE Unspe…
+#> # ℹ 31 more variables: eia <chr>, iea <chr>, water_code <dbl>,
+#> #   water_area <chr>, baci <dbl>, fish <dbl>, region_code <dbl>, cbs <lgl>,
+#> #   fabio_code <dbl>, ADB_Region <chr>, region <chr>, uISO3c <dbl>,
+#> #   Lassaletta <chr>, region_krausmann <chr>, region_HANPP <chr>,
+#> #   region_krausmann2 <chr>, region_UN_sub <chr>, region_UN <chr>,
+#> #   region_ILO1 <chr>, region_ILO2 <chr>, region_ILO3 <chr>, region_IEA <chr>,
+#> #   region_IPCC <chr>, region_labour <chr>, region_labour_agg <chr>, …
 ```
