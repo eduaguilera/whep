@@ -937,18 +937,128 @@ get_polity_geometries <- function(polity_codes = NULL) {
     !is.na(cw$polity_code) &
     !is.na(cw$polity_start_year) &
     !is.na(cw$polity_end_year)
-  cw <- unique(cw[
-    keep,
-    c("area_code", "polity_code", "polity_start_year", "polity_end_year")
-  ])
-  if (nrow(cw) == 0L) {
+  cw <- cw[keep, ]
+  .area_year_span_conflicts(data.frame(
+    area_code = cw$area_code,
+    polity_code = cw$polity_code,
+    span_start = cw$polity_start_year,
+    span_end = cw$polity_end_year,
+    stringsAsFactors = FALSE
+  ))
+}
+
+# The years the contract is asserted over: FAOSTAT's first reported year to the
+# vintage's horizon.
+#
+# Both ends are derived, not written down. The lower end is
+# `add_polity_code()`'s `backcast_anchor`, which floors every lookup, so nothing
+# resolves under a pre-anchor year at all. The upper end is the largest
+# `polity_end_year` the crosswalk carries, the same open-period sentinel
+# `.current_area_lookup()` reads -- a literal would silently stop covering the
+# newest year the next time the snapshot moves, and it has moved twice in this
+# epic (#530, #551).
+.reporting_era_years <- function(crosswalk) {
+  seq.int(
+    eval(formals(add_polity_code)$backcast_anchor),
+    max(as.integer(crosswalk$polity_end_year), na.rm = TRUE)
+  )
+}
+
+# The same detection over the spans `add_polity_code()` ACTUALLY JOINS ON, which
+# are not the spans the crosswalk declares.
+#
+# `.area_year_polity_conflicts()` reads `polity_end_year` as written. The
+# resolver reads it through `.polity_join_end_year()`, which widens an OPEN
+# period by one year (exclusive at a succession, inclusive at an open end,
+# #577) and to the inclusive `map_year_end` where the upstream map declares a
+# reported year past the territorial span. 264 of the shipped crosswalk's
+# area-polity rows are widened that way today.
+#
+# So the declared-period check can be clean while the resolution is still
+# ambiguous: give an area an open period ending 2025 and a successor starting
+# 2025 and the declared spans [.,2025) and [2025,.) do not touch, while the
+# joined spans [.,2026) and [2025,.) both cover 2025. `add_polity_code()` would
+# then pick by row order -- `unique(matches, by = rowid)` after a
+# `polity_start_year DESC` sort keeps exactly one candidate, so the ambiguity
+# never shows up as a duplicated output row and cannot be seen downstream.
+# This is what makes the contract a property of the resolution rather than of
+# the table.
+.polity_join_conflicts <- function(crosswalk = NULL, years = NULL) {
+  cw <- if (is.null(crosswalk)) {
+    .polity_crosswalk(include_unmapped = TRUE)
+  } else {
+    crosswalk
+  }
+  cw <- as.data.frame(cw)
+  years <- years %||% .reporting_era_years(cw)
+  if (!rlang::has_name(cw, "map_year_end")) {
+    cw$map_year_end <- NA_integer_
+  }
+  cw <- cw[!is.na(cw$area_code) & !is.na(cw$polity_code), ]
+  span_end <- .polity_join_end_year(
+    cw$polity_end_year,
+    cw$map_year_end,
+    cw$polity_code %in% .open_polity_codes()
+  )
+  span_start <- ifelse(
+    is.na(cw$polity_start_year),
+    -Inf,
+    as.numeric(cw$polity_start_year)
+  )
+  # Clamp to the window rather than filtering, so a period that merely starts
+  # before it still competes for the years inside it.
+  .area_year_span_conflicts(data.frame(
+    area_code = cw$area_code,
+    polity_code = cw$polity_code,
+    span_start = pmax(span_start, min(years)),
+    span_end = pmin(span_end, max(years) + 1),
+    stringsAsFactors = FALSE
+  ))
+}
+
+# Which `(polity_area_code, year)` pairs do NOT recover a single polity.
+#
+# The bucket is a key rows are aggregated on, not an identity: several
+# `area_code` values can share one, and then the bucket answers with as many
+# polities as its members resolve to. Measured over the reporting era this is
+# bucket 206 alone (Sudan (former) 206, Sudan 276 and South Sudan 277 share
+# it), which is #414 and not decided here.
+#
+# Driven through `add_polity_code()` rather than through the spans, because
+# what a consumer keying on the bucket gets is the resolution, including the
+# nearest-period stand-ins: 206 is ambiguous in every reported year, not only
+# in the years its three periods overlap.
+.bucket_year_polity_conflicts <- function(years = NULL) {
+  cw <- .polity_crosswalk(include_unmapped = TRUE)
+  years <- years %||% .reporting_era_years(cw)
+  areas <- sort(unique(stats::na.omit(cw$area_code)))
+  grid <- tibble::tibble(
+    area_code = rep(as.integer(areas), each = length(years)),
+    year = rep(as.integer(years), times = length(areas))
+  )
+  resolved <- as.data.frame(add_polity_code(grid))
+  resolved <- resolved[
+    !is.na(resolved$polity_code) & !is.na(resolved$polity_area_code),
+  ]
+  out <- .summarise_conflicts(data.frame(
+    area_code = resolved$polity_area_code,
+    year = resolved$year,
+    polity_code = resolved$polity_code,
+    stringsAsFactors = FALSE
+  ))
+  names(out)[names(out) == "area_code"] <- "polity_area_code"
+  out
+}
+
+# One row per (area, year) a period covers, then the conflict summary.
+# `span_end` is EXCLUSIVE, so [1920, 1947) covers 1920:1946 -- getting that
+# wrong would report a spurious conflict at every boundary.
+.area_year_span_conflicts <- function(spans) {
+  spans <- unique(spans[!is.na(spans$span_start) & !is.na(spans$span_end), ])
+  if (nrow(spans) == 0L) {
     return(.empty_conflict_frame())
   }
-
-  # One row per (area, year) a polity covers. `polity_end_year` is EXCLUSIVE, so a
-  # period [1920, 1947) covers 1920:1946 -- getting that wrong would report a
-  # spurious conflict at every boundary.
-  spans <- Map(
+  long <- Map(
     function(a, p, s, e) {
       if (e <= s) {
         return(NULL)
@@ -960,17 +1070,26 @@ get_polity_geometries <- function(polity_codes = NULL) {
         stringsAsFactors = FALSE
       )
     },
-    cw$area_code,
-    cw$polity_code,
-    as.integer(cw$polity_start_year),
-    as.integer(cw$polity_end_year)
+    spans$area_code,
+    spans$polity_code,
+    as.integer(spans$span_start),
+    as.integer(spans$span_end)
   )
-  spans <- spans[!vapply(spans, is.null, logical(1))]
-  if (length(spans) == 0L) {
+  long <- long[!vapply(long, is.null, logical(1))]
+  if (length(long) == 0L) {
     return(.empty_conflict_frame())
   }
-  long <- do.call(rbind, spans)
+  .summarise_conflicts(do.call(rbind, long))
+}
 
+# `long` carries one row per (area_code, year, polity_code) candidate.
+#
+# Deduplicated first: an ambiguity is TWO POLITIES answering for one key, not
+# two rows. Several areas sharing a bucket and agreeing on the polity is what
+# the Rest-of-World fold does to every one of its members, and counting rows
+# would report that agreement as a conflict.
+.summarise_conflicts <- function(long) {
+  long <- unique(long)
   key <- paste(long$area_code, long$year, sep = ":")
   counts <- table(key)
   dup <- names(counts)[counts > 1L]
