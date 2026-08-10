@@ -6,7 +6,7 @@
 \title{Biomass coefficients for crops and livestock products}
 \format{
 A tibble where each row corresponds to one product or item. It contains
-68 columns:
+63 columns:
 \itemize{
 \item \code{Code}: Item code (character), corresponding to FAOSTAT production codes.
 \item \code{Name_biomass}: Item name as used in biomass accounting.
@@ -14,8 +14,6 @@ A tibble where each row corresponds to one product or item. It contains
 from another similar commodity (e.g., \code{"Wheat"} for oats).
 \item \code{Category}: Broad commodity category (e.g., \code{"Cereals, other"},
 \code{"Barley"}, \code{"Vegetables"}).
-\item \code{BG_Biomass_kgDM_ha}: Below-ground biomass in kg dry matter per hectare.
-\item \code{Root_Shoot_ratio}: Ratio of root to aerial biomass (dimensionless).
 \item \code{Product_kgDM_kgFM}: Product dry-matter content in kg DM per kg fresh
 matter.
 \item \code{Residue_kgDM_kgFM}: Residue dry-matter content in kg DM per kg fresh
@@ -81,18 +79,12 @@ matter.
 \item \code{Residue_humified_kgC_kgC}: Humification coefficient of residue carbon
 (fraction of residue C stabilised as soil organic matter).
 \item \code{MgDM_m3}: Megagrams dry matter per cubic metre (bulk density proxy).
-\item \code{Root_kgC_kgDM}: Root plus rhizodeposit carbon in kg C per kg root dry
-matter.
 \item \code{Root_humified_kgC_kgC}: Humification coefficient for root carbon.
 \item \code{Root_mass_kgC_kgDM}: Root carbon mass in kg C per kg crop dry matter.
-\item \code{Rhizodeposits_mass_kgC_kgDM}: Rhizodeposit carbon in kg C per kg crop
-dry matter.
 \item \code{Residue_C_N}: Carbon-to-nitrogen ratio of the residue.
 \item \code{Root_kgN_kgDM}: Nitrogen content of roots in kg N per kg root dry
 matter.
 \item \code{GE_Roots_MJ_kgDM}: Gross energy of roots in MJ per kg dry matter.
-\item \code{Rhizodeposits_N_kgN_kgRootN}: Rhizodeposit nitrogen as a fraction of
-root nitrogen.
 \item \code{Fiber_g_kgFM}: Dietary fibre content in g per kg fresh matter.
 \item \code{SFA_g_kgFM}: Saturated fatty acid content in g per kg fresh matter.
 \item \code{MUFA_g_kgFM}: Monounsaturated fatty acid content in g per kg fresh
@@ -126,6 +118,20 @@ biomass_coefs
 Provides dry-matter, nutrient, and energy conversion coefficients for
 agricultural products and residues. Used to convert fresh-matter production
 quantities into biomass flows, nutrient budgets, and energy content.
+}
+\details{
+Five runtime-dead below-ground fields were retired from this legacy table:
+\code{BG_Biomass_kgDM_ha}, \code{Root_Shoot_ratio}, \code{Root_kgC_kgDM},
+\code{Rhizodeposits_mass_kgC_kgDM}, and \code{Rhizodeposits_N_kgN_kgRootN}. Their
+related item-keyed fields in \code{bio_coefs} are, respectively,
+\code{bg_biomass_dm_kg_ha}, \code{root_shoot_ratio}, \code{root_c_kgdm},
+\code{rhizodeposit_mass_c_kgdm}, and \code{rhizodeposit_n_kgn_krootn}. This is not a
+universal one-to-one row mapping. \code{\link[=calculate_crop_roots]{calculate_crop_roots()}} uses
+\code{ipcc_root_coefs$bg_ref_dm_t_ha} and \code{ipcc_root_coefs$rs_default} when they
+are available, with the corresponding \code{bio_coefs} fields as fallbacks.
+\code{root_c_kgdm} and \code{rhizodeposit_n_kgn_krootn} are direct calculation inputs.
+\code{rhizodeposit_mass_c_kgdm} is an integrity and documentation component that
+is already included in \code{root_c_kgdm}, rather than a separate runtime input.
 }
 \examples{
 head(biomass_coefs)
