@@ -70,8 +70,8 @@ the intended state.
 [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
 for the resolution itself, and
 [`polity_bucket_coverage()`](https://eduaguilera.github.io/whep/reference/polity_bucket_coverage.md)
-for the different defect of a bucket whose polity covers only part of
-what it sums.
+for the related question of which buckets sum more than one territory,
+and whether their label covers the sum.
 
 ## Examples
 

@@ -99,6 +99,39 @@
   receiving an allocation from 33,614 to 36,226
   ([\#461](https://github.com/eduaguilera/whep/issues/461)).
 
+- **[`polity_bucket_coverage()`](https://eduaguilera.github.io/whep/reference/polity_bucket_coverage.md)
+  reported bucket 206 as a three-way fold in all 65 years and called its
+  label an extent mismatch; both were wrong
+  ([\#414](https://github.com/eduaguilera/whep/issues/414)).** No
+  published value changes — this is a diagnostic and the warning it
+  drives.
+
+  The fold runs **2012-2025, not 1961-2025**. Measured on the FAOSTAT
+  production pin, area 206 “Sudan (former)” carries 13,759 rows over
+  1961-2011 and areas 276 Sudan / 277 South Sudan carry 3,467 and 2,170
+  rows over 2012-2024: the three never report in the same year. The
+  year-aware resolver answers for every `(area_code, year)` pair
+  regardless, standing in with the nearest period, and counting those
+  stand-ins invented two members in every pre-secession year. A member
+  now counts only when its polity is in span **and** the upstream map
+  reports the area that year, which takes the report from 65 rows to 14.
+
+  The label is **not** an extent mismatch. Bucket 206 resolves to
+  `SUD-1956-2011`, whose published `successor` set is exactly
+  `SDN-2011-2025; SSD-2011-2025` — the two polities the bucket folds —
+  so that polity’s territory *is* the sum. What is wrong is the period:
+  it had ended. That is now its own class, `"predecessor"`, and
+  `"partial"` is reserved for a label covering less than the value does.
+  No bucket is `"partial"` today. The build-time warning says which of
+  the two a bucket has instead of asserting the wrong one.
+
+  The open decision in
+  [\#414](https://github.com/eduaguilera/whep/issues/414) is unchanged
+  and unmade: no **live** polity means “Sudan and South Sudan”. Minting
+  one upstream is proposed in lbm364dl/whep-polities#139; un-folding the
+  two areas instead is costed in
+  [\#680](https://github.com/eduaguilera/whep/issues/680).
+
 - **[`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
   can now charge a single crop’s water, and the per-CFT
   consumptive-water cubes are readable at all.**

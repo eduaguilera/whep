@@ -772,7 +772,7 @@ Add name columns in dataframes from their codes or viceversa.
 - [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
   : Add WHEP polity codes to a table
 - [`polity_bucket_coverage()`](https://eduaguilera.github.io/whep/reference/polity_bucket_coverage.md)
-  : Report reporting buckets whose polity covers less than the bucket
+  : Report reporting buckets that sum more than one territory
 - [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md)
   : Find rows whose polity is a nearest-period stand-in
 - [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
