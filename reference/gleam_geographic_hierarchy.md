@@ -3,6 +3,15 @@
 Maps countries (ISO3) to GLEAM regions, FAOSTAT regions, and
 classification indicators.
 
+This is GLEAM's own registry of the countries that exist today, so
+[`polity_identity_conventions()`](https://eduaguilera.github.io/whep/reference/polity_identity_conventions.md)
+types it `"present_day_polity"` and it carries the polity its `iso3`
+resolves to in the present day, as
+[regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md)
+does. Three of the 204 rows keep `NA`: ATF, SGS and WLF have no WHEP
+polity at all, and a gap stays visible rather than being guessed at. The
+204 GLEAM regions themselves are unchanged.
+
 ## Usage
 
 ``` r
@@ -33,6 +42,25 @@ A tibble with columns:
 
   GLEAM regional grouping.
 
+- eu27:
+
+  1 for an EU-27 member, 0 otherwise.
+
+- oecd:
+
+  1 for an OECD member, 0 otherwise.
+
+- reporting_polity_code:
+
+  The
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  code `iso3` resolves to in the present day, `NA` where WHEP has no
+  polity for the territory.
+
+- reporting_polity_name:
+
+  The name of that polity.
+
 ## Source
 
 MacLeod et al. (2018) GLEAM 3.0 Supplement S1, Tables S.A1-S.A2.
@@ -42,7 +70,7 @@ MacLeod et al. (2018) GLEAM 3.0 Supplement S1, Tables S.A1-S.A2.
 
 ``` r
 gleam_geographic_hierarchy
-#> # A tibble: 204 × 7
+#> # A tibble: 204 × 9
 #>    iso3  country             continent faostat_region   gleam_region  eu27  oecd
 #>    <chr> <chr>               <chr>     <chr>            <chr>        <int> <int>
 #>  1 AFG   Afghanistan         Asia      Southern Asia    South Asia       0     0
@@ -56,4 +84,5 @@ gleam_geographic_hierarchy
 #>  9 AUT   Austria             Europe    Western Europe   Western Eur…     1     1
 #> 10 AZE   Azerbaijan          Asia      Western Asia     West Asia &…     0     0
 #> # ℹ 194 more rows
+#> # ℹ 2 more variables: reporting_polity_code <chr>, reporting_polity_name <chr>
 ```
