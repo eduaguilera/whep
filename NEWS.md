@@ -25,6 +25,25 @@
   hidden: `.bucket_year_polity_conflicts()` reports bucket 238 alongside
   bucket 206 for 1993-2025, because the removed row was manufacturing
   agreement between a dead reporting area and a live one.
+* **New diagnostic `polity_mapping_provenance()` says which authority a row's
+  territorial identity rests on (#740).** `polity_area_crosswalk` is not the
+  upstream FAOSTAT-to-polity map: it is that map (245 of 596 rows) plus rows
+  WHEP manufactures by ISO3-prefix match (`prefix_outside_map`, 262;
+  `prefix_fallback`, 27) and WHEP's own Rest-of-World bucket
+  (`fabio_row_fold`, 62). Nothing said which of them a published number came
+  through. The new function resolves `(area_code, year)` through the same
+  lookup the builds use and reports the class of the crosswalk row that
+  answered, plus an `authority` column collapsing it to `"upstream"`,
+  `"whep_prefix"`, `"whep_bucket"` or `"unresolved"`. Measured on a real
+  6,310,390-row `get_primary_production()`: 96.06% of rows and 99.76% of tonnes
+  resolve through an upstream map row, 3.37% through the Rest-of-World bucket
+  (the 24 reporting members #628 promoted), and 0.56% through a manufactured
+  prefix row -- every one of them FAOSTAT area 238 Ethiopia before 1993, on
+  `ETH-1952-1993`. Over the crosswalk's own 1850-2025 grid, 257 of the 262
+  `prefix_outside_map` rows are the resolution of no `(area_code, year)` at
+  all, because the back-cast anchor floors every lookup at 1961. **No published
+  value changes**: the function is a read-only diagnostic and no build path
+  calls it.
 
 * **`build_carbon_inputs()` no longer attaches reporting polity columns to an
   intermediate that discards them.** `build_soil_carbon_inputs()` produced a
