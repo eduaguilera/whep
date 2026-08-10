@@ -138,17 +138,49 @@ test_that("a carried polity column really holds polity codes", {
   })
 })
 
-test_that("regions_full's legacy polity_code is not a polity code", {
+test_that("the legacy polity prefix is not a polity code, and says so", {
   # Documented on both datasets as a legacy ISO3-like prefix. Pinned here so
   # the two vocabularies cannot be quietly conflated: if this column is ever
   # migrated to real codes, the register and the docs must move with it.
+  #
+  # The name is pinned too. whep#687 renamed it away from `polity_code`,
+  # because a column named for an identity it does not hold is what made a
+  # join from these tables to `polities` come back empty with nothing warning;
+  # a future rebuild reinstating that name would restore the trap silently.
   purrr::walk(c("regions_full", "polities_cats"), function(object) {
     value <- .registry_object(object)
-    stems <- stats::na.omit(value$polity_code)
+    expect_false("polity_code" %in% names(value))
+    expect_true("legacy_polity_prefix" %in% names(value))
+    stems <- stats::na.omit(value$legacy_polity_prefix)
     expect_gt(length(stems), 0L)
     expect_equal(sum(stems %in% whep::polities$polity_code), 0L)
   })
 })
+
+# The register's `resolver` column, re-executed. There are two present-day
+# routes and the register names which one each object takes: the numeric
+# `area_code` route through the crosswalk, and the label route for an object
+# whose territory key is an ISO3 code or a name. Reading the route off the
+# register rather than hard-coding it is what keeps that column load-bearing.
+.present_day_resolution <- function(object, resolver) {
+  value <- .registry_object(object)
+  if (startsWith(resolver, "add_polity_code")) {
+    return(
+      tibble::tibble(area_code = value$code) |>
+        whep::add_polity_code(year_column = NULL) |>
+        dplyr::pull("polity_code")
+    )
+  }
+  label_column <- stringr::str_match(
+    resolver,
+    "^resolve_polity_label\\(([^,)]+)"
+  )[, 2]
+  expect_true(label_column %in% names(value))
+  whep::resolve_polity_label(
+    value[[label_column]],
+    year = whep:::.present_day_polity_year()
+  )
+}
 
 test_that("the present-day carrier is what the documented resolution gives", {
   registry <- .registered_of_kind("package_data") |>
@@ -156,17 +188,60 @@ test_that("the present-day carrier is what the documented resolution gives", {
       .data$identity == "present_day_polity" & .data$status == "carried"
     )
 
-  expect_gt(nrow(registry), 0L)
-  purrr::walk2(registry$object, registry$carrier, function(object, carrier) {
-    value <- .registry_object(object)
-    resolved <- tibble::tibble(area_code = value$code) |>
-      whep::add_polity_code(year_column = NULL)
-    expect_equal(
-      resolved$polity_code,
-      value[[carrier]],
-      label = paste(object, "matches add_polity_code(year_column = NULL)")
-    )
-  })
+  expect_gt(nrow(registry), 1L)
+  purrr::pwalk(
+    list(registry$object, registry$carrier, registry$resolver),
+    function(object, carrier, resolver) {
+      value <- .registry_object(object)
+      expect_equal(
+        .present_day_resolution(object, resolver),
+        value[[carrier]],
+        label = paste(object, "matches", resolver)
+      )
+    }
+  )
+})
+
+# THE FRESHNESS BACKSTOP FOR THE GLEAM TABLE. `test_data_raw_freshness.R`
+# cannot rebuild `data/livestock_coefs.rda` -- its builder needs `openxlsx`,
+# which the package does not declare -- so nothing there would notice
+# `gleam_geographic_hierarchy$reporting_polity_code` going stale against the
+# resolver. The equality above is that check: the column is recomputed from
+# `polities` on every run, so a snapshot refresh that moves a country's polity
+# fails here until the table is rebuilt.
+test_that("the GLEAM registry's carried polity is a present-day one", {
+  value <- whep::gleam_geographic_hierarchy
+  codes <- value$reporting_polity_code
+
+  # One row per country, one polity per country: an aggregate answering for two
+  # of GLEAM's countries would be a bucket, not an identity (whep#563).
+  expect_equal(anyDuplicated(stats::na.omit(codes)), 0L)
+  expect_equal(nrow(value), 204L)
+
+  # `polities` is an sf data frame and sf is only suggested, so the attribute
+  # columns are taken by name rather than by subsetting the object.
+  found <- match(codes, whep::polities$polity_code)
+  live <- list(
+    end_year = whep::polities$end_year[found],
+    successor = whep::polities$successor[found]
+  )
+  resolved <- !is.na(codes)
+  # Every resolved code is an OPEN period: it reaches the snapshot's sentinel
+  # and nothing succeeds it. Resolving at any earlier year would land some of
+  # them on a period that has since been succeeded -- 38 of the 204 iso3 values
+  # name a different polity at 1961 than at 2010.
+  expect_equal(
+    unique(live$end_year[resolved]),
+    max(whep::polities$end_year, na.rm = TRUE)
+  )
+  successors <- live$successor[resolved]
+  expect_true(all(is.na(successors) | !nzchar(trimws(successors))))
+
+  # The gaps are named rather than counted: each is a territory GLEAM reports
+  # and whep-polities has no polity for at all (upstream whep-polities#187,
+  # the same class as ABW and VAT in whep-polities#185). `NA` keeps them
+  # visible; inventing a polity downstream is what the epic forbids.
+  expect_setequal(value$iso3[!resolved], c("ATF", "SGS", "WLF"))
 })
 
 test_that("a consumer-resolved label really needs the consumer's year", {

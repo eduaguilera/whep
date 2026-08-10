@@ -7,8 +7,8 @@
 # view of the same table. Both used to be read from their own vendored CSV, each
 # carrying its own copy of every column, so the copies drifted. Measured on
 # `main` before this test existed: over the 198 shared codes, 17 of 39 columns
-# disagreed — `polity_code`, `polity_name`, `cbs`, `fabio_code` and thirteen
-# label columns. 95 of the disagreeing cells were an encoding artefact, the
+# disagreed — `legacy_polity_prefix` (then named `polity_code`), `polity_name`,
+# `cbs`, `fabio_code` and thirteen label columns. 95 of the disagreeing cells were an encoding artefact, the
 # literal string "0" in `eia` (5), `iea` (59) and eleven `region_*` columns (31)
 # where regions_full leaves NA; "0" is not the name of a region in any taxonomy.
 # The other 8 were the deliberate Bhutan/Comoros fold pinned below.
@@ -31,7 +31,12 @@ test_that("polities_cats matches regions_full outside the documented fold", {
   expect_named(cats, names(regions))
 
   folded_codes <- c(18L, 45L) # Bhutan, Comoros
-  fold_columns <- c("polity_code", "polity_name", "cbs", "fabio_code")
+  fold_columns <- c(
+    "legacy_polity_prefix",
+    "polity_name",
+    "cbs",
+    "fabio_code"
+  )
 
   same_codes <- regions[match(cats$code, regions$code), ]
   disagreeing <- character(0)
@@ -67,7 +72,7 @@ test_that("polities_cats folds exactly Bhutan and Comoros into rest-of-world", {
   fold <- fold[fold$code %in% c(18L, 45L), ]
 
   expect_equal(fold$code, c(18L, 45L))
-  expect_equal(fold$polity_code, c("RASI", "RAFR"))
+  expect_equal(fold$legacy_polity_prefix, c("RASI", "RAFR"))
   expect_equal(fold$polity_name, c("Asia Other", "Africa Other"))
   expect_equal(fold$cbs, c(FALSE, FALSE))
   expect_equal(fold$fabio_code, c(999, 999))
@@ -77,7 +82,7 @@ test_that("polities_cats folds exactly Bhutan and Comoros into rest-of-world", {
   regions <- whep::regions_full
   modelled <- regions[order(regions$code), ]
   modelled <- modelled[modelled$code %in% c(18L, 45L), ]
-  expect_equal(modelled$polity_code, c("BTN", "COM"))
+  expect_equal(modelled$legacy_polity_prefix, c("BTN", "COM"))
   expect_equal(modelled$fabio_code, c(18, 45))
   expect_true(all(modelled$cbs))
 })

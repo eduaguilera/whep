@@ -22,8 +22,8 @@
 
 # The classification of every join in the package that keys on a territory and
 # not on a year, one row per distinct (owner, join function, key) signature with
-# the number of calls carrying it. Four verdicts, and two more for the two joins
-# that still name the LABEL in their key:
+# the number of calls carrying it. Four verdicts, and one more for the single
+# join that still names the LABEL in its key:
 #
 #   single_year      the call site is already scoped to one year, so the year is
 #                    a constant there and adding it to the key changes nothing.
@@ -41,10 +41,13 @@
 #                    come from one frame here, so the label cannot disagree, but
 #                    keying on a label is the shape behind whep#589/#563 and
 #                    this entry exists so it stays visible.
-#   label_identity   the key names `area` and the label is LOAD-BEARING: it is
-#                    where the identity comes from, and the code+year route is
-#                    measurably not the same join. Removing it needs a decision
-#                    first, not a refactor. One case, whep#698.
+#
+# A sixth verdict, `label_identity`, is GONE and is deliberately not in the
+# vocabulary any more. It covered one join, `.polity_code_from_labels()`, which
+# read the pre-1962 CBS frame's polity out of its `area` label; whep#698 keyed
+# that frame on the reporting bucket it already carries and deleted the
+# function. Re-introducing the class means re-arguing that a label may be an
+# identity, which is the whole thing this audit exists to stop.
 #
 # Adding a row is not a way to pass the gate: it is a statement, reviewed like
 # any other, that the join means the same thing in 1850 and in 2023.
@@ -116,6 +119,16 @@
     "GLEAM dressing fractions, one vintage.",
     ".fold_bucket_labels", "left_join", "bucket_polity_code, polity_code", 1L,
     "identity_lookup", "Polity type keyed on the polity code.",
+    ".handed_over_polity_codes", "inner_join", "predecessor, polity_code", 1L,
+    "identity_lookup",
+    "Succession, from `polities` to itself. The key IS the year-scoped polity
+     period -- `ANG-1905-1975` carries its own years -- and the join exists to
+     READ a year off it: whether the successor begins where the predecessor
+     ends. Adding a `year` would be adding a year to a relation between two
+     periods, which has none. This is the one row that RAISED the cap (57 ->
+     58 -> 59), and it does so for a join that makes the resolver more
+     year-aware, not less: it is what stops `.polity_join_end_year()` widening
+     colonial Angola into 1975, the year `AGO-1975-2025` starts (whep#683).",
     ".gn_grass_area", "inner_join", "lon, lat, area_code", 1L, "time_invariant",
     "The country grid is one polity assignment per cell; the land-use side
      carries the year and keeps it.",
@@ -134,19 +147,15 @@
      the real pins to 0 differences.",
     ".nbx_image_region", "left_join", "area_code", 1L, "time_invariant",
     "IMAGE region membership carried by the cell-polity table.",
-    ".polity_code_from_labels", "merge", "area_code, area", 1L,
-    "label_identity",
-    "The label is where the polity comes from here, and the year-aware code
-     route is a different join, not a tidier one: measured on a real 1955-1965
-     CBS frame it changes 42 of 1,267 keys and hands nine promoted
-     Rest-of-World members the aggregate's own population as their growth
-     proxy. Needs whep#493's decision first; whep#698 carries the numbers.",
     ".prepare_historical_cbs", "merge", "area_code", 1L, "identity_lookup",
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
     "identity_lookup", "Attaches the one label the code carries.",
-    ".read_fodder_euadb", "left_join", "polity_code", 1L, "identity_lookup",
-    "Keyed on the polity itself.",
+    ".read_fodder_euadb", "left_join", "legacy_polity_prefix, area_iso3c", 1L,
+    "identity_lookup",
+    "ISO3 -> bucket bridge. It read as a polity join until whep#687 renamed
+     `regions_full$polity_code`, which was never a polity code but the vendored
+     ISO3-like stem; the key now names both vocabularies it actually bridges.",
     ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
     ".read_luh2_cft", "merge", "iso3c", 1L, "identity_lookup",
@@ -214,6 +223,9 @@
     "polity_area_code",
     "polity_code",
     "reporting_polity_code",
+    # Not a polity code: `regions_full`'s vendored ISO3-like stem (whep#687).
+    # Listed so renaming a column cannot be a way out of the audit.
+    "legacy_polity_prefix",
     "grid_area_code",
     "iso3",
     "iso3c",
