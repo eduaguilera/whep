@@ -52,9 +52,13 @@ test_that("every year-free territorial join is classified", {
 
 test_that("the enumerated baseline can only shrink", {
   baseline <- whep:::.territorial_join_baseline()
-  # Lower this number when a join is fixed; it must never rise. 57 is the
-  # count on the commit that introduced the gate.
-  expect_lte(sum(baseline$n), 57L)
+  # Lower this number when a join is fixed. It rises only for a join that had
+  # to be added to make something MORE year-aware, and only with the reason
+  # written into the row -- never to admit a new year-blind read. 57 was the
+  # count on the commit that introduced the gate; 58 adds
+  # `.resolve_all_area_years`, the first-reported-year bound that turned
+  # `polity_bucket_coverage()` from a 65-year report into a 14-year one.
+  expect_lte(sum(baseline$n), 58L)
   expect_true(all(nzchar(baseline$why)))
   expect_true(all(
     baseline$class %in%
