@@ -9,6 +9,17 @@
   `identical()` and no time cost (64 s vs 68 s). This is a fixed cost on every
   `build_carbon_balance()` and `get_soc_climate_drivers()` call, independent of
   how many years are requested (#624).
+
+* **A year-scoped production build no longer depends on the window for which
+  livestock stock combinations exist.** `.build_livestock_stocks()` read the
+  stock series scoped to the caller's window, but `.combine_livestock()`
+  completes the year axis against the (area, item) combinations that read
+  produced — so a combination absent from the window was absent from the
+  completion, and the completed rows are what give a livestock-product row its
+  unit downstream. The series is now read over its full span and trimmed
+  afterwards; full-range output is unchanged. This narrows the remaining
+  year-scoping gap (`t_LU` at 2010: 2.18e-04 to 1.61e-04) but does not close
+  #666 — a scoped build still derives `LU` as NA where a full build derives 0.
 * **`build_carbon_balance()` no longer grows its memory with the length of the
   span.** The RothC/HSOC climate modifier is now reduced one year at a time.
   Attaching soil cover crosses the monthly climate table with every land-use
