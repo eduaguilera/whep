@@ -20,6 +20,22 @@
   ended by then. That is exactly 165 rows of areas 178 and 273, which the
   raw-year comparison a caller could write for itself would label
   `"polity_not_started"` instead.
+* **The `area` label a country carries through the commodity-balance build no
+  longer depends on row order.** `.select_best_source()` reduced the long CBS
+  input to one human-readable `area` per numeric code by keeping whichever row
+  came first. `area` is the *periodized* polity name and a code legitimately
+  changes it at a period boundary, so one code offers several labels over a
+  multi-year build: on a real 1850-2023 run, 75 of the 216 codes carry more than
+  one (up to four), and shuffling the input rows flipped the label for 13 of
+  them. The label is also a join key — a second `area` vocabulary for one bucket
+  once dropped 702,166 rows (#382) — so nothing pinned a key the build depends
+  on. The pick is now a stated total order: the source that reports the code
+  earliest in the order `.assemble_cbs_sources()` binds them in, that source's
+  earliest year, then the label alphabetically. **No published value changes**:
+  the rule reproduces all 216 of today's labels exactly, which is deliberate,
+  because that same label is what the pre-1962 proxy fill reads a polity out of
+  (#698) and changing it would silently redistribute which countries find a
+  population and land proxy. Fixes #580.
 
 * **Every join that keys on a territory but not on a year is now classified,
   and the list can only shrink.** A key of `area_code` with no `year` spans

@@ -1804,7 +1804,7 @@ build_processing_coefs <- function(
 
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
-  area_lookup <- unique(dt_raw[, .(area_code, area)], by = "area_code")
+  area_lookup <- .cbs_area_labels(dt_raw)
   dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
@@ -1974,6 +1974,79 @@ build_processing_coefs <- function(
       source,
       value
     )
+}
+
+# The order `.assemble_cbs_sources()` binds its sources in. It is what decided
+# the `area` label of every code before whep#580 -- a bind order plus
+# `unique(by =)` keeping the first row -- so naming it is what turns that
+# accident into a rule. Sources not listed rank last, which is where the
+# pre-1961 `trade_hist` rows already sat.
+.cbs_area_label_source_order <- function() {
+  c(
+    "FAOSTAT_FBS_New",
+    "FAOSTAT_FBS_Old",
+    "FAOSTAT_CBS",
+    "FAOSTAT_prod",
+    "FAOSTAT_trade"
+  )
+}
+
+# The `area` label an `area_code` carries through the rest of the build, one per
+# code.
+#
+# This used to keep the FIRST row of `dt_raw` for each code, so the label was
+# decided by whatever happened to be sorted first (whep#580). `area` is the
+# periodized polity name and a code legitimately changes it at a period
+# boundary, so one code offers several labels over a multi-year build: measured
+# on a real 1850-2023 `cbs_raw_all`, 75 of 216 codes carry more than one label
+# (up to four), and shuffling the input rows flipped the label for 13 of them.
+# That is the same failure mode as whep#546 -- one period of a code standing in
+# for all of them instead of one member of a bucket standing in for all of them
+# -- and it matters because `area` is a join key: whep#382 measured a
+# 702,166-row drop when one bucket grew a second `area` vocabulary.
+#
+# The pick is now a stated total order rather than a row position: the source
+# that reports the code earliest in `.cbs_area_label_source_order()`, its
+# earliest year, then the label alphabetically. On the real 1850-2023
+# `cbs_raw_all` that reproduces all 216 of today's labels exactly, so it removes
+# the order dependence WITHOUT moving a published value -- deliberately, because
+# `area` is also the key `.polity_code_from_labels()` reads the pre-1962 frame's
+# polity out of (whep#698), and changing which period names a code redistributes
+# which countries find a population and land proxy. That redistribution is a
+# decision, not a tidy-up: it is blocked on whep#493 and measured in whep#698.
+# Two alternative rules were measured here and are NOT taken for that reason --
+# labelling from the code's most recent reporting year costs area 248
+# (Yugoslavia) its entire pre-1961 proxy fill, 32,677 keys, and labelling from
+# the 1961 back-cast anchor moves the resolved polity of 40 codes.
+#
+# It stays ONE label per code on purpose. Labelling per `(area_code, year)` is
+# more faithful still, but `area` sits in four inner-join keys and in
+# `.cbs_complete_year_nesting_dt()`'s skeleton, so a second label for one code
+# splits those keys -- the whep#563 shape.
+.cbs_area_labels <- function(dt_raw) {
+  cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
+  labels <- unique(dt_raw[, cols, with = FALSE])
+  if (nrow(labels) == 0L) {
+    return(labels[, .(area_code, area)])
+  }
+  order_vec <- .cbs_area_label_source_order()
+  if (rlang::has_name(labels, "source")) {
+    labels[, label_source_rank := match(source, order_vec)]
+    labels[
+      is.na(label_source_rank),
+      label_source_rank := length(order_vec) + 1L
+    ]
+  } else {
+    labels[, label_source_rank := 1L]
+  }
+  data.table::setorderv(
+    labels,
+    intersect(
+      c("area_code", "label_source_rank", "year", "area"),
+      names(labels)
+    )
+  )
+  unique(labels, by = "area_code")[, .(area_code, area)]
 }
 
 # -- Historical extension for CBS ---------------------------------------------
@@ -2282,6 +2355,17 @@ build_processing_coefs <- function(
 # unique per polity_code across the crosswalk (476 names, 476 codes), which
 # makes this a lookup on the crosswalk's own two columns rather than a match
 # between two independent name vocabularies.
+#
+# This still reads a period out of a NAME, which is whep#698: the label is one
+# per `area_code` for the whole build while `.proxy_polity_key()` resolves its
+# side per year, so the two only agree where the stamped period happens to be
+# the 1961-anchored one -- 139 of the 194 codes carrying pre-1962 rows. Re-keying
+# it onto (`area_code`, `year`) is measured there and blocked on whep#493: it
+# would hand thirteen promoted Rest-of-World members the whole aggregate's
+# population as their growth proxy. So whep#580 only makes the label
+# deterministic and deliberately leaves the resolution alone -- see
+# `.cbs_area_labels()`, which is written to keep every code on the polity it
+# resolves to today.
 .polity_code_from_labels <- function(dt) {
   bridge <- .polity_crosswalk(include_unmapped = FALSE)[
     !is.na(polity_name) & !is.na(polity_area_code),

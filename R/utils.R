@@ -1815,6 +1815,8 @@ utils::globalVariables(
     "i.polity_area_code",
     # build_production.R (#633) — LUH2 land bucket-label derivation NSE columns
     "bucket_area",
-    "member_code"
+    "member_code",
+    # build_cbs.R (#580) — .cbs_area_labels() data.table NSE column
+    "label_source_rank"
   )
 )
