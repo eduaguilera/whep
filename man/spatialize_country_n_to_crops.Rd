@@ -9,6 +9,7 @@ spatialize_country_n_to_crops(
   crop_shares,
   cell_polity,
   resolution = c("polity_crop", "grid"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list()
 )
 }
@@ -30,6 +31,17 @@ crop-area-share helper.}
 distributes to \code{lon}/\code{lat} grid cells; requires \code{crop_patterns} and
 \code{type_cropland} in \code{data}).}
 
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
+
 \item{data}{Optional named list of pre-loaded grid inputs, used only when
 \code{resolution = "grid"}: \code{crop_patterns} (\code{lon}, \code{lat}, \code{item_prod_code},
 \code{harvest_fraction}) and \code{type_cropland} (\code{lon}, \code{lat}, \code{year},
@@ -43,7 +55,10 @@ of \code{crop_patterns} via \link{items_prod_full} (the same crosswalk
 \value{
 A tibble. For \code{resolution = "polity_crop"}: \code{year}, \code{area_code},
 \code{item_cbs_code}, \code{n_t}. For \code{resolution = "grid"}: \code{lon}, \code{lat},
-\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t}.
+\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t}. Either gains
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}; this
+output carries no reporting-polity columns, so the flag is attached
+directly rather than derived from them.
 }
 \description{
 Promotes a single polity-total nitrogen input (one row per \code{year},

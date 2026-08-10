@@ -12,6 +12,7 @@ ported from the Spain historical pipeline.
 build_carbon_balance(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
   example = FALSE
@@ -23,6 +24,17 @@ build_carbon_balance(
 
 \item{resolution}{\code{"grid"} (default, per cell and land-use class) or
 \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{c_inputs} (per cell, land-use class and year, with
@@ -60,7 +72,9 @@ A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-\code{area_ha} and \code{method_soc}, plus the polity columns below.
+\code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+\code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Reconstruct per-cell soil-organic-carbon stock trajectories: run the selected
@@ -70,6 +84,15 @@ land-use fractions, march forward on yearly per-cell per-land-use areas
 applying the model annual update plus a carbon-conserving land-use-change
 transfer, and derive the soil-organic-nitrogen change from the carbon rate
 via asymmetric soil carbon-to-nitrogen ratios.
+}
+\details{
+\code{polity_validity} governs this function's own output. The internal
+\code{\link{get_soc_climate_drivers}} read it falls back on always keeps its
+rows: the march needs a climate modifier for every cell-year it steps
+through, so dropping driver rows for an anachronistic polity label would
+break the trajectory rather than relabel it. The driver read therefore warns
+on its own key space (whep#462) while this argument decides the fate of the
+balance rows.
 }
 \section{Polity columns}{
 

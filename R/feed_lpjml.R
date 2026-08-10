@@ -152,7 +152,11 @@ grass_access_shares <- function(
 #' @param cell_polity Cell-to-polity mapping with `lon`, `lat`, `area_code` and
 #'   `polity_frac` (the cell's land-area fraction in the polity; pass 1 for a
 #'   majority assignment, e.g. from `country_grid`).
-#' @return A tibble with `area_code`, `year` and `grass_avail_dm_t`.
+#' @inheritParams build_water_balance
+#' @return A tibble with `area_code`, `year` and `grass_avail_dm_t`, plus
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`. This
+#'   output carries no reporting-polity columns, so the flag is attached
+#'   directly rather than derived from them.
 #' @export
 #' @examples
 #' grass <- build_grass_availability(method = "lpjml", example = TRUE)
@@ -163,7 +167,12 @@ grass_access_shares <- function(
 #'   polity_frac = 1
 #' )
 #' aggregate_grass_to_polity(grass, cp)
-aggregate_grass_to_polity <- function(grass, cell_polity) {
+aggregate_grass_to_polity <- function(
+  grass,
+  cell_polity,
+  polity_validity = c("keep", "flag", "drop")
+) {
+  polity_validity <- rlang::arg_match(polity_validity)
   grass |>
     dplyr::mutate(lon = round(lon, 2), lat = round(lat, 2)) |>
     dplyr::inner_join(
@@ -174,7 +183,8 @@ aggregate_grass_to_polity <- function(grass, cell_polity) {
     dplyr::summarise(
       grass_avail_dm_t = sum(grass_avail_dm_t * polity_frac, na.rm = TRUE),
       .by = c("area_code", "year")
-    )
+    ) |>
+    .apply_polity_validity(polity_validity, attach_flag = TRUE)
 }
 
 #' Read natural-grass productivity from an LPJmL run.
