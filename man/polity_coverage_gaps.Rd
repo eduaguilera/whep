@@ -84,6 +84,6 @@ polity_coverage_gaps(
 }
 \seealso{
 \code{\link[=add_polity_code]{add_polity_code()}} for the resolution itself, and
-\code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} for the different defect of a bucket whose
-polity covers only part of what it sums.
+\code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} for the related question of which buckets sum
+more than one territory, and whether their label covers the sum.
 }

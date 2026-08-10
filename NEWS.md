@@ -52,6 +52,78 @@
   groups instead of three. **No published value changes** -- these are
   documentation fixtures, not pipeline outputs (#417).
 
+* **`split_manure_management()` can now use the region-specific MMS shares, via
+  the new `mms_source = "region_specific"`. The default is unchanged, so no
+  published value moves.** `regional_mms_distribution` ships 33 rows: 18 for
+  `region == "Global"` and 15 for North America (cattle, swine), Western Europe
+  (cattle) and Latin America (cattle). The function filtered the table to
+  `"Global"` unconditionally and never read the excretion's `territory`, so
+  those 15 rows were unreachable and every territory got the global split —
+  a global default, not a drop and not a silent zero. The territory is now
+  resolved to its IPCC region through the same GLEAM lookup the emission-factor
+  tables use (`.gleam_region_of()`, whep#465), with the Global rows as the
+  fallback for every region and species the table does not cover.
+
+  **What flipping the default would move**, measured on the real 2020 national
+  chain (90.06 Mt excreted N, 195 territories): 66 territories and 5.40 Mt N
+  (6.0% of the excreted nitrogen) change management system. The in-situ grazing
+  stream falls from 41.36 to 40.71 Mt N (−1.6%) and the collected stream rises
+  correspondingly; applied N moves −0.24%, volatilized N +0.94%, leached N
+  −4.67%, direct N2O-N +0.30% and indirect N2O-N +0.84%. Rows, keys and
+  territories are identical between the two sources, and mass is conserved per
+  input row under both. The default stays `"regional_default"` because the
+  region-specific rows are a coarse four-pair table (`data-raw` documents them
+  as "GLEAM 3.0 / FAO statistics (simplified)") whose provenance has not been
+  verified against a published GLEAM table; whether they are better than the
+  global average is the maintainer's call (#466).
+* **`build_gridded_landuse()` and `build_gridded_livestock()` now name the
+  reporting areas their `country_grid` cannot represent at all**, once per
+  call, with the national total at stake. The existing diagnostics fire per
+  (country, crop) per year and per (species, year), so a country the grid has
+  no cell for anywhere was reported as one more line in a list that already
+  names 178 codes. On today's pinned centroid grid at 2015 the new warning
+  reads 18 reporting areas carrying 0.109 Mha — all island or city states.
+  Substitute the fractional crosswalk and it reads 20 areas carrying 28.90
+  Mha, because that parquet still keys Ethiopia `62` and Sudan `206` where the
+  centroid grid and today's `regions.csv` use `238` and `276`. No published
+  value changes: this is a diagnostic only (#461).
+* **`run_spatialize()` gains the `country_grid` override**, `"centroid"`
+  (default, today's `spatialize-country-grid` pin) or `"fraction"`
+  (`cell_polity_fraction.parquet`, which splits each border cell by fractional
+  coverage instead of giving it whole to one polity). The engines already read
+  `polity_frac` as `cell_area_frac`, so this is data wiring, not an engine
+  change, and the resolved choice is recorded in `run_metadata.yaml`. The
+  default is unchanged, so no published value moves. Measured at 2015, the
+  alternative moves 6,828 of 7,557 (country, crop) cell-share vectors, by a
+  median L1 of 0.060 and a harvested-area-weighted mean of 0.040, and raises
+  the compartments receiving an allocation from 33,614 to 36,226 (#461).
+* **`polity_bucket_coverage()` reported bucket 206 as a three-way fold in all
+  65 years and called its label an extent mismatch; both were wrong (#414).**
+  No published value changes — this is a diagnostic and the warning it drives.
+
+  The fold runs **2012-2025, not 1961-2025**. Measured on the FAOSTAT
+  production pin, area 206 "Sudan (former)" carries 13,759 rows over 1961-2011
+  and areas 276 Sudan / 277 South Sudan carry 3,467 and 2,170 rows over
+  2012-2024: the three never report in the same year. The year-aware resolver
+  answers for every `(area_code, year)` pair regardless, standing in with the
+  nearest period, and counting those stand-ins invented two members in every
+  pre-secession year. A member now counts only when its polity is in span
+  **and** the upstream map reports the area that year, which takes the report
+  from 65 rows to 14.
+
+  The label is **not** an extent mismatch. Bucket 206 resolves to
+  `SUD-1956-2011`, whose published `successor` set is exactly
+  `SDN-2011-2025; SSD-2011-2025` — the two polities the bucket folds — so that
+  polity's territory *is* the sum. What is wrong is the period: it had ended.
+  That is now its own class, `"predecessor"`, and `"partial"` is reserved for a
+  label covering less than the value does. No bucket is `"partial"` today. The
+  build-time warning says which of the two a bucket has instead of asserting
+  the wrong one.
+
+  The open decision in #414 is unchanged and unmade: no **live** polity means
+  "Sudan and South Sudan". Minting one upstream is proposed in
+  lbm364dl/whep-polities#139; un-folding the two areas instead is costed in
+  #680.
 * **`build_water_balance()` can now charge a single crop's water, and the
   per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
   gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
@@ -101,6 +173,22 @@
   named `polity_code` is **not** a polity code: none of its 271 values appears
   in `polities`, because it is a legacy ISO3-like prefix, which is pinned so
   the two vocabularies cannot be quietly conflated.
+* **`build_water_balance()` and `get_soc_climate_drivers()` now say when a
+  cell-year is attributed to a polity that did not yet exist, and can refuse to
+  do it (#462).** The cell-polity crosswalk is a present-day rasterization with
+  no year dimension, while polity validity is year-scoped, so a cell labelled
+  `area_code` 52 carried that label in 1901 as readily as in 2009 and the
+  polity resolution silently substituted the nearest period, `AZE-1991-2025`.
+  Measured on the deployed `cell_polity_fraction.parquet` over the 1901-2009
+  LPJmL run: **1,948 of 19,838 `(area_code, year)` keys, 21 of 182 area codes,
+  14,761 of 58,791 cells** — the post-Soviet and post-Yugoslav successors plus
+  South Sudan. Both functions gain `polity_validity`: `"keep"` (default) is the
+  previous behaviour plus a warning naming the rows, years and area codes;
+  `"flag"` adds the per-row logical `reporting_polity_out_of_span`; `"drop"`
+  removes those rows. **No published value changes on the default**, and
+  `"flag"` is numerically identical to it. `"drop"` removes 20.4% of the run's
+  cell-years and makes South Sudan disappear from it entirely, which is why it
+  is opt-in.
 * **`build_carbon_balance()` is about a quarter faster, with output unchanged
   to the last bit.** The RothC/HSOC climate modifier is now computed for every
   cell-year at once instead of once per (cell, year, land use) -- roughly 1.2e6

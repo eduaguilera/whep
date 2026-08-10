@@ -2,7 +2,7 @@
 % Please edit documentation in R/polity_folds.R
 \name{polity_bucket_coverage}
 \alias{polity_bucket_coverage}
-\title{Report reporting buckets whose polity covers less than the bucket}
+\title{Report reporting buckets that sum more than one territory}
 \usage{
 polity_bucket_coverage(years = NULL)
 }
@@ -22,7 +22,8 @@ one polity in the requested years.
 several FAOSTAT reporting areas into one numeric code, and WHEP's builds sum
 them under it. \code{reporting_polity_code} is then resolved from that bucket
 code, so a bucket folding more than one live territory can end up labelled
-with a polity covering only part of what the value covers.
+with a polity that covers only part of what the value covers, or that covers
+the whole of it but in a period that has ended.
 
 This lists every \verb{(polity_area_code, year)} that folds more than one polity
 and classifies whether the bucket's own label covers the fold:
@@ -30,18 +31,36 @@ and classifies whether the bucket's own label covers the fold:
 \item \code{"aggregate"}: the bucket resolves to an aggregate polity (Rest of World,
 Belgium-Luxembourg, the FAOSTAT combined-reporting entities), whose name
 and polygon already mean the union of its members. Honest.
+\item \code{"predecessor"}: the bucket is labelled with a polity that has \strong{ended},
+and whose published \code{successor} set is exactly the set of polities the
+bucket folds. The extent is right — that predecessor's territory is the
+union of its successors — but the period is not, so a consumer filtering
+polities by span drops the rows.
 \item \code{"partial"}: the bucket sums several territories but is labelled with a
-single-territory polity, so the value and its polity describe different
-extents. This is the defect.
+polity covering only part of them, so the value and its polity describe
+different extents. This is the worst case, and no bucket is in it today.
 \item \code{"unlabelled"}: the bucket code resolves to no polity, so rows carry \code{NA}
 and the gap is at least visible rather than wrong.
 }
 
-The known \code{"partial"} case is bucket 206, which folds FAOSTAT areas 276
-Sudan and 277 South Sudan after the 2011 secession while no live polity
-means "Sudan and South Sudan" (whep#414). \code{.aggregate_to_polities()} warns
-when it builds such a bucket; set \code{options(whep.warn_polity_folds = FALSE)}
-to silence that warning.
+An area counts as a member only in the years it \strong{reports}: its polity must
+be in span, and the upstream FAOSTAT map must report the area that year. A
+year-aware lookup answers every \verb{(area_code, year)} pair regardless, standing
+in with the nearest period, so asking it about an area that does not report
+in that year invents a member. FAOSTAT reports area 206 for 1961-2011 and
+areas 276/277 for 2012-2024, never in the same year, so counting the stand-ins
+reported bucket 206 as a three-way fold in all 65 years rather than a two-way
+fold in the 14 it is one (whep#414).
+
+Bucket 206 is the one fold reported today, \code{"predecessor"} from 2012: it sums
+FAOSTAT areas 276 Sudan and 277 South Sudan and is labelled \code{SUD-1956-2011},
+whose successors are exactly \code{SDN-2011-2025} and \code{SSD-2011-2025}. No \strong{live}
+polity means "Sudan and South Sudan"; whether to mint one upstream, or to
+stop folding the two areas, is the open decision in whep#414. The un-fold is
+costed in whep#680 — it moves nothing outside the region and loses 4.2\% of
+the region's own tonnage, so it is not a switch-flip.
+\code{.aggregate_to_polities()} warns when it builds such a bucket; set
+\code{options(whep.warn_polity_folds = FALSE)} to silence that warning.
 
 The polity reported here as the bucket's own is also the \code{area} label the
 builds attach to the summed row, and the one the reporting columns resolve.

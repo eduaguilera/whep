@@ -128,15 +128,17 @@ testthat::test_that("country-crop with area but no grid cell warns and keeps oth
     2000L,         3L,             15L,                700
   )
 
-  testthat::expect_warning(
+  warnings <- testthat::capture_warnings(
     result <- build_gridded_landuse(
       fix$country_areas,
       fix$crop_patterns,
       fix$gridded_cropland,
       fix$country_grid
-    ),
-    "no allocatable grid cell"
+    )
   )
+  testthat::expect_match(warnings, "no allocatable grid cell", all = FALSE)
+  # The grid has no cell for area 3 at all, so the per-call guard fires too.
+  testthat::expect_match(warnings, "no cell in", all = FALSE)
 
   # Country 1 (has cells) is fully allocated; country 3 is not fabricated.
   total <- result |>
@@ -159,25 +161,22 @@ testthat::test_that("unallocated-crop warning survives several area codes", {
     2000L,         4L,             15L,                300
   )
 
-  testthat::expect_warning(
+  warnings <- testthat::capture_warnings(
     result <- build_gridded_landuse(
       fix$country_areas,
       fix$crop_patterns,
       fix$gridded_cropland,
       fix$country_grid
-    ),
-    "no allocatable grid cell"
+    )
   )
+  testthat::expect_match(warnings, "no allocatable grid cell", all = FALSE)
 
   # Both unallocatable codes are named, and the placeable country is intact.
-  testthat::expect_warning(
-    build_gridded_landuse(
-      fix$country_areas,
-      fix$crop_patterns,
-      fix$gridded_cropland,
-      fix$country_grid
-    ),
-    "2 area_codes"
+  testthat::expect_match(
+    warnings,
+    "no allocatable grid cell[\\s\\S]*2 area_codes",
+    all = FALSE,
+    perl = TRUE
   )
   total <- result |>
     dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
@@ -925,4 +924,122 @@ testthat::test_that("the re-key keeps a code the crosswalk does not carry", {
   testthat::expect_equal(out$area_code, 99999L)
   testthat::expect_equal(out$grid_area_code, "99999")
   testthat::expect_equal(out$rainfed_ha, 5)
+})
+
+# --- Reporting areas the grid cannot represent at all (whep#461) ---------
+#
+# Substituting one cell-to-polity crosswalk for another is a data-wiring
+# change with no engine change, so nothing in the engine notices when the two
+# grids disagree about which reporting codes exist. On the deployed pair they
+# do: the fractional crosswalk still keys Ethiopia 62 and Sudan 206 where the
+# centroid grid uses 238 and 276, and swapping it in deletes both countries'
+# whole national total. `.warn_unallocated_crops()` cannot show that -- it
+# fires per (country, crop) per year and already names 178 codes on the
+# unswapped grid, so two more codes in that list are invisible.
+.grid_vintage_fixture <- function() {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,       238L,             15L,               1000,
+      2000L,        68L,             15L,                500
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,                 1,
+      0.75, 50.25,             15L,                 1
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          5000,
+      0.75, 50.25, 2000L,          5000
+    ),
+    live_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code,
+      0.25, 50.25,       238L,
+      0.75, 50.25,        68L
+    ),
+    retired_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code,
+      0.25, 50.25,        62L,
+      0.75, 50.25,        68L
+    )
+  )
+}
+
+testthat::test_that("a grid holding every reporting code warns about none", {
+  fix <- .grid_vintage_fixture()
+
+  testthat::expect_no_warning(
+    whep::build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$live_grid
+    )
+  )
+})
+
+testthat::test_that("a re-keyed grid names the reporting areas it deletes", {
+  fix <- .grid_vintage_fixture()
+
+  warnings <- testthat::capture_warnings(
+    result <- whep::build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$retired_grid
+    )
+  )
+
+  testthat::expect_match(
+    warnings,
+    "no cell in .*country_grid.* at all",
+    all = FALSE
+  )
+  # The quantity at stake is the discriminator: without it the message cannot
+  # tell a deleted country from a deleted island.
+  testthat::expect_match(warnings, "1000 ha of harvested area", all = FALSE)
+  testthat::expect_false(238L %in% result$area_code)
+})
+
+testthat::test_that("the missing-reporter warning names every absent code", {
+  fn <- whep:::.warn_grid_missing_reporters
+  national <- tibble::tribble(
+    ~area_code, ~harvested_area_ha,
+    238L,                     1000,
+    276L,                      500,
+    68L,                        10
+  )
+  grid <- tibble::tibble(area_code = 68L)
+
+  testthat::expect_warning(
+    fn(national, grid, "harvested_area_ha", "ha of harvested area"),
+    "238"
+  )
+  testthat::expect_warning(
+    fn(national, grid, "harvested_area_ha", "ha of harvested area"),
+    "1500 ha"
+  )
+  testthat::expect_no_warning(
+    fn(
+      national,
+      tibble::tibble(area_code = c(68L, 238L, 276L)),
+      "harvested_area_ha",
+      "ha of harvested area"
+    )
+  )
+})
+
+testthat::test_that("a national table without the value column still warns", {
+  fn <- whep:::.warn_grid_missing_reporters
+
+  testthat::expect_warning(
+    fn(
+      tibble::tibble(area_code = 238L),
+      tibble::tibble(area_code = 68L),
+      "harvested_area_ha",
+      "ha of harvested area"
+    ),
+    "238"
+  )
 })
