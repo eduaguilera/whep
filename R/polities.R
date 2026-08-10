@@ -289,6 +289,56 @@
   invisible(NULL)
 }
 
+# Which stand-in a row gets when NO mapped period covers its (anchored) year.
+#
+# `"forward"` (default) prefers a period that has NOT STARTED yet over one that
+# has already ENDED; `"nearest"` is the pre-#705 behaviour, pure year distance.
+# Both then break ties on distance and on the earlier start.
+#
+# Distance alone splits one reporting area's series between two entities at the
+# year the arithmetic happens to flip, with nothing in the data marking the
+# break. FAOSTAT area 178 Eritrea resolved 1850-1972 to `ERI-1889-1952`, the
+# Italian colonial administration, and 1973-1992 to `ERI-1993-2025` -- 1973 is
+# simply where 1993 gets nearer than 1952. Area 273 Montenegro split at 1961
+# between `MNE-1913-1918` and `MNE-2006-2025`, and that one turned on a SINGLE
+# year: 1961 - 1918 + 1 = 44 against 2006 - 1961 = 45.
+#
+# Preferring the not-yet-started period keeps each area on one entity and keeps
+# the back-cast anchor's own intent, which is to map pre-anchor data to the
+# 1961 territory "instead of a larger historical-extent period". When no period
+# covers 1961 the nearest one behind it is exactly such a historical-extent
+# period. It also makes the two areas consistent with the other 22 that have no
+# period at the anchor -- the post-Soviet and post-Yugoslav areas, whose only
+# period starts in 1991/1992 and which therefore already resolve forward.
+#
+# Measured over the whole crosswalk x 1850-2025: 235 of 46,640 (area, year)
+# pairs change, all of them areas 178 and 273. See whep#705.
+.polity_stand_in_mode <- function() {
+  valid <- c("forward", "nearest")
+  mode <- getOption("whep.polity_stand_in", "forward")
+  if (!rlang::is_string(mode) || !mode %in% valid) {
+    cli::cli_abort(c(
+      "{.code options(whep.polity_stand_in)} must be one of {.val {valid}}.",
+      "x" = "It is {.val {mode}}."
+    ))
+  }
+  mode
+}
+
+.order_stand_in_matches <- function(matches, rowid_col) {
+  keys <- if (identical(.polity_stand_in_mode(), "forward")) {
+    c(rowid_col, "stand_in_ended", "year_distance", "join_start_year")
+  } else {
+    c(rowid_col, "year_distance", "join_start_year")
+  }
+  data.table::setorderv(
+    matches,
+    keys,
+    order = rep(1L, length(keys)),
+    na.last = TRUE
+  )
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
@@ -462,12 +512,10 @@
             default = 0
           )
         ]
-        data.table::setorderv(
-          fallback_matches,
-          c("..whep_polity_rowid", "year_distance", "join_start_year"),
-          order = c(1L, 1L, 1L),
-          na.last = TRUE
-        )
+        fallback_matches[,
+          "stand_in_ended" := as.integer(!(year < join_start_year))
+        ]
+        .order_stand_in_matches(fallback_matches, rowid_col)
         fallback_matches <- unique(
           fallback_matches,
           by = "..whep_polity_rowid"
@@ -524,12 +572,27 @@
 #' present, the mapping is year-aware; otherwise the current/default mapping
 #' is used.
 #'
-#' When no mapped period covers a row's year, the nearest period of the same
-#' area is used as a stand-in and `mapping_status` reports `"out_of_span"`
-#' rather than the crosswalk's `"matched"`/`"manual"`. Such a row is attributed
-#' to a polity that did not exist in that year, so treat it as a coverage gap:
+#' When no mapped period covers a row's year, another period of the same area
+#' is used as a stand-in and `mapping_status` reports `"out_of_span"` rather
+#' than the crosswalk's `"matched"`/`"manual"`. Such a row is attributed to a
+#' polity that did not exist in that year, so treat it as a coverage gap:
 #' either the area needs the missing period added to the crosswalk, or the
 #' reporting area outlived (or predates) every polity mapped to it.
+#'
+#' @section Which stand-in is picked:
+#' A period that has **not started yet** is preferred over one that has
+#' already **ended**, and only then is the nearest in years taken. Ranking by
+#' distance alone split one reporting area's series between two entities at
+#' whichever year the arithmetic flipped: FAOSTAT area 178 Eritrea read
+#' `ERI-1889-1952` (the Italian colonial administration) up to 1972 and
+#' `ERI-1993-2025` from 1973, and area 273 Montenegro split at 1961 between
+#' `MNE-1913-1918` and `MNE-2006-2025` on a one-year margin. Preferring the
+#' not-yet-started period keeps each area on one entity and agrees with the
+#' back-cast anchor, whose purpose is to avoid resolving back-cast rows onto a
+#' larger historical-extent period. Set
+#' `options(whep.polity_stand_in = "nearest")` to restore ranking by distance
+#' alone; it changes 235 of the crosswalk's 46,640 `(area, year)` pairs over
+#' 1850-2025, all of them areas 178 and 273 (whep#705).
 #'
 #' @param table A data frame.
 #' @param code_column Name of the column containing numeric area codes.
@@ -618,10 +681,8 @@ add_polity_code <- function(
 #' `gap_kind` is not derivable from the returned columns, which is why it is
 #' returned rather than left to the caller. The comparison is against the year
 #' the resolver actually matched on, which the back-cast anchor floors at
-#' `backcast_anchor`: an 1850 row for FAOSTAT area 273 Montenegro is matched as
-#' 1961 and lands on `MNE-1913-1918`, so it is `"polity_ended"`, while
-#' `year < polity_start_year` on the same row would call it
-#' `"polity_not_started"`.
+#' `backcast_anchor`, so a pre-anchor row is classified as the anchor year it
+#' was resolved as rather than as the year it carries.
 #'
 #' The resolution here is the same one the builds use, including the back-cast
 #' anchor, so it reports what the table actually got rather than a second
@@ -715,11 +776,14 @@ polity_coverage_gaps <- function(
 #
 # The comparison is against the year the resolver matched on, not the row's
 # year: `.add_polity_columns_dt()` floors the lookup year at `backcast_anchor`,
-# so a pre-anchor row is matched as the anchor year and can land on a polity
-# that had already ENDED by then (FAOSTAT area 273 Montenegro back-casts onto
-# `MNE-1913-1918`). Comparing the raw year would call every such row
-# `"polity_not_started"` -- 165 rows of a real `get_primary_production()`,
-# areas 178 and 273.
+# so a pre-anchor row is matched as the anchor year and could land on a polity
+# that had already ENDED by then, which comparing the raw year would call
+# `"polity_not_started"`. The two answers used to differ for 165 rows of a real
+# `get_primary_production()`, areas 178 and 273; whep#705 made the stand-in
+# prefer a not-yet-started period, so on the shipped snapshot they now agree
+# for every (area, year) pair of the crosswalk. Keep the matched year anyway --
+# it is what the resolver decided on, and a future crosswalk with an area whose
+# only periods all lie behind the anchor brings the divergence back.
 #
 # A polity with no published start year cannot be one this row precedes, so it
 # is reported as ended: `mapping_status == "out_of_span"` already established
