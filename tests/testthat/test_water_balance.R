@@ -593,6 +593,71 @@ testthat::test_that("blue/green consumptive equal the per-CFT mm summed", {
   )
 })
 
+testthat::test_that("bands selects which CFT bands are summed", {
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
+  syn$inputs$cft_consump_water_g <- dplyr::bind_rows(
+    dplyr::mutate(cells, band = 3L, band_name = "rainfed maize", value = 180),
+    dplyr::mutate(
+      cells,
+      band = 14L,
+      band_name = "rainfed grassland",
+      value = 100
+    )
+  )
+  syn$inputs$cft_consump_water_b <- dplyr::mutate(
+    cells,
+    band = 14L,
+    band_name = "rainfed grassland",
+    value = 20
+  )
+
+  grass <- whep::build_water_balance(
+    data = syn$inputs,
+    bands = "rainfed grassland"
+  )
+  # Grassland alone (100), not the whole-cell total (100 + 180).
+  testthat::expect_equal(
+    grass$green_consump_mm,
+    rep(100, nrow(grass)),
+    tolerance = 1e-8
+  )
+
+  # The default still totals every band, so existing callers are unaffected.
+  all_bands <- whep::build_water_balance(data = syn$inputs)
+  testthat::expect_equal(
+    all_bands$green_consump_mm,
+    rep(280, nrow(all_bands)),
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("an unknown or unnameable band aborts", {
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
+  named <- dplyr::mutate(
+    cells,
+    band = 14L,
+    band_name = "rainfed grassland",
+    value = 100
+  )
+  syn$inputs$cft_consump_water_b <- named
+  syn$inputs$cft_consump_water_g <- named
+
+  testthat::expect_error(
+    whep::build_water_balance(data = syn$inputs, bands = "rainfed sorghum"),
+    "not in this input"
+  )
+
+  # A band-name-less input cannot be filtered: aborting beats silently
+  # returning the whole-cell total under a grassland-only request.
+  syn$inputs$cft_consump_water_g <- dplyr::select(named, -band_name)
+  testthat::expect_error(
+    whep::build_water_balance(data = syn$inputs, bands = "rainfed grassland"),
+    "band_name"
+  )
+})
+
 testthat::test_that("polity resolution carries the new footprint columns", {
   pol <- whep::build_water_balance(resolution = "polity", example = TRUE)
   pointblank::expect_col_exists(

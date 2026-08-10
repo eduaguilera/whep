@@ -205,9 +205,16 @@ test_that("resolve_polity_label recovers the coverage whep#389 measured", {
   # crops_manure_n's "RoW" rows (172 of 31,648) were dropped unconditionally.
   # Upstream answers the routing question with a curated alias, so they resolve
   # to the Rest of World polity rather than needing a policy call here.
+  #
+  # THE BUCKET'S OWN CODE MOVED, 2023 -> 2025. Rest of World is a statistical
+  # reporting bucket, not a historical state, and it stopped three years before
+  # FAOSTAT stopped reporting it -- so whep-polities extended all seven buckets
+  # (RLAM, RAFR, RASI, REUR, RNAM, ROCE, ROW) to 2025 and retired the old codes.
+  # `ROW-1850-2023` is `wiki_status: retired` upstream, so the value asserted here
+  # is the live successor, not a renamed alias of the same row.
   expect_equal(
     resolve_polity_label("RoW", source = "crops-manure-n", year = 2000L),
-    "ROW-1850-2023"
+    "ROW-1850-2025"
   )
 
   # urban_n_reference is FIXED ON MAIN and no longer needs this route at all.

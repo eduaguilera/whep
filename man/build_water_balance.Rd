@@ -9,6 +9,7 @@ build_water_balance(
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
+  bands = NULL,
   example = FALSE
 )
 }
@@ -46,7 +47,21 @@ net-irrigation-requirement input (\code{lon}, \code{lat}, \code{year}, \code{val
 summed to cell level when supplied; exposed as \code{cft_nir_mm}, else \code{NA})
 and a \code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac},
 \code{cell_area_ha}). Each falls back to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent,
-except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.}
+except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.
+Read the latter with
+\code{read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)}, which
+names their CFT bands so \code{bands} can select among them.}
+
+\item{bands}{Optional character vector of LPJmL crop-functional-type band
+names restricting which bands the per-CFT consumptive-water and net
+irrigation terms are summed over, e.g. \code{"rainfed grassland"} to charge a
+grazing footprint the grassland water alone. \code{NULL} (default) sums every
+band, the whole-cell total. Bands are matched on the \code{band_name} the file
+itself carries, so an unknown name aborts rather than silently returning
+the whole-cell total; the band index is never used, because which crop a
+given index denotes is a property of how the run was configured. Only the
+consumptive-water and \code{cft_nir} terms are per-CFT, so this leaves the
+water budget itself (AET, runoff, drainage) untouched.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -80,7 +95,8 @@ The output also exposes the footprint-relevant terms folded into the budget:
 blue-water volume), which satisfy \code{water_input_mm = prec_mm + irrig_mm};
 \code{blue_consump_mm} and \code{green_consump_mm}, the LPJmL-native consumptive blue
 and green water (the per-CFT \code{cft_consump_water_b} / \code{cft_consump_water_g}
-totals when supplied, otherwise the blue and green AET); and \code{cft_nir_mm},
+cubes when supplied, summed over the bands \code{bands} selects, otherwise the
+blue and green AET); and \code{cft_nir_mm},
 the net irrigation requirement (LPJmL \code{cft_nir}), the net blue-water demand,
 summed to cell level when \code{data$cft_nir} is supplied and \code{NA} otherwise.
 Potential evapotranspiration (\code{pet_mm}) comes from the CRU climate forcing

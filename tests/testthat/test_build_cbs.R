@@ -238,7 +238,13 @@ test_that(".read_land_areas_wide holds back folded aggregate buckets", {
   result <- whep:::.read_land_areas_wide(years = 1950L)
 
   expect_equal(result$polity_code, "ESP-1800-2025")
-  expect_false("ROW-1850-2023" %in% result$polity_code)
+  # NO Rest-of-World BUCKET AT ALL, matched by prefix rather than by exact code.
+  # This asserted `ROW-1850-2023` until the seven reporting buckets were extended to
+  # 2025 upstream and that code was retired -- at which point the assertion could
+  # never fail again, because it named a code the table can no longer contain. A
+  # prefix check keeps testing the thing meant here (a real country must not fall
+  # into the residual bucket) across the next rename too.
+  expect_false(any(startsWith(result$polity_code, "ROW-")))
 })
 
 test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {

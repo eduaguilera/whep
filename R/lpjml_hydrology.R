@@ -12,9 +12,25 @@
 #       mrunoff.nc -> "runoff", mdischarge.nc -> "discharge"
 #     mswc.nc -> "SWC" (4-D lon x lat x layer[6] x time, fractional saturation
 #       0-1; layers at 200/500/1000/2000/3000/13000 mm).
-#     mcft_nir.nc -> "cft_nir" (net irrigation requirement, mm/month, per-CFT
-#       band dimension; the blue-water net-demand BW_net analogue).
-# - Monthly time index for year y, month m = (y - first_year) * 12 + m.
+#     cft_nir.nc -> "nir" (net irrigation requirement, mm/yr, per-CFT band
+#       dimension; the blue-water net-demand BW_net analogue). NOT "mcft_nir.nc"
+#       holding "cft_nir" monthly, as this map claimed until 2026-08: no WHEP
+#       run has ever written that file. Checked every run under
+#       LPJmL_runs/ (nine runs, 5.9.7 and 6.1.1 alike): all write cft_nir.nc,
+#       var "nir", nstep 1, 32 bands. The wrong entry never surfaced because
+#       nothing calls this variable yet (see the TODO in R/water_balance.R).
+#     cft_consump_water_b.nc holds var "consump_water_b", and
+#       cft_consump_water_g.nc holds "consump_water_g" (consumptive blue and
+#       green water, mm/yr, per-CFT band). Inspected in a completed 6.1.1
+#       run: these are ANNUAL outputs (nstep 1, timestep 1, units mm/yr), not
+#       monthly, so their time axis is one step per year, not twelve.
+# - The per-CFT cubes carry 32 bands, named in the file's NamePFT variable:
+#   bands 1-16 rainfed, 17-32 irrigated, in the same crop order; "rainfed
+#   grassland" is band 14 and "irrigated grassland" band 30. Select bands by
+#   name (band_name) rather than by index, so a run configured with a different
+#   band set fails loudly instead of silently charging the wrong crop.
+# - Monthly time index for year y, month m = (y - first_year) * 12 + m; annual
+#   variables index simply as y - first_year + 1.
 # - Local dev run dir is read from Sys.getenv("WHEP_LPJML_RUN_DIR"); never
 #   hardcode an absolute path in committed code.
 
@@ -31,7 +47,10 @@
 #'
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-#'   `"discharge"`, `"swc"` or `"cft_nir"` (per-CFT net irrigation requirement).
+#'   `"discharge"`, `"swc"`, `"cft_nir"` (per-CFT net irrigation requirement)
+#'   or the per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
+#'   `"cft_consump_water_g"` (green). The per-CFT variables keep their `band`
+#'   dimension, and carry `band_name` when the file names its bands.
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -39,7 +58,10 @@
 #' @param first_year First calendar year of the run's monthly time axis.
 #' @param monthly If `TRUE`, return one row per cell-month; if `FALSE`,
 #'   aggregate the 12 months of each year per cell (flux variables summed,
-#'   soil water content averaged).
+#'   soil water content averaged). Immaterial for the annual per-CFT
+#'   consumptive-water variables, which LPJmL writes one step per year: they
+#'   carry no `month` column either way, and aggregating them groups rows that
+#'   are already one per cell-year-band.
 #' @param agg Annual aggregation for `monthly = FALSE`, `"sum"` (flux default)
 #'   or `"mean"` (soil-water default).
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
@@ -48,8 +70,9 @@
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
-#'   when `monthly = TRUE`, `layer` for `"swc"`, and `band` for
-#'   `"cft_nir"`).
+#'   for the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
+#'   `band` plus `band_name` for the per-CFT variables). The annual per-CFT
+#'   consumptive-water variables never carry `month`.
 #' @export
 #' @examples
 #' read_lpjml_hydrology(example = TRUE)
@@ -66,7 +89,9 @@ read_lpjml_hydrology <- function(
     "runoff",
     "discharge",
     "swc",
-    "cft_nir"
+    "cft_nir",
+    "cft_consump_water_b",
+    "cft_consump_water_g"
   ),
   run_dir = NULL,
   years = NULL,
@@ -88,22 +113,42 @@ read_lpjml_hydrology <- function(
   if (monthly) long else .aggregate_hydro_annual(long, var, agg)
 }
 
-# Logical name -> (file, in-file variable) for each LPJmL hydrology output.
+# Logical name -> (file, in-file variable, time steps per year) for each LPJmL
+# hydrology output. `steps_per_year` is 12 for the monthly outputs and 1 for the
+# annual per-CFT consumptive-water cubes (see the header facts).
 .hydro_var_map <- function() {
   tibble::tribble(
-    ~var, ~file, ~netcdf_var,
-    "drainage", "mseepage.nc", "seepage",
-    "transp", "mtransp.nc", "transp",
-    "evap", "mevap.nc", "evap",
-    "interc", "minterc.nc", "interc",
-    "prec", "mprec.nc", "prec",
-    "rain", "mrain.nc", "rain",
-    "irrig", "mirrig.nc", "irrig",
-    "runoff", "mrunoff.nc", "runoff",
-    "discharge", "mdischarge.nc", "discharge",
-    "swc", "mswc.nc", "SWC",
-    "cft_nir", "mcft_nir.nc", "cft_nir"
+    ~var, ~file, ~netcdf_var, ~steps_per_year,
+    "drainage", "mseepage.nc", "seepage", 12L,
+    "transp", "mtransp.nc", "transp", 12L,
+    "evap", "mevap.nc", "evap", 12L,
+    "interc", "minterc.nc", "interc", 12L,
+    "prec", "mprec.nc", "prec", 12L,
+    "rain", "mrain.nc", "rain", 12L,
+    "irrig", "mirrig.nc", "irrig", 12L,
+    "runoff", "mrunoff.nc", "runoff", 12L,
+    "discharge", "mdischarge.nc", "discharge", 12L,
+    "swc", "mswc.nc", "SWC", 12L,
+    "cft_nir", "cft_nir.nc", "nir", 1L,
+    "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
+    "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L
   )
+}
+
+# The logical variables whose third dimension is a per-CFT band rather than a
+# soil layer.
+.hydro_band_vars <- function() {
+  c("cft_nir", "cft_consump_water_b", "cft_consump_water_g")
+}
+
+# Time steps per year for a logical variable; 12 (monthly) unless mapped
+# otherwise. The synthetic "aet" is built from monthly components.
+.hydro_steps_per_year <- function(var) {
+  if (var == "aet") {
+    return(12L)
+  }
+  spec <- .hydro_var_map()
+  spec$steps_per_year[[match(var, spec$var)]]
 }
 
 # LPJmL 6.x renames some output variables to their CF short names, so the name
@@ -115,7 +160,12 @@ read_lpjml_hydrology <- function(
 # byte-identical in name between 5.9.7 and 6.1.1, verified against completed
 # runs of both.
 .hydro_var_aliases <- function() {
-  list(prec = "pr")
+  list(
+    prec = "pr",
+    nir = "cft_nir",
+    consump_water_b = "cft_consump_water_b",
+    consump_water_g = "cft_consump_water_g"
+  )
 }
 
 # The in-file name for a mapped variable, tolerating the 6.x renames.
@@ -173,7 +223,8 @@ read_lpjml_hydrology <- function(
     file.path(run_dir, spec$file),
     spec$netcdf_var,
     first_year,
-    years
+    years,
+    spec$steps_per_year
   )
 }
 
@@ -187,7 +238,8 @@ read_lpjml_hydrology <- function(
       file.path(run_dir, row$file),
       row$netcdf_var,
       first_year,
-      years
+      years,
+      row$steps_per_year
     )
   })
   data.table::rbindlist(parts) |>
@@ -208,7 +260,13 @@ read_lpjml_hydrology <- function(
 # (called by the caller after this returns) narrows it down to the exact
 # requested years as a post-hoc safety net -- a deliberate, acceptable scope
 # boundary, not a full general solution.
-.read_hydro_one <- function(path, netcdf_var, first_year, years = NULL) {
+.read_hydro_one <- function(
+  path,
+  netcdf_var,
+  first_year,
+  years = NULL,
+  steps_per_year = 12L
+) {
   if (!file.exists(path)) {
     cli::cli_abort("LPJmL hydrology file not found: {.file {path}}.")
   }
@@ -217,21 +275,54 @@ read_lpjml_hydrology <- function(
   netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
-  slice <- .hydro_time_slice(nc, netcdf_var, first_year, years)
+  slice <- .hydro_time_slice(
+    nc,
+    netcdf_var,
+    first_year,
+    years,
+    steps_per_year
+  )
+  # collapse_degen = FALSE keeps length-1 dimensions. Without it, slicing a
+  # single year out of an annual per-CFT cube drops the time axis, leaving a
+  # 3-D slab whose band dimension the decoder would read as time -- silently
+  # scrambling crop bands into years. Monthly cubes never hit this (a one-year
+  # slice is still 12 steps), which is why it only surfaced with annual data.
   slab <- if (is.null(slice)) {
-    ncdf4::ncvar_get(nc, netcdf_var)
+    ncdf4::ncvar_get(nc, netcdf_var, collapse_degen = FALSE)
   } else {
     ncdf4::ncvar_get(
       nc,
       netcdf_var,
       start = slice$start,
-      count = slice$count
+      count = slice$count,
+      collapse_degen = FALSE
     )
   }
-  n_time <- if (is.null(slice)) nc$dim[["time"]]$len else slice$n_months
+  n_time <- if (is.null(slice)) nc$dim[["time"]]$len else slice$n_steps
   slab_first_year <- if (is.null(slice)) first_year else slice$slab_first_year
-  dt <- .hydro_slab_to_long(slab, lon, lat, n_time, slab_first_year)
-  tibble::as_tibble(dt)
+  dt <- .hydro_slab_to_long(
+    slab,
+    lon,
+    lat,
+    n_time,
+    slab_first_year,
+    steps_per_year
+  )
+  .hydro_attach_band_names(tibble::as_tibble(dt), nc)
+}
+
+# Attach the file's own band names to a per-CFT cube, so callers select a band
+# by name ("rainfed grassland") instead of by a positional index that a
+# differently configured run would silently redefine. Runs here at the raw
+# decoder's `layer` name, before .hydro_name_band() renames it to `band`.
+# Files without the NamePFT variable (every non-CFT output, soil water content
+# included) pass through unchanged.
+.hydro_attach_band_names <- function(long, nc) {
+  if (!rlang::has_name(long, "layer") || !("NamePFT" %in% names(nc$var))) {
+    return(long)
+  }
+  names_pft <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
+  dplyr::mutate(long, band_name = names_pft[.data$layer])
 }
 
 # Compute the ncvar_get() start=/count= slice covering min(years):max(years),
@@ -239,33 +330,49 @@ read_lpjml_hydrology <- function(
 # .hydro_slab_to_long() decodes year/month correctly for a slab that no
 # longer starts at the file's own first_year). Returns NULL when years is
 # NULL (caller then falls back to the full, unsliced read).
-.hydro_time_slice <- function(nc, netcdf_var, first_year, years) {
+.hydro_time_slice <- function(
+  nc,
+  netcdf_var,
+  first_year,
+  years,
+  steps_per_year = 12L
+) {
   if (is.null(years)) {
     return(NULL)
   }
   slab_first_year <- min(years)
   last_year <- max(years)
-  time_start <- (slab_first_year - first_year) * 12L + 1L
-  n_months <- (last_year - slab_first_year + 1L) * 12L
+  time_start <- (slab_first_year - first_year) * steps_per_year + 1L
+  n_steps <- (last_year - slab_first_year + 1L) * steps_per_year
   ndims <- nc$var[[netcdf_var]]$ndims
   if (ndims == 4L) {
     start <- c(1, 1, 1, time_start)
-    count <- c(-1, -1, -1, n_months)
+    count <- c(-1, -1, -1, n_steps)
   } else {
     start <- c(1, 1, time_start)
-    count <- c(-1, -1, n_months)
+    count <- c(-1, -1, n_steps)
   }
   list(
     start = start,
     count = count,
-    n_months = n_months,
+    n_steps = n_steps,
     slab_first_year = slab_first_year
   )
 }
 
 # Reshape a (lon, lat, [layer,] time) array into a long data.table with the
-# monthly time axis decomposed into calendar year and month.
-.hydro_slab_to_long <- function(slab, lon, lat, n_time, first_year) {
+# time axis decomposed into calendar year and, for monthly cubes, month.
+# Annual cubes (steps_per_year = 1) carry one step per year and so get no
+# month column: there is no month to report, and inventing one would let a
+# caller sum twelve copies of an annual mm/yr value.
+.hydro_slab_to_long <- function(
+  slab,
+  lon,
+  lat,
+  n_time,
+  first_year,
+  steps_per_year = 12L
+) {
   has_layer <- length(dim(slab)) == 4L
   n_layer <- if (has_layer) dim(slab)[3] else 1L
   dt <- data.table::data.table(
@@ -278,13 +385,26 @@ read_lpjml_hydrology <- function(
     ),
     value = as.vector(slab)
   )
-  dt[, year := first_year + (time_index - 1L) %/% 12L]
-  dt[, month := ((time_index - 1L) %% 12L) + 1L]
-  if (has_layer) {
-    dt[, .(lon, lat, year, month, layer, value)]
-  } else {
-    dt[, .(lon, lat, year, month, value)]
+  dt[, year := first_year + (time_index - 1L) %/% steps_per_year]
+  if (steps_per_year == 1L) {
+    return(.hydro_select_long(dt, has_layer, monthly = FALSE))
   }
+  dt[, month := ((time_index - 1L) %% steps_per_year) + 1L]
+  .hydro_select_long(dt, has_layer, monthly = TRUE)
+}
+
+# Select the long-form output columns, keeping `layer` only for cubes that have
+# one and `month` only for monthly cubes.
+.hydro_select_long <- function(dt, has_layer, monthly) {
+  keep <- c(
+    "lon",
+    "lat",
+    "year",
+    if (monthly) "month",
+    if (has_layer) "layer",
+    "value"
+  )
+  dt[, .SD, .SDcols = keep]
 }
 
 # The generic 4-D decoder calls the third dimension `layer`, which is correct
@@ -293,7 +413,8 @@ read_lpjml_hydrology <- function(
 # `band` passes through unchanged.
 .hydro_name_band <- function(long, var) {
   if (
-    var == "cft_nir" &&
+    var %in%
+      .hydro_band_vars() &&
       rlang::has_name(long, "layer") &&
       !rlang::has_name(long, "band")
   ) {
@@ -310,7 +431,7 @@ read_lpjml_hydrology <- function(
     "lon",
     "lat",
     "year",
-    intersect(c("layer", "band"), names(long))
+    intersect(c("layer", "band", "band_name"), names(long))
   )
   reducer <- if (agg == "mean") base::mean else base::sum
   dplyr::summarise(
