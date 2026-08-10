@@ -266,7 +266,7 @@ read_soil_hydraulic <- function(
 .aggregate_hwsd_hydraulic <- function(hwsd_dir, mu_hyd, target_grid) {
   cols <- c("t_field", "t_wilt", "porosity")
   grids <- purrr::map(cols, function(col) {
-    .aggregate_hwsd(
+    grid <- .aggregate_hwsd(
       hwsd_dir,
       mu_hyd[, c("mu_global", col)],
       target_res = 0.5,
@@ -274,6 +274,14 @@ read_soil_hydraulic <- function(
       value_col = col,
       out_col = col
     )
+    # Each pass classifies the full 30-arcsec HWSD raster, which costs ~11 GB
+    # of terra intermediates for a 3 MB result. That memory is reclaimable, but
+    # R's collector does not run on its own here, so three passes accumulate
+    # (11.4 -> 22.1 -> 32.8 GB) instead of reusing one pass's worth. Reclaiming
+    # between passes holds it at ~11 GB and is invisible against the ~60 s each
+    # pass already takes.
+    invisible(gc(full = TRUE))
+    grid
   })
   purrr::reduce(grids, dplyr::inner_join, by = c("lon", "lat"))
 }
