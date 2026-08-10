@@ -104,6 +104,7 @@ the cell porosity). Clay content is a soil-texture covariate supplied via
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_soc_climate_drivers</span><span class="op">(</span></span>
 <span>  run_dir <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -125,6 +126,19 @@ texture products from HWSD, both downloadable, so neither is pinned.</p></dd>
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
 <dd><p>Optional integer vector of calendar years to keep. <code>NULL</code> keeps
 every year the inputs cover.</p></dd>
+
+
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -154,7 +168,8 @@ modifier driver, repeated across a cell-year's months), <code>clay_pct</code>,
 <code>theta</code>, <code>t_field</code>, <code>t_wilt</code> and <code>porosity</code> (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
 wilting-point and porosity references) and <code>method_water_input</code>, plus the
-polity columns below.</p>
+polity columns below, plus <code>reporting_polity_out_of_span</code> when
+<code>polity_validity = "flag"</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>

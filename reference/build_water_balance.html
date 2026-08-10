@@ -119,6 +119,7 @@ that drives the LPJmL run and is <code>NA</code> until that forcing is wired (se
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_water_balance</span><span class="op">(</span></span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  bands <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -142,6 +143,19 @@ left out take their default.</p></dd>
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>
 <dd><p><code>"grid"</code> (per cell, default) or <code>"polity"</code> (aggregated to
 <code>year</code> and <code>area_code</code>).</p></dd>
+
+
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -187,7 +201,8 @@ Defaults to <code>FALSE</code>.</p></dd>
 <code>aet_blue_mm</code>, <code>aet_green_mm</code>, <code>blue_consump_mm</code>, <code>green_consump_mm</code>,
 <code>cft_nir_mm</code>, <code>drainage_mm</code>, <code>runoff_mm</code>, <code>soil_water_change_mm</code> and
 <code>method_water</code>. For <code>resolution = "polity"</code>: the same terms aggregated to
-<code>year</code> and <code>area_code</code>. Both resolutions carry the polity columns below.</p>
+<code>year</code> and <code>area_code</code>. Both resolutions carry the polity columns below,
+plus <code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

@@ -31,6 +31,7 @@ via `data$clay`; the polity key comes from a cell-polity crosswalk
 get_soc_climate_drivers(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -52,6 +53,20 @@ get_soc_climate_drivers(
 
   Optional integer vector of calendar years to keep. `NULL` keeps every
   year the inputs cover.
+
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
 
 - data:
 
@@ -83,7 +98,8 @@ modifier driver, repeated across a cell-year's months), `clay_pct`,
 `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
 wilting-point and porosity references) and `method_water_input`, plus
-the polity columns below.
+the polity columns below, plus `reporting_polity_out_of_span` when
+`polity_validity = "flag"`.
 
 ## Details
 
