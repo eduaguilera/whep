@@ -15,6 +15,7 @@ carbon-to-nitrogen ratios.
 build_carbon_balance(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
   example = FALSE
@@ -39,6 +40,20 @@ pipeline.
 
   `"grid"` (default, per cell and land-use class) or `"polity"`
   (aggregated to `area_code` conserving carbon mass).
+
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
 
 - data:
 
@@ -85,7 +100,18 @@ A tibble keyed by `(lon, lat, area_code, land_use, year)` at `"grid"`
 resolution (or `(area_code, year)` at `"polity"`), with `stock_mgc_ha`,
 `mineralization_mgc_ha`, `c_input_mgc_ha`, `luc_transfer_mgc_ha`,
 `rate_mgc_ha`, `son_change_kgn_ha`, `area_ha` and `method_soc`, plus the
-polity columns below.
+polity columns below, plus `reporting_polity_out_of_span` when
+`polity_validity = "flag"`.
+
+## Details
+
+`polity_validity` governs this function's own output. The internal
+[`get_soc_climate_drivers`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+read it falls back on always keeps its rows: the march needs a climate
+modifier for every cell-year it steps through, so dropping driver rows
+for an anachronistic polity label would break the trajectory rather than
+relabel it. The driver read therefore warns on its own key space
+(whep#462) while this argument decides the fate of the balance rows.
 
 ## Polity columns
 

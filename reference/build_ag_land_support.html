@@ -86,6 +86,7 @@ cropland support and raise a warning naming the affected years; supply
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_ag_land_support</span><span class="op">(</span></span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  grassland <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gridded_pasture"</span>, <span class="st">"luh2"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -109,6 +110,19 @@ overlap, but stops at 2015. <code>"none"</code> returns cropland-only support, a
 explicit choice rather than a silent gap.</p></dd>
 
 
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
+
+
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs to avoid remote reads:
 <code>cell_polity</code> (the <code><a href="build_cell_polity.html">build_cell_polity()</a></code> crosswalk), <code>type_cropland</code>
@@ -129,7 +143,8 @@ data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
 <code>land_use</code> (<code>"cropland"</code> or <code>"grassland"</code>) and positive <code>area_ha</code>, plus the
-polity columns below.</p>
+polity columns below, plus <code>reporting_polity_out_of_span</code> when
+<code>polity_validity = "flag"</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

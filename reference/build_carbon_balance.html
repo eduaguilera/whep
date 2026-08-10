@@ -65,6 +65,7 @@ via asymmetric soil carbon-to-nitrogen ratios.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_carbon_balance</span><span class="op">(</span></span>
 <span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"hsoc"</span>, <span class="st">"rothc"</span>, <span class="st">"icbm"</span>, <span class="st">"amg"</span>, <span class="st">"century"</span><span class="op">)</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -90,6 +91,19 @@ ported from the Spain historical pipeline.</p>
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>
 <dd><p><code>"grid"</code> (default, per cell and land-use class) or
 <code>"polity"</code> (aggregated to <code>area_code</code> conserving carbon mass).</p></dd>
+
+
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -135,7 +149,19 @@ remote data. Defaults to <code>FALSE</code>.</p></dd>
 <code>"grid"</code> resolution (or <code>(area_code, year)</code> at <code>"polity"</code>),
 with <code>stock_mgc_ha</code>, <code>mineralization_mgc_ha</code>, <code>c_input_mgc_ha</code>,
 <code>luc_transfer_mgc_ha</code>, <code>rate_mgc_ha</code>, <code>son_change_kgn_ha</code>,
-<code>area_ha</code> and <code>method_soc</code>, plus the polity columns below.</p>
+<code>area_ha</code> and <code>method_soc</code>, plus the polity columns below, plus
+<code>reporting_polity_out_of_span</code> when
+<code>polity_validity = "flag"</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><code>polity_validity</code> governs this function's own output. The internal
+<code><a href="get_soc_climate_drivers.html">get_soc_climate_drivers</a></code> read it falls back on always keeps its
+rows: the march needs a climate modifier for every cell-year it steps
+through, so dropping driver rows for an anachronistic polity label would
+break the trajectory rather than relabel it. The driver read therefore warns
+on its own key space (whep#462) while this argument decides the fate of the
+balance rows.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

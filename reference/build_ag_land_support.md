@@ -25,6 +25,7 @@ supply `data$grassland_ha` to cover them.
 build_ag_land_support(
   years = NULL,
   grassland = c("gridded_pasture", "luh2", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -47,6 +48,20 @@ build_ag_land_support(
   and agrees with it where they overlap, but stops at 2015. `"none"`
   returns cropland-only support, an explicit choice rather than a silent
   gap.
+
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
 
 - data:
 
@@ -71,7 +86,8 @@ build_ag_land_support(
 
 A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
 `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus
-the polity columns below.
+the polity columns below, plus `reporting_polity_out_of_span` when
+`polity_validity = "flag"`.
 
 ## Polity columns
 

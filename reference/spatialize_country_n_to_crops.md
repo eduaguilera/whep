@@ -26,6 +26,7 @@ spatialize_country_n_to_crops(
   crop_shares,
   cell_polity,
   resolution = c("polity_crop", "grid"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list()
 )
 ```
@@ -59,6 +60,20 @@ spatialize_country_n_to_crops(
   distributes to `lon`/`lat` grid cells; requires `crop_patterns` and
   `type_cropland` in `data`).
 
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
+
 - data:
 
   Optional named list of pre-loaded grid inputs, used only when
@@ -78,7 +93,10 @@ spatialize_country_n_to_crops(
 
 A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
-`area_code`, `year`, `item_cbs_code`, `n_t`.
+`area_code`, `year`, `item_cbs_code`, `n_t`. Either gains
+`reporting_polity_out_of_span` when `polity_validity = "flag"`; this
+output carries no reporting-polity columns, so the flag is attached
+directly rather than derived from them.
 
 ## Examples
 
