@@ -1,16 +1,18 @@
 # test_polity_folds.R -- tests for R/polity_folds.R
 #
 # `polity_area_code` is an aggregation bucket, not an identity. FABIO folds
-# FAOSTAT areas 276 Sudan and 277 South Sudan into bucket 206, so a post-2011
-# bucket-206 value covers both territories while the polity resolved from the
-# bucket code covers one of them (whep#414). Measured on real FAOSTAT
-# production for 2015, bucket 206 carries Sudan 53,124,088 t and South Sudan
-# 14,876,146 t -- South Sudan is 21.9% of the bucket -- and the reporting
-# columns label it `SUD-1956-2011`, a polity that had ended by then, with the
-# `out_of_span` status dropped on the way out.
+# FAOSTAT areas 276 Sudan and 277 South Sudan into bucket 206, so from 2012 a
+# bucket-206 value covers both territories (whep#414). Measured on real FAOSTAT
+# production for 2015, bucket 206 carries Sudan 54,040,755 t and South Sudan
+# 14,876,146 t -- South Sudan is 21.6% of the bucket -- and the reporting
+# columns label it `SUD-1956-2011`, a polity that had ended by then.
 #
-# These tests pin that the mismatch is now reported and warned about, and that
-# a fold whose bucket polity IS an aggregate is not falsely flagged.
+# The label is right about the TERRITORY and wrong about the PERIOD:
+# `SUD-1956-2011`'s published successors are exactly `SDN-2011-2025` and
+# `SSD-2011-2025`, the two the bucket folds, so its extent is the sum. These
+# tests pin that distinction, that the fold is reported for the 14 years it
+# happens rather than all 65, and that a fold whose bucket polity IS an
+# aggregate is not flagged at all.
 
 # A crosswalk fixture exercising all four outcomes in one pass. `polity_type`
 # aggregate on bucket 900's own label makes that fold honest; bucket 950 has no
@@ -48,34 +50,52 @@
   )
 }
 
-test_that("bucket 206 is reported as partially covered after the secession", {
+test_that("bucket 206 carries its members' ended predecessor", {
   # Post-2011 years only: PR #480 changes how the three Sudan areas resolve
-  # BEFORE 2011, and this assertion must survive that. From 2011 the bucket
+  # BEFORE 2011, and this assertion must survive that. From 2012 the bucket
   # folds both successors whatever #480 does to the earlier years.
   coverage <- polity_bucket_coverage(years = c(2012L, 2015L, 2020L))
   sudan <- coverage[coverage$polity_area_code == 206L, ]
 
   expect_equal(nrow(sudan), 3L)
-  expect_true(all(sudan$coverage == "partial"))
-  expect_true(all(grepl("SDN-2011-2025", sudan$member_polity_codes)))
-  expect_true(all(grepl("SSD-2011-2025", sudan$member_polity_codes)))
-  # The label names one territory (or, before #480 lands, the ended unified
-  # state) while the value covers both successors.
-  expect_false(any(sudan$bucket_polity_code %in% c(NA_character_)))
-  expect_true(all(sudan$n_member_polities > 1L))
+  # NOT `"partial"`: the label is `SUD-1956-2011`, whose published successors
+  # are exactly the two polities the bucket folds, so its territory IS the sum.
+  # What is wrong is the period -- that polity had ended (whep#414).
+  expect_true(all(sudan$coverage == "predecessor"))
+  expect_equal(unique(sudan$bucket_polity_code), "SUD-1956-2011")
+  expect_true(all(sudan$bucket_mapping_status == "out_of_span"))
+  expect_equal(
+    unique(sudan$member_polity_codes),
+    "SDN-2011-2025, SSD-2011-2025"
+  )
+  expect_true(all(sudan$n_member_polities == 2L))
 })
 
-test_that("bucket 206 is the only partially covered bucket", {
+test_that("no bucket is labelled with a polity covering less than it sums", {
   # An invariant rather than a row count: FABIO's rest-of-world bucket 999 folds
   # many areas but resolves to `ROW-1850-2025`, an aggregate polity that means
-  # the union, so it is honest and must not be flagged. If any other bucket ever
-  # starts folding several territories under a single-territory polity, this is
-  # where it shows up instead of shipping.
-  partial <- polity_bucket_coverage()
-  partial <- partial[partial$coverage == "partial", ]
+  # the union, so it is honest and must not be flagged. If any bucket ever
+  # starts folding several territories under a polity covering only some of
+  # them, this is where it shows up instead of shipping.
+  coverage <- polity_bucket_coverage()
 
-  expect_gt(nrow(partial), 0L)
-  expect_equal(unique(partial$polity_area_code), 206L)
+  expect_equal(nrow(coverage[coverage$coverage == "partial", ]), 0L)
+  expect_equal(unique(coverage$polity_area_code), 206L)
+  expect_equal(unique(coverage$coverage), "predecessor")
+})
+
+test_that("a stand-in outside an area's reporting years is not a member", {
+  # The fold is 2012-2025, not 1961-2025. FAOSTAT reports area 206 through 2011
+  # and areas 276/277 from 2012, never in the same year, so before 2012 bucket
+  # 206 sums exactly one territory. The year-aware resolver answers for every
+  # (area_code, year) pair regardless, standing in with the nearest period, and
+  # counting those stand-ins reported a three-way fold in all 65 years.
+  coverage <- polity_bucket_coverage()
+
+  expect_equal(nrow(coverage), 14L)
+  expect_equal(min(coverage$year), 2012L)
+  expect_false(any(coverage$year <= 2011L))
+  expect_equal(unique(coverage$member_area_codes), "276, 277")
 })
 
 test_that("an aggregate-labelled fold is not flagged, an unlabelled one is", {
@@ -89,6 +109,31 @@ test_that("an aggregate-labelled fold is not flagged, an unlabelled one is", {
   expect_equal(coverage$bucket_polity_code[[3]], "R-2000-2025")
   # Bucket 970 folds a single polity, so the question does not arise for it.
   expect_false(970L %in% coverage$polity_area_code)
+})
+
+test_that("the predecessor class needs the successor set to match exactly", {
+  # Narrow by construction, so it cannot launder a real extent mismatch: the
+  # label must have ENDED (an in-span polity has no successors yet) and its
+  # published successors must be the whole member set, not merely overlap it.
+  members <- "SDN-2011-2025, SSD-2011-2025"
+
+  expect_true(
+    whep:::.bucket_is_predecessor("SUD-1956-2011", "out_of_span", members)
+  )
+  expect_false(
+    whep:::.bucket_is_predecessor("SUD-1956-2011", "matched", members)
+  )
+  expect_false(
+    whep:::.bucket_is_predecessor(
+      "SUD-1956-2011",
+      "out_of_span",
+      "SDN-2011-2025"
+    )
+  )
+  # A polity with no successors published can never reach the class.
+  expect_false(
+    whep:::.bucket_is_predecessor("SDN-2011-2025", "out_of_span", members)
+  )
 })
 
 test_that("polity_bucket_coverage validates its years argument", {

@@ -151,6 +151,13 @@
     "single_year", "Inside the per-year fallow attribution loop.",
     ".redistribute_countries_dt", "[", "area_code", 2L, "single_year",
     "Per-country subsets inside one year's redistribution.",
+    ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
+    "The first year the upstream FAOSTAT map reports each area at all: one
+     number per area by construction, and the year bound the predicate right
+     after it applies. It is what makes `polity_bucket_coverage()` year-aware,
+     and it cannot be year-keyed because the resolver does not carry it --
+     `polity_start_year` is the polity's, not the map's (area 276: 2011 against
+     2012).",
     ".resolve_hist_trade_polities", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> area bridge, immediately followed by the year-aware polity
      resolution.",
