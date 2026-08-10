@@ -10,7 +10,10 @@
   dry-matter harvest index and identifies Lassaletta et al.
   (2014) as the *Environmental Research Letters* 9:105011 Supplementary
   Methods authority. **No published value changes:** `bnf.csv` is byte-
-  identical and BNF runtime outputs are unchanged.
+  identical and BNF runtime outputs are unchanged. Two invariants that the
+  provenance rewrite would otherwise have dropped are kept: a mixed stand's
+  `leguminous_share` must stay strictly inside 0 and 1, and no Anglade-cited
+  coefficient may coincide with a sample size reported on its own Table 1 row.
 
 * **Breaking: `whep::biomass_coefs` no longer exposes five unused legacy
   below-ground fields (#524).** `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`,

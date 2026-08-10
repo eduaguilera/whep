@@ -345,6 +345,55 @@ test_that("derivations are complete and recompute their stored values", {
   )
 })
 
+test_that("a mixed stand keeps a leguminous share strictly inside 0 and 1", {
+  # The stand definition pins pure legumes to 1 and non-legumes to 0. The
+  # remaining systems are mixtures by construction, so a value of exactly 0 or
+  # 1 would mean the mixture had silently collapsed to one of the two pure
+  # cases.
+  bnf <- whep::whep_coef_table("bnf")
+  mixed <- c("Fodder, other", "Mixed swards", "Meadows", "Fallow", "Weeds")
+  shares <- bnf$leguminous_share[match(mixed, bnf$name_bnf)]
+
+  testthat::expect_false(any(is.na(shares)))
+  testthat::expect_true(all(shares > 0 & shares < 1))
+})
+
+test_that("no Anglade coefficient equals a sample size from its own row", {
+  # The failure mode this guards is a sample size transcribed into a value
+  # column. Every Anglade-cited fraction is a percentage in Table 1, so it
+  # must not coincide with any n reported for the same species.
+  bnf <- whep::whep_coef_table("bnf")
+  table1 <- .anglade_2015_table1()
+  species <- c(
+    Alfalfa = "Alfalfa",
+    Clover = "Clover",
+    `Fava bean` = "Faba bean",
+    Lentils = "Lentil",
+    Pea = "Pea"
+  )
+  n_columns <- grep("_n$", names(table1), value = TRUE)
+
+  purrr::iwalk(species, function(anglade_name, bnf_name) {
+    sizes <- table1[table1$species == anglade_name, n_columns] |>
+      unlist(use.names = FALSE)
+    sizes <- sizes[!is.na(sizes)]
+    purrr::walk(c("ndfa", "n_harvest_index"), function(coefficient) {
+      stored_percent <- .bnf_stored(bnf, bnf_name, coefficient) * 100
+      testthat::expect_false(
+        any(abs(sizes - stored_percent) < 1e-8),
+        info = paste0(
+          bnf_name,
+          " / ",
+          coefficient,
+          " = ",
+          stored_percent,
+          "% coincides with a sample size in Anglade Table 1"
+        )
+      )
+    })
+  })
+})
+
 test_that("unresolved cells contain no guessed source assertion", {
   unresolved <- whep::whep_coef_table("bnf_provenance") |>
     dplyr::filter(evidence_class == "genuinely_unresolved")
