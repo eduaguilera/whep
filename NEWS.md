@@ -22,10 +22,21 @@
   resulting cell allowance, signed margin and positive overshoot are only then
   attributed back to crops — by input shares for `metric = "input"` and by
   signed surplus-contribution shares for `metric = "surplus"` (which may be
-  negative or exceed one). **Published exceedance values move**, necessarily
-  and in the direction the double-counting implies; the new
-  `resolution = "cell"` grain returns the undivided source-cell result, and the
-  crop grains reconcile back to it algebraically.
+  negative or exceed one). **Published exceedance values move, and the two
+  metrics move differently.** For `metric = "input"`, where crop pressure
+  cannot be negative, the cell overshoot `max(sum(a) - c, 0)` is greater than
+  or equal to the old per-crop sum `sum(max(a - c, 0))` for every input, so
+  reported
+  overshoot rises (or is unchanged when one crop holds the cell, or when
+  neither form overshoots): on the package's two-crop fixture, two crops of
+  4 t N against a 5 t N allowance went from 0 to 3 t N. For
+  `metric = "surplus"` it can move either way, because a negative crop
+  contribution now offsets a positive one inside the cell instead of being
+  clipped to zero crop by crop. The global magnitude is not quantified here —
+  that needs the restricted archive and a full gridded surplus build, not
+  something CI can reach. The new `resolution = "cell"` grain returns the
+  undivided source-cell result, and the crop grains reconcile back to it
+  algebraically.
 * **The critical surface is pinned to the deposited rasters by checksum.**
   `read_critical_n()` checks every raster a call actually reads — the selected
   critical surface plus the three shared input layers — against

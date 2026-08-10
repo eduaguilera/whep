@@ -395,3 +395,32 @@ testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
   testthat::expect_equal(out$item_cbs_code, 2501L)
   testthat::expect_equal(unique(out$cell_actual_n_t), 4)
 })
+
+# Backs the NEWS claim about which way the numbers moved. For a non-negative
+# pressure the cell form can only report at least as much overshoot as the old
+# per-crop form, because the old one subtracted a fresh copy of the allowance
+# for every crop. Asserted as an invariant over a sweep rather than on one
+# hand-picked cell.
+testthat::test_that("cell-first input overshoot never falls below per-crop", {
+  cases <- list(
+    list(values = c(4, 4), critical = 50),
+    list(values = c(9, 1), critical = 50),
+    list(values = c(3, 3, 3), critical = 50),
+    list(values = c(0, 0), critical = 50),
+    list(values = c(20, 1), critical = 10),
+    list(values = c(1, 1), critical = 200)
+  )
+  margins <- purrr::map_dbl(cases, function(case) {
+    out <- .nbx_run(
+      case$values,
+      critical_kgn_ha = case$critical,
+      indicator = "total_input"
+    )
+    allowance <- unique(out$cell_critical_n_t)
+    old <- sum(pmax(case$values - allowance, 0))
+    sum(out$exceedance_n_t) - old
+  })
+  testthat::expect_true(all(margins >= -1e-9))
+  # And it is a real difference somewhere, not a vacuous inequality.
+  testthat::expect_true(any(margins > 1e-9))
+})
