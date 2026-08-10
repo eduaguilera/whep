@@ -18,6 +18,19 @@
   call, independent of how many years are requested
   ([\#624](https://github.com/eduaguilera/whep/issues/624)).
 
+- **A year-scoped production build no longer depends on the window for
+  which livestock stock combinations exist.**
+  `.build_livestock_stocks()` read the stock series scoped to the
+  caller’s window, but `.combine_livestock()` completes the year axis
+  against the (area, item) combinations that read produced — so a
+  combination absent from the window was absent from the completion, and
+  the completed rows are what give a livestock-product row its unit
+  downstream. The series is now read over its full span and trimmed
+  afterwards; full-range output is unchanged. This narrows the remaining
+  year-scoping gap (`t_LU` at 2010: 2.18e-04 to 1.61e-04) but does not
+  close [\#666](https://github.com/eduaguilera/whep/issues/666) — a
+  scoped build still derives `LU` as NA where a full build derives 0.
+
 - **[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
   no longer grows its memory with the length of the span.** The
   RothC/HSOC climate modifier is now reduced one year at a time.
