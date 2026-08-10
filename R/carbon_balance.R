@@ -226,6 +226,40 @@ build_carbon_balance <- function(
       dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
     ))
   }
+  # One year at a time. Each cell-year's modifier is reduced from its own twelve
+  # monthly rows, so nothing crosses years -- but attaching soil cover crosses
+  # the MONTHLY table with every land-use class, which measures 0.452 GB per
+  # simulated year against 0.097 GB for the drivers themselves. Held for the
+  # whole span that intermediate is ~55 GB at 1901-2022, and it is what took the
+  # full-span build to a 95.5 GB peak before it could reach the march (#624).
+  groups <- .cb_year_row_groups(climate)
+  parts <- lapply(groups, function(rows) {
+    .cb_chunk_modifier(
+      climate[rows, , drop = FALSE],
+      clay,
+      model,
+      keys,
+      land_use_classes
+    )
+  })
+  dplyr::bind_rows(parts)
+}
+
+# Row indices of each year, as ONE pass over the year column. Filtering the
+# table per year instead (climate[climate$year == yr, ]) rescans every row once
+# per year, which cost 12% of the build at a five-year span and would scale with
+# the square of the span. Returning indices rather than frames also keeps the
+# chunks lazy, so only one year is materialised at a time instead of a second
+# copy of the whole table. A table with no year column is one group.
+.cb_year_row_groups <- function(climate) {
+  if (!rlang::has_name(climate, "year") || nrow(climate) == 0L) {
+    return(list(seq_len(nrow(climate))))
+  }
+  split(seq_len(nrow(climate)), climate$year)
+}
+
+# The modifier for one chunk of the monthly climate table.
+.cb_chunk_modifier <- function(climate, clay, model, keys, land_use_classes) {
   prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
