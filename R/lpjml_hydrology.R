@@ -48,9 +48,11 @@
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
 #'   `"discharge"`, `"swc"`, `"cft_nir"` (per-CFT net irrigation requirement)
-#'   or the per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
-#'   `"cft_consump_water_g"` (green). The per-CFT variables keep their `band`
-#'   dimension, and carry `band_name` when the file names its bands.
+#'   the per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
+#'   `"cft_consump_water_g"` (green), or `"cftfrac"`, the per-CFT share of the
+#'   cell each band occupies (the area weight for the other two). The per-CFT
+#'   variables keep their `band` dimension, and carry `band_name` when the file
+#'   names its bands.
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -91,7 +93,8 @@ read_lpjml_hydrology <- function(
     "swc",
     "cft_nir",
     "cft_consump_water_b",
-    "cft_consump_water_g"
+    "cft_consump_water_g",
+    "cftfrac"
   ),
   run_dir = NULL,
   years = NULL,
@@ -131,14 +134,15 @@ read_lpjml_hydrology <- function(
     "swc", "mswc.nc", "SWC", 12L,
     "cft_nir", "cft_nir.nc", "nir", 1L,
     "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
-    "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L
+    "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L,
+    "cftfrac", "cftfrac.nc", "CFTfrac", 1L
   )
 }
 
 # The logical variables whose third dimension is a per-CFT band rather than a
 # soil layer.
 .hydro_band_vars <- function() {
-  c("cft_nir", "cft_consump_water_b", "cft_consump_water_g")
+  c("cft_nir", "cft_consump_water_b", "cft_consump_water_g", "cftfrac")
 }
 
 # Time steps per year for a logical variable; 12 (monthly) unless mapped

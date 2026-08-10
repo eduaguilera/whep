@@ -70,3 +70,6 @@ lpjml-rlds-isimip-1901-2019,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZ
 lpjml-rlds-era5-2017-2023,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260730T174638Z-1e7e7
 lpjml-grass-natural-net-c,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122139Z-f04a5
 lpjml-soc-hydrology,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122201Z-491da
+wfn-water-crop,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260629T135518Z-6db42
+water-livestock-blue,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260629T140900Z-f8f5b
+water-grazing-green,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260810T142528Z-b4612
