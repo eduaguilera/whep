@@ -126,8 +126,6 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
-    ".nbx_image_region", "left_join", "area_code", 1L, "time_invariant",
-    "IMAGE region membership carried by the cell-polity table.",
     ".polity_code_from_labels", "merge", "area_code, area", 1L,
     "label_identity",
     "The label is where the polity comes from here, and the year-aware code

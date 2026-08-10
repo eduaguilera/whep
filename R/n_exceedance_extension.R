@@ -18,11 +18,14 @@
 #' (harvested product plus used residue plus grazed forage). The chosen
 #' category is stamped in `method_n_exceedance`.
 #'
-#' The three categories are traced as three separate extension passes (one call
-#' per category), not one signed impact: the footprint framework carries a single
-#' non-negative `impact_u`, so the within-boundary and exceedance parts are run
-#' as distinct passes and compared afterwards, never combined into one
-#' signed intensity.
+#' Signed crop-attributed values are retained. They arise legitimately when a
+#' negative crop-surplus contribution receives its approved signed share of a
+#' positive cell overshoot. [build_sjos_n_footprint()] traces positive and
+#' negative parts separately through the non-negative footprint engine and
+#' recombines them linearly.
+#' If the upstream result contains a zero/near-zero-denominator cell residual,
+#' this function raises a typed undefined-attribution error: a mandatory crop
+#' footprint cannot silently discard or invent an allocation for that residual.
 #'
 #' The per-crop (`item_cbs_code`) granularity is preserved so the footprint can
 #' be traced to origin (locked plan decision 14). Rows with a missing key are
@@ -64,6 +67,7 @@ build_n_exceedance_extension <- function(
     c("year", "area_code", "item_cbs_code", .nex_category_col(category)),
     "exceedance"
   )
+  .nex_validate_complete_attribution(exceedance)
   exceedance |>
     .nex_select_impact(category) |>
     .nex_drop_bad_keys() |>
@@ -76,6 +80,22 @@ build_n_exceedance_extension <- function(
       "impact_u",
       "method_n_exceedance"
     )
+}
+
+.nex_validate_complete_attribution <- function(x) {
+  undefined <- rlang::has_name(x, "attribution_status") &&
+    any(grepl("^undefined_", x$attribution_status), na.rm = TRUE)
+  residual <- rlang::has_name(x, "attribution_record_type") &&
+    any(x$attribution_record_type == "cell_residual", na.rm = TRUE)
+  if (undefined || residual) {
+    cli::cli_abort(c(
+      "Crop-level nitrogen attribution is undefined for one or more cells.",
+      x = "The cell result and explicit residual are preserved upstream.",
+      i = "A footprint requires complete crop attribution and cannot fabricate
+           a fallback share."
+    ), class = "whep_n_attribution_undefined")
+  }
+  invisible(TRUE)
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -109,13 +129,12 @@ build_n_exceedance_extension <- function(
   )
 }
 
-# Footprint extensions are non-negative finite masses. Deficits remain
-# available in the upstream surplus diagnostic but cannot enter the Leontief
-# extension as negative pressure.
+# Crop-attributed boundary quantities may be signed, but missing or infinite
+# values cannot enter the footprint extension.
 .nex_validate_impact <- function(x) {
-  if (any(!is.finite(x$impact_u) | x$impact_u < 0)) {
+  if (any(!is.finite(x$impact_u))) {
     cli::cli_abort(
-      "The selected nitrogen footprint category must be finite and non-negative."
+      "The selected nitrogen footprint category must be finite."
     )
   }
   x

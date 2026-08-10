@@ -59,11 +59,17 @@
 #'   Defaults to `NULL`.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
+#' @param verify_source If `TRUE` (default), real archive reads verify the
+#'   selected critical raster and its source-area/IMAGE support rasters against
+#'   the package's versioned content manifest before parsing. Ignored for
+#'   `data` and `example` injection.
 #' @return A tibble with `lon`, `lat` (0.5-degree cell centres), `value`
 #'   (kg N per hectare per year; a categorical impact code for
 #'   `binding_threshold`) and retained layer provenance: `critical_var`,
 #'   `critical_threshold`, `critical_land_use`, `critical_year` and
-#'   `critical_source`. NODATA cells are dropped.
+#'   `critical_source`, canonical integer `cell_id`/row/column keys, deposited
+#'   `source_area_ha`, IMAGE-region membership, DOI/version and archive checksum.
+#'   NODATA cells are dropped.
 #' @export
 #' @examples
 #' read_critical_n(example = TRUE)
@@ -81,21 +87,29 @@ read_critical_n <- function(
   land_use = c("all", "ara", "igl"),
   dir = NULL,
   data = NULL,
-  example = FALSE
+  example = FALSE,
+  verify_source = TRUE
 ) {
   var <- rlang::arg_match(var)
   threshold <- rlang::arg_match(threshold)
   land_use <- rlang::arg_match(land_use)
+  resolved_dir <- NULL
   grid <- if (isTRUE(example)) {
     .example_critical_n()
+  } else if (!is.null(data)) {
+    data
   } else {
-    data %||%
-      .read_critical_n_file(
-        .resolve_critical_n_dir(dir),
-        var,
-        threshold,
-        land_use
-      )
+    resolved_dir <- .resolve_critical_n_dir(dir)
+    if (isTRUE(verify_source) &&
+        var %in% c("critical_n_surplus", "critical_n_input") &&
+        .critn_has_source_geometry(resolved_dir, var, threshold, land_use)) {
+      .critn_verify_selected(resolved_dir, var, threshold, land_use)
+    }
+    .read_critical_n_file(resolved_dir, var, threshold, land_use)
+  }
+  if (!is.null(resolved_dir) &&
+      var %in% c("critical_n_surplus", "critical_n_input")) {
+    grid <- .critical_n_attach_support(grid, resolved_dir, land_use)
   }
   .critical_n_finalize(grid, var, threshold, land_use)
 }
@@ -130,11 +144,95 @@ read_critical_n <- function(
 
 .critn_archive_md5 <- function() "d6b4bf88e9b140bd25a147396e371733"
 
+.critn_archive_sha256 <- function() {
+  "74dc623f86b97c11be3269f762f6577e637559c0969000ae5b89ed6d53cacf91"
+}
+
+.critn_archive_bytes <- function() 18376996
+
+.critn_source_doi <- function() "10.5281/zenodo.6395016"
+
+.critn_source_version <- function() "1.0"
+
 # The single top-level directory the archive unpacks into. Its presence under
 # <cache>/extracted is what .read_critical_n_file() then reads through, so it
 # doubles as the cache-hit marker.
 .critn_archive_root <- function() {
   "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances"
+}
+
+.critn_root_path <- function(dir) {
+  file.path(dir, "extracted", .critn_archive_root())
+}
+
+.critn_manifest <- function() {
+  path <- system.file(
+    "extdata",
+    "critical_n_source_manifest.csv",
+    package = "whep"
+  )
+  if (!nzchar(path)) {
+    path <- file.path("inst", "extdata", "critical_n_source_manifest.csv")
+  }
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE) |>
+    tibble::as_tibble()
+}
+
+.critn_selected_paths <- function(var, threshold, land_use) {
+  spec <- .critical_n_var_spec(var, threshold, land_use)
+  paths <- c(
+    file.path("Output_files", spec$subdir, spec$file),
+    "Input_files/a_crop.asc",
+    "Input_files/a_gr_int.asc",
+    "Input_files/image_region28.asc"
+  )
+  chartr("\\", "/", paths)
+}
+
+.critn_verify_selected <- function(dir, var, threshold, land_use) {
+  wanted <- .critn_selected_paths(var, threshold, land_use)
+  manifest <- .critn_manifest()
+  expected <- dplyr::filter(manifest, .data$relative_path %in% .env$wanted)
+  if (!setequal(expected$relative_path, wanted)) {
+    cli::cli_abort("The critical-N source manifest is incomplete.")
+  }
+  root <- .critn_root_path(dir)
+  for (i in seq_len(nrow(expected))) {
+    path <- file.path(root, expected$relative_path[[i]])
+    if (!file.exists(path)) {
+      cli::cli_abort("Manifest-pinned source file is missing: {.file {path}}.")
+    }
+    size <- unname(file.info(path)$size)
+    md5 <- unname(tools::md5sum(path))
+    sha256 <- unname(tools::sha256sum(path))
+    if (!identical(as.numeric(size), as.numeric(expected$bytes[[i]])) ||
+        !identical(md5, expected$md5[[i]]) ||
+        !identical(sha256, expected$sha256[[i]])) {
+      cli::cli_abort(c(
+        "A Schulte-Uebbing source raster failed content verification.",
+        x = "File: {.file {expected$relative_path[[i]]}}.",
+        i = "Use the unmodified Zenodo record 6395016 archive."
+      ))
+    }
+  }
+  invisible(TRUE)
+}
+
+.critn_has_source_geometry <- function(dir, var, threshold, land_use) {
+  spec <- .critical_n_var_spec(var, threshold, land_use)
+  path <- file.path(
+    .critn_root_path(dir),
+    "Output_files",
+    spec$subdir,
+    spec$file
+  )
+  if (!file.exists(path)) return(FALSE)
+  header <- .read_asc_header(path)
+  isTRUE(all.equal(unname(header[["ncols"]]), 720)) &&
+    isTRUE(all.equal(unname(header[["nrows"]]), 360)) &&
+    isTRUE(all.equal(unname(header[["xllcorner"]]), -180)) &&
+    isTRUE(all.equal(unname(header[["yllcorner"]]), -90)) &&
+    isTRUE(all.equal(unname(header[["cellsize"]]), 0.5))
 }
 
 # Return the cache directory holding the extracted archive, downloading and
@@ -245,12 +343,57 @@ read_critical_n <- function(
   path <- file.path(
     dir,
     "extracted",
-    "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances",
+    .critn_archive_root(),
     "Output_files",
     spec$subdir,
     spec$file
   )
   .read_esri_asc(path)
+}
+
+.critical_n_attach_support <- function(grid, dir, land_use) {
+  root <- .critn_root_path(dir)
+  area <- .critical_n_source_area(root, land_use)
+  image <- .read_esri_asc(file.path(root, "Input_files", "image_region28.asc")) |>
+    dplyr::rename(image_region = value) |>
+    .nbx_add_cell_key("deposited IMAGE-region raster") |>
+    dplyr::select("cell_id", "image_region")
+  keyed <- .nbx_add_cell_key(grid, "deposited critical-N raster")
+  keyed |>
+    dplyr::left_join(area, by = "cell_id", relationship = "many-to-one") |>
+    dplyr::left_join(image, by = "cell_id", relationship = "many-to-one") |>
+    dplyr::mutate(image_region = as.integer(.data$image_region))
+}
+
+.critical_n_source_area <- function(root, land_use) {
+  read_area <- function(file) {
+    .read_esri_asc(file.path(root, "Input_files", file)) |>
+      .nbx_add_cell_key("deposited source-area raster") |>
+      dplyr::transmute(cell_id = .data$cell_id, source_area_ha = .data$value)
+  }
+  crop <- read_area("a_crop.asc")
+  if (land_use == "ara") return(crop)
+  grass <- read_area("a_gr_int.asc")
+  if (land_use == "igl") return(grass)
+  dplyr::full_join(
+    dplyr::transmute(
+      crop,
+      cell_id = .data$cell_id,
+      crop_ha = .data$source_area_ha
+    ),
+    dplyr::transmute(
+      grass,
+      cell_id = .data$cell_id,
+      grass_ha = .data$source_area_ha
+    ),
+    by = "cell_id",
+    relationship = "one-to-one"
+  ) |>
+    dplyr::transmute(
+      cell_id = .data$cell_id,
+      source_area_ha = dplyr::coalesce(.data$crop_ha, 0) +
+        dplyr::coalesce(.data$grass_ha, 0)
+    )
 }
 
 # Map a layer + selectors to its archive subdirectory and .asc filename.
@@ -339,6 +482,11 @@ read_critical_n <- function(
        {.field value}."
     )
   }
+  if (!rlang::has_name(grid, "cell_id")) {
+    grid <- .nbx_add_cell_key(grid, "critical-N grid")
+  }
+  if (!rlang::has_name(grid, "source_area_ha")) grid$source_area_ha <- NA_real_
+  if (!rlang::has_name(grid, "image_region")) grid$image_region <- NA_integer_
   grid |>
     dplyr::transmute(
       lon = .data$lon,
@@ -362,7 +510,15 @@ read_critical_n <- function(
         NA_character_
       ),
       critical_year = 2010L,
-      critical_source = "Schulte-Uebbing et al. (2022)"
+      critical_source = "Schulte-Uebbing et al. (2022)",
+      cell_id = .data$cell_id,
+      source_row = .data$source_row,
+      source_col = .data$source_col,
+      source_area_ha = .data$source_area_ha,
+      image_region = as.integer(.data$image_region),
+      critical_source_doi = .critn_source_doi(),
+      critical_source_version = .critn_source_version(),
+      archive_md5 = .critn_archive_md5()
     ) |>
     tibble::as_tibble()
 }

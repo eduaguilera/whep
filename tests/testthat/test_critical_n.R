@@ -17,13 +17,27 @@
       "nrows 2",
       "xllcorner 0",
       "yllcorner 0",
-      "cellsize 1",
+      "cellsize 0.5",
       "NODATA_value -9999",
       "10 20 -9999",
       "40 50 60"
     ),
     file.path(target, "nsur_crit_mi_all_ph.asc")
   )
+  input <- file.path(
+    dir,
+    "extracted",
+    "Global_critical_N_surpluses_and_N_inputs_and_their_exceedances",
+    "Input_files"
+  )
+  dir.create(input, recursive = TRUE, showWarnings = FALSE)
+  header <- c(
+    "ncols 3", "nrows 2", "xllcorner 0", "yllcorner 0", "cellsize 0.5",
+    "NODATA_value -9999"
+  )
+  writeLines(c(header, "100 200 300", "400 500 600"), file.path(input, "a_crop.asc"))
+  writeLines(c(header, "10 20 30", "40 50 60"), file.path(input, "a_gr_int.asc"))
+  writeLines(c(header, "1 2 3", "4 5 6"), file.path(input, "image_region28.asc"))
   invisible(dir)
 }
 
@@ -41,22 +55,101 @@ testthat::test_that("read_critical_n parses an ESRI grid at cell centres", {
       "critical_threshold",
       "critical_land_use",
       "critical_year",
-      "critical_source"
+      "critical_source",
+      "cell_id",
+      "source_row",
+      "source_col",
+      "source_area_ha",
+      "image_region",
+      "critical_source_doi",
+      "critical_source_version",
+      "archive_md5"
     )
   )
   testthat::expect_s3_class(out, "tbl_df")
   # 6 cells minus the one NODATA cell.
   testthat::expect_equal(nrow(out), 5L)
-  # Row 1 (north) has lat 1.5 with the two non-NODATA values.
-  north <- out[out$lat == 1.5, ]
+  # Row 1 (north) has lat 0.75 with the two non-NODATA values.
+  north <- out[out$lat == 0.75, ]
   testthat::expect_equal(sort(north$value), c(10, 20))
-  # Cell centre of the north-west cell: lon 0.5, lat 1.5.
-  first <- out[out$lon == 0.5 & out$lat == 1.5, ]
+  # Cell centre of the north-west cell: lon 0.25, lat 0.75.
+  first <- out[out$lon == 0.25 & out$lat == 0.75, ]
   testthat::expect_equal(first$value, 10)
-  # South row lat 0.5 keeps all three values.
-  testthat::expect_equal(sort(out$value[out$lat == 0.5]), c(40, 50, 60))
+  # South row lat 0.25 keeps all three values.
+  testthat::expect_equal(sort(out$value[out$lat == 0.25]), c(40, 50, 60))
   # NODATA (-9999) cells are dropped.
   testthat::expect_false(any(out$value == -9999))
+})
+
+testthat::test_that("critical layers carry source land, IMAGE, and integer keys", {
+  tmp <- withr::local_tempdir()
+  .critical_n_write_asc(tmp)
+  out <- whep::read_critical_n("critical_n_surplus", dir = tmp)
+  pointblank::expect_col_exists(
+    out,
+    c("cell_id", "source_row", "source_col", "source_area_ha", "image_region")
+  )
+  first <- dplyr::filter(out, .data$lon == 0.25, .data$lat == 0.75)
+  testthat::expect_equal(first$source_area_ha, 110)
+  testthat::expect_equal(first$image_region, 1L)
+  testthat::expect_equal(first$cell_id, (178L * 720L) + 361L)
+  testthat::expect_equal(nrow(dplyr::distinct(out, .data$cell_id)), nrow(out))
+})
+
+testthat::test_that("source manifest pins every grid-boundary raster", {
+  manifest <- whep:::.critn_manifest()
+  pointblank::expect_col_exists(
+    manifest,
+    c("relative_path", "bytes", "md5", "sha256")
+  )
+  testthat::expect_equal(nrow(manifest), 27L)
+  testthat::expect_equal(length(unique(manifest$relative_path)), 27L)
+  testthat::expect_true(all(grepl("^[0-9a-f]{64}$", manifest$sha256)))
+  testthat::expect_setequal(
+    manifest$relative_path[grepl("^Input_files", manifest$relative_path)],
+    c(
+      "Input_files/a_crop.asc",
+      "Input_files/a_gr_int.asc",
+      "Input_files/image_region28.asc"
+    )
+  )
+})
+
+testthat::test_that("selected source rasters fail closed on content drift", {
+  tmp <- withr::local_tempdir()
+  .critical_n_write_asc(tmp)
+  paths <- whep:::.critn_selected_paths(
+    "critical_n_surplus",
+    "mi",
+    "all"
+  )
+  root <- file.path(tmp, "extracted", whep:::.critn_archive_root())
+  files <- file.path(root, paths)
+  manifest <- tibble::tibble(
+    relative_path = paths,
+    bytes = as.numeric(file.info(files)$size),
+    md5 = unname(tools::md5sum(files)),
+    sha256 = unname(tools::sha256sum(files))
+  )
+  testthat::local_mocked_bindings(
+    .critn_manifest = function() manifest
+  )
+  testthat::expect_invisible(whep:::.critn_verify_selected(
+    tmp,
+    "critical_n_surplus",
+    "mi",
+    "all"
+  ))
+  write("tamper", files[[1L]], append = TRUE)
+  testthat::expect_error(
+    whep:::.critn_verify_selected(
+      tmp,
+      "critical_n_surplus",
+      "mi",
+      "all"
+    ),
+    "failed content verification"
+  )
 })
 
 testthat::test_that("read_critical_n(example = TRUE) returns lon/lat/value", {

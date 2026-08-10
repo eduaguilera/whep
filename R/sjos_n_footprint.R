@@ -27,6 +27,9 @@
 #' returned, mirroring Global's `FP_all_N` and `FP_food_all_N`: `fp_all` is the
 #' embodied nitrogen across all final-demand categories, `fp_food` is the subset
 #' consumed as food (`target_fd == "food"`).
+#' Signed crop attributions are traced as separate positive and negative linear
+#' extensions and recombined. Explicit undefined-attribution residuals are
+#' rejected by [build_n_exceedance_extension()] before tracing.
 #'
 #' @param exceedance A [build_n_boundary_exceedance()] country-resolution output
 #'   passed straight to [build_n_exceedance_extension()]. Not needed when
@@ -94,8 +97,47 @@ build_sjos_n_footprint <- function(
   if (rlang::has_name(data, "fp_flows")) {
     return(tibble::as_tibble(data$fp_flows))
   }
-  build_n_exceedance_extension(exceedance, category) |>
-    build_footprint(years = years, io = io, value_col = "impact_u")
+  extension <- build_n_exceedance_extension(exceedance, category)
+  if (all(extension$impact_u >= 0)) {
+    return(build_footprint(
+      extension,
+      years = years,
+      io = io,
+      value_col = "impact_u"
+    ))
+  }
+  .sjos_fp_trace_signed(extension, io, years)
+}
+
+# The generic footprint engine intentionally publishes positive flows only.
+# A signed crop attribution is therefore traced as two non-negative linear
+# extensions and recombined afterwards. This preserves Eduardo's signed-share
+# rule without changing the generic engine's contract or dropping negative
+# crop contributions.
+.sjos_fp_trace_signed <- function(extension, io, years) {
+  trace_part <- function(sign) {
+    part <- dplyr::mutate(
+      extension,
+      impact_u = pmax(sign * .data$impact_u, 0)
+    ) |>
+      dplyr::filter(.data$impact_u > 0)
+    if (nrow(part) == 0L) return(NULL)
+    build_footprint(
+      part,
+      years = years,
+      io = io,
+      value_col = "impact_u"
+    ) |>
+      dplyr::mutate(value = sign * .data$value)
+  }
+  flows <- dplyr::bind_rows(trace_part(1), trace_part(-1))
+  key <- setdiff(names(flows), "value")
+  dplyr::summarise(
+    flows,
+    value = sum(.data$value),
+    .by = dplyr::all_of(key)
+  ) |>
+    dplyr::filter(.data$value != 0)
 }
 
 # Relabel each flow domestic vs traded and aggregate the consumption-side
