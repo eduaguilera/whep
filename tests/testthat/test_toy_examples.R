@@ -6,7 +6,7 @@ testthat::test_that("build_supply_use example returns valid tibble", {
   result <- build_supply_use(example = TRUE)
 
   testthat::expect_s3_class(result, "tbl_df")
-  testthat::expect_equal(nrow(result), 10)
+  testthat::expect_equal(nrow(result), 9)
   pointblank::expect_col_exists(
     result,
     columns = c(
@@ -24,12 +24,24 @@ testthat::test_that("build_supply_use example returns valid tibble", {
     columns = "type",
     set = c("use", "supply")
   )
+  # All five documented process groups, and every (group, type) combination the
+  # real builder emits: the fixture used to show three of the five.
+  groups <- c(
+    "crop_production",
+    "husbandry",
+    "animal_draught",
+    "slaughtering",
+    "processing"
+  )
   pointblank::expect_col_vals_in_set(
     result,
     columns = "proc_group",
-    set = c("husbandry", "crop_production", "processing")
+    set = groups
   )
+  testthat::expect_setequal(unique(result$proc_group), groups)
   pointblank::expect_col_vals_not_null(result, "year")
+  # whep#417: the fixture used to carry a row with no `area_code` at all.
+  pointblank::expect_col_vals_not_null(result, "area_code")
   pointblank::expect_col_vals_not_null(result, "value")
 })
 
@@ -55,6 +67,8 @@ testthat::test_that("get_feed_intake example returns valid tibble", {
   )
   testthat::expect_true("grass" %in% result$feed_type)
   pointblank::expect_col_vals_not_null(result, "year")
+  # whep#417: the fixture used to carry two rows with no `area_code` at all.
+  pointblank::expect_col_vals_not_null(result, "area_code")
   pointblank::expect_col_vals_not_null(result, "supply")
 })
 

@@ -382,6 +382,7 @@ reference:
   - folded_reporting_areas
   - whep_polity_columns
   - resolve_polity_label
+  - polity_identity_conventions
 - subtitle: Commodity balance sheet items
   contents:
   - items_cbs

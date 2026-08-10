@@ -654,6 +654,79 @@ testthat::test_that("polity_coverage_gaps agrees with the resolver", {
   ))
 })
 
+testthat::test_that("polity_coverage_gaps names the direction of the gap", {
+  # The two directions are different defects and #414 is only one of them, so
+  # a consumer counting "rows attributed to a polity that did not exist" needs
+  # to be able to separate them. Bucket 206 post-secession is the `"ended"`
+  # case: the label `SUD-1956-2011` stopped at the secession while the bucket
+  # keeps summing both successors. Area 1 Armenia before 1991 is the
+  # `"not_started"` case, which is WHEP's documented back-cast convention.
+  gaps <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = c(206L, 1L), year = c(2015L, 1900L))
+  )
+
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 206L],
+    "polity_ended"
+  )
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 1L],
+    "polity_not_started"
+  )
+  testthat::expect_true(all(
+    gaps$gap_kind %in% c("polity_ended", "polity_not_started")
+  ))
+})
+
+testthat::test_that("the gap direction is read at the back-cast anchor", {
+  # The load-bearing half: `gap_kind` is NOT `year < polity_start_year`, and
+  # cannot be, because `.add_polity_columns_dt()` floors the lookup year at
+  # `backcast_anchor`. FAOSTAT area 273 Montenegro in 1850 is matched as 1961
+  # and lands on `MNE-1913-1918`, a polity that had ENDED by the year the
+  # resolver used -- so the raw-year comparison would mislabel it. On a real
+  # `get_primary_production()` that is 165 rows, areas 178 and 273.
+  anchored <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 273L, year = 1850L)
+  )
+  testthat::expect_equal(anchored$polity_code, "MNE-1913-1918")
+  testthat::expect_lt(anchored$polity_end_year, 1961L)
+  testthat::expect_equal(anchored$gap_kind, "polity_ended")
+  # And the raw-year reading is what the same row gives once the anchor is
+  # switched off, which is the pair of answers the column exists to keep apart.
+  raw <- whep::polity_coverage_gaps(
+    tibble::tibble(area_code = 273L, year = 1850L),
+    backcast_anchor = -Inf
+  )
+  testthat::expect_gt(raw$polity_start_year, 1850L)
+  testthat::expect_equal(raw$gap_kind, "polity_not_started")
+})
+
+testthat::test_that("gap_kind agrees with the anchored comparison", {
+  # An invariant over the whole shipped crosswalk rather than two hand-picked
+  # areas: whatever upstream re-syncs do to the polity set, `gap_kind` must
+  # stay the answer to "was the matched year before this polity started?".
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = c(1850L, 1900L, 1961L, 1990L, 2015L, 2025L)
+  )
+  gaps <- whep::polity_coverage_gaps(grid)
+  expected <- ifelse(
+    !is.na(gaps$polity_start_year) &
+      pmax(gaps$year, 1961L) < gaps$polity_start_year,
+    "polity_not_started",
+    "polity_ended"
+  )
+
+  testthat::expect_gt(nrow(gaps), 0L)
+  testthat::expect_equal(gaps$gap_kind, expected)
+  # Both directions really occur, so neither branch is untested by accident.
+  testthat::expect_setequal(
+    unique(gaps$gap_kind),
+    c("polity_ended", "polity_not_started")
+  )
+})
+
 testthat::test_that("polity_coverage_gaps needs the area column", {
   testthat::expect_error(
     whep::polity_coverage_gaps(tibble::tibble(year = 2015L)),
@@ -762,5 +835,105 @@ testthat::test_that("a mistyped mapping-status option aborts", {
   testthat::expect_error(
     whep:::.polity_status_mode("yes"),
     class = "rlang_error"
+  )
+})
+
+# Keeping a carried identity instead of resolving it twice (whep#670) ---------
+#
+# `.aggregate_to_polities()` now emits the reporting identity, so the tail
+# helper keeps it rather than re-deriving it over the whole frame. What has to
+# be true for that to be safe is tested here: it only keeps an identity that
+# still describes the frame's key, and it checks that claim rather than
+# trusting it.
+
+.carried_frame <- function(n_rows = 500L) {
+  # What the fold emits: one identity per (area_code, year), repeated across the
+  # many item rows that share it.
+  keys <- tibble::tibble(
+    area_code = c(40L, 206L),
+    year = c(2015L, 2015L)
+  )
+  base <- whep:::.add_reporting_polity_columns(keys)
+  base[rep(seq_len(nrow(base)), length.out = n_rows), ] |>
+    dplyr::mutate(value = seq_len(n_rows))
+}
+
+testthat::test_that("a carried identity is kept, not resolved row by row", {
+  carried <- .carried_frame(500L)
+  seen <- integer(0)
+  # Held before mocking, because the mock replaces the namespace binding the
+  # real helper would otherwise be reached through.
+  resolve <- whep:::.add_polity_columns_dt
+  testthat::local_mocked_bindings(
+    .add_polity_columns_dt = function(data, ...) {
+      seen <<- c(seen, nrow(data))
+      resolve(data, ...)
+    }
+  )
+
+  out <- whep:::.add_reporting_polity_columns(carried)
+  testthat::expect_equal(as.data.frame(out), as.data.frame(carried))
+  # The only resolution left is the check, over the 2 distinct keys rather than
+  # the 500 rows. Dropping the carried columns puts the full resolution back.
+  testthat::expect_equal(seen, 2L)
+
+  seen <- integer(0)
+  stripped <- dplyr::select(
+    carried,
+    -dplyr::all_of(
+      whep:::.reporting_polity_cols()
+    )
+  )
+  again <- whep:::.add_reporting_polity_columns(stripped)
+  testthat::expect_equal(seen, 500L)
+  testthat::expect_equal(as.data.frame(again), as.data.frame(carried))
+})
+
+testthat::test_that("a re-keyed frame is resolved again, not kept", {
+  # Bucket codes are fixed points, so an identity that no longer matches the
+  # key it sits next to is one someone re-keyed: 40 (Chile) relabelled 231.
+  carried <- .carried_frame(4L)
+  carried$area_code <- 231L
+
+  out <- whep:::.add_reporting_polity_columns(carried)
+  testthat::expect_equal(unique(out$reporting_polity_code), "USA-1959-2025")
+  testthat::expect_equal(unique(out$polity_area_code), 231L)
+})
+
+testthat::test_that("a contradicting carried identity warns and re-resolves", {
+  carried <- .carried_frame(4L)
+  carried$reporting_polity_code <- "XXX-1900-2000"
+
+  testthat::expect_warning(
+    out <- whep:::.add_reporting_polity_columns(carried),
+    "contradicts"
+  )
+  testthat::expect_equal(
+    sort(unique(out$reporting_polity_code)),
+    c("CHL-1902-2025", "SUD-1956-2011")
+  )
+})
+
+testthat::test_that("an incomplete carry re-resolves without warning", {
+  # `bind_rows()` with rows the fold never saw leaves NA in the carried columns.
+  # That is a gap, not a contradiction, so it is filled silently.
+  carried <- .carried_frame(4L)
+  carried$reporting_polity_code[2:3] <- NA_character_
+
+  out <- testthat::expect_no_warning(
+    whep:::.add_reporting_polity_columns(carried)
+  )
+  testthat::expect_false(any(is.na(out$reporting_polity_code)))
+})
+
+testthat::test_that("the status switch always re-resolves", {
+  # `reporting_mapping_status` is not part of the carried set, so a run that
+  # asks for it has to resolve rather than keep.
+  withr::local_options(whep.polity_mapping_status = "status")
+  out <- whep:::.add_reporting_polity_columns(.carried_frame(4L))
+  testthat::expect_true("reporting_mapping_status" %in% names(out))
+  testthat::expect_equal(
+    unique(out$reporting_mapping_status[out$area_code == 206L]),
+    "out_of_span"
   )
 })

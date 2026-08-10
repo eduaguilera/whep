@@ -432,3 +432,95 @@ testthat::test_that("the legacy runner calls the engine with its real signature"
   testthat::expect_no_match(src, pattern)
   testthat::expect_match(src, "config = list\\(")
 })
+
+# --- Selecting the cell-to-polity crosswalk (whep#461) ------------------
+
+.write_fraction_grid <- function(dir) {
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~polity_frac,
+      0.25, 50.25,         1L,          0.6,
+      0.25, 50.25,         2L,          0.4,
+      0.75, 50.25,         1L,          1.0
+    ),
+    file.path(dir, "cell_polity_fraction.parquet")
+  )
+}
+
+testthat::test_that("the default crosswalk is the centroid grid", {
+  tmp <- withr::local_tempdir()
+  .write_livestock_fixture(tmp)
+  .write_fraction_grid(tmp)
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  grid <- fn(tmp, NULL)
+
+  testthat::expect_false(rlang::has_name(grid, "polity_frac"))
+  testthat::expect_setequal(grid$area_code, 1L)
+})
+
+testthat::test_that("country_grid = 'fraction' loads the fractional crosswalk", {
+  tmp <- withr::local_tempdir()
+  .write_livestock_fixture(tmp)
+  .write_fraction_grid(tmp)
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  grid <- fn(tmp, "fraction")
+
+  testthat::expect_true(rlang::has_name(grid, "polity_frac"))
+  testthat::expect_setequal(grid$area_code, c(1L, 2L))
+  testthat::expect_equal(sum(grid$polity_frac), 2)
+})
+
+testthat::test_that("an unknown country_grid source is rejected", {
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  testthat::expect_error(fn(NULL, "polycell"), class = "rlang_error")
+})
+
+testthat::test_that("a fractional run does not silently read another dir", {
+  # `input_dir` was asked for; falling back to WHEP_POLITY_FRACTION_PATH here
+  # would mix one directory's inputs with another's.
+  tmp <- withr::local_tempdir()
+  .write_livestock_fixture(tmp)
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  testthat::expect_error(
+    fn(tmp, "fraction"),
+    "cell_polity_fraction"
+  )
+})
+
+testthat::test_that("country_grid is a recognised override and is recorded", {
+  tmp_in <- withr::local_tempdir()
+  .write_livestock_fixture(tmp_in)
+  .write_fraction_grid(tmp_in)
+  # Area 2 exists in the fractional crosswalk only, as a share of the cell
+  # the centroid grid gives whole to area 1.
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~year, ~area_code, ~species_group, ~heads, ~enteric_ch4_kt,
+      2000L,         1L,       "cattle",  10000,             1.0,
+      2000L,         2L,       "cattle",   2000,             0.2
+    ),
+    file.path(tmp_in, "livestock_country_data.parquet")
+  )
+  tmp_out <- withr::local_tempdir()
+
+  result <- whep::run_spatialize(
+    preset = "whep",
+    years = 2000L,
+    components = "livestock",
+    overrides = list(country_grid = "fraction"),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )
+
+  testthat::expect_equal(result$config$country_grid, "fraction")
+  meta <- yaml::read_yaml(file.path(tmp_out, "run_metadata.yaml"))
+  testthat::expect_equal(meta$config$country_grid, "fraction")
+  out <- nanoparquet::read_parquet(
+    file.path(tmp_out, "gridded_livestock_emissions.parquet")
+  )
+  testthat::expect_true(2L %in% out$area_code)
+  testthat::expect_equal(sum(out$heads), 12000)
+})

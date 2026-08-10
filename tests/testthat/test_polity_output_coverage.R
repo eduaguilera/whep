@@ -1,7 +1,20 @@
-expect_polity_match <- function(data, code_col, polity_col) {
+# `require_code` is what whep#417 needed: the polity check below only looks at
+# rows that HAVE a code, so a row carrying no code at all passed it while
+# identifying no territory whatsoever. Reference tables are exempt --
+# `regions_full` legitimately holds 12 rows with no FAOSTAT code -- but an
+# example output is not, so it defaults to on.
+expect_polity_match <- function(
+  data,
+  code_col,
+  polity_col,
+  require_code = TRUE
+) {
   testthat::expect_true(code_col %in% names(data))
   testthat::expect_true(polity_col %in% names(data))
   has_code <- !is.na(data[[code_col]])
+  if (require_code) {
+    testthat::expect_false(any(!has_code))
+  }
   testthat::expect_false(any(is.na(data[[polity_col]][has_code])))
 }
 
@@ -196,7 +209,7 @@ testthat::test_that("legacy area reference tables are backed by polities", {
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]
-    expect_polity_match(data, "code", "reporting_polity_code")
+    expect_polity_match(data, "code", "reporting_polity_code", FALSE)
     testthat::expect_false(any(is.na(data$polity_code)))
     coded_rows <- !is.na(data$code)
     testthat::expect_true(all(data$reporting_polity_has_geometry[coded_rows]))
