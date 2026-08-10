@@ -1,5 +1,62 @@
 # whep (development version)
 
+* **Every join that keys on a territory but not on a year is now classified,
+  and the list can only shrink.** A key of `area_code` with no `year` spans
+  every period of a territory's history, so it asserts that the area means one
+  thing for all time. Usually that is right -- 57 of the package's 163
+  territorial joins carry no year, and nearly all are a single-year scope, a
+  table with no time dimension (a coefficient, a single-vintage map, a grid
+  mask), an identity lookup or a diagnostic -- but nothing said which, so a
+  decision and an oversight looked alike. `.territorial_join_baseline()` now
+  records the verdict and the reason for each, and `test_join_audit.R` fails
+  when a new year-free territorial join appears unclassified, when a classified
+  one disappears without its entry, or when a further join starts keying on the
+  `area` label. Classifying them turned up one real defect, filed as #698 with
+  its measurement rather than fixed here, because removing it needs #493's
+  decision first. No published value changes (#669).
+* **Four documented examples could not say which territory their rows belong
+  to.** `build_supply_use(example = TRUE)` shipped a row
+  with no `area_code` at all (an epsilon `3.33e-14` husbandry use) and
+  `get_feed_intake(example = TRUE)` two more, so their polity columns came out
+  `NA`; `build_feed_intake_local(example = TRUE)` and
+  `build_grass_natural_carbon_inputs(example = TRUE)` keyed cells by an
+  ISO-3166 numeric code (724 Spain, 300 Greece) where the FAOSTAT area code
+  belongs, which resolves to nothing -- and one sibling row's ISO code for
+  Argentina, 32, is FAOSTAT's Cameroon, so a cell in the pampas was labelled
+  Cameroon. The two feed fixtures also predated the redistribute-feed
+  migration and showed a 10% feed loss the current allocator cannot produce.
+  All four fixtures are now sampled from real builds (the gridded ones keyed
+  by the code the cell grid actually assigns: 203, 84, 9), and
+  `build_supply_use(example = TRUE)` now covers all five documented process
+  groups instead of three. **No published value changes** -- these are
+  documentation fixtures, not pipeline outputs (#417).
+
+* **`build_water_balance()` can now charge a single crop's water, and the
+  per-CFT consumptive-water cubes are readable at all.** `read_lpjml_hydrology()`
+  gains `"cft_consump_water_b"` / `"cft_consump_water_g"`, and
+  `build_water_balance(bands = )` restricts the consumptive-water and
+  `cft_nir` terms to named crop-functional-type bands, e.g.
+  `bands = "rainfed grassland"` to charge a grazing footprint the grassland
+  water alone rather than every crop in the cell. Bands are selected by the
+  `band_name` the file itself carries, never by index, so a run configured with
+  a different band set aborts instead of silently charging the wrong crop.
+  `bands = NULL` (the default) totals every band, so existing callers are
+  unaffected. Three fixes were needed to get there, each of which would have
+  produced wrong numbers rather than an error:
+  * The `cft_nir` map entry named `mcft_nir.nc` holding a monthly `cft_nir`
+    variable. **No WHEP run has ever written that file**: all nine runs, 5.9.7
+    and 6.1.1 alike, write `cft_nir.nc` holding annual `nir`. Reading it would
+    simply have failed; nothing called it yet.
+  * The reader assumed twelve time steps per year for every variable. The
+    per-CFT consumptive-water cubes are annual (`nstep` 1, mm/yr), so their
+    time axis was decoded as months, mapping year *y* to year 1901 + (y-1901)/12
+    and slicing the wrong years out of the file entirely.
+  * `ncvar_get()` drops length-1 dimensions, so slicing one year out of an
+    annual per-CFT cube returned a 3-D slab whose *band* axis was then decoded
+    as *time* — scrambling crops into years. Now read with
+    `collapse_degen = FALSE`. Monthly cubes never hit this, because a one-year
+    slice is still twelve steps.
+
 * **New `polity_identity_conventions()` states, per object, what territorial
   identity a WHEP table with no year dimension carries (#671).** A polity code
   is year-scoped, so for a year-less object "attach the polity code" has no
