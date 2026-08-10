@@ -1,5 +1,19 @@
 # whep (development version)
 
+* **Every join that keys on a territory but not on a year is now classified,
+  and the list can only shrink.** A key of `area_code` with no `year` spans
+  every period of a territory's history, so it asserts that the area means one
+  thing for all time. Usually that is right -- 57 of the package's 163
+  territorial joins carry no year, and nearly all are a single-year scope, a
+  table with no time dimension (a coefficient, a single-vintage map, a grid
+  mask), an identity lookup or a diagnostic -- but nothing said which, so a
+  decision and an oversight looked alike. `.territorial_join_baseline()` now
+  records the verdict and the reason for each, and `test_join_audit.R` fails
+  when a new year-free territorial join appears unclassified, when a classified
+  one disappears without its entry, or when a further join starts keying on the
+  `area` label. Classifying them turned up one real defect, filed as #698 with
+  its measurement rather than fixed here, because removing it needs #493's
+  decision first. No published value changes (#669).
 * **Four documented examples could not say which territory their rows belong
   to.** `build_supply_use(example = TRUE)` shipped a row
   with no `area_code` at all (an epsilon `3.33e-14` husbandry use) and

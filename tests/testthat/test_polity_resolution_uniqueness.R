@@ -93,3 +93,112 @@ testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
   testthat::expect_equal(unique(out$polity_codes), character(0))
   testthat::expect_equal(nrow(out), 0L)
 })
+
+# THE CONTRACT ------------------------------------------------------------------
+#
+# `(area_code, year)` determines `polity_code`. That is what makes the joins in
+# `R/` keyed on the numeric area code polity-correct without saying so, and there
+# are a great many of them: 275 single-line `by =` / `on =` specifications name
+# `area_code` (176 of them alongside `year`) against 6 naming `polity_code`. It
+# is also the thing #458 doubted -- the identity is not lost by keying on the
+# numeric code, it is recoverable from it. The tests below assert that as a
+# guarantee instead of leaving it a property of the shipped snapshot.
+#
+# The check above is NOT that guarantee, for two reasons.
+#
+# It reads the crosswalk's spans as declared, and the resolver does not: it joins
+# on `.polity_join_end_year()`, which widens an open period by a year and to the
+# upstream map's inclusive `map_year_end`. 264 shipped rows are widened.
+#
+# And measuring the guarantee on `add_polity_code()`'s OUTPUT is vacuous: one
+# input row is one output row, because `unique(matches, by = rowid)` keeps
+# exactly one candidate after a `polity_start_year DESC` sort. Ambiguity is
+# resolved by row order and never shows as a duplicated row, which is precisely
+# why it needs a detector at the CANDIDATE level.
+
+testthat::test_that("the joined spans see an overlap the declared spans hide", {
+  # Against a fixture, so the strictly-stronger relation is asserted directly
+  # rather than inferred from whichever periods the shipped vintage holds.
+  # Adjacent declared periods, and the earlier one's upstream map claiming the
+  # boundary year as reported: [1900, 2000) and [2000, 2050) do not touch, but
+  # `map_year_end = 2000` widens the first to cover 2000, which the second also
+  # covers.
+  fixture <- data.frame(
+    area_code = c(1L, 1L),
+    polity_code = c("AAA-1900-2000", "BBB-2000-2050"),
+    polity_start_year = c(1900L, 2000L),
+    polity_end_year = c(2000L, 2050L),
+    map_year_end = c(2000L, 2049L),
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_equal(nrow(whep:::.area_year_polity_conflicts(fixture)), 0L)
+
+  joined <- whep:::.polity_join_conflicts(fixture, years = 1990:2010)
+  testthat::expect_equal(nrow(joined), 1L)
+  testthat::expect_equal(joined$year, 2000L)
+  testthat::expect_equal(joined$polity_codes, "AAA-1900-2000, BBB-2000-2050")
+})
+
+testthat::test_that("one area-year has one candidate, but for Angola 1975", {
+  # ENUMERATED, not tolerated: the exception is asserted by code pair and year so
+  # it can only shrink deliberately, and a second one fails the test.
+  #
+  # `ANG-1905-1975` (colonial Angola) records no successor upstream, so
+  # `.open_polity_codes()` calls it open and `.polity_join_end_year()` widens it
+  # to cover 1975 -- the year `AGO-1975-2025` starts. Upstream's own FAOSTAT map
+  # is unambiguous (area 7 reports as ANG through 1974, as AGO from 1975); it is
+  # the openness widening that re-creates the overlap the map had removed, and
+  # `pmax(territorial, reported)` lets the widened span win over the map's bound.
+  #
+  # No published value moves today: the `polity_start_year DESC` tie-break lands
+  # 1975 on `AGO-1975-2025`, which is the right answer. It is right BY ORDERING,
+  # which is the state this detector exists to make visible. Filed as #683
+  # rather than fixed here -- the root cause is a missing `successor` in
+  # `whep-polities`, and deciding between patching the widening rule and fixing
+  # the upstream record is not this test's call. Whichever fix lands, tighten
+  # this to zero in the same PR.
+  out <- whep:::.polity_join_conflicts()
+
+  testthat::expect_equal(out$area_code, 7L)
+  testthat::expect_equal(out$year, 1975L)
+  testthat::expect_equal(out$polity_codes, "AGO-1975-2025, ANG-1905-1975")
+  testthat::expect_equal(nrow(out), 1L)
+})
+
+testthat::test_that("the bucket recovers the polity outside Sudan", {
+  # The other half of the contract, and the half that fails: `polity_area_code`
+  # is a bucket several `area_code` values can share, so keying on it is keying
+  # on the polity only where the bucket has one member -- or where its members
+  # agree.
+  #
+  # Measured over 1961-2025, exactly one bucket does not: 206, which holds
+  # Sudan (former) 206, Sudan 276 and South Sudan 277, and answers with three
+  # polities in EVERY reported year -- 65 of them, not just the 15 its periods
+  # overlap in, because the pre-secession years reach 276 and 277 through the
+  # nearest-period stand-in. That is #414 and is not decided here; it is
+  # enumerated so the count can only shrink deliberately.
+  out <- whep:::.bucket_year_polity_conflicts()
+
+  testthat::expect_setequal(out$polity_area_code, 206L)
+  testthat::expect_setequal(
+    out$polity_codes,
+    "SDN-2011-2025, SSD-2011-2025, SUD-1956-2011"
+  )
+  testthat::expect_setequal(out$year, 1961:2025)
+  testthat::expect_equal(nrow(out), 65L)
+})
+
+testthat::test_that("sharing a bucket is not itself a conflict", {
+  # The complement, and the false positive that would make the bucket check
+  # useless: `options(whep.unfold_rest_of_world = "none")` restores the FABIO
+  # fold, putting 21 reporting areas back into bucket 999 -- all of them under
+  # ONE polity. Agreement is not ambiguity, so 999 must stay clean and 206 must
+  # stay the only exception under either setting.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+
+  out <- suppressWarnings(whep:::.bucket_year_polity_conflicts())
+
+  testthat::expect_false(999L %in% out$polity_area_code)
+  testthat::expect_setequal(out$polity_area_code, 206L)
+})
