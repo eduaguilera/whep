@@ -103,61 +103,26 @@ n_attenuation_constants <- .read_balance_csv("n_attenuation_constants.csv")
 
 # Resolve an ISO3 area label plus a data year to the polity code string
 # ("ESP-1800-2025") that epic whep#458 asks every territory identifier in this
-# package to carry. Matched strictly against the polity's own active span, not
-# through add_polity_code()'s 1961 back-cast anchor: a vendored national series
-# reports each benchmark year under the borders it actually had, while WHEP's
-# pre-1961 FAOSTAT series are back-cast onto the anchor-year territory and need
-# the floor. Aborts on a year no polity covers, and on a year two polities
-# claim, so a re-dated or split territory becomes a build error instead of a row
-# carrying NA or whichever candidate sorted first.
+# package to carry.
+#
+# This used to be a private copy of that resolver, and its copy of the year
+# predicate read `polity_end_year` INCLUSIVELY (`to_year >= one_year`) while the
+# column is exclusive at a succession everywhere else (#577). Over the shipped
+# crosswalk that disagreed with the package convention on 313 (ISO3, year)
+# pairs: 299 abort loudly with two candidates, and 14 resolved SILENTLY to the
+# interval that had ended on that very year -- a coefficient booked to a polity
+# that no longer existed (#565). The resolver now lives in R/polities.R, reads
+# its bound through `.polity_join_end_year()` like every other call site, and is
+# tested there against a synthetic succession, which is the only place the
+# defect can be made to fail: `urban_n_reference` is Spain-only over 1860-2022
+# and one continuous polity covers all ten benchmark years, so its OUTPUT cannot
+# witness the bug.
+#
+# `.Rprofile` loads the package in a plain `R`/`Rscript` session, and the
+# data-raw freshness gate (test_data_raw_freshness.R) re-runs this script with
+# the package already loaded, so the namespace is reachable in both.
 .iso3_year_to_polity_code <- function(iso3, year) {
-  if (!exists("polity_area_crosswalk")) {
-    load(here::here("data", "polity_area_crosswalk.rda"))
-  }
-  spans <- polity_area_crosswalk |>
-    dplyr::filter(.data$area_iso3c %in% iso3, !is.na(.data$polity_code)) |>
-    dplyr::distinct(
-      .data$area_iso3c,
-      .data$polity_code,
-      .data$polity_start_year,
-      .data$polity_end_year
-    ) |>
-    dplyr::mutate(
-      # An open-ended span still has to match; only a missing bound is relaxed.
-      from_year = dplyr::coalesce(as.numeric(.data$polity_start_year), -Inf),
-      to_year = dplyr::coalesce(as.numeric(.data$polity_end_year), Inf)
-    )
-
-  found <- Map(
-    function(one_iso3, one_year) {
-      spans$polity_code[
-        spans$area_iso3c == one_iso3 &
-          spans$from_year <= one_year &
-          spans$to_year >= one_year
-      ]
-    },
-    iso3,
-    year
-  )
-  labels <- paste(iso3, year)
-
-  unresolved <- labels[lengths(found) == 0]
-  if (length(unresolved) > 0) {
-    cli::cli_abort(c(
-      "Cannot resolve an ISO3 area label and year to a polity code.",
-      "x" = "No polity active in polity_area_crosswalk: {.val {unresolved}}."
-    ))
-  }
-  ambiguous <- labels[lengths(found) > 1]
-  if (length(ambiguous) > 0) {
-    cli::cli_abort(c(
-      "An ISO3 area label and year map to more than one polity.",
-      "x" = "Ambiguous: {.val {ambiguous}}.",
-      "i" = "Label the source rows with the polity they cover."
-    ))
-  }
-
-  unlist(found, use.names = FALSE)
+  whep:::.iso3_year_to_polity_code(iso3, year)
 }
 
 # Module C (Task C3) urban nitrogen coefficient datasets. urban_n_reference is
