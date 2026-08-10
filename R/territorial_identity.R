@@ -163,13 +163,14 @@ polity_identity_conventions <- function(kind = NULL) {
      carries the same present-day identity.",
     "gleam_geographic_hierarchy",
     "package_data",
-    "iso3, country",
+    "iso3, country, reporting_polity_code",
     "present_day_polity",
-    "recommended",
-    NA_character_,
+    "carried",
+    "reporting_polity_code",
     "resolve_polity_label(iso3, year = )",
     "GLEAM's own present-day country registry, the same shape as regions_full
-     and the same answer, but it carries no polity column yet.",
+     and the same answer; it carries the polity the present-day year resolves
+     its iso3 to, NA for the three territories upstream has no polity for.",
     "mueller_synthetic_n",
     "package_data",
     "iso3c",
@@ -271,6 +272,29 @@ polity_identity_conventions <- function(kind = NULL) {
 # consumer do it.
 .squish_registry_text <- function(x) {
   ifelse(is.na(x), NA_character_, stringr::str_squish(x))
+}
+
+# The year "the present day" means when a LABEL is resolved to its present-day
+# polity, i.e. the year `resolve_polity_label()` has to be asked about for the
+# open period to be the one it answers with.
+#
+# The numeric route needs no such year: `add_polity_code(year_column = NULL)`
+# goes through `.current_area_lookup()`, which picks the period reaching the
+# crosswalk's open-period sentinel, `max(polity_end_year)`. The label route has
+# no equivalent, and its year filter is `start_year <= y < end_year` with no
+# open-end exception -- whep#577's "inclusive at an open end" rule lives in
+# `.polity_join_end_year()`, on the crosswalk route only, which is whep#712.
+# MEASURED on the
+# shipped snapshot: of `gleam_geographic_hierarchy`'s 204 iso3 values,
+# `resolve_polity_label()` answers for 201 at the sentinel minus one and for
+# ONE at the sentinel itself, because 227 live polities end there.
+#
+# So the present day is the last year the open period covers, derived from the
+# data rather than written down: the sentinel moves when the snapshot does, and
+# `sentinel - 1` keeps resolving to the same open period whether or not the
+# label route ever gains the inclusive-open-end rule.
+.present_day_polity_year <- function() {
+  as.integer(max(polities$end_year, na.rm = TRUE)) - 1L
 }
 
 # The column names that make a table say which *territory* a row is about.

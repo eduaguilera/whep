@@ -7,6 +7,7 @@
 build_ag_land_support(
   years = NULL,
   grassland = c("gridded_pasture", "luh2", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -21,6 +22,17 @@ the cropland surface's grid and 1851-2023 span. \code{"luh2"} reads the same
 LUH2 classes through \code{\link[=read_luh2_landuse]{read_luh2_landuse()}} and agrees with it where they
 overlap, but stops at 2015. \code{"none"} returns cropland-only support, an
 explicit choice rather than a silent gap.}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
 \code{cell_polity} (the \code{\link[=build_cell_polity]{build_cell_polity()}} crosswalk), \code{type_cropland}
@@ -37,7 +49,8 @@ data. Defaults to \code{FALSE}.}
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{item_cbs_code}, \code{year},
 \code{land_use} (\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}, plus the
-polity columns below.
+polity columns below, plus \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Assembles the physical agricultural land support that \code{\link[=build_n_inputs]{build_n_inputs()}}

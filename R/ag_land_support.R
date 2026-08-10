@@ -60,6 +60,7 @@
 #'   LUH2 classes through [read_luh2_landuse()] and agrees with it where they
 #'   overlap, but stops at 2015. `"none"` returns cropland-only support, an
 #'   explicit choice rather than a silent gap.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `cell_polity` (the [build_cell_polity()] crosswalk), `type_cropland`
 #'   (`lon`, `lat`, `year`, `luh2_type`, `type_ha`), `crop_patterns` (`lon`,
@@ -73,7 +74,8 @@
 #'
 #' @return A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
 #'   `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus the
-#'   polity columns below.
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -81,12 +83,17 @@
 build_ag_land_support <- function(
   years = NULL,
   grassland = c("gridded_pasture", "luh2", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
   grassland <- rlang::arg_match(grassland)
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_ag_land_support())
+    return(.resolve_polity_validity(
+      .example_ag_land_support(),
+      polity_validity
+    ))
   }
   cell_polity <- data$cell_polity %||% build_cell_polity()
   .check_columns(
@@ -99,7 +106,7 @@ build_ag_land_support <- function(
     cropland,
     .als_grassland_support(data, cell_polity, cropland, grassland)
   ) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Cropland support ------------------------------------------------------
