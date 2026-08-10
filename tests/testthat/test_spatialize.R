@@ -1270,15 +1270,22 @@ testthat::test_that("the re-key keeps a code the crosswalk does not carry", {
       0.25, 50.25, 2000L,          5000,
       0.75, 50.25, 2000L,          5000
     ),
+    # `cell_area_frac` is explicit because C8/S-A5 forbids the share-less grid
+    # this fixture arrived with: `.abort_missing_polity_share()` refuses a
+    # crosswalk carrying no share rather than defaulting it to 1 and handing a
+    # border cell wholly to one polity. `1` is the honest value here -- each of
+    # these cells is owned outright by the single polity keyed on it -- so the
+    # missing-reporter behaviour under test is unchanged and the guard is not
+    # weakened to accommodate the fixture.
     live_grid = tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-      0.25, 50.25,       238L,
-      0.75, 50.25,        68L
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,       238L,               1,
+      0.75, 50.25,        68L,               1
     ),
     retired_grid = tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-      0.25, 50.25,        62L,
-      0.75, 50.25,        68L
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,        62L,               1,
+      0.75, 50.25,        68L,               1
     )
   )
 }

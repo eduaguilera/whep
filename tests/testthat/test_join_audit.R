@@ -57,8 +57,11 @@ test_that("the enumerated baseline can only shrink", {
   # written into the row -- never to admit a new year-blind read. 57 was the
   # count on the commit that introduced the gate; 58 adds
   # `.resolve_all_area_years`, the first-reported-year bound that turned
-  # `polity_bucket_coverage()` from a 65-year report into a 14-year one.
-  expect_lte(sum(baseline$n), 58L)
+  # `polity_bucket_coverage()` from a 65-year report into a 14-year one; 59
+  # adds `.carbon_warn_fold`, which is not a new year-blind READ at all -- both
+  # sides of it are the same already-year-filtered carbon support, and it
+  # selects warning text rather than a value.
+  expect_lte(sum(baseline$n), 59L)
   expect_true(all(nzchar(baseline$why)))
   expect_true(all(
     baseline$class %in%
