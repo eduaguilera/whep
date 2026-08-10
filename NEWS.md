@@ -1,5 +1,16 @@
 # whep (development version)
 
+* **`build_carbon_inputs()` no longer attaches reporting polity columns to an
+  intermediate that discards them.** `build_soil_carbon_inputs()` produced a
+  5.0e7-row gridded table for a 40-year span, and adding the four reporting
+  polity columns to it cost +20.4 GB and 20 s -- two of them are character
+  columns. `.ci_cropland_class()` then collapsed that table 42-fold, to 1.2e6
+  rows, discarding all four, and `build_carbon_inputs()` re-added them to its own
+  output. The internal path now skips them and only the exported
+  `build_soil_carbon_inputs()` pays. Peak for a 40-year `build_carbon_inputs()`
+  goes from 37.8 GB to 25.4 GB, slightly faster (725 s vs 742 s), with output
+  `identical()` across all 5,275,974 rows and 12 columns (#624).
+
 * **BNF coefficients now ship with cell-level provenance (#497).** The long
   `bnf_provenance` sidecar is readable with
   `whep_coef_table("bnf_provenance")` and accounts for every one of the 60

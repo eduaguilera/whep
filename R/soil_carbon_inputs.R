@@ -68,10 +68,22 @@ build_soil_carbon_inputs <- function(
   if (isTRUE(example)) {
     return(.example_soil_carbon_inputs())
   }
+  .sci_build(resolution, data, years) |>
+    .add_reporting_polity_columns()
+}
+
+# The gridded carbon inputs WITHOUT the reporting polity columns.
+#
+# build_carbon_inputs() collapses this table by ~42x (a 40-year span is 5.0e7
+# rows before .ci_cropland_class() and 1.2e6 after) and then adds the reporting
+# polity columns to its own output. Attaching them here first costs +20.4 GB and
+# 20 s on that 5.0e7-row intermediate -- two of the four are character columns --
+# and .ci_cropland_class() then discards all four. So the internal caller takes
+# this, and only the exported wrapper above pays for the columns (#624).
+.sci_build <- function(resolution, data, years) {
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  .sci_grid_and_finalise(components, d, resolution) |>
-    .add_reporting_polity_columns()
+  .sci_grid_and_finalise(components, d, resolution)
 }
 
 # Private helpers ----
