@@ -538,17 +538,24 @@ folded_reporting_areas <- function(crosswalk = NULL) {
   folded
 }
 
-# The `area` label an aggregation bucket carries, one per (bucket, year).
+# The identity an aggregation bucket carries, one row per (bucket, year): the
+# `area` label AND the polity the label came from.
 #
 # A bucket is a numeric key that several reporting areas are summed into, so its
-# label has to be a property of the BUCKET. Taking it from a member row instead
-# -- which is what grouping by `polity_name` did -- means a bucket whose members
-# resolve to different polities comes out under several labels, and the sum the
-# bucket exists to produce never happens (whep#563, the defect that forced the
-# revert of whep#480 in whep#561). Resolving the bucket's own code is also what
-# `polity_bucket_coverage()` documents as the label a fold carries, and what
-# `add_reporting_polity_columns()` resolves downstream, so this makes the
+# identity has to be a property of the BUCKET. Taking it from a member row
+# instead -- which is what grouping by `polity_name` did -- means a bucket whose
+# members resolve to different polities comes out under several labels, and the
+# sum the bucket exists to produce never happens (whep#563, the defect that
+# forced the revert of whep#480 in whep#561). Resolving the bucket's own code is
+# also what `polity_bucket_coverage()` documents as the label a fold carries, and
+# what `.add_reporting_polity_columns()` resolves downstream, so this makes the
 # aggregator agree with both rather than inventing a third rule.
+#
+# The polity columns come out under their PUBLISHED names, from the same
+# resolution that produced the label. The fold has always had the polity code in
+# hand here and then thrown it away, leaving ~100 outputs to re-derive it at the
+# tail (whep#670); emitting it under the published names means no second
+# vocabulary and no second resolution to disagree with.
 #
 # `dt` must already carry the polity columns, i.e. be past
 # `.add_polity_columns_dt()`.
@@ -556,14 +563,24 @@ folded_reporting_areas <- function(crosswalk = NULL) {
   # The member label is only a fallback, for a bucket whose own code resolves to
   # no polity in that year (an aggregate whose period has ended). Deterministic
   # by lowest `area_code` so it cannot depend on row order or on which member
-  # happens to report.
+  # happens to report. It is a fallback for the LABEL only: the polity columns
+  # stay NA there, exactly as the downstream resolution leaves them, because a
+  # member's polity is not the bucket's identity.
   members <- dt[
     !is.na(polity_area_code),
     .(member_name = polity_name[which.min(area_code)]),
     by = c("polity_area_code", "year")
   ]
   if (nrow(members) == 0L) {
-    return(members[, .(polity_area_code, year, area = character(0))])
+    return(members[, .(
+      polity_area_code = polity_area_code,
+      year = year,
+      area = character(0),
+      reporting_polity_area_code = integer(0),
+      reporting_polity_code = character(0),
+      reporting_polity_name = character(0),
+      reporting_polity_has_geometry = logical(0)
+    )])
   }
   resolved <- .add_polity_columns_dt(
     data.table::data.table(
@@ -574,19 +591,57 @@ folded_reporting_areas <- function(crosswalk = NULL) {
     year_col = "year",
     include_unmapped = FALSE
   )
-  members[, area := data.table::fcoalesce(resolved$polity_name, member_name)]
+  members[, `:=`(
+    area = data.table::fcoalesce(resolved$polity_name, member_name),
+    reporting_polity_area_code = resolved$polity_area_code,
+    reporting_polity_code = resolved$polity_code,
+    reporting_polity_name = resolved$polity_name,
+    reporting_polity_has_geometry = resolved$has_geometry
+  )]
   members[, member_name := NULL]
   members
 }
 
-# Attach the bucket labels to an aggregated table and rename it to the
+# The bucket identity columns `.bucket_area_labels()` attaches. Every one of
+# them is what `.add_reporting_polity_columns()` publishes for the same key,
+# `reporting_polity_area_code` included: a bucket whose own code resolves to no
+# polity in that year gets NA there, and copying the bucket code in instead
+# would be the one value on which the two paths disagree.
+.bucket_identity_cols <- function() {
+  c(
+    "area",
+    "reporting_polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry"
+  )
+}
+
+# Attach the bucket identity to an aggregated table and rename it to the
 # `area_code` / `area` pair the rest of the pipeline expects, in the column
 # order the grouped key already had.
+#
+# `polity_area_code` survives the rename, as the bucket's own resolution rather
+# than as a copy of the key, so an aggregated frame satisfies
+# `polity_area_code == area_code` wherever the bucket resolves at all -- the
+# fixed-point property that tells `.add_reporting_polity_columns()` the carried
+# identity was resolved for the key the frame still has.
 .apply_bucket_area_labels <- function(dt, labels) {
-  # An update-join, not a merge: it cannot drop or reorder a row, so the label
+  cols <- .bucket_identity_cols()
+  # An update-join, not a merge: it cannot drop or reorder a row, so the identity
   # is provably an annotation rather than a second filter.
-  dt[labels, on = c("polity_area_code", "year"), area := i.area]
+  dt[
+    labels,
+    on = c("polity_area_code", "year"),
+    (cols) := mget(paste0("i.", cols))
+  ]
   data.table::setnames(dt, "polity_area_code", "area_code")
+  dt[, polity_area_code := reporting_polity_area_code]
+  dt[, reporting_polity_area_code := NULL]
+  # The `year` / `area_code` / `area` prefix is left exactly where it was and the
+  # identity columns trail the frame, so a consumer of an aggregated table sees
+  # columns added and nothing moved. `.add_reporting_polity_columns()` puts them
+  # in their published position on the way out, as it always has.
   data.table::setcolorder(dt, c("year", "area_code", "area"))
   dt
 }

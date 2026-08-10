@@ -683,6 +683,95 @@ polity_coverage_gaps <- function(
   flag_col
 }
 
+# Does the frame already carry a reporting identity resolved for the key it
+# still has?
+#
+# `.aggregate_to_polities()` resolves the polity when it creates the fold and now
+# emits it, so the tail helper does not have to resolve it a second time
+# (whep#670). Two conditions make keeping it safe rather than hopeful:
+#
+# - the fixed-point test. A bucket code resolves to itself, so an aggregated
+#   frame satisfies `polity_area_code == code_column`. Anything that has since
+#   re-keyed the frame -- a FABIO collapse, a `bind_rows()` with rows the
+#   aggregator never saw, a join that brought in foreign area codes -- breaks it,
+#   and the full resolution below runs as before.
+# - the agreement test, on the DISTINCT (code, year) pairs rather than the whole
+#   frame, so it costs a fraction of the resolution it is checking. It is what
+#   turns "the two paths should agree" into something the build asserts.
+#
+# The status switch is deliberately excluded: `mapping_status` is not part of the
+# carried set, so a run that asked for it re-resolves and gets it.
+.carried_reporting_polity <- function(dt, code_column, mode) {
+  if (mode != "none") {
+    return(FALSE)
+  }
+  if (!all(c(code_column, .reporting_polity_cols()) %in% names(dt))) {
+    return(FALSE)
+  }
+  key <- dt[[code_column]]
+  bucket <- dt[["polity_area_code"]]
+  # NA is allowed on the bucket side and only there: a bucket whose own code
+  # resolves to no polity in that year has NA, and so does the tail resolution.
+  # A non-NA bucket that is not the key is a frame someone re-keyed.
+  if (!all(is.na(bucket) | (!is.na(key) & bucket == key))) {
+    return(FALSE)
+  }
+  .carried_polity_agrees(dt, code_column)
+}
+
+# Re-resolve the distinct keys the carried identity claims to describe and say
+# so out loud if they disagree, rather than publishing either answer silently.
+.carried_polity_agrees <- function(dt, code_column) {
+  year_col <- if ("year" %in% names(dt)) "year" else NULL
+  key_cols <- c(code_column, year_col)
+  pairs <- unique(dt[, c(key_cols, .reporting_polity_cols()), with = FALSE])
+  resolved <- .add_polity_columns_dt(
+    pairs[, key_cols, with = FALSE],
+    code_col = code_column,
+    year_col = year_col,
+    prefix = "reporting_",
+    include_unmapped = TRUE
+  )
+  carried <- list(
+    pairs$reporting_polity_code,
+    pairs$reporting_polity_name,
+    pairs$reporting_polity_has_geometry,
+    pairs$polity_area_code
+  )
+  fresh <- list(
+    resolved$reporting_polity_code,
+    resolved$reporting_polity_name,
+    resolved$reporting_has_geometry,
+    resolved$reporting_polity_area_code
+  )
+  if (all(purrr::map2_lgl(carried, fresh, .polity_values_equal))) {
+    return(TRUE)
+  }
+  # A carried NA where the resolution has an answer is an INCOMPLETE carry, not
+  # a contradiction -- `bind_rows()` filling in rows the fold never saw is the
+  # ordinary way to get one -- so it just re-resolves. Two different non-NA
+  # answers for one key cannot both be right, and that is worth saying out loud.
+  if (any(purrr::map2_lgl(carried, fresh, .polity_values_contradict))) {
+    cli::cli_warn(c(
+      "A carried reporting polity contradicts re-resolving
+       {.field {code_column}}.",
+      "i" = "Re-resolving, which is what this helper has always published.",
+      "i" = "Something re-keyed the frame after {.fun .aggregate_to_polities}
+             without dropping the polity columns it emits."
+    ))
+  }
+  FALSE
+}
+
+.polity_values_equal <- function(x, y) {
+  isTRUE(all.equal(x, y, check.attributes = FALSE))
+}
+
+.polity_values_contradict <- function(x, y) {
+  both <- !is.na(x) & !is.na(y)
+  any(both & x != y)
+}
+
 .add_reporting_polity_columns <- function(
   table,
   code_column = "area_code",
@@ -690,6 +779,21 @@ polity_coverage_gaps <- function(
 ) {
   mode <- .polity_status_mode(mapping_status)
   dt <- data.table::as.data.table(table)
+  if (.carried_reporting_polity(dt, code_column, mode)) {
+    # A copy, because `as.data.table()` hands back the caller's own data.table
+    # when it is given one, and the resolving path below never reorders the
+    # input's columns by reference.
+    out <- data.table::copy(dt)
+    # The identity is kept, but a status column from an earlier run under a
+    # different `whep.polity_mapping_status` is not: the carried path only runs
+    # in `"none"` mode, where that column is exactly what the resolving path
+    # drops, and leaving it would publish a status no longer tracking anything.
+    stale <- intersect(.polity_status_cols("reporting_"), names(out))
+    if (length(stale) > 0L) {
+      out[, (stale) := NULL]
+    }
+    return(.order_reporting_polity_cols(out, code_column, character(0)))
+  }
   drop_existing <- intersect(
     c(
       "polity_area_code",
@@ -735,6 +839,13 @@ polity_coverage_gaps <- function(
     ) := NULL
   ]
 
+  .order_reporting_polity_cols(out, code_column, kept)
+}
+
+# The published column order and type of a reporting-annotated table. Shared by
+# the resolving path and the carried one so the two cannot drift apart in
+# anything but where the values came from.
+.order_reporting_polity_cols <- function(out, code_column, kept) {
   leading_cols <- c(
     "year",
     code_column,
