@@ -45,7 +45,7 @@ testthat::test_that(".compute_stock_shares keys shares by reporting territory", 
     .read_livestock_stocks = function(years = NULL) .two_territory_stocks()
   )
 
-  result <- whep:::.compute_stock_shares(2015L)
+  result <- whep:::.compute_stock_shares()
 
   # `area` is half the key and must survive to the caller: without it the
   # downstream join cannot tell the two territories apart.
@@ -112,4 +112,26 @@ testthat::test_that(".carry_forward_shares keeps two territories in one bucket a
   sums <- result |>
     dplyr::summarise(total = sum(share), .by = c(year, area_code, area))
   testthat::expect_equal(sums$total, rep(1, 4))
+})
+
+# .compute_stock_shares reads its own span (issue #665) -----------------------
+
+testthat::test_that(".compute_stock_shares does not scope the stock read", {
+  # The shares are carried along the year axis by `.carry_forward_shares()`,
+  # because the faostat-emissions-livestock pin lags QCL slaughter by 1-2 years.
+  # A read scoped to the caller's window leaves that fill nothing to carry from,
+  # and the inner_join in `.split_slaughter_by_shares()` then drops the slaughter
+  # row outright -- 2 Singapore rows at 2010 (#665). Assert the read is asked for
+  # the whole series, since that is the property the fix turns on.
+  asked_for <- "unset"
+  testthat::local_mocked_bindings(
+    .read_livestock_stocks = function(years = NULL) {
+      asked_for <<- years
+      .two_territory_stocks()
+    }
+  )
+
+  whep:::.compute_stock_shares()
+
+  testthat::expect_null(asked_for)
 })
