@@ -105,19 +105,18 @@ following columns:
 
 ``` r
 build_supply_use(example = TRUE)
-#> # A tibble: 10 × 11
-#>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
-#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
-#>  1  2021       255              255 BEL-1831-2025         Belgium               
-#>  2  2003        84               84 GRC-1947-2025         Greece (1947-2025)    
-#>  3  1982         3                3 ALB-1913-2025         Albania (1913-2025)   
-#>  4  2000         8                8 ATG-1800-2025         Antigua and Barbuda   
-#>  5  2013       170              170 PER-1942-2025         Peru                  
-#>  6  1985        75               75 GMB-1800-2025         Gambia                
-#>  7  1969       144              144 MOZ-1891-1975         Mozambique (1891-1975)
-#>  8  2010        NA               NA NA                    NA                    
-#>  9  1998       115              115 KHM-1953-2025         Cambodia              
-#> 10  1967       238              238 ETH-1952-1993         Ethiopia (1952-1993)  
+#> # A tibble: 9 × 11
+#>    year area_code polity_area_code reporting_polity_code reporting_polity_name  
+#>   <int>     <int>            <int> <chr>                 <chr>                  
+#> 1  1967        11               11 AUT-1919-2025         Austria                
+#> 2  1978       130              130 MWI-1964-2025         Malawi                 
+#> 3  1985        26               26 BRN-1888-2025         Brunei Darussalam      
+#> 4  1985       206              206 SUD-1956-2011         Sudan (1956-2011)      
+#> 5  2003       102              102 IRN-1828-2025         Iran                   
+#> 6  2003       156              156 NZL-1840-2025         New Zealand            
+#> 7  2011        72               72 FRS-1977-2025         Djibouti (formerly Fre…
+#> 8  2011       174              174 PRT-1800-2025         Portugal               
+#> 9  2021        96               96 HKG-1842-2025         Hong Kong              
 #> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, proc_group <chr>,
-#> #   proc_cbs_code <dbl>, item_cbs_code <dbl>, type <chr>, value <dbl>
+#> #   proc_cbs_code <int>, item_cbs_code <int>, type <chr>, value <dbl>
 ```

@@ -146,10 +146,10 @@ build_grass_natural_carbon_inputs(example = TRUE)
 #> # A tibble: 4 × 12
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
-#> 1  2000       300               NA NA                    NA                   
-#> 2  2000       300               NA NA                    NA                   
-#> 3  2000        32               32 CMR-1961-2025         Cameroon             
-#> 4  2000        32               32 CMR-1961-2025         Cameroon             
+#> 1  2000        84               84 GRC-1947-2025         Greece (1947-2025)   
+#> 2  2000        84               84 GRC-1947-2025         Greece (1947-2025)   
+#> 3  2000         9                9 ARG-1902-2025         Argentina            
+#> 4  2000         9                9 ARG-1902-2025         Argentina            
 #> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, land_use <chr>, c_input_mgc_ha_yr <dbl>,
 #> #   humified_fraction <dbl>, method_c_input <chr>

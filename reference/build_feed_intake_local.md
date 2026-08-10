@@ -142,11 +142,11 @@ build_feed_intake_local(example = TRUE)
 #> # A tibble: 5 × 15
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
-#> 1  2000       724               NA NA                    NA                   
-#> 2  2000       724               NA NA                    NA                   
-#> 3  2000       724               NA NA                    NA                   
-#> 4  2000       724               NA NA                    NA                   
-#> 5  2000       724               NA NA                    NA                   
+#> 1  2000       203              203 ESP-1800-2025         Spain                
+#> 2  2000       203              203 ESP-1800-2025         Spain                
+#> 3  2000       203              203 ESP-1800-2025         Spain                
+#> 4  2000       203              203 ESP-1800-2025         Spain                
+#> 5  2000       203              203 ESP-1800-2025         Spain                
 #> # ℹ 10 more variables: reporting_polity_has_geometry <lgl>,
 #> #   sub_territory <chr>, live_anim_code <int>, item_cbs_code <int>,
 #> #   feed_type <chr>, supply <dbl>, intake <dbl>, intake_dry_matter <dbl>,

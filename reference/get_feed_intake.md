@@ -105,19 +105,19 @@ A tibble with the feed intake data. It contains the following columns:
 get_feed_intake(example = TRUE)
 #> # A tibble: 11 × 14
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name 
-#>    <dbl>     <dbl>            <int> <chr>                 <chr>                 
-#>  1  1990        51               51 F51-1947-1993         Czechoslovakia (1947-…
-#>  2  2007         3                3 ALB-1913-2025         Albania (1913-2025)   
-#>  3  1996        54               54 DNK-1920-2025         Denmark               
-#>  4  2011        NA               NA NA                    NA                    
-#>  5  1996       110              110 JPN-1952-2025         Japan                 
-#>  6  1986         4                4 DZA-1962-2025         Algeria (1962-2025)   
-#>  7  2010       150              150 NLD-1830-2025         Netherlands           
-#>  8  1978        NA               NA NA                    NA                    
-#>  9  2021        23               23 BLZ-1981-2025         Belize                
-#> 10  1977       114              114 KEN-1963-2025         Kenya                 
-#> 11  2020        32               32 CMR-1961-2025         Cameroon              
+#>    <int>     <int>            <int> <chr>                 <chr>                 
+#>  1  1967        96               96 HKG-1842-2025         Hong Kong             
+#>  2  1978        33               33 CAN-1949-2025         Canada                
+#>  3  1978       226              226 UGA-1962-2025         Uganda                
+#>  4  1978       234              234 URY-1828-2025         Uruguay               
+#>  5  1985        72               72 FRS-1977-2025         Djibouti (formerly Fr…
+#>  6  1996        10               10 AUS-1901-2025         Australia             
+#>  7  1996       244              244 WSM-1900-2025         Samoa                 
+#>  8  2003       191              191 VCT-1833-2025         Saint Vincent and the…
+#>  9  2010       170              170 PER-1942-2025         Peru                  
+#> 10  2010       235              235 UZB-1991-2025         Uzbekistan            
+#> 11  2021        59               59 EGY-1979-2025         Egypt                 
 #> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>,
-#> #   live_anim_code <dbl>, item_cbs_code <dbl>, feed_type <chr>, supply <dbl>,
+#> #   live_anim_code <int>, item_cbs_code <int>, feed_type <chr>, supply <dbl>,
 #> #   intake <dbl>, intake_dry_matter <dbl>, loss <dbl>, loss_share <dbl>
 ```

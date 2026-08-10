@@ -115,6 +115,6 @@ build_io_model(su, btd, cbs)
 #>   Final demand columns: food, other_uses, and stock_addition.
 #> ✔ IO model complete.
 #> # A tibble: 0 × 6
-#> # ℹ 6 variables: year <dbl>, Z <list>, Y <list>, X <list>, labels <list>,
+#> # ℹ 6 variables: year <int>, Z <list>, Y <list>, X <list>, labels <list>,
 #> #   fd_labels <list>
 ```
