@@ -68,6 +68,7 @@ read_n_deposition <- function(
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the inputs cover.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs: `nhx` and `noy`
 #'   (each `lon`, `lat`, `year`, `value_g`, falling back to
 #'   [read_n_deposition()] when absent) and `cell_polity` (`lon`, `lat`,
@@ -76,14 +77,24 @@ read_n_deposition <- function(
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`,
 #'   `deposition_kgn_ha`, `deposition_n_t` and `method_deposition`, plus the
-#'   polity columns below.
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_deposition(example = TRUE)
-build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
+build_n_deposition <- function(
+  years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
+  data = list(),
+  example = FALSE
+) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_n_deposition())
+    return(.resolve_polity_validity(
+      .example_n_deposition(),
+      polity_validity
+    ))
   }
   nhx <- data$nhx %||% read_n_deposition("nhx", years = years)
   noy <- data$noy %||% read_n_deposition("noy", years = years)
@@ -95,7 +106,7 @@ build_n_deposition <- function(years = NULL, data = list(), example = FALSE) {
     c("area_code", "polity_frac", "cell_area_ha")
   )
   .nd_assemble(nhx, noy, polity) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------

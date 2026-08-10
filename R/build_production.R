@@ -160,6 +160,23 @@ build_primary_production <- function(
 #'
 #' @keywords internal
 #' @noRd
+# Years read either side of a requested window so the year-axis interpolation in
+# .fill_yields() has anchors to work from. Swept at 2010 against the full-range
+# build, warm cache, measuring the whole scoped build:
+#
+#   margin 0   31.3 s   t_ha off by 2.954e-04
+#   margin 1   35.7 s   t_ha exact
+#   margin 2   40.1 s   t_ha exact
+#   margin 3   39.5 s   t_ha exact      <- chosen
+#   margin 5   44.7 s   t_ha exact, no better than 3
+#
+# 1 is enough at this year, but that is one year's anchor spacing and leaves no
+# headroom, so 3 is used: it is the smallest margin that also reaches the floor
+# on the other units, and 5 buys nothing for a further 5 s. The margin only
+# widens the read -- the output is trimmed back to the requested years, and a
+# full-range request takes the historical branch and is unaffected.
+.yield_year_margin <- 3L
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
@@ -173,11 +190,17 @@ build_primary_production <- function(
   # we must also read the FAOSTAT anchor years to extrapolate from.
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
+  #
+  # A requested window is also widened by a margin either side, for the same
+  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
+  # window with no neighbouring years cannot reconstruct a yield the full-range
+  # build reconstructs, and the row is dropped instead (#666). A full-range
+  # request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
   } else {
-    output_years
+    max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
   # 1. Read commodity balances (for gap-filling)
@@ -199,10 +222,7 @@ build_primary_production <- function(
   )
 
   # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(
-    fao_combined,
-    years = years
-  )
+  fao_slaughter <- .build_livestock_slaughter(fao_combined)
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -769,14 +789,20 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
+  # The bridge is an ISO3-to-bucket lookup and now says so. It used to rename
+  # `area_iso3c` to `polity_code` so it would line up with `regions_full`'s
+  # column of that name, which was never a polity code but the vendored
+  # ISO3-like stem -- so this one join spoke a polity vocabulary it was not in
+  # (whep#687). Both sides keep their own name and the rename happens in the
+  # key, where it is visible.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
-      polity_code = area_iso3c,
-      area_code = polity_area_code
+      "area_iso3c",
+      area_code = "polity_area_code"
     ) |>
-    dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$area_iso3c)) |>
+    dplyr::distinct(.data$area_iso3c, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -785,18 +811,18 @@ build_primary_production <- function(
     dplyr::left_join(
       regions |>
         dplyr::select(
-          adb_region = ADB_Region,
-          area = polity_name,
-          polity_code
+          adb_region = "ADB_Region",
+          area = "polity_name",
+          "legacy_polity_prefix"
         ),
       by = "adb_region"
     ) |>
     dplyr::left_join(
       area_bridge,
-      by = "polity_code"
+      by = c(legacy_polity_prefix = "area_iso3c")
     ) |>
     .warn_unmapped_adb_regions() |>
-    dplyr::select(-polity_code) |>
+    dplyr::select(-"legacy_polity_prefix") |>
     dplyr::select(
       year,
       area,
@@ -1406,7 +1432,7 @@ build_primary_production <- function(
     dplyr::filter(value > 0)
 }
 
-.split_slaughter_by_shares <- function(slaughter_raw, years) {
+.split_slaughter_by_shares <- function(slaughter_raw) {
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1429,7 +1455,7 @@ build_primary_production <- function(
   # QCL's most recent years, mirroring the value_st fill in
   # .combine_livestock(). Without this the inner_join drops those years and
   # cattle/swine/chicken slaughtered_heads silently vanish.
-  shares <- .compute_stock_shares(years) |>
+  shares <- .compute_stock_shares() |>
     .carry_forward_shares(sort(unique(needs_split$year)))
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
@@ -1464,8 +1490,16 @@ build_primary_production <- function(
     dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.compute_stock_shares <- function(years) {
-  fao_stocks <- .read_livestock_stocks(years = years)
+.compute_stock_shares <- function() {
+  # Read the stock series over its full span rather than the caller's window.
+  # `.carry_forward_shares()` fills these shares along the year axis precisely
+  # because the pin lags QCL slaughter, so it needs the years either side of the
+  # requested window to fill from; a scoped read leaves it nothing to carry and
+  # the inner_join in `.split_slaughter_by_shares()` then drops the row (#665).
+  # This is safe because a share is a within-year ratio: extra years add rows
+  # without changing any existing year's value, and that join restricts the
+  # result to the requested years anyway.
+  fao_stocks <- .read_livestock_stocks(years = NULL)
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1499,12 +1533,12 @@ build_primary_production <- function(
     dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+.build_livestock_slaughter <- function(fao_combined) {
   cli::cli_progress_step("Building livestock slaughter counts")
   items <- whep::items_cbs
   smap <- .build_slaughter_map()
   raw <- .read_slaughter_raw(fao_combined, smap)
-  result <- .split_slaughter_by_shares(raw, years)
+  result <- .split_slaughter_by_shares(raw)
 
   result |>
     dplyr::left_join(

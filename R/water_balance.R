@@ -64,6 +64,16 @@
 #'   given index denotes is a property of how the run was configured. Only the
 #'   consumptive-water and `cft_nir` terms are per-CFT, so this leaves the
 #'   water budget itself (AET, runoff, drainage) untouched.
+#' @param polity_validity What to do with a row whose `(area_code, year)`
+#'   resolves to a polity that did not exist in that year (the cell-polity
+#'   crosswalk has no year dimension, so an early-20th-century cell is labelled
+#'   with its present-day territory). `"keep"` (default) keeps every row, which
+#'   is the historical behaviour, and warns naming the rows, years and area
+#'   codes involved. `"flag"` keeps them and adds the per-row logical
+#'   `reporting_polity_out_of_span`, marking exactly which rows are stand-ins.
+#'   `"drop"` removes them. All three warn; only `"drop"` changes the numbers.
+#'   See [polity_coverage_gaps()], which reports the same rows for an
+#'   already-built table.
 #' @param data Optional named list of pre-loaded inputs to avoid NetCDF reads:
 #'   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`, `runoff`
 #'   and `seepage` (each `lon`, `lat`, `year`, `value`; annual-summed
@@ -86,7 +96,8 @@
 #'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 #'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
-#'   `year` and `area_code`. Both resolutions carry the polity columns below.
+#'   `year` and `area_code`. Both resolutions carry the polity columns below,
+#'   plus `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -94,21 +105,23 @@
 build_water_balance <- function(
   method = list(),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   bands = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   method <- .wb_resolve_method(method)
   if (isTRUE(example)) {
-    return(.wb_example(method, resolution))
+    return(.wb_example(method, resolution, polity_validity))
   }
   .wb_read_inputs(data, method, bands) |>
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
     .wb_finalise(method, resolution) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 #' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
@@ -159,6 +172,7 @@ build_water_balance <- function(
 #'   texture products from HWSD, both downloadable, so neither is pinned.
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year the inputs cover.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs, each falling back to
 #'   its reader when absent: `temp` (CRU `tmp`, `lon`, `lat`, `year`, `month`,
 #'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
@@ -178,7 +192,8 @@ build_water_balance <- function(
 #'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 #'   the monthly volumetric soil water content and its static field-capacity,
 #'   wilting-point and porosity references) and `method_water_input`, plus the
-#'   polity columns below.
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -186,11 +201,16 @@ build_water_balance <- function(
 get_soc_climate_drivers <- function(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_soc_climate_drivers())
+    return(.resolve_polity_validity(
+      .example_soc_climate_drivers(),
+      polity_validity
+    ))
   }
   pin <- .socd_pin_hydrology(data, run_dir, years)
   swc <- .wb_swc_topsoil(data, run_dir, years, pin)
@@ -199,7 +219,7 @@ get_soc_climate_drivers <- function(
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
   .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -655,7 +675,7 @@ get_soc_climate_drivers <- function(
 # method is chosen (keeping the 4-term budget closed exactly), re-stamp
 # method_water, then aggregate to polity if requested. The fixture carries the
 # cft_native blue/green split, so the realized bg method is cft_native.
-.wb_example <- function(method, resolution) {
+.wb_example <- function(method, resolution, polity_validity = "keep") {
   grid <- .example_water_balance()
   if (method$drainage == "residual") {
     grid <- dplyr::mutate(
@@ -675,7 +695,7 @@ get_soc_climate_drivers <- function(
   } else {
     .wb_aggregate_polity(grid)
   }
-  .add_reporting_polity_columns(out)
+  .resolve_polity_validity(out, polity_validity)
 }
 
 # Topsoil soil-water saturation per cell-month, from data$swc, the pinned

@@ -9,8 +9,12 @@ A tibble where each row corresponds to one polity or aggregate region. It
 contains the following columns (same definitions as \code{polities_cats},
 minus the five trailing \verb{0...36}–\verb{0...40} artefact columns):
 \itemize{
-\item \code{polity_code}: Legacy current polity prefix. This is kept for
-compatibility with older code that expected ISO3-like values.
+\item \code{legacy_polity_prefix}: Legacy current polity prefix, kept for
+compatibility with older code that expected ISO3-like values. \strong{Not a
+\link{polities} code}: it was called \code{polity_code} until whep#687, where the
+name promised an identity none of its 271 non-\code{NA} values holds, so a join
+to \link{polities} or \link{polity_area_crosswalk} on it returned nothing. Read
+\code{reporting_polity_code} for the polity.
 \item \code{polity_name}: Current polity, country, territory, or aggregate name.
 \item \code{V1}: Internal row index.
 \item \code{code}: Numeric FAOSTAT country/region code.

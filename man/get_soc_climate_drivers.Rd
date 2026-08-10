@@ -7,6 +7,7 @@
 get_soc_climate_drivers(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -21,6 +22,17 @@ texture products from HWSD, both downloadable, so neither is pinned.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year the inputs cover.}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs, each falling back to
 its reader when absent: \code{temp} (CRU \code{tmp}, \code{lon}, \code{lat}, \code{year}, \code{month},
@@ -44,7 +56,8 @@ modifier driver, repeated across a cell-year's months), \code{clay_pct},
 \code{theta}, \code{t_field}, \code{t_wilt} and \code{porosity} (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
 wilting-point and porosity references) and \code{method_water_input}, plus the
-polity columns below.
+polity columns below, plus \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Builds the monthly per-cell climate drivers the soil-organic-carbon

@@ -196,12 +196,12 @@ test_that("regions_full keys every EU AgriDB region, incl. AT and GB", {
 
   austria <- whep::regions_full |>
     dplyr::filter(.data$ADB_Region == "AT")
-  expect_equal(austria$polity_code, "AUT")
+  expect_equal(austria$legacy_polity_prefix, "AUT")
   expect_equal(austria$code, 11L)
 
   uk <- whep::regions_full |>
     dplyr::filter(.data$ADB_Region == "GB")
-  expect_equal(uk$polity_code, "GBR")
+  expect_equal(uk$legacy_polity_prefix, "GBR")
   expect_equal(uk$code, 229L)
 })
 
