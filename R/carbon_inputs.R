@@ -79,8 +79,11 @@ build_carbon_inputs <- function(
 
 .ci_resolve_inputs <- function(data, years = NULL) {
   list(
-    cropland = data$cropland %||%
-      build_soil_carbon_inputs(data = data, years = years),
+    # .sci_build() rather than build_soil_carbon_inputs(): the reporting polity
+    # columns the exported function attaches are discarded by
+    # .ci_cropland_class() below and re-added to this function's own output, so
+    # paying for them on the pre-collapse intermediate is pure cost (#624).
+    cropland = data$cropland %||% .sci_build("grid", data, years),
     crop_area = data$crop_area %||% .ci_crop_area(data),
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)

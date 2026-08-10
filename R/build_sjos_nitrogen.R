@@ -138,12 +138,20 @@ build_sjos_nitrogen <- function(
 
 # One surplus-mode exceedance call, parameterised by resolution.
 .sjos_exceedance <- function(surplus, critical, land_use, resolution) {
+  years <- unique(surplus$year[!is.na(surplus$year)])
+  if (length(years) != 1L) {
+    cli::cli_abort(
+      "The SJOS-N driver requires one explicit actual-pressure year per run."
+    )
+  }
   build_n_boundary_exceedance(
     surplus = surplus,
     critical = critical,
     land_use = land_use,
     resolution = resolution,
-    metric = "surplus"
+    metric = "surplus",
+    actual_year = as.integer(years),
+    critical_reference_year = 2010L
   )
 }
 

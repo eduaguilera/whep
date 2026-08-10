@@ -90,17 +90,52 @@ testthat::test_that("rows with a missing key are dropped", {
   testthat::expect_equal(out$item_cbs_code, 2511L)
 })
 
-testthat::test_that("negative footprint extensions are rejected", {
+testthat::test_that("signed crop-attributed exceedance is retained", {
   bad <- dplyr::mutate(
     .nex_exceedance_fixture(),
     exceedance_n_t = dplyr::if_else(
       .data$item_cbs_code == 2511L,
       -1,
       .data$exceedance_n_t
+    ),
+    attribution_method = "signed_crop_surplus_share"
+  )
+  out <- whep::build_n_exceedance_extension(bad)
+  testthat::expect_equal(out$impact_u, c(-1, 0))
+})
+
+testthat::test_that("non-finite footprint attributions are rejected", {
+  bad <- dplyr::mutate(
+    .nex_exceedance_fixture(),
+    exceedance_n_t = dplyr::if_else(
+      .data$item_cbs_code == 2511L,
+      NA_real_,
+      .data$exceedance_n_t
     )
   )
   testthat::expect_error(
     whep::build_n_exceedance_extension(bad),
-    "non-negative"
+    "finite"
+  )
+})
+
+testthat::test_that("explicit cell residuals block mandatory crop footprints", {
+  unresolved <- dplyr::mutate(
+    .nex_exceedance_fixture(),
+    attribution_status = "undefined_zero_denominator",
+    attribution_record_type = dplyr::if_else(
+      dplyr::row_number() == 1L,
+      "cell_residual",
+      "crop_allocation"
+    ),
+    unallocated_positive_overshoot_n_t = dplyr::if_else(
+      dplyr::row_number() == 1L,
+      2,
+      0
+    )
+  )
+  testthat::expect_error(
+    whep::build_n_exceedance_extension(unresolved),
+    class = "whep_n_attribution_undefined"
   )
 })

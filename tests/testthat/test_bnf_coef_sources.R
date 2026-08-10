@@ -1,41 +1,12 @@
-# Source-value assertions for the BNF coefficient registry
-# (`inst/extdata/coefs/bnf.csv`).
+# Cell-level provenance gates for `inst/extdata/coefs/bnf.csv`.
 #
-# `test_coef_integrity.R` checks structure and physical range, which by design
-# survives any legitimate coefficient update. That is not enough to catch a
-# value mis-read from its source: a sample size transcribed into an index
-# column is structurally valid and physically in range, and a test that
-# compares the table against a copy of itself passes on any transcription
-# error. These tests close that gap by asserting stored values against the
-# publications the registry cites, transcribed here together with the table
-# that carries them.
-#
-# Every non-missing numeric cell of `bnf.csv` sits in exactly one of three
-# buckets, and the coverage test below fails if a cell escapes all three:
-#   source      asserted against an external cited publication
-#   derivation  asserted against the registry's own declared derivation rule
-#   unasserted  declared here, with the reason it cannot be checked
-#
-# The ledgers are `tribble`s rather than parallel vectors so that each
-# assertion is one readable row. A value and its citation split across two
-# position-aligned vectors can slip against each other silently, since the
-# citation is only ever read back in a failure message -- the same class of
-# misalignment this file exists to catch.
+# The tracked long sidecar is the durable contract. Every non-missing numeric
+# cell in `bnf.csv` must occur exactly once and remain in one of three honest
+# evidence classes. The independent source transcriptions below prevent the
+# sidecar from merely agreeing with a second copy of the coefficient table.
 
 # ---- Anglade et al. (2015), Ecosphere 6(3):37 -------------------------------
-# Anglade, J., G. Billen, and J. Garnier. 2015. Relationships for estimating
-# N2 fixation in legumes: incidence for N balance of legume-based cropping
-# systems in Europe. Ecosphere 6(3):37. doi:10.1890/ES14-00353.1
-#
-# Table 1 is six side-by-side (n, Median) blocks, each median printed above
-# its interquartile range. It is transcribed in full here rather than value
-# by value, so that the column alignment this file depends on is proven from
-# the table's own arithmetic before any registry value is read out of it: the
-# sample sizes must sum to the "All" row, and every median must fall inside
-# its own interquartile range. Together those pin which element of each pair
-# is the count and which is the central value, which is precisely the
-# distinction a sample size transcribed into an index column destroys.
-# Alfalfa and clover are forage legumes and carry no NHI.
+
 .anglade_2015_table1 <- function() {
   tibble::tibble(
     species = c("Alfalfa", "Clover", "Faba bean", "Lentil", "Pea", "All"),
@@ -66,13 +37,6 @@
   )
 }
 
-# Values Anglade et al. (2015) state in the body text rather than in Table 1.
-# BGN: "we used mean values of BGP-N reported at maturity for grain and forage
-# legumes as a multiplicative factors of N fixed in shoot, 1.3 and 1.7,
-# respectively" (Discussion, belowground contributions; restated for the
-# fixation equation under "Amounts of N2 fixation and N net inputs").
-# NHI: "high aboveground NHI values (0.75 for grain crops and 0.9 for alfalfa)
-# were assumed" (Discussion, closing the organic N balance argument).
 .anglade_2015_text <- list(
   bgn_grain_legume = 1.3,
   bgn_forage_legume = 1.7,
@@ -80,181 +44,78 @@
 )
 
 .anglade_frac <- function(species, column) {
-  t1 <- .anglade_2015_table1()
-  t1[[column]][t1$species == species] / 100
+  table1 <- .anglade_2015_table1()
+  table1[[column]][table1$species == species] / 100
 }
 
-.anglade_ndfa <- function(species) {
-  .anglade_frac(species, "ndfa_pct_median")
-}
-
-.anglade_nhi <- function(species) {
-  .anglade_frac(species, "nhi_pct_median")
+.anglade_values <- function() {
+  forage <- .anglade_2015_text$bgn_forage_legume
+  grain <- .anglade_2015_text$bgn_grain_legume
+  tibble::tribble(
+    ~name_bnf, ~coefficient, ~expected, ~source_id,
+    "Alfalfa", "ndfa", .anglade_frac("Alfalfa", "ndfa_pct_median"),
+    "anglade_2015",
+    "Alfalfa", "n_harvest_index", .anglade_2015_text$nhi_alfalfa,
+    "anglade_2015",
+    "Alfalfa", "below_ground_n_ratio", forage, "anglade_2015",
+    "Clover", "ndfa", .anglade_frac("Clover", "ndfa_pct_median"),
+    "anglade_2015",
+    "Clover", "below_ground_n_ratio", forage, "anglade_2015",
+    "Fava bean", "ndfa", .anglade_frac("Faba bean", "ndfa_pct_median"),
+    "anglade_2015",
+    "Fava bean", "n_harvest_index",
+    .anglade_frac("Faba bean", "nhi_pct_median"), "anglade_2015",
+    "Fava bean", "below_ground_n_ratio", grain, "anglade_2015",
+    "Lentils", "ndfa", .anglade_frac("Lentil", "ndfa_pct_median"),
+    "anglade_2015",
+    "Lentils", "n_harvest_index",
+    .anglade_frac("Lentil", "nhi_pct_median"), "anglade_2015",
+    "Lentils", "below_ground_n_ratio", grain, "anglade_2015",
+    "Pea", "ndfa", .anglade_frac("Pea", "ndfa_pct_median"),
+    "anglade_2015",
+    "Pea", "n_harvest_index", .anglade_frac("Pea", "nhi_pct_median"),
+    "anglade_2015",
+    "Pea", "below_ground_n_ratio", grain, "anglade_2015"
+  )
 }
 
 # ---- Herridge et al. (2008), Plant and Soil 311:1-18 ------------------------
-# Herridge, D. F., M. B. Peoples, and R. M. Boddey. 2008. Global inputs of
-# biological nitrogen fixation in agricultural systems. Plant and Soil
-# 311:1-18.
-#
-# Table 2, "%Ndfa average" for experiments -- not the adjacent farmers' fields
-# column, which reports 36 and 58 for these same two rows. Table 6, "Rate of
-# N2 fixation (kg N/ha/year)" for the non-legume systems.
-.herridge_2008 <- list(
-  ndfa_pct_common_bean = 40,
-  ndfa_pct_soybean_groundnut = 68,
-  nonsymbiotic_kg_ha_rice = 33,
-  nonsymbiotic_kg_ha_sugarcane = 25
-)
 
-# ---- Ledgers ----------------------------------------------------------------
-.bnf_citations <- function() {
-  ang <- "Anglade et al. (2015) Ecosphere 6(3):37"
-  her <- "Herridge et al. (2008) Plant Soil 311:1-18"
-  list(
-    t1_ndfa = paste(ang, "Table 1, Ndfa(%) median"),
-    t1_nhi = paste(ang, "Table 1, NHI(%) median"),
-    d_nhi_alfalfa = paste(ang, "Discussion, assumed NHI for alfalfa"),
-    d_bgn_forage = paste(ang, "Discussion, BGN for forage legumes"),
-    d_bgn_grain = paste(ang, "Discussion, BGN for grain legumes"),
-    t2_bean = paste(her, "Table 2, common bean %Ndfa average"),
-    t2_soy = paste(her, "Table 2, soybean/groundnut %Ndfa average"),
-    t6_rice = paste(her, "Table 6, rice"),
-    t6_cane = paste(her, "Table 6, sugarcane")
-  )
-}
-
-.bnf_source_ledger <- function() {
-  cite <- .bnf_citations()
-  bgn_forage <- .anglade_2015_text$bgn_forage_legume
-  bgn_grain <- .anglade_2015_text$bgn_grain_legume
-  nhi_alfalfa <- .anglade_2015_text$nhi_alfalfa
-  bean_ndfa <- .herridge_2008$ndfa_pct_common_bean / 100
-  soy_ndfa <- .herridge_2008$ndfa_pct_soybean_groundnut / 100
-  rice_nonsym <- .herridge_2008$nonsymbiotic_kg_ha_rice
-  cane_nonsym <- .herridge_2008$nonsymbiotic_kg_ha_sugarcane
-
+.herridge_values <- function() {
   tibble::tribble(
-    ~name_bnf, ~column, ~expected, ~citation,
-    "Alfalfa", "ndfa", .anglade_ndfa("Alfalfa"), cite$t1_ndfa,
-    "Alfalfa", "n_harvest_index", nhi_alfalfa, cite$d_nhi_alfalfa,
-    "Alfalfa", "below_ground_n_ratio", bgn_forage, cite$d_bgn_forage,
-    "Clover", "ndfa", .anglade_ndfa("Clover"), cite$t1_ndfa,
-    "Clover", "below_ground_n_ratio", bgn_forage, cite$d_bgn_forage,
-    "Fava bean", "ndfa", .anglade_ndfa("Faba bean"), cite$t1_ndfa,
-    "Fava bean", "n_harvest_index", .anglade_nhi("Faba bean"), cite$t1_nhi,
-    "Fava bean", "below_ground_n_ratio", bgn_grain, cite$d_bgn_grain,
-    "Lentils", "ndfa", .anglade_ndfa("Lentil"), cite$t1_ndfa,
-    "Lentils", "n_harvest_index", .anglade_nhi("Lentil"), cite$t1_nhi,
-    "Lentils", "below_ground_n_ratio", bgn_grain, cite$d_bgn_grain,
-    "Pea", "ndfa", .anglade_ndfa("Pea"), cite$t1_ndfa,
-    "Pea", "n_harvest_index", .anglade_nhi("Pea"), cite$t1_nhi,
-    "Pea", "below_ground_n_ratio", bgn_grain, cite$d_bgn_grain,
-    "Beans", "ndfa", bean_ndfa, cite$t2_bean,
-    "Groundnuts, with shell", "ndfa", soy_ndfa, cite$t2_soy,
-    "Rice", "nonsymbiotic_base_kg_ha", rice_nonsym, cite$t6_rice,
-    "Sugarcane", "nonsymbiotic_base_kg_ha", cane_nonsym, cite$t6_cane
+    ~name_bnf, ~coefficient, ~expected, ~source_id,
+    "Beans", "ndfa", 0.40, "herridge_2008",
+    "Groundnuts, with shell", "ndfa", 0.68, "herridge_2008",
+    "Rice", "nonsymbiotic_base_kg_ha", 33, "herridge_2008",
+    "Sugarcane", "nonsymbiotic_base_kg_ha", 25, "herridge_2008"
   )
 }
 
-# Rows whose `source` field declares them derived from another registry row
-# rather than from a publication. Asserting the rule keeps the two rows from
-# drifting apart when only one of them is updated.
-.bnf_derivation_ledger <- function() {
+# ---- Lassaletta et al. (2014), ERL Supplementary Methods Table S1-2 --------
+
+.lassaletta_s1_values <- function() {
   tibble::tribble(
-    ~name_bnf, ~column, ~derived_from,
-    "Fodder, other", "ndfa", "Green leguminous",
-    "Fodder, other", "n_harvest_index", "Green leguminous",
-    "Fodder, other", "below_ground_n_ratio", "Green leguminous"
-  )
-}
-
-.bnf_unasserted_reasons <- function() {
-  list(
-    clover_nhi = paste(
-      "Anglade et al. (2015) Table 1 reports no NHI for clover and the",
-      "assumed NHI in the text names alfalfa only; 0.9 extends the alfalfa",
-      "forage assumption to clover"
-    ),
-    herridge_mismatch = paste(
-      "Herridge et al. (2008) reports a dry-matter harvest index (0.35, or",
-      "0.4 for groundnut and soybean) and a below-ground multiplier of 1.4.",
-      "A dry-matter index is not the N harvest index stored here, so the",
-      "cited source supports neither the stored index nor 1.3"
-    ),
-    no_primary = paste(
-      "cited through Lassaletta et al. (2014); no primary reported value",
-      "located for this row"
-    ),
-    soyabeans = paste(
-      "cited through Lassaletta et al. (2014) to Salvagiotti et al. (2008),",
-      "which reports %Ndfa of 52 over all data and 58 for zero-N",
-      "treatments; 0.57 matches neither and the intermediate value was not",
-      "located"
-    ),
-    composite = paste(
-      "composite mixed-sward value attributed to three publications at once;",
-      "no single reported number corresponds to it and the sources are not",
-      "available to this test"
-    ),
-    fodder_share = paste(
-      "modelling convention for the legume share of a mixed fodder stand,",
-      "not a source-reported measurement"
-    ),
-    definitional = paste(
-      "stand composition by definition (1 for a pure legume crop, 0 for a",
-      "non-legume system), not a source-reported measurement; asserted",
-      "structurally instead"
-    )
-  )
-}
-
-# Cells that cannot be asserted against their cited source here. Each carries
-# the reason. This is a declaration of missing coverage, not coverage.
-.bnf_unasserted_ledger <- function() {
-  r <- .bnf_unasserted_reasons()
-
-  tibble::tribble(
-    ~name_bnf, ~column, ~reason,
-    "Clover", "n_harvest_index", r$clover_nhi,
-    "Beans", "n_harvest_index", r$herridge_mismatch,
-    "Beans", "below_ground_n_ratio", r$herridge_mismatch,
-    "Groundnuts, with shell", "n_harvest_index", r$herridge_mismatch,
-    "Groundnuts, with shell", "below_ground_n_ratio", r$herridge_mismatch,
-    "Green leguminous", "ndfa", r$no_primary,
-    "Green leguminous", "n_harvest_index", r$no_primary,
-    "Green leguminous", "below_ground_n_ratio", r$no_primary,
-    "Other pulses", "ndfa", r$no_primary,
-    "Other pulses", "n_harvest_index", r$no_primary,
-    "Other pulses", "below_ground_n_ratio", r$no_primary,
-    "Soyabeans", "ndfa", r$soyabeans,
-    "Soyabeans", "n_harvest_index", r$soyabeans,
-    "Soyabeans", "below_ground_n_ratio", r$soyabeans,
-    "Mixed swards", "ndfa", r$composite,
-    "Mixed swards", "n_harvest_index", r$composite,
-    "Mixed swards", "below_ground_n_ratio", r$composite,
-    "Mixed swards", "leguminous_share", r$composite,
-    "Meadows", "ndfa", r$composite,
-    "Meadows", "n_harvest_index", r$composite,
-    "Meadows", "below_ground_n_ratio", r$composite,
-    "Meadows", "leguminous_share", r$composite,
-    "Fallow", "ndfa", r$composite,
-    "Fallow", "leguminous_share", r$composite,
-    "Weeds", "ndfa", r$composite,
-    "Weeds", "leguminous_share", r$composite,
-    "Fodder, other", "leguminous_share", r$fodder_share,
-    "Alfalfa", "leguminous_share", r$definitional,
-    "Beans", "leguminous_share", r$definitional,
-    "Clover", "leguminous_share", r$definitional,
-    "Fava bean", "leguminous_share", r$definitional,
-    "Green leguminous", "leguminous_share", r$definitional,
-    "Groundnuts, with shell", "leguminous_share", r$definitional,
-    "Lentils", "leguminous_share", r$definitional,
-    "Other pulses", "leguminous_share", r$definitional,
-    "Pea", "leguminous_share", r$definitional,
-    "Soyabeans", "leguminous_share", r$definitional,
-    "Rice", "leguminous_share", r$definitional,
-    "Sugarcane", "leguminous_share", r$definitional
+    ~name_bnf, ~coefficient, ~expected, ~source_id,
+    "Beans", "n_harvest_index", 0.75, "lassaletta_2014_erl_s1",
+    "Beans", "below_ground_n_ratio", 1.3, "lassaletta_2014_erl_s1",
+    "Clover", "n_harvest_index", 0.9, "lassaletta_2014_erl_s1",
+    "Green leguminous", "ndfa", 0.68, "lassaletta_2014_erl_s1",
+    "Green leguminous", "n_harvest_index", 0.5,
+    "lassaletta_2014_erl_s1",
+    "Green leguminous", "below_ground_n_ratio", 1.3,
+    "lassaletta_2014_erl_s1",
+    "Groundnuts, with shell", "n_harvest_index", 0.5,
+    "lassaletta_2014_erl_s1",
+    "Groundnuts, with shell", "below_ground_n_ratio", 1.3,
+    "lassaletta_2014_erl_s1",
+    "Other pulses", "ndfa", 0.68, "lassaletta_2014_erl_s1",
+    "Other pulses", "n_harvest_index", 0.75, "lassaletta_2014_erl_s1",
+    "Other pulses", "below_ground_n_ratio", 1.3,
+    "lassaletta_2014_erl_s1",
+    "Soyabeans", "ndfa", 0.57, "lassaletta_2014_erl_s1",
+    "Soyabeans", "n_harvest_index", 0.73, "lassaletta_2014_erl_s1",
+    "Soyabeans", "below_ground_n_ratio", 1.4,
+    "lassaletta_2014_erl_s1"
   )
 }
 
@@ -268,200 +129,198 @@
   )
 }
 
-.bnf_stored <- function(b, name, column) {
-  v <- b[[column]][b$name_bnf == name]
-  testthat::expect_length(v, 1)
-  v
+.bnf_stored <- function(bnf, name, coefficient) {
+  value <- bnf[[coefficient]][bnf$name_bnf == name]
+  testthat::expect_length(value, 1)
+  value
 }
 
-.bnf_cell_key <- function(ledger) {
-  paste(ledger$name_bnf, ledger$column, sep = " / ")
+.bnf_cell_key <- function(x) {
+  paste(x$name_bnf, x$coefficient, sep = " / ")
 }
 
-.bnf_stored_cells <- function(b) {
-  .bnf_numeric_columns() |>
-    purrr::map(function(col) {
-      tibble::tibble(name_bnf = b$name_bnf[!is.na(b[[col]])], column = col)
-    }) |>
-    dplyr::bind_rows()
+.bnf_stored_cells <- function(bnf) {
+  bnf |>
+    dplyr::select(name_bnf, dplyr::all_of(.bnf_numeric_columns())) |>
+    tidyr::pivot_longer(
+      cols = -name_bnf,
+      names_to = "coefficient",
+      values_to = "stored_value",
+      values_drop_na = TRUE
+    )
+}
+
+.bnf_is_blank <- function(x) {
+  is.na(x) | stringr::str_trim(x) == ""
+}
+
+.bnf_source_values <- function() {
+  dplyr::bind_rows(
+    .anglade_values(),
+    .herridge_values(),
+    .lassaletta_s1_values()
+  )
 }
 
 # ---- Tests ------------------------------------------------------------------
 
-test_that("the transcribed Anglade Table 1 reproduces the table's own totals", {
-  # Each sample-size column of Table 1 must sum over the five species to the
-  # "All" row. This proves the (n, Median) blocks are read in the right
-  # order, which is the alignment every Anglade assertion below relies on.
-  t1 <- .anglade_2015_table1()
-  species <- t1[t1$species != "All", ]
-  all_row <- t1[t1$species == "All", ]
-  n_cols <- grep("_n$", names(t1), value = TRUE)
-  testthat::expect_length(n_cols, 6)
-  for (col in n_cols) {
+test_that("the transcribed Anglade Table 1 reproduces its own totals", {
+  table1 <- .anglade_2015_table1()
+  species <- table1[table1$species != "All", ]
+  all_row <- table1[table1$species == "All", ]
+  n_columns <- grep("_n$", names(table1), value = TRUE)
+
+  testthat::expect_length(n_columns, 6)
+  for (column in n_columns) {
     testthat::expect_equal(
-      sum(species[[col]], na.rm = TRUE),
-      all_row[[col]],
-      info = col
+      sum(species[[column]], na.rm = TRUE),
+      all_row[[column]],
+      info = column
     )
   }
 })
 
 test_that("every transcribed Anglade median lies inside its own IQR", {
-  # The complement of the totals check above. The sums pin which column of
-  # each block is the count; this pins the other one as a central value, so
-  # a count read into a median position is refused by construction. Anglade
-  # reports 34 as the faba-bean NHI sample size against an NHI IQR of 63-77.
-  t1 <- .anglade_2015_table1()
-  med_cols <- grep("_median$", names(t1), value = TRUE)
-  testthat::expect_length(med_cols, 6)
-  for (col in med_cols) {
-    stem <- sub("_median$", "", col)
-    m <- t1[[col]]
-    q1 <- t1[[paste0(stem, "_q1")]]
-    q3 <- t1[[paste0(stem, "_q3")]]
-    keep <- !is.na(m)
-    testthat::expect_true(
-      all(q1[keep] <= m[keep] & m[keep] <= q3[keep]),
-      info = paste(col, paste(t1$species[keep], m[keep], collapse = "; "))
-    )
-    testthat::expect_true(all(q1[keep] < q3[keep]), info = col)
+  table1 <- .anglade_2015_table1()
+  median_columns <- grep("_median$", names(table1), value = TRUE)
+
+  testthat::expect_length(median_columns, 6)
+  for (column in median_columns) {
+    stem <- sub("_median$", "", column)
+    median <- table1[[column]]
+    q1 <- table1[[paste0(stem, "_q1")]]
+    q3 <- table1[[paste0(stem, "_q3")]]
+    keep <- !is.na(median)
+    testthat::expect_true(all(q1[keep] <= median[keep]))
+    testthat::expect_true(all(median[keep] <= q3[keep]))
+    testthat::expect_true(all(q1[keep] < q3[keep]))
   }
 })
 
-test_that("every stored coefficient matches the value in its cited source", {
-  b <- whep::whep_coef_table("bnf")
-  ledger <- .bnf_source_ledger()
-  for (i in seq_len(nrow(ledger))) {
-    testthat::expect_equal(
-      .bnf_stored(b, ledger$name_bnf[i], ledger$column[i]),
-      ledger$expected[i],
-      info = paste0(
-        ledger$name_bnf[i],
-        " / ",
-        ledger$column[i],
-        " -- ",
-        ledger$citation[i]
-      )
-    )
-  }
+test_that("the provenance sidecar covers every BNF coefficient once", {
+  bnf <- whep::whep_coef_table("bnf")
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  cells <- .bnf_stored_cells(bnf)
+
+  testthat::expect_equal(nrow(cells), 60)
+  testthat::expect_equal(nrow(provenance), 60)
+  testthat::expect_equal(anyDuplicated(.bnf_cell_key(provenance)), 0)
+  testthat::expect_setequal(.bnf_cell_key(provenance), .bnf_cell_key(cells))
+
+  compared <- dplyr::inner_join(
+    cells,
+    provenance |>
+      dplyr::select(name_bnf, coefficient, provenance_value = stored_value),
+    by = c("name_bnf", "coefficient")
+  )
+  testthat::expect_equal(nrow(compared), 60)
+  testthat::expect_equal(compared$provenance_value, compared$stored_value)
 })
 
-test_that("no Anglade coefficient equals a sample size from its own row", {
-  # The failure mode this guards is a sample size transcribed into a value
-  # column. Every Anglade-cited fraction is a percentage in Table 1, so it
-  # must not coincide with any n reported for the same species.
-  b <- whep::whep_coef_table("bnf")
-  t1 <- .anglade_2015_table1()
-  rows <- list(
-    Alfalfa = "Alfalfa",
-    Clover = "Clover",
-    `Fava bean` = "Faba bean",
-    Lentils = "Lentil",
-    Pea = "Pea"
+test_that("the evidence vocabulary and 32-15-13 partition are fixed", {
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  vocabulary <- c(
+    "source_asserted",
+    "derivation_asserted",
+    "genuinely_unresolved"
   )
-  n_cols <- grep("_n$", names(t1), value = TRUE)
-  for (name in names(rows)) {
-    ns <- unlist(t1[t1$species == rows[[name]], n_cols], use.names = FALSE)
-    ns <- ns[!is.na(ns)]
-    for (col in c("ndfa", "n_harvest_index")) {
-      stored_pct <- .bnf_stored(b, name, col) * 100
-      testthat::expect_false(
-        any(abs(ns - stored_pct) < 1e-8),
-        info = paste0(
-          name,
-          " / ",
-          col,
-          " = ",
-          stored_pct,
-          "% coincides with a sample size in Anglade Table 1"
-        )
-      )
-    }
-  }
+  counts <- table(factor(provenance$evidence_class, levels = vocabulary))
+
+  testthat::expect_setequal(unique(provenance$evidence_class), vocabulary)
+  testthat::expect_identical(as.integer(counts), c(32L, 15L, 13L))
 })
 
-test_that("declared derivations reproduce the row they are derived from", {
-  b <- whep::whep_coef_table("bnf")
-  ledger <- .bnf_derivation_ledger()
-  for (i in seq_len(nrow(ledger))) {
-    testthat::expect_equal(
-      .bnf_stored(b, ledger$name_bnf[i], ledger$column[i]),
-      .bnf_stored(b, ledger$derived_from[i], ledger$column[i]),
-      info = paste0(ledger$name_bnf[i], " / ", ledger$column[i])
-    )
-  }
-  testthat::expect_match(
-    b$source[b$name_bnf == "Fodder, other"],
-    "green leguminous"
+test_that("source assertions are complete and reproduce reported values", {
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  source_rows <- provenance |>
+    dplyr::filter(evidence_class == "source_asserted")
+  required <- c(
+    "source_id",
+    "source_title",
+    "source_year",
+    "source_venue",
+    "source_doi",
+    "publication_locator",
+    "reported_value",
+    "reported_unit",
+    "transformation",
+    "verification_result",
+    "verification_rationale"
   )
+
+  testthat::expect_false(any(vapply(
+    source_rows[required],
+    function(x) any(.bnf_is_blank(x)),
+    logical(1)
+  )))
+  transformed <- dplyr::case_when(
+    source_rows$transformation == "reported percent / 100" ~
+      source_rows$reported_value / 100,
+    source_rows$transformation == "none" ~ source_rows$reported_value,
+    .default = NA_real_
+  )
+  testthat::expect_false(any(is.na(transformed)))
+  testthat::expect_equal(transformed, source_rows$stored_value)
+  testthat::expect_true(all(source_rows$verification_result == "matched"))
 })
 
-test_that("grain-legume NHI agrees with the nutrient-composition route", {
-  # An independent route to the same quantity: `bio_coefs` carries grain N and
-  # residue N per kg of product fresh matter from crop-composition literature,
-  # so grain N / (grain N + residue N) implies an N harvest index without
-  # using `bnf.csv` at all. The two routes are different literatures and are
-  # not expected to agree exactly, so this is a wide band, but the ratios
-  # observed span 0.81 to 1.19 while the faba-bean sample-size transcription
-  # that motivated this file sat at 2.31.
-  #
-  # This is the one test here that couples two coefficient tables: an edit to
-  # `bio_coefs`, or a new FAO item mapped in `names_bnf`, can break it with
-  # nothing wrong in `bnf.csv`. If that happens, re-derive the band and the
-  # two counts below rather than widening them reflexively.
-  #
-  # The seven `name_bnf` groups resolve to 14 `item_prod_code` rows, because
-  # `Other pulses` alone spans eight FAO items. Both counts are pinned below:
-  # a merge that collapsed or silently grew would otherwise leave the band
-  # check ranging over the wrong set, which is the fail-open shape this whole
-  # file exists to remove.
-  b <- whep::whep_coef_table("bnf")
-  bio <- whep::whep_coef_table("bio_coefs")
-  nb <- whep::whep_coef_table("names_bnf")
-  grain_rows <- c(
-    "Beans",
-    "Fava bean",
-    "Lentils",
-    "Pea",
-    "Other pulses",
-    "Groundnuts, with shell",
-    "Soyabeans"
+test_that("all 32 source assertions match independent transcriptions", {
+  provenance <- whep::whep_coef_table("bnf_provenance") |>
+    dplyr::filter(evidence_class == "source_asserted")
+  expected <- .bnf_source_values()
+
+  testthat::expect_equal(nrow(expected), 32)
+  testthat::expect_setequal(.bnf_cell_key(provenance), .bnf_cell_key(expected))
+  compared <- dplyr::inner_join(
+    expected,
+    provenance |>
+      dplyr::select(
+        name_bnf,
+        coefficient,
+        stored_value,
+        provenance_source = source_id
+      ),
+    by = c("name_bnf", "coefficient")
   )
-  m <- merge(
-    nb[, c("item_prod_code", "name_bnf")],
-    bio[, c(
-      "item_prod_code",
-      "product_dm_kgfm",
-      "residue_dm_kgfm",
-      "residue_kg_product_fm_kg",
-      "product_n_kgdm",
-      "residue_n_kgdm"
-    )],
-    by = "item_prod_code"
+  testthat::expect_equal(compared$stored_value, compared$expected)
+  testthat::expect_identical(compared$provenance_source, compared$source_id)
+})
+
+test_that("derivations are complete and recompute their stored values", {
+  bnf <- whep::whep_coef_table("bnf")
+  derived <- whep::whep_coef_table("bnf_provenance") |>
+    dplyr::filter(evidence_class == "derivation_asserted")
+  required <- c(
+    "derivation_parent",
+    "derivation_formula",
+    "verification_result",
+    "verification_rationale"
   )
-  m <- m[m$name_bnf %in% grain_rows, ]
-  testthat::expect_identical(nrow(m), 14L)
-  testthat::expect_identical(length(unique(m$name_bnf)), 7L)
-  grain_n <- m$product_n_kgdm * m$product_dm_kgfm
-  residue_n <- m$residue_n_kgdm *
-    m$residue_dm_kgfm *
-    m$residue_kg_product_fm_kg
-  implied <- grain_n / (grain_n + residue_n)
-  stored <- vapply(
-    m$name_bnf,
-    function(nm) .bnf_stored(b, nm, "n_harvest_index"),
-    numeric(1)
-  )
-  ratio <- implied / stored
+
+  testthat::expect_false(any(vapply(
+    derived[required],
+    function(x) any(.bnf_is_blank(x)),
+    logical(1)
+  )))
   testthat::expect_true(
-    all(!is.na(ratio) & ratio > 0.7 & ratio < 1.4),
-    info = paste(m$item_prod_code, m$name_bnf, round(ratio, 3), collapse = "; ")
+    all(derived$verification_result == "exact_derivation_match")
   )
-})
 
-test_that("leguminous share follows the stand definition", {
-  b <- whep::whep_coef_table("bnf")
-  pure <- c(
+  copied <- derived |>
+    dplyr::filter(source_id == "whep_bnf_row_copy")
+  parent_value <- purrr::map2_dbl(
+    copied$derivation_parent,
+    copied$coefficient,
+    function(parent, coefficient) .bnf_stored(bnf, parent, coefficient)
+  )
+  testthat::expect_equal(copied$stored_value, parent_value)
+  testthat::expect_true(all(
+    copied$derivation_formula == "stored_value = parent stored_value"
+  ))
+
+  defined <- derived |>
+    dplyr::filter(source_id == "whep_stand_definition")
+  pure_legumes <- c(
     "Alfalfa",
     "Beans",
     "Clover",
@@ -473,39 +332,234 @@ test_that("leguminous share follows the stand definition", {
     "Pea",
     "Soyabeans"
   )
-  non_legume <- c("Rice", "Sugarcane")
-  mixed <- c("Fodder, other", "Mixed swards", "Meadows", "Fallow", "Weeds")
-  testthat::expect_equal(
-    b$leguminous_share[match(pure, b$name_bnf)],
-    rep(1, length(pure))
+  non_legumes <- c("Rice", "Sugarcane")
+  expected <- ifelse(defined$name_bnf %in% pure_legumes, 1, 0)
+  testthat::expect_setequal(defined$name_bnf, c(pure_legumes, non_legumes))
+  testthat::expect_equal(defined$stored_value, expected)
+  testthat::expect_setequal(
+    unique(defined$derivation_formula),
+    c(
+      "pure legume crop => leguminous_share = 1",
+      "non-legume system => leguminous_share = 0"
+    )
   )
-  testthat::expect_equal(
-    b$leguminous_share[match(non_legume, b$name_bnf)],
-    rep(0, length(non_legume))
-  )
-  v <- b$leguminous_share[match(mixed, b$name_bnf)]
-  testthat::expect_true(all(v > 0 & v < 1))
 })
 
-test_that("the source ledgers account for every stored coefficient", {
-  # Coverage cannot rot silently: a new row, or a new coefficient on an
-  # existing row, fails here until it is either asserted against a source or
-  # declared unassertable with a reason.
-  b <- whep::whep_coef_table("bnf")
-  cells <- .bnf_stored_cells(b)
-  asserted <- .bnf_cell_key(.bnf_source_ledger())
-  derived <- .bnf_cell_key(.bnf_derivation_ledger())
-  declared <- .bnf_cell_key(.bnf_unasserted_ledger())
-  covered <- c(asserted, derived, declared)
+test_that("a mixed stand keeps a leguminous share strictly inside 0 and 1", {
+  # The stand definition pins pure legumes to 1 and non-legumes to 0. The
+  # remaining systems are mixtures by construction, so a value of exactly 0 or
+  # 1 would mean the mixture had silently collapsed to one of the two pure
+  # cases.
+  bnf <- whep::whep_coef_table("bnf")
+  mixed <- c("Fodder, other", "Mixed swards", "Meadows", "Fallow", "Weeds")
+  shares <- bnf$leguminous_share[match(mixed, bnf$name_bnf)]
 
-  testthat::expect_equal(anyDuplicated(covered), 0)
-  testthat::expect_setequal(.bnf_cell_key(cells), covered)
-  # Honest accounting of how much of the registry is source-backed. The
-  # partition above is what enforces coverage; `nrow(cells)` pins the
-  # registry's size so a new coefficient cannot arrive unnoticed. Update
-  # these deliberately, together with the ledgers.
-  testthat::expect_equal(nrow(cells), 60)
-  testthat::expect_equal(length(asserted), 18)
-  testthat::expect_equal(length(derived), 3)
-  testthat::expect_equal(length(declared), 39)
+  testthat::expect_false(any(is.na(shares)))
+  testthat::expect_true(all(shares > 0 & shares < 1))
+})
+
+test_that("no Anglade coefficient equals a sample size from its own row", {
+  # The failure mode this guards is a sample size transcribed into a value
+  # column. Every Anglade-cited fraction is a percentage in Table 1, so it
+  # must not coincide with any n reported for the same species.
+  bnf <- whep::whep_coef_table("bnf")
+  table1 <- .anglade_2015_table1()
+  species <- c(
+    Alfalfa = "Alfalfa",
+    Clover = "Clover",
+    `Fava bean` = "Faba bean",
+    Lentils = "Lentil",
+    Pea = "Pea"
+  )
+  n_columns <- grep("_n$", names(table1), value = TRUE)
+
+  purrr::iwalk(species, function(anglade_name, bnf_name) {
+    sizes <- table1[table1$species == anglade_name, n_columns] |>
+      unlist(use.names = FALSE)
+    sizes <- sizes[!is.na(sizes)]
+    purrr::walk(c("ndfa", "n_harvest_index"), function(coefficient) {
+      stored_percent <- .bnf_stored(bnf, bnf_name, coefficient) * 100
+      testthat::expect_false(
+        any(abs(sizes - stored_percent) < 1e-8),
+        info = paste0(
+          bnf_name,
+          " / ",
+          coefficient,
+          " = ",
+          stored_percent,
+          "% coincides with a sample size in Anglade Table 1"
+        )
+      )
+    })
+  })
+})
+
+test_that("unresolved cells contain no guessed source assertion", {
+  unresolved <- whep::whep_coef_table("bnf_provenance") |>
+    dplyr::filter(evidence_class == "genuinely_unresolved")
+  required <- c(
+    "source_id",
+    "source_identity_status",
+    "publication_locator",
+    "verification_result",
+    "verification_rationale",
+    "authority_caveat",
+    "next_resolution_condition"
+  )
+
+  testthat::expect_equal(nrow(unresolved), 13)
+  testthat::expect_false(any(vapply(
+    unresolved[required],
+    function(x) any(.bnf_is_blank(x)),
+    logical(1)
+  )))
+  testthat::expect_true(all(is.na(unresolved$reported_value)))
+  testthat::expect_true(all(.bnf_is_blank(unresolved$reported_unit)))
+  testthat::expect_true(all(.bnf_is_blank(unresolved$derivation_parent)))
+  testthat::expect_true(all(.bnf_is_blank(unresolved$derivation_formula)))
+  testthat::expect_true(all(unresolved$transformation == "none"))
+  testthat::expect_true(
+    all(unresolved$verification_result == "unresolved_without_guessing")
+  )
+})
+
+test_that("nitrogen harvest index is never dry-matter harvest index", {
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  nhi <- provenance |>
+    dplyr::filter(coefficient == "n_harvest_index")
+
+  testthat::expect_true(all(
+    nhi$denominator == "shoot N; fraction in harvested grain or product"
+  ))
+  testthat::expect_false(any(
+    nhi$source_id == "herridge_2008" &
+      nhi$evidence_class == "source_asserted"
+  ))
+  faba <- nhi |>
+    dplyr::filter(name_bnf == "Fava bean")
+  testthat::expect_equal(faba$stored_value, 0.74)
+  testthat::expect_equal(faba$reported_value, 74)
+  testthat::expect_false(faba$reported_value == 34)
+})
+
+test_that("Lassaletta authority is the corrected ERL supplement", {
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  lassaletta <- provenance |>
+    dplyr::filter(source_id == "lassaletta_2014_erl_s1")
+  expected_title <- paste(
+    "50 year trends in nitrogen use efficiency of world cropping systems:",
+    "the relationship between yield and nitrogen input to cropland"
+  )
+
+  testthat::expect_equal(nrow(lassaletta), 14)
+  testthat::expect_true(all(lassaletta$source_title == expected_title))
+  testthat::expect_true(all(
+    lassaletta$source_venue == "Environmental Research Letters 9:105011"
+  ))
+  testthat::expect_true(all(
+    lassaletta$source_doi == "10.1088/1748-9326/9/10/105011"
+  ))
+  testthat::expect_true(all(stringr::str_detect(
+    lassaletta$publication_locator,
+    "Supplementary Methods, PDF p\\. 5, Table S1-2"
+  )))
+  testthat::expect_true(all(stringr::str_detect(
+    lassaletta$source_context,
+    "Table S1-2 crop vectors; Table S1-3 adjacent non-symbiotic BNF"
+  )))
+  stale_authority <- lassaletta |>
+    dplyr::select(
+      source_title,
+      source_venue,
+      source_doi,
+      source_context,
+      publication_locator
+    ) |>
+    unlist(use.names = FALSE) |>
+    paste(collapse = "\n")
+  testthat::expect_false(stringr::str_detect(
+    stale_authority,
+    "Biogeosciences|Spain"
+  ))
+})
+
+test_that("provenance contains no local or ignored evidence paths", {
+  provenance <- whep::whep_coef_table("bnf_provenance")
+  text <- provenance |>
+    dplyr::select(where(is.character)) |>
+    unlist(use.names = FALSE) |>
+    paste(collapse = "\n")
+  forbidden <- paste(
+    "validation/cache",
+    "render/",
+    "ARTICULOS_DIR",
+    "[A-Za-z]:[/\\\\]",
+    "/home/",
+    "/Users/",
+    "Biogeosciences",
+    "Biogeochem",
+    sep = "|"
+  )
+
+  testthat::expect_false(stringr::str_detect(text, forbidden))
+})
+
+test_that("bnf.csv retains its T20 content identity", {
+  path <- system.file("extdata", "coefs", "bnf.csv", package = "whep")
+  raw <- readBin(path, what = "raw", n = file.info(path)$size)
+  has_crlf <- any(raw == as.raw(13))
+  expected <- if (has_crlf) {
+    "8DBB11204003D72EECDC29EB72E483D7"
+  } else {
+    "1D715A15F42EF9271820240256EB646D"
+  }
+  expected_size <- if (has_crlf) 1267 else 1249
+
+  testthat::expect_identical(file.info(path)$size, expected_size)
+  testthat::expect_identical(
+    toupper(unname(tools::md5sum(path))),
+    expected
+  )
+})
+
+test_that("grain-legume NHI agrees with the composition route", {
+  bnf <- whep::whep_coef_table("bnf")
+  bio <- whep::whep_coef_table("bio_coefs")
+  names_bnf <- whep::whep_coef_table("names_bnf")
+  grain_rows <- c(
+    "Beans",
+    "Fava bean",
+    "Lentils",
+    "Pea",
+    "Other pulses",
+    "Groundnuts, with shell",
+    "Soyabeans"
+  )
+  mapped <- merge(
+    names_bnf[, c("item_prod_code", "name_bnf")],
+    bio[, c(
+      "item_prod_code",
+      "product_dm_kgfm",
+      "residue_dm_kgfm",
+      "residue_kg_product_fm_kg",
+      "product_n_kgdm",
+      "residue_n_kgdm"
+    )],
+    by = "item_prod_code"
+  )
+  mapped <- mapped[mapped$name_bnf %in% grain_rows, ]
+  grain_n <- mapped$product_n_kgdm * mapped$product_dm_kgfm
+  residue_n <- mapped$residue_n_kgdm *
+    mapped$residue_dm_kgfm *
+    mapped$residue_kg_product_fm_kg
+  implied <- grain_n / (grain_n + residue_n)
+  stored <- vapply(
+    mapped$name_bnf,
+    function(name) .bnf_stored(bnf, name, "n_harvest_index"),
+    numeric(1)
+  )
+
+  testthat::expect_identical(nrow(mapped), 14L)
+  testthat::expect_identical(length(unique(mapped$name_bnf)), 7L)
+  testthat::expect_true(all(implied / stored > 0.7 & implied / stored < 1.4))
 })

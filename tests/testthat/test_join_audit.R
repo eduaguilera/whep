@@ -73,10 +73,15 @@ test_that("the enumerated baseline can only shrink", {
   # third test guards drops to a single redundant join. Read the two together --
   # this number alone would have called that change a regression.
   #
-  # 60 adds `.carbon_warn_fold`, which is not a new year-blind READ at all --
+  # 58 is the second fall: `.nbx_image_region` left too, because the deposited
+  # Schulte-Uebbing crosswalk carries IMAGE membership on the canonical cell
+  # key, so the gridded boundary no longer reaches IMAGE through a year-free
+  # country join at all.
+  #
+  # 59 adds `.carbon_warn_fold`, which is not a new year-blind READ at all --
   # both sides of it are the same already-year-filtered carbon support, and it
   # selects warning text rather than a value.
-  expect_lte(sum(baseline$n), 60L)
+  expect_lte(sum(baseline$n), 59L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

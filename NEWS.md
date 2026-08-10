@@ -132,6 +132,47 @@
     migration. The `R CMD check` NOTE count is unchanged either way, so the
     lines sit inside a NOTE the package already had.
 
+* **`build_carbon_inputs()` no longer attaches reporting polity columns to an
+  intermediate that discards them.** `build_soil_carbon_inputs()` produced a
+  5.0e7-row gridded table for a 40-year span, and adding the four reporting
+  polity columns to it cost +20.4 GB and 20 s -- two of them are character
+  columns. `.ci_cropland_class()` then collapsed that table 42-fold, to 1.2e6
+  rows, discarding all four, and `build_carbon_inputs()` re-added them to its own
+  output. The internal path now skips them and only the exported
+  `build_soil_carbon_inputs()` pays. Peak for a 40-year `build_carbon_inputs()`
+  goes from 37.8 GB to 25.4 GB, slightly faster (725 s vs 742 s), with output
+  `identical()` across all 5,275,974 rows and 12 columns (#624).
+
+* **BNF coefficients now ship with cell-level provenance (#497).** The long
+  `bnf_provenance` sidecar is readable with
+  `whep_coef_table("bnf_provenance")` and accounts for every one of the 60
+  non-missing numeric cells in `bnf.csv` exactly once: 32 are asserted against
+  a publication, 15 are explicit derivations, and 13 retain their existing
+  values with genuinely unresolved authority and no guessed source
+  attribution. It distinguishes nitrogen harvest index from Herridge's
+  dry-matter harvest index and identifies Lassaletta et al.
+  (2014) as the *Environmental Research Letters* 9:105011 Supplementary
+  Methods authority. **No published value changes:** `bnf.csv` is byte-
+  identical and BNF runtime outputs are unchanged. Two invariants that the
+  provenance rewrite would otherwise have dropped are kept: a mixed stand's
+  `leguminous_share` must stay strictly inside 0 and 1, and no Anglade-cited
+  coefficient may coincide with a sample size reported on its own Table 1 row.
+
+* **Breaking: `whep::biomass_coefs` no longer exposes five unused legacy
+  below-ground fields (#524).** `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`,
+  `Root_kgC_kgDM`, `Rhizodeposits_mass_kgC_kgDM`, and
+  `Rhizodeposits_N_kgN_kgRootN` have been physically removed. Modern
+  calculations use the item-keyed `bio_coefs` fields
+  `bg_biomass_dm_kg_ha`, `root_shoot_ratio`, `root_c_kgdm`,
+  `rhizodeposit_mass_c_kgdm`, and `rhizodeposit_n_kgn_krootn` under their
+  existing contract, respectively. The first two are fallbacks when
+  `ipcc_root_coefs$bg_ref_dm_t_ha` and `ipcc_root_coefs$rs_default`,
+  respectively, are unavailable; `rhizodeposit_mass_c_kgdm` is an integrity
+  and documentation component already included in `root_c_kgdm`, not a
+  separate calculation input. **No published number changes:** the removed
+  columns had no runtime consumer, both modern coefficient tables are
+  byte-identical, and representative NPP, BNF, SOC, and nitrogen-input outputs
+  are unchanged.
 * **`read_soil_hydraulic()` no longer holds three full-resolution HWSD rasters
   at once.** It classifies the 30-arcsec HWSD grid once per hydraulic property
   (`t_field`, `t_wilt`, `porosity`), each costing ~11 GB of transient raster for
@@ -163,6 +204,60 @@
   (362 s vs 365 s at five years). Output is identical: `identical()` holds
   across all 1,166,220 rows and 17 columns of a five-year build, row order
   included (#624).
+* **A grid cell now spends its critical-nitrogen allowance once, instead of
+  handing the whole allowance to every crop that shares the cell.**
+  `build_n_boundary_exceedance()` compared each crop's per-hectare pressure
+  against the cell's single critical value independently, so a cell with *n*
+  crops was measured against *n* copies of one allowance and the crop
+  exceedances did not add up to anything the source defines. The calculation is
+  now cell-first: every crop and polity contribution in a source cell is
+  aggregated, that one pressure is compared with that one allowance, and the
+  resulting cell allowance, signed margin and positive overshoot are only then
+  attributed back to crops — by input shares for `metric = "input"` and by
+  signed surplus-contribution shares for `metric = "surplus"` (which may be
+  negative or exceed one). **Published exceedance values move, and the two
+  metrics move differently.** For `metric = "input"`, where crop pressure
+  cannot be negative, the cell overshoot `max(sum(a) - c, 0)` is greater than
+  or equal to the old per-crop sum `sum(max(a - c, 0))` for every input, so
+  reported
+  overshoot rises (or is unchanged when one crop holds the cell, or when
+  neither form overshoots): on the package's two-crop fixture, two crops of
+  4 t N against a 5 t N allowance went from 0 to 3 t N. For
+  `metric = "surplus"` it can move either way, because a negative crop
+  contribution now offsets a positive one inside the cell instead of being
+  clipped to zero crop by crop. The global magnitude is not quantified here —
+  that needs the restricted archive and a full gridded surplus build, not
+  something CI can reach. The new `resolution = "cell"` grain returns the
+  undivided source-cell result, and the crop grains reconcile back to it
+  algebraically.
+* **The critical surface is pinned to the deposited rasters by checksum.**
+  `read_critical_n()` checks every raster a call actually reads — the selected
+  critical surface plus the three shared input layers — against
+  `inst/extdata/critical_n_source_manifest.csv` before parsing, on byte count,
+  MD5 *and* SHA-256, and aborts naming the file and the Zenodo record (6395016)
+  if any differs. The manifest pins all 27 files of the archive (3 input layers,
+  12 critical-input and 12 critical-surplus surfaces, all 27 checksums
+  distinct), so a partially substituted archive cannot go unnoticed on the path
+  that consumes it. The layer also carries the
+  deposited `source_area_ha` and `image_region` per cell, so IMAGE membership
+  and source land area now arrive on the canonical integer cell key from the
+  archive itself rather than through a year-free country-to-IMAGE join —
+  which is why that join leaves the territorial-join baseline (whep#669).
+* **Unsupported boundary modes hard-error rather than resolve to something
+  else.** Only the source-exact `allocation_scenario = "yield_gap"` is
+  implemented on the grid; `"no_increase"` and `"new_fixation"` abort. An
+  annual actual pressure requires an explicit `actual_year`, and
+  `critical_reference_year` must be `2010`, matching the fixed deposited
+  reference surface — the year is a stated selector, not an inferred one. Where
+  a cell's pressure denominator is exactly or near zero, the cell result is
+  kept whole and an explicit `cell_residual` record carries the unallocated
+  allowance, margin and overshoot; callers that require complete crop
+  attribution raise a typed undefined-attribution error instead of discarding
+  or inventing the residual. Country equal-per-capita allocation is unchanged
+  and separate, and dynamic critical values remain out of scope (whep#702).
+  Urban N stays provisionally inside WHEP actual pressure, and
+  manure-management boundary comparability and intensive-grass scope remain
+  recorded provenance rather than settled choices.
 
 * **Six more gridded builds now say when a cell-year names a polity that did
   not exist.** `build_water_balance()` and `get_soc_climate_drivers()` gained

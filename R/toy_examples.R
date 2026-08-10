@@ -878,22 +878,26 @@
     0.75, 0.75, 1L, 2555L, 2010L, 10, 3, 150
   )
   critical <- tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 50,
-    0.75, 0.25, 120,
-    0.25, 0.75, 40,
-    0.75, 0.75, 100
+    ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+    0.25, 0.25, 50, 100, 11L,
+    0.75, 0.25, 120, 100, 11L,
+    0.25, 0.75, 40, 100, 11L,
+    0.75, 0.75, 100, 100, 11L
   ) |>
     dplyr::mutate(
       critical_var = "critical_n_surplus",
-      critical_land_use = "all"
+      critical_land_use = "all",
+      critical_threshold = "mi",
+      critical_year = 2010L
     )
   build_n_boundary_exceedance(
     surplus = surplus,
     critical = critical,
     land_use = "all",
     resolution = "grid",
-    metric = "surplus"
+    metric = "surplus",
+    actual_year = 2010L,
+    critical_reference_year = 2010L
   )
 }
 
@@ -1077,15 +1081,17 @@
 # Critical nitrogen surplus (kg N/ha/yr) at the four balance cells.
 .sjos_n_critical_fixture <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 50,
-    0.75, 0.25, 120,
-    10.25, 5.25, 50,
-    10.75, 5.25, 100
+    ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+    0.25, 0.25, 50, 150, 11L,
+    0.75, 0.25, 300, 240, 11L,
+    10.25, 5.25, 200, 140, 20L,
+    10.75, 5.25, 300, 20, 20L
   ) |>
     dplyr::mutate(
       critical_var = "critical_n_surplus",
-      critical_land_use = "ara"
+      critical_land_use = "ara",
+      critical_threshold = "mi",
+      critical_year = 2010L
     )
 }
 
