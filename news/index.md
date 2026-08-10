@@ -2,6 +2,21 @@
 
 ## whep (development version)
 
+- **[`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  no longer grows its memory with the length of the span.** The
+  RothC/HSOC climate modifier is now reduced one year at a time.
+  Attaching soil cover crosses the monthly climate table with every
+  land-use class, which measures 0.452 GB per simulated year against
+  0.097 GB for the drivers themselves, and that intermediate used to be
+  held for the whole span. Measured peaks: a 40-year build went from 61
+  GB (OOM-killed before finishing) to 49.9 GB (completed), while a
+  20-year build is unchanged at ~51 GB – the fix removes the per-year
+  slope, not the fixed plateau. Runtime is unchanged (362 s vs 365 s at
+  five years). Output is identical:
+  [`identical()`](https://rdrr.io/r/base/identical.html) holds across
+  all 1,166,220 rows and 17 columns of a five-year build, row order
+  included ([\#624](https://github.com/eduaguilera/whep/issues/624)).
+
 - **Six more gridded builds now say when a cell-year names a polity that
   did not exist.**
   [`build_water_balance()`](https://eduaguilera.github.io/whep/reference/build_water_balance.md)
