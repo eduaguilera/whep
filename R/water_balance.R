@@ -64,6 +64,16 @@
 #'   given index denotes is a property of how the run was configured. Only the
 #'   consumptive-water and `cft_nir` terms are per-CFT, so this leaves the
 #'   water budget itself (AET, runoff, drainage) untouched.
+#' @param polity_validity What to do with a row whose `(area_code, year)`
+#'   resolves to a polity that did not exist in that year (the cell-polity
+#'   crosswalk has no year dimension, so an early-20th-century cell is labelled
+#'   with its present-day territory). `"keep"` (default) keeps every row, which
+#'   is the historical behaviour, and warns naming the rows, years and area
+#'   codes involved. `"flag"` keeps them and adds the per-row logical
+#'   `reporting_polity_out_of_span`, marking exactly which rows are stand-ins.
+#'   `"drop"` removes them. All three warn; only `"drop"` changes the numbers.
+#'   See [polity_coverage_gaps()], which reports the same rows for an
+#'   already-built table.
 #' @param data Optional named list of pre-loaded inputs to avoid NetCDF reads:
 #'   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`, `runoff`
 #'   and `seepage` (each `lon`, `lat`, `year`, `value`; annual-summed
@@ -86,7 +96,8 @@
 #'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 #'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
-#'   `year` and `area_code`. Both resolutions carry the polity columns below.
+#'   `year` and `area_code`. Both resolutions carry the polity columns below,
+#'   plus `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -94,21 +105,23 @@
 build_water_balance <- function(
   method = list(),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   bands = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   method <- .wb_resolve_method(method)
   if (isTRUE(example)) {
-    return(.wb_example(method, resolution))
+    return(.wb_example(method, resolution, polity_validity))
   }
   .wb_read_inputs(data, method, bands) |>
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
     .wb_finalise(method, resolution) |>
-    .add_reporting_polity_columns()
+    .wb_resolve_polity_validity(polity_validity)
 }
 
 #' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
@@ -159,6 +172,7 @@ build_water_balance <- function(
 #'   texture products from HWSD, both downloadable, so neither is pinned.
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year the inputs cover.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs, each falling back to
 #'   its reader when absent: `temp` (CRU `tmp`, `lon`, `lat`, `year`, `month`,
 #'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
@@ -187,7 +201,8 @@ build_water_balance <- function(
 #'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 #'   the monthly volumetric soil water content and its static field-capacity,
 #'   wilting-point and porosity references) and `method_water_input`, plus the
-#'   polity columns below.
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -195,11 +210,16 @@ build_water_balance <- function(
 get_soc_climate_drivers <- function(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_soc_climate_drivers())
+    return(.wb_resolve_polity_validity(
+      .example_soc_climate_drivers(),
+      polity_validity
+    ))
   }
   pin <- .socd_pin_hydrology(data, run_dir, years)
   swc <- .wb_swc_topsoil(data, run_dir, years, pin)
@@ -208,7 +228,7 @@ get_soc_climate_drivers <- function(
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
   .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
-    .add_reporting_polity_columns()
+    .wb_resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -507,6 +527,72 @@ get_soc_climate_drivers <- function(
   )
 }
 
+# Attach the reporting-polity columns, after reporting -- and optionally
+# removing -- the cell-years the crosswalk cannot honestly place in time.
+#
+# `data$cell_polity` is a present-day rasterization with NO year dimension
+# (whep#460, whep#579), while polity validity IS year-scoped. So a cell carrying
+# `area_code` 52 (Azerbaijan) is labelled that in 1901 as readily as in 2009,
+# and `.add_reporting_polity_columns()` then resolves 1901 to the nearest
+# period, `AZE-1991-2025`, a state that did not exist. That substitution is
+# already recorded as `mapping_status == "out_of_span"` inside
+# `.add_polity_columns_dt()`, but the column is dropped from published outputs,
+# so today it is silent. MEASURED on the deployed
+# `cell_polity_fraction.parquet` over the 1901-2009 LPJmL run: 1,948 of 19,838
+# (area_code, year) pairs, 21 of 182 area codes, 14,761 of 58,791 cells -- the
+# post-Soviet and post-Yugoslav successors plus South Sudan.
+#
+# The rows are not wrong about the water; the cells are real territory and the
+# physics is per cell. Only the polity NAME is anachronistic. Dropping them
+# therefore deletes valid hydrology, which is why `"keep"` stays the default.
+.wb_resolve_polity_validity <- function(table, polity_validity) {
+  gaps <- .wb_polity_gaps(table)
+  .wb_warn_polity_gaps(table, gaps, polity_validity)
+  if (polity_validity == "drop" && nrow(gaps) > 0L) {
+    table <- dplyr::anti_join(table, gaps, by = c("area_code", "year"))
+  }
+  status <- if (polity_validity == "flag") "flag" else NULL
+  .add_reporting_polity_columns(table, mapping_status = status)
+}
+
+# The (area_code, year) pairs of `table` whose polity is a nearest-period
+# stand-in. Resolved on the DISTINCT pairs, not the rows: a gridded water
+# balance is millions of rows over at most a few thousand pairs, and
+# `polity_coverage_gaps()` resolves whatever it is handed.
+.wb_polity_gaps <- function(table) {
+  if (!all(c("area_code", "year") %in% names(table))) {
+    return(tibble::tibble(area_code = integer(0), year = integer(0)))
+  }
+  dplyr::distinct(table, area_code, year) |>
+    polity_coverage_gaps() |>
+    dplyr::select(area_code, year)
+}
+
+# Name what the stand-ins are, in the style of .wb_warn_uncovered_cells(). The
+# message says whether the rows were kept, flagged or dropped, so a log line is
+# self-explanatory about which of the three ran.
+.wb_warn_polity_gaps <- function(table, gaps, polity_validity) {
+  if (nrow(gaps) == 0L) {
+    return(invisible(NULL))
+  }
+  n_rows <- nrow(dplyr::semi_join(table, gaps, by = c("area_code", "year")))
+  codes <- sort(unique(gaps$area_code))
+  fate <- c(
+    keep = "kept as-is",
+    flag = "kept and flagged in reporting_polity_out_of_span",
+    drop = "dropped"
+  )[[polity_validity]]
+  cli::cli_warn(c(
+    "!" = "{n_rows} row{?s} over {length(codes)} area code{?s} resolve to a
+      polity that did not exist in that row's year (years
+      {min(gaps$year)}-{max(gaps$year)}); they are {fate}.",
+    i = "The cell-polity crosswalk has no year dimension, so an early cell
+      carries its present-day territory. Area codes: {codes}.",
+    i = "{.fn polity_coverage_gaps} names the polity each one landed on;
+      {.code polity_validity = \"drop\"} removes them."
+  ))
+}
+
 # Attach area_code, polity_frac and cell_area_ha from the cell-polity crosswalk.
 .wb_attach_polity <- function(terms, data) {
   crosswalk <- data$cell_polity
@@ -664,7 +750,7 @@ get_soc_climate_drivers <- function(
 # method is chosen (keeping the 4-term budget closed exactly), re-stamp
 # method_water, then aggregate to polity if requested. The fixture carries the
 # cft_native blue/green split, so the realized bg method is cft_native.
-.wb_example <- function(method, resolution) {
+.wb_example <- function(method, resolution, polity_validity = "keep") {
   grid <- .example_water_balance()
   if (method$drainage == "residual") {
     grid <- dplyr::mutate(
@@ -684,7 +770,7 @@ get_soc_climate_drivers <- function(
   } else {
     .wb_aggregate_polity(grid)
   }
-  .add_reporting_polity_columns(out)
+  .wb_resolve_polity_validity(out, polity_validity)
 }
 
 # Topsoil soil-water saturation per cell-month, from data$swc, the pinned

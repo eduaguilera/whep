@@ -40,6 +40,9 @@
 #'   - `area_key`: one of `"grid"` (default) or `"polity_area"`,
 #'     forwarded to both engines. See [build_gridded_landuse()]'s
 #'     *Which area code the output is keyed on*.
+#'   - `country_grid`: which cell-to-polity crosswalk the engines
+#'     allocate into, `"centroid"` (default) or `"fraction"`. See
+#'     *Which cell-to-polity crosswalk*.
 #' @param paths Named list of filesystem paths. Recognised entries:
 #'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
 #'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
@@ -83,6 +86,26 @@
 #'     manure-intensity weighting if present).
 #'   \item `livestock_mapping.csv` from the installed package.
 #' }
+#'
+#' @section Which cell-to-polity crosswalk:
+#' The producer builds two crosswalks from the same polygons.
+#' `"centroid"` is the deployed `spatialize-country-grid` pin: one
+#' `area_code` per 0.5-degree cell, winner-take-all at a border, no share
+#' column, so a whole border cell goes to a single polity. `"fraction"` is
+#' `cell_polity_fraction.parquet`, which splits each border cell by
+#' fractional coverage; the engines already read its `polity_frac` as
+#' `cell_area_frac`, so no engine change is involved.
+#'
+#' They are alternatives, never a fallback, and `"centroid"` remains the
+#' default because the two are not interchangeable as deployed. The
+#' fractional parquet was rasterized through an older `iso3c -> area_code`
+#' lookup: it keys Ethiopia `62` and Sudan `206` where the centroid grid and
+#' today's `regions.csv` use `238` and `276`, so substituting it drops both
+#' countries entirely (whep#461). It also cannot rescue a polity smaller than
+#' a cell, because its producer restricts it to the cells the centroid grid
+#' already has. Whichever is selected, `build_gridded_landuse()` and
+#' `build_gridded_livestock()` now warn once per call naming every reporting
+#' area the chosen grid has no cell for and the national total at stake.
 #'
 #' @section Outputs written to `out_dir`:
 #' \itemize{
@@ -265,7 +288,7 @@ run_spatialize <- function(
   input_dir,
   out_dir
 ) {
-  ls_inputs <- .load_livestock_inputs(input_dir)
+  ls_inputs <- .load_livestock_inputs(input_dir, config)
   if (is.null(resolved_years)) {
     resolved_years <- .resolve_years(
       years,
@@ -301,14 +324,16 @@ run_spatialize <- function(
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
       expansion_threshold = 100L,
-      area_key = "grid"
+      area_key = "grid",
+      country_grid = "centroid"
     ),
     whep = list(
       use_type_constraint = TRUE,
       aggregate_to_cft = TRUE,
       max_iterations = 1000L,
       expansion_threshold = 100L,
-      area_key = "grid"
+      area_key = "grid",
+      country_grid = "centroid"
     )
   )
 }
@@ -320,7 +345,8 @@ run_spatialize <- function(
     "max_iterations",
     "expansion_threshold",
     "cft_target",
-    "area_key"
+    "area_key",
+    "country_grid"
   )
 }
 
@@ -500,11 +526,7 @@ run_spatialize <- function(
     "gridded_cropland.parquet",
     .spatial_input_aliases()[["gridded_cropland"]]
   )
-  country_grid <- .read_spatial_input(
-    input_dir,
-    "country_grid.parquet",
-    .spatial_input_aliases()[["country_grid"]]
-  )
+  country_grid <- .load_country_grid(input_dir, config$country_grid)
 
   type_cropland <- NULL
   type_mapping <- NULL
@@ -551,7 +573,7 @@ run_spatialize <- function(
   readr::read_csv(path, show_col_types = FALSE)
 }
 
-.load_livestock_inputs <- function(input_dir) {
+.load_livestock_inputs <- function(input_dir, config = list()) {
   livestock_data <- .read_spatial_input(
     input_dir,
     "livestock_country_data.parquet",
@@ -567,11 +589,7 @@ run_spatialize <- function(
     "gridded_cropland.parquet",
     .spatial_input_aliases()[["gridded_cropland"]]
   )
-  country_grid <- .read_spatial_input(
-    input_dir,
-    "country_grid.parquet",
-    .spatial_input_aliases()[["country_grid"]]
-  )
+  country_grid <- .load_country_grid(input_dir, config$country_grid)
 
   species_proxy <- .read_livestock_mapping()
 
@@ -590,6 +608,68 @@ run_spatialize <- function(
     species_proxy = species_proxy,
     manure_pattern = manure_pattern
   )
+}
+
+# Which cell-to-polity crosswalk the engines allocate into.
+#
+# `"centroid"` is the deployed `spatialize-country-grid` pin: one `area_code`
+# per 0.5-degree cell, winner-take-all at a border, no share column, so
+# `.normalize_country_grid()` gives the whole cell to that one polity.
+# `"fraction"` is the fractional-coverage crosswalk the same producer builds
+# in the same pass (`build_cell_polity_fraction()`), whose `polity_frac`
+# `.normalize_country_grid()` already reads as `cell_area_frac`.
+#
+# The two are alternatives, never a fallback, and `"centroid"` stays the
+# default because they are NOT interchangeable in the field they share: the
+# deployed fractional parquet is a different vintage of the `iso3c ->
+# area_code` lookup, and substituting it deletes every reporting area whose
+# code it does not carry (whep#461). `.warn_grid_missing_reporters()` is what
+# makes that visible before it reaches an output.
+.load_country_grid <- function(input_dir, source = NULL) {
+  if (is.null(source)) {
+    source <- "centroid"
+  }
+  source <- rlang::arg_match0(
+    source,
+    c("centroid", "fraction"),
+    arg_nm = "country_grid"
+  )
+  if (source == "centroid") {
+    return(.read_spatial_input(
+      input_dir,
+      "country_grid.parquet",
+      .spatial_input_aliases()[["country_grid"]]
+    ))
+  }
+  .read_fraction_country_grid(input_dir)
+}
+
+# The fractional crosswalk has no pin: it is the parquet `build_cell_polity()`
+# reads, so it is resolved the same way. An `input_dir` that does not hold it
+# aborts rather than falling back to `WHEP_POLITY_FRACTION_PATH`: a run asked
+# for one directory's inputs must not silently mix in another's. With no
+# `input_dir` the env var is the only source, and `build_cell_polity()` aborts
+# with an instruction when it is unset.
+.read_fraction_country_grid <- function(input_dir) {
+  path <- NULL
+  if (!is.null(input_dir)) {
+    path <- file.path(input_dir, "cell_polity_fraction.parquet")
+    if (!file.exists(path)) {
+      cli::cli_abort(c(
+        "Missing required spatialization input in {.path {input_dir}}:",
+        "x" = "{.file cell_polity_fraction.parquet}.",
+        "i" = "It is only needed for
+           {.code overrides = list(country_grid = \"fraction\")}."
+      ))
+    }
+  }
+  grid <- build_cell_polity(polity_fraction_path = path) |>
+    dplyr::select(lon, lat, area_code, polity_frac)
+  cli::cli_alert_info(
+    "country_grid: fractional crosswalk, {nrow(grid)} compartment{?s} over \\
+     {dplyr::n_distinct(paste(grid$lon, grid$lat))} cell{?s}"
+  )
+  grid
 }
 
 .spatial_input_aliases <- function() {

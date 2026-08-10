@@ -59,6 +59,34 @@ polity_area_crosswalk
 Year-aware bridge from numeric reporting \code{area_code} values used by
 FAOSTAT/FABIO-derived WHEP data to periodized WHEP \code{polity_code} values.
 }
+\section{Keying on \verb{(area_code, year)} is keying on the polity}{
+
+This is a \strong{contract}, asserted by the test suite over the full reporting
+era, not an accident of the current snapshot: every \verb{(area_code, year)} that
+resolves at all resolves to exactly \strong{one} \code{polity_code}, over 17,184
+resolving pairs and 257 polities. A join that
+carries both columns is therefore already polity-correct, whether or not it
+names a polity, and the territorial identity is recoverable from the numeric
+code rather than lost by it.
+
+The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
+\code{ANG-1905-1975} records no successor upstream and so is widened by a year
+into \code{AGO-1975-2025}'s first year. Resolution still returns \code{AGO-1975-2025}
+there, but by row order rather than by the data. See #683.
+}
+
+\section{\code{polity_area_code} is a bucket, and does not carry the contract}{
+
+\code{polity_area_code} is the key rows are \strong{aggregated on} for the matrix
+workflows, and several \code{area_code} values can share one. Where a bucket has
+one member, or its members agree, \verb{(polity_area_code, year)} recovers the
+polity too. Over 1961-2025 exactly one bucket does not: \strong{206}, which holds
+Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
+polities in all 65 reported years. See #414. To say which territory a row
+belongs to, read \code{reporting_polity_code}, or resolve through
+\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket.
+}
+
 \section{Confidence is the pair, not \code{mapping_status} alone}{
 
 \code{"matched"} covers outcomes of very different confidence -- a curated hit in

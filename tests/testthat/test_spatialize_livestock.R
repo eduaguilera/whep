@@ -530,15 +530,17 @@ test_that("country with totals but no proxy cell warns and keeps others", {
     2000L,         3L,       "cattle",   7000
   )
 
-  expect_warning(
+  warnings <- testthat::capture_warnings(
     result <- build_gridded_livestock(
       ld,
       gridded_pasture,
       gridded_cropland,
       country_grid
-    ),
-    "no proxy grid cell"
+    )
   )
+  expect_match(warnings, "no proxy grid cell", all = FALSE)
+  # The grid has no cell for area 3 at all, so the per-call guard fires too.
+  expect_match(warnings, "no cell in", all = FALSE)
 
   # Country 1 is fully allocated; country 3 (no cell) is not silently mixed in
   expect_equal(sum(result$heads), 10000, tolerance = 1e-6)
@@ -556,14 +558,19 @@ test_that("no-proxy-cell warning survives several area codes", {
     2000L,         4L,       "cattle",   2000
   )
 
-  expect_warning(
+  warnings <- testthat::capture_warnings(
     result <- build_gridded_livestock(
       ld,
       gridded_pasture,
       gridded_cropland,
       country_grid
-    ),
-    "2 area_codes"
+    )
+  )
+  expect_match(
+    warnings,
+    "no proxy grid cell[\\s\\S]*2 area_codes",
+    all = FALSE,
+    perl = TRUE
   )
 
   expect_equal(sum(result$heads), 10000, tolerance = 1e-6)
@@ -721,4 +728,42 @@ test_that("build_gridded_livestock rejects an unknown area_key", {
     ),
     class = "rlang_error"
   )
+})
+
+# -- Reporting areas the grid cannot represent at all (whep#461) ---------
+#
+# `.warn_unallocated_livestock()` fires per species per year, so a country the
+# grid has no cell for at all is one more entry in a list that is already
+# long. Substituting a crosswalk keyed on a different reporting-code vintage
+# deletes such a country outright; report that once, on its own, with the
+# heads at stake.
+test_that("a re-keyed grid names the countries it deletes, with heads", {
+  # One reporting area per cell, so the explicit share is 1: this fixture is
+  # about the codes the grid carries, not about splitting a cell.
+  retired_grid <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1,
+    1.25, 50.25, 62L, 1
+  )
+
+  warnings <- testthat::capture_warnings(
+    result <- whep::build_gridded_livestock(
+      livestock_data,
+      gridded_pasture,
+      gridded_cropland,
+      retired_grid,
+      years = 2000L
+    )
+  )
+
+  expect_match(warnings, "no cell in .*country_grid.* at all", all = FALSE)
+  expect_match(warnings, "11000 head", all = FALSE)
+  expect_false(2L %in% result$area_code)
+})
+
+test_that("a grid holding every country raises no missing-reporter warning", {
+  fn <- whep:::.warn_grid_missing_reporters
+
+  expect_no_warning(fn(livestock_data, country_grid, "heads", "head"))
 })

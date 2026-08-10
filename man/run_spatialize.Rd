@@ -44,6 +44,9 @@ landuse engine.
 \item \code{area_key}: one of \code{"grid"} (default) or \code{"polity_area"},
 forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s
 \emph{Which area code the output is keyed on}.
+\item \code{country_grid}: which cell-to-polity crosswalk the engines
+allocate into, \code{"centroid"} (default) or \code{"fraction"}. See
+\emph{Which cell-to-polity crosswalk}.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
@@ -108,6 +111,28 @@ Livestock (\code{components} contains \code{"livestock"}):
 manure-intensity weighting if present).
 \item \code{livestock_mapping.csv} from the installed package.
 }
+}
+
+\section{Which cell-to-polity crosswalk}{
+
+The producer builds two crosswalks from the same polygons.
+\code{"centroid"} is the deployed \code{spatialize-country-grid} pin: one
+\code{area_code} per 0.5-degree cell, winner-take-all at a border, no share
+column, so a whole border cell goes to a single polity. \code{"fraction"} is
+\code{cell_polity_fraction.parquet}, which splits each border cell by
+fractional coverage; the engines already read its \code{polity_frac} as
+\code{cell_area_frac}, so no engine change is involved.
+
+They are alternatives, never a fallback, and \code{"centroid"} remains the
+default because the two are not interchangeable as deployed. The
+fractional parquet was rasterized through an older \code{iso3c -> area_code}
+lookup: it keys Ethiopia \code{62} and Sudan \code{206} where the centroid grid and
+today's \code{regions.csv} use \code{238} and \code{276}, so substituting it drops both
+countries entirely (whep#461). It also cannot rescue a polity smaller than
+a cell, because its producer restricts it to the cells the centroid grid
+already has. Whichever is selected, \code{build_gridded_landuse()} and
+\code{build_gridded_livestock()} now warn once per call naming every reporting
+area the chosen grid has no cell for and the national total at stake.
 }
 
 \section{Outputs written to \code{out_dir}}{

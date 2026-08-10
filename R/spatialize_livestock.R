@@ -211,6 +211,13 @@ build_gridded_livestock <- function(
     gridded_cropland <- filtered$gridded_cropland
   }
 
+  .warn_grid_missing_reporters(
+    livestock_data,
+    country_grid,
+    "heads",
+    "head"
+  )
+
   if (is.null(species_proxy)) {
     species_proxy <- .default_species_proxy()
   }

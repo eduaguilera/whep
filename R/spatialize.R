@@ -227,6 +227,13 @@ build_gridded_landuse <- function(
     type_cropland <- filtered$type_cropland
   }
 
+  .warn_grid_missing_reporters(
+    country_areas,
+    country_grid,
+    "harvested_area_ha",
+    "ha of harvested area"
+  )
+
   # Build type lookup: item_prod_code -> luh2_type
   type_lookup <- NULL
   if (!is.null(type_cropland) && !is.null(type_mapping)) {
