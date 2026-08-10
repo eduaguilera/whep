@@ -110,6 +110,16 @@
     "GLEAM dressing fractions, one vintage.",
     ".fold_bucket_labels", "left_join", "bucket_polity_code, polity_code", 1L,
     "identity_lookup", "Polity type keyed on the polity code.",
+    ".handed_over_polity_codes", "inner_join", "predecessor, polity_code", 1L,
+    "identity_lookup",
+    "Succession, from `polities` to itself. The key IS the year-scoped polity
+     period -- `ANG-1905-1975` carries its own years -- and the join exists to
+     READ a year off it: whether the successor begins where the predecessor
+     ends. Adding a `year` would be adding a year to a relation between two
+     periods, which has none. This is the one row that RAISED the cap (57 ->
+     58 -> 59), and it does so for a join that makes the resolver more
+     year-aware, not less: it is what stops `.polity_join_end_year()` widening
+     colonial Angola into 1975, the year `AGO-1975-2025` starts (whep#683).",
     ".gn_grass_area", "inner_join", "lon, lat, area_code", 1L, "time_invariant",
     "The country grid is one polity assignment per cell; the land-use side
      carries the year and keeps it.",
@@ -139,8 +149,11 @@
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
     "identity_lookup", "Attaches the one label the code carries.",
-    ".read_fodder_euadb", "left_join", "polity_code", 1L, "identity_lookup",
-    "Keyed on the polity itself.",
+    ".read_fodder_euadb", "left_join", "legacy_polity_prefix, area_iso3c", 1L,
+    "identity_lookup",
+    "ISO3 -> bucket bridge. It read as a polity join until whep#687 renamed
+     `regions_full$polity_code`, which was never a polity code but the vendored
+     ISO3-like stem; the key now names both vocabularies it actually bridges.",
     ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
     ".read_luh2_cft", "merge", "iso3c", 1L, "identity_lookup",
@@ -208,6 +221,9 @@
     "polity_area_code",
     "polity_code",
     "reporting_polity_code",
+    # Not a polity code: `regions_full`'s vendored ISO3-like stem (whep#687).
+    # Listed so renaming a column cannot be a way out of the audit.
+    "legacy_polity_prefix",
     "grid_area_code",
     "iso3",
     "iso3c",

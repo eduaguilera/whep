@@ -216,14 +216,17 @@ build_energy_co2_extension <- function(
 # as least-developed, so this file asserts a classification for a country the
 # table it joins against cannot represent.
 #
-# whep#415 lists Bermuda, Guam and Palau alongside those two. They are no longer
-# named here because the crosswalk now folds all three into FABIO bucket 999, so
-# they are no longer self-reporting. MEASURED on the real
-# `get_primary_production()` output (6,170,595 rows, 194 distinct reporting
-# areas): area codes 17, 88 and 180 carry ZERO rows, so this code path cannot
-# reach them individually at all -- bucket 999 carries their production, and it
-# has no GLEAM row either. That loss is whep#492 and is reported by size in
-# `.report_unpriced_meat()`; whether the three should be unfolded is whep#419.
+# whep#415 lists Bermuda, Guam and Palau alongside those two, and they are still
+# not named here -- but the REASON changed with whep#628 and the note that used
+# to stand here (that bucket 999 carries their production) is no longer true.
+# Since the Rest-of-World fold was lifted they DO report under their own area
+# codes: `.energy_self_reporting_gaps()` now contains all three. What keeps them
+# out is the `polity_type` filter below. `.unfold_rest_of_world()` promotes
+# `polity_area_code` only, so their polity is still the ROW aggregate, and the
+# crosswalk gives that polity `continent = "World"`, which is not in
+# `.energy_scheme_continents()` -- so `unclassified = "polity_region"` could not
+# group them even if the warning named them. Giving a promoted Rest-of-World
+# member a polity and a continent of its own is a crosswalk question, whep#646.
 #
 # The source table is not edited: it is parsed from the GLEAM Excel workbook, so
 # adding rows would make this package's copy diverge from the published source
@@ -231,18 +234,11 @@ build_energy_co2_extension <- function(
 # grouping consumer-side, from the polity crosswalk, and the default still only
 # warns.
 .areas_gleam_cannot_group <- function() {
-  # `area_code == polity_area_code` keeps the areas that report as themselves,
-  # dropping those aggregated into a FABIO bucket under another code.
-  polity_area_crosswalk |>
-    tibble::as_tibble() |>
+  .energy_self_reporting_gaps() |>
     dplyr::filter(
-      !is.na(.data$area_code),
-      !is.na(.data$area_iso3c),
-      .data$area_code == .data$polity_area_code,
       .data$polity_type != "aggregate",
       !is.na(.data$polity_end_year),
-      .data$polity_end_year >= 2020,
-      !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
+      .data$polity_end_year >= 2020
     ) |>
     dplyr::distinct(
       .data$area_code,
@@ -250,6 +246,42 @@ build_energy_co2_extension <- function(
       .data$area_iso3c,
       .data$polity_area_code,
       .data$continent
+    )
+}
+
+# The crosswalk AS THE REST OF THE PIPELINE SEES IT.
+#
+# `.polity_crosswalk()` is the one place `.unfold_rest_of_world()` is applied
+# (`R/polities.R`), so reading the shipped `polity_area_crosswalk` object here
+# would give this file a fold state nothing else has used since whep#628 made
+# `whep.unfold_rest_of_world = "all"` the default. That matters precisely
+# because the gate below is `area_code == polity_area_code`, which is the one
+# column the unfold moves: on the shipped table every Rest-of-World member still
+# carries 999 and so never counts as reporting as itself. See whep#646.
+#
+# `as.data.frame()` before `as_tibble()` drops the data.table self-reference
+# `.polity_crosswalk()` returns, which would otherwise ride along on every frame
+# derived from it.
+.energy_crosswalk <- function() {
+  .polity_crosswalk() |>
+    as.data.frame() |>
+    tibble::as_tibble()
+}
+
+# The reporting areas that report as THEMSELVES and have no row in
+# `gleam_geographic_hierarchy`. Both the live gap above and the dissolved
+# entities further down are filters on this set, and each used to spell the gate
+# out separately against a different read of the crosswalk.
+#
+# `area_code == polity_area_code` keeps the areas that report as themselves,
+# dropping those aggregated into a FABIO bucket under another code.
+.energy_self_reporting_gaps <- function() {
+  .energy_crosswalk() |>
+    dplyr::filter(
+      !is.na(.data$area_code),
+      !is.na(.data$area_iso3c),
+      .data$area_code == .data$polity_area_code,
+      !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
     )
 }
 
@@ -405,17 +437,13 @@ build_energy_co2_extension <- function(
 # separates them from the live omissions (Nauru, Tuvalu) and from the aggregate
 # buckets 901-906 and 999, whose periods all run to the open end. Derived rather
 # than listed so a crosswalk revision cannot leave a hardcoded list behind.
+#
+# `open_end` is read off the same unfolded crosswalk the gate uses, so the two
+# cannot come from tables in different fold states (whep#646).
 .energy_dissolved_areas <- function() {
-  crosswalk <- tibble::as_tibble(polity_area_crosswalk)
-  open_end <- max(crosswalk$polity_end_year, na.rm = TRUE)
-  crosswalk |>
-    dplyr::filter(
-      !is.na(.data$area_code),
-      !is.na(.data$area_iso3c),
-      !is.na(.data$polity_end_year),
-      .data$area_code == .data$polity_area_code,
-      !.data$area_iso3c %in% gleam_geographic_hierarchy$iso3
-    ) |>
+  open_end <- max(.energy_crosswalk()$polity_end_year, na.rm = TRUE)
+  .energy_self_reporting_gaps() |>
+    dplyr::filter(!is.na(.data$polity_end_year)) |>
     dplyr::summarise(
       last_year = max(.data$polity_end_year),
       .by = c(
@@ -834,9 +862,12 @@ build_energy_co2_extension <- function(
 # reporting area, constant across the polity periods sharing an `area_code`
 # (checked: one distinct value for each of the 265 mapped codes), so this needs
 # no tie-breaking between those periods.
+#
+# Neither column is touched by the Rest-of-World unfold, so this reads the same
+# either way; it goes through `.energy_crosswalk()` anyway so that no helper in
+# this file has its own private idea of what the crosswalk is (whep#646).
 .energy_area_iso3 <- function() {
-  polity_area_crosswalk |>
-    tibble::as_tibble() |>
+  .energy_crosswalk() |>
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$area_iso3c)) |>
     dplyr::distinct(area_code = .data$area_code, iso3 = .data$area_iso3c)
 }

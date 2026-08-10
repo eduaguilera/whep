@@ -536,8 +536,11 @@
 #' @format
 #' A tibble where each row corresponds to one polity (country or territory).
 #' It contains the following columns:
-#' - `polity_code`: Legacy current polity prefix, usually ISO 3166-1 alpha-3
-#'   (e.g., `"AFG"`, `"ALB"`).
+#' - `legacy_polity_prefix`: Legacy current polity prefix, usually ISO 3166-1
+#'   alpha-3 (e.g., `"AFG"`, `"ALB"`). **Not a [polities] code** and not a join
+#'   key to any polity table: it was called `polity_code` until whep#687, where
+#'   the name promised an identity none of its values holds. Read
+#'   `reporting_polity_code` for the polity.
 #' - `polity_name`: Current polity, country, or territory name.
 #' - `V1`: Internal row index from the source table.
 #' - `code`: Numeric FAOSTAT country code.
@@ -548,7 +551,7 @@
 #' - `reporting_polity_has_geometry`: Logical flag indicating whether the
 #'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
-#'   `polity_code` or differ for aggregates).
+#'   `legacy_polity_prefix` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
 #' - `EU27`: Logical flag; `TRUE` if the polity is a member of the EU27.
 #' - `name`: Country name used in other external databases.
@@ -636,8 +639,12 @@
 #' A tibble where each row corresponds to one polity or aggregate region. It
 #' contains the following columns (same definitions as `polities_cats`,
 #' minus the five trailing `0...36`–`0...40` artefact columns):
-#' - `polity_code`: Legacy current polity prefix. This is kept for
-#'   compatibility with older code that expected ISO3-like values.
+#' - `legacy_polity_prefix`: Legacy current polity prefix, kept for
+#'   compatibility with older code that expected ISO3-like values. **Not a
+#'   [polities] code**: it was called `polity_code` until whep#687, where the
+#'   name promised an identity none of its 271 non-`NA` values holds, so a join
+#'   to [polities] or [polity_area_crosswalk] on it returned nothing. Read
+#'   `reporting_polity_code` for the polity.
 #' - `polity_name`: Current polity, country, territory, or aggregate name.
 #' - `V1`: Internal row index.
 #' - `code`: Numeric FAOSTAT country/region code.

@@ -886,7 +886,52 @@ parse_geographic_hierarchy <- function(raw) {
     dplyr::mutate(
       eu27 = as.integer(eu27),
       oecd = as.integer(oecd)
+    ) |>
+    add_present_day_polity()
+}
+
+# The present-day polity of each country GLEAM lists (whep#688).
+#
+# The table is GLEAM's registry of the countries that exist today -- it carries
+# South Sudan, independent since 2011, and no dissolved entity at all -- so
+# `polity_identity_conventions()` types it `present_day_polity`, the same
+# reading and the same route as `regions_full`. Without the column every
+# consumer resolved a polity ad hoc and joined on the bare `iso3`, which is
+# year-less: 38 of the 204 iso3 values name a DIFFERENT polity at 1961 than at
+# 2010, so an unyeared join was silently picking one of them.
+#
+# `whep:::.present_day_polity_year()` is the year "today" means for a label,
+# derived from the shipped `polities` snapshot; the register's `resolver`
+# column names this call and `test_territorial_identity.R` recomputes it, so
+# this table cannot drift from the resolver without the suite failing.
+#
+# Three of the 204 resolve to nothing and keep NA rather than being dropped or
+# guessed at: ATF (French Southern and Antarctic Territories), SGS (South
+# Georgia and the South Sandwich Islands) and WLF (Wallis and Futuna) have no
+# upstream polity at all -- they sit in whep-polities' own
+# `registry_unmapped.csv` as "registry area with no polity family". Proposing
+# one is upstream's call (whep-polities#187), not this script's.
+add_present_day_polity <- function(hierarchy) {
+  if (!requireNamespace("whep", quietly = TRUE)) {
+    stop(
+      "whep must be loaded (devtools::load_all()) to resolve polity codes.",
+      call. = FALSE
     )
+  }
+  codes <- whep::resolve_polity_label(
+    hierarchy$iso3,
+    year = whep:::.present_day_polity_year()
+  )
+  # `polities` is an sf data frame and sf is only suggested, so the two
+  # attribute columns are taken by name rather than through `st_drop_geometry`.
+  names <- tibble::tibble(
+    reporting_polity_code = whep::polities$polity_code,
+    reporting_polity_name = whep::polities$polity_name
+  ) |>
+    dplyr::distinct()
+  hierarchy |>
+    dplyr::mutate(reporting_polity_code = codes) |>
+    dplyr::left_join(names, by = "reporting_polity_code")
 }
 
 # GLEAM PDF Tables ----

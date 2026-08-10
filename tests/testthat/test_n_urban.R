@@ -224,3 +224,60 @@ testthat::test_that("build_urban_n example fixture is schema-complete", {
   )
   pointblank::expect_col_vals_gte(out, "urban_n_t", 0)
 })
+
+# ---- polity_validity (#675) -------------------------------------------
+
+# Area 277 (South Sudan) exists only from 2011: the 2000 row of this cell
+# names a state that did not exist that year.
+.urban_out_of_span_data <- function() {
+  list(
+    urban_population = tibble::tribble(
+      ~lon, ~lat, ~year, ~urban_pop,
+      -0.25, -0.25, 2000L, 100,
+      -0.25, -0.25, 2020L, 100
+    ),
+    cell_polity = tibble::tribble(
+      ~lon, ~lat, ~area_code,
+      -0.25, -0.25, 277L
+    ),
+    cropland_ha = tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
+      -0.25, -0.25, 277L, 2000L, 1000,
+      -0.25, -0.25, 277L, 2020L, 1000
+    )
+  )
+}
+
+testthat::test_that("build_urban_n names an anachronistic polity", {
+  testthat::expect_warning(
+    out <- whep::build_urban_n(data = .urban_out_of_span_data()),
+    "did not exist in that row's year"
+  )
+
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_equal(
+    out$reporting_polity_code[out$year == 2000L],
+    "SSD-2011-2025"
+  )
+})
+
+testthat::test_that("build_urban_n honours drop and flag", {
+  testthat::expect_warning(
+    dropped <- whep::build_urban_n(
+      data = .urban_out_of_span_data(),
+      polity_validity = "drop"
+    )
+  )
+  testthat::expect_warning(
+    flagged <- whep::build_urban_n(
+      data = .urban_out_of_span_data(),
+      polity_validity = "flag"
+    )
+  )
+
+  testthat::expect_equal(dropped$year, 2020L)
+  testthat::expect_equal(
+    flagged$reporting_polity_out_of_span,
+    flagged$year == 2000L
+  )
+})

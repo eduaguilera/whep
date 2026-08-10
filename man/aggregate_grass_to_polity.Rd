@@ -4,7 +4,11 @@
 \alias{aggregate_grass_to_polity}
 \title{Aggregate gridded grass availability to polity totals.}
 \usage{
-aggregate_grass_to_polity(grass, cell_polity)
+aggregate_grass_to_polity(
+  grass,
+  cell_polity,
+  polity_validity = c("keep", "flag", "drop")
+)
 }
 \arguments{
 \item{grass}{Gridded grass availability from \code{\link[=build_grass_availability]{build_grass_availability()}},
@@ -13,9 +17,23 @@ with \code{lon}, \code{lat}, \code{year} and \code{grass_avail_dm_t}.}
 \item{cell_polity}{Cell-to-polity mapping with \code{lon}, \code{lat}, \code{area_code} and
 \code{polity_frac} (the cell's land-area fraction in the polity; pass 1 for a
 majority assignment, e.g. from \code{country_grid}).}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 }
 \value{
-A tibble with \code{area_code}, \code{year} and \code{grass_avail_dm_t}.
+A tibble with \code{area_code}, \code{year} and \code{grass_avail_dm_t}, plus
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}. This
+output carries no reporting-polity columns, so the flag is attached
+directly rather than derived from them.
 }
 \description{
 Sums gridded grass availability to polity (country, or subnational where
