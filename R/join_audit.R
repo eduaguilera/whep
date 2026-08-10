@@ -110,6 +110,16 @@
     "GLEAM dressing fractions, one vintage.",
     ".fold_bucket_labels", "left_join", "bucket_polity_code, polity_code", 1L,
     "identity_lookup", "Polity type keyed on the polity code.",
+    ".handed_over_polity_codes", "inner_join", "predecessor, polity_code", 1L,
+    "identity_lookup",
+    "Succession, from `polities` to itself. The key IS the year-scoped polity
+     period -- `ANG-1905-1975` carries its own years -- and the join exists to
+     READ a year off it: whether the successor begins where the predecessor
+     ends. Adding a `year` would be adding a year to a relation between two
+     periods, which has none. This is the one row that RAISED the cap (57 ->
+     58 -> 59), and it does so for a join that makes the resolver more
+     year-aware, not less: it is what stops `.polity_join_end_year()` widening
+     colonial Angola into 1975, the year `AGO-1975-2025` starts (whep#683).",
     ".gn_grass_area", "inner_join", "lon, lat, area_code", 1L, "time_invariant",
     "The country grid is one polity assignment per cell; the land-use side
      carries the year and keeps it.",

@@ -107,7 +107,7 @@
   # A boundary between two epochs belongs to the successor, which is what the
   # exclusive reading buys. But a still-open interval has nothing after it, so
   # there is no double-count to prevent and excluding its terminal year simply
-  # deletes a year. Measured on the shipped snapshot: 227 live polities end at
+  # deletes a year. Measured on the shipped snapshot: 228 live polities end at
   # 2025 and a strictly exclusive rule left NONE of them covering 2025, so every
   # current-year row degraded from `matched` to `out_of_span` -- resolved only by
   # the nearest-period fallback, which is the pathology this epic removes.
@@ -116,8 +116,8 @@
   # to the table maximum. The year test re-introduces the double-count for any
   # polity whose last interval ends at the maximum AND has a successor, and the
   # maximum itself moves (#530 took the table from 740 rows to 749). Measured:
-  # 244 live polities have no successor, 227 of them end at 2025, and ZERO live
-  # polities ending at 2025 have one -- so the two agree today and the successor
+  # 242 live polities are open, 228 of them end at 2025, and ZERO live polities
+  # ending at 2025 are succeeded -- so the two agree today and the successor
   # test is the one that keeps agreeing.
   # `fifelse()` will not recycle its test, so a scalar `is_open` (which is what a
   # caller testing one period naturally passes) has to be widened here.
@@ -134,11 +134,72 @@
 # Which polity codes upstream declares nothing succeeds. Read from `polities`
 # rather than the crosswalk because succession is a fact about the polity, and
 # the crosswalk does not carry the relation.
+#
+# READ IN BOTH DIRECTIONS, because upstream fills the two sides of that relation
+# independently. `AGO-1975-2025` names `ANG-1905-1975` as its predecessor while
+# `ANG-1905-1975` names no successor, so the forward column alone calls colonial
+# Angola open, `.polity_join_end_year()` widens it into 1975 -- the year
+# `AGO-1975-2025` starts -- and FAOSTAT area 7 gets two candidates for 1975,
+# decided by row order (#683). Reading `predecessor` as well is not a second
+# authority on succession, which is what the paragraph above argues against: it
+# is the same upstream record, read symmetrically.
 .open_polity_codes <- function() {
   p <- polities
   succ <- p$successor
   open <- is.na(succ) | !nzchar(trimws(succ))
-  unique(p$polity_code[open])
+  setdiff(unique(p$polity_code[open]), .handed_over_polity_codes())
+}
+
+# Periods some other period is recorded as taking over from, AT THEIR END YEAR.
+#
+# THE YEAR TEST IS LOAD-BEARING, because `predecessor` records two different
+# relations. One is a hand-over, where the predecessor stops: `AGO-1975-2025`
+# from `ANG-1905-1975`, `BMU-1968-2025` from `BMU-1684-1968`, `REU-1946-2025`
+# from `REU-1816-1946`. The other is a partial derivation, where a piece was
+# carved out and the predecessor went on existing: `TRS-1947-1954` names
+# `ITA-1919-2025`, `SYC-1903-2025` names `MUS-1800-2025`, `SWE-1905-2025` names
+# `NOR-1800-2025`. Only the first ends the period, and requiring the successor
+# to BEGIN where the predecessor ENDS (`polity_end_year` is exclusive, #577) is
+# what separates them.
+#
+# Measured on the shipped snapshot: 8 codes are named as somebody's predecessor
+# while recording no successor of their own, and exactly 3 begin-at-end --
+# `ANG-1905-1975`, `BMU-1684-1968`, `REU-1816-1946`, all genuine hand-overs.
+# Dropping the year test closes the other 5 as well, and 5 FAOSTAT areas then
+# lose 2025 to the nearest-period fallback: the exact regression the widening
+# exists to prevent.
+#
+# The `inner_join()` below is keyed on `polity_code` with no `year`, so it is
+# registered in `.territorial_join_baseline()`. It is written as a join, and the
+# renaming spelled in `by =` rather than in an upstream `select()`, so the audit
+# in `R/join_audit.R` can see it: hiding it would be the debt that gate exists
+# to stop.
+.handed_over_polity_codes <- function(periods = polities) {
+  # Column by column rather than `as.data.frame()`: `polities` is an `sf`
+  # object, and materialising it whole to drop the geometry costs more than
+  # everything else here put together, on a helper the resolver calls once per
+  # lookup build.
+  p <- tibble::tibble(
+    polity_code = periods$polity_code,
+    start_year = periods$start_year,
+    end_year = periods$end_year,
+    predecessor = periods$predecessor
+  )
+  named <- p |>
+    dplyr::select("polity_code", "start_year", "predecessor") |>
+    dplyr::filter(!is.na(.data$predecessor), nzchar(.data$predecessor)) |>
+    tidyr::separate_longer_delim("predecessor", delim = ";") |>
+    dplyr::mutate(predecessor = stringr::str_trim(.data$predecessor)) |>
+    dplyr::filter(nzchar(.data$predecessor))
+
+  named |>
+    dplyr::inner_join(
+      dplyr::select(p, "polity_code", "end_year"),
+      by = c("predecessor" = "polity_code")
+    ) |>
+    dplyr::filter(.data$end_year == .data$start_year) |>
+    dplyr::pull("predecessor") |>
+    unique()
 }
 
 .add_polity_columns_dt <- function(
@@ -1132,8 +1193,10 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # resolver reads it through `.polity_join_end_year()`, which widens an OPEN
 # period by one year (exclusive at a succession, inclusive at an open end,
 # #577) and to the inclusive `map_year_end` where the upstream map declares a
-# reported year past the territorial span. 264 of the shipped crosswalk's
-# area-polity rows are widened that way today.
+# reported year past the territorial span. 263 of the shipped crosswalk's
+# area-polity rows are widened that way today -- 264 before #683 closed
+# `ANG-1905-1975`, whose successor upstream records only in the inverse
+# direction.
 #
 # So the declared-period check can be clean while the resolution is still
 # ambiguous: give an area an open period ending 2025 and a successor starting

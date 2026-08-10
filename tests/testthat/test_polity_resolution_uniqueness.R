@@ -108,7 +108,7 @@ testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
 #
 # It reads the crosswalk's spans as declared, and the resolver does not: it joins
 # on `.polity_join_end_year()`, which widens an open period by a year and to the
-# upstream map's inclusive `map_year_end`. 264 shipped rows are widened.
+# upstream map's inclusive `map_year_end`. 263 shipped rows are widened.
 #
 # And measuring the guarantee on `add_polity_code()`'s OUTPUT is vacuous: one
 # input row is one output row, because `unique(matches, by = rowid)` keeps
@@ -140,30 +140,76 @@ testthat::test_that("the joined spans see an overlap the declared spans hide", {
   testthat::expect_equal(joined$polity_codes, "AAA-1900-2000, BBB-2000-2050")
 })
 
-testthat::test_that("one area-year has one candidate, but for Angola 1975", {
-  # ENUMERATED, not tolerated: the exception is asserted by code pair and year so
-  # it can only shrink deliberately, and a second one fails the test.
+testthat::test_that("every area-year has exactly one joined candidate", {
+  # ZERO, and it used to be one: `ANG-1905-1975` (colonial Angola) records no
+  # successor upstream, `.open_polity_codes()` called it open,
+  # `.polity_join_end_year()` widened it to cover 1975 -- the year
+  # `AGO-1975-2025` starts -- and `pmax(territorial, reported)` let the widened
+  # span beat the FAOSTAT map's narrower bound (area 7 reports as ANG through
+  # 1974, as AGO from 1975). Area 7 in 1975 then had two candidates, decided by
+  # the `polity_start_year DESC` tie-break rather than by the data.
   #
-  # `ANG-1905-1975` (colonial Angola) records no successor upstream, so
-  # `.open_polity_codes()` calls it open and `.polity_join_end_year()` widens it
-  # to cover 1975 -- the year `AGO-1975-2025` starts. Upstream's own FAOSTAT map
-  # is unambiguous (area 7 reports as ANG through 1974, as AGO from 1975); it is
-  # the openness widening that re-creates the overlap the map had removed, and
-  # `pmax(territorial, reported)` lets the widened span win over the map's bound.
-  #
-  # No published value moves today: the `polity_start_year DESC` tie-break lands
-  # 1975 on `AGO-1975-2025`, which is the right answer. It is right BY ORDERING,
-  # which is the state this detector exists to make visible. Filed as #683
-  # rather than fixed here -- the root cause is a missing `successor` in
-  # `whep-polities`, and deciding between patching the widening rule and fixing
-  # the upstream record is not this test's call. Whichever fix lands, tighten
-  # this to zero in the same PR.
+  # #683 closed that by reading upstream's succession relation in BOTH
+  # directions: `AGO-1975-2025` names `ANG-1905-1975` as its predecessor, so
+  # colonial Angola is not open. The exception is gone, not tolerated, and a
+  # new one fails here with the offending pair named.
   out <- whep:::.polity_join_conflicts()
 
-  testthat::expect_equal(out$area_code, 7L)
-  testthat::expect_equal(out$year, 1975L)
-  testthat::expect_equal(out$polity_codes, "AGO-1975-2025, ANG-1905-1975")
-  testthat::expect_equal(nrow(out), 1L)
+  testthat::expect_equal(out$polity_codes, character(0))
+  testthat::expect_equal(nrow(out), 0L)
+})
+
+testthat::test_that("a hand-over closes a period and a carve-out does not", {
+  # The rule behind the fix, against a fixture so it says what the rule IS
+  # rather than what the shipped snapshot happens to hold.
+  #
+  # `polities$predecessor` carries two different relations. HAND-OVER: the
+  # successor begins exactly where the predecessor ends, and the predecessor is
+  # over -- that period must not be widened. CARVE-OUT: a piece was split off
+  # and the predecessor goes on existing (`TRS-1947-1954` names
+  # `ITA-1919-2025`, which still runs to 2025) -- that period IS still open and
+  # widening it is what keeps its terminal year resolvable.
+  fixture <- data.frame(
+    polity_code = c(
+      "OLD-1900-1950",
+      "NEW-1950-2000",
+      "LIVE-1900-2025",
+      "PIECE-1960-1970"
+    ),
+    start_year = c(1900L, 1950L, 1900L, 1960L),
+    end_year = c(1950L, 2000L, 2025L, 1970L),
+    predecessor = c(NA, "OLD-1900-1950", NA, "LIVE-1900-2025"),
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_equal(
+    whep:::.handed_over_polity_codes(fixture),
+    "OLD-1900-1950"
+  )
+})
+
+testthat::test_that("the shipped snapshot's hand-overs include Angola", {
+  # And the carve-out predecessors stay open, which is the half a rule without
+  # the begin-at-end test would break: `ITA-1919-2025`, `MUS-1800-2025`,
+  # `NOR-1800-2025`, `AUT-1919-2025` and `MHL-1874-2025` are all named as
+  # somebody's predecessor while still running to their own end. Closing them
+  # measurably costs 5 FAOSTAT areas the year 2025, which degrades from
+  # `matched` to the `out_of_span` nearest-period stand-in.
+  open <- whep:::.open_polity_codes()
+  handed <- whep:::.handed_over_polity_codes()
+
+  testthat::expect_true("ANG-1905-1975" %in% handed)
+  testthat::expect_false("ANG-1905-1975" %in% open)
+  testthat::expect_true(all(
+    c(
+      "ITA-1919-2025",
+      "MUS-1800-2025",
+      "NOR-1800-2025",
+      "AUT-1919-2025",
+      "MHL-1874-2025"
+    ) %in%
+      open
+  ))
 })
 
 testthat::test_that("the bucket recovers the polity outside Sudan", {
