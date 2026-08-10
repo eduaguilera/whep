@@ -8,52 +8,211 @@
 #' Read the GLWD inland-water fraction on the 0.5-degree grid
 #'
 #' @description
-#' Reads the LPJmL `glwd_lakes_and_rivers_30arcmin.clm` layer and its companion
-#' `grid.clm`, returning the Global Lakes and Wetlands Database surface-water
-#' fraction of each 0.5-degree cell. `water_frac` is a fraction of the **whole**
-#' cell (the file's own `unit` is `"1"`), so the water area of a cell is
-#' `water_frac * cell_area_ha`.
+#' Returns the Global Lakes and Wetlands Database surface-water fraction of each
+#' 0.5-degree cell. `water_frac` is a fraction of the **whole** cell, so the
+#' water area of a cell is `water_frac * cell_area_ha`.
 #'
 #' This is the inland-water source for [build_polycell_support()]. It is
 #' preferred over `ne_10m_lakes`, which carries roughly half of global inland
 #' water and omits the Caspian Sea entirely.
 #'
-#' @param dir Directory holding `grid.clm` and the water file. Defaults to
-#'   `Sys.getenv("WHEP_LPJML_INPUT_DIR")`.
-#' @param file Name of the water CLM file inside `dir`.
+#' The fraction is derived from the GLWD rasters
+#' `inst/scripts/download/download_hydrology.R` fetches from the published
+#' figshare DOI, through [glwd_water_fraction()] -- the same derivation
+#' `inst/scripts/prepare_spatialize_all.R` uses to write LPJmL's own
+#' `lakes_rivers` input, so the two cannot drift.
 #'
-#' @return A `tibble` with `lon`, `lat` and `water_frac`, one row per cell of
-#'   the CLM grid.
+#' Until WHEP settled on GLWD v2 this read LPJmL's
+#' `glwd_lakes_and_rivers_30arcmin.clm` and a companion `grid.clm` instead.
+#' That pair is derived from GLWD **v1**, no script in this repository produces
+#' it, and it gives 2.4759 Mkm2 of inland water over the 67,420-cell CRU land
+#' mask against v2's 3.2480 Mkm2. Any figure quoted against the old layer has
+#' to be re-measured rather than carried across.
+#'
+#' @param dir Directory holding `GLWD/`, as `download_hydrology.R` lays it out.
+#'   Defaults to `Sys.getenv("WHEP_LPJML_INPUT_DIR")`.
+#'
+#' @return A `tibble` with `lon`, `lat` and `water_frac`, one row per cell the
+#'   rasters cover.
 #' @export
 #'
 #' @source
-#'   Ostberg, S., Mueller, C., Heinke, J. and Schaphoff, S. (2023). LandInG 1.0:
-#'   a toolbox to derive input datasets for terrestrial ecosystem modelling at
-#'   variable resolutions from heterogeneous sources. *Geoscientific Model
-#'   Development* 16, 3375-3406. \doi{10.5194/gmd-16-3375-2023}
+#'   Lehner, B., Anand, M., Fluet-Chouinard, E. et al. (2025). Mapping the
+#'   world's inland surface waters: an update to the Global Lakes and Wetlands
+#'   Database (GLWD v2). *Earth System Science Data* 17, 2277-2329.
+#'   \doi{10.5194/essd-17-2277-2025}
 #'
 #' @examples
 #' # Requires WHEP_LPJML_INPUT_DIR to be set; not run without it.
 #' if (nzchar(Sys.getenv("WHEP_LPJML_INPUT_DIR"))) {
 #'   read_glwd_water()
 #' }
-read_glwd_water <- function(
-  dir = NULL,
-  file = "glwd_lakes_and_rivers_30arcmin.clm"
-) {
-  dir <- .whep_layer_dir(dir, "WHEP_LPJML_INPUT_DIR", "the LPJmL CLM inputs")
-  grid <- .read_clm(file.path(dir, "grid.clm"), expect_bands = 2L)
-  water <- .read_clm(file.path(dir, file), expect_bands = 1L)
-  if (nrow(grid) != nrow(water)) {
-    cli::cli_abort(c(
-      "{.file {file}} and {.file grid.clm} hold different cell counts.",
-      i = "grid: {nrow(grid)} cells; water: {nrow(water)} cells."
+read_glwd_water <- function(dir = NULL) {
+  dir <- .whep_layer_dir(dir, "WHEP_LPJML_INPUT_DIR", "the GLWD download")
+  glwd_water_fraction(file.path(dir, "GLWD"))
+}
+
+#' Derive the lake-and-river fraction of each 0.5-degree cell from GLWD
+#'
+#' @description
+#' Aggregates the Global Lakes and Wetlands Database rasters to the 0.5-degree
+#' grid as a fraction of the whole cell. This is the one implementation of that
+#' derivation in WHEP: [read_glwd_water()] calls it for
+#' [build_polycell_support()], and `inst/scripts/prepare_spatialize_all.R`
+#' calls it to write LPJmL's `lakes_rivers` input. It used to live only in that
+#' script, so the polycell producer read a hand-made `.clm` artefact of an
+#' LPJmL run instead and the two answers were free to diverge.
+#'
+#' @section Which classes count as inland water:
+#' GLWD v2 is a **33-class wetland map**, not a water fraction, so a subset has
+#' to be chosen and the choice is a judgement rather than a lookup. Taken here:
+#' lakes as classes 1-3 (freshwater lake, saline lake, reservoir) and rivers as
+#' class 7 (small streams). Everything else -- palustrine and riverine wetland,
+#' peatland, mangrove, saltmarsh, rice paddies -- is **excluded**: those are
+#' land that is wet, not surface water, and `build_polycell_support()` books
+#' them under `land_area_ha`.
+#'
+#' Under GLWD v1 the equivalent classes are 1 (lakes) and 3 (rivers). The two
+#' vintages are not interchangeable and give totals about 20% apart; see
+#' [read_glwd_water()].
+#'
+#' Class membership is multiplied by the companion `area_pct` raster where one
+#' is present, so a partially covered source pixel contributes its own fraction
+#' rather than counting whole.
+#'
+#' @param glwd_dir Directory holding the GLWD rasters, as
+#'   `inst/scripts/download/download_hydrology.R` lays them out: `GLWD_v2/` for
+#'   v2, or `glwd_3/hdr.adf` / `glwd_3.tif` for v1.
+#' @param cells Optional `tibble` of `lon`/`lat` cell centres to sample at.
+#'   `NULL` (default) returns every cell of the 0.5-degree grid the rasters
+#'   cover.
+#'
+#' @return A `tibble` with `lon`, `lat` and `water_frac`, carrying a
+#'   `"glwd_version"` attribute of `"v1"` or `"v2"`.
+#' @export
+#'
+#' @examples
+#' # Requires the GLWD download; not run without it.
+#' if (nzchar(Sys.getenv("WHEP_LPJML_INPUT_DIR"))) {
+#'   glwd_water_fraction(
+#'     file.path(Sys.getenv("WHEP_LPJML_INPUT_DIR"), "GLWD")
+#'   )
+#' }
+glwd_water_fraction <- function(glwd_dir, cells = NULL) {
+  rlang::check_installed("terra")
+  src <- .glwd_source(glwd_dir)
+  classes <- .glwd_water_classes(src$version)
+
+  glwd <- terra::rast(src$path)
+  # The class raster is categorical, so it is reclassified to a 0/1 membership
+  # mask and only then weighted and averaged. Aggregating class CODES would
+  # average the code numbers, which means nothing.
+  frac <- .glwd_class_fraction(glwd, classes, .glwd_area_pct(src))
+  out <- .glwd_sample(frac, cells)
+  attr(out, "glwd_version") <- src$version
+  out
+}
+
+# v2 is preferred when present: it is what `download_hydrology.R` fetches. The
+# 50pct variant is excluded deliberately -- it is a thresholded map, not the
+# class map this derivation reclassifies.
+.glwd_source <- function(glwd_dir) {
+  v2_dir <- file.path(glwd_dir, "GLWD_v2")
+  v2 <- Filter(
+    \(p) !grepl("50pct", p),
+    list.files(
+      v2_dir,
+      pattern = "(main_class|dominant|combined).*\\.tif$",
+      recursive = TRUE,
+      full.names = TRUE
+    )
+  )
+  if (length(v2) > 0L) {
+    return(list(path = v2[[1L]], version = "v2", dir = v2_dir))
+  }
+  v1 <- c(file.path(glwd_dir, "glwd_3", "hdr.adf"), file.path(glwd_dir, "glwd_3.tif"))
+  v1 <- v1[file.exists(v1)]
+  if (length(v1) > 0L) {
+    return(list(path = v1[[1L]], version = "v1", dir = glwd_dir))
+  }
+  cli::cli_abort(c(
+    "No GLWD raster found under {.file {glwd_dir}}.",
+    i = "Fetch it with {.file inst/scripts/download/download_hydrology.R}."
+  ))
+}
+
+.glwd_water_classes <- function(version) {
+  if (version == "v2") {
+    return(c(lake = 1L, lake = 2L, lake = 3L, river = 7L))
+  }
+  c(lake = 1L, river = 3L)
+}
+
+.glwd_area_pct <- function(src) {
+  if (src$version != "v2") {
+    return(NULL)
+  }
+  pct <- list.files(
+    src$dir,
+    pattern = "area_pct.*\\.tif$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+  if (length(pct) == 0L) {
+    return(NULL)
+  }
+  terra::rast(pct[[1L]]) / 100
+}
+
+.glwd_class_fraction <- function(glwd, classes, area_pct) {
+  mask <- terra::classify(
+    glwd,
+    cbind(unname(classes), rep(1, length(classes))),
+    others = 0
+  )
+  if (!is.null(area_pct)) {
+    mask <- mask * area_pct
+  }
+  # NA is DRY, not absent. The raster carries no data over ocean, and the
+  # fraction being formed is a fraction of the WHOLE 0.5-degree cell -- so a
+  # half-ocean coastal cell must divide its water by the whole cell, not by the
+  # land part alone.
+  #
+  # Averaging with `na.rm = TRUE` instead (which this derivation did while it
+  # lived in `inst/scripts/prepare_spatialize_all.R`) takes the mean over the
+  # land pixels only and then multiplies by the full cell area downstream,
+  # inflating every coastal cell. Measured globally against GLWD's own
+  # `area_ha_x10` raster, which never passes through this aggregation at all:
+  # 3.6066 Mkm2 that way against 3.3903 Mkm2 measured directly, +6.4%. Treating
+  # NA as dry gives 3.3814 Mkm2, -0.26% -- the residual is cells straddling the
+  # raster edge, not the mask.
+  mask <- terra::classify(mask, cbind(NA, 0))
+  factor <- round(0.5 / terra::res(glwd)[[1L]])
+  terra::aggregate(mask, fact = factor, fun = "mean", na.rm = FALSE)
+}
+
+# Water is a fraction, so a cell the raster does not cover is dry rather than
+# unknown: `NA` here would propagate into `land_area_ha` as `NA` instead of
+# leaving the cell wholly land.
+.glwd_sample <- function(frac, cells) {
+  if (is.null(cells)) {
+    xy <- terra::xyFromCell(frac, seq_len(terra::ncell(frac)))
+    values <- terra::values(frac)[, 1L]
+    return(tibble::tibble(
+      lon = xy[, 1L],
+      lat = xy[, 2L],
+      water_frac = pmin(1, pmax(0, dplyr::coalesce(values, 0)))
     ))
   }
+  .pcs_require_cols(cells, c("lon", "lat"), "cells")
+  values <- terra::values(frac)[
+    terra::cellFromXY(frac, as.matrix(cells[, c("lon", "lat")])),
+    1L
+  ]
   tibble::tibble(
-    lon = grid$band_1,
-    lat = grid$band_2,
-    water_frac = water$band_1
+    lon = cells$lon,
+    lat = cells$lat,
+    water_frac = pmin(1, pmax(0, dplyr::coalesce(values, 0)))
   )
 }
 
@@ -201,108 +360,6 @@ read_polycell_support <- function(path = NULL, version = NULL) {
 
 .luh2_vintage_var <- function(vintage) {
   if (identical(vintage, "v2h")) "WHEP_LUH2_V2H_DIR" else "WHEP_LUH2_DIR"
-}
-
-# -- LPJmL CLM reader ---------------------------------------------------------
-#
-# WHEP had no CLM reader before this: every other LPJmL path in R/ reads
-# NetCDF. A CLM file is LPJmL's own binary, opening with a magic string and a
-# fixed-width header whose length, value type, scaling and endianness are
-# restated by the companion `.json` sidecar. The sidecar is the authority --
-# the header layout is not re-derived here, because guessing it wrong shifts
-# every value by a few bytes and still returns plausible numbers.
-
-.read_clm <- function(path, expect_bands = NULL) {
-  if (!file.exists(path)) {
-    cli::cli_abort("CLM file not found at {.file {path}}.")
-  }
-  meta <- .read_clm_meta(path)
-  if (!is.null(expect_bands) && meta$nbands != expect_bands) {
-    cli::cli_abort(
-      "{.file {basename(path)}} has {meta$nbands} band{?s}, expected
-       {expect_bands}."
-    )
-  }
-  .read_clm_payload(path, meta) |>
-    matrix(nrow = meta$nbands) |>
-    t() |>
-    tibble::as_tibble(.name_repair = \(x) paste0("band_", seq_along(x)))
-}
-
-.read_clm_meta <- function(path) {
-  .check_clm_magic(path)
-  json <- paste0(path, ".json")
-  if (!file.exists(json)) {
-    cli::cli_abort(c(
-      "{.file {basename(path)}} has no {.file .json} sidecar.",
-      i = "The sidecar states the header length, value type, scaling and
-           endianness; without it the payload cannot be located safely."
-    ))
-  }
-  meta <- .clm_meta_from_json(json)
-  if (!meta$datatype %in% names(.clm_types())) {
-    cli::cli_abort("Unsupported CLM datatype {.val {meta$datatype}}.")
-  }
-  meta
-}
-
-.check_clm_magic <- function(path) {
-  con <- file(path, "rb")
-  on.exit(close(con), add = TRUE)
-  magic <- rawToChar(readBin(con, "raw", n = 7L))
-  if (!stringr::str_detect(magic, "^LPJ")) {
-    cli::cli_abort(
-      "{.file {basename(path)}} does not open with an LPJmL CLM magic string."
-    )
-  }
-  invisible(magic)
-}
-
-.clm_meta_from_json <- function(json) {
-  rlang::check_installed("jsonlite")
-  spec <- jsonlite::read_json(json, simplifyVector = TRUE)
-  list(
-    offset = as.integer(spec$offset),
-    ncell = as.integer(spec$ncell),
-    nbands = as.integer(spec$nbands),
-    nstep = as.integer(spec$nstep %||% 1L),
-    nyear = as.integer(spec$nyear %||% 1L),
-    scalar = as.numeric(spec$scalar),
-    datatype = as.character(spec$datatype),
-    endian = if (isTRUE(spec$bigendian)) "big" else "little"
-  )
-}
-
-.clm_types <- function() {
-  list(
-    byte = list(what = "integer", size = 1L, signed = FALSE),
-    short = list(what = "integer", size = 2L, signed = TRUE),
-    int = list(what = "integer", size = 4L, signed = TRUE),
-    float = list(what = "double", size = 4L, signed = TRUE),
-    double = list(what = "double", size = 8L, signed = TRUE)
-  )
-}
-
-.read_clm_payload <- function(path, meta) {
-  spec <- .clm_types()[[meta$datatype]]
-  n <- meta$ncell * meta$nbands * meta$nstep * meta$nyear
-  con <- file(path, "rb")
-  on.exit(close(con), add = TRUE)
-  readBin(con, "raw", n = meta$offset)
-  raw <- readBin(
-    con,
-    spec$what,
-    n = n,
-    size = spec$size,
-    signed = spec$signed,
-    endian = meta$endian
-  )
-  if (length(raw) != n) {
-    cli::cli_abort(
-      "{.file {basename(path)}} holds {length(raw)} values, expected {n}."
-    )
-  }
-  raw * meta$scalar
 }
 
 # -- s2 validity --------------------------------------------------------------
