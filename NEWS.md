@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`gleam_geographic_hierarchy` now carries the polity of each country it
+  lists.** The table is GLEAM's own registry of the countries that exist today
+  — it has a row for South Sudan and none for any dissolved entity — but it
+  carried no polity column at all, so every consumer resolved one ad hoc and
+  joined on the bare `iso3`. That join has no year, and 38 of the 204 `iso3`
+  values name a *different* polity at 1961 than at 2010, so which one an
+  unyeared join picked was decided by nothing. The new
+  `reporting_polity_code` / `reporting_polity_name` columns hold the polity the
+  present day resolves each `iso3` to, and
+  `polity_identity_conventions()` moves the table from `"recommended"` to
+  `"carried"`. 201 of the 204 resolve, every one of them to a period that
+  reaches the snapshot's open end with nothing succeeding it. Three keep `NA`
+  and stay visible: `ATF`, `SGS` and `WLF` are territories whep-polities has no
+  polity for at all (upstream whep-polities#187). **No published value
+  changes** — the seven existing columns are byte-identical and no consumer
+  reads the new ones yet; switching a consumer's join from `iso3` to the polity
+  would move values and is deliberately not done here.
 * **The polity a row belongs to is now carried from where it is resolved
   instead of re-derived at the end of every output.**
   `.aggregate_to_polities()` has always resolved the bucket's polity in order
