@@ -2,6 +2,25 @@
 
 ## whep (development version)
 
+- **The SOC climate drivers assemble a year at a time, and stop
+  decorating an 86-million-row table.** Two changes to the same read.
+  `.socd_monthly_climate()` joined four full-span monthly series on
+  `(lon, lat, year, month)`; the joins and the water balance are all
+  within-year, so they now run per year. And
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  no longer routes through the reporting-polity decoration: those four
+  columns – two of them character – cost ~28 GB on the table a full span
+  produces, and the carbon balance never reads them, keying its climate
+  modifier on `(lon, lat, area_code, year, month)` and adding its own
+  reporting columns to its own output. Polity validity still applies,
+  since it can drop rows. Peak for an 80-year `.cb_read_climate()` goes
+  from 56.5 GB to 28.1 GB and it is a third faster (205 s vs 303 s),
+  with all 17 shared columns
+  [`identical()`](https://rdrr.io/r/base/identical.html). The exported
+  [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)
+  still returns the polity columns
+  ([\#624](https://github.com/eduaguilera/whep/issues/624)).
+
 - **[`build_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_carbon_inputs.md)
   collapses each year’s gridded cropland inputs before gridding the
   next.** The gridded table is ~1.25e6 rows per simulated year and its
