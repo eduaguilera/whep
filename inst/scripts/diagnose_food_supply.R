@@ -22,14 +22,17 @@
 #
 #   2. WHEP food tonnes and derived protein against FAOSTAT FBS, read from
 #      the pin. The per-capita FBS elements are dropped by .extract_fao()'s
-#      cb_elements filter but are present in the pin itself.
+#      cb_elements filter but are present in the pin itself. The protein side
+#      runs through build_food_supply(), so this script measures the shipped
+#      path and can serve as the acceptance oracle for #500.
 #
-# Result on the 2010 build (see the PR that added this script): every
-# mechanism measures as noise, WHEP's food quantity tracks FAOSTAT at a
-# median ratio of 1.015, and the per-capita protein is inflated by a median
-# 1.21 because whep::biomass_coefs carries no edible-portion nitrogen
-# (Edible_N_kgFM is entirely empty, issue #361), so the coalesce chain falls
-# through to whole-product N x 6.25.
+# Result on the 2010 build that motivated #360 and #361: every mechanism
+# measures as noise, and WHEP's food quantity tracks FAOSTAT at a median ratio
+# of 1.015. The protein ratio was 1.21 on the frozen pre-#361 chain this script
+# used to carry, and 1.086 once build_food_supply() derived an edible basis
+# from Edible_portion. Both are historical readings; re-run the script for the
+# current figure rather than quoting either, and note that the residual is
+# dominated by specific items rather than spread evenly (#500).
 #
 # Usage:
 #   source("inst/scripts/diagnose_food_supply.R")
@@ -60,7 +63,7 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
   cli::cli_h1("WHEP against FAOSTAT FBS")
   fao <- .dfs_fbs(year)
   .dfs_check_leaf_rule(fao)
-  cmp <- .dfs_compare(.dfs_whep_national(rows), fao)
+  cmp <- .dfs_compare(.dfs_whep_national(rows, fao), fao)
   .dfs_report(cmp)
 
   refs <- .dfs_reference_table(cmp)
@@ -303,42 +306,59 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
   invisible(rel)
 }
 
-# Protein per kg fresh matter on the PRE-#361 basis: the coalesce chain
-# Edible_N_kgFM (empty) -> N_kgN_kgFM -> product N, times 6.25, with no
-# edible-portion scaling. Kept as written so this script keeps reproducing the
-# measurement that motivated #361; it is deliberately no longer a mirror of
-# build_food_supply(), which now defaults to the "edible_portion" basis and does
-# not read Edible_N_kgFM. Pass protein_basis = "whole_commodity" there to
-# reproduce this chain.
-.dfs_protein_lookup <- function() {
-  nutrition <- whep::biomass_coefs |>
-    dplyr::transmute(
-      Name_biomass = .data$Name_biomass,
-      protein_frac_kgfm = dplyr::coalesce(
-        .data$Edible_N_kgFM,
-        .data$N_kgN_kgFM,
-        .data$Product_kgN_kgDM * .data$Product_kgDM_kgFM
-      ) *
-        6.25
-    ) |>
-    dplyr::distinct(.data$Name_biomass, .keep_all = TRUE)
-  whep::items_full |>
-    dplyr::distinct(.data$item_cbs_code, .data$Name_biomass) |>
-    dplyr::left_join(nutrition, by = "Name_biomass")
-}
-
-# National WHEP food tonnes and protein tonnes.
-.dfs_whep_national <- function(rows) {
-  rows |>
-    dplyr::select("area_code", "item_cbs_code", food_t = "food") |>
-    dplyr::left_join(.dfs_protein_lookup(), by = "item_cbs_code") |>
+# National WHEP food tonnes, and per-capita protein from the shipped
+# build_food_supply() path.
+#
+# The protein side deliberately runs through the exported function rather than
+# a local coalesce chain. This script is the acceptance oracle for the
+# nourishment axis, so it has to measure what the package actually computes; a
+# private copy of the arithmetic can only ever confirm itself (#500). It used
+# to hold a frozen pre-#361 chain (Edible_N_kgFM -> N_kgN_kgFM -> product N,
+# times 6.25, no edible scaling), which stopped mirroring build_food_supply()
+# the moment that function gained its `protein_basis` default. To reproduce the
+# old chain, pass `protein_basis = "whole_commodity"`.
+#
+# FAO's own population is injected as the denominator, which keeps the pairing
+# this comparison has always used: taking WHEP's population instead would
+# confound the protein ratio with a demographic difference between the two
+# sources.
+.dfs_whep_national <- function(rows, fao, protein_basis = "edible_portion") {
+  years <- unique(rows$year)
+  if (length(years) != 1L) {
+    cli::cli_abort(
+      "Expected exactly one year in {.arg rows}, got {length(years)}."
+    )
+  }
+  food <- dplyr::select(
+    rows,
+    "year",
+    "area_code",
+    "item_cbs_code",
+    food_t = "food"
+  )
+  population <- dplyr::transmute(
+    fao,
+    year = years,
+    area_code = .data$area_code,
+    population = .data$fao_pop
+  )
+  supply <- whep::build_food_supply(
+    method = "whep_native",
+    data = list(cbs_food = food, population = population),
+    protein_basis = protein_basis
+  )
+  food |>
     dplyr::summarise(
       whep_food_t = sum(.data$food_t, na.rm = TRUE),
-      whep_protein_t = sum(
-        .data$food_t * .data$protein_frac_kgfm,
-        na.rm = TRUE
-      ),
       .by = "area_code"
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(
+        supply,
+        "area_code",
+        whep_protein_g_day = "protein_g_cap_day"
+      ),
+      by = "area_code"
     )
 }
 
@@ -350,7 +370,6 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
     dplyr::filter(.data$fao_pop > 1e6, .data$fao_protein_g_day > 0) |>
     dplyr::mutate(
       whep_food_kg_day = .data$whep_food_t * 1000 / .data$fao_pop / 365,
-      whep_protein_g_day = .data$whep_protein_t * 1e6 / .data$fao_pop / 365,
       food_ratio = .data$whep_food_kg_day / .data$fao_food_kg_day,
       protein_ratio = .data$whep_protein_g_day / .data$fao_protein_g_day
     )
@@ -359,9 +378,15 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
 # ---- Reporting ---------------------------------------------------------
 
 # The nourishment ceiling that separates Adequate from Over on the SJOS-N
-# axis, in g protein/cap/day. Kept literal: whep::nourishment_thresholds is
-# not on main.
-.dfs_over_ceiling <- function() 85.05
+# axis, in g protein/cap/day. Read from the packaged thresholds rather than
+# held literal: the dataset is on main now, and a literal here would drift
+# silently if the threshold is ever revised. Note the value it returns is
+# itself unsourced beyond the floor (#753).
+.dfs_over_ceiling <- function() {
+  whep::nourishment_thresholds |>
+    dplyr::filter(.data$metric == "protein", .data$bound == "target") |>
+    dplyr::pull(.data$value)
+}
 
 .dfs_report <- function(cmp) {
   ceiling_g <- .dfs_over_ceiling()
