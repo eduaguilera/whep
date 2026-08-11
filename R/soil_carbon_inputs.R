@@ -80,10 +80,10 @@ build_soil_carbon_inputs <- function(
 # 20 s on that 5.0e7-row intermediate -- two of the four are character columns --
 # and .ci_cropland_class() then discards all four. So the internal caller takes
 # this, and only the exported wrapper above pays for the columns (#624).
-.sci_build <- function(resolution, data, years) {
+.sci_build <- function(resolution, data, years, reduce = NULL) {
   d <- .sci_resolve_inputs(data, years)
   components <- .sci_assemble_components(d$npp, d$manure)
-  .sci_grid_and_finalise(components, d, resolution)
+  .sci_grid_and_finalise(components, d, resolution, reduce)
 }
 
 # Private helpers ----
@@ -102,7 +102,7 @@ build_soil_carbon_inputs <- function(
 # Output is unchanged: `year` is one of the .sci_finalise() grouping keys, so
 # grouping within a year gives exactly what grouping across years gave, and the
 # weights each year sees are identical.
-.sci_grid_and_finalise <- function(components, d, resolution) {
+.sci_grid_and_finalise <- function(components, d, resolution, reduce = NULL) {
   weights <- .sci_grid_weights(d$country_grid, d$crop_patterns)
   # Once, over all components: this reports totals, so warning per year would
   # both spam the caller and change the numbers it reports.
@@ -113,10 +113,17 @@ build_soil_carbon_inputs <- function(
   # row-scans for work that one pass does -- so the memory fix would have cost
   # time. split() keeps it at one pass, and the pieces are what the loop needs.
   by_year <- split(components, components$year)
+  # `reduce` collapses each year before the next is gridded. The gridded table
+  # is ~1.25e6 rows per simulated year and its only consumer collapses it 42-fold
+  # straight away, so accumulating every year first builds a 1.5e8-row table at
+  # 1901-2022 -- and then copies it again to bind. Reducing in the loop keeps
+  # only the collapsed years. NULL leaves the full detail, which is what the
+  # exported build_soil_carbon_inputs() returns (#624).
   parts <- lapply(by_year[order(as.integer(names(by_year)))], function(chunk) {
-    chunk |>
+    gridded <- chunk |>
       .sci_join_weights(weights, d$harvested_area) |>
       .sci_finalise(resolution, d$residue_humification)
+    if (is.null(reduce)) gridded else reduce(gridded)
   })
   dplyr::bind_rows(parts)
 }
