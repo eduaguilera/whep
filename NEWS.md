@@ -27,6 +27,16 @@
   nourishment axis, where rice protein per tonne of food moves from 1.550x
   FAOSTAT to 1.039x and which was how the defect was found (#500).
 
+  **The historic series moves too, and by more than the FBS-new years.** The
+  old-to-new FBS harmonisation derives its scaling ratio from the 2010-2013
+  overlap, so with the new series on paddy and the old series on milled it was
+  computing a median ratio of **1.4981** (= 1/0.667) for rice and scaling every
+  FBS_Old rice year up by it — well inside the [0.2, 5] band
+  `.clamp_fbs_scale_ratio()` allows, so nothing flagged it. That ratio is now
+  **1.0037**: the two vintages agree on rice to 0.4% instead of disagreeing by
+  50%. Wheat, which uses one basis in both vintages, is unchanged at 1.016 and
+  serves as the control. `validation/rice_mass_basis.R` is the real-data guard.
+
 * **A back-cast row no longer reports `mapping_status == "matched"` for a polity
   that was not alive in its year.** `add_polity_code()` floors the polity-lookup
   year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a
