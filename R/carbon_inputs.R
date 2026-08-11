@@ -69,8 +69,7 @@ build_carbon_inputs <- function(
     return(.example_carbon_inputs())
   }
   d <- .ci_resolve_inputs(data, years)
-  cropland <- .ci_cropland_class(d$cropland, d$crop_area)
-  dplyr::bind_rows(cropland, d$grass_natural) |>
+  dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
     .add_reporting_polity_columns()
 }
@@ -78,13 +77,10 @@ build_carbon_inputs <- function(
 # -- Input resolution ---------------------------------------------------------
 
 .ci_resolve_inputs <- function(data, years = NULL) {
+  crop_area <- data$crop_area %||% .ci_crop_area(data)
   list(
-    # .sci_build() rather than build_soil_carbon_inputs(): the reporting polity
-    # columns the exported function attaches are discarded by
-    # .ci_cropland_class() below and re-added to this function's own output, so
-    # paying for them on the pre-collapse intermediate is pure cost (#624).
-    cropland = data$cropland %||% .sci_build("grid", data, years),
-    crop_area = data$crop_area %||% .ci_crop_area(data),
+    cropland = .ci_cropland_input(data, years, crop_area),
+    crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)
   )
@@ -98,6 +94,25 @@ build_carbon_inputs <- function(
 # density x area), so a crop supplying more carbon dominates the class fraction.
 # `class_area_ha` (the cell's total cropland area) is carried so the downstream
 # polity aggregation can area-weight the per-hectare density and conserve mass.
+# The cropland carbon-input class, collapsed to one row per cell-year.
+#
+# When we build the gridded inputs ourselves the collapse runs per year inside
+# the gridding loop, so the pre-collapse table -- ~1.25e6 rows per simulated
+# year, of which .ci_cropland_class() keeps about one in forty-two -- never
+# accumulates across the span. A caller-supplied `cropland` arrives whole and is
+# collapsed in one pass, as before (#624).
+.ci_cropland_input <- function(data, years, crop_area) {
+  if (!is.null(data$cropland)) {
+    return(.ci_cropland_class(data$cropland, crop_area))
+  }
+  .sci_build(
+    "grid",
+    data,
+    years,
+    reduce = \(gridded) .ci_cropland_class(gridded, crop_area)
+  )
+}
+
 .ci_cropland_class <- function(cropland, crop_area) {
   join_keys <- c("lon", "lat", "area_code", "item_prod_code")
   if (rlang::has_name(crop_area, "year")) {
