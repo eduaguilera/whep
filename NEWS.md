@@ -1,5 +1,15 @@
 # whep (development version)
 
+* **`build_carbon_inputs()` collapses each year's gridded cropland inputs before
+  gridding the next.** The gridded table is ~1.25e6 rows per simulated year and
+  its only consumer, `.ci_cropland_class()`, keeps about one row in forty-two --
+  so accumulating every year first built a 1.5e8-row table at 1901-2022 and then
+  copied it again to bind. Reducing inside the per-year loop keeps only the
+  collapsed years. Peak for a 40-year `build_carbon_inputs()` goes from 25.4 GB
+  to 14.4 GB (37.8 GB before #738), with output `identical()` across all
+  5,275,974 rows and 12 columns. The exported `build_soil_carbon_inputs()` still
+  returns the full per-crop detail (#624).
+
 * **The HWSD readers aggregate in latitude bands instead of one whole-grid
   pass.** Classifying the 30-arcsec HWSD grid in one go materialised ~11 GB of
   full-resolution intermediates to produce a few MB, and `terra::crop()` pulled
