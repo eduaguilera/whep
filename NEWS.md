@@ -1,5 +1,18 @@
 # whep (development version)
 
+* **The HWSD readers aggregate in latitude bands instead of one whole-grid
+  pass.** Classifying the 30-arcsec HWSD grid in one go materialised ~11 GB of
+  full-resolution intermediates to produce a few MB, and `terra::crop()` pulled
+  the whole grid into memory before any aggregation began. Every aggregated cell
+  draws only on the source pixels beneath it, so the work splits by latitude
+  band with no cross-band dependency as long as each band is a whole number of
+  target rows. Peak per call goes from ~16.8 GB to ~2.6 GB and each call is
+  faster (clay 20 s to 23 s, hydraulic 60 s to 67 s, soil pH 23 s to 26 s on a
+  loaded machine; ~2.5x faster when measured alone). Output is `identical()` at
+  all three call sites -- `.cb_hwsd_clay()`, `read_soil_hydraulic()` and
+  `read_soil_ph()`. This supersedes the per-call-site reclaim added in #735,
+  which only covered one of the three (#624).
+
 * **`polity_area_crosswalk` no longer gives an area a polity the upstream map
   awarded outside its fold (#741).** The prefix expansion removed a candidate
   only when it overlapped a map span of *its own* area, so nothing ever asked
