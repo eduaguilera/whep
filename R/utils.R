@@ -1843,6 +1843,12 @@ utils::globalVariables(
     # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
     # columns for the canonical-area tie-break
     "is_canonical",
-    "keep"
+    "keep",
+    # water_balance.R, feed_lpjml.R, feed_intake_redistribute.R,
+    # run_spatialize.R — the cell-polity crosswalk's land-area share. Six
+    # unqualified uses survive the polycell migration and are deliberate: the
+    # water balance is owned elsewhere, the feed path is frozen, and
+    # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
+    "polity_frac"
   )
 )

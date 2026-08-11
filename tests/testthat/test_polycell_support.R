@@ -1123,6 +1123,131 @@ testthat::test_that("an interval splits where a cell's occupants change", {
   testthat::expect_equal(wes$polity_area_ha[[1L]], wes$polity_area_ha[[2L]])
 })
 
+testthat::test_that("a repeated polycell key aborts rather than vanishing", {
+  testthat::skip_if_not_installed("sf")
+
+  # `.pcs_split_intervals()` reads the next breakpoint with `dplyr::lead()`
+  # inside `(cell_id, polity_code, start_year, end_year)`, which is the next
+  # breakpoint only while that key is unique. Two rows sharing it interleave in
+  # the sorted frame, so every second row comes back with
+  # `end_year == start_year` -- an empty interval that resolves to no year at
+  # all and takes its territory with it.
+  #
+  # Measured on this fixture before the guard existed: the split returned 5
+  # rows of which 2 were empty, and AAA resolved to 30.0 of its 100 ha at 2000,
+  # 2005, 2010 and 2015 alike -- 70% of the polycell gone, with no error, no
+  # warning, and no invariant broken, because each surviving row is itself well
+  # formed.
+  pieces <- tibble::tibble(
+    cell_id = 1L,
+    lon = 10.25,
+    lat = 45.25,
+    cell_area_ha = 1000,
+    # AAA arrives as TWO pieces of one polycell, 70 + 30 ha, which is the shape
+    # the GEOMETRYCOLLECTION branch of `.pcs_restore_intersection_rows()`
+    # emits. BBB is an ordinary co-occupant, and its 2010 arrival is what makes
+    # the cell carry a second breakpoint for the two AAA rows to interleave on.
+    polity_area_ha = c(70, 30, 60),
+    area_engine = "s2",
+    polity_code = c("AAA-2000-2020", "AAA-2000-2020", "BBB-2010-2020"),
+    start_year = c(2000L, 2000L, 2010L),
+    end_year = c(2020L, 2020L, 2020L),
+    area_code = c(11L, 11L, 12L),
+    polygon_status = "assigned",
+    coverage_status = "has_geometry",
+    ice_area_ha = 0
+  )
+
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    class = "whep_pcs_repeated_key"
+  )
+  # The count and an offending key are named. "Some key is repeated" would send
+  # the reader back to a 400,000-piece clip with nothing to look for.
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    "1 polycell key is repeated"
+  )
+  testthat::expect_error(whep:::.pcs_split_intervals(pieces), "AAA-2000-2020")
+
+  # It is the KEY that must be unique, not the cell and not the polity. Two
+  # epochs of one polity in one cell, and two polities in one cell, are the
+  # ordinary case and still split.
+  unique_keys <- pieces[-2L, ]
+  unique_keys$polity_area_ha[[1L]] <- 100
+  split <- whep:::.pcs_split_intervals(unique_keys)
+  testthat::expect_equal(nrow(split), 3L)
+  testthat::expect_true(all(split$end_year > split$start_year))
+  testthat::expect_equal(
+    sum(split$polity_area_ha[split$polity_code == "AAA-2000-2020"]),
+    200
+  )
+
+  # Reachable from the exported entry point with no mock at all: a geometry
+  # table carrying one polity interval twice clips to two identical pieces in
+  # every cell it touches. Before the guard that call returned an interval
+  # table of 12 rows, 6 of them empty.
+  geometries <- whep::polycell_example_geometries()
+  testthat::expect_error(
+    whep::build_polycell_support(geometries = rbind(geometries, geometries)),
+    class = "whep_pcs_repeated_key"
+  )
+})
+
+testthat::test_that("the collection fan-out reaches the repeated-key guard", {
+  testthat::skip_if_not_installed("sf")
+
+  # The other way in, and the one that matters: `.pcs_restore_intersection_rows`
+  # repeats its source row once per polygonal component when a clip returns a
+  # GEOMETRYCOLLECTION, which is the macOS/GEOS shape T-A16 added it for, and
+  # `.pcs_intersect_by_source()` does the same where `idx` is unusable. That
+  # repetition is correct there -- no piece may be dropped -- and it is exactly
+  # what puts a repeated key in front of the interval split, so the guard is
+  # reached by the producer's own code rather than only by a malformed
+  # geometry table.
+  source <- sf::st_sf(
+    cell_id = 380270L,
+    lon = 10.25,
+    lat = 45.25,
+    cell_area_ha = whep:::.cell_area_ha_lat(45.25),
+    geometry = sf::st_sfc(pcs_cell(10.25, 45.25), crs = 4326)
+  )
+  hit <- sf::st_sfc(
+    sf::st_geometrycollection(list(
+      pcs_rect(10.05, 10.15, 45.05, 45.15),
+      pcs_rect(10.30, 10.40, 45.05, 45.15),
+      sf::st_linestring(cbind(c(10.2, 10.25), c(45.2, 45.2)))
+    )),
+    crs = 4326
+  )
+  attr(hit, "idx") <- matrix(
+    c(1L, 1L),
+    ncol = 2L,
+    dimnames = list(NULL, c("x", "y"))
+  )
+
+  fanned <- whep:::.pcs_restore_intersection_rows(source, hit)
+  testthat::expect_equal(nrow(fanned), 2L)
+  testthat::expect_equal(fanned$cell_id, c(380270L, 380270L))
+
+  pieces <- fanned |>
+    whep:::.pcs_measure_pieces() |>
+    whep:::.pcs_label_cells(tibble::tibble(
+      polity_code = "AAA-2000-2020",
+      start_year = 2000L,
+      end_year = 2020L,
+      area_code = 11L,
+      polygon_status = "assigned",
+      coverage_status = "has_geometry"
+    )) |>
+    whep:::.pcs_add_ice(NULL)
+
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    class = "whep_pcs_repeated_key"
+  )
+})
+
 testthat::test_that("the candidate window follows the spherical extent", {
   testthat::skip_if_not_installed("sf")
   testthat::skip_if_not_installed("s2")

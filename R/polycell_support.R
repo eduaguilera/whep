@@ -964,6 +964,7 @@ expand_polycell_years <- function(support, years) {
     return(pieces)
   }
   keys <- c("cell_id", "polity_code", "start_year", "end_year")
+  .pcs_abort_repeated_key(pieces, keys)
   pieces |>
     dplyr::inner_join(
       .pcs_breakpoints(pieces),
@@ -984,6 +985,53 @@ expand_polycell_years <- function(support, years) {
       end_year = dplyr::coalesce(.data$next_break, .data$end_year)
     ) |>
     dplyr::select(-"breakpoint", -"next_break")
+}
+
+# `dplyr::lead()` above reads whatever row follows in the sorted frame, which is
+# the next BREAKPOINT only while the key is unique. Two rows sharing it
+# interleave, so every second row comes back with `end_year == start_year` -- an
+# empty interval that resolves to no year at all and takes its territory with
+# it. Measured on a two-piece fixture: 70 of a polycell's 100 ha resolve to
+# nothing at every year of its life, with no error and no warning, because each
+# surviving row is individually well formed and S-A1 additivity, the water
+# apportionment and the LUH2 reconciliation all still pass.
+#
+# Two paths can put a repeated key here. `.pcs_restore_intersection_rows()`
+# repeats its source row once per polygonal component of a GEOMETRYCOLLECTION,
+# and `.pcs_intersect_by_source()` does the same on the sf/GEOS builds that
+# return no usable `idx`; a geometry table carrying one polity interval twice
+# reaches it from the other end.
+#
+# This ABORTS rather than summing the duplicates. Summing is what
+# `.pcs_ice_areas_s2()` does with its own repeated piece index, and it is right
+# there because that repetition is this producer's own bookkeeping. Here a
+# repeated key means the geometry table is not one row per polity interval, so
+# a silent repair would fix the arithmetic and leave the fan-out invisible.
+.pcs_abort_repeated_key <- function(pieces, keys) {
+  repeated <- pieces |>
+    dplyr::count(dplyr::pick(dplyr::all_of(keys)), name = "rows") |>
+    dplyr::filter(.data$rows > 1L)
+  if (nrow(repeated) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- utils::head(repeated, 3L)
+  labels <- stringr::str_glue(
+    "cell {shown$cell_id} / {shown$polity_code} ",
+    "[{shown$start_year}, {shown$end_year}) x{shown$rows}"
+  )
+  cli::cli_abort(
+    c(
+      "{nrow(repeated)} polycell key{?s} {?is/are} repeated in the clipped
+       pieces.",
+      x = "Showing up to three: {.val {labels}}.",
+      i = "{.fn build_polycell_support} needs one row per cell, polity and
+           validity interval. The interval split reads the next breakpoint
+           with {.fn dplyr::lead}, so a repeated key makes every second row an
+           empty interval that resolves to no year and drops its territory
+           without a warning."
+    ),
+    class = "whep_pcs_repeated_key"
+  )
 }
 
 .pcs_breakpoints <- function(pieces) {

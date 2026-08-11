@@ -54,6 +54,23 @@
     **exclusive at a succession** but **inclusive at the open end**, so a
     handover year resolves to the successor alone and the current year still
     resolves to the polity nothing succeeds.
+  * **A repeated polycell key now aborts instead of losing territory in
+    silence.** The interval split reads the next breakpoint with
+    `dplyr::lead()`, which is the next breakpoint only while
+    `(cell_id, polity_code, start_year, end_year)` is unique. Two rows sharing
+    it interleave, every second row comes back with `end_year == start_year`,
+    and an empty interval resolves to no year at all: measured on a two-piece
+    fixture, 70 of a polycell's 100 ha resolved to nothing at every year of its
+    life, with no error, no warning and every conservation check still passing.
+    `build_polycell_support()` now aborts with class
+    `"whep_pcs_repeated_key"`, naming the count and up to three offending keys.
+    It does not sum the duplicates: a repeated key means the geometry table is
+    not one row per polity interval, and repairing the arithmetic would leave
+    the fan-out that produced it invisible. **No published value changes**: the
+    shipped 753-row polity table repeats no
+    `(polity_code, start_year, end_year)` among the 666 rows that get clipped,
+    so no production build reaches the guard, and any input that did not carry
+    a repeated key returns exactly the table it returned before.
 
 * **Atmospheric deposition is now split as a mass over territory, and its two
   land definitions are separated.** `build_n_deposition()` splits each cell's
@@ -85,15 +102,24 @@
     the purposes that want it and aborts if the support cannot be decomposed,
     rather than silently returning the whole territory. Under the default the
     ledger output is bit-identical to before the split.
-  * **Known limitation, not a rounding error:** nine polities -- Sudan, South
-    Sudan, Syria, North Macedonia, Eswatini, Equatorial Guinea, Palestine, Fiji
-    and New Caledonia -- receive no deposition through the deployed crosswalk,
-    because their polity codes have no reporting `area_code` to convert to.
-    **The gap is identity, not extent**: of the six with a directly comparable
-    official area, all sit within 3.7% of it (Syria +0.90%, North Macedonia
-    -1.23%, Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%,
-    Equatorial Guinea -3.65%). It is the single largest lever left in the N
-    ledger.
+  * **Known limitation, not a rounding error:** **eight** reporting areas the
+    deployed crosswalk carries -- 61 Equatorial Guinea, 153 New Caledonia, 154
+    North Macedonia, 209 Eswatini, 212 Syria, 299 Palestine, 276 Sudan and 277
+    South Sudan -- receive no deposition through the polycell path. The first
+    six fold onto `ROW-1850-2025` (`polity_area_code` 999, `fabio_row_fold`)
+    while their own `GNQ-`, `NCL-`, `MKD-`, `SWZ-`, `SYR-` and `PSE-` codes
+    carry no crosswalk row at all, so `polity_code` resolves to no reporting
+    `area_code`; Sudan and South Sudan do resolve, but both onto 206, Sudan
+    (former), so neither 276 nor 277 is reachable on its own. **The gap is
+    identity, not extent**: of the six with a directly comparable official
+    area, all sit within 3.7% of it (Syria +0.90%, North Macedonia -1.23%,
+    Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%, Equatorial Guinea
+    -3.65%). **Fiji is no longer among them**: since the polities refresh in
+    #662 the crosswalk maps area 66 onto `FJI-1800-2025` through
+    `upstream_map`, and the polycell build returns 60 polycells holding
+    1,871,003 ha, all measured on `s2`, reproducing the polity's own polygon
+    area exactly. How this ranks against the ledger's other open terms has not
+    been measured, so no claim is made about it.
 
 * **Migrating a consumer onto the polycell: what to change and what moved.**
   The transitional shim that let `build_polycell_support()` masquerade as the
@@ -111,10 +137,17 @@
   * **Measured movement, at polity grain**, is entirely in the deposition
     input term: `n_input_full_t` -0.504%, `n_balance_t` -2.252%,
     `surplus_t` -1.055%, `total_gwp_co2e_kg` -0.137%. Of the -678,612.5 t N,
-    **95.6% (-648,491.3 t) is the nine unreachable polities above** and only
+    **95.6% (-648,491.3 t) is unreachable reporting areas** and only
     -30,121.2 t (0.107% of the term) is geometry, dominated by Canada
     (-1.03%). The split key itself moves 27 of 28 ledger quantities by exactly
     zero and the 28th by one ulp; the synthetic term moves by exactly 0 t.
+    **Basis, because it has since moved:** this was measured on the polity
+    vintage *before* #662, on which Fiji was unreachable too, so the
+    unreachable share above spans **nine** areas rather than the eight that
+    remain. Fiji's part of it has not been re-measured -- doing so needs the
+    HaNi deposition rasters, which the measuring environment does not carry --
+    so the figure is left as measured and its basis named rather than restated
+    over a population it was not measured on.
   * **The island states are fixed.** Against official land areas, Kiribati
     goes from **34.3x** to **1.18**, Micronesia 17.5x to 1.00, French Polynesia
     15.3x to 1.16, Maldives 10.3x to 0.58 -- they used to draw a whole
@@ -123,14 +156,21 @@
     country area for Greenland "refers to area free from ice", so the
     comparable quantity is WHEP's territory minus its 177.5 Mha of ice, which
     reads -12.9%.
-  * **Five `polity_frac` call sites remain and are deliberate.** Dropping
-    `"polity_frac"` from `utils::globalVariables()` exposes exactly five
-    `no visible binding` sites: three in `water_balance.R` and one each in
-    `feed_lpjml.R` and `feed_intake_redistribute.R`. All three files are out of
-    scope for this migration -- the water balance is owned elsewhere and the
-    feed path is frozen -- and they are **not** an oversight or an unfinished
-    migration. The `R CMD check` NOTE count is unchanged either way, so the
-    lines sit inside a NOTE the package already had.
+  * **Six `polity_frac` call sites remain and are deliberate.** Dropping
+    `"polity_frac"` from `utils::globalVariables()` was used as a detector, and
+    it named exactly six unqualified uses: `.wb_finalise()`,
+    `.wb_drop_polity_cols()` and `.wb_aggregate_polity()` in `water_balance.R`,
+    `aggregate_grass_to_polity()` in `feed_lpjml.R`, `.grass_to_cells()` in
+    `feed_intake_redistribute.R`, and `.read_fraction_country_grid()` in
+    `run_spatialize.R`. All four files are out of scope for this migration --
+    the water balance is owned elsewhere, the feed path is frozen, and
+    `.read_fraction_country_grid()` reads the deployed crosswalk on purpose --
+    and they are **not** an oversight or an unfinished migration. The detector
+    has done its job, so `"polity_frac"` is **restored** to
+    `utils::globalVariables()` and `R CMD check` is back to `Status: OK`.
+    Without it the check reported `Status: 1 NOTE` where merge-base main was
+    `Status: OK`, on a check CI cannot fail: `check-r-package@v2` defaults
+    `error-on: warning`.
 * **The HWSD readers aggregate in latitude bands instead of one whole-grid
   pass.** Classifying the 30-arcsec HWSD grid in one go materialised ~11 GB of
   full-resolution intermediates to produce a few MB, and `terra::crop()` pulled

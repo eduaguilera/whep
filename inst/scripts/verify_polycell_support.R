@@ -23,6 +23,10 @@
 #        reproduced build_cell_polity() bit-for-bit; it now aborts if a
 #        `polity_frac` column, a crosswalk-only padding row or an unmeasured
 #        row has come back.
+#   KEY  that every emitted row is one polycell interval: the key is unique and
+#        no interval covers zero years. A repeated key makes the interval split
+#        emit empty intervals that resolve to no year and drop their territory
+#        silently, and every other check here still passes when it does.
 #   DA-15 whole-table completeness on every runtime, plus the coverage classes
 #        and pieces measured with terra against the reference-runtime census in
 #        `.vps_expected_census()`.
@@ -648,6 +652,43 @@
   )
 }
 
+# The interval split reads the next breakpoint with `dplyr::lead()`, which is
+# the next breakpoint only while one row per cell, polity and interval reaches
+# it. A repeated key otherwise turns every second row into an interval that
+# resolves to no year and drops its territory in complete silence -- no error,
+# no warning, and S-A1, the water apportionment and the LUH2 reconciliation all
+# still pass, because every surviving row is individually well formed.
+#
+# `.pcs_abort_repeated_key()` now refuses such input, so this is the whole-table
+# statement of the same property on the OUTPUT: the split, the water join and
+# the diagnostics all run after that guard, and this file is where the whole
+# table is the thing being checked rather than a fixture. It is asserted on
+# `polycell_id`, the identity DA-2 defines, rather than on its two ingredients.
+.vps_unique_keys <- function(support) {
+  .vps_h("Every emitted row is one polycell interval")
+  repeated <- support |>
+    dplyr::count(.data$polycell_id, .data$start_year, .data$end_year) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(repeated) > 0L) {
+    cli::cli_abort(
+      "{nrow(repeated)} {.field (polycell_id, start_year, end_year)} key{?s}
+       {?is/are} repeated, worst {max(repeated$n)} rows; first:
+       {.val {utils::head(repeated$polycell_id, 3L)}}."
+    )
+  }
+  empty <- support$end_year <= support$start_year
+  if (any(empty)) {
+    cli::cli_abort(
+      "{sum(empty)} interval{?s} cover{?s/} no year at all; first:
+       {.val {utils::head(support$polycell_id[empty], 3L)}}."
+    )
+  }
+  cli::cli_alert_success(
+    "{nrow(support)} interval row{?s}, every key unique and every interval
+     covering at least one year."
+  )
+}
+
 .vps_coverage <- function(support, whole_table, expected_codes = NULL) {
   .vps_h("DA-15: polygon coverage and substituted area engines")
   diagnostic <- attr(support, "coverage")
@@ -1079,6 +1120,7 @@
   )
   .vps_subset_gate(expected_codes, support)
   .vps_shim_removed(support)
+  .vps_unique_keys(support)
   # Every row is a measured polycell since C9 removed the padding, so this is
   # the whole table rather than a filtered view of it.
   polycells <- support
