@@ -285,6 +285,48 @@ testthat::test_that("build_food_supply aborts on a missing coefficient", {
   )
 })
 
+testthat::test_that("the packaged coefficients give the shipped protein", {
+  # Every other arithmetic test here injects its own biomass_coefs fixture, so
+  # a change to the PACKAGED coefficients would break none of them -- which is
+  # exactly the surface #500 moves. This test runs the shipped lookup over
+  # whep::biomass_coefs and whep::items_full and pins the four items that
+  # dominate the WHEP-vs-FAOSTAT residual, so a coefficient edit has to be
+  # deliberate and has to state its effect.
+  lookup <- whep:::.food_nutrition_lookup(
+    whep::items_full,
+    whep::biomass_coefs,
+    "edible_portion"
+  )
+  # which() rather than a bare logical: items_full carries one row with an NA
+  # item_cbs_code, and NA == code subsets in an NA element rather than dropping
+  # the row.
+  protein_of <- function(code) {
+    unique(lookup$protein_frac_kgfm[which(lookup$item_cbs_code == code)])
+  }
+
+  # kg protein per kg fresh matter = N_kgN_kgFM * 6.25 * Edible_portion.
+  testthat::expect_equal(protein_of(2511), 0.11844577745690253) # Wheat
+  testthat::expect_equal(protein_of(2807), 0.0743119266055046) # Rice, milled
+  testthat::expect_equal(protein_of(2551), 0.2) # Nuts -> Almonds (#500)
+  testthat::expect_equal(protein_of(2848), 0.033) # Milk excl. Butter
+})
+
+testthat::test_that("every food item resolves to one coefficient row", {
+  # .food_nutrition_lookup() de-duplicates on Name_biomass because duplicate
+  # names would fan out and double-count food_t. Pin that the bridge really is
+  # one row per item, so a future items_full edit cannot silently reintroduce
+  # the fan-out.
+  lookup <- whep:::.food_nutrition_lookup(
+    whep::items_full,
+    whep::biomass_coefs,
+    "edible_portion"
+  )
+  testthat::expect_equal(
+    nrow(lookup),
+    dplyr::n_distinct(lookup$item_cbs_code)
+  )
+})
+
 testthat::test_that("build_food_supply(example = TRUE) has the contract shape", {
   out <- whep::build_food_supply(example = TRUE)
   testthat::expect_s3_class(out, "tbl_df")
