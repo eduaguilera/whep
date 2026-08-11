@@ -77,6 +77,16 @@
      pre-1962 year skeleton and the observed-source join, where a second label
      for one code doubled the skeleton rather than only mislabelling it: the
      label's identity role is now this one lookup instead of four keys.",
+    ".attach_mapping_source", "left_join",
+    "area_code, polity_code, polity_start_year, polity_end_year", 1L,
+    "diagnostic",
+    "Reads the provenance label off the crosswalk row the resolver ALREADY
+     picked, for `polity_mapping_provenance()` (whep#740). The key is that
+     row's own identity -- the area plus the polity PERIOD -- so the year
+     scoping happened inside `.add_polity_columns_dt()` one step earlier and
+     re-stating it here would constrain nothing: `polity_start_year` and
+     `polity_end_year` ARE the years. It moves no published value; it is the
+     instrument that measures which authority a published value rests on.",
     ".build_fd_flat", "left_join", "area_code, item_cbs_code", 1L, "single_year",
     "`cbs_yr` is one year of the CBS.",
     ".build_feed_demand_fcr", "left_join", "area_code", 1L, "time_invariant",

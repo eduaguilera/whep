@@ -78,10 +78,17 @@ test_that("the enumerated baseline can only shrink", {
   # key, so the gridded boundary no longer reaches IMAGE through a year-free
   # country join at all.
   #
-  # 59 adds `.carbon_warn_fold`, which is not a new year-blind READ at all --
+  # 59 is `.attach_mapping_source`, measured -- `sum(.territorial_joins() |>
+  # filter(!has_year) |> count(...) |> pull(n))` reads 59 on this commit against
+  # 58 before it. It is a rise in the count for a join that keys on the polity
+  # PERIOD, i.e. on the year-scoped identity itself, and that exists only to
+  # report which authority each resolution rests on (whep#740). The instrument
+  # that measures year-blindness costs one row on the ledger it measures.
+  #
+  # 60 adds `.carbon_warn_fold`, which is not a new year-blind READ at all --
   # both sides of it are the same already-year-filtered carbon support, and it
   # selects warning text rather than a value.
-  expect_lte(sum(baseline$n), 59L)
+  expect_lte(sum(baseline$n), 60L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

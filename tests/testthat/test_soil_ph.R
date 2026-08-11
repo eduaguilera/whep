@@ -337,7 +337,7 @@ testthat::test_that("read_soil_ph aggregates HWSD raster + attributes", {
   testthat::expect_true(all(result$soil_ph == 6.5))
 })
 
-testthat::test_that(".crop_to_target crops the raster to the target extent", {
+testthat::test_that(".hwsd_target_extent pads the target grid's bounding box", {
   testthat::skip_if_not_installed("terra")
   rast <- terra::rast(
     nrows = 12,
@@ -348,34 +348,71 @@ testthat::test_that(".crop_to_target crops the raster to the target extent", {
     ymax = 3,
     resolution = 0.5
   )
-  terra::values(rast) <- seq_len(terra::ncell(rast))
   target <- tibble::tibble(lon = c(-0.25, 0.25), lat = c(-0.25, 0.25))
 
-  cropped <- whep:::.crop_to_target(rast, target, target_res = 0.5)
-  ext <- terra::ext(cropped)
+  ext <- whep:::.hwsd_target_extent(rast, target, target_res = 0.5)
 
-  testthat::expect_lt(terra::ncell(cropped), terra::ncell(rast))
-  testthat::expect_gte(ext$xmin, -1)
-  testthat::expect_lte(ext$xmax, 1)
-  testthat::expect_gte(ext$ymin, -1)
-  testthat::expect_lte(ext$ymax, 1)
+  testthat::expect_equal(unname(ext$xmin), -0.5)
+  testthat::expect_equal(unname(ext$xmax), 0.5)
+  testthat::expect_equal(unname(ext$ymin), -0.5)
+  testthat::expect_equal(unname(ext$ymax), 0.5)
 })
 
-testthat::test_that(".crop_to_target is a no-op without a target grid", {
+testthat::test_that(".hwsd_target_extent falls back to the whole raster", {
   testthat::skip_if_not_installed("terra")
   rast <- terra::rast(
-    nrows = 4,
-    ncols = 4,
-    xmin = -1,
-    xmax = 1,
-    ymin = -1,
-    ymax = 1
+    nrows = 12,
+    ncols = 12,
+    xmin = -3,
+    xmax = 3,
+    ymin = -3,
+    ymax = 3,
+    resolution = 0.5
   )
-  terra::values(rast) <- seq_len(terra::ncell(rast))
 
-  unchanged <- whep:::.crop_to_target(rast, NULL, target_res = 0.5)
+  ext <- whep:::.hwsd_target_extent(rast, NULL, target_res = 0.5)
 
-  testthat::expect_equal(terra::ncell(unchanged), terra::ncell(rast))
+  testthat::expect_equal(as.vector(ext), as.vector(terra::ext(rast)))
+})
+
+# Banding is only safe because each band is a whole number of target rows: an
+# aggregated cell's source pixels then lie inside exactly one band, so no
+# aggregated value can straddle a boundary. Tile the extent exactly, with no
+# gap and no overlap, or the result changes.
+testthat::test_that(".hwsd_band_extents tiles the extent in whole target rows", {
+  testthat::skip_if_not_installed("terra")
+  res <- 0.5
+  extent <- terra::ext(-10, 10, -25, 25)
+
+  bands <- whep:::.hwsd_band_extents(extent, target_res = res)
+  tops <- vapply(bands, function(b) b$ymax, numeric(1))
+  bottoms <- vapply(bands, function(b) b$ymin, numeric(1))
+
+  # every band spans a whole number of target rows
+  rows <- (tops - bottoms) / res
+  testthat::expect_equal(rows, round(rows))
+  # contiguous, no gaps or overlaps, covering the extent exactly
+  testthat::expect_equal(max(tops), unname(extent$ymax))
+  testthat::expect_equal(min(bottoms), unname(extent$ymin))
+  testthat::expect_equal(bottoms[-length(bottoms)], tops[-1])
+  # longitude is never split
+  testthat::expect_true(all(
+    vapply(bands, function(b) b$xmin, numeric(1)) == extent$xmin
+  ))
+  testthat::expect_true(all(
+    vapply(bands, function(b) b$xmax, numeric(1)) == extent$xmax
+  ))
+})
+
+testthat::test_that(".hwsd_band_extents handles an extent shorter than one band", {
+  testthat::skip_if_not_installed("terra")
+  extent <- terra::ext(-10, 10, 0, 1)
+
+  bands <- whep:::.hwsd_band_extents(extent, target_res = 0.5)
+
+  testthat::expect_length(bands, 1L)
+  testthat::expect_equal(unname(bands[[1]]$ymin), 0)
+  testthat::expect_equal(unname(bands[[1]]$ymax), 1)
 })
 
 testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {

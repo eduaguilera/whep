@@ -212,39 +212,61 @@ testthat::test_that("the shipped snapshot's hand-overs include Angola", {
   ))
 })
 
-testthat::test_that("the bucket recovers the polity outside Sudan", {
+testthat::test_that("the bucket recovers the polity outside two folds", {
   # The other half of the contract, and the half that fails: `polity_area_code`
   # is a bucket several `area_code` values can share, so keying on it is keying
   # on the polity only where the bucket has one member -- or where its members
   # agree.
   #
-  # Measured over 1961-2025, exactly one bucket does not: 206, which holds
-  # Sudan (former) 206, Sudan 276 and South Sudan 277, and answers with three
-  # polities in EVERY reported year -- 65 of them, not just the 15 its periods
-  # overlap in, because the pre-secession years reach 276 and 277 through the
-  # nearest-period stand-in. That is #414 and is not decided here; it is
-  # enumerated so the count can only shrink deliberately.
+  # Measured over 1961-2025, TWO buckets do not, and they are the only two that
+  # fold a member at all outside Rest-of-World:
+  #
+  #   206  Sudan (former) 206 + Sudan 276 + South Sudan 277, three polities in
+  #        EVERY reported year -- 65 of them, not just the 15 its periods
+  #        overlap in, because the pre-secession years reach 276 and 277 through
+  #        the nearest-period stand-in. That is #414.
+  #   238  Ethiopia PDR 62 + Ethiopia 238, two polities from 1993 on -- 33
+  #        years. Area 62 dissolved in 1993 and its own periods all end there,
+  #        so from 1993 it resolves to `ETH-1952-1993` as an out-of-span
+  #        stand-in while 238 resolves to `ETH-1993-2025` as a period hit.
+  #
+  # 238 IS NEW WITH #741, and it is a finding rather than a regression: the
+  # crosswalk used to hand dead area 62 the live `ETH-1993-2025`, which made
+  # the two members agree by giving one of them a polity the map awards to the
+  # other. Removing that row does not create the disagreement, it stops hiding
+  # it. Nothing published moves, because area 62 contributes no rows after 1992
+  # and `.bucket_area_labels()` labels a bucket from the BUCKET code anyway --
+  # verified on a real `get_primary_production()`, where bucket 238 carries
+  # `ETH-1952-1993` through 1992 and `ETH-1993-2025` after it, never both.
+  #
+  # Neither is decided here; both are enumerated so the count can only shrink
+  # deliberately.
   out <- whep:::.bucket_year_polity_conflicts()
 
-  testthat::expect_setequal(out$polity_area_code, 206L)
+  testthat::expect_setequal(out$polity_area_code, c(206L, 238L))
   testthat::expect_setequal(
     out$polity_codes,
-    "SDN-2011-2025, SSD-2011-2025, SUD-1956-2011"
+    c(
+      "SDN-2011-2025, SSD-2011-2025, SUD-1956-2011",
+      "ETH-1952-1993, ETH-1993-2025"
+    )
   )
   testthat::expect_setequal(out$year, 1961:2025)
-  testthat::expect_equal(nrow(out), 65L)
+  testthat::expect_equal(nrow(out), 98L)
+  testthat::expect_equal(sum(out$polity_area_code == 206L), 65L)
+  testthat::expect_setequal(out$year[out$polity_area_code == 238L], 1993:2025)
 })
 
 testthat::test_that("sharing a bucket is not itself a conflict", {
   # The complement, and the false positive that would make the bucket check
   # useless: `options(whep.unfold_rest_of_world = "none")` restores the FABIO
   # fold, putting 21 reporting areas back into bucket 999 -- all of them under
-  # ONE polity. Agreement is not ambiguity, so 999 must stay clean and 206 must
-  # stay the only exception under either setting.
+  # ONE polity. Agreement is not ambiguity, so 999 must stay clean and the two
+  # real folds must stay the only exceptions under either setting.
   withr::local_options(whep.unfold_rest_of_world = "none")
 
   out <- suppressWarnings(whep:::.bucket_year_polity_conflicts())
 
   testthat::expect_false(999L %in% out$polity_area_code)
-  testthat::expect_setequal(out$polity_area_code, 206L)
+  testthat::expect_setequal(out$polity_area_code, c(206L, 238L))
 })

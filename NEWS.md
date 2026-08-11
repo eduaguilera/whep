@@ -131,6 +131,63 @@
     feed path is frozen -- and they are **not** an oversight or an unfinished
     migration. The `R CMD check` NOTE count is unchanged either way, so the
     lines sit inside a NOTE the package already had.
+* **The HWSD readers aggregate in latitude bands instead of one whole-grid
+  pass.** Classifying the 30-arcsec HWSD grid in one go materialised ~11 GB of
+  full-resolution intermediates to produce a few MB, and `terra::crop()` pulled
+  the whole grid into memory before any aggregation began. Every aggregated cell
+  draws only on the source pixels beneath it, so the work splits by latitude
+  band with no cross-band dependency as long as each band is a whole number of
+  target rows. Peak per call goes from ~16.8 GB to ~2.6 GB and each call is
+  faster (clay 20 s to 23 s, hydraulic 60 s to 67 s, soil pH 23 s to 26 s on a
+  loaded machine; ~2.5x faster when measured alone). Output is `identical()` at
+  all three call sites -- `.cb_hwsd_clay()`, `read_soil_hydraulic()` and
+  `read_soil_ph()`. This supersedes the per-call-site reclaim added in #735,
+  which only covered one of the three (#624).
+
+* **`polity_area_crosswalk` no longer gives an area a polity the upstream map
+  awarded outside its fold (#741).** The prefix expansion removed a candidate
+  only when it overlapped a map span of *its own* area, so nothing ever asked
+  whether upstream had already named that polity elsewhere. FAOSTAT area 62
+  Ethiopia PDR was therefore handed `ETH-1993-2025`, which area 238 owns, and
+  it escaped the same-area test on a boundary year (1993 is not `<= 1992`).
+  The exclusion now also fires when the map's owner sits outside the
+  candidate's fold, and the crosswalk goes from 596 to 595 rows. The mirror-
+  image row `(238, ETH-1952-1993)` is deliberately kept: area 62 folds into
+  bucket 238, `reporting_polity_code` is resolved from the bucket code, and
+  that row is the bucket's whole pre-1993 coverage. **One published identity
+  moves, no quantity does.** `regions_full`'s row for area 62 "Ethiopia PDR"
+  now carries `reporting_polity_code = "ETH-1952-1993"` / "Ethiopia
+  (1952-1993)" instead of `"ETH-1993-2025"` / "Ethiopia" -- that area
+  dissolved in 1993 and never was the modern republic, so this is a
+  correction. It is the only row of the only dataset that moves. Resolving all
+  266 area/bucket codes over 1850-2025 (46,816 pairs) moves 33, all of them
+  area 62 in 1993-2025, years in which area 62 both published nothing and no
+  longer existed. Confirmed on a real 6,310,390-row
+  `get_primary_production()`: area 62 contributes 0 rows, and Ethiopia's
+  bucket-238 rows still split 35,558 pre-1993 to `ETH-1952-1993` and 10,057
+  from 1993 to `ETH-1993-2025`. One consequence is now visible rather than
+  hidden: `.bucket_year_polity_conflicts()` reports bucket 238 alongside
+  bucket 206 for 1993-2025, because the removed row was manufacturing
+  agreement between a dead reporting area and a live one.
+* **New diagnostic `polity_mapping_provenance()` says which authority a row's
+  territorial identity rests on (#740).** `polity_area_crosswalk` is not the
+  upstream FAOSTAT-to-polity map: it is that map (245 of 596 rows) plus rows
+  WHEP manufactures by ISO3-prefix match (`prefix_outside_map`, 262;
+  `prefix_fallback`, 27) and WHEP's own Rest-of-World bucket
+  (`fabio_row_fold`, 62). Nothing said which of them a published number came
+  through. The new function resolves `(area_code, year)` through the same
+  lookup the builds use and reports the class of the crosswalk row that
+  answered, plus an `authority` column collapsing it to `"upstream"`,
+  `"whep_prefix"`, `"whep_bucket"` or `"unresolved"`. Measured on a real
+  6,310,390-row `get_primary_production()`: 96.06% of rows and 99.76% of tonnes
+  resolve through an upstream map row, 3.37% through the Rest-of-World bucket
+  (the 24 reporting members #628 promoted), and 0.56% through a manufactured
+  prefix row -- every one of them FAOSTAT area 238 Ethiopia before 1993, on
+  `ETH-1952-1993`. Over the crosswalk's own 1850-2025 grid, 257 of the 262
+  `prefix_outside_map` rows are the resolution of no `(area_code, year)` at
+  all, because the back-cast anchor floors every lookup at 1961. **No published
+  value changes**: the function is a read-only diagnostic and no build path
+  calls it.
 
 * **`build_carbon_inputs()` no longer attaches reporting polity columns to an
   intermediate that discards them.** `build_soil_carbon_inputs()` produced a

@@ -377,6 +377,7 @@ reference:
   - add_polity_code
   - polity_bucket_coverage
   - polity_coverage_gaps
+  - polity_mapping_provenance
   - add_area_code
   - add_area_name
   - get_polity_geometries
