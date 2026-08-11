@@ -1334,8 +1334,15 @@ build_carbon_balance <- function(
 # crosswalk, supplied here from HWSD and the spatialization country grid.
 .cb_read_climate <- function(years = NULL) {
   cell_polity <- .cb_read_cell_polity()
-  get_soc_climate_drivers(
+  # .socd_build() rather than get_soc_climate_drivers(): the reporting polity
+  # columns the exported reader attaches cost ~27 GB on the 8.6e7-row table a
+  # full span produces, and nothing here reads them -- the climate modifier keys
+  # on (lon, lat, area_code, year, month), and this function's own output gets
+  # its reporting columns added at the end regardless (#624).
+  .socd_build(
+    run_dir = NULL,
     years = years,
+    polity_validity = "keep",
     data = list(
       clay = .cb_hwsd_clay(cell_polity),
       cell_polity = cell_polity
