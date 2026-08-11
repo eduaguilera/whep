@@ -123,13 +123,25 @@ testthat::test_that("no-data divides by the whole cell, not by its land", {
   # over two whose `area_pct` is absent.
   dir <- pcl_write_glwd(
     classes = c(
-      1L, 1L, 0L, 0L,
-      1L, 1L, 0L, 0L,
+      1L,
+      1L,
+      0L,
+      0L,
+      1L,
+      1L,
+      0L,
+      0L,
       rep(0L, 8L)
     ),
     area_pct = c(
-      100, 100, 100, 100,
-      NA, NA, 100, 100,
+      100,
+      100,
+      100,
+      100,
+      NA,
+      NA,
+      100,
+      100,
       rep(100, 8L)
     )
   )

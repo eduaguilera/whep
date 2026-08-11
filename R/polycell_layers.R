@@ -130,7 +130,10 @@ glwd_water_fraction <- function(glwd_dir, cells = NULL) {
   if (length(v2) > 0L) {
     return(list(path = v2[[1L]], version = "v2", dir = v2_dir))
   }
-  v1 <- c(file.path(glwd_dir, "glwd_3", "hdr.adf"), file.path(glwd_dir, "glwd_3.tif"))
+  v1 <- c(
+    file.path(glwd_dir, "glwd_3", "hdr.adf"),
+    file.path(glwd_dir, "glwd_3.tif")
+  )
   v1 <- v1[file.exists(v1)]
   if (length(v1) > 0L) {
     return(list(path = v1[[1L]], version = "v1", dir = glwd_dir))
