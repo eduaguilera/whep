@@ -91,29 +91,32 @@ nourishment_thresholds <- tibble::tribble(
 )
 
 # Boundary axis (Within_boundary/Exceedance) crossed with the nourishment axis
-# (Under/Adequate/Over); colours from afsetools SJOS_colours.
+# (Under/Adequate/Over); colours from afsetools SJOS_colours. The order is the
+# realised afsetools SJOS_levels order: load_vectors.R:684 wraps the vector in
+# rev(), so element 1 is "Exceedance Over", and that is the factor-level order
+# Global's figures stack and legend on (Global/R/SJOS_N_figs.R:188).
 sjos_levels <- tibble::tribble(
   ~level,
   ~order,
   ~colour,
-  "Within_boundary Under",
-  1L,
-  "lightseagreen",
-  "Within_boundary Adequate",
-  2L,
-  "lightgreen",
-  "Within_boundary Over",
-  3L,
-  "burlywood3",
-  "Exceedance Under",
-  4L,
-  "mediumpurple",
-  "Exceedance Adequate",
-  5L,
-  "salmon1",
   "Exceedance Over",
+  1L,
+  "indianred3",
+  "Exceedance Adequate",
+  2L,
+  "salmon1",
+  "Exceedance Under",
+  3L,
+  "mediumpurple",
+  "Within_boundary Over",
+  4L,
+  "burlywood3",
+  "Within_boundary Adequate",
+  5L,
+  "lightgreen",
+  "Within_boundary Under",
   6L,
-  "indianred3"
+  "lightseagreen"
 )
 
 # Nourishment levels in the afsetools Nour_levels order (Over/Adequate/Under);

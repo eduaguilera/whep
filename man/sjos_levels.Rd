@@ -8,8 +8,9 @@
 A tibble with columns:
 \describe{
 \item{level}{Combined classification level (e.g.
-\code{"Within_boundary Under"}, \code{"Exceedance Over"}).}
-\item{order}{Integer plotting/factor order (1 to 6).}
+\code{"Exceedance Over"}, \code{"Within_boundary Under"}).}
+\item{order}{Integer plotting/factor order (1 to 6), matching the row
+order.}
 \item{colour}{Plotting colour (an R colour name).}
 }
 }
@@ -19,8 +20,9 @@ framework of Schulte-Uebbing, L. F., Beusen, A. H. W., Bouwman, A. F. &
 de Vries, W. (2022). \doi{10.1038/s41586-022-05158-2} and de Vries, W. et
 al. (2013). \doi{10.1016/j.cosust.2013.07.004}; nourishment axis from the
 nourishment thresholds (see \link{nourishment_thresholds}). The level
-labels and colours are ported by value from \code{afsetools::load_vectors()}
-(\code{SJOS_levels} and \code{SJOS_colours}); verify against Zotero before
+labels, their order and the colours are ported by value from
+\code{afsetools::load_vectors()} (\code{SJOS_levels}, which is wrapped in
+\code{rev()} there, and \code{SJOS_colours}); verify against Zotero before
 any manuscript use.
 }
 \usage{
@@ -31,7 +33,11 @@ The ordered levels of the SJOS-N 2-way classification: the reactive-nitrogen
 boundary axis (\code{Within_boundary} versus \code{Exceedance}) crossed with
 the nourishment axis (\code{Under}, \code{Adequate}, \code{Over}), with a
 plotting colour per combined level. Used to classify and colour polities on
-the safe-and-just nitrogen space.
+the safe-and-just nitrogen space. The rows are in the realised
+\code{afsetools::load_vectors()} \code{SJOS_levels} order, which that source
+reverses: \code{"Exceedance Over"} first, \code{"Within_boundary Under"}
+last. That is the factor-level order Global's SJOS-N figures stack and
+legend on, so a figure built from these levels reproduces theirs.
 }
 \examples{
 sjos_levels
