@@ -1821,6 +1821,17 @@ utils::globalVariables(
     # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
     # columns for the canonical-area tie-break
     "is_canonical",
-    "keep"
+    "keep",
+    # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
+    # land series measured inside each year's own polity polygon
+    "n_buckets",
+    "mapping_status",
+    "cell",
+    "frac",
+    "share",
+    "land_now",
+    "land_next",
+    "land_mha",
+    "log_ratio"
   )
 )

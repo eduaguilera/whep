@@ -149,6 +149,12 @@
     "Both sides are two filters of one frame (`cbs_raw4`), whose label is
      already one per code, so the label cannot disagree here. It is still a
      label in a key: whep#691.",
+    ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
+    "A polity code already names its own period (`ETH-1952-1993`), so the
+     polygon it is joined to cannot vary within it. This is the join that makes
+     the pre-1962 LAND half year-aware at all (whep#761): the caller has
+     already resolved (area_code, year) -> polity_code unfloored, and every
+     step after this one carries `year`.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",

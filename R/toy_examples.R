@@ -1244,6 +1244,26 @@
   )
 }
 
+# Ten rows of a real build_historical_land_areas(1850:1961) run, sampled across
+# the span and across the cases that make this method differ from the
+# present-day one: Ethiopia either side of the 1952 Eritrea handover, and the
+# dissolved federations the polygon route reaches without a successor union.
+.example_historical_land_areas <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
+    1850L, 238L, "ETH-1800-1889", 0., 0., 0.,
+    1900L, 238L, "ETH-1897-1902", 0., 0., 0.,
+    1951L, 238L, "ETH-1941-1952", 0., 0., 0.,
+    1952L, 238L, "ETH-1952-1993", 0., 0., 0.,
+    1961L, 238L, "ETH-1952-1993", 0., 0., 0.,
+    1961L, 15L, "BLX-1850-1999", 0., 0., 0.,
+    1961L, 51L, "F51-1947-1993", 0., 0., 0.,
+    1961L, 228L, "F228-1945-1991", 0., 0., 0.,
+    1961L, 248L, "F248-1947-1991", 0., 0., 0.,
+    1961L, 203L, "ESP-1846-1914", 0., 0., 0.
+  )
+}
+
 .ex_josette_feed_share <- function() {
   tibble::tribble(
     ~Year, ~Province_name, ~LU_total, ~Feed_import_MgN, ~Domestic_feed_MgN, ~Total_feed_MgN, ~Imported_feed_share,

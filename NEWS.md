@@ -1,5 +1,27 @@
 # whep (development version)
 
+* **The pre-1962 back-cast can now measure its hectares on each year's own
+  borders.** `tonnes = ha * t_ha`: the yield half has always been historical
+  (`.fill_yields()` back-casts `t_ha` against 1,058,295 pre-1962 observations),
+  while the area half came from the `luh2-areas` pin, which is LUH2 land
+  pre-aggregated to *present-day* ISO3. A row labelled with the 1961 entity was
+  therefore measured on the borders that entity has today. The new
+  `build_primary_production(land_method = "historical_polity")` measures it with
+  `build_historical_land_areas()` instead: gridded LUH2 summed inside the
+  polygon of the polity `area_code` resolves to in that year, resolved unfloored.
+  At a handover year the previous year is re-measured inside the *incoming*
+  polygon before the ratio is taken, so a territorial change stays a level step
+  instead of compounding as growth down the whole back-cast -- on Ethiopia in
+  1952, when Eritrea joins, +1.9% rather than +7.0%. **No published values move
+  by default**: `land_method = "present_day"` is unchanged and is what the
+  pipeline still runs. Under the new method pre-1962 rows are labelled
+  `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It also reaches
+  the four dissolved federations without `federation_land = "successor_union"`,
+  because Czechoslovakia, the USSR, Yugoslavia and Belgium-Luxembourg all have
+  polygons; and it reaches 90 fewer reporting buckets, because a bucket whose
+  polity that year is a residual standing in for dozens of areas has no borders
+  to be measured on (#761).
+
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
   requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
