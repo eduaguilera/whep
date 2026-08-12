@@ -2977,10 +2977,11 @@ build_primary_production <- function(
   dplyr::bind_rows(pre, post)
 }
 
-# Warn loudly when pre-1962 crop/agriland rows fail to match any LUH2
-# land record, so the silent loss of back-cast production (e.g. from a
-# country-name spelling mismatch) becomes a visible, diagnosable signal
-# instead of disappearing.
+# Warn loudly when pre-1962 crop/agriland rows cannot be back-cast, so the
+# silent loss of production becomes a visible, diagnosable signal instead of
+# disappearing. Two causes, reported separately: no LUH2 land record at all
+# (e.g. a country-name spelling mismatch, a dissolved federation) and a land
+# record that is zero in every pre-1962 year.
 .warn_unmatched_land <- function(pre, land_wide, join_keys, livestock_units) {
   area_col <- setdiff(join_keys, "year")
   if (length(area_col) != 1 || !area_col %in% names(land_wide)) {
@@ -2989,21 +2990,61 @@ build_primary_production <- function(
   land_rows <- pre[
     !(pre$unit %in% livestock_units) & !is.na(pre[[area_col]]),
   ]
-  unmatched <- land_rows[
-    !(land_rows[[area_col]] %in% unique(land_wide[[area_col]])),
-  ]
-  if (nrow(unmatched) == 0) {
-    return(invisible(NULL))
+  is_matched <- land_rows[[area_col]] %in% unique(land_wide[[area_col]])
+  bad <- unique(land_rows$area[!is_matched])
+  zero <- .zero_proxy_land_areas(land_rows[is_matched, ], area_col)
+  if (length(bad) > 0) {
+    cli::cli_warn(c(
+      "!" = "Historical extension: {length(bad)} area{?s} {?has/have} no LUH2
+        land match; their pre-1962 production is not back-cast.",
+      "i" = "First unmatched: {.val {head(bad, 5)}}.",
+      "i" = "Dissolved federations can be reached via
+        {.code federation_land = \"successor_union\"}."
+    ))
   }
-  bad <- unique(unmatched$area)
-  cli::cli_warn(c(
-    "!" = "Historical extension: {length(bad)} area{?s} {?has/have} no LUH2
-      land match; their pre-1962 production is not back-cast.",
-    "i" = "First unmatched: {.val {head(bad, 5)}}.",
-    "i" = "Dissolved federations can be reached via
-      {.code federation_land = \"successor_union\"}."
-  ))
+  if (length(zero) > 0) {
+    cli::cli_warn(c(
+      "!" = "Historical extension: {length(zero)} area{?s} {?has/have} a LUH2
+        land match that is zero in every pre-1962 year; their pre-1962
+        production is not back-cast either.",
+      "i" = "First zero-land: {.val {head(zero, 5)}}.",
+      "i" = "LUH2 at 0.5 degrees carries no crop or pasture fraction for some
+        small island states and city territories, so the series stops at 1961
+        by data limitation."
+    ))
+  }
   invisible(NULL)
+}
+
+# An area that matches a LUH2 land row whose proxy is zero in every
+# pre-1962 year fails exactly like an unmatched one: fill_proxy_growth()
+# cannot grow a series from a zero proxy, so the back-cast is dropped just
+# as silently (whep#548). Reported separately from the no-match bucket so
+# the two causes stay distinguishable.
+.zero_proxy_land_areas <- function(land_rows, area_col) {
+  if (!all(c("Cropland", "agriland") %in% names(land_rows))) {
+    return(character())
+  }
+  is_cropland <- land_rows$land_use %in% "Cropland"
+  proxy <- dplyr::if_else(
+    is_cropland,
+    as.numeric(land_rows[["Cropland"]]),
+    as.numeric(land_rows[["agriland"]])
+  )
+  tibble::tibble(
+    area_key = land_rows[[area_col]],
+    area = land_rows$area,
+    proxy_class = dplyr::if_else(is_cropland, "cropland", "agriland"),
+    zero_proxy = is.na(proxy) | proxy <= 0
+  ) |>
+    dplyr::filter(!is.na(area)) |>
+    dplyr::summarise(
+      all_zero = all(zero_proxy),
+      .by = c("area_key", "area", "proxy_class")
+    ) |>
+    dplyr::filter(all_zero) |>
+    dplyr::pull(area) |>
+    unique()
 }
 
 .complete_year_nesting_dt <- function(df, id_cols, years = NULL) {

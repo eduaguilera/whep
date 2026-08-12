@@ -1821,6 +1821,10 @@ utils::globalVariables(
     # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
     # columns for the canonical-area tie-break
     "is_canonical",
-    "keep"
+    "keep",
+    # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
+    # zero-land bucket of the back-cast warning
+    "zero_proxy",
+    "all_zero"
   )
 )

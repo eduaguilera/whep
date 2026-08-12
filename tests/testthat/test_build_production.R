@@ -503,6 +503,68 @@ test_that(".extend_historical warns about areas with no LUH2 land match", {
   )
 })
 
+test_that(".extend_historical warns about areas whose LUH2 land is zero", {
+  # Nauru matches a LUH2 land row, but LUH2 at 0.5 degrees gives it no crop
+  # or pasture fraction, so the proxy is zero in every pre-1962 year and
+  # fill_proxy_growth() cannot back-cast it -- exactly as silently as an
+  # unmatched area used to be (whep#548).
+  primary <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Nauru",
+    area_code = 148L,
+    item_prod = "Coconuts",
+    item_prod_code = 249L,
+    item_cbs = "Coconuts - Incl Copra",
+    item_cbs_code = 2560L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Land_Use, ~Area_Mha,
+    1960L, "Nauru", 148L, "c3ann", 0,
+    1961L, "Nauru", 148L, "c3ann", 0,
+    1960L, "Nauru", 148L, "pastr", 0,
+    1961L, "Nauru", 148L, "pastr", 0
+  )
+
+  expect_warning(
+    result <- whep:::.extend_historical(primary, years, land),
+    "zero in every pre-1962 year"
+  )
+
+  # The warning is a diagnostic: no land is invented, so 1960 stays empty.
+  expect_true(is.na(result$value[result$year == 1960L]))
+})
+
+test_that(".extend_historical stays quiet when LUH2 land is non-zero", {
+  primary <- tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Land_Use, ~Area_Mha,
+    1960L, "Spain", 203L, "c3ann", 9,
+    1961L, "Spain", 203L, "c3ann", 10
+  )
+
+  expect_no_warning(whep:::.extend_historical(primary, years, land))
+})
+
 # -- Dissolved-federation LUH2 bridge (whep#408) -------------------------------
 
 .make_csk_land <- function() {
