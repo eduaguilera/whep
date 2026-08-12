@@ -10,12 +10,17 @@
   began. Those rows now report `mapping_status == "backcast_anchor"`, and
   `polity_coverage_gaps()` reports them as `gap_kind == "backcast_anchor"`
   alongside `polity_ended` / `polity_not_started`. The floor was applied before
-  the span check, so the diagnostic could previously see only 2,664 of the 12,208
-  cells; it now sees all of them, 9,544 of which are new. **No published value
-  changes** -- a full `get_primary_production()` (6,310,390 rows) is `identical()`
-  across the change, `mapping_status` is not on any published schema by default,
-  and the `polity_validity` argument keeps its current scope, so `"drop"` still
-  drops only nearest-period stand-ins (#763).
+  the span check, so the diagnostic could previously see only 2,664 of the
+  12,208 cells; it now sees all of them, 9,544 of which are new.
+  `polity_bucket_coverage()` surfaces the same resolver column, so its
+  `bucket_mapping_status` would read `"backcast_anchor"` for a pre-1961
+  `years =` argument; on the shipped crosswalk no bucket folds more than one
+  polity before 1961, so it emits no such row today, and its `coverage`
+  classification is unchanged either way. **No published value changes** -- a
+  full `get_primary_production()` (6,310,390 rows) is `identical()` across the
+  change, `mapping_status` is not on any published schema by default, and the
+  `polity_validity` argument keeps its current scope, so `"drop"` still drops
+  only nearest-period stand-ins (#763).
 
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
