@@ -429,8 +429,9 @@ build_historical_land_areas <- function(
 }
 
 .assert_polygon_packages <- function() {
-  missing <- c("sf", "terra")[
-    !vapply(c("sf", "terra"), .namespace_available, logical(1))
+  needed <- c("sf", "terra")
+  missing <- needed[
+    !vapply(needed, requireNamespace, logical(1), quietly = TRUE)
   ]
   if (length(missing) > 0L) {
     cli::cli_abort(
@@ -443,8 +444,4 @@ build_historical_land_areas <- function(
     )
   }
   invisible(NULL)
-}
-
-.namespace_available <- function(pkg) {
-  requireNamespace(pkg, quietly = TRUE)
 }
