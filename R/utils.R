@@ -1827,6 +1827,7 @@ utils::globalVariables(
     "n_buckets",
     "mapping_status",
     "cell",
+    "ID",
     "frac",
     "share",
     "land_now",
