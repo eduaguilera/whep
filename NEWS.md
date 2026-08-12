@@ -9,18 +9,26 @@
   `build_primary_production(land_method = "historical_polity")` measures it with
   `build_historical_land_areas()` instead: gridded LUH2 summed inside the
   polygon of the polity `area_code` resolves to in that year, resolved unfloored.
-  At a handover year the previous year is re-measured inside the *incoming*
-  polygon before the ratio is taken, so a territorial change stays a level step
-  instead of compounding as growth down the whole back-cast -- on Ethiopia in
-  1952, when Eritrea joins, +1.9% rather than +7.0%. **No published values move
-  by default**: `land_method = "present_day"` is unchanged and is what the
-  pipeline still runs. Under the new method pre-1962 rows are labelled
-  `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It also reaches
-  the four dissolved federations without `federation_land = "successor_union"`,
-  because Czechoslovakia, the USSR, Yugoslavia and Belgium-Luxembourg all have
-  polygons; and it reaches 90 fewer reporting buckets, because a bucket whose
-  polity that year is a residual standing in for dozens of areas has no borders
-  to be measured on (#761).
+  How a change of territory reaches the back-cast is itself selectable, because
+  `fill_proxy_growth()` reads only ratios: `boundary_step = "relink"` (default)
+  re-measures the previous year inside the *incoming* polygon so only
+  within-territory growth is ever used, and `"level_step"` lets the territorial
+  change through as a level step. On Ethiopia in 1952, when Eritrea joins, the
+  1952 land ratio is +1.9% under the first and +8.0% under the second.
+  **No published values move by default**: `land_method = "present_day"` is
+  unchanged and is what the pipeline still runs. Measured over 1850-1961 against
+  the present-day series, the historical method moves 19.2% of back-cast crop
+  tonnage at 1850 (net -17.2%), 6.5% at 1900 and 0.2% at 1961 under `"relink"`;
+  31.3% / 22.9% / 0.2% under `"level_step"`. Under the new method pre-1962 rows
+  are labelled `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It
+  reaches all four dissolved federations without
+  `federation_land = "successor_union"` -- Czechoslovakia, the USSR, Yugoslavia
+  and Belgium-Luxembourg all have polygons of their own, and the USSR walks its
+  own three-period chain back to 1850. It also declines to measure a bucket
+  whose polity that year is a residual standing in for dozens of areas, or a
+  resolver stand-in from outside its period: 5 buckets carrying 1961 crop
+  tonnage lose their back-cast entirely, 0.1% of the 1961 total, the largest
+  being Syria (#761).
 
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every

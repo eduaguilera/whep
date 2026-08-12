@@ -474,7 +474,7 @@ test_that(".extend_historical matches LUH2 land by area_code, not name", {
 })
 
 test_that(".extend_historical takes a historical land table at the seam", {
-  # whep#761: the pre-1962 `ha` half of `tonnes = ha * t_ha` was measured on
+  # whep#761: the pre-1962 area half of the back-cast was measured on
   # present-day borders. `land_wide` lets the historical producer hand the seam
   # the same shape measured on each year's own borders. Growth is 2x here
   # against the pin's 1.25x, so the back-cast value has to follow the table it

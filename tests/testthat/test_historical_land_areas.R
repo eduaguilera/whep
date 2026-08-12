@@ -53,7 +53,7 @@
 }
 
 test_that("each year is measured inside that year's own polygon", {
-  plain <- .two_cell_land("none")
+  plain <- .two_cell_land("level_step")
   # Years 1-2 see cell A only (1.0, 1.1 Mha); years 3-4 see both
   # (1.21 + 0.5, 1.331 + 0.5).
   expect_equal(plain$Cropland, c(1, 1.1, 1.71, 1.831), tolerance = 1e-9)
@@ -65,7 +65,7 @@ test_that("the boundary rule keeps growth inside one polygon", {
   # back-cast. With it, year 2 is re-measured inside the INCOMING polygon
   # (1.1 + 0.5 = 1.6) and the ratio is 1.71 / 1.6 = 1.0687, which is the real
   # growth of the land plus the flat annexed cell.
-  plain <- .two_cell_land("none")
+  plain <- .two_cell_land("level_step")
   relinked <- .two_cell_land("relink")
 
   expect_equal(plain$Cropland[3] / plain$Cropland[2], 1.5545, tolerance = 1e-4)
