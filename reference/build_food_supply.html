@@ -196,7 +196,11 @@ rather than being dropped, so a gap is visible instead of silent.</p>
 <p>Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning.</p>
+<code><a href="add_polity_code.html">add_polity_code()</a></code> for the reasoning. Where that polity is not live in the
+row's own year – 41.5% of the pre-1961 <code>(area, year)</code> cells –
+<code><a href="add_polity_code.html">add_polity_code()</a></code> says so as <code>mapping_status == "backcast_anchor"</code>, and
+<code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code> reports it as <code>gap_kind == "backcast_anchor"</code>.
+These columns do not say so either way.</p>
 <p>A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so <code>reporting_polity_code</code> can name a polity that did
 not exist in that row's year – FAOSTAT bucket 206 "Sudan (former)" keeps

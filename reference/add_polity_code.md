@@ -50,12 +50,49 @@ add_polity_code(
   First year of reported (non-back-cast) FAOSTAT data, default `1961`.
   Years before it are matched to the polity active in the anchor year,
   because WHEP's pre-anchor series are back-cast onto the anchor-year
-  territory rather than reported under their data-year borders. Set to
-  `-Inf` to disable and match strictly by data year.
+  territory rather than reported under their data-year borders. Such a
+  row reports `mapping_status == "backcast_anchor"` where the anchor
+  polity is not live in its own year. Set to `-Inf` to disable and match
+  strictly by data year.
 
 ## Value
 
 A tibble with added polity metadata columns.
+
+## The status vocabulary
+
+`mapping_status` here is a property of resolving one
+`(area_code, year)`, **not** the same column as
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)'s,
+which is a property of a published crosswalk row (whep#637). The
+resolver carries the selected crosswalk row's own status through, and
+overwrites it wherever the resolution substituted something for a real
+period hit:
+
+- `"matched"` / `"manual"`: the year fell inside the polity's period,
+  and the value is the crosswalk row's own provenance, carried through.
+
+- `"backcast_anchor"`: the row is before `backcast_anchor`, so it was
+  resolved at the anchor year, and the polity live then is **not** live
+  in the row's own year. That polity is still the honest label – the
+  value is a reconstruction on the anchor year's territory – but the row
+  is no evidence the polity existed then, which is exactly what
+  `"matched"` asserts. FAOSTAT area 238 reads `ETH-1952-1993` from 1850,
+  102 years before that polity began: `"backcast_anchor"` for 1850-1951,
+  `"matched"` from 1952. A pre-anchor row whose anchor polity *does*
+  cover its own year keeps `"matched"`.
+
+- `"out_of_span"`: no mapped period covered even the anchored year, so a
+  nearest-period stand-in was used.
+
+- `"unmapped"`, or `NA`: no polity at all, carried through from the
+  crosswalk or left by an area with no applicable period. `polity_code`
+  is `NA` too.
+
+`"backcast_anchor"` and `"out_of_span"` exist only here, so a tibble
+carrying either is unambiguously this column and not the crosswalk's.
+The two still overlap in `"matched"`, `"manual"` and `"unmapped"`, which
+is whep#637 and is not resolved here.
 
 ## Which stand-in is picked
 
@@ -76,8 +113,9 @@ pairs over 1850-2025, all of them areas 178 and 273 (whep#705).
 ## See also
 
 [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
-which reports the stand-in rows of an already-built table, whose
-published columns no longer carry `mapping_status`.
+which reports the `"out_of_span"` and `"backcast_anchor"` rows of an
+already-built table, whose published columns no longer carry
+`mapping_status`.
 
 ## Examples
 

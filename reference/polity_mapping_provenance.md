@@ -116,7 +116,7 @@ polity_mapping_provenance(
 #> # A tibble: 2 × 7
 #>   area_code  year polity_code   mapping_source   authority mapping_status n_rows
 #>       <int> <int> <chr>         <chr>            <chr>     <chr>           <int>
-#> 1       238  1900 ETH-1952-1993 prefix_outside_… whep_pre… matched             1
+#> 1       238  1900 ETH-1952-1993 prefix_outside_… whep_pre… backcast_anch…      1
 #> 2       238  2000 ETH-1993-2025 upstream_map     upstream  matched             1
 
 # The headline is one summarise away.
