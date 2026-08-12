@@ -347,19 +347,6 @@
   dt
 }
 
-.polity_bridge <- local({
-  bridge <- NULL
-
-  function() {
-    if (is.null(bridge)) {
-      bridge <<- .current_area_lookup(include_unmapped = FALSE)[,
-        .(area_code, polity_code, polity_name, polity_area_code)
-      ]
-    }
-    bridge
-  }
-})
-
 .aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
