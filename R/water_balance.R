@@ -230,6 +230,14 @@ get_soc_climate_drivers <- function(
   pin <- .socd_pin_hydrology(data, run_dir, years)
   swc <- .wb_swc_topsoil(data, run_dir, years, pin)
   monthly <- .socd_monthly_climate(data, run_dir, years, pin)
+  # The pin carries swc_topsoil, prec_mm and irrig_mm for every requested year --
+  # ~12 GB at 1901-2022 -- and nothing below reads it, because swc and monthly
+  # are already derived from it. Left referenced it stays resident through
+  # .assemble_soc_drivers(), which is exactly where this read peaks. The same
+  # applies to the four monthly source series .socd_monthly_climate() holds
+  # internally; reclaiming here releases those too.
+  rm(pin)
+  invisible(gc(full = TRUE))
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
