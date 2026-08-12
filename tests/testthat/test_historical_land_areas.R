@@ -109,6 +109,22 @@ test_that("a cell's land is shared between the polygons that cover it", {
   )
 })
 
+test_that("an unmeasurable year cuts off only the years before it", {
+  # Four polities reachable from a reporting area have no polygon, so a bucket
+  # can lose one year in the middle of its chain. Accumulating the chain from
+  # the front would make that one hole NA the bucket's whole 1850-1961 series;
+  # accumulating from the end stops it at the break.
+  measured <- data.table::data.table(
+    area_code = 1L,
+    land_use = "cropland",
+    year = 1:4,
+    land_now = c(1, NA, 3, 4),
+    land_next = c(1, NA, 3, 4)
+  )
+  linked <- whep:::.chain_link_land(measured, "relink")
+  expect_equal(linked$Cropland, c(NA, NA, 3, 4))
+})
+
 test_that("a residual polity standing in for several buckets is dropped", {
   resolved <- tibble::tribble(
     ~year, ~area_code, ~polity_code, ~mapping_status,

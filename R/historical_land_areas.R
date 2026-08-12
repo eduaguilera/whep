@@ -329,23 +329,43 @@ build_historical_land_areas <- function(
 # corrected ratios from the last year backwards is the level-step rule stated as
 # a series: L*(last) = land_now(last), and L*(y-1) = L*(y) * land_next(y-1) /
 # land_now(y). Where the territory does not change, land_next == land_now and
-# the series is the plain measurement.
+# the series is the plain measurement. It also makes every ratio immune to a
+# CONSTANT overlap between two polygons, because both sides of it are measured
+# with the same year's polity set and a constant factor cancels.
 .chain_link_land <- function(measured, boundary_step) {
   data.table::setorder(measured, area_code, land_use, year)
   if (boundary_step == "none") {
     measured[, land_mha := land_now]
   } else {
     measured[,
-      log_ratio := c(0, log(utils::head(land_next, -1) / land_now[-1])),
+      log_ratio := .safe_log_ratio(land_next, land_now),
       by = .(area_code, land_use)
     ]
     measured[,
-      land_mha := utils::tail(land_now, 1) *
-        exp(cumsum(log_ratio)[.N] - cumsum(log_ratio)),
+      land_mha := utils::tail(land_now, 1) * exp(.suffix_sum(log_ratio)),
       by = .(area_code, land_use)
     ]
   }
   .land_series_to_wide(measured)
+}
+
+# log( land_next(y-1) / land_now(y) ), NA where either side is missing or zero.
+.safe_log_ratio <- function(land_next, land_now) {
+  ratio <- c(NA_real_, utils::head(land_next, -1) / land_now[-1])
+  out <- log(ratio)
+  out[!is.finite(out)] <- NA_real_
+  out[1] <- 0
+  out
+}
+
+# `sum(x[(k + 1):n])` per position, accumulated from the END so a break stops
+# only the years BEFORE it. `cumsum(x)[n] - cumsum(x)` is the same arithmetic
+# and the wrong NA behaviour: one unmeasurable year in the middle would make
+# `cumsum(x)[n]` NA and wipe out the bucket's whole 1850-1961 series instead of
+# just the part the break cuts off. Four polities have no polygon
+# (whep-polities#155), so this is reachable, not hypothetical.
+.suffix_sum <- function(x) {
+  rev(cumsum(rev(c(x[-1], 0))))
 }
 
 .land_series_to_wide <- function(measured) {
