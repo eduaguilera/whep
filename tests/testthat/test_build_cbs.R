@@ -1193,74 +1193,70 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
   expect_false(is.na(resolved$polity_code[2]))
 })
 
-test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
-  # Scoped to the explicit fold. WHEP now models the reporting members of
-  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
-  # by default; what this pins is the fold behaviour itself, which still has
-  # to work for anyone reproducing a published-before number.
-  withr::local_options(whep.unfold_rest_of_world = "none")
-  # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
-  # and the two sides speak different vocabularies. Everything that comes through
-  # `.aggregate_to_polities()` carries the period-specific `polity_name`, while the
-  # gdp-population pin writes its own short forms. Measured on the current pin: 35
-  # of its 196 area names, 5,346 rows or 18.0%, are not names any builder emits, so
-  # the join silently found nothing and those countries went unfilled. Checked
-  # against the 1961 CBS extract's own area vocabulary, 110 of 169 labels matched
-  # before and 148 after, with 0 going from matching to not matching.
-  #
-  # The relabelling goes ISO3 -> FAOSTAT area code -> polity name for the row's
-  # year, so it is a code lookup rather than a hand-written synonym list, and it
-  # agrees with `.aggregate_to_polities()` by construction. #382 canonicalised
-  # towards the crosswalk's `area_name` instead, which is a third vocabulary: on
-  # today's main that would have renamed Bolivia, Iran, Tanzania, Venezuela and
-  # North Korea -- five labels that match today -- into names that match nothing.
-  dt <- data.table::data.table(
-    year = rep(2000L, 5L),
-    area = c("Lao", "Republic of Korea", "Albania", "Spain", "Syria"),
-    area_code = c("LAO", "KOR", "ALB", "ESP", "SYR"),
-    pop = 1:5
+test_that(".read_gdp_pop renames only the year column", {
+  # whep#721. This reader used to relabel the pin's `area` into the polity-name
+  # vocabulary for a name-keyed proxy join. That join is gone -- commit 2210d05d
+  # keyed `.fill_with_proxies()` on the reporting bucket -- so the relabelling
+  # rewrote a column no consumer reads. The reader now hands the pin over as
+  # published, with `Year` renamed to `year` and nothing else touched.
+  pin <- data.table::data.table(
+    Year = rep(2000L, 4L),
+    area = c("Lao", "Republic of Korea", "Albania", "Spain"),
+    area_code = c("LAO", "KOR", "ALB", "ESP"),
+    pop = 1:4
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(pin)
+    }
   )
 
-  result <- whep:::.canonicalise_gdp_pop_area(dt)
+  result <- whep:::.read_gdp_pop(years = 2000L)
 
-  # Short forms take the polity name, including the periodized one.
-  expect_equal(result$area[result$area_code == "LAO"], "Laos")
-  expect_equal(result$area[result$area_code == "KOR"], "South Korea")
-  expect_equal(result$area[result$area_code == "ALB"], "Albania (1913-2025)")
-
-  # A label that already IS its polity's name is left alone, so the function
-  # cannot break a join that works.
-  expect_equal(result$area[result$area_code == "ESP"], "Spain")
-
-  # Syria's FAOSTAT area folds into the Rest of World bucket, so its polity name
-  # is the aggregate's. Relabelling it would attribute one member's population to
-  # the whole bucket and collide with the other members on the same (year, area)
-  # key, so folded areas are deliberately left as they are.
-  expect_equal(result$area[result$area_code == "SYR"], "Syria")
-
-  # Nothing else changes: same rows, same values, same column order.
-  expect_equal(nrow(result), 5L)
-  expect_equal(names(result), names(dt))
-  expect_equal(result$pop[order(result$area_code)], c(3L, 4L, 2L, 1L, 5L))
+  expect_identical(result$area, pin$area)
+  expect_identical(names(result), c("year", "area", "area_code", "pop"))
+  expect_identical(result$pop, pin$pop)
 })
 
-test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", {
-  # The pin is read straight from a remote board, so the guard matters: a revision
-  # that drops `area_code` or stores it as a number must leave the frame alone
-  # rather than half-relabel it.
-  no_code <- data.table::data.table(year = 2000L, area = "Lao", pop = 1)
-  expect_identical(whep:::.canonicalise_gdp_pop_area(no_code), no_code)
+test_that(".fill_with_proxies ignores the population pin's area label", {
+  # The guard that makes the relabelling's removal safe: the label is inert, so
+  # garbling it must not move a filled number. If a future change keys a proxy
+  # on the name again, this fails instead of silently going unfilled.
+  frame <- tibble::tibble(
+    year = 1950:1953,
+    area = "Albania (1913-2025)",
+    area_code = 3L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = 1950:1953,
+    area = "Albania",
+    area_code = "ALB",
+    pop = c(1000, 1100, 1200, 1300)
+  )
+  land_wide <- tibble::tibble(
+    year = 1950:1953,
+    area_code = 3L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
 
-  numeric_code <- data.table::data.table(
-    year = 2000L,
-    area = "Lao",
-    area_code = 120L,
-    pop = 1
+  canonical <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+  garbled <- whep:::.fill_with_proxies(
+    frame,
+    gdp_pop |> dplyr::mutate(area = "not a polity name"),
+    land_wide
   )
-  expect_identical(
-    whep:::.canonicalise_gdp_pop_area(numeric_code),
-    numeric_code
-  )
+
+  expect_equal(canonical$food, c(100, 110, 120, 130))
+  expect_equal(garbled$food, canonical$food)
+  expect_equal(garbled$pop, canonical$pop)
 })
 
 test_that("build_commodity_balances defaults to the long format", {
