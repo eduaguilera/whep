@@ -1,5 +1,52 @@
 # whep (development version)
 
+* **The milk FAOSTAT reports as churned into butter is no longer counted as
+  milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
+  "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a
+  `processing` destiny with nowhere to go, so
+  `.cbs_redistribute_notprocessed()` split that mass pro-rata across food,
+  feed, other uses and export and deleted the `processing` row. The current
+  behaviour was not an omission but a claim about diets: that 198 Mt of milk
+  a year is drunk as milk (#757).
+
+  **Published values move, from 2010 onwards only.** The old Food Balances do
+  not report a `processing` destiny for milk at all — 1.0 Mt over 2010-2013
+  against the new series' 837.5 Mt — so no year before 2010 changes. World
+  2010 across the 180 areas shared with the `faostat-fbs-new` pin, Mt, WHEP
+  before to WHEP after against FAOSTAT: milk food 649.1 to 497.3 against
+  497.2; feed 74.3 to 60.6 against 60.6; export 120.6 to 89.0 against 89.0;
+  `processing` 0.0 to 198.2 against 198.5. Milk food protein falls by 5.0 Mt,
+  which is the whole of the milk discrepancy reported in #500 section 5.
+  Butter is unchanged, production 9.27 Mt against FAOSTAT's 9.37. The
+  remaining 3.2% gap in milk domestic supply is the dropped
+  losses/residuals/tourist renormalisation of #412, which this does not touch.
+
+  The fraction is 0.045, the median "Butter of Cow Milk" extraction rate over
+  the 69 countries reporting one in FAO (1997), *Technical Conversion Factors
+  for Agricultural Commodities* (range 3.3-7.3%). Per-area calibration lifts
+  it to an effective 0.0468 for 2010, against the 0.047 the FBS itself implies
+  (global butter production over milk processing, 0.044-0.047 across
+  2010-2019). Every country reporting butter production also reports milk
+  processing, and none reports butter without it.
+
+  `.cbs_add_processed()` gained `.resolve_processed_production()`, because
+  butter is the first processing output outside the "Crop products" group,
+  whose read production is dropped wholesale on the grounds that the pathway
+  always replaces it. For butter the pathway is silent before 2010, so a
+  positive pathway estimate now supersedes the read production and a zero or
+  absent one leaves it standing. Without that distinction the trace of milk
+  processing the old FBS records in some areas emits an empty butter row that
+  cancels the observed one, taking world 2000 butter production from 7.378 to
+  3.527 Mt.
+
+  **Items other than milk still lose their processing destiny.** Sugar (Raw
+  Equivalent), animal fats, coconut oil and 13 smaller items have no pathway
+  either, and roughly 17 Mt a year is still redistributed onto food and feed:
+  2010 coconut oil food is 58% above FAOSTAT's, ricebran oil 45% and
+  cottonseed oil 15%. Those carry almost no protein, so the nourishment axis
+  is largely unaffected, but the mass accounting is not. That residue is
+  unchanged here.
+
 * **The polycell is now WHEP's spatial support unit, and it carries a measured
   territory instead of a whole grid cell.** `build_polycell_support()` returns
   one row per 0.5-degree cell intersected with a polity over that polity's
