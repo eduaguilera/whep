@@ -2,6 +2,16 @@
 
 ## whep (development version)
 
+- **The SOC climate driver read releases the LPJmL hydrology pin once it
+  has been used.** The pin carries `swc_topsoil`, `prec_mm` and
+  `irrig_mm` for every requested year – ~12 GB at 1901-2022 – and
+  nothing reads it after the soil-water and monthly-climate series are
+  derived from it, but it stayed referenced through the joins in
+  `.assemble_soc_drivers()`, which is where the read peaks. Peak for a
+  full-span `.cb_read_climate()` goes from 43.0 GB to 36.0 GB at
+  unchanged runtime
+  ([\#624](https://github.com/eduaguilera/whep/issues/624)).
+
 - **The SOC climate drivers assemble a year at a time, and stop
   decorating an 86-million-row table.** Two changes to the same read.
   `.socd_monthly_climate()` joined four full-span monthly series on
