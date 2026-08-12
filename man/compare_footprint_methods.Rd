@@ -13,7 +13,9 @@ compare_footprint_methods(method_a, method_b)
 \value{
 A tibble with \code{area_code}, \code{item_cbs_code}, \code{value_a},
 \code{value_b}, \code{abs_diff} and \code{rel_diff} (relative to the larger
-of the two), ordered by descending \code{abs_diff}.
+of the two), ordered by descending \code{abs_diff}. A cell missing
+from one method counts as zero there; a cell present with an
+\code{NA} value stays \code{NA}, so its differences are \code{NA} too.
 }
 \description{
 Align two consumption-based footprint estimates (for example the

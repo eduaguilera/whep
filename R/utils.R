@@ -1821,6 +1821,10 @@ utils::globalVariables(
     # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
     # columns for the canonical-area tie-break
     "is_canonical",
-    "keep"
+    "keep",
+    # footprint_balance.R (#212) — presence flags telling a cell absent
+    # from one method apart from a present but NA-valued one
+    "in_a",
+    "in_b"
   )
 )
