@@ -337,6 +337,45 @@ testthat::test_that("the areas that report real data of their own are folded", {
   testthat::expect_equal(unique(resolved$mapping_status), "matched")
 })
 
+testthat::test_that("206 is the only bucket folding live territories", {
+  # whep#557: the `fun.aggregate` guard in `.select_best_source` was justified by
+  # 206 AND 999 each folding several live territories into one bucket key. 999 no longer
+  # does -- all 62 members resolve to the one aggregate polity `ROW-1850-2025`,
+  # even with the fold applied -- so this pins the property the comment there now
+  # records, straight off the crosswalk with no pins and no network.
+  cw <- whep::polity_area_crosswalk |>
+    dplyr::filter(
+      !is.na(.data$polity_area_code),
+      !is.na(.data$polity_code)
+    ) |>
+    dplyr::distinct(
+      .data$polity_area_code,
+      .data$polity_code,
+      .data$polity_start_year,
+      .data$polity_end_year
+    )
+
+  folds <- cw |>
+    dplyr::cross_join(tibble::tibble(year = 1850L:2023L)) |>
+    dplyr::filter(
+      .data$polity_start_year <= .data$year,
+      .data$polity_end_year > .data$year
+    ) |>
+    dplyr::summarise(
+      n_polities = dplyr::n_distinct(.data$polity_code),
+      .by = c("polity_area_code", "year")
+    ) |>
+    dplyr::filter(.data$n_polities > 1L)
+
+  testthat::expect_equal(unique(folds$polity_area_code), 206L)
+  testthat::expect_equal(max(folds$n_polities), 2L)
+  testthat::expect_equal(min(folds$year), 2011L)
+
+  row_members <- whep::polity_area_crosswalk |>
+    dplyr::filter(.data$fabio_code == 999L, !is.na(.data$polity_code))
+  testthat::expect_equal(unique(row_members$polity_code), "ROW-1850-2025")
+})
+
 testthat::test_that("regions_full and the crosswalk state the fold alike", {
   # Scoped to the explicit fold, because it is no longer the default: WHEP
   # now models the reporting members in their own right (#459). What this
