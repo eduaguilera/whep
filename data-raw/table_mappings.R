@@ -56,7 +56,7 @@ known_polity_prefixes <- unique(polity_attrs$polity_prefix)
 # `MOR-1956-1958`, `SER-2006-2008`, `RLAM-1850-2013`, the five `R*-1850-2021` buckets,
 # `ROW-1850-2023`, `MNE-1913-1915` and `PER-1825-1909`. Every one of those has a live
 # replacement it would otherwise compete with. Measured rather than assumed: this run
-# reports excluding 41 dead polities and retaining 708.
+# reports excluding 41 dead polities and retaining 716.
 #
 # It does not fix ambiguity between two LIVE overlapping periods, which is a different
 # class and no downstream filter can resolve it. That used to be a real gap here --
@@ -266,12 +266,15 @@ if (!file.exists(whep_polities_faostat_map)) {
 # reading one as the other loses a year at every transition. Two independent
 # reads of the same file agree. Five rows have `year_start == year_end` (areas 4,
 # 29, 184 and 226 for 1961, area 248 for 1991) and each carries observed data, so
-# an exclusive end would make them empty. And 51 of the 53 consecutive-span
-# transitions satisfy `year_start == previous year_end + 1`, which an exclusive
-# reading would turn into a one-year hole every time; the 2 exceptions (areas 205
-# and 240) repeat the boundary year because their `registry` rows copy the
-# polity's own inclusive start and end. Both exceptions are Rest-of-World folded,
-# so neither reaches the join below.
+# an exclusive end would make them empty. And all 53 consecutive-span transitions
+# satisfy `year_start == previous year_end + 1`, which an exclusive reading would
+# turn into a one-year hole every time. Two used to break it -- areas 205 and 240
+# repeated the boundary year because their `registry` rows copied the polity's own
+# inclusive start and end -- and upstream fixed both in whep-polities PR 204, which
+# corrected 16 `registry` spans in all (13 of them a `year_end` of 2025 pulled back
+# to the last year FAOSTAT reports). Every one of the 15 areas they cover is
+# Rest-of-World folded, so none of it reaches the join below and no crosswalk row
+# changed.
 faostat_area_map <- readr::read_csv(
   whep_polities_faostat_map,
   show_col_types = FALSE

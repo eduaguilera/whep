@@ -1,5 +1,24 @@
 # whep (development version)
 
+* **The polities snapshot is re-synced to `whep-polities` `2830fb7`, and no
+  published value moves.** `polities` gains four rows (`ATF-1800-2025`,
+  `SGS-1800-2025`, `WLF-1800-2025` and `FEZ-1943-1951`) and ten geometries,
+  four wrong `cow_code` values are corrected (Albania 400 to 339, Comoros 403 to
+  581, Sao Tome and Principe 411 to 403, Sardinia 338 to 325), and six
+  predecessor/successor edges are filled in. `polity_label_aliases` gains the
+  `Libya Fezzan` alias and three corrected `year_start` bounds.
+  `gleam_geographic_hierarchy` resolves all 204 territories: `ATF`, `SGS` and
+  `WLF` carried `NA` for want of any upstream polity and now carry one.
+  `polity_area_crosswalk` keeps all 595 rows with **every routing column
+  bit-identical** -- only three `cow_code` cells and one `polygon_status` cell
+  change -- so a full `get_primary_production()` (6,310,390 rows, 1850-2023)
+  comes back identical in all twelve columns, with no key added or removed, no
+  `(area, year)` re-attributed and a zero delta in all eight units. Note for
+  anyone reading #745: the 31 areas the upstream map names but the crosswalk
+  resolves through `ROW-1850-2025` are **not** a stale-map artefact and this
+  re-sync does not move them; they are the FABIO Rest-of-World fold, which
+  outranks the map on purpose and is tracked separately (#717, #740) (#745).
+
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
   requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
