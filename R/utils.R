@@ -1821,6 +1821,10 @@ utils::globalVariables(
     # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
     # columns for the canonical-area tie-break
     "is_canonical",
-    "keep"
+    "keep",
+    # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
+    # columns: the row's OWN year, joined back onto the anchored resolution
+    "data_year",
+    "i.data_year"
   )
 )

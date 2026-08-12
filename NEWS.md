@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **A back-cast row no longer reports `mapping_status == "matched"` for a polity
+  that was not alive in its year.** `add_polity_code()` floors the polity-lookup
+  year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a
+  reconstruction on the anchor year's territory -- that convention is unchanged.
+  What was wrong is that the row then claimed the polity had existed then, and
+  for 12,208 of the 29,415 pre-1961 `(area, year)` cells it had not: FAOSTAT area
+  238's 1850 row read `ETH-1952-1993`, `matched`, 102 years before that polity
+  began. Those rows now report `mapping_status == "backcast_anchor"`, and
+  `polity_coverage_gaps()` reports them as `gap_kind == "backcast_anchor"`
+  alongside `polity_ended` / `polity_not_started`. The floor was applied before
+  the span check, so the diagnostic could previously see only 2,664 of the 12,208
+  cells; it now sees all of them, 9,544 of which are new. **No published value
+  changes** -- a full `get_primary_production()` (6,310,390 rows) is `identical()`
+  across the change, `mapping_status` is not on any published schema by default,
+  and the `polity_validity` argument keeps its current scope, so `"drop"` still
+  drops only nearest-period stand-ins (#763).
+
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
   requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
