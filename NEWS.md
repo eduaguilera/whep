@@ -1,5 +1,15 @@
 # whep (development version)
 
+* **Exported functions now work when the package is loaded but not attached.**
+  With `LazyData: true` the shipped datasets live in the namespace's lazydata
+  environment, which `library(whep)` puts on the search path but package code
+  cannot see by bare name, so calling e.g. `whep::get_polity_geometries()` or
+  `whep::add_polity_code()` from a script without `library(whep)` aborted with
+  `object 'polities' not found`. `.onLoad()` now binds every lazy-loaded
+  dataset into the namespace as a promise, so bare-name references resolve in
+  both states. No published value changes: the bindings are the same objects
+  `whep::<dataset>` returns, and they stay lazy (#641).
+
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
   requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
