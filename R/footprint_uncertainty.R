@@ -47,6 +47,7 @@ propagate_fp_uncertainty <- function(
 ) {
   .validate_run_fn(run_fn)
   opt <- .uncertainty_options(options)
+  .validate_probs(opt$probs)
   if (is.null(opt$seed)) {
     # Unseeded: consume the caller's stream, so repeated calls stay
     # independent draws rather than repeats of the same one.
@@ -229,5 +230,22 @@ footprint_sensitivity <- function(run_fn, extensions, options = list()) {
 .validate_run_fn <- function(run_fn) {
   if (!is.function(run_fn)) {
     cli::cli_abort("{.arg run_fn} must be a function.")
+  }
+}
+
+# Checked before any draw is computed: `.summarise_draws()` indexes
+# `probs[1:3]`, so a shorter vector only surfaces as an NA quantile after
+# all `n` runs, and an unordered one silently yields `q_low > q_high`.
+.validate_probs <- function(probs) {
+  if (!rlang::is_bare_numeric(probs, n = 3) || anyNA(probs)) {
+    cli::cli_abort(
+      "{.field probs} must be three numbers: lower, median and upper."
+    )
+  }
+  if (any(probs < 0 | probs > 1)) {
+    cli::cli_abort("{.field probs} must lie within {.val {c(0, 1)}}.")
+  }
+  if (any(diff(probs) < 0)) {
+    cli::cli_abort("{.field probs} must be in ascending order.")
   }
 }
