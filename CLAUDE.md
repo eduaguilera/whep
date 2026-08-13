@@ -243,6 +243,16 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   `WHEP_GRIDDED_PASTURE_PATH`, `WHEP_POLITY_FRACTION_PATH`). The readers
   **abort with an instruction** when unset. Never hardcode an absolute path,
   and never invent a fallback that silently reads something else.
+  Every one of these must be **reproducibly obtainable**: an
+  `inst/scripts/download/download_*.R` fetches it from the official source into
+  `<dest_dir>/<DATASET>/`, and the env var points there. A dataset that exists
+  only because someone once downloaded it by hand is not a data source, it is a
+  local accident — if you find one, add the download script rather than pointing
+  an env var at wherever that copy happens to live. The script must also leave
+  the data in the form its reader consumes: HaNi ships zipped but
+  `read_n_deposition()` reads NetCDF, so `download_nitrogen.R` extracts; HYDE
+  ships one archive containing per-year archives, so `download_hyde.R` unpacks
+  the outer one only.
 - **Verified on-demand download** — for third-party data already published
   with a stable DOI and checksum: download, verify the published MD5, cache
   under `rappdirs::user_cache_dir("whep")`, and treat the env var as an
