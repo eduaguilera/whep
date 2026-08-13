@@ -232,13 +232,13 @@ test_that("the open end is read from the data and admits no sibling", {
       "ROU-1940-2025"
     )
   )
-  # The snapshot refresh (whep#734, 751 -> 753 rows: archipelago geometry plus
-  # Aruba and the Holy See) adds two open intervals and changes none of the
-  # eight succeeded ones: 240 intervals now end on the domain end and 232 are
-  # open, against 238 and 230 before. The year test and the successor test
+  # Re-stamped for the whep-polities 2830fb7 re-sync (753 -> 757 rows, blob
+  # 40878c6c): 243 intervals now end on the domain end and 235 are open,
+  # against 240/232 on the 753 vintage and 238/230 on 751. The eight succeeded
+  # ones are unchanged across all three. The year test and the successor test
   # still do NOT agree here, and only the latter is right -- which is the
   # property this line exists to hold, not the constants themselves.
-  expect_equal(sum(flat$end_year == domain_end), 232L + length(succeeded))
+  expect_equal(sum(flat$end_year == domain_end), 235L + length(succeeded))
 
   # Upstream's own `successor` column is the independent witness: no live polity
   # ending on the domain end is without a successor's counterpart, and every

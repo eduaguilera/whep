@@ -112,9 +112,14 @@
     South Sudan -- receive no deposition through the polycell path. The first
     six fold onto `ROW-1850-2025` (`polity_area_code` 999, `fabio_row_fold`)
     while their own `GNQ-`, `NCL-`, `MKD-`, `SWZ-`, `SYR-` and `PSE-` codes
-    carry no crosswalk row at all, so `polity_code` resolves to no reporting
-    `area_code`; Sudan and South Sudan do resolve, but both onto 206, Sudan
-    (former), so neither 276 nor 277 is reachable on its own. **The gap is
+    resolve onto that same bucket 999 through the `fabio_row_promoted` rows
+    added in #785, so their territory is folded into Rest of World rather than
+    dropped: measured on this snapshot, `GNQ-1968-2025` builds 18 polycells
+    (2,702,545 ha) and `MKD-1991-2025` 21 (2,539,428 ha), every row stamped
+    `area_code` 999. Before #785 these codes carried no crosswalk row and were
+    dropped outright, so the territory is now retained but still not attributed
+    to the reporting area. Sudan and South Sudan do resolve, but both onto 206,
+    Sudan (former), so neither 276 nor 277 is reachable on its own. **The gap is
     identity, not extent**: of the six with a directly comparable official
     area, all sit within 3.7% of it (Syria +0.90%, North Macedonia -1.23%,
     Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%, Equatorial Guinea
