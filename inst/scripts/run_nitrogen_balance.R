@@ -261,7 +261,12 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
            {signif(100 * sum(unsupported$synthetic_n_t) / sum(totals$synthetic_n_t), 3)}%
            of {year} synthetic N. Codes: {unsupported$area_code}."
   ))
-  bridge <- tibble::as_tibble(whep:::.polity_crosswalk()) |>
+  # The SAME crosswalk .synthetic_n_country() re-keys with, or the reverse
+  # mapping disagrees with the forward one: that helper reads the static
+  # whep::polity_area_crosswalk, so members that fold into 999 are invisible to
+  # .polity_crosswalk() and their raw rows survive the drop, leaving the folded
+  # bucket still carrying nitrogen it cannot place.
+  bridge <- tibble::as_tibble(whep::polity_area_crosswalk) |>
     dplyr::transmute(
       raw = as.integer(.data$area_code),
       polity = as.integer(.data$polity_area_code)
