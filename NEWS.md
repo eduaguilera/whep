@@ -21,6 +21,94 @@
   to 63, the worst residual from 160,000 t to 25 t, and the 12 `NA` residuals
   disappear.
 
+* **Rice from the new FAOSTAT Food Balances is now converted to milled
+  equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes rice on
+  two bases depending on vintage: the historic series carry item 2805 "Rice
+  (Milled Equivalent)" and 2804 "Rice (Paddy Equivalent)", while the new Food
+  Balances carry item 2807 "Rice and products" in **paddy** (rough-rice)
+  equivalent. `.fix_item_codes()` selected rows for the paddy-to-milled
+  conversion by item name, and "Rice and products" was in neither of the two
+  names it matched, so new-FBS rice was never converted. Since
+  `build_primary_production()` does convert its own rice, a single item mixed
+  milled production with paddy utilisation, and the difference was absorbed by
+  the residual `stock_variation` plug. The extract path now recognises the
+  new-FBS name as paddy; frames that have already been through the `items_full`
+  lookup keep the previous behaviour, because there "Rice and products" is the
+  canonical label and carries no basis information (#751).
+
+  **Published values move.** Every element of item 2807 sourced from
+  `faostat-fbs-new` falls by the 0.67 extraction rate. World 2010, tonnes:
+  food 570,038,000 to 381,925,460; production 694,377,000 to 465,232,590;
+  domestic supply 684,012,000 to 458,288,040; imports, exports, feed, seed,
+  processing and other uses likewise. The corrected figures land close to
+  FAOSTAT's own published milled-equivalent series: India 2010 production is
+  96,455,210 against FAOSTAT item 2805's 96,023,000, a 0.45% difference which
+  is the gap between WHEP's global 0.67 and FAO's implied 0.667. Every
+  downstream consumer of rice tonnage inherits the change, including the
+  nourishment axis, where rice protein per tonne of food moves from 1.550x
+  FAOSTAT to 1.039x and which was how the defect was found (#500).
+
+  **The historic series moves too, and by more than the FBS-new years.** The
+  old-to-new FBS harmonisation derives its scaling ratio from the 2010-2013
+  overlap, so with the new series on paddy and the old series on milled it was
+  computing a median ratio of **1.4981** (= 1/0.667) for rice and scaling every
+  FBS_Old rice year up by it — well inside the [0.2, 5] band
+  `.clamp_fbs_scale_ratio()` allows, so nothing flagged it. That ratio is now
+  **1.0037**: the two vintages agree on rice to 0.4% instead of disagreeing by
+  50%. Wheat, which uses one basis in both vintages, is unchanged at 1.016 and
+  serves as the control. `validation/rice_mass_basis.R` is the real-data guard.
+* **A promoted Rest-of-World member now publishes under its own territory, not
+  under the bucket's aggregate polity.** Lifting the FABIO Rest-of-World fold
+  had promoted a member's numeric `polity_area_code` and nothing else, so all
+  62 folded areas reported as themselves (`area_code == polity_area_code`) while
+  still carrying `polity_code == "ROW-1850-2025"`, `polity_type "aggregate"`,
+  `continent "World"` and no geometry -- a row that reports as itself and is
+  identified as somewhere else. `data-raw/table_mappings.R` no longer discards
+  the upstream FAOSTAT map's answer for those areas: 36 map rows over 31 areas
+  that reached no crosswalk row at all are now carried as
+  `mapping_source == "fabio_row_promoted"`, and `.unfold_rest_of_world()`
+  chooses between them and the fold row per mode. **This is an identity change,
+  and it moves quantities only at the third decimal place of a percent.** Over a
+  full `get_primary_production()` (6,310,390 rows) and `get_wide_cbs()`
+  (2,184,850 rows) no row and no key is added or removed;
+  `reporting_polity_code` / `reporting_polity_name` change on 212,163 production
+  rows across 22 areas -- Syria to
+  `SYR-1946-1967` before 1967 and `SYR-1967-2025` after it, Eswatini to
+  `SWZ-1894-2025`, New Caledonia to `NCL-1800-2025`, Palestine to
+  `PSE-1948-2025`, and 27 more. The resolution is year-aware, so a 1950 row and
+  a 2020 row of the same area need not agree. The 30 members the upstream map
+  names nowhere stay on `ROW-1850-2025`; the new `row_promotion_status()`
+  reports which is which and why, splitting them into `own_polity` (31),
+  `polity_unmapped` (6 -- a live polity exists upstream and only the map row is
+  missing) and `no_polity` (24, three of which are not territories at all).
+  `options(whep.unfold_rest_of_world = "none")` still restores the fold
+  crosswalk exactly, column for column.
+
+  The quantities that do move are these, and both are pre-1961. 64 rows and
+  1,722,000 t of historical trade for Guadeloupe and Martinique are
+  **recovered**: their pre-1850 rows used to be dropped because `ROW-1850-2025`
+  begins in 1850 and `add_polity_code()` refuses to extend an aggregate, and
+  they now land on `GLP-1816-2025` / `MTQ-1816-2025` (historical trade feed
+  +0.0093%). And 430 CBS rows (0.02% of the table, 340,474 t of movement, or
+  3.5e-6% of its tonnage) shift between columns in 10 areas, 96% of it Eswatini
+  reclassifying export as seed; `production`, `stock_addition` and
+  `stock_withdrawal` are identical to the last bit. In
+  `get_primary_production()` 338 rows (0.005%) move by at most 5.6e-4 in
+  `t_LU`, in Italy, the Netherlands and Belgium, through the global-yield
+  denominator: `.fill_yields()` keys on the `area` LABEL as well as the code,
+  and that label is resolved per year, so an area whose polity changes
+  mid-series has its rows completed under both labels. 39 area codes already
+  did that before this change and 2 more (Syria, Equatorial Guinea) now do;
+  the pre-existing defect is filed separately.
+
+  Two further consequences worth naming: `polity_coverage_gaps()` now reports
+  FAOSTAT areas 42, 88, 154, 180 and 187 as coverage gaps, because their
+  upstream periods do not span the years FAOSTAT reports them -- the fold hid
+  that behind a period running to 2025 -- and the energy CO2 extension's opt-in
+  `unclassified = "polity_region"` treatment reaches 16 live areas instead of 2,
+  resolving the second half of #415/#646. Its default (`"drop"`) is unchanged
+  and moves no number.
+
 * **A back-cast row no longer reports `mapping_status == "matched"` for a polity
   that was not alive in its year.** `add_polity_code()` floors the polity-lookup
   year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a
@@ -42,6 +130,24 @@
   change, `mapping_status` is not on any published schema by default, and the
   `polity_validity` argument keeps its current scope, so `"drop"` still drops
   only nearest-period stand-ins (#763).
+* **The polities snapshot is re-synced to `whep-polities` `2830fb7`, and no
+  published value moves.** `polities` gains four rows (`ATF-1800-2025`,
+  `SGS-1800-2025`, `WLF-1800-2025` and `FEZ-1943-1951`) and ten geometries,
+  four wrong `cow_code` values are corrected (Albania 400 to 339, Comoros 403 to
+  581, Sao Tome and Principe 411 to 403, Sardinia 338 to 325), and six
+  predecessor/successor edges are filled in. `polity_label_aliases` gains the
+  `Libya Fezzan` alias and three corrected `year_start` bounds.
+  `gleam_geographic_hierarchy` resolves all 204 territories: `ATF`, `SGS` and
+  `WLF` carried `NA` for want of any upstream polity and now carry one.
+  `polity_area_crosswalk` keeps all 595 rows with **every routing column
+  bit-identical** -- only three `cow_code` cells and one `polygon_status` cell
+  change -- so a full `get_primary_production()` (6,310,390 rows, 1850-2023)
+  comes back identical in all twelve columns, with no key added or removed, no
+  `(area, year)` re-attributed and a zero delta in all eight units. Note for
+  anyone reading #745: the 31 areas the upstream map names but the crosswalk
+  resolves through `ROW-1850-2025` are **not** a stale-map artefact and this
+  re-sync does not move them; they are the FABIO Rest-of-World fold, which
+  outranks the map on purpose and is tracked separately (#717, #740) (#745).
 
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every

@@ -52,6 +52,25 @@ explicit and do not authorize a coefficient correction.
 | `storkey_2012` | Storkey et al. (2012), *The impact of agricultural intensification and land-use change on the European arable flora* | 10.1098/rspb.2011.1686 | Weed-flora context; no exact 0.05 share asserted |
 | `fried_2009_ambiguous` | Candidate identities: *A functional analysis of shifts in sunflower weed assemblages*; *Arable weed decline in Northern France* | 10.1111/j.1654-1103.2009.05284.x; 10.1016/j.biocon.2008.09.029 | Citation remains ambiguous; weed cells unresolved |
 
+## Commodity mass-basis and conversion sources
+
+Cited at the point of use in `R/read_raw_inputs.R`, and exercised by
+`validation/rice_mass_basis.R`.
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| FAO TCF | FAO, *Technical Conversion Factors for Agricultural Commodities* (provisional issue; rates are 1992-1996 national annual averages, stated in REMARKS item 1 on PDF p.2) | open, <https://www.fao.org/fileadmin/templates/ess/documents/methodology/tcf.pdf> | Authority for the paddy-to-milled rice extraction rate. National rates under "Milled Paddy Rice": median 65%, range 60-73 (China mainland 67, India 66, Bangladesh 67, Pakistan 67, Thailand 66, USA 72). WHEP applies a single global 0.67. |
+| FAO FBS Handbook | FAO (2001), *Food Balance Sheets: A Handbook*, Section III | open, <https://www.fao.org/4/x9892e/X9892e03.htm> | Method authority: the worked example uses a 67% rice extraction rate and a 75% wheat-flour rate, and computes nutrients from food-composition percentages rather than from nitrogen. |
+
+Mass basis by FAOSTAT vintage, verified directly against the pins at India 2010
+production, and the reason the two must be treated differently (#751):
+
+| Pin | Item | Name | India 2010 production | Basis |
+|---|---|---|---|---|
+| `faostat-fbs-new` | 2807 | Rice and products | 143,963 kt | paddy |
+| `faostat-fbs-old` | 2805 | Rice (Milled Equivalent) | 96,023 kt | milled |
+| `faostat-cbs-old-crops` | 2804 / 2805 | both | 143,963,008 / 96,023,326 t | both |
+
 ## External local datasets (paths in `cache/local_paths.json`, gitignored)
 
 | Key | Dataset | Location |
