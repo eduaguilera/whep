@@ -40,7 +40,7 @@ HYDE_FILES <- list(
   readme = list(id = 5396388L, name = "readme_release_HYDE3.2.1.txt")
 )
 
-download_hyde <- function(dest_dir, timeout = 7200) {
+download_hyde <- function(dest_dir, years = NULL, timeout = 7200) {
   hyde_dir <- file.path(dest_dir, "HYDE")
   dir.create(hyde_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -48,7 +48,7 @@ download_hyde <- function(dest_dir, timeout = 7200) {
   for (entry in HYDE_FILES) {
     .hyde_download_file(entry, hyde_dir, timeout)
   }
-  zip_dir <- .hyde_extract_baseline(hyde_dir)
+  zip_dir <- .hyde_extract_baseline(hyde_dir, years)
 
   cli::cli_alert_success("HYDE 3.2.1 ready.")
   cli::cli_inform(c(i = "Set {.envvar WHEP_HYDE_DIR} to {.file {zip_dir}}."))
@@ -120,32 +120,91 @@ download_hyde <- function(dest_dir, timeout = 7200) {
   invisible(out_path)
 }
 
-# Unpack the outer archive and return the directory holding the per-year
-# population ZIPs, which is what WHEP_HYDE_DIR must point at. The archive's
-# internal layout is baseline/zip/, but locate it rather than assume it, so
-# a repackaged release fails loudly instead of yielding an empty directory.
-.hyde_extract_baseline <- function(hyde_dir) {
+# Turn the downloaded archive into the per-year ZIPs read_hyde_population()
+# opens, and return the directory holding them (the value for WHEP_HYDE_DIR).
+#
+# Two things make this more than an unzip. The archive is 4.97 GB, i.e. zip64,
+# which R's internal unzip cannot even list -- so an external unzip is required.
+# And DANS packages the data differently from the PBL portal the reader was
+# written against: it ships baseline/asc/<year>AD_pop/urbc_<year>AD.asc loose,
+# not "<year>AD_pop.zip". Of the 78 GB and 2738 entries inside, the reader wants
+# one ~66 MB file per year, so extract only those and repackage them under the
+# names it opens.
+.hyde_extract_baseline <- function(hyde_dir, years = NULL) {
   archive <- file.path(hyde_dir, HYDE_FILES$baseline$name)
-  if (length(.hyde_year_zips(hyde_dir)) == 0L) {
-    cli::cli_alert("Extracting {HYDE_FILES$baseline$name} (~5 GB)...")
-    utils::unzip(archive, exdir = hyde_dir)
-  }
-  found <- .hyde_year_zips(hyde_dir)
-  if (length(found) == 0L) {
+  zip_dir <- file.path(hyde_dir, "pop_zip")
+  dir.create(zip_dir, recursive = TRUE, showWarnings = FALSE)
+  unzip_bin <- .hyde_unzip_bin()
+
+  members <- .hyde_urbc_members(archive, unzip_bin, years)
+  if (length(members) == 0L) {
     cli::cli_abort(c(
-      "No {.file <year>AD_pop.zip} found under {.file {hyde_dir}}.",
-      i = "The HYDE archive layout has changed; {.fn read_hyde_population}
-           reads one per-year archive at a time."
+      "No {.file urbc_<year>AD.asc} entries in {.file {archive}}.",
+      i = "The HYDE packaging has changed; {.fn read_hyde_population} reads
+           the urban population count from one per-year archive."
     ))
   }
-  unique(dirname(found))[[1L]]
+  cli::cli_alert(
+    "Repackaging {length(members)} year{?s} of urban population..."
+  )
+  for (member in members) {
+    .hyde_repackage_year(archive, member, zip_dir, unzip_bin)
+  }
+  zip_dir
 }
 
-.hyde_year_zips <- function(hyde_dir) {
-  list.files(
-    hyde_dir,
-    pattern = "^[0-9]+AD_pop[.]zip$",
-    recursive = TRUE,
-    full.names = TRUE
+# R's internal unzip is limited to the classic (non-zip64) format, so it fails
+# on this 4.97 GB archive. Require a real unzip rather than silently producing
+# an empty directory.
+.hyde_unzip_bin <- function() {
+  bin <- Sys.which("unzip")
+  if (!nzchar(bin)) {
+    cli::cli_abort(c(
+      "No {.command unzip} on PATH.",
+      i = "The HYDE archive is zip64 (4.97 GB); R's internal unzip cannot
+           read it. Install {.command unzip} (or extract by hand and point
+           {.envvar WHEP_HYDE_DIR} at the per-year ZIPs)."
+    ))
+  }
+  unname(bin)
+}
+
+.hyde_urbc_members <- function(archive, unzip_bin, years) {
+  listing <- system2(unzip_bin, c("-Z1", shQuote(archive)), stdout = TRUE)
+  members <- grep("urbc_[0-9]+AD[.]asc$", listing, value = TRUE)
+  if (is.null(years)) {
+    return(members)
+  }
+  wanted <- paste0("urbc_", years, "AD.asc")
+  members[basename(members) %in% wanted]
+}
+
+.hyde_repackage_year <- function(archive, member, zip_dir, unzip_bin) {
+  asc <- basename(member)
+  year <- sub("^urbc_([0-9]+)AD[.]asc$", "\\1", asc)
+  out_zip <- file.path(zip_dir, paste0(year, "AD_pop.zip"))
+  if (file.exists(out_zip)) {
+    return(invisible(out_zip))
+  }
+  staging <- file.path(tempdir(), paste0("hyde_", year))
+  dir.create(staging, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(staging, recursive = TRUE), add = TRUE)
+  system2(
+    unzip_bin,
+    c(
+      "-o",
+      "-j",
+      "-q",
+      shQuote(archive),
+      shQuote(member),
+      "-d",
+      shQuote(staging)
+    )
   )
+  utils::zip(
+    zipfile = out_zip,
+    files = file.path(staging, asc),
+    flags = "-q -j"
+  )
+  invisible(out_zip)
 }
