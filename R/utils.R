@@ -1841,6 +1841,17 @@ utils::globalVariables(
     "safe_req_g_day",
     "sex",
     "year_from",
-    "year_to"
+    "year_to",
+    # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
+    "AgeGrpSpan",
+    "AgeGrpStart",
+    "ISO3_code",
+    "LocTypeName",
+    "PopFemale",
+    "PopMale",
+    "Time",
+    "female",
+    "iso3c",
+    "male"
   )
 )
