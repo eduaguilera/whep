@@ -149,6 +149,55 @@ test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equival
   )
 })
 
+test_that(".fix_item_codes converts new-FBS rice, which is paddy basis", {
+  # faostat-fbs-new reports item 2807 "Rice and products" in paddy (rough-rice)
+  # equivalent: India 2010 production is 143,963 kt there against 96,023 kt for
+  # the milled item 2805 in faostat-fbs-old. WHEP's contract for this item is
+  # milled equivalent, so the extract path must convert it (#751).
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that(".fix_item_codes leaves an already-labelled rice row alone", {
+  # .prepare_historical_cbs() relabels rows from the items_full lookup before
+  # calling this, so "Rice and products" there is the canonical label and says
+  # nothing about the mass basis. The default must not convert it, or that path
+  # would be double-converted at 0.67^2.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  expect_equal(result$value, 100)
+})
+
+test_that(".fix_item_codes never converts milled rice", {
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,                  ~value,
+    2805L,          "Rice (Milled Equivalent)", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
