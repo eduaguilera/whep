@@ -215,6 +215,61 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     dplyr::select(-"item_prod")
 }
 
+# Drop fertiliser for polities that have no cropland to spread it on.
+#
+# spatialize_country_n_to_crops() aborts rather than lose that nitrogen
+# silently, which is right -- but for 2010 the offenders are Greenland, Palau,
+# French Guiana, Martinique, Reunion and the residual Rest-of-World bucket:
+# territories reporting a little fertiliser with no crop production in WHEP's
+# data. Together 1367 t, 0.0013% of the global 101.33 Mt. Aborting a global run
+# on that is disproportionate; losing it unremarked is what the guard exists to
+# prevent. So the driver makes the call, in the open, and prints what it cost.
+#
+# This is a data-coverage gap, not a fix: either those polities should carry
+# crop area, or their fertiliser should not be attributed to them (#446).
+.nbd_drop_unsupported_fertilizer <- function(
+  fertilizer,
+  primary_prod,
+  year,
+  cropland_ha = NULL
+) {
+  if (is.null(fertilizer) || is.null(primary_prod)) {
+    return(fertilizer)
+  }
+  totals <- whep:::.synthetic_n_country(fertilizer)
+  shares <- whep:::.n_synthetic_crop_shares(primary_prod, "coello", NULL)
+  supported <- dplyr::distinct(shares, .data$year, .data$area_code)
+  # Crop shares are not enough: a polity can have crop production and still no
+  # positive cropland CELL at 0.5 degrees, which is where the grid step then
+  # aborts. cropland_ha is the driver's own gridded cropland, so require both.
+  if (!is.null(cropland_ha)) {
+    supported <- dplyr::semi_join(
+      supported,
+      dplyr::distinct(cropland_ha, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    )
+  }
+  unsupported <- totals |>
+    dplyr::filter(.data$synthetic_n_t > 0) |>
+    dplyr::anti_join(supported, by = c("year", "area_code"))
+  if (nrow(unsupported) == 0L) {
+    return(fertilizer)
+  }
+  cli::cli_inform(c(
+    "!" = "Dropping {nrow(unsupported)} polit{?y/ies} with fertiliser but no
+           cropland: {signif(sum(unsupported$synthetic_n_t), 4)} t,
+           {signif(100 * sum(unsupported$synthetic_n_t) / sum(totals$synthetic_n_t), 3)}%
+           of {year} synthetic N. Codes: {unsupported$area_code}."
+  ))
+  bridge <- tibble::as_tibble(whep:::.polity_crosswalk()) |>
+    dplyr::transmute(
+      raw = as.integer(.data$area_code),
+      polity = as.integer(.data$polity_area_code)
+    )
+  drop_raw <- bridge$raw[bridge$polity %in% unsupported$area_code]
+  dplyr::filter(fertilizer, !as.integer(.data[["Area Code"]]) %in% drop_raw)
+}
+
 # ---- 1. spatial and land surfaces -------------------------------------------
 
 cli::cli_h1("Nitrogen balance driver: {year}, resolution = {resolution}")
@@ -239,13 +294,26 @@ cropland_ha <- nbd_stage(
 
 cli::cli_h2("2. Country statistics")
 
-primary_prod <- nbd_stage("primary_prod", get_primary_production())
+# Scoped to the driven year, like every other input. build_nitrogen_balance()
+# has no `years` argument -- it covers whatever span its inputs do -- so an
+# unscoped production table made it compare 2010 crop shares against country
+# totals for 2002-2023 and abort on every year that did not line up.
+primary_prod <- nbd_stage("primary_prod", get_primary_production(years = year))
+# Same reason: the raw pin carries every year, and the synthetic-N country
+# totals derived from it must cover the same span as the crop shares.
 fertilizer <- nbd_stage(
   "fertilizer",
-  whep_read_file("faostat-fertilizer-nutrients")
+  whep_read_file("faostat-fertilizer-nutrients") |>
+    dplyr::filter(as.integer(.data$Year) == year)
 )
 manure_pin <- nbd_stage("manure", whep_read_file("faostat-emissions-livestock"))
 primary_residues <- nbd_stage("primary_residues", get_primary_residues())
+fertilizer <- .nbd_drop_unsupported_fertilizer(
+  fertilizer,
+  primary_prod,
+  year,
+  cropland_ha
+)
 
 # ---- 3. the crop NPP chain ---------------------------------------------------
 
