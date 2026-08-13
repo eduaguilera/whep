@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **A traded item with no production row now balances instead of vanishing.**
+  `.reestimate_domestic_supply()` derives a last-resort domestic supply from
+  `production + import - export` for rows that report neither a supply nor a
+  destiny. `production` is deliberately still `NA` at that point, so the
+  imputation further down can derive it (#142), but reading it raw made the
+  residual `NA`, and `dplyr::if_else(NA, ...)` is `NA`, so both
+  `domestic_supply` and `stock_variation` came out `NA`. Those rows were then
+  dropped by the `value != 0` filters downstream rather than balancing. A
+  missing production now counts as zero in that residual only; the imputation
+  itself is untouched.
+
+  **Published values move, slightly and in one direction.** On a 2010 build:
+  12 rows are recovered and none is lost (17,648 to 17,660); 81 rows gain a
+  domestic supply that was wrongly zero, the largest being Ireland
+  "Miscellaneous" at 79,000 t, Switzerland at 22,000 t and Yemen tea at
+  17,000 t; world domestic supply rises 212 kt on 63,388 Mt (+0.0003%) and food
+  181 kt on 4,836 Mt (+0.004%). Every change is upward from zero. The
+  supply-use identity improves sharply: rows off by more than 1 t fall from 144
+  to 67, the worst residual from 160,000 t to 29 t, and the 12 `NA` residuals
+  disappear.
+
 * **Rice from the new FAOSTAT Food Balances is now converted to milled
   equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes rice on
   two bases depending on vintage: the historic series carry item 2805 "Rice
@@ -127,6 +148,40 @@
   resolves through `ROW-1850-2025` are **not** a stale-map artefact and this
   re-sync does not move them; they are the FABIO Rest-of-World fold, which
   outranks the map on purpose and is tracked separately (#717, #740) (#745).
+* **The pre-1962 back-cast can now measure its hectares on each year's own
+  borders.** `tonnes = ha * t_ha`: the yield half has always been historical
+  (`.fill_yields()` back-casts `t_ha` against 1,058,295 pre-1962 observations),
+  while the area half came from the `luh2-areas` pin, which is LUH2 land
+  pre-aggregated to *present-day* ISO3. A row labelled with the 1961 entity was
+  therefore measured on the borders that entity has today. The new
+  `build_primary_production(land_method = "historical_polity")` measures it with
+  `build_historical_land_areas()` instead: gridded LUH2 summed inside the
+  polygon of the polity `area_code` resolves to in that year, resolved unfloored.
+  How a change of territory reaches the back-cast is itself selectable, because
+  `fill_proxy_growth()` reads only ratios: `boundary_step = "level_step"`
+  (default) lets a change of territory through as a level step, because a
+  different polity is a different thing being measured, and `"relink"`
+  re-measures the previous year inside the *incoming* polygon so only
+  within-territory growth is ever used. On Ethiopia in 1952, when Eritrea joins,
+  the 1952 land ratio is +8.0% under the default and +1.9% under `"relink"`.
+  `"relink"` suits a FIXED-territory series and is not the conservative choice
+  here: suppressing that channel also suppresses the correction, and Ethiopia's
+  1850 cropland comes back to 3.24 Mha against a present-day 3.22 -- the figure
+  this method exists to replace. Under the default it is 1.52 Mha (whep#761).
+  **No published values move by default**: `land_method = "present_day"` is
+  unchanged and is what the pipeline still runs. Measured over 1850-1961 against
+  the present-day series, the historical method moves 19.2% of back-cast crop
+  tonnage at 1850 (net -17.2%), 6.5% at 1900 and 0.2% at 1961 under `"relink"`;
+  31.3% / 22.9% / 0.2% under `"level_step"`. Under the new method pre-1962 rows
+  are labelled `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It
+  reaches all four dissolved federations without
+  `federation_land = "successor_union"` -- Czechoslovakia, the USSR, Yugoslavia
+  and Belgium-Luxembourg all have polygons of their own, and the USSR walks its
+  own three-period chain back to 1850. It also declines to measure a bucket
+  whose polity that year is a residual standing in for dozens of areas, or a
+  resolver stand-in from outside its period: 5 buckets carrying 1961 crop
+  tonnage lose their back-cast entirely, 0.1% of the 1961 total, the largest
+  being Syria (#761).
 
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every

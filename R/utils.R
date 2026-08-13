@@ -1822,6 +1822,18 @@ utils::globalVariables(
     # columns for the canonical-area tie-break
     "is_canonical",
     "keep",
+    # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
+    # land series measured inside each year's own polity polygon
+    "n_buckets",
+    "mapping_status",
+    "cell",
+    "ID",
+    "frac",
+    "share",
+    "land_now",
+    "land_next",
+    "land_mha",
+    "log_ratio",
     # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
