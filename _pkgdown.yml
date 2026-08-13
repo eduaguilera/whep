@@ -203,6 +203,7 @@ reference:
   - read_hyde_population
   - read_population
   - read_wpp_population
+  - read_habitual_cv
   - build_urban_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
@@ -249,6 +250,7 @@ reference:
   - build_n_pathway_exceedance
   - build_food_supply
   - build_protein_requirement
+  - build_intake_dispersion
   - normalize_nourishment
   - calculate_food_gini
   - disaggregate_ussr

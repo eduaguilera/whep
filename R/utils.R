@@ -1847,6 +1847,14 @@ utils::globalVariables(
     "saa_mg_g",
     "threonine_mg_g",
     "tryptophan_mg_g",
+    # intake_dispersion.R — FAOSTAT food-security columns and the CV carry-back
+    "Value",
+    "cv",
+    "fao_area_code",
+    "first_cv",
+    "first_year",
+    "method_cv_year",
+    "sigma",
     # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
     "AgeGrpSpan",
     "AgeGrpStart",
