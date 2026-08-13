@@ -471,6 +471,127 @@ folded_reporting_areas <- function(crosswalk = NULL) {
     dplyr::arrange(.data$area_code, .data$polity_code)
 }
 
+#' Report which Rest-of-World members report under their own territory
+#'
+#' @description
+#' Promoting a member of the FABIO Rest-of-World bucket has two halves: the
+#' numeric one, which stops its rows being summed into `polity_area_code` 999,
+#' and the territorial one, which lets it publish under its own year-scoped
+#' `reporting_polity_code` instead of the bucket's `ROW-1850-2025`. Only the
+#' first is unconditional. The second needs upstream to name a polity for the
+#' area in `faostat_area_polity_map.csv`, and for 30 of the 61 members it does
+#' not (whep#717).
+#'
+#' Without this, a member still on `ROW-1850-2025` is indistinguishable from the
+#' genuine residual: both publish an aggregate polity on the continent `"World"`
+#' with no geometry, and nothing says which is which. This names them, and says
+#' for each what is missing.
+#'
+#' @section The statuses:
+#' - `"own_polity"`: promoted, and publishing under its own polity. 31 members.
+#' - `"polity_unmapped"`: promoted, still on `ROW-1850-2025`, but a live
+#'   non-aggregate polity carrying the area's ISO3 **does** exist upstream. All
+#'   that is missing is a row of the FAOSTAT area map naming it for this area,
+#'   so this is the actionable list to send upstream. 6 members: 22 Aruba,
+#'   71 French Southern and Antarctic Territories, 94 Holy See, 218 Tokelau,
+#'   243 Wallis and Futuna, 271 South Georgia and the South Sandwich Islands.
+#' - `"no_polity"`: promoted, still on `ROW-1850-2025`, and upstream has no
+#'   polity for the territory at all. 24 members. Three of them are not
+#'   territories and must never acquire one -- 252 `"Unspecified"`,
+#'   254 `"Others (adjustment)"` and the 999 bucket itself, which is excluded
+#'   here because it is the residual rather than a member of it.
+#' - `"folded"`: this run is re-folding the member, so it is summed into bucket
+#'   999 and carries the bucket's polity. Only under
+#'   `options(whep.unfold_rest_of_world = "none")` or `"cbs_reporters"`.
+#'
+#' The ISO3 test behind `"polity_unmapped"` decides **nothing**: it reports that
+#' upstream holds a polity this package cannot reach, which is a gap in the map,
+#' not a mapping. Resolving an area to a polity by matching ISO3 downstream is
+#' the defect whep#711 removed, and #717 argues explicitly against re-minting a
+#' territorial identity here.
+#'
+#' @param crosswalk Crosswalk to inspect. Defaults to the crosswalk this run
+#'   resolves through, so the answer reflects
+#'   `options(whep.unfold_rest_of_world)`.
+#'
+#' @returns A tibble with one row per Rest-of-World member, ordered by
+#'   `area_code`:
+#' - `area_code`, `area_name`, `area_iso3c`: The member.
+#' - `cbs`: Whether [regions_full] flags it as a commodity-balance reporter,
+#'   which is what `"cbs_reporters"` promotes.
+#' - `status`: One of the four above.
+#' - `n_periods`: How many polity periods it resolves through.
+#' - `polity_codes`: Those periods, comma-separated.
+#'
+#' @seealso [folded_reporting_areas()] for the areas whose rows are summed into
+#'   another area's code, and [polity_mapping_provenance()] for which authority
+#'   a resolved row rests on.
+#' @export
+#' @examples
+#' status <- row_promotion_status()
+#' table(status$status)
+#' status[status$status == "polity_unmapped", c("area_code", "area_name")]
+row_promotion_status <- function(crosswalk = NULL) {
+  cw <- tibble::as_tibble(crosswalk %||% .polity_crosswalk())
+  required <- c(
+    "area_code",
+    "area_name",
+    "area_iso3c",
+    "cbs",
+    "fabio_code",
+    "polity_code",
+    "polity_area_code"
+  )
+  missing <- required[!rlang::has_name(cw, required)]
+  if (length(missing) > 0L) {
+    cli::cli_abort("{.arg crosswalk} is missing {.field {missing}}.")
+  }
+  bucket_polity <- unique(cw$polity_code[cw$area_code %in% 999L])
+  cw |>
+    dplyr::filter(
+      !is.na(.data$area_code),
+      !is.na(.data$fabio_code),
+      .data$fabio_code == 999L,
+      .data$area_code != 999L
+    ) |>
+    dplyr::summarise(
+      cbs = any(.data$cbs %in% TRUE),
+      promoted = all(.data$area_code == .data$polity_area_code),
+      own_polity = !any(.data$polity_code %in% bucket_polity),
+      n_periods = dplyr::n(),
+      polity_codes = paste(sort(unique(.data$polity_code)), collapse = ", "),
+      .by = c("area_code", "area_name", "area_iso3c")
+    ) |>
+    dplyr::mutate(
+      status = dplyr::case_when(
+        !.data$promoted ~ "folded",
+        .data$own_polity ~ "own_polity",
+        .data$area_iso3c %in% .iso3_with_own_polity() ~ "polity_unmapped",
+        TRUE ~ "no_polity"
+      )
+    ) |>
+    dplyr::select(!c("promoted", "own_polity")) |>
+    dplyr::relocate("status", .after = "cbs") |>
+    dplyr::arrange(.data$area_code)
+}
+
+# The ISO3 codes upstream holds a real territorial polity for, applying the same
+# two filters `data-raw/table_mappings.R` applies when it builds the crosswalk's
+# resolution candidates: retired and superseded polities are not candidates, and
+# an aggregate is not a territory.
+#
+# Used ONLY to classify a member the map does not name, never to resolve one.
+# The distinction matters: "upstream has a polity for ESH but no map row reaches
+# it" is a report about the map, whereas resolving an area to a polity because
+# their ISO3 strings agree is the inference whep#711 deleted.
+.iso3_with_own_polity <- function() {
+  live <- is.na(polities$wiki_status) |
+    !polities$wiki_status %in% c("retired", "superseded")
+  territorial <- !is.na(polities$polity_type) &
+    polities$polity_type != "aggregate"
+  unique(stats::na.omit(polities$iso3_code[live & territorial]))
+}
+
 # Report the folds that a single read ACTUALLY exercised, with row counts.
 #
 # `folded_reporting_areas()` lists which areas the crosswalk folds; this says
@@ -646,18 +767,32 @@ folded_reporting_areas <- function(crosswalk = NULL) {
   dt
 }
 
-# The alternative to the fold, selectable and OFF by default.
+# Which Rest-of-World members are modelled in their own right. Every consumer
+# goes through `.polity_crosswalk()`, so one switch covers the whole pipeline
+# instead of 30 call sites disagreeing.
 #
-# Lifting the fold is a modelling decision, not a bug fix, so it is not made
-# here: `whep.unfold_rest_of_world` promotes each Rest-of-World member to its own
-# `polity_area_code`, which is the experiment #419 exists to inform, and the
-# default leaves every published number exactly where it is. Every consumer goes
-# through `.polity_crosswalk()`, so one switch covers the whole pipeline instead
-# of 30 call sites disagreeing.
+# A promotion has two halves, and each mode does both or neither:
 #
-# `"cbs_reporters"` is the narrower experiment #556 asks for: promote only the
-# four areas FABIO's own region list enumerates as regions of their own, and
-# leave the 57 folds FABIO agrees with alone.
+#   the NUMERIC half        `polity_area_code := area_code`, so the member's
+#                           rows stop being summed into bucket 999.
+#   the TERRITORIAL half    the member publishes under its own year-scoped
+#                           polity code, polity name and geometry flag instead
+#                           of the bucket's `ROW-1850-2025`, wherever upstream
+#                           names one (#717).
+#
+# The numeric half landed alone in #628, which is what left 62 areas reporting
+# as themselves and identified as an aggregate on the continent "World".
+#
+#   "all"            the default and what WHEP publishes: every member of
+#                    bucket 999 is promoted.
+#   "none"           re-folds everything, restoring the crosswalk exactly as it
+#                    was -- the fold rows are still in the shipped table, so
+#                    this reproduces a number published under the fold. Warns.
+#   "cbs_reporters"  the narrower experiment #556 asks for: promote only the
+#                    four areas FABIO's own region list enumerates as regions of
+#                    their own, and leave the 57 folds FABIO agrees with alone.
+#                    Those four are promoted in both halves; the rest keep the
+#                    bucket's code AND the bucket's polity. Warns.
 .unfold_rest_of_world_modes <- function() {
   c("none", "all", "cbs_reporters")
 }
@@ -722,11 +857,51 @@ folded_reporting_areas <- function(crosswalk = NULL) {
              setting for issues 419 and 556, not the production mode."
     ))
   }
-  if (!any(promoted)) {
+  promoted_areas <- unique(crosswalk$area_code[promoted])
+  out <- .select_row_identity_rows(crosswalk, promoted_areas)
+  if (length(promoted_areas) == 0L) {
+    return(out)
+  }
+  out[area_code %in% promoted_areas, polity_area_code := area_code]
+  out
+}
+
+# WHICH OF THE TWO ANSWERS A REST-OF-WORLD MEMBER GETS.
+#
+# The crosswalk carries both (see `data-raw/table_mappings.R`): a
+# `"fabio_row_fold"` row saying `ROW-1850-2025` over the whole span, and, where
+# upstream names one, `"fabio_row_promoted"` rows saying the real polity, one per
+# period the upstream FAOSTAT map declares. Exactly one of the two survives per
+# area, which is what makes this a choice rather than a fallback: leaving the
+# fold row in would let `ROW-1850-2025` -- a period covering 1850-2025 -- answer
+# for any year the promoted rows do not reach, so an area whose upstream periods
+# stop in 1950 would quietly go back to being Rest of World for 1961 onward
+# instead of reporting the coverage gap it has.
+#
+# An area with no promoted rows keeps its fold row and stays on the bucket's
+# polity. That is the 31 members upstream names nowhere in the FAOSTAT map, and
+# it is deliberate: minting a territorial identity for them here is exactly what
+# issue 717 argues WHEP must not do. `row_promotion_status()` reports them.
+#
+# A caller-supplied or mocked crosswalk with no `mapping_source` column carries
+# neither kind of row, so there is nothing to choose between and the frame is
+# returned untouched.
+.select_row_identity_rows <- function(crosswalk, promoted_areas) {
+  if (!rlang::has_name(crosswalk, "mapping_source")) {
     return(crosswalk)
   }
-  crosswalk[promoted, polity_area_code := area_code]
-  crosswalk
+  source <- crosswalk$mapping_source
+  is_promoted_row <- !is.na(source) & source == "fabio_row_promoted"
+  is_fold_row <- !is.na(source) & source == "fabio_row_fold"
+  in_promoted <- crosswalk$area_code %in% promoted_areas
+  has_own_identity <- crosswalk$area_code %in%
+    crosswalk$area_code[is_promoted_row]
+  drop <- (is_promoted_row & !in_promoted) |
+    (is_fold_row & in_promoted & has_own_identity)
+  if (!any(drop)) {
+    return(crosswalk)
+  }
+  crosswalk[!drop]
 }
 
 # `regions_full` states the fold a second time, keyed on `code` rather than

@@ -239,13 +239,28 @@ regions_for_crosswalk <- dplyr::bind_rows(
 # and for a period of a mapped area lying outside every span the map declares,
 # which is what keeps pre-FAOSTAT history resolvable.
 #
-# ONE DELIBERATE EXCEPTION: the FABIO Rest-of-World fold still outranks the map.
-# 31 map-covered areas carry `fabio_code == 999` and therefore resolve to
-# `ROW-1850-2025` today (Syria, North Macedonia, Eswatini, New Caledonia,
-# French Guiana, Palestine and 25 more), even though the map names a real polity
-# for each. Letting the map win there would move every Rest-of-World figure, and
-# that fold is tracked separately as #419/#414. It is left standing here on
-# purpose so this change stays confined to the mapping defect.
+# THE REST-OF-WORLD FOLD USED TO OUTRANK THE MAP, AND NO LONGER DOES.
+# 31 map-covered areas carry `fabio_code == 999` (Syria, North Macedonia,
+# Eswatini, New Caledonia, French Guiana, Palestine and 25 more). The fold sent
+# every one of them down the prefix branch with the literal prefix `ROW`, which
+# DELETED the map's answer for the area: 36 of the map's 281 rows reached no
+# crosswalk row at all. `.unfold_rest_of_world()` then promoted the member's
+# numeric `polity_area_code` and had no territorial identity left to promote
+# with it, so all 62 folded areas published under `ROW-1850-2025` -- an
+# aggregate with `continent` "World" and no geometry (#717).
+#
+# Both answers are emitted now, distinguished by `mapping_source`, and
+# `.unfold_rest_of_world()` picks one according to its mode:
+#
+#   `fabio_row_fold`      the bucket's answer, `ROW-1850-2025` over the whole
+#                         span. Used where the mode re-folds the area, and where
+#                         upstream names no polity for it.
+#   `fabio_row_promoted`  the map's own rows for the area, year-spanned, each
+#                         naming the real polity. Used where the mode promotes.
+#
+# Emitting both is what keeps `whep.unfold_rest_of_world = "none"` able to
+# reproduce a number published under the fold: the fold row is still there,
+# untouched, and dropping the promoted rows restores exactly the old crosswalk.
 whep_polities_faostat_map <- Sys.getenv(
   "WHEP_POLITIES_FAOSTAT_MAP",
   unset = path.expand("~/whep-polities/data/final/faostat_area_polity_map.csv")
@@ -417,6 +432,30 @@ mapped_areas <- reporting_areas |>
   ) |>
   dplyr::mutate(mapping_source = "upstream_map")
 
+# THE MAP'S ANSWER FOR A REST-OF-WORLD MEMBER, kept rather than discarded.
+#
+# Same join as `mapped_areas` on the areas that branch excludes, so the two
+# together consume the map exactly once: 245 rows over 197 areas there, 36 rows
+# over 31 areas here, and the map has 281 rows over 228 areas. That identity is
+# asserted in `test_polity_faostat_map.R` -- it is the property that says the
+# fold no longer deletes an upstream statement, and it fails the moment either
+# branch starts shadowing the other.
+#
+# `polity_area_code` still resolves to 999 below, because these rows describe a
+# member of the bucket; `.unfold_rest_of_world()` is what promotes it.
+row_promoted_areas <- reporting_areas |>
+  dplyr::filter(.data$area_in_map, !is.na(.data$fabio_row_prefix)) |>
+  dplyr::inner_join(
+    faostat_area_map,
+    by = "area_code",
+    relationship = "many-to-many"
+  ) |>
+  dplyr::left_join(
+    live_polity_attrs |> dplyr::select(!"polity_prefix"),
+    by = "polity_code"
+  ) |>
+  dplyr::mutate(mapping_source = "fabio_row_promoted")
+
 # The prefix branch for everything the map does not decide: the Rest-of-World
 # fold, the six regional "Other" buckets, the China aggregate that must stay
 # unmapped, and the rows carrying no reporting area at all.
@@ -587,6 +626,7 @@ outside_map_areas <- prefix_candidates |>
 
 polity_area_crosswalk <- dplyr::bind_rows(
   mapped_areas,
+  row_promoted_areas,
   prefix_areas,
   outside_map_areas
 ) |>
@@ -620,6 +660,11 @@ polity_area_crosswalk <- dplyr::bind_rows(
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
+      # Tested on `mapping_source`, not on `fabio_code == 999`, because both
+      # answers for a Rest-of-World member now carry that code and only one of
+      # them is the fold.
+      .data$mapping_source ==
+        "fabio_row_promoted" ~ "Upstream names this polity for the area; it applies when the area is promoted out of the FABIO Rest of World bucket.",
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
         .data$area_code !=
@@ -685,20 +730,45 @@ if (length(fallback_areas) > 0L) {
   ))
 }
 
-shadowed_areas <- polity_area_crosswalk |>
+# EVERY MAP ROW MUST REACH THE CROSSWALK, and the fold is what used to stop 36
+# of them. Asserted here as well as in the tests, because this is the one place
+# that holds the map and the crosswalk at the same time.
+consumed_map_rows <- polity_area_crosswalk |>
+  dplyr::filter(
+    .data$mapping_source %in% c("upstream_map", "fabio_row_promoted")
+  ) |>
+  nrow()
+if (consumed_map_rows != nrow(faostat_area_map)) {
+  cli::cli_abort(c(
+    "The crosswalk consumes {consumed_map_rows} of the upstream map's
+     {nrow(faostat_area_map)} rows.",
+    "x" = "A map row reaching no crosswalk row is an upstream statement this
+           package silently discards, which is #717.",
+    "i" = "Every map row must land in {.val upstream_map} or
+           {.val fabio_row_promoted}, exactly once."
+  ))
+}
+
+# THE REST-OF-WORLD MEMBERS UPSTREAM STILL DOES NOT NAME are the remaining ask,
+# and the list should only ever shrink. `row_promotion_status()` reports the
+# same population at run time, split by whether a polity exists for the
+# territory at all.
+unnamed_row_areas <- polity_area_crosswalk |>
   dplyr::filter(
     .data$mapping_source == "fabio_row_fold",
-    .data$area_code %in% faostat_area_map$area_code
+    !is.na(.data$area_code),
+    .data$area_code != 999L,
+    !.data$area_code %in% faostat_area_map$area_code
   ) |>
   dplyr::distinct(.data$area_code) |>
   dplyr::pull(.data$area_code) |>
   sort()
-if (length(shadowed_areas) > 0L) {
+if (length(unnamed_row_areas) > 0L) {
   cli::cli_inform(c(
-    "!" = "{length(shadowed_areas)} reporting area codes are named by the
-           upstream FAOSTAT map but kept on the FABIO Rest-of-World fold.",
-    "i" = "Areas: {.val {shadowed_areas}}.",
-    "i" = "Lifting the fold is tracked separately and is out of scope here."
+    "!" = "{length(unnamed_row_areas)} Rest-of-World member area codes are
+           named by no upstream FAOSTAT map row, so they keep the bucket's
+           polity even when promoted.",
+    "i" = "Areas: {.val {unnamed_row_areas}}."
   ))
 }
 
