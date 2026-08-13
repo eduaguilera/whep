@@ -385,7 +385,16 @@ testthat::test_that("bucket 238 can still date Ethiopia before 1993", {
     resolved$polity_code,
     c(rep("ETH-1952-1993", 4L), rep("ETH-1993-2025", 2L))
   )
-  testthat::expect_true(all(resolved$mapping_status == "matched"))
+  # Every year resolves against a real period rather than an out-of-span
+  # stand-in, which is what sparing the crosswalk row buys. 1850 is
+  # `"backcast_anchor"` rather than `"matched"` because the period it lands on
+  # begins in 1952: the label is WHEP's back-cast convention, and whep#763 made
+  # the resolver say so instead of asserting the polity was alive in 1850.
+  testthat::expect_false(any(resolved$mapping_status == "out_of_span"))
+  testthat::expect_equal(
+    resolved$mapping_status,
+    c("backcast_anchor", rep("matched", 5L))
+  )
   # And the bucket every one of those rows is published under really is 238.
   testthat::expect_true(all(resolved$polity_area_code == 238L))
 })

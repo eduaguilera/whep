@@ -28,7 +28,11 @@
 #' Rows before the back-cast anchor year resolve to the polity live in that
 #' anchor year rather than to the polity live in the row's own year, because
 #' WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-#' [add_polity_code()] for the reasoning.
+#' [add_polity_code()] for the reasoning. Where that polity is not live in the
+#' row's own year -- 41.5% of the pre-1961 `(area, year)` cells --
+#' [add_polity_code()] says so as `mapping_status == "backcast_anchor"`, and
+#' [polity_coverage_gaps()] reports it as `gap_kind == "backcast_anchor"`.
+#' These columns do not say so either way.
 #'
 #' A row whose year no mapped period covers is resolved to the NEAREST period of
 #' the same area instead, so `reporting_polity_code` can name a polity that did
