@@ -42,6 +42,22 @@ reference:
   - build_gridded_landuse
   - build_gridded_livestock
 
+- title: Polycell spatial support
+  desc: >
+    Build the canonical spatial support unit, the polycell: a 0.5-degree grid
+    cell intersected with a polity over its validity interval, carrying the
+    territory decomposed into land, inland water and ice so that polycells
+    re-aggregate to a polity without value change or cross-border leakage.
+  contents:
+  - build_polycell_support
+  - expand_polycell_years
+  - polycell_example_geometries
+  - read_polycell_support
+  - read_glwd_water
+  - glwd_water_fraction
+  - read_glaciated_areas
+  - read_luh2_terrestrial
+
 - title: Constant-territory back-casting
   desc: >
     Rebuild historical series onto a fixed reference-year's boundaries by
