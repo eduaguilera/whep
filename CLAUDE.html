@@ -184,7 +184,7 @@
 <p>Load-bearing (a linter, <code>air</code>, or <code>R CMD check</code> enforces it):</p>
 <ul><li>Maximum line width is 80 characters.</li>
 <li>
-<strong>Always</strong> run <code>air format .</code> before committing. Install the binary if it is not on PATH. Do not format manually — and note <code>air.toml</code> sets <code>skip = ["tribble"]</code>, so <code>tribble()</code> bodies keep the alignment you give them; align them yourself.</li>
+<strong>Always</strong> run <code>air format .</code> before committing. Install the binary if it is not on PATH. Do not format manually — and note <code>air.toml</code> sets <code>skip = ["tribble"]</code>, so <code>tribble()</code> bodies keep the alignment you give them; align them yourself. Nothing gates this before merge any more (see <a href="#ci-checks">CI Checks</a>): <code>main</code> reformats itself afterwards, so skipping it means the diff that was reviewed is not the diff that landed.</li>
 <li>Namespace-prefix every imported function (<code><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">dplyr::filter()</a></code>, and <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>, not <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code>). Do not use <code>@importFrom</code>.</li>
 <li>Variable and function names must not exceed 30 characters.</li>
 <li>Escaped characters in regex must be double-escaped in R strings (<code>\\.</code>, not <code>\.</code>).</li>
@@ -239,12 +239,11 @@
 <li>
 <strong>lint</strong> (<code>lintr</code>): with <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code> and <code>commas_linter</code> disabled (they conflict with <code>air</code>). <code>inst/scripts</code> and <code>inst/analysis</code> are excluded.</li>
 <li>
-<strong>format-suggest</strong> (<code>air</code>): code must be formatted with <code>air format .</code>. Mandatory, not optional. Air formats <strong>all</strong> <code>.R</code> files — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not just the ones you edited. Run <code><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">devtools::document()</a></code> afterwards.</li>
-<li>
 <strong>pkgdown</strong>: the site must build. <strong>Every</strong> documented topic (functions and documented datasets) must appear in <code>_pkgdown.yml</code> under <code>reference:</code> — every <code>man/*.Rd</code> except <code>whep-package.Rd</code>. Verify with the <code>comm</code> command below; it is currently clean, so any output is your change.</li>
 <li>
 <strong>test-coverage</strong> (<code>covr</code> → Codecov): the suite runs again here and coverage is reported. New exported functions should arrive with tests, not after them.</li>
-</ol></div>
+</ol><p>Formatting is <strong>not</strong> among them: there is no pre-merge <code>air</code> gate. The <code>format-main</code> workflow reformats <code>main</code> with <code>air format .</code> after every merge and commits the result back. That is a safety net for the case where someone forgets, not a licence to skip — a PR is not ready until you have run <code>air format .</code> yourself, so that the diff under review is the diff that lands and <code>main</code> does not fill up with formatting-only commits.</p>
+</div>
 <div class="section level2">
 <h2 id="before-committing">Before committing<a class="anchor" aria-label="anchor" href="#before-committing"></a></h2>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># 1. Format (MANDATORY — do not skip, do not do manually)</span></span>

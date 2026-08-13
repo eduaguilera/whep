@@ -314,7 +314,10 @@ Load-bearing (a linter, `air`, or `R CMD check` enforces it):
 - **Always** run `air format .` before committing. Install the binary if
   it is not on PATH. Do not format manually — and note `air.toml` sets
   `skip = ["tribble"]`, so `tribble()` bodies keep the alignment you
-  give them; align them yourself.
+  give them; align them yourself. Nothing gates this before merge any
+  more (see [CI Checks](#ci-checks)): `main` reformats itself
+  afterwards, so skipping it means the diff that was reviewed is not the
+  diff that landed.
 - Namespace-prefix every imported function
   ([`dplyr::filter()`](https://dplyr.tidyverse.org/reference/filter.html),
   and [`stats::median()`](https://rdrr.io/r/stats/median.html), not
@@ -447,20 +450,22 @@ The PR must pass these GitHub Actions checks:
     `line_length_linter`, `indentation_linter` and `commas_linter`
     disabled (they conflict with `air`). `inst/scripts` and
     `inst/analysis` are excluded.
-3.  **format-suggest** (`air`): code must be formatted with
-    `air format .`. Mandatory, not optional. Air formats **all** `.R`
-    files — `R/`, `tests/`, `data-raw/` — not just the ones you edited.
-    Run
-    [`devtools::document()`](https://devtools.r-lib.org/reference/document.html)
-    afterwards.
-4.  **pkgdown**: the site must build. **Every** documented topic
+3.  **pkgdown**: the site must build. **Every** documented topic
     (functions and documented datasets) must appear in `_pkgdown.yml`
     under `reference:` — every `man/*.Rd` except `whep-package.Rd`.
     Verify with the `comm` command below; it is currently clean, so any
     output is your change.
-5.  **test-coverage** (`covr` → Codecov): the suite runs again here and
+4.  **test-coverage** (`covr` → Codecov): the suite runs again here and
     coverage is reported. New exported functions should arrive with
     tests, not after them.
+
+Formatting is **not** among them: there is no pre-merge `air` gate. The
+`format-main` workflow reformats `main` with `air format .` after every
+merge and commits the result back. That is a safety net for the case
+where someone forgets, not a licence to skip — a PR is not ready until
+you have run `air format .` yourself, so that the diff under review is
+the diff that lands and `main` does not fill up with formatting-only
+commits.
 
 ## Before committing
 

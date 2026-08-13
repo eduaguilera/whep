@@ -44,7 +44,8 @@
 <ul><li><a href="#finding-something-to-work-on">Finding something to work on</a></li>
 <li><a href="#do-i-need-the-data">Do I need the data?</a></li>
 <li><a href="#setting-up">Setting up</a></li>
-<li><a href="#the-six-ci-checks-and-how-to-run-them-locally">The six CI checks, and how to run them locally</a></li>
+<li><a href="#formatting-which-ci-does-not-check-before-merge">Formatting, which CI does not check before merge</a></li>
+<li><a href="#the-five-ci-checks-and-how-to-run-them-locally">The five CI checks, and how to run them locally</a></li>
 <li><a href="#code-style">Code style</a></li>
 <li><a href="#documentation">Documentation</a></li>
 <li><a href="#tests">Tests</a></li>
@@ -87,19 +88,19 @@
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"devtools"</span><span class="op">)</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/install_deps.html" class="external-link">install_deps</a></span><span class="op">(</span>dependencies <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">load_all</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>You also need the <a href="https://github.com/posit-dev/air" class="external-link"><code>air</code></a> formatter binary on your <code>PATH</code> — see the formatting check below. It is not an R package; download a release for your platform.</p>
+<p>You also need the <a href="https://github.com/posit-dev/air" class="external-link"><code>air</code></a> formatter binary on your <code>PATH</code> — see the formatting section below. It is not an R package; download a release for your platform.</p>
 </div>
 <div class="section level2">
-<h2 id="the-six-ci-checks-and-how-to-run-them-locally">The six CI checks, and how to run them locally<a class="anchor" aria-label="anchor" href="#the-six-ci-checks-and-how-to-run-them-locally"></a></h2>
-<p>Six workflows run on every pull request, including one from a fork. Five of them gate the merge; <code>test-coverage</code> is informational. Each is reproducible on your machine, and doing that first is much faster than pushing and waiting.</p>
-<div class="section level3">
-<h3 id="id_1-format-suggest--code-formatting">1. <code>format-suggest</code> — code formatting<a class="anchor" aria-label="anchor" href="#id_1-format-suggest--code-formatting"></a></h3>
+<h2 id="formatting-which-ci-does-not-check-before-merge">Formatting, which CI does not check before merge<a class="anchor" aria-label="anchor" href="#formatting-which-ci-does-not-check-before-merge"></a></h2>
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
-<p><strong>This is mandatory and it is not optional or approximate.</strong> CI runs the <code>air</code> binary and posts a failing suggestion for any diff, so hand-matching the style does not work. Run the binary. Note that it formats <em>every</em> <code>.R</code> file in the repo — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not only the ones you edited, so commit only your own hunks if it reformats something unrelated.</p>
+<p><strong>This is mandatory and it is not optional or approximate</strong>, even though no check will fail if you skip it. Nothing gates formatting on a pull request; the <code>format-main</code> workflow reformats <code>main</code> after every merge instead. That is there for the times someone forgets, and leaning on it has a real cost: the diff a reviewer read stops being the diff that landed, and <code>main</code> collects formatting-only commits. So run the binary yourself — hand-matching the style does not work. Note that it formats <em>every</em> <code>.R</code> file in the repo — <code>R/</code>, <code>tests/</code>, <code>data-raw/</code> — not only the ones you edited, so commit only your own hunks if it reformats something unrelated.</p>
 </div>
+<div class="section level2">
+<h2 id="the-five-ci-checks-and-how-to-run-them-locally">The five CI checks, and how to run them locally<a class="anchor" aria-label="anchor" href="#the-five-ci-checks-and-how-to-run-them-locally"></a></h2>
+<p>Five workflows run on every pull request, including one from a fork. Four of them gate the merge; <code>test-coverage</code> is informational. Each is reproducible on your machine, and doing that first is much faster than pushing and waiting.</p>
 <div class="section level3">
-<h3 id="id_2-lint--lintr">2. <code>lint</code> — <code>lintr</code>
-<a class="anchor" aria-label="anchor" href="#id_2-lint--lintr"></a></h3>
+<h3 id="id_1-lint--lintr">1. <code>lint</code> — <code>lintr</code>
+<a class="anchor" aria-label="anchor" href="#id_1-lint--lintr"></a></h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span></span>
 <span>  linters <span class="op">=</span> <span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/linters_with_defaults.html" class="external-link">linters_with_defaults</a></span><span class="op">(</span></span>
@@ -113,7 +114,7 @@
 <p>Note that <code>line_length_linter</code> being off does <strong>not</strong> license long lines — the 80-character maximum is still a house rule (see below), it just is not machine enforced.</p>
 </div>
 <div class="section level3">
-<h3 id="id_3-r-cmd-check--five-platforms">3. <code>R-CMD-check</code> — five platforms<a class="anchor" aria-label="anchor" href="#id_3-r-cmd-check--five-platforms"></a></h3>
+<h3 id="id_2-r-cmd-check--five-platforms">2. <code>R-CMD-check</code> — five platforms<a class="anchor" aria-label="anchor" href="#id_2-r-cmd-check--five-platforms"></a></h3>
 <p>macOS release, Windows release, and Ubuntu on R-devel, release and oldrel-1. <strong>No errors, no warnings, no notes.</strong> This job also runs the test suite, so a failing test turns up here as a hard ERROR.</p>
 <p>To check without waiting for the tests:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
@@ -127,7 +128,7 @@
 <li>Every <code>stats::</code> and <code>utils::</code> function needs its explicit namespace prefix (<code><a href="https://rdrr.io/r/stats/median.html" class="external-link">stats::median()</a></code>, not <code><a href="https://rdrr.io/r/stats/median.html" class="external-link">median()</a></code>).</li>
 </ul></div>
 <div class="section level3">
-<h3 id="id_4-the-test-suite">4. The test suite<a class="anchor" aria-label="anchor" href="#id_4-the-test-suite"></a></h3>
+<h3 id="id_3-the-test-suite">3. The test suite<a class="anchor" aria-label="anchor" href="#id_3-the-test-suite"></a></h3>
 <p>Run it directly while you work, rather than through the full check:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span>                          <span class="co"># everything</span></span>
@@ -135,14 +136,14 @@
 <p>The whole suite must be green — 100%, no skips added to get there.</p>
 </div>
 <div class="section level3">
-<h3 id="id_5-offline-tests--no-test-may-touch-the-network">5. <code>offline-tests</code> — no test may touch the network<a class="anchor" aria-label="anchor" href="#id_5-offline-tests--no-test-may-touch-the-network"></a></h3>
+<h3 id="id_4-offline-tests--no-test-may-touch-the-network">4. <code>offline-tests</code> — no test may touch the network<a class="anchor" aria-label="anchor" href="#id_4-offline-tests--no-test-may-touch-the-network"></a></h3>
 <p>Reproduce the CI condition exactly:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="va">XDG_CACHE_HOME</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span> <span class="va">http_proxy</span><span class="op">=</span>http://127.0.0.1:9 <span class="dt">\</span></span>
 <span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="va">https_proxy</span><span class="op">=</span>http://127.0.0.1:9 <span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::test()'</span></span></code></pre></div>
 <p>If this job fails on its own while the ordinary test job passes, you have added a test that quietly fetches something. The fix is to give it an offline fixture, <strong>not</strong> to skip the test and not to relax the job.</p>
 </div>
 <div class="section level3">
-<h3 id="id_6-pkgdown--the-documentation-site">6. <code>pkgdown</code> — the documentation site<a class="anchor" aria-label="anchor" href="#id_6-pkgdown--the-documentation-site"></a></h3>
+<h3 id="id_5-pkgdown--the-documentation-site">5. <code>pkgdown</code> — the documentation site<a class="anchor" aria-label="anchor" href="#id_5-pkgdown--the-documentation-site"></a></h3>
 <p>Every documented topic — functions <em>and</em> datasets with roxygen docs — must appear in <code>_pkgdown.yml</code> under <code>reference:</code>. Adding an exported function without listing it there fails the build. Check with:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">comm</span> <span class="at">-23</span> <span class="dt">\</span></span>
 <span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="op">&lt;(</span><span class="fu">ls</span> man/<span class="pp">*</span>.Rd <span class="kw">|</span> <span class="fu">sed</span> <span class="st">'s|man/||;s|\.Rd||'</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-v</span> whep-package <span class="kw">|</span> <span class="fu">sort</span><span class="op">)</span> <span class="dt">\</span></span>
@@ -152,7 +153,7 @@
 <div class="section level3">
 <h3 id="and-one-that-does-not-gate">And one that does not gate<a class="anchor" aria-label="anchor" href="#and-one-that-does-not-gate"></a></h3>
 <p><code>test-coverage</code> runs the suite under <code>covr</code> and reports to Codecov. Treat a coverage drop as a prompt to add a test, not as a blocker.</p>
-<p>One note on <code>format-suggest</code>: it is deliberately configured to work on pull requests from forks, which is the normal path for an outside contribution. If it posts suggestions on your PR, run <code>air format .</code> and push again.</p>
+<p>All five gating checks run on pull requests from forks, which is the normal path for an outside contribution, so you get the same signal we do.</p>
 </div>
 <div class="section level3">
 <h3 id="the-short-version-before-you-push">The short version, before you push<a class="anchor" aria-label="anchor" href="#the-short-version-before-you-push"></a></h3>
