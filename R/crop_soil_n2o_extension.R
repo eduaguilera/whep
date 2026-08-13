@@ -221,14 +221,7 @@ build_crop_soil_n2o_extension <- function(
 # spatialize_country_n_to_crops()'s resolutions need a crop share. Keeping them
 # would double count the members they roll up.
 .n_country_to_polity <- function(totals, value_col) {
-  # .polity_crosswalk(), not whep::polity_area_crosswalk. The dataset is the
-  # pre-unfold mapping: 98 of its rows still fold into polity_area_code 999
-  # (Rest of World) and it carries 203 polities, where the function applies
-  # .unfold_rest_of_world() and carries 264. Reading the dataset here rebuilt a
-  # Rest-of-World bucket that production no longer has, so the resulting country
-  # totals had no crop-area shares to be allocated onto and
-  # spatialize_country_n_to_crops() aborted on them (#446).
-  bridge <- .polity_crosswalk() |>
+  bridge <- whep::polity_area_crosswalk |>
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
     dplyr::distinct(
       area_code = as.integer(.data$area_code),
