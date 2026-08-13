@@ -108,11 +108,17 @@
 #' |------------|-------------|
 #' | Whole 0.5-degree cells holding any land | 14.3195 Gha |
 #' | HaNi's own land mask | 13.5977 Gha |
-#' | Union of the live polity polygons | 13.2795 Gha |
+#' | Union of the live polity polygons | 13.4267 Gha |
 #' | LUH2 terrestrial, `(1 - icwtr) * carea` | 12.9931 Gha |
 #'
-#' `polity_area_ha` is the third row: this table's territory is the polity
-#' polygons, decomposed into land, inland water and ice. The first row is the
+#' `polity_area_ha` carries the third row's territory -- the polity polygons,
+#' decomposed into land, inland water and ice -- but **summing it does not
+#' give the third row**. The union is unique ground, which is what makes it
+#' comparable with the other three; a sum counts shared ground once per
+#' claiming polity. At 2015 `sum(polity_area_ha)` is 13.4599 Gha, exceeding
+#' the union by the 0.0332 Gha two live polities both claim. Quote the union
+#' for a land definition and the sum for attributed territory, and never read
+#' the difference between them as a leak. The first row is the
 #' convention this table replaces -- a per-hectare rate multiplied by
 #' `cell_area_ha` -- and it over-counts by 11.0%. The fourth is the DA-5
 #' validation layer: its disagreement with the polygons is emitted in the

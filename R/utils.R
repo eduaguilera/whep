@@ -1849,6 +1849,10 @@ utils::globalVariables(
     # unqualified uses survive the polycell migration and are deliberate: the
     # water balance is owned elsewhere, the feed path is frozen, and
     # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
-    "polity_frac"
+    "polity_frac",
+    # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
+    # columns: the row's OWN year, joined back onto the anchored resolution
+    "data_year",
+    "i.data_year"
   )
 )

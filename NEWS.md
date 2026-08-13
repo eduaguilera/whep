@@ -19,11 +19,15 @@
   * **Four definitions of "land" are live and they disagree by up to 10%**, so
     a global area is only interpretable next to the one it was measured on. At
     2015: whole 0.5-degree cells **14.3195 Gha**, HaNi's own land mask
-    **13.5977 Gha**, the union of the live polity polygons **13.2795 Gha**,
+    **13.5977 Gha**, the union of the live polity polygons **13.4267 Gha**,
     LUH2 terrestrial `(1 - icwtr) * carea` **12.9931 Gha**. The support table's
-    territory is the third; the fourth is a validation layer whose
-    disagreement is emitted in the `"unassigned"` attribute and never silently
-    reconciled; the first is the convention being replaced. A fifth mask (the
+    territory is the third, but *summing* `polity_area_ha` does not reproduce
+    it: the union is unique ground, while a sum counts shared ground once per
+    claiming polity, so the sum at 2015 is **13.4599 Gha**, above the union by
+    the **0.0332 Gha** two live polities both claim. The fourth is a
+    validation layer whose disagreement is emitted in the `"unassigned"`
+    attribute and never silently reconciled; the first is the convention
+    being replaced. A fifth mask (the
     GLWD water layer's CRU mask, 67,420 cells) is reconciled in
     `"water_unmatched"` rather than joined away. Re-derivable with
     `inst/scripts/diagnose_polycell_support.R`; the polygon row moves with the
@@ -171,6 +175,51 @@
     Without it the check reported `Status: 1 NOTE` where merge-base main was
     `Status: OK`, on a check CI cannot fail: `check-r-package@v2` defaults
     `error-on: warning`.
+
+* **A back-cast row no longer reports `mapping_status == "matched"` for a polity
+  that was not alive in its year.** `add_polity_code()` floors the polity-lookup
+  year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a
+  reconstruction on the anchor year's territory -- that convention is unchanged.
+  What was wrong is that the row then claimed the polity had existed then, and
+  for 12,208 of the 29,415 pre-1961 `(area, year)` cells it had not: FAOSTAT area
+  238's 1850 row read `ETH-1952-1993`, `matched`, 102 years before that polity
+  began. Those rows now report `mapping_status == "backcast_anchor"`, and
+  `polity_coverage_gaps()` reports them as `gap_kind == "backcast_anchor"`
+  alongside `polity_ended` / `polity_not_started`. The floor was applied before
+  the span check, so the diagnostic could previously see only 2,664 of the
+  12,208 cells; it now sees all of them, 9,544 of which are new.
+  `polity_bucket_coverage()` surfaces the same resolver column, so its
+  `bucket_mapping_status` would read `"backcast_anchor"` for a pre-1961
+  `years =` argument; on the shipped crosswalk no bucket folds more than one
+  polity before 1961, so it emits no such row today, and its `coverage`
+  classification is unchanged either way. **No published value changes** -- a
+  full `get_primary_production()` (6,310,390 rows) is `identical()` across the
+  change, `mapping_status` is not on any published schema by default, and the
+  `polity_validity` argument keeps its current scope, so `"drop"` still drops
+  only nearest-period stand-ins (#763).
+
+* **The SOC climate driver read releases the LPJmL hydrology pin once it has
+  been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
+  requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
+  soil-water and monthly-climate series are derived from it, but it stayed
+  referenced through the joins in `.assemble_soc_drivers()`, which is where the
+  read peaks. Peak for a full-span `.cb_read_climate()` goes from 43.0 GB to
+  36.0 GB at unchanged runtime (#624).
+
+* **The SOC climate drivers assemble a year at a time, and stop decorating an
+  86-million-row table.** Two changes to the same read. `.socd_monthly_climate()`
+  joined four full-span monthly series on `(lon, lat, year, month)`; the joins
+  and the water balance are all within-year, so they now run per year. And
+  `build_carbon_balance()` no longer routes through the reporting-polity
+  decoration: those four columns -- two of them character -- cost ~28 GB on the
+  table a full span produces, and the carbon balance never reads them, keying its
+  climate modifier on `(lon, lat, area_code, year, month)` and adding its own
+  reporting columns to its own output. Polity validity still applies, since it
+  can drop rows. Peak for an 80-year `.cb_read_climate()` goes from 56.5 GB to
+  28.1 GB and it is a third faster (205 s vs 303 s), with all 17 shared columns
+  `identical()`. The exported `get_soc_climate_drivers()` still returns the
+  polity columns (#624).
+
 * **`build_carbon_inputs()` collapses each year's gridded cropland inputs before
   gridding the next.** The gridded table is ~1.25e6 rows per simulated year and
   its only consumer, `.ci_cropland_class()`, keeps about one row in forty-two --

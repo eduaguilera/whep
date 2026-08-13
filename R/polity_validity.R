@@ -61,12 +61,24 @@
 # `polity_coverage_gaps()` resolves whatever it is handed. Using the exported
 # diagnostic rather than a second hand-rolled lookup is what guarantees the
 # report describes the rows `.add_reporting_polity_columns()` really substituted.
+#
+# SCOPED TO THE STAND-INS, deliberately. whep#763 made the diagnostic also
+# report the back-cast anchor class -- a pre-anchor row labelled with the polity
+# live in the anchor year -- which is 12,208 `(area, year)` cells against the
+# 2,301 stand-in pairs of a real `get_primary_production()`. Those two are not
+# the same defect and must not share a fate: `polity_validity = "drop"` deleting
+# every pre-1961 row of the 140 areas whose anchor polity starts later is a
+# modelling decision about the back-cast convention itself (whep#748), not the
+# year-less cell crosswalk this argument exists for. Widening it here would move
+# published values under `"drop"` and `"flag"`, which whep#763 explicitly does
+# not do.
 .polity_validity_gaps <- function(table) {
   if (!all(c("area_code", "year") %in% names(table))) {
     return(tibble::tibble(area_code = integer(0), year = integer(0)))
   }
   dplyr::distinct(table, area_code, year) |>
     polity_coverage_gaps() |>
+    dplyr::filter(.data$gap_kind != "backcast_anchor") |>
     dplyr::select(area_code, year)
 }
 

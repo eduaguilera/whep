@@ -221,14 +221,37 @@ get_soc_climate_drivers <- function(
       polity_validity
     ))
   }
+  status <- if (polity_validity == "flag") "flag" else NULL
+  .socd_build(run_dir, years, polity_validity, data) |>
+    .add_reporting_polity_columns(mapping_status = status)
+}
+
+# The monthly SOC climate drivers WITHOUT the reporting polity columns.
+#
+# Those four columns -- two of them character -- cost ~27 GB when attached to
+# the 8.6e7-row table a 1901-2022 span produces, and build_carbon_balance()
+# never reads them off this table: it keys the climate modifier on
+# (lon, lat, area_code, year, month) and adds its own reporting columns to its
+# own output. Polity validity itself still applies here, because it can drop
+# rows. The exported wrapper above attaches the columns, so its contract is
+# unchanged (#624).
+.socd_build <- function(run_dir, years, polity_validity, data) {
   pin <- .socd_pin_hydrology(data, run_dir, years)
   swc <- .wb_swc_topsoil(data, run_dir, years, pin)
   monthly <- .socd_monthly_climate(data, run_dir, years, pin)
+  # The pin carries swc_topsoil, prec_mm and irrig_mm for every requested year --
+  # ~12 GB at 1901-2022 -- and nothing below reads it, because swc and monthly
+  # are already derived from it. Left referenced it stays resident through
+  # .assemble_soc_drivers(), which is exactly where this read peaks. The same
+  # applies to the four monthly source series .socd_monthly_climate() holds
+  # internally; reclaiming here releases those too.
+  rm(pin)
+  invisible(gc(full = TRUE))
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
   .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
-    .resolve_polity_validity(polity_validity)
+    .apply_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -749,34 +772,58 @@ get_soc_climate_drivers <- function(
 # and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
 # source falls back to its reader when not injected.
 .socd_monthly_climate <- function(data, run_dir, years, pin = NULL) {
-  temp <- .socd_read(data$temp, "tmp", years)
-  pet <- .socd_read(data$pet, "pet", years)
-  prec <- .socd_lpjml(
-    data$prec %||% .socd_pin_var(pin, "prec_mm"),
-    "prec",
-    run_dir,
-    years
+  sources <- .socd_monthly_sources(data, run_dir, years, pin)
+  groups <- purrr::map(sources, \(x) split(seq_len(nrow(x)), x$year))
+  shared <- Reduce(intersect, purrr::map(groups, names))
+  purrr::map(shared, \(year) .socd_monthly_year(sources, groups, year)) |>
+    dplyr::bind_rows()
+}
+
+# The four monthly driver series, each renamed to the column it contributes.
+.socd_monthly_sources <- function(data, run_dir, years, pin) {
+  list(
+    temp = dplyr::rename(.socd_read(data$temp, "tmp", years), temp_c = "value"),
+    pet = dplyr::rename(
+      .socd_read(data$pet, "pet", years),
+      pet_mm_day = "value"
+    ),
+    prec = dplyr::rename(
+      .socd_lpjml(
+        data$prec %||% .socd_pin_var(pin, "prec_mm"),
+        "prec",
+        run_dir,
+        years
+      ),
+      precip_mm = "value"
+    ),
+    irrig = dplyr::rename(
+      .socd_lpjml(
+        data$irrig %||% .socd_pin_var(pin, "irrig_mm"),
+        "irrig",
+        run_dir,
+        years
+      ),
+      irrig_mm = "value"
+    )
   )
-  irrig <- .socd_lpjml(
-    data$irrig %||% .socd_pin_var(pin, "irrig_mm"),
-    "irrig",
-    run_dir,
-    years
-  )
-  temp |>
-    dplyr::rename(temp_c = value) |>
-    dplyr::inner_join(
-      dplyr::rename(pet, pet_mm_day = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
-    dplyr::inner_join(
-      dplyr::rename(prec, precip_mm = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
-    dplyr::inner_join(
-      dplyr::rename(irrig, irrig_mm = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
+}
+
+# One year of the assembled monthly drivers.
+#
+# The four series are joined on (lon, lat, year, month) and the water balance
+# sums within (lon, lat, year), so nothing crosses years and the assembly can be
+# done a year at a time. Doing it whole instead joins four 8.6e7-row tables at
+# 1901-2022, each join copying the result: the read peaks at 86.7 GB there, for
+# an 11.9 GB result, and that peak alone is what a full-span
+# build_carbon_balance() could not fit (#624).
+.socd_monthly_year <- function(sources, groups, year) {
+  rows <- function(name) {
+    sources[[name]][groups[[name]][[year]], , drop = FALSE]
+  }
+  rows("temp") |>
+    dplyr::inner_join(rows("pet"), by = c("lon", "lat", "year", "month")) |>
+    dplyr::inner_join(rows("prec"), by = c("lon", "lat", "year", "month")) |>
+    dplyr::inner_join(rows("irrig"), by = c("lon", "lat", "year", "month")) |>
     dplyr::mutate(
       pet_mm = pet_mm_day * .days_in_month(year, month),
       water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm,
