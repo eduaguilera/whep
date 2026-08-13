@@ -27,25 +27,73 @@ testthat::test_that("mapping_source accounts for every crosswalk row", {
   cw <- as.data.frame(whep::polity_area_crosswalk)
   testthat::expect_setequal(
     unique(cw$mapping_source),
-    c("upstream_map", "prefix_outside_map", "fabio_row_fold", "prefix_fallback")
+    c(
+      "upstream_map",
+      "fabio_row_promoted",
+      "prefix_outside_map",
+      "fabio_row_fold",
+      "prefix_fallback"
+    )
   )
   # The map is the authority for the FAOSTAT era, so it must resolve the bulk of
   # the reporting areas rather than a handful of exceptions.
   mapped_areas <- unique(cw$area_code[cw$mapping_source == "upstream_map"])
   testthat::expect_gte(length(mapped_areas), 197L)
 
-  # Only map rows carry the upstream span and route; nothing else may claim them.
-  from_map <- cw$mapping_source == "upstream_map"
+  # Only map rows carry the upstream span and route; nothing else may claim
+  # them. TWO sources carry them since whep#717: a Rest-of-World member's map
+  # rows are the map's own statement about the territory, and are labelled
+  # `fabio_row_promoted` only because `.unfold_rest_of_world()` chooses between
+  # them and the bucket's fold row.
+  from_map <- cw$mapping_source %in% c("upstream_map", "fabio_row_promoted")
   testthat::expect_true(all(!is.na(cw$map_match_route[from_map])))
   testthat::expect_true(all(is.na(cw$map_match_route[!from_map])))
-  # Four of upstream's five routes reach here. All 18 `registry` rows are areas
-  # FABIO folds into Rest-of-World (Andorra, Monaco, San Marino, Greenland and
-  # the like), so the fold consumes that route entirely -- see the fold test.
+  # ALL FIVE of upstream's routes reach the crosswalk now. `registry` used to
+  # reach none of it: all 18 `registry` rows are areas FABIO folds into
+  # Rest-of-World (Andorra, Monaco, San Marino, Greenland and the like), and the
+  # fold used to consume that route entirely.
   testthat::expect_setequal(
     unique(cw$map_match_route[from_map]),
-    c("iso-equal", "manual-route", "manual-replace", "manual-span")
+    c("iso-equal", "registry", "manual-route", "manual-replace", "manual-span")
   )
-  testthat::expect_equal(sum(from_map), 245L)
+  testthat::expect_equal(sum(cw$mapping_source == "upstream_map"), 245L)
+  testthat::expect_equal(sum(cw$mapping_source == "fabio_row_promoted"), 36L)
+})
+
+testthat::test_that("every upstream map row reaches the crosswalk once", {
+  # THE INVARIANT #717 IS ABOUT. The FABIO Rest-of-World fold used to route its
+  # 62 areas down the prefix branch under the literal prefix `ROW`, which
+  # DELETED the map's answer for the 31 of them upstream names: 36 of the map's
+  # 281 rows produced no crosswalk row at all, and every one of those areas
+  # published under `ROW-1850-2025` instead. Both answers are carried now, so
+  # the two map-sourced classes have to account for the map exactly.
+  #
+  # Stated as a partition rather than as three pinned counts, so it keeps
+  # meaning the same thing when upstream adds a row: 245 + 36 = 281 is today's
+  # arithmetic, "no map row is dropped and none is duplicated" is the rule.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  from_map <- cw[
+    cw$mapping_source %in% c("upstream_map", "fabio_row_promoted"),
+  ]
+
+  # The map is one row per polity code, so the crosswalk's copy must be too.
+  testthat::expect_equal(
+    anyDuplicated(paste(from_map$area_code, from_map$polity_code)),
+    0L
+  )
+  # And the two classes may not overlap: an area is either shadowed by the fold
+  # or it is not.
+  testthat::expect_length(
+    intersect(
+      unique(cw$area_code[cw$mapping_source == "upstream_map"]),
+      unique(cw$area_code[cw$mapping_source == "fabio_row_promoted"])
+    ),
+    0L
+  )
+  # Every promoted row is a member of bucket 999 and nothing else is.
+  promoted <- cw$mapping_source == "fabio_row_promoted"
+  testthat::expect_true(all(cw$fabio_code[promoted] == 999L))
+  testthat::expect_true(all(cw$polity_area_code[promoted] == 999L))
 })
 
 testthat::test_that("the map's spans partition each area's reporting years", {
@@ -178,17 +226,29 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
   matched_sources <- unique(cw$mapping_source[cw$mapping_status == "matched"])
   testthat::expect_setequal(
     matched_sources,
-    c("upstream_map", "prefix_outside_map", "prefix_fallback", "fabio_row_fold")
+    c(
+      "upstream_map",
+      "fabio_row_promoted",
+      "prefix_outside_map",
+      "prefix_fallback",
+      "fabio_row_fold"
+    )
   )
 
   pair <- table(cw$mapping_status, cw$mapping_source)
   testthat::expect_equal(pair["matched", "upstream_map"], 233L)
+  testthat::expect_equal(pair["matched", "fabio_row_promoted"], 34L)
   testthat::expect_equal(pair["matched", "prefix_outside_map"], 246L)
   testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
+  # Unchanged at 62: the fold row of every Rest-of-World member survives in the
+  # shipped table, which is what lets `whep.unfold_rest_of_world = "none"`
+  # reproduce a number published under the fold (whep#717).
   testthat::expect_equal(pair["matched", "fabio_row_fold"], 62L)
   # A hand-made decision is labelled one whether upstream made it or this
-  # package did, so `manual` straddles the map and the prefix overrides.
-  testthat::expect_equal(sum(cw$mapping_status == "manual"), 27L)
+  # package did, so `manual` straddles the map and the prefix overrides. Two of
+  # the promoted rows are `manual-route` (French Guiana and Reunion).
+  testthat::expect_equal(sum(cw$mapping_status == "manual"), 29L)
+  testthat::expect_equal(pair["manual", "fabio_row_promoted"], 2L)
   # Only FAOSTAT 351 "China" is left deliberately unmapped.
   testthat::expect_equal(cw$area_code[cw$mapping_status == "unmapped"], 351L)
 })

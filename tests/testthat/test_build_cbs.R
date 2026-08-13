@@ -1227,6 +1227,44 @@ test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
   expect_equal(resolved$area_code[2], 999L)
 })
 
+test_that("a promoted member's pre-1850 trade resolves instead of dropping", {
+  # THE OTHER SIDE OF THE TEST ABOVE, under the default. The 64 rows the fold
+  # drops are dropped because `ROW-1850-2025` starts in 1850 and is an
+  # aggregate, which `.add_polity_columns_dt()` refuses to extend -- rightly, a
+  # figure for 1830 Guadeloupe must not be booked to a bucket that did not
+  # exist. Once Guadeloupe carries `GLP-1816-2025` (whep#717) the year is
+  # inside a real period of its own and the row resolves.
+  #
+  # This is the one place the identity change moves a published quantity, and
+  # the direction is recovery: the historical trade feed goes from
+  # 18,453,716,816 t to 18,455,438,816 t (+0.0093%), all of it 64 pre-1850 rows
+  # of Guadeloupe (87) and Martinique (135).
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "MTQ", "GLP"),
+    year = c(1830L, 1830L, 1900L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      "GLP-1816-2025",
+      "MTQ-1816-2025",
+      "GLP-1816-2025"
+    )
+  )
+  expect_equal(resolved$area_code, c(87L, 135L, 87L))
+  # And a year before even the member's own period still drops, so this is not
+  # a licence to back-fill: `GLP-1816-2025` starts in 1816.
+  early <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = "GLP",
+    year = 1700L,
+    value = 1
+  ))
+  expect_equal(early$polity_code, "GLP-1816-2025")
+  expect_equal(early$area_code, 87L)
+})
+
 test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {
   # The pins carry a handful of labels that are not ISO3 codes in the crosswalk
   # (a placeholder for unknown origin, "BEL-LUX", "CZH"). They stay NA so the
