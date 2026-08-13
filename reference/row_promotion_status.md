@@ -85,16 +85,9 @@ for which authority a resolved row rests on.
 status <- row_promotion_status()
 table(status$status)
 #> 
-#>       no_polity      own_polity polity_unmapped 
-#>              24              31               6 
+#>  no_polity own_polity 
+#>         14         47 
 status[status$status == "polity_unmapped", c("area_code", "area_name")]
-#> # A tibble: 6 × 2
-#>   area_code area_name                                   
-#>       <int> <chr>                                       
-#> 1        22 Aruba                                       
-#> 2        71 French Southern and Antarctic Territories   
-#> 3        94 Holy See                                    
-#> 4       218 Tokelau                                     
-#> 5       243 Wallis and Futuna Islands                   
-#> 6       271 South Georgia and the South Sandwich Islands
+#> # A tibble: 0 × 2
+#> # ℹ 2 variables: area_code <int>, area_name <chr>
 ```
