@@ -6,7 +6,7 @@
 \usage{
 build_historical_land_areas(
   years = 1850:1961,
-  boundary_step = c("relink", "level_step"),
+  boundary_step = c("level_step", "relink"),
   data = NULL,
   example = FALSE
 )
@@ -16,9 +16,23 @@ build_historical_land_areas(
 \code{1850:1961}, the span the back-cast uses.}
 
 \item{boundary_step}{How a year-on-year ratio is taken across a change of
-territory: \code{"relink"} (default) or \code{"level_step"}. See the description --
-they answer different questions and their results differ by up to 18\% of
-back-cast tonnage.}
+territory: \code{"level_step"} (default) or \code{"relink"}. They answer different
+questions and differ by up to 18\% of back-cast tonnage, so the choice is
+the method, not a tuning knob -- see the description.
+
+\code{"level_step"} lets the series step when the territory changes, because a
+different polity is a different thing being measured. That is what a
+per-polity series means, and it is why this function exists: on Ethiopia it
+puts 1850 cropland at 1.52 Mha against the present-day 3.22, dropping the
+land Menelik annexed in the 1880s-90s that the area never held in 1850.
+
+\code{"relink"} re-measures the previous year inside the incoming polity's
+polygon so a change of territory never appears as growth. That suits a
+FIXED-territory series, where the step is an artefact. It is NOT the
+conservative choice here: because \code{fill_proxy_growth()} consumes only
+ratios, suppressing that channel also suppresses the correction, and
+Ethiopia's 1850 comes back to 3.24 Mha -- within 0.6\% of the present-day
+figure this method exists to replace (whep#761).}
 
 \item{data}{Named list of pre-loaded inputs bypassing the readers, for tests:
 \code{polity_areas} (\code{year}, \code{area_code}, \code{polity_code}), \code{cover}

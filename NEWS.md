@@ -137,11 +137,16 @@
   `build_historical_land_areas()` instead: gridded LUH2 summed inside the
   polygon of the polity `area_code` resolves to in that year, resolved unfloored.
   How a change of territory reaches the back-cast is itself selectable, because
-  `fill_proxy_growth()` reads only ratios: `boundary_step = "relink"` (default)
+  `fill_proxy_growth()` reads only ratios: `boundary_step = "level_step"`
+  (default) lets a change of territory through as a level step, because a
+  different polity is a different thing being measured, and `"relink"`
   re-measures the previous year inside the *incoming* polygon so only
-  within-territory growth is ever used, and `"level_step"` lets the territorial
-  change through as a level step. On Ethiopia in 1952, when Eritrea joins, the
-  1952 land ratio is +1.9% under the first and +8.0% under the second.
+  within-territory growth is ever used. On Ethiopia in 1952, when Eritrea joins,
+  the 1952 land ratio is +8.0% under the default and +1.9% under `"relink"`.
+  `"relink"` suits a FIXED-territory series and is not the conservative choice
+  here: suppressing that channel also suppresses the correction, and Ethiopia's
+  1850 cropland comes back to 3.24 Mha against a present-day 3.22 -- the figure
+  this method exists to replace. Under the default it is 1.52 Mha (whep#761).
   **No published values move by default**: `land_method = "present_day"` is
   unchanged and is what the pipeline still runs. Measured over 1850-1961 against
   the present-day series, the historical method moves 19.2% of back-cast crop
