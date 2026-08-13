@@ -15,10 +15,10 @@
   12 rows are recovered and none is lost (17,648 to 17,660); 81 rows gain a
   domestic supply that was wrongly zero, the largest being Ireland
   "Miscellaneous" at 79,000 t, Switzerland at 22,000 t and Yemen tea at
-  17,000 t; world domestic supply rises 212 kt on 63,603 Mt (+0.0003%) and food
-  180 kt on 5,024 Mt (+0.004%). Every change is upward from zero. The
-  supply-use identity improves sharply: rows off by more than 1 t fall from 140
-  to 63, the worst residual from 160,000 t to 25 t, and the 12 `NA` residuals
+  17,000 t; world domestic supply rises 212 kt on 63,388 Mt (+0.0003%) and food
+  181 kt on 4,836 Mt (+0.004%). Every change is upward from zero. The
+  supply-use identity improves sharply: rows off by more than 1 t fall from 144
+  to 67, the worst residual from 160,000 t to 29 t, and the 12 `NA` residuals
   disappear.
 
 * **Rice from the new FAOSTAT Food Balances is now converted to milled
