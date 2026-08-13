@@ -37,6 +37,18 @@
 #'     its successor states' LUH2 land, resolved from the `successor` relation
 #'     published in [polities]. This back-casts 14.3% more of the 1961-62
 #'     production tonnage and therefore moves published pre-1962 values.
+#' @param land_method Character. Which borders the pre-1962 `ha` half of
+#'   `tonnes = ha * t_ha` is measured on. The yield half is historical either
+#'   way and is untouched by this argument.
+#'   * `"present_day"` (default, current published behaviour) reads the
+#'     `luh2-areas` pin, which is LUH2 land pre-aggregated to present-day ISO3,
+#'     so a row labelled with the 1961 entity is measured on the borders that
+#'     entity has today.
+#'   * `"historical_polity"` measures it with [build_historical_land_areas()]:
+#'     gridded LUH2 summed inside the polygon of the polity `area_code`
+#'     resolved to in that year. It moves published pre-1962 values, needs
+#'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
+#'     is minutes of extra work.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -66,19 +78,22 @@ build_primary_production <- function(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
+  land_method = c("present_day", "historical_polity"),
   .raw_data = NULL
 ) {
   if (example) {
     return(.example_build_primary_prod())
   }
   federation_land <- rlang::arg_match(federation_land)
+  land_method <- rlang::arg_match(land_method)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
     raw <- .read_production(
       start_year,
       end_year,
       historical_data,
-      federation_land = federation_land
+      federation_land = federation_land,
+      land_method = land_method
     )
   } else {
     if (!is.null(historical_data)) {
@@ -181,7 +196,8 @@ build_primary_production <- function(
   start_year = 1850,
   end_year = 2023,
   historical_data = NULL,
-  federation_land = "none"
+  federation_land = "none",
+  land_method = "present_day"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -255,7 +271,8 @@ build_primary_production <- function(
     primary_raw2,
     years_df,
     land_areas,
-    federation_land = federation_land
+    federation_land = federation_land,
+    land_wide = .historical_land_wide(land_method, years)
   )
 
   # 10. Add grassland + historical yields
@@ -2691,28 +2708,76 @@ build_primary_production <- function(
   primary_raw2,
   years_df,
   land_areas,
-  federation_land = "none"
+  federation_land = "none",
+  land_wide = NULL
 ) {
   cli::cli_progress_step("Extending historical series")
-  varnames_cropland <- c(
-    "c3ann",
-    "c3per",
-    "c4ann",
-    "c4per",
-    "c3nfx"
-  )
-  varnames_pasture <- c("pastr", "range")
 
   # Join land to production by area_code when available (robust to
   # country-name spelling differences); fall back to the area name
   # only when no code is present.
   area_key <- if ("area_code" %in% names(land_areas)) "area_code" else "area"
 
-  land_areas <- .add_federation_land_rows(
-    land_areas,
-    area_key = area_key,
-    federation_land = federation_land
-  )
+  # The pipeline records which land method produced a back-cast row in `source`,
+  # the column that already carries this series' provenance ("LUH2_cropland",
+  # "LUH2_agriland"). A parallel `method_land` column would say the same thing
+  # while changing the schema of the default, unchanged path.
+  land_label <- if (is.null(land_wide)) "LUH2" else "LUH2_polity"
+  land_wide <- land_wide %||%
+    .land_wide_from_areas(
+      .add_federation_land_rows(
+        land_areas,
+        area_key = area_key,
+        federation_land = federation_land
+      ),
+      area_key = area_key
+    )
+
+  primary_raw2 |>
+    dplyr::mutate(
+      land_use = dplyr::if_else(
+        unit %in% c("ha", "t_ha") | (unit == "tonnes" & is.na(live_anim_code)),
+        "Cropland",
+        "Agriland"
+      )
+    ) |>
+    dplyr::full_join(years_df, by = "year") |>
+    .fill_pre_faostat(
+      land_wide,
+      join_keys = c("year", area_key),
+      land_label = land_label
+    ) |>
+    dplyr::filter(
+      !is.na(area),
+      area != "",
+      !is.na(unit)
+    )
+}
+
+# `NULL` for the default method, which leaves `.extend_historical()` reading the
+# `luh2-areas` pin exactly as before; the historical table otherwise. Only the
+# back-cast years are measured -- 1962 onward reports its own area and never
+# reaches the proxy -- so the expensive gridded read is bounded by the pre-1962
+# span the request actually covers.
+.historical_land_wide <- function(land_method, years) {
+  if (land_method != "historical_polity") {
+    return(NULL)
+  }
+  back_cast <- years[years < 1962L]
+  if (length(back_cast) == 0L) {
+    return(NULL)
+  }
+  build_historical_land_areas(years = back_cast) |>
+    dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
+}
+
+# Collapse the long LUH2 land table into the (year, area, Cropland, Pasture,
+# agriland) shape the back-cast seam merges on. Extracted so the historical
+# producer can hand `.extend_historical()` the same shape measured on each
+# year's own borders instead.
+.land_wide_from_areas <- function(land_areas, area_key = "area_code") {
+  varnames_cropland <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
+  varnames_pasture <- c("pastr", "range")
 
   land_wide <- land_areas |>
     dplyr::mutate(
@@ -2739,24 +2804,8 @@ build_primary_production <- function(
   if (!"Pasture" %in% names(land_wide)) {
     land_wide$Pasture <- 0
   }
-  land_wide <- land_wide |>
+  land_wide |>
     dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
-
-  primary_raw2 |>
-    dplyr::mutate(
-      land_use = dplyr::if_else(
-        unit %in% c("ha", "t_ha") | (unit == "tonnes" & is.na(live_anim_code)),
-        "Cropland",
-        "Agriland"
-      )
-    ) |>
-    dplyr::full_join(years_df, by = "year") |>
-    .fill_pre_faostat(land_wide, join_keys = c("year", area_key)) |>
-    dplyr::filter(
-      !is.na(area),
-      area != "",
-      !is.na(unit)
-    )
 }
 
 # LUH2 land use is keyed on present-day ISO3, so an area whose territory is a
@@ -2848,7 +2897,12 @@ build_primary_production <- function(
   ]
 }
 
-.fill_pre_faostat <- function(df, land_wide, join_keys = c("year", "area")) {
+.fill_pre_faostat <- function(
+  df,
+  land_wide,
+  join_keys = c("year", "area"),
+  land_label = "LUH2"
+) {
   id_cols <- c(
     "area",
     "area_code",
@@ -2955,13 +3009,14 @@ build_primary_production <- function(
         .data$.observed_value %in% TRUE & !is.na(.data$.observed_source) ~
           .data$.observed_source,
         .data$.historical_anchor %in% TRUE & land_use == "Cropland" ~
-          "historical_LUH2_cropland",
+          paste0("historical_", land_label, "_cropland"),
         .data$.historical_anchor %in% TRUE & unit %in% livestock_units ~
           "historical_fill_linear",
-        .data$.historical_anchor %in% TRUE ~ "historical_LUH2_agriland",
-        land_use == "Cropland" ~ "LUH2_cropland",
+        .data$.historical_anchor %in% TRUE ~
+          paste0("historical_", land_label, "_agriland"),
+        land_use == "Cropland" ~ paste0(land_label, "_cropland"),
         unit %in% livestock_units ~ "fill_linear_historical",
-        TRUE ~ "LUH2_agriland"
+        TRUE ~ paste0(land_label, "_agriland")
       )
     ) |>
     dplyr::select(

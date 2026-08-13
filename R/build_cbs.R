@@ -3090,8 +3090,18 @@ build_processing_coefs <- function(
         ),
         na.rm = TRUE
       ),
-      net_bal1 = production + import - export,
-      net_bal2 = production + import - export - stock_variation,
+      # A missing production counts as zero here, not as unknown. These two
+      # residuals are the last resort for a row that reports neither a
+      # domestic supply nor a destiny, and `production` is deliberately still
+      # NA at this point so the imputation below can derive it (#142). Reading
+      # it raw made both residuals NA, and `dplyr::if_else(NA, ...)` is NA, so
+      # `ds3` and `stock_variation` came out NA and the row was dropped
+      # downstream by the `value != 0` filters instead of balancing (#762).
+      net_bal1 = dplyr::coalesce(production, 0) + import - export,
+      net_bal2 = dplyr::coalesce(production, 0) +
+        import -
+        export -
+        stock_variation,
       ds3 = dplyr::if_else(
         !is.na(domestic_supply) & domestic_supply != 0,
         domestic_supply,

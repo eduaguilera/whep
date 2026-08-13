@@ -23,6 +23,7 @@ reference:
     and balance validation.
   contents:
   - build_primary_production
+  - build_historical_land_areas
   - build_commodity_balances
   - build_processing_coefs
   - build_detailed_trade
