@@ -23,6 +23,7 @@ build_primary_production(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
+  land_method = c("present_day", "historical_polity"),
   .raw_data = NULL
 )
 ```
@@ -81,6 +82,24 @@ build_primary_production(
     [polities](https://eduaguilera.github.io/whep/reference/polities.md).
     This back-casts 14.3% more of the 1961-62 production tonnage and
     therefore moves published pre-1962 values.
+
+- land_method:
+
+  Character. Which borders the pre-1962 `ha` half of
+  `tonnes = ha * t_ha` is measured on. The yield half is historical
+  either way and is untouched by this argument.
+
+  - `"present_day"` (default, current published behaviour) reads the
+    `luh2-areas` pin, which is LUH2 land pre-aggregated to present-day
+    ISO3, so a row labelled with the 1961 entity is measured on the
+    borders that entity has today.
+
+  - `"historical_polity"` measures it with
+    [`build_historical_land_areas()`](https://eduaguilera.github.io/whep/reference/build_historical_land_areas.md):
+    gridded LUH2 summed inside the polygon of the polity `area_code`
+    resolved to in that year. It moves published pre-1962 values, needs
+    `sf` and `terra`, and reads gridded LUH2 for every back-cast year,
+    so it is minutes of extra work.
 
 - .raw_data:
 

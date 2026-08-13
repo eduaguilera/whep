@@ -73,6 +73,7 @@ surviving (deduplicated) values.</p></li>
 <span>  show_duplicates <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  federation_land <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"successor_union"</span><span class="op">)</span>,</span>
+<span>  land_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"present_day"</span>, <span class="st">"historical_polity"</span><span class="op">)</span>,</span>
 <span>  .raw_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -126,6 +127,21 @@ their pre-1962 production is not back-cast at all and the build warns.</p></li>
 its successor states' LUH2 land, resolved from the <code>successor</code> relation
 published in <a href="polities.html">polities</a>. This back-casts 14.3% more of the 1961-62
 production tonnage and therefore moves published pre-1962 values.</p></li>
+</ul></dd>
+
+
+<dt id="arg-land-method">land_method<a class="anchor" aria-label="anchor" href="#arg-land-method"></a></dt>
+<dd><p>Character. Which borders the pre-1962 <code>ha</code> half of
+<code>tonnes = ha * t_ha</code> is measured on. The yield half is historical either
+way and is untouched by this argument.</p><ul><li><p><code>"present_day"</code> (default, current published behaviour) reads the
+<code>luh2-areas</code> pin, which is LUH2 land pre-aggregated to present-day ISO3,
+so a row labelled with the 1961 entity is measured on the borders that
+entity has today.</p></li>
+<li><p><code>"historical_polity"</code> measures it with <code><a href="build_historical_land_areas.html">build_historical_land_areas()</a></code>:
+gridded LUH2 summed inside the polygon of the polity <code>area_code</code>
+resolved to in that year. It moves published pre-1962 values, needs
+<code>sf</code> and <code>terra</code>, and reads gridded LUH2 for every back-cast year, so it
+is minutes of extra work.</p></li>
 </ul></dd>
 
 

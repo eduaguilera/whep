@@ -7,6 +7,8 @@ reading, gap-filling, historical extension, and balance validation.
 
 - [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
   : Build primary production dataset
+- [`build_historical_land_areas()`](https://eduaguilera.github.io/whep/reference/build_historical_land_areas.md)
+  : Build a pre-1962 land series measured on each year's own borders
 - [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
   : Build commodity balance sheets
 - [`build_processing_coefs()`](https://eduaguilera.github.io/whep/reference/build_processing_coefs.md)
