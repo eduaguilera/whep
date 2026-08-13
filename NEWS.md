@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **A traded item with no production row now balances instead of vanishing.**
+  `.reestimate_domestic_supply()` derives a last-resort domestic supply from
+  `production + import - export` for rows that report neither a supply nor a
+  destiny. `production` is deliberately still `NA` at that point, so the
+  imputation further down can derive it (#142), but reading it raw made the
+  residual `NA`, and `dplyr::if_else(NA, ...)` is `NA`, so both
+  `domestic_supply` and `stock_variation` came out `NA`. Those rows were then
+  dropped by the `value != 0` filters downstream rather than balancing. A
+  missing production now counts as zero in that residual only; the imputation
+  itself is untouched.
+
+  **Published values move, slightly and in one direction.** On a 2010 build:
+  12 rows are recovered and none is lost (17,648 to 17,660); 81 rows gain a
+  domestic supply that was wrongly zero, the largest being Ireland
+  "Miscellaneous" at 79,000 t, Switzerland at 22,000 t and Yemen tea at
+  17,000 t; world domestic supply rises 212 kt on 63,603 Mt (+0.0003%) and food
+  180 kt on 5,024 Mt (+0.004%). Every change is upward from zero. The
+  supply-use identity improves sharply: rows off by more than 1 t fall from 140
+  to 63, the worst residual from 160,000 t to 25 t, and the 12 `NA` residuals
+  disappear.
+
 * **A back-cast row no longer reports `mapping_status == "matched"` for a polity
   that was not alive in its year.** `add_polity_code()` floors the polity-lookup
   year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a

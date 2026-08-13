@@ -329,6 +329,57 @@ test_that(".cbs_impute_trade imputes production from destinies when missing", {
   expect_equal(stock_variation, 0)
 })
 
+test_that(".cbs_impute_trade balances a traded item with no production row", {
+  # Trade but neither a production row nor any destiny. `.reestimate_domestic
+  # _supply()` derives the supply residual from `production + import - export`,
+  # which is NA while production is, and `dplyr::if_else(NA, ...)` is NA, so
+  # both `domestic_supply` and `stock_variation` came out NA. The rows then
+  # vanished downstream on the `value != 0` filters instead of balancing.
+  # This is the shape every row recovered from the trade record will have
+  # (#762), so the hole has to close before those rows can be created.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  # Nothing is produced and nothing is used, so the whole net import is the
+  # domestic supply and the stock is untouched.
+  expect_equal(value_of("domestic_supply"), 300)
+  expect_equal(value_of("production"), 0)
+  expect_equal(value_of("stock_variation"), 0)
+})
+
+test_that(".cbs_impute_trade balances a net-exported item with no production", {
+  # Same hole, mirrored: a re-exporting row whose export exceeds its import.
+  # The supply residual is negative, so domestic supply is zero and the
+  # production imputation of #142 supplies the 30 the exports need. That
+  # imputation is deliberate, and this test pins it only to keep the identity
+  # closing; whether it should fire for a row recovered from trade alone is
+  # the open question in #762, not something settled here.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Singapore", 200L, "Wheat", 2511L, "import", 50, "FAOSTAT_trade",
+    2023L, "Singapore", 200L, "Wheat", 2511L, "export", 80, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  expect_equal(value_of("domestic_supply"), 0)
+  expect_equal(value_of("production"), 30)
+  expect_equal(value_of("stock_variation"), 0)
+})
+
 
 # -- .select_best_source -------------------------------------------------------
 
