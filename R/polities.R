@@ -1432,7 +1432,16 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @keywords internal
 #' @noRd
 .area_year_polity_conflicts <- function(crosswalk = NULL) {
-  cw <- if (is.null(crosswalk)) whep::polity_area_crosswalk else crosswalk
+  # THE RESOLVED CROSSWALK, NOT THE SHIPPED TABLE, and since whep#717 those are
+  # different questions. The shipped table carries BOTH answers for a
+  # Rest-of-World member -- the bucket's `ROW-1850-2025` over 1850-2025 and, for
+  # the 31 upstream names, that member's own periods -- and
+  # `.unfold_rest_of_world()` keeps exactly one per area. Read raw, every one of
+  # those pairs looks like an overlap; read as `add_polity_code()` reads it,
+  # which is what a published value rests on, it is a partition again. This
+  # matches `.polity_join_conflicts()`, which has always read the resolved
+  # table.
+  cw <- crosswalk %||% .polity_crosswalk(include_unmapped = TRUE)
   cw <- as.data.frame(cw)
   keep <- !is.na(cw$area_code) &
     !is.na(cw$polity_code) &

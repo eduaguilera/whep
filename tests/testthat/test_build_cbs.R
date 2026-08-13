@@ -149,6 +149,55 @@ test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equival
   )
 })
 
+test_that(".fix_item_codes converts new-FBS rice, which is paddy basis", {
+  # faostat-fbs-new reports item 2807 "Rice and products" in paddy (rough-rice)
+  # equivalent: India 2010 production is 143,963 kt there against 96,023 kt for
+  # the milled item 2805 in faostat-fbs-old. WHEP's contract for this item is
+  # milled equivalent, so the extract path must convert it (#751).
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that(".fix_item_codes leaves an already-labelled rice row alone", {
+  # .prepare_historical_cbs() relabels rows from the items_full lookup before
+  # calling this, so "Rice and products" there is the canonical label and says
+  # nothing about the mass basis. The default must not convert it, or that path
+  # would be double-converted at 0.67^2.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  expect_equal(result$value, 100)
+})
+
+test_that(".fix_item_codes never converts milled rice", {
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,                  ~value,
+    2805L,          "Rice (Milled Equivalent)", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
@@ -1176,6 +1225,44 @@ test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
   expect_true(is.na(resolved$area_code[1]))
   expect_equal(resolved$polity_code[2], "ROW-1850-2025")
   expect_equal(resolved$area_code[2], 999L)
+})
+
+test_that("a promoted member's pre-1850 trade resolves instead of dropping", {
+  # THE OTHER SIDE OF THE TEST ABOVE, under the default. The 64 rows the fold
+  # drops are dropped because `ROW-1850-2025` starts in 1850 and is an
+  # aggregate, which `.add_polity_columns_dt()` refuses to extend -- rightly, a
+  # figure for 1830 Guadeloupe must not be booked to a bucket that did not
+  # exist. Once Guadeloupe carries `GLP-1816-2025` (whep#717) the year is
+  # inside a real period of its own and the row resolves.
+  #
+  # This is the one place the identity change moves a published quantity, and
+  # the direction is recovery: the historical trade feed goes from
+  # 18,453,716,816 t to 18,455,438,816 t (+0.0093%), all of it 64 pre-1850 rows
+  # of Guadeloupe (87) and Martinique (135).
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "MTQ", "GLP"),
+    year = c(1830L, 1830L, 1900L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      "GLP-1816-2025",
+      "MTQ-1816-2025",
+      "GLP-1816-2025"
+    )
+  )
+  expect_equal(resolved$area_code, c(87L, 135L, 87L))
+  # And a year before even the member's own period still drops, so this is not
+  # a licence to back-fill: `GLP-1816-2025` starts in 1816.
+  early <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = "GLP",
+    year = 1700L,
+    value = 1
+  ))
+  expect_equal(early$polity_code, "GLP-1816-2025")
+  expect_equal(early$area_code, 87L)
 })
 
 test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {
