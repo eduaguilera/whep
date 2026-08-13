@@ -2,6 +2,49 @@
 
 ## whep (development version)
 
+- **Rice from the new FAOSTAT Food Balances is now converted to milled
+  equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes
+  rice on two bases depending on vintage: the historic series carry item
+  2805 “Rice (Milled Equivalent)” and 2804 “Rice (Paddy Equivalent)”,
+  while the new Food Balances carry item 2807 “Rice and products” in
+  **paddy** (rough-rice) equivalent. `.fix_item_codes()` selected rows
+  for the paddy-to-milled conversion by item name, and “Rice and
+  products” was in neither of the two names it matched, so new-FBS rice
+  was never converted. Since
+  [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+  does convert its own rice, a single item mixed milled production with
+  paddy utilisation, and the difference was absorbed by the residual
+  `stock_variation` plug. The extract path now recognises the new-FBS
+  name as paddy; frames that have already been through the `items_full`
+  lookup keep the previous behaviour, because there “Rice and products”
+  is the canonical label and carries no basis information
+  ([\#751](https://github.com/eduaguilera/whep/issues/751)).
+
+  **Published values move.** Every element of item 2807 sourced from
+  `faostat-fbs-new` falls by the 0.67 extraction rate. World 2010,
+  tonnes: food 570,038,000 to 381,925,460; production 694,377,000 to
+  465,232,590; domestic supply 684,012,000 to 458,288,040; imports,
+  exports, feed, seed, processing and other uses likewise. The corrected
+  figures land close to FAOSTAT’s own published milled-equivalent
+  series: India 2010 production is 96,455,210 against FAOSTAT item
+  2805’s 96,023,000, a 0.45% difference which is the gap between WHEP’s
+  global 0.67 and FAO’s implied 0.667. Every downstream consumer of rice
+  tonnage inherits the change, including the nourishment axis, where
+  rice protein per tonne of food moves from 1.550x FAOSTAT to 1.039x and
+  which was how the defect was found
+  ([\#500](https://github.com/eduaguilera/whep/issues/500)).
+
+  **The historic series moves too, and by more than the FBS-new years.**
+  The old-to-new FBS harmonisation derives its scaling ratio from the
+  2010-2013 overlap, so with the new series on paddy and the old series
+  on milled it was computing a median ratio of **1.4981** (= 1/0.667)
+  for rice and scaling every FBS_Old rice year up by it — well inside
+  the \[0.2, 5\] band `.clamp_fbs_scale_ratio()` allows, so nothing
+  flagged it. That ratio is now **1.0037**: the two vintages agree on
+  rice to 0.4% instead of disagreeing by 50%. Wheat, which uses one
+  basis in both vintages, is unchanged at 1.016 and serves as the
+  control. `validation/rice_mass_basis.R` is the real-data guard.
+
 - **A back-cast row no longer reports `mapping_status == "matched"` for
   a polity that was not alive in its year.**
   [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
