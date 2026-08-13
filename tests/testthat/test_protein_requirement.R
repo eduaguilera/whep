@@ -154,3 +154,79 @@ testthat::test_that("the packaged requirement table is internally consistent", {
     tolerance = 0.01
   )
 })
+
+# ---- the age-weighted scoring pattern --------------------------------------
+
+testthat::test_that("an adult-only population gets the adult pattern", {
+  # TRS 935 Table 50's >18 row, which reproduces Table 49 exactly.
+  out <- whep::build_protein_requirement(
+    data = list(population_age = .pr_adults())
+  )
+  testthat::expect_equal(out$lysine_mg_g, 45)
+  testthat::expect_equal(out$saa_mg_g, 22)
+  testthat::expect_equal(out$threonine_mg_g, 23)
+  testthat::expect_equal(out$tryptophan_mg_g, 6.0)
+})
+
+testthat::test_that("children raise the required lysine density", {
+  # Children need MORE amino acid per gram of protein even though they need
+  # less protein. A young population must therefore score against a stricter
+  # pattern than an old one.
+  young <- whep::build_protein_requirement(
+    data = list(population_age = .pr_young())
+  )
+  old <- whep::build_protein_requirement(
+    data = list(population_age = .pr_old())
+  )
+  testthat::expect_gt(young$lysine_mg_g, old$lysine_mg_g)
+  # Every population's pattern must lie inside the table's own range.
+  pattern <- whep::whep_coef_table("protein_scoring_pattern")
+  testthat::expect_lte(young$lysine_mg_g, max(pattern$lysine_mg_g))
+  testthat::expect_gte(old$lysine_mg_g, min(pattern$lysine_mg_g))
+})
+
+testthat::test_that("the pattern is protein-weighted, not headcount-weighted", {
+  # The distinction is silent if got wrong, because children need MORE amino
+  # acid per gram of protein and LESS protein: the two effects pull opposite
+  # ways. Headcount weighting would overstate the children's pattern.
+  pop <- .pr_young()
+  out <- whep::build_protein_requirement(data = list(population_age = pop))
+
+  req <- whep::whep_coef_table("protein_requirement")
+  pat <- whep::whep_coef_table("protein_scoring_pattern")
+  # Ages 0-4 span the 0.5 (age 0) and 1-2 and 3-10 pattern rows; adults 30-34
+  # take the 19+ row. Build both weightings by hand from the tables.
+  child_lys <- mean(c(57, 52, 52, 48, 48))
+  adult_lys <- 45
+  child_req <- mean(
+    c(
+      req$avg_req_g_day[req$age_class == "0.5" & req$sex == "m"],
+      rep(req$avg_req_g_day[req$age_class == "1" & req$sex == "m"], 1),
+      req$avg_req_g_day[req$age_class == "2" & req$sex == "m"],
+      req$avg_req_g_day[req$age_class == "3" & req$sex == "m"],
+      req$avg_req_g_day[req$age_class == "4-6" & req$sex == "m"]
+    )
+  )
+  headcount <- (1200 * child_lys + 800 * adult_lys) / 2000
+  # Protein weighting gives the adults more say, because they eat more protein.
+  testthat::expect_lt(out$lysine_mg_g, headcount)
+  testthat::expect_gt(child_req, 0)
+  testthat::expect_lt(out$lysine_mg_g, child_lys)
+  testthat::expect_gt(out$lysine_mg_g, adult_lys)
+})
+
+testthat::test_that("a missing scoring-pattern column aborts", {
+  bad <- dplyr::select(
+    whep::whep_coef_table("protein_scoring_pattern"),
+    -"lysine_mg_g"
+  )
+  testthat::expect_error(
+    whep::build_protein_requirement(
+      data = list(
+        population_age = .pr_adults(),
+        protein_scoring_pattern = bad
+      )
+    ),
+    "lysine_mg_g"
+  )
+})

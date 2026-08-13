@@ -1842,6 +1842,11 @@ utils::globalVariables(
     "sex",
     "year_from",
     "year_to",
+    "lysine_mg_g",
+    "protein_weight",
+    "saa_mg_g",
+    "threonine_mg_g",
+    "tryptophan_mg_g",
     # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
     "AgeGrpSpan",
     "AgeGrpStart",

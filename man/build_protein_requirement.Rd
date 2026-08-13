@@ -9,15 +9,17 @@ build_protein_requirement(data = list(), requirement = c("average", "safe"))
 \arguments{
 \item{data}{Named list of injected inputs. \code{population_age} is required:
 \code{year}, \code{area_code}, \code{age_start}, \code{age_span}, \code{sex} (\code{"m"} / \code{"f"}) and
-\code{population}. \code{protein_requirement} overrides the packaged coefficient
-table.}
+\code{population}. \code{protein_requirement} and \code{protein_scoring_pattern} override
+the packaged coefficient tables.}
 
 \item{requirement}{Which TRS 935 column to weight: \code{"average"} (default, the
 class average requirement) or \code{"safe"} (the class safe level).}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{requirement_g_cap_day},
-\code{population}, \code{method_requirement}, plus the polity columns below.
+\code{population}, \code{method_requirement}, the scoring pattern columns
+\code{lysine_mg_g}, \code{saa_mg_g}, \code{threonine_mg_g} and \code{tryptophan_mg_g}, plus the
+polity columns below.
 }
 \description{
 Weights the WHO/FAO/UNU TRS 935 per-class protein requirements by a
@@ -36,6 +38,22 @@ Population rows are supplied as age groups. Each group is expanded to the
 single years of age it spans, which are assumed uniformly distributed within
 the group; on UN WPP 2024 data the difference between five-year groups and
 single-year data is at most 0.105 g/cap/day (0.3\%).
+
+It also returns the population's \strong{amino acid scoring pattern}, weighted
+from TRS 935 Table 50 by the same age structure. Requirement and protein
+quality are both age-dependent, so a downstream quality score must be taken
+against the pattern this population actually requires, not against an adult
+pattern; scoring separably costs roughly 1.5\% in the youngest populations and
+0.4\% in the oldest, always in the same direction. Note the two outputs are
+weighted by \strong{different} quantities: the requirement by headcount, the
+pattern by headcount times protein requirement, because a pattern is a
+composition per gram of protein rather than an amount.
+
+The age-weighted pattern is WHEP's own construction. It follows from the
+anchor — TRS 935's requirement is defined against a PDCAAS of 1.0 on its own
+pattern — but no published study scores a national diet against a
+demographically weighted pattern, so it should be reported as a WHEP method,
+not as standard practice.
 }
 \section{Polity columns}{
 

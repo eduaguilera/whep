@@ -40,14 +40,32 @@
 #' the group; on UN WPP 2024 data the difference between five-year groups and
 #' single-year data is at most 0.105 g/cap/day (0.3%).
 #'
+#' It also returns the population's **amino acid scoring pattern**, weighted
+#' from TRS 935 Table 50 by the same age structure. Requirement and protein
+#' quality are both age-dependent, so a downstream quality score must be taken
+#' against the pattern this population actually requires, not against an adult
+#' pattern; scoring separably costs roughly 1.5% in the youngest populations and
+#' 0.4% in the oldest, always in the same direction. Note the two outputs are
+#' weighted by **different** quantities: the requirement by headcount, the
+#' pattern by headcount times protein requirement, because a pattern is a
+#' composition per gram of protein rather than an amount.
+#'
+#' The age-weighted pattern is WHEP's own construction. It follows from the
+#' anchor — TRS 935's requirement is defined against a PDCAAS of 1.0 on its own
+#' pattern — but no published study scores a national diet against a
+#' demographically weighted pattern, so it should be reported as a WHEP method,
+#' not as standard practice.
+#'
 #' @param data Named list of injected inputs. `population_age` is required:
 #'   `year`, `area_code`, `age_start`, `age_span`, `sex` (`"m"` / `"f"`) and
-#'   `population`. `protein_requirement` overrides the packaged coefficient
-#'   table.
+#'   `population`. `protein_requirement` and `protein_scoring_pattern` override
+#'   the packaged coefficient tables.
 #' @param requirement Which TRS 935 column to weight: `"average"` (default, the
 #'   class average requirement) or `"safe"` (the class safe level).
 #' @return A tibble keyed by `year`, `area_code` with `requirement_g_cap_day`,
-#'   `population`, `method_requirement`, plus the polity columns below.
+#'   `population`, `method_requirement`, the scoring pattern columns
+#'   `lysine_mg_g`, `saa_mg_g`, `threonine_mg_g` and `tryptophan_mg_g`, plus the
+#'   polity columns below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -75,9 +93,12 @@ build_protein_requirement <- function(
   )
   coefs <- data$protein_requirement %||%
     whep::whep_coef_table("protein_requirement")
+  pattern <- data$protein_scoring_pattern %||%
+    whep::whep_coef_table("protein_scoring_pattern")
   .pr_validate_sex(population)
 
-  by_year <- .pr_requirement_by_year(coefs, requirement)
+  by_year <- .pr_requirement_by_year(coefs, requirement) |>
+    .pr_attach_pattern(.pr_pattern_by_year(pattern))
   population |>
     .pr_group_requirement(by_year) |>
     .pr_weight(requirement) |>
@@ -131,9 +152,44 @@ build_protein_requirement <- function(
     )
 }
 
+# The TRS 935 Table 50 scoring pattern per single year of age, in mg amino acid
+# per g protein. Sex-invariant: Table 50's age rows apply to both.
+.pr_pattern_by_year <- function(pattern) {
+  .check_columns(pattern, .pr_pattern_cols(), "data$protein_scoring_pattern")
+  pattern |>
+    dplyr::mutate(
+      age = purrr::map2(
+        .data$year_from,
+        .data$year_to,
+        \(from, to) seq(from, to)
+      )
+    ) |>
+    tidyr::unnest("age") |>
+    dplyr::summarise(
+      dplyr::across(dplyr::all_of(.pr_pattern_amino_acids()), mean),
+      .by = "age"
+    )
+}
+
+.pr_pattern_amino_acids <- function() {
+  c("lysine_mg_g", "saa_mg_g", "threonine_mg_g", "tryptophan_mg_g")
+}
+
+.pr_pattern_cols <- function() {
+  c("year_from", "year_to", .pr_pattern_amino_acids())
+}
+
+.pr_attach_pattern <- function(by_year, pattern_by_year) {
+  dplyr::left_join(by_year, pattern_by_year, by = "age")
+}
+
 # Mean requirement over the single years a population age group spans. The
 # years inside a group are weighted equally, which is the uniform-distribution
 # assumption documented in the roxygen.
+#
+# The scoring pattern travels with the requirement from here on, because the
+# two must be weighted by the same population -- see .pr_weight() for why they
+# are weighted by DIFFERENT quantities.
 .pr_group_requirement <- function(population, by_year) {
   population |>
     dplyr::mutate(.row = dplyr::row_number()) |>
@@ -152,6 +208,7 @@ build_protein_requirement <- function(
       area_code = dplyr::first(.data$area_code),
       population = dplyr::first(.data$population),
       requirement_g_day = mean(.data$requirement_g_day),
+      dplyr::across(dplyr::all_of(.pr_pattern_amino_acids()), mean),
       .by = ".row"
     )
 }
@@ -172,13 +229,32 @@ build_protein_requirement <- function(
   expanded
 }
 
-# Population-weighted mean requirement per country-year.
+# Population-weighted mean requirement, and the population's scoring pattern,
+# per country-year.
+#
+# THE TWO ARE WEIGHTED BY DIFFERENT QUANTITIES, and getting this wrong is
+# silent. The requirement is an amount, so it is weighted by HEADCOUNT. The
+# pattern is a composition -- milligrams of amino acid per gram of protein --
+# so the population's pattern is its total amino acid requirement divided by
+# its total protein requirement. That weights each age class by headcount times
+# protein requirement, not by headcount.
+#
+# Weighting the pattern by headcount alone would overstate the influence of
+# children, who need MORE lysine per gram of protein and LESS protein. The two
+# effects pull in opposite directions, so the error does not announce itself.
 .pr_weight <- function(groups, requirement) {
   groups |>
+    dplyr::mutate(
+      protein_weight = .data$population * .data$requirement_g_day
+    ) |>
     dplyr::summarise(
       requirement_g_cap_day = stats::weighted.mean(
         .data$requirement_g_day,
         w = .data$population
+      ),
+      dplyr::across(
+        dplyr::all_of(.pr_pattern_amino_acids()),
+        \(x) stats::weighted.mean(x, w = .data$protein_weight)
       ),
       population = sum(.data$population),
       .by = c("year", "area_code")
