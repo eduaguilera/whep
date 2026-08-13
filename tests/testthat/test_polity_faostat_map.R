@@ -57,7 +57,7 @@ testthat::test_that("mapping_source accounts for every crosswalk row", {
     c("iso-equal", "registry", "manual-route", "manual-replace", "manual-span")
   )
   testthat::expect_equal(sum(cw$mapping_source == "upstream_map"), 245L)
-  testthat::expect_equal(sum(cw$mapping_source == "fabio_row_promoted"), 36L)
+  testthat::expect_equal(sum(cw$mapping_source == "fabio_row_promoted"), 52L)
 })
 
 testthat::test_that("every upstream map row reaches the crosswalk once", {
@@ -237,7 +237,7 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
 
   pair <- table(cw$mapping_status, cw$mapping_source)
   testthat::expect_equal(pair["matched", "upstream_map"], 233L)
-  testthat::expect_equal(pair["matched", "fabio_row_promoted"], 34L)
+  testthat::expect_equal(pair["matched", "fabio_row_promoted"], 50L)
   testthat::expect_equal(pair["matched", "prefix_outside_map"], 246L)
   testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
   # Unchanged at 62: the fold row of every Rest-of-World member survives in the

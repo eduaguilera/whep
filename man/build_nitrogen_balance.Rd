@@ -89,7 +89,10 @@ per-hectare rate), the input aggregates
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
-columns below.
+columns below. When the supplied \code{n_inputs} carry them, the
+\code{method_recycling_n}, \code{method_synthetic} and \code{method_deposition_scope}
+stamps from \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance
+names the input conventions that produced it.
 }
 \description{
 Assembles \code{\link[=build_n_inputs]{build_n_inputs()}}'s long-format nitrogen inputs into the

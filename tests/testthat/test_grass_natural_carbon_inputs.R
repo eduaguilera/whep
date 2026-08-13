@@ -375,7 +375,9 @@ testthat::test_that("real LPJmL run gives plausible C-input magnitudes", {
     lon = cells$lon,
     lat = cells$lat,
     area_code = 1L,
-    cell_area_frac = 1
+    cell_area_frac = 1,
+    cell_area_ha = whep:::.luh2_cell_area_ha(cells$lat),
+    land_area_ha = whep:::.luh2_cell_area_ha(cells$lat)
   )
   land_use <- whep::read_luh2_landuse(
     "grid",

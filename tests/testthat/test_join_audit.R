@@ -85,15 +85,23 @@ test_that("the enumerated baseline can only shrink", {
   # report which authority each resolution rests on (whep#740). The instrument
   # that measures year-blindness costs one row on the ledger it measures.
   #
-  # 60 is `.land_in_polygons`, and it is the clearest case yet of the rise that
-  # is a fall. The pre-1962 back-cast estimates production as `ha * t_ha`; the
-  # yield half was already historical and the AREA half was measured on
-  # present-day borders (whep#761). Making it historical means resolving
+  # 60 and 61 arrived independently -- this branch and whep#761 each added one
+  # year-free row and each recorded itself as "60". Both are kept because both
+  # are real; the cap is 61, measured on the merge, not 59 + 1 + 1 assumed.
+  #
+  # `.carbon_warn_fold` is not a new year-blind READ at all -- both sides of it
+  # are the same already-year-filtered carbon support, and it selects warning
+  # text rather than a value.
+  #
+  # `.land_in_polygons` is the clearest case yet of the rise that is a fall.
+  # The pre-1962 back-cast estimates production as `ha * t_ha`; the yield half
+  # was already historical and the AREA half was measured on present-day
+  # borders (whep#761). Making it historical means resolving
   # (area_code, year) -> polity_code unfloored and then reading that polity's
   # polygon -- and the second step keys on `polity_code` alone, because a
   # polity code already carries its own period. One year-free row bought a land
   # series that varies with the map. Everything downstream of it carries `year`.
-  expect_lte(sum(baseline$n), 60L)
+  expect_lte(sum(baseline$n), 61L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

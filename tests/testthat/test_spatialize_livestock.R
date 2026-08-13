@@ -32,10 +32,10 @@ gridded_cropland <- tibble::tribble(
 )
 
 country_grid <- tibble::tribble(
-  ~lon, ~lat, ~area_code,
-  0.25, 50.25, 1L,
-  0.75, 50.25, 1L,
-  1.25, 50.25, 2L
+  ~lon, ~lat, ~area_code, ~cell_area_frac,
+  0.25, 50.25, 1L, 1,
+  0.75, 50.25, 1L, 1,
+  1.25, 50.25, 2L, 1
 )
 
 
@@ -405,6 +405,121 @@ test_that("shared cells keep independent livestock polity compartments", {
   expect_setequal(result$polycell_id, c("a", "b"))
 })
 
+# S-A6 -- the pig case ----------------------------------------------------------
+#
+# The existing shared-cell test above uses 100 head against 0, which any
+# implementation passes once the neighbour is empty. This one is deliberately
+# non-degenerate: two polycells per shared cell, unequal shares (10/90),
+# national herds differing 100-fold and both non-zero, and each polity also
+# holding a cell alone so its share denominator is testable.
+.sa6_livestock_fixture <- function(heads_1 = 1000, heads_2 = 10) {
+  list(
+    livestock_data = tibble::tribble(
+      ~year, ~area_code, ~species_group, ~heads, ~manure_n_mg,
+      2000L,         1L,         "pigs", heads_1,   heads_1 / 10,
+      2000L,         2L,         "pigs", heads_2,   heads_2 / 10
+    ),
+    gridded_pasture = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
+      0.25, 50.25, 2000L,            0,             0,
+      0.75, 50.25, 2000L,            0,             0,
+      1.25, 50.25, 2000L,            0,             0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,         1000,
+      0.75, 50.25, 2000L,         1000,
+      1.25, 50.25, 2000L,         1000
+    ),
+    country_grid = tibble::tribble(
+      ~polycell_id,  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      "shared-1",   0.25, 50.25,         1L,             0.1,
+      "shared-2",   0.25, 50.25,         2L,             0.9,
+      "own-1",      0.75, 50.25,         1L,             1.0,
+      "own-2",      1.25, 50.25,         2L,             1.0
+    )
+  )
+}
+
+test_that("a shared cell delivers only the herd its own polycell carries", {
+  result <- do.call(whep::build_gridded_livestock, .sa6_livestock_fixture())
+
+  expect_setequal(
+    result$polycell_id,
+    c("shared-1", "shared-2", "own-1", "own-2")
+  )
+  totals <- result |>
+    dplyr::summarise(heads = sum(heads), .by = area_code) |>
+    dplyr::arrange(area_code)
+  expect_equal(totals$heads, c(1000, 10), tolerance = 1e-9)
+
+  # Weights are per polity: polity 1 holds 1000 * 0.1 in the shared cell
+  # against 1000 in its own; polity 2 holds 1000 * 0.9 against 1000.
+  by_pc <- stats::setNames(result$heads, result$polycell_id)
+  expect_equal(unname(by_pc[["shared-1"]]), 1000 * 100 / 1100, tolerance = 1e-9)
+  expect_equal(unname(by_pc[["shared-2"]]), 10 * 900 / 1900, tolerance = 1e-9)
+
+  # The discriminator: a cell-then-split scheme puts the two compartments in
+  # their AREA ratio, 0.1 / 0.9. Keyed on the polycell the ratio is ~19.
+  ratio <- by_pc[["shared-1"]] / by_pc[["shared-2"]]
+  expect_gt(ratio, 19)
+  expect_false(isTRUE(all.equal(ratio, 0.1 / 0.9)))
+
+  # Every distributed column follows the same weights, not just `heads`.
+  expect_equal(
+    result$manure_n_mg,
+    result$heads / 10,
+    tolerance = 1e-9
+  )
+})
+
+test_that("a neighbour's national herd cannot move a polycell", {
+  small <- do.call(whep::build_gridded_livestock, .sa6_livestock_fixture())
+  large <- do.call(
+    whep::build_gridded_livestock,
+    .sa6_livestock_fixture(5e7, 10)
+  )
+  pick <- function(x) {
+    x |>
+      dplyr::filter(area_code == 2L) |>
+      dplyr::arrange(polycell_id) |>
+      dplyr::select(polycell_id, heads, manure_n_mg)
+  }
+  expect_identical(pick(small), pick(large))
+  expect_gt(
+    sum(dplyr::filter(large, area_code == 1L)$heads),
+    sum(dplyr::filter(small, area_code == 1L)$heads)
+  )
+})
+
+test_that(".build_proxy_grid carries only the compartment key and weight", {
+  fix <- .sa6_livestock_fixture()
+  grid <- whep:::.normalize_country_grid(fix$country_grid)
+  out <- whep:::.build_proxy_grid(
+    "cropland",
+    fix$gridded_pasture,
+    fix$gridded_cropland,
+    grid,
+    NULL,
+    NULL
+  )
+  expect_setequal(
+    names(out),
+    c("polycell_id", "area_code", "lon", "lat", "weight")
+  )
+
+  # A `country_grid` column colliding with a distributed value column would be
+  # suffixed by the join in `.allocate_livestock_to_grid()` and then never
+  # distributed at all. Carrying only the key makes that unreachable.
+  colliding <- fix
+  colliding$country_grid$heads <- 12345
+  expect_equal(
+    sum(do.call(whep::build_gridded_livestock, colliding)$heads),
+    1010,
+    tolerance = 1e-9
+  )
+})
+
 test_that("country with totals but no proxy cell warns and keeps others", {
   # area_code 3 has national heads but no cell in country_grid, so it has
   # no allocatable proxy weight. It must not vanish silently: warn, and
@@ -623,11 +738,16 @@ test_that("build_gridded_livestock rejects an unknown area_key", {
 # deletes such a country outright; report that once, on its own, with the
 # heads at stake.
 test_that("a re-keyed grid names the countries it deletes, with heads", {
+  # `cell_area_frac` is explicit because C8/S-A5 forbids the share-less grid
+  # this fixture arrived with: `.abort_missing_polity_share()` refuses a
+  # crosswalk carrying no share rather than defaulting it to 1. `1` is the
+  # honest value here -- each cell is owned outright by the polity keyed on it
+  # -- so the deleted-country behaviour under test is unchanged.
   retired_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L,
-    1.25, 50.25, 62L
+    ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25,         1L,               1,
+    0.75, 50.25,         1L,               1,
+    1.25, 50.25,        62L,               1
   )
 
   warnings <- testthat::capture_warnings(

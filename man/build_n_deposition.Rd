@@ -6,14 +6,35 @@
 \usage{
 build_n_deposition(
   years = NULL,
-  polity_validity = c("keep", "flag", "drop"),
   data = list(),
+  split = c("auto", "polity_area_ha", "polity_frac"),
+  categories = c("auto", "land_water_ice", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   example = FALSE
 )
 }
 \arguments{
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 keeps every year the inputs cover.}
+
+\item{data}{Optional named list of pre-loaded inputs: \code{nhx} and \code{noy}
+(each \code{lon}, \code{lat}, \code{year}, \code{value_g}, falling back to
+\code{\link[=read_n_deposition]{read_n_deposition()}} when absent) and \code{cell_polity} (\code{lon}, \code{lat},
+\code{area_code}, \code{cell_area_ha} and the \code{split} key column, required).}
+
+\item{split}{Which polity share splits the cell's deposited mass:
+\code{"auto"} (default) takes \code{polity_area_ha} when the support carries it and
+\code{polity_frac} otherwise, \code{"polity_area_ha"} and \code{"polity_frac"} demand
+that key and abort when it is absent. The resolved key is recorded in the
+\code{method_polity_split} output column, so a table's split is readable from
+the table.}
+
+\item{categories}{How each polity's share is decomposed over the territory
+it lands on: \code{"auto"} (default) decomposes when the support carries
+\code{land_area_ha}, \code{inland_water_ha} and \code{ice_area_ha} and emits the single
+\code{"territory"} category otherwise, \code{"land_water_ice"} demands those columns
+and aborts when they are absent, \code{"none"} keeps one undecomposed row per
+polycell. The resolved choice is recorded in \code{method_area_split}.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -26,27 +47,85 @@ codes involved. \code{"flag"} keeps them and adds the per-row logical
 See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
 already-built table.}
 
-\item{data}{Optional named list of pre-loaded inputs: \code{nhx} and \code{noy}
-(each \code{lon}, \code{lat}, \code{year}, \code{value_g}, falling back to
-\code{\link[=read_n_deposition]{read_n_deposition()}} when absent) and \code{cell_polity} (\code{lon}, \code{lat},
-\code{area_code}, \code{polity_frac}, \code{cell_area_ha}, required).}
-
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year},
-\code{deposition_kgn_ha}, \code{deposition_n_t} and \code{method_deposition}, plus the
-polity columns below, plus \code{reporting_polity_out_of_span} when
+A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{area_category},
+\code{deposition_kgn_ha}, \code{deposition_n_t}, \code{method_deposition},
+\code{method_polity_split} and \code{method_area_split}, plus the polity columns
+below, plus \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}.
+
+\code{area_category} is \code{"land"}, \code{"inland_water"} or \code{"ice"} under
+\code{"land_water_ice"}, and \code{"territory"} under \code{"none"}. Summing
+\code{deposition_n_t} over the categories of a polycell recovers that
+polycell's whole share, so an unfiltered sum over the table is still the
+source mass; a consumer wanting one category \strong{must filter}.
+
+\code{deposition_kgn_ha} is the whole-cell mean rate: the cell's total mass
+over its whole area, so every polity of a cell carries the same rate on
+every category row and the rate is \strong{not} conserved on re-aggregation.
+Only \code{deposition_n_t} is a mass.
+
+Rows are keyed on \code{area_code}. \code{build_polycell_support()} keys on
+\code{polity_code} and does not derive the reporting vocabulary (DA-23), and
+\code{polity_area_crosswalk} folds distinct polities into one \code{area_code}, so a
+support table must be converted to one row per cell and \code{area_code}
+\strong{before} it is passed here. That conversion is refused rather than
+performed silently.
 }
 \description{
 Combines HaNi NHx and NOy deposition into a total nitrogen deposition rate
 per WHEP grid cell, using the true latitude-dependent 0.5-degree cell area
-(from the cell-polity crosswalk) to convert the deposited mass into a
-per-hectare rate, and the crosswalk's polity land-area share to derive the
-absolute mass a polity receives.
+to convert the deposited mass into a per-hectare rate, and a polity share of
+the cell to derive the absolute mass a polity receives.
+
+The cell's deposited mass is split across the polities holding the cell in
+proportion to \code{polity_area_ha}, the geodesic territory each holds in it, as
+\code{\link[=build_polycell_support]{build_polycell_support()}} measures it. The transitional alternative is
+\code{polity_frac}, the subcell-count share \code{\link[=build_cell_polity]{build_cell_polity()}} carries, which
+is quantised to 1/36 of a cell; it stays selectable so the two partitions
+can be compared, and it is what a support table carrying no
+\code{polity_area_ha} is split by. Either way the split is a share of the cell,
+so the source mass is redistributed and never created or destroyed.
+
+Each polity's share is then decomposed over the territory it lands on:
+land, inland water and ice, the three separately addressable categories
+\code{build_polycell_support()} carries. Deposition to freshwater is a real flux
+on the eutrophication pathway rather than a rounding error, so the three are
+reported side by side and the consumer chooses. A support with no category
+columns cannot be decomposed and carries the single \code{"territory"} category,
+which says the row is undecomposed rather than claiming it is land.
 }
+\section{Which land definition governs what}{
+
+Two different land definitions meet in this function and they govern
+different things, which is the single fact most likely to be misread from
+the output.
+
+\strong{WHEP's territory governs placement.} Where a cell's deposited mass goes
+-- which polity receives it, and how much of it lands on land, on inland
+water or on ice -- is decided entirely by
+\code{\link[=build_polycell_support]{build_polycell_support()}}'s \code{polity_area_ha} and its three categories.
+
+\strong{HaNi's own land mask governs the total.} The mass being placed is the
+HaNi block sum, and HaNi is referenced to the whole 5 arcmin cell inside a
+land-masked domain: its mask is a \strong{third} land definition, measuring
+13.5977 Gha against 14.3195 Gha of whole cells and 12.9931 Gha of LUH2
+terrestrial. Nothing here re-references the mass to WHEP's land, and that
+is deliberate. Forming a rate on the whole cell and multiplying it by
+\code{land_area_ha} would shed about 9\% of the source mass, because the rate's
+denominator includes ocean while land plus inland water plus ice is
+territory; re-referencing to HaNi's own mask instead is the cleanest
+per-hectare rate but moves the global total by about 4.5\%.
+
+So a global sum out of this function is HaNi's total, redistributed onto
+WHEP's territory -- not WHEP's land multiplied by a WHEP rate. Conservation
+is exact against the source (34.77 Tg NHx in 2014), and the reconciliation
+that is \emph{not} available is \verb{rate * (land + inland_water + ice) == source mass}, which does not hold as an identity and is not asserted anywhere.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in
