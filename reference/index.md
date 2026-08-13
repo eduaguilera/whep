@@ -518,6 +518,8 @@ Add name columns in dataframes from their codes or viceversa.
   : Get WHEP polity geometries
 - [`folded_reporting_areas()`](https://eduaguilera.github.io/whep/reference/folded_reporting_areas.md)
   : List the reporting areas whose data is folded into another area code
+- [`row_promotion_status()`](https://eduaguilera.github.io/whep/reference/row_promotion_status.md)
+  : Report which Rest-of-World members report under their own territory
 - [`whep_polity_columns`](https://eduaguilera.github.io/whep/reference/whep_polity_columns.md)
   : Polity columns on WHEP outputs
 - [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
