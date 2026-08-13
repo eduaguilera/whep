@@ -1,5 +1,28 @@
 # whep (development version)
 
+* **New `build_protein_requirement()`: the nourishment floor can now account
+  for a population's age and sex structure.** The SJOS-N "just" axis has always
+  compared per-capita protein supply against a flat 46 g/cap/day, which is
+  WHO/FAO/UNU TRS 935's safe intake for a 55 kg **adult** applied to whole
+  populations including children. Children need far less in absolute terms
+  (17.1 g/day at ages 4-6), so the flat value overstates every population's
+  requirement, and most in the youngest. The new function weights the TRS 935
+  per-class requirements by an injected population-by-age-and-sex table.
+
+  It defaults to `requirement = "average"`, the class average requirement,
+  because TRS 935 states that applying an individual safe level to a population
+  is incorrect (p.41) and that a safe population intake "cannot be defined as a
+  simple function of the mean requirement" (p.241); `"safe"` remains selectable
+  for continuity. This does **not** lower the eventual threshold — the margin
+  that turns an average requirement into a supply floor is applied downstream,
+  once, over the convolution of requirement and intake variability.
+
+  **No published value changes yet.** Nothing calls this function; the axis
+  still uses the flat floor until the remaining terms land. The packaged
+  requirement table is new (`inst/extdata/coefs/protein_requirement.csv`), and
+  its derivation and the TRS 935 tables behind it are recorded in
+  `validation/SOURCES.md`.
+
 * **Rice from the new FAOSTAT Food Balances is now converted to milled
   equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes rice on
   two bases depending on vintage: the historic series carry item 2805 "Rice

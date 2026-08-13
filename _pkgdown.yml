@@ -247,6 +247,7 @@ reference:
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance
   - build_food_supply
+  - build_protein_requirement
   - normalize_nourishment
   - calculate_food_gini
   - disaggregate_ussr

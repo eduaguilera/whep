@@ -1825,6 +1825,22 @@ utils::globalVariables(
     # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
-    "i.data_year"
+    "i.data_year",
+    # protein_requirement.R — TRS 935 age/sex requirement classes and the
+    # population-by-age input they are weighted by
+    "age",
+    "age_end",
+    "age_span",
+    "age_start",
+    "avg_req_g_day",
+    "avg_req_g_kg_day",
+    "avg_to_safe_ratio",
+    "reference_weight_kg",
+    "requirement_g_cap_day",
+    "requirement_g_day",
+    "safe_req_g_day",
+    "sex",
+    "year_from",
+    "year_to"
   )
 )

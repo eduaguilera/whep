@@ -71,6 +71,33 @@ production, and the reason the two must be treated differently (#751):
 | `faostat-fbs-old` | 2805 | Rice (Milled Equivalent) | 96,023 kt | milled |
 | `faostat-cbs-old-crops` | 2804 / 2805 | both | 143,963,008 / 96,023,326 t | both |
 
+## Nourishment requirement sources
+
+Cited at the point of use in `R/protein_requirement.R` and carried as the
+packaged coefficient table `inst/extdata/coefs/protein_requirement.csv`.
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| WHO/FAO/UNU TRS 935 | WHO/FAO/UNU (2007), *Protein and amino acid requirements in human nutrition*, WHO Technical Report Series 935, ISBN 9241209356 | open, <https://iris.who.int/handle/10665/43411> | The whole requirement side. **Table 46** (report p.243) adult safe level, 0.83 g/kg per day at PDCAAS 1.0, 46 g/day at 55 kg. **Table 47** (p.244) per-class safe level in g/day at WHO reference weights. **Tables 33a/33b** (pp.176-177) the *average* requirement per kg by single year of age, which is the anchor the report names for population use (p.41). |
+
+Two derivation notes, both load-bearing:
+
+- The packaged `avg_req_g_day` is **Table 47's published g/day times the
+  average-to-safe ratio from Tables 33a/33b**, not `avg_req_g_kg_day` times the
+  reference weight. The latter reproduces Table 47 for every child class but
+  fails for adolescents (15-18 boys: 55.5 against 57.9 published), because body
+  weight rises steeply inside an adolescent class so mean(g/kg) x mean(weight)
+  is not mean(g/kg x weight), and TRS 935 does not publish the per-year weights
+  it used.
+- The average-to-safe ratio is **per class**, spanning 0.8077-0.8550 for child
+  classes against 0.7952 for adults. Applying the adult ratio uniformly, as a
+  first pass did, carries up to 7% error.
+
+TRS 935 forbids the construction WHEP previously used: "reference intake or safe
+intake levels defined as above for individuals have been **incorrectly applied
+to populations**" (p.41), and "a safe population intake **cannot be defined as a
+simple function of the mean requirement**" (p.241).
+
 ## External local datasets (paths in `cache/local_paths.json`, gitignored)
 
 | Key | Dataset | Location |
