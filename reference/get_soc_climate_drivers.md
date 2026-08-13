@@ -83,6 +83,20 @@ get_soc_climate_drivers(
   [`read_soil_hydraulic()`](https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.md),
   cropped to `cell_polity` when supplied).
 
+  `cell_polity` is used only to **label** each cell with an `area_code`
+  and to restrict the grid to the cells it covers; no quantity here is
+  ever multiplied by an area. It therefore decides this function's
+  **footprint**, and callers that pass different crosswalks get
+  different footprints from one function. The carbon path passes the
+  polycell support
+  ([`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md),
+  via
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md));
+  the water path still passes
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  until it migrates, so the two footprints differ by the crosswalks' own
+  difference until then.
+
 - example:
 
   If `TRUE`, return a small fixture instead of reading data. Defaults to

@@ -3,10 +3,18 @@
 Read the LUH2 v2h gridded land-use "states" product and aggregate its 12
 subgrid states into the four carbon-balance classes (cropland,
 grassland, natural, urban). Per cell-year-class the `fraction` is the
-sum of the member states' grid-cell fractions (0..1); `area_ha` is that
-fraction times the spherical 0.5-degree cell area. At
-`resolution = "polity"` the areas are summed to each overlapping polity
-via the country grid; a border cell keeps every polity it overlaps.
+sum of the member states' grid-cell fractions (0..1), LUH2's own share
+of the **whole** cell. `area_ha` is that class's area inside one
+polycell: by default the class's share of the cell's LUH2 land, spread
+over the polycell's own measured land (`area_basis = "polycell_land"`),
+so the four classes tile the polycell's land exactly and the carbon path
+uses the same land definition as the nitrogen path. At
+`resolution = "polity"` the areas are summed to each overlapping polity;
+a border cell keeps every polity it overlaps.
+
+The cell-to-polity assignment is a **static snapshot**, because LUH2
+carries no territorial history: a pre-modern year is the snapshot
+polity's territory holding that year's land-use composition.
 
 The states grid comes from a `WHEP_LUH2_DIR` tree when there is one,
 else the reference LUH2-GCB2022 `states.nc` is downloaded on demand from
@@ -26,6 +34,7 @@ read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
   states_source = c("auto", "local", "zenodo"),
+  area_basis = c("polycell_land", "luh2_fraction"),
   data = NULL,
   example = FALSE
 )
@@ -65,12 +74,28 @@ annual global carbon budgets. Earth System Science Data 13, 4175-4189.
   reference vintage only, ignoring any local tree). Recorded in the
   provenance record's `input_origin`.
 
+- area_basis:
+
+  Which land definition the class areas are measured on:
+  `"polycell_land"` (default) spreads each class's share of the cell's
+  LUH2 land over the polycell's measured `land_area_ha`;
+  `"luh2_fraction"` keeps LUH2's own land total (`fraction` times the
+  spherical cell area) and splits it between the polycells of a cell by
+  their share of the cell's land. Both partition the cell identically
+  and differ only in the total spread (~12.78 Gha against ~12.99 Gha
+  globally). The choice is recorded in the `method_land_area` output
+  column.
+
 - data:
 
   Named list of pre-loaded inputs bypassing the readers: `states` (raw
   per-cell-year-state fractions with `lon`, `lat`, `year`, `land_use`,
-  `fraction`) and `country_grid` (`lon`, `lat`, `area_code`,
-  `cell_area_frac`). Each falls back to its reader when absent.
+  `fraction`) and `country_grid`, the polycell support resolved to one
+  row per cell and `area_code` (`lon`, `lat`, `area_code`,
+  `cell_area_frac` and, for `area_basis = "polycell_land"`,
+  `land_area_ha`). Each falls back to its reader when absent. A support
+  carrying more than one row per cell and `area_code`, or an `NA` one,
+  is refused rather than folded (DA-23).
 
 - example:
 
@@ -80,15 +105,17 @@ annual global carbon budgets. Earth System Science Data 13, 4175-4189.
 ## Value
 
 A tibble with columns `lon`, `lat`, `area_code`, `year`, `land_use`,
-`fraction` and `area_ha` at `"grid"` resolution; at `"polity"`
-resolution `lon` and `lat` are dropped and `area_ha` is summed per
-`(area_code, year, land_use)`. Both resolutions carry the polity columns
-below, resolved from the `area_code` the cell grid assigns and the row's
-`year`; the cell-to-area assignment itself is the static present-day
-grid, which is what LUH2 has, so a pre-modern year is the present-day
-cell's area read at that year. When the states grid was read from a
-NetCDF, a provenance record naming the vintage is attached; read it back
-with
+`fraction`, `area_ha` and `method_land_area` at `"grid"` resolution; at
+`"polity"` resolution `lon` and `lat` are dropped and `area_ha` is
+summed per `(area_code, year, land_use)`. `fraction` stays LUH2's share
+of the whole cell and is repeated on every polycell of that cell, so
+under `"polycell_land"` it is a source datum rather than a factor
+`area_ha` can be recovered from. Both resolutions carry the polity
+columns below, resolved from the `area_code` the support assigns and the
+row's `year`; the cell-to-area assignment itself is a static snapshot,
+which is what LUH2 has, so a pre-modern year is the snapshot cell's area
+read at that year. When the states grid was read from a NetCDF, a
+provenance record naming the vintage is attached; read it back with
 [`get_provenance()`](https://eduaguilera.github.io/whep/reference/get_provenance.md).
 
 ## Polity columns
@@ -146,21 +173,26 @@ extra column.
 
 ``` r
 read_luh2_landuse(example = TRUE)
-#> # A tibble: 12 × 11
+#> # A tibble: 16 × 12
 #>     year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>    <int>     <int>            <int> <chr>                 <chr>                
-#>  1  2000       203              203 ESP-1800-2025         Spain                
-#>  2  2000       203              203 ESP-1800-2025         Spain                
-#>  3  2000       203              203 ESP-1800-2025         Spain                
-#>  4  2000       203              203 ESP-1800-2025         Spain                
-#>  5  2000        79               79 DEU-1990-2025         Germany              
-#>  6  2000        79               79 DEU-1990-2025         Germany              
-#>  7  2000        79               79 DEU-1990-2025         Germany              
-#>  8  2000        79               79 DEU-1990-2025         Germany              
-#>  9  2000        11               11 AUT-1919-2025         Austria              
-#> 10  2000        11               11 AUT-1919-2025         Austria              
-#> 11  2000        11               11 AUT-1919-2025         Austria              
-#> 12  2000        11               11 AUT-1919-2025         Austria              
-#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
-#> #   lat <dbl>, land_use <chr>, fraction <dbl>, area_ha <dbl>
+#>  1  2015       203              203 ESP-1800-2025         Spain                
+#>  2  2015       203              203 ESP-1800-2025         Spain                
+#>  3  2015       203              203 ESP-1800-2025         Spain                
+#>  4  2015       203              203 ESP-1800-2025         Spain                
+#>  5  2015        79               79 DEU-1990-2025         Germany              
+#>  6  2015        79               79 DEU-1990-2025         Germany              
+#>  7  2015        79               79 DEU-1990-2025         Germany              
+#>  8  2015        79               79 DEU-1990-2025         Germany              
+#>  9  2015       211              211 CHE-1800-2025         Switzerland          
+#> 10  2015       211              211 CHE-1800-2025         Switzerland          
+#> 11  2015       211              211 CHE-1800-2025         Switzerland          
+#> 12  2015       211              211 CHE-1800-2025         Switzerland          
+#> 13  2015       114              114 KEN-1963-2025         Kenya                
+#> 14  2015       114              114 KEN-1963-2025         Kenya                
+#> 15  2015       114              114 KEN-1963-2025         Kenya                
+#> 16  2015       114              114 KEN-1963-2025         Kenya                
+#> # ℹ 7 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> #   lat <dbl>, land_use <chr>, fraction <dbl>, area_ha <dbl>,
+#> #   method_land_area <chr>
 ```

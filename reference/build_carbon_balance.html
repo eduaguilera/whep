@@ -164,6 +164,20 @@ on its own key space (whep#462) while this argument decides the fate of the
 balance rows.</p>
     </div>
     <div class="section level2">
+    <h2 id="spatial-support">Spatial support<a class="anchor" aria-label="anchor" href="#spatial-support"></a></h2>
+
+
+<p>Every default reader on the carbon path – the land-use areas, the carbon
+inputs, the climate drivers and the clay – resolves its cell-to-polity table
+through one polycell support (<code><a href="read_polycell_support.html">read_polycell_support()</a></code>), read at a static
+reference year. A cell shared between polities therefore delivers to each
+only the land it holds there, and no reader can be left on a different
+crosswalk: half the path on one footprint and half on another would surface
+as an ordinary climate-coverage warning from the modifier join, not as an
+error. Land the reporting vocabulary cannot key (no <code>area_code</code>) is reported
+and dropped, never folded into another polity's.</p>
+    </div>
+    <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
 
 

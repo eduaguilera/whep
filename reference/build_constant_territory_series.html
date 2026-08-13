@@ -137,15 +137,37 @@ in <code>year</code> and carry a polygon).</p></li>
 
 <dt id="arg-ref-year">ref_year<a class="anchor" aria-label="anchor" href="#arg-ref-year"></a></dt>
 <dd><p>Integer. Target boundaries are the polities active in this
-year. <code>end_year</code> is exclusive (see <a href="polities.html">polities</a>), so "active" means
-<code>start_year &lt;= ref_year &lt; end_year</code> and a polity does not answer for the
-year its successor takes over. The same reading selects the sources of
-each data year.</p></dd>
+year, under the validity convention described for <code>polities</code>: a polity
+does not answer for the year its successor takes over. The same reading
+selects the sources of each data year.</p></dd>
 
 
 <dt id="arg-polities">polities<a class="anchor" aria-label="anchor" href="#arg-polities"></a></dt>
 <dd><p>An <code>sf</code> of polity polygons with <code>polity_code</code>, <code>start_year</code>,
-<code>end_year</code> and geometry. Defaults to <code><a href="get_polity_geometries.html">get_polity_geometries()</a></code>.</p></dd>
+<code>end_year</code> and geometry, plus an <strong>optional</strong> <code>wiki_status</code> whose effect is
+described below. Defaults to <code><a href="get_polity_geometries.html">get_polity_geometries()</a></code>, which supplies it.
+<code>start_year</code> is inclusive; <code>end_year</code> is <strong>exclusive at a succession</strong> and
+<strong>inclusive at the open end</strong>. So 2014 resolves to <code>"RUS-2014-2025"</code>,
+never to <code>"RUS-1991-2014"</code>, while 2025 still resolves to
+<code>"RUS-2014-2025"</code> because nothing succeeds it. An interval counts as open
+when it ends on the last year the supplied table covers and no
+later-starting interval of the same polity follows it. Where the table
+still carries overlapping intervals for one polity, the interval starting
+on the resolved year wins, then the latest-starting one, and finally –
+<strong>only when <code>wiki_status</code> is supplied</strong> – a live interval beats a
+<code>"retired"</code> or <code>"superseded"</code> one.</p>
+<p>That last key is the one behavioural difference between the two call
+styles, and it is stated here rather than left implicit. <strong>Supplying only
+the three required columns is legal and keeps the older, status-blind
+ordering</strong>, under which a shared start year is decided by nothing at all
+and an interval upstream has already replaced can take the year from the
+one that replaced it. On the shipped <a href="polities.html">polities</a> snapshot that is 1,344
+polity-years across 10 polities, of which one moves territory rather than
+only a label: 1913 and 1914 resolve to <code>"MNE-1913-1915"</code> (0.9923 Mha)
+instead of <code>"MNE-1913-1918"</code> (1.5893 Mha), a Montenegro 37.6% too small.
+Pass <code>wiki_status</code> – as the default does – to get the live interval.
+<code>wiki_status</code> never selects which years an interval covers; it breaks a
+tie between two intervals that both cover the resolved year.</p></dd>
 
 
 <dt id="arg-covariate">covariate<a class="anchor" aria-label="anchor" href="#arg-covariate"></a></dt>

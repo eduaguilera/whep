@@ -143,7 +143,12 @@ aggregates (`n_input_full_t`, `n_input_full_nosom_t`, `n_input_std_t`,
 the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`, `nue_useful`,
 `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
 `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
-columns below.
+columns below. When the supplied `n_inputs` carry them, the
+`method_recycling_n`, `method_synthetic` and `method_deposition_scope`
+stamps from
+[`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+are carried through as well, so a balance names the input conventions
+that produced it.
 
 ## Polity columns
 

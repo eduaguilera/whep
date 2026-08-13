@@ -96,6 +96,17 @@ build_n_inputs(
     [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)'s
     inputs.
 
+  - `deposition_scope`: which of a polycell's territory the
+    `"deposition"` term is credited with. `"territory"` (default) is
+    land plus inland water plus ice: nitrogen deposited on a lake or a
+    glacier still drives indirect N2O and still reaches the
+    eutrophication pathway, so the impact terms have to account for it.
+    `"land"` is the terrestrial surface alone, for purposes that want
+    it, and it needs a `cell_polity` carrying `land_area_ha`,
+    `inland_water_ha` and `ice_area_ha`; asking for it without them
+    aborts rather than silently returning the whole territory. Recorded
+    in `method_deposition_scope`.
+
   - `ag_land_support`: agricultural physical land support keyed by
     `lon`, `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional:
@@ -155,17 +166,20 @@ build_n_inputs(
 
 A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 `item_cbs_code`, `year`, `fert_type`, `n_input_t`, `method_recycling_n`,
-`method_synthetic`. At `resolution = "polity"`: `area_code`,
-`item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
-`method_synthetic`, `n_input_t` (summed over cells).
+`method_synthetic`, `method_deposition_scope`. At
+`resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
+`fert_type`, `method_recycling_n`, `method_synthetic`,
+`method_deposition_scope`, `n_input_t` (summed over cells).
 `method_recycling_n` records which residue basis the `"recycling"` term
 used: `"residue_soil_returned"` when the upstream NPP input supplied
 `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
 `"total_residue"` when only gross residue N was available; it is `NA`
 for every other `fert_type`. `method_synthetic` records the synthetic
 crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
-and is `NA` for every other `fert_type`. Both grains also carry the
-polity columns below.
+and is `NA` for every other `fert_type`. `method_deposition_scope`
+records which of the polycell's territory the `"deposition"` term was
+credited with (`"territory"` or `"land"`) and is `NA` for every other
+`fert_type`. Both grains also carry the polity columns below.
 
 ## Polity columns
 
@@ -222,7 +236,7 @@ extra column.
 
 ``` r
 build_n_inputs(example = TRUE)
-#> # A tibble: 9 × 13
+#> # A tibble: 9 × 14
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  2020         1                1 ARM-1991-2025         Armenia              
@@ -234,7 +248,8 @@ build_n_inputs(example = TRUE)
 #> 7  2020         1                1 ARM-1991-2025         Armenia              
 #> 8  2020         1                1 ARM-1991-2025         Armenia              
 #> 9  2020         1                1 ARM-1991-2025         Armenia              
-#> # ℹ 8 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
+#> # ℹ 9 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, item_cbs_code <int>, fert_type <chr>, n_input_t <dbl>,
-#> #   method_recycling_n <chr>, method_synthetic <chr>
+#> #   method_recycling_n <chr>, method_synthetic <chr>,
+#> #   method_deposition_scope <chr>
 ```

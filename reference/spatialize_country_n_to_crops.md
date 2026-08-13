@@ -18,6 +18,28 @@ cropland cells, weighted by each cell's cropland area, so the grid
 output still re-aggregates to the polity total. Such reallocations emit
 a warning naming the affected crops and the reallocated nitrogen.
 
+Both grid weights carry a polity share of the cell, because a border
+cell's cropland belongs to more than one polity. That share is a
+polycell's `land_area_ha` over the cell's total `land_area_ha`, the
+share of the cell's land
+[`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+measures geodesically. The transitional alternative is `polity_frac`,
+the subcell-count share
+[`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+carries, which is quantised to 1/36 of a cell.
+
+The share is of the cell's **land**, never
+`land_area_ha / cell_area_ha`: what it splits is already land-only (LUH2
+cropland hectares), so dividing by the whole cell would remove the
+inland water and ice a second time. And it is a **share**, never an
+absolute area: `crop_pattern_ha * land_area_ha` would weight every cell
+a second time by its own size and is no partition of the cell at all.
+
+Because the cell weights are renormalised within each polity-crop-year,
+either key redistributes the polity total and neither can change it.
+Swapping the key moves **where** the nitrogen lands, never how much of
+it there is.
+
 ## Usage
 
 ``` r
@@ -26,6 +48,7 @@ spatialize_country_n_to_crops(
   crop_shares,
   cell_polity,
   resolution = c("polity_crop", "grid"),
+  split = c("auto", "land_area_ha", "polity_frac"),
   polity_validity = c("keep", "flag", "drop"),
   data = list()
 )
@@ -48,10 +71,21 @@ spatialize_country_n_to_crops(
 
 - cell_polity:
 
-  The
-  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)-shaped
-  crosswalk (`lon`, `lat`, `area_code`, `polity_frac`, `cell_area_ha`).
-  Only required when `resolution` includes `"grid"`.
+  The cell-to-polity support (`lon`, `lat`, `area_code`, `cell_area_ha`
+  and the `split` key column). Only required when `resolution` includes
+  `"grid"`. Rows are keyed on `area_code`:
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  keys on `polity_code` and does not derive the reporting vocabulary
+  (DA-23), and `polity_area_crosswalk` folds distinct polities into one
+  `area_code` or leaves it `NA`, so a support must be converted to one
+  row per cell and `area_code` **before** it is passed here. That
+  conversion is refused rather than performed silently. The share
+  denominator is the land of the rows supplied, so a caller that simply
+  drops the unkeyable polycells renormalises the survivors onto the
+  whole cell and hands them hectares that are not theirs, invisibly,
+  because the shares still sum to 1. Keep that land in the denominator
+  instead, under a bucket no `country_totals` row can join: it then
+  dilutes nobody's share and receives no nitrogen.
 
 - resolution:
 
@@ -59,6 +93,16 @@ spatialize_country_n_to_crops(
   `year`/`area_code`/`item_cbs_code` totals only) or `"grid"` (also
   distributes to `lon`/`lat` grid cells; requires `crop_patterns` and
   `type_cropland` in `data`).
+
+- split:
+
+  Which polity share of the cell weights each grid cell: `"auto"`
+  (default) takes `land_area_ha` when the support carries it and
+  `polity_frac` otherwise; `"land_area_ha"` and `"polity_frac"` demand
+  that key and abort when it is absent. The resolved key is recorded in
+  the `method_polity_split` output column, so a table's split is
+  readable from the table. Read only at `resolution = "grid"`; the
+  `"polity_crop"` output splits nothing across cells.
 
 - polity_validity:
 
@@ -93,10 +137,10 @@ spatialize_country_n_to_crops(
 
 A tibble. For `resolution = "polity_crop"`: `year`, `area_code`,
 `item_cbs_code`, `n_t`. For `resolution = "grid"`: `lon`, `lat`,
-`area_code`, `year`, `item_cbs_code`, `n_t`. Either gains
-`reporting_polity_out_of_span` when `polity_validity = "flag"`; this
-output carries no reporting-polity columns, so the flag is attached
-directly rather than derived from them.
+`area_code`, `year`, `item_cbs_code`, `n_t` and `method_polity_split`.
+Either gains `reporting_polity_out_of_span` when
+`polity_validity = "flag"`; this output carries no reporting-polity
+columns, so the flag is attached directly rather than derived from them.
 
 ## Examples
 

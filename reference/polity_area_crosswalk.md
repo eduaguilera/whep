@@ -26,10 +26,13 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
   statistical composites that are not real polities.
 
 - `polity_start_year`, `polity_end_year`: Validity interval for the
-  matched polity. `polity_end_year` is exclusive, so the period covers
-  `polity_start_year:(polity_end_year - 1)`.
+  matched polity, on the same convention as
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md):
+  `polity_end_year` is exclusive at a succession, so the period covers
+  `polity_start_year:(polity_end_year - 1)`, and inclusive at the open
+  end, so an interval nothing succeeds covers its own terminal year.
   [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
-  resolves a year on that reading, widened to the inclusive
+  resolves a year on that reading, widened further to the inclusive
   `map_year_end` below where the upstream map declares a reported year
   past the territorial span.
 

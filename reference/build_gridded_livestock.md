@@ -116,17 +116,28 @@ build_gridded_livestock(
 
   - `lon`, `lat`: Cell centre coordinates.
 
-  - `area_code`: Country code. Optional columns:
+  - `area_code`: Country code.
 
-  - `cell_area_frac` (or `area_frac`): Fraction of the physical cell
-    belonging to this polity compartment. Defaults to 1.
+  - `cell_area_frac` (or `polity_frac`, `area_frac`, `country_frac`):
+    This polity compartment's share of the physical cell, a partition
+    summing to 1 over the polities that overlap the cell. Required: a
+    grid carrying no share is refused, because defaulting it to 1 gives
+    a border cell wholly to one polity. Pass 1 only where the polity
+    does own the whole cell. A land fraction (`landfrac`) is a different
+    quantity and is refused rather than reinterpreted. Optional columns:
 
   - `polycell_id`, `cell_id`: Stable compartment/cell identifiers
     preserved in outputs when present.
 
   - `year` or validity intervals (`valid_from`/`valid_to`,
     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
-    time-varying polity overlays.
+    time-varying polity overlays. The start bound is inclusive; the end
+    bound is **exclusive at a succession** and **inclusive at the open
+    end**, so 2014 selects `"RUS-2014-2025"` and not `"RUS-1991-2014"`,
+    while 2025 still selects `"RUS-2014-2025"` because no later interval
+    of that compartment follows it. See
+    [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+    for the full rule.
 
 - species_proxy:
 
@@ -267,9 +278,9 @@ gridded_cropland <- tibble::tribble(
    0.75, 50.25, 2000L,          500
 )
 country_grid <- tibble::tribble(
-  ~lon,  ~lat, ~area_code,
-   0.25, 50.25,         1L,
-   0.75, 50.25,         1L
+  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+   0.25, 50.25,         1L,               1,
+   0.75, 50.25,         1L,               1
 )
 build_gridded_livestock(
   livestock_data, gridded_pasture, gridded_cropland, country_grid

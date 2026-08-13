@@ -227,15 +227,24 @@ Required columns:</p><ul><li><p><code>lon</code>, <code>lat</code>: Cell centre 
 <dt id="arg-country-grid">country_grid<a class="anchor" aria-label="anchor" href="#arg-country-grid"></a></dt>
 <dd><p>A tibble mapping grid cells to countries.
 Required columns:</p><ul><li><p><code>lon</code>, <code>lat</code>: Cell centre coordinates.</p></li>
-<li><p><code>area_code</code>: Country code.
+<li><p><code>area_code</code>: Country code.</p></li>
+<li><p><code>cell_area_frac</code> (or <code>polity_frac</code>, <code>area_frac</code>, <code>country_frac</code>):
+This polity compartment's share of the physical cell, a partition
+summing to 1 over the polities that overlap the cell. Required: a
+grid carrying no share is refused, because defaulting it to 1 gives
+a border cell wholly to one polity. Pass 1 only where the polity
+does own the whole cell. A land fraction (<code>landfrac</code>) is a
+different quantity and is refused rather than reinterpreted.
 Optional columns:</p></li>
-<li><p><code>cell_area_frac</code> (or <code>area_frac</code>): Fraction of the physical cell
-belonging to this polity compartment. Defaults to 1.</p></li>
 <li><p><code>polycell_id</code>, <code>cell_id</code>: Stable compartment/cell identifiers
 preserved in outputs when present.</p></li>
 <li><p><code>year</code> or validity intervals (<code>valid_from</code>/<code>valid_to</code>,
 <code>start_year</code>/<code>end_year</code>, <code>from_year</code>/<code>to_year</code>) for historical,
-time-varying polity overlays.</p></li>
+time-varying polity overlays. The start bound is inclusive; the end
+bound is <strong>exclusive at a succession</strong> and <strong>inclusive at the open
+end</strong>, so 2014 selects <code>"RUS-2014-2025"</code> and not <code>"RUS-1991-2014"</code>,
+while 2025 still selects <code>"RUS-2014-2025"</code> because no later interval of
+that compartment follows it. See <a href="polities.html">polities</a> for the full rule.</p></li>
 </ul></dd>
 
 
@@ -361,9 +370,9 @@ the shape <code><a href="build_cell_polity.html">build_cell_polity()</a></code> 
 <span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>, <span class="fl">2000L</span>,          <span class="fl">500</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">country_grid</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">lon</span>,  <span class="op">~</span><span class="va">lat</span>, <span class="op">~</span><span class="va">area_code</span>,</span></span>
-<span class="r-in"><span>   <span class="fl">0.25</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,</span></span>
-<span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">lon</span>,  <span class="op">~</span><span class="va">lat</span>, <span class="op">~</span><span class="va">area_code</span>, <span class="op">~</span><span class="va">cell_area_frac</span>,</span></span>
+<span class="r-in"><span>   <span class="fl">0.25</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,               <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,               <span class="fl">1</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">build_gridded_livestock</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">livestock_data</span>, <span class="va">gridded_pasture</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span></span></span>

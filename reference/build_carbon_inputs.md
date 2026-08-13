@@ -52,9 +52,15 @@ assembled per the WHEP historical carbon-balance design.
   `grass_natural` (the
   [`build_grass_natural_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_grass_natural_carbon_inputs.md)
   output at the class grain); and optional `land_use` (per-cell class
-  `area_ha`, used to area-weight grassland/natural polity output). When
-  `cropland` or `grass_natural` are absent the respective builder is
-  called with the remaining members of `data`.
+  `area_ha`, used to area-weight grassland/natural polity output); and
+  `country_grid`, the polycell support resolved to one row per cell and
+  `area_code`, from which `crop_area` is derived when absent. It is the
+  same support
+  [`build_soil_carbon_inputs()`](https://eduaguilera.github.io/whep/reference/build_soil_carbon_inputs.md)
+  reads, so the weights and the carbon they weight can never come from
+  two different crosswalks. When `cropland` or `grass_natural` are
+  absent the respective builder is called with the remaining members of
+  `data`.
 
 - years:
 

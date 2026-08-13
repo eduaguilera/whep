@@ -133,8 +133,10 @@ the pin); <code>npp</code> and <code>harvestc</code> (per cell, PFT and year, th
 managed-grassland stand fractions with columns <code>lon</code>, <code>lat</code>, <code>year</code>,
 <code>name_pft</code>, <code>stand_frac</code>). Supplying all three of <code>npp</code>, <code>harvestc</code> and
 <code>stand_frac</code> derives <code>net_c</code> without needing a run directory or the pin.
-Also: <code>country_grid</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>,
-<code>cell_area_frac</code>); <code>land_use</code> (per-cell class <code>area_ha</code>, used to spread
+Also: <code>country_grid</code>, the polycell support resolved to one row per cell and
+<code>area_code</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_frac</code>), refused when a
+cell-<code>area_code</code> group is duplicated or <code>NA</code> (DA-23);
+<code>land_use</code> (per-cell class <code>area_ha</code>, used to spread
 excreta and to area-weight polity output); <code>excreta</code> (the <code>applied</code> tibble
 of <code><a href="build_livestock_nutrient_flows.html">build_livestock_nutrient_flows()</a></code>, grassland rows carry <code>applied_c</code>
 tonnes C); <code>residue_humification</code> (defaults to <a href="residue_humification.html">residue_humification</a>).</p></dd>

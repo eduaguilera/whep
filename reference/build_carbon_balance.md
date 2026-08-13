@@ -113,6 +113,20 @@ for an anachronistic polity label would break the trajectory rather than
 relabel it. The driver read therefore warns on its own key space
 (whep#462) while this argument decides the fate of the balance rows.
 
+## Spatial support
+
+Every default reader on the carbon path – the land-use areas, the carbon
+inputs, the climate drivers and the clay – resolves its cell-to-polity
+table through one polycell support
+([`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)),
+read at a static reference year. A cell shared between polities
+therefore delivers to each only the land it holds there, and no reader
+can be left on a different crosswalk: half the path on one footprint and
+half on another would surface as an ordinary climate-coverage warning
+from the modifier join, not as an error. Land the reporting vocabulary
+cannot key (no `area_code`) is reported and dropped, never folded into
+another polity's.
+
 ## Polity columns
 
 Every area-keyed output carries the polity its `area_code` resolves to

@@ -56,12 +56,24 @@ repository.</p>
 a continuous time interval. Key columns include:</p><ul><li><p><code>polity_code</code>: Stable WHEP polity identifier, usually
 <code>PREFIX-start_year-end_year</code>.</p></li>
 <li><p><code>polity_name</code>: Human-readable polity name.</p></li>
-<li><p><code>start_year</code>, <code>end_year</code>: Half-open validity interval for the row:
-<code>start_year</code> is inclusive, <code>end_year</code> is <strong>exclusive</strong>, so the row covers
-<code>start_year:(end_year - 1)</code> and hands over to its successor in <code>end_year</code>
-(<code>F51-1947-1993</code> Czechoslovakia covers 1947-1992, and 1993 belongs to
-<code>CZE-1993-2025</code> and <code>SVK-1993-2025</code>). Open periods carry the vintage's
-horizon as <code>end_year</code>, so they too stop one year short of it.</p></li>
+<li><p><code>start_year</code>, <code>end_year</code>: Validity interval for the row. <code>start_year</code> is
+inclusive; <code>end_year</code> is <strong>exclusive at a succession</strong> and <strong>inclusive at
+the open end</strong>. Exclusive at a succession, so <code>F51-1947-1993</code>
+Czechoslovakia covers 1947-1992 and 1993 belongs to <code>CZE-1993-2025</code> and
+<code>SVK-1993-2025</code>, and 2014 belongs to <code>"RUS-2014-2025"</code> rather than to
+<code>"RUS-1991-2014"</code> (filtering <code>year &lt;= end_year</code> returns both epochs and
+double-counts every boundary year). Inclusive at the open end, so 2025
+still belongs to <code>"RUS-2014-2025"</code>, because no later interval of that
+polity follows it and a uniformly exclusive read would leave the current
+year with no polity at all. <strong>Openness is absence of a successor, not a
+comparison against the last year in the table.</strong> 244 live polities have no
+successor, 227 of them end in 2025, and no live polity ending in 2025
+carries one, so the two readings agree on this vintage; the successor test
+is the one that keeps agreeing when the horizon moves. The distinction is
+not decoration: 237 of the 749 rows end in 2025 but only 229 are open,
+because eight are succeeded there (<code>AGO-1816-2025</code> by <code>AGO-1975-2025</code>, and
+likewise ARG, BLZ, BRA, CAN, GRC, IRQ and ROU), and opening those too would
+count the terminal year twice.</p></li>
 <li><p><code>iso3_code</code>, <code>iso3c</code>: ISO3 code where one exists. <code>iso3c</code> is retained as
 a compatibility alias.</p></li>
 <li><p><code>wiki_status</code>: Upstream review state. <code>"retired"</code> and <code>"superseded"</code> mark a

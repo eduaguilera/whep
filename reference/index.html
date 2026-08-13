@@ -132,6 +132,71 @@
         </dt>
         <dd>Build gridded livestock dataset</dd>
       </dl></div><div class="section level2">
+      <h2 id="polycell-spatial-support">Polycell spatial support<a class="anchor" aria-label="anchor" href="#polycell-spatial-support"></a></h2>
+
+      <div class="section-desc"><p>Build the canonical spatial support unit, the polycell: a 0.5-degree grid cell intersected with a polity over its validity interval, carrying the territory decomposed into land, inland water and ice so that polycells re-aggregate to a polity without value change or cross-border leakage.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="build_polycell_support.html">build_polycell_support()</a></code>
+
+        </dt>
+        <dd>Build the polycell spatial support table</dd>
+
+        <dt>
+
+          <code><a href="expand_polycell_years.html">expand_polycell_years()</a></code>
+
+        </dt>
+        <dd>Expand the interval-keyed polycell support to one row per year</dd>
+
+        <dt>
+
+          <code><a href="polycell_example_geometries.html">polycell_example_geometries()</a></code>
+
+        </dt>
+        <dd>A minimal polity geometry table for examples and smoke tests</dd>
+
+        <dt>
+
+          <code><a href="read_polycell_support.html">read_polycell_support()</a></code>
+
+        </dt>
+        <dd>Read the polycell support table from its registered pin</dd>
+
+        <dt>
+
+          <code><a href="read_glwd_water.html">read_glwd_water()</a></code>
+
+        </dt>
+        <dd>Read the GLWD inland-water fraction on the 0.5-degree grid</dd>
+
+        <dt>
+
+          <code><a href="glwd_water_fraction.html">glwd_water_fraction()</a></code>
+
+        </dt>
+        <dd>Derive the lake-and-river fraction of each 0.5-degree cell from GLWD</dd>
+
+        <dt>
+
+          <code><a href="read_glaciated_areas.html">read_glaciated_areas()</a></code>
+
+        </dt>
+        <dd>Read the Natural Earth glaciated-areas ice layer</dd>
+
+        <dt>
+
+          <code><a href="read_luh2_terrestrial.html">read_luh2_terrestrial()</a></code>
+
+        </dt>
+        <dd>Read the LUH2 terrestrial-area validation layer</dd>
+      </dl></div><div class="section level2">
       <h2 id="constant-territory-back-casting">Constant-territory back-casting<a class="anchor" aria-label="anchor" href="#constant-territory-back-casting"></a></h2>
 
       <div class="section-desc"><p>Rebuild historical series onto a fixed reference-year’s boundaries by dasymetric spatial reallocation, optionally weighted by LPJmL/WHEP gridded covariates.</p></div>

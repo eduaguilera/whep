@@ -239,15 +239,15 @@ flags, years, timestamp, and package version.</p></li>
 <span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>, <span class="fl">2000L</span>,          <span class="fl">500</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">country_grid</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">lon</span>,  <span class="op">~</span><span class="va">lat</span>, <span class="op">~</span><span class="va">area_code</span>,</span></span>
-<span class="r-in"><span>   <span class="fl">0.25</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,</span></span>
-<span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span></span></span>
+<span class="r-in"><span>  <span class="op">~</span><span class="va">lon</span>,  <span class="op">~</span><span class="va">lat</span>, <span class="op">~</span><span class="va">area_code</span>, <span class="op">~</span><span class="va">cell_area_frac</span>,</span></span>
+<span class="r-in"><span>   <span class="fl">0.25</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,               <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>   <span class="fl">0.75</span>, <span class="fl">50.25</span>,         <span class="fl">1L</span>,               <span class="fl">1</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="build_gridded_landuse.html">build_gridded_landuse</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">country_areas</span>, <span class="va">crop_patterns</span>, <span class="va">gridded_cropland</span>, <span class="va">country_grid</span>,</span></span>
 <span class="r-in"><span>  config <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>years <span class="op">=</span> <span class="fl">2000L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0.03s)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> →   Year 2000: 2 rows (alloc 0.01s, cap 0.02s)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 11</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>

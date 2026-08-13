@@ -95,7 +95,11 @@ crop and year, with <code>total_c_input_mgc_ha_yr</code> and <code>humified_frac
 area-weight the crop densities); <code>grass_natural</code> (the
 <code><a href="build_grass_natural_carbon_inputs.html">build_grass_natural_carbon_inputs()</a></code> output at the class grain); and
 optional <code>land_use</code> (per-cell class <code>area_ha</code>, used to area-weight
-grassland/natural polity output). When
+grassland/natural polity output); and <code>country_grid</code>, the polycell support
+resolved to one row per cell and <code>area_code</code>, from which <code>crop_area</code> is
+derived when absent. It is the same support <code><a href="build_soil_carbon_inputs.html">build_soil_carbon_inputs()</a></code>
+reads, so the weights and the carbon they weight can never come from two
+different crosswalks. When
 <code>cropland</code> or <code>grass_natural</code> are absent the respective builder is called
 with the remaining members of <code>data</code>.</p></dd>
 

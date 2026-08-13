@@ -13,7 +13,23 @@ the static pattern raster, or its pattern area sums to zero in the polity)
 is instead spread uniformly across the polity's cropland cells, weighted by
 each cell's cropland area, so the grid output still re-aggregates to the
 polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen."><meta property="og:description" content="Promotes a single polity-total nitrogen input (one row per year,
+and the reallocated nitrogen.
+Both grid weights carry a polity share of the cell, because a border cell's
+cropland belongs to more than one polity. That share is a polycell's
+land_area_ha over the cell's total land_area_ha, the share of the cell's
+land build_polycell_support() measures geodesically. The transitional
+alternative is polity_frac, the subcell-count share build_cell_polity()
+carries, which is quantised to 1/36 of a cell.
+The share is of the cell's land, never land_area_ha / cell_area_ha:
+what it splits is already land-only (LUH2 cropland hectares), so dividing by
+the whole cell would remove the inland water and ice a second time. And it
+is a share, never an absolute area: crop_pattern_ha * land_area_ha
+would weight every cell a second time by its own size and is no partition of
+the cell at all.
+Because the cell weights are renormalised within each polity-crop-year,
+either key redistributes the polity total and neither can change it.
+Swapping the key moves where the nitrogen lands, never how much of it
+there is."><meta property="og:description" content="Promotes a single polity-total nitrogen input (one row per year,
 area_code, for one fertiliser type) to the crop level by the same
 harvested-area-share logic used by
 build_crop_soil_n2o_extension() (year/area_code-matched, weighted by
@@ -27,7 +43,23 @@ the static pattern raster, or its pattern area sums to zero in the polity)
 is instead spread uniformly across the polity's cropland cells, weighted by
 each cell's cropland area, so the grid output still re-aggregates to the
 polity total. Such reallocations emit a warning naming the affected crops
-and the reallocated nitrogen."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+and the reallocated nitrogen.
+Both grid weights carry a polity share of the cell, because a border cell's
+cropland belongs to more than one polity. That share is a polycell's
+land_area_ha over the cell's total land_area_ha, the share of the cell's
+land build_polycell_support() measures geodesically. The transitional
+alternative is polity_frac, the subcell-count share build_cell_polity()
+carries, which is quantised to 1/36 of a cell.
+The share is of the cell's land, never land_area_ha / cell_area_ha:
+what it splits is already land-only (LUH2 cropland hectares), so dividing by
+the whole cell would remove the inland water and ice a second time. And it
+is a share, never an absolute area: crop_pattern_ha * land_area_ha
+would weight every cell a second time by its own size and is no partition of
+the cell at all.
+Because the cell weights are renormalised within each polity-crop-year,
+either key redistributes the polity total and neither can change it.
+Swapping the key moves where the nitrogen lands, never how much of it
+there is."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -82,6 +114,22 @@ is instead spread uniformly across the polity's cropland cells, weighted by
 each cell's cropland area, so the grid output still re-aggregates to the
 polity total. Such reallocations emit a warning naming the affected crops
 and the reallocated nitrogen.</p>
+<p>Both grid weights carry a polity share of the cell, because a border cell's
+cropland belongs to more than one polity. That share is a polycell's
+<code>land_area_ha</code> over the cell's total <code>land_area_ha</code>, the share of the cell's
+land <code><a href="build_polycell_support.html">build_polycell_support()</a></code> measures geodesically. The transitional
+alternative is <code>polity_frac</code>, the subcell-count share <code><a href="build_cell_polity.html">build_cell_polity()</a></code>
+carries, which is quantised to 1/36 of a cell.</p>
+<p>The share is of the cell's <strong>land</strong>, never <code>land_area_ha / cell_area_ha</code>:
+what it splits is already land-only (LUH2 cropland hectares), so dividing by
+the whole cell would remove the inland water and ice a second time. And it
+is a <strong>share</strong>, never an absolute area: <code>crop_pattern_ha * land_area_ha</code>
+would weight every cell a second time by its own size and is no partition of
+the cell at all.</p>
+<p>Because the cell weights are renormalised within each polity-crop-year,
+either key redistributes the polity total and neither can change it.
+Swapping the key moves <strong>where</strong> the nitrogen lands, never how much of it
+there is.</p>
     </div>
 
     <div class="section level2">
@@ -91,6 +139,7 @@ and the reallocated nitrogen.</p>
 <span>  <span class="va">crop_shares</span>,</span>
 <span>  <span class="va">cell_polity</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"polity_crop"</span>, <span class="st">"grid"</span><span class="op">)</span>,</span>
+<span>  split <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"land_area_ha"</span>, <span class="st">"polity_frac"</span><span class="op">)</span>,</span>
 <span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -113,9 +162,20 @@ crop-area-share helper.</p></dd>
 
 
 <dt id="arg-cell-polity">cell_polity<a class="anchor" aria-label="anchor" href="#arg-cell-polity"></a></dt>
-<dd><p>The <code><a href="build_cell_polity.html">build_cell_polity()</a></code>-shaped crosswalk (<code>lon</code>,
-<code>lat</code>, <code>area_code</code>, <code>polity_frac</code>, <code>cell_area_ha</code>). Only required when
-<code>resolution</code> includes <code>"grid"</code>.</p></dd>
+<dd><p>The cell-to-polity support (<code>lon</code>, <code>lat</code>, <code>area_code</code>,
+<code>cell_area_ha</code> and the <code>split</code> key column). Only required when
+<code>resolution</code> includes <code>"grid"</code>. Rows are keyed on <code>area_code</code>:
+<code><a href="build_polycell_support.html">build_polycell_support()</a></code> keys on <code>polity_code</code> and does not derive the
+reporting vocabulary (DA-23), and <code>polity_area_crosswalk</code> folds distinct
+polities into one <code>area_code</code> or leaves it <code>NA</code>, so a support must be
+converted to one row per cell and <code>area_code</code> <strong>before</strong> it is passed
+here. That conversion is refused rather than performed silently. The share
+denominator is the land of the rows supplied, so a caller that simply
+drops the unkeyable polycells renormalises the survivors onto the whole
+cell and hands them hectares that are not theirs, invisibly, because the
+shares still sum to 1. Keep that land in the denominator instead, under a
+bucket no <code>country_totals</code> row can join: it then dilutes nobody's share
+and receives no nitrogen.</p></dd>
 
 
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>
@@ -123,6 +183,16 @@ crop-area-share helper.</p></dd>
 <code>year</code>/<code>area_code</code>/<code>item_cbs_code</code> totals only) or <code>"grid"</code> (also
 distributes to <code>lon</code>/<code>lat</code> grid cells; requires <code>crop_patterns</code> and
 <code>type_cropland</code> in <code>data</code>).</p></dd>
+
+
+<dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>
+<dd><p>Which polity share of the cell weights each grid cell:
+<code>"auto"</code> (default) takes <code>land_area_ha</code> when the support carries it and
+<code>polity_frac</code> otherwise; <code>"land_area_ha"</code> and <code>"polity_frac"</code> demand that
+key and abort when it is absent. The resolved key is recorded in the
+<code>method_polity_split</code> output column, so a table's split is readable from
+the table. Read only at <code>resolution = "grid"</code>; the <code>"polity_crop"</code> output
+splits nothing across cells.</p></dd>
 
 
 <dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
@@ -154,10 +224,10 @@ of <code>crop_patterns</code> via <a href="items_prod_full.html">items_prod_full
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. For <code>resolution = "polity_crop"</code>: <code>year</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>n_t</code>. For <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>,
-<code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, <code>n_t</code>. Either gains
-<code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>; this
-output carries no reporting-polity columns, so the flag is attached
-directly rather than derived from them.</p>
+<code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, <code>n_t</code> and <code>method_polity_split</code>.
+Either gains <code>reporting_polity_out_of_span</code> when
+<code>polity_validity = "flag"</code>; this output carries no reporting-polity
+columns, so the flag is attached directly rather than derived from them.</p>
     </div>
 
     <div class="section level2">

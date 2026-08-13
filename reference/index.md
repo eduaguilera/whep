@@ -38,6 +38,31 @@ comparison.
 - [`build_gridded_livestock()`](https://eduaguilera.github.io/whep/reference/build_gridded_livestock.md)
   : Build gridded livestock dataset
 
+## Polycell spatial support
+
+Build the canonical spatial support unit, the polycell: a 0.5-degree
+grid cell intersected with a polity over its validity interval, carrying
+the territory decomposed into land, inland water and ice so that
+polycells re-aggregate to a polity without value change or cross-border
+leakage.
+
+- [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  : Build the polycell spatial support table
+- [`expand_polycell_years()`](https://eduaguilera.github.io/whep/reference/expand_polycell_years.md)
+  : Expand the interval-keyed polycell support to one row per year
+- [`polycell_example_geometries()`](https://eduaguilera.github.io/whep/reference/polycell_example_geometries.md)
+  : A minimal polity geometry table for examples and smoke tests
+- [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  : Read the polycell support table from its registered pin
+- [`read_glwd_water()`](https://eduaguilera.github.io/whep/reference/read_glwd_water.md)
+  : Read the GLWD inland-water fraction on the 0.5-degree grid
+- [`glwd_water_fraction()`](https://eduaguilera.github.io/whep/reference/glwd_water_fraction.md)
+  : Derive the lake-and-river fraction of each 0.5-degree cell from GLWD
+- [`read_glaciated_areas()`](https://eduaguilera.github.io/whep/reference/read_glaciated_areas.md)
+  : Read the Natural Earth glaciated-areas ice layer
+- [`read_luh2_terrestrial()`](https://eduaguilera.github.io/whep/reference/read_luh2_terrestrial.md)
+  : Read the LUH2 terrestrial-area validation layer
+
 ## Constant-territory back-casting
 
 Rebuild historical series onto a fixed reference-year’s boundaries by

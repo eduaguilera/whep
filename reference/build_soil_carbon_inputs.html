@@ -116,8 +116,12 @@ per <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>, colu
 case-insensitively), and <code>territory</code> a stringified <code>area_code</code> – an
 <code>iso3c</code> literal is still resolved but deprecated, see
 <code><a href="estimate_n_excretion.html">estimate_n_excretion()</a></code>);
-<code>country_grid</code> and <code>crop_patterns</code> (the spatialization inputs,
-<code>crop_patterns</code> carrying per-cell <code>crop_area_ha</code>); <code>harvested_area</code> (the
+<code>country_grid</code>, the polycell support resolved to one row per cell and
+<code>area_code</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, <code>cell_area_frac</code>, the polycell's
+share of the cell's land), refused when a cell-<code>area_code</code> group is
+duplicated or <code>NA</code> (DA-23);
+<code>crop_patterns</code> (the spatialization input carrying per-cell
+<code>crop_area_ha</code>); <code>harvested_area</code> (the
 FAOSTAT national harvested area per <code>area_code</code>, <code>item_prod_code</code>, <code>year</code>
 in a <code>faostat_area_ha</code> column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are

@@ -55,9 +55,12 @@ build_soil_carbon_inputs(
   (matched case-insensitively), and `territory` a stringified
   `area_code` – an `iso3c` literal is still resolved but deprecated, see
   [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md));
-  `country_grid` and `crop_patterns` (the spatialization inputs,
-  `crop_patterns` carrying per-cell `crop_area_ha`); `harvested_area`
-  (the FAOSTAT national harvested area per `area_code`,
+  `country_grid`, the polycell support resolved to one row per cell and
+  `area_code` (`lon`, `lat`, `area_code`, `cell_area_frac`, the
+  polycell's share of the cell's land), refused when a cell-`area_code`
+  group is duplicated or `NA` (DA-23); `crop_patterns` (the
+  spatialization input carrying per-cell `crop_area_ha`);
+  `harvested_area` (the FAOSTAT national harvested area per `area_code`,
   `item_prod_code`, `year` in a `faostat_area_ha` column, used to
   renormalize each polity-crop-year's spatialized cell area to the
   national total so per-hectare densities are the national density and

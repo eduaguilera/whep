@@ -159,6 +159,15 @@ argument (the <code><a href="redistribute_feed.html">redistribute_feed()</a></co
 <code>gridded</code> (its land-surface layer) and <code>resolution</code>/<code>methods</code>
 (forwarded as-is).</p></li>
 <li><p><code>nhx</code>, <code>noy</code>, <code>cell_polity</code>: <code><a href="build_n_deposition.html">build_n_deposition()</a></code>'s inputs.</p></li>
+<li><p><code>deposition_scope</code>: which of a polycell's territory the <code>"deposition"</code>
+term is credited with. <code>"territory"</code> (default) is land plus inland
+water plus ice: nitrogen deposited on a lake or a glacier still drives
+indirect N2O and still reaches the eutrophication pathway, so the
+impact terms have to account for it. <code>"land"</code> is the terrestrial
+surface alone, for purposes that want it, and it needs a <code>cell_polity</code>
+carrying <code>land_area_ha</code>, <code>inland_water_ha</code> and <code>ice_area_ha</code>; asking
+for it without them aborts rather than silently returning the whole
+territory. Recorded in <code>method_deposition_scope</code>.</p></li>
 <li><p><code>ag_land_support</code>: agricultural physical land support keyed by <code>lon</code>,
 <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>item_cbs_code</code>, with <code>land_use</code>
 (<code>"cropland"</code> or <code>"grassland"</code>) and positive <code>area_ha</code>. Optional: when
@@ -207,17 +216,20 @@ real data. Defaults to <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble. At <code>resolution = "grid"</code>: <code>lon</code>, <code>lat</code>, <code>area_code</code>,
 <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>n_input_t</code>,
-<code>method_recycling_n</code>, <code>method_synthetic</code>. At <code>resolution = "polity"</code>:
-<code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>, <code>fert_type</code>, <code>method_recycling_n</code>,
-<code>method_synthetic</code>, <code>n_input_t</code> (summed over cells).
+<code>method_recycling_n</code>, <code>method_synthetic</code>, <code>method_deposition_scope</code>. At
+<code>resolution = "polity"</code>: <code>area_code</code>, <code>item_cbs_code</code>, <code>year</code>,
+<code>fert_type</code>, <code>method_recycling_n</code>, <code>method_synthetic</code>,
+<code>method_deposition_scope</code>, <code>n_input_t</code> (summed over cells).
 <code>method_recycling_n</code> records which residue basis the <code>"recycling"</code> term
 used: <code>"residue_soil_returned"</code> when the upstream NPP input supplied
 <code>residue_soil_dm_t</code> (residue N net of removal for feed/fuel/burning) or
 <code>"total_residue"</code> when only gross residue N was available; it is <code>NA</code> for
 every other <code>fert_type</code>. <code>method_synthetic</code> records the synthetic
 crop-split basis (<code>"coello"</code> or <code>"area_share"</code>) on <code>"synthetic"</code> rows and
-is <code>NA</code> for every other <code>fert_type</code>. Both grains also carry the polity
-columns below.</p>
+is <code>NA</code> for every other <code>fert_type</code>. <code>method_deposition_scope</code> records
+which of the polycell's territory the <code>"deposition"</code> term was credited
+with (<code>"territory"</code> or <code>"land"</code>) and is <code>NA</code> for every other <code>fert_type</code>.
+Both grains also carry the polity columns below.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
@@ -261,7 +273,7 @@ column.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">build_n_inputs</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 13</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 14</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code polity_area_code reporting_polity_code reporting_polity_name</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
@@ -273,9 +285,10 @@ column.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span>  <span style="text-decoration: underline;">2</span>020         1                1 ARM-1991-2025         Armenia              </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 8 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 9 more variables: reporting_polity_has_geometry &lt;lgl&gt;, lon &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   lat &lt;dbl&gt;, item_cbs_code &lt;int&gt;, fert_type &lt;chr&gt;, n_input_t &lt;dbl&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_recycling_n &lt;chr&gt;, method_synthetic &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   method_deposition_scope &lt;chr&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

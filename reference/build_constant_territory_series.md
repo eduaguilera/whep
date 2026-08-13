@@ -61,18 +61,43 @@ build_constant_territory_series(
 
 - ref_year:
 
-  Integer. Target boundaries are the polities active in this year.
-  `end_year` is exclusive (see
-  [polities](https://eduaguilera.github.io/whep/reference/polities.md)),
-  so "active" means `start_year <= ref_year < end_year` and a polity
-  does not answer for the year its successor takes over. The same
-  reading selects the sources of each data year.
+  Integer. Target boundaries are the polities active in this year, under
+  the validity convention described for `polities`: a polity does not
+  answer for the year its successor takes over. The same reading selects
+  the sources of each data year.
 
 - polities:
 
   An `sf` of polity polygons with `polity_code`, `start_year`,
-  `end_year` and geometry. Defaults to
-  [`get_polity_geometries()`](https://eduaguilera.github.io/whep/reference/get_polity_geometries.md).
+  `end_year` and geometry, plus an **optional** `wiki_status` whose
+  effect is described below. Defaults to
+  [`get_polity_geometries()`](https://eduaguilera.github.io/whep/reference/get_polity_geometries.md),
+  which supplies it. `start_year` is inclusive; `end_year` is
+  **exclusive at a succession** and **inclusive at the open end**. So
+  2014 resolves to `"RUS-2014-2025"`, never to `"RUS-1991-2014"`, while
+  2025 still resolves to `"RUS-2014-2025"` because nothing succeeds it.
+  An interval counts as open when it ends on the last year the supplied
+  table covers and no later-starting interval of the same polity follows
+  it. Where the table still carries overlapping intervals for one
+  polity, the interval starting on the resolved year wins, then the
+  latest-starting one, and finally – **only when `wiki_status` is
+  supplied** – a live interval beats a `"retired"` or `"superseded"`
+  one.
+
+  That last key is the one behavioural difference between the two call
+  styles, and it is stated here rather than left implicit. **Supplying
+  only the three required columns is legal and keeps the older,
+  status-blind ordering**, under which a shared start year is decided by
+  nothing at all and an interval upstream has already replaced can take
+  the year from the one that replaced it. On the shipped
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  snapshot that is 1,344 polity-years across 10 polities, of which one
+  moves territory rather than only a label: 1913 and 1914 resolve to
+  `"MNE-1913-1915"` (0.9923 Mha) instead of `"MNE-1913-1918"` (1.5893
+  Mha), a Montenegro 37.6% too small. Pass `wiki_status` – as the
+  default does – to get the live interval. `wiki_status` never selects
+  which years an interval covers; it breaks a tie between two intervals
+  that both cover the resolved year.
 
 - covariate:
 

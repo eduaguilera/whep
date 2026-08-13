@@ -2,6 +2,228 @@
 
 ## whep (development version)
 
+- **The polycell is now WHEP’s spatial support unit, and it carries a
+  measured territory instead of a whole grid cell.**
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  returns one row per 0.5-degree cell intersected with a polity over
+  that polity’s validity interval, with the territory decomposed into
+  `polity_area_ha = land_area_ha + inland_water_ha + ice_area_ha`, all
+  geodesic from a spherical (`s2`) intersection of the polity polygons.
+  Aggregating polycells to a polity changes no absolute value and no
+  quantity crosses a border it does not belong to, which neither of the
+  two conventions it replaces could offer: centroid assignment gave a
+  whole border cell to one polity, and the fractional crosswalk
+  multiplied a valid partition of the land by the **whole cell’s** area.
+  That last defect over-counted the global land base by **11.0%** –
+  14.3195 Gha of whole cells against 12.9931 Gha of LUH2 terrestrial
+  area – and it is the mechanism behind the inflated per-hectare
+  deposition rates. New:
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md),
+  [`expand_polycell_years()`](https://eduaguilera.github.io/whep/reference/expand_polycell_years.md),
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md),
+  [`read_glwd_water()`](https://eduaguilera.github.io/whep/reference/read_glwd_water.md),
+  [`read_glaciated_areas()`](https://eduaguilera.github.io/whep/reference/read_glaciated_areas.md),
+  [`read_luh2_terrestrial()`](https://eduaguilera.github.io/whep/reference/read_luh2_terrestrial.md)
+  and
+  [`polycell_example_geometries()`](https://eduaguilera.github.io/whep/reference/polycell_example_geometries.md).
+
+  - **Four definitions of “land” are live and they disagree by up to
+    10%**, so a global area is only interpretable next to the one it was
+    measured on. At 2015: whole 0.5-degree cells **14.3195 Gha**, HaNi’s
+    own land mask **13.5977 Gha**, the union of the live polity polygons
+    **13.4267 Gha**, LUH2 terrestrial `(1 - icwtr) * carea` **12.9931
+    Gha**. The support table’s territory is the third, but *summing*
+    `polity_area_ha` does not reproduce it: the union is unique ground,
+    while a sum counts shared ground once per claiming polity, so the
+    sum at 2015 is **13.4599 Gha**, above the union by the **0.0332
+    Gha** two live polities both claim. The fourth is a validation layer
+    whose disagreement is emitted in the `"unassigned"` attribute and
+    never silently reconciled; the first is the convention being
+    replaced. A fifth mask (the GLWD water layer’s CRU mask, 67,420
+    cells) is reconciled in `"water_unmatched"` rather than joined away.
+    Re-derivable with `inst/scripts/diagnose_polycell_support.R`; the
+    polygon row moves with the polity vintage and is measured by
+    `inst/scripts/reconcile_polity_areas.R`.
+  - **`ice_area_ha` does not vary historically.** It comes from
+    `ne_10m_glaciated_areas`, a coarse present-day snapshot, so a
+    historical run carries today’s ice extent and land that lay under
+    ice in 1850 is credited to `land_area_ha`. That is accepted **only**
+    because ice is a reporting category and not a driver: nothing
+    divides by `ice_area_ha` or drives a flux with it. If ice ever
+    becomes a driver the source has to be reopened. Inland water comes
+    from the GLWD lakes-and-rivers layer at 30 arcmin (Ostberg et
+    al. 2023, <https://doi.org/10.5194/gmd-16-3375-2023>), not from
+    `ne_10m_lakes`, which carries roughly half of global inland water
+    and omits the Caspian.
+  - **The table keys on `polity_code` and nothing else.** `area_code`
+    rides along as a label. `polity_area_crosswalk` folds 505 polity
+    codes into 201 reporting buckets, 113 of which hold more than one
+    polity and one of which
+    206. holds Sudan and South Sudan simultaneously, so a table whose
+         purpose is correct territorial attribution is not keyed on it.
+         Consumers convert at their own boundary, and **that conversion
+         is where the lossy fold happens** – visible at the consumer
+         rather than hidden in the support.
+         [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
+         refuses an unconverted support instead of converting one
+         silently.
+  - The default grain is interval-keyed, one row per polycell per
+    interval, because no area column varies by year;
+    [`expand_polycell_years()`](https://eduaguilera.github.io/whep/reference/expand_polycell_years.md)
+    gives the per-year view on demand. `start_year` is inclusive and
+    `end_year` is **exclusive at a succession** but **inclusive at the
+    open end**, so a handover year resolves to the successor alone and
+    the current year still resolves to the polity nothing succeeds.
+  - **A repeated polycell key now aborts instead of losing territory in
+    silence.** The interval split reads the next breakpoint with
+    [`dplyr::lead()`](https://dplyr.tidyverse.org/reference/lead-lag.html),
+    which is the next breakpoint only while
+    `(cell_id, polity_code, start_year, end_year)` is unique. Two rows
+    sharing it interleave, every second row comes back with
+    `end_year == start_year`, and an empty interval resolves to no year
+    at all: measured on a two-piece fixture, 70 of a polycell’s 100 ha
+    resolved to nothing at every year of its life, with no error, no
+    warning and every conservation check still passing.
+    [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+    now aborts with class `"whep_pcs_repeated_key"`, naming the count
+    and up to three offending keys. It does not sum the duplicates: a
+    repeated key means the geometry table is not one row per polity
+    interval, and repairing the arithmetic would leave the fan-out that
+    produced it invisible. **No published value changes**: the shipped
+    753-row polity table repeats no
+    `(polity_code, start_year, end_year)` among the 666 rows that get
+    clipped, so no production build reaches the guard, and any input
+    that did not carry a repeated key returns exactly the table it
+    returned before.
+
+- **Atmospheric deposition is now split as a mass over territory, and
+  its two land definitions are separated.**
+  [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
+  splits each cell’s HaNi mass across the polities holding the cell in
+  proportion to `polity_area_ha` (`split = "auto"` takes it when the
+  support carries it and the old `polity_frac` otherwise; either can be
+  demanded explicitly, and a demand that cannot be met aborts), then
+  decomposes each polity’s share over land, inland water and ice
+  (`categories = "auto"`). Both choices are recorded in
+  `method_polity_split` and `method_area_split`, so a table’s split is
+  readable from the table.
+
+  - **WHEP’s territory governs *placement*; HaNi’s land mask governs the
+    *total*.** The mass placed is HaNi’s block sum, and HaNi is
+    referenced to the whole 5 arcmin cell inside a land-masked domain
+    whose mask is a third land definition at 13.5977 Gha. Nothing
+    re-references the mass to WHEP’s land: forming a rate on the whole
+    cell and multiplying by `land_area_ha` would shed about 9% of the
+    source mass, and re-referencing to HaNi’s own mask would move the
+    global total by about 4.5%. A global sum out of this function is
+    therefore HaNi’s total redistributed onto WHEP’s territory,
+    conserved exactly against the source (34.77 Tg NHx in 2014). Source:
+    Tian et al. 2022, <https://doi.org/10.5194/essd-14-4551-2022>.
+  - **Deposition scope is selectable and defaults to the whole
+    territory.** `build_n_inputs(data = list(deposition_scope = ))`
+    takes `"territory"` (default: land plus inland water plus ice) or
+    `"land"`, recorded in `method_deposition_scope`. The default is a
+    scientific choice, not a conservative one: nitrogen deposited on a
+    lake or a glacier still drives indirect N2O and still reaches the
+    eutrophication pathway, so restricting the ledger to the terrestrial
+    share would discard 0.89 Tg N of real flux that the impact terms
+    have to account for. `"land"` remains available for the purposes
+    that want it and aborts if the support cannot be decomposed, rather
+    than silently returning the whole territory. Under the default the
+    ledger output is bit-identical to before the split.
+  - **Known limitation, not a rounding error:** **eight** reporting
+    areas the deployed crosswalk carries – 61 Equatorial Guinea, 153 New
+    Caledonia, 154 North Macedonia, 209 Eswatini, 212 Syria, 299
+    Palestine, 276 Sudan and 277 South Sudan – receive no deposition
+    through the polycell path. The first six fold onto `ROW-1850-2025`
+    (`polity_area_code` 999, `fabio_row_fold`) while their own `GNQ-`,
+    `NCL-`, `MKD-`, `SWZ-`, `SYR-` and `PSE-` codes resolve onto that
+    same bucket 999 through the `fabio_row_promoted` rows added in
+    [\#785](https://github.com/eduaguilera/whep/issues/785), so their
+    territory is folded into Rest of World rather than dropped: measured
+    on this snapshot, `GNQ-1968-2025` builds 18 polycells (2,702,545 ha)
+    and `MKD-1991-2025` 21 (2,539,428 ha), every row stamped
+    `area_code` 999. Before
+    [\#785](https://github.com/eduaguilera/whep/issues/785) these codes
+    carried no crosswalk row and were dropped outright, so the territory
+    is now retained but still not attributed to the reporting area.
+    Sudan and South Sudan do resolve, but both onto 206, Sudan (former),
+    so neither 276 nor 277 is reachable on its own. **The gap is
+    identity, not extent**: of the six with a directly comparable
+    official area, all sit within 3.7% of it (Syria +0.90%, North
+    Macedonia -1.23%, Eswatini -1.30%, New Caledonia +1.17%, Palestine
+    +3.22%, Equatorial Guinea -3.65%). **Fiji is no longer among them**:
+    since the polities refresh in
+    [\#662](https://github.com/eduaguilera/whep/issues/662) the
+    crosswalk maps area 66 onto `FJI-1800-2025` through `upstream_map`,
+    and the polycell build returns 60 polycells holding 1,871,003 ha,
+    all measured on `s2`, reproducing the polity’s own polygon area
+    exactly. How this ranks against the ledger’s other open terms has
+    not been measured, so no claim is made about it.
+
+- **Migrating a consumer onto the polycell: what to change and what
+  moved.** The transitional shim that let
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  masquerade as the old crosswalk (a `polity_frac` column plus padding
+  rows for cells the intersection did not reproduce) is **gone**. A
+  consumer that used to multiply a rate by `cell_area_ha * polity_frac`
+  now multiplies it by `polity_area_ha`, or by `land_area_ha` when the
+  quantity is genuinely terrestrial, and converts `polity_code` to its
+  own reporting vocabulary before joining. Migrated here: deposition
+  ([`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)),
+  the synthetic-N grid split, the carbon path
+  ([`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  and its land inputs) and the compartment keying in `spatialize()` /
+  `spatialize_livestock()`, which now **abort** on a support carrying no
+  polity share instead of defaulting `cell_area_frac = 1` and handing a
+  border cell wholly to one polity.
+
+  - **Measured movement, at polity grain**, is entirely in the
+    deposition input term: `n_input_full_t` -0.504%, `n_balance_t`
+    -2.252%, `surplus_t` -1.055%, `total_gwp_co2e_kg` -0.137%. Of the
+    -678,612.5 t N, **95.6% (-648,491.3 t) is unreachable reporting
+    areas** and only -30,121.2 t (0.107% of the term) is geometry,
+    dominated by Canada (-1.03%). The split key itself moves 27 of 28
+    ledger quantities by exactly zero and the 28th by one ulp; the
+    synthetic term moves by exactly 0 t. **Basis, because it has since
+    moved:** this was measured on the polity vintage *before*
+    [\#662](https://github.com/eduaguilera/whep/issues/662), on which
+    Fiji was unreachable too, so the unreachable share above spans
+    **nine** areas rather than the eight that remain. Fiji’s part of it
+    has not been re-measured – doing so needs the HaNi deposition
+    rasters, which the measuring environment does not carry – so the
+    figure is left as measured and its basis named rather than restated
+    over a population it was not measured on.
+  - **The island states are fixed.** Against official land areas,
+    Kiribati goes from **34.3x** to **1.18**, Micronesia 17.5x to 1.00,
+    French Polynesia 15.3x to 1.16, Maldives 10.3x to 0.58 – they used
+    to draw a whole 0.5-degree cell each while carrying no LUH2
+    terrestrial area at all.
+  - **Greenland reads as +419% against FAOSTAT and is not a defect**:
+    FAO’s country area for Greenland “refers to area free from ice”, so
+    the comparable quantity is WHEP’s territory minus its 177.5 Mha of
+    ice, which reads -12.9%.
+  - **Six `polity_frac` call sites remain and are deliberate.** Dropping
+    `"polity_frac"` from
+    [`utils::globalVariables()`](https://rdrr.io/r/utils/globalVariables.html)
+    was used as a detector, and it named exactly six unqualified uses:
+    `.wb_finalise()`, `.wb_drop_polity_cols()` and
+    `.wb_aggregate_polity()` in `water_balance.R`,
+    [`aggregate_grass_to_polity()`](https://eduaguilera.github.io/whep/reference/aggregate_grass_to_polity.md)
+    in `feed_lpjml.R`, `.grass_to_cells()` in
+    `feed_intake_redistribute.R`, and `.read_fraction_country_grid()` in
+    `run_spatialize.R`. All four files are out of scope for this
+    migration – the water balance is owned elsewhere, the feed path is
+    frozen, and `.read_fraction_country_grid()` reads the deployed
+    crosswalk on purpose – and they are **not** an oversight or an
+    unfinished migration. The detector has done its job, so
+    `"polity_frac"` is **restored** to
+    [`utils::globalVariables()`](https://rdrr.io/r/utils/globalVariables.html)
+    and `R CMD check` is back to `Status: OK`. Without it the check
+    reported `Status: 1 NOTE` where merge-base main was `Status: OK`, on
+    a check CI cannot fail: `check-r-package@v2` defaults
+    `error-on: warning`.
+
 - **A traded item with no production row now balances instead of
   vanishing.** `.reestimate_domestic_supply()` derives a last-resort
   domestic supply from `production + import - export` for rows that

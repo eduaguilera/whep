@@ -150,7 +150,15 @@ and <code>irrig</code> (LPJmL monthly, <code>lon</code>, <code>lat</code>, <code
 <code>clay_pct</code>, required), <code>cell_polity</code> (<code>lon</code>, <code>lat</code>, <code>area_code</code>, the polity
 crosswalk, required) and <code>soil_hydraulic</code> (<code>lon</code>, <code>lat</code>, <code>t_field</code>,
 <code>t_wilt</code>, <code>porosity</code>; falls back to <code><a href="read_soil_hydraulic.html">read_soil_hydraulic()</a></code>, cropped to
-<code>cell_polity</code> when supplied).</p></dd>
+<code>cell_polity</code> when supplied).</p>
+<p><code>cell_polity</code> is used only to <strong>label</strong> each cell with an <code>area_code</code> and
+to restrict the grid to the cells it covers; no quantity here is ever
+multiplied by an area. It therefore decides this function's <strong>footprint</strong>,
+and callers that pass different crosswalks get different footprints from
+one function. The carbon path passes the polycell support
+(<code><a href="build_polycell_support.html">build_polycell_support()</a></code>, via <code><a href="read_polycell_support.html">read_polycell_support()</a></code>); the water path
+still passes <code><a href="build_cell_polity.html">build_cell_polity()</a></code> until it migrates, so the two footprints
+differ by the crosswalks' own difference until then.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

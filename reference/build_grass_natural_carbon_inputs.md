@@ -58,10 +58,12 @@ natural carbon inputs per the WHEP historical carbon-balance design.
   managed-grassland stand fractions with columns `lon`, `lat`, `year`,
   `name_pft`, `stand_frac`). Supplying all three of `npp`, `harvestc`
   and `stand_frac` derives `net_c` without needing a run directory or
-  the pin. Also: `country_grid` (`lon`, `lat`, `area_code`,
-  `cell_area_frac`); `land_use` (per-cell class `area_ha`, used to
-  spread excreta and to area-weight polity output); `excreta` (the
-  `applied` tibble of
+  the pin. Also: `country_grid`, the polycell support resolved to one
+  row per cell and `area_code` (`lon`, `lat`, `area_code`,
+  `cell_area_frac`), refused when a cell-`area_code` group is duplicated
+  or `NA` (DA-23); `land_use` (per-cell class `area_ha`, used to spread
+  excreta and to area-weight polity output); `excreta` (the `applied`
+  tibble of
   [`build_livestock_nutrient_flows()`](https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.md),
   grassland rows carry `applied_c` tonnes C); `residue_humification`
   (defaults to

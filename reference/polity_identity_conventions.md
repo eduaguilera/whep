@@ -70,9 +70,9 @@ A `tibble` with one row per registered object and the columns:
 
   One row of the object covers territory that changed hands, so the
   object needs a validity interval and has to become year-aware.
-  `build_polycell_support()` on the `edu/polycell-spatial-support`
-  branch is the worked precedent for the grid: one row per (cell,
-  polity, validity interval).
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  on the `edu/polycell-spatial-support` branch is the worked precedent
+  for the grid: one row per (cell, polity, validity interval).
 
 - `"identity_free"`:
 
