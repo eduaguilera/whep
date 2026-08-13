@@ -8,11 +8,11 @@
 # says has no animals/area but that carries spurious gridded mass is a
 # genuine conservation failure, not a perfect match, so it scores `Inf`.
 # Only a true zero-against-zero pair scores `0`.
-.conservation_rel_error <- function(gridded, reference) {
-  dplyr::case_when(
+.conservation_rel_error <- function(gridded,reference) {
+    dplyr::case_when(
     reference > 0 ~ abs(gridded - reference) / reference * 100,
-    gridded > 0 ~ Inf,
-    .default = 0
+      gridded > 0 ~ Inf,
+        .default = 0
   )
 }
 
