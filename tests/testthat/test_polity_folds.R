@@ -519,14 +519,16 @@ testthat::test_that("a promoted member does not publish as Rest of World", {
   own_bucket <- members$area_code == members$polity_area_code
   testthat::expect_true(all(own_bucket))
 
-  # 31 of the 61 members now carry a real territory. The rest are held to a
-  # DIFFERENT standard below, because upstream names no polity for them and
-  # inventing one here is what #717 argues against -- so this asserts the count
-  # the mapping supports, and `row_promotion_status()` says which is which.
+  # 47 of the 61 members now carry a real territory, up from 31 on 2026-08-13 when
+  # whep-polities added ten polities (#210), an iso3 for the trust territory (#210) and the
+  # sixteen FAOSTAT map rows that let any of them be reached (#212). The rest are held to a
+  # DIFFERENT standard below, because upstream names no polity for them and inventing one
+  # here is what #717 argues against -- so this asserts the count the mapping supports, and
+  # `row_promotion_status()` says which is which.
   with_identity <- unique(members$area_code[
     members$polity_code != "ROW-1850-2025"
   ])
-  testthat::expect_equal(length(with_identity), 31L)
+  testthat::expect_equal(length(with_identity), 47L)
   named <- members[members$area_code %in% with_identity, ]
   testthat::expect_true(all(named$polity_type != "aggregate"))
   testthat::expect_false(any(named$continent == "World"))
@@ -584,13 +586,16 @@ testthat::test_that("a member upstream does not name keeps the bucket", {
   # 999 is the residual itself, not a member of it, so it is not reported here.
   testthat::expect_false(999L %in% status$area_code)
 
-  # The 10 FAOSTAT land-use territories filed as whep-polities#209 are still on
-  # the bucket, because the FAOSTAT area map names none of them. When upstream
-  # adds those rows this fails, which is the notification.
-  awaiting <- c(270L, 36L, 224L, 163L, 164L, 172L, 258L, 82L, 281L, 279L)
+  # THE NOTIFICATION FIRED. This asserted "no_polity" for the ten FAOSTAT land-use
+  # territories of whep-polities#209, with the comment "when upstream adds those rows this
+  # fails, which is the notification". Upstream added them on 2026-08-13 -- the polities in
+  # #210, the map rows in #212 -- so all ten now carry their own territory and the assertion
+  # is inverted rather than deleted: the ten are named explicitly so a REGRESSION upstream
+  # would fail here too.
+  answered <- c(270L, 36L, 224L, 163L, 164L, 172L, 258L, 82L, 281L, 279L)
   testthat::expect_setequal(
-    status$status[status$area_code %in% awaiting],
-    "no_polity"
+    status$status[status$area_code %in% answered],
+    "own_polity"
   )
 
   cw <- as.data.frame(whep:::.polity_crosswalk())
@@ -600,19 +605,18 @@ testthat::test_that("a member upstream does not name keeps the bucket", {
     "ROW-1850-2025"
   )
 
-  # THE SHARPEST FORM OF THE NEAR MISS. Six members DO have a live territorial
-  # polity upstream and are still on the bucket, because no FAOSTAT map row
-  # names it for the area. Deriving the mapping from the ISO3 instead -- which
-  # is what the map's own `iso-equal` route does, so it looks like a
-  # simplification rather than a change -- would give all six a territory
-  # upstream never assigned them, and would empty this class rather than
-  # shrinking it the way an upstream fix does.
+  # THE NEAR MISS IS CLOSED, AND BY THE ROUTE THIS TEST INSISTED ON. It used to assert that
+  # six members DO have a live territorial polity upstream and are still on the bucket,
+  # because no FAOSTAT map row names it -- warning that deriving the mapping from the ISO3
+  # instead "would empty this class rather than shrinking it the way an upstream fix does".
+  #
+  # The class is empty as of 2026-08-13, and the upstream fix is what emptied it: whep-polities
+  # #212 added the missing map rows. The distinction the old comment drew is still checked, and
+  # it is the `map_match_route` assertion at the end of this test -- every promoted identity
+  # traces to an upstream map row, never to inference. So this now asserts the class is empty
+  # AND keeps the proof of HOW it emptied, which is the part worth guarding.
   unmapped <- status[status$status == "polity_unmapped", ]
-  testthat::expect_gt(nrow(unmapped), 0L)
-  testthat::expect_true(all(
-    unmapped$area_iso3c %in% whep:::.iso3_with_own_polity()
-  ))
-  testthat::expect_setequal(unmapped$polity_codes, "ROW-1850-2025")
+  testthat::expect_equal(nrow(unmapped), 0L)
   # Every identity that WAS handed out came from an upstream map row, never
   # from inference: `map_match_route` is upstream's record of how it decided.
   promoted_rows <- cw[cw$mapping_source %in% "fabio_row_promoted", ]
@@ -622,16 +626,27 @@ testthat::test_that("a member upstream does not name keeps the bucket", {
 testthat::test_that("row_promotion_status splits the members three ways", {
   status <- whep::row_promotion_status()
 
+  # THE SPLIT MOVED ON 2026-08-13, and the middle class emptied because this test named it
+  # precisely enough to act on. `polity_unmapped` was "the actionable upstream list: a live
+  # territorial polity exists for the ISO3 and only the map row is missing", and it held
+  # exactly six areas -- 22 Aruba, 71 French Southern Territories, 94 Holy See, 218 Tokelau,
+  # 243 Wallis and Futuna, 271 South Georgia. whep-polities#212 added the sixteen missing
+  # FAOSTAT map rows, which included all six.
+  #
+  #     own_polity       31 -> 47   the ten of #209/#210 plus these six
+  #     polity_unmapped   6 ->  0   the class this test existed to report
+  #     no_polity        24 -> 14   the fourteen that genuinely have no polity
+  #
+  # 47 + 0 + 14 = 61, unchanged. The `no_polity` fourteen are Antarctica, Bouvet, Heard and
+  # McDonald, Svalbard, the US-administered Pacific atolls, the Neutral Zone and the two
+  # accounting residuals UXY/OXY -- none of which is a territory that should get a polity.
   testthat::expect_equal(nrow(status), 61L)
-  testthat::expect_equal(sum(status$status == "own_polity"), 31L)
-  testthat::expect_equal(sum(status$status == "polity_unmapped"), 6L)
-  testthat::expect_equal(sum(status$status == "no_polity"), 24L)
-  # `polity_unmapped` is the actionable upstream list: a live territorial
-  # polity exists for the ISO3 and only the map row is missing.
-  testthat::expect_setequal(
-    status$area_code[status$status == "polity_unmapped"],
-    c(22L, 71L, 94L, 218L, 243L, 271L)
-  )
+  testthat::expect_equal(sum(status$status == "own_polity"), 47L)
+  testthat::expect_equal(sum(status$status == "polity_unmapped"), 0L)
+  testthat::expect_equal(sum(status$status == "no_polity"), 14L)
+  # Kept as an assertion rather than deleted: if any of those six loses its map row upstream
+  # it reappears here, and the class is actionable again.
+  testthat::expect_length(status$area_code[status$status == "polity_unmapped"], 0L)
   testthat::expect_setequal(
     status$polity_codes[status$status != "own_polity"],
     "ROW-1850-2025"

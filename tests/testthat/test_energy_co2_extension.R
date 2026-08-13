@@ -222,22 +222,38 @@ testthat::test_that("the unfold moves what the energy file reads", {
       5L,
       6L,
       17L,
+      22L,
+      36L,
       65L,
+      82L,
       85L,
+      94L,
       125L,
       140L,
       142L,
       161L,
+      163L,
+      172L,
       180L,
       190L,
       192L,
+      218L,
+      224L,
       239L,
-      240L
+      240L,
+      258L,
+      270L,
+      279L,
+      281L
     )
   )
+  # 164 joined on 2026-08-13, the same shape as the three below it: the Pacific Islands
+  # Trust Territory now resolves to TTPI-1947-1994, a period that ENDED, where the fold
+  # had hidden it behind ROW-1850-2025's open end. FAOSTAT stops reporting area 164 in
+  # 1990 and TTPI covers to 1993, so the gap this creates is latent -- no data falls in it.
   testthat::expect_setequal(
     setdiff(dissolved$area_code, refolded_dissolved$area_code),
-    c(42L, 88L, 187L)
+    c(42L, 88L, 164L, 187L)
   )
   # Everything added is a promoted member, and re-folding removes nothing else.
   testthat::expect_true(all(
@@ -273,7 +289,10 @@ testthat::test_that("polity_region groups an omitted area like its GLEAM peers",
   derived <- dplyr::filter(extended, .data$ef_scope == "polity_region")
   gaps <- .areas_gleam_cannot_group()
   testthat::expect_setequal(derived$iso3, gaps$area_iso3c)
-  testthat::expect_equal(nrow(derived), 16L)
+  # 16 -> 28 on 2026-08-13: sixteen Rest-of-World members gained their own polity upstream
+  # (whep-polities #209/#210/#212), so sixteen more areas get polity_region treatment instead
+  # of the bucket's. The setequal above is the invariant; this count follows it.
+  testthat::expect_equal(nrow(derived), 28L)
 
   # The peer set is taken on GLEAM's OWN continent vocabulary, which is what the
   # scheme rules are written against: the crosswalk splits the Americas in two
@@ -711,9 +730,11 @@ testthat::test_that("the dissolved set is derived, not typed in", {
   # the fold hid behind `ROW-1850-2025`, a period that runs to the open end and
   # so never looks dissolved. That upstream has no live successor period for
   # them is a coverage gap `polity_coverage_gaps()` now reports.
+  # 164 Pacific Islands Trust Territory joined on 2026-08-13, by the same mechanism: it now
+  # resolves to TTPI-1947-1994, whose period ended in 1994.
   testthat::expect_setequal(
     dissolved$area_code,
-    c(15L, 42L, 51L, 88L, 151L, 186L, 187L, 228L, 248L)
+    c(15L, 42L, 51L, 88L, 151L, 164L, 186L, 187L, 228L, 248L)
   )
   # The live omissions stay with whep#415's treatment ...
   testthat::expect_false(any(c(148L, 227L) %in% dissolved$area_code))
