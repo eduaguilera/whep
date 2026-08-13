@@ -114,14 +114,19 @@ t_start <- proc.time()
 
 cli::cli_h2("Individual crop spatialization")
 
+# The engine takes its optional inputs through `config`; passing them as bare
+# arguments (as this script did until C8) is an "unused arguments" error, so
+# the script could not run past this line.
 result_crops <- whep::build_gridded_landuse(
   country_areas = country_areas,
   crop_patterns = crop_patterns,
   gridded_cropland = gridded_cropland,
   country_grid = country_grid,
-  cft_mapping = NULL, # No aggregation → individual crops
-  type_cropland = type_cropland, # Per-type LUH2 cropland (NULL = fallback)
-  type_mapping = cft_mapping # item_prod_code → luh2_type for type-aware
+  config = list(
+    cft_mapping = NULL, # No aggregation -> individual crops
+    type_cropland = type_cropland, # Per-type LUH2 cropland (NULL = fallback)
+    type_mapping = cft_mapping # item_prod_code -> luh2_type for type-aware
+  )
 )
 
 elapsed <- (proc.time() - t_start)[["elapsed"]]
@@ -143,12 +148,12 @@ cli::cli_alert_success("Individual crops saved to {crop_path}")
 
 cli::cli_h2("CFT aggregation")
 
-compartment_cols <- intersect(
-  c("polycell_id", "cell_id", "area_code"),
-  names(result_crops)
-)
+# AM-5 risk 17: the compartment key is taken from the package helper, never
+# hand-copied. A literal that drifts from `.compartment_id_cols()` collapses
+# two polycells of one cell into one row at parquet-write time, silently and
+# after every test has passed.
 cft_group_cols <- unique(c(
-  compartment_cols,
+  whep:::.compartment_id_cols(result_crops),
   "lon",
   "lat",
   "year",
@@ -251,15 +256,17 @@ if (file.exists(yields_file)) {
     )
   }
 
-  # Join gridded areas with country-level yields
-  gridded_y <- (if ("area_code" %in% names(result_crops)) {
-    result_crops
-  } else {
-    dplyr::inner_join(result_crops, country_grid, by = c("lon", "lat"))
-  }) |>
+  # Join gridded areas with country-level yields. AM-5 risk 16: the engine
+  # always emits `area_code`, and re-attaching `country_grid` on (lon, lat)
+  # under a polycell grid is many-to-many -- it would duplicate every crop-year
+  # without a warning, because the join below already declares
+  # "many-to-many". Refuse instead of re-attaching.
+  stopifnot("area_code" %in% names(result_crops))
+  gridded_y <- result_crops |>
     dplyr::inner_join(
       country_yields,
-      by = c("year", "area_code", "item_prod_code")
+      by = c("year", "area_code", "item_prod_code"),
+      relationship = "many-to-one"
     )
 
   # Apply spatial yield index (sub-national variation)
@@ -324,10 +331,10 @@ if (file.exists(yields_file)) {
       irrigated_prod_t = yield_irrigated * irrigated_ha
     ) |>
     dplyr::select(
+      dplyr::any_of(whep:::.compartment_id_cols(gridded_y)),
       lon,
       lat,
       year,
-      area_code,
       item_prod_code,
       rainfed_ha,
       irrigated_ha,
@@ -392,12 +399,12 @@ if (file.exists(n_inputs_file)) {
     ) |>
     dplyr::filter(!is.na(item_prod_code))
 
-  # Join with gridded areas to get N application per cell
-  gridded_n <- (if ("area_code" %in% names(result_crops)) {
-    result_crops
-  } else {
-    dplyr::inner_join(result_crops, country_grid, by = c("lon", "lat"))
-  }) |>
+  # Join with gridded areas to get N application per cell. AM-5 risk 16: same
+  # re-attachment removed here. The fertilizer-type fan-out below is a genuine
+  # one-to-many, and leaving the (lon, lat) re-attachment in front of it made a
+  # polycell duplication indistinguishable from that fan-out.
+  stopifnot("area_code" %in% names(result_crops))
+  gridded_n <- result_crops |>
     dplyr::inner_join(
       n_rates,
       by = c("year", "area_code", "item_prod_code"),
@@ -465,10 +472,10 @@ if (file.exists(n_inputs_file)) {
       irrigated_n_mg = irrigated_ha * kg_n_ha_irrigated / 1000
     ) |>
     dplyr::select(
+      dplyr::any_of(whep:::.compartment_id_cols(gridded_n)),
       lon,
       lat,
       year,
-      area_code,
       item_prod_code,
       fert_type,
       kg_n_ha,
@@ -486,9 +493,9 @@ if (file.exists(n_inputs_file)) {
     "Gridded nitrogen: {nrow(gridded_n)} rows → {n_grid_path}"
   )
 
-  # Also aggregate to CFT level
+  # Also aggregate to CFT level. AM-5 risk 17: helper, not a hand-copied key.
   n_cft_group_cols <- unique(c(
-    intersect(c("polycell_id", "cell_id", "area_code"), names(gridded_n)),
+    whep:::.compartment_id_cols(gridded_n),
     "lon",
     "lat",
     "year",

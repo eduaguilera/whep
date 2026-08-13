@@ -182,6 +182,15 @@ build_water_balance <- function(
 #'   crosswalk, required) and `soil_hydraulic` (`lon`, `lat`, `t_field`,
 #'   `t_wilt`, `porosity`; falls back to [read_soil_hydraulic()], cropped to
 #'   `cell_polity` when supplied).
+#'
+#'   `cell_polity` is used only to **label** each cell with an `area_code` and
+#'   to restrict the grid to the cells it covers; no quantity here is ever
+#'   multiplied by an area. It therefore decides this function's **footprint**,
+#'   and callers that pass different crosswalks get different footprints from
+#'   one function. The carbon path passes the polycell support
+#'   ([build_polycell_support()], via [read_polycell_support()]); the water path
+#'   still passes [build_cell_polity()] until it migrates, so the two footprints
+#'   differ by the crosswalks' own difference until then.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `month`, `temp_c`,

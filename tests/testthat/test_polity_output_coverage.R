@@ -138,7 +138,9 @@ testthat::test_that("spatialized public outputs carry reporting polities", {
   country_grid <- tibble::tibble(
     lon = c(0.25, 0.75),
     lat = c(50.25, 50.25),
-    area_code = 1L
+    area_code = 1L,
+    # C8/S-A5: the whole-cell convention is declared, never defaulted.
+    cell_area_frac = 1
   )
 
   landuse <- build_gridded_landuse(

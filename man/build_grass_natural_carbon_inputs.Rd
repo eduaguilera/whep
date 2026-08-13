@@ -28,8 +28,10 @@ the pin); \code{npp} and \code{harvestc} (per cell, PFT and year, the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
 \code{name_pft}, \code{stand_frac}). Supplying all three of \code{npp}, \code{harvestc} and
 \code{stand_frac} derives \code{net_c} without needing a run directory or the pin.
-Also: \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
-\code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
+Also: \code{country_grid}, the polycell support resolved to one row per cell and
+\code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}), refused when a
+cell-\code{area_code} group is duplicated or \code{NA} (DA-23);
+\code{land_use} (per-cell class \code{area_ha}, used to spread
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}

@@ -29,7 +29,11 @@ crop and year, with \code{total_c_input_mgc_ha_yr} and \code{humified_fraction})
 area-weight the crop densities); \code{grass_natural} (the
 \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}} output at the class grain); and
 optional \code{land_use} (per-cell class \code{area_ha}, used to area-weight
-grassland/natural polity output). When
+grassland/natural polity output); and \code{country_grid}, the polycell support
+resolved to one row per cell and \code{area_code}, from which \code{crop_area} is
+derived when absent. It is the same support \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}}
+reads, so the weights and the carbon they weight can never come from two
+different crosswalks. When
 \code{cropland} or \code{grass_natural} are absent the respective builder is called
 with the remaining members of \code{data}.}
 

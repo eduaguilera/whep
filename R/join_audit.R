@@ -100,6 +100,12 @@
     "single_year", "`cbs_yr` is one year of the CBS.",
     ".build_sw_domestic", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS.",
+    ".carbon_warn_fold", "semi_join", "lon, lat, area_code", 1L, "diagnostic",
+    "Both sides are the SAME carbon support, already filtered to
+     `.carbon_support_year()` by `.carbon_support_at_year()`, so there is no
+     second year for a key to disagree about. The join only selects which
+     `polity_code`s to name in the DA-23 fold warning; it reaches no value and
+     cannot move one.",
     ".cb_apply_equilibrium_climate", "left_join",
     "lon, lat, area_code, land_use", 1L, "time_invariant",
     "The equilibrium modifier is one number per cell and land use by

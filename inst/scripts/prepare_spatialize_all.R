@@ -3894,96 +3894,30 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
     grid
   ) {
     cli::cli_alert_info("Lakes & Rivers (GLWD)")
-    glwd_path <- NULL
-    glwd_version <- NULL
-    v2_dir <- file.path(glwd_dir, "GLWD_v2")
-    .find_v2_tif <- function(pattern) {
-      list.files(v2_dir, pattern = pattern, recursive = TRUE, full.names = TRUE)
-    }
-    v2_tifs <- Filter(
-      Negate(function(p) grepl("50pct", p)),
-      c(
-        .find_v2_tif("main_class.*\\.tif$"),
-        .find_v2_tif("dominant.*\\.tif$"),
-        .find_v2_tif("combined.*\\.tif$")
-      )
+    # The derivation lives in the package (`whep::glwd_water_fraction()`), not
+    # here. It used to live only in this script, so `read_glwd_water()` read a
+    # hand-made `.clm` artefact of an LPJmL run instead and the two answers
+    # were free to diverge -- which they did, by about 20%.
+    water <- tryCatch(
+      whep::glwd_water_fraction(glwd_dir, cells = country_grid),
+      error = function(e) {
+        cli::cli_alert_warning("GLWD data not found -- skipping")
+        NULL
+      }
     )
-    if (length(v2_tifs) > 0) {
-      glwd_path <- v2_tifs[1]
-      glwd_version <- "v2"
-    }
-    if (is.null(glwd_path)) {
-      glwd3_path <- file.path(glwd_dir, "glwd_3", "hdr.adf")
-      if (!file.exists(glwd3_path)) {
-        glwd3_path <- file.path(glwd_dir, "glwd_3.tif")
-      }
-      if (file.exists(glwd3_path)) {
-        glwd_path <- glwd3_path
-        glwd_version <- "v1"
-      }
-    }
-    if (is.null(glwd_path)) {
-      cli::cli_alert_warning("GLWD data not found -- skipping")
+    if (is.null(water)) {
       return(invisible(NULL))
     }
-    glwd <- terra::rast(glwd_path)
-    area_pct <- NULL
-    if (glwd_version == "v2") {
-      area_pct_tifs <- .find_v2_tif("area_pct.*\\.tif$")
-      if (length(area_pct_tifs) > 0L) {
-        area_pct <- terra::rast(area_pct_tifs[1]) / 100
-      }
-    }
-    src_res <- terra::res(glwd)
-    agg_factor <- round(0.5 / src_res[1])
-    if (glwd_version == "v2") {
-      lake_classes <- c(1, 2, 3)
-      river_classes <- 7
-    } else {
-      lake_classes <- 1
-      river_classes <- 3
-    }
-    lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-    lake_mask <- terra::classify(glwd, lake_rcl, others = 0)
-    if (!is.null(area_pct)) {
-      lake_mask <- lake_mask * area_pct
-    }
-    lake_frac <- terra::aggregate(
-      lake_mask,
-      fact = agg_factor,
-      fun = "mean",
-      na.rm = TRUE
+    lr_tbl <- tibble::tibble(
+      lon = water$lon,
+      lat = water$lat,
+      water_fraction = round(water$water_frac, 6)
     )
-    river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-    river_mask <- terra::classify(glwd, river_rcl, others = 0)
-    if (!is.null(area_pct)) {
-      river_mask <- river_mask * area_pct
-    }
-    river_frac <- terra::aggregate(
-      river_mask,
-      fact = agg_factor,
-      fun = "mean",
-      na.rm = TRUE
-    )
-    grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
-    lake_vals <- terra::values(lake_frac)[
-      terra::cellFromXY(lake_frac, grid_coords)
-    ]
-    river_vals <- terra::values(river_frac)[
-      terra::cellFromXY(river_frac, grid_coords)
-    ]
-    lr_tbl <- country_grid |>
-      select(lon, lat) |>
-      mutate(
-        lake_fraction = round(replace(lake_vals, is.na(lake_vals), 0), 6),
-        river_fraction = round(replace(river_vals, is.na(river_vals), 0), 6)
-      )
     lr_dt <- coord_to_rowcol(data.table::as.data.table(lr_tbl), grid)
     m_lakes <- new_slice(grid$nlon, grid$nlat, fill = 0)
-    m_lakes[cbind(lr_dt$col, lr_dt$row)] <- pmin(
-      1,
-      pmax(0, lr_dt$lake_fraction + lr_dt$river_fraction)
-    )
+    # Lakes and rivers are already summed and clamped inside
+    # `glwd_water_fraction()`, so this is a placement, not a second sum.
+    m_lakes[cbind(lr_dt$col, lr_dt$row)] <- lr_dt$water_fraction
     dir.create(
       file.path(lpjml_out_dir, "lakes_rivers"),
       recursive = TRUE,
