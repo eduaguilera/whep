@@ -98,6 +98,38 @@ intake levels defined as above for individuals have been **incorrectly applied
 to populations**" (p.41), and "a safe population intake **cannot be defined as a
 simple function of the mean requirement**" (p.241).
 
+## Nourishment loss-wedge sources
+
+Cited at the point of use in `R/loss_wedge.R` and carried as the packaged
+coefficient tables `inst/extdata/coefs/food_loss_wedge.csv` (rates) and
+`inst/extdata/coefs/food_loss_item_groups.csv` (item to commodity group).
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| Gustavsson et al. 2011 | Gustavsson, J., Cederberg, C., Sonesson, U., van Otterdijk, R. & Meybeck, A. (2011), *Global food losses and food waste: extent, causes and prevention*, FAO, Rome, ISBN 978-92-5-107205-9 | open, <https://www.fao.org/4/mb060e/mb060e00.pdf> | **Annex 4** (PDF pp.33-34) is the whole rate side: weight percentages of loss and waste for 7 commodity groups in 7 world regions at 5 food-chain steps. Only the `Distribution` and `Consumption` columns are packaged. **Annex 2** (p.31) defines the 7 commodity groups by FBS item, and is the sole authority for `food_loss_item_groups.csv`. **Annex 1** (p.30) lists the countries in each region. **Annex 3** (p.32) records that the percentages are on an edible basis, with explicit conversion factors (wheat/rye 0.78, rice 1.0, fruit and vegetable peeling 0.77). |
+| FAO, New Food Balances | FAO, *New Food Balances* methodology, section II p.4 and section VIII p.19 | open, <https://www.fao.org/faostat/en/#data/FBS> | Why only the two at-or-after-retail steps are composed: FBS food availability is measured "at the retail level" and "also includes any loss or waste at the retail or consumer level". Section VIII places element 5123 `Losses` pre-retail, which is why it is **not** subtracted -- doing so would double-count. The 2001 *FBS Handbook* ch. II section 9 conflicts, placing the Waste element's end point at "the household"; it is superseded, and only *New Food Balances* is cited. |
+| FAOSTAT FS item 21059 | FAOSTAT Suite of Food Security Indicators, *Food loss percentage* | open | Magnitude cross-check only, never an input. Global median 2.83% of dietary energy (2020, n=203). SOFI 2026 Annex 1B states it is built by applying Gustavsson's `Distribution` column to FBS kilocalories, so it covers the retail step alone and is not a competing estimate of this wedge. |
+
+Three derivation notes, all load-bearing:
+
+- The two steps are composed **multiplicatively**,
+  `1 - (1 - d/2)(1 - c/2)`, not added: the consumption step acts on what
+  survives distribution.
+- The across-region **consumption** minimum is sub-Saharan Africa in every one
+  of the seven commodity groups (cereals 1%, roots 2%, oilseeds and pulses 1%,
+  fruit and vegetables 5%, meat 2%, fish 2%, milk 0.1%). Those are scarcity
+  figures, not efficiency figures. The **distribution** minima are genuine best
+  practice (Europe, North America and Oceania, and Industrialized Asia for milk
+  and meat). The halving does not repair that asymmetry, which is why the
+  default is documented as a lower bound rather than an estimate of achievable
+  loss.
+- Annex 2's enumeration leaves eggs, sugar and sweeteners, vegetable and fish
+  oils, stimulants and spices, alcoholic beverages, animal fats, butter, honey
+  and `Miscellaneous` in no commodity group. On the 2010 world basket they are
+  5.0% of food protein, of which eggs alone are 3.7%. They are excluded from the
+  weighting rather than assigned a neighbouring group's rate; assigning eggs to
+  meat or to dairy instead moves the wedge by under 0.1 percentage points.
+
 ## External local datasets (paths in `cache/local_paths.json`, gitignored)
 
 | Key | Dataset | Location |

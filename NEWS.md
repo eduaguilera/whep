@@ -1,5 +1,36 @@
 # whep (development version)
 
+* **New `build_loss_wedge()`: the nourishment floor can now allow for the food
+  that never becomes intake.** The floor asks whether supply *can* meet needs,
+  so it has to account for loss between the retail shelf and the mouth — but
+  only for the part no food system avoids. Avoidable waste belongs to the
+  over-nourishment problem, and inflating the floor by it would turn a behaviour
+  problem into an apparent adequacy failure; `omega = 0`, meanwhile, asserts
+  that all edible loss is eliminable, which SDG target 12.3 does not even aim
+  at.
+
+  The wedge is built from Gustavsson et al. (2011) Annex 4, composing only the
+  two steps at or after retail — `Distribution` and `Consumption` — because FBS
+  food availability is already measured at the retail level and includes retail
+  and consumer loss. The default `"gustavsson_half_min"` takes each rate's
+  minimum across the seven world regions and halves it, giving roughly 2.5% of
+  protein on the 2010 world basket (floor divisor 1.026). It is documented as a
+  **deliberate lower bound, not an estimate of achievable loss**: the
+  consumption-step minimum is sub-Saharan Africa in every commodity group, and
+  those are scarcity figures rather than efficiency figures. `"gustavsson_min"`
+  (roughly 4.9%) and `"none"` are selectable, and the choice is stamped in
+  `method_loss_wedge`.
+
+  FBS element 5123 `Losses` is deliberately not used: it is pre-retail and
+  already netted out of the Food element, so subtracting it would double-count.
+
+  **No published value changes.** Nothing calls this function yet; the axis
+  still uses the flat 1.35 multiplier until the remaining terms land. Two
+  packaged coefficient tables are new
+  (`inst/extdata/coefs/food_loss_wedge.csv`, the Annex 4 rates, and
+  `inst/extdata/coefs/food_loss_item_groups.csv`, the Annex 2 item-to-group
+  mapping); both are recorded in `validation/SOURCES.md`.
+
 * **New `build_protein_requirement()`: the nourishment floor can now account
   for a population's age and sex structure.** The SJOS-N "just" axis has always
   compared per-capita protein supply against a flat 46 g/cap/day, which is
