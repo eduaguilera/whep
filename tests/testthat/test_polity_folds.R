@@ -646,7 +646,10 @@ testthat::test_that("row_promotion_status splits the members three ways", {
   testthat::expect_equal(sum(status$status == "no_polity"), 14L)
   # Kept as an assertion rather than deleted: if any of those six loses its map row upstream
   # it reappears here, and the class is actionable again.
-  testthat::expect_length(status$area_code[status$status == "polity_unmapped"], 0L)
+  testthat::expect_length(
+    status$area_code[status$status == "polity_unmapped"],
+    0L
+  )
   testthat::expect_setequal(
     status$polity_codes[status$status != "own_polity"],
     "ROW-1850-2025"
