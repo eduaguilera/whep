@@ -471,16 +471,234 @@ testthat::test_that("the un-fold is the default and the fold is now opt-in", {
   testthat::expect_true(999L %in% cw$area_code)
 
   # And the fold is still reachable, because reproducing a published-before
-  # number has to stay possible.
+  # number has to stay possible. Asserted on EVERY COLUMN, not just
+  # `polity_area_code`: since whep#717 promotion moves the territorial identity
+  # too, so a `"none"` run that restored only the numeric half would still
+  # publish a different `reporting_polity_code` and this would not have noticed.
+  #
+  # The comparison is against the shipped table MINUS the promoted rows, which
+  # is what "the fold state" now means: those rows exist only to be chosen
+  # instead of a fold row, and `"none"` chooses no fold row against them.
   refolded <- as.data.frame(
     withr::with_options(
       list(whep.unfold_rest_of_world = "none"),
       suppressWarnings(whep:::.polity_crosswalk())
     )
   )
+  shipped <- as.data.frame(whep::polity_area_crosswalk)
+  fold_state <- shipped[shipped$mapping_source != "fabio_row_promoted", ]
+  rownames(fold_state) <- NULL
+  testthat::expect_equal(refolded, fold_state)
+  # No member keeps an identity of its own when everything is re-folded.
+  members <- refolded[
+    refolded$fabio_code %in% 999L & !refolded$area_code %in% 999L,
+  ]
+  testthat::expect_gt(nrow(members), 0L)
+  testthat::expect_setequal(members$polity_code, "ROW-1850-2025")
+  testthat::expect_setequal(members$polity_area_code, 999L)
+})
+
+# A PROMOTED MEMBER'S TERRITORIAL IDENTITY (whep#717) --------------------------
+#
+# Promotion has two halves. The numeric one landed in #628 and is asserted
+# above; these assert the other, which did not: for 62 areas
+# `polity_area_code == area_code` while `polity_code` stayed `ROW-1850-2025`, an
+# aggregate on the continent "World" with no geometry. A row that reports as
+# itself and is identified as somewhere else.
+
+testthat::test_that("a promoted member does not publish as Rest of World", {
+  # THE INVARIANT, not a list: no area may be its own aggregation bucket and
+  # simultaneously carry the bucket's aggregate polity. Written this way so it
+  # catches the defect on any area, including one a future snapshot adds.
+  cw <- as.data.frame(whep:::.polity_crosswalk())
+  members <- cw[
+    cw$fabio_code %in% 999L & !cw$area_code %in% 999L & !is.na(cw$area_code),
+  ]
+  testthat::expect_gt(nrow(members), 0L)
+
+  own_bucket <- members$area_code == members$polity_area_code
+  testthat::expect_true(all(own_bucket))
+
+  # 31 of the 61 members now carry a real territory. The rest are held to a
+  # DIFFERENT standard below, because upstream names no polity for them and
+  # inventing one here is what #717 argues against -- so this asserts the count
+  # the mapping supports, and `row_promotion_status()` says which is which.
+  with_identity <- unique(members$area_code[
+    members$polity_code != "ROW-1850-2025"
+  ])
+  testthat::expect_equal(length(with_identity), 31L)
+  named <- members[members$area_code %in% with_identity, ]
+  testthat::expect_true(all(named$polity_type != "aggregate"))
+  testthat::expect_false(any(named$continent == "World"))
+  testthat::expect_true(all(named$mapping_source == "fabio_row_promoted"))
+  # Syria and North Macedonia are the areas the issue names; Syria is the
+  # largest single contributor the fold ever carried.
+  testthat::expect_true(all(c(212L, 154L) %in% with_identity))
+})
+
+testthat::test_that("the identity is resolved year by year, not once", {
+  # A promoted member can span several polities, and #717 is explicit that a
+  # 1950 row and a 2020 row need not agree. Syria has two upstream periods, so
+  # a "current polity" implementation would answer `SYR-1967-2025` for both and
+  # pass every count-based check above.
+  syria <- whep::add_polity_code(
+    tibble::tibble(area_code = 212L, year = c(1950L, 1965L, 2020L))
+  )
   testthat::expect_equal(
-    refolded$polity_area_code,
-    as.data.frame(whep::polity_area_crosswalk)$polity_area_code
+    syria$polity_code,
+    c("SYR-1946-1967", "SYR-1946-1967", "SYR-1967-2025")
+  )
+  testthat::expect_true(all(syria$has_geometry))
+
+  # And the pre-anchor row is honest about how it got there: 1950 is resolved at
+  # the back-cast anchor, and `SYR-1946-1967` really is live in 1950, so it
+  # stays `matched` rather than becoming a stand-in.
+  testthat::expect_setequal(syria$mapping_status, "matched")
+
+  macedonia <- whep::add_polity_code(
+    tibble::tibble(area_code = 154L, year = c(1965L, 2020L))
+  )
+  testthat::expect_setequal(macedonia$polity_code, "MKD-1991-2025")
+  # The 1965 row is NOT hidden: `MKD-1991-2025` did not exist then, and saying
+  # so is the point of promoting -- the fold answered `ROW-1850-2025`,
+  # `matched`, for the same row.
+  testthat::expect_equal(
+    macedonia$mapping_status,
+    c("out_of_span", "matched")
+  )
+})
+
+testthat::test_that("a member upstream does not name keeps the bucket", {
+  # THE NEAR MISS. Handing the identity to an area upstream has NOT named is
+  # the same defect in the opposite direction -- it would be WHEP minting a
+  # territory, which is what #717 says not to do -- and three of these are not
+  # territories at all. `row_promotion_status()` has to keep them separable
+  # from a genuine Rest-of-World residual, and they must never acquire a polity
+  # of their own.
+  status <- whep::row_promotion_status()
+  never <- status[status$area_code %in% c(252L, 254L), ]
+
+  testthat::expect_equal(nrow(never), 2L)
+  testthat::expect_setequal(never$status, "no_polity")
+  testthat::expect_setequal(never$polity_codes, "ROW-1850-2025")
+  # 999 is the residual itself, not a member of it, so it is not reported here.
+  testthat::expect_false(999L %in% status$area_code)
+
+  # The 10 FAOSTAT land-use territories filed as whep-polities#209 are still on
+  # the bucket, because the FAOSTAT area map names none of them. When upstream
+  # adds those rows this fails, which is the notification.
+  awaiting <- c(270L, 36L, 224L, 163L, 164L, 172L, 258L, 82L, 281L, 279L)
+  testthat::expect_setequal(
+    status$status[status$area_code %in% awaiting],
+    "no_polity"
+  )
+
+  cw <- as.data.frame(whep:::.polity_crosswalk())
+  unnamed <- status$area_code[status$status != "own_polity"]
+  testthat::expect_setequal(
+    cw$polity_code[cw$area_code %in% unnamed],
+    "ROW-1850-2025"
+  )
+
+  # THE SHARPEST FORM OF THE NEAR MISS. Six members DO have a live territorial
+  # polity upstream and are still on the bucket, because no FAOSTAT map row
+  # names it for the area. Deriving the mapping from the ISO3 instead -- which
+  # is what the map's own `iso-equal` route does, so it looks like a
+  # simplification rather than a change -- would give all six a territory
+  # upstream never assigned them, and would empty this class rather than
+  # shrinking it the way an upstream fix does.
+  unmapped <- status[status$status == "polity_unmapped", ]
+  testthat::expect_gt(nrow(unmapped), 0L)
+  testthat::expect_true(all(
+    unmapped$area_iso3c %in% whep:::.iso3_with_own_polity()
+  ))
+  testthat::expect_setequal(unmapped$polity_codes, "ROW-1850-2025")
+  # Every identity that WAS handed out came from an upstream map row, never
+  # from inference: `map_match_route` is upstream's record of how it decided.
+  promoted_rows <- cw[cw$mapping_source %in% "fabio_row_promoted", ]
+  testthat::expect_true(all(!is.na(promoted_rows$map_match_route)))
+})
+
+testthat::test_that("row_promotion_status splits the members three ways", {
+  status <- whep::row_promotion_status()
+
+  testthat::expect_equal(nrow(status), 61L)
+  testthat::expect_equal(sum(status$status == "own_polity"), 31L)
+  testthat::expect_equal(sum(status$status == "polity_unmapped"), 6L)
+  testthat::expect_equal(sum(status$status == "no_polity"), 24L)
+  # `polity_unmapped` is the actionable upstream list: a live territorial
+  # polity exists for the ISO3 and only the map row is missing.
+  testthat::expect_setequal(
+    status$area_code[status$status == "polity_unmapped"],
+    c(22L, 71L, 94L, 218L, 243L, 271L)
+  )
+  testthat::expect_setequal(
+    status$polity_codes[status$status != "own_polity"],
+    "ROW-1850-2025"
+  )
+  # A period count that is not a row count: Syria has two, most have one.
+  testthat::expect_equal(status$n_periods[status$area_code == 212L], 2L)
+  testthat::expect_equal(status$n_periods[status$area_code == 209L], 1L)
+
+  # Every mode is reported, so the diagnostic cannot go silent on a re-fold.
+  refolded <- withr::with_options(
+    list(whep.unfold_rest_of_world = "none"),
+    suppressWarnings(whep::row_promotion_status())
+  )
+  testthat::expect_setequal(refolded$status, "folded")
+  cbs_only <- withr::with_options(
+    list(whep.unfold_rest_of_world = "cbs_reporters"),
+    suppressWarnings(whep::row_promotion_status())
+  )
+  testthat::expect_equal(sum(cbs_only$status == "own_polity"), 4L)
+  testthat::expect_setequal(
+    cbs_only$area_code[cbs_only$status == "own_polity"],
+    c(153L, 154L, 209L, 212L)
+  )
+})
+
+testthat::test_that("one area-year still resolves to one identity", {
+  # THE RULE THAT MUST SURVIVE A PROMOTION. whep#563 forced the revert of
+  # whep#480 for splitting a bucket while conserving mass, and whep#589 diluted
+  # Syria's livestock 12x through the same family of bug: a key that resolves to
+  # two identities stops summing. Promotion adds 36 crosswalk rows, so the
+  # cheapest way for it to go wrong is an `(area, year)` with two answers.
+  #
+  # Asserted over the whole reporting era rather than on a sample, and in every
+  # mode, because the fold state decides which rows are live.
+  areas <- sort(unique(stats::na.omit(whep::polity_area_crosswalk$area_code)))
+  grid <- tidyr::expand_grid(area_code = areas, year = 1961:2023)
+  for (mode in c("all", "none", "cbs_reporters")) {
+    resolved <- withr::with_options(
+      list(whep.unfold_rest_of_world = mode),
+      suppressWarnings(whep::add_polity_code(grid))
+    )
+    per_key <- resolved |>
+      dplyr::distinct(
+        .data$area_code,
+        .data$year,
+        .data$polity_code,
+        .data$polity_name
+      ) |>
+      dplyr::count(.data$area_code, .data$year)
+    testthat::expect_equal(nrow(resolved), nrow(grid))
+    testthat::expect_equal(max(per_key$n), 1L)
+  }
+
+  # And one polity code carries one name, so the two published identity columns
+  # cannot disagree with each other.
+  named <- whep::polity_area_crosswalk |>
+    tibble::as_tibble() |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::distinct(.data$polity_code, .data$polity_name) |>
+    dplyr::count(.data$polity_code)
+  testthat::expect_equal(max(named$n), 1L)
+})
+
+testthat::test_that("row_promotion_status validates its crosswalk", {
+  testthat::expect_error(
+    whep::row_promotion_status(tibble::tibble(area_code = 1L)),
+    "missing"
   )
 })
 

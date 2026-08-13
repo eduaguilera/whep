@@ -1833,6 +1833,10 @@ utils::globalVariables(
     "land_now",
     "land_next",
     "land_mha",
-    "log_ratio"
+    "log_ratio",
+    # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
+    # columns: the row's OWN year, joined back onto the anchored resolution
+    "data_year",
+    "i.data_year"
   )
 )
