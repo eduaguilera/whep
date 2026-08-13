@@ -1,0 +1,51 @@
+# Reformat `main` with air after every merge, committing any changes back.
+# Replaces the pre-merge `format-suggest` check: contributors no longer need a
+# green formatting gate, but are still expected to run `air format .` locally
+# (see CLAUDE.md), so this job normally has nothing to commit.
+#
+# Pushing to `main` needs an identity that can bypass the "Not push in main"
+# ruleset, which requires a pull request for every change. The default
+# GITHUB_TOKEN is not on that bypass list, so the checkout uses
+# FORMAT_BOT_TOKEN: a fine-grained PAT with `Contents: read and write`, owned
+# by a repository admin (admins do bypass the ruleset). The commit carries
+# `[skip ci]` so a formatting-only change does not re-run the five-platform
+# check suite; drop it if that is ever wanted, since a PAT-authored commit,
+# unlike a GITHUB_TOKEN one, does trigger downstream workflows.
+
+on:
+  push:
+    branches: [main]
+
+name: format-main.yaml
+
+jobs:
+  format-main:
+    name: format-main
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check push token is configured
+        env:
+          FORMAT_BOT_TOKEN: ${{ secrets.FORMAT_BOT_TOKEN }}
+        run: |
+          if [ -z "$FORMAT_BOT_TOKEN" ]; then
+            echo "::error::FORMAT_BOT_TOKEN is unset, so this job cannot push to the protected main branch. Add a fine-grained PAT with Contents read and write as an Actions secret of that name."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.FORMAT_BOT_TOKEN }}
+
+      - name: Install
+        uses: posit-dev/setup-air@v1
+
+      - name: Format
+        run: air format .
+
+      - name: Commit
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "style: format with air [skip ci]"
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
