@@ -44,10 +44,15 @@ testthat::test_that("supply at the floor gives exactly the tolerated shortfall",
   # The inversion round-trip. It is the single test that catches a z-sign slip,
   # a qnorm(p) for qnorm(1 - p), or a dropped exp(S_I^2/2).
   out <- whep::build_nourishment_floor(
-    data = c(.nf_inputs(), list(supply = tibble::tribble(
+    data = c(
+      .nf_inputs(),
+      list(
+        supply = tibble::tribble(
       ~year, ~area_code, ~protein_g_cap_day,
       2010L, 10L,        NA_real_
-    )))
+    )
+      )
+    )
   )
   supply <- dplyr::mutate(
     tibble::tribble(~year, ~area_code, 2010L, 10L),

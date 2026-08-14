@@ -275,7 +275,13 @@ read_habitual_cv <- function(years = NULL, data = NULL, dir = NULL) {
     "the FAOSTAT food-security table"
   )
   out <- tibble::as_tibble(raw) |>
-    dplyr::filter(as.integer(.data[["Item Code"]]) == 21058L) |>
+    # The bulk file mixes numeric item codes with a few non-numeric ones, so
+    # the coercion warns on every real read. Those rows are not 21058 and the
+    # NA they become is filtered here anyway; suppressing keeps a production
+    # read quiet without changing which rows survive.
+    dplyr::filter(
+      suppressWarnings(as.integer(.data[["Item Code"]])) == 21058L
+    ) |>
     dplyr::transmute(
       year = as.integer(.data$Year),
       fao_area_code = as.integer(.data[["Area Code"]]),
