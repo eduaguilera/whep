@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **`nourishment_thresholds` now says which of its numbers are sourced, and its
+  upper bound is renamed `"ceiling"`.** Four of the five values the shipped
+  nourishment axis runs on had no source and nothing said so. A new
+  `provenance` column records it per row: only the 46 g/cap/day protein floor
+  is cited (WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult —
+  itself a 97.5th-percentile *individual* level that TRS 935 p.41 says is
+  incorrect to apply to a population). The 63 ceiling, the 2300 and 2900 energy
+  bounds and the 1.35 factor are labelled `inherited_unsourced`.
+
+  **Breaking for anyone filtering the table**: `bound == "target"` is now
+  `bound == "ceiling"` and returns zero rows under the old name.
+  `normalize_nourishment()` uses that value as the top of the Adequate band,
+  above which a country is classified Over, so "target" read as something to
+  aim at — the opposite of its role.
+
+  `normalize_nourishment()` also stops presenting protein and dietary energy as
+  interchangeable. The arithmetic is shared, the bases are not: the energy
+  bounds are unsourced, and WHEP's energy column is gross combustion energy
+  where a dietary kcal threshold is metabolisable. Nothing in the package reads
+  the energy path.
+
+  **No published value changes**: the floor and ceiling are numerically
+  unchanged at 62.1 and 85.05 g/cap/day and every classification is identical.
+
 * **New `build_nourishment_floor()`: the SJOS-N floor is now composed from
   sourced terms instead of a flat 46 g/cap/day times an unsourced 1.35.** It
   implements WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
