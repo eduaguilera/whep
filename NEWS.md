@@ -1,5 +1,54 @@
 # whep (development version)
 
+* **Every polycell-year is now partitioned into land uses, so a territorial
+  quantity can be attributed to a land class instead of being assumed
+  agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
+  polycell's `land_area_ha` into `cropland`, `grassland`, `urban`, `natural` and
+  `unclassified`. The *level* of each agricultural class comes from the
+  statistical record, which is authoritative; LUH2 supplies only the
+  within-country spatial pattern, taken from its `fraction` (LUH2's share of the
+  whole cell) so the classes tile the polycell's measured land by construction
+  rather than to a tolerance. `level_source` and `pattern_source` are separate
+  columns and their per-polycell difference is emitted as
+  `statistical_pattern_disagreement_ha` rather than absorbed into `natural`;
+  that column is the criterion for retiring LUH2 as a source. Inland water and
+  ice are never land uses.
+
+  Two conventions are worth knowing. FAO counts temporary meadows and pastures
+  (Land Use item 6633) inside arable land while LUH2 books that ground as
+  grassland, so that component keeps its FAO class but is spread over the LUH2
+  grassland pattern. And because FAOSTAT land use starts in 1961, the pasture
+  level is back-cast before then by carrying the FAO 1961 level on LUH2's own
+  national trend, mirroring what `get_arable_permanent_land()` already does for
+  cropland, so the gridded grassland series does not step at the splice. A
+  back-cast row is labelled in `level_source` and excluded from the
+  statistical-versus-pattern diagnostic, since it would otherwise measure LUH2
+  against itself.
+
+  A national total spread by the LUH2 pattern can give a polycell more
+  agricultural land than it has, driven by countries where FAO and LUH2 disagree
+  about how much land is permanent pasture. Measured on the function itself at
+  2020: 63.50 Mha, 1.33% of the anchored agricultural area, of which Saudi
+  Arabia is 35.10 Mha and Sudan (former) 14.20 Mha. `overfull_method` selects
+  the treatment and is recorded in `method_overfull`. `"spillover"` (default)
+  places the excess on same-country neighbours, widening the search ring until
+  it is absorbed and taking non-forested natural land before forest: at 2020 it
+  places **all** of it, at a median ring of 2 and a maximum of 22. `"cap"` caps
+  pro rata and leaves the whole 63.50 Mha in `unplaceable_statistical_ha`. The
+  two are alternatives, never fallbacks.
+
+  On a real 2020 build the five classes sum to each polycell's `land_area_ha`
+  to a maximum relative deviation of 1.7e-10 over 73,873 polycells, with none
+  off by more than 1e-6.
+
+  No published value changes: this adds a producer and does not alter any
+  existing output. The ledger anchors grassland on FAO item 6655 by passing
+  `source = "faostat_pasture"` explicitly, which differs from
+  `build_grassland_land_extension()`'s own `"luh2"` default; that divergence is
+  tracked in #759 and deliberately not resolved here, because three consumers
+  rely on the current default and one of them is this ledger's own cropland
+  anchor.
+
 * **The polycell is now WHEP's spatial support unit, and it carries a measured
   territory instead of a whole grid cell.** `build_polycell_support()` returns
   one row per 0.5-degree cell intersected with a polity over that polity's

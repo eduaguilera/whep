@@ -1294,3 +1294,52 @@
     2020, "Bizkaia", 106968., 94295.4, 3505.52, 97800.9, 0.964
   )
 }
+
+# Three polycells over two polities that share one cell, at the default
+# `overfull_method`. Each polycell's classes sum exactly to its land area
+# (60, 40 and 100 ha), which is the partition invariant the producer exists to
+# hold. The constant and polity columns are attached rather than repeated, so
+# the tribble shows only what varies per row.
+.example_polycell_land_uses <- function() {
+  tibble::tribble(
+    ~polycell_id, ~lon, ~lat, ~polity_code, ~area_code, ~year,
+    ~land_use, ~area_ha, ~area_source, ~level_source,
+    ~allocation_status, ~statistical_pattern_disagreement_ha, ~coverage_status,
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 36, "anchored", "fao_cropland", "ok", 6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 6, "anchored", "faostat_pasture", "ok", -6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 15, "residual", NA, "ok", NA, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "urban", 3, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "cropland", 10, "anchored", "fao_cropland", "ok", -10, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "grassland", 4, "anchored", "faostat_pasture", "ok", -4, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "natural", 24, "residual", NA, "ok", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "urban", 2, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 24, "anchored", "fao_cropland", "ok", 4, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 20, "anchored", "faostat_pasture", "ok", -20, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 56, "residual", NA, "ok", NA, "observed"
+  ) |>
+    dplyr::mutate(
+      pattern_source = "luh2",
+      unplaceable_statistical_ha = 0,
+      method_overfull = "spillover",
+      spillover_max_ring = NA_integer_,
+      polity_area_code = .data$area_code,
+      reporting_polity_code = .data$polity_code,
+      reporting_polity_name = paste(
+        "Polity",
+        stringr::str_sub(.data$polity_code, 1L, 1L)
+      ),
+      reporting_polity_has_geometry = TRUE
+    ) |>
+    dplyr::select(dplyr::all_of(.plu_output_cols()))
+}
