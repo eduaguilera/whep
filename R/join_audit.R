@@ -77,6 +77,13 @@
      pre-1962 year skeleton and the observed-source join, where a second label
      for one code doubled the skeleton rather than only mislabelling it: the
      label's identity role is now this one lookup instead of four keys.",
+    ".plu_bind_pasture_backcast", "inner_join", "area_code", 1L, "single_year",
+    "Carries the FAO 1961 pasture level onto LUH2's pre-1961 rows so the
+     gridded grassland series does not step at FAOSTAT's start. The anchor side
+     is filtered to 1961 before joining, so the year is fixed by construction
+     rather than missing -- which is what an anchored back-cast is. The LUH2
+     side's own 1961 value is a grouped lookup on the same table, not a second
+     join.",
     ".attach_mapping_source", "left_join",
     "area_code, polity_code, polity_start_year, polity_end_year", 1L,
     "diagnostic",
@@ -178,8 +185,11 @@
      ISO3-like stem; the key now names both vocabularies it actually bridges.",
     ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
-    ".read_luh2_cft", "merge", "iso3c", 1L, "identity_lookup",
-    "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
+    ".luh2_bridge_iso3c", "merge", "iso3c", 1L, "identity_lookup",
+    "ISO3 names the territory, not one of its periods; the year rides on the
+     LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
+     national readers share ONE bridge: this row used to be that function's,
+     and the move is why the count did not rise with the pasture reader.",
     ".reconcile_fao_arable_fallow", "merge", "area_code", 1L, "single_year",
     "Inside the per-year fallow attribution loop.",
     ".reconcile_fao_arable_fallow", "merge", "area_code, item_cbs_code", 1L,
