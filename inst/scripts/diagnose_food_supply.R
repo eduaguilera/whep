@@ -384,7 +384,7 @@ diagnose_food_supply <- function(year = 2010L, out_dir = ".") {
 # itself unsourced beyond the floor (#753).
 .dfs_over_ceiling <- function() {
   whep::nourishment_thresholds |>
-    dplyr::filter(.data$metric == "protein", .data$bound == "target") |>
+    dplyr::filter(.data$metric == "protein", .data$bound == "ceiling") |>
     dplyr::pull(.data$value)
 }
 

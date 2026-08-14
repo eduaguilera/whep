@@ -2,10 +2,23 @@
 # Maps a per-capita nourishment supply onto the Global Intake_normalization
 # score and classifies it Under / Adequate / Over. Protein is the SJOS-N
 # nourishment axis (default value_col = protein_g_cap_day, thresholds from
-# whep::nourishment_thresholds: floor 62.1, ceiling 85.05 g/cap/day). The same
-# helper serves dietary energy when value_col and thresholds are switched to
-# energy (2300 / 2900 kcal/cap/day), a completeness / SJOS food-energy
-# cross-check rather than the nitrogen classification itself.
+# whep::nourishment_thresholds: floor 62.1, ceiling 85.05 g/cap/day).
+#
+# PROTEIN AND ENERGY ARE NOT INTERCHANGEABLE HERE, and this file used to imply
+# they were. The arithmetic is shared, the bases are not:
+#
+#   - The energy bounds (2300 / 2900 kcal/cap/day) carry no source at all. They
+#     are labelled `inherited_unsourced` in the shipped table, as are the
+#     protein ceiling (63) and the 1.35 factor behind both protein bounds. Only
+#     the protein floor is cited (whep#753, whep#754).
+#   - WHEP's own energy column is GROSS combustion energy while a dietary
+#     kcal/cap/day threshold is metabolisable energy, so passing
+#     `energy_kcal_cap_day` from build_food_supply() through these bounds
+#     compares two different quantities.
+#
+# So the energy path is available for a caller who supplies their own
+# metabolisable series and their own bounds; it is not a second axis WHEP
+# publishes, and nothing in the package uses it.
 
 #' Normalize and classify per-capita nourishment.
 #'
@@ -19,10 +32,21 @@
 #' ceiling. The class is `"Under"` when `value_norm < 1`, `"Adequate"` when
 #' `value_norm < 2` and `"Over"` otherwise. Protein is the SJOS-N nourishment
 #' axis, so the defaults are the protein floor and ceiling (62.1 and 85.05
-#' g/cap/day) from [nourishment_thresholds]; switching `value_col` to
-#' `energy_kcal_cap_day` and passing `thresholds = c(floor = 2300, ceiling =
-#' 2900)` classifies dietary energy instead, a completeness cross-check rather
-#' than the nitrogen classification.
+#' g/cap/day) from [nourishment_thresholds].
+#'
+#' Of those two defaults only the underlying 46 g/cap/day floor is sourced
+#' (WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult, itself a
+#' 97.5th-percentile individual level rather than a population one). The 63
+#' ceiling and the 1.35 factor that lifts both to a supply basis carry no
+#' source; `nourishment_thresholds$provenance` says so per row.
+#' [build_nourishment_floor()] is the sourced replacement for the floor and is
+#' not wired in here yet.
+#'
+#' Passing `value_col = energy_kcal_cap_day` runs the same arithmetic on a
+#' different quantity and is **not** a second WHEP axis: the packaged energy
+#' bounds are unsourced, and WHEP's energy column is gross combustion energy
+#' where a dietary threshold is metabolisable. Supply your own bounds and your
+#' own metabolisable series if you want that comparison.
 #'
 #' @param x A tibble carrying the per-capita nourishment column named by
 #'   `value_col` (for example a [build_food_supply()] output).
@@ -80,14 +104,14 @@ normalize_nourishment <- function(
 }
 
 # The default protein floor (62.1) and ceiling (85.05) g/cap/day, read from the
-# packaged nourishment thresholds (the target bound is the ceiling).
+# packaged nourishment thresholds.
 .nourish_protein_bounds <- function() {
   nt <- whep::nourishment_thresholds
   floor_val <- nt |>
     dplyr::filter(.data$metric == "protein", .data$bound == "floor") |>
     dplyr::pull(.data$value)
   ceiling_val <- nt |>
-    dplyr::filter(.data$metric == "protein", .data$bound == "target") |>
+    dplyr::filter(.data$metric == "protein", .data$bound == "ceiling") |>
     dplyr::pull(.data$value)
   c(floor = floor_val, ceiling = ceiling_val)
 }

@@ -15,17 +15,54 @@ testthat::test_that("n_boundary_params carries the locked boundary constants", {
 
 testthat::test_that("nourishment_thresholds applies the 1.35 waste factor", {
   n <- whep::nourishment_thresholds
-  pointblank::expect_col_exists(n, c("metric", "bound", "value", "unit"))
+  pointblank::expect_col_exists(
+    n,
+    c("metric", "bound", "value", "unit", "provenance")
+  )
   v <- function(m, b) n$value[n$metric == m & n$bound == b]
   testthat::expect_equal(v("protein_raw", "floor"), 46)
-  testthat::expect_equal(v("protein_raw", "target"), 63)
+  testthat::expect_equal(v("protein_raw", "ceiling"), 63)
   testthat::expect_equal(v("protein", "floor"), 62.1)
-  testthat::expect_equal(v("protein", "target"), 85.05)
+  testthat::expect_equal(v("protein", "ceiling"), 85.05)
   testthat::expect_equal(v("energy", "floor"), 2300)
-  testthat::expect_equal(v("energy", "target"), 2900)
+  testthat::expect_equal(v("energy", "ceiling"), 2900)
   testthat::expect_equal(v("waste_inequality", "factor"), 1.35)
   testthat::expect_equal(v("class", "under"), 1)
   testthat::expect_equal(v("class", "over"), 2)
+})
+
+testthat::test_that("the upper bound is named ceiling, not target", {
+  # normalize_nourishment() uses it as the top of the Adequate band, above
+  # which a country is classified Over. "target" read as something to aim at,
+  # which is the opposite (whep#754).
+  n <- whep::nourishment_thresholds
+  testthat::expect_false("target" %in% n$bound)
+  testthat::expect_setequal(
+    n$bound[n$metric %in% c("protein_raw", "protein", "energy")],
+    c("floor", "ceiling")
+  )
+})
+
+testthat::test_that("every shipped threshold declares its provenance", {
+  # The point of the column: a number with no source must not be able to look
+  # like one that has a source. Only the protein floor is cited.
+  n <- whep::nourishment_thresholds
+  pointblank::expect_col_vals_in_set(
+    n,
+    columns = "provenance",
+    set = c(
+      "trs935_table46_55kg_safe_level",
+      "derived_raw_times_waste_inequality",
+      "inherited_unsourced",
+      "definition"
+    )
+  )
+  cited <- n$provenance == "trs935_table46_55kg_safe_level"
+  testthat::expect_equal(n$value[cited], 46)
+  # The 1.35 factor and everything built only on it stay labelled: whep#753
+  # established the author had no source for it.
+  unsourced <- n[n$provenance == "inherited_unsourced", ]
+  testthat::expect_setequal(unsourced$value, c(63, 2300, 2900, 1.35))
 })
 
 testthat::test_that("sjos/nourish level tables are ordered and coloured", {
