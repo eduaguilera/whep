@@ -14,7 +14,7 @@ A tibble in long form with columns:
 energy bound is named \code{"ceiling"} because
 \code{\link[=normalize_nourishment]{normalize_nourishment()}} uses it as the top of the Adequate band, above
 which a country is classified Over — not as something to aim at
-(whep#754).}
+(whep#753).}
 \item{value}{Numeric threshold value.}
 \item{unit}{Unit of the value (\code{"g/cap/day"},
 \code{"kcal/cap/day"}, \code{"ratio"} or \code{"score"}).}

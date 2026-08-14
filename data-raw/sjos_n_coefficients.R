@@ -3,9 +3,9 @@
 #                            (Tg N/yr boundary range, per-capita cap,
 #                            synthetic-to-total agricultural ratio, food share
 #                            of agricultural N).
-#   nourishment_thresholds - protein/energy floors + targets, the 1.35 waste-
-#                            inequality factor and the normalised-score class
-#                            cutoffs.
+#   nourishment_thresholds - protein/energy floors + ceilings, the 1.35 waste-
+#                            inequality factor, the normalised-score class
+#                            cutoffs, and a provenance label per row.
 #   sjos_levels            - the 2-way boundary axis crossed with the 3-way
 #                            nourishment axis, plus plotting colours.
 #   nourish_levels         - nourishment classification levels + colours.
@@ -50,7 +50,7 @@ n_boundary_params <- tibble::tribble(
 # `bound` says "ceiling", not "target": normalize_nourishment() uses the upper
 # value as the top of the ADEQUATE band, above which a country is classified
 # Over. Calling it a target read as something to aim at, which is the opposite
-# of what the axis does with it (whep#754).
+# of what the axis does with it (whep#753).
 #
 # `provenance` exists so no shipped number can look sourced when it is not.
 # Only the protein floor has a citation; 63, 2300, 2900 and 1.35 are inherited

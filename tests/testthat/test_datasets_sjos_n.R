@@ -34,7 +34,7 @@ testthat::test_that("nourishment_thresholds applies the 1.35 waste factor", {
 testthat::test_that("the upper bound is named ceiling, not target", {
   # normalize_nourishment() uses it as the top of the Adequate band, above
   # which a country is classified Over. "target" read as something to aim at,
-  # which is the opposite (whep#754).
+  # which is the opposite (whep#753).
   n <- whep::nourishment_thresholds
   testthat::expect_false("target" %in% n$bound)
   testthat::expect_setequal(

@@ -10,7 +10,7 @@
 #   - The energy bounds (2300 / 2900 kcal/cap/day) carry no source at all. They
 #     are labelled `inherited_unsourced` in the shipped table, as are the
 #     protein ceiling (63) and the 1.35 factor behind both protein bounds. Only
-#     the protein floor is cited (whep#753, whep#754).
+#     the protein floor is cited (whep#753).
 #   - WHEP's own energy column is GROSS combustion energy while a dietary
 #     kcal/cap/day threshold is metabolisable energy, so passing
 #     `energy_kcal_cap_day` from build_food_supply() through these bounds
