@@ -1,5 +1,28 @@
 # whep (development version)
 
+* **`read_population()` can now fill its coverage gaps from UN WPP, and always
+  reports where each row came from (#644).** The `gdp-population` pin does not
+  reach every area WHEP models, and the two per-capita consumers inner-join it,
+  so an uncovered area is absent from their output rather than wrong in it. The
+  new `population_source = "pin_wpp_fallback"` fills **only** the country-years
+  the pin does not reach, from `read_wpp_population()`: on the real inputs that
+  is 44 areas the pin has no row for at all (Réunion, Bhutan, Comoros, Western
+  Sahara, New Caledonia, the French overseas departments and the small island
+  states) and 4,755 country-years inside the pin's own year span.
+
+  The pin wins wherever both have a value, so turning the fallback on cannot
+  move a denominator that was already published — it can only add one that was
+  missing. It is a gap-filler rather than a replacement because the two sources
+  disagree where they overlap: across 12,309 shared country-years by a median
+  0.64%, a 95th percentile of 4.4% and a maximum of 81%.
+
+  The output gains `source_pop`, carrying the pin's own vocabulary
+  (`"Original"`, `"Linear interpolation"`, `"First value carried backwards"`),
+  joined with `" + "` where an `area_code` bucket sums ISO3 codes of differing
+  provenance, or `"UN WPP 2024"` for a filled row.
+
+  **No published value changes**: the default is `"pin"`.
+
 * **`nourishment_thresholds` now says which of its numbers are sourced, and its
   upper bound is renamed `"ceiling"`.** Four of the five values the shipped
   nourishment axis runs on had no source and nothing said so. A new

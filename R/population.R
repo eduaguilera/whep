@@ -70,17 +70,38 @@
 #' wrong in it. Both warn and name them instead of dropping them silently;
 #' `options(whep.warn_missing_population = FALSE)` silences that warning.
 #'
+#' `population_source = "pin_wpp_fallback"` fills the country-years the pin
+#' does not reach from [read_wpp_population()], and **only** those: the pin wins
+#' wherever both have a value, so turning it on cannot move a denominator that
+#' was already published. On the real inputs it adds 44 areas the pin has no row
+#' for at all — Réunion, Bhutan, Comoros, Western Sahara, New Caledonia, the
+#' French overseas departments and the small island states — and 4,755
+#' country-years inside the pin's own year span. Filled rows are stamped
+#' `source_pop = "UN WPP 2024"`.
+#'
+#' It is a gap-filler and not a replacement, because the two sources disagree
+#' where they overlap: across 12,309 shared country-years they differ by a
+#' median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
+#' `"pin"` remains the default.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   (default) keeps every year the pin covers.
 #' @param data Optional named list of pre-loaded inputs to avoid the pin read:
 #'   `gdp_population` (the raw pin, with `Year`, `area_code` as ISO3, `pop` in
-#'   thousands). Falls back to [whep_read_file()] when absent.
+#'   thousands) and `wpp_population` (a [read_wpp_population()] output). Falls
+#'   back to [whep_read_file()] when absent.
+#' @param population_source `"pin"` (default, the `gdp-population` pin alone) or
+#'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
+#'   not cover from UN WPP.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
-#' @return A tibble with `year`, `area_code` and `population` (persons), one row
-#'   per area code and year, sorted by year then area code, plus the polity
-#'   columns below. A row is one country in the common case, but `area_code` is
+#' @return A tibble with `year`, `area_code`, `population` (persons) and
+#'   `source_pop`, one row per area code and year, sorted by year then area
+#'   code, plus the polity columns below. `source_pop` carries the pin's own
+#'   vocabulary (`"Original"`, `"Linear interpolation"`, `"First value carried
+#'   backwards"`), joined with `" + "` when a bucket sums ISO3 codes of
+#'   differing provenance, or `"UN WPP 2024"` for a fallback-filled row. A row is one country in the common case, but `area_code` is
 #'   an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
 #'   over several territories rather than a single country, as are rows on 999
 #'   ("Rest of World") when the Rest-of-World fold is restored.
@@ -88,10 +109,16 @@
 #' @export
 #' @examples
 #' read_population(example = TRUE)
-read_population <- function(years = NULL, data = list(), example = FALSE) {
+read_population <- function(
+  years = NULL,
+  data = list(),
+  population_source = c("pin", "pin_wpp_fallback"),
+  example = FALSE
+) {
   if (isTRUE(example)) {
     return(.example_population())
   }
+  population_source <- rlang::arg_match(population_source)
   raw <- data$gdp_population %||% whep_read_file("gdp-population")
   .check_columns(raw, c("Year", "area_code", "pop"), "gdp_population")
   parsed <- .pop_parse(raw, years)
@@ -101,8 +128,10 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
     dplyr::filter(!is.na(.data$area_code)) |>
     dplyr::summarise(
       population = sum(.data$population),
+      source_pop = .pop_collapse_source(.data$source_pop),
       .by = c("year", "area_code")
     ) |>
+    .pop_fill_from_wpp(population_source, data$wpp_population, years) |>
     dplyr::arrange(.data$year, .data$area_code) |>
     .add_reporting_polity_columns()
 }
@@ -113,11 +142,21 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
 # -> persons. Non-positive and missing populations are dropped; they are not a
 # meaningful denominator and would produce Inf per-capita supply.
 .pop_parse <- function(raw, years) {
-  out <- tibble::as_tibble(raw) |>
+  # The pin's own provenance vocabulary ("Original", "Linear interpolation",
+  # "First value carried backwards"). Older or injected inputs may not carry
+  # it, in which case every row is simply "pin".
+  raw <- tibble::as_tibble(raw)
+  source_pop <- if (rlang::has_name(raw, "Source_pop")) {
+    as.character(raw$Source_pop)
+  } else {
+    rep("pin", nrow(raw))
+  }
+  out <- raw |>
     dplyr::transmute(
       year = as.integer(.data$Year),
       iso3c = as.character(.data$area_code),
-      population = as.numeric(.data$pop) * 1000
+      population = as.numeric(.data$pop) * 1000,
+      source_pop = .env$source_pop
     ) |>
     dplyr::filter(
       !is.na(.data$year),
@@ -128,6 +167,51 @@ read_population <- function(years = NULL, data = list(), example = FALSE) {
     out <- dplyr::filter(out, .data$year %in% years)
   }
   dplyr::mutate(out, area_code = .iso3c_to_area_code(.data$iso3c))
+}
+
+# A bucket row can sum several ISO3 codes whose provenance differs, so the
+# summary keeps every distinct value rather than the first. Reporting one would
+# hide that half a row is interpolated.
+.pop_collapse_source <- function(source_pop) {
+  paste(sort(unique(source_pop)), collapse = " + ")
+}
+
+# `pin_wpp_fallback`: fill ONLY the country-years the pin does not reach, from
+# the UN WPP reader, stamped in the pin's own vocabulary so a filled row can
+# never be mistaken for a pinned one. The pin always wins where both have a
+# value, so turning this on cannot move a denominator that was already
+# published -- it can only add one that was missing. On the real inputs that is
+# 44 areas the pin has no row for at all (Reunion, Bhutan, Comoros, Western
+# Sahara, New Caledonia, the French overseas departments and the small island
+# states) and 4,755 country-years inside the pin's own year span.
+#
+# The two sources are NOT interchangeable where they overlap: across 12,309
+# shared country-years they differ by a median 0.64%, a 95th percentile of
+# 4.4%, and up to 81%. That is the reason this is a gap-filler and not a
+# replacement, and the reason the default stays `"pin"`.
+.pop_fill_from_wpp <- function(pinned, population_source, wpp, years) {
+  if (population_source == "pin") {
+    return(pinned)
+  }
+  wpp <- wpp %||% read_wpp_population(years = years)
+  .check_columns(
+    wpp,
+    c("year", "area_code", "population"),
+    "data$wpp_population"
+  )
+  fill <- wpp |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      population = as.numeric(.data$population),
+      source_pop = "UN WPP 2024"
+    ) |>
+    dplyr::anti_join(pinned, by = c("year", "area_code"))
+  if (!is.null(years)) {
+    fill <- dplyr::filter(fill, .data$year %in% years)
+  }
+  dplyr::bind_rows(pinned, fill)
 }
 
 # Name the ISO3 codes that carry population but no numeric area_code. These are
