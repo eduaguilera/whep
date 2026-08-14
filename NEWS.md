@@ -21,6 +21,16 @@
   (roughly 4.9%) and `"none"` are selectable, and the choice is stamped in
   `method_loss_wedge`.
 
+  `"gustavsson_regional_actual"` is the sensitivity arm, giving each country its
+  Annex 1 region's own observed rates: 14.2% on the same basket, divisor 1.166,
+  spanning 4.1% to 21.4% across countries. It is not an unavoidable-loss
+  estimate, and its country structure is contested — Gustavsson's rich-high
+  gradient runs opposite to UNEP's Food Waste Index — so it quantifies that
+  disagreement rather than settling it. Annex 1's 152 countries cover 99.0% of
+  2010 world food protein; the rest take the mean rate across the seven regions
+  and are stamped `method_region = "global_mean"`, or return nothing under
+  `coverage = "annex1_only"`.
+
   FBS element 5123 `Losses` is deliberately not used: it is pre-retail and
   already netted out of the Food element, so subtracting it would double-count.
 

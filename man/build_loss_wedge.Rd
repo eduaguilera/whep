@@ -6,7 +6,9 @@
 \usage{
 build_loss_wedge(
   data = list(),
-  method = c("gustavsson_half_min", "gustavsson_min", "none"),
+  method = c("gustavsson_half_min", "gustavsson_min", "gustavsson_regional_actual",
+    "none"),
+  coverage = c("global_mean", "annex1_only"),
   protein_basis = c("edible_portion", "whole_commodity", "product_nitrogen")
 )
 }
@@ -15,11 +17,16 @@ build_loss_wedge(
 \code{protein_supply} (\code{year}, \code{area_code}, \code{item_cbs_code}, \code{protein_t}) or as
 \code{cbs_food} (\code{year}, \code{area_code}, \code{item_cbs_code}, \code{food_t}), which is
 converted through the same nutrition lookup \code{\link[=build_food_supply]{build_food_supply()}} uses.
-\code{biomass_coefs}, \code{items_full}, \code{food_loss_wedge} and
-\code{food_loss_item_groups} override the packaged tables.}
+\code{biomass_coefs}, \code{items_full}, \code{food_loss_wedge},
+\code{food_loss_item_groups} and \code{food_loss_regions} override the packaged
+tables.}
 
-\item{method}{\code{"gustavsson_half_min"} (default), \code{"gustavsson_min"} or
-\code{"none"}.}
+\item{method}{\code{"gustavsson_half_min"} (default), \code{"gustavsson_min"},
+\code{"gustavsson_regional_actual"} or \code{"none"}.}
+
+\item{coverage}{How areas outside Annex 1's 152 countries are handled by
+\code{"gustavsson_regional_actual"}: \code{"global_mean"} (default) or
+\code{"annex1_only"}. Ignored by the region-invariant methods.}
 
 \item{protein_basis}{Passed to the nutrition lookup when the basket is given
 as \code{cbs_food}; see \code{\link[=build_food_supply]{build_food_supply()}}. Defaults to \code{"edible_portion"},
@@ -27,8 +34,8 @@ matching the supply the floor is compared against.}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{omega}, \code{floor_divisor},
-\code{protein_grouped_share} and \code{method_loss_wedge}, plus the polity columns
-below.
+\code{protein_grouped_share}, \code{method_loss_wedge} and \code{method_region}, plus the
+polity columns below.
 }
 \description{
 Returns the share of retail-level protein supply that does not become intake,
@@ -62,6 +69,24 @@ construction is conservative.
 on the same basket); \code{"none"} sets it to zero and makes every floor an
 explicit lower bound. All are alternatives, never fallbacks: the choice is
 stamped in \code{method_loss_wedge}.
+
+\code{"gustavsson_regional_actual"} is the sensitivity arm, and it is \strong{not an
+unavoidable-loss estimate at all}: it drops both the minimum and the halving
+and gives each country its Annex 1 region's own observed rates. On the 2010
+world basket that is 14.2\% against the default's 2.5\%, a floor divisor of
+1.166, spanning 4.1\% to 21.4\% across countries. Its country structure is
+contested -- Gustavsson's rich-high gradient is the opposite sign to UNEP's
+Food Waste Index -- so it quantifies that disagreement rather than resolving
+it.
+
+Annex 1 lists 152 countries, covering 99.0\% of 2010 world food protein.
+Areas outside it take the unweighted mean rate across the seven regions by
+default (\code{coverage = "global_mean"}), stamped as such in \code{method_region};
+\code{"annex1_only"} returns nothing for them instead. Annex 1's "China" does not
+disambiguate, so both WHEP codes take Industrialized Asia: \code{CHN} (area 41,
+"China, mainland") and the aggregate area 351, which carries no \code{iso3c} and
+is what the FBS pin reports food on. Keying on \code{iso3c} alone would drop area
+351 and with it a fifth of world food protein.
 
 Items that Gustavsson's Annex 2 does not place in a commodity group carry no
 rate rather than borrowing a neighbour's. They are dropped from the weighting,

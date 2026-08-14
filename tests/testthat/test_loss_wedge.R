@@ -191,6 +191,116 @@ testthat::test_that("the PACKAGED Annex 4 table is locked", {
   )
 })
 
+.lw_cereals <- function(area) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~protein_t,
+    2010L, area,       2511L,          100
+  )
+}
+
+testthat::test_that("the regional method uses a region's own unhalved rates", {
+  # Spain is Annex 1 Region 1. Europe's cereal rates are 2% distribution and
+  # 25% consumption, composed whole -- neither minimised nor halved.
+  out <- whep::build_loss_wedge(
+    data = list(protein_supply = .lw_cereals(203L)),
+    method = "gustavsson_regional_actual"
+  )
+  testthat::expect_equal(out$omega, 1 - 0.98 * 0.75)
+  testthat::expect_equal(out$method_region, "annex1")
+})
+
+testthat::test_that("regional rates differ by region for the same basket", {
+  # sub-Saharan Africa's cereal consumption rate is 1% against Europe's 25%.
+  # A wedge that did not vary here would not be regional at all.
+  spain <- whep::build_loss_wedge(
+    data = list(protein_supply = .lw_cereals(203L)),
+    method = "gustavsson_regional_actual"
+  )
+  nigeria <- whep::build_loss_wedge(
+    data = list(protein_supply = .lw_cereals(159L)),
+    method = "gustavsson_regional_actual"
+  )
+  testthat::expect_equal(nigeria$omega, 1 - 0.98 * 0.99)
+  testthat::expect_lt(nigeria$omega, spain$omega)
+})
+
+testthat::test_that("both China codes reach Industrialized Asia", {
+  # Annex 1 lists "China" without disambiguating, and WHEP splits it: area 41
+  # is `CHN` while the aggregate 351, which is what the FBS pin reports food
+  # on, carries no iso3c at all. Keying on iso3c alone would silently drop a
+  # fifth of world food protein.
+  out <- whep::build_loss_wedge(
+    data = list(
+      protein_supply = dplyr::bind_rows(
+        .lw_cereals(41L),
+        .lw_cereals(351L)
+      )
+    ),
+    method = "gustavsson_regional_actual"
+  )
+  testthat::expect_equal(nrow(out), 2L)
+  testthat::expect_equal(unique(out$omega), 1 - 0.98 * 0.80)
+  testthat::expect_equal(unique(out$method_region), "annex1")
+})
+
+testthat::test_that("areas outside Annex 1 take the global mean, and say so", {
+  # Madagascar is in no Annex 1 region. Its wedge must be visibly a fallback,
+  # never indistinguishable from a listed country's.
+  out <- whep::build_loss_wedge(
+    data = list(protein_supply = .lw_cereals(129L)),
+    method = "gustavsson_regional_actual"
+  )
+  # Mean distribution 2,2,2,2,4,2,4 -> 18/7; mean consumption
+  # 25,27,20,1,12,3,10 -> 98/7 = 14.
+  mean_dist <- mean(c(2, 2, 2, 2, 4, 2, 4)) / 100
+  mean_cons <- mean(c(25, 27, 20, 1, 12, 3, 10)) / 100
+  testthat::expect_equal(out$omega, 1 - (1 - mean_dist) * (1 - mean_cons))
+  testthat::expect_equal(out$method_region, "global_mean")
+})
+
+testthat::test_that("annex1_only refuses to fill instead of filling", {
+  testthat::expect_warning(
+    whep::build_loss_wedge(
+      data = list(protein_supply = .lw_cereals(129L)),
+      method = "gustavsson_regional_actual",
+      coverage = "annex1_only"
+    ),
+    "Annex 1 lists no region"
+  )
+  out <- suppressWarnings(
+    whep::build_loss_wedge(
+      data = list(protein_supply = .lw_cereals(129L)),
+      method = "gustavsson_regional_actual",
+      coverage = "annex1_only"
+    )
+  )
+  testthat::expect_true(is.na(out$omega))
+  testthat::expect_true(is.na(out$method_region))
+})
+
+testthat::test_that("the region-invariant methods say they use no region", {
+  out <- whep::build_loss_wedge(
+    data = list(protein_supply = .lw_cereals(203L))
+  )
+  testthat::expect_equal(out$method_region, "region_invariant")
+  testthat::expect_equal(out$omega, 1 - 0.99 * 0.995)
+})
+
+testthat::test_that("the PACKAGED region table resolves one region per area", {
+  regions <- whep::whep_coef_table("food_loss_regions")
+  wedge <- whep::whep_coef_table("food_loss_wedge")
+  testthat::expect_equal(nrow(regions), 153L)
+  testthat::expect_setequal(unique(regions$region), unique(wedge$region))
+  # Every row is keyed exactly one way, by iso3c or by area code, never both
+  # and never neither.
+  keyed <- xor(!is.na(regions$iso3c), !is.na(regions$area_code))
+  testthat::expect_true(all(keyed))
+  # Resolution must not hand one area two regions.
+  resolved <- whep:::.lw_area_regions(regions)
+  testthat::expect_equal(anyDuplicated(resolved$area_code), 0L)
+  testthat::expect_true(all(c(41L, 351L) %in% resolved$area_code))
+})
+
 testthat::test_that("the PACKAGED item mapping stays inside Annex 2", {
   groups <- whep::whep_coef_table("food_loss_item_groups")
   wedge <- whep::whep_coef_table("food_loss_wedge")

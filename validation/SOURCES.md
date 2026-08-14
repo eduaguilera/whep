@@ -110,7 +110,20 @@ coefficient tables `inst/extdata/coefs/food_loss_wedge.csv` (rates) and
 | FAO, New Food Balances | FAO, *New Food Balances* methodology, section II p.4 and section VIII p.19 | open, <https://www.fao.org/faostat/en/#data/FBS> | Why only the two at-or-after-retail steps are composed: FBS food availability is measured "at the retail level" and "also includes any loss or waste at the retail or consumer level". Section VIII places element 5123 `Losses` pre-retail, which is why it is **not** subtracted -- doing so would double-count. The 2001 *FBS Handbook* ch. II section 9 conflicts, placing the Waste element's end point at "the household"; it is superseded, and only *New Food Balances* is cited. |
 | FAOSTAT FS item 21059 | FAOSTAT Suite of Food Security Indicators, *Food loss percentage* | open | Magnitude cross-check only, never an input. Global median 2.83% of dietary energy (2020, n=203). SOFI 2026 Annex 1B states it is built by applying Gustavsson's `Distribution` column to FBS kilocalories, so it covers the retail step alone and is not a competing estimate of this wedge. |
 
-Three derivation notes, all load-bearing:
+`food_loss_regions.csv` transcribes **Annex 1** verbatim: 152 countries in seven
+regions, covering 99.0% of 2010 world food protein. Three things about it are
+load-bearing. Annex 1 places **China** in Region 3 alongside Japan and South
+Korea, i.e. on Industrialized Asia's rates, and does not say whether it means
+the mainland or the aggregate; WHEP splits them (`CHN` is area 41 "China,
+mainland" while the aggregate area 351 carries no `iso3c` and is what the FBS
+pin reports food on), so both codes are listed and a table keyed on `iso3c`
+alone would drop a fifth of world food protein. **Ethiopia** and **Sudan**
+each resolve to two WHEP areas across a polity split (238/62 and 276/206);
+Annex 1's 2011 entries are pre-partition and legitimately cover both.
+**South Sudan, Taiwan, Hong Kong, Macao, DPRK, Madagascar, Papua New Guinea**
+and roughly a hundred small territories appear in no Annex 1 region at all.
+
+Four derivation notes, all load-bearing:
 
 - The two steps are composed **multiplicatively**,
   `1 - (1 - d/2)(1 - c/2)`, not added: the consumption step acts on what
