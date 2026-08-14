@@ -98,6 +98,35 @@ intake levels defined as above for individuals have been **incorrectly applied
 to populations**" (p.41), and "a safe population intake **cannot be defined as a
 simple function of the mean requirement**" (p.241).
 
+## Nourishment floor composition sources
+
+Cited at the point of use in `R/nourishment_floor.R`. The floor composes the
+requirement, dispersion and loss-wedge terms; these are the parameters the
+composition itself adds.
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| TRS 935 Box 1 | WHO/FAO/UNU (2007), TRS 935, Box 1, p.44 | open, <https://iris.who.int/handle/10665/43411> | The whole model. Verbatim: log(deficit) is normal with mean `M_D = M_I - M_R` and SD `S_D = sqrt(S_I^2 + S_R^2 - 2 R S_I S_R)`; prevalence of deficit is `Phi(-M_D/S_D)`. |
+| TRS 935 `S_R` | Same, p.38 section 3.2.4: "ln (requirement) ~ normal (mean = 4.654, SD = 0.12)" | open | `requirement_sd = 0.12`, the log-scale spread of the adult requirement on a per-kilogram basis. The report also states (p.109 section 7.3, p.123 section 7.9) that this is only about a fifth of observed between-individual variance, ">80% ... could reflect a lack of energy balance" — which is why the argument is exposed rather than fixed. |
+| TRS 935 `R = 0` | Same, p.44 and Table 2 heading "Zero correlation assumed" | open | The zero-correlation case of Box 1, reducing `S_D` to the quadrature sum. It is TRS 935's **assumption**, not a measurement: a positive intake-requirement correlation would shrink `S_D` and lower every floor. |
+| TRS 935 `p*` | Same, Figure 7 header (p.46): "Safe population intake ie. risk<2.5%" | open | The 2.5% default tolerated shortfall. |
+| FAO SDG 2.1.1 metadata | FAO, SDG indicator 2.1.1 metadata: "2.5% is the lowest feasible target that can be set for the PoU indicator" | open | The independent second anchor on 2.5%. Two sources fix it, so departing from 2.5% is the science decision and adopting it follows the source. |
+
+Golden values pinned by `tests/testthat/test_nourishment_floor.R`: TRS 935
+Table 2 (p.45) reports that a population whose median intake sits at the 0.83
+safe level still has **7.9%** below requirement at `S_I = 0.12` and **18.2%** at
+the printed `S_I` of 0.24. Both reproduce exactly from `Phi(-M_D/S_D)` with
+`M_D = 0.24` and `S_R = 0.12`. Note the printed 0.24 is a rounding of
+`1.96 x 0.12 = 0.2352`, and only the unrounded value reproduces the table.
+
+Two things the composition deliberately does **not** do. It does not use FAO's
+PoU inversion, which needs a class **minimum** requirement TRS 935 never
+publishes, and which is a cut-point method whose validity condition (IOM Box
+4-2 condition 4) requires true prevalence of 8-10% against targets here of
+2.5-10%. And it does not import FAO's within-requirement CV, which is generated
+by a physical-activity gap that the per-kilogram protein requirement has no
+analogue for.
+
 ## Nourishment loss-wedge sources
 
 Cited at the point of use in `R/loss_wedge.R` and carried as the packaged

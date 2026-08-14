@@ -1,5 +1,41 @@
 # whep (development version)
 
+* **New `build_nourishment_floor()`: the SJOS-N floor is now composed from
+  sourced terms instead of a flat 46 g/cap/day times an unsourced 1.35.** It
+  implements WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
+  `S_D = sqrt(S_I^2 + S_R^2)`, prevalence `Phi(-M_D/S_D)` — and inverts it at a
+  tolerated shortfall to give a threshold on mean per-capita protein supply:
+
+  ```
+  floor = requirement * exp(z * S_D + S_I^2 / 2) / (1 - omega)
+  ```
+
+  The anchor is the **average** requirement from `build_protein_requirement()`,
+  not the safe level, because TRS 935 says applying an individual safe level to
+  a population is incorrect (p.41) and a safe population intake "cannot be
+  defined as a simple function of the mean requirement" (p.241). Passing a
+  safe-level requirement warns, because the formula adds its own population
+  margin and would count the requirement margin twice. `shortfall` defaults to
+  2.5%, fixed independently by TRS 935 Figure 7 and by FAO's stated lowest
+  feasible PoU target. `requirement_sd` defaults to TRS 935's `S_R = 0.12` and
+  is exposed because the report itself notes that captures only about a fifth
+  of observed between-individual variance.
+
+  **On the 2010 build the median country floor is 58.6 g/cap/day against the
+  shipped flat 62.1**, ranging 53.0 to 73.8, with 39 of 167 countries above
+  62.1. Where the axis had one number for every country it now has a
+  distribution: demography pulls the requirement down to a median 32.0
+  g/cap/day, and the dispersion margin (median `S_D` 0.29) puts most of it back.
+
+  **The protein-quality term is not built**, and the floor is a known
+  understatement without it — TRS 935's safe level is defined for a PDCAAS of
+  1.0 and real diets score below that, a level shift the evidence record puts
+  at +11% to +36%. `quality = "none"` is stamped in `method_quality` so the
+  method name cannot silently change meaning when the term lands.
+
+  **No published value changes.** Nothing calls this function yet;
+  `normalize_nourishment()` still uses the flat threshold.
+
 * **New `build_loss_wedge()`: the nourishment floor can now allow for the food
   that never becomes intake.** The floor asks whether supply *can* meet needs,
   so it has to account for loss between the retail shelf and the mouth — but
