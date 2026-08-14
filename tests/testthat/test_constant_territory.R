@@ -232,13 +232,18 @@ test_that("the open end is read from the data and admits no sibling", {
       "ROU-1940-2025"
     )
   )
-  # Re-stamped for the whep-polities 2830fb7 re-sync (753 -> 757 rows, blob
-  # 40878c6c): 243 intervals now end on the domain end and 235 are open,
-  # against 240/232 on the 753 vintage and 238/230 on 751. The eight succeeded
-  # ones are unchanged across all three. The year test and the successor test
-  # still do NOT agree here, and only the latter is right -- which is the
-  # property this line exists to hold, not the constants themselves.
-  expect_equal(sum(flat$end_year == domain_end), 235L + length(succeeded))
+  # There was a hard-coded count here -- sum(end_year == domain_end) against
+  # 235L + length(succeeded) -- re-stamped for each upstream vintage (235 on the
+  # 757-row sync, 232 on 753, 230 on 751) and red again on the fourth (#793).
+  # It is removed rather than re-stamped a fourth time, because the constant was
+  # its only content: `succeeded` is *defined* as the intervals ending on the
+  # domain end that are not open, so the totals agree by construction whatever
+  # the vintage, and every non-trivial part of the claim is asserted above --
+  # that open intervals all end on the domain end, that no family has two, that
+  # the families on each side match, and that `succeeded` is exactly those eight
+  # codes, which is what catches one arriving silently. Re-stamping a number
+  # that tracks upstream row counts only offers a chance to bless a regression
+  # as a vintage change.
 
   # Upstream's own `successor` column is the independent witness: no live polity
   # ending on the domain end is without a successor's counterpart, and every

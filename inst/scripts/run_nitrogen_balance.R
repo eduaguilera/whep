@@ -68,7 +68,7 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     detail = if (is.na(detail)) {
       NA_character_
     } else {
-      substr(gsub("\\s+", " ", detail), 1, 200)
+      substr(gsub("\\s+", " ", detail), 1, 1200)
     }
   )
 }
@@ -91,6 +91,188 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
   whep:::.sci_crop_prod_wide(primary_prod) |>
     dplyr::filter(.data$year == !!year) |>
     dplyr::mutate(sub_territory = as.character(.data$area_code))
+}
+
+# Spread the national per-crop NPP chain onto cells.
+#
+# .n_inputs_bnf() and .n_inputs_recycling() read lon/lat off this table, and a
+# crops table built from country production has neither. Rather than introduce
+# a second spatialization, reuse the weights build_soil_carbon_inputs() already
+# uses to put per-crop carbon on cells: harvested-area shares per polity-crop
+# from the crop_patterns surface, which sum to 1 per (area_code,
+# item_prod_code). Every extensive column is scaled by that share, so cell
+# values sum back to the national ones.
+#
+# METHOD NOTE: distributing NPP by harvested-area share is the same assumption
+# the soil-carbon inputs already make for the same crops, not a new one, but it
+# is an assumption and belongs to the scientific sign-off for #446, not to this
+# driver. What the driver owes is the arithmetic and the loss report below.
+#
+# The residual is polity-crops that have production but no positive cropland
+# cell, so nothing to spread onto; they drop out here exactly as they do in the
+# carbon inputs (cf. #599). It is reported rather than silently absorbed.
+.nbd_grid_npp <- function(npp) {
+  weights <- whep:::.sci_grid_weights(
+    whep:::.sci_read_country_grid(),
+    whep:::.sci_read_crop_patterns()
+  )
+  keys <- c("year", "area_code", "item_prod_code")
+  extensive <- setdiff(names(npp)[vapply(npp, is.numeric, TRUE)], keys)
+  # .n_inputs_recycling() reads item_cbs_code straight off this table, while
+  # .n_inputs_bnf() derives it from item_prod_code. Apply the package's own
+  # mapping once here so all three consumers of this table see the same codes.
+  gridded <- npp |>
+    dplyr::mutate(
+      item_cbs_code = whep:::.ni_item_cbs_from_prod(.data$item_prod_code)
+    ) |>
+    dplyr::inner_join(
+      weights,
+      by = c("area_code", "item_prod_code"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      dplyr::across(dplyr::all_of(extensive), \(v) v * .data$area_weight)
+    )
+  gridded
+}
+
+# What the gridding could not place, as a share of the national total. A silent
+# 0.1% is fine; a silent 30% would not be, and neither is distinguishable from
+# an arithmetic error once it reaches the surplus.
+.nbd_report_unspatialized <- function(npp, gridded) {
+  for (column in intersect(c("crop_npp_n_t", "product_n_t"), names(npp))) {
+    national <- sum(npp[[column]], na.rm = TRUE)
+    placed <- sum(gridded[[column]], na.rm = TRUE)
+    if (!is.finite(national) || national == 0) {
+      next
+    }
+    lost <- (national - placed) / national
+    cli::cli_inform(c(
+      i = "{column}: {round(100 * lost, 3)}% not spatialized
+           ({signif(national - placed, 3)} of {signif(national, 4)} t)."
+    ))
+  }
+  invisible(NULL)
+}
+
+# The BNF input needs three columns the NPP chain does not produce, and which
+# nothing in the package supplies: land_use, legumes_seeded and
+# seeded_cover_crop_share. calculate_weed_bnf() aborts without them.
+#
+# land_use is not a choice here -- these rows are crop NPP, so "cropland".
+#
+# ASSUMPTION, for #446's scientific sign-off to replace: no seeded cover crops
+# (legumes_seeded = 0, seeded_cover_crop_share = 0). That leaves weed BNF coming
+# only from spontaneous weeds via calculate_weed_bnf()'s own land-use default,
+# and it is deliberately the LOW end -- a wrong non-zero cover-crop share would
+# inflate fixation and therefore the surplus, whereas zero can only understate
+# it. It is not a claim that cover cropping is absent globally.
+.nbd_bnf_input <- function(npp) {
+  if (is.null(npp)) {
+    return(NULL)
+  }
+  cli::cli_inform(c(
+    "!" = "bnf_input: assuming no seeded cover crops (legumes_seeded = 0,
+           seeded_cover_crop_share = 0). Weed BNF is a lower bound (#446)."
+  ))
+  npp |>
+    dplyr::mutate(
+      land_use = "cropland",
+      legumes_seeded = 0,
+      seeded_cover_crop_share = 0
+    )
+}
+
+# The gridded crops layer build_livestock_nutrient_flows() spreads manure over.
+#
+# .sci_manure_crop_layer() builds exactly this for the carbon balance, but sets
+# crop = as.character(item_prod_code) -- a code. The nitrogen side resolves the
+# same column by NAME: .ni_manure_item_cbs() -> .ni_crop_name_to_item_cbs()
+# matches it case-insensitively against item_prod in whep::items_prod_full and
+# aborts otherwise. So the carbon path's layer cannot be handed to the nitrogen
+# path even though both call it "the gridded crops layer". Reuse the carbon
+# layer and translate the one column, so the hectares stay identical and only
+# the key differs.
+.nbd_manure_crop_layer <- function(primary_prod) {
+  names_by_code <- whep::items_prod_full |>
+    dplyr::transmute(
+      crop = as.character(.data$item_prod_code),
+      item_prod = .data$item_prod
+    ) |>
+    dplyr::distinct(.data$crop, .keep_all = TRUE)
+  layer <- whep:::.sci_manure_crop_layer(primary_prod) |>
+    dplyr::left_join(names_by_code, by = "crop")
+  unresolved <- unique(layer$crop[is.na(layer$item_prod)])
+  if (length(unresolved) > 0) {
+    cli::cli_warn(
+      "{length(unresolved)} manure crop code{?s} have no item_prod name and are
+       dropped: {.val {utils::head(unresolved, 5)}}."
+    )
+  }
+  layer |>
+    dplyr::filter(!is.na(.data$item_prod)) |>
+    dplyr::mutate(crop = .data$item_prod) |>
+    dplyr::select(-"item_prod")
+}
+
+# Drop fertiliser for polities that have no cropland to spread it on.
+#
+# spatialize_country_n_to_crops() aborts rather than lose that nitrogen
+# silently, which is right -- but for 2010 the offenders are Greenland, Palau,
+# French Guiana, Martinique, Reunion and the residual Rest-of-World bucket:
+# territories reporting a little fertiliser with no crop production in WHEP's
+# data. Together 1367 t, 0.0013% of the global 101.33 Mt. Aborting a global run
+# on that is disproportionate; losing it unremarked is what the guard exists to
+# prevent. So the driver makes the call, in the open, and prints what it cost.
+#
+# This is a data-coverage gap, not a fix: either those polities should carry
+# crop area, or their fertiliser should not be attributed to them (#446).
+.nbd_drop_unsupported_fertilizer <- function(
+  fertilizer,
+  primary_prod,
+  year,
+  cropland_ha = NULL
+) {
+  if (is.null(fertilizer) || is.null(primary_prod)) {
+    return(fertilizer)
+  }
+  totals <- whep:::.synthetic_n_country(fertilizer)
+  shares <- whep:::.n_synthetic_crop_shares(primary_prod, "coello", NULL)
+  supported <- dplyr::distinct(shares, .data$year, .data$area_code)
+  # Crop shares are not enough: a polity can have crop production and still no
+  # positive cropland CELL at 0.5 degrees, which is where the grid step then
+  # aborts. cropland_ha is the driver's own gridded cropland, so require both.
+  if (!is.null(cropland_ha)) {
+    supported <- dplyr::semi_join(
+      supported,
+      dplyr::distinct(cropland_ha, .data$year, .data$area_code),
+      by = c("year", "area_code")
+    )
+  }
+  unsupported <- totals |>
+    dplyr::filter(.data$synthetic_n_t > 0) |>
+    dplyr::anti_join(supported, by = c("year", "area_code"))
+  if (nrow(unsupported) == 0L) {
+    return(fertilizer)
+  }
+  cli::cli_inform(c(
+    "!" = "Dropping {nrow(unsupported)} polit{?y/ies} with fertiliser but no
+           cropland: {signif(sum(unsupported$synthetic_n_t), 4)} t,
+           {signif(100 * sum(unsupported$synthetic_n_t) / sum(totals$synthetic_n_t), 3)}%
+           of {year} synthetic N. Codes: {unsupported$area_code}."
+  ))
+  # The SAME crosswalk .synthetic_n_country() re-keys with, or the reverse
+  # mapping disagrees with the forward one: that helper reads the static
+  # whep::polity_area_crosswalk, so members that fold into 999 are invisible to
+  # .polity_crosswalk() and their raw rows survive the drop, leaving the folded
+  # bucket still carrying nitrogen it cannot place.
+  bridge <- tibble::as_tibble(whep::polity_area_crosswalk) |>
+    dplyr::transmute(
+      raw = as.integer(.data$area_code),
+      polity = as.integer(.data$polity_area_code)
+    )
+  drop_raw <- bridge$raw[bridge$polity %in% unsupported$area_code]
+  dplyr::filter(fertilizer, !as.integer(.data[["Area Code"]]) %in% drop_raw)
 }
 
 # ---- 1. spatial and land surfaces -------------------------------------------
@@ -117,23 +299,42 @@ cropland_ha <- nbd_stage(
 
 cli::cli_h2("2. Country statistics")
 
-primary_prod <- nbd_stage("primary_prod", get_primary_production())
+# Scoped to the driven year, like every other input. build_nitrogen_balance()
+# has no `years` argument -- it covers whatever span its inputs do -- so an
+# unscoped production table made it compare 2010 crop shares against country
+# totals for 2002-2023 and abort on every year that did not line up.
+primary_prod <- nbd_stage("primary_prod", get_primary_production(years = year))
+# Same reason: the raw pin carries every year, and the synthetic-N country
+# totals derived from it must cover the same span as the crop shares.
 fertilizer <- nbd_stage(
   "fertilizer",
-  whep_read_file("faostat-fertilizer-nutrients")
+  whep_read_file("faostat-fertilizer-nutrients") |>
+    dplyr::filter(as.integer(.data$Year) == year)
 )
 manure_pin <- nbd_stage("manure", whep_read_file("faostat-emissions-livestock"))
 primary_residues <- nbd_stage("primary_residues", get_primary_residues())
+fertilizer <- .nbd_drop_unsupported_fertilizer(
+  fertilizer,
+  primary_prod,
+  year,
+  cropland_ha
+)
 
 # ---- 3. the crop NPP chain ---------------------------------------------------
 
 cli::cli_h2("3. Crop NPP -> carbon/nitrogen -> BNF -> residue destinies")
 
 crops <- nbd_stage("crops", .nbd_crops_table(primary_prod, year))
-npp <- nbd_stage(
-  "npp_n_input",
+npp_national <- nbd_stage(
+  "npp_n_input (national)",
   crops |> calculate_crop_npp() |> calculate_npp_carbon_nitrogen()
 )
+npp <- nbd_stage("npp_n_input", .nbd_grid_npp(npp_national))
+# Reported here, not inside the stage: nbd_stage() suppresses messages so a
+# noisy input cannot drown the coverage table, which would also hide this.
+if (!is.null(npp) && !is.null(npp_national)) {
+  .nbd_report_unspatialized(npp_national, npp)
+}
 
 # ---- 4. upstream models ------------------------------------------------------
 
@@ -145,14 +346,29 @@ urban_population <- nbd_stage(
 )
 nhx <- nbd_stage("nhx", read_n_deposition("nhx", years = year))
 noy <- nbd_stage("noy", read_n_deposition("noy", years = year))
+# Scoped to the driven year. Unscoped this builds every year the inputs cover,
+# which is what made this stage look like a hang in #455 rather than a
+# multi-hour run. A single-year balance initialises at equilibrium instead of
+# marching from 1901, which is a scientific choice for #446's sign-off, not the
+# driver's -- the driver's job is to make the stage finish and say what it did.
 carbon_balance <- nbd_stage(
   "carbon_balance",
-  build_carbon_balance(resolution = "grid"),
+  build_carbon_balance(resolution = "grid", years = year),
   heavy = TRUE
 )
+# redistribute_feed() takes two already-assembled tables (feed demand and feed
+# availability); .run_redistribute_national() is the wrapper that builds both
+# from production and the commodity balances, and is what the manure path in
+# build_soil_carbon_inputs() already uses. Calling redistribute_feed() bare, as
+# this driver did, can only fail on a missing argument.
 livestock_intake <- nbd_stage(
   "livestock_intake",
-  redistribute_feed(),
+  whep:::.run_redistribute_national(
+    production = primary_prod,
+    cbs = get_wide_cbs(years = year),
+    demand_tier = "ipcc",
+    options = list(distribute_surplus = FALSE)
+  ),
   heavy = TRUE
 )
 
@@ -210,16 +426,38 @@ if (nrow(blockers) > 0L) {
         manure = manure_pin,
         primary_residues = primary_residues,
         npp_n_input = npp,
-        bnf_input = npp,
+        bnf_input = .nbd_bnf_input(npp),
         residue_destiny_input = npp,
         carbon_balance = carbon_balance,
         livestock_intake = livestock_intake,
+        # build_livestock_nutrient_flows() needs the land surface its manure is
+        # spread over as well as the intake; .sci_manure_crop_layer() is the
+        # same crops layer build_soil_carbon_inputs() gives it, so the manure
+        # reaching the nitrogen balance sits on the same hectares as the manure
+        # reaching the carbon balance.
+        gridded = list(crops = .nbd_manure_crop_layer(primary_prod)),
+        # The default allocation cap, "potential_uptake", needs a precomputed
+        # crop_n_cap that this crops layer does not carry. build_soil_carbon_
+        # inputs() hits the same wall and answers it with "fixed_ceiling", so
+        # use that here too: the manure entering the nitrogen balance is then
+        # allocated exactly as the manure entering the carbon balance, rather
+        # than the two disagreeing about the same animals. A method choice, and
+        # one for #446's sign-off to confirm.
+        methods = list(allocation = list(cap_method = "fixed_ceiling")),
         urban_population = urban_population,
         nhx = nhx,
         noy = noy
       )
     )
   )
+  # The whole point of the driver is this stage, so when it fails say why here
+  # rather than leaving the reason in a column of the coverage table nobody
+  # prints. Section 5's blocker list runs before this stage exists.
+  if (is.null(balance)) {
+    failure <- dplyr::last(dplyr::bind_rows(.nbd_log$rows))
+    cli::cli_h2("6b. Why the balance did not run")
+    cli::cli_inform(c(x = "{failure$detail}"))
+  }
   if (!is.null(balance)) {
     surplus_tg <- sum(balance$n_input_std_t, na.rm = TRUE) / 1e6
     cli::cli_h2("7. Plausibility")
