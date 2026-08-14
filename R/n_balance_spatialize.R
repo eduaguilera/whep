@@ -594,6 +594,16 @@ spatialize_country_n_to_crops <- function(
 
 # Polity-total N (one fert_type) x crop-area-share -> polity x crop N.
 .n_polity_crop_totals <- function(country_totals, crop_shares) {
+  # A total of zero has nothing to spread, so a polity with no crop-area share
+  # and no nitrogen is not a spatialization failure -- it is a country that used
+  # no fertiliser that year. Guarding on those aborted a real 2010 run on seven
+  # polities carrying 0 t between them. Rows that do carry nitrogen and have no
+  # support are still an error: that would silently lose mass (#446).
+  country_totals <- dplyr::filter(
+    country_totals,
+    !is.na(.data$n_t),
+    .data$n_t > 0
+  )
   missing_support <- country_totals |>
     dplyr::anti_join(
       dplyr::distinct(crop_shares, .data$year, .data$area_code),
