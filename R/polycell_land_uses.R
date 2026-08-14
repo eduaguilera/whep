@@ -70,9 +70,13 @@
 #' * `"spillover"` (default) places the excess on same-country neighbours,
 #'   widening the search ring until it is absorbed, taking non-forested natural
 #'   land (LUH2 `primn`, `secdn`) first and forest (`primf`, `secdf`) only as a
-#'   fallback. The ring each hectare reached is reported in
-#'   `spillover_max_ring`; at 2020 it places **all** 63.50 Mha, reaching a
-#'   median ring of 2 and a maximum of 22.
+#'   fallback. A neighbour can only receive a class it has a row for, so land
+#'   the pattern classified nowhere is never quietly credited. The ring each
+#'   hectare reached is reported in `spillover_max_ring`; at 2020 it places
+#'   63.45 of the 63.50 Mha across 3,878 receiving polycells, at a median ring
+#'   of 2 and a maximum of 22, and names the remaining 42,765 ha (two
+#'   polycell-classes, in a country whose free land holds neither class) in
+#'   `unplaceable_statistical_ha`.
 #' * `"cap"` caps the agricultural classes at `land_area_ha` pro rata and leaves
 #'   the whole 63.50 Mha in `unplaceable_statistical_ha`. It is the sensitivity
 #'   baseline that quantifies what spillover buys.
@@ -300,6 +304,13 @@ build_polycell_land_uses <- function(
     "data$cropland_level"
   )
   cropland |>
+    # Scoped here and not only in the reader call, because an INJECTED level
+    # table arrives at its own span. The anchoring join keys on `year` and so
+    # ignores the surplus rows, but `.plu_warn_unplaced_levels()` does not: left
+    # unscoped it measures every year's level against one year's pattern and
+    # reports a total larger than the planet. Mirrors the grassland level, which
+    # is scoped after its backcast.
+    .plu_filter_years(years) |>
     dplyr::transmute(
       area_code = as.integer(.data$area_code),
       year = as.integer(.data$year),
@@ -806,7 +817,7 @@ build_polycell_land_uses <- function(
 .plu_spillover <- function(allocated, support, overfull, data, years) {
   donors <- .plu_donor_excess(allocated, overfull)
   receivers <- .plu_receiver_capacity(allocated, support, data, years)
-  moved <- .plu_spill_rings(donors, receivers)
+  moved <- .plu_spill_rings(donors, receivers, .plu_class_slots(allocated))
 
   allocated |>
     .plu_apply_donor_excess(donors) |>
@@ -948,23 +959,51 @@ build_polycell_land_uses <- function(
 # Widen the ring until nothing is left to place or no capacity remains anywhere
 # in the affected countries. Both bounds are needed: the first is the intent,
 # the second is what guarantees the loop ends when a country is genuinely full.
-.plu_spill_rings <- function(donors, receivers) {
+# Where a class can actually be received. `.plu_apply_received()` credits a
+# receiver by joining on (polycell_id, year, land_use), so a hectare sent to a
+# polycell-year the pattern gave no row for that class has nowhere to land: the
+# donor is debited, the credit is dropped, and the residual books the land as
+# `natural` with `unplaceable_statistical_ha = 0`. Measured before this filter:
+# 143 such rows, 0.35 Mha at 2020, lost in silence -- which is exactly the
+# quiet cap the method contract forbids. Restricting the pairing to real slots
+# keeps the hectare with its donor, so it is either placed on a neighbour that
+# can hold it or reported as unplaceable.
+.plu_class_slots <- function(allocated) {
+  dplyr::distinct(allocated, .data$polycell_id, .data$year, .data$land_use)
+}
+
+# Capacity a donor could actually still reach, which is what the loop's second
+# exit test has to measure. Spare land counts only where all three of these
+# hold: it is in a country-year that still has demand (checking the global pool
+# would keep one full country searching for as long as any OTHER country had
+# spare land), and its polycell holds a class that is still being offered --
+# because `.plu_ring_pairs()` pairs on the class too, so capacity in a polycell
+# with no row for the demanded class can never be consumed and would otherwise
+# hold the loop open to `.plu_max_ring()`. Keyed on the year throughout: the
+# spill itself is per-year, so demand in 2020 must not keep an 1850 receiver
+# alive.
+.plu_reachable_capacity <- function(free, left, slots) {
+  reachable <- free |>
+    dplyr::filter(.data$free_nonforest + .data$free_forest > 1e-9) |>
+    dplyr::select("polycell_id", "year", "area_code") |>
+    dplyr::inner_join(slots, by = c("polycell_id", "year")) |>
+    dplyr::semi_join(left, by = c("area_code", "year", "land_use")) |>
+    dplyr::distinct(.data$polycell_id, .data$year)
+  dplyr::semi_join(free, reachable, by = c("polycell_id", "year"))
+}
+
+.plu_spill_rings <- function(donors, receivers, slots) {
   left <- dplyr::mutate(donors, left_ha = .data$donated_ha)
   free <- receivers
   received <- .plu_empty_received()
   ring <- 1L
   repeat {
     left <- dplyr::filter(left, .data$left_ha > 1e-9)
-    # Capacity only counts if it sits in a country that still has demand:
-    # checking the global pool would keep one full country searching for as
-    # long as any OTHER country had spare land.
-    free <- free |>
-      dplyr::filter(.data$free_nonforest + .data$free_forest > 1e-9) |>
-      dplyr::semi_join(dplyr::distinct(left, .data$area_code), by = "area_code")
+    free <- .plu_reachable_capacity(free, left, slots)
     if (nrow(left) == 0L || nrow(free) == 0L || ring > .plu_max_ring()) {
       break
     }
-    step <- .plu_spill_one_ring(left, free, ring)
+    step <- .plu_spill_one_ring(left, free, ring, slots)
     received <- dplyr::bind_rows(received, step$moved)
     left <- step$left
     free <- step$free
@@ -1019,13 +1058,14 @@ build_polycell_land_uses <- function(
 # claiming it, then any donor granted more than it still owed returns the
 # surplus. Without the second pass a donor claiming from several receivers in
 # one ring is credited more than its demand.
-.plu_spill_one_ring <- function(left, free, ring) {
-  first <- .plu_allocate_pool(left, free, "free_nonforest", ring)
+.plu_spill_one_ring <- function(left, free, ring, slots) {
+  first <- .plu_allocate_pool(left, free, "free_nonforest", ring, slots)
   second <- .plu_allocate_pool(
     first$left,
     first$free,
     "free_forest",
-    ring
+    ring,
+    slots
   )
   list(
     moved = dplyr::bind_rows(first$moved, second$moved),
@@ -1041,14 +1081,14 @@ build_polycell_land_uses <- function(
 # claiming it, then a donor granted more than it still owed returns the surplus,
 # because without that a donor claiming from several receivers in one ring is
 # credited more than its demand.
-.plu_allocate_pool <- function(left, free, pool, ring) {
+.plu_allocate_pool <- function(left, free, pool, ring, slots) {
   empty <- list(moved = .plu_empty_received()[0, ], left = left, free = free)
   usable <- dplyr::filter(free, .data[[pool]] > 1e-9)
   demand <- dplyr::filter(left, .data$left_ha > 1e-9)
   if (nrow(usable) == 0L || nrow(demand) == 0L) {
     return(empty)
   }
-  pairs <- .plu_ring_pairs(demand, usable, ring, pool)
+  pairs <- .plu_ring_pairs(demand, usable, ring, pool, slots)
   if (nrow(pairs) == 0L) {
     return(empty)
   }
@@ -1093,7 +1133,7 @@ build_polycell_land_uses <- function(
 
 
 # Same country, Chebyshev distance `ring` on the 0.5-degree grid.
-.plu_ring_pairs <- function(left, free, ring, pool) {
+.plu_ring_pairs <- function(left, free, ring, pool, slots) {
   offsets <- .plu_ring_offsets(ring)
   left |>
     dplyr::mutate(k = 1L) |>
@@ -1115,6 +1155,13 @@ build_polycell_land_uses <- function(
         ),
       by = c("area_code", "year", "t_lon", "t_lat"),
       relationship = "many-to-many"
+    ) |>
+    # A receiver only counts for the donor's class if it HAS that class: the
+    # credit is applied by joining on (polycell_id, year, land_use), so a pair
+    # with no such row would debit the donor and drop the hectare.
+    dplyr::semi_join(
+      slots,
+      by = c("r_polycell_id" = "polycell_id", "year", "land_use")
     ) |>
     dplyr::mutate(capacity = .data[[pool]]) |>
     dplyr::select(

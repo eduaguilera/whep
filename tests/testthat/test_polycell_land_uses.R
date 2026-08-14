@@ -359,6 +359,81 @@ test_that("spillover conserves: anchored in equals placed plus unplaceable", {
   )
 })
 
+# A neighbour with spare land that holds ONE of the classes in excess but not
+# the other. Cell C carries a grassland fraction and no cropland, so C-X has a
+# grassland row to be credited and no cropland row -- while
+# `.plu_receiver_capacity()`, built off the SUPPORT rather than off the
+# allocation, offers its spare land to either class. That is the shape that
+# defeats the polycell-level prune and reaches `.plu_ring_pairs()`: country 10
+# is over on both classes, so C-X is a live receiver, and the CROPLAND excess
+# sent there had no (polycell_id, year, land_use) row for
+# `.plu_apply_received()` to credit. The hectare was dropped, the donor stayed
+# debited, the residual rebooked the land as natural and
+# `unplaceable_statistical_ha` still read 0 -- the quiet cap the method contract
+# forbids, and 0.35 Mha of it on the real 2020 build.
+.plu_fx_orphan_receiver <- function() {
+  .plu_fx_data(
+    polycell_support = dplyr::bind_rows(
+      .plu_fx_support(),
+      tibble::tibble(
+        polycell_id = "C-X",
+        lon = 0.75,
+        lat = 0.75,
+        polity_code = "X-1900-2025",
+        area_code = 10L,
+        year = 2000L,
+        land_area_ha = 100
+      )
+    ),
+    pattern = dplyr::bind_rows(
+      .plu_fx_pattern(),
+      tibble::tribble(
+        ~lon, ~lat, ~year, ~land_use, ~fraction,
+        0.75, 0.75, 2000L, "grassland", 0.4,
+        0.75, 0.75, 2000L, "natural", 0.6
+      )
+    ),
+    cropland_level = tibble::tribble(
+      ~area_code, ~year, ~cropland_ha, ~source,
+      10L, 2000L, 200, "fao",
+      20L, 2000L, 6, "fao"
+    ),
+    grassland_level = tibble::tribble(
+      ~area_code, ~year, ~impact_u,
+      10L, 2000L, 100,
+      20L, 2000L, 8
+    )
+  )
+}
+
+test_that("spillover never credits a class a receiver has no row for", {
+  args <- .plu_fx_orphan_receiver()
+  out <- suppressWarnings(whep::build_polycell_land_uses(
+    data = args,
+    overfull_method = "spillover"
+  ))
+  # The identity the silent drop broke: every anchored hectare is either
+  # published in a class row or named as unplaceable. Measured against `cap`,
+  # which reconciles the same input without moving anything, rather than written
+  # down twice.
+  capped <- whep::build_polycell_land_uses(data = args, overfull_method = "cap")
+  expect_equal(
+    sum(out$area_ha[out$area_source == "anchored"]) +
+      sum(out$unplaceable_statistical_ha),
+    sum(capped$area_ha[capped$area_source == "anchored"]) +
+      sum(capped$unplaceable_statistical_ha)
+  )
+  # And it is still a partition: what cannot be credited stays with the donor as
+  # unplaceable instead of quietly becoming the receiver's natural land.
+  totals <- out |>
+    dplyr::summarise(total = sum(.data$area_ha), .by = "polycell_id")
+  expect_equal(
+    totals$total[match(c("A-X", "A-Y", "B-X", "C-X"), totals$polycell_id)],
+    c(60, 40, 100, 100)
+  )
+  expect_false("cropland" %in% out$land_use[out$polycell_id == "C-X"])
+})
+
 test_that("spillover places more than cap discards", {
   args <- .plu_fx_overfull()
   capped <- whep::build_polycell_land_uses(

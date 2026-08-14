@@ -33,13 +33,19 @@
   the treatment and is recorded in `method_overfull`. `"spillover"` (default)
   places the excess on same-country neighbours, widening the search ring until
   it is absorbed and taking non-forested natural land before forest: at 2020 it
-  places **all** of it, at a median ring of 2 and a maximum of 22. `"cap"` caps
-  pro rata and leaves the whole 63.50 Mha in `unplaceable_statistical_ha`. The
-  two are alternatives, never fallbacks.
+  places 63.45 Mha of it across 3,878 receiving polycells, at a median ring of 2
+  and a maximum of 22, and names the remaining 42,765 ha in
+  `unplaceable_statistical_ha`. A neighbour can only receive a class it has a
+  row for, so land the pattern classified nowhere is reported rather than
+  credited to a row that does not exist. `"cap"` caps pro rata and leaves the
+  whole 63.50 Mha in `unplaceable_statistical_ha`. The two are alternatives,
+  never fallbacks, and both close the same ledger: 4,716.99 + 63.50 =
+  4,780.44 + 0.04 Mha of anchored area in.
 
   On a real 2020 build the five classes sum to each polycell's `land_area_ha`
   to a maximum relative deviation of 1.7e-10 over 73,873 polycells, with none
-  off by more than 1e-6.
+  off by more than 1e-6. Global class areas come out at natural 7,985.3 Mha,
+  grassland 3,225.3, cropland 1,565.7, urban 77.9 and unclassified 71.2.
 
   No published value changes: this adds a producer and does not alter any
   existing output. The ledger anchors grassland on FAO item 6655 by passing

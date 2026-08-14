@@ -121,9 +121,13 @@ the treatment and is recorded per row in \code{method_overfull}:
 \item \code{"spillover"} (default) places the excess on same-country neighbours,
 widening the search ring until it is absorbed, taking non-forested natural
 land (LUH2 \code{primn}, \code{secdn}) first and forest (\code{primf}, \code{secdf}) only as a
-fallback. The ring each hectare reached is reported in
-\code{spillover_max_ring}; at 2020 it places \strong{all} 63.50 Mha, reaching a
-median ring of 2 and a maximum of 22.
+fallback. A neighbour can only receive a class it has a row for, so land
+the pattern classified nowhere is never quietly credited. The ring each
+hectare reached is reported in \code{spillover_max_ring}; at 2020 it places
+63.45 of the 63.50 Mha across 3,878 receiving polycells, at a median ring
+of 2 and a maximum of 22, and names the remaining 42,765 ha (two
+polycell-classes, in a country whose free land holds neither class) in
+\code{unplaceable_statistical_ha}.
 \item \code{"cap"} caps the agricultural classes at \code{land_area_ha} pro rata and leaves
 the whole 63.50 Mha in \code{unplaceable_statistical_ha}. It is the sensitivity
 baseline that quantifies what spillover buys.
