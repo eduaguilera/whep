@@ -274,5 +274,51 @@ if (file.exists(cyc_path)) {
   )
 }
 
+# N. nourishment axis, per item (external, vs FAOSTAT FBS protein) ------------
+# Scored on the PER-ITEM disagreement, not the Grand Total: the axis's net
+# excess is small because item errors cancel, so a net-only check reads as
+# accurate while individual items are tens of percent out (#500).
+nour <- tryCatch(
+  system2(
+    "Rscript",
+    c("validation/nourishment_axis.R", Sys.getenv("VAL_YEAR", "2010")),
+    stdout = TRUE,
+    stderr = FALSE
+  ),
+  error = function(e) character(0)
+)
+nour_metric <- grep("^METRIC", nour, value = TRUE)
+if (length(nour_metric) == 1L) {
+  num <- function(key) {
+    as.numeric(sub(
+      paste0(".*", key, "=([0-9.]+).*"),
+      "\\1",
+      nour_metric
+    ))
+  }
+  add(
+    "nourishment_axis",
+    "per_item",
+    num("items_compared"),
+    num("items_compared") - num("items_off_10pct"),
+    num("items_off_10pct"),
+    sprintf(
+      "items within 10%% of FBS protein; net ratio %.3f hides a %.0fx
+       cancellation",
+      num("net_ratio"),
+      num("cancellation")
+    )
+  )
+} else {
+  add(
+    "nourishment_axis",
+    "per_item",
+    NA,
+    NA,
+    NA,
+    "needs the CBS build and the faostat-fbs-new pin"
+  )
+}
+
 cat("\n=== WHEP validation scorecard ===\n")
 dplyr::bind_rows(scorecard) |> print(n = Inf, width = Inf)
