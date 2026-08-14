@@ -636,6 +636,130 @@ test_that(".processed_raw creates value_proc column", {
   expect_true("processed_item" %in% names(result))
 })
 
+# -- Dairy processing pathway (#757) ------------------------------------------
+
+# FAOSTAT's new FBS reports a `processing` destiny for milk that is the milk
+# churned into butter and ghee. Without a pathway for it,
+# .cbs_redistribute_notprocessed splits that mass onto food/feed/export and
+# deletes the processing row, inflating 2010 world milk food by 30.5%.
+
+test_that("cb_processing carries the milk to butter pathway (#757)", {
+  dairy <- whep::cb_processing |>
+    dplyr::filter(.data$ProcessedItem == "Milk - Excluding Butter")
+
+  expect_equal(nrow(dairy), 1L)
+  expect_equal(dairy$item_cbs, "Butter, Ghee")
+  # FAO (1997) Technical Conversion Factors, "Butter of Cow Milk" extraction
+  # rates: median 4.5% over 69 reporting countries (range 3.3-7.3%).
+  expect_equal(dairy$Product_fraction, 0.045)
+  expect_equal(dairy$Value_fraction, 1)
+})
+
+test_that(".processed_raw turns milk processing into butter (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "processing", 1000,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "food", 4000
+  )
+
+  result <- whep:::.processed_raw(cbs, whep::cb_processing)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$item_cbs, "Butter, Ghee")
+  expect_equal(result$element, "production")
+  expect_equal(result$value_proc, 45)
+})
+
+test_that(".cbs_redistribute_notprocessed keeps matched processing (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk", 2848L, "processing", 200,
+    2010L, "Spain", 203L, "Milk", 2848L, "food", 500,
+    2010L, "Spain", 203L, "Milk", 2848L, "feed", 60,
+    2010L, "Spain", 203L, "Milk", 2848L, "export", 240,
+    2010L, "Spain", 203L, "Milk", 2848L, "domestic_supply", 760
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+
+  matched <- tibble::tribble(
+    ~year, ~area, ~area_code, ~processed_item,
+    2010L, "Spain", 203L, "Milk"
+  )
+
+  kept <- whep:::.cbs_redistribute_notprocessed(cbs, matched)
+
+  expect_equal(
+    dplyr::filter(kept, .data$element == "processing")$value,
+    200
+  )
+  expect_equal(dplyr::filter(kept, .data$element == "food")$value, 500)
+  expect_equal(dplyr::filter(kept, .data$element == "export")$value, 240)
+
+  # Negative control: with no pathway the processing is split onto the other
+  # destinies and the processing row disappears. This is the #757 mechanism,
+  # and the reason the dairy pathway above has to exist.
+  unmatched <- matched[0L, ]
+  split <- whep:::.cbs_redistribute_notprocessed(cbs, unmatched)
+
+  expect_equal(nrow(dplyr::filter(split, .data$element == "processing")), 0L)
+  expect_gt(dplyr::filter(split, .data$element == "food")$value, 500)
+})
+
+
+test_that(".resolve_processed_production keeps read production (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Butter, Ghee", 2740L, "Livestock products",
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  observed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 7000,
+    2010L, 203L, 2740L, "production", 9000
+  )
+
+  # The old FBS records a trace of milk processing, so the pathway emits a
+  # butter row worth nothing in 2000. It must not cancel the read value.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 0,
+    2010L, 203L, 2740L, "production", 8900
+  )
+
+  result <- whep:::.resolve_processed_production(observed, processed, items)
+
+  expect_equal(result$observed$year, 2000L)
+  expect_equal(result$observed$value, 7000)
+  expect_equal(result$processed$year, 2010L)
+  expect_equal(result$processed$value, 8900)
+})
+
+test_that(".resolve_processed_production leaves crop products alone (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  # Crop production is already dropped wholesale upstream, so `observed` never
+  # carries it. A zero-valued crop estimate must still survive, because that
+  # is the pre-#757 behaviour for every existing pathway.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010L, 203L, 2571L, "production", 0
+  )
+
+  result <- whep:::.resolve_processed_production(
+    processed[0L, ],
+    processed,
+    items
+  )
+
+  expect_equal(nrow(result$processed), 1L)
+  expect_equal(result$processed$value, 0)
+})
+
+
 test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
   cb_proc <- tibble::tribble(
     ~ProcessedItem, ~item_cbs, ~Product_fraction, ~Value_fraction, ~Required,

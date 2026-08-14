@@ -335,7 +335,24 @@
 #'   product (numeric; largely `NA` in current data).
 #' - `Required`: Marks required co-product links in selected processing
 #'   chains.
+#'
+#' A fraction is a prior conversion rate per candidate output, not a
+#' mass-conserving recipe: `.correct_processed()` rescales it per area-year to
+#' reproduce the observed production of the output item, and several inputs
+#' declare a single lossy output (olives to olive oil at 0.20).
+#'
+#' The one dairy row, `"Milk - Excluding Butter"` to `"Butter, Ghee"`, carries
+#' the milk churned into butter and ghee, which FAOSTAT's new FBS reports as
+#' milk's `processing` destiny from 2010 (the old FBS does not report it at
+#' all). Without it that mass was split onto food and feed, inflating 2010
+#' world milk food by 30.5% (#757).
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
+#'   The milk-to-butter fraction of 0.045 is the median `"Butter of Cow Milk"`
+#'   extraction rate over the 69 countries reporting one in FAO (1997),
+#'   *Technical Conversion Factors for Agricultural Commodities*, Rome: FAO,
+#'   MILK section (range 3.3-7.3%). It is consistent with the ratio implied by
+#'   the FBS itself: global butter production over milk processing is 0.047 in
+#'   2010 and 0.044-0.047 across 2010-2019.
 #'
 #' @examples
 #' head(cb_processing)
