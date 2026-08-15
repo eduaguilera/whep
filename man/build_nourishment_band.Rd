@@ -8,7 +8,6 @@ build_nourishment_band(
   data = list(),
   shortfall = 0.025,
   ceiling = list(multiple = 2, share = 0.5),
-  quality = "none",
   requirement_sd = 0.12
 )
 }
@@ -19,7 +18,9 @@ build_nourishment_band(
 \code{requirement = "safe"}), \code{dispersion} (\code{year}, \code{area_code}, \code{sigma}) and
 \code{loss_wedge} (\code{year}, \code{area_code}, \code{omega}) are required; optional \code{supply}
 (\code{year}, \code{area_code}, \code{protein_g_cap_day}, optionally \code{population}) adds
-the prevalence and headcount columns.}
+the prevalence and headcount columns, and optional \code{quality} (\code{year},
+\code{area_code}, \code{quality}) from \code{\link[=build_protein_quality]{build_protein_quality()}} divides both
+bounds.}
 
 \item{shortfall}{Tolerated prevalence of inadequacy, in \verb{(0, 1)}. Defaults to
 \code{0.025}.}
@@ -27,9 +28,6 @@ the prevalence and headcount columns.}
 \item{ceiling}{Named list with \code{multiple} (of the safe level, positive;
 defaults to \code{2}) and \code{share} (tolerated prevalence of excess, in \verb{(0, 1)};
 defaults to \code{0.5}).}
-
-\item{quality}{Protein-quality adjustment. Only \code{"none"} exists so far; see
-the description for what its absence costs.}
 
 \item{requirement_sd}{Log-scale SD of the requirement, \code{S_R}. Defaults to
 \code{0.12}, TRS 935 p.38 for adults on a per-kilogram basis. The report notes
@@ -39,7 +37,7 @@ so it is exposed for sensitivity rather than fixed.}
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{floor_g_cap_day},
 \code{ceiling_g_cap_day}, \code{requirement_g_cap_day}, \code{safe_g_cap_day},
-\code{sigma_intake}, \code{sigma_deficit}, \code{omega}, \code{method_quality},
+\code{sigma_intake}, \code{sigma_deficit}, \code{omega}, \code{quality}, \code{method_quality},
 \code{method_shortfall} and \code{method_ceiling}; plus
 \code{prevalence_protein_deficit}, \code{prevalence_protein_excess}, \code{people_under}
 and \code{people_over} when \code{data$supply} is given; plus the polity columns
@@ -87,12 +85,15 @@ be safe". The report's own alternative is 3–4x, which it says "approach the
 tolerable upper limit and cannot be assumed to be risk-free"; both stay
 selectable and the choice is stamped in \code{method_ceiling}.
 
-\strong{The protein-quality term is not built, and the floor is a known
-understatement without it.} TRS 935 defines its safe level "for proteins
-with a protein digestibility-corrected amino acid score value of 1.0"
-(section 14.2); real national diets score below 1.0, so a quality-adjusted
-floor is higher, by a level shift the evidence record puts at +11\% to +36\%.
-\code{quality = "none"} is stamped in \code{method_quality} rather than left implicit.
+\strong{Protein quality divides BOTH bounds}, which is algebraically the diet-side
+correction TRS 935 section 14.1.5 prefers: comparing \verb{supply x q} against a
+crude bound and comparing crude supply against \code{bound / q} are the same
+inequality, and dividing both keeps the published supply series untouched
+while moving the floor and the ceiling together. Correcting only the floor
+would leave the ceiling on crude protein and put the two bounds on different
+bases. Supply \code{data$quality} from \code{\link[=build_protein_quality]{build_protein_quality()}}; without it the
+band stays on crude protein and \code{method_quality} says \code{"none"}, which is a
+known understatement of 11-36\%.
 
 Supplying \code{data$supply} adds the prevalences and, where a population is
 available, the headcounts. A country is not uniformly under or over: with a

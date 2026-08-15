@@ -199,6 +199,52 @@ testthat::test_that("both method choices are stamped", {
   testthat::expect_equal(out$method_ceiling, "2x_safe_level_at_50pct")
 })
 
+testthat::test_that("quality divides BOTH bounds, not only the floor", {
+  # Correcting only the floor would leave the ceiling on crude protein and put
+  # the two bounds on different bases -- the defect the diet-side correction
+  # exists to avoid.
+  crude <- whep::build_nourishment_band(data = .nb_inputs())
+  q <- tibble::tribble(
+    ~year, ~area_code, ~quality, ~method_quality,
+    2010L, 10L,        0.86,     "digestibility_share"
+  )
+  corrected <- whep::build_nourishment_band(
+    data = c(.nb_inputs(), list(quality = q))
+  )
+  testthat::expect_equal(
+    corrected$floor_g_cap_day,
+    crude$floor_g_cap_day / 0.86
+  )
+  testthat::expect_equal(
+    corrected$ceiling_g_cap_day,
+    crude$ceiling_g_cap_day / 0.86
+  )
+  testthat::expect_equal(corrected$method_quality, "digestibility_share")
+})
+
+testthat::test_that("the round trip survives the quality correction", {
+  # The prevalence must multiply the supply by the same q the bounds divide by,
+  # or supply at the floor stops returning `shortfall`.
+  q <- tibble::tribble(
+    ~year, ~area_code, ~quality,
+    2010L, 10L,        0.86
+  )
+  out <- whep::build_nourishment_band(
+    data = c(.nb_inputs(), list(quality = q))
+  )
+  round_trip <- whep::build_nourishment_band(
+    data = c(
+      .nb_inputs(),
+      list(quality = q, supply = .nb_supply(out$floor_g_cap_day))
+    )
+  )
+  testthat::expect_equal(
+    round_trip$prevalence_protein_deficit,
+    0.025,
+    tolerance = 1e-8
+  )
+})
+
 testthat::test_that("a safe-level average requirement is refused", {
   inputs <- .nb_inputs()
   inputs$requirement <- dplyr::mutate(

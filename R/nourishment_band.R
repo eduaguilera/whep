@@ -83,12 +83,15 @@
 #' tolerable upper limit and cannot be assumed to be risk-free"; both stay
 #' selectable and the choice is stamped in `method_ceiling`.
 #'
-#' **The protein-quality term is not built, and the floor is a known
-#' understatement without it.** TRS 935 defines its safe level "for proteins
-#' with a protein digestibility-corrected amino acid score value of 1.0"
-#' (section 14.2); real national diets score below 1.0, so a quality-adjusted
-#' floor is higher, by a level shift the evidence record puts at +11% to +36%.
-#' `quality = "none"` is stamped in `method_quality` rather than left implicit.
+#' **Protein quality divides BOTH bounds**, which is algebraically the diet-side
+#' correction TRS 935 section 14.1.5 prefers: comparing `supply x q` against a
+#' crude bound and comparing crude supply against `bound / q` are the same
+#' inequality, and dividing both keeps the published supply series untouched
+#' while moving the floor and the ceiling together. Correcting only the floor
+#' would leave the ceiling on crude protein and put the two bounds on different
+#' bases. Supply `data$quality` from [build_protein_quality()]; without it the
+#' band stays on crude protein and `method_quality` says `"none"`, which is a
+#' known understatement of 11-36%.
 #'
 #' Supplying `data$supply` adds the prevalences and, where a population is
 #' available, the headcounts. A country is not uniformly under or over: with a
@@ -101,21 +104,21 @@
 #'   `requirement = "safe"`), `dispersion` (`year`, `area_code`, `sigma`) and
 #'   `loss_wedge` (`year`, `area_code`, `omega`) are required; optional `supply`
 #'   (`year`, `area_code`, `protein_g_cap_day`, optionally `population`) adds
-#'   the prevalence and headcount columns.
+#'   the prevalence and headcount columns, and optional `quality` (`year`,
+#'   `area_code`, `quality`) from [build_protein_quality()] divides both
+#'   bounds.
 #' @param shortfall Tolerated prevalence of inadequacy, in `(0, 1)`. Defaults to
 #'   `0.025`.
 #' @param ceiling Named list with `multiple` (of the safe level, positive;
 #'   defaults to `2`) and `share` (tolerated prevalence of excess, in `(0, 1)`;
 #'   defaults to `0.5`).
-#' @param quality Protein-quality adjustment. Only `"none"` exists so far; see
-#'   the description for what its absence costs.
 #' @param requirement_sd Log-scale SD of the requirement, `S_R`. Defaults to
 #'   `0.12`, TRS 935 p.38 for adults on a per-kilogram basis. The report notes
 #'   this captures only about a fifth of observed between-individual variance,
 #'   so it is exposed for sensitivity rather than fixed.
 #' @return A tibble keyed by `year`, `area_code` with `floor_g_cap_day`,
 #'   `ceiling_g_cap_day`, `requirement_g_cap_day`, `safe_g_cap_day`,
-#'   `sigma_intake`, `sigma_deficit`, `omega`, `method_quality`,
+#'   `sigma_intake`, `sigma_deficit`, `omega`, `quality`, `method_quality`,
 #'   `method_shortfall` and `method_ceiling`; plus
 #'   `prevalence_protein_deficit`, `prevalence_protein_excess`, `people_under`
 #'   and `people_over` when `data$supply` is given; plus the polity columns
@@ -147,10 +150,8 @@ build_nourishment_band <- function(
   data = list(),
   shortfall = 0.025,
   ceiling = list(multiple = 2, share = 0.5),
-  quality = "none",
   requirement_sd = 0.12
 ) {
-  quality <- rlang::arg_match(quality)
   .nf_check_shortfall(shortfall)
   ceiling <- .nb_check_ceiling(ceiling)
   terms <- .nb_join_terms(data)
@@ -158,9 +159,9 @@ build_nourishment_band <- function(
 
   terms |>
     .nb_compose(shortfall, ceiling, requirement_sd) |>
+    .nb_apply_quality(data$quality) |>
     .nb_add_prevalence(data, ceiling) |>
     dplyr::mutate(
-      method_quality = quality,
       method_shortfall = shortfall,
       method_ceiling = sprintf(
         "%gx_safe_level_at_%gpct",
@@ -305,6 +306,35 @@ build_nourishment_band <- function(
   anchor * exp(z * sigma_deficit + sigma_intake^2 / 2) / (1 - omega)
 }
 
+# Divide BOTH bounds by the diet's protein quality. This is the diet-side
+# correction TRS 935 s14.1.5 prefers, written the other way round: comparing
+# supply x q against a crude bound is the same inequality as comparing crude
+# supply against bound / q, so the published supply series never moves while
+# floor and ceiling move together. Correcting only the floor would leave the
+# ceiling on crude protein.
+.nb_apply_quality <- function(band, quality) {
+  if (is.null(quality)) {
+    return(dplyr::mutate(band, quality = 1, method_quality = "none"))
+  }
+  .check_columns(quality, c("year", "area_code", "quality"), "data$quality")
+  .nb_check_unique(quality, "data$quality")
+  stamp <- if (rlang::has_name(quality, "method_quality")) {
+    dplyr::select(quality, "year", "area_code", "quality", "method_quality")
+  } else {
+    dplyr::mutate(
+      dplyr::select(quality, "year", "area_code", "quality"),
+      method_quality = "supplied"
+    )
+  }
+  band |>
+    dplyr::left_join(stamp, by = c("year", "area_code")) |>
+    dplyr::mutate(
+      floor_g_cap_day = .data$floor_g_cap_day / .data$quality,
+      ceiling_g_cap_day = .data$ceiling_g_cap_day / .data$quality,
+      method_quality = dplyr::coalesce(.data$method_quality, "none")
+    )
+}
+
 # The prevalences the bounds invert, and the headcounts they imply. Kept
 # optional because they need a supply the band itself does not: the band is a
 # pair of thresholds, not a measurement.
@@ -329,7 +359,13 @@ build_nourishment_band <- function(
       by = c("year", "area_code")
     ) |>
     dplyr::mutate(
-      intake_log = log(.data$protein_g_cap_day * (1 - .data$omega)) -
+      # Quality multiplies the supply here for the same reason it divides the
+      # bounds above: one inequality, written from the other side. Leaving it
+      # out would break the round trip -- prevalence at supply = floor would no
+      # longer return `shortfall`.
+      intake_log = log(
+        .data$protein_g_cap_day * .data$quality * (1 - .data$omega)
+      ) -
         .data$sigma_intake^2 / 2,
       prevalence_protein_deficit = .nf_prevalence(
         .data$intake_log - log(.data$requirement_g_cap_day),

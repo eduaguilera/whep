@@ -1,5 +1,40 @@
 # whep (development version)
 
+* **New `build_protein_quality()`: the band is no longer on crude protein.**
+  TRS 935 issues its safe level "for proteins with a protein
+  digestibility-corrected amino acid score value of **1.0**" (section 14.2). No
+  real diet reaches 1.0, so every uncorrected band was low by at least `1/D` —
+  for every country, in one direction.
+
+  `method = "digestibility_share"` takes the diet's digestibility as the
+  protein-weighted mean of **0.95 for animal and 0.80 for plant protein**, which
+  is how TRS 935 Table 43 footnote b computes it. The animal/plant split follows
+  FAO's own Food Balance Sheet grouping and reconciles against FAOSTAT's
+  published aggregates to within 0.07% on each side.
+
+  This is **tier 1b of four**, and a *provable lower bound* on the full
+  correction, since PDCAAS is `min(1, AAS) × D ≤ D`. It is conservative about
+  the **size of the correction**, not about adequacy: it under-corrects and so
+  classifies fewer countries deficient than the full amino acid score would.
+  Tier 2 needs a per-item composition table WHEP does not have; when it lands it
+  becomes a new method rather than silently changing this one.
+
+  Quality **divides both bounds**, which is algebraically the diet-side
+  correction TRS 935 section 14.1.5 prefers: it keeps the published supply
+  series untouched and moves floor and ceiling together, where correcting only
+  the floor would leave the ceiling on crude protein.
+
+  **On the 2010 build** the diet quality runs 0.82–0.91 (median 0.87), lifting
+  the floor from a crude median of 58.60 to **67.77 g/cap/day** and the ceiling
+  from 85.68 to **98.13**. That reverses the headline: the composed floor now
+  sits *above* the retired flat 62.1, not below it. Against the flat band **58
+  of 167 countries change class**, up from 21 without the correction, with 21
+  moving Adequate → Under. World headcounts move from 99 to **266 million
+  people below requirement** and from 3,278 to 2,258 million above twice the
+  safe level.
+
+  **No published value changes yet**: nothing composes these terms.
+
 * **`read_population()` can now fill its coverage gaps from UN WPP, and always
   reports where each row came from (#644).** The `gdp-population` pin does not
   reach every area WHEP models, and the two per-capita consumers inner-join it,

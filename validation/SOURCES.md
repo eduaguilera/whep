@@ -112,6 +112,36 @@ composition itself adds.
 | TRS 935 `p*` | Same, Figure 7 header (p.46): "Safe population intake ie. risk<2.5%" | open | The 2.5% default tolerated shortfall. |
 | FAO SDG 2.1.1 metadata | FAO, SDG indicator 2.1.1 metadata: "2.5% is the lowest feasible target that can be set for the PoU indicator" | open | The independent second anchor on 2.5%. Two sources fix it, so departing from 2.5% is the science decision and adopting it follows the source. |
 
+### Protein quality
+
+Cited at the point of use in `R/protein_quality.R`, with the animal/plant
+classification packaged as `inst/extdata/coefs/protein_digestibility.csv`.
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| TRS 935 quality anchor | Same, section 14.2 (printed p.242) and Table 46 footnote b (p.243) | open | Why the correction exists at all: the 0.83 g/kg per day safe level is issued "for proteins with a protein digestibility-corrected amino acid score value of **1.0**". No real diet reaches 1.0, so every uncorrected band is low by at least `1/D`. |
+| TRS 935 Table 43 | Same, footnote b (printed p.214) | open | The two rates. Diet digestibility is "the weighted mean of **95%** and **80%** for **animal** and **plant** protein sources respectively". |
+| TRS 935 Table 6 | Same, printed p.100 | open | That digestibility is additive over protein: it is computed there as "sum of digestible protein/total protein". Confirmed empirically for standardized ileal AA digestibility by Fanelli, Bailey, Guardiola & Stein, *J Nutr* 2021, \doi{10.1093/jn/nxaa398} — with the caveat, from the same paper, that **apparent** digestibility is "not always additive", so the basis must be true faecal or standardized ileal. |
+| FAOSTAT FBS grouping | FAOSTAT Food Balance Sheets, items 2941 Animal Products and 2903 Vegetal Products | open | The animal/plant split itself, so it is FAO's own and not WHEP's opinion. It reconciles: on the 2010 world basket the packaged classification sums to 108.165 Mt animal against FAO's published 108.239, and 160.327 Mt plant against 160.398 — within 0.07% on each side. Note aquatic plants (2775) sit inside FAO's Animal Products grouping; following FAO is what makes the totals reconcile. |
+
+This is **tier 1b of four** on the fidelity ladder, and it is a *provable lower
+bound* on the full correction, because PDCAAS is `min(1, AAS) x D` which never
+exceeds `D`. So it is conservative about the **size of the correction** and
+therefore anti-conservative about adequacy: it under-corrects, and classifies
+fewer countries as deficient than the full amino acid score would. Tier 2 needs
+a per-item amino acid composition table WHEP does not have (~88 items x 4
+amino acids); tier 3, true ileal DIAAS, FAO states is not obtainable — FNP 92
+p.4: "currently available data are insufficient to support the application in
+practice ... of true ileal amino acid digestibility".
+
+**Never average per-item scores.** FAO forbids it twice in words — TRS 935 p.99
+"the amino acid score for food mixtures should be calculated from the weighted
+average digestible amino acid content", FNP 92 p.17 the same — and FNP 51 p.37
+gives the reason: "the score of a mixture cannot always be calculated with
+certainty from a knowledge of the individual scores of the components. Because
+of the complementary potential between proteins". Digestibility is a genuine
+protein-weighted mean and is computed as one; the amino acid score is not.
+
 ### The ceiling anchor
 
 | Source | Exact identity | Access | Provenance role |
