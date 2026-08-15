@@ -98,14 +98,19 @@
 #'     \code{"inherited_unsourced"} or \code{"definition"}.}
 #' }
 #'
-#' @source The protein floor: WHO/FAO/UNU (2007). *Protein and amino acid
-#'   requirements in human nutrition*, WHO Technical Report Series 935, Table
-#'   46. The food-system environmental-limits framing: Springmann, M. et al.
-#'   (2018). Options for keeping the food system within environmental limits.
-#'   *Nature*, 562, 519-525. \doi{10.1038/s41586-018-0594-0}. Every other value
-#'   is transcribed from the Global SJOS-N analysis and carries
+#' @source The protein floor, and only the protein floor: WHO/FAO/UNU (2007).
+#'   *Protein and amino acid requirements in human nutrition*, WHO Technical
+#'   Report Series 935, Table 46.
+#'
+#'   This table previously cited Springmann, M. et al. (2018),
+#'   \doi{10.1038/s41586-018-0594-0}, for its values. That attribution was
+#'   **wrong** and has been removed: two independent full-text searches of the
+#'   paper and its supplementary information found none of 46, 63, 62.1, 85.05,
+#'   1.35, 2300 or 2900 in it. Springmann's protein figures appear only as diet
+#'   composition. Every value other than the floor is transcribed from the
+#'   Global SJOS-N analysis with no source established, and carries
 #'   \code{provenance == "inherited_unsourced"}; do not cite one without
-#'   establishing a source first.
+#'   finding a source first.
 #'
 #' @examples
 #' nourishment_thresholds
