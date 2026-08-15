@@ -204,3 +204,44 @@ testthat::test_that("a real call without IO or traced flows aborts", {
     "IO model|fp_flows|domestic"
   )
 })
+
+testthat::test_that("the composed band is the default and needs no network", {
+  # build_sjos_nitrogen() now composes the nourishment band from its four
+  # sourced terms. The example fixture therefore has to carry the age structure
+  # and the habitual CV too, or the default path would reach UN DESA and
+  # FAOSTAT from inside the suite (#490).
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the example path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the example path")
+    }
+  )
+  out <- whep::build_sjos_nitrogen(example = TRUE)
+  testthat::expect_true(all(
+    c("value_norm", "nourish") %in% names(out$nourishment)
+  ))
+  testthat::expect_false(any(is.na(out$nourishment$value_norm)))
+})
+
+testthat::test_that("the flat band stays selectable for sensitivity", {
+  composed <- whep::build_sjos_nitrogen(example = TRUE)
+  flat <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_thresholds = "flat"
+  )
+  # Same supply, different thresholds: the scores must differ, or the switch is
+  # doing nothing.
+  testthat::expect_false(isTRUE(all.equal(
+    composed$nourishment$value_norm,
+    flat$nourishment$value_norm
+  )))
+})
+
+testthat::test_that("an unknown threshold mode is rejected", {
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(example = TRUE, nourishment_thresholds = "old"),
+    "arg_match|must be one of|old"
+  )
+})

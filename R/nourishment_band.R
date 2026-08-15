@@ -73,9 +73,19 @@
 #' tail as well puts the ceiling *below* the floor for 162 of 167 country-years
 #' on the 2010 build, because TRS 935 calls intakes below requirement harmful
 #' while calling twice the safe level "unlikely to be associated with any risk"
-#' (section 14.2). `share` therefore defaults to 0.5, reading "Over" as *the
-#' typical member of this population exceeds the limit*. Unlike `shortfall`,
-#' that 0.5 has **no independent source** and is WHEP's construction.
+#' (section 14.2).
+#'
+#' **`share` is WHEP's own criterion, not a sourced value, and it is the only
+#' number in the band that is.** It defaults to 0.5, which reads "Over" as *the
+#' typical member of this population exceeds the limit* — a definition of
+#' over-nourishment, not a measurement of harm. Where `shortfall` is fixed
+#' independently by TRS 935 Figure 7 and by FAO's PoU target, nothing external
+#' fixes `share`: TRS 935 declines to set a tolerable upper intake at all. It is
+#' exposed precisely so it can be varied, the chosen value is stamped in
+#' `method_ceiling`, and any published use should carry a sensitivity across it.
+#' The `people_over` column exists partly for this reason: reported as a
+#' continuous headcount, the result does not rest on where the class boundary
+#' was drawn.
 #'
 #' `multiple` defaults to 2, which TRS 935 section 13.7 names as "twice the
 #' recommended intake, previously identified as a safe upper limit ... likely to

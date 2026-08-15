@@ -13,8 +13,13 @@ normalize_nourishment(x, value_col = protein_g_cap_day, thresholds = NULL)
 \item{value_col}{The unquoted nourishment column to normalize. Defaults to
 \code{protein_g_cap_day}.}
 
-\item{thresholds}{Optional named \code{floor} and \code{ceiling} (a named numeric
-vector or list). When \code{NULL} (default) the protein floor and ceiling from
+\item{thresholds}{Either a named \code{floor}/\code{ceiling} pair applied to every row
+(a named numeric vector or list), or a \strong{data frame of per-country-year
+bounds} keyed by \code{year} and \code{area_code} with either
+\code{floor_g_cap_day}/\code{ceiling_g_cap_day} or \code{floor}/\code{ceiling} — so a
+\code{\link[=build_nourishment_band]{build_nourishment_band()}} output passes straight through. A row that
+matches no band is classified \code{NA} and named in a warning, never silently
+given the flat default. When \code{NULL} (default) the flat protein bounds from
 \link{nourishment_thresholds} are used.}
 }
 \value{

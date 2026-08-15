@@ -10,6 +10,7 @@ build_sjos_nitrogen(
   boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
+  nourishment_thresholds = c("composed", "flat"),
   example = FALSE
 )
 }
@@ -38,6 +39,14 @@ reconstructed intensive-grassland class).}
 
 \item{footprint_category}{Which per-crop nitrogen mass the footprint traces,
 \code{"exceedance"} (default), \code{"within_boundary"} or \code{"production"}.}
+
+\item{nourishment_thresholds}{Which band the "just" axis classifies against:
+\code{"composed"} (default) builds it per country and year from
+\code{\link[=build_nourishment_band]{build_nourishment_band()}}'s four sourced terms, or \code{"flat"} restores the
+retired 62.1 / 85.05 pair. \code{"flat"} survives for continuity and
+sensitivity only: of its five underlying numbers only the 46 g/cap/day
+floor was ever sourced, and the 1.35 multiplier behind both bounds was a
+preliminary presentation figure (whep#753).}
 
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}

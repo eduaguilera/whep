@@ -1,5 +1,35 @@
 # whep (development version)
 
+* **PUBLISHED VALUES MOVE: the SJOS-N nourishment axis now classifies against a
+  composed, per-country-year band instead of a flat 62.1 / 85.05.**
+  `build_sjos_nitrogen()` gains `nourishment_thresholds`, defaulting to
+  `"composed"`. `normalize_nourishment()` accepts a data frame of per-row bounds
+  — a `build_nourishment_band()` output passes straight through — alongside the
+  scalar pair it always took.
+
+  **On the 2010 build, 58 of 167 countries change nourishment class**, 21 of
+  them Adequate → Under and 37 Over → Adequate. The floor moves from a flat 62.1
+  to a median 67.77 (58.79–88.81) and the ceiling from a flat 85.05 to a median
+  98.13 (84.84–107.70). Where the axis had one number for every country it now
+  has a distribution, built from four sourced terms: the demographic
+  requirement, within-country intake dispersion, the unavoidable-loss wedge and
+  diet protein quality.
+
+  `nourishment_thresholds = "flat"` restores the old pair for continuity and
+  sensitivity. It is not a peer of the default: of its five underlying numbers
+  only the 46 g/cap/day floor was ever sourced, and the 1.35 multiplier behind
+  both bounds was a preliminary presentation figure (whep#753).
+
+  A row that matches no band is classified `NA` and named in a warning — it
+  never falls back to the flat pair, which would mix two threshold vintages
+  inside one classification.
+
+  One number in the composed band remains **WHEP's own criterion rather than a
+  sourced value**: `ceiling$share`, the tolerated fraction of a population above
+  twice the safe level, default 0.5. TRS 935 declines to set a tolerable upper
+  intake, so nothing external fixes it. It is selectable, stamped in
+  `method_ceiling`, and any published use should carry a sensitivity across it.
+
 * **New `build_protein_quality()`: the band is no longer on crude protein.**
   TRS 935 issues its safe level "for proteins with a protein
   digestibility-corrected amino acid score value of **1.0**" (section 14.2). No

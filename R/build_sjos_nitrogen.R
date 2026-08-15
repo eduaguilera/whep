@@ -64,6 +64,13 @@
 #'   `"soil"` (default) or `"total_agricultural"`.
 #' @param footprint_category Which per-crop nitrogen mass the footprint traces,
 #'   `"exceedance"` (default), `"within_boundary"` or `"production"`.
+#' @param nourishment_thresholds Which band the "just" axis classifies against:
+#'   `"composed"` (default) builds it per country and year from
+#'   [build_nourishment_band()]'s four sourced terms, or `"flat"` restores the
+#'   retired 62.1 / 85.05 pair. `"flat"` survives for continuity and
+#'   sensitivity only: of its five underlying numbers only the 46 g/cap/day
+#'   floor was ever sourced, and the 1.35 multiplier behind both bounds was a
+#'   preliminary presentation figure (whep#753).
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -83,19 +90,22 @@ build_sjos_nitrogen <- function(
   boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
+  nourishment_thresholds = c("composed", "flat"),
   example = FALSE
 ) {
+  nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
   data <- if (isTRUE(example)) .sjos_n_example_data() else data
   opts <- list(
     surplus_method = surplus_method,
     boundary_land_use = boundary_land_use,
     nh3_source = nh3_source,
     footprint_category = footprint_category,
+    nourishment_thresholds = nourishment_thresholds,
     example = isTRUE(example)
   )
   surplus <- calculate_n_surplus(data$balance, method = opts$surplus_method)
   boundary <- .sjos_boundary_surplus(surplus, data, opts)
-  nourishment <- .sjos_nourishment(data)
+  nourishment <- .sjos_nourishment(data, opts)
   sjos_class <- classify_sjos_n(boundary$country, nourishment)
   list(
     surplus = surplus,
@@ -171,9 +181,74 @@ build_sjos_nitrogen <- function(
 # The nourishment "just" axis: per-capita food supply normalized to the adequacy
 # score and Under/Adequate/Over class. This one table feeds both the 2-way
 # classification and the per-capita boundary scatter.
-.sjos_nourishment <- function(data) {
-  build_food_supply(method = "whep_native", data = data) |>
-    normalize_nourishment()
+#
+# `nourishment_thresholds = "composed"` is the default and builds the band from
+# its four sourced terms per country and year. `"flat"` restores the retired
+# 46 x 1.35 / 63 x 1.35 pair, which survives only for continuity and
+# sensitivity: of its five numbers only the 46 was ever sourced, and the 1.35
+# behind both bounds was a preliminary presentation figure (whep#753).
+#
+# Building the band needs three inputs beyond the supply itself, and each falls
+# back to its own reader when not injected, so a caller that has them can stay
+# offline and a caller that does not still gets a band.
+.sjos_nourishment <- function(data, opts) {
+  supply <- build_food_supply(method = "whep_native", data = data)
+  if (opts$nourishment_thresholds == "flat") {
+    return(normalize_nourishment(supply))
+  }
+  normalize_nourishment(supply, thresholds = .sjos_band(data, supply))
+}
+
+# The four terms, assembled on the same country-years the supply covers. The
+# per-item protein the wedge and the quality term both need is the column
+# build_food_supply() forms and then collapses away, so it is re-formed here
+# through the SAME nutrition lookup rather than a parallel one.
+.sjos_band <- function(data, supply) {
+  years <- sort(unique(supply$year))
+  population_age <- data$population_age %||%
+    read_wpp_population(by = "age_sex", years = years)
+  protein_supply <- data$protein_supply %||% .sjos_protein_by_item(data)
+  build_nourishment_band(
+    data = list(
+      requirement = build_protein_requirement(
+        data = list(population_age = population_age)
+      ),
+      requirement_safe = build_protein_requirement(
+        data = list(population_age = population_age),
+        requirement = "safe"
+      ),
+      dispersion = data$dispersion %||%
+        build_intake_dispersion(
+          data = list(habitual_cv = data$habitual_cv) |> purrr::compact(),
+          years = years
+        ),
+      loss_wedge = build_loss_wedge(
+        data = list(protein_supply = protein_supply)
+      ),
+      quality = build_protein_quality(
+        data = list(protein_supply = protein_supply)
+      ),
+      supply = supply
+    )
+  )
+}
+
+# Per-item protein tonnes, through build_food_supply()'s own nutrition lookup so
+# the wedge and the quality term are weighted on exactly the supply the band is
+# compared against.
+.sjos_protein_by_item <- function(data) {
+  data$cbs_food |>
+    .food_join_nutrition(
+      .food_nutrition_lookup(
+        data$items_full %||% whep::items_full,
+        data$biomass_coefs %||% whep::biomass_coefs,
+        "edible_portion"
+      )
+    ) |>
+    dplyr::summarise(
+      protein_t = sum(.data$food_t * .data$protein_frac_kgfm, na.rm = TRUE),
+      .by = c("year", "area_code", "item_cbs_code")
+    )
 }
 
 # The per-capita boundary-versus-nourishment scatter: country anthropogenic

@@ -94,3 +94,74 @@ testthat::test_that("missing nourishment remains unclassified", {
   testthat::expect_true(is.na(out$value_norm))
   testthat::expect_true(is.na(out$nourish))
 })
+
+# ---- per-country-year bands (#500) -----------------------------------------
+
+testthat::test_that("a data-frame threshold classifies row by row", {
+  # The whole point of the composed band: two countries with the SAME supply
+  # can land on different sides, because their demography, inequality, loss and
+  # diet quality differ. A flat pair cannot express that.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 20L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90,
+    2010L, 20L,        75,               95
+  )
+  out <- whep::normalize_nourishment(supply, thresholds = band)
+  testthat::expect_equal(out$nourish, c("Adequate", "Under"))
+  # The joined bound columns must not leak into the output.
+  testthat::expect_false(any(startsWith(names(out), ".nourish")))
+})
+
+testthat::test_that("the short floor/ceiling names work too", {
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor, ~ceiling,
+    2010L, 10L,        60,     90
+  )
+  out <- whep::normalize_nourishment(supply, thresholds = band)
+  testthat::expect_equal(out$nourish, "Adequate")
+})
+
+testthat::test_that("a row with no band is NA, not silently flat", {
+  # Falling back to the retired flat pair would mix two threshold vintages
+  # inside one classification without saying so.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 99L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90
+  )
+  testthat::expect_warning(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "no threshold band"
+  )
+  out <- suppressWarnings(
+    whep::normalize_nourishment(supply, thresholds = band)
+  )
+  testthat::expect_equal(out$nourish, c("Adequate", NA_character_))
+})
+
+testthat::test_that("a data frame without bound columns aborts", {
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  testthat::expect_error(
+    whep::normalize_nourishment(
+      supply,
+      thresholds = tibble::tribble(~year, ~area_code, 2010L, 10L)
+    ),
+    "floor"
+  )
+})

@@ -52,8 +52,13 @@
 #'   `value_col` (for example a [build_food_supply()] output).
 #' @param value_col The unquoted nourishment column to normalize. Defaults to
 #'   `protein_g_cap_day`.
-#' @param thresholds Optional named `floor` and `ceiling` (a named numeric
-#'   vector or list). When `NULL` (default) the protein floor and ceiling from
+#' @param thresholds Either a named `floor`/`ceiling` pair applied to every row
+#'   (a named numeric vector or list), or a **data frame of per-country-year
+#'   bounds** keyed by `year` and `area_code` with either
+#'   `floor_g_cap_day`/`ceiling_g_cap_day` or `floor`/`ceiling` — so a
+#'   [build_nourishment_band()] output passes straight through. A row that
+#'   matches no band is classified `NA` and named in a warning, never silently
+#'   given the flat default. When `NULL` (default) the flat protein bounds from
 #'   [nourishment_thresholds] are used.
 #' @return `x` with `value_norm` (numeric score) and `nourish` (`"Under"`,
 #'   `"Adequate"` or `"Over"`) added.
@@ -72,6 +77,21 @@ normalize_nourishment <- function(
   value_col = protein_g_cap_day,
   thresholds = NULL
 ) {
+  if (is.data.frame(thresholds)) {
+    return(
+      x |>
+        .nourish_join_bounds(thresholds) |>
+        dplyr::mutate(
+          value_norm = .nourish_normalize(
+            {{ value_col }},
+            .data$.nourish_floor,
+            .data$.nourish_ceiling
+          ),
+          nourish = .nourish_classify(.data$value_norm)
+        ) |>
+        dplyr::select(-".nourish_floor", -".nourish_ceiling")
+    )
+  }
   bounds <- .nourish_bounds(thresholds)
   x |>
     dplyr::mutate(
@@ -101,6 +121,57 @@ normalize_nourishment <- function(
     ))
   }
   list(floor = thresholds[["floor"]], ceiling = thresholds[["ceiling"]])
+}
+
+# A per-country-year band instead of one scalar pair. The arithmetic below is
+# already vectorised, so the only work is joining the bounds onto the rows and
+# refusing to let a row that finds none pass as if it had.
+.nourish_join_bounds <- function(x, thresholds) {
+  bounds <- .nourish_band_columns(thresholds)
+  .check_columns(x, c("year", "area_code"), "x")
+  joined <- dplyr::left_join(x, bounds, by = c("year", "area_code"))
+  .nourish_warn_unbanded(joined)
+  joined
+}
+
+# The band's own column names, or the short pair, so a caller can pass a
+# build_nourishment_band() output straight through.
+.nourish_band_columns <- function(thresholds) {
+  .check_columns(thresholds, c("year", "area_code"), "thresholds")
+  pairs <- list(
+    c("floor_g_cap_day", "ceiling_g_cap_day"),
+    c("floor", "ceiling")
+  )
+  for (nm in pairs) {
+    if (all(rlang::has_name(thresholds, nm))) {
+      return(dplyr::tibble(
+        year = thresholds$year,
+        area_code = thresholds$area_code,
+        .nourish_floor = thresholds[[nm[1]]],
+        .nourish_ceiling = thresholds[[nm[2]]]
+      ))
+    }
+  }
+  cli::cli_abort(c(
+    "A data-frame {.arg thresholds} needs a floor and a ceiling column.",
+    i = "Expected {.field floor_g_cap_day}/{.field ceiling_g_cap_day} or
+         {.field floor}/{.field ceiling}."
+  ))
+}
+
+# A row with no band gets NA, not the flat default. Silently falling back would
+# mix two threshold vintages inside one classification.
+.nourish_warn_unbanded <- function(joined) {
+  missing <- dplyr::filter(joined, is.na(.data$.nourish_floor))
+  if (nrow(missing) == 0L) {
+    return(invisible())
+  }
+  areas <- unique(missing$area_code)
+  cli::cli_warn(c(
+    "!" = "{nrow(missing)} row{?s} have no threshold band, so their
+           {.field nourish} class is {.val {NA}}.",
+    "i" = "Area code{?s}: {areas}."
+  ))
 }
 
 # The default protein floor (62.1) and ceiling (85.05) g/cap/day, read from the
