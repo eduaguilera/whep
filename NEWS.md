@@ -47,15 +47,44 @@
   **No published value changes**: the floor and ceiling are numerically
   unchanged at 62.1 and 85.05 g/cap/day and every classification is identical.
 
-* **New `build_nourishment_floor()`: the SJOS-N floor is now composed from
-  sourced terms instead of a flat 46 g/cap/day times an unsourced 1.35.** It
-  implements WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
-  `S_D = sqrt(S_I^2 + S_R^2)`, prevalence `Phi(-M_D/S_D)` — and inverts it at a
-  tolerated shortfall to give a threshold on mean per-capita protein supply:
+* **New `build_nourishment_band()`: both SJOS-N bounds are now composed from
+  sourced terms, and the 1.35 multiplier is gone from each.** It implements
+  WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
+  `S_D = sqrt(S_I^2 + S_R^2)`, prevalence `Phi(-M_D/S_D)` — and inverts it twice
+  to give a floor and a ceiling on mean per-capita protein supply:
 
   ```
-  floor = requirement * exp(z * S_D + S_I^2 / 2) / (1 - omega)
+  bound = anchor * exp(z * S_D + S_I^2 / 2) / (1 - omega)
   ```
+
+  The **floor** anchors on the demographically weighted *average* requirement at
+  `z = qnorm(1 - shortfall)`; the **ceiling** on `multiple` times the
+  demographically weighted *safe level* at `z = qnorm(share)`. `multiple`
+  defaults to 2, which TRS 935 section 13.7 calls "twice the recommended intake,
+  previously identified as a safe upper limit … likely to be safe"; 3–4× is the
+  report's own sensitivity ("approach the tolerable upper limit").
+
+  **The two tails do not take the same tolerance, and the model says so.**
+  Applying the floor's 2.5% to the upper tail puts the ceiling *below* the floor
+  for 162 of 167 country-years, because TRS 935 calls intakes below requirement
+  harmful while calling twice the safe level "unlikely to be associated with any
+  risk". `share` therefore defaults to 0.5 — "Over" means the typical member
+  exceeds the limit — and that 0.5 is WHEP's construction, not a sourced value.
+  At 0.5 the band never inverts: the lowest ceiling (74.81) exceeds the highest
+  floor (73.75).
+
+  **On the 2010 build**, floor median 58.60 (53.0–73.8) against the flat 62.1,
+  and ceiling median 85.68 (74.8–91.5) against the flat 85.05. The ceiling's
+  agreement with the retired number at the world median is a coincidence worth
+  noting and not a justification: 85.05 was 63 × 1.35 and flat, this varies by
+  country through demography, inequality and loss.
+
+  It also reports **how many people**, not only the country's class:
+  `prevalence_protein_deficit`, `prevalence_protein_excess`, `people_under` and
+  `people_over`. A country is not uniformly under or over — on the 2010 build
+  **99 million people are below requirement and 3,278 million above twice the
+  safe level**, and the share below requirement ranges 0% to 48.9% *within* the
+  countries the flat band called Adequate.
 
   The anchor is the **average** requirement from `build_protein_requirement()`,
   not the safe level, because TRS 935 says applying an individual safe level to

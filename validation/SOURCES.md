@@ -112,7 +112,28 @@ composition itself adds.
 | TRS 935 `p*` | Same, Figure 7 header (p.46): "Safe population intake ie. risk<2.5%" | open | The 2.5% default tolerated shortfall. |
 | FAO SDG 2.1.1 metadata | FAO, SDG indicator 2.1.1 metadata: "2.5% is the lowest feasible target that can be set for the PoU indicator" | open | The independent second anchor on 2.5%. Two sources fix it, so departing from 2.5% is the science decision and adopting it follows the source. |
 
-Golden values pinned by `tests/testthat/test_nourishment_floor.R`: TRS 935
+### The ceiling anchor
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| TRS 935 upper limit | Same, section 13.7 (printed p.233) and section 14.2 (printed p.242) | open | The `ceiling$multiple` of **2**. Section 14.2: "No safe upper limit has been identified, and it is unlikely that intakes of **twice the safe level** are associated with any risk. However, caution is advised to those contemplating the very high intakes of **3-4 times** the safe intake, since such intakes **approach the tolerable upper limit** and cannot be assumed to be risk-free." Section 13.7: "we can be reasonably confident that an intake of **twice the recommended intake, previously identified as a safe upper limit**, is likely to be safe". So 2 is the sourced default and 3-4 the sourced sensitivity; the report sets no formal UL. |
+
+Two things about the ceiling that are **not** sourced and are labelled as WHEP's
+own construction at the point of use:
+
+- **`ceiling$share = 0.5`.** Unlike the floor's 2.5%, which TRS 935 Figure 7 and
+  FAO's PoU target fix independently, the tolerated share above the upper limit
+  has no source. 0.5 reads "Over" as *the typical member of this population
+  exceeds the limit*.
+- **Why it is not 2.5%.** Applying the floor's tolerance to the upper tail puts
+  the ceiling **below** the floor for 162 of 167 country-years on the 2010
+  build. That is the arithmetic reflecting TRS 935's own asymmetry — below
+  requirement is harmful, twice the safe level is "unlikely to be associated
+  with any risk" — so the two tails cannot carry the same tolerance. At 0.5 the
+  band never inverts: the lowest ceiling (74.81) exceeds the highest floor
+  (73.75).
+
+Golden values pinned by `tests/testthat/test_nourishment_band.R`: TRS 935
 Table 2 (p.45) reports that a population whose median intake sits at the 0.83
 safe level still has **7.9%** below requirement at `S_I = 0.12` and **18.2%** at
 the printed `S_I` of 0.24. Both reproduce exactly from `Phi(-M_D/S_D)` with

@@ -39,7 +39,7 @@
 #' 97.5th-percentile individual level rather than a population one). The 63
 #' ceiling and the 1.35 factor that lifts both to a supply basis carry no
 #' source; `nourishment_thresholds$provenance` says so per row.
-#' [build_nourishment_floor()] is the sourced replacement for the floor and is
+#' [build_nourishment_band()] is the sourced replacement for both bounds and is
 #' not wired in here yet.
 #'
 #' Passing `value_col = energy_kcal_cap_day` runs the same arithmetic on a
