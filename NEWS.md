@@ -1,5 +1,35 @@
 # whep (development version)
 
+* **New `build_protein_score()`: tier 2 of the protein-quality ladder, the full
+  aggregate PDCAAS.** It implements the aggregation FAO prints as a worked
+  example in WHO/FAO/UNU TRS 935 Table 6 — digestible protein per item, the
+  digestible-protein-weighted amino acid profile, the minimum ratio against the
+  age reference pattern, truncated at 1 and multiplied by diet digestibility.
+
+  **Averaging per-item scores is not an approximation of this.** FAO forbids it
+  in words twice (TRS 935 p.99, FNP 92 p.17) and FNP 51 p.37 gives the reason.
+  Because `min()` is concave, the average of item scores is a rigorous lower
+  bound on diet quality and so a rigorous upper bound on the floor. The
+  digestible-protein weighting is the correction TRS 935 makes to its own 1991
+  report; on Table 6 it moves the lysine profile from 44.14 to 44.34 mg/g.
+
+  Truncation follows the **TRS 935** convention — score truncated at 1, *then*
+  multiplied by digestibility, so the ceiling is the diet's digestibility — not
+  FNP 92's, which truncates the DIAAS itself at 1.0. For a diet at score 1.4 and
+  digestibility 0.85 the two differ by 18% of the floor, and it bites on exactly
+  the animal-rich diets that truncate.
+
+  The function is **code-complete and validated but not yet wired**: it needs a
+  per-item amino acid composition table WHEP does not have. It ships now because
+  the aggregation is the part that is easy to get wrong, and it can be validated
+  today against FAO's own example.
+
+* **New packaged table `protein_digestibility_trs935`:** TRS 935 Table 5's 35
+  measured true-digestibility values (26 single foods, 9 mixed diets),
+  transcribed verbatim. It is the input tier 1a needs, and it records the
+  milling spread that CBS cannot observe — wheat whole 0.86 against refined
+  0.96, and three distinct maize rows at 0.85 / 0.87 / 0.70.
+
 * **PUBLISHED VALUES MOVE: the SJOS-N nourishment axis now classifies against a
   composed, per-country-year band instead of a flat 62.1 / 85.05.**
   `build_sjos_nitrogen()` gains `nourishment_thresholds`, defaulting to

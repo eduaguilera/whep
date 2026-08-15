@@ -142,6 +142,35 @@ certainty from a knowledge of the individual scores of the components. Because
 of the complementary potential between proteins". Digestibility is a genuine
 protein-weighted mean and is computed as one; the amino acid score is not.
 
+### Protein quality, tier 2 (amino acid scoring)
+
+Cited at the point of use in `R/protein_score.R`, with TRS 935 Table 5 packaged
+verbatim as `inst/extdata/coefs/protein_digestibility_trs935.csv`.
+
+| Source | Exact identity | Access | Provenance role |
+|---|---|---|---|
+| TRS 935 Table 6 | Same, printed p.100 | open | The aggregation itself, as FAO's own worked example for a wheat / chickpea / milk-powder mixture. `tests/testthat/test_protein_score.R` reproduces its printed digestible amino acid totals (lysine 3241, sulfur 2326, threonine 2483, tryptophan 851 mg), its aggregate profile (44 / 32 / 34 / 12 mg per g of digestible protein) and its digestible protein (73 g of 85.9 g crude) exactly. |
+| TRS 935 Table 5 | Same, printed p.96 | open | 35 measured true-digestibility values: 26 single foods and 9 mixed diets. The input tier 1a needs. It records the milling spread CBS cannot observe — wheat whole 0.86 / refined 0.96 / flour white 0.96 / cereal 0.77 / gluten 0.99, and maize 0.85 / corn whole 0.87 / corn cereal 0.70. Do not collapse those into one value. |
+| TRS 935 p.99 | Same | open | The prohibition on averaging item scores: "the amino acid score for food mixtures should be calculated from the weighted average digestible amino acid content", and that four amino acids suffice — "in calculating scores it is usually only necessary to use a pattern based on these four amino acids". |
+| FNP 92 | FAO Food and Nutrition Paper 92 (2013), *Dietary protein quality evaluation in human nutrition* | open | The competing truncation convention (DIAAS truncated at 100%, ceiling 1.0) that WHEP does **not** use, and p.4's statement that ileal data are insufficient, which is why tier 3 is unreachable. |
+
+**Table 6's printed score and PDCAAS columns are rounded to two decimals and are
+not all self-consistent at that precision.** Measured from the table's own
+inputs, with the profile at 44.339 mg/g and digestibility 0.851048:
+
+| pattern | score exact → | printed | PDCAAS exact → | printed |
+|---|---|---|---|---|
+| adult | 0.9853 → 0.99 | 0.99 | 0.83855 → 0.84 | 0.84 |
+| older child | 0.9237 → 0.92 | **0.93** | 0.78614 → 0.79 | 0.79 |
+| preschool | 0.8527 → 0.85 | 0.85 | 0.72566 → **0.73** | 0.72 |
+| infant | 0.7779 → 0.78 | 0.78 | 0.66201 → **0.66** | 0.67 |
+
+Three of the eight printed cells disagree with exact arithmetic on the table's
+own inputs, in both directions. Only the cells that follow are asserted as
+golden; the intermediates above, which reproduce exactly, carry the validation.
+The infant row is independently suspect — its label reads "Infants (0–5 years)"
+while its pattern is Table 43's 0.5-year one.
+
 ### The ceiling anchor
 
 | Source | Exact identity | Access | Provenance role |

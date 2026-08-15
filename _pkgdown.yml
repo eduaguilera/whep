@@ -253,6 +253,7 @@ reference:
   - build_intake_dispersion
   - build_loss_wedge
   - build_protein_quality
+  - build_protein_score
   - build_nourishment_band
   - normalize_nourishment
   - calculate_food_gini
