@@ -1,5 +1,32 @@
 # whep (development version)
 
+* **`build_protein_quality()` gains tier 1a and makes it the default:
+  per-item measured digestibility instead of a two-rate class split.**
+  `method = "trs935_item"` uses the true digestibility TRS 935 Table 5 publishes
+  for each commodity — now packaged verbatim as `protein_digestibility_trs935` —
+  and falls back to the tier 1b class rate for items the report does not
+  measure. Table 5 prints **no fruit, vegetable, root, tuber or sugar row at
+  all**, so the fallback is not a corner case: on the 2010 world basket
+  **84.5%** of food protein carries a measured value and the rest takes the
+  class rate. `protein_measured_share` reports it per row.
+
+  On that basket the diet quality moves from a tier 1b median of 0.867 to
+  **0.891** (0.818–0.940), lowering the floor from 67.77 to **66.23** and the
+  ceiling from 98.13 to **96.04**. Against the flat band **50 of 167 countries
+  change class** (58 under tier 1b), and world headcounts are **216 million
+  below requirement** and 2,438 million above twice the safe level.
+
+  `variant` brackets the one judgement tier 1a makes. Table 5 prints several
+  forms of the same commodity and CBS cannot say which was eaten. **The
+  processing direction is not uniform** — refining raises wheat (whole 0.86 →
+  flour white 0.96, bran removed) and lowers maize, rice and oats (0.85 → 0.70,
+  0.88 → 0.75, 0.86 → 0.72, through extrusion and Maillard damage) — so there is
+  no single axis to sweep and the bracket is carried per item. `"default"` takes
+  the least-processed form, the consistent partner for WHEP's whole-commodity
+  agronomic nitrogen; `"low"` and `"high"` give a diet-quality span of 0.853 to
+  0.913 at the median country. The choice is stamped in `method_quality`
+  (`"trs935_item_default"`), so a sensitivity is self-labelling.
+
 * **New `build_protein_score()`: tier 2 of the protein-quality ladder, the full
   aggregate PDCAAS.** It implements the aggregation FAO prints as a worked
   example in WHO/FAO/UNU TRS 935 Table 6 — digestible protein per item, the

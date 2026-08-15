@@ -154,6 +154,31 @@ verbatim as `inst/extdata/coefs/protein_digestibility_trs935.csv`.
 | TRS 935 p.99 | Same | open | The prohibition on averaging item scores: "the amino acid score for food mixtures should be calculated from the weighted average digestible amino acid content", and that four amino acids suffice — "in calculating scores it is usually only necessary to use a pattern based on these four amino acids". |
 | FNP 92 | FAO Food and Nutrition Paper 92 (2013), *Dietary protein quality evaluation in human nutrition* | open | The competing truncation convention (DIAAS truncated at 100%, ceiling 1.0) that WHEP does **not** use, and p.4's statement that ileal data are insufficient, which is why tier 3 is unreachable. |
 
+`inst/extdata/coefs/protein_digestibility_items.csv` maps FBS items onto Table
+5's single-food rows for tier 1a (`method = "trs935_item"`). Every mapped row
+resolves to a `single_food` entry, never one of the nine mixed diets — a
+mixture's digestibility already aggregates a basket and would double-count the
+aggregation the function performs. Coverage on the 2010 world basket is **84.5%**
+of food protein; the remainder falls back to the tier 1b class rate, because
+Table 5 prints no fruit, vegetable, root, tuber or sugar row at all.
+
+The one judgement in that mapping is which **form** of a commodity was eaten,
+which CBS cannot say. It is carried per item as `source_low` / `source_high`
+rather than swept, because the processing direction is not uniform:
+
+| item | low | default | high |
+|---|---|---|---|
+| Wheat | cereal 0.77 | whole 0.86 | flour white 0.96 |
+| Maize | corn cereal 0.70 | maize 0.85 | corn whole 0.87 |
+| Rice | cereal 0.75 | polished 0.88 | polished 0.88 |
+| Oats | cereal 0.72 | oatmeal 0.86 | oatmeal 0.86 |
+
+Refining **raises** wheat by removing bran and **lowers** maize, rice and oats
+through extrusion and Maillard damage, so no single "processed" arm exists. The
+default takes the least-processed form, which is the consistent partner for
+WHEP's own whole-commodity agronomic nitrogen; on the 2010 basket the bracket
+spans a median diet quality of 0.853 to 0.913 against a default of 0.891.
+
 **Table 6's printed score and PDCAAS columns are rounded to two decimals and are
 not all self-consistent at that precision.** Measured from the table's own
 inputs, with the profile at 44.339 mg/g and digestibility 0.851048:

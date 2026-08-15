@@ -4,19 +4,31 @@
 \alias{build_protein_quality}
 \title{Build the protein-quality correction for the nourishment band.}
 \usage{
-build_protein_quality(data = list(), method = c("digestibility_share", "none"))
+build_protein_quality(
+  data = list(),
+  method = c("trs935_item", "digestibility_share", "none"),
+  variant = c("default", "low", "high")
+)
 }
 \arguments{
 \item{data}{Named list of injected inputs. \code{protein_supply} (\code{year},
 \code{area_code}, \code{item_cbs_code}, \code{protein_t}) is required;
-\code{protein_digestibility} overrides the packaged classification.}
+\code{protein_digestibility}, \code{protein_digestibility_items} and
+\code{protein_digestibility_trs935} override the packaged tables.}
 
-\item{method}{\code{"digestibility_share"} (default) or \code{"none"}.}
+\item{method}{\code{"trs935_item"} (default), \code{"digestibility_share"} or
+\code{"none"}.}
+
+\item{variant}{Which Table 5 row each item takes, for \code{"trs935_item"}:
+\code{"default"} (the least-processed form the report names for the commodity),
+or \code{"low"} / \code{"high"}, the plausible bracket. Ignored by the other methods.}
 }
 \value{
 A tibble keyed by \code{year}, \code{area_code} with \code{quality},
-\code{animal_protein_share}, \code{protein_classified_share} and \code{method_quality},
-plus the polity columns below.
+\code{animal_protein_share}, \code{protein_classified_share},
+\code{protein_measured_share} (the share carrying a measured Table 5 value
+rather than the class rate) and \code{method_quality}, plus the polity columns
+below.
 }
 \description{
 Returns the diet's protein quality per country and year, the factor the
@@ -25,28 +37,39 @@ intake "for proteins with a protein digestibility-corrected amino acid score
 value of 1.0" (section 14.2), and no real diet reaches that, so an
 uncorrected band is too low for every country.
 
-\code{method = "digestibility_share"} (default) takes the diet's digestibility as
-the protein-weighted mean of \strong{0.95 for animal protein and 0.80 for plant
-protein}, which is how TRS 935 Table 43 footnote b computes it. The
-animal/plant split follows FAO's own Food Balance Sheet grouping — Animal
-Products (item 2941) against Vegetal Products (2903) — so it reconciles
-against FAOSTAT's published aggregates rather than being WHEP's opinion.
+\code{method = "trs935_item"} (default) is \strong{tier 1a}: it uses the measured true
+digestibility TRS 935 Table 5 publishes for each commodity, and falls back to
+the tier 1b class rate for the items the report does not measure. Table 5 has
+35 rows and prints \strong{no fruit, vegetable, root, tuber or sugar} entry at
+all, so the fallback is not a corner case — on the 2010 world basket the
+measured share is about 82\% of food protein and the rest takes the class
+rate. \code{protein_measured_share} reports it per row.
 
-This is \strong{tier 1b of four}, and it is a \emph{provable lower bound} on the full
-correction: PDCAAS is \verb{min(1, AAS) x D}, which never exceeds \code{D}. It is
-therefore conservative about the \strong{size of the correction}, not about
-nourishment adequacy — it under-corrects, and so classifies fewer countries
-as deficient than the full amino acid score would. The full score needs a
-per-item amino acid composition table WHEP does not have; when it arrives it
-becomes a new method rather than silently changing this one.
+\code{"digestibility_share"} is \strong{tier 1b}: the protein-weighted mean of \strong{0.95
+for animal protein and 0.80 for plant protein}, which is how TRS 935 Table
+43 footnote b computes it. The animal/plant split follows FAO's own Food
+Balance Sheet grouping — Animal Products (item 2941) against Vegetal Products
+(2903) — so it reconciles against FAOSTAT's published aggregates rather than
+being WHEP's opinion. \code{"none"} returns a quality of 1 and leaves the band on
+crude protein.
 
-\code{"none"} returns a quality of 1 and leaves the band on crude protein, which
-is the behaviour before this function existed.
+\strong{Both are a provable lower bound on the full correction}, because PDCAAS is
+\verb{min(1, AAS) x D}, which never exceeds \code{D}. They are conservative about the
+\strong{size of the correction}, not about nourishment adequacy — they
+under-correct, and so classify fewer countries as deficient than the full
+amino acid score would. \code{\link[=build_protein_score]{build_protein_score()}} is that full score, tier 2;
+it is code-complete and validated but needs a composition table WHEP does not
+have, and it arrives as a new method rather than silently changing this one.
 
-On the 2010 world basket the animal protein share is 40.3\%, giving a
-digestibility of 0.860 and raising the band by 16.2\%. Across countries the
-correction runs roughly +11\% to +23\%, largest where the diet is most
-plant-based.
+\code{variant} brackets the one judgement tier 1a makes. Table 5 prints several
+forms of the same commodity and CBS cannot say which was eaten: wheat whole
+0.86, cereal 0.77, flour white 0.96; maize 0.85, corn whole 0.87, corn cereal
+0.70; rice polished 0.88, cereal 0.75. \strong{The processing direction is not
+uniform} — refining raises wheat by removing bran and lowers maize, rice and
+oats through extrusion and Maillard damage — so there is no single axis to
+sweep and the bracket is carried per item. \code{"default"} takes the
+least-processed form, which is the consistent partner for WHEP's own
+whole-commodity agronomic nitrogen; \code{"low"} and \code{"high"} give the span.
 }
 \section{Polity columns}{
 
