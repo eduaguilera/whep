@@ -107,6 +107,11 @@
   requirement, within-country intake dispersion, the unavoidable-loss wedge and
   diet protein quality.
 
+  Those figures are measured with **tier 1b** protein quality, the default when
+  this landed. Tier 1a became the default later in the same release and is what
+  ships: 50 of 167 change class, the floor median is 66.23 and the ceiling
+  96.04. See the tier 1a entry at the top for the full comparison.
+
   `nourishment_thresholds = "flat"` restores the old pair for continuity and
   sensitivity. It is not a peer of the default: of its five underlying numbers
   only the 46 g/cap/day floor was ever sourced, and the 1.35 multiplier behind
@@ -155,7 +160,11 @@
   people below requirement** and from 3,278 to 2,258 million above twice the
   safe level.
 
-  **No published value changes yet**: nothing composes these terms.
+  These are the **tier 1b** figures, measured when nothing yet composed the
+  term. Both statements were superseded within the same release: the composed
+  band became the default of `build_sjos_nitrogen()`, so the values do move, and
+  tier 1a became the default quality method. The shipped figures are in the tier
+  1a entry at the top.
 
 * **`read_population()` can now fill its coverage gaps from UN WPP, and always
   reports where each row came from (#644).** The `gdp-population` pin does not
