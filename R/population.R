@@ -101,7 +101,8 @@
 #'   code, plus the polity columns below. `source_pop` carries the pin's own
 #'   vocabulary (`"Original"`, `"Linear interpolation"`, `"First value carried
 #'   backwards"`), joined with `" + "` when a bucket sums ISO3 codes of
-#'   differing provenance, or `"UN WPP 2024"` for a fallback-filled row. A row is one country in the common case, but `area_code` is
+#'   differing provenance, or `"UN WPP 2024"` for a fallback-filled row. A row
+#'   is one country in the common case, but `area_code` is
 #'   an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
 #'   over several territories rather than a single country, as are rows on 999
 #'   ("Rest of World") when the Rest-of-World fold is restored.

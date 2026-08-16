@@ -288,7 +288,31 @@ build_loss_wedge <- function(
       region = .data$region
     ) |>
     dplyr::bind_rows(by_iso) |>
-    dplyr::distinct()
+    dplyr::distinct() |>
+    .lw_check_one_region()
+}
+
+# One area, one region. Two ISO3 codes folded into the same WHEP area and placed
+# in different Annex 1 regions would not error downstream: the area would match
+# both rows and its whole basket would be weighted twice, once per region, at
+# two different rates. The packaged tables give 155 rows and no such collision,
+# but `data$food_loss_regions` is injectable, so the invariant is asserted
+# rather than assumed.
+.lw_check_one_region <- function(area_regions) {
+  clashing <- area_regions |>
+    dplyr::summarise(n = dplyr::n(), .by = "area_code") |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(clashing) == 0L) {
+    return(area_regions)
+  }
+  codes <- clashing$area_code
+  cli::cli_abort(c(
+    "{.field data$food_loss_regions} puts {nrow(clashing)} area{?s} in more
+     than one region.",
+    "x" = "Area code{?s}: {codes}.",
+    "i" = "Each area must resolve to one Annex 1 region; two would weight its
+           basket twice, at two different rates."
+  ))
 }
 
 # One wedge per commodity group. The across-region minimum of each step, halved

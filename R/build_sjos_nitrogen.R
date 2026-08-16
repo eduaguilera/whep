@@ -71,6 +71,17 @@
 #'   sensitivity only: of its five underlying numbers only the 46 g/cap/day
 #'   floor was ever sourced, and the 1.35 multiplier behind both bounds was a
 #'   preliminary presentation figure (whep#753).
+#' @param nourishment_band Named list of options for the composed band, ignored
+#'   when `nourishment_thresholds = "flat"`. `quality_method` and
+#'   `quality_variant` select the protein-quality tier and its bracket
+#'   ([build_protein_quality()]); `wedge_method` and `wedge_coverage` select the
+#'   loss wedge ([build_loss_wedge()]); `shortfall`, `ceiling` and
+#'   `requirement_sd` go to [build_nourishment_band()] itself, and `ceiling` is
+#'   the sensitivity knob the band's own documentation asks callers to sweep.
+#'   An option this list does not name **aborts** rather than being ignored, so
+#'   a mistyped knob cannot silently run the default and be reported as a
+#'   sensitivity. Defaults to `list()`, which leaves every builder on its own
+#'   default.
 #' @param example If `TRUE`, drive the whole chain from the coherent fixture set
 #'   instead of `data`. Defaults to `FALSE`.
 #' @return A named list of SJOS-N output tables: `surplus` (per-crop gridded
@@ -91,6 +102,7 @@ build_sjos_nitrogen <- function(
   nh3_source = "soil",
   footprint_category = "exceedance",
   nourishment_thresholds = c("composed", "flat"),
+  nourishment_band = list(),
   example = FALSE
 ) {
   nourishment_thresholds <- rlang::arg_match(nourishment_thresholds)
@@ -101,6 +113,7 @@ build_sjos_nitrogen <- function(
     nh3_source = nh3_source,
     footprint_category = footprint_category,
     nourishment_thresholds = nourishment_thresholds,
+    nourishment_band = .sjos_band_options(nourishment_band),
     example = isTRUE(example)
   )
   surplus <- calculate_n_surplus(data$balance, method = opts$surplus_method)
@@ -194,21 +207,26 @@ build_sjos_nitrogen <- function(
 .sjos_nourishment <- function(data, opts) {
   supply <- build_food_supply(method = "whep_native", data = data)
   if (opts$nourishment_thresholds == "flat") {
+    .sjos_warn_band_ignored(opts$nourishment_band)
     return(normalize_nourishment(supply))
   }
-  normalize_nourishment(supply, thresholds = .sjos_band(data, supply))
+  normalize_nourishment(
+    supply,
+    thresholds = .sjos_band(data, supply, opts$nourishment_band)
+  )
 }
 
 # The four terms, assembled on the same country-years the supply covers. The
 # per-item protein the wedge and the quality term both need is the column
 # build_food_supply() forms and then collapses away, so it is re-formed here
 # through the SAME nutrition lookup rather than a parallel one.
-.sjos_band <- function(data, supply) {
+.sjos_band <- function(data, supply, band) {
   years <- sort(unique(supply$year))
   population_age <- data$population_age %||%
     read_wpp_population(by = "age_sex", years = years)
   protein_supply <- data$protein_supply %||% .sjos_protein_by_item(data)
-  build_nourishment_band(
+  rlang::exec(
+    build_nourishment_band,
     data = list(
       requirement = build_protein_requirement(
         data = list(population_age = population_age)
@@ -222,14 +240,92 @@ build_sjos_nitrogen <- function(
           data = list(habitual_cv = data$habitual_cv) |> purrr::compact(),
           years = years
         ),
-      loss_wedge = build_loss_wedge(
-        data = list(protein_supply = protein_supply)
-      ),
-      quality = build_protein_quality(
-        data = list(protein_supply = protein_supply)
-      ),
+      loss_wedge = .sjos_wedge(protein_supply, band),
+      quality = .sjos_quality(protein_supply, band),
       supply = supply
-    )
+    ),
+    !!!.sjos_opt(band, c("shortfall", "ceiling", "requirement_sd"))
+  )
+}
+
+# The band's selectable options, validated by NAME only. Nothing is defaulted
+# here: an option the caller did not give is simply not passed on, so each
+# builder's own default applies and the two cannot drift apart.
+#
+# An unrecognised name ABORTS. A sensitivity analysis is exactly the situation
+# where a silently ignored knob is worst -- the run completes, the numbers move
+# not at all, and the sweep is reported as showing insensitivity.
+.sjos_band_options <- function(band) {
+  known <- c(
+    "quality_method",
+    "quality_variant",
+    "wedge_method",
+    "wedge_coverage",
+    "shortfall",
+    "ceiling",
+    "requirement_sd"
+  )
+  unknown <- setdiff(names(band) %||% rep("", length(band)), known)
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{.arg nourishment_band} has unknown option{?s} {.val {unknown}}.",
+      i = "Known option{?s}: {.val {known}}."
+    ))
+  }
+  band
+}
+
+.sjos_opt <- function(band, keys) {
+  band[intersect(names(band), keys)]
+}
+
+# The flat pair has no terms to configure, so band options do nothing there.
+# Say so rather than dropping them: a sweep run against `"flat"` by accident
+# would otherwise complete, move nothing, and read as insensitivity -- the same
+# failure .sjos_band_options() aborts on, arriving by a different route. A
+# warning and not an abort, because comparing flat against composed from one
+# shared options list is a legitimate thing to do.
+.sjos_warn_band_ignored <- function(band) {
+  if (length(band) == 0L) {
+    return(invisible())
+  }
+  given <- names(band)
+  cli::cli_warn(c(
+    "!" = "{.arg nourishment_thresholds} is {.val flat}, so the
+           {length(band)} {.arg nourishment_band} option{?s} {.val {given}}
+           {?does/do} nothing.",
+    "i" = "The flat pair is two constants; only the composed band has terms to
+           configure."
+  ))
+}
+
+# Protein quality: tier 1a per-item digestibility by default, tier 1b class
+# rates, or none. Selectable from the driver so the whole chain -- band,
+# classification and headcounts -- moves with the tier rather than only the
+# quality table.
+.sjos_quality <- function(protein_supply, band) {
+  args <- .sjos_opt(band, c("quality_method", "quality_variant"))
+  names(args) <- c(
+    quality_method = "method",
+    quality_variant = "variant"
+  )[names(args)]
+  rlang::exec(
+    build_protein_quality,
+    data = list(protein_supply = protein_supply),
+    !!!args
+  )
+}
+
+.sjos_wedge <- function(protein_supply, band) {
+  args <- .sjos_opt(band, c("wedge_method", "wedge_coverage"))
+  names(args) <- c(
+    wedge_method = "method",
+    wedge_coverage = "coverage"
+  )[names(args)]
+  rlang::exec(
+    build_loss_wedge,
+    data = list(protein_supply = protein_supply),
+    !!!args
   )
 }
 

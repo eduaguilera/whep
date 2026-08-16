@@ -129,6 +129,12 @@ normalize_nourishment <- function(
 .nourish_join_bounds <- function(x, thresholds) {
   bounds <- .nourish_band_columns(thresholds)
   .check_columns(x, c("year", "area_code"), "x")
+  # A band carrying two rows for one country-year would not error here: it
+  # would DUPLICATE the country, once per candidate band, and every headcount
+  # and class downstream would count it twice. build_nourishment_band() output
+  # is unique by construction, but this argument takes any data frame, so the
+  # same guard the band applies to its own inputs applies here.
+  .nb_check_unique(bounds, "thresholds")
   joined <- dplyr::left_join(x, bounds, by = c("year", "area_code"))
   .nourish_warn_unbanded(joined)
   joined
@@ -144,7 +150,7 @@ normalize_nourishment <- function(
   )
   for (nm in pairs) {
     if (all(rlang::has_name(thresholds, nm))) {
-      return(dplyr::tibble(
+      return(tibble::tibble(
         year = thresholds$year,
         area_code = thresholds$area_code,
         .nourish_floor = thresholds[[nm[1]]],
@@ -161,8 +167,15 @@ normalize_nourishment <- function(
 
 # A row with no band gets NA, not the flat default. Silently falling back would
 # mix two threshold vintages inside one classification.
+#
+# EITHER bound missing is enough. A row matched to a band whose ceiling is NA
+# also scores NA, and testing only the floor would let that one through
+# unreported -- the country would simply vanish from the classification.
 .nourish_warn_unbanded <- function(joined) {
-  missing <- dplyr::filter(joined, is.na(.data$.nourish_floor))
+  missing <- dplyr::filter(
+    joined,
+    is.na(.data$.nourish_floor) | is.na(.data$.nourish_ceiling)
+  )
   if (nrow(missing) == 0L) {
     return(invisible())
   }

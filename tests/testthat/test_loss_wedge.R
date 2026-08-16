@@ -321,3 +321,28 @@ testthat::test_that("the PACKAGED item mapping stays inside Annex 2", {
     any(is.na(groups$loss_group[groups$annex2_basis != "not_named"]))
   )
 })
+
+testthat::test_that("an area in two Annex 1 regions aborts, not double-weights", {
+  # Found by review. The packaged tables give one region per area, but
+  # `data$food_loss_regions` is injectable: two ISO3 codes folded into the same
+  # WHEP area and placed in different regions would match both wedge rows and
+  # weight the whole basket twice, at two different rates.
+  regions <- tibble::tribble(
+    ~iso3c,        ~area_code, ~region,
+    NA_character_, 10L,        "Europe",
+    NA_character_, 10L,        "Sub-Saharan Africa"
+  )
+  testthat::expect_error(
+    whep::build_loss_wedge(
+      data = list(
+        protein_supply = tibble::tribble(
+          ~year, ~area_code, ~item_cbs_code, ~protein_t,
+          2010L, 10L,        2511L,          100
+        ),
+        food_loss_regions = regions
+      ),
+      method = "gustavsson_regional_actual"
+    ),
+    "more than one region"
+  )
+})

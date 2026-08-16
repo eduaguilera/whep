@@ -162,10 +162,10 @@ build_nourishment_band <- function(
   ceiling = list(multiple = 2, share = 0.5),
   requirement_sd = 0.12
 ) {
-  .nf_check_shortfall(shortfall)
+  .nb_check_shortfall(shortfall)
   ceiling <- .nb_check_ceiling(ceiling)
   terms <- .nb_join_terms(data)
-  .nf_warn_safe_anchor(data$requirement)
+  .nb_warn_safe_anchor(data$requirement)
 
   terms |>
     .nb_compose(shortfall, ceiling, requirement_sd) |>
@@ -189,16 +189,16 @@ build_nourishment_band <- function(
 # expressed on a per kg body weight basis, are not correlated"), and Table 2 is
 # headed "Zero correlation assumed". It is an assumption, not a measurement: a
 # positive correlation would shrink S_D and narrow the band from both sides.
-.nf_deficit_sd <- function(sigma_intake, requirement_sd) {
+.nb_deficit_sd <- function(sigma_intake, requirement_sd) {
   sqrt(sigma_intake^2 + requirement_sd^2)
 }
 
 # Prevalence of deficit, Phi(-M_D / S_D).
-.nf_prevalence <- function(m_d, s_d) {
+.nb_prevalence <- function(m_d, s_d) {
   stats::pnorm(-m_d / s_d)
 }
 
-.nf_check_shortfall <- function(shortfall) {
+.nb_check_shortfall <- function(shortfall) {
   if (!.nb_is_fraction(shortfall)) {
     cli::cli_abort(
       "{.arg shortfall} must be one number strictly between 0 and 1, not
@@ -235,26 +235,26 @@ build_nourishment_band <- function(
 # row with an NA band instead of disappearing. A gap that is absent from the
 # table cannot be counted.
 .nb_join_terms <- function(data) {
-  average <- .nf_take(
+  average <- .nb_take(
     data$requirement,
     "requirement_g_cap_day",
     "data$requirement"
   )
-  safe <- .nf_take(
+  safe <- .nb_take(
     data$requirement_safe,
     "requirement_g_cap_day",
     "data$requirement_safe"
   ) |>
     dplyr::rename(safe_g_cap_day = "requirement_g_cap_day")
-  dispersion <- .nf_take(data$dispersion, "sigma", "data$dispersion")
-  loss_wedge <- .nf_take(data$loss_wedge, "omega", "data$loss_wedge")
+  dispersion <- .nb_take(data$dispersion, "sigma", "data$dispersion")
+  loss_wedge <- .nb_take(data$loss_wedge, "omega", "data$loss_wedge")
   average |>
     dplyr::full_join(safe, by = c("year", "area_code")) |>
     dplyr::full_join(dispersion, by = c("year", "area_code")) |>
     dplyr::full_join(loss_wedge, by = c("year", "area_code"))
 }
 
-.nf_take <- function(table, value, arg) {
+.nb_take <- function(table, value, arg) {
   if (is.null(table)) {
     cli::cli_abort("{.field {arg}} is required.")
   }
@@ -293,7 +293,7 @@ build_nourishment_band <- function(
     requirement_g_cap_day = .data$requirement_g_cap_day,
     safe_g_cap_day = .data$safe_g_cap_day,
     sigma_intake = .data$sigma,
-    sigma_deficit = .nf_deficit_sd(.data$sigma, requirement_sd),
+    sigma_deficit = .nb_deficit_sd(.data$sigma, requirement_sd),
     omega = .data$omega,
     floor_g_cap_day = .nb_bound(
       .data$requirement_g_cap_day,
@@ -377,7 +377,7 @@ build_nourishment_band <- function(
         .data$protein_g_cap_day * .data$quality * (1 - .data$omega)
       ) -
         .data$sigma_intake^2 / 2,
-      prevalence_protein_deficit = .nf_prevalence(
+      prevalence_protein_deficit = .nb_prevalence(
         .data$intake_log - log(.data$requirement_g_cap_day),
         .data$sigma_deficit
       ),
@@ -414,7 +414,7 @@ build_nourishment_band <- function(
 # counts it twice -- the construction TRS 935 p.41 and p.241 forbid outright.
 # It is the correct anchor for the CEILING, which is why that arrives on its own
 # input rather than being confused with this one.
-.nf_warn_safe_anchor <- function(requirement) {
+.nb_warn_safe_anchor <- function(requirement) {
   if (!rlang::has_name(requirement, "method_requirement")) {
     return(invisible())
   }

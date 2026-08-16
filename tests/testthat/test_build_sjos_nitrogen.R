@@ -245,3 +245,74 @@ testthat::test_that("an unknown threshold mode is rejected", {
     "arg_match|must be one of|old"
   )
 })
+
+testthat::test_that("the quality tier is selectable from the driver", {
+  # Tier 1a is the default; 1b and none stay reachable end to end, not only on
+  # build_protein_quality(). Selecting one has to move the classification, or
+  # the argument is decorative.
+  tier_1a <- whep::build_sjos_nitrogen(example = TRUE)
+  tier_1b <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(quality_method = "digestibility_share")
+  )
+  uncorrected <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(quality_method = "none")
+  )
+  scores <- list(
+    tier_1a$nourishment$value_norm,
+    tier_1b$nourishment$value_norm,
+    uncorrected$nourishment$value_norm
+  )
+  testthat::expect_false(isTRUE(all.equal(scores[[1]], scores[[2]])))
+  testthat::expect_false(isTRUE(all.equal(scores[[2]], scores[[3]])))
+  # Quality DIVIDES both bounds, so a lower quality raises the band and lowers
+  # the score. Quality 1 is the maximum, which is why an uncorrected band is
+  # the most generous of the three -- the understatement the ladder exists to
+  # remove. Tier 1a sits above 1b because TRS 935's measured cereal
+  # digestibility (0.86-0.88) beats the 0.80 plant class rate on mass.
+  testthat::expect_true(all(scores[[3]] > scores[[1]]))
+  testthat::expect_true(all(scores[[1]] > scores[[2]]))
+})
+
+testthat::test_that("the ceiling knob the band asks callers to sweep works", {
+  # The band's own docs call `share` WHEP's own criterion and ask for a
+  # sensitivity across it. That is only possible if the driver forwards it.
+  base <- whep::build_sjos_nitrogen(example = TRUE)
+  strict <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
+  )
+  # A smaller tolerated share admits less supply, so the ceiling falls and the
+  # normalized score rises.
+  testthat::expect_true(all(
+    strict$nourishment$value_norm > base$nourishment$value_norm
+  ))
+})
+
+testthat::test_that("a mistyped band option aborts instead of being ignored", {
+  # The worst case for a silently ignored knob is exactly this one: the sweep
+  # runs, nothing moves, and the analysis reports insensitivity.
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(
+      example = TRUE,
+      nourishment_band = list(quality = "digestibility_share")
+    ),
+    "unknown option"
+  )
+})
+
+testthat::test_that("band options passed with the flat pair are reported", {
+  # Same failure mode as a mistyped option, arriving by a different route: the
+  # sweep runs, nothing moves, and it reads as insensitivity. A warning rather
+  # than an abort, because comparing flat against composed from one shared
+  # options list is legitimate.
+  testthat::expect_warning(
+    whep::build_sjos_nitrogen(
+      example = TRUE,
+      nourishment_thresholds = "flat",
+      nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
+    ),
+    "does nothing"
+  )
+})

@@ -112,3 +112,26 @@ testthat::test_that("the resolver prefers an explicit dir over the cache", {
     whep:::.wpp_cache_dir()
   )
 })
+
+testthat::test_that("an unresolved ISO3 is dropped and named, not kept as NA", {
+  # Found by review: a code the crosswalk does not resolve used to survive on a
+  # missing `area_code`, and build_protein_requirement() would then weight it
+  # into an NA-keyed country-year that joins nothing downstream.
+  raw <- tibble::tribble(
+    ~ISO3_code, ~LocTypeName,   ~Time, ~AgeGrpStart, ~AgeGrpSpan,
+    ~PopMale, ~PopFemale,
+    "ESP",      "Country/Area", 2010L, 0L,           5L,
+    1000,     1000,
+    "ZZZ",      "Country/Area", 2010L, 0L,           5L,
+    500,      500
+  )
+  testthat::expect_message(
+    whep::read_wpp_population(data = raw, by = "age_sex"),
+    "ZZZ"
+  )
+  out <- suppressMessages(
+    whep::read_wpp_population(data = raw, by = "age_sex")
+  )
+  testthat::expect_false(any(is.na(out$area_code)))
+  testthat::expect_setequal(out$iso3c, "ESP")
+})

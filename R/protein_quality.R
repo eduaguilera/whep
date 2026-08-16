@@ -51,7 +51,7 @@
 #' the tier 1b class rate for the items the report does not measure. Table 5 has
 #' 35 rows and prints **no fruit, vegetable, root, tuber or sugar** entry at
 #' all, so the fallback is not a corner case — on the 2010 world basket the
-#' measured share is about 82% of food protein and the rest takes the class
+#' measured share is **84.5%** of food protein and the rest takes the class
 #' rate. `protein_measured_share` reports it per row.
 #'
 #' `"digestibility_share"` is **tier 1b**: the protein-weighted mean of **0.95

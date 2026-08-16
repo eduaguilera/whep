@@ -1,5 +1,40 @@
 # whep (development version)
 
+* **`build_sjos_nitrogen()` gains `nourishment_band`, which makes every band
+  choice selectable from the driver.** The quality tier
+  (`quality_method` / `quality_variant`), the loss wedge (`wedge_method` /
+  `wedge_coverage`) and the band's own `shortfall`, `ceiling` and
+  `requirement_sd` were all reachable on their builders but frozen at their
+  defaults inside the driver, so a sensitivity could not be run end to end.
+  `ceiling` in particular is the knob the band's documentation names as WHEP's
+  own criterion and asks callers to sweep.
+
+  An option the list does not recognise **aborts**. A sensitivity analysis is
+  the worst place for a silently ignored argument: the run completes, nothing
+  moves, and the sweep gets reported as showing insensitivity. Nothing is
+  defaulted in the driver either — an option the caller omits is simply not
+  passed on, so each builder's own default applies and the two cannot drift.
+
+* **Three guards against silent row multiplication and silent gaps**, all found
+  by review of this branch rather than in the field:
+
+  * `normalize_nourishment()` now **aborts** when a data-frame `thresholds`
+    carries two rows for one `year`/`area_code`. It previously duplicated the
+    country, once per candidate band and each with its own class, so every
+    headcount downstream counted it twice. `build_nourishment_band()` output is
+    unique by construction, but the argument accepts any data frame.
+  * `normalize_nourishment()` now also warns when a matched band has a missing
+    **ceiling**. The check tested the floor alone, so such a row scored `NA` and
+    disappeared from the classification without a word.
+  * `read_wpp_population()` now drops and **names** ISO3 codes the crosswalk
+    does not resolve, instead of returning them on a missing `area_code` for
+    `build_protein_requirement()` to weight into an `NA`-keyed country. On WPP
+    2024 that is 7 codes at 0.03% of world population, Kosovo the largest.
+
+  `build_loss_wedge()` additionally asserts one Annex 1 region per area. The
+  packaged tables satisfy it, but `data$food_loss_regions` is injectable and two
+  regions for one area would weight its whole basket twice, at two rates.
+
 * **`build_protein_quality()` gains tier 1a and makes it the default:
   per-item measured digestibility instead of a two-rate class split.**
   `method = "trs935_item"` uses the true digestibility TRS 935 Table 5 publishes

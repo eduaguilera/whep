@@ -165,3 +165,45 @@ testthat::test_that("a data frame without bound columns aborts", {
     "floor"
   )
 })
+
+testthat::test_that("a band with a duplicated country-year aborts", {
+  # Found by review: this seam takes ANY data frame, and two rows for one
+  # country-year silently duplicated the country -- one output row per
+  # candidate band, each with a different class. Every headcount downstream
+  # would then count it twice. build_nourishment_band() cannot produce that,
+  # but a hand-built or joined-up band can.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90,
+    2010L, 10L,        65,               95
+  )
+  testthat::expect_error(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "one row per"
+  )
+})
+
+testthat::test_that("a band with a missing ceiling is reported, not silent", {
+  # The warning used to test the floor only, so a row whose ceiling was NA
+  # scored NA and vanished from the classification without a word.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               NA_real_
+  )
+  testthat::expect_warning(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "no threshold band"
+  )
+  out <- suppressWarnings(
+    whep::normalize_nourishment(supply, thresholds = band)
+  )
+  testthat::expect_true(is.na(out$nourish))
+})

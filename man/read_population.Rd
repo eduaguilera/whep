@@ -32,7 +32,8 @@ A tibble with \code{year}, \code{area_code}, \code{population} (persons) and
 \code{source_pop}, one row per area code and year, sorted by year then area
 code, plus the polity columns below. \code{source_pop} carries the pin's own
 vocabulary (\code{"Original"}, \code{"Linear interpolation"}, \code{"First value carried backwards"}), joined with \code{" + "} when a bucket sums ISO3 codes of
-differing provenance, or \code{"UN WPP 2024"} for a fallback-filled row. A row is one country in the common case, but \code{area_code} is
+differing provenance, or \code{"UN WPP 2024"} for a fallback-filled row. A row
+is one country in the common case, but \code{area_code} is
 an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
 over several territories rather than a single country, as are rows on 999
 ("Rest of World") when the Rest-of-World fold is restored.

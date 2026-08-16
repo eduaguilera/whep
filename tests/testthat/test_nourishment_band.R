@@ -40,14 +40,14 @@ testthat::test_that("TRS 935 Table 2 reproduces at the printed S_I values", {
   # TRS 935 Table 2 (p.45) gives 7.9% below requirement at S_I = 0.12 and 18.2%
   # at the printed S_I of 0.24 (really 0.2352).
   s_r <- 0.12
-  low <- whep:::.nf_prevalence(0.24, whep:::.nf_deficit_sd(0.12, s_r))
-  high <- whep:::.nf_prevalence(0.24, whep:::.nf_deficit_sd(0.2352, s_r))
+  low <- whep:::.nb_prevalence(0.24, whep:::.nb_deficit_sd(0.12, s_r))
+  high <- whep:::.nb_prevalence(0.24, whep:::.nb_deficit_sd(0.2352, s_r))
   testthat::expect_equal(round(100 * low, 1), 7.9)
   testthat::expect_equal(round(100 * high, 1), 18.2)
 })
 
 testthat::test_that("the deficit SD is a quadrature sum, not a geometric mean", {
-  s_d <- whep:::.nf_deficit_sd(0.30, 0.12)
+  s_d <- whep:::.nb_deficit_sd(0.30, 0.12)
   testthat::expect_gte(s_d, 0.30)
   testthat::expect_gte(s_d, 0.12)
   testthat::expect_equal(s_d, sqrt(0.30^2 + 0.12^2))
@@ -173,7 +173,7 @@ testthat::test_that("the mean/median term is present and raises the floor", {
   inputs <- .nb_inputs(sigma = 0.3, average = 50, omega = 0.02)
   out <- whep::build_nourishment_band(data = inputs)
   median_only <- 50 *
-    exp(stats::qnorm(0.975) * whep:::.nf_deficit_sd(0.3, 0.12)) /
+    exp(stats::qnorm(0.975) * whep:::.nb_deficit_sd(0.3, 0.12)) /
     (1 - 0.02)
   testthat::expect_gt(out$floor_g_cap_day, median_only)
   testthat::expect_equal(out$floor_g_cap_day, median_only * exp(0.3^2 / 2))

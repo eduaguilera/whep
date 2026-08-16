@@ -21,11 +21,14 @@ keeps every year in the file.}
 \item{data}{Optional pre-read WPP table, bypassing the file entirely. Used by
 the tests so the whole path stays offline.}
 
-\item{dir}{Optional directory holding \code{WPP2024_PopulationByAge5GroupSex_Medium.csv.gz}.}
+\item{dir}{Optional directory holding the WPP CSV,
+\code{WPP2024_PopulationByAge5GroupSex_Medium.csv.gz}.}
 }
 \value{
 A tibble with \code{year}, \code{area_code}, \code{population} (persons) and, for
-\code{by = "age_sex"}, \code{age_start}, \code{age_span} and \code{sex} (\code{"m"} / \code{"f"}).
+\code{by = "age_sex"}, \code{age_start}, \code{age_span} and \code{sex} (\code{"m"} / \code{"f"}). ISO3
+codes the crosswalk does not resolve are dropped and named, rather than
+returned on a missing \code{area_code}.
 }
 \description{
 Reads the UN WPP 2024 medium-variant population by five-year age group and

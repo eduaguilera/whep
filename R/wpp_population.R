@@ -37,9 +37,12 @@
 #'   `area_code`) or `"age_sex"` (adds `age_start`, `age_span` and `sex`).
 #' @param data Optional pre-read WPP table, bypassing the file entirely. Used by
 #'   the tests so the whole path stays offline.
-#' @param dir Optional directory holding `WPP2024_PopulationByAge5GroupSex_Medium.csv.gz`.
+#' @param dir Optional directory holding the WPP CSV,
+#'   `WPP2024_PopulationByAge5GroupSex_Medium.csv.gz`.
 #' @return A tibble with `year`, `area_code`, `population` (persons) and, for
-#'   `by = "age_sex"`, `age_start`, `age_span` and `sex` (`"m"` / `"f"`).
+#'   `by = "age_sex"`, `age_start`, `age_span` and `sex` (`"m"` / `"f"`). ISO3
+#'   codes the crosswalk does not resolve are dropped and named, rather than
+#'   returned on a missing `area_code`.
 #' @export
 #' @examples
 #' read_wpp_population(
@@ -204,7 +207,28 @@ read_wpp_population <- function(
       "age_span",
       "sex",
       "population"
-    )
+    ) |>
+    .wpp_drop_unmapped()
+}
+
+# An ISO3 code the crosswalk does not resolve keeps a row with a missing
+# `area_code`, which is worse than no row: build_protein_requirement() would
+# weight it into a country-year keyed on NA, and that NA country then joins
+# nothing and reports nothing. Drop it, and name what went, the same way
+# read_population() names its own unresolved codes.
+.wpp_drop_unmapped <- function(parsed) {
+  unmapped <- dplyr::filter(parsed, is.na(.data$area_code))
+  if (nrow(unmapped) == 0L) {
+    return(parsed)
+  }
+  codes <- sort(unique(unmapped$iso3c))
+  share <- sum(unmapped$population) / sum(parsed$population)
+  cli::cli_inform(c(
+    i = "Dropped {length(codes)} WPP ISO3 code{?s} with no numeric
+         {.field area_code}: {.val {codes}}.",
+    i = "{round(100 * share, 2)}% of the population in range."
+  ))
+  dplyr::filter(parsed, !is.na(.data$area_code))
 }
 
 .wpp_totals <- function(parsed) {
