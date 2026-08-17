@@ -64,6 +64,17 @@
   class in the cell and then read back as a zero mineralization rate, so it now
   aborts (#365).
 
+* **Natural land's `method_c_input` said a harvest was subtracted from it.** It
+  was `"lpjml_npp_minus_harvest"` while `harvestc` is read for the grassland
+  branch alone and natural land is never harvested; it is now `"lpjml_npp"`.
+  The label obscured that this class receives the whole of its plant functional
+  types' primary production, which is the term setting its equilibrium.
+  `build_grass_natural_carbon_inputs(resolution = "polity")` also took the
+  first cell's humification fraction for a whole polity instead of
+  carbon-weighting it as the cropland path does; it now weights it. Harmless
+  while natural land carried one global constant, wrong for grassland, whose
+  fraction is a per-cell blend of weed and excreta carbon.
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

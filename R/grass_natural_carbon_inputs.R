@@ -225,7 +225,12 @@ build_grass_natural_carbon_inputs <- function(
     dplyr::mutate(
       land_use = "natural",
       humified_fraction = hf,
-      method_c_input = "lpjml_npp_minus_harvest"
+      # Not "..._minus_harvest": `harvestc` is read for the grassland branch
+      # only, and natural land is never harvested, so nothing is subtracted
+      # here. The old label claimed a subtraction that does not happen, which
+      # obscured that this class receives the whole of its PFTs' primary
+      # production -- the term that sets its equilibrium (whep#799).
+      method_c_input = "lpjml_npp"
     )
 }
 
@@ -427,7 +432,14 @@ build_grass_natural_carbon_inputs <- function(
         .data$c_input_mgc_ha_yr,
         .data$class_area_ha
       ),
-      humified_fraction = .data$humified_fraction[1],
+      # Carbon-weighted, matching `.ci_wmean()` on the cropland path: taking
+      # the first cell's fraction was harmless only while natural land carried
+      # one global constant, and wrong for grassland, whose fraction is already
+      # a per-cell blend of weed and excreta carbon.
+      humified_fraction = .gn_wmean(
+        .data$humified_fraction,
+        .data$c_input_mgc_ha_yr * .data$class_area_ha
+      ),
       method_c_input = .data$method_c_input[1],
       .by = c("area_code", "year", "land_use")
     ) |>

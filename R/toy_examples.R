@@ -745,11 +745,11 @@
     26.25, 35.25, 84L, 2000L, "grassland",
     4.35, 0.1153467, "lpjml_npp_minus_harvest",
     26.25, 35.25, 84L, 2000L, "natural",
-    4.56, 0.325, "lpjml_npp_minus_harvest",
+    4.56, 0.325, "lpjml_npp",
     -64.25, -35.75, 9L, 2000L, "grassland",
     1.95, 0.1153467, "lpjml_npp_minus_harvest",
     -64.25, -35.75, 9L, 2000L, "natural",
-    9.26, 0.325, "lpjml_npp_minus_harvest"
+    9.26, 0.325, "lpjml_npp"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -765,7 +765,7 @@
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
-    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
+    0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp"
   ) |>
     .add_reporting_polity_columns()
 }

@@ -97,8 +97,16 @@ testthat::test_that("grid output has the documented schema and classes", {
   )
   testthat::expect_true(all(expected %in% names(out)))
   testthat::expect_setequal(out$land_use, c("grassland", "natural"))
-  testthat::expect_true(
-    all(out$method_c_input == "lpjml_npp_minus_harvest")
+  # The two classes are fed differently and say so: grassland is net of its
+  # harvest, natural is not harvested at all, so subtracting nothing is named
+  # as subtracting nothing.
+  testthat::expect_equal(
+    unique(out$method_c_input[out$land_use == "grassland"]),
+    "lpjml_npp_minus_harvest"
+  )
+  testthat::expect_equal(
+    unique(out$method_c_input[out$land_use == "natural"]),
+    "lpjml_npp"
   )
 })
 
