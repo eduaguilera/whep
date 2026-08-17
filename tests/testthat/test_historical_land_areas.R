@@ -24,16 +24,19 @@
 }
 
 # The same two cells in the polycell grain: one row per cell x polity x
-# validity interval. `NEW` holds cell A over two successive intervals carrying
-# the SAME geometry, which is what reducing the support to one weight per cell
-# has to survive.
+# validity interval. Two things are deliberate. `NEW` holds cell A over two
+# successive intervals carrying the SAME geometry, which is what reducing the
+# support to one weight per cell has to survive. And `land_area_ha` is NOT equal
+# to `polity_area_ha` anywhere -- cell B is 60% inland water and `OLD`'s share
+# of cell A is entirely water, the cap that whep#800 measured on 1,502 real
+# polycells -- so a test of which column is the weight cannot pass vacuously.
 .two_cell_support <- function() {
   tibble::tribble(
     ~polity_code, ~cell_id, ~lon, ~lat, ~start_year, ~end_year, ~polity_area_ha, ~land_area_ha, ~inland_water_ha, ~ice_area_ha,
-    "OLD",        1L,       0.25, 0.25, 1L,          3L,        100,             100,           0,                0,
-    "NEW",        1L,       0.25, 0.25, 3L,          5L,        100,             100,           0,                0,
-    "NEW",        1L,       0.25, 0.25, 5L,          9L,        100,             100,           0,                0,
-    "NEW",        2L,       0.75, 0.25, 3L,          9L,        100,             100,           0,                0
+    "OLD",        1L,       0.25, 0.25, 1L,          3L,        100,             0,             100,              0,
+    "NEW",        1L,       0.25, 0.25, 3L,          5L,        100,             70,            30,               0,
+    "NEW",        1L,       0.25, 0.25, 5L,          9L,        100,             70,            30,               0,
+    "NEW",        2L,       0.75, 0.25, 3L,          9L,        100,             40,            60,               0
   )
 }
 
@@ -177,8 +180,13 @@ test_that("the cell cover is read off the polycell support", {
       dplyr::pull(.data$frac),
     100
   )
-  # The weight is the polity's whole TERRITORY in the cell, not its land.
+  # The weight is the polity's whole TERRITORY in the cell, not its land: the
+  # fixture's land is 0 / 70 / 40 against 100 everywhere, so weighting by
+  # `land_area_ha` would read 110 here and would erase `OLD` from the cell it
+  # shares with `NEW` -- which is the failure whep#800 measured on 1,502 real
+  # polycells whose territory the inland-water cap consumes entirely.
   expect_equal(sum(cover$frac), 300)
+  expect_true(all(cover$frac == 100))
 })
 
 test_that("a support carrying none of the requested polities aborts", {
