@@ -31,6 +31,14 @@
 #'
 #' @param model Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
 #'   \code{"icbm"}, \code{"amg"} or \code{"century"}.
+#' @param init How each land-use class's opening stock is set.
+#'   \code{"own_equilibrium"} (default) starts every class at the stock its own
+#'   carbon input and climate support. \code{"cell_average"} starts every class
+#'   in a cell at the fraction-weighted mean of the classes sharing it, the
+#'   Spain historical behaviour: a proxy for land converted from something
+#'   richer, at the cost of opening the lowest-input class far above its own
+#'   target and draining it for decades, which the balance then reports as soil
+#'   nitrogen mineralization. Recorded in \code{method_soc_init}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
 #'   \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).
 #' @param years Optional integer vector of calendar years to keep. \code{NULL}
@@ -77,7 +85,8 @@
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 #'   \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-#'   \code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+#'   \code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
+#'   polity columns below, plus
 #'   \code{reporting_polity_out_of_span} when
 #'   \code{polity_validity = "flag"}.
 #' @inheritSection whep_polity_columns Polity columns
@@ -89,6 +98,7 @@
 #' build_carbon_balance(example = TRUE)
 build_carbon_balance <- function(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  init = c("own_equilibrium", "cell_average"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
@@ -103,6 +113,7 @@ build_carbon_balance <- function(
     ))
   }
   model <- rlang::arg_match(model)
+  init <- rlang::arg_match(init)
   resolution <- rlang::arg_match(resolution)
   progress <- .cb_show_progress()
   if (progress) {
@@ -116,14 +127,14 @@ build_carbon_balance <- function(
   if (progress) {
     cli::cli_progress_step("Initialising soil-carbon pools")
   }
-  init <- .cb_initialise(classes, model, d)
+  init_stock <- .cb_initialise(classes, model, d, init)
   if (progress) {
     cli::cli_progress_done()
   }
-  marched <- .cb_march(classes, init)
+  marched <- .cb_march(classes, init_stock)
   marched |>
     .cb_derive_son() |>
-    dplyr::mutate(method_soc = model) |>
+    dplyr::mutate(method_soc = model, method_soc_init = init) |>
     .cb_finalise(resolution) |>
     .resolve_polity_validity(polity_validity)
 }
@@ -829,14 +840,14 @@ build_carbon_balance <- function(
 # pre-industrial climatological normal (`d$equilibrium_climate`, RESOLVED F3),
 # so the initial stock reflects the equilibrium climate while the forward march
 # uses the year-specific modifier already carried in `soc_eq_mgc_ha`.
-.cb_initialise <- function(classes, model, d) {
+.cb_initialise <- function(classes, model, d, init) {
   first <- dplyr::filter(
     classes,
     .data$year == min(.data$year),
     .by = c("lon", "lat", "area_code")
   )
   first <- .cb_apply_equilibrium_climate(first, model, d)
-  .cb_init_density(first)
+  .cb_init_density(first, init)
 }
 
 # Recompute the first-year per-class equilibrium densities under the
@@ -892,12 +903,32 @@ build_carbon_balance <- function(
     )
 }
 
-# Cell-level initial SOC density: the fraction-weighted mean of the per-class
-# equilibrium densities, applied uniformly to each class in the cell.
-.cb_init_density <- function(classes) {
+# Initial SOC density per cell and class.
+#
+# `"own_equilibrium"` (default) starts each class at the stock its own carbon
+# input and climate support, so a class opens on its own target and the march
+# reports the trend its drivers imply.
+#
+# `"cell_average"` is the Spain_Hist behaviour: every class in a cell opens at
+# the fraction-weighted mean `sum(frac * soc_eq)` of the classes sharing it. It
+# is a proxy for land converted from something richer -- cropland broken out of
+# forest does inherit a stock above its own equilibrium -- and it is defensible
+# at the provincial grain it was written for. Carried to a 0.5-degree cell it
+# also means the lowest-input class starts wherever its neighbours' equilibria
+# put it and drains toward its own for decades: with cropland's time constant
+# `soc_eq / c_input` near 11 years, that transient is read out as soil nitrogen
+# mineralization, and it accounted for about a third of the spurious flux
+# reaching the nitrogen balance (312 against 211 Tg N; whep#792, whep#799).
+# Kept selectable because the inheritance it models is real, not because it is
+# the safer default.
+.cb_init_density <- function(classes, init) {
   classes |>
     dplyr::mutate(
-      stock_mgc_ha = sum(.data$frac * .data$soc_eq_mgc_ha),
+      stock_mgc_ha = if (init == "cell_average") {
+        sum(.data$frac * .data$soc_eq_mgc_ha)
+      } else {
+        .data$soc_eq_mgc_ha
+      },
       .by = c("lon", "lat", "area_code")
     ) |>
     dplyr::select(

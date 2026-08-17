@@ -622,27 +622,32 @@
 }
 
 # Historical gridded SOC balance fixture (one cell, two land-use classes, three
-# years). Generated from a real build_carbon_balance(model = "hsoc") run: the
-# cell starts at the fraction-weighted equilibrium density, marches forward on
-# the yearly areas, and in 2001 Cropland shrinks while NonCropland grows so the
-# land-use-change transfer (luc_transfer_mgc_ha) sums to zero across the cell.
+# years). Generated from a real build_carbon_balance(model = "hsoc") run: each
+# class starts at its own equilibrium density, so both sit still with a zero net
+# rate until 2001, when Cropland shrinks and NonCropland grows. The transfer
+# (luc_transfer_mgc_ha) sums to zero across the cell, and NonCropland -- having
+# absorbed carbon at Cropland's richer density -- then relaxes back toward its
+# own equilibrium, which is what makes its rate and son_change non-zero.
 .example_carbon_balance <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~stock_mgc_ha,
     ~mineralization_mgc_ha, ~c_input_mgc_ha, ~luc_transfer_mgc_ha,
-    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc,
-    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 37.346076,
-    2.096878, 2.500000, 0.000000, 0.403122, -36.647441, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 37.346076,
-    2.107845, 1.500000, 0.000000, -0.607845, 55.258678, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 37.749198,
-    2.119512, 2.500000, -7.549840, 0.380488, -34.589790, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 36.940424,
-    2.084950, 1.500000, 7.549840, -0.584950, 53.177282, "hsoc",
-    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 38.129686,
-    2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
-    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
-    2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
+    ~rate_mgc_ha, ~son_change_kgn_ha, ~method_soc, ~method_soc_init,
+    0.250000, 0.250000, 1L, "Cropland", 2000L, 60.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2000L, 40.000000, 25.712848,
+    1.500000, 1.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2001L, 50.000000, 43.077946,
+    2.500000, 2.500000, -8.615589, 0.000000, 0.000000, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2001L, 50.000000, 29.185868,
+    1.702604, 1.500000, 8.615589, -0.202604, 18.418557, "hsoc",
+    "own_equilibrium",
+    0.250000, 0.250000, 1L, "Cropland", 2002L, 50.000000, 43.077946,
+    2.500000, 2.500000, 0.000000, 0.000000, 0.000000, "hsoc", "own_equilibrium",
+    0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 28.983264,
+    1.690785, 1.500000, 0.000000, -0.190785, 17.344081, "hsoc",
+    "own_equilibrium"
   ) |>
     .add_reporting_polity_columns()
 }

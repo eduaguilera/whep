@@ -16,6 +16,23 @@
   closed form and the spin-up it replaces both read the same effective
   fraction, so the two cannot diverge (whep#799).
 
+* **Each land-use class now opens at its own soil-carbon equilibrium.**
+  `build_carbon_balance()` gains `init`, defaulting to `"own_equilibrium"`.
+  Previously every class in a cell started at the fraction-weighted mean
+  `sum(frac * soc_eq)` of the classes sharing it, which is the Spain historical
+  behaviour and still selectable as `"cell_average"`. The choice is recorded in
+  the new `method_soc_init` output column.
+
+  The cell average is a real effect -- cropland broken out of forest does
+  inherit a stock above its own equilibrium -- and it is defensible at the
+  provincial grain it was written for. Carried to a 0.5-degree cell it also
+  means the lowest-input class opens wherever its neighbours' equilibria put it
+  and drains toward its own for decades. With cropland's time constant
+  `soc_eq / c_input` near 11 years, that transient is read out as soil nitrogen
+  mineralization: it accounted for about a third of the spurious flux reaching
+  the nitrogen balance, 312 against 211 Tg N (whep#792, whep#799).
+  **Published values move.**
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

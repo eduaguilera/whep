@@ -22,6 +22,15 @@ build_carbon_balance(
 \item{model}{Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
 \code{"icbm"}, \code{"amg"} or \code{"century"}.}
 
+\item{init}{How each land-use class's opening stock is set.
+\code{"own_equilibrium"} (default) starts every class at the stock its own
+carbon input and climate support. \code{"cell_average"} starts every class
+in a cell at the fraction-weighted mean of the classes sharing it, the
+Spain historical behaviour: a proxy for land converted from something
+richer, at the cost of opening the lowest-input class far above its own
+target and draining it for decades, which the balance then reports as soil
+nitrogen mineralization. Recorded in \code{method_soc_init}.}
+
 \item{resolution}{\code{"grid"} (default, per cell and land-use class) or
 \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).}
 
@@ -72,7 +81,8 @@ A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-\code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+\code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
+polity columns below, plus
 \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}.
 }

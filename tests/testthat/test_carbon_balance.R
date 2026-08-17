@@ -150,10 +150,17 @@ test_that("init weights per-class equilibria by land-use fractions", {
     soc_eq_mgc_ha = c(40, 70),
     frac = c(0.6, 0.4)
   )
-  init <- whep:::.cb_init_density(classes)
-  # Per-class init density equals the cell-weighted mean equilibrium.
-  expected <- 0.6 * 40 + 0.4 * 70
-  testthat::expect_equal(unique(init$stock_mgc_ha), expected, tolerance = 1e-9)
+  # The default opens each class at its own equilibrium.
+  own <- whep:::.cb_init_density(classes, "own_equilibrium")
+  testthat::expect_equal(own$stock_mgc_ha, c(40, 70), tolerance = 1e-9)
+  # "cell_average" is the Spain historical behaviour, still selectable: every
+  # class in the cell opens at the fraction-weighted mean.
+  avg <- whep:::.cb_init_density(classes, "cell_average")
+  testthat::expect_equal(
+    unique(avg$stock_mgc_ha),
+    0.6 * 40 + 0.4 * 70,
+    tolerance = 1e-9
+  )
 })
 
 test_that("each cell initialises at its own earliest available year", {
@@ -168,7 +175,8 @@ test_that("each cell initialises at its own earliest available year", {
   init <- whep:::.cb_initialise(
     classes,
     model = "hsoc",
-    d = list(equilibrium_climate = NULL)
+    d = list(equilibrium_climate = NULL),
+    init = "cell_average"
   ) |>
     dplyr::arrange(.data$area_code, .data$land_use)
 
@@ -610,14 +618,16 @@ test_that("RothC/HSOC modifier differs between cropland and perennial classes", 
       clay = .cb_clay_only()
     )
   )
-  # The first year initialises every class to the cell-weighted-mean stock, so
-  # the class-specific modifier surfaces in the per-class equilibrium decay rate:
-  # cropland (faster mineralization) and grassland must have distinct rates in
-  # the first year and diverging stocks once the march applies those rates.
+  # Each class opens at its own equilibrium, so the class-specific cover term
+  # surfaces directly in the first-year stock: cropland's seasonal canopy leaves
+  # its soil barer than grassland's perennial cover, so it decomposes faster and
+  # equilibrates lower under identical climate. (Under the default
+  # initialisation both classes start ON their equilibrium, so the first-year
+  # net rate is zero for both and cannot carry this signal.)
   first <- dplyr::filter(cb, year == 2000L)
   testthat::expect_false(isTRUE(all.equal(
-    first$rate_mgc_ha[first$land_use == "cropland"],
-    first$rate_mgc_ha[first$land_use == "grassland"]
+    first$stock_mgc_ha[first$land_use == "cropland"],
+    first$stock_mgc_ha[first$land_use == "grassland"]
   )))
   later <- dplyr::filter(cb, year == 2001L)
   testthat::expect_false(isTRUE(all.equal(
