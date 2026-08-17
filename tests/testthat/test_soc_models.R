@@ -161,7 +161,7 @@ test_that("AMG steady_state equals ca_ss / (1 - f_iom) and ignores the seed", {
   testthat::expect_equal(length(unique(round(out$soc_total, 8))), 1L)
 })
 
-test_that("HSOC returns the three pools and conserves at equilibrium", {
+test_that("HSOC returns the three pools and conserves", {
   out <- whep::calculate_soc_hsoc(
     initial_soc_mgc_ha = 50,
     c_input_mgc_ha_yr = 2,
@@ -173,17 +173,20 @@ test_that("HSOC returns the three pools and conserves at equilibrium", {
   testthat::expect_equal(nrow(out), 11L)
   testthat::expect_true(all(out$soc_total > 0))
   testthat::expect_equal(out$soc_total, out$fresh + out$humus + out$iom)
-  # Each pool starts at its equilibrium input / (k) and, under constant input
-  # and modifier = 1, stays there: a flat (trivially monotone) series.
-  testthat::expect_equal(out$humus[1], utils::tail(out$humus, 1))
 })
 
-test_that("HSOC pools sit at their analytical equilibrium input / k", {
-  # The dynamic pools initialise at StockEq = input / (k * modifier) and, under
-  # constant input, stay there: the net annual change (input - stock * k) is ~0
-  # and the stock equals the closed-form steady state for every year.
+test_that("HSOC is stationary when opened exactly at its equilibrium", {
+  # The equilibrium is a genuine fixed point: seeded with the stock that solves
+  # active + Falloon(total) = total, the trajectory is flat. Asserting this on
+  # a stock the caller chose (rather than on any stock the caller passes) is
+  # what distinguishes a fixed point from an ignored argument (#348).
+  eq_active <- 3.5 / 0.48 + 1.5 / 0.02
+  total <- stats::uniroot(
+    \(x) x - 0.049 * x^1.139 - eq_active,
+    c(eq_active, 10 * eq_active)
+  )$root
   out <- whep::calculate_soc_hsoc(
-    initial_soc_mgc_ha = 40,
+    initial_soc_mgc_ha = total,
     c_input_mgc_ha_yr = 5,
     years = 100
   )
@@ -191,8 +194,8 @@ test_that("HSOC pools sit at their analytical equilibrium input / k", {
   testthat::expect_true(all(abs(diff(out$fresh)) < 1e-8))
   testthat::expect_true(all(abs(diff(out$humus)) < 1e-8))
   # Humified fraction 0.3: fresh input 3.5, humus input 1.5; k = 0.48 / 0.02.
-  testthat::expect_equal(out$fresh[1], 3.5 / 0.48, tolerance = 1e-8)
-  testthat::expect_equal(out$humus[1], 1.5 / 0.02, tolerance = 1e-8)
+  testthat::expect_equal(out$fresh[1], 3.5 / 0.48, tolerance = 1e-6)
+  testthat::expect_equal(out$humus[1], 1.5 / 0.02, tolerance = 1e-6)
 })
 
 test_that("RothC stock is positive, converges and is monotone", {
@@ -303,4 +306,85 @@ test_that("Century silt+clay texture is capped so es / f_txtr stay non-negative"
   tx <- .century_texture(clay_pct = 90, silt_pct = 45, ls = 0.5, ln = 40)
   testthat::expect_gte(tx$es, 0)
   testthat::expect_gte(tx$f_txtr, 0)
+})
+
+test_that("every model starts its trajectory at initial_soc_mgc_ha", {
+  # Cross-model invariant, not a hand-picked expectation: a turnover model is
+  # given a measured starting stock and must begin there. HSOC used to discard
+  # the argument and start both pools at their own equilibrium input / k, so
+  # calculate_soc_hsoc(initial = 200, input = 2) opened at 53 Mg C/ha (#348).
+  # That made the default model the only one unable to march from an observed
+  # stock, which is what the carbon balance needs to stop initialising cells
+  # at a computed equilibrium (#799).
+  run <- function(model, s0) {
+    traj <- whep::calculate_soc_dynamics(
+      model = model,
+      data = list(
+        initial_soc_mgc_ha = s0,
+        c_input_mgc_ha_yr = 2,
+        years = 3,
+        clay_pct = 20
+      )
+    )
+    unique(traj$soc_total[traj$year == 0])
+  }
+  models <- c("hsoc", "rothc", "icbm", "amg")
+  if (requireNamespace("deSolve", quietly = TRUE)) {
+    models <- c(models, "century")
+  }
+  for (model in models) {
+    for (s0 in c(10, 50, 200)) {
+      testthat::expect_equal(
+        run(model, s0),
+        s0,
+        tolerance = 1e-8,
+        label = paste(model, "year-0 stock at initial", s0)
+      )
+    }
+  }
+})
+
+test_that("HSOC carves the inert pool out of the stock, as RothC does", {
+  # Falloon (1998) estimates IOM as a component of *measured total* soil organic
+  # carbon, so it must be subtracted from the initial stock, not added on top of
+  # it. calculate_soc_rothc() already does this
+  # (`.rothc_init_pools(initial_soc_mgc_ha - iom)`); HSOC applied the same
+  # equation additively, so the two models disagreed on the same coefficient.
+  out <- whep::calculate_soc_hsoc(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 0
+  )
+  testthat::expect_equal(out$iom[1], 0.049 * 50^1.139, tolerance = 1e-8)
+  testthat::expect_equal(out$fresh[1] + out$humus[1], 50 - out$iom[1])
+})
+
+test_that("HSOC relaxes from an initial stock toward its equilibrium", {
+  # Started above equilibrium the stock must fall toward it and stay above it;
+  # started below, rise toward it. This is the transient the carbon balance's
+  # forward march depends on, and it is unreachable while the pools are pinned
+  # at equilibrium from year 0.
+  eq_fresh <- 2 * (1 - 0.3) / 0.48
+  eq_humus <- 2 * 0.3 / 0.02
+  # The humus pool turns over in 1 / 0.02 = 50 years, so convergence to within
+  # 1e-6 of the fixed point needs a horizon many multiples of that.
+  above <- whep::calculate_soc_hsoc(200, 2, years = 2000)
+  below <- whep::calculate_soc_hsoc(5, 2, years = 2000)
+  # Monotone throughout, and strictly moving over the first century, where the
+  # transient is still resolvable in double precision (it is exactly flat once
+  # converged, so a strict test over the whole horizon would fail on zeros).
+  testthat::expect_true(all(diff(above$fresh + above$humus) <= 0))
+  testthat::expect_true(all(diff(below$fresh + below$humus) >= 0))
+  testthat::expect_true(all(diff(head(above$fresh + above$humus, 100)) < 0))
+  testthat::expect_true(all(diff(head(below$fresh + below$humus, 100)) > 0))
+  testthat::expect_equal(
+    utils::tail(above$fresh + above$humus, 1),
+    eq_fresh + eq_humus,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    utils::tail(below$fresh + below$humus, 1),
+    eq_fresh + eq_humus,
+    tolerance = 1e-6
+  )
 })

@@ -44,6 +44,13 @@
   computed the terms and asserted nothing about them. Whether the branch fires
   on real LUH2 input is unmeasured; on the shipped fixtures it does not.
 
+* **`calculate_soc_hsoc()` discarded its `initial_soc_mgc_ha` argument**,
+  opening both pools at their own equilibrium regardless: given 200 Mg C/ha it
+  started at 53. It was the only one of the five models that could not march
+  from a measured stock. It now starts where it is told, and carves the
+  Falloon (1998) inert pool *out of* that stock as `calculate_soc_rothc()`
+  already did, rather than adding it on top (#348).
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

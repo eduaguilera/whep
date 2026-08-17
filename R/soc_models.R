@@ -13,11 +13,18 @@
 #' @description
 #' Annual HSOC trajectory (Spain historical pipeline): a fresh and a humus
 #' decomposing pool plus an inert organic matter pool. The inert pool is the
-#' Falloon (1998) function of initial carbon. Each year a pool stock loses
-#' first-order decomposition and gains its carbon input. Land-use-change carbon
-#' transfer is deferred to a later phase (single land use here).
+#' Falloon (1998) function of initial carbon and, as in that paper, is a
+#' component of the measured stock rather than an addition to it, so the two
+#' decomposing pools open on the remainder
+#' \code{initial_soc_mgc_ha - iom}, split between them in the proportion of
+#' their steady states \code{input_pool / k_pool}. Each year a pool stock loses
+#' first-order decomposition and gains its carbon input, so the trajectory
+#' relaxes from the supplied stock toward that steady state. Land-use-change
+#' carbon transfer is deferred to a later phase (single land use here).
 #'
 #' @param initial_soc_mgc_ha Initial soil organic carbon stock (Mg C per ha).
+#'   The trajectory starts here: year 0 of the returned tibble reports this
+#'   stock, as it does for the four sibling models.
 #' @param c_input_mgc_ha_yr Annual carbon input (Mg C per ha per year).
 #' @param years Number of years to simulate.
 #' @param clay_pct Soil clay content (percent); unused, kept for contract.
@@ -52,7 +59,8 @@ calculate_soc_hsoc <- function(
     fresh = .soc_param("hsoc", "fresh", "decomposition_rate"),
     humus = .soc_param("hsoc", "humus", "decomposition_rate")
   )
-  .hsoc_evolve(inputs, rates, climate_modifier, years, iom)
+  start <- .hsoc_init_pools(max(initial_soc_mgc_ha - iom, 0), inputs, rates)
+  .hsoc_evolve(inputs, rates, climate_modifier, years, iom, start)
 }
 
 #' Simulate soil organic carbon with the RothC five-pool model.
@@ -257,34 +265,46 @@ calculate_soc_century <- function(
 
 # -- HSOC helpers -------------------------------------------------------------
 
-.hsoc_evolve <- function(inputs, rates, climate_modifier, years, iom) {
+.hsoc_evolve <- function(inputs, rates, climate_modifier, years, iom, start) {
   decays <- rates[names(inputs)] * climate_modifier
-  stocks <- purrr::map2(
-    inputs,
-    decays,
-    \(input, decay) .hsoc_pool_stocks(input / decay, input, decay, years)
+  stocks <- purrr::pmap(
+    list(start[names(inputs)], inputs, decays),
+    \(stock_0, input, decay) .hsoc_pool_stocks(stock_0, input, decay, years)
   )
   tibble::tibble(
     year = 0:years,
-    fresh = stocks[["fresh"]],
-    humus = stocks[["humus"]],
+    fresh = stocks[[1]],
+    humus = stocks[[2]],
     iom = iom
   ) |>
     dplyr::mutate(soc_total = .data$fresh + .data$humus + .data$iom)
 }
 
-.hsoc_pool_stocks <- function(stock_eq, input, decay, years) {
+# Open the two decomposing pools on the non-inert part of the measured stock,
+# shared in the proportion of their steady states input_pool / k_pool. The
+# climate modifier scales both rates equally so it cancels from the proportion,
+# which keeps the split defined at climate_modifier = 0. A soil receiving no
+# carbon at all has no labile fraction to speak of, so its whole legacy stock
+# opens in the humus pool.
+.hsoc_init_pools <- function(active, inputs, rates) {
+  weights <- inputs / rates[names(inputs)]
+  if (sum(weights) <= 0) {
+    return(c(fresh = 0, humus = active))
+  }
+  active * weights / sum(weights)
+}
+
+.hsoc_pool_stocks <- function(stock_0, input, decay, years) {
   # Closed form of the linear recurrence stock_{t+1} = stock_t (1 - decay) +
   # input, evaluated at 0:years. Replaces an O(years) purrr::accumulate loop
   # (5000 steps per input combination in the carbon-balance spin-up) with an
-  # O(1) vectorised expression. The spin-up always starts at the fixed point
-  # stock_eq = input / decay, so the series is flat; the closed form keeps this
-  # exact for any decay while avoiding the per-combo loop.
+  # O(1) vectorised expression. Started at the fixed point input / decay the
+  # series is flat; started anywhere else it relaxes onto it geometrically.
   yr <- 0:years
   if (decay == 0) {
-    return(stock_eq + input * yr)
+    return(stock_0 + input * yr)
   }
-  input / decay + (stock_eq - input / decay) * (1 - decay)^yr
+  input / decay + (stock_0 - input / decay) * (1 - decay)^yr
 }
 
 # -- RothC helpers ------------------------------------------------------------
