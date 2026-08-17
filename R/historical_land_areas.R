@@ -278,9 +278,13 @@ build_historical_land_areas <- function(
   support <- data.table::as.data.table(support %||% read_polycell_support())
   held <- support[polity_code %in% polity_codes & polity_area_ha > 0]
   if (nrow(held) == 0L) {
-    cli::cli_abort(
-      "No polity in {.arg polity_codes} has a row in the polycell support."
-    )
+    cli::cli_abort(c(
+      "No polity in {.arg polity_codes} has a row in the polycell support.",
+      i = "The support is keyed on {.field polity_code}. None of
+           {.val {utils::head(polity_codes, 3)}} appears in it, which usually
+           means it was built against a different {.code polities} vintage;
+           regenerate it with {.fn build_polycell_support}."
+    ))
   }
   # `max()`, not `unique()`: successive intervals of one polycell repeat the
   # same geometry, and reducing them cannot be allowed to emit the polity twice
