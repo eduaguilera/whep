@@ -51,6 +51,19 @@
   Falloon (1998) inert pool *out of* that stock as `calculate_soc_rothc()`
   already did, rather than adding it on top (#348).
 
+* **The soil-carbon balance states its depth convention, and refuses a
+  non-finite equilibrium.** Every density `build_carbon_balance()` reports is a
+  **0-30 cm topsoil** quantity. That was stated nowhere, though it is fixed by
+  the model family: HSOC comes from Aguilera et al. (2018), which applied it to
+  the 0-30 cm layer, and the climate modifier rescales RothC's own 0-23 cm
+  moisture-deficit expression to it. An unstated convention is what let a
+  whole-profile product be used as a benchmark (#799). The 0.3 m constant is no
+  longer duplicated between the scalar and vectorised modifier paths.
+  Separately, the equilibrium scales as one over the climate modifier, which is
+  exactly zero below -18.27 C; the resulting `Inf` was spread across every
+  class in the cell and then read back as a zero mineralization rate, so it now
+  aborts (#365).
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

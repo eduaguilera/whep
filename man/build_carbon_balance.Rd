@@ -104,6 +104,27 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{Soil depth}{
+
+Every carbon and nitrogen density this function reports -- \code{stock_mgc_ha},
+\code{mineralization_mgc_ha}, \code{c_input_mgc_ha}, \code{luc_transfer_mgc_ha},
+\code{rate_mgc_ha} and \code{son_change_kgn_ha} -- is a \strong{0-30 cm topsoil} quantity,
+not a whole-profile one. The depth is a property of the model family, not a
+free choice: HSOC comes from Aguilera et al. (2018), which states that "the
+model was applied to the 0-30 cm layer of the soil"; the humification
+fractions in \link{residue_humification} are that paper's Table 2; and the
+RothC/HSOC climate modifier rescales RothC's own 0-23 cm maximum
+topsoil-moisture-deficit expression to 30 cm
+(\code{soc_rate_modifier_rothc(soil_depth_m = 0.3)}).
+
+Comparing this output against a whole-profile soil-carbon product is
+therefore a category error. LPJmL's \code{soilc}, in particular, reports carbon
+over its top 3 m and is roughly three times a topsoil stock; global
+0-30 cm references such as GSOCmap are the valid comparators. Stating this
+is not pedantry -- an unstated depth convention is what made a chain of
+contradictory diagnoses possible (whep#799).
+}
+
 \section{Spatial support}{
 
 Every default reader on the carbon path -- the land-use areas, the carbon

@@ -70,6 +70,25 @@
 #'   drivers).
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
+#' @section Soil depth:
+#' Every carbon and nitrogen density this function reports -- `stock_mgc_ha`,
+#' `mineralization_mgc_ha`, `c_input_mgc_ha`, `luc_transfer_mgc_ha`,
+#' `rate_mgc_ha` and `son_change_kgn_ha` -- is a **0-30 cm topsoil** quantity,
+#' not a whole-profile one. The depth is a property of the model family, not a
+#' free choice: HSOC comes from Aguilera et al. (2018), which states that "the
+#' model was applied to the 0-30 cm layer of the soil"; the humification
+#' fractions in [residue_humification] are that paper's Table 2; and the
+#' RothC/HSOC climate modifier rescales RothC's own 0-23 cm maximum
+#' topsoil-moisture-deficit expression to 30 cm
+#' (`soc_rate_modifier_rothc(soil_depth_m = 0.3)`).
+#'
+#' Comparing this output against a whole-profile soil-carbon product is
+#' therefore a category error. LPJmL's `soilc`, in particular, reports carbon
+#' over its top 3 m and is roughly three times a topsoil stock; global
+#' 0-30 cm references such as GSOCmap are the valid comparators. Stating this
+#' is not pedantry -- an unstated depth convention is what made a chain of
+#' contradictory diagnoses possible (whep#799).
+#'
 #' @section Spatial support:
 #' Every default reader on the carbon path -- the land-use areas, the carbon
 #' inputs, the climate drivers and the clay -- resolves its cell-to-polity table
@@ -383,7 +402,12 @@ build_carbon_balance <- function(
   # instead of zero decomposition, so it is floored, exactly as in the scalar fn.
   a <- ifelse(temp <= -18.27, 0, 47.91 / (1 + exp(106.06 / (temp + 18.27))))
 
-  max_tsmd <- 0.3 * 100 * (-(20 + 1.3 * clay - 0.01 * clay^2)) / 23
+  # Same depth rescaling as the scalar soc_rate_modifier_rothc(); both read the
+  # one accessor so a change to the topsoil layer cannot reach one path only.
+  max_tsmd <- .soc_topsoil_depth_m() *
+    100 *
+    (-(20 + 1.3 * clay - 0.01 * clay^2)) /
+    23
 
   # tsmd[, 1] = max(min(balance_1, 0), max_tsmd), then carried forward. pmin/pmax
   # propagate NA the same way min/max do here (both na.rm = FALSE), so an NA month
@@ -535,7 +559,7 @@ build_carbon_balance <- function(
   # fall back to the one-trajectory-per-combination path (see #352).
   closed <- .cb_closed_form_equilibrium(model, combos)
   if (!is.null(closed)) {
-    return(dplyr::mutate(combos, soc_eq_mgc_ha = closed))
+    return(.cb_check_equilibrium(dplyr::mutate(combos, soc_eq_mgc_ha = closed)))
   }
   dplyr::mutate(
     combos,
@@ -548,7 +572,31 @@ build_carbon_balance <- function(
       ),
       \(input, hf, cm, clay) .cb_steady_state(model, input, hf, cm, clay)
     )
-  )
+  ) |>
+    .cb_check_equilibrium()
+}
+
+# Every closed-form equilibrium is proportional to 1 / climate_modifier, and
+# each model's modifier reaches exactly zero somewhere real: RothC/HSOC at or
+# below -18.27 C, ICBM below -3.78 C, AMG below 0 C, Century at or above 45 C.
+# A zero there yields Inf (or NaN at zero carbon input), which is not caught
+# downstream -- `.cb_init_density()` spreads it over every land-use class in
+# the cell through `sum(frac * soc_eq)`, and the march's `fifelse` then reads
+# the Inf back as an effective rate of 0, so the cell accumulates carbon
+# forever and mineralizes none. Failing here names the cells instead.
+.cb_check_equilibrium <- function(eq) {
+  bad <- !is.finite(eq$soc_eq_mgc_ha)
+  if (!any(bad)) {
+    return(eq)
+  }
+  cli::cli_abort(c(
+    "Equilibrium soil carbon is not finite for \\
+    {sum(bad)} input combination{?s}.",
+    "i" = "The equilibrium scales as 1 / {.field climate_modifier}, which is \\
+      {.val {signif(min(eq$climate_modifier[bad]), 3)}} at the worst of them.",
+    "x" = "A non-finite equilibrium silently becomes a cell that never \\
+      mineralizes, so it is refused rather than marched."
+  ))
 }
 
 # Vectorised closed-form equilibrium SOC density for the models that have one,

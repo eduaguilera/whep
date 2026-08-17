@@ -5,6 +5,18 @@
 # (plans/ref-module-b-soc-climate-spec.md); two sign/normalization
 # reconstructions are flagged inline (AMG bT sign, ICBM 30-degree anchor).
 
+# The topsoil layer every soil-carbon quantity in this package is defined over,
+# in metres. It is load-bearing rather than cosmetic: RothC's published maximum
+# topsoil-moisture-deficit expression is calibrated for its own 0-23 cm layer,
+# and the `* soil_depth_m * 100 / 23` factor below IS the rescaling to this
+# depth (at 0.23 it reproduces the published value exactly). Kept as one
+# accessor because the vectorised production path in `.cb_climate_modifier_*()`
+# reimplements the same expression, and the two drifting apart would change the
+# decomposition rate of every cell without changing any documented default.
+.soc_topsoil_depth_m <- function() {
+  0.3
+}
+
 #' Compute the RothC and HSOC annual climate rate modifier.
 #'
 #' @description
@@ -21,7 +33,9 @@
 #' @param soil_cover Vegetated soil-cover fraction (0 bare, 1 fully covered);
 #'   a scalar or monthly series.
 #' @param soil_depth_m Topsoil depth over which the moisture deficit is
-#'   accumulated (metres). Defaults to 0.3.
+#'   accumulated (metres). Defaults to 0.3, the layer every soil-carbon stock
+#'   in this package is defined over; RothC's published expression is
+#'   calibrated on its own 0-23 cm layer and is rescaled to this depth.
 #' @return The annual mean of the monthly a*b*c product (a single numeric).
 #' @source Coleman, K. & Jenkinson, D. S. (1996). RothC-26.3: a model for the
 #'   turnover of carbon in soil. \doi{10.1007/978-3-642-61094-3_17}. Moisture
@@ -40,7 +54,7 @@ soc_rate_modifier_rothc <- function(
   water_minus_pet_mm,
   clay_pct,
   soil_cover,
-  soil_depth_m = 0.3
+  soil_depth_m = .soc_topsoil_depth_m()
 ) {
   # The RothC response is undefined at -18.27 C and only applies above that
   # lower bound. Evaluating the expression below the vertical asymptote wraps
