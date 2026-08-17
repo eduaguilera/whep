@@ -1,5 +1,53 @@
 # whep (development version)
 
+* **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
+  intersection; it reads the polycell support.** whep#776 built a second answer
+  to a question whep#619 had already answered better: `.polity_cell_cover()`
+  ran `terra::extract(exact = TRUE)` over every polity polygon, where
+  `read_polycell_support()` is the same intersection measured geodesically with
+  `sf::st_area()` on s2, keyed on each polity's validity interval, conserving by
+  construction, and unable to give one cell to two overlapping polities at once.
+  The rasteriser, its grid template, its lon/lat lookup and the `sf`/`terra`
+  package assertion are all gone; this path now touches neither package. The
+  weight is `polity_area_ha`, the polity's territory in the cell, renormalised
+  to one per cell exactly as before — not `land_area_ha`, because
+  `build_polycell_support()` apportions inland water pro rata by
+  `polity_area_ha`, so within a cell the water cancels in that renormalisation
+  except where its cap bites, and there 1,502 polycells covering 62.4 Mha
+  (Canada on the Great Lakes and Hudson Bay, the USSR on the Caspian and Arctic
+  shores) carry `land_area_ha == 0` and would lose their claim on the cell
+  outright (whep#800).
+
+  **No published value moves on this commit**, because
+  `land_method = "present_day"` is still the default and the
+  `"historical_polity"` path reads the `historical-land-areas` pin rather than
+  recomputing. What moves is what `data-raw/historical_land_areas.R` now
+  produces, and the pin has to be regenerated and re-uploaded for any of it to
+  reach a user. Regenerated over 1850-1961: 18,922 rows / 215 buckets becomes
+  17,187 / 198, global cropland −0.007% at 1850, −0.004% at 1900, −0.108% at
+  1950 and −0.440% at 1961, and Ethiopia is unchanged to four decimals at every
+  checkpoint. 84% of shared bucket-years move by less than 0.1% and 87% by less
+  than 1%. The large movers are territories the old route was **halving**: an
+  aggregate's polygon overlaps its members', so a cell claimed by both was split
+  between them, and Belgium came out at 0.567 Mha of 1961 cropland instead of
+  1.015, Luxembourg at 0.037 instead of 0.063, New Caledonia at exactly half and
+  American Samoa at 51%.
+
+  **The loss of coverage is the other side of that, and it is the part to
+  review.** `build_polycell_support()` excludes `polity_type == "aggregate"`,
+  because the support must be a partition and an aggregate's polygon overlaps
+  its members'. Nine reporting buckets whose only pre-1962 territory is such an
+  aggregate therefore drop out — Belgium-Luxembourg, Yemen, the Netherlands
+  Antilles and the six "Other" residual regions, together 2.04 Mha of 1961
+  cropland as the old route measured it — and **Viet Nam keeps 1886-1953
+  unchanged but loses 1954-1961**, the span its combined-reporting entity
+  covers. The other eight (Cayman, Gibraltar, Mayotte, Anguilla, Turks and
+  Caicos, Wallis and Futuna, South Georgia, the French Southern Territories,
+  0.001 Mha between them) carry a polygon in `polities` but no row in the
+  *published* polycell pin, which predates the 2026-08-13 polity ingest; a
+  refreshed polycell pin restores those. `build_historical_land_areas()` warns
+  with the codes and separates the two causes, so neither loss is silent.
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

@@ -23,6 +23,20 @@
     data.table::as.data.table()
 }
 
+# The same two cells in the polycell grain: one row per cell x polity x
+# validity interval. `NEW` holds cell A over two successive intervals carrying
+# the SAME geometry, which is what reducing the support to one weight per cell
+# has to survive.
+.two_cell_support <- function() {
+  tibble::tribble(
+    ~polity_code, ~cell_id, ~lon, ~lat, ~start_year, ~end_year, ~polity_area_ha, ~land_area_ha, ~inland_water_ha, ~ice_area_ha,
+    "OLD",        1L,       0.25, 0.25, 1L,          3L,        100,             100,           0,                0,
+    "NEW",        1L,       0.25, 0.25, 3L,          5L,        100,             100,           0,                0,
+    "NEW",        1L,       0.25, 0.25, 5L,          9L,        100,             100,           0,                0,
+    "NEW",        2L,       0.75, 0.25, 3L,          9L,        100,             100,           0,                0
+  )
+}
+
 .two_cell_areas <- function() {
   tidyr::expand_grid(
     year = 1:4,
@@ -138,14 +152,55 @@ test_that("a residual polity standing in for several buckets is dropped", {
   expect_equal(kept$area_code, 1L)
 })
 
-test_that("a polity with no polygon is named, not silently dropped", {
+test_that("a polity with no polycell is named, not silently dropped", {
   expect_warning(
-    whep:::.warn_land_without_geometry(
+    whep:::.warn_land_without_polycell(
       data.table::data.table(year = 1L, area_code = 7L, polity_code = "GONE"),
       data.table::data.table(polity_code = "OTHER", lon = 0, lat = 0, frac = 1)
     ),
     "GONE"
   )
+})
+
+test_that("the cell cover is read off the polycell support", {
+  cover <- whep:::.polity_cell_cover(c("OLD", "NEW"), .two_cell_support()) |>
+    tibble::as_tibble()
+  expect_equal(names(cover), c("polity_code", "lon", "lat", "frac"))
+  # Three (polity, cell) pairs out of four support rows: `NEW` holds cell A
+  # over two intervals of identical geometry, and reducing them with anything
+  # additive would give it 200 ha there -- doubling its weight against `OLD`
+  # in the very cell the two of them share.
+  expect_equal(nrow(cover), 3L)
+  expect_equal(
+    cover |>
+      dplyr::filter(.data$polity_code == "NEW", .data$lon == 0.25) |>
+      dplyr::pull(.data$frac),
+    100
+  )
+  # The weight is the polity's whole TERRITORY in the cell, not its land.
+  expect_equal(sum(cover$frac), 300)
+})
+
+test_that("a support carrying none of the requested polities aborts", {
+  expect_error(
+    whep:::.polity_cell_cover("ABSENT", .two_cell_support()),
+    "polycell support"
+  )
+})
+
+test_that("the series can be built straight from a polycell support", {
+  # The reader path, with the support injected instead of read: no pin, no
+  # network, and the same answer as the pre-reduced `cover` fixture gives.
+  from_support <- whep::build_historical_land_areas(
+    years = 1:4,
+    boundary_step = "level_step",
+    data = list(
+      polity_areas = .two_cell_polity_areas(),
+      support = .two_cell_support(),
+      cell_areas = .two_cell_areas()
+    )
+  )
+  expect_equal(from_support$Cropland, c(1, 1.1, 1.71, 1.831), tolerance = 1e-9)
 })
 
 test_that("the example fixture has the seam's shape", {
