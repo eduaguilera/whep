@@ -75,6 +75,10 @@
   while natural land carried one global constant, wrong for grassland, whose
   fraction is a per-cell blend of weed and excreta carbon.
 
+* `build_carbon_balance()`'s `@source` cited a DOI resolving to a paper on bird
+  escape behaviour in urban parks; it now cites Aguilera et al. (2018),
+  *Sci Total Environ* 621:634-648 (#346).
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

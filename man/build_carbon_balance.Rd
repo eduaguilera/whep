@@ -4,13 +4,17 @@
 \alias{build_carbon_balance}
 \title{Build the historical gridded soil-organic-carbon balance.}
 \source{
-Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
-\doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
-ported from the Spain historical pipeline.
+Aguilera, E., Guzman, G. I., Alvaro-Fuentes, J., Infante-Amate, J.,
+Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
+(2018). A historical perspective on soil organic carbon in Mediterranean
+cropland (Spain, 1900-2008). \emph{Science of the Total Environment}, 621,
+634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
+transfer ported from the Spain historical pipeline.
 }
 \usage{
 build_carbon_balance(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  init = c("own_equilibrium", "cell_average"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
   data = list(),

@@ -109,9 +109,12 @@
 #'   \code{reporting_polity_out_of_span} when
 #'   \code{polity_validity = "flag"}.
 #' @inheritSection whep_polity_columns Polity columns
-#' @source Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
-#'   \doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
-#'   ported from the Spain historical pipeline.
+#' @source Aguilera, E., Guzman, G. I., Alvaro-Fuentes, J., Infante-Amate, J.,
+#'   Garcia-Ruiz, R., Carranza-Gallego, G., Soto, D. & Gonzalez de Molina, M.
+#'   (2018). A historical perspective on soil organic carbon in Mediterranean
+#'   cropland (Spain, 1900-2008). *Science of the Total Environment*, 621,
+#'   634-648. \doi{10.1016/j.scitotenv.2017.11.243}; land-use-change carbon
+#'   transfer ported from the Spain historical pipeline.
 #' @export
 #' @examples
 #' build_carbon_balance(example = TRUE)
