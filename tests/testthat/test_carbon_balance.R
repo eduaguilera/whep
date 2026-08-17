@@ -351,27 +351,86 @@ test_that("LUC transfer conserves total cell carbon when A shrinks, B grows", {
   testthat::expect_equal(total_after, total_before, tolerance = 1e-6)
 })
 
+test_that("the LUC transfer conserves carbon when the shrink pool is empty", {
+  # Regression: a class growing 10 -> 50 ha at 100 Mg C/ha, against a shrinking
+  # class holding no carbon, used to keep its per-hectare DENSITY over the
+  # larger area and turn 1,000 Mg C into 5,000. `mass_moved` summed to zero
+  # throughout, so every balance check on the transfer column passed. A grower
+  # must dilute whatever it holds over its new hectares, drawing from the pool
+  # only what the pool has.
+  d <- data.table::data.table(
+    cell_key = "c",
+    land_use = c("cropland", "natural"),
+    stepped = c(100, 0),
+    old_area = c(10, 90),
+    area_ha = c(50, 50)
+  )
+  out <- whep:::.cb_luc_all(data.table::copy(d))
+  testthat::expect_equal(
+    sum(out$new_stock * out$area_ha),
+    sum(d$stepped * d$old_area),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(out$mass_moved), 0, tolerance = 1e-8)
+})
+
+test_that("the LUC transfer conserves carbon when the pool outlasts growers", {
+  # The mirror case: shrinking land releases more carbon than the growing
+  # classes can absorb. The undrawn remainder must not vanish.
+  d <- data.table::data.table(
+    cell_key = "c",
+    land_use = c("natural", "cropland", "urban"),
+    stepped = c(200, 50, 10),
+    old_area = c(80, 10, 10),
+    area_ha = c(20, 20, 60)
+  )
+  out <- whep:::.cb_luc_all(data.table::copy(d))
+  testthat::expect_equal(
+    sum(out$new_stock * out$area_ha),
+    sum(d$stepped * d$old_area),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(out$mass_moved), 0, tolerance = 1e-8)
+})
+
 test_that("build_carbon_balance conserves cell C across the LUC year", {
   cb <- whep::build_carbon_balance(
     model = "hsoc",
     resolution = "grid",
     data = .cb_test_data()
   )
-  # Total cell carbon (stock x area) must be conserved from the pre-LUC
-  # mineralization+input state into the post-transfer state. We assert that the
-  # year-over-year change of total cell C equals net input minus mineralization
-  # (the transfer itself adds nothing), so no carbon is created or destroyed by
-  # the land-use shift in 2001.
+  # The land-use-change transfer column sums to ~0 within each cell-year: it
+  # only moves carbon between classes of one cell.
   totals <- cb |>
     dplyr::summarise(
-      cell_c = sum(stock_mgc_ha * area_ha),
-      input_c = sum(c_input_mgc_ha * area_ha),
-      miner_c = sum(mineralization_mgc_ha * area_ha),
       luc_c = sum(luc_transfer_mgc_ha * area_ha),
-      .by = year
+      .by = c(lon, lat, area_code, year)
     )
-  # The land-use-change transfer column sums to ~0 within each cell-year.
   testthat::expect_true(all(abs(totals$luc_c) < 1e-6))
+
+  # And the march itself conserves carbon, which this test computed the terms
+  # for but never asserted: for each class, the carbon mass carried into a year
+  # is the previous year's mass plus that year's net rate over the previous
+  # year's hectares, plus whatever the transfer moved in or out. A grower that
+  # cannot draw from the shrink pool keeps its per-hectare density over more
+  # hectares, which would manufacture carbon and show up here.
+  step <- cb |>
+    dplyr::arrange(lon, lat, area_code, land_use, year) |>
+    dplyr::mutate(
+      prev_stock = dplyr::lag(stock_mgc_ha),
+      prev_rate = dplyr::lag(rate_mgc_ha),
+      prev_area = dplyr::lag(area_ha),
+      .by = c(lon, lat, area_code, land_use)
+    ) |>
+    dplyr::filter(!is.na(prev_stock))
+  testthat::expect_gt(nrow(step), 0L)
+  testthat::expect_equal(
+    step$stock_mgc_ha * step$area_ha,
+    (step$prev_stock + step$prev_rate) *
+      step$prev_area +
+      step$luc_transfer_mgc_ha * step$area_ha,
+    tolerance = 1e-8
+  )
 })
 
 # -- dSON asymmetry + sign ----------------------------------------------------

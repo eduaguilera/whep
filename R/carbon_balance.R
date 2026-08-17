@@ -1083,9 +1083,18 @@ build_carbon_balance <- function(
     )
   ]
   d[, drawn_c := dens * drawn_area]
+  # Every growing class re-averages the carbon it already holds over its new
+  # area, plus whatever the pool still had at its turn -- which may be nothing.
+  # Keeping the per-hectare density instead (the old sequential code's `else`
+  # branch, gated on `active_grow`) spreads the same density over more hectares
+  # and manufactures carbon: a class growing 10 -> 50 ha at 100 Mg C/ha against
+  # an empty pool turned 1,000 Mg C into 5,000. It was invisible because
+  # `mass_moved` still summed to zero across the cell, so the transfer looked
+  # balanced while the stock it produced was not. `is_grow` implies
+  # `area_ha > old_area >= 0`, so the divisor is positive.
   d[,
     new_stock := data.table::fifelse(
-      active_grow,
+      is_grow,
       (stepped * old_area + drawn_c) / area_ha,
       stepped
     )

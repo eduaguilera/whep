@@ -33,6 +33,17 @@
   the nitrogen balance, 312 against 211 Tg N (whep#792, whep#799).
   **Published values move.**
 
+* **The land-use-change carbon transfer could create carbon.** `.cb_luc_all()`
+  let a growing land-use class that could draw nothing from the shrink pool
+  keep its per-hectare *density* over its larger area rather than diluting the
+  carbon it held. A class growing 10 to 50 ha at 100 Mg C/ha against an empty
+  pool turned 1,000 Mg C into 5,000. It was invisible to every existing check
+  because `luc_transfer_mgc_ha` still summed to zero across the cell: the
+  transfer looked balanced while the stock it produced was not. The march now
+  carries a conservation assertion, the test that claimed to make one having
+  computed the terms and asserted nothing about them. Whether the branch fires
+  on real LUH2 input is unmeasured; on the shipped fixtures it does not.
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a
