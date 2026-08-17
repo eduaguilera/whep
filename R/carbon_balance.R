@@ -550,7 +550,12 @@ build_carbon_balance <- function(
   cm <- combos$climate_modifier
   switch(
     model,
-    hsoc = .cb_hsoc_equilibrium(input, combos$humified_fraction, cm),
+    hsoc = .cb_hsoc_equilibrium(
+      input,
+      combos$humified_fraction,
+      cm,
+      combos$clay_pct
+    ),
     icbm = .cb_icbm_equilibrium(input, cm),
     amg = .cb_amg_equilibrium(input, cm),
     century = .cb_century_equilibrium(input, cm, combos$clay_pct),
@@ -701,14 +706,42 @@ build_carbon_balance <- function(
 # relaxes to (the pool series starts at the fixed point and is flat), so it
 # replaces a 5000-step trajectory per input combination with an O(1)
 # expression.
-.cb_hsoc_equilibrium <- function(input, humified_fraction, climate_modifier) {
+.cb_hsoc_equilibrium <- function(
+  input,
+  humified_fraction,
+  climate_modifier,
+  clay_pct
+) {
   k_fresh <- .cb_param("hsoc", "fresh")
   k_humus <- .cb_param("hsoc", "humus")
+  hf <- .cb_hsoc_hf(humified_fraction, clay_pct)
   active <- input *
-    (1 - humified_fraction) /
+    (1 - hf) /
     (k_fresh * climate_modifier) +
-    input * humified_fraction / (k_humus * climate_modifier)
+    input * hf / (k_humus * climate_modifier)
   active + 0.049 * pmax(active, 1)^1.139
+}
+
+# Aguilera et al. (2018) Eq. 5-6: the tabulated humification coefficient of an
+# input type is the value for a reference soil, and the effective coefficient is
+# H = h * d, with d falling on coarse soils that stabilise less carbon. The
+# denominator is RothC's own clay function -- the same `x` already used to split
+# decomposition between BIO and HUM in `.cb_rothc_equilibrium()` and
+# `.rothc_splits()` -- and the 3.51 numerator normalises d to 1 at RothC's
+# Rothamsted reference of 23.4% clay. It runs 0.72 at 5% clay to 1.13 at 60%.
+# Omitting it was invisible in a Spain-only validation, where the national mean
+# clay of about 21.8% puts d at roughly 0.97, and it matters most on the coarse
+# soils much natural land sits on.
+.cb_texture_modifier <- function(clay_pct) {
+  3.51 / (1.67 * (1.85 + 1.60 * exp(-0.0786 * clay_pct)))
+}
+
+# The effective HSOC humification fraction: the tabulated coefficient scaled by
+# the texture modifier and capped, since a fraction of the carbon input cannot
+# exceed all of it. Used by both the closed form and the spin-up it replaces,
+# which must agree.
+.cb_hsoc_hf <- function(humified_fraction, clay_pct) {
+  pmin(humified_fraction * .cb_texture_modifier(clay_pct), 1)
 }
 
 # Attach the equilibrium density to every class-year row by joining on the
@@ -729,7 +762,14 @@ build_carbon_balance <- function(
 }
 
 .cb_steady_state <- function(model, input, humified_fraction, cm, clay) {
-  seed <- .cb_seed_stock(model, input, humified_fraction, cm)
+  # HSOC's humification is texture-dependent (Aguilera Eq. 5-6); the other
+  # models carry their own texture terms, so only HSOC's fraction is scaled.
+  hf <- if (model == "hsoc") {
+    .cb_hsoc_hf(humified_fraction, clay)
+  } else {
+    humified_fraction
+  }
+  seed <- .cb_seed_stock(model, input, hf, cm)
   args <- list(
     initial_soc_mgc_ha = seed,
     c_input_mgc_ha_yr = input,
@@ -738,7 +778,7 @@ build_carbon_balance <- function(
     climate_modifier = cm
   )
   if (model == "hsoc") {
-    args$humification_fraction <- humified_fraction
+    args$humification_fraction <- hf
   }
   if (model == "amg") {
     # fixed_iom would split the arbitrary analytic `seed` by a fixed stable

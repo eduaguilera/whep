@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **Soil-carbon equilibria change: HSOC humification is now texture-dependent,
+  as the model it ports specifies.** `.cb_hsoc_equilibrium()` was a verbatim
+  port of Aguilera et al. (2018) Eq. 4 but omitted that paper's Eq. 5-6, which
+  scales every humification coefficient by a texture modifier
+  `d = 3.51 / (1.67 * (1.85 + 1.60 * exp(-0.0786 * clay)))`. The tabulated
+  coefficients in [residue_humification] are values for a reference soil; `d`
+  is what carries them to another. It runs 0.72 at 5% clay through 1.00 at
+  RothC's 23.4% reference to 1.13 at 60%.
+
+  **Published values move**, downward on coarse soils and slightly upward on
+  clay-rich ones. The omission was invisible in the Spain historical validation
+  the model came from, where a national mean clay near 21.8% puts `d` at about
+  0.97; it matters most on the coarse soils much natural land sits on. The
+  closed form and the spin-up it replaces both read the same effective
+  fraction, so the two cannot diverge (whep#799).
+
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
   "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a

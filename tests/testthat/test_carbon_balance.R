@@ -71,7 +71,11 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
     dplyr::filter(model == "hsoc", component == "humus") |>
     dplyr::pull(value)
   c_input <- 2.5
-  humified_fraction <- 0.3
+  clay_pct <- 20
+  # Aguilera et al. (2018) Eq. 5-6: the tabulated coefficient is scaled by the
+  # texture modifier d, normalised to 1 at RothC's 23.4% clay reference.
+  d <- 3.51 / (1.67 * (1.85 + 1.60 * exp(-0.0786 * clay_pct)))
+  humified_fraction <- 0.3 * d
   fresh_eq <- c_input * (1 - humified_fraction) / k_fresh
   humus_eq <- c_input * humified_fraction / k_humus
   active_eq <- fresh_eq + humus_eq
@@ -83,9 +87,9 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
     classes = tibble::tibble(
       land_use = "Cropland",
       c_input_mgc_ha_yr = c_input,
-      humified_fraction = humified_fraction,
+      humified_fraction = 0.3,
       climate_modifier = 1,
-      clay_pct = 20
+      clay_pct = clay_pct
     )
   )
   testthat::expect_equal(eq$soc_eq_mgc_ha, expected_total, tolerance = 1e-3)
