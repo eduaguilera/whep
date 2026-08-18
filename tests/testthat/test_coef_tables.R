@@ -82,6 +82,57 @@ test_that("legacy below-ground fields stay retired from biomass_coefs", {
   )
 })
 
+test_that("only the known row has an out-of-range Edible_portion", {
+  # Edible_portion is a fraction of fresh matter, so (0, 1] is the whole valid
+  # range. Exactly one row breaks it: "ANIMAL PRODUCTS" at 4.0. That row is NOT
+  # a data defect to clean upstream -- in afsetools' Biomass_coefs.xlsx it is
+  # the VLOOKUP column-index vector the Coefs sheet depends on by absolute
+  # address, so editing it there breaks the workbook (#752). It is harmless
+  # only because nothing maps to it; this test pins both halves of that, so a
+  # new bad row or a new route to this one fails loudly.
+  coefs <- whep::biomass_coefs
+  out_of_range <- coefs[
+    !is.na(coefs$Edible_portion) &
+      (coefs$Edible_portion <= 0 | coefs$Edible_portion > 1),
+  ]
+
+  testthat::expect_identical(out_of_range$Name_biomass, "ANIMAL PRODUCTS")
+  testthat::expect_identical(out_of_range$Edible_portion, 4)
+  testthat::expect_false(
+    "ANIMAL PRODUCTS" %in% whep::items_full$Name_biomass
+  )
+})
+
+test_that("the proximate columns exceed dry matter on a known 72 rows", {
+  # Protein + carbohydrate + lipid + fibre cannot exceed dry matter. 72 of 421
+  # rows do (#752). Some are feed additives where a composition block is not
+  # applicable (Urea, Lysine), but ordinary foods are affected too, so the
+  # columns cannot be used to reason about a row's basis. A tripwire, not a
+  # target: it fails if a new row joins the set, and it fails when the set is
+  # genuinely repaired -- at which point lower the number deliberately.
+  coefs <- whep::biomass_coefs
+  proximate <- rowSums(
+    cbind(
+      coefs$N_kgN_kgFM * 6.25 * 1000,
+      coefs$Carbohydrates_g_kgFM,
+      coefs$Lipids_g_kgFM,
+      coefs$Fiber_g_kgFM
+    ),
+    na.rm = TRUE
+  )
+  dry_matter <- coefs$Product_kgDM_kgFM * 1000
+  # Compare with a tolerance: three rows (Melon, Strawberry, Duck eggs) close
+  # exactly against dry matter and exceed it only by ~1e-14, which is float
+  # noise, not a data defect. Of the 72 that remain, 71 exceed by more than
+  # 1 g/kg, so the set is not tolerance-sensitive in any other way.
+  over <- !is.na(dry_matter) &
+    proximate > 0 &
+    proximate > dry_matter + 1e-6
+
+  testthat::expect_equal(sum(over), 72L)
+  testthat::expect_true("Barley" %in% coefs$Name_biomass[over])
+})
+
 test_that("unknown coefficient table errors", {
   testthat::expect_error(
     whep::whep_coef_table("does_not_exist"),

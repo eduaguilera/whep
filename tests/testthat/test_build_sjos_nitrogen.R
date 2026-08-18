@@ -62,6 +62,22 @@
       ~year, ~area_code, ~population,
       2010L, 1L, 1.0e9
     ),
+    # The band's demographic and dispersion terms. Injected rather than left to
+    # their readers: the default band composes from all four terms, so a
+    # fixture without these two sends the suite to population.un.org and
+    # FAOSTAT (#490). The age groups sum to the `population` row above, so the
+    # requirement is weighted over the same country the supply is divided by.
+    population_age = tibble::tribble(
+      ~year, ~area_code, ~age_start, ~age_span, ~sex, ~population,
+      2010L, 1L,         0L,         5L,        "m",  0.15e9,
+      2010L, 1L,         0L,         5L,        "f",  0.15e9,
+      2010L, 1L,         30L,        5L,        "m",  0.35e9,
+      2010L, 1L,         30L,        5L,        "f",  0.35e9
+    ),
+    habitual_cv = tibble::tribble(
+      ~year, ~area_code, ~cv,
+      2010L, 1L,         0.25
+    ),
     n_inputs = tibble::tribble(
       ~year, ~area_code, ~fert_type, ~n_input_t,
       2010L, 1L, "synthetic", 3.0e7,
@@ -202,5 +218,138 @@ testthat::test_that("a real call without IO or traced flows aborts", {
   testthat::expect_error(
     whep::build_sjos_nitrogen(data = data),
     "IO model|fp_flows|domestic"
+  )
+})
+
+testthat::test_that("the composed band is the default and needs no network", {
+  # build_sjos_nitrogen() now composes the nourishment band from its four
+  # sourced terms. The example fixture therefore has to carry the age structure
+  # and the habitual CV too, or the default path would reach UN DESA and
+  # FAOSTAT from inside the suite (#490).
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the example path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the example path")
+    }
+  )
+  out <- whep::build_sjos_nitrogen(example = TRUE)
+  testthat::expect_true(all(
+    c("value_norm", "nourish") %in% names(out$nourishment)
+  ))
+  testthat::expect_false(any(is.na(out$nourishment$value_norm)))
+})
+
+testthat::test_that("the INJECTED path needs no network either", {
+  # `example = TRUE` was guarded above; the injected-data path was not, and it
+  # reaches the same two readers through the same default. It is the path every
+  # other test in this file uses for the non-example chain, so a fixture that
+  # omits `population_age` or `habitual_cv` puts a 29 MB download from
+  # population.un.org inside `R CMD check` -- green on a warm cache, red the
+  # day UN DESA is slow. Caught by the offline-tests job, which runs the suite
+  # behind a dead proxy (#490).
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the injected path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the injected path")
+    }
+  )
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  testthat::expect_gt(nrow(out$nourishment), 0)
+  testthat::expect_false(any(is.na(out$nourishment$value_norm)))
+})
+
+testthat::test_that("the flat band stays selectable for sensitivity", {
+  composed <- whep::build_sjos_nitrogen(example = TRUE)
+  flat <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_thresholds = "flat"
+  )
+  # Same supply, different thresholds: the scores must differ, or the switch is
+  # doing nothing.
+  testthat::expect_false(isTRUE(all.equal(
+    composed$nourishment$value_norm,
+    flat$nourishment$value_norm
+  )))
+})
+
+testthat::test_that("an unknown threshold mode is rejected", {
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(example = TRUE, nourishment_thresholds = "old"),
+    "arg_match|must be one of|old"
+  )
+})
+
+testthat::test_that("the quality tier is selectable from the driver", {
+  # Tier 1a is the default; 1b and none stay reachable end to end, not only on
+  # build_protein_quality(). Selecting one has to move the classification, or
+  # the argument is decorative.
+  tier_1a <- whep::build_sjos_nitrogen(example = TRUE)
+  tier_1b <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(quality_method = "digestibility_share")
+  )
+  uncorrected <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(quality_method = "none")
+  )
+  scores <- list(
+    tier_1a$nourishment$value_norm,
+    tier_1b$nourishment$value_norm,
+    uncorrected$nourishment$value_norm
+  )
+  testthat::expect_false(isTRUE(all.equal(scores[[1]], scores[[2]])))
+  testthat::expect_false(isTRUE(all.equal(scores[[2]], scores[[3]])))
+  # Quality DIVIDES both bounds, so a lower quality raises the band and lowers
+  # the score. Quality 1 is the maximum, which is why an uncorrected band is
+  # the most generous of the three -- the understatement the ladder exists to
+  # remove. Tier 1a sits above 1b because TRS 935's measured cereal
+  # digestibility (0.86-0.88) beats the 0.80 plant class rate on mass.
+  testthat::expect_true(all(scores[[3]] > scores[[1]]))
+  testthat::expect_true(all(scores[[1]] > scores[[2]]))
+})
+
+testthat::test_that("the ceiling knob the band asks callers to sweep works", {
+  # The band's own docs call `share` WHEP's own criterion and ask for a
+  # sensitivity across it. That is only possible if the driver forwards it.
+  base <- whep::build_sjos_nitrogen(example = TRUE)
+  strict <- whep::build_sjos_nitrogen(
+    example = TRUE,
+    nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
+  )
+  # A smaller tolerated share admits less supply, so the ceiling falls and the
+  # normalized score rises.
+  testthat::expect_true(all(
+    strict$nourishment$value_norm > base$nourishment$value_norm
+  ))
+})
+
+testthat::test_that("a mistyped band option aborts instead of being ignored", {
+  # The worst case for a silently ignored knob is exactly this one: the sweep
+  # runs, nothing moves, and the analysis reports insensitivity.
+  testthat::expect_error(
+    whep::build_sjos_nitrogen(
+      example = TRUE,
+      nourishment_band = list(quality = "digestibility_share")
+    ),
+    "unknown option"
+  )
+})
+
+testthat::test_that("band options passed with the flat pair are reported", {
+  # Same failure mode as a mistyped option, arriving by a different route: the
+  # sweep runs, nothing moves, and it reads as insensitivity. A warning rather
+  # than an abort, because comparing flat against composed from one shared
+  # options list is legitimate.
+  testthat::expect_warning(
+    whep::build_sjos_nitrogen(
+      example = TRUE,
+      nourishment_thresholds = "flat",
+      nourishment_band = list(ceiling = list(multiple = 2, share = 0.25))
+    ),
+    "does nothing"
   )
 })

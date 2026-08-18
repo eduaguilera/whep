@@ -1,0 +1,95 @@
+item_cbs_code,fbs_item,loss_group,annex2_basis
+2511,Wheat and products,cereals,enumerated
+2513,Barley and products,cereals,enumerated
+2514,Maize and products,cereals,enumerated
+2515,Rye and products,cereals,enumerated
+2516,Oats,cereals,enumerated
+2517,Millet and products,cereals,enumerated
+2518,Sorghum and products,cereals,enumerated
+2520,"Cereals, other",cereals,enumerated
+2807,Rice and products,cereals,enumerated
+2531,Potatoes and products,roots_tubers,enumerated
+2532,Cassava and products,roots_tubers,enumerated
+2533,Sweet potatoes,roots_tubers,enumerated
+2534,"Roots, Other",roots_tubers,enumerated
+2535,Yams,roots_tubers,enumerated
+2546,Beans,oilseeds_pulses,group_title
+2547,Peas,oilseeds_pulses,group_title
+2549,"Pulses, Other and products",oilseeds_pulses,group_title
+2551,Nuts and products,oilseeds_pulses,group_title
+2552,Groundnuts,oilseeds_pulses,enumerated
+2555,Soyabeans,oilseeds_pulses,enumerated
+2557,Sunflower seed,oilseeds_pulses,enumerated
+2558,Rape and Mustardseed,oilseeds_pulses,enumerated
+2559,Cottonseed,oilseeds_pulses,enumerated
+2560,Coconuts - Incl Copra,oilseeds_pulses,enumerated
+2561,Sesame seed,oilseeds_pulses,enumerated
+2562,Palm kernels,oilseeds_pulses,enumerated
+2563,Olives (including preserved),oilseeds_pulses,enumerated
+2570,"Oilcrops, Other",oilseeds_pulses,enumerated
+2601,Tomatoes and products,fruits_vegetables,enumerated
+2602,Onions,fruits_vegetables,enumerated
+2605,"Vegetables, other",fruits_vegetables,enumerated
+2611,"Oranges, Mandarines",fruits_vegetables,enumerated
+2612,"Lemons, Limes and products",fruits_vegetables,enumerated
+2613,Grapefruit and products,fruits_vegetables,enumerated
+2614,"Citrus, Other",fruits_vegetables,enumerated
+2615,Bananas,fruits_vegetables,enumerated
+2616,Plantains,fruits_vegetables,enumerated
+2617,Apples and products,fruits_vegetables,enumerated
+2618,Pineapples and products,fruits_vegetables,enumerated
+2619,Dates,fruits_vegetables,enumerated
+2620,Grapes and products (excl wine),fruits_vegetables,enumerated
+2625,"Fruits, other",fruits_vegetables,enumerated
+2731,Bovine Meat,meat,enumerated
+2732,Mutton & Goat Meat,meat,enumerated
+2733,Pigmeat,meat,enumerated
+2734,Poultry Meat,meat,enumerated
+2735,"Meat, Other",meat,enumerated
+2736,"Offals, Edible",meat,enumerated
+2761,Freshwater Fish,fish_seafood,enumerated
+2762,Demersal Fish,fish_seafood,enumerated
+2763,Pelagic Fish,fish_seafood,enumerated
+2764,"Marine Fish, Other",fish_seafood,enumerated
+2765,Crustaceans,fish_seafood,enumerated
+2766,Cephalopods,fish_seafood,enumerated
+2767,"Molluscs, Other",fish_seafood,enumerated
+2769,"Aquatic Animals, Others",fish_seafood,enumerated
+2775,Aquatic Plants,fish_seafood,enumerated
+2848,Milk - Excluding Butter,milk,enumerated
+2536,Sugar cane,,not_named
+2537,Sugar beet,,not_named
+2541,Sugar non-centrifugal,,not_named
+2542,Sugar (Raw Equivalent),,not_named
+2543,"Sweeteners, Other",,not_named
+2571,Soyabean Oil,,not_named
+2572,Groundnut Oil,,not_named
+2573,Sunflowerseed Oil,,not_named
+2574,Rape and Mustard Oil,,not_named
+2575,Cottonseed Oil,,not_named
+2576,Palmkernel Oil,,not_named
+2577,Palm Oil,,not_named
+2578,Coconut Oil,,not_named
+2579,Sesameseed Oil,,not_named
+2580,Olive Oil,,not_named
+2581,Ricebran Oil,,not_named
+2582,Maize Germ Oil,,not_named
+2586,"Oilcrops Oil, Other",,not_named
+2630,Coffee and products,,not_named
+2633,Cocoa Beans and products,,not_named
+2635,Tea (including mate),,not_named
+2640,Pepper,,not_named
+2641,Pimento,,not_named
+2642,Cloves,,not_named
+2645,"Spices, Other",,not_named
+2655,Wine,,not_named
+2656,Beer,,not_named
+2657,"Beverages, Fermented",,not_named
+2658,"Beverages, Alcoholic",,not_named
+2737,"Fats, Animals, Raw",,not_named
+2740,"Butter, Ghee",,not_named
+2744,Eggs,,not_named
+2745,Honey,,not_named
+2781,"Fish, Body Oil",,not_named
+2782,"Fish, Liver Oil",,not_named
+2899,Miscellaneous,,not_named

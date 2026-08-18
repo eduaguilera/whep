@@ -1,0 +1,29 @@
+item_cbs_code,fbs_item,source_default,source_low,source_high
+2511,Wheat and products,"Wheat, whole","Wheat, cereal","Wheat flour, white"
+2514,Maize and products,Maize,"Corn, cereal","Corn, whole"
+2516,Oats,Oatmeal,"Oats, cereal",Oatmeal
+2517,Millet and products,Millet,Millet,Millet
+2807,Rice and products,"Rice, polished","Rice, cereal","Rice, polished"
+2546,Beans,Beans,Beans,Beans
+2547,Peas,"Peas, mature","Peas, mature","Peas, mature"
+2552,Groundnuts,Peanuts,Peanuts,Peanut butter
+2555,Soyabeans,Soy flour,Soy flour,Soy protein isolate
+2557,Sunflower seed,Sunflower seed flour,Sunflower seed flour,Sunflower seed flour
+2559,Cottonseed,Cottonseed,Cottonseed,Cottonseed
+2731,Bovine Meat,"Meat, fish","Meat, fish","Meat, fish"
+2732,Mutton & Goat Meat,"Meat, fish","Meat, fish","Meat, fish"
+2733,Pigmeat,"Meat, fish","Meat, fish","Meat, fish"
+2734,Poultry Meat,"Meat, fish","Meat, fish","Meat, fish"
+2735,"Meat, Other","Meat, fish","Meat, fish","Meat, fish"
+2736,"Offals, Edible","Meat, fish","Meat, fish","Meat, fish"
+2761,Freshwater Fish,"Meat, fish","Meat, fish","Meat, fish"
+2762,Demersal Fish,"Meat, fish","Meat, fish","Meat, fish"
+2763,Pelagic Fish,"Meat, fish","Meat, fish","Meat, fish"
+2764,"Marine Fish, Other","Meat, fish","Meat, fish","Meat, fish"
+2765,Crustaceans,"Meat, fish","Meat, fish","Meat, fish"
+2766,Cephalopods,"Meat, fish","Meat, fish","Meat, fish"
+2767,"Molluscs, Other","Meat, fish","Meat, fish","Meat, fish"
+2769,"Aquatic Animals, Others","Meat, fish","Meat, fish","Meat, fish"
+2744,Eggs,Egg,Egg,Egg
+2848,Milk - Excluding Butter,"Milk, cheese","Milk, cheese","Milk, cheese"
+2740,"Butter, Ghee","Milk, cheese","Milk, cheese","Milk, cheese"

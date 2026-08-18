@@ -1,0 +1,95 @@
+item_cbs_code,fbs_item,protein_class
+2731,Bovine Meat,animal
+2732,Mutton & Goat Meat,animal
+2733,Pigmeat,animal
+2734,Poultry Meat,animal
+2735,"Meat, Other",animal
+2736,"Offals, Edible",animal
+2737,"Fats, Animals, Raw",animal
+2740,"Butter, Ghee",animal
+2744,Eggs,animal
+2745,Honey,animal
+2761,Freshwater Fish,animal
+2762,Demersal Fish,animal
+2763,Pelagic Fish,animal
+2764,"Marine Fish, Other",animal
+2765,Crustaceans,animal
+2766,Cephalopods,animal
+2767,"Molluscs, Other",animal
+2769,"Aquatic Animals, Others",animal
+2775,Aquatic Plants,animal
+2781,"Fish, Body Oil",animal
+2782,"Fish, Liver Oil",animal
+2848,Milk - Excluding Butter,animal
+2511,Wheat and products,plant
+2513,Barley and products,plant
+2514,Maize and products,plant
+2515,Rye and products,plant
+2516,Oats,plant
+2517,Millet and products,plant
+2518,Sorghum and products,plant
+2520,"Cereals, other",plant
+2531,Potatoes and products,plant
+2532,Cassava and products,plant
+2533,Sweet potatoes,plant
+2534,"Roots, Other",plant
+2535,Yams,plant
+2536,Sugar cane,plant
+2537,Sugar beet,plant
+2541,Sugar non-centrifugal,plant
+2542,Sugar (Raw Equivalent),plant
+2543,"Sweeteners, Other",plant
+2546,Beans,plant
+2547,Peas,plant
+2549,"Pulses, Other and products",plant
+2551,Nuts and products,plant
+2552,Groundnuts,plant
+2555,Soyabeans,plant
+2557,Sunflower seed,plant
+2558,Rape and Mustardseed,plant
+2559,Cottonseed,plant
+2560,Coconuts - Incl Copra,plant
+2561,Sesame seed,plant
+2562,Palm kernels,plant
+2563,Olives (including preserved),plant
+2570,"Oilcrops, Other",plant
+2571,Soyabean Oil,plant
+2572,Groundnut Oil,plant
+2573,Sunflowerseed Oil,plant
+2574,Rape and Mustard Oil,plant
+2575,Cottonseed Oil,plant
+2576,Palmkernel Oil,plant
+2577,Palm Oil,plant
+2578,Coconut Oil,plant
+2579,Sesameseed Oil,plant
+2580,Olive Oil,plant
+2581,Ricebran Oil,plant
+2582,Maize Germ Oil,plant
+2586,"Oilcrops Oil, Other",plant
+2601,Tomatoes and products,plant
+2602,Onions,plant
+2605,"Vegetables, other",plant
+2611,"Oranges, Mandarines",plant
+2612,"Lemons, Limes and products",plant
+2613,Grapefruit and products,plant
+2614,"Citrus, Other",plant
+2615,Bananas,plant
+2616,Plantains,plant
+2617,Apples and products,plant
+2618,Pineapples and products,plant
+2619,Dates,plant
+2620,Grapes and products (excl wine),plant
+2625,"Fruits, other",plant
+2630,Coffee and products,plant
+2633,Cocoa Beans and products,plant
+2635,Tea (including mate),plant
+2640,Pepper,plant
+2641,Pimento,plant
+2642,Cloves,plant
+2645,"Spices, Other",plant
+2655,Wine,plant
+2656,Beer,plant
+2657,"Beverages, Fermented",plant
+2658,"Beverages, Alcoholic",plant
+2807,Rice and products,plant
+2899,Miscellaneous,plant

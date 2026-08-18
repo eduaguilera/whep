@@ -175,6 +175,18 @@
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
+    ".lw_area_regions", "inner_join", "iso3c", 1L, "time_invariant",
+    "Gustavsson's Annex 1 is one 2011 snapshot with no time dimension, so the
+     region a country's loss rates come from cannot vary by year. The join is
+     year-free ON PURPOSE: where one ISO3 spans two WHEP areas across a polity
+     split (Ethiopia 238/62, Sudan 276/206) Annex 1's pre-partition entry
+     covers both, and a year-keyed join would give the successor no region.",
+    ".lw_assign_regions", "left_join", "area_code", 1L, "time_invariant",
+    "Attaches that same year-free region to each area, plus the `method_region`
+     stamp that says whether it came from Annex 1 or from the global mean.",
+    ".lw_weight", "left_join", "area_code", 1L, "time_invariant",
+    "Puts the region on the item rows so the wedge can be looked up per region
+     and commodity group. Same year-free assignment as above, read once.",
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",

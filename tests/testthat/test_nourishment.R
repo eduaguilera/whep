@@ -94,3 +94,139 @@ testthat::test_that("missing nourishment remains unclassified", {
   testthat::expect_true(is.na(out$value_norm))
   testthat::expect_true(is.na(out$nourish))
 })
+
+# ---- per-country-year bands (#500) -----------------------------------------
+
+testthat::test_that("a data-frame threshold classifies row by row", {
+  # The whole point of the composed band: two countries with the SAME supply
+  # can land on different sides, because their demography, inequality, loss and
+  # diet quality differ. A flat pair cannot express that.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 20L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90,
+    2010L, 20L,        75,               95
+  )
+  out <- whep::normalize_nourishment(supply, thresholds = band)
+  testthat::expect_equal(out$nourish, c("Adequate", "Under"))
+  # The joined bound columns must not leak into the output.
+  testthat::expect_false(any(startsWith(names(out), ".nourish")))
+})
+
+testthat::test_that("the short floor/ceiling names work too", {
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor, ~ceiling,
+    2010L, 10L,        60,     90
+  )
+  out <- whep::normalize_nourishment(supply, thresholds = band)
+  testthat::expect_equal(out$nourish, "Adequate")
+})
+
+testthat::test_that("a row with no band is NA, not silently flat", {
+  # Falling back to the retired flat pair would mix two threshold vintages
+  # inside one classification without saying so.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 99L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90
+  )
+  testthat::expect_warning(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "no threshold band"
+  )
+  out <- suppressWarnings(
+    whep::normalize_nourishment(supply, thresholds = band)
+  )
+  testthat::expect_equal(out$nourish, c("Adequate", NA_character_))
+})
+
+testthat::test_that("a data frame without bound columns aborts", {
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  testthat::expect_error(
+    whep::normalize_nourishment(
+      supply,
+      thresholds = tibble::tribble(~year, ~area_code, 2010L, 10L)
+    ),
+    "floor"
+  )
+})
+
+testthat::test_that("a band with a duplicated country-year aborts", {
+  # Found by review: this seam takes ANY data frame, and two rows for one
+  # country-year silently duplicated the country -- one output row per
+  # candidate band, each with a different class. Every headcount downstream
+  # would then count it twice. build_nourishment_band() cannot produce that,
+  # but a hand-built or joined-up band can.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90,
+    2010L, 10L,        65,               95
+  )
+  testthat::expect_error(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "one row per"
+  )
+})
+
+testthat::test_that("a band with a missing ceiling is reported, not silent", {
+  # The warning used to test the floor only, so a row whose ceiling was NA
+  # scored NA and vanished from the classification without a word.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               NA_real_
+  )
+  testthat::expect_warning(
+    whep::normalize_nourishment(supply, thresholds = band),
+    "no threshold band"
+  )
+  out <- suppressWarnings(
+    whep::normalize_nourishment(supply, thresholds = band)
+  )
+  testthat::expect_true(is.na(out$nourish))
+})
+
+testthat::test_that("two unbanded areas are named, not a cli crash", {
+  # `areas` is an integer vector, and interpolating one as cli's pluralisation
+  # quantity is only allowed at length 1. One unbanded area warned; two or more
+  # aborted from inside the warning with "length(object) == 1 is not TRUE", so
+  # the guard against a silent classification gap took down the classification
+  # instead. It fired on the real 2010 build, which has several unbanded areas.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 20L,        70,
+    2010L, 30L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90
+  )
+  testthat::expect_warning(
+    out <- whep::normalize_nourishment(supply, thresholds = band),
+    "Area codes: 20 and 30"
+  )
+  testthat::expect_equal(sum(is.na(out$nourish)), 2L)
+})

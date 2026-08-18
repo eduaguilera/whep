@@ -1,0 +1,7 @@
+age_class,year_from,year_to,lysine_mg_g,saa_mg_g,threonine_mg_g,tryptophan_mg_g,source
+0.5,0,0,57,28,31,8.5,TRS935_T50
+1-2,1,2,52,26,27,7.4,TRS935_T50
+3-10,3,10,48,24,25,6.6,TRS935_T50
+11-14,11,14,48,23,25,6.5,TRS935_T50
+15-18,15,18,47,23,24,6.3,TRS935_T50
+19+,19,120,45,22,23,6.0,TRS935_T50

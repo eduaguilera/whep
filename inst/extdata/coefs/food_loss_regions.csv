@@ -1,0 +1,154 @@
+annex1_name,iso3c,area_code,region
+Albania,ALB,,europe
+Armenia,ARM,,europe
+Austria,AUT,,europe
+Azerbaijan,AZE,,europe
+Belarus,BLR,,europe
+Belgium,BEL,,europe
+Bosnia and Herzegovina,BIH,,europe
+Bulgaria,BGR,,europe
+Croatia,HRV,,europe
+Cyprus,CYP,,europe
+Czech Republic,CZE,,europe
+Denmark,DNK,,europe
+Estonia,EST,,europe
+Finland,FIN,,europe
+France,FRA,,europe
+Georgia,GEO,,europe
+Germany,DEU,,europe
+Greece,GRC,,europe
+Hungary,HUN,,europe
+Iceland,ISL,,europe
+Ireland,IRL,,europe
+Italy,ITA,,europe
+Latvia,LVA,,europe
+Lithuania,LTU,,europe
+Luxemburg,LUX,,europe
+Macedonia,MKD,,europe
+Moldova,MDA,,europe
+Montenegro,MNE,,europe
+Netherlands,NLD,,europe
+Norway,NOR,,europe
+Poland,POL,,europe
+Portugal,PRT,,europe
+Romania,ROU,,europe
+Russian Federation,RUS,,europe
+Serbia,SRB,,europe
+Slovakia,SVK,,europe
+Slovenia,SVN,,europe
+Spain,ESP,,europe
+Sweden,SWE,,europe
+Switzerland,CHE,,europe
+Ukraine,UKR,,europe
+United Kingdom,GBR,,europe
+Australia,AUS,,north_america_oceania
+Canada,CAN,,north_america_oceania
+New Zealand,NZL,,north_america_oceania
+United States of America,USA,,north_america_oceania
+Japan,JPN,,industrialized_asia
+China,CHN,,industrialized_asia
+China,,351,industrialized_asia
+South Korea,KOR,,industrialized_asia
+Angola,AGO,,sub_saharan_africa
+Benin,BEN,,sub_saharan_africa
+Botswana,BWA,,sub_saharan_africa
+Burkina Faso,BFA,,sub_saharan_africa
+Burundi,BDI,,sub_saharan_africa
+Cameroon,CMR,,sub_saharan_africa
+Central African Rep,CAF,,sub_saharan_africa
+Chad,TCD,,sub_saharan_africa
+Congo-Brazzaville,COG,,sub_saharan_africa
+Congo-Kinshasa,COD,,sub_saharan_africa
+Cote d'Ivoire,CIV,,sub_saharan_africa
+Equatorial Guinea,GNQ,,sub_saharan_africa
+Eritrea,ERI,,sub_saharan_africa
+Ethiopia,ETH,,sub_saharan_africa
+Gabon,GAB,,sub_saharan_africa
+Gambia,GMB,,sub_saharan_africa
+Ghana,GHA,,sub_saharan_africa
+Guinea,GIN,,sub_saharan_africa
+Guinea-Bissau,GNB,,sub_saharan_africa
+Kenya,KEN,,sub_saharan_africa
+Lesotho,LSO,,sub_saharan_africa
+Liberia,LBR,,sub_saharan_africa
+Malawi,MWI,,sub_saharan_africa
+Mali,MLI,,sub_saharan_africa
+Mauritania,MRT,,sub_saharan_africa
+Mozambique,MOZ,,sub_saharan_africa
+Namibia,NAM,,sub_saharan_africa
+Niger,NER,,sub_saharan_africa
+Nigeria,NGA,,sub_saharan_africa
+Rwanda,RWA,,sub_saharan_africa
+Senegal,SEN,,sub_saharan_africa
+Sierra Leone,SLE,,sub_saharan_africa
+Somalia,SOM,,sub_saharan_africa
+South Africa,ZAF,,sub_saharan_africa
+Sudan,SDN,,sub_saharan_africa
+Swaziland,SWZ,,sub_saharan_africa
+Tanzania,TZA,,sub_saharan_africa
+Togo,TGO,,sub_saharan_africa
+Uganda,UGA,,sub_saharan_africa
+Zambia,ZMB,,sub_saharan_africa
+Zimbabwe,ZWE,,sub_saharan_africa
+Algeria,DZA,,north_africa_west_central_asia
+Egypt,EGY,,north_africa_west_central_asia
+Iraq,IRQ,,north_africa_west_central_asia
+Israel,ISR,,north_africa_west_central_asia
+Jordan,JOR,,north_africa_west_central_asia
+Kazakhstan,KAZ,,north_africa_west_central_asia
+Kuwait,KWT,,north_africa_west_central_asia
+Kyrgyzstan,KGZ,,north_africa_west_central_asia
+Lebanon,LBN,,north_africa_west_central_asia
+Libya,LBY,,north_africa_west_central_asia
+Mongolia,MNG,,north_africa_west_central_asia
+Morocco,MAR,,north_africa_west_central_asia
+Oman,OMN,,north_africa_west_central_asia
+Saudi Arabia,SAU,,north_africa_west_central_asia
+Syria,SYR,,north_africa_west_central_asia
+Tajikistan,TJK,,north_africa_west_central_asia
+Tunisia,TUN,,north_africa_west_central_asia
+Turkey,TUR,,north_africa_west_central_asia
+Turkmenistan,TKM,,north_africa_west_central_asia
+Utd Arab Emirates,ARE,,north_africa_west_central_asia
+Uzbekistan,UZB,,north_africa_west_central_asia
+Yemen,YEM,,north_africa_west_central_asia
+Afghanistan,AFG,,south_southeast_asia
+Bangladesh,BGD,,south_southeast_asia
+Bhutan,BTN,,south_southeast_asia
+Cambodia,KHM,,south_southeast_asia
+India,IND,,south_southeast_asia
+Indonesia,IDN,,south_southeast_asia
+Iran,IRN,,south_southeast_asia
+Laos,LAO,,south_southeast_asia
+Malaysia,MYS,,south_southeast_asia
+Myanmar,MMR,,south_southeast_asia
+Nepal,NPL,,south_southeast_asia
+Pakistan,PAK,,south_southeast_asia
+Philippines,PHL,,south_southeast_asia
+Sri Lanka,LKA,,south_southeast_asia
+Thailand,THA,,south_southeast_asia
+Vietnam,VNM,,south_southeast_asia
+Argentina,ARG,,latin_america
+Belize,BLZ,,latin_america
+Bolivia,BOL,,latin_america
+Brazil,BRA,,latin_america
+Chile,CHL,,latin_america
+Colombia,COL,,latin_america
+Costa Rica,CRI,,latin_america
+Cuba,CUB,,latin_america
+Dominican Rep,DOM,,latin_america
+Ecuador,ECU,,latin_america
+El Salvador,SLV,,latin_america
+Guatemala,GTM,,latin_america
+Guyana,GUY,,latin_america
+Haiti,HTI,,latin_america
+Honduras,HND,,latin_america
+Jamaica,JAM,,latin_america
+Mexico,MEX,,latin_america
+Nicaragua,NIC,,latin_america
+Panama,PAN,,latin_america
+Paraguay,PRY,,latin_america
+Peru,PER,,latin_america
+Suriname,SUR,,latin_america
+Uruguay,URY,,latin_america
+Venezuela,VEN,,latin_america
