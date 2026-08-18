@@ -12,6 +12,7 @@ ported from the Spain historical pipeline.
 build_carbon_balance(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
   example = FALSE
@@ -23,6 +24,17 @@ build_carbon_balance(
 
 \item{resolution}{\code{"grid"} (default, per cell and land-use class) or
 \code{"polity"} (aggregated to \code{area_code} conserving carbon mass).}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{c_inputs} (per cell, land-use class and year, with
@@ -60,7 +72,9 @@ A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-\code{area_ha} and \code{method_soc}.
+\code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+\code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Reconstruct per-cell soil-organic-carbon stock trajectories: run the selected
@@ -71,6 +85,71 @@ applying the model annual update plus a carbon-conserving land-use-change
 transfer, and derive the soil-organic-nitrogen change from the carbon rate
 via asymmetric soil carbon-to-nitrogen ratios.
 }
+\details{
+\code{polity_validity} governs this function's own output. The internal
+\code{\link{get_soc_climate_drivers}} read it falls back on always keeps its
+rows: the march needs a climate modifier for every cell-year it steps
+through, so dropping driver rows for an anachronistic polity label would
+break the trajectory rather than relabel it. The driver read therefore warns
+on its own key space (whep#462) while this argument decides the fate of the
+balance rows.
+}
+\section{Spatial support}{
+
+Every default reader on the carbon path -- the land-use areas, the carbon
+inputs, the climate drivers and the clay -- resolves its cell-to-polity table
+through one polycell support (\code{\link[=read_polycell_support]{read_polycell_support()}}), read at a static
+reference year. A cell shared between polities therefore delivers to each
+only the land it holds there, and no reader can be left on a different
+crosswalk: half the path on one footprint and half on another would surface
+as an ordinary climate-coverage warning from the modifier join, not as an
+error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
+and dropped, never folded into another polity's.
+}
+
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_carbon_balance(example = TRUE)
 }

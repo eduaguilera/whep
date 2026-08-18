@@ -37,7 +37,11 @@
 #'   area-weight the crop densities); `grass_natural` (the
 #'   [build_grass_natural_carbon_inputs()] output at the class grain); and
 #'   optional `land_use` (per-cell class `area_ha`, used to area-weight
-#'   grassland/natural polity output). When
+#'   grassland/natural polity output); and `country_grid`, the polycell support
+#'   resolved to one row per cell and `area_code`, from which `crop_area` is
+#'   derived when absent. It is the same support [build_soil_carbon_inputs()]
+#'   reads, so the weights and the carbon they weight can never come from two
+#'   different crosswalks. When
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
@@ -45,7 +49,9 @@
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
 #'   resolution (or `(area_code, year, land_use)` at `"polity"`), with
 #'   `c_input_mgc_ha_yr`, `humified_fraction` and `method_c_input`, for
-#'   `land_use` in `"cropland"`, `"grassland"` and `"natural"`.
+#'   `land_use` in `"cropland"`, `"grassland"` and `"natural"`, plus the polity
+#'   columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source Cropland inputs from [build_soil_carbon_inputs()]; grassland and
 #'   natural inputs from [build_grass_natural_carbon_inputs()]; assembled per
 #'   the WHEP historical carbon-balance design.
@@ -63,18 +69,18 @@ build_carbon_inputs <- function(
     return(.example_carbon_inputs())
   }
   d <- .ci_resolve_inputs(data, years)
-  cropland <- .ci_cropland_class(d$cropland, d$crop_area)
-  dplyr::bind_rows(cropland, d$grass_natural) |>
-    .ci_finalise(resolution, data$land_use)
+  dplyr::bind_rows(d$cropland, d$grass_natural) |>
+    .ci_finalise(resolution, data$land_use) |>
+    .add_reporting_polity_columns()
 }
 
 # -- Input resolution ---------------------------------------------------------
 
 .ci_resolve_inputs <- function(data, years = NULL) {
+  crop_area <- data$crop_area %||% .ci_crop_area(data)
   list(
-    cropland = data$cropland %||%
-      build_soil_carbon_inputs(data = data, years = years),
-    crop_area = data$crop_area %||% .ci_crop_area(data),
+    cropland = .ci_cropland_input(data, years, crop_area),
+    crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)
   )
@@ -88,6 +94,25 @@ build_carbon_inputs <- function(
 # density x area), so a crop supplying more carbon dominates the class fraction.
 # `class_area_ha` (the cell's total cropland area) is carried so the downstream
 # polity aggregation can area-weight the per-hectare density and conserve mass.
+# The cropland carbon-input class, collapsed to one row per cell-year.
+#
+# When we build the gridded inputs ourselves the collapse runs per year inside
+# the gridding loop, so the pre-collapse table -- ~1.25e6 rows per simulated
+# year, of which .ci_cropland_class() keeps about one in forty-two -- never
+# accumulates across the span. A caller-supplied `cropland` arrives whole and is
+# collapsed in one pass, as before (#624).
+.ci_cropland_input <- function(data, years, crop_area) {
+  if (!is.null(data$cropland)) {
+    return(.ci_cropland_class(data$cropland, crop_area))
+  }
+  .sci_build(
+    "grid",
+    data,
+    years,
+    reduce = \(gridded) .ci_cropland_class(gridded, crop_area)
+  )
+}
+
 .ci_cropland_class <- function(cropland, crop_area) {
   join_keys <- c("lon", "lat", "area_code", "item_prod_code")
   if (rlang::has_name(crop_area, "year")) {
@@ -185,16 +210,18 @@ build_carbon_inputs <- function(
 
 # -- Crop-area reader ---------------------------------------------------------
 
-# Per cell-crop harvested area (ha), scaled by the cell's land fraction, from
-# the same static country_grid + crop_patterns build_soil_carbon_inputs uses
-# (crop_patterns is time-invariant, so no year key). Only reached when
-# data$crop_area is absent; country_grid and crop_patterns fall back to the
-# same default readers build_soil_carbon_inputs uses, so the crop-area weights
-# are derivable turnkey.
+# Per cell-crop harvested area (ha), split between the cell's polycells by their
+# share of the cell's land, from the same static support + crop_patterns
+# build_soil_carbon_inputs uses (crop_patterns is time-invariant, so no year
+# key). Only reached when data$crop_area is absent; country_grid and
+# crop_patterns fall back to the same default readers build_soil_carbon_inputs
+# uses -- `.sci_read_country_grid()` being the carbon path's shared polycell
+# support -- so these weights and the cropland carbon they weight can never be
+# built on two different crosswalks.
 .ci_crop_area <- function(data) {
   country_grid <- data$country_grid %||% .sci_read_country_grid()
   crop_patterns <- data$crop_patterns %||% .sci_read_crop_patterns()
-  cg <- .normalize_country_grid(country_grid) |>
+  cg <- .normalize_carbon_support(country_grid) |>
     dplyr::mutate(lon = round(.data$lon, 2), lat = round(.data$lat, 2))
   crop_patterns |>
     dplyr::mutate(

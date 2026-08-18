@@ -1,8 +1,8 @@
 #' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
-#' Provides N flows of the spanish agro-food system on a provincial level
-#' between 1860 and 2020. This dataset is the the base of the GRAFS model and
+#' Provides N flows of the Spanish agro-food system on a provincial level
+#' between 1860 and 2020. This dataset is the base of the GRAFS model and
 #' contains data in megagrams of N (MgN) for each year, province, item, origin
 #' and destiny. Thereby, the origin column represents where N comes from, which
 #' includes N soil inputs, imports and production. The destiny column shows
@@ -655,7 +655,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   # Substracting the Seed data from Production in grafs_prod_combined.
   # Seed only comes off the Product row, not Residue/Grass rows for the
-  # same item.
+  # same item (#147).
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
       seed_rates |>
@@ -669,9 +669,13 @@ create_n_nat_destiny <- function(example = FALSE) {
         0
       ),
       Seeds_used_capped = dplyr::if_else(
-        Seeds_used_MgFM > 0.5 * production_fm,
-        0.5 * production_fm,
-        Seeds_used_MgFM
+        prod_type == "Product",
+        dplyr::if_else(
+          Seeds_used_MgFM > 0.5 * production_fm,
+          0.5 * production_fm,
+          Seeds_used_MgFM
+        ),
+        0
       ),
       production_fm = production_fm - Seeds_used_capped
     ) |>
@@ -1710,7 +1714,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @keywords internal
 #' @noRd
 .convert_to_items_n <- function(
-  grafs_prod_item_combined = whep_read_file(""),
+  grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
   biomass_coefs = whep_read_file("biomass_coefs")
 ) {
@@ -1774,13 +1778,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Consumption and Trade
 #' @description Calculation of consumption by destiny and trade
-#' (export, import). National scaling can be activated, for analysis for whole
-#' Spain. It should be deactivated for provincial analysis
+#' (export, import).
 #'
 #' @param grafs_prod_item_n A dataframe with N values (MgN) by destiny.
-#' @param pie_full_destinies_fm A data frame with destiny data.
-#' @param biomass_coefs A data frame with biomass coefficients.
-#' @param codes_coefs_items_full A lookup table with coefficients.
 #'
 #' @return A dataframe with consumption, exports, and imports in MgN.
 #' @keywords internal
@@ -1990,8 +1990,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .split_import_consumption <- function(
   local_vs_import,
-  feed_share_rum_mono,
-  shares_import_wide
+  feed_share_rum_mono
 ) {
   local_vs_import |>
     dplyr::left_join(
@@ -2109,7 +2108,6 @@ create_n_nat_destiny <- function(example = FALSE) {
   n_soil_inputs,
   feed_share_rum_mono
 ) {
-  biomass_coefs <- whep_read_file("biomass_coefs")
   grafs_prod_destiny_final <- .prep_final_ds(
     grafs_prod_item_trade,
     codes_coefs_items_full
@@ -2127,68 +2125,6 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   shares_import <- .calculate_consumption_shares(grafs_prod_destiny_final)
 
-  pie_imports_n <- whep_read_file("pie_full_destinies_fm") |>
-    dplyr::filter(
-      Element == "Import",
-      Destiny %in% c("Food", "Other_uses", "Feed")
-    ) |>
-    dplyr::group_by(Year, Item, Destiny) |>
-    dplyr::summarise(
-      value_fm = sum(Value_destiny, na.rm = TRUE),
-      .groups = "drop"
-    ) |>
-    dplyr::left_join(
-      codes_coefs_items_full |>
-        dplyr::select(item, Name_biomass),
-      by = c("Item" = "item")
-    ) |>
-    dplyr::left_join(
-      biomass_coefs |>
-        dplyr::select(
-          Name_biomass,
-          Product_kgDM_kgFM,
-          Product_kgN_kgDM,
-          Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
-        ),
-      by = "Name_biomass"
-    ) |>
-    dplyr::mutate(
-      prod_type = dplyr::case_when(
-        Name_biomass %in% c("Grass", "Fallow") ~ "Grass",
-        Name_biomass == "Average wood" ~ "Residue",
-        TRUE ~ "Product"
-      )
-    ) |>
-    dplyr::mutate(
-      value_n = dplyr::case_when(
-        prod_type %in% c("Residue", "Grass") ~
-          value_fm *
-          dplyr::coalesce(Residue_kgDM_kgFM, Product_kgDM_kgFM) *
-          dplyr::coalesce(Residue_kgN_kgDM, Product_kgN_kgDM),
-        prod_type == "Product" ~
-          value_fm *
-          Product_kgDM_kgFM *
-          Product_kgN_kgDM,
-
-        TRUE ~ NA_real_
-      )
-    ) |>
-    dplyr::group_by(Year, Item) |>
-    dplyr::mutate(
-      total = sum(value_n, na.rm = TRUE),
-      share = dplyr::if_else(total > 0, value_n / total, 0)
-    ) |>
-    dplyr::ungroup()
-
-  shares_import_wide <- pie_imports_n |>
-    dplyr::select(Year, Item, Destiny, share) |>
-    tidyr::pivot_wider(
-      names_from = Destiny,
-      values_from = share,
-      names_prefix = "share_"
-    )
-
   local_vs_import <- grafs_prod_destiny_final |>
     dplyr::left_join(
       shares_import,
@@ -2201,11 +2137,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   dplyr::bind_rows(
     .split_local_consumption(local_vs_import, feed_share_rum_mono),
-    .split_import_consumption(
-      local_vs_import,
-      feed_share_rum_mono,
-      shares_import_wide
-    ),
+    .split_import_consumption(local_vs_import, feed_share_rum_mono),
     .add_exports(grafs_prod_destiny_final)
   ) |>
     dplyr::filter(MgN > 0)

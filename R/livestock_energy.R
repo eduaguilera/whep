@@ -166,12 +166,46 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 #' alongside `work_hours_day`.
 #' @noRd
 .calc_energy_work <- function(data) {
-  data |>
+  data <- data |>
     dplyr::mutate(
       cw_effective = dplyr::coalesce(work_coef, cw, 0),
       ne_work = cw_effective * ne_maintenance * work_hours_day
-    ) |>
-    dplyr::select(-cw_effective)
+    )
+  .warn_inert_work_hours(data)
+  data |>
+    dplyr::select(-dplyr::any_of(c("cw_effective", "work_hours_set_by_caller")))
+}
+
+# whep ships `cw` = 0 for every species, so draft work is opt-in per call via
+# `work_coef`. That is deliberate -- IPCC Eq 10.11 defines the term for cattle
+# and buffalo only, and switching it on globally would move enteric CH4
+# everywhere -- but returning `ne_work` = 0 without a word to someone who
+# explicitly passed working hours is the surprise reported in #210. Say so.
+#
+# Only hours the caller set are worth warning about: `.join_production_defaults()`
+# fills the rest from `livestock_production_defaults`, where several species
+# carry a non-zero default, and warning about those would fire on ordinary runs.
+.warn_inert_work_hours <- function(data) {
+  if (!rlang::has_name(data, "work_hours_set_by_caller")) {
+    return(invisible(NULL))
+  }
+  inert <- data$work_hours_set_by_caller &
+    !is.na(data$work_hours_day) &
+    data$work_hours_day > 0 &
+    data$cw_effective == 0
+  n_inert <- sum(inert, na.rm = TRUE)
+  if (n_inert == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "{n_inert} row{?s} set {.arg work_hours_day} but have no work
+     coefficient, so {.field ne_work} is 0 for {cli::qty(n_inert)}{?it/them}.",
+    i = "{.pkg whep} ships {.field cw} = 0 for every species: draft work is
+         opt-in, not a global default.",
+    i = "Pass {.arg work_coef} to activate it -- IPCC Eq 10.11 gives 0.10 for
+         cattle and buffalo, and defines the term for those only."
+  ))
+  invisible(NULL)
 }
 
 #' NEp: IPCC Eq 10.13.
@@ -272,13 +306,9 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
       .by = c(species, cohort)
     )
 
-  if (rlang::has_name(data, "iso3")) {
+  if (.has_gleam_region_key(data)) {
+    data$gleam_region <- .gleam_region_of(data)
     data <- data |>
-      dplyr::left_join(
-        gleam_geographic_hierarchy |>
-          dplyr::select(iso3, gleam_region),
-        by = "iso3"
-      ) |>
       dplyr::left_join(
         gleam_animal_weights |>
           dplyr::summarise(
@@ -372,6 +402,10 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
       suffix = c("", "_default")
     ) |>
     dplyr::select(-defaults_key) |>
+    # Remember whether the caller set the working hours themselves, before the
+    # coalesce below makes that indistinguishable from the species default.
+    # `.calc_energy_work()` warns only about hours the caller asked for (#210).
+    dplyr::mutate(work_hours_set_by_caller = !is.na(work_hours_day)) |>
     dplyr::mutate(
       milk_yield_kg_day = dplyr::coalesce(
         milk_yield_kg_day,

@@ -2,6 +2,22 @@
 
 # Helper fixtures --------------------------------------------------------------
 
+# The output contract. The reporting-polity columns are part of it since
+# whep#424, and they lead the frame because that is where the attach helper puts
+# the key.
+.npc_contract <- function() {
+  c(
+    "year",
+    "area_code",
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry",
+    "n_percapita_kg",
+    "framing"
+  )
+}
+
 # A build_n_inputs()-style long fixture: synthetic + bnf are the anthropogenic
 # reactive-N terms; manure_solid / deposition / urban must be excluded. Two
 # countries, with country 10's synthetic split across two cells so the grid
@@ -76,20 +92,33 @@ testthat::test_that("finer grid keys collapse to one country total row", {
 
 testthat::test_that("the output contract carries the key, value and framing", {
   out <- whep::build_n_percapita(.npc_n_inputs(), .npc_population())
-  testthat::expect_named(
-    out,
-    c("year", "area_code", "n_percapita_kg", "framing")
-  )
+  testthat::expect_named(out, .npc_contract())
   testthat::expect_equal(nrow(out), 2L)
   # The chosen framing is provenance, not a silent default (multi-method rule).
   testthat::expect_true(all(out$framing == "synthetic_bnf"))
 })
 
-testthat::test_that("country-years without a population row drop out", {
+testthat::test_that("country-years without a population row drop out, loudly", {
   pop_partial <- dplyr::filter(.npc_population(), area_code == 10L)
-  out <- whep::build_n_percapita(.npc_n_inputs(), pop_partial)
+  # Still dropped -- no denominator is invented -- but no longer silently: an
+  # area absent from a per-capita output looks exactly like an area with no
+  # nitrogen (#543).
+  testthat::expect_warning(
+    out <- whep::build_n_percapita(.npc_n_inputs(), pop_partial),
+    "no population row"
+  )
   testthat::expect_equal(out$area_code, 10L)
   testthat::expect_false(20L %in% out$area_code)
+})
+
+testthat::test_that("the dropped area and its nitrogen share are named", {
+  pop_partial <- dplyr::filter(.npc_population(), area_code == 10L)
+  ratio <- (109 + 33) / (0.85 * 109)
+  dropped <- (10 * ratio + 4) / (5 * ratio + 3 + 10 * ratio + 4)
+  testthat::expect_warning(
+    whep::build_n_percapita(.npc_n_inputs(), pop_partial),
+    as.character(signif(100 * dropped, 3))
+  )
 })
 
 testthat::test_that("zero population aborts instead of producing infinity", {
@@ -146,10 +175,7 @@ testthat::test_that("build_n_percapita aborts on a missing input column", {
 
 testthat::test_that("the example fixture matches the output contract", {
   out <- whep::build_n_percapita(example = TRUE)
-  testthat::expect_named(
-    out,
-    c("year", "area_code", "n_percapita_kg", "framing")
-  )
+  testthat::expect_named(out, .npc_contract())
   testthat::expect_true(all(out$n_percapita_kg > 0))
   testthat::expect_true(all(out$framing == "synthetic_bnf"))
 })

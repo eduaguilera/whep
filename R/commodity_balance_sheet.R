@@ -5,6 +5,12 @@
 #' (CBS) item. Stock variations are split into two non-negative
 #' columns following the FABIO methodology.
 #'
+#' @param years Optional integer vector of years to build. When `NULL`
+#'   (default) the whole series is built. Supplying a window builds only that
+#'   range rather than building 1850-2023 and discarding the rest, and caches it
+#'   under a window-specific key. The window is widened internally to 2011 when
+#'   it reaches 2013, because that overlap is what splices the old FBS series
+#'   onto `FAOSTAT_FBS_New`.
 #' @param example If `TRUE`, return a small example output without
 #'   downloading remote data. Default is `FALSE`.
 #'
@@ -44,27 +50,18 @@
 #'
 #' @examples
 #' get_wide_cbs(example = TRUE)
-get_wide_cbs <- function(example = FALSE) {
+get_wide_cbs <- function(years = NULL, example = FALSE) {
   if (example) {
     return(.example_get_wide_cbs())
   }
+  build_years <- .build_years(years)
+  cbs_built <- .cached_cbs_built(build_years)
+  primary_prod <- .cached_primary_prod(.context_years(build_years))
 
-  primary_prod <- .cache_get("primary_prod", build_primary_production())
-
-  cbs_built <- .cache_get("cbs_built", {
-    cli::cli_h1("Building commodity balance sheets")
-    build_commodity_balances(primary_prod)
-  })
-
-  .cache_get("cbs_wide", {
-    cli::cli_progress_step("Adding livestock CBS rows")
-    cbs <- .pivot_cbs_wide(cbs_built)
-    livestock_cbs <- get_livestock_cbs(primary_prod)
-    wide <- dplyr::bind_rows(cbs, livestock_cbs) |>
-      .add_reporting_polity_columns()
-    .qc_supply_use_balance(wide)
-    wide
-  })
+  .cache_get(
+    .cache_key("cbs_wide", build_years),
+    .cbs_long_to_wide(cbs_built, primary_prod, build_years)
+  )
 }
 
 #' Livestock commodity balance sheet entries
@@ -183,7 +180,8 @@ get_livestock_cbs <- function(primary_prod) {
       dplyr::filter(
         unit == "heads",
         item_cbs_code %in% livestock_items
-      ),
+      ) |>
+      .map_livestock_trade_polities(),
     error = function(e) {
       cli::cli_warn(
         "Could not read bilateral trade for livestock: {e$message}"
@@ -223,12 +221,50 @@ get_livestock_cbs <- function(primary_prod) {
   )
 }
 
+# Map the raw FAOSTAT reporter/partner codes of the bilateral trade data
+# onto the same year-aware polity area-code space used by the polity-coded
+# slaughter counts (see `.aggregate_to_polities()` in the production build),
+# so live-animal trade and slaughter reconcile on a consistent join key.
+# Rows whose reporter or partner code does not map to a polity are dropped,
+# mirroring the slaughter side, and codes are re-aggregated at polity level.
+.map_livestock_trade_polities <- function(btd) {
+  dt <- data.table::as.data.table(btd)
+
+  dt <- dt |>
+    .add_polity_columns_dt(
+      code_col = "from_code",
+      year_col = "year",
+      prefix = "from_",
+      include_unmapped = FALSE
+    ) |>
+    .add_polity_columns_dt(
+      code_col = "to_code",
+      year_col = "year",
+      prefix = "to_",
+      include_unmapped = FALSE
+    )
+
+  dt <- dt[!is.na(from_polity_code) & !is.na(to_polity_code)]
+  dt[, from_code := from_polity_area_code]
+  dt[, to_code := to_polity_area_code]
+
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = c("year", "from_code", "to_code", "item_cbs_code", "unit")
+  ] |>
+    tibble::as_tibble()
+}
+
 #' Processed products share factors
 #'
 #' @description
 #' Reports quantities of commodity balance sheet items used for `processing`
 #' and quantities of their corresponding processed output items.
 #'
+#' @param years Optional integer vector of years to build. When `NULL`
+#'   (default) the whole series is built. Supplying a window builds only that
+#'   range rather than building 1850-2023 and discarding the rest, and caches it
+#'   under a window-specific key.
 #' @param example If `TRUE`, return a small example output without downloading
 #'   remote data. Default is `FALSE`.
 #'
@@ -279,20 +315,16 @@ get_livestock_cbs <- function(primary_prod) {
 #'
 #' @examples
 #' get_processing_coefs(example = TRUE)
-get_processing_coefs <- function(example = FALSE) {
+get_processing_coefs <- function(years = NULL, example = FALSE) {
   if (example) {
     return(.example_get_processing_coefs())
   }
-  primary_prod <- .cache_get("primary_prod", build_primary_production())
+  build_years <- .build_years(years)
+  cbs_built <- .cached_cbs_built(build_years)
 
-  cbs_built <- .cache_get("cbs_built", {
-    cli::cli_h1("Building commodity balance sheets")
-    build_commodity_balances(primary_prod)
-  })
-
-  .cache_get("proc_coefs", {
+  .cache_get(.cache_key("proc_coefs", build_years), {
     cli::cli_h1("Building processing coefficients")
-    build_processing_coefs(cbs_built)
+    .build_proc_coefs_years(cbs_built, build_years)
   })
 }
 

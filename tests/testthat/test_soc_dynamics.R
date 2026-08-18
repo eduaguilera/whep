@@ -1,7 +1,8 @@
 # Tests for the soil-organic-carbon dynamics selector (Module B, Task B5):
 # calculate_soc_dynamics. Checks the default model, dispatch to a named model,
-# the method_soc stamp, invalid-model validation, and that the native climate
-# modifier is applied only when the model's climate drivers are present.
+# the uniform long output schema shared by all five models, the method_soc
+# stamp, invalid-model validation, and that the native climate modifier is
+# applied only when the model's climate drivers are present.
 
 test_that("the default model is hsoc and is stamped on every row", {
   out <- whep::calculate_soc_dynamics(
@@ -18,7 +19,67 @@ test_that("model = icbm dispatches and returns soc_total", {
   )
   testthat::expect_true(rlang::has_name(out, "soc_total"))
   testthat::expect_true(all(out$method_soc == "icbm"))
-  testthat::expect_equal(nrow(out), 6L)
+  # Two ICBM pools (young, old) over six years, long.
+  testthat::expect_equal(nrow(out), 12L)
+})
+
+test_that("all five models return exactly the same columns", {
+  # Regression test for #350: hsoc (the default) returned long rows with no
+  # soc_total while rothc/icbm/amg/century returned wide per-model pool
+  # columns, so every caller had to branch on the model. The selector now
+  # reshapes whichever model ran to one long schema.
+  testthat::skip_if_not_installed("deSolve")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  runs <- purrr::map(
+    models,
+    \(m) {
+      whep::calculate_soc_dynamics(
+        model = m,
+        data = list(
+          initial_soc_mgc_ha = 50,
+          c_input_mgc_ha_yr = 2,
+          years = 5,
+          clay_pct = 20
+        )
+      )
+    }
+  ) |>
+    purrr::set_names(models)
+  schema <- c("year", "pool", "stock_mgc_ha", "soc_total", "method_soc")
+  purrr::walk(runs, \(out) testthat::expect_named(out, schema))
+  # Being long in the pool dimension, the five runs stack into one tidy frame
+  # instead of a ragged one with mutually exclusive pool columns.
+  stacked <- dplyr::bind_rows(runs)
+  testthat::expect_named(stacked, schema)
+  testthat::expect_setequal(unique(stacked$method_soc), models)
+  testthat::expect_equal(nrow(stacked), sum(purrr::map_int(runs, nrow)))
+})
+
+test_that("soc_total is the year's pool sum for every model", {
+  testthat::skip_if_not_installed("deSolve")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  purrr::walk(models, \(m) {
+    out <- whep::calculate_soc_dynamics(
+      model = m,
+      data = list(
+        initial_soc_mgc_ha = 50,
+        c_input_mgc_ha_yr = 2,
+        years = 5,
+        clay_pct = 20
+      )
+    )
+    per_year <- out |>
+      dplyr::summarise(
+        pool_sum = sum(stock_mgc_ha),
+        n_totals = dplyr::n_distinct(soc_total),
+        reported = dplyr::first(soc_total),
+        .by = year
+      )
+    # One total per year, repeated on each pool row, equal to the pool sum, so
+    # a total-only caller needs distinct(year, soc_total) and no pivot.
+    testthat::expect_true(all(per_year$n_totals == 1L))
+    testthat::expect_equal(per_year$pool_sum, per_year$reported)
+  })
 })
 
 test_that("an invalid model aborts mentioning the model argument", {
@@ -71,6 +132,11 @@ test_that("the example fixture returns a tibble stamped icbm", {
   out <- whep::calculate_soc_dynamics(example = TRUE)
   testthat::expect_s3_class(out, "tbl_df")
   testthat::expect_true(all(out$method_soc == "icbm"))
+  # The fixture carries the same uniform schema as a real run.
+  testthat::expect_named(
+    out,
+    c("year", "pool", "stock_mgc_ha", "soc_total", "method_soc")
+  )
 })
 
 test_that("model = rothc dispatches with a non-neutral native modifier", {

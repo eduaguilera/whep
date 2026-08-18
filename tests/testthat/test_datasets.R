@@ -108,14 +108,165 @@ test_that("CBS and FABIO area codes map to polity database rows", {
       .data$fabio_code,
       .data$polity_area_code,
       .data$polity_code,
+      .data$mapping_source,
       .data$has_geometry
     )
 
-  expect_equal(nrow(fabio_row_sources), 6L)
+  # Eight rows over six areas since whep#717: French Guiana (69) and Palestine
+  # (299) carry the upstream map's answer as well as the bucket's, and
+  # `.unfold_rest_of_world()` chooses. The bucket's row still says
+  # `ROW-1850-2025` for all six, which is what `whep.unfold_rest_of_world =
+  # "none"` restores; the promoted rows say the territory.
+  expect_equal(nrow(fabio_row_sources), 8L)
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2023"))
   expect_true(all(fabio_row_sources$has_geometry))
+
+  fold <- fabio_row_sources[
+    fabio_row_sources$mapping_source == "fabio_row_fold",
+  ]
+  expect_setequal(fold$area_code, c(30L, 69L, 152L, 252L, 254L, 299L))
+  expect_true(all(fold$polity_code == "ROW-1850-2025"))
+
+  promoted <- fabio_row_sources[
+    fabio_row_sources$mapping_source == "fabio_row_promoted",
+  ]
+  expect_setequal(promoted$area_code, c(69L, 299L))
+  expect_setequal(promoted$polity_code, c("GUF-1946-2025", "PSE-1948-2025"))
+})
+
+
+# -- the fabio_code rule and its exceptions (issue #556) -----------------------
+
+# `fabio_code` is not merely a fact about FABIO: `polity_area_code` is derived
+# from it, so it is also the instruction saying which bucket an area's rows are
+# summed into. The rule it follows is exact -- own code for a `cbs` reporter,
+# 999 otherwise -- which is what makes its seven exceptions readable, and what
+# makes four of them a contradiction rather than a convention.
+
+test_that("regions_full sets fabio_code from cbs, with seven exceptions", {
+  regions <- whep::regions_full |>
+    dplyr::filter(!is.na(.data$code))
+
+  # 62 into 238 and 276/277 into 206 are successor-state folds: territorial
+  # identities, not a FABIO convention.
+  #
+  # 153, 154, 209 and 212 are the #556 contradiction. They are flagged as
+  # reporting a balance sheet of their own AND folded into Rest of World, and
+  # FABIO does NOT fold them: `io_codes.csv` of the FABIO v1.1 release (Zenodo
+  # record 2577067) gives each of the four its own 125-commodity block among 192
+  # areas, and the FABIO source repository (fineprint-global/fabio) marks all
+  # four `current == TRUE` in `inst/regions_full.csv`, which is exactly the flag
+  # its `replace_RoW()` keeps out of bucket 999. Lifting the fold moves
+  # published values, so the four are pinned here rather than corrected; when
+  # the decision is made they leave this table.
+  exceptions <- tibble::tribble(
+    ~code, ~fabio_code,
+    62L,   238L,
+    153L,  999L,
+    154L,  999L,
+    209L,  999L,
+    212L,  999L,
+    276L,  206L,
+    277L,  206L
+  )
+
+  reporters <- regions |> dplyr::filter(.data$cbs %in% TRUE)
+  expect_equal(nrow(reporters), 202L)
+
+  mismatched <- reporters |>
+    dplyr::filter(
+      is.na(.data$fabio_code) | .data$fabio_code != .data$code
+    ) |>
+    dplyr::transmute(
+      code = as.integer(.data$code),
+      fabio_code = as.integer(.data$fabio_code)
+    ) |>
+    dplyr::arrange(.data$code)
+
+  expect_equal(mismatched, exceptions)
+
+  # The converse, which is what makes `cbs` an exact discriminator: no
+  # non-reporter keeps its own code, so `cbs` alone separates the 57 folds
+  # FABIO also makes from the 4 it does not.
+  kept <- regions |>
+    dplyr::filter(
+      !.data$cbs %in% TRUE,
+      !is.na(.data$fabio_code),
+      .data$fabio_code == .data$code
+    )
+  expect_equal(nrow(kept), 0L)
+})
+
+
+# -- area label encoding (issue #399) ------------------------------------------
+
+# No area label in a published table may be mojibake. Three territory names
+# shipped corrupt across eight cells: Curacao (area 279) in three columns of
+# regions_full and polity_area_crosswalk, Cote d'Ivoire (area 107) in four
+# columns of regions_full and polities_cats, and "Netherlands Antilles /
+# Curacao" (area 151) in one. Each was the UTF-8 bytes of the accented letter
+# decoded as a pair of Latin-1 characters in the vendored harmonization CSVs, now
+# repaired on read in data-raw/_labels.R.
+#
+# Swept across every character column rather than a list of label columns,
+# because a repair aimed at label columns alone fixes area 279's `name` and
+# leaves the identical corruption in `iea`, `water_area` and `Lassaletta`.
+# Mojibake is never wanted in any string column, so the rule is the column's
+# type.
+#
+# It was not costing a join, and that was checked rather than assumed: no alias
+# resolves on either spelling of Curacao. It was a latent trap all the same,
+# because area 279's FAOSTAT_name is NA, so the corrupt `name` was the only label
+# it had -- an alias added later under the correct spelling would have missed in
+# silence.
+test_that("published area tables carry no mojibake in any label", {
+  tables <- c(
+    "regions_full",
+    "polities_cats",
+    "polity_area_crosswalk",
+    "polities"
+  )
+  offenders <- character(0)
+  checked <- 0L
+  for (nm in tables) {
+    d <- get(nm, envir = asNamespace("whep"))
+    for (col in names(d)[vapply(d, is.character, logical(1))]) {
+      checked <- checked + 1L
+      # Every Latin-1-decoded UTF-8 byte pair opens with U+00C3.
+      hits <- unique(grep("\u00c3", d[[col]], value = TRUE))
+      if (length(hits) > 0L) {
+        offenders <- c(
+          offenders,
+          paste0(
+            nm,
+            "$",
+            col,
+            " (",
+            paste(utils::head(hits, 3), collapse = ", "),
+            ")"
+          )
+        )
+      }
+    }
+  }
+  # Non-vacuous: zero character columns would make the loop prove nothing.
+  expect_gt(checked, 40L)
+  expect_equal(
+    length(offenders),
+    0L,
+    info = paste("mojibake in area labels:", paste(offenders, collapse = "; "))
+  )
+
+  # And the repaired names read correctly, so a repair that silently stopped
+  # working fails here instead of reverting to a corrupt string nobody reads.
+  regions <- whep::regions_full
+  expect_true("Cura\u00e7ao" %in% regions$name)
+  expect_true("C\u00f4te d'Ivoire" %in% regions$iea)
+  crosswalk <- whep::polity_area_crosswalk
+  expect_true(
+    "Cura\u00e7ao" %in% crosswalk$area_name[which(crosswalk$area_code == 279L)]
+  )
 })
 
 
@@ -500,11 +651,13 @@ test_that("gleam_geographic_hierarchy has correct types", {
       "faostat_region",
       "gleam_region",
       "eu27",
-      "oecd"
+      "oecd",
+      "reporting_polity_code",
+      "reporting_polity_name"
     ),
     min_rows = 200L
   )
-  expect_equal(ncol(obj), 7L)
+  expect_equal(ncol(obj), 9L)
   expect_true(
     is.integer(obj$eu27),
     info = "eu27 must be integer, not character"
@@ -756,6 +909,36 @@ test_that("IPCC 2019 datasets are clean tibbles", {
   }
 })
 
+test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
+  # Regression guard for issues #252 (Horses) and #253 (Poultry-Broilers).
+  # Values verified against IPCC 2019 Refinement Vol 4 Ch 10 Table 10.16a,
+  # high-productivity systems column (the tier the rest of the table uses).
+  expected <- tibble::tribble(
+    ~category, ~bo_m3_kg_vs,
+    "Horses", 0.30,
+    "Mules and Asses", 0.33,
+    "Poultry - Layers", 0.39,
+    "Poultry - Broilers", 0.36
+  )
+
+  for (nm in c("ipcc_2019_bo", "ipcc_tier2_bo_values")) {
+    obj <- getExportedValue("whep", nm)
+    got <- expected |>
+      dplyr::left_join(obj, by = "category", suffix = c("_exp", "_got"))
+    testthat::expect_equal(
+      got$bo_m3_kg_vs_got,
+      got$bo_m3_kg_vs_exp,
+      info = nm
+    )
+
+    bo <- function(cat) obj$bo_m3_kg_vs[obj$category == cat]
+    # #252: Horses must not be copied from Mules and Asses.
+    testthat::expect_false(bo("Horses") == bo("Mules and Asses"), info = nm)
+    # #253: broilers and layers share the high-productivity tier.
+    testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
+  }
+})
+
 test_that("IPCC 2006 datasets are clean tibbles", {
   ipcc_2006 <- list(
     ipcc_2006_enteric_ef = c(
@@ -912,4 +1095,91 @@ testthat::test_that("coello_synthetic_n has the expected schema + range", {
   # dropped to missing in the builder, so no rate exceeds the threshold.
   testthat::expect_true(all(x$kg_n_ha <= 1000))
   testthat::expect_gt(nrow(x), 0L)
+})
+
+# -- Documented @format columns match the built data ---------------------------
+
+# Nothing checked a dataset's @format against the dataset itself, which is how
+# #173 happened: five documented datasets named columns that do not exist
+# (`nex_kg_per_1000kg_day`, `annual_temp_c`, `mms_type`, ...), and only one had
+# been spotted. Report the column names the \format section of one Rd topic
+# claims but its dataset does not have.
+format_column_mismatches <- function(rd_path, ignore) {
+  lines <- readLines(rd_path, warn = FALSE)
+  topic <- stringr::str_match(lines, "^\\\\name\\{(.+)\\}$")[, 2]
+  topic <- topic[!is.na(topic)][1]
+  obj <- tryCatch(
+    getExportedValue("whep", topic),
+    error = function(e) NULL
+  )
+  claimed <- rd_format_claims(lines)
+  if (!is.data.frame(obj) || length(claimed) == 0L) {
+    return(character(0))
+  }
+  missing <- setdiff(claimed, c(names(obj), ignore))
+  if (length(missing) == 0L) {
+    return(character(0))
+  }
+  paste0(
+    topic,
+    " @format names ",
+    paste(missing, collapse = ", "),
+    "; columns are ",
+    paste(names(obj), collapse = ", ")
+  )
+}
+
+# Column names claimed by the prose part of a \format section, i.e. the
+# "A tibble with \code{a}, \code{b}." form. Per-column \itemize / \describe
+# lists are left out: their bullets mix column names with the column's own
+# values and cross-references, so reading them as column names would flag
+# prose. Only snake_case tokens can be column names here.
+rd_format_claims <- function(lines) {
+  block <- rd_section_lines(lines, "format")
+  listed <- stringr::str_which(block, "\\\\(itemize|describe|tabular)\\{")
+  if (length(listed) > 0L) {
+    block <- block[seq_len(listed[1] - 1L)]
+  }
+  tokens <- stringr::str_match_all(block, "\\\\code\\{([^{}]+)\\}")
+  tokens <- unique(unlist(lapply(tokens, function(m) m[, 2])))
+  tokens[stringr::str_detect(tokens, "^[a-z][a-z0-9_]*$")]
+}
+
+# Lines of one Rd section, delimited by brace depth so nested environments
+# stay whole.
+rd_section_lines <- function(lines, tag) {
+  start <- which(stringr::str_detect(lines, paste0("^\\\\", tag, "\\{")))[1]
+  if (is.na(start)) {
+    return(character(0))
+  }
+  depth <- cumsum(
+    stringr::str_count(lines, stringr::fixed("{")) -
+      stringr::str_count(lines, stringr::fixed("}"))
+  )
+  end <- which(depth == 0L)
+  end <- end[end >= start][1]
+  if (is.na(end)) {
+    return(character(0))
+  }
+  lines[start:end]
+}
+
+testthat::test_that("documented @format columns exist in the dataset", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  # A token naming another documented object is a cross-reference, not a
+  # column, and \code{tibble} is prose.
+  ignore <- c(
+    getNamespaceExports("whep"),
+    utils::data(package = "whep")$results[, "Item"],
+    "tibble"
+  )
+  mismatches <- list.files(man_dir, pattern = "\\.Rd$", full.names = TRUE) |>
+    lapply(format_column_mismatches, ignore = ignore) |>
+    unlist() |>
+    as.character()
+  testthat::expect_equal(mismatches, character(0))
 })

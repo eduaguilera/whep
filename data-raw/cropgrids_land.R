@@ -67,9 +67,16 @@ xwalk <- cg2fao |>
 
 # National table: wide -> long. "Country Name" is "<ISO3>; <M49>: Name > Name";
 # map the ISO3 to WHEP's FAOSTAT area_code (the M49 code is NOT the FAOSTAT one).
+#
+# Keying stays on the raw FAOSTAT `code`, deliberately: `code` is CROPGRIDS' own
+# reporting grain, so the pin keeps Sudan (276) and South Sudan (277) separable.
+# `polity_area_code` is a FABIO aggregation bucket, not an identity, so it is
+# applied where the aggregation happens: .read_cropgrids_land() re-keys and sums
+# the pin to polity_area_code on read, which is the basis the WHEP harvested area
+# it is joined against uses. Do not pre-aggregate here.
 iso2area <- whep::regions_full |>
   filter(!is.na(code)) |>
-  transmute(iso3 = polity_code, area_code = as.integer(code)) |>
+  transmute(iso3 = legacy_polity_prefix, area_code = as.integer(code)) |>
   distinct(iso3, .keep_all = TRUE)
 
 read_cou <- function(sheet, valcol) {

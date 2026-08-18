@@ -51,14 +51,23 @@ Expected columns:
 \item \code{lon}: Longitude of cell centre.
 \item \code{lat}: Latitude of cell centre.
 \item \code{area_code}: Country code.
+\item \code{cell_area_frac} (or \code{polity_frac}, \code{area_frac}, \code{country_frac}):
+This polity compartment's share of the physical cell, a partition
+summing to 1 over the polities that overlap the cell. Required: a
+grid carrying no share is refused, because defaulting it to 1 gives
+a border cell wholly to one polity. Pass 1 only where the polity
+does own the whole cell. A land fraction (\code{landfrac}) is a
+different quantity and is refused rather than reinterpreted.
 Optional columns:
-\item \code{cell_area_frac} (or \code{area_frac}): Fraction of the physical cell
-belonging to this polity compartment. Defaults to 1.
 \item \code{polycell_id}, \code{cell_id}: Stable compartment/cell identifiers
 preserved in outputs when present.
 \item \code{year} or validity intervals (\code{valid_from}/\code{valid_to},
 \code{start_year}/\code{end_year}, \code{from_year}/\code{to_year}) for historical,
-time-varying polity overlays.
+time-varying polity overlays. The start bound is inclusive; the end
+bound is \strong{exclusive at a succession} and \strong{inclusive at the open
+end}, so 2014 selects \code{"RUS-2014-2025"} and not \code{"RUS-1991-2014"},
+while 2025 still selects \code{"RUS-2014-2025"} because no later interval of
+that compartment follows it. See \link{polities} for the full rule.
 }}
 
 \item{config}{Named list of optional extras. Unknown keys raise
@@ -94,6 +103,9 @@ loop. Default: \code{1000L}.
 \item \code{expansion_threshold}: Iteration number after which crops are
 allowed to expand into cells without an existing pattern.
 Default: \code{100L}.
+\item \code{area_key}: Which area code the output is keyed on, \code{"grid"}
+(default) or \code{"polity_area"}. See \emph{Which area code the output is
+keyed on}.
 }}
 }
 \value{
@@ -106,6 +118,8 @@ Columns:
 \item \code{polity_area_code}, \code{reporting_polity_code},
 \code{reporting_polity_name}, \code{reporting_polity_has_geometry}: Polity
 metadata for \code{area_code}.
+\item \code{grid_area_code}: Only under \code{area_key = "polity_area"}; the
+reporting code the engine allocated on.
 \item \code{polycell_id}, \code{cell_id}: Preserved when supplied in
 \code{country_grid}.
 \item \code{crop_name} or \code{cft_name}: Crop or CFT identifier.
@@ -130,6 +144,35 @@ redistributed using a logit-based transformation.
 \item Individual crops are aggregated into crop functional types (CFTs).
 }
 }
+\section{Which area code the output is keyed on}{
+
+The chain allocates \emph{from} a national table keyed on \code{area_code} and
+\emph{into} a \code{country_grid} keyed the same way, so both sides speak the raw
+reporting vocabulary the grid was rasterized in. WHEP's polity-keyed
+national tables are aggregated on \code{polity_area_code} instead, a bucket
+that a reporting code need not equal: \code{276} Sudan and \code{277} South Sudan
+both fall in bucket \code{206}. Every such output row therefore carries two
+territorial keys that disagree, and whether a consumer joins on
+\code{area_code} or on \code{polity_area_code} decides whether Sudan exists in its
+result (whep#582).
+
+\code{area_key} selects which of the two the output carries. It is not a
+fallback: \code{"grid"} is the default, reproduces today's codes
+bit-for-bit, and warns naming the codes that cannot join;
+\code{"polity_area"} resolves each code to its bucket through
+\link{polity_area_crosswalk} before the polity columns are attached, so
+\code{area_code} and \code{polity_area_code} agree in every row. It respects
+\code{options(whep.unfold_rest_of_world)} (see \code{\link[=folded_reporting_areas]{folded_reporting_areas()}}),
+so the output and the national tables agree about where a Rest-of-World
+member's rows belong.
+
+Under \code{"polity_area"} the raw reporting code is \strong{carried, not
+replaced}: the output gains \code{grid_area_code}, joined with \code{+} where two
+reporting areas of one bucket meet in a cell and their rows collapse. So
+the fold stays recoverable at the join rather than baked into the output,
+the shape \code{\link[=build_cell_polity]{build_cell_polity()}} adopted for the same reason (whep#579).
+}
+
 \section{Methodology}{
 
 This function reimplements the spatial crop allocation from the LandInG
@@ -173,9 +216,9 @@ gridded_cropland <- tibble::tribble(
   0.75, 50.25, 2000L, 500
 )
 country_grid <- tibble::tribble(
-  ~lon, ~lat, ~area_code,
-  0.25, 50.25, 1L,
-  0.75, 50.25, 1L
+  ~lon, ~lat, ~area_code, ~cell_area_frac,
+  0.25, 50.25, 1L, 1,
+  0.75, 50.25, 1L, 1
 )
 build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,

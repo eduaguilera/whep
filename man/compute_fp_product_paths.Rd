@@ -33,7 +33,14 @@ compute_fp_product_paths(
 
 \item{fd_labels}{Tibble labelling Y columns, from \code{\link[=build_io_model]{build_io_model()}}.}
 
-\item{origin_area}{Optional area code vector limiting origin sectors.}
+\item{origin_area}{Optional vector limiting origin sectors. Each value is
+matched against \code{labels$area_code} -- the LEGACY numeric area code -- and a
+value that matches no \code{area_code} is then resolved through the polity
+vocabulary of \link{polity_area_crosswalk}, so a \code{polity_area_code} (\code{206}, the
+Sudan aggregation bucket) or a \code{polity_code} (\code{"SDN-2011-2025"}) selects
+the area codes it covers. Legacy codes keep their legacy meaning. Values
+that resolve to no sector are dropped with a warning, and a call in which
+nothing resolves aborts instead of returning an empty table.}
 
 \item{origin_item}{Optional item code vector limiting origin sectors.}
 
@@ -68,4 +75,26 @@ area -> supplied product -> final-demand area.
 Unlike \code{\link[=compute_footprint_paths]{compute_footprint_paths()}}, this does not show the first direct
 intermediate input. It shows the downstream product row in \code{Y} whose final
 demand carries the origin footprint.
+}
+\examples{
+# Same two-sector economy as [compute_footprint_paths()], decomposed by the
+# product that reaches final demand instead of by the first intermediate
+# use. The path totals of the two functions agree with each other and with
+# [compute_footprint()] under a shared `max_column_sum`.
+z_mat <- matrix(c(0, 50, 0, 0), nrow = 2, byrow = TRUE)
+labels <- tibble::tibble(
+  area_code = c(1L, 1L),
+  item_cbs_code = c(10L, 20L)
+)
+
+compute_fp_product_paths(
+  z_mat = z_mat,
+  x_vec = c(100, 200),
+  y_mat = matrix(c(10, 100), nrow = 2),
+  extensions = c(200, 0),
+  labels = labels,
+  fd_labels = tibble::tibble(area_code = 2L, fd_col = "food"),
+  conserve_extensions = FALSE
+) |>
+  dplyr::select(origin_item, product_area, product_item, value)
 }

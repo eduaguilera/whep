@@ -884,6 +884,155 @@ cft_to_pft <- c(
   lookup[!duplicated(lookup$iso3c), ]
 }
 
+# Resolve a reference dataset's own country labels to the grid's `area_code`.
+#
+# The reference N datasets name countries in their own vocabulary, so each one
+# used to carry its own repair list in this script. `resolve_polity_label()`
+# decides those labels against `whep::polity_label_aliases`, the map published
+# by whep-polities, so the decision lives upstream instead of being re-stated
+# here (#494).
+#
+# THE RESOLVER ANSWERS A POLITY AND THIS SCRIPT IS KEYED ON AN AREA, so the
+# answer has to be bridged back, and WHICH bridge is not a free choice.
+# `polity_area_crosswalk$polity_area_code` is a different code space from the
+# one the grid carries: it holds 206 "Sudan (former)" where `regions.csv` holds
+# 276, and Ethiopia's two FAOSTAT areas (62 and 238) both sit under 238. Neither
+# 206 nor 62 is a code any grid cell has, so bridging through it would attach
+# Sudan's rates to cells that do not exist. The bridge therefore goes through
+# the polity's own `iso3_code` and back through the SAME iso3c -> area_code
+# table the grid is rasterised from, which is a relabelling of the join this
+# script already did rather than a change of code space.
+#
+# `area_lookup` is any data frame carrying `iso3c` and `area_code`; pass the
+# same one the caller joins with.
+.spatialize_label_area_code <- function(label, source, year, area_lookup) {
+  keys <- unique(data.frame(
+    label = as.character(label),
+    year = as.integer(year),
+    stringsAsFactors = FALSE
+  ))
+  polity <- whep::resolve_polity_label(
+    keys$label,
+    source = source,
+    year = keys$year
+  )
+  # `match()` treats NA as a value, so an unresolved label would otherwise pick
+  # up whatever row happens to carry an NA key. An unresolved label must stay
+  # unresolved through both hops.
+  iso <- .lookup_no_na(
+    polity,
+    whep::polities$polity_code,
+    whep::polities$iso3_code
+  )
+  area <- .lookup_no_na(iso, area_lookup$iso3c, area_lookup$area_code)
+  area[match(
+    paste(as.character(label), as.integer(year)),
+    paste(keys$label, keys$year)
+  )]
+}
+
+# `match()` with `NA` on either side, made to answer NA.
+.lookup_no_na <- function(x, from, to) {
+  hit <- match(x, from)
+  hit[is.na(x)] <- NA_integer_
+  to[hit]
+}
+
+# Mueller et al. (2012) publish crop-specific fertiliser application rates
+# "circa 2000" (Nature 490:254-257, doi:10.1038/nature11420; the archived
+# rasters are Zenodo record 5260732), and `whep::mueller_synthetic_n` carries no
+# year of its own. The year is load-bearing rather than cosmetic: the published
+# alias `SRM -> SCG-1992-2006` is scoped to 1992-2006, which is what makes the
+# dataset's "SRM" resolve to Serbia and Montenegro instead of to nothing.
+.mueller_base_year <- function() 2000L
+
+# The year that scopes an alias is the vintage of the LABEL VOCABULARY, not the
+# year the measurement refers to, and for `whep::crops_manure_n` the two are
+# decades apart. West et al. (2014) distribute their manure N over EarthStat's
+# circa-2000 harvested areas (Science 345:325-328,
+# doi:10.1126/science.1246067), but the dataset names countries in the ISO
+# 3166-1 vocabulary current when it was published: it carries `SRB`, `MNE`,
+# `SSD`, `CZE`, `SVK`, `COD` and `TLS`, and carries no `SCG`, `SUD`, `CSK`,
+# `YUG`, `ZAR` or `TMP`. `SSD` alone dates the vocabulary to 2011 or later.
+#
+# Reading these labels "in 2000", as whep#576 measured, would therefore fold
+# Serbia and Montenegro back into `SCG` and merge South Sudan into Sudan
+# (former) -- discarding a distinction the source itself makes, and attaching
+# the result to codes the present-day country grid has no cells for. Every year
+# from 2011 on maps all 183 country labels exactly as the plain `iso3c` join
+# does, so the constant is not load-bearing (test_prepare_nitrogen.R asserts
+# that over 2011-2023); 2014 is West et al.'s publication year.
+.crops_manure_label_year <- function() 2014L
+
+# West et al.'s `RoW` row is a residual over the countries they did not
+# itemise. The published alias map sends it to polity ROW and hence to area
+# 999, but WHEP's 999 is a DIFFERENTLY DEFINED residual -- since whep#628 it
+# holds only the territories that report nothing -- and the country grid is
+# rasterised from NaturalEarth ISO3 polygons, none of which carry it. Equating
+# the two residuals would attach 55,582 Mg of manure N (0.05 % of the 112.8 Mt
+# total) to an area code with no cells, so the reader drops it, exactly as the
+# straight `iso3c` join it replaces did.
+.rest_of_world_area_code <- function() 999L
+
+# Resolve `whep::lassaletta_grassland_share`'s country labels to the grid's
+# `area_code`. THE TWO ROUTES ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and they
+# disagree on 516 of 6,909 rows, so which one runs is the caller's choice:
+#
+#   "area_name"  joins the label onto `regions.csv`'s `area_name` (status quo).
+#   "alias_map"  decides it against `whep::polity_label_aliases` at the row's
+#                own year, then bridges polity -> iso3 -> area exactly as
+#                `.spatialize_label_area_code()` does for the other readers.
+#
+# Measured against real package data, `"alias_map"` resolves 6,682 rows where
+# `"area_name"` resolves 6,370: it gains 414 rows over 9 labels the name join
+# simply spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
+# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, Occupied
+# Palestinian Territory) and loses 102 over 5 the name join keeps but the
+# resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR 18,
+# Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the grid
+# is a present-day rasterisation, which argues for the modern successors; the
+# polity migration argues for the territory that existed in the data year --
+# so whep#576 leaves the choice open and the default stays where it was.
+.grass_share_area_code <- function(label, year, area_lookup, route) {
+  if (identical(route, "alias_map")) {
+    return(.spatialize_label_area_code(
+      label,
+      source = "lassaletta-grassland-share",
+      year = year,
+      area_lookup = area_lookup
+    ))
+  }
+  .lookup_no_na(label, area_lookup$area_name, area_lookup$area_code)
+}
+
+# `.distribute_n_to_crops()` joins the grassland share on (year, area_code), so
+# a second row for one key fans every national nitrogen row out -- a structural
+# break that no row count, mass total or area-code set on this reader's own
+# output would show (the shape of the whep#480 revert, whep#563).
+#
+# The name route never produces one. The alias route produces 49, all on area
+# 276: Lassaletta lists both "Sudan" and "Sudan (former)" for every year
+# 1961-2009 and both resolve to Sudan. Collapsing them is only safe while they
+# agree, which they do (both series are 0 throughout), so a disagreement aborts
+# instead of averaging the two shares or preferring one label -- either would
+# be a methodological choice, and this helper must not take it.
+.dedup_grass_share <- function(lass) {
+  shares <- dplyr::distinct(lass, year, area_code, grass_share)
+  clash <- shares |>
+    dplyr::add_count(year, area_code, name = "n_shares") |>
+    dplyr::filter(n_shares > 1)
+  if (nrow(clash) > 0) {
+    cli::cli_abort(c(
+      "Two grassland shares resolve to one {.field (year, area_code)} key.",
+      x = "{nrow(clash)} row{?s} over
+        {dplyr::n_distinct(clash$area_code)} area code{?s}.",
+      i = "Averaging them or preferring one label is a methodological
+        choice, so it is not made here."
+    ))
+  }
+  shares
+}
+
 prepare_country_grid <- function(l_files_dir, target_res) {
   cli::cli_h2("Section 1: Country grid")
 
@@ -1153,6 +1302,7 @@ prepare_country_areas <- function(
       crop_areas$irrigated_area_ha[needs_fallback] <-
         fallback$irrigated_area_ha
     }
+    crop_areas <- .cap_national_irrigation(crop_areas)
   } else {
     cli::cli_alert_info(
       "MIRCA not found -- using LUH2-proportional irrigation allocation"
@@ -1189,6 +1339,27 @@ prepare_country_areas <- function(
       "harvested_area_ha",
       "irrigated_area_ha"
     )
+}
+
+# Cap summed irrigated area per country-year at the LUH2 national total. MIRCA
+# rescaling makes covered crops absorb the whole national total, so the per-CFT
+# fallback for MIRCA-absent crops would otherwise add irrigation on top of an
+# already-complete allocation (double-counting). Scaling proportionally when the
+# country sum exceeds `total_irrig_ha` conserves the national irrigation total.
+.cap_national_irrigation <- function(crop_areas) {
+  crop_areas |>
+    dplyr::mutate(
+      national_irrig_ha = sum(.data$irrigated_area_ha, na.rm = TRUE),
+      cap_scale = dplyr::if_else(
+        .data$national_irrig_ha > .data$total_irrig_ha &
+          .data$national_irrig_ha > 0,
+        .data$total_irrig_ha / .data$national_irrig_ha,
+        1
+      ),
+      irrigated_area_ha = .data$irrigated_area_ha * .data$cap_scale,
+      .by = c("year", "area_code")
+    ) |>
+    dplyr::select(-"national_irrig_ha", -"cap_scale")
 }
 
 
@@ -1941,9 +2112,14 @@ prepare_nitrogen_inputs <- function(
   l_files_dir,
   output_dir,
   year_range,
-  prod = NULL
+  prod = NULL,
+  grass_share_route = c("area_name", "alias_map")
 ) {
   cli::cli_h2("Section 7: Nitrogen / fertilizer inputs")
+  grass_share_route <- rlang::arg_match(grass_share_route)
+  cli::cli_alert_info(
+    "Lassaletta grassland share keyed by {.val {grass_share_route}}."
+  )
 
   regions <- readr::read_csv(
     system.file("extdata", "regions.csv", package = "whep"),
@@ -1995,7 +2171,7 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7c. Cropland/Grassland split (EuroAgriDB via pins) ----
-  .read_crop_grass_split_local <- function(regions) {
+  .read_crop_grass_split_local <- function(regions, route) {
     synth_eu <- whep::whep_read_file("eu-agridb-synthetic-fertilizer") |>
       filter(Symbol %in% c("Q_C", "Q_PG")) |>
       mutate(
@@ -2032,12 +2208,16 @@ prepare_nitrogen_inputs <- function(
 
     lass <- whep::lassaletta_grassland_share |>
       rename(lassaletta_name = Country) |>
-      left_join(
-        select(regions, iso3c, area_code, area_name),
-        by = c("lassaletta_name" = "area_name")
+      mutate(
+        area_code = .grass_share_area_code(
+          lassaletta_name,
+          year = as.integer(year),
+          area_lookup = regions,
+          route = route
+        )
       ) |>
       filter(!is.na(area_code)) |>
-      select(year, area_code, grass_share)
+      .dedup_grass_share()
 
     list(euadb = euadb, lassaletta = lass)
   }
@@ -2046,32 +2226,27 @@ prepare_nitrogen_inputs <- function(
   .read_crop_base_rates_local <- function(regions) {
     crop_manure <- whep::crops_manure_n |>
       rename(crop_name = Crop_name, iso3c = ISO, manure_mg_n = Manure_N_Mg) |>
-      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
-      filter(!is.na(area_code)) |>
+      mutate(
+        area_code = .spatialize_label_area_code(
+          iso3c,
+          source = "crops-manure-n",
+          year = .crops_manure_label_year(),
+          area_lookup = regions
+        )
+      ) |>
+      filter(!is.na(area_code), area_code != .rest_of_world_area_code()) |>
       summarize(manure_mg_n = sum(manure_mg_n), .by = c(area_code, crop_name))
 
     crop_synthetic <- whep::mueller_synthetic_n |>
       rename(crop_name = crop_process) |>
       mutate(
-        iso3c = recode(
+        area_code = .spatialize_label_area_code(
           iso3c,
-          "SRM" = "SCG",
-          "GUA" = "GTM",
-          "BZE" = "BLZ",
-          "COS" = "CRI",
-          "ELS" = "SLV",
-          "HAI" = "HTI",
-          "HON" = "HND",
-          "ROM" = "ROU",
-          "TRI" = "TTO",
-          "ZAR" = "COD",
-          "BHA" = "BHS",
-          "BAR" = "BRB",
-          "DMI" = "DMA",
-          "STL" = "LCA"
+          source = "mueller-synthetic-n",
+          year = .mueller_base_year(),
+          area_lookup = regions
         )
       ) |>
-      left_join(select(regions, iso3c, area_code), by = "iso3c") |>
       filter(!is.na(area_code), !is.na(rate_value)) |>
       summarize(
         kg_n_ha_synth = mean(rate_value, na.rm = TRUE),
@@ -2542,7 +2717,7 @@ prepare_nitrogen_inputs <- function(
 
   n_totals <- .read_n_totals_local(regions, prod)
   pk_totals <- .read_faostat_pk_totals_local(regions)
-  lu_split <- .read_crop_grass_split_local(regions)
+  lu_split <- .read_crop_grass_split_local(regions, grass_share_route)
   base_rates <- .read_crop_base_rates_local(regions)
 
   # Spatial rate enhancements
@@ -2702,6 +2877,7 @@ prepare_nitrogen_inputs <- function(
     target_year <- max(as.integer(year_range))
     nitrogen_inputs <- bind_rows(all_parts) |>
       .fill_n_inputs_to_target_year(target_year) |>
+      mutate(method_grass_share = grass_share_route) |>
       arrange(year, area_code, crop_name, fert_type)
     .save_parquet(nitrogen_inputs, output_dir, "nitrogen_inputs")
     cli::cli_alert_success(
@@ -3715,96 +3891,30 @@ prepare_hydrology_inputs <- function(l_files_dir, output_dir, lpjml_out_dir) {
     grid
   ) {
     cli::cli_alert_info("Lakes & Rivers (GLWD)")
-    glwd_path <- NULL
-    glwd_version <- NULL
-    v2_dir <- file.path(glwd_dir, "GLWD_v2")
-    .find_v2_tif <- function(pattern) {
-      list.files(v2_dir, pattern = pattern, recursive = TRUE, full.names = TRUE)
-    }
-    v2_tifs <- Filter(
-      Negate(function(p) grepl("50pct", p)),
-      c(
-        .find_v2_tif("main_class.*\\.tif$"),
-        .find_v2_tif("dominant.*\\.tif$"),
-        .find_v2_tif("combined.*\\.tif$")
-      )
+    # The derivation lives in the package (`whep::glwd_water_fraction()`), not
+    # here. It used to live only in this script, so `read_glwd_water()` read a
+    # hand-made `.clm` artefact of an LPJmL run instead and the two answers
+    # were free to diverge -- which they did, by about 20%.
+    water <- tryCatch(
+      whep::glwd_water_fraction(glwd_dir, cells = country_grid),
+      error = function(e) {
+        cli::cli_alert_warning("GLWD data not found -- skipping")
+        NULL
+      }
     )
-    if (length(v2_tifs) > 0) {
-      glwd_path <- v2_tifs[1]
-      glwd_version <- "v2"
-    }
-    if (is.null(glwd_path)) {
-      glwd3_path <- file.path(glwd_dir, "glwd_3", "hdr.adf")
-      if (!file.exists(glwd3_path)) {
-        glwd3_path <- file.path(glwd_dir, "glwd_3.tif")
-      }
-      if (file.exists(glwd3_path)) {
-        glwd_path <- glwd3_path
-        glwd_version <- "v1"
-      }
-    }
-    if (is.null(glwd_path)) {
-      cli::cli_alert_warning("GLWD data not found -- skipping")
+    if (is.null(water)) {
       return(invisible(NULL))
     }
-    glwd <- terra::rast(glwd_path)
-    area_pct <- NULL
-    if (glwd_version == "v2") {
-      area_pct_tifs <- .find_v2_tif("area_pct.*\\.tif$")
-      if (length(area_pct_tifs) > 0L) {
-        area_pct <- terra::rast(area_pct_tifs[1]) / 100
-      }
-    }
-    src_res <- terra::res(glwd)
-    agg_factor <- round(0.5 / src_res[1])
-    if (glwd_version == "v2") {
-      lake_classes <- c(1, 2, 3)
-      river_classes <- 7
-    } else {
-      lake_classes <- 1
-      river_classes <- 3
-    }
-    lake_rcl <- cbind(lake_classes, rep(1, length(lake_classes)))
-    lake_mask <- terra::classify(glwd, lake_rcl, others = 0)
-    if (!is.null(area_pct)) {
-      lake_mask <- lake_mask * area_pct
-    }
-    lake_frac <- terra::aggregate(
-      lake_mask,
-      fact = agg_factor,
-      fun = "mean",
-      na.rm = TRUE
+    lr_tbl <- tibble::tibble(
+      lon = water$lon,
+      lat = water$lat,
+      water_fraction = round(water$water_frac, 6)
     )
-    river_rcl <- cbind(river_classes, rep(1, length(river_classes)))
-    river_mask <- terra::classify(glwd, river_rcl, others = 0)
-    if (!is.null(area_pct)) {
-      river_mask <- river_mask * area_pct
-    }
-    river_frac <- terra::aggregate(
-      river_mask,
-      fact = agg_factor,
-      fun = "mean",
-      na.rm = TRUE
-    )
-    grid_coords <- as.matrix(country_grid[, c("lon", "lat")])
-    lake_vals <- terra::values(lake_frac)[
-      terra::cellFromXY(lake_frac, grid_coords)
-    ]
-    river_vals <- terra::values(river_frac)[
-      terra::cellFromXY(river_frac, grid_coords)
-    ]
-    lr_tbl <- country_grid |>
-      select(lon, lat) |>
-      mutate(
-        lake_fraction = round(replace(lake_vals, is.na(lake_vals), 0), 6),
-        river_fraction = round(replace(river_vals, is.na(river_vals), 0), 6)
-      )
     lr_dt <- coord_to_rowcol(data.table::as.data.table(lr_tbl), grid)
     m_lakes <- new_slice(grid$nlon, grid$nlat, fill = 0)
-    m_lakes[cbind(lr_dt$col, lr_dt$row)] <- pmin(
-      1,
-      pmax(0, lr_dt$lake_fraction + lr_dt$river_fraction)
-    )
+    # Lakes and rivers are already summed and clamped inside
+    # `glwd_water_fraction()`, so this is a placement, not a second sum.
+    m_lakes[cbind(lr_dt$col, lr_dt$row)] <- lr_dt$water_fraction
     dir.create(
       file.path(lpjml_out_dir, "lakes_rivers"),
       recursive = TRUE,
@@ -4784,9 +4894,42 @@ extend_lpjml_wind <- function(
 
   nc <- ncdf4::nc_create(out_path, var_def)
   on.exit(ncdf4::nc_close(nc), add = TRUE)
-  ncdf4::ncvar_put(nc, var_def, tail_cube)
+  ncdf4::ncvar_put(nc, var_def, .clamp_non_negative(tail_cube, variable))
 
   invisible(out_path)
+}
+
+# Every variable written through .write_climate_tail() is a non-negative
+# physical quantity (wind speed, downwelling shortwave, downwelling longwave),
+# so a negative value can only be numerical noise.
+#
+# It does occur. The remap onto the LPJmL grid interpolates, and interpolation
+# overshoots where the field has a sharp gradient -- for shortwave that is the
+# polar-night terminator, where the true flux is exactly zero. The overshoot is
+# ~1e-5 W/m2, symmetric about zero, and physically nothing; the 1901-2019
+# ISIMIP base contains no negatives at all, so it is introduced purely by the
+# ERA5 tail we build here.
+#
+# Left unclamped it is still not harmless: LPJmL's SAFE build rejects negative
+# shortwave for every affected cell-day (update_daily_cell.c) without clamping
+# it, which produced 138k ERROR038 lines and a 12 MB error log on the
+# 1901-2023 run -- enough to bury a real error. Clamped here rather than in the
+# model because the input is what is wrong.
+#
+# The count is reported rather than silently applied: a large count, or a
+# magnitude that is not round-off, would mean something else is broken.
+.clamp_non_negative <- function(cube, variable) {
+  negative <- !is.na(cube) & cube < 0
+  count <- sum(negative)
+  if (count == 0L) {
+    return(cube)
+  }
+  cli::cli_alert_info(
+    "{variable}: clamping {count} negative value{?s} to zero
+     (most negative {signif(min(cube[negative]), 3)})."
+  )
+  cube[negative] <- 0
+  cube
 }
 
 # Extend one ISIMIP radiation series (rsds or rlds) to `target_years` with a
@@ -4799,8 +4942,10 @@ extend_lpjml_wind <- function(
 # capped 5.9.7 at 2019 before its own ERA5 tail (issue #340).
 #
 # The correction is multiplicative per cell and calendar month, fitted on the
-# overlap, identical in form to extend_lpjml_wind(). Radiation is a strictly
-# non-negative flux, so a multiplicative factor cannot drive it below zero.
+# overlap, identical in form to extend_lpjml_wind(). A multiplicative factor
+# cannot itself drive a non-negative flux below zero, but the remap onto the
+# LPJmL grid can: see .clamp_non_negative(), which is why the tail is clamped
+# on the way out.
 extend_lpjml_radiation <- function(
   era5_path,
   isimip_path,
@@ -5936,6 +6081,23 @@ prepare_lpjml6_static_inputs <- function(
   .pft_nc_write_chunk(nc_lu, out, chunk_years, all_years, grid, 32L)
 }
 
+# Collapse per-crop N rates to LPJmL PFT bands with an area-weighted mean
+# (weight = rainfed_ha + irrigated_ha), mirroring the yields writer. Many crops
+# share one band; a plain mean would bias the band rate toward minor-area crops
+# and break the implied applied-N mass (LPJmL multiplies rate x band area).
+.aggregate_nitrogen_pft <- function(ng) {
+  ng <- data.table::as.data.table(ng)
+  ng[, w := rainfed_ha + irrigated_ha]
+  agg <- ng[
+    w > 0,
+    .(num = sum(kg_n_ha * w, na.rm = TRUE), w_sum = sum(w, na.rm = TRUE)),
+    by = .(year, pft, fert_type, row, col)
+  ]
+  agg[, value := num / w_sum]
+  agg[is.nan(value), value := 0]
+  agg[, .(year, pft, fert_type, row, col, value)]
+}
+
 .write_nitrogen_nc_chunks <- function(
   nc_syn,
   nc_man,
@@ -5947,10 +6109,7 @@ prepare_lpjml6_static_inputs <- function(
 ) {
   ng <- data.table::as.data.table(n_dt)
   ng <- coord_to_rowcol(ng, grid)
-  agg <- ng[,
-    .(value = mean(kg_n_ha, na.rm = TRUE)),
-    by = .(year, pft, fert_type, row, col)
-  ]
+  agg <- .aggregate_nitrogen_pft(ng)
   # Duplicate PFTs 1-16 into 17-32 for irrigated bands (LPJmL expects 32 bands)
   # Convert kgN/ha -> g/m2 (LPJmL expects g/m2)
   rf <- agg[, .(year, pft, row, col, value = value * 0.1, fert_type)]
@@ -6642,7 +6801,8 @@ prepare_spatialize_all <- function(
   l_files_dir = "LPJmL_inputs",
   year_range = 1851:2023,
   target_res = 0.5,
-  cru_version = NULL
+  cru_version = NULL,
+  grass_share_route = c("area_name", "alias_map")
 ) {
   # For a quick test run use: year_range = 2000:2001
   #
@@ -6726,7 +6886,13 @@ prepare_spatialize_all <- function(
   )
 
   # Section 7: Nitrogen inputs
-  prepare_nitrogen_inputs(l_files_dir, output_dir, year_range, prod = prod)
+  prepare_nitrogen_inputs(
+    l_files_dir,
+    output_dir,
+    year_range,
+    prod = prod,
+    grass_share_route = grass_share_route
+  )
 
   # Section 8: Livestock inputs
   prepare_livestock_inputs(

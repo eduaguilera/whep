@@ -887,7 +887,55 @@ parse_geographic_hierarchy <- function(raw) {
     dplyr::mutate(
       eu27 = as.integer(eu27),
       oecd = as.integer(oecd)
+    ) |>
+    add_present_day_polity()
+}
+
+# The present-day polity of each country GLEAM lists (whep#688).
+#
+# The table is GLEAM's registry of the countries that exist today -- it carries
+# South Sudan, independent since 2011, and no dissolved entity at all -- so
+# `polity_identity_conventions()` types it `present_day_polity`, the same
+# reading and the same route as `regions_full`. Without the column every
+# consumer resolved a polity ad hoc and joined on the bare `iso3`, which is
+# year-less: 38 of the 204 iso3 values name a DIFFERENT polity at 1961 than at
+# 2010, so an unyeared join was silently picking one of them.
+#
+# `whep:::.present_day_polity_year()` is the year "today" means for a label,
+# derived from the shipped `polities` snapshot; the register's `resolver`
+# column names this call and `test_territorial_identity.R` recomputes it, so
+# this table cannot drift from the resolver without the suite failing.
+#
+# All 204 resolve as of the whep-polities 2830fb7 re-sync. Three used to keep NA
+# rather than being dropped or guessed at -- ATF (French Southern and Antarctic
+# Territories), SGS (South Georgia and the South Sandwich Islands) and WLF
+# (Wallis and Futuna) sat in whep-polities' own `registry_unmapped.csv` as
+# "registry area with no polity family", and proposing a polity was upstream's
+# call, not this script's. Upstream made it in whep-polities#187, so the three
+# now carry `ATF-1800-2025`, `SGS-1800-2025` and `WLF-1800-2025`. That is the
+# only cell in this file the re-sync moved, and the equality in
+# `test_territorial_identity.R` is what caught the table going stale.
+add_present_day_polity <- function(hierarchy) {
+  if (!requireNamespace("whep", quietly = TRUE)) {
+    stop(
+      "whep must be loaded (devtools::load_all()) to resolve polity codes.",
+      call. = FALSE
     )
+  }
+  codes <- whep::resolve_polity_label(
+    hierarchy$iso3,
+    year = whep:::.present_day_polity_year()
+  )
+  # `polities` is an sf data frame and sf is only suggested, so the two
+  # attribute columns are taken by name rather than through `st_drop_geometry`.
+  names <- tibble::tibble(
+    reporting_polity_code = whep::polities$polity_code,
+    reporting_polity_name = whep::polities$polity_name
+  ) |>
+    dplyr::distinct()
+  hierarchy |>
+    dplyr::mutate(reporting_polity_code = codes) |>
+    dplyr::left_join(names, by = "reporting_polity_code")
 }
 
 # GLEAM PDF Tables ----
@@ -1175,9 +1223,11 @@ generate_ipcc_2019_tables <- function() {
     ),
 
     # Table 10.12: Ym values (% GE converted to CH4).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
-    # Note: The 2019 Refinement introduced feedlot distinction
-    # and body-weight distinction for sheep.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13 (Updated).
+    # Note: The 2019 Refinement introduced a feedlot distinction for
+    # cattle. Table 10.13 gives a SINGLE Ym for sheep -- "irrespective
+    # of feed quality" -- with no body-weight split (see #250); there
+    # is no IPCC source for a <75kg/>=75kg distinction or a 4.7 value.
     table_10_12 = tibble::tribble(
       ~category, ~feed_situation, ~ym_percent, ~ym_uncertainty,
       "Cattle",  "Pasture/Range",          6.5, 1.0,
@@ -1185,8 +1235,7 @@ generate_ipcc_2019_tables <- function() {
       "Cattle",  "Feedlot (>90% conc.)",   3.0, 1.0,
       "Buffalo", "Pasture/Range",          6.5, 1.0,
       "Buffalo", "Mixed",                  6.5, 1.0,
-      "Sheep",   "Large body (>=75kg)",    6.7, 1.0,
-      "Sheep",   "Small body (<75kg)",     4.7, 1.0,
+      "Sheep",   "All",                    6.7, 1.0,
       "Goats",   "All",                    5.5, 1.0,
       "Camels",  "All",                    5.0, 1.0
     ),
@@ -1203,11 +1252,11 @@ generate_ipcc_2019_tables <- function() {
       "Swine - Breeding",    0.27,
       "Sheep",               0.19,
       "Goats",               0.18,
-      "Horses",              0.33,
+      "Horses",              0.30,
       "Mules and Asses",     0.33,
-      "Camels",              0.10,
+      "Camels",              0.26,
       "Poultry - Layers",    0.39,
-      "Poultry - Broilers",  0.24
+      "Poultry - Broilers",  0.36
     ),
 
     # Table 10.17: MCF by MMS type and annual average temperature.
@@ -1455,9 +1504,13 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Ym values (% GE) used for Tier 2 enteric CH4.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.12.
-    # Note: The 2019 Refinement differentiates cattle by
-    # feed situation and sheep by body weight.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13 (Updated).
+    # Note: The 2019 Refinement differentiates cattle by feed situation.
+    # Sheep get a SINGLE Ym "irrespective of feed quality" (no body-weight
+    # or diet-quality split -- see #250); the value is repeated across
+    # every feed_situation (incl. Feedlot, for safety) so the join in
+    # .join_ym() always resolves to the same, correct 6.7 regardless of
+    # which feed_situation a sheep row happens to carry.
     ym_values = tibble::tribble(
       ~category, ~feed_situation, ~ym_percent,
       "Cattle",  "High",    6.5,
@@ -1469,7 +1522,8 @@ generate_ipcc_tier2_params <- function() {
       "Buffalo", "Low",     6.5,
       "Sheep",   "High",    6.7,
       "Sheep",   "Medium",  6.7,
-      "Sheep",   "Low",     4.7,
+      "Sheep",   "Low",     6.7,
+      "Sheep",   "Feedlot", 6.7,
       "Goats",   "High",    5.5,
       "Goats",   "Medium",  5.5,
       "Goats",   "Low",     5.5,
@@ -1479,8 +1533,11 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Bo - Maximum CH4 producing capacity (m3 CH4/kg VS).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
-    # Note: Dairy and non-dairy cattle have DIFFERENT Bo.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16a.
+    # Note: Dairy and non-dairy cattle have DIFFERENT Bo. Values are the
+    # "High productivity systems" column (matches the convention already
+    # used for Buffalo = 0.10). Camels = 0.26 (was previously miscopied
+    # from Buffalo's 0.10 -- see issue #251).
     bo_values = tibble::tribble(
       ~category,             ~bo_m3_kg_vs,
       "Dairy Cattle",         0.24,
@@ -1490,11 +1547,11 @@ generate_ipcc_tier2_params <- function() {
       "Swine - Breeding",     0.27,
       "Sheep",                0.19,
       "Goats",                0.18,
-      "Horses",               0.33,
+      "Horses",               0.30,
       "Mules and Asses",      0.33,
-      "Camels",               0.10,
+      "Camels",               0.26,
       "Poultry - Layers",     0.39,
-      "Poultry - Broilers",   0.24
+      "Poultry - Broilers",   0.36
     ),
 
     # Ash content of manure (%).

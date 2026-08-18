@@ -60,6 +60,7 @@
 #'   LUH2 classes through [read_luh2_landuse()] and agrees with it where they
 #'   overlap, but stops at 2015. `"none"` returns cropland-only support, an
 #'   explicit choice rather than a silent gap.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `cell_polity` (the [build_cell_polity()] crosswalk), `type_cropland`
 #'   (`lon`, `lat`, `year`, `luh2_type`, `type_ha`), `crop_patterns` (`lon`,
@@ -72,19 +73,27 @@
 #'   data. Defaults to `FALSE`.
 #'
 #' @return A tibble with `lon`, `lat`, `area_code`, `item_cbs_code`, `year`,
-#'   `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`.
+#'   `land_use` (`"cropland"` or `"grassland"`) and positive `area_ha`, plus the
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_ag_land_support(example = TRUE)
 build_ag_land_support <- function(
   years = NULL,
   grassland = c("gridded_pasture", "luh2", "none"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
   grassland <- rlang::arg_match(grassland)
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_ag_land_support())
+    return(.resolve_polity_validity(
+      .example_ag_land_support(),
+      polity_validity
+    ))
   }
   cell_polity <- data$cell_polity %||% build_cell_polity()
   .check_columns(
@@ -96,7 +105,8 @@ build_ag_land_support <- function(
   .als_finalise(
     cropland,
     .als_grassland_support(data, cell_polity, cropland, grassland)
-  )
+  ) |>
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Cropland support ------------------------------------------------------
@@ -294,6 +304,14 @@ build_ag_land_support <- function(
 # Read the gridded LUH2 grassland class for the years LUH2 actually covers,
 # splitting border cells by the SAME cell_polity crosswalk the cropland side
 # uses (.normalize_country_grid() accepts polity_frac).
+#
+# `area_basis` is pinned to the transitional `"luh2_fraction"` ON PURPOSE. C7
+# moved the CARBON path onto the polycell's measured land (DA-26); this is the
+# nitrogen path's land support, whose cropland half is still split by
+# `polity_frac` on the crosswalk's own areas. Taking the polycell basis here
+# would put the two halves of one support on two different land definitions,
+# which is the mismatch AM-29 recorded for C3b to reconcile -- so it is pinned
+# rather than inherited, and moves when this support migrates, not before.
 .als_read_luh2_grassland <- function(data, cell_polity, years) {
   covered <- .als_luh2_years(data, years)
   if (length(covered) == 0L) {
@@ -302,6 +320,7 @@ build_ag_land_support <- function(
   read_luh2_landuse(
     resolution = "grid",
     years = covered,
+    area_basis = "luh2_fraction",
     data = list(states = data$states, country_grid = cell_polity)
   ) |>
     dplyr::filter(.data$land_use == "grassland") |>
@@ -432,5 +451,6 @@ build_ag_land_support <- function(
     2010L,
     "grassland",
     1581.24
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

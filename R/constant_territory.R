@@ -34,9 +34,35 @@
 #'     in `year` and carry a polygon).
 #'   - `value`: numeric value (summed if a polity appears more than once).
 #' @param ref_year Integer. Target boundaries are the polities active in this
-#'   year (`start_year <= ref_year <= end_year`).
+#'   year, under the validity convention described for `polities`: a polity
+#'   does not answer for the year its successor takes over. The same reading
+#'   selects the sources of each data year.
 #' @param polities An `sf` of polity polygons with `polity_code`, `start_year`,
-#'   `end_year` and geometry. Defaults to [get_polity_geometries()].
+#'   `end_year` and geometry, plus an **optional** `wiki_status` whose effect is
+#'   described below. Defaults to [get_polity_geometries()], which supplies it.
+#'   `start_year` is inclusive; `end_year` is **exclusive at a succession** and
+#'   **inclusive at the open end**. So 2014 resolves to `"RUS-2014-2025"`,
+#'   never to `"RUS-1991-2014"`, while 2025 still resolves to
+#'   `"RUS-2014-2025"` because nothing succeeds it. An interval counts as open
+#'   when it ends on the last year the supplied table covers and no
+#'   later-starting interval of the same polity follows it. Where the table
+#'   still carries overlapping intervals for one polity, the interval starting
+#'   on the resolved year wins, then the latest-starting one, and finally --
+#'   **only when `wiki_status` is supplied** -- a live interval beats a
+#'   `"retired"` or `"superseded"` one.
+#'
+#'   That last key is the one behavioural difference between the two call
+#'   styles, and it is stated here rather than left implicit. **Supplying only
+#'   the three required columns is legal and keeps the older, status-blind
+#'   ordering**, under which a shared start year is decided by nothing at all
+#'   and an interval upstream has already replaced can take the year from the
+#'   one that replaced it. On the shipped [polities] snapshot that is 1,344
+#'   polity-years across 10 polities, of which one moves territory rather than
+#'   only a label: 1913 and 1914 resolve to `"MNE-1913-1915"` (0.9923 Mha)
+#'   instead of `"MNE-1913-1918"` (1.5893 Mha), a Montenegro 37.6% too small.
+#'   Pass `wiki_status` -- as the default does -- to get the live interval.
+#'   `wiki_status` never selects which years an interval covers; it breaks a
+#'   tie between two intervals that both cover the resolved year.
 #' @param covariate `NULL` (uniform density, i.e. area weighting) or a function
 #'   `function(centroids_sf, year) -> numeric` returning a non-negative density
 #'   per grid-cell centroid (centroids are supplied in `crs_equal_area`).
@@ -59,42 +85,48 @@
 #'   - `imputed`: mass added for uncovered cells
 #'   - `imputed_share`: covariate fraction imputed (0 = fully observed)
 #'   - `n_sources`: number of source polities contributing that year
+#'   - `unallocated`: total reported value from sources that could not be placed
+#'     on the grid that year (constant within a year; 0 when all were placed).
+#'     Kept out of `covered`/`imputed` so it is neither smeared nor lost.
 #'
 #' @examples
 #' # Self-contained toy: two adjacent square polities. Only "P1" reports a
 #' # value in 1900, so when the series is rebuilt onto the boundaries active in
 #' # `ref_year` 2000 (both polities), "P2" is imputed from "P1"'s intensity.
-#' make_square <- function(xmin, ymin, side) {
-#'   sf::st_polygon(list(rbind(
-#'     c(xmin, ymin),
-#'     c(xmin + side, ymin),
-#'     c(xmin + side, ymin + side),
-#'     c(xmin, ymin + side),
-#'     c(xmin, ymin)
-#'   )))
-#' }
-#' polities <- sf::st_sf(
-#'   polity_code = c("P1", "P2"),
-#'   start_year = c(1800L, 1800L),
-#'   end_year = c(2025L, 2025L),
-#'   geometry = sf::st_sfc(
-#'     make_square(0, 0, 2),
-#'     make_square(2, 0, 2),
-#'     crs = 4326
+#' # `sf` is a suggested dependency, so the example runs only when it is there.
+#' if (requireNamespace("sf", quietly = TRUE)) {
+#'   make_square <- function(xmin, ymin, side) {
+#'     sf::st_polygon(list(rbind(
+#'       c(xmin, ymin),
+#'       c(xmin + side, ymin),
+#'       c(xmin + side, ymin + side),
+#'       c(xmin, ymin + side),
+#'       c(xmin, ymin)
+#'     )))
+#'   }
+#'   polities <- sf::st_sf(
+#'     polity_code = c("P1", "P2"),
+#'     start_year = c(1800L, 1800L),
+#'     end_year = c(2025L, 2025L),
+#'     geometry = sf::st_sfc(
+#'       make_square(0, 0, 2),
+#'       make_square(2, 0, 2),
+#'       crs = 4326
+#'     )
 #'   )
-#' )
-#' reported <- tibble::tibble(
-#'   year = 1900L,
-#'   polity_code = "P1",
-#'   value = 100
-#' )
-#' build_constant_territory_series(
-#'   reported,
-#'   ref_year = 2000,
-#'   polities = polities,
-#'   resolution = 50000,
-#'   verbose = FALSE
-#' )
+#'   reported <- tibble::tibble(
+#'     year = 1900L,
+#'     polity_code = "P1",
+#'     value = 100
+#'   )
+#'   build_constant_territory_series(
+#'     reported,
+#'     ref_year = 2000,
+#'     polities = polities,
+#'     resolution = 50000,
+#'     verbose = FALSE
+#'   )
+#' }
 #' @export
 build_constant_territory_series <- function(
   data,
@@ -107,6 +139,9 @@ build_constant_territory_series <- function(
   max_cells = 2e6,
   verbose = TRUE
 ) {
+  # Every step below is `sf::`, so fail with an instruction rather than with a
+  # bare "there is no package called 'sf'" from the first namespace call.
+  rlang::check_installed("sf", "to reallocate values across polity polygons.")
   donor <- match.arg(donor)
   required <- c("year", "polity_code", "value")
   missing <- setdiff(required, names(data))
@@ -122,20 +157,47 @@ build_constant_territory_series <- function(
   if (is.null(polities)) {
     polities <- get_polity_geometries()
   }
-  polities <- polities[, c("polity_code", "start_year", "end_year")]
+  # `wiki_status` is carried through when the caller supplies it, because
+  # `.active_polities()` tie-breaks on it (DA-29) and dropping it here would
+  # silently downgrade the DEFAULT table -- `get_polity_geometries()` publishes
+  # the column -- to the status-blind ordering documented for a caller who
+  # supplies only the three required columns.
+  keep <- c("polity_code", "start_year", "end_year")
+  polities <- polities[, c(keep, intersect("wiki_status", names(polities)))]
   # only polities that actually carry a polygon can host or receive mass
   polities <- polities[!sf::st_is_empty(polities), ]
   polities <- sf::st_make_valid(sf::st_transform(polities, crs_equal_area))
 
-  .active <- function(yr) {
-    polities[polities$start_year <= yr & polities$end_year >= yr, ]
-  }
+  # `end_year` is EXCLUSIVE at a succession (see [polities]), so such a period
+  # covers `start_year:(end_year - 1)`. Reading it inclusively made a polity and
+  # its successors all active in the hand-over year -- 238 polities carry a
+  # polygon in 1993 on that reading, Czechoslovakia on top of Czechia and
+  # Slovakia, and 453 extra active polity-years over 1850-2024. Since
+  # `.assign_polity()` gives each cell exactly one source and one target, the
+  # dissolved predecessor was capturing the cells its successors should have
+  # received. `.active_polities()` below applies that rule together with DA-24's
+  # open end and the same-polity dedupe.
+  #
+  # The open-end flag is computed ONCE on the whole table: whether an interval is
+  # succeeded is a property of the table, and the per-year source subset below
+  # would hide the successor and reopen a genuinely dissolved epoch.
+  open_ended <- .open_ended_intervals(
+    polities$start_year,
+    polities$end_year,
+    .polity_family(polities$polity_code)
+  )
 
-  target <- .active(ref_year)
+  target <- .active_polities(polities, ref_year, open_ended = open_ended)
   if (nrow(target) == 0) {
-    cli::cli_abort(
-      "No polities with a polygon are active in `ref_year` = {ref_year}."
-    )
+    covered <- if (nrow(polities) == 0L) {
+      "none, since no supplied polity carries a polygon"
+    } else {
+      paste0(min(polities$start_year), "-", max(polities$end_year))
+    }
+    cli::cli_abort(c(
+      "No polities with a polygon are active in `ref_year` = {ref_year}.",
+      "i" = "`end_year` is exclusive at a succession, so an interval ending in {ref_year} does not cover it unless nothing succeeds it. Covered years: {covered}."
+    ))
   }
 
   data <- data[!is.na(data$value), required]
@@ -145,8 +207,15 @@ build_constant_territory_series <- function(
   for (k in seq_along(years)) {
     y <- years[k]
     dy <- data[data$year == y, ]
-    src <- .active(y)
-    src <- src[src$polity_code %in% dy$polity_code, ]
+    # Restrict to the reported polities BEFORE resolving the year: the caller
+    # named these codes, so a same-polity tie must never discard one of them in
+    # favour of an interval nobody reported.
+    reported <- polities$polity_code %in% dy$polity_code
+    src <- .active_polities(
+      polities[reported, ],
+      y,
+      open_ended = open_ended[reported]
+    )
 
     if (nrow(src) == 0) {
       if (verbose) {
@@ -212,18 +281,24 @@ build_constant_territory_series <- function(
     # ---- source intensities: value per unit covariate over each source's extent ----
     has_data <- !is.na(base$src) & base$src %in% names(vmap)
     denom <- tapply(base$w[has_data], base$src[has_data], sum)
-    # a source with data but zero gridded weight (too small for the grid) is lost
-    starved <- setdiff(names(vmap), names(denom[denom > 0]))
+    # a source with data but zero gridded weight (too small for the grid, or no
+    # covariate density over its extent) cannot be placed. Keep it out of the
+    # intensity map, the covered set and the donor pool so its value is neither
+    # smeared over gap cells nor silently lost; report it as `unallocated`.
+    placeable <- names(denom)[denom > 0]
+    starved <- setdiff(names(vmap), placeable)
+    unallocated <- sum(vmap[starved], na.rm = TRUE)
     if (length(starved) && verbose) {
       cli::cli_warn(
         "Year {y}: {length(starved)} source{?s} smaller than the grid resolution; refine `resolution` to capture {.val {starved}}."
       )
     }
-    intensity <- vmap[names(denom)] / denom # per source polity
+    intensity <- vmap[placeable] / denom[placeable] # per placeable source
+    has_data <- has_data & base$src %in% placeable
     base$e <- ifelse(has_data, base$w * intensity[base$src], NA_real_)
 
     # ---- donor intensity for uncovered target cells ----
-    tot_value <- sum(vmap[names(denom)], na.rm = TRUE) # value actually distributed
+    tot_value <- sum(vmap[placeable], na.rm = TRUE) # value actually distributed
     tot_w_data <- sum(base$w[has_data], na.rm = TRUE)
     i_donor <- if (donor == "regional" && tot_w_data > 0) {
       tot_value / tot_w_data
@@ -251,12 +326,13 @@ build_constant_territory_series <- function(
     })
     df <- do.call(rbind, agg)
     df$year <- y
-    df$n_sources <- length(denom[denom > 0])
+    df$n_sources <- length(placeable)
+    df$unallocated <- unallocated
     results[[k]] <- df
 
     if (verbose) {
       cli::cli_progress_step(
-        "Year {y}: {nrow(df)} target{?s}, {length(denom[denom>0])} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
+        "Year {y}: {nrow(df)} target{?s}, {length(placeable)} source{?s}, mean imputed_share {round(mean(df$imputed_share, na.rm=TRUE), 3)}",
         .auto_close = TRUE
       )
     }
@@ -271,7 +347,8 @@ build_constant_territory_series <- function(
       covered = double(),
       imputed = double(),
       imputed_share = double(),
-      n_sources = integer()
+      n_sources = integer(),
+      unallocated = double()
     ))
   }
   rownames(out) <- NULL
@@ -282,14 +359,185 @@ build_constant_territory_series <- function(
     "covered",
     "imputed",
     "imputed_share",
-    "n_sources"
+    "n_sources",
+    "unallocated"
   )])
 }
 # nolint end
 
+# The epoch-independent part of a polity code: "RUS-1991-2014" -> "RUS",
+# "AZE-SSR-1920-1991" -> "AZE-SSR". Only the trailing year pair is stripped, and
+# no date is ever read from here: `start_year`/`end_year` are authoritative
+# because 2 of the 749 codes disagree with their own columns (`NNG-1949-1963`
+# ends in 1969, `TAN-1922-1964` in 1961).
+.polity_family <- function(polity_code) {
+  stringr::str_remove(polity_code, "-\\d+-\\d+$")
+}
+
+# WHICH ROWS ARE DEAD, stated once for the whole package. `"retired"` and
+# `"superseded"` mark a row upstream has replaced; it stays published so a code
+# already held in older output remains resolvable, but it must never be a
+# resolution TARGET. `data-raw/table_mappings.R` filters the crosswalk on
+# exactly this, `resolve_polity_label()` filters its inference routes on it,
+# `.pcs_prepare_polities()` filters the producer's population on it, and
+# `.active_polities()` tie-breaks on it (DA-29).
+#
+# `%in%` never returns NA, so an unknown status (`NA`, or the constant NA a
+# caller supplying no `wiki_status` column gets) reads as LIVE. That is what
+# makes the column optional without a branch: with every row equally live the
+# extra ranking key below is constant and cannot reorder anything.
+.polity_is_live <- function(wiki_status) {
+  !wiki_status %in% c("retired", "superseded")
+}
+
+# THE CONVENTION (DA-24), stated once here and referred to from every other
+# resolver: `start_year` is inclusive; `end_year` is EXCLUSIVE at a succession
+# and INCLUSIVE at the open end.
+#
+# Exclusive at a succession, because 2014 belongs to "RUS-2014-2025" and never
+# to "RUS-1991-2014". An inclusive end bound makes both epochs active on every
+# boundary year, and `.assign_polity()` then hands every cell to whichever
+# sorts first -- always the dissolved predecessor -- so the successor receives
+# no row at all.
+#
+# Inclusive at the open end, because an interval nothing succeeds ends where
+# the table's coverage ends, not at a boundary between two epochs: no
+# double-count is possible there, and a uniformly exclusive read would make the
+# current year unrepresentable (all 229 open intervals end in 2025, so 2024
+# would be the last covered year).
+.open_ended_intervals <- function(start_year, end_year, group) {
+  open <- rep(FALSE, length(end_year))
+  if (length(end_year) == 0L || all(is.na(end_year))) {
+    return(open)
+  }
+  # Both conditions come from the data, never from a hardcoded year, so the
+  # rule follows upstream when the intervals are extended. Only intervals that
+  # REACH the domain end can succeed one another there, so a sibling starting
+  # later but ending earlier is not a successor and must not punch a one-year
+  # hole in a polity that is otherwise continuous.
+  at_end <- which(!is.na(end_year) & end_year == max(end_year, na.rm = TRUE))
+  keys <- as.character(group)[at_end]
+  # A row whose group is unknown keeps the strict exclusive read.
+  at_end <- at_end[!is.na(keys)]
+  keys <- keys[!is.na(keys)]
+  if (length(at_end) == 0L) {
+    return(open)
+  }
+  # The successor condition is load-bearing: 8 polities in the shipped 749-row
+  # table carry two intervals ending on the domain end (`AGO-1816-2025` beside
+  # `AGO-1975-2025`; also ARG, BLZ, BRA, CAN, GRC, IRQ, ROU), so 237 intervals
+  # end there but only 229 are open. A bare "end_year is the maximum" test would
+  # open BOTH of each pair and count the terminal year twice. It is also the
+  # test that keeps agreeing with upstream's own `successor` column as the
+  # horizon moves. With no group repeated, every interval
+  # here is its own group maximum, so the branch below is exactly the general
+  # case and skips a group-wise pass that costs ~1.3 s on a 70k-row grid.
+  if (anyDuplicated(keys) == 0L) {
+    open[at_end] <- TRUE
+    return(open)
+  }
+  starts <- start_year[at_end]
+  starts[is.na(starts)] <- -Inf
+  open[at_end] <- starts >= tapply(starts, keys, max)[keys]
+  open
+}
+
+# TRUE where an interval covers `yr` under the convention above. `group` is
+# evaluated lazily and only touched on a terminal year, so callers may pass an
+# expression that is expensive to build. `open_ended` short-circuits that
+# derivation with a flag computed elsewhere.
+.covers_year <- function(start_year, end_year, group, yr, open_ended = NULL) {
+  covered <- start_year <= yr & yr < end_year
+  at_end <- !is.na(end_year) & end_year == yr
+  if (!any(at_end)) {
+    return(covered)
+  }
+  if (is.null(open_ended)) {
+    open_ended <- .open_ended_intervals(start_year, end_year, group)
+  }
+  covered | (start_year <= yr & at_end & open_ended)
+}
+
+# Rows of `polities` valid in `yr` under the convention above. `open_ended` is
+# the open-end flag of the FULL table, aligned to `polities` rows; pass it
+# whenever `polities` is a subset, because whether an interval is succeeded is
+# a property of the whole table and a subset can hide the successor. Left NULL,
+# it is derived from `polities` itself.
+# Where the table still carries overlapping intervals for one polity, keep a
+# single interval per polity, tie-broken on the latest start exactly as
+# `.add_polity_columns_dt()` does in `R/polities.R`. The dedupe is not
+# hypothetical housekeeping: `get_polity_geometries()` returns every row
+# regardless of `wiki_status`, and on the shipped 749-row table 703 rows carry a
+# polygon and 2,134 polity-years across 23 families have two intervals of one
+# polity active at once (`GRC-1830-1913` alongside `GRC-1881-1913`,
+# `PER-1825-1909` alongside `PER-1825-1884`). Without the dedupe both come back
+# and `.assign_polity()` keeps whichever sorts first, which is always the
+# dissolved predecessor because `X-a-b` precedes `X-b-c` lexically; the
+# successor then gets no row at all and every cell outside the predecessor's
+# smaller extent is dropped, so mass is lost and not merely relabelled.
+# Restricting to live, non-aggregate rows leaves 0 such polity-years on this
+# vintage (it was 86 across MNE and PER on the 740-row one), so the overlap is
+# now entirely between a live interval and a retired or superseded one -- which
+# is why the last key of the ranking is `wiki_status`.
+.active_polities <- function(polities, yr, open_ended = NULL) {
+  covers <- .covers_year(
+    polities$start_year,
+    polities$end_year,
+    .polity_family(polities$polity_code),
+    yr,
+    open_ended = open_ended
+  )
+  active <- polities[which(covers), ]
+  if (nrow(active) < 2L) {
+    return(active)
+  }
+  family <- .polity_family(active$polity_code)
+  # `exact_start` is redundant under the filter above -- `start_year <= yr`
+  # makes an exact start the maximum start -- and is kept because it states the
+  # boundary-year rule the tests assert, not as live logic. `R/polities.R`
+  # dropped its own copy for the same reason (there it was not merely redundant
+  # but unreachable, the non-equi join having overwritten `join_start_year`), so
+  # the surviving decision on both paths is the latest start.
+  exact_start <- !is.na(active$start_year) & active$start_year == yr
+  # DA-29: ON A SHARED START YEAR, A LIVE INTERVAL BEATS A DEAD ONE. Without
+  # this key the winner of a shared start is decided by nothing at all, and a
+  # `retired`/`superseded` row can take the year from the live row that replaced
+  # it: measured on the shipped 749-row table, 1,344 polity-years across 10
+  # polities resolved to a dead interval, and `MNE-1913-1915` (retired, 0.9923
+  # Mha) beat `MNE-1913-1918` (draft, 1.5893 Mha), so 1913 and 1914 resolved to
+  # a Montenegro 37.6% too small. It is the same principle the producer already
+  # applies by filtering dead rows out entirely (DA-7); this was the one place
+  # left where a dead row could win.
+  #
+  # IT RANKS BELOW THE START YEAR, not above it. A later start is a more
+  # specific epoch, and letting status outrank it resurrects a superseded WIDER
+  # period over the narrower one that succeeded it -- the C2 defect in reverse.
+  # Measured: ranking status above the start year would additionally move
+  # `BLX-1921-1999` -> `BLX-1850-1999` (77 years) and `IDN-1889-1945` ->
+  # `IDN-1800-1945` (55 years), replacing each with a broader epoch upstream
+  # deliberately narrowed.
+  #
+  # `wiki_status` is OPTIONAL: it is not among the three columns a caller must
+  # supply, and where it is absent every row reads as live, so this key is
+  # constant and the ordering is exactly the one that stood before.
+  dead <- !.polity_is_live(.polity_status_or_na(active))
+  ranked <- order(family, !exact_start, -active$start_year, dead)
+  active[ranked, ][!duplicated(family[ranked]), ]
+}
+
+# `wiki_status` for a polity table that need not carry it. Returns the constant
+# NA vector when the column is absent, which `.polity_is_live()` reads as live.
+.polity_status_or_na <- function(polities) {
+  if (rlang::has_name(polities, "wiki_status")) {
+    return(polities$wiki_status)
+  }
+  rep(NA_character_, nrow(polities))
+}
+
 # Assign each centroid to the polity whose polygon contains it. Returns a
 # character vector aligned to `centroids` order (NA where no polygon, first
-# match where polygons overlap).
+# match where polygons overlap). The code is coerced to character so that all
+# downstream keying is by name, never by numeric position (see issue #209).
 .assign_polity <- function(centroids, polys) {
   centroids$.cid <- seq_len(nrow(centroids))
   j <- sf::st_join(
@@ -301,5 +549,5 @@ build_constant_territory_series <- function(
   j <- sf::st_drop_geometry(j)
   j <- j[!duplicated(j$.cid), ] # keep first match on overlap
   j <- j[order(j$.cid), ]
-  j$polity_code
+  as.character(j$polity_code)
 }

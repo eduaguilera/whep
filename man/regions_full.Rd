@@ -9,8 +9,12 @@ A tibble where each row corresponds to one polity or aggregate region. It
 contains the following columns (same definitions as \code{polities_cats},
 minus the five trailing \verb{0...36}–\verb{0...40} artefact columns):
 \itemize{
-\item \code{polity_code}: Legacy current polity prefix. This is kept for
-compatibility with older code that expected ISO3-like values.
+\item \code{legacy_polity_prefix}: Legacy current polity prefix, kept for
+compatibility with older code that expected ISO3-like values. \strong{Not a
+\link{polities} code}: it was called \code{polity_code} until whep#687, where the
+name promised an identity none of its 271 non-\code{NA} values holds, so a join
+to \link{polities} or \link{polity_area_crosswalk} on it returned nothing. Read
+\code{reporting_polity_code} for the polity.
 \item \code{polity_name}: Current polity, country, territory, or aggregate name.
 \item \code{V1}: Internal row index.
 \item \code{code}: Numeric FAOSTAT country/region code.
@@ -31,8 +35,17 @@ current reporting polity has a polygon.
 \item \code{baci}: BACI trade database country code.
 \item \code{fish}: Fisheries dataset numeric code.
 \item \code{region_code}: Numeric regional code.
-\item \code{cbs}: Logical CBS dataset membership flag.
-\item \code{fabio_code}: FABIO database numeric code.
+\item \code{cbs}: Logical CBS dataset membership flag; \code{TRUE} if the area has a
+commodity balance sheet of its own. 202 areas.
+\item \code{fabio_code}: FABIO database numeric code, and the value
+\code{polity_area_code} is derived from, so it is the fold instruction as well
+as a fact about FABIO. It is the area's own \code{code} for a \code{cbs} reporter and
+999 (Rest of World) otherwise, with seven exceptions: 62 -> 238, 276 -> 206
+and 277 -> 206 are successor-state folds, and 153, 154, 209 and 212 are
+\code{cbs} reporters folded into 999 anyway. Those four are a contradiction
+inside this table -- FABIO's own published region list enumerates all four
+as regions of their own -- left standing because correcting it would move
+published values. See \link{folded_reporting_areas} and issue 556.
 \item \code{ADB_Region}: Asian Development Bank region.
 \item \code{region}: General world region.
 \item \code{uISO3c}: UN M49 numeric code.

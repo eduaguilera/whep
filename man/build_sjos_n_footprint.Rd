@@ -65,6 +65,9 @@ area (\code{origin_area == target_area}) and \code{"Traded"} otherwise. Two outp
 returned, mirroring Global's \code{FP_all_N} and \code{FP_food_all_N}: \code{fp_all} is the
 embodied nitrogen across all final-demand categories, \code{fp_food} is the subset
 consumed as food (\code{target_fd == "food"}).
+Signed crop attributions are traced as separate positive and negative linear
+extensions and recombined. Explicit undefined-attribution residuals are
+rejected by \code{\link[=build_n_exceedance_extension]{build_n_exceedance_extension()}} before tracing.
 }
 \examples{
 build_sjos_n_footprint(example = TRUE)

@@ -33,7 +33,11 @@
 #' deposition, urban, soil-organic-matter mineralization) are excluded. Any
 #' finer grid key (`lon`, `lat`, `item_cbs_code`) is aggregated away to the
 #' country total, and country-years without a matching population row are
-#' dropped. The chosen framing is stamped on every row.
+#' dropped -- in a warning naming those areas and the share of anthropogenic
+#' nitrogen that leaves with them, since an area with no denominator is absent
+#' from the output rather than wrong in it (#543);
+#' `options(whep.warn_missing_population = FALSE)` silences it. The chosen
+#' framing is stamped on every row.
 #'
 #' @param n_inputs A [build_n_inputs()] long-format output with `fert_type`,
 #'   `n_input_t` and the `year`, `area_code` keys (finer grid keys such as
@@ -49,7 +53,9 @@
 #'   `n_inputs`/`population`. Defaults to `FALSE`.
 #' @return A tibble keyed by `year`, `area_code` with `n_percapita_kg`, the
 #'   country total anthropogenic reactive nitrogen per capita (kg N/cap/yr),
-#'   and `framing`, the anthropogenic definition it was computed under.
+#'   and `framing`, the anthropogenic definition it was computed under, plus the
+#'   polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_percapita(example = TRUE)
@@ -74,7 +80,8 @@ build_n_percapita <- function(
   n_inputs |>
     .n_percapita_anthropogenic(framing, params) |>
     .n_percapita_per_capita(population) |>
-    dplyr::mutate(framing = .env$framing)
+    dplyr::mutate(framing = .env$framing) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers -------------------------------------------------------
@@ -120,7 +127,9 @@ build_n_percapita <- function(
 
 # Divide the country total (converted tonnes N -> kg N) by population to give
 # kg N/cap/yr. The inner join drops country-years lacking a population row (no
-# per-capita denominator), matching build_n_boundary_percapita()'s own join.
+# per-capita denominator), matching build_n_boundary_percapita()'s own join --
+# and names them, because dropping them silently is what made an incomplete
+# denominator invisible (#543).
 .n_percapita_per_capita <- function(anthropogenic, population) {
   invalid <- dplyr::filter(
     population,
@@ -131,6 +140,12 @@ build_n_percapita <- function(
       "{.arg population} must contain finite, strictly positive denominators."
     )
   }
+  .warn_missing_population(
+    anthropogenic,
+    population,
+    "anthropogenic_n_t",
+    "anthropogenic nitrogen"
+  )
   anthropogenic |>
     dplyr::inner_join(
       dplyr::select(population, "year", "area_code", "population"),
@@ -159,5 +174,6 @@ build_n_percapita <- function(
     20L,
     22,
     "synthetic_bnf"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

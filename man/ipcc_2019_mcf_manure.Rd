@@ -5,8 +5,7 @@
 \alias{ipcc_2019_mcf_manure}
 \title{IPCC 2019 MCF for manure management.}
 \format{
-A tibble with \code{system}, \code{annual_temp_c},
-\code{mcf_percent}.
+A tibble with \code{system}, \code{climate_zone}, \code{mcf_percent}.
 }
 \source{
 IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
@@ -15,8 +14,11 @@ IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
 ipcc_2019_mcf_manure
 }
 \description{
-Table 10.17: Methane Conversion Factors by manure management
-system and annual average temperature.
+Table 10.17: methane conversion factors (percent) by manure
+management system and climate zone. The IPCC table resolves ten
+climate zones grouped under cool, temperate and warm; this table
+keeps the three groups, and uses \code{"All"} for the systems that take a
+single factor.
 }
 \examples{
 ipcc_2019_mcf_manure

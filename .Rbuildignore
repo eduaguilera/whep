@@ -16,7 +16,6 @@
 ^doc$
 ^Meta$
 ^.vscode$
-^\.agent$
 ^Rplot\.png$
 ^typology_kgha_agricultural\.jpg$
 ^\.claude$
@@ -40,3 +39,7 @@
 ^inst/extdata/faostat_cropland\.csv$
 ^inst/extdata/cropgrids_land\.csv$
 ^inst/extdata/cropgrids_fallow_land\.csv$
+^\.agent$
+^codemeta\.json$
+^\.pkgcheck$
+^CITATION\.cff$

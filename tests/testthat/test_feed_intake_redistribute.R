@@ -1,3 +1,20 @@
+# The per-category demand contract. The reporting-polity columns are part of it
+# since whep#424, and they lead the frame because that is where the attach
+# helper puts the key.
+.feed_demand_contract <- function() {
+  c(
+    "year",
+    "area_code",
+    "polity_area_code",
+    "reporting_polity_code",
+    "reporting_polity_name",
+    "reporting_polity_has_geometry",
+    "livestock_category",
+    "demand_dm_t",
+    "method_demand"
+  )
+}
+
 test_that("get_feed_intake local points to build_feed_intake_local", {
   # The local grain is run via the chunked-by-year batch function (the full
   # run is too large for one in-memory result); get_feed_intake redirects there.
@@ -19,6 +36,10 @@ test_that("build_feed_intake_local(example = TRUE) returns the contract", {
     c(
       "year",
       "area_code",
+      "polity_area_code",
+      "reporting_polity_code",
+      "reporting_polity_name",
+      "reporting_polity_has_geometry",
       "sub_territory",
       "live_anim_code",
       "item_cbs_code",
@@ -113,10 +134,7 @@ test_that(".livestock_crosswalk is the verified 22-row 3-method mapping", {
 test_that("build_feed_demand(example = TRUE) returns the demand contract", {
   out <- whep::build_feed_demand(example = TRUE)
   expect_s3_class(out, "tbl_df")
-  expect_named(
-    out,
-    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
-  )
+  expect_named(out, .feed_demand_contract())
   expect_true(all(out$demand_dm_t > 0))
 })
 
@@ -126,10 +144,7 @@ test_that("build_feed_demand builds the per-category demand from production", {
   )
   out <- whep::build_feed_demand(demand_tier = "fcr")
   expect_s3_class(out, "tbl_df")
-  expect_named(
-    out,
-    c("year", "area_code", "livestock_category", "demand_dm_t", "method_demand")
-  )
+  expect_named(out, .feed_demand_contract())
 })
 
 test_that("build_feed_demand(by = 'feed_type') composes with redistribute_feed", {
@@ -1670,4 +1685,68 @@ test_that("grass border grazing only flows within a country", {
   # Only territory 1 (same country as the surplus) receives grass.
   expect_setequal(flows$territory, "1")
   expect_true(all(flows$received > 0))
+})
+
+# whep#467 --------------------------------------------------------------------
+
+.demand_999 <- function() {
+  tibble::tibble(
+    year = 1970L,
+    area_code = 999L,
+    livestock_category = "Cattle_milk",
+    demand_dm_t = 1000,
+    method_demand = "ipcc_tier2_energy"
+  )
+}
+
+test_that(".build_feed_mix places Rest-of-World demand and conserves it", {
+  out <- whep:::.build_feed_mix(.demand_999())
+
+  expect_gt(nrow(out), 0L)
+  expect_setequal(out$territory, "999")
+  # The blended shares still sum to 1 per (item, year), so nothing is created
+  # or lost by spreading the bucket over its members' regions.
+  expect_equal(sum(out$demand_dm_t), 1000, tolerance = 1e-6)
+})
+
+test_that("region_fallback 'none' keeps the old Rest-of-World drop", {
+  data <- whep:::.feed_demand_data("none")
+
+  expect_warning(
+    out <- whep:::.build_feed_mix(.demand_999(), data),
+    "No Bouwman region for 1 area"
+  )
+  expect_equal(nrow(out), 0L)
+})
+
+test_that("the Rest-of-World mix is a weighted average of its regions", {
+  # Placing the whole bucket in one region must reproduce that region's split,
+  # so the blend is an average of the members' regions and not a new region.
+  lookup <- whep:::.feed_region_lookup()
+  weights <- dplyr::filter(lookup, .data$area_code == 999L)
+  data <- whep:::.feed_demand_data()
+
+  per_region <- weights$region_bouwman |>
+    purrr::map2(weights$region_weight, \(region, weight) {
+      one <- data
+      one$feed_region <- tibble::tibble(
+        area_code = 999L,
+        region_bouwman = region,
+        region_weight = 1
+      )
+      whep:::.build_feed_mix(.demand_999(), one) |>
+        dplyr::mutate(demand_dm_t = .data$demand_dm_t * weight)
+    }) |>
+    dplyr::bind_rows() |>
+    dplyr::summarise(
+      demand_dm_t = sum(.data$demand_dm_t),
+      .by = c("feed_quality", "fixed_demand")
+    ) |>
+    dplyr::arrange(.data$feed_quality)
+
+  blended <- whep:::.build_feed_mix(.demand_999(), data) |>
+    dplyr::select("feed_quality", "fixed_demand", "demand_dm_t") |>
+    dplyr::arrange(.data$feed_quality)
+
+  expect_equal(blended, dplyr::relocate(per_region, "demand_dm_t", .after = -1))
 })

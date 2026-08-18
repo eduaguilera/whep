@@ -23,13 +23,15 @@
       0.75, 0.25, 1L, 2513L, 2010L, 50, 10, 8, 1, 0, 0, 1, 0.5, 0.8
     ),
     critical = tibble::tribble(
-      ~lon, ~lat, ~value,
-      0.25, 0.25, 50,
-      0.75, 0.25, 120
+      ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+      0.25, 0.25, 50, 100, 11L,
+      0.75, 0.25, 120, 50, 11L
     ) |>
       dplyr::mutate(
         critical_var = "critical_n_surplus",
-        critical_land_use = "ara"
+        critical_land_use = "ara",
+        critical_threshold = "mi",
+        critical_year = 2010L
       ),
     critical_loads = list(
       crit_nh3_emission = tibble::tribble(
@@ -68,14 +70,14 @@
     ),
     biomass_coefs = tibble::tribble(
       ~Name_biomass,
-      ~Edible_N_kgFM,
       ~N_kgN_kgFM,
       ~Product_kgN_kgDM,
       ~Product_kgDM_kgFM,
+      ~Edible_portion,
       ~GE_product_edible_portion_MJ_kgFM,
       ~GE_product_MJ_kgFM,
-      "Wheat", 0.020, NA, NA, NA, 13.0, NA,
-      "Barley", 0.018, NA, NA, NA, 12.5, NA
+      "Wheat", 0.020, NA, NA, 1, 13.0, NA,
+      "Barley", 0.018, NA, NA, 1, 12.5, NA
     ),
     items_full = tibble::tribble(
       ~item_cbs_code, ~Name_biomass,

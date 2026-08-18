@@ -22,6 +22,14 @@
 #   static coefficient tables (e.g. `whep::soil_cn_ratios`).
 # - Local dev data dir is read from Sys.getenv("WHEP_HWSD_DIR"); never
 #   hardcode an absolute path in committed code.
+#
+# EXEMPT from the `polity_validity` year-check (whep#675). These readers take
+# `data$cell_polity` as a spatial EXTENT and gap-fill target only: they never
+# join a territory onto a year, and their output carries neither `year` nor
+# `area_code`. There is therefore no (area_code, year) pair that could name a
+# polity which did not exist -- a soil property is about the place, not the
+# state, which is #671's option 3. The same holds for `.cb_hwsd_clay()` in
+# R/carbon_balance.R, which reuses `.aggregate_hwsd()` the same way.
 
 #' Read gridded soil pH onto WHEP's grid.
 #'
@@ -58,7 +66,8 @@ read_soil_ph <- function(hwsd_dir = NULL, data = list(), example = FALSE) {
   }
   rlang::check_installed("terra")
   dir <- .resolve_hwsd_dir(hwsd_dir)
-  mu_soils <- .read_hwsd_attributes_local(dir) |> .derive_dominant_soil()
+  mu_soils <- .read_hwsd_attributes_local(dir, required = .hwsd_ph_columns()) |>
+    .derive_dominant_soil()
   soil_grid <- .aggregate_hwsd(
     dir,
     mu_soils,
@@ -110,7 +119,11 @@ read_soil_hydraulic <- function(
   }
   rlang::check_installed("terra")
   dir <- .resolve_hwsd_dir(hwsd_dir)
-  mu_hyd <- .read_hwsd_attributes_local(dir) |> .derive_map_unit_hydraulic()
+  mu_hyd <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_texture_columns()
+  ) |>
+    .derive_map_unit_hydraulic()
   grid <- .aggregate_hwsd_hydraulic(dir, mu_hyd, data$cell_polity)
   if (is.null(data$cell_polity)) {
     return(grid)
@@ -119,6 +132,23 @@ read_soil_hydraulic <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# The hwsd_data.csv columns each HWSD reader needs, named once so a caller's
+# column contract and a test's skip guard cannot drift apart.
+.hwsd_ph_columns <- function() {
+  c("mu_global", "share", "t_usda_tex", "t_ph_h2o")
+}
+
+.hwsd_texture_columns <- function() {
+  c("mu_global", "share", "t_usda_tex")
+}
+
+# Topsoil clay fraction (% weight), HWSD field T_CLAY: FAO/IIASA/ISRIC/ISSCAS/
+# JRC (2012) "Harmonized World Soil Database version 1.2", attribute database
+# field list ("T_CLAY: Topsoil Clay Fraction, % wt.").
+.hwsd_clay_columns <- function() {
+  c("mu_global", "share", "t_clay")
+}
 
 # Resolve the HWSD data directory from the argument, else the env var.
 .resolve_hwsd_dir <- function(hwsd_dir) {
@@ -132,13 +162,41 @@ read_soil_hydraulic <- function(
   resolved
 }
 
-# Read the HWSD map-unit x texture-class attribute table.
-.read_hwsd_attributes_local <- function(hwsd_dir) {
+# Read the HWSD map-unit x texture-class attribute table, checking it carries
+# the columns the caller is about to read. hwsd_data.csv is derived locally
+# (inst/scripts/export_hwsd_attributes.R or download/download_hwsd.R), so a
+# partial extract is an ordinary state: without this contract a missing column
+# surfaced as a dplyr "Column `t_clay` not found in `.data`" error, which names
+# a tidyselect internal instead of the stale extract (whep#596).
+.read_hwsd_attributes_local <- function(hwsd_dir, required = character()) {
   csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
   if (!file.exists(csv_path)) {
     cli::cli_abort("HWSD CSV not found at {.file {csv_path}}.")
   }
+  absent <- .hwsd_missing_columns(hwsd_dir, required)
+  if (length(absent) > 0) {
+    cli::cli_abort(c(
+      "The HWSD extract at {.file {csv_path}} lacks the column{?s}
+       {.field {absent}}.",
+      i = "Re-export it with
+           {.path inst/scripts/export_hwsd_attributes.R}, which writes every
+           column the HWSD readers need."
+    ))
+  }
   readr::read_csv(csv_path, show_col_types = FALSE)
+}
+
+# Which of `required` a local HWSD extract does not carry, or "hwsd_data.csv"
+# when the extract itself is absent. Reads the header only, so a test's skip
+# guard can call it cheaply and state the same precondition the reader
+# enforces instead of drifting from it.
+.hwsd_missing_columns <- function(hwsd_dir, required) {
+  csv_path <- file.path(hwsd_dir, "hwsd_data.csv")
+  if (!.has_path(hwsd_dir) || !file.exists(csv_path)) {
+    return("hwsd_data.csv")
+  }
+  header <- readr::read_csv(csv_path, n_max = 0, show_col_types = FALSE)
+  required[!rlang::has_name(header, required)]
 }
 
 # For each map unit, pick the dominant (largest summed share) USDA texture
@@ -208,7 +266,7 @@ read_soil_hydraulic <- function(
 .aggregate_hwsd_hydraulic <- function(hwsd_dir, mu_hyd, target_grid) {
   cols <- c("t_field", "t_wilt", "porosity")
   grids <- purrr::map(cols, function(col) {
-    .aggregate_hwsd(
+    grid <- .aggregate_hwsd(
       hwsd_dir,
       mu_hyd[, c("mu_global", col)],
       target_res = 0.5,
@@ -216,6 +274,7 @@ read_soil_hydraulic <- function(
       value_col = col,
       out_col = col
     )
+    grid
   })
   purrr::reduce(grids, dplyr::inner_join, by = c("lon", "lat"))
 }
@@ -270,21 +329,19 @@ read_soil_hydraulic <- function(
   if (!file.exists(hwsd_path)) {
     cli::cli_abort("HWSD raster not found at {.file {hwsd_path}}.")
   }
-  hwsd_rast <- .crop_to_target(terra::rast(hwsd_path), target_grid, target_res)
-  agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
-
+  # terra::rast() only opens the file; the pixels stay on disk until a band asks
+  # for them. Cropping the whole grid up front would pull all ~11 GB into memory
+  # before any aggregation happens, which is the cost this banding avoids.
+  src <- terra::rast(hwsd_path)
+  extent <- .hwsd_target_extent(src, target_grid, target_res)
   rcl <- as.matrix(mu_soils[, c("mu_global", value_col)])
-  val_rast <- terra::classify(hwsd_rast, rcl, others = NA)
-  val_coarse <- terra::aggregate(
-    val_rast,
-    fact = agg_factor,
-    fun = "mean",
-    na.rm = TRUE
-  )
-
-  val_df <- terra::as.data.frame(val_coarse, xy = TRUE, na.rm = TRUE)
-  names(val_df) <- c("lon", "lat", out_col)
-  tibble::as_tibble(val_df) |>
+  values <- purrr::map(
+    .hwsd_band_extents(extent, target_res),
+    \(band) .hwsd_band_values(src, band, rcl, target_res)
+  ) |>
+    dplyr::bind_rows()
+  names(values) <- c("lon", "lat", out_col)
+  tibble::as_tibble(values) |>
     dplyr::mutate(
       lon = round(.data$lon, 2),
       lat = round(.data$lat, 2),
@@ -292,21 +349,62 @@ read_soil_hydraulic <- function(
     )
 }
 
-# Crop the native HWSD raster to a target grid's bounding box, padded half a
-# target cell on each side. Returns the raster unchanged when no target grid
-# is supplied (the documented global path).
-.crop_to_target <- function(rast, target_grid, target_res) {
+# The extent to aggregate over: the target grid's bounding box padded by half a
+# target cell, or the whole raster when no target grid is given.
+.hwsd_target_extent <- function(src, target_grid, target_res) {
   if (is.null(target_grid)) {
-    return(rast)
+    return(terra::ext(src))
   }
   pad <- target_res / 2
-  extent <- terra::ext(
+  terra::ext(
     min(target_grid$lon) - pad,
     max(target_grid$lon) + pad,
     min(target_grid$lat) - pad,
     max(target_grid$lat) + pad
   )
-  terra::crop(rast, extent)
+}
+
+# Split an extent into latitude bands, each a whole number of target rows tall.
+# Whole target rows is what makes this safe: every aggregated cell's source
+# pixels then lie inside exactly one band, so banding cannot change a single
+# aggregated value.
+.hwsd_band_extents <- function(extent, target_res) {
+  n_rows <- as.integer(round((extent$ymax - extent$ymin) / target_res))
+  starts <- seq(0L, max(n_rows - 1L, 0L), by = .hwsd_band_rows())
+  purrr::map(starts, function(start) {
+    rows <- min(.hwsd_band_rows(), n_rows - start)
+    terra::ext(
+      extent$xmin,
+      extent$xmax,
+      extent$ymax - (start + rows) * target_res,
+      extent$ymax - start * target_res
+    )
+  })
+}
+
+# Target rows per band. 32 keeps a global 0.5-degree pass near 2 GB; the value
+# only trades peak memory against the number of passes, never the result.
+.hwsd_band_rows <- function() {
+  32L
+}
+
+# Classify and mean-aggregate one latitude band, releasing its full-resolution
+# intermediates before the next band allocates its own.
+.hwsd_band_values <- function(src, band, rcl, target_res) {
+  sub <- terra::crop(src, band)
+  agg_factor <- as.integer(target_res / terra::res(sub)[1])
+  classified <- terra::classify(sub, rcl, others = NA)
+  coarse <- terra::aggregate(
+    classified,
+    fact = agg_factor,
+    fun = "mean",
+    na.rm = TRUE
+  )
+  values <- terra::as.data.frame(coarse, xy = TRUE, na.rm = TRUE)
+  names(values) <- c("lon", "lat", "value")
+  rm(sub, classified, coarse)
+  invisible(gc(full = TRUE))
+  values
 }
 
 # Gap-fill cells present in the target grid but missing from the aggregated

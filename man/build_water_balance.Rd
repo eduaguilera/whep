@@ -7,7 +7,9 @@
 build_water_balance(
   method = list(),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
+  bands = NULL,
   example = FALSE
 )
 }
@@ -23,6 +25,17 @@ left out take their default.}
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}
 
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid NetCDF reads:
 hydrology tibbles \code{transp}, \code{evap}, \code{interc}, \code{prec}, \code{irrig}, \code{runoff}
 and \code{seepage} (each \code{lon}, \code{lat}, \code{year}, \code{value}; annual-summed
@@ -34,7 +47,21 @@ net-irrigation-requirement input (\code{lon}, \code{lat}, \code{year}, \code{val
 summed to cell level when supplied; exposed as \code{cft_nir_mm}, else \code{NA})
 and a \code{cell_polity} crosswalk (\code{lon}, \code{lat}, \code{area_code}, \code{polity_frac},
 \code{cell_area_ha}). Each falls back to \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}} when absent,
-except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.}
+except \code{cft_nir} (see Details), \code{pet} and the consumptive-water inputs.
+Read the latter with
+\code{read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)}, which
+names their CFT bands so \code{bands} can select among them.}
+
+\item{bands}{Optional character vector of LPJmL crop-functional-type band
+names restricting which bands the per-CFT consumptive-water and net
+irrigation terms are summed over, e.g. \code{"rainfed grassland"} to charge a
+grazing footprint the grassland water alone. \code{NULL} (default) sums every
+band, the whole-cell total. Bands are matched on the \code{band_name} the file
+itself carries, so an unknown name aborts rather than silently returning
+the whole-cell total; the band index is never used, because which crop a
+given index denotes is a property of how the run was configured. Only the
+consumptive-water and \code{cft_nir} terms are per-CFT, so this leaves the
+water budget itself (AET, runoff, drainage) untouched.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -45,7 +72,8 @@ A tibble. For \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_cod
 \code{aet_blue_mm}, \code{aet_green_mm}, \code{blue_consump_mm}, \code{green_consump_mm},
 \code{cft_nir_mm}, \code{drainage_mm}, \code{runoff_mm}, \code{soil_water_change_mm} and
 \code{method_water}. For \code{resolution = "polity"}: the same terms aggregated to
-\code{year} and \code{area_code}.
+\code{year} and \code{area_code}. Both resolutions carry the polity columns below,
+plus \code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{
 Combines LPJmL monthly hydrology outputs into an annual per-cell water
@@ -67,13 +95,57 @@ The output also exposes the footprint-relevant terms folded into the budget:
 blue-water volume), which satisfy \code{water_input_mm = prec_mm + irrig_mm};
 \code{blue_consump_mm} and \code{green_consump_mm}, the LPJmL-native consumptive blue
 and green water (the per-CFT \code{cft_consump_water_b} / \code{cft_consump_water_g}
-totals when supplied, otherwise the blue and green AET); and \code{cft_nir_mm},
+cubes when supplied, summed over the bands \code{bands} selects, otherwise the
+blue and green AET); and \code{cft_nir_mm},
 the net irrigation requirement (LPJmL \code{cft_nir}), the net blue-water demand,
 summed to cell level when \code{data$cft_nir} is supplied and \code{NA} otherwise.
 Potential evapotranspiration (\code{pet_mm}) comes from the CRU climate forcing
 that drives the LPJmL run and is \code{NA} until that forcing is wired (see
 \code{data$pet}); no PET formula is fabricated here.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_water_balance(example = TRUE)
 }

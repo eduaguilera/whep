@@ -14,14 +14,43 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 \item \code{polity_code}, \code{polity_name}: Matched WHEP polity, or \code{NA} for
 statistical composites that are not real polities.
 \item \code{polity_start_year}, \code{polity_end_year}: Validity interval for the matched
-polity.
-\item \code{mapping_status}: \code{"matched"}, \code{"manual"}, \code{"unmapped"}, or
-\code{"not_a_reporting_area"}.
-\item \code{mapping_note}: Explanation for manual or unmapped rows.
+polity, on the same convention as \link{polities}: \code{polity_end_year} is
+exclusive at a succession, so the period covers
+\code{polity_start_year:(polity_end_year - 1)}, and inclusive at the open end,
+so an interval nothing succeeds covers its own terminal year.
+\code{\link[=add_polity_code]{add_polity_code()}} resolves a year on that reading, widened further to the
+inclusive \code{map_year_end} below where the upstream map declares a reported
+year past the territorial span.
+\item \code{mapping_source}: How the area-to-polity decision was reached.
+\code{"upstream_map"} for the published \code{whep-polities} FAOSTAT area map, which
+is the authority for the years FAOSTAT reports; \code{"prefix_outside_map"} for a
+period of a mapped area lying outside every span the map declares, kept so
+sources reported under their own historical borders still resolve;
+\code{"fabio_row_fold"} where FABIO collapses the area into its Rest-of-World
+bucket; \code{"prefix_fallback"} where the map covers the area not at all and the
+mapping is inferred from the polity-code prefix.
+\item \code{map_year_start}, \code{map_year_end}: Inclusive reporting years the upstream map
+assigns to this area-polity pair, \code{NA} unless \code{mapping_source} is
+\code{"upstream_map"}.
+\item \code{map_match_route}: Upstream's record of how it decided the row
+(\code{"iso-equal"}, \code{"registry"}, \code{"manual-route"}, \code{"manual-replace"},
+\code{"manual-span"}), \code{NA} unless \code{mapping_source} is \code{"upstream_map"}.
+\item \code{mapping_status}: Whether a polity was found, \strong{not} how much to trust it.
+\code{"matched"} when a live polity resolved; \code{"manual"} when the decision was
+curated by hand, either by upstream (a \verb{manual-*} \code{map_match_route}) or by
+this package's own area-prefix overrides; \code{"unmapped"} when no real polity
+is available, which is FAOSTAT area 351 "China" alone, deliberately left
+unmapped so it cannot double-count its own components; and
+\code{"not_a_reporting_area"} for a territory that carries no FAOSTAT/FABIO area
+at all, which has \code{NA} in both \code{area_code} and \code{polity_area_code} and so
+can never be joined to reported data.
+\item \code{mapping_note}: Explanation for manual, unmapped and non-reporting rows.
 }
 }
 \source{
-Derived from \link{polities} and \code{inst/extdata/harmonization/regions_full.csv}.
+Derived from \link{polities},
+\verb{~/whep-polities/data/final/faostat_area_polity_map.csv} and
+\code{inst/extdata/harmonization/regions_full.csv}.
 }
 \usage{
 polity_area_crosswalk
@@ -30,4 +59,51 @@ polity_area_crosswalk
 Year-aware bridge from numeric reporting \code{area_code} values used by
 FAOSTAT/FABIO-derived WHEP data to periodized WHEP \code{polity_code} values.
 }
+\section{Keying on \verb{(area_code, year)} is keying on the polity}{
+
+This is a \strong{contract}, asserted by the test suite over the full reporting
+era, not an accident of the current snapshot: every \verb{(area_code, year)} that
+resolves at all resolves to exactly \strong{one} \code{polity_code}, over 17,184
+resolving pairs and 257 polities. A join that
+carries both columns is therefore already polity-correct, whether or not it
+names a polity, and the territorial identity is recoverable from the numeric
+code rather than lost by it.
+
+The one enumerated exception is FAOSTAT area 7 (Angola) in 1975, where
+\code{ANG-1905-1975} records no successor upstream and so is widened by a year
+into \code{AGO-1975-2025}'s first year. Resolution still returns \code{AGO-1975-2025}
+there, but by row order rather than by the data. See #683.
+}
+
+\section{\code{polity_area_code} is a bucket, and does not carry the contract}{
+
+\code{polity_area_code} is the key rows are \strong{aggregated on} for the matrix
+workflows, and several \code{area_code} values can share one. Where a bucket has
+one member, or its members agree, \verb{(polity_area_code, year)} recovers the
+polity too. Over 1961-2025 exactly one bucket does not: \strong{206}, which holds
+Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
+polities in all 65 reported years. See #414. To say which territory a row
+belongs to, read \code{reporting_polity_code}, or resolve through
+\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket.
+}
+
+\section{Confidence is the pair, not \code{mapping_status} alone}{
+
+\code{"matched"} covers outcomes of very different confidence -- a curated hit in
+upstream's published FAOSTAT map, a prefix-inferred period outside every span
+that map declares, a prefix guess for an area the map does not cover, and the
+FABIO Rest-of-World fold. \strong{\code{mapping_source} is the column that separates
+them}, and it is non-\code{NA} on every row, so read the two together rather than
+filtering on \code{mapping_status == "matched"} and assuming a curated decision:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{dplyr::count(polity_area_crosswalk, mapping_status, mapping_source)
+}\if{html}{\out{</div>}}
+
+Curated rows are \code{mapping_source == "upstream_map"}; everything a prefix
+decided is \code{"prefix_outside_map"} or \code{"prefix_fallback"}. Prefix inference
+never overrides the map where the map speaks: a prefix-derived period whose
+years overlap any span the map declares for that area is dropped at build
+time, so the two branches cannot disagree about a reported year.
+}
+
 \keyword{datasets}

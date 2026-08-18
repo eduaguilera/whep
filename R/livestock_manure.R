@@ -48,7 +48,7 @@
         TRUE ~ species_gen
       )
     )
-  if (!rlang::has_name(data, "region") && rlang::has_name(data, "iso3")) {
+  if (!rlang::has_name(data, "region") && .has_gleam_region_key(data)) {
     data <- .add_ipcc_region(data)
   }
 
@@ -189,9 +189,9 @@
       )
     )
 
-  region_from_iso3 <- !rlang::has_name(data, "region") &&
-    rlang::has_name(data, "iso3")
-  if (region_from_iso3) {
+  region_added <- !rlang::has_name(data, "region") &&
+    .has_gleam_region_key(data)
+  if (region_added) {
     data <- .add_ipcc_region(data)
   }
 
@@ -259,7 +259,7 @@
       dplyr::rename(manure_ef_kgch4 = ef_kg_head_yr)
   }
 
-  if (region_from_iso3) {
+  if (region_added) {
     data <- data |> dplyr::select(-dplyr::any_of("region"))
   }
   data |>
@@ -283,8 +283,12 @@
     ) |>
     dplyr::mutate(
       ash_percent = dplyr::coalesce(ash_percent, 8.0),
+      # IPCC 2019 Eq 10.24:
+      #   VS = GE * [(1 - DE/100) + UE] * (1 - ASH/100) / 18.45
+      # UE is the urinary energy fraction of GE (default 0.04); it enters as an
+      # additive term, not scaled again by DE.
       volatile_solids = gross_energy *
-        (1 - de_percent / 100 + ue_factor * de_percent / 100) *
+        (1 - de_percent / 100 + ue_factor) *
         (1 - ash_percent / 100) /
         ge_content
     )
@@ -345,35 +349,13 @@
       )
   }
 
-  region_col <- if (rlang::has_name(data, "region")) {
-    "region"
-  } else {
-    NULL
-  }
-
   # Get MCF by MMS and climate zone
   mcf_tbl <- climate_mcf |>
     dplyr::select(mms_type, climate_zone, mcf_percent)
 
-  # Get MMS distribution (use Global when no region)
-  if (!is.null(region_col)) {
-    mms_tbl <- regional_mms_distribution |>
-      dplyr::select(region, species, mms_type, fraction)
-  } else {
-    mms_tbl <- regional_mms_distribution |>
-      dplyr::filter(region == "Global") |>
-      dplyr::select(species, mms_type, fraction)
-  }
-
-  # For each row, compute weighted MCF
+  # For each row, compute weighted MCF over its MMS distribution.
   data <- data |>
     dplyr::mutate(row_id = dplyr::row_number())
-
-  join_keys <- if (!is.null(region_col)) {
-    c("species_gen" = "species", "region")
-  } else {
-    c("species_gen" = "species")
-  }
 
   mms_joined <- data |>
     dplyr::select(
@@ -382,11 +364,7 @@
       climate_zone,
       dplyr::any_of("region")
     ) |>
-    dplyr::left_join(
-      mms_tbl,
-      by = join_keys,
-      relationship = "many-to-many"
-    ) |>
+    .resolve_mms_distribution() |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
@@ -411,14 +389,54 @@
     dplyr::select(-row_id)
 }
 
-#' Build join keys for MMS distribution.
+#' Resolve each row's manure-management-system (MMS) distribution.
+#'
+#' Joins `regional_mms_distribution` on `species_gen` (and `region` when
+#' present). Region-specific rows exist for only a handful of (region, species)
+#' pairs; for every other pair the exact-region join finds nothing, so we fall
+#' back to the `region == "Global"` distribution for that species instead of
+#' letting `fraction` collapse to a flat default. Rows keyed as `region` but
+#' with a value not covered by the table also take the Global fallback.
 #' @noRd
-.get_mms_join_keys <- function(region_col) {
-  keys <- c("species_gen" = "species")
-  if (!is.null(region_col)) {
-    keys <- c(keys, "region" = "region")
+.resolve_mms_distribution <- function(row_keys) {
+  global_mms <- regional_mms_distribution |>
+    dplyr::filter(region == "Global") |>
+    dplyr::select(species, mms_type, fraction)
+
+  if (!rlang::has_name(row_keys, "region")) {
+    return(
+      row_keys |>
+        dplyr::left_join(
+          global_mms,
+          by = c("species_gen" = "species"),
+          relationship = "many-to-many"
+        )
+    )
   }
-  keys
+
+  regional_mms <- regional_mms_distribution |>
+    dplyr::filter(region != "Global") |>
+    dplyr::select(region, species, mms_type, fraction)
+
+  matched <- row_keys |>
+    dplyr::inner_join(
+      regional_mms,
+      by = c("species_gen" = "species", "region"),
+      relationship = "many-to-many"
+    )
+
+  fallback <- row_keys |>
+    dplyr::anti_join(
+      regional_mms,
+      by = c("species_gen" = "species", "region")
+    ) |>
+    dplyr::left_join(
+      global_mms,
+      by = c("species_gen" = "species"),
+      relationship = "many-to-many"
+    )
+
+  dplyr::bind_rows(matched, fallback)
 }
 
 #' Calculate nitrogen excretion (n_excretion).
@@ -508,9 +526,6 @@
 #' Weighted direct N2O when region is available.
 #' @noRd
 .calc_weighted_direct_n2o <- function(data, ef3_tbl, n2o_to_n) {
-  mms_tbl <- regional_mms_distribution |>
-    dplyr::select(region, species, mms_type, fraction)
-
   data <- data |>
     dplyr::mutate(row_id_n2o = dplyr::row_number())
 
@@ -522,11 +537,7 @@
       heads,
       dplyr::any_of("region")
     ) |>
-    dplyr::left_join(
-      mms_tbl,
-      by = c("species_gen" = "species", "region"),
-      relationship = "many-to-many"
-    ) |>
+    .resolve_mms_distribution() |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     dplyr::mutate(
       ef3 = dplyr::coalesce(ef3, 0.005),

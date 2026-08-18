@@ -46,7 +46,9 @@
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
 #'   `impact_u` (physical land area in hectares), and `method_land` (the chosen
-#'   method).
+#'   method), plus the polity columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -97,7 +99,8 @@ build_crop_land_extension <- function(
   )
 
   .aggregate_crop_land_to_cbs(physical, items_prod_full) |>
-    dplyr::mutate(method_land = method)
+    dplyr::mutate(method_land = method) |>
+    .add_reporting_polity_columns()
 }
 
 #' Get the per-crop physical cropland extension from spatialization inputs.
@@ -128,7 +131,10 @@ build_crop_land_extension <- function(
 #'   remote/large data. Defaults to `FALSE`.
 #'
 #' @return A tibble with columns `year`, `area_code`, `item_cbs_code`,
-#'   `impact_u` (physical land in hectares), and `method_land`.
+#'   `impact_u` (physical land in hectares), and `method_land`, plus the polity
+#'   columns below.
+#'
+#' @inheritSection whep_polity_columns Polity columns
 #'
 #' @export
 #'
@@ -218,8 +224,12 @@ get_crop_land_extension <- function(
 #'   `item_cbs_code`, `harvested_ha`. If `NULL`, built from
 #'   [get_primary_production()] (`unit == "ha"`).
 #' @param cropgrids Tibble of national crop areas with columns `area_code`,
-#'   `item_cbs_code`, `physical_ha`, `harvested_ha`. If `NULL`, the remote pin
-#'   selected by `source` is read via [whep_read_file()].
+#'   `item_cbs_code`, `physical_ha`, `harvested_ha`, where `area_code` is a
+#'   `polity_area_code` (the basis `harvested` is keyed on). If `NULL`, the
+#'   remote pin selected by `source` is read via [whep_read_file()] and re-keyed
+#'   from its source-native raw FAOSTAT area codes to `polity_area_code`, so
+#'   areas that FABIO merges (Sudan and South Sudan into 206) get one combined
+#'   CROPGRIDS ratio instead of falling through to the global per-item ratio.
 #' @param source Which CROPGRIDS pin to read when `cropgrids` is `NULL`:
 #'   `"cropgrids"` (`cropgrids-land`: physical crop area, excludes fallow) or
 #'   `"cropgrids_fallow"` (`cropgrids-fallow-land`: physical area with rotational
@@ -800,7 +810,46 @@ gridded_fallow_weights <- function(
     cropgrids = "cropgrids-land",
     cropgrids_fallow = "cropgrids-fallow-land"
   )
-  whep_read_file(alias)
+  .cropgrids_to_polity_area(whep_read_file(alias))
+}
+
+# Re-key CROPGRIDS from raw FAOSTAT reporting areas to WHEP polity_area_code.
+# The pins are built at CROPGRIDS' own national grain, which is the raw FAOSTAT
+# `code` in regions_full, but `harvested` comes from production and is keyed on
+# polity_area_code. Any area whose two codes differ therefore never matched and
+# fell silently through to the global per-item ratio. MEASURED on the shipped
+# cropgrids-land pin: 7 areas, 276 of 6269 rows, 1.71% of pin harvested area.
+# Sudan 276 and South Sudan 277 both collapse to polity_area_code 206, which the
+# pin never carries at all, so every Sudanese crop lost its CROPGRIDS
+# multi-cropping ratio.
+#
+# Summing physical and harvested area BEFORE the ratio is taken is what makes
+# the merged ratio right: it is the area-weighted ratio of the parts, not a mean
+# of their ratios. The mapping is idempotent, since every polity_area_code maps
+# to itself, so a pin rebuilt directly on polity_area_code passes through
+# unchanged; unmapped areas keep their own code rather than being dropped.
+.cropgrids_to_polity_area <- function(cropgrids) {
+  .check_required_cols(
+    cropgrids,
+    c("area_code", "item_cbs_code", "physical_ha", "harvested_ha"),
+    "cropgrids"
+  )
+  cropgrids |>
+    tibble::as_tibble() |>
+    add_polity_code(code_column = "area_code", year_column = NULL) |>
+    dplyr::mutate(
+      area_code = dplyr::coalesce(
+        as.integer(.data$polity_area_code),
+        as.integer(.data$area_code)
+      ),
+      item_cbs_code = as.integer(.data$item_cbs_code)
+    ) |>
+    dplyr::summarise(
+      physical_ha = sum(.data$physical_ha, na.rm = TRUE),
+      harvested_ha = sum(.data$harvested_ha, na.rm = TRUE),
+      .by = c(area_code, item_cbs_code)
+    ) |>
+    dplyr::arrange(.data$area_code, .data$item_cbs_code)
 }
 
 .read_hayr_table <- function(file) {

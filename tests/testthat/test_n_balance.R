@@ -275,7 +275,7 @@
     ~item_prod_code,
     ~residue_dm_t,
     ~region_krausmann,
-    ~region_hanpp,
+    ~region_un_sub,
     0.25,
     50.25,
     10L,
@@ -849,4 +849,52 @@ testthat::test_that("duplicate n_balance_leaching_drivers keys abort the join", 
     climate = "MED"
   )
   testthat::expect_equal(nrow(whep:::.nb_leaching_join(x, drivers_ok, key)), 2L)
+})
+
+# ---- C3b: the deposition scope reaches the published balance ------------
+
+testthat::test_that("C3b: the balance names the deposition scope it used", {
+  # DA-14 makes deposition scope a choice, and the two choices differ by
+  # about 1.4% of the deposition term on real input. A balance that does not
+  # carry the stamp is indistinguishable from one built under the other
+  # scope, which is exactly how two conventions coexist unnoticed -- the
+  # defect EA4 documents for the crosswalks.
+  out <- .nb_run()
+
+  testthat::expect_true(rlang::has_name(out, "method_deposition_scope"))
+  testthat::expect_setequal(
+    stats::na.omit(out$method_deposition_scope),
+    "territory"
+  )
+})
+
+testthat::test_that("C3b: the land scope reaches the balance and moves it", {
+  data <- .nb_data_with_drivers()
+  data$cell_polity <- dplyr::mutate(
+    .nb_cell_polity(),
+    polity_area_ha = 2000,
+    land_area_ha = 1200,
+    inland_water_ha = 500,
+    ice_area_ha = 300
+  )
+  territory <- .nb_run(data)
+  data$deposition_scope <- "land"
+  land <- .nb_run(data)
+
+  testthat::expect_setequal(
+    stats::na.omit(land$method_deposition_scope),
+    "land"
+  )
+  # The stamp is not decorative: the terrestrial scope really does charge
+  # less nitrogen, so a balance carrying "land" is a different number from
+  # one carrying "territory".
+  testthat::expect_true(
+    sum(land$n_input_full_t) < sum(territory$n_input_full_t)
+  )
+  # And decomposing the support without asking for the land scope moves
+  # nothing at all, which is what DA-14's "keep whole" decision means.
+  testthat::expect_equal(
+    sum(territory$n_input_full_t),
+    sum(.nb_run()$n_input_full_t)
+  )
 })

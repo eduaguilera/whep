@@ -43,14 +43,23 @@
 #'   - `lon`: Longitude of cell centre.
 #'   - `lat`: Latitude of cell centre.
 #'   - `area_code`: Country code.
+#'   - `cell_area_frac` (or `polity_frac`, `area_frac`, `country_frac`):
+#'     This polity compartment's share of the physical cell, a partition
+#'     summing to 1 over the polities that overlap the cell. Required: a
+#'     grid carrying no share is refused, because defaulting it to 1 gives
+#'     a border cell wholly to one polity. Pass 1 only where the polity
+#'     does own the whole cell. A land fraction (`landfrac`) is a
+#'     different quantity and is refused rather than reinterpreted.
 #'   Optional columns:
-#'   - `cell_area_frac` (or `area_frac`): Fraction of the physical cell
-#'     belonging to this polity compartment. Defaults to 1.
 #'   - `polycell_id`, `cell_id`: Stable compartment/cell identifiers
 #'     preserved in outputs when present.
 #'   - `year` or validity intervals (`valid_from`/`valid_to`,
 #'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
-#'     time-varying polity overlays.
+#'     time-varying polity overlays. The start bound is inclusive; the end
+#'     bound is **exclusive at a succession** and **inclusive at the open
+#'     end**, so 2014 selects `"RUS-2014-2025"` and not `"RUS-1991-2014"`,
+#'     while 2025 still selects `"RUS-2014-2025"` because no later interval of
+#'     that compartment follows it. See [polities] for the full rule.
 #' @param config Named list of optional extras. Unknown keys raise
 #'   an error. Recognised keys:
 #'   - `years`: Integer vector of years to spatialize. If `NULL`
@@ -83,6 +92,9 @@
 #'   - `expansion_threshold`: Iteration number after which crops are
 #'     allowed to expand into cells without an existing pattern.
 #'     Default: `100L`.
+#'   - `area_key`: Which area code the output is keyed on, `"grid"`
+#'     (default) or `"polity_area"`. See *Which area code the output is
+#'     keyed on*.
 #'
 #' @return A tibble with gridded crop (or CFT) harvested areas.
 #'   Columns:
@@ -92,11 +104,40 @@
 #'   - `polity_area_code`, `reporting_polity_code`,
 #'     `reporting_polity_name`, `reporting_polity_has_geometry`: Polity
 #'     metadata for `area_code`.
+#'   - `grid_area_code`: Only under `area_key = "polity_area"`; the
+#'     reporting code the engine allocated on.
 #'   - `polycell_id`, `cell_id`: Preserved when supplied in
 #'     `country_grid`.
 #'   - `crop_name` or `cft_name`: Crop or CFT identifier.
 #'   - `rainfed_ha`: Rainfed harvested area in the cell.
 #'   - `irrigated_ha`: Irrigated harvested area in the cell.
+#'
+#' @section Which area code the output is keyed on:
+#' The chain allocates *from* a national table keyed on `area_code` and
+#' *into* a `country_grid` keyed the same way, so both sides speak the raw
+#' reporting vocabulary the grid was rasterized in. WHEP's polity-keyed
+#' national tables are aggregated on `polity_area_code` instead, a bucket
+#' that a reporting code need not equal: `276` Sudan and `277` South Sudan
+#' both fall in bucket `206`. Every such output row therefore carries two
+#' territorial keys that disagree, and whether a consumer joins on
+#' `area_code` or on `polity_area_code` decides whether Sudan exists in its
+#' result (whep#582).
+#'
+#' `area_key` selects which of the two the output carries. It is not a
+#' fallback: `"grid"` is the default, reproduces today's codes
+#' bit-for-bit, and warns naming the codes that cannot join;
+#' `"polity_area"` resolves each code to its bucket through
+#' [polity_area_crosswalk] before the polity columns are attached, so
+#' `area_code` and `polity_area_code` agree in every row. It respects
+#' `options(whep.unfold_rest_of_world)` (see [folded_reporting_areas()]),
+#' so the output and the national tables agree about where a Rest-of-World
+#' member's rows belong.
+#'
+#' Under `"polity_area"` the raw reporting code is **carried, not
+#' replaced**: the output gains `grid_area_code`, joined with `+` where two
+#' reporting areas of one bucket meet in a cell and their rows collapse. So
+#' the fold stays recoverable at the join rather than baked into the output,
+#' the shape [build_cell_polity()] adopted for the same reason (whep#579).
 #'
 #' @section Methodology:
 #' This function reimplements the spatial crop allocation from the LandInG
@@ -139,9 +180,9 @@
 #'   0.75, 50.25, 2000L, 500
 #' )
 #' country_grid <- tibble::tribble(
-#'   ~lon, ~lat, ~area_code,
-#'   0.25, 50.25, 1L,
-#'   0.75, 50.25, 1L
+#'   ~lon, ~lat, ~area_code, ~cell_area_frac,
+#'   0.25, 50.25, 1L, 1,
+#'   0.75, 50.25, 1L, 1
 #' )
 #' build_gridded_landuse(
 #'   country_areas, crop_patterns, gridded_cropland, country_grid,
@@ -185,6 +226,13 @@ build_gridded_landuse <- function(
     gridded_cropland <- filtered$gridded_cropland
     type_cropland <- filtered$type_cropland
   }
+
+  .warn_grid_missing_reporters(
+    country_areas,
+    country_grid,
+    "harvested_area_ha",
+    "ha of harvested area"
+  )
 
   # Build type lookup: item_prod_code -> luh2_type
   type_lookup <- NULL
@@ -255,6 +303,10 @@ build_gridded_landuse <- function(
   }
 
   tibble::as_tibble(result) |>
+    .spatialize_apply_area_key(
+      config$area_key,
+      c("rainfed_ha", "irrigated_ha")
+    ) |>
     .add_reporting_polity_columns()
 }
 
@@ -279,14 +331,15 @@ build_gridded_landuse <- function(
   ca <- data.table::as.data.table(country_areas)
 
   # Per-year: copy the static base (cells × crops) and attach cropland.
+  # `.build_base_grid_cp()` has already dropped the rows no compartment claims,
+  # so a surviving NA share would be an unkeyed allocation reaching the engine.
   grid_cp <- data.table::copy(base_grid_cp)
-  grid_cp[,
-    cell_area_frac := data.table::fifelse(
-      is.na(cell_area_frac),
-      1,
-      cell_area_frac
+  if (anyNA(grid_cp$cell_area_frac)) {
+    cli::cli_abort(
+      "{sum(is.na(grid_cp$cell_area_frac))} compartment{?s} in year {yr} have
+       no {.field cell_area_frac}."
     )
-  ]
+  }
   grid_cp[
     cl,
     `:=`(
@@ -319,6 +372,20 @@ build_gridded_landuse <- function(
         cropland_ha = type_ha * cell_area_frac,
         irrigated_ha = type_irrig_ha * cell_area_frac,
         rainfed_ha = (type_ha - type_irrig_ha) * cell_area_frac
+      )
+    ]
+
+    # `type_cropland` is stored sparse: cells lacking a crop's LUH2 type have
+    # no row and join to `type_ha = NA`. Zero those so a crop cannot be placed
+    # in a cell lacking its type. Otherwise they would keep the inherited total
+    # cropland and both leak allocation and inflate `type_pot`, masking the
+    # whole-group fallback below.
+    grid_cp_tc[
+      is.na(type_ha),
+      `:=`(
+        cropland_ha = 0,
+        irrigated_ha = 0,
+        rainfed_ha = 0
       )
     ]
 
@@ -448,7 +515,8 @@ build_gridded_landuse <- function(
     multicropping = NULL,
     max_iterations = 1000L,
     expansion_threshold = 100L,
-    n_workers = 1L
+    n_workers = 1L,
+    area_key = "grid"
   )
 }
 
@@ -469,7 +537,9 @@ build_gridded_landuse <- function(
       "i" = "Known: {.val {names(defaults)}}."
     ))
   }
-  utils::modifyList(defaults, config)
+  config <- utils::modifyList(defaults, config)
+  config$area_key <- .resolve_spatialize_area_key(config$area_key)
+  config
 }
 
 #' Validate that required columns exist.
@@ -581,7 +651,12 @@ build_gridded_landuse <- function(
   ]
 
   cell_cols <- .compartment_cell_cols(allocated_dt)
-  capacity_join_cols <- intersect(cell_cols, names(capacity_dt))
+  capacity_join_cols <- .compartment_join_cols(
+    allocated_dt,
+    capacity_dt,
+    "allocated",
+    "country_grid"
+  )
 
   # Compute per-cell sums
   cell_sums <- allocated_dt[,
@@ -626,20 +701,53 @@ build_gridded_landuse <- function(
     ..out_cols
   ]
 
-  tibble::as_tibble(data.table::rbindlist(
+  out <- data.table::rbindlist(
     list(stable, fixed),
     use.names = TRUE,
     fill = TRUE
-  ))
+  )
+  .warn_capacity_breach(out, capacity_dt, capacity_join_cols)
+  tibble::as_tibble(out)
 }
 
-#' Get area_code for allocated cells via country_grid lookup.
+#' Report polycells left above their capacity ceiling.
+#'
+#' `.redistribute_country_dt()` rescales each crop back to its national target
+#' after the logit passes, so when a country's cells are collectively too small
+#' the national total wins and the per-cell ceiling gives way. That is a soft
+#' ceiling, and moving the land denominator onto the polycell makes it bite
+#' more often, so the breach is measured and reported rather than absorbed.
+#' It is not silently corrected here: which invariant should yield is the
+#' caller's decision, and it needs the magnitude to make it.
 #' @noRd
-.get_area_code_from_grid <- function(allocated, country_grid) {
-  lookup <- dplyr::select(country_grid, lon, lat, area_code)
-  allocated |>
-    dplyr::left_join(lookup, by = c("lon", "lat")) |>
-    dplyr::pull(area_code)
+.warn_capacity_breach <- function(allocated, capacity, join_cols) {
+  tolerance <- 1e-4
+  sums <- allocated[,
+    list(
+      total_rf = sum(rainfed_ha, na.rm = TRUE),
+      total_ir = sum(irrigated_ha, na.rm = TRUE)
+    ),
+    by = join_cols
+  ]
+  breach <- capacity[sums, on = join_cols, nomatch = 0L]
+  breach[, `:=`(
+    rf_over = pmax(total_rf - rf_capacity, 0),
+    ir_over = pmax(total_ir - ir_capacity, 0)
+  )]
+  breach <- breach[rf_over > tolerance | ir_over > tolerance]
+  if (nrow(breach) == 0L) {
+    return(invisible(NULL))
+  }
+  excess <- sum(breach$rf_over, na.rm = TRUE) +
+    sum(breach$ir_over, na.rm = TRUE)
+  worst <- max(c(breach$rf_over, breach$ir_over), na.rm = TRUE)
+  codes <- sort(unique(breach$area_code))
+  cli::cli_warn(c(
+    "{nrow(breach)} polycell{?s} hold more harvested area than their capacity;
+     {round(excess)} ha over, worst {round(worst)} ha.",
+    "x" = "{length(codes)} area_code{?s}: {.val {codes}}.",
+    i = "The national total was preserved and the per-cell ceiling gave way."
+  ))
 }
 
 #' Redistribute excess harvested area for overloaded countries.
@@ -654,9 +762,11 @@ build_gridded_landuse <- function(
   max_iterations,
   expansion_threshold
 ) {
-  join_cols <- intersect(
-    .compartment_cell_cols(allocated),
-    names(capacity)
+  join_cols <- .compartment_join_cols(
+    allocated,
+    capacity,
+    "allocated",
+    "capacity"
   )
 
   out_cols <- unique(c(
@@ -954,29 +1064,15 @@ build_gridded_landuse <- function(
     )
 }
 
-#' Scale allocated hectares down so total per cell never exceeds physical cropland.
-#' @noRd
-.normalize_to_cropland <- function(data, gridded_cropland) {
-  dt <- data.table::as.data.table(data)
-  gc <- data.table::as.data.table(
-    dplyr::select(gridded_cropland, lon, lat, year, cropland_ha)
-  )
-  dt[gc, cropland_ha := i.cropland_ha, on = .(lon, lat, year)]
-  dt[,
-    total_ha := sum(rainfed_ha + irrigated_ha, na.rm = TRUE),
-    by = .(lon, lat, year)
-  ]
-  dt[,
-    scale := data.table::fifelse(
-      !is.na(cropland_ha) & total_ha > cropland_ha & total_ha > 0,
-      cropland_ha / total_ha,
-      1
-    )
-  ]
-  dt[, `:=`(
-    rainfed_ha = rainfed_ha * scale,
-    irrigated_ha = irrigated_ha * scale
-  )]
-  dt[, `:=`(total_ha = NULL, scale = NULL, cropland_ha = NULL)]
-  tibble::as_tibble(dt)
-}
+# `.normalize_to_cropland()` and `.get_area_code_from_grid()` were removed in
+# C8 (AM-5 risk 26). Both were unreachable -- no caller anywhere in the package
+# -- and both were keyed on the PHYSICAL cell, so they are exactly what a
+# future reader reaches for when totals exceed cropland:
+#   * `.normalize_to_cropland()` grouped its scale factor on `(lon, lat, year)`,
+#     so one polity's allocation was scaled down by its neighbour's overload;
+#   * `.get_area_code_from_grid()` `left_join`ed on `(lon, lat)` and then
+#     `pull`ed, which returns MORE values than rows under a multi-row grid and
+#     silently misaligns every downstream column.
+# Reinstate neither. The polycell-keyed equivalents are
+# `.apply_capacity_constraint()` (with `.warn_capacity_breach()`) and
+# `.compartment_id_cols()` carried through from `country_grid`.

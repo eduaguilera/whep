@@ -3,6 +3,14 @@
 \name{read_n_deposition}
 \alias{read_n_deposition}
 \title{Read a HaNi atmospheric nitrogen deposition species onto WHEP's grid.}
+\source{
+Tian, H., Bian, Z., Shi, H., Qin, X., Pan, N., Lu, C., Pan, S.,
+Tubiello, F. N., Chang, J., Conchedda, G., Liu, J., Mueller, N.,
+Nishina, K., Xu, R., Yang, J., You, L. and Zhang, B. (2022). History of
+anthropogenic Nitrogen inputs (HaNi) to the terrestrial biosphere: a
+5 arcmin resolution annual dataset from 1860 to 2019. \emph{Earth System
+Science Data} 14(10), 4551-4568. \doi{10.5194/essd-14-4551-2022}
+}
 \usage{
 read_n_deposition(
   species = c("nhx", "noy"),

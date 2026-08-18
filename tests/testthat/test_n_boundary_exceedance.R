@@ -1,323 +1,426 @@
-# A shared 2x2-cell grid. The surplus fixture carries one crop above the cell's
-# critical value, one below it, and crops across all four cells so the grid ->
-# polity aggregation can be checked.
-.nbx_surplus_fixture <- function() {
-  tibble::tribble(
-    ~lon,
-    ~lat,
-    ~area_code,
-    ~item_cbs_code,
-    ~year,
-    ~area_ha,
-    ~n_input_std_t,
-    ~surplus_kgn_ha,
-    0.25, 0.25, 1L, 2511L, 2010L, 100, 12, 80,
-    0.25, 0.25, 1L, 2513L, 2010L, 50, 4, 30,
-    0.75, 0.25, 1L, 2511L, 2010L, 200, 30, 90,
-    0.25, 0.75, 1L, 2511L, 2010L, 40, 6, 60,
-    0.75, 0.75, 1L, 2555L, 2010L, 10, 3, 150
+.nbx_actual <- function(values, indicator = "surplus", year = 2015L) {
+  out <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = seq_along(values),
+    item_cbs_code = 2500L + seq_along(values),
+    year = year,
+    area_ha = 50,
+    surplus_n_t = values,
+    n_input_std_t = values,
+    production_n_t = abs(values)
+  )
+  if (indicator == "total_input") {
+    out$surplus_n_t <- values - 1
+  }
+  out
+}
+
+.nbx_boundary <- function(
+  critical_kgn_ha = 50,
+  source_land_area_ha = 100,
+  image_region = 11L,
+  critical_value_present = TRUE
+) {
+  tibble::tibble(
+    cell_id = 129961L,
+    source_row = 180L,
+    source_col = 361L,
+    lon = 0.25,
+    lat = 0.25,
+    source_land_area_ha = source_land_area_ha,
+    critical_kgn_ha = if (critical_value_present) critical_kgn_ha else NA_real_,
+    image_region = image_region,
+    indicator = "surplus",
+    impact_scope = "mi",
+    land_class = "ara",
+    allocation_scenario = "yield_gap",
+    critical_reference_year = 2010L,
+    source_record = "6395016",
+    source_version = "1.0",
+    source_doi = "10.5281/zenodo.6395016",
+    source_archive_md5 = "d6b4bf88e9b140bd25a147396e371733"
   )
 }
 
-.nbx_critical_surplus_fixture <- function() {
-  tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 50,
-    0.75, 0.25, 120,
-    0.25, 0.75, 40,
-    0.75, 0.75, 100
-  ) |>
-    dplyr::mutate(
-      critical_var = "critical_n_surplus",
-      critical_land_use = "ara"
-    )
+.nbx_run <- function(
+  values,
+  critical_kgn_ha = 50,
+  indicator = "surplus",
+  resolution = "grid",
+  boundary = NULL
+) {
+  if (is.null(boundary)) {
+    boundary <- .nbx_boundary(critical_kgn_ha)
+  }
+  boundary$indicator <- indicator
+  whep::build_n_boundary_exceedance(
+    actual = .nbx_actual(values, indicator),
+    boundary = boundary,
+    indicator = indicator,
+    land_class = "ara",
+    impact_scope = "mi",
+    allocation_scenario = "yield_gap",
+    resolution = resolution,
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
 }
 
-testthat::test_that("a crop above critical exceeds by the expected share", {
-  out <- whep::build_n_boundary_exceedance(
-    .nbx_surplus_fixture(),
-    .nbx_critical_surplus_fixture(),
-    resolution = "grid"
-  )
-  row <- dplyr::filter(
-    out,
-    .data$lon == 0.25,
-    .data$lat == 0.25,
-    .data$item_cbs_code == 2511L
-  )
-  # actual 80, critical 50 -> share 0.375, over 100 ha.
-  testthat::expect_equal(row$exceed_share, 0.375)
-  testthat::expect_equal(row$exceedance_kgn_ha, 30)
-  testthat::expect_equal(row$within_boundary_kgn_ha, 50)
-  testthat::expect_equal(row$exceedance_n_t, 3)
-  testthat::expect_equal(row$within_boundary_n_t, 5)
-  testthat::expect_equal(row$actual_n_t, 8)
+testthat::test_that("one cell allowance is consumed after crop aggregation", {
+  out <- .nbx_run(c(4, 4), indicator = "total_input")
+  testthat::expect_equal(unique(out$cell_actual_n_t), 8)
+  testthat::expect_equal(unique(out$cell_critical_n_t), 5)
+  testthat::expect_equal(unique(out$cell_positive_overshoot_n_t), 3)
+  testthat::expect_equal(out$pressure_share, c(0.5, 0.5))
+  testthat::expect_equal(out$crop_critical_n_t, c(2.5, 2.5))
+  testthat::expect_equal(out$exceedance_n_t, c(1.5, 1.5))
+  testthat::expect_equal(sum(out$crop_critical_n_t), 5)
+  testthat::expect_equal(sum(out$exceedance_n_t), 3)
 })
 
-testthat::test_that("a crop below critical has zero exceedance", {
-  out <- whep::build_n_boundary_exceedance(
-    .nbx_surplus_fixture(),
-    .nbx_critical_surplus_fixture(),
-    resolution = "grid"
-  )
-  row <- dplyr::filter(
-    out,
-    .data$lon == 0.25,
-    .data$lat == 0.25,
-    .data$item_cbs_code == 2513L
-  )
-  # actual 30 < critical 50 -> no exceedance, all within boundary.
-  testthat::expect_equal(row$exceed_share, 0)
-  testthat::expect_equal(row$exceedance_kgn_ha, 0)
-  testthat::expect_equal(row$exceedance_n_t, 0)
-  testthat::expect_equal(row$within_boundary_kgn_ha, 30)
+testthat::test_that("the old per-crop-full-allowance result is rejected", {
+  out <- .nbx_run(c(4, 4), indicator = "total_input")
+  old_per_crop_overshoot <- sum(pmax(c(4, 4) - 5, 0))
+  testthat::expect_equal(old_per_crop_overshoot, 0)
+  testthat::expect_equal(sum(out$exceedance_n_t), 3)
+  testthat::expect_false(isTRUE(all.equal(
+    sum(out$exceedance_n_t),
+    old_per_crop_overshoot
+  )))
 })
 
-testthat::test_that("exceedance and within_boundary conserve the actual", {
-  out <- whep::build_n_boundary_exceedance(
-    .nbx_surplus_fixture(),
-    .nbx_critical_surplus_fixture(),
-    resolution = "grid"
+testthat::test_that("signed surplus shares retain negative contributions", {
+  out <- .nbx_run(c(8, -2))
+  testthat::expect_equal(out$pressure_share, c(8 / 6, -2 / 6))
+  testthat::expect_equal(out$crop_critical_n_t, c(20 / 3, -5 / 3))
+  testthat::expect_equal(out$signed_margin_n_t, c(4 / 3, -1 / 3))
+  testthat::expect_equal(out$exceedance_n_t, c(4 / 3, -1 / 3))
+  testthat::expect_equal(sum(out$signed_margin_n_t), 1)
+  testthat::expect_equal(sum(out$exceedance_n_t), 1)
+})
+
+testthat::test_that("near-zero signed surplus is preserved as a residual", {
+  out <- .nbx_run(c(1, -0.999999999), critical_kgn_ha = -10)
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
+  testthat::expect_true(all(is.na(crops$pressure_share)))
+  testthat::expect_true(all(
+    crops$attribution_status == "undefined_near_zero_denominator"
+  ))
+  testthat::expect_equal(
+    sum(crops$crop_critical_n_t) + residual$unallocated_critical_n_t,
+    unique(out$cell_critical_n_t),
+    tolerance = 1e-7
   )
   testthat::expect_equal(
-    out$exceedance_kgn_ha + out$within_boundary_kgn_ha,
-    out$actual_kgn_ha
+    sum(crops$exceedance_n_t) + residual$unallocated_positive_overshoot_n_t,
+    unique(out$cell_positive_overshoot_n_t),
+    tolerance = 1e-7
   )
-  testthat::expect_equal(
-    out$exceedance_n_t + out$within_boundary_n_t,
-    out$actual_n_t
-  )
-  testthat::expect_true(all(out$exceed_share >= 0 & out$exceed_share <= 1))
 })
 
-testthat::test_that("grid resolution retains the per-crop key", {
-  surplus <- .nbx_surplus_fixture()
-  out <- whep::build_n_boundary_exceedance(
+testthat::test_that("zero pressure with a zero allowance has a zero allocation", {
+  out <- .nbx_run(c(1, -1), critical_kgn_ha = 0)
+  crops <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "crop_allocation"
+  )
+  residual <- dplyr::filter(
+    out,
+    .data$attribution_record_type == "cell_residual"
+  )
+  testthat::expect_true(all(is.na(crops$pressure_share)))
+  testthat::expect_equal(crops$crop_critical_n_t, c(0, 0))
+  testthat::expect_equal(crops$signed_margin_n_t, c(0, 0))
+  testthat::expect_equal(residual$unallocated_signed_margin_n_t, 0)
+  testthat::expect_true(all(
+    out$attribution_state == "undefined_zero_denominator"
+  ))
+})
+
+testthat::test_that("consequential zero denominators expose exact residuals", {
+  surplus <- .nbx_run(c(1, -1), critical_kgn_ha = -20)
+  total_input <- .nbx_run(
+    c(0, 0),
+    critical_kgn_ha = 50,
+    indicator = "total_input"
+  )
+  surplus_residual <- dplyr::filter(
     surplus,
-    .nbx_critical_surplus_fixture(),
-    resolution = "grid"
+    .data$attribution_record_type == "cell_residual"
   )
-  pointblank::expect_col_exists(
-    out,
-    c("lon", "lat", "area_code", "item_cbs_code", "year")
+  input_residual <- dplyr::filter(
+    total_input,
+    .data$attribution_record_type == "cell_residual"
   )
-  testthat::expect_equal(nrow(out), nrow(surplus))
-  keyed <- dplyr::distinct(
-    out,
-    .data$lon,
-    .data$lat,
-    .data$item_cbs_code,
-    .data$year
-  )
-  testthat::expect_equal(nrow(keyed), nrow(surplus))
-  testthat::expect_true(all(out$metric == "surplus"))
-  testthat::expect_true(all(out$land_use == "ara"))
-  testthat::expect_true(all(out$method_boundary == "surplus"))
-})
-
-testthat::test_that("the input metric compares per-hectare nitrogen input", {
-  critical_input <- tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 80,
-    0.75, 0.25, 200,
-    0.25, 0.75, 100,
-    0.75, 0.75, 250
-  ) |>
-    dplyr::mutate(
-      critical_var = "critical_n_input",
-      critical_land_use = "ara"
-    )
-  out <- whep::build_n_boundary_exceedance(
-    .nbx_surplus_fixture(),
-    critical_input,
-    metric = "input",
-    resolution = "grid"
-  )
-  row <- dplyr::filter(
-    out,
-    .data$lon == 0.25,
-    .data$lat == 0.25,
-    .data$item_cbs_code == 2511L
-  )
-  # input 12 t over 100 ha -> 120 kg N/ha vs critical input 80.
-  testthat::expect_equal(row$actual_kgn_ha, 120)
-  testthat::expect_equal(row$exceed_share, (120 - 80) / 120)
-  testthat::expect_true(all(out$metric == "input"))
-})
-
-testthat::test_that("polity resolution sums the mass terms over cells", {
-  out <- whep::build_n_boundary_exceedance(
-    .nbx_surplus_fixture(),
-    .nbx_critical_surplus_fixture(),
-    resolution = "polity"
-  )
-  pointblank::expect_col_exists(out, c("area_code", "item_cbs_code", "year"))
-  testthat::expect_false(rlang::has_name(out, "lon"))
-  crop <- dplyr::filter(out, .data$item_cbs_code == 2511L)
-  # crop 2511: cells (80/100ha over crit 50), (90/200ha under crit 120),
-  # (60/40ha over crit 40).
-  # actual mass = 8 + 18 + 2.4; exceedance = 3 + 0 + (20 * 40 / 1000).
-  testthat::expect_equal(crop$actual_n_t, 8 + 18 + 2.4)
-  testthat::expect_equal(crop$exceedance_n_t, 3 + 0 + 0.8)
+  testthat::expect_equal(surplus_residual$unallocated_critical_n_t, -2)
+  testthat::expect_equal(surplus_residual$unallocated_signed_margin_n_t, 2)
   testthat::expect_equal(
-    crop$exceedance_n_t + crop$within_boundary_n_t,
-    crop$actual_n_t
+    surplus_residual$unallocated_positive_overshoot_n_t,
+    2
   )
+  testthat::expect_equal(input_residual$unallocated_critical_n_t, 5)
+  testthat::expect_equal(input_residual$unallocated_signed_margin_n_t, -5)
+  testthat::expect_equal(input_residual$unallocated_positive_overshoot_n_t, 0)
 })
 
-testthat::test_that("image_region falls back to polity with a note", {
-  testthat::expect_warning(
-    out <- whep::build_n_boundary_exceedance(
-      .nbx_surplus_fixture(),
-      .nbx_critical_surplus_fixture(),
-      resolution = "image_region"
+testthat::test_that("negative critical values retain restoration overshoot", {
+  out <- .nbx_run(c(3, 1), critical_kgn_ha = -20)
+  testthat::expect_equal(unique(out$cell_critical_n_t), -2)
+  testthat::expect_equal(unique(out$cell_signed_margin_n_t), 6)
+  testthat::expect_equal(unique(out$cell_positive_overshoot_n_t), 6)
+  testthat::expect_equal(sum(out$exceedance_n_t), 6)
+})
+
+testthat::test_that("missing actual and boundary-domain states remain distinct", {
+  missing_actual <- .nbx_run(c(NA_real_, 1))
+  testthat::expect_true(all(missing_actual$coverage_state == "missing_actual"))
+  testthat::expect_true(all(is.na(missing_actual$exceedance_n_t)))
+
+  out_of_domain <- .nbx_boundary(critical_value_present = FALSE)
+  out_of_domain$critical_state <- "out_of_domain"
+  missing_critical <- .nbx_boundary(critical_value_present = FALSE)
+  missing_critical$critical_state <- "missing_critical"
+  testthat::expect_true(all(
+    .nbx_run(c(1, 1), boundary = out_of_domain)$coverage_state ==
+      "out_of_domain"
+  ))
+  testthat::expect_true(all(
+    .nbx_run(c(1, 1), boundary = missing_critical)$coverage_state ==
+      "missing_critical"
+  ))
+
+  zero_land <- .nbx_boundary(source_land_area_ha = 0)
+  testthat::expect_true(all(
+    .nbx_run(c(1, 1), boundary = zero_land)$coverage_state == "zero_land"
+  ))
+})
+
+testthat::test_that("IMAGE aggregation is keyed by source cell", {
+  actual <- dplyr::bind_rows(
+    .nbx_actual(c(4, 1)),
+    dplyr::mutate(.nbx_actual(c(2, 3)), lon = 0.75)
+  ) |>
+    dplyr::mutate(area_code = 1L)
+  boundary <- dplyr::bind_rows(
+    .nbx_boundary(image_region = 11L),
+    dplyr::mutate(
+      .nbx_boundary(image_region = 20L),
+      cell_id = 129962L,
+      source_col = 362L,
+      lon = 0.75
+    )
+  )
+  out <- whep::build_n_boundary_exceedance(
+    actual,
+    boundary,
+    resolution = "image_region",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
+  testthat::expect_setequal(out$image_region, c(11L, 20L))
+  testthat::expect_equal(sum(out$actual_n_t), 10)
+})
+
+testthat::test_that("fractional polity rows conserve the source-cell result", {
+  actual <- .nbx_actual(c(3, 2)) |>
+    dplyr::mutate(area_code = c(1L, 2L), item_cbs_code = 2511L)
+  grid <- whep::build_n_boundary_exceedance(
+    actual,
+    .nbx_boundary(),
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
+  country <- whep::build_n_boundary_exceedance(
+    actual,
+    .nbx_boundary(),
+    resolution = "country",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
+  )
+  testthat::expect_equal(sum(grid$actual_n_t), 5)
+  testthat::expect_equal(sum(country$actual_n_t), 5)
+  testthat::expect_equal(sum(country$exceedance_n_t), 0)
+})
+
+testthat::test_that("fixed-reference provenance is explicit", {
+  out <- .nbx_run(c(4, 4), indicator = "total_input")
+  testthat::expect_true(all(out$actual_year == 2015L))
+  testthat::expect_true(all(out$critical_reference_year == 2010L))
+  testthat::expect_true(all(out$allocation_scenario == "yield_gap"))
+  testthat::expect_true(all(out$indicator == "total_input"))
+  testthat::expect_true(all(out$urban_treatment == "included_provisional"))
+  testthat::expect_true(all(out$land_scope_status == "provisional"))
+})
+
+testthat::test_that("comparison years must be supplied explicitly", {
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      .nbx_actual(c(1, 1)),
+      .nbx_boundary(),
+      critical_reference_year = 2010L
     ),
-    "IMAGE-region|polity"
+    "actual_year.*explicit"
   )
-  pointblank::expect_col_exists(out, c("area_code", "item_cbs_code", "year"))
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      .nbx_actual(c(1, 1)),
+      .nbx_boundary(),
+      actual_year = 2015L
+    ),
+    "critical_reference_year.*explicit"
+  )
 })
 
-testthat::test_that("build_n_boundary_exceedance(example = TRUE) runs", {
+testthat::test_that("unsupported grid modes hard-error before calculation", {
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      actual = tibble::tibble(),
+      boundary = tibble::tibble(),
+      allocation_scenario = "no_increase"
+    ),
+    "no-increase|no_increase|upstream"
+  )
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      actual = tibble::tibble(),
+      boundary = tibble::tibble(),
+      indicator = "new_fixation"
+    ),
+    "new.fixation|new_fixation|surface"
+  )
+})
+
+testthat::test_that("off-grid coordinates and duplicate boundary keys abort", {
+  off_grid <- dplyr::mutate(.nbx_actual(c(1, 1)), lon = 0.3)
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      off_grid,
+      .nbx_boundary(),
+      actual_year = 2015L,
+      critical_reference_year = 2010L
+    ),
+    "0.5-degree|cell centre|aligned"
+  )
+  duplicated <- dplyr::bind_rows(.nbx_boundary(), .nbx_boundary())
+  testthat::expect_error(
+    whep::build_n_boundary_exceedance(
+      .nbx_actual(c(1, 1)),
+      duplicated,
+      actual_year = 2015L,
+      critical_reference_year = 2010L
+    ),
+    "unique|duplicate|cell"
+  )
+})
+
+testthat::test_that("build_n_boundary_exceedance example uses the real path", {
   out <- whep::build_n_boundary_exceedance(example = TRUE)
   testthat::expect_s3_class(out, "tbl_df")
   pointblank::expect_col_exists(
     out,
-    c("item_cbs_code", "exceedance_n_t", "within_boundary_n_t", "actual_n_t")
-  )
-  testthat::expect_equal(
-    out$exceedance_n_t + out$within_boundary_n_t,
-    out$actual_n_t
-  )
-})
-
-# A NEGATIVE critical surplus is real: 1796 of 28881 cells (6.2%) of the
-# Schulte-Uebbing gridded critical N surplus are below zero (to -396 kg N/ha),
-# meaning the cell tolerates no positive surplus at all. The share must clamp
-# to 1 (all of the pressure is exceedance, none within boundary) rather than
-# exceeding 1 and driving within_boundary negative.
-testthat::test_that("a negative critical value clamps the share to 1", {
-  surplus <- tibble::tribble(
-    ~lon, ~lat, ~area_code, ~item_cbs_code, ~year, ~area_ha, ~surplus_kgn_ha,
-    1, 1, 10L, 2511L, 2000L, 100, 50
-  )
-  critical <- tibble::tibble(
-    lon = 1,
-    lat = 1,
-    value = -100,
-    critical_var = "critical_n_surplus",
-    critical_land_use = "ara"
-  )
-  out <- whep::build_n_boundary_exceedance(surplus, critical)
-  testthat::expect_equal(out$exceed_share, 1)
-  testthat::expect_equal(out$exceedance_kgn_ha, 50)
-  testthat::expect_equal(out$within_boundary_kgn_ha, 0)
-  # The decomposition still partitions the pressure exactly.
-  testthat::expect_equal(
-    out$exceedance_n_t + out$within_boundary_n_t,
-    out$actual_n_t
-  )
-  testthat::expect_true(out$exceed_share >= 0 && out$exceed_share <= 1)
-})
-
-testthat::test_that("shares stay in [0, 1] across a critical-value sweep", {
-  surplus <- tibble::tibble(
-    lon = 1:5,
-    lat = 1,
-    area_code = 10L,
-    item_cbs_code = 2511L,
-    year = 2000L,
-    area_ha = 100,
-    surplus_kgn_ha = 40
-  )
-  critical <- tibble::tibble(
-    lon = 1:5,
-    lat = 1,
-    value = c(-396, -1, 0, 20, 80),
-    critical_var = "critical_n_surplus",
-    critical_land_use = "ara"
-  )
-  out <- whep::build_n_boundary_exceedance(surplus, critical)
-  testthat::expect_true(all(out$exceed_share >= 0 & out$exceed_share <= 1))
-  testthat::expect_true(all(out$within_boundary_kgn_ha >= 0))
-  testthat::expect_true(all(out$exceedance_kgn_ha <= out$actual_kgn_ha))
-})
-
-testthat::test_that("ara excludes grass and all retains it as a sensitivity", {
-  surplus <- dplyr::bind_rows(
-    .nbx_surplus_fixture(),
-    tibble::tibble(
-      lon = 0.25,
-      lat = 0.25,
-      area_code = 1L,
-      item_cbs_code = 3000L,
-      year = 2010L,
-      area_ha = 100,
-      n_input_std_t = 5,
-      surplus_kgn_ha = 20
+    c(
+      "cell_id",
+      "item_cbs_code",
+      "crop_critical_n_t",
+      "signed_margin_n_t",
+      "exceedance_n_t",
+      "critical_reference_year"
     )
   )
-  ara <- whep::build_n_boundary_exceedance(
-    surplus,
-    .nbx_critical_surplus_fixture()
-  )
-  all_layer <- dplyr::mutate(
-    .nbx_critical_surplus_fixture(),
-    critical_land_use = "all"
-  )
-  all_grass <- whep::build_n_boundary_exceedance(
-    surplus,
-    all_layer,
-    land_use = "all"
-  )
-  testthat::expect_false(3000L %in% ara$item_cbs_code)
-  testthat::expect_true(3000L %in% all_grass$item_cbs_code)
 })
 
-testthat::test_that("critical-layer identity is validated", {
-  wrong <- dplyr::mutate(
-    .nbx_critical_surplus_fixture(),
-    critical_var = "critical_n_input"
+# The land class decides which crop rows enter the cell aggregate at all, so it
+# decides every number downstream of it. `"igl"` is new here and the old
+# per-crop file's grass-scope guard did not survive the rewrite.
+.nbx_run_scope <- function(land_class) {
+  actual <- .nbx_actual(c(4, 4), indicator = "total_input")
+  actual$item_cbs_code <- c(2501L, 3000L)
+  boundary <- .nbx_boundary()
+  boundary$indicator <- "total_input"
+  boundary$land_class <- land_class
+  whep::build_n_boundary_exceedance(
+    actual = actual,
+    boundary = boundary,
+    indicator = "total_input",
+    land_class = land_class,
+    impact_scope = "mi",
+    allocation_scenario = "yield_gap",
+    resolution = "grid",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
   )
-  testthat::expect_error(
-    whep::build_n_boundary_exceedance(.nbx_surplus_fixture(), wrong),
-    "critical layer|critical_n_surplus"
-  )
+}
+
+testthat::test_that("the land class selects which crop rows are compared", {
+  arable <- .nbx_run_scope("ara")
+  testthat::expect_equal(arable$item_cbs_code, 2501L)
+  testthat::expect_equal(unique(arable$cell_actual_n_t), 4)
+
+  grass <- .nbx_run_scope("igl")
+  testthat::expect_equal(grass$item_cbs_code, 3000L)
+  testthat::expect_equal(unique(grass$cell_actual_n_t), 4)
+
+  # "all" is the sensitivity scope: it keeps both, so the one allowance is
+  # spread over twice the pressure rather than being consumed twice.
+  both <- .nbx_run_scope("all")
+  testthat::expect_equal(sort(both$item_cbs_code), c(2501L, 3000L))
+  testthat::expect_equal(unique(both$cell_actual_n_t), 8)
+  testthat::expect_equal(sum(both$crop_critical_n_t), 5)
 })
 
-testthat::test_that("missing critical coverage aborts", {
-  critical <- dplyr::filter(
-    .nbx_critical_surplus_fixture(),
-    .data$lon != 0.75 | .data$lat != 0.75
+testthat::test_that("a row naming no crop cannot enter the cell aggregate", {
+  actual <- .nbx_actual(c(4, 4), indicator = "total_input")
+  actual$item_cbs_code <- c(2501L, NA_integer_)
+  boundary <- .nbx_boundary()
+  boundary$indicator <- "total_input"
+  out <- whep::build_n_boundary_exceedance(
+    actual = actual,
+    boundary = boundary,
+    indicator = "total_input",
+    land_class = "ara",
+    impact_scope = "mi",
+    allocation_scenario = "yield_gap",
+    resolution = "grid",
+    actual_year = 2015L,
+    critical_reference_year = 2010L
   )
-  testthat::expect_error(
-    whep::build_n_boundary_exceedance(
-      .nbx_surplus_fixture(),
-      critical,
-      resolution = "grid"
-    ),
-    "Critical-layer coverage is incomplete|positive-area"
-  )
+  testthat::expect_equal(out$item_cbs_code, 2501L)
+  testthat::expect_equal(unique(out$cell_actual_n_t), 4)
 })
 
-testthat::test_that("negative surplus becomes zero pressure, not a negative footprint", {
-  surplus <- tibble::tibble(
-    lon = 1,
-    lat = 1,
-    area_code = 10L,
-    item_cbs_code = 2511L,
-    year = 2000L,
-    area_ha = 100,
-    surplus_kgn_ha = -20
+# Backs the NEWS claim about which way the numbers moved. For a non-negative
+# pressure the cell form can only report at least as much overshoot as the old
+# per-crop form, because the old one subtracted a fresh copy of the allowance
+# for every crop. Asserted as an invariant over a sweep rather than on one
+# hand-picked cell.
+testthat::test_that("cell-first input overshoot never falls below per-crop", {
+  cases <- list(
+    list(values = c(4, 4), critical = 50),
+    list(values = c(9, 1), critical = 50),
+    list(values = c(3, 3, 3), critical = 50),
+    list(values = c(0, 0), critical = 50),
+    list(values = c(20, 1), critical = 10),
+    list(values = c(1, 1), critical = 200)
   )
-  critical <- tibble::tibble(
-    lon = 1,
-    lat = 1,
-    value = 10,
-    critical_var = "critical_n_surplus",
-    critical_land_use = "ara"
-  )
-  out <- whep::build_n_boundary_exceedance(surplus, critical)
-  testthat::expect_equal(out$actual_n_t, 0)
-  testthat::expect_equal(out$within_boundary_n_t, 0)
-  testthat::expect_equal(out$exceedance_n_t, 0)
+  margins <- purrr::map_dbl(cases, function(case) {
+    out <- .nbx_run(
+      case$values,
+      critical_kgn_ha = case$critical,
+      indicator = "total_input"
+    )
+    allowance <- unique(out$cell_critical_n_t)
+    old <- sum(pmax(case$values - allowance, 0))
+    sum(out$exceedance_n_t) - old
+  })
+  testthat::expect_true(all(margins >= -1e-9))
+  # And it is a real difference somewhere, not a vacuous inequality.
+  testthat::expect_true(any(margins > 1e-9))
 })

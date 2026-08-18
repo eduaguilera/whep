@@ -26,10 +26,36 @@ in \code{year} and carry a polygon).
 }}
 
 \item{ref_year}{Integer. Target boundaries are the polities active in this
-year (\verb{start_year <= ref_year <= end_year}).}
+year, under the validity convention described for \code{polities}: a polity
+does not answer for the year its successor takes over. The same reading
+selects the sources of each data year.}
 
 \item{polities}{An \code{sf} of polity polygons with \code{polity_code}, \code{start_year},
-\code{end_year} and geometry. Defaults to \code{\link[=get_polity_geometries]{get_polity_geometries()}}.}
+\code{end_year} and geometry, plus an \strong{optional} \code{wiki_status} whose effect is
+described below. Defaults to \code{\link[=get_polity_geometries]{get_polity_geometries()}}, which supplies it.
+\code{start_year} is inclusive; \code{end_year} is \strong{exclusive at a succession} and
+\strong{inclusive at the open end}. So 2014 resolves to \code{"RUS-2014-2025"},
+never to \code{"RUS-1991-2014"}, while 2025 still resolves to
+\code{"RUS-2014-2025"} because nothing succeeds it. An interval counts as open
+when it ends on the last year the supplied table covers and no
+later-starting interval of the same polity follows it. Where the table
+still carries overlapping intervals for one polity, the interval starting
+on the resolved year wins, then the latest-starting one, and finally --
+\strong{only when \code{wiki_status} is supplied} -- a live interval beats a
+\code{"retired"} or \code{"superseded"} one.
+
+That last key is the one behavioural difference between the two call
+styles, and it is stated here rather than left implicit. \strong{Supplying only
+the three required columns is legal and keeps the older, status-blind
+ordering}, under which a shared start year is decided by nothing at all
+and an interval upstream has already replaced can take the year from the
+one that replaced it. On the shipped \link{polities} snapshot that is 1,344
+polity-years across 10 polities, of which one moves territory rather than
+only a label: 1913 and 1914 resolve to \code{"MNE-1913-1915"} (0.9923 Mha)
+instead of \code{"MNE-1913-1918"} (1.5893 Mha), a Montenegro 37.6\% too small.
+Pass \code{wiki_status} -- as the default does -- to get the live interval.
+\code{wiki_status} never selects which years an interval covers; it breaks a
+tie between two intervals that both cover the resolved year.}
 
 \item{covariate}{\code{NULL} (uniform density, i.e. area weighting) or a function
 \verb{function(centroids_sf, year) -> numeric} returning a non-negative density
@@ -60,6 +86,9 @@ A tibble, one row per (\code{ref_year}-target, data \code{year}):
 \item \code{imputed}: mass added for uncovered cells
 \item \code{imputed_share}: covariate fraction imputed (0 = fully observed)
 \item \code{n_sources}: number of source polities contributing that year
+\item \code{unallocated}: total reported value from sources that could not be placed
+on the grid that year (constant within a year; 0 when all were placed).
+Kept out of \code{covered}/\code{imputed} so it is neither smeared nor lost.
 }
 }
 \description{
@@ -94,35 +123,38 @@ population for demographic series, livestock density for animals). With
 # Self-contained toy: two adjacent square polities. Only "P1" reports a
 # value in 1900, so when the series is rebuilt onto the boundaries active in
 # `ref_year` 2000 (both polities), "P2" is imputed from "P1"'s intensity.
-make_square <- function(xmin, ymin, side) {
-  sf::st_polygon(list(rbind(
-    c(xmin, ymin),
-    c(xmin + side, ymin),
-    c(xmin + side, ymin + side),
-    c(xmin, ymin + side),
-    c(xmin, ymin)
-  )))
-}
-polities <- sf::st_sf(
-  polity_code = c("P1", "P2"),
-  start_year = c(1800L, 1800L),
-  end_year = c(2025L, 2025L),
-  geometry = sf::st_sfc(
-    make_square(0, 0, 2),
-    make_square(2, 0, 2),
-    crs = 4326
+# `sf` is a suggested dependency, so the example runs only when it is there.
+if (requireNamespace("sf", quietly = TRUE)) {
+  make_square <- function(xmin, ymin, side) {
+    sf::st_polygon(list(rbind(
+      c(xmin, ymin),
+      c(xmin + side, ymin),
+      c(xmin + side, ymin + side),
+      c(xmin, ymin + side),
+      c(xmin, ymin)
+    )))
+  }
+  polities <- sf::st_sf(
+    polity_code = c("P1", "P2"),
+    start_year = c(1800L, 1800L),
+    end_year = c(2025L, 2025L),
+    geometry = sf::st_sfc(
+      make_square(0, 0, 2),
+      make_square(2, 0, 2),
+      crs = 4326
+    )
   )
-)
-reported <- tibble::tibble(
-  year = 1900L,
-  polity_code = "P1",
-  value = 100
-)
-build_constant_territory_series(
-  reported,
-  ref_year = 2000,
-  polities = polities,
-  resolution = 50000,
-  verbose = FALSE
-)
+  reported <- tibble::tibble(
+    year = 1900L,
+    polity_code = "P1",
+    value = 100
+  )
+  build_constant_territory_series(
+    reported,
+    ref_year = 2000,
+    polities = polities,
+    resolution = 50000,
+    verbose = FALSE
+  )
+}
 }

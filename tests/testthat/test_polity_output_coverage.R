@@ -1,7 +1,20 @@
-expect_polity_match <- function(data, code_col, polity_col) {
+# `require_code` is what whep#417 needed: the polity check below only looks at
+# rows that HAVE a code, so a row carrying no code at all passed it while
+# identifying no territory whatsoever. Reference tables are exempt --
+# `regions_full` legitimately holds 12 rows with no FAOSTAT code -- but an
+# example output is not, so it defaults to on.
+expect_polity_match <- function(
+  data,
+  code_col,
+  polity_col,
+  require_code = TRUE
+) {
   testthat::expect_true(code_col %in% names(data))
   testthat::expect_true(polity_col %in% names(data))
   has_code <- !is.na(data[[code_col]])
+  if (require_code) {
+    testthat::expect_false(any(!has_code))
+  }
   testthat::expect_false(any(is.na(data[[polity_col]][has_code])))
 }
 
@@ -125,7 +138,9 @@ testthat::test_that("spatialized public outputs carry reporting polities", {
   country_grid <- tibble::tibble(
     lon = c(0.25, 0.75),
     lat = c(50.25, 50.25),
-    area_code = 1L
+    area_code = 1L,
+    # C8/S-A5: the whole-cell convention is declared, never defaulted.
+    cell_area_frac = 1
   )
 
   landuse <- build_gridded_landuse(
@@ -175,13 +190,31 @@ testthat::test_that("legacy area reference tables are backed by polities", {
   # polygon_status == "unassigned": some historical periods (e.g. pre-1883
   # Chile, before the War of the Pacific) have no faithful-vintage polygon,
   # and we record an honest gap rather than back-project a later/modern border.
-  no_geometry <- cw[!cw$has_geometry, ]
+  #
+  # One upstream defect is PINNED rather than tolerated: `CAN-1800-1866` declares
+  # polygon_status "proxy", which asserts a substitute polygon was attached, and
+  # ships none. That contradiction is filed upstream as whep-polities issue 59,
+  # which upstream is working through -- 4 were reachable from the crosswalk before
+  # #517 and this is the last. Naming it keeps a NEW offender failing here while
+  # the known one is visible; the pin must shrink to zero, never grow.
+  known_status_defects <- "CAN-1800-1866"
+  no_geometry <- cw[
+    !cw$has_geometry & !cw$polity_code %in% known_status_defects,
+  ]
   testthat::expect_true(all(no_geometry$polygon_status == "unassigned"))
+  testthat::expect_setequal(
+    intersect(cw$polity_code[!cw$has_geometry], known_status_defects),
+    known_status_defects
+  )
 
   for (data in list(whep::regions_full, whep::polities_cats)) {
     data <- data[!data$code %in% aggregate_codes, ]
-    expect_polity_match(data, "code", "reporting_polity_code")
-    testthat::expect_false(any(is.na(data$polity_code)))
+    expect_polity_match(data, "code", "reporting_polity_code", FALSE)
+    # `[[` rather than `$`: a partial-matching `$` on a renamed column returns
+    # NULL, and `any(is.na(NULL))` is FALSE, so this assertion would pass
+    # vacuously instead of failing (which is what it did through whep#687's
+    # rename until it was noticed).
+    testthat::expect_false(any(is.na(data[["legacy_polity_prefix"]])))
     coded_rows <- !is.na(data$code)
     testthat::expect_true(all(data$reporting_polity_has_geometry[coded_rows]))
   }

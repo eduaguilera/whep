@@ -8,8 +8,11 @@
 A tibble where each row corresponds to one polity (country or territory).
 It contains the following columns:
 \itemize{
-\item \code{polity_code}: Legacy current polity prefix, usually ISO 3166-1 alpha-3
-(e.g., \code{"AFG"}, \code{"ALB"}).
+\item \code{legacy_polity_prefix}: Legacy current polity prefix, usually ISO 3166-1
+alpha-3 (e.g., \code{"AFG"}, \code{"ALB"}). \strong{Not a \link{polities} code} and not a join
+key to any polity table: it was called \code{polity_code} until whep#687, where
+the name promised an identity none of its values holds. Read
+\code{reporting_polity_code} for the polity.
 \item \code{polity_name}: Current polity, country, or territory name.
 \item \code{V1}: Internal row index from the source table.
 \item \code{code}: Numeric FAOSTAT country code.
@@ -20,7 +23,7 @@ workflows.
 \item \code{reporting_polity_has_geometry}: Logical flag indicating whether the
 current reporting polity has a polygon.
 \item \code{iso3c}: ISO 3166-1 alpha-3 code (character; may duplicate
-\code{polity_code} or differ for aggregates).
+\code{legacy_polity_prefix} or differ for aggregates).
 \item \code{FAOSTAT_name}: Country name as used in FAOSTAT.
 \item \code{EU27}: Logical flag; \code{TRUE} if the polity is a member of the EU27.
 \item \code{name}: Country name used in other external databases.
@@ -72,8 +75,13 @@ identifiers from multiple data sources and assignments to various regional
 groupings used in the literature and international databases.
 }
 \note{
-Five trailing columns containing only Excel \verb{#REF!} errors in the
-source CSV are dropped at load time and are not part of this dataset.
+Derived from \link{regions_full} rather than vendored separately: the
+198-code membership is read from \code{harmonization/polities_cats.csv} and every
+column value comes from \code{regions_full}, so the two tables cannot disagree
+except where this one deliberately folds an area into a rest-of-world
+aggregate. Two areas are folded, both because they had no commodity balance
+sheet when the table was compiled: Bhutan under \code{RASI} and Comoros under
+\code{RAFR}, each with \code{cbs} \code{FALSE} and \code{fabio_code} \code{999}.
 }
 \examples{
 head(polities_cats)

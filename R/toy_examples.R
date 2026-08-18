@@ -8,19 +8,26 @@
 #' @keywords internal
 #' @noRd
 
+# One row per (proc_group, type) combination the real builder emits, sampled
+# from a real build_supply_use() run over 1967, 1978, 1985, 1996, 2003, 2010,
+# 2011 and 2021. The fixture this replaced showed only three of the five
+# documented process groups, and one of its ten rows had no `area_code` at all
+# (whep#417). The real builder does still emit area-less rows -- 515 of
+# 1,211,820 in that run, all of them crop-residue supply from a name-keyed
+# join, whep#684 -- but they are a defect to fix at the source, not a shape to
+# teach the reader in the documented example.
 .example_build_supply_use <- function() {
   tibble::tribble(
     ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
-    2021, 255, "husbandry", 1053, 2106, "use", 1.17e+5,
-    2003, 84, "crop_production", 2511, 2105, "supply", 1.62e+6,
-    1982, 3, "husbandry", 976, 2737, "supply", 3.67e+2,
-    2000, 8, "crop_production", 2534, 2534, "supply", 2.98e+1,
-    2013, 170, "husbandry", 1049, 2594, "use", 3.21e+3,
-    1985, 75, "husbandry", 1190, 1190, "supply", 1.95e+3,
-    1969, 144, "husbandry", 1052, 1052, "supply", 2.18e+0,
-    2010, NA, "husbandry", 976, 2807, "use", 3.33e-14,
-    1998, 115, "processing", 2544, 2543, "supply", 3.77e+3,
-    1967, 238, "husbandry", 960, 2740, "supply", 1.05e+3
+    1967L, 11L, "processing", 2543L, 2543L, "use", 8000,
+    1978L, 130L, "crop_production", 2536L, 2106L, "supply", 393876,
+    1985L, 26L, "husbandry", 1053L, 2763L, "use", 466.613,
+    1985L, 206L, "animal_draught", 1126L, 4000L, "supply", 2949.67,
+    2003L, 102L, "crop_production", 2517L, 2517L, "use", 500,
+    2003L, 156L, "slaughtering", 961L, 2737L, "supply", 227298,
+    2011L, 72L, "husbandry", 1016L, 1016L, "supply", 512000,
+    2011L, 174L, "processing", 2617L, 2543L, "supply", 14.5604,
+    2021L, 96L, "slaughtering", 1049L, 1049L, "use", 1538870
   ) |>
     .add_reporting_polity_columns()
 }
@@ -41,20 +48,29 @@
   )
 }
 
+# Eleven rows sampled from a real get_feed_intake() run (national grain, IPCC
+# demand tier, historical feed mode) over 1967, 1978, 1985, 1996, 2003, 2010,
+# 2011 and 2021, covering all five feed types. `loss` and `loss_share` are zero
+# because the redistribute-feed allocator is demand-pull: every allocated tonne
+# is eaten, so supply == intake and underfeeding is carried by redistribute's
+# scaling factor. They are zero in all 291,916 rows of that run. The fixture
+# this replaced predated that migration and carried a 10% loss plus two rows
+# with no `area_code` at all (whep#417); the roxygen block still describes a
+# loss the allocator cannot produce, which is whep#689.
 .example_get_feed_intake <- function() {
   tibble::tribble(
     ~year, ~area_code, ~live_anim_code, ~item_cbs_code, ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,
-    1990, 51, 1096, 2515, "crops", 429., 386., 338., 4.29e+1, 0.1,
-    2007, 3, 976, 2570, "crops", 5.51, 4.96, 4.56, 5.51e-1, 0.1,
-    1996, 54, 960, 2531, "crops", 5451., 4906., 1114., 5.45e+2, 0.1,
-    2011, NA, 1052, 2532, "crops", 0.840, 0.756, 0.315, 8.40e-2, 0.1,
-    1996, 110, 1052, 2549, "crops", 17.1, 15.4, 14.5, 1.71e+0, 0.1,
-    1986, 4, 1053, 2514, "crops", 297464., 267717., 230772., 2.97e+4, 0.1,
-    2010, 150, 1068, 2595, "crops", 2645., 2380., 2176., 2.64e+2, 0.1,
-    1978, NA, 1096, 2536, "crops", 159., 143., 42.2, 1.59e+1, 0.1,
-    2021, 23, 1053, 2511, "crops", 627., 347., 305., 2.80e+2, 0.446,
-    1977, 114, 976, 2517, "crops", 32.5, 29.2, 25.7, 3.25e+0, 0.1,
-    2020, 32, 1053, 3000, "grass", 120., 100., 20., 20., 0.167
+    1967L, 96L, 976L, 3500L, "scavenging", 2.83572, 2.83572, 0.567144, 0, 0,
+    1978L, 33L, 1052L, 2736L, "animals", 72.575, 72.575, 21.7725, 0, 0,
+    1978L, 226L, 1016L, 3500L, "scavenging", 432336, 432336, 86467.3, 0, 0,
+    1978L, 234L, 1096L, 2533L, "crops", 492.388, 492.388, 127.036, 0, 0,
+    1985L, 72L, 961L, 2106L, "residues", 5806.92, 5806.92, 5224.29, 0, 0,
+    1996L, 10L, 961L, 2101L, "crops", 15982.3, 15982.3, 14479.9, 0, 0,
+    1996L, 244L, 960L, 3000L, "grass", 10249.1, 10249.1, 2049.82, 0, 0,
+    2003L, 191L, 1049L, 2514L, "crops", 338.62, 338.62, 291.891, 0, 0,
+    2010L, 170L, 960L, 3000L, "grass", 2844900, 2844900, 568980, 0, 0,
+    2010L, 235L, 961L, 2763L, "animals", 1852.27, 1852.27, 463.068, 0, 0,
+    2021L, 59L, 1016L, 2104L, "residues", 169951, 169951, 151766, 0, 0
   ) |>
     .add_reporting_polity_columns()
 }
@@ -66,7 +82,8 @@
     1986L, 100L, 3000L, 8.0e6, "occupation",
     1987L, 10L, 3000L, 2.5e7, "occupation",
     1987L, 100L, 3000L, 8.1e6, "occupation"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_ghg_extension <- function() {
@@ -78,7 +95,8 @@
     1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
     1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
     1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_energy_co2_extension <- function() {
@@ -92,7 +110,8 @@
     2010L, 231L, 1049L, 1.9281e9, "GLEAM_3.0_energy_meat",
     2010L, 231L, 1051L, 2.1423e8, "GLEAM_3.0_energy_meat",
     2010L, 231L, 1053L, 1.1171e10, "GLEAM_3.0_energy_meat"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_soil_n2o_extension <- function() {
@@ -101,7 +120,8 @@
     ~method_synthetic,
     2010L, 10L, 2511L, 4.126122e8, "IPCC_2019_Tier1_AR6", "coello",
     2010L, 10L, 2513L, 1.768338e8, "IPCC_2019_Tier1_AR6", "coello"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_soil_carbon_inputs <- function() {
@@ -114,7 +134,8 @@
     0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
     0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted")
+    dplyr::mutate(method_c_input = "humified_weighted") |>
+    .add_reporting_polity_columns()
 }
 
 .ex_get_primary_prod <- function() {
@@ -449,23 +470,28 @@
     2000L, 100L, 2555L, 7218004, "cropland_apportion",
     2000L, 110L, 2511L, 1188233, "cropland_apportion",
     2000L, 110L, 2805L, 1503221, "cropland_apportion"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # afsetools parity fixtures were removed: afsetools::load_general_data() reads
 # Codes_coefs.xlsx via openxlsx (segfaults intermittently on R 4.5.x) and is not
 # a CI dependency, so the live parity test is not run. See test_redistribute_feed.R.
 
+# Three 0.5-degree cells around Madrid. `area_code` is the FAOSTAT area code
+# the cell grid assigns to them (203, Spain), not Spain's ISO-3166 numeric code
+# (724): only the former resolves to a polity.
 .example_local_intake <- function() {
   tibble::tribble(
     ~year, ~area_code, ~sub_territory, ~live_anim_code, ~item_cbs_code,
     ~feed_type, ~supply, ~intake, ~intake_dry_matter, ~loss, ~loss_share,
-    2000L, 724L, "-3.75_40.25", 960L, 3000L, "grass", 1250, 1250, 250, 0, 0,
-    2000L, 724L, "-3.75_40.25", 960L, 2591L, "crops", 11, 11, 10, 0, 0,
-    2000L, 724L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
-    2000L, 724L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
-    2000L, 724L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
-  )
+    2000L, 203L, "-3.75_40.25", 960L, 3000L, "grass", 1250, 1250, 250, 0, 0,
+    2000L, 203L, "-3.75_40.25", 960L, 2591L, "crops", 11, 11, 10, 0, 0,
+    2000L, 203L, "-3.25_40.25", 961L, 3000L, "grass", 900, 900, 180, 0, 0,
+    2000L, 203L, "-3.25_40.25", 976L, 3500L, "scavenging", 0, 0, 0, 0, 0,
+    2000L, 203L, "-3.25_40.75", 1049L, 2591L, "crops", 22, 22, 20, 0, 0
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .example_build_feed_demand <- function(by = "category") {
@@ -495,7 +521,8 @@
     2000L, 79L, "Poultry", 3.9e6, "bouwman_fcr",
     2000L, 79L, "Horses", 1.5e5, "krausmann_per_head",
     2000L, 79L, "Other", 3.0e4, "krausmann_per_head"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_land_balance_footprint <- function() {
@@ -569,20 +596,28 @@
     0.29, 0.14, 0.43, "lpjml_prec_irrig",
     9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
     0.29, 0.14, 0.43, "lpjml_prec_irrig"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
-# SOC dynamics selector output (ICBM model, six annual rows). Young and old
-# pool stocks plus their total, with the method_soc stamp naming the model.
+# SOC dynamics selector output (ICBM model, six years x two pools) in the
+# uniform long schema: the young and old pool stocks, the year's total repeated
+# on each pool row, and the method_soc stamp naming the model that ran.
 .example_soc_dynamics <- function() {
   tibble::tribble(
-    ~year, ~y, ~o, ~soc_total, ~method_soc,
-    0L, 2.7488, 47.2512, 50.0000, "icbm",
-    1L, 2.6118, 47.2077, 49.8195, "icbm",
-    2L, 2.5502, 47.1742, 49.7244, "icbm",
-    3L, 2.5226, 47.1453, 49.6679, "icbm",
-    4L, 2.5101, 47.1185, 49.6287, "icbm",
-    5L, 2.5046, 47.0928, 49.5974, "icbm"
+    ~year, ~pool, ~stock_mgc_ha, ~soc_total, ~method_soc,
+    0L, "y", 2.748751, 50.000000, "icbm",
+    0L, "o", 47.251249, 50.000000, "icbm",
+    1L, "y", 2.611771, 49.854975, "icbm",
+    1L, "o", 47.243204, 49.854975, "icbm",
+    2L, "y", 2.550222, 49.775657, "icbm",
+    2L, "o", 47.225435, 49.775657, "icbm",
+    3L, "y", 2.522566, 49.725947, "icbm",
+    3L, "o", 47.203381, 49.725947, "icbm",
+    4L, "y", 2.510140, 49.689628, "icbm",
+    4L, "o", 47.179488, 49.689628, "icbm",
+    5L, "y", 2.504556, 49.659408, "icbm",
+    5L, "o", 47.154852, 49.659408, "icbm"
   )
 }
 
@@ -608,7 +643,8 @@
     2.140876, 2.500000, 0.000000, 0.359124, -32.647669, "hsoc",
     0.250000, 0.250000, 1L, "NonCropland", 2002L, 50.000000, 36.355474,
     2.051935, 1.500000, 0.000000, -0.551935, 50.175910, "hsoc"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # Toy fixture for read_cru_climate (sampled from a real CRU 4.09 tmp read,
@@ -630,25 +666,41 @@
 }
 
 # Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
-# four carbon-balance classes. Per cell the four fractions tile to 1 and
-# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
-# output at "grid" resolution.
+# four carbon-balance classes. Sampled from a real
+# read_luh2_landuse(resolution = "grid", years = 2015) run on the LUH2-GCB2022
+# states and the polycell support, so it shows what the schema really looks
+# like: cell (9.25, 47.75) is a BORDER cell, shared between Germany (79) and
+# Switzerland (211), whose two polycells carry the SAME `fraction` -- LUH2's
+# share of the whole cell -- and different `area_ha`, each class's share of that
+# cell's LUH2 land spread over its own polycell's measured land.
 .example_luh2_landuse <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
-    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
-    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
-    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
-    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
-    35.25, -1.25, 79L, 2000L, "cropland", 0.30, 92709.98,
-    35.25, -1.25, 79L, 2000L, "grassland", 0.25, 77258.31,
-    35.25, -1.25, 79L, 2000L, "natural", 0.40, 123613.30,
-    35.25, -1.25, 79L, 2000L, "urban", 0.05, 15451.66,
-    9.25, 47.75, 11L, 2000L, "cropland", 0.25, 51958.29,
-    9.25, 47.75, 11L, 2000L, "grassland", 0.20, 41566.63,
-    9.25, 47.75, 11L, 2000L, "natural", 0.50, 103916.58,
-    9.25, 47.75, 11L, 2000L, "urban", 0.05, 10391.66
-  )
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~year,
+    ~land_use,
+    ~fraction,
+    ~area_ha,
+    ~method_land_area,
+    -3.25, 40.25, 203L, 2015L, "cropland", 0.4717921, 111305.54, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "grassland", 0.2671119, 63017.22, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "natural", 0.2285400, 53917.33, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "urban", 0.0325560, 7680.63, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "cropland", 0.2331222, 33737.83, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "grassland", 0.2005688, 29026.65, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "natural", 0.3654755, 52892.21, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "urban", 0.0498313, 7211.67, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "cropland", 0.2331222, 14178.27, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "grassland", 0.2005688, 12198.40, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "natural", 0.3654755, 22227.86, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "urban", 0.0498313, 3030.69, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "cropland", 0.1634304, 50505.91, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "grassland", 0.4838348, 149522.47, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "natural", 0.3527347, 109007.80, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "urban", 0.0000000, 0.00, "polycell_land"
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # Per-PFT annual LPJmL NPP fixture: two 0.5-degree cells, one year, a handful
@@ -675,21 +727,26 @@
 # carbon-balance classes. c_input_mgc_ha_yr is (NPP - harvest) in MgC/ha/yr
 # (grassland also adds grazing excreta); humified_fraction is the weed value for
 # grassland and the woody value for natural. Mirrors
-# build_grass_natural_carbon_inputs() output at "grid" resolution.
+# build_grass_natural_carbon_inputs() output at "grid" resolution. `area_code`
+# is the FAOSTAT area code the cell grid assigns to each cell: 84 (Greece) for
+# the Crete cell and 9 (Argentina) for the pampas cell. Their ISO-3166 numeric
+# codes (300, 32) do not belong in this column -- 300 resolves to no polity at
+# all and 32 is FAOSTAT's code for Cameroon.
 # nolint start: object_length_linter.
 .example_grass_natural_carbon_inputs <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~land_use,
     ~c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
-    26.25, 35.25, 300L, 2000L, "grassland",
+    26.25, 35.25, 84L, 2000L, "grassland",
     4.35, 0.1153467, "lpjml_npp_minus_harvest",
-    26.25, 35.25, 300L, 2000L, "natural",
+    26.25, 35.25, 84L, 2000L, "natural",
     4.56, 0.325, "lpjml_npp_minus_harvest",
-    -64.25, -35.75, 32L, 2000L, "grassland",
+    -64.25, -35.75, 9L, 2000L, "grassland",
     1.95, 0.1153467, "lpjml_npp_minus_harvest",
-    -64.25, -35.75, 32L, 2000L, "natural",
+    -64.25, -35.75, 9L, 2000L, "natural",
     9.26, 0.325, "lpjml_npp_minus_harvest"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 # nolint end
 
@@ -704,7 +761,8 @@
     0.25, 0.25, 1L, 2000L, "cropland", 2.75, 0.1818182, "humified_weighted",
     0.25, 0.25, 1L, 2000L, "grassland", 4.0, 0.1153467, "lpjml_npp_minus_harvest",
     0.25, 0.25, 1L, 2000L, "natural", 6.0, 0.325, "lpjml_npp_minus_harvest"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 .ex_grazing_feed_footprint <- function() {
@@ -1059,22 +1117,26 @@
     0.75, 0.75, 1L, 2555L, 2010L, 10, 3, 150
   )
   critical <- tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 50,
-    0.75, 0.25, 120,
-    0.25, 0.75, 40,
-    0.75, 0.75, 100
+    ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+    0.25, 0.25, 50, 100, 11L,
+    0.75, 0.25, 120, 100, 11L,
+    0.25, 0.75, 40, 100, 11L,
+    0.75, 0.75, 100, 100, 11L
   ) |>
     dplyr::mutate(
       critical_var = "critical_n_surplus",
-      critical_land_use = "all"
+      critical_land_use = "all",
+      critical_threshold = "mi",
+      critical_year = 2010L
     )
   build_n_boundary_exceedance(
     surplus = surplus,
     critical = critical,
     land_use = "all",
     resolution = "grid",
-    metric = "surplus"
+    metric = "surplus",
+    actual_year = 2010L,
+    critical_reference_year = 2010L
   )
 }
 
@@ -1160,19 +1222,45 @@
   )
 }
 
-# Per-capita food-supply fixture (whep_native path). Sampled from a real
-# build_food_supply() run on a tiny commodity-balance food + population +
-# two-item biomass_coefs fixture: protein via the Edible_N -> N -> product-N
-# coalesce chain times 6.25, gross energy via MJ / 0.004184, both divided by
-# population and 365 days.
+# Per-capita food-supply fixture (whep_native path, default "edible_portion"
+# protein basis). Taken from a real build_food_supply() run on this input set,
+# so it can be regenerated by pasting it back in:
+#
+#   coefs <- tibble::tribble(
+#     ~Name_biomass, ~N_kgN_kgFM, ~Product_kgN_kgDM, ~Product_kgDM_kgFM,
+#     ~Edible_portion, ~GE_product_edible_portion_MJ_kgFM, ~GE_product_MJ_kgFM,
+#     "Wheat",  0.019,    0.020, 0.87, 1.00, 13.0,     14.0,
+#     "Potato", NA_real_, 0.014, 0.21, 0.85, NA_real_,  3.5
+#   )
+#   items <- tibble::tribble(
+#     ~item_cbs_code, ~Name_biomass, 2511L, "Wheat", 2531L, "Potato"
+#   )
+#   cbs <- tibble::tribble(
+#     ~year, ~area_code, ~item_cbs_code, ~food_t,
+#     2010L, 10L, 2511L, 1200, 2010L, 10L, 2531L, 800,
+#     2010L, 32L, 2511L,  400,
+#     2011L, 10L, 2511L, 1000, 2011L, 10L, 2531L, 600
+#   )
+#   pop <- tibble::tribble(
+#     ~year, ~area_code, ~population,
+#     2010L, 10L, 10000, 2010L, 32L, 5000, 2011L, 10L, 10200
+#   )
+#
+# Wheat exercises the N_kgN_kgFM branch with no inedible fraction; Potato the
+# product-nitrogen fallback scaled by an Edible_portion below 1, and the
+# energy coalesce from edible to whole product.
 .example_build_food_supply <- function() {
   tibble::tribble(
     ~year, ~area_code, ~protein_g_cap_day, ~energy_kcal_cap_day, ~population,
-    ~method_food_supply,
-    2010L, 10L, 63.3561643836, 1551.900259305, 10000, "whep_native",
-    2010L, 32L, 27.3972602740, 681.002645433, 5000, "whep_native",
-    2011L, 10L, 49.0196078431, 1351.348575261, 10200, "whep_native"
-  )
+    ~method_food_supply, ~method_protein_basis,
+    2010L, 10L, 42.4643835616, 1204.850834228, 10000, "whep_native",
+    "edible_portion",
+    2010L, 32L, 26.0273972603, 681.002645433, 5000, "whep_native",
+    "edible_portion",
+    2011L, 10L, 34.4134434596, 969.375937598, 10200, "whep_native",
+    "edible_portion"
+  ) |>
+    .add_reporting_polity_columns()
 }
 
 # The single coherent input set that drives build_sjos_nitrogen(example = TRUE)
@@ -1232,15 +1320,17 @@
 # Critical nitrogen surplus (kg N/ha/yr) at the four balance cells.
 .sjos_n_critical_fixture <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~value,
-    0.25, 0.25, 50,
-    0.75, 0.25, 120,
-    10.25, 5.25, 50,
-    10.75, 5.25, 100
+    ~lon, ~lat, ~value, ~source_area_ha, ~image_region,
+    0.25, 0.25, 50, 150, 11L,
+    0.75, 0.25, 300, 240, 11L,
+    10.25, 5.25, 200, 140, 20L,
+    10.75, 5.25, 300, 20, 20L
   ) |>
     dplyr::mutate(
       critical_var = "critical_n_surplus",
-      critical_land_use = "ara"
+      critical_land_use = "ara",
+      critical_threshold = "mi",
+      critical_year = 2010L
     )
 }
 
@@ -1318,18 +1408,21 @@
 # Nutrition coefficients for the three food items (protein via Edible_N_kgFM x
 # 6.25, gross energy via GE_product_edible_portion_MJ_kgFM). The other columns of
 # the coalesce chains are present but unused here.
+# Nitrogen sits in N_kgN_kgFM with a fully edible fraction, so the protein
+# values are the same as when this fixture carried them in Edible_N_kgFM, which
+# build_food_supply() no longer reads (#361).
 .sjos_n_coefs_fixture <- function() {
   tibble::tribble(
     ~Name_biomass,
-    ~Edible_N_kgFM,
     ~N_kgN_kgFM,
     ~Product_kgN_kgDM,
     ~Product_kgDM_kgFM,
+    ~Edible_portion,
     ~GE_product_edible_portion_MJ_kgFM,
     ~GE_product_MJ_kgFM,
-    "Wheat", 0.020, NA, NA, NA, 13.0, NA,
-    "Barley", 0.018, NA, NA, NA, 12.5, NA,
-    "Soybeans", 0.055, NA, NA, NA, 17.0, NA
+    "Wheat", 0.020, NA, NA, 1, 13.0, NA,
+    "Barley", 0.018, NA, NA, 1, 12.5, NA,
+    "Soybeans", 0.055, NA, NA, 1, 17.0, NA
   )
 }
 
@@ -1340,5 +1433,110 @@
     2511L, "Wheat",
     2513L, "Barley",
     2555L, "Soybeans"
+  )
+}
+
+# Ten of the 50 provinces returned by create_typologies_grafs_spain() for its
+# default map_year of 1980, sampled from a real run.
+.ex_typologies_grafs_spain <- function() {
+  tibble::tribble(
+    ~Province_name, ~Typologie,
+    "Albacete", "Extensive cropping system",
+    "Alicante", "Extensive cropping system",
+    "Araba", "Extensive cropping system",
+    "Asturias", "Specialized livestock-farming system",
+    "Avila", "Extensive cropping system",
+    "Huelva", "Extensive cropping system",
+    "Jaen", "Extensive cropping system",
+    "Leon", "Extensive cropping system",
+    "Lleida", "Specialized livestock-farming system",
+    "Teruel", "Extensive cropping system"
+  )
+}
+
+# The three data elements create_typologies_of_josette() returns, sampled from
+# a real run at year 2020 over the first ten provinces alphabetically. The
+# fourth element of the real output is a ggplot, which is left out so the
+# example needs no plotting package.
+.example_typologies_josette <- function() {
+  list(
+    typologies_df = .ex_josette_typologies(),
+    n_input_df = .ex_josette_n_inputs(),
+    imported_feed_share_df = .ex_josette_feed_share()
+  )
+}
+
+.ex_josette_typologies <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~Typology,
+    2020, "A_Coruna", "Forage-based crop & livestock system",
+    2020, "Albacete", "Specialized stockless cropping system",
+    2020, "Alicante", "Urban system",
+    2020, "Almeria", "Forage-based crop & livestock system",
+    2020, "Araba", "Specialized stockless cropping system",
+    2020, "Asturias", "Grass-based crop & livestock system",
+    2020, "Avila", "Forage-based crop & livestock system",
+    2020, "Badajoz", "Forage-based crop & livestock system",
+    2020, "Barcelona", "Urban system",
+    2020, "Bizkaia", "Urban system"
+  )
+}
+
+.ex_josette_n_inputs <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~item, ~irrig_cat, ~Box, ~MgN_dep, ~MgN_fix, ~MgN_syn, ~MgN_manure, ~MgN_urban,
+    2020, "A_Coruna", "Fodder vegetables and roots", "Irrigated", "Cropland", 1.99, 1.06, 10.2, 0., 1.32,
+    2020, "Albacete", "Nuts and products", "Irrigated", "Cropland", 116., 85.1, 2190., 676., 11.4,
+    2020, "Albacete", "Maize and products", "Irrigated", "Cropland", 39.4, 16.6, 2070., 25.4, 3.87,
+    2020, "Albacete", "Peas", "Irrigated", "Cropland", 2.90, 33.5, 14.9, 0., 0.284,
+    2020, "Almeria", "Grapes and products (excl wine)", "Irrigated", "Cropland", 1.12, 1.00, 39.0, 0., 0.971,
+    2020, "Araba", "Beans", "Irrigated", "Cropland", 1.48, 7.46, 6.21, 0., 0.764,
+    2020, "Araba", "Soyabeans", "Rainfed", "Cropland", 0.0215, 0.146, 0.0798, 0., 0.0111,
+    2020, "Avila", "Rye and products", "Irrigated", "Cropland", 0.411, 0.242, 8.06, 0., 0.0729,
+    2020, "Badajoz", "Fodder legumes", "Rainfed", "Cropland", 65.9, 1660., 13.1, 212., 12.3,
+    2020, "Badajoz", "Firewood", "Rainfed", "semi_natural_agroecosystems", 6490., 12500., 0., 16400., 0.
+  )
+}
+
+# Ten rows of a real build_historical_land_areas(1850:1961) run at its DEFAULT
+# `boundary_step = "level_step"`, sampled across the span and across the cases
+# that make this method differ from the present-day one: Ethiopia either side of
+# the 1952 Eritrea handover, the dissolved federations the method reaches
+# without a successor union, and Belgium, which the raster route halved by
+# splitting its cells with the overlapping Belgium-Luxembourg polygon
+# (whep#800).
+#
+# The rows this replaces were taken from a `"relink"` run, so they disagreed
+# with the pin the default produces: Ethiopia 1850 read 3.2414 Mha of cropland
+# where both the shipped pin and this run read 1.5174.
+.example_historical_land_areas <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
+    1961L, 255L, "BEL-1831-2025", 1.0152, 0.7175, 1.7327,
+    1961L, 51L, "F51-1947-1993", 5.3510, 1.8063, 7.1573,
+    1900L, 203L, "ESP-1800-2025", 16.1666, 8.2026, 24.3692,
+    1961L, 228L, "F228-1945-1991", 237.8785, 331.6635, 569.5420,
+    1850L, 238L, "ETH-1800-1889", 1.5174, 1.8841, 3.4015,
+    1900L, 238L, "ETH-1897-1902", 6.0023, 13.5575, 19.5598,
+    1951L, 238L, "ETH-1941-1952", 9.4543, 22.9532, 32.4075,
+    1952L, 238L, "ETH-1952-1993", 10.2061, 30.0426, 40.2487,
+    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5874, 41.5391,
+    1961L, 248L, "F248-1947-1991", 8.3956, 6.4600, 14.8556
+  )
+}
+
+.ex_josette_feed_share <- function() {
+  tibble::tribble(
+    ~Year, ~Province_name, ~LU_total, ~Feed_import_MgN, ~Domestic_feed_MgN, ~Total_feed_MgN, ~Imported_feed_share,
+    2020, "A_Coruna", 414814., 365672., 29936.3, 395608., 0.924,
+    2020, "Albacete", 178482., 157337., 8753.91, 166091., 0.947,
+    2020, "Alicante", 57203.3, 50426.5, 2561.46, 52987.9, 0.952,
+    2020, "Almeria", 224946., 198297., 11141.4, 209439., 0.947,
+    2020, "Araba", 87341.1, 76993.9, 2576.11, 79570.0, 0.968,
+    2020, "Asturias", 407178., 358940., 15068.6, 374009., 0.960,
+    2020, "Avila", 339709., 299464., 14377.8, 313842., 0.954,
+    2020, "Badajoz", 1005423., 886311., 37603.4, 923915., 0.959,
+    2020, "Barcelona", 776463., 684476., 39563.0, 724039., 0.945,
+    2020, "Bizkaia", 106968., 94295.4, 3505.52, 97800.9, 0.964
   )
 }

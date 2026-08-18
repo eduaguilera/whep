@@ -15,6 +15,85 @@
   )
 }
 
+# ---- hwsd_data.csv column contract (whep#596) --------------------------
+
+# hwsd_data.csv is derived locally, so an extract written before a column the
+# reader needs existed is an ordinary state. It must be named as such, not
+# surface as a dplyr missing-column error deep inside a reader.
+.write_hwsd_extract <- function(dir, attr = .hwsd_attr_fixture()) {
+  readr::write_csv(attr, file.path(dir, "hwsd_data.csv"))
+  dir
+}
+
+testthat::test_that(".hwsd_missing_columns reports an absent extract", {
+  empty <- withr::local_tempdir()
+
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(empty, whep:::.hwsd_clay_columns()),
+    "hwsd_data.csv"
+  )
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns("", whep:::.hwsd_clay_columns()),
+    "hwsd_data.csv"
+  )
+})
+
+testthat::test_that(".hwsd_missing_columns reports only absent columns", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  # The fixture carries the pH reader's columns but no t_clay.
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(dir, whep:::.hwsd_ph_columns()),
+    character()
+  )
+  testthat::expect_equal(
+    whep:::.hwsd_missing_columns(dir, whep:::.hwsd_clay_columns()),
+    "t_clay"
+  )
+})
+
+testthat::test_that(".read_hwsd_attributes_local names the missing column", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(
+      dir,
+      required = whep:::.hwsd_clay_columns()
+    ),
+    "t_clay"
+  )
+  # ... and points at the script that writes a complete extract.
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(dir, required = "t_clay"),
+    "export_hwsd_attributes"
+  )
+})
+
+testthat::test_that(".read_hwsd_attributes_local reads a complete extract", {
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  out <- whep:::.read_hwsd_attributes_local(
+    dir,
+    required = whep:::.hwsd_ph_columns()
+  )
+
+  pointblank::expect_col_exists(out, whep:::.hwsd_ph_columns())
+  testthat::expect_equal(nrow(out), nrow(.hwsd_attr_fixture()))
+})
+
+testthat::test_that("read_soil_hydraulic names a missing texture column", {
+  testthat::skip_if_not_installed("terra")
+  attr <- .hwsd_attr_fixture() |> dplyr::select(-"t_usda_tex")
+  dir <- .write_hwsd_extract(withr::local_tempdir(), attr)
+
+  testthat::expect_error(
+    whep::read_soil_hydraulic(hwsd_dir = dir),
+    "t_usda_tex"
+  )
+})
+
+# ---- .derive_dominant_soil() -------------------------------------------
+
 testthat::test_that(".derive_dominant_soil picks dominant texture's pH", {
   result <- whep:::.derive_dominant_soil(.hwsd_attr_fixture())
 
@@ -258,7 +337,7 @@ testthat::test_that("read_soil_ph aggregates HWSD raster + attributes", {
   testthat::expect_true(all(result$soil_ph == 6.5))
 })
 
-testthat::test_that(".crop_to_target crops the raster to the target extent", {
+testthat::test_that(".hwsd_target_extent pads the target grid's bounding box", {
   testthat::skip_if_not_installed("terra")
   rast <- terra::rast(
     nrows = 12,
@@ -269,41 +348,76 @@ testthat::test_that(".crop_to_target crops the raster to the target extent", {
     ymax = 3,
     resolution = 0.5
   )
-  terra::values(rast) <- seq_len(terra::ncell(rast))
   target <- tibble::tibble(lon = c(-0.25, 0.25), lat = c(-0.25, 0.25))
 
-  cropped <- whep:::.crop_to_target(rast, target, target_res = 0.5)
-  ext <- terra::ext(cropped)
+  ext <- whep:::.hwsd_target_extent(rast, target, target_res = 0.5)
 
-  testthat::expect_lt(terra::ncell(cropped), terra::ncell(rast))
-  testthat::expect_gte(ext$xmin, -1)
-  testthat::expect_lte(ext$xmax, 1)
-  testthat::expect_gte(ext$ymin, -1)
-  testthat::expect_lte(ext$ymax, 1)
+  testthat::expect_equal(unname(ext$xmin), -0.5)
+  testthat::expect_equal(unname(ext$xmax), 0.5)
+  testthat::expect_equal(unname(ext$ymin), -0.5)
+  testthat::expect_equal(unname(ext$ymax), 0.5)
 })
 
-testthat::test_that(".crop_to_target is a no-op without a target grid", {
+testthat::test_that(".hwsd_target_extent falls back to the whole raster", {
   testthat::skip_if_not_installed("terra")
   rast <- terra::rast(
-    nrows = 4,
-    ncols = 4,
-    xmin = -1,
-    xmax = 1,
-    ymin = -1,
-    ymax = 1
+    nrows = 12,
+    ncols = 12,
+    xmin = -3,
+    xmax = 3,
+    ymin = -3,
+    ymax = 3,
+    resolution = 0.5
   )
-  terra::values(rast) <- seq_len(terra::ncell(rast))
 
-  unchanged <- whep:::.crop_to_target(rast, NULL, target_res = 0.5)
+  ext <- whep:::.hwsd_target_extent(rast, NULL, target_res = 0.5)
 
-  testthat::expect_equal(terra::ncell(unchanged), terra::ncell(rast))
+  testthat::expect_equal(as.vector(ext), as.vector(terra::ext(rast)))
+})
+
+# Banding is only safe because each band is a whole number of target rows: an
+# aggregated cell's source pixels then lie inside exactly one band, so no
+# aggregated value can straddle a boundary. Tile the extent exactly, with no
+# gap and no overlap, or the result changes.
+testthat::test_that(".hwsd_band_extents tiles the extent in whole target rows", {
+  testthat::skip_if_not_installed("terra")
+  res <- 0.5
+  extent <- terra::ext(-10, 10, -25, 25)
+
+  bands <- whep:::.hwsd_band_extents(extent, target_res = res)
+  tops <- vapply(bands, function(b) b$ymax, numeric(1))
+  bottoms <- vapply(bands, function(b) b$ymin, numeric(1))
+
+  # every band spans a whole number of target rows
+  rows <- (tops - bottoms) / res
+  testthat::expect_equal(rows, round(rows))
+  # contiguous, no gaps or overlaps, covering the extent exactly
+  testthat::expect_equal(max(tops), unname(extent$ymax))
+  testthat::expect_equal(min(bottoms), unname(extent$ymin))
+  testthat::expect_equal(bottoms[-length(bottoms)], tops[-1])
+  # longitude is never split
+  testthat::expect_true(all(
+    vapply(bands, function(b) b$xmin, numeric(1)) == extent$xmin
+  ))
+  testthat::expect_true(all(
+    vapply(bands, function(b) b$xmax, numeric(1)) == extent$xmax
+  ))
+})
+
+testthat::test_that(".hwsd_band_extents handles an extent shorter than one band", {
+  testthat::skip_if_not_installed("terra")
+  extent <- terra::ext(-10, 10, 0, 1)
+
+  bands <- whep:::.hwsd_band_extents(extent, target_res = 0.5)
+
+  testthat::expect_length(bands, 1L)
+  testthat::expect_equal(unname(bands[[1]]$ymin), 0)
+  testthat::expect_equal(unname(bands[[1]]$ymax), 1)
 })
 
 testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
-  testthat::skip_if(
-    Sys.getenv("WHEP_HWSD_DIR") == "",
-    "WHEP_HWSD_DIR not set; skipping real-data smoke test."
-  )
+  testthat::skip_if_not_installed("terra")
+  .skip_unless_hwsd_columns(whep:::.hwsd_ph_columns())
 
   # Crop to a small Iberian target grid: classifying the full-resolution
   # global HWSD raster whole exhausts memory and crashes the R session.

@@ -40,6 +40,11 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
+      # Suppresses the "unable to verify current time" NOTE. This used to live in
+      # a tracked .Renviron at the repo root, which R reads INSTEAD of
+      # ~/.Renviron -- never both -- so it silently hid every WHEP_* path
+      # variable from any session started here (#456).
+      _R_CHECK_SYSTEM_CLOCK_: 0
     steps:
       - uses: actions/checkout@v4
 

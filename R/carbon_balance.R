@@ -20,6 +20,15 @@
 #' transfer, and derive the soil-organic-nitrogen change from the carbon rate
 #' via asymmetric soil carbon-to-nitrogen ratios.
 #'
+#' @details
+#' \code{polity_validity} governs this function's own output. The internal
+#' \code{\link{get_soc_climate_drivers}} read it falls back on always keeps its
+#' rows: the march needs a climate modifier for every cell-year it steps
+#' through, so dropping driver rows for an anachronistic polity label would
+#' break the trajectory rather than relabel it. The driver read therefore warns
+#' on its own key space (whep#462) while this argument decides the fate of the
+#' balance rows.
+#'
 #' @param model Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
 #'   \code{"icbm"}, \code{"amg"} or \code{"century"}.
 #' @param resolution \code{"grid"} (default, per cell and land-use class) or
@@ -31,6 +40,7 @@
 #'   (\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
 #'   \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
 #'   \code{data}.
+#' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded inputs, each falling back to its reader
 #'   when absent: \code{c_inputs} (per cell, land-use class and year, with
 #'   \code{c_input_mgc_ha_yr} and \code{humified_fraction}); \code{land_use}
@@ -52,11 +62,25 @@
 #'   drivers).
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
+#' @section Spatial support:
+#' Every default reader on the carbon path -- the land-use areas, the carbon
+#' inputs, the climate drivers and the clay -- resolves its cell-to-polity table
+#' through one polycell support ([read_polycell_support()]), read at a static
+#' reference year. A cell shared between polities therefore delivers to each
+#' only the land it holds there, and no reader can be left on a different
+#' crosswalk: half the path on one footprint and half on another would surface
+#' as an ordinary climate-coverage warning from the modifier join, not as an
+#' error. Land the reporting vocabulary cannot key (no `area_code`) is reported
+#' and dropped, never folded into another polity's.
+#'
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 #'   \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
-#'   \code{area_ha} and \code{method_soc}.
+#'   \code{area_ha} and \code{method_soc}, plus the polity columns below, plus
+#'   \code{reporting_polity_out_of_span} when
+#'   \code{polity_validity = "flag"}.
+#' @inheritSection whep_polity_columns Polity columns
 #' @source Aguilera, E. et al. (2018). Embodied energy in agricultural inputs.
 #'   \doi{10.1016/j.scitotenv.2018.03.118}; land-use-change carbon transfer
 #'   ported from the Spain historical pipeline.
@@ -66,12 +90,17 @@
 build_carbon_balance <- function(
   model = c("hsoc", "rothc", "icbm", "amg", "century"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_carbon_balance())
+    return(.resolve_polity_validity(
+      .example_carbon_balance(),
+      polity_validity
+    ))
   }
   model <- rlang::arg_match(model)
   resolution <- rlang::arg_match(resolution)
@@ -95,7 +124,8 @@ build_carbon_balance <- function(
   marched |>
     .cb_derive_son() |>
     dplyr::mutate(method_soc = model) |>
-    .cb_finalise(resolution)
+    .cb_finalise(resolution) |>
+    .resolve_polity_validity(polity_validity)
 }
 
 # -- Input resolution ---------------------------------------------------------
@@ -224,18 +254,170 @@ build_carbon_balance <- function(
       dplyr::select(climate, dplyr::all_of(c(keys, "climate_modifier")))
     ))
   }
-  climate |>
+  # One year at a time. Each cell-year's modifier is reduced from its own twelve
+  # monthly rows, so nothing crosses years -- but attaching soil cover crosses
+  # the MONTHLY table with every land-use class, which measures 0.452 GB per
+  # simulated year against 0.097 GB for the drivers themselves. Held for the
+  # whole span that intermediate is ~55 GB at 1901-2022, and it is what took the
+  # full-span build to a 95.5 GB peak before it could reach the march (#624).
+  groups <- .cb_year_row_groups(climate)
+  parts <- lapply(groups, function(rows) {
+    .cb_chunk_modifier(
+      climate[rows, , drop = FALSE],
+      clay,
+      model,
+      keys,
+      land_use_classes
+    )
+  })
+  dplyr::bind_rows(parts)
+}
+
+# Row indices of each year, as ONE pass over the year column. Filtering the
+# table per year instead (climate[climate$year == yr, ]) rescans every row once
+# per year, which cost 12% of the build at a five-year span and would scale with
+# the square of the span. Returning indices rather than frames also keeps the
+# chunks lazy, so only one year is materialised at a time instead of a second
+# copy of the whole table. A table with no year column is one group.
+.cb_year_row_groups <- function(climate) {
+  if (!rlang::has_name(climate, "year") || nrow(climate) == 0L) {
+    return(list(seq_len(nrow(climate))))
+  }
+  split(seq_len(nrow(climate)), climate$year)
+}
+
+# The modifier for one chunk of the monthly climate table.
+.cb_chunk_modifier <- function(climate, clay, model, keys, land_use_classes) {
+  prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes) |>
+    .cb_attach_soil_cover(land_use_classes)
+  group_keys <- c(keys, "land_use")
+
+  # Vectorised across cell-years where the shape allows it; NULL means fall
+  # through to the per-group path below, which stays the reference.
+  fast <- .cb_rothc_modifier_vectorised(prepared, model, group_keys)
+  if (!is.null(fast)) {
+    return(fast)
+  }
+  prepared |>
     dplyr::summarise(
       climate_modifier = .cb_year_climate_modifier(
         model,
         dplyr::pick(dplyr::everything()),
         dplyr::first(.data$clay_pct)
       ),
-      .by = dplyr::all_of(c(keys, "land_use"))
+      .by = dplyr::all_of(group_keys)
     )
+}
+
+# The RothC/HSOC climate modifier for EVERY cell-year at once.
+#
+# The per-group path calls .cb_year_climate_modifier() once per
+# (cell, year, land_use) -- ~1.2e6 groups over five years -- and each call
+# allocates a list, dispatches rlang::has_name(), and runs purrr::accumulate()
+# over twelve months. Profiling put ~20% of the march in tidyverse per-group
+# machinery and ~9% in the accumulate, with no single line above 4.9%: the cost
+# is dispatch, not arithmetic (#630).
+#
+# The topsoil-moisture-deficit recurrence is sequential over MONTHS but
+# independent across CELLS, so the loop inverts: twelve vectorised steps over all
+# groups, instead of ~1.2e6 twelve-step accumulations. The arithmetic below is
+# the same as soc_rate_modifier_rothc() and .rothc_moisture_factor(), kept
+# deliberately line-for-line comparable with them.
+#
+# Returns NULL -- deferring to the per-group path -- when this cannot be trusted:
+# a non-RothC model, a missing driver, or ragged groups (unequal month counts),
+# where the matrix reshape would silently misalign months across cells.
+.cb_rothc_modifier_vectorised <- function(prepared, model, group_keys) {
+  if (!model %in% c("hsoc", "rothc")) {
+    return(NULL)
+  }
+  drivers <- c("temp_c", "water_minus_pet_mm", "clay_pct", "soil_cover")
+  if (!all(purrr::map_lgl(drivers, \(d) rlang::has_name(prepared, d)))) {
+    return(NULL)
+  }
+  if (!rlang::has_name(prepared, "month")) {
+    return(NULL)
+  }
+
+  dt <- data.table::as.data.table(prepared)
+  # Number the groups by FIRST APPEARANCE, and order by that rather than by the
+  # key columns, so the output row order matches the per-group path exactly.
+  # Sorted order would carry the same values, but it reaches the downstream
+  # aggregates in a different sequence, and floating-point addition is not
+  # associative: it perturbed mineralization/rate/son_change by ~1e-15 -- small,
+  # but this change has to be a no-op, not nearly one.
+  dt[, ".grp" := .GRP, by = group_keys]
+  data.table::setorderv(dt, c(".grp", "month"))
+  counts <- dt[, list(.n = .N), by = c(group_keys, ".grp")]
+  data.table::setorderv(counts, ".grp")
+  if (data.table::uniqueN(counts$.n) != 1L) {
+    return(NULL)
+  }
+  n_months <- counts$.n[[1L]]
+  if (n_months < 1L) {
+    return(NULL)
+  }
+
+  # byrow: rows are groups, columns months, matching the sort above.
+  as_mat <- function(x) matrix(x, ncol = n_months, byrow = TRUE)
+  temp <- as_mat(dt$temp_c)
+  balance <- as_mat(dt$water_minus_pet_mm)
+  cover <- as_mat(dt$soil_cover)
+  # clay is a per-group scalar; the per-group path takes dplyr::first().
+  clay <- as_mat(dt$clay_pct)[, 1L]
+
+  # Undefined at -18.27 C: below the asymptote the expression wraps back to ~47.91
+  # instead of zero decomposition, so it is floored, exactly as in the scalar fn.
+  a <- ifelse(temp <= -18.27, 0, 47.91 / (1 + exp(106.06 / (temp + 18.27))))
+
+  max_tsmd <- 0.3 * 100 * (-(20 + 1.3 * clay - 0.01 * clay^2)) / 23
+
+  # tsmd[, 1] = max(min(balance_1, 0), max_tsmd), then carried forward. pmin/pmax
+  # propagate NA the same way min/max do here (both na.rm = FALSE), so an NA month
+  # still poisons its group's later months as before.
+  tsmd <- matrix(NA_real_, nrow = nrow(balance), ncol = n_months)
+  tsmd[, 1L] <- pmax(pmin(balance[, 1L], 0), max_tsmd)
+  for (m in seq_len(n_months)[-1L]) {
+    tsmd[, m] <- pmax(pmin(tsmd[, m - 1L] + balance[, m], 0), max_tsmd)
+  }
+
+  threshold <- 0.444 * max_tsmd
+  max_mat <- matrix(max_tsmd, nrow = nrow(tsmd), ncol = n_months)
+  thr_mat <- matrix(threshold, nrow = nrow(tsmd), ncol = n_months)
+  b <- ifelse(
+    tsmd > thr_mat,
+    1,
+    0.2 + 0.8 * (max_mat - tsmd) / (max_mat - thr_mat)
+  )
+  b <- pmax(b, 0.2)
+
+  cover_factor <- 0.6 + 0.4 * (1 - cover)
+
+  # Reduce with the same mean() the scalar path calls, NOT rowMeans(). mean()
+  # accumulates in long double and applies a second-pass correction that
+  # rowMeans() omits, so the two disagree by 1 ulp roughly once in 3e5 rows --
+  # rare enough to survive a 200-group test, but with ~1.2e6 cell-years it hits,
+  # and the march amplifies it to ~1e-15 in mineralization and ~1e-13 in
+  # son_change. Replicating the correction in R does not help: R arithmetic is
+  # double, not long double, and lands further away than rowMeans does. At ~3 s
+  # per million groups against the ~200 s this function saves, calling the real
+  # mean() is the cheap way to stay exact. Do not "optimise" this to rowMeans().
+  products <- a * b * cover_factor
+  modifier <- vapply(
+    seq_len(nrow(products)),
+    function(i) mean(products[i, ], na.rm = TRUE),
+    numeric(1)
+  )
+
+  out <- counts[, group_keys, with = FALSE]
+  out[, "climate_modifier" := modifier]
+  # as.data.frame() first: as_tibble() on a data.table carries its
+  # .internal.selfref pointer out as an attribute, which makes the result
+  # compare unequal to the per-group path under all.equal() despite every
+  # column being identical.
+  tibble::as_tibble(as.data.frame(out))
 }
 
 # get_soc_climate_drivers() already embeds clay_pct in its own output (RothC/
@@ -592,20 +774,13 @@ build_carbon_balance <- function(
     dplyr::pull(.data$value)
 }
 
-# Collapse any model's per-year output to a single total stock per year.
+# Collapse the selector's long per-pool output to a single total stock per year.
+# Every model reports the same `soc_total` on each of a year's pool rows (#350),
+# so no per-model branch is needed here.
 .cb_total_stock <- function(traj) {
-  if (rlang::has_name(traj, "soc_total")) {
-    return(dplyr::transmute(
-      traj,
-      year = .data$year,
-      stock_mgc_ha = .data$soc_total
-    ))
-  }
   traj |>
-    dplyr::summarise(
-      stock_mgc_ha = sum(.data$stock_mgc_ha),
-      .by = "year"
-    )
+    dplyr::distinct(.data$year, .data$soc_total) |>
+    dplyr::rename(stock_mgc_ha = "soc_total")
 }
 
 # Initialise each cell from the earliest year: every class starts at the
@@ -1170,8 +1345,15 @@ build_carbon_balance <- function(
 # crosswalk, supplied here from HWSD and the spatialization country grid.
 .cb_read_climate <- function(years = NULL) {
   cell_polity <- .cb_read_cell_polity()
-  get_soc_climate_drivers(
+  # .socd_build() rather than get_soc_climate_drivers(): the reporting polity
+  # columns the exported reader attaches cost ~27 GB on the 8.6e7-row table a
+  # full span produces, and nothing here reads them -- the climate modifier keys
+  # on (lon, lat, area_code, year, month), and this function's own output gets
+  # its reporting columns added at the end regardless (#624).
+  .socd_build(
+    run_dir = NULL,
     years = years,
+    polity_validity = "keep",
     data = list(
       clay = .cb_hwsd_clay(cell_polity),
       cell_polity = cell_polity
@@ -1185,12 +1367,230 @@ build_carbon_balance <- function(
   .cb_hwsd_clay(.cb_read_cell_polity())
 }
 
-# The cell -> polity crosswalk (lon, lat, area_code) from the spatialization
-# country grid, the same source grass_natural and LUH2 use.
+# The cell -> polity footprint (lon, lat, area_code) the climate drivers and the
+# HWSD clay are read on, from the same polycell support every other carbon
+# reader uses. `get_soc_climate_drivers()` consumes this only to LABEL each cell
+# with an area_code and to restrict the grid to it -- it never multiplies by an
+# area -- so what this feed decides is the carbon path's FOOTPRINT, and handing
+# it a different table from the one the land-use areas are measured on is what
+# made one exported function carry two crosswalks (EA4, AM-1).
 .cb_read_cell_polity <- function() {
-  whep_read_file("spatialize-country-grid") |>
-    .normalize_country_grid() |>
-    dplyr::select("lon", "lat", "area_code")
+  .carbon_cell_support() |>
+    dplyr::distinct(.data$lon, .data$lat, .data$area_code)
+}
+
+# -- The carbon path's spatial support ----------------------------------------
+#
+# One support for the whole carbon path (S-A5): `read_luh2_landuse()`,
+# `build_carbon_balance()`, `build_grass_natural_carbon_inputs()`,
+# `build_soil_carbon_inputs()` and `build_carbon_inputs()` all resolve their
+# cell-to-polity table through here, so the path cannot be half-migrated with
+# one reader left on the centroid grid -- the failure `.cb_join_modifier()` and
+# `.cb_drop_uncovered_climate()` would report as an ordinary climate gap.
+#
+# `cell_area_frac` is the polycell's share of the cell's LAND, never
+# `land_area_ha / cell_area_ha`: everything this fraction splits (LUH2 class
+# areas, crop-pattern hectares) is already land-only, so dividing by the whole
+# cell would subtract the water a second time -- invisibly, because a share's
+# denominator still makes the polity totals add up (AM-5 risk 3). The assertion
+# that the shares sum to 1 per cell is what makes that structural.
+
+# The reference year the static cell-to-polity assignment is read at. The carbon
+# path has always used a present-day snapshot -- LUH2 carries no territorial
+# history and `read_luh2_landuse()` documents a pre-modern year as "the
+# present-day cell's area read at that year". Migrating the EXTENT (DA-26) does
+# not migrate the ATTRIBUTION (DA-28, issue #549), so the snapshot is kept and
+# made explicit instead of being implicit in an undated pin.
+.carbon_support_year <- function() 2015L
+
+# Resolve the polycell support to the carbon path's grain: one row per cell and
+# `area_code`, carrying the cell's own area, the polycell's land, and the
+# polycell's share of the cell's land.
+.carbon_cell_support <- function(
+  support = NULL,
+  year = .carbon_support_year()
+) {
+  (support %||% read_polycell_support()) |>
+    .carbon_support_at_year(year) |>
+    .carbon_support_to_area_code()
+}
+
+# Take the interval covering `year`, using the package's own predicate so the
+# exclusive-at-a-succession / inclusive-at-the-open-end rule (DA-24) is stated
+# once. A support already expanded to one row per polycell-year is filtered on
+# its `year` column by the same helper.
+.carbon_support_at_year <- function(support, year) {
+  .check_columns(support, c("lon", "lat", "area_code"), "country_grid")
+  if (!.country_grid_is_dynamic(support)) {
+    return(support)
+  }
+  out <- .filter_country_grid_year(support, year)
+  if (nrow(out) == 0L) {
+    cli::cli_abort(c(
+      "No polycell support rows are valid at {year}.",
+      i = "The carbon path reads the support at a single reference year."
+    ))
+  }
+  out
+}
+
+# Collapse `polity_code` to the `area_code` the carbon path reports on.
+#
+# DA-23: the support keys on `polity_code` and `polity_area_crosswalk` is lossy
+# -- it folds Sudan and South Sudan onto 206 and leaves other polities with no
+# bucket at all. Both losses are made visible here rather than absorbed: rows
+# with no `area_code` are dropped with their land reported, and polycells that
+# share an `area_code` inside one cell are summed with the fold reported. The
+# sum is right for an EXTENT (bucket 206's territory really is Sudan plus South
+# Sudan) and would be wrong for a value, which is why it is done here, once, at
+# the boundary that owns it, and refused by `.normalize_carbon_support()`
+# everywhere else.
+.carbon_support_to_area_code <- function(support) {
+  .check_columns(
+    support,
+    c("lon", "lat", "area_code", "cell_area_ha", "land_area_ha"),
+    "country_grid"
+  )
+  # The share denominator is the cell's WHOLE measured land, taken before any
+  # row is dropped. Taking it after would renormalise the survivors over a
+  # smaller cell, handing an unkeyable polity's hectares to its neighbour --
+  # the absorption S-A11 exists to forbid, and invisible because the shares
+  # would still sum to 1.
+  cell_land <- support |>
+    dplyr::summarise(
+      cell_land_ha = sum(.data$land_area_ha, na.rm = TRUE),
+      .by = c("lon", "lat")
+    )
+  support |>
+    .carbon_drop_unkeyed() |>
+    .carbon_fold_area_code() |>
+    .carbon_attach_land_share(cell_land)
+}
+
+# Rows the reporting vocabulary cannot express: no `area_code`, or no measured
+# land. The second case was the DA-13 shim's `"crosswalk_only"` padding, which
+# was NA throughout; C9 removed the padding, so `build_polycell_support()` no
+# longer produces it, but the guard stays because this function takes a support
+# from the caller and an NA land area silently deletes one polity's claim while
+# the rest of the cell still looks like a complete partition.
+.carbon_drop_unkeyed <- function(support) {
+  keep <- !is.na(support$area_code) & !is.na(support$land_area_ha)
+  if (!all(keep)) {
+    lost <- support[!keep, , drop = FALSE]
+    .carbon_warn_unkeyed(lost)
+  }
+  support[keep, , drop = FALSE]
+}
+
+.carbon_warn_unkeyed <- function(lost) {
+  land <- sum(lost$land_area_ha, na.rm = TRUE)
+  codes <- if (rlang::has_name(lost, "polity_code")) {
+    lost |>
+      dplyr::summarise(
+        land = sum(.data$land_area_ha, na.rm = TRUE),
+        .by = "polity_code"
+      ) |>
+      dplyr::slice_max(.data$land, n = 3L) |>
+      dplyr::pull("polity_code")
+  } else {
+    character()
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(lost)} polycell{?s} ({round(land / 1e6, 2)} Mha of land) carry
+           no {.field area_code} and are outside the carbon ledger.",
+    i = "Largest: {.val {codes}}. The reporting vocabulary has no bucket for
+         them; they are dropped here rather than folded into one."
+  ))
+}
+
+# Sum the land of polycells sharing an `area_code` in one cell (DA-23's fold),
+# reporting it. `cell_area_ha` is a property of the cell, so it is taken once.
+.carbon_fold_area_code <- function(support) {
+  folded <- support |>
+    dplyr::summarise(
+      cell_area_ha = dplyr::first(.data$cell_area_ha),
+      land_area_ha = sum(.data$land_area_ha),
+      n_polities = dplyr::n(),
+      .by = c("lon", "lat", "area_code")
+    )
+  .carbon_warn_fold(folded, support)
+  dplyr::select(folded, -"n_polities")
+}
+
+.carbon_warn_fold <- function(folded, support) {
+  hit <- dplyr::filter(folded, .data$n_polities > 1L)
+  if (nrow(hit) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- if (rlang::has_name(support, "polity_code")) {
+    support |>
+      dplyr::semi_join(hit, by = c("lon", "lat", "area_code")) |>
+      dplyr::pull("polity_code") |>
+      unique() |>
+      sort()
+  } else {
+    character()
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(hit)} cell-{.field area_code} group{?s}
+           ({round(sum(hit$land_area_ha) / 1e6, 2)} Mha of land) fold more than
+           one {.field polity_code}.",
+    i = "Folded: {.val {codes}}. Their land is summed, which is correct for a
+         territorial EXTENT and would not be for a value."
+  ))
+}
+
+# The polycell's share of the cell's land. A cell whose polycells hold no land
+# at all has no share to take, so it is dropped rather than divided by zero.
+.carbon_attach_land_share <- function(support, cell_land) {
+  out <- dplyr::left_join(support, cell_land, by = c("lon", "lat"))
+  dry <- dplyr::filter(out, .data$cell_land_ha <= 0)
+  if (nrow(dry) > 0L) {
+    cli::cli_warn(
+      "{dplyr::n_distinct(dry$lon, dry$lat)} cell{?s} hold no land and carry no
+       carbon; dropped from the carbon support."
+    )
+  }
+  out |>
+    dplyr::filter(.data$cell_land_ha > 0) |>
+    dplyr::mutate(cell_area_frac = .data$land_area_ha / .data$cell_land_ha) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "cell_area_ha",
+      "land_area_ha",
+      "cell_area_frac"
+    )
+}
+
+# The single normaliser every carbon consumer runs its support through, whether
+# it came from `.carbon_cell_support()` or straight from the caller. A support
+# that is not already one row per cell and `area_code` is REFUSED here (the
+# pattern C3a used at `.nd_check_area_key()`): folding it silently would merge
+# two territories' land under one label, and the fold belongs at the boundary
+# that can report it.
+.normalize_carbon_support <- function(support, arg = "country_grid") {
+  .check_columns(support, c("lon", "lat", "area_code"), arg)
+  .carbon_check_support_key(support, arg)
+  .normalize_country_grid(support)
+}
+
+.carbon_check_support_key <- function(support, arg = "country_grid") {
+  dup <- support |>
+    dplyr::count(.data$lon, .data$lat, .data$area_code, name = "n_rows") |>
+    dplyr::filter(.data$n_rows > 1L | is.na(.data$area_code))
+  if (nrow(dup) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{.arg {arg}} must hold one row per cell and {.field area_code}.",
+    x = "{nrow(dup)} cell-{.field area_code} group{?s} {?is/are} duplicated
+         or {.val NA}.",
+    i = "Convert {.field polity_code} to {.field area_code} before calling;
+         the carbon path reports on {.field area_code} and will not fold two
+         polities into one silently."
+  ))
 }
 
 # Per-cell topsoil clay percent from HWSD: the map-unit share-weighted mean of
@@ -1198,10 +1598,17 @@ build_carbon_balance <- function(
 # (cropped to `cell_polity`) via the shared HWSD aggregation helper. Reuses the
 # HWSD attribute/raster path read_soil_hydraulic() uses so the clay driver is
 # consistent with the hydraulic drivers.
+#
+# EXEMPT from the `polity_validity` year-check (whep#675), for the reason given
+# in R/soil_ph.R: `cell_polity` is a spatial extent here, the output has no
+# `year` and no `area_code`, so no row can name a polity that did not exist.
 .cb_hwsd_clay <- function(cell_polity) {
   rlang::check_installed("terra")
   hwsd_dir <- .resolve_hwsd_dir(NULL)
-  mu_clay <- .read_hwsd_attributes_local(hwsd_dir) |>
+  mu_clay <- .read_hwsd_attributes_local(
+    hwsd_dir,
+    required = .hwsd_clay_columns()
+  ) |>
     dplyr::filter(!is.na(.data$t_clay)) |>
     dplyr::summarise(
       clay_pct = stats::weighted.mean(.data$t_clay, .data$share),

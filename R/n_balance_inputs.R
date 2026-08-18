@@ -80,6 +80,15 @@
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
 #'     (forwarded as-is).
 #'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs.
+#'   * `deposition_scope`: which of a polycell's territory the `"deposition"`
+#'     term is credited with. `"territory"` (default) is land plus inland
+#'     water plus ice: nitrogen deposited on a lake or a glacier still drives
+#'     indirect N2O and still reaches the eutrophication pathway, so the
+#'     impact terms have to account for it. `"land"` is the terrestrial
+#'     surface alone, for purposes that want it, and it needs a `cell_polity`
+#'     carrying `land_area_ha`, `inland_water_ha` and `ice_area_ha`; asking
+#'     for it without them aborts rather than silently returning the whole
+#'     territory. Recorded in `method_deposition_scope`.
 #'   * `ag_land_support`: agricultural physical land support keyed by `lon`,
 #'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
 #'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional: when
@@ -120,16 +129,21 @@
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
-#'   `method_recycling_n`, `method_synthetic`. At `resolution = "polity"`:
-#'   `area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
-#'   `method_synthetic`, `n_input_t` (summed over cells).
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope`. At
+#'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
+#'   `fert_type`, `method_recycling_n`, `method_synthetic`,
+#'   `method_deposition_scope`, `n_input_t` (summed over cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`.
+#'   is `NA` for every other `fert_type`. `method_deposition_scope` records
+#'   which of the polycell's territory the `"deposition"` term was credited
+#'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
+#'   Both grains also carry the polity columns below.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_n_inputs(example = TRUE)
@@ -166,7 +180,8 @@ build_n_inputs <- function(
     .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
-    .ni_resolve(resolution)
+    .ni_resolve(resolution) |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -184,7 +199,8 @@ build_n_inputs <- function(
     "fert_type",
     "n_input_t",
     "method_recycling_n",
-    "method_synthetic"
+    "method_synthetic",
+    "method_deposition_scope"
   )
 }
 
@@ -263,7 +279,8 @@ build_n_inputs <- function(
         "year",
         "fert_type",
         "method_recycling_n",
-        "method_synthetic"
+        "method_synthetic",
+        "method_deposition_scope"
       )
     )
 }
@@ -408,25 +425,49 @@ build_n_inputs <- function(
     )
 }
 
-# build_livestock_nutrient_flows()'s $applied$territory carries either a
-# stringified area_code (the real pipeline's own convention, e.g.
-# feed_intake_redistribute.R:805 territory = as.character(area_code)) or an
-# ISO3 code (the function's own roxygen @examples and test fixtures use
-# territory = "ESP"). Resolve both rather than assuming one and silently
-# NA-ing the other: try integer parsing first, then fall back to an
-# iso3c -> area_code lookup via whep::regions_full; abort on anything that
-# resolves to neither, rather than propagating NA into area_code.
+# build_livestock_nutrient_flows()'s $applied$territory carries a stringified
+# area_code -- the one vocabulary the pipeline itself produces, e.g.
+# feed_intake_redistribute.R:805 territory = as.character(area_code). An ISO3
+# literal is still resolved, but only as a compatibility bridge for fixtures
+# written before the manure chain's own @examples used area codes: try integer
+# parsing first, then fall back to an iso3c -> area_code lookup via
+# .iso3c_to_area_code() (R/polities.R); abort on anything that resolves to
+# neither, rather than propagating NA into area_code.
+#
+# That helper matches on polity_area_code and so returns exactly one row per
+# ISO3. The previous inline lookup joined on regions_full$code, where ETH and
+# SDN each carry a historical predecessor as a second row, so a left_join grew
+# the result and shifted every LATER territory onto the wrong country: given
+# c("ESP", "ETH", "DEU") it returned 203, 238, 62 -- Germany silently became
+# Ethiopia PDR -- with only a "number of items to replace" warning.
+#
+# Uniqueness is not identity, though: polity_area_code is a FABIO aggregation
+# bucket, so the bridge answers with a code that is NOT the territory's own for
+# 62 of the 257 ISO3 codes it knows (measured). 61 of those land on 999, Rest
+# of World (AND, LIE, GRL, REU, ...), and SSD lands on 206, Sudan (former) --
+# where the numeric vocabulary "277" would have kept South Sudan. The bridge
+# therefore warns: a caller passing ISO3 cannot see which of the two answers it
+# got, and a silent one-in-four chance of another territory's code is exactly
+# the identity loss the polity migration is closing.
 .manure_territory_to_area_code <- function(territory) {
   as_int <- suppressWarnings(as.integer(territory))
   still_missing <- is.na(as_int) & !is.na(territory)
   if (any(still_missing)) {
-    iso3_lookup <- whep::regions_full |>
-      dplyr::filter(!is.na(.data$iso3c)) |>
-      dplyr::distinct(.data$iso3c, .data$code)
-    resolved <- tibble::tibble(iso3c = territory[still_missing]) |>
-      dplyr::left_join(iso3_lookup, by = "iso3c") |>
-      dplyr::pull("code")
-    as_int[still_missing] <- resolved
+    from_iso3 <- .iso3c_to_area_code(territory[still_missing])
+    as_int[still_missing] <- from_iso3
+    bridged <- unique(territory[still_missing][!is.na(from_iso3)])
+    if (length(bridged) > 0) {
+      cli::cli_warn(c(
+        "Resolving {.field territory} from an {.field iso3c} literal is
+         deprecated.",
+        i = "Bridged as {.field iso3c}: {.val {bridged}}. Pass
+             {.code as.character(area_code)} instead, the vocabulary the
+             manure pipeline itself produces.",
+        i = "An {.field iso3c} resolves to {.field polity_area_code}, a FABIO
+             aggregation bucket, which for 62 of 257 known codes is not the
+             territory's own: {.val SSD} becomes 206, Sudan (former)."
+      ))
+    }
   }
   unresolved <- unique(territory[is.na(as_int) & !is.na(territory)])
   if (length(unresolved) > 0) {
@@ -522,17 +563,12 @@ build_n_inputs <- function(
   if (is.null(data$cell_polity)) {
     return(.ni_empty())
   }
+  scope <- .ni_deposition_scope(data)
   support <- .ni_land_support(data)
   deposition <- build_n_deposition(
     data = list(nhx = data$nhx, noy = data$noy, cell_polity = data$cell_polity)
   ) |>
-    dplyr::select(
-      "lon",
-      "lat",
-      "area_code",
-      "year",
-      "deposition_kgn_ha"
-    )
+    .ni_deposition_in_scope(scope)
   dplyr::inner_join(
     support,
     deposition,
@@ -546,8 +582,119 @@ build_n_inputs <- function(
       item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "deposition",
-      n_input_t = .data$deposition_kgn_ha * .data$area_ha / 1000
+      n_input_t = .data$deposition_kgn_ha *
+        .data$scope_frac *
+        .data$area_ha /
+        1000,
+      method_deposition_scope = scope
     )
+}
+
+# DA-14, decided 2026-08-06 on the measurement in
+# inst/scripts/measure_deposition_categories.R: the ledger takes the WHOLE
+# territory. Deposition on inland water and on ice is real flux that drives
+# indirect N2O and feeds the eutrophication pathway, so the impact terms have
+# to account for it; the terrestrial-only scope would have discarded 0.89 Tg N
+# of it. "land" stays selectable, per the repo's multi-method rule, because a
+# different purpose may want the terrestrial surface alone.
+.ni_deposition_scope <- function(data) {
+  scope <- data$deposition_scope %||% "territory"
+  if (!rlang::is_string(scope) || !scope %in% c("territory", "land")) {
+    cli::cli_abort(c(
+      "{.field data$deposition_scope} must be {.val territory} or
+       {.val land}.",
+      x = "Got {.val {scope}}."
+    ))
+  }
+  scope
+}
+
+# Collapse build_n_deposition()'s per-category rows to one row per polycell,
+# carrying the whole-cell rate and `scope_frac`, the fraction of that
+# polycell's deposited mass the scope covers. Under "territory" the numerator
+# and the denominator are the same sum, so `scope_frac` is exactly 1 and every
+# ledger value is bit-identical to the pre-C3b one -- which is what makes
+# DA-14's "keep whole" decision a no-op on published numbers rather than a
+# claim about one.
+#
+# The filter is explicit and its emptiness is an abort, not a shrug: under
+# `.ni_empty()` semantics a filter that matches nothing is indistinguishable
+# from an absent input, so a mislabelled category would delete the entire
+# deposition term without a word.
+.ni_deposition_in_scope <- function(deposition, scope) {
+  if (nrow(deposition) == 0L) {
+    return(.ni_deposition_scope_cols(deposition))
+  }
+  wanted <- .nd_scope_categories(scope, deposition$method_area_split)
+  in_scope <- deposition$area_category %in% wanted
+  if (!any(in_scope)) {
+    cli::cli_abort(c(
+      "No deposition row falls inside scope {.val {scope}}.",
+      x = "Filtering {.field area_category} to {.val {wanted}} kept 0 of
+           {nrow(deposition)} row{?s}.",
+      i = "Present categor{?y/ies}:
+           {.val {unique(deposition$area_category)}}."
+    ))
+  }
+  deposition |>
+    dplyr::mutate(
+      in_scope_n_t = dplyr::if_else(in_scope, .data$deposition_n_t, 0)
+    ) |>
+    dplyr::summarise(
+      # `rate_spread` FIRST. A later expression in dplyr::summarise() sees the
+      # earlier results, so computing it after a `deposition_kgn_ha` summary
+      # would measure the spread of a scalar and be 0 by construction -- a
+      # guard that reads as if it fires and never can.
+      rate_spread = max(.data$deposition_kgn_ha) -
+        min(.data$deposition_kgn_ha),
+      deposition_kgn_ha = max(.data$deposition_kgn_ha),
+      scope_n_t = sum(.data$in_scope_n_t),
+      total_n_t = sum(.data$deposition_n_t),
+      .by = c("lon", "lat", "area_code", "year")
+    ) |>
+    .ni_check_one_rate() |>
+    dplyr::mutate(
+      # A cell that received no deposition has 0/0 categories. Its rate is 0
+      # too, so the charge is 0 whatever this fraction is; NaN would poison
+      # every sum downstream instead.
+      scope_frac = dplyr::if_else(
+        .data$total_n_t != 0,
+        .data$scope_n_t / .data$total_n_t,
+        0
+      )
+    ) |>
+    .ni_deposition_scope_cols()
+}
+
+.ni_deposition_scope_cols <- function(x) {
+  if (!rlang::has_name(x, "scope_frac")) {
+    x <- dplyr::mutate(x, scope_frac = double())
+  }
+  dplyr::select(
+    x,
+    "lon",
+    "lat",
+    "area_code",
+    "year",
+    "deposition_kgn_ha",
+    "scope_frac"
+  )
+}
+
+# AM-5 risk 1, checked where the rate is consumed rather than only where it is
+# produced: `deposition_kgn_ha` is a whole-cell mean, so every polity and every
+# category row of a cell must carry the same one. If they ever diverge, then
+# rate x area recovers the cell's whole mass once per polity and the ledger
+# silently multiplies deposition by the number of polities sharing a border.
+.ni_check_one_rate <- function(x) {
+  if (all(x$rate_spread == 0)) {
+    return(dplyr::select(x, -"rate_spread"))
+  }
+  cli::cli_abort(c(
+    "{.field deposition_kgn_ha} must be one whole-cell rate per polycell.",
+    x = "{sum(x$rate_spread != 0)} polycell{?s} carry more than one rate
+         (worst spread {sprintf('%.3g', max(x$rate_spread))})."
+  ))
 }
 
 # ---- 5. Urban N (cell-level, not crop-specific) ---------------------------
@@ -566,11 +713,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() stringifies area_code internally (its manure-
-      # transport reuse needs a character territory key). Resolve either its
-      # normal numeric-string code or an ISO3 fixture/input through the same
-      # checked resolver as the manure path; never turn an ISO3 into silent NA.
-      area_code = .manure_territory_to_area_code(.data$area_code),
+      # build_urban_n() resolves its own territory key (a stringified
+      # area_code, or an ISO3) back to a numeric area_code, through the same
+      # checked resolver as the manure path, so nothing is left to resolve
+      # here and an ISO3 never becomes a silent NA.
+      area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
       fert_type = "urban",
@@ -799,7 +946,8 @@ build_n_inputs <- function(
     fert_type = character(),
     n_input_t = double(),
     method_recycling_n = character(),
-    method_synthetic = character()
+    method_synthetic = character(),
+    method_deposition_scope = character()
   )
 }
 
@@ -887,6 +1035,12 @@ build_n_inputs <- function(
         .data$fert_type == "synthetic",
         "coello",
         NA_character_
+      ),
+      method_deposition_scope = dplyr::if_else(
+        .data$fert_type == "deposition",
+        "territory",
+        NA_character_
       )
-    )
+    ) |>
+    .add_reporting_polity_columns()
 }

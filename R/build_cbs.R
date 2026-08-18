@@ -24,16 +24,23 @@
 #'   `item_prod_code`, and preferably `element`. Production-shaped rows without
 #'   `element` are accepted as `production` when their unit is tonnes. Default
 #'   `NULL`.
+#' @param format One of `"long"` (default) or `"wide"`. `"long"` returns one row
+#'   per element. `"wide"` pivots the elements into columns, adds the live-animal
+#'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
+#'   the same dataset; `"wide"` is what the IO model and the extensions consume.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
 #'   to `.qc_cbs()`. Default `NULL`.
 #'
-#' @returns A tibble in long format with columns: `year`, legacy numeric
+#' @returns For `format = "long"`, a tibble with columns: `year`, legacy numeric
 #'   `area_code`, numeric `polity_area_code`, `reporting_polity_code`,
 #'   `reporting_polity_name`, `reporting_polity_has_geometry`,
 #'   `item_cbs_code`, `element` (e.g. `"production"`, `"import"`, `"food"`),
-#'   `value`, `source`, and `fao_flag`.
+#'   `value`, `source`, and `fao_flag`. For `format = "wide"`, the elements
+#'   become one column each, `stock_variation` is split into the non-negative
+#'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
+#'   excluding `export`.
 #'
 #' @export
 #'
@@ -46,10 +53,24 @@ build_commodity_balances <- function(
   smooth_carry_forward = FALSE,
   example = FALSE,
   historical_data = NULL,
+  format = c("long", "wide"),
   .fixed_data = NULL
 ) {
+  format <- rlang::arg_match(format)
   if (example) {
-    return(.example_build_commodity_bal())
+    return(
+      if (format == "wide") {
+        .example_get_wide_cbs()
+      } else {
+        .example_build_commodity_bal()
+      }
+    )
+  }
+  if (format == "wide" && missing(primary_all)) {
+    cli::cli_abort(c(
+      "{.arg primary_all} is required when {.arg format} is {.val wide}.",
+      "i" = "The live-animal rows are derived from primary production."
+    ))
   }
   if (is.null(.fixed_data)) {
     fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
@@ -62,10 +83,41 @@ build_commodity_balances <- function(
     }
     fixed <- .fixed_data
   }
-  fixed |>
+  long <- fixed |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
     .qc_cbs(smooth = smooth_carry_forward) |>
     .format_cbs_output()
+
+  if (format == "long") {
+    return(long)
+  }
+  .cbs_long_to_wide(long, primary_all, start_year:end_year)
+}
+
+# The pivot plus the live-animal rows the FAO sheet omits: the part of the wide
+# CBS every caller needs. Kept apart from .cbs_long_to_wide() because
+# build_io_model() consumes the matrix-ready table without the polity name
+# columns (see the name-column rule in CLAUDE.md) or the supply-use QC pass.
+.cbs_wide_core <- function(cbs_long, primary_all, years) {
+  cli::cli_progress_step("Adding livestock CBS rows")
+  livestock_cbs <- primary_all |>
+    .filter_years(years) |>
+    get_livestock_cbs() |>
+    .filter_years(years)
+
+  cbs_long |>
+    .pivot_cbs_wide() |>
+    dplyr::bind_rows(livestock_cbs)
+}
+
+# The wide CBS dataset as users consume it. It lives beside the long build so
+# the two formats of one dataset cannot drift apart.
+.cbs_long_to_wide <- function(cbs_long, primary_all, years) {
+  wide <- .cbs_wide_core(cbs_long, primary_all, years) |>
+    .add_reporting_polity_columns()
+
+  .qc_supply_use_balance(wide)
+  wide
 }
 
 .format_cbs_output <- function(df) {
@@ -425,8 +477,10 @@ build_commodity_balances <- function(
 #' building pipeline. These can be used independently for footprint
 #' calculations.
 #'
-#' @param cbs A tibble of final CBS in wide format, as returned by
-#'   [build_commodity_balances()].
+#' @param cbs A tibble of final CBS in long format (one row per
+#'   `element`), as returned by [build_commodity_balances()]. The legacy
+#'   wide format, one column per element as returned by
+#'   [get_wide_cbs()], is still accepted.
 #' @param start_year Integer. First year to include. Default `1850`.
 #' @param end_year Integer. Last year to include. Default `2023`.
 #' @param example Logical. If `TRUE`, return a small hardcoded dataset
@@ -454,7 +508,8 @@ build_processing_coefs <- function(
   cb_proc <- .prepare_cb_processing_for_cbs(whep::cb_processing)
   years <- start_year:end_year
 
-  # Convert wide CBS (from build_commodity_balances()) back to long with names
+  # build_commodity_balances() is already long: this only adds item names
+  # (and still converts a legacy wide CBS if one is passed in).
   cbs <- .wide_cbs_to_long(cbs) |>
     .filter_years(years)
 
@@ -655,6 +710,90 @@ build_processing_coefs <- function(
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
+  .canonicalise_gdp_pop_area(dt)
+}
+
+# Relabel this input's areas with the polity name the rest of the pipeline uses.
+#
+# `.fill_with_proxies()` joins population on `c("year", "area")` -- the name, not
+# a code -- and the two sides speak different vocabularies. Every builder that
+# goes through `.aggregate_to_polities()` emits the period-specific
+# `polity_name` ("Albania (1913-2025)", "Cote d'Ivoire"), while this pin writes
+# its own short forms. Measured on the current pin: 35 of its 196 area names,
+# 5,346 rows or 18.0%, are not names any builder emits, so the join found nothing
+# and the failure is silent -- an unmatched proxy is an NA, not an error, so those
+# countries simply went unfilled.
+#
+# Resolved through the CODE, not through a synonym list. The pin already carries
+# the area's ISO3 in `area_code`, so the label is mapped ISO3 -> FAOSTAT area
+# code -> polity name for that row's year, by the same two helpers
+# `.aggregate_to_polities()` uses. The two vocabularies therefore agree by
+# construction, including the pre-1962 back-cast: 1900 Bangladesh resolves to
+# "East Pakistan (1947-1971)" on both sides because both anchor at 1961.
+#
+# TWO THINGS IT DELIBERATELY DOES NOT DO.
+#
+# It only renames a label that differs from its own polity name, so a label that
+# already matches cannot be rewritten. Checked against the 1961 CBS extract's
+# area vocabulary: 110 of 169 labels matched before, 148 after, and 0 went from
+# matching to not matching.
+#
+# It only renames an area that IS its polity's canonical reporting area
+# (`area_code == polity_area_code`). An area folded into an aggregate -- Syria and
+# Equatorial Guinea into Rest of World -- would otherwise be relabelled as the
+# aggregate, which would both attribute one member's population to the whole
+# bucket and put several pin rows on one `(year, area)` key. Whether the bucket's
+# proxy should be the SUM over its members is a real question and not one a
+# relabelling can answer, so those 6 areas are left unfilled as before.
+#
+# This is not #382's version of the fix. That one canonicalised towards the
+# crosswalk's `area_name`, which is the vocabulary `.read_land_areas()` uses but
+# not the one the frame being filled carries; applied here it would have renamed
+# Bolivia, Iran, Tanzania, Venezuela and North Korea -- five labels that match
+# today -- into names that match nothing.
+.canonicalise_gdp_pop_area <- function(dt) {
+  if (!all(c("area", "area_code", "year") %in% names(dt))) {
+    return(dt)
+  }
+  if (!is.character(dt$area_code)) {
+    return(dt)
+  }
+  dt <- data.table::as.data.table(dt)
+
+  keys <- unique(dt[, .(area, area_code, year)])
+  keys[, key_row := .I]
+  mapped <- .iso3_to_fao_area_code(data.table::copy(keys))
+  mapped <- .add_polity_columns_dt(
+    mapped,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  mapped <- mapped[
+    !is.na(polity_name) &
+      !is.na(polity_area_code) &
+      area_code == polity_area_code,
+    .(key_row, canonical_area = polity_name)
+  ]
+  keys <- merge(keys, mapped, by = "key_row", all.x = TRUE, sort = FALSE)
+  keys <- keys[!is.na(canonical_area) & canonical_area != area]
+  if (nrow(keys) == 0L) {
+    return(dt)
+  }
+
+  cols <- names(dt)
+  dt <- merge(
+    dt,
+    keys[, .(area, area_code, year, canonical_area)],
+    by = c("area", "area_code", "year"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  dt[!is.na(canonical_area), area := canonical_area]
+  dt[, canonical_area := NULL]
+  # The merge puts the join keys first; callers read this pin by name but the
+  # order is what the pin published, so put it back.
+  data.table::setcolorder(dt, cols)
   dt
 }
 
@@ -718,7 +857,7 @@ build_processing_coefs <- function(
   ]
   dt <- dt[element %in% c("import", "export")]
 
-  .aggregate_to_polities(dt, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs_code, source_label = "fishstat-trade")
 }
 
 .read_fao_trade <- function(years = NULL) {
@@ -734,30 +873,58 @@ build_processing_coefs <- function(
   dt
 }
 
+# Resolve an iso3c + year table from a genuine historical trade source to the
+# polity active in its own reported year, adding `area`, `area_code` -- the
+# polity aggregation bucket -- and `polity_code`. Unlike WHEP's pre-1962 FAOSTAT
+# series, which are back-cast onto ~1961 territory, these sources are reported
+# under their own year's borders, so the back-cast floor documented in
+# .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
+# whose reported year predates every period of its area, keep NA and are dropped
+# by the caller.
+.resolve_hist_trade_polities <- function(dt) {
+  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area = area_name, area_code)
+  ]
+  area_bridge <- unique(area_bridge, by = "iso3c")
+
+  out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  out <- .add_polity_columns_dt(
+    out,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE,
+    backcast_anchor = -Inf
+  )
+  out[, area_code := polity_area_code]
+  keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
+  out[, keep, with = FALSE]
+}
+
 .read_historical_trade <- function(years = NULL) {
   items <- data.table::as.data.table(whep::items_full)[,
     .(item_cbs, item_cbs_code)
   ]
   cbs_trade <- data.table::as.data.table(whep::cbs_trade_codes)
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
 
+  # The exports pin holds reporter exports and the imports pin holds reporter
+  # imports, so label each directly. An earlier version mirrored the flows,
+  # which reversed the direction. Verified against the 1961 FAOSTAT overlap:
+  # on the exports pin USA wheat is ~19.2 Mt (a known 17-19 Mt exporter) vs
+  # ~0.2 Mt on the imports pin, and Egypt (an importer) is ~0.4 vs ~661.
   exports <- .read_input(
     "historical-trade-exports",
     years = years,
     year_col = "year"
   )
-  exports[, element := "import"]
+  exports[, element := "export"]
 
   imports <- .read_input(
     "historical-trade-imports",
     years = years,
     year_col = "year"
   )
-  imports[, element := "export"]
+  imports[, element := "import"]
 
   dt <- data.table::rbindlist(
     list(exports, imports),
@@ -777,16 +944,24 @@ build_processing_coefs <- function(
     c("iso3c", "item_code_trade")
   )
 
-  dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  dt <- .resolve_hist_trade_polities(dt)
   dt <- merge(dt, cbs_trade, by = "item_code_trade", all.x = TRUE, sort = FALSE)
   dt <- merge(dt, items, by = "item_cbs", all.x = TRUE, sort = FALSE)
 
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
-    by = c("year", "area", "area_code", "item_cbs", "item_cbs_code", "element")
+    by = c(
+      "year",
+      "area",
+      "area_code",
+      "polity_code",
+      "item_cbs",
+      "item_cbs_code",
+      "element"
+    )
   ]
   dt[, unit := "tonnes"]
-  dt[!is.na(area)]
+  dt[!is.na(polity_code)]
 }
 
 # Enrich codes-only primary output with names needed by the CBS pipeline.
@@ -1107,15 +1282,34 @@ build_processing_coefs <- function(
   )
 }
 
+# One observation per (year, territory, item, element), from the best source
+# that reports it.
+#
+# The territory is the `area_code`, NOT the `area` label. `area` is the
+# PERIODIZED polity name, and the frames this collapses speak two vocabularies
+# of it: `.select_best_source()` stamps one periodized name per code
+# ("Algeria (1919-1962)") while `.prepare_historical_cbs()` names its rows from
+# the crosswalk's static `area_name` ("Algeria") -- and for 97 of the 262 codes
+# in that lookup the static name is not ANY of the code's polity names, so the
+# two can never agree. With the label in the key those are two territories:
+# nothing collapses, both rows survive, and downstream they are summed rather
+# than reconciled. whep#709.
+#
+# The label is re-attached from `.cbs_area_labels()` afterwards, which is the
+# same deterministic per-code rule `.select_best_source()` uses (whep#580), so
+# the frame keeps exactly one label per code on the way out.
 .collapse_cbs_observations <- function(df) {
   dt <- data.table::as.data.table(df)
   if (!"source" %in% names(dt)) {
     dt[, source := NA_character_]
   }
 
+  # A row with no label cannot name its code, and `setorderv()` sorts NA first,
+  # so an unlabelled row would otherwise win the lookup for a code that has a
+  # perfectly good label elsewhere.
+  area_lookup <- .cbs_area_labels(dt[!is.na(area)])
   key_cols <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1130,7 +1324,18 @@ build_processing_coefs <- function(
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
   out <- dt[dt[, .I[1L], by = key_cols]$V1]
   out[, .source_rank := NULL]
-  tibble::as_tibble(out)
+  tibble::as_tibble(.attach_cbs_area_label(out, area_lookup))
+}
+
+# Put a code's one display label back on a frame that is keyed on the code.
+.attach_cbs_area_label <- function(df, area_lookup) {
+  dt <- data.table::as.data.table(df)
+  if ("area" %in% names(dt)) {
+    dt[, area := NULL]
+  }
+  dt[area_lookup, on = "area_code", area := i.area]
+  data.table::setcolorder(dt, c("year", "area", "area_code"))
+  dt[]
 }
 
 .cbs_source_rank <- function(source, year) {
@@ -1191,25 +1396,35 @@ build_processing_coefs <- function(
     year_col = "year",
     include_unmapped = FALSE
   )
+  # Say what is dropped. Of the places this pipeline discards rows with no
+  # polity, the trade ones already announce it and this one did not, so the
+  # residue rows that `get_primary_residues()` could not attribute to an area
+  # disappeared here without a word: 3,937 of 246,471 at full range.
+  #
+  # Today it always reports the single code `NA`, because every non-NA area code
+  # reaching here came out of the crosswalk in the first place. That is the point
+  # of it -- it stays as the tripwire for a code that is real but unmapped, and
+  # `.warn_residues_no_area()` names the labels and years upstream where the
+  # attribution actually fails.
+  .warn_unmapped_codes(dt, "polity_code", "area_code", "crop residues")
   dt <- dt[!is.na(polity_code)]
 
+  # Same grouping and same labelling rule as `.aggregate_to_polities()`. Two
+  # sites emitting two `area` vocabularies for one `area_code` is what dropped
+  # 702,166 rows in whep#382, so the label comes from the shared helper rather
+  # than from whichever member this particular read happened to resolve.
+  labels <- .bucket_area_labels(dt)
   dt <- dt[,
     .(value = sum(value, na.rm = TRUE)),
     by = c(
       "year",
       "polity_area_code",
-      "polity_name",
       "item_cbs",
       "item_cbs_code",
       "element"
     )
   ]
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .read_land_areas_wide <- function(years = NULL) {
@@ -1223,7 +1438,13 @@ build_processing_coefs <- function(
   )
   varnames_pasture <- c("pastr", "range")
 
+  # Keyed on the reporting bucket, not on the label .read_land_areas() attaches:
+  # that label is the crosswalk's static area_name, while the frame this feeds
+  # carries the periodized polity_name. `polity_area_code` rather than
+  # `polity_code` because the frame is aggregated to buckets and its `area_code`
+  # IS the bucket -- see .fill_with_proxies().
   land_wide <- land_areas |>
+    .proxy_bucket_key(iso3_col = "iso3c") |>
     dplyr::mutate(
       land_use = dplyr::if_else(
         Land_Use %in% varnames_cropland,
@@ -1234,9 +1455,8 @@ build_processing_coefs <- function(
     dplyr::filter(land_use != "Other") |>
     dplyr::summarise(
       area_mha = sum(Area_Mha, na.rm = TRUE),
-      .by = c(year, area, land_use)
+      .by = c(year, area_code, land_use)
     ) |>
-    dplyr::filter(!is.na(area)) |>
     tidyr::pivot_wider(
       names_from = land_use,
       values_from = area_mha
@@ -1552,8 +1772,12 @@ build_processing_coefs <- function(
   trade <- traded_res
   trade[, source := "FAOSTAT_trade"]
 
+  # Historical (pre-1961) trade evidence. FAOSTAT trade begins in 1961, so this
+  # is the only import/export source feeding the pre-1961 extension.
+  trade_hist <- .prepare_trade_hist_source(inputs$trade_hist)
+
   dt <- data.table::rbindlist(
-    list(fbs_new, fbs_old, cbs, primary, trade),
+    list(fbs_new, fbs_old, cbs, primary, trade, trade_hist),
     use.names = TRUE,
     fill = TRUE
   )
@@ -1572,6 +1796,20 @@ build_processing_coefs <- function(
   dt_pp[, element := "processing_primary"]
 
   data.table::rbindlist(list(dt, dt_pp), use.names = TRUE, fill = TRUE)
+}
+
+# Label historical trade with its source and restrict it to the pre-1961
+# extension window, where FAOSTAT trade does not reach. The polity resolution
+# itself already happened in .read_historical_trade(), which keys these rows to
+# the polity active in their own reported year.
+.prepare_trade_hist_source <- function(trade_hist) {
+  if (is.null(trade_hist) || nrow(trade_hist) == 0L) {
+    return(data.table::data.table())
+  }
+  dt <- data.table::as.data.table(trade_hist)
+  dt <- dt[year < 1961L]
+  data.table::set(dt, j = "source", value = "trade_hist")
+  dt
 }
 
 .select_best_source <- function(cbs_raw_all) {
@@ -1598,7 +1836,7 @@ build_processing_coefs <- function(
 
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
-  area_lookup <- unique(dt_raw[, .(area_code, area)], by = "area_code")
+  area_lookup <- .cbs_area_labels(dt_raw)
   dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
@@ -1684,13 +1922,19 @@ build_processing_coefs <- function(
   ]
   overlap_ratio <- overlap[,
     .(
-      scale_new_old = stats::median(
+      n_overlap = .N,
+      scale_raw = stats::median(
         FAOSTAT_FBS_New / FAOSTAT_FBS_Old,
         na.rm = TRUE
       )
     ),
     by = group_cols
-  ][is.finite(scale_new_old)]
+  ][is.finite(scale_raw)]
+
+  # Guard against extreme ratios (unit changes, near-zero overlap values) and
+  # against extrapolating a single overlap year to five decades: clamp to a
+  # plausible band and require a minimum number of overlap observations.
+  overlap_ratio <- .clamp_fbs_scale_ratio(overlap_ratio)
 
   wide[
     overlap_ratio,
@@ -1767,6 +2011,87 @@ build_processing_coefs <- function(
     )
 }
 
+# The order `.assemble_cbs_sources()` binds its sources in. It is what decided
+# the `area` label of every code before whep#580 -- a bind order plus
+# `unique(by =)` keeping the first row -- so naming it is what turns that
+# accident into a rule. Sources not listed rank last, which is where the
+# pre-1961 `trade_hist` rows already sat.
+.cbs_area_label_source_order <- function() {
+  c(
+    "FAOSTAT_FBS_New",
+    "FAOSTAT_FBS_Old",
+    "FAOSTAT_CBS",
+    "FAOSTAT_prod",
+    "FAOSTAT_trade"
+  )
+}
+
+# The `area` label an `area_code` carries through the rest of the build, one per
+# code.
+#
+# This used to keep the FIRST row of `dt_raw` for each code, so the label was
+# decided by whatever happened to be sorted first (whep#580). `area` is the
+# periodized polity name and a code legitimately changes it at a period
+# boundary, so one code offers several labels over a multi-year build: measured
+# on a real 1850-2023 `cbs_raw_all`, 75 of 216 codes carry more than one label
+# (up to four), and shuffling the input rows flipped the label for 13 of them.
+# That is the same failure mode as whep#546 -- one period of a code standing in
+# for all of them instead of one member of a bucket standing in for all of them
+# -- and it matters because `area` is a join key: whep#382 measured a
+# 702,166-row drop when one bucket grew a second `area` vocabulary.
+#
+# The pick is now a stated total order rather than a row position: the source
+# that reports the code earliest in `.cbs_area_label_source_order()`, its
+# earliest year, then the label alphabetically. On the real 1850-2023
+# `cbs_raw_all` that reproduces all 216 of today's labels exactly, so it removes
+# the order dependence WITHOUT moving a published value. That mattered most
+# because `area` used to be the key `.polity_code_from_labels()` read the
+# pre-1962 frame's polity out of, so which period named a code decided which
+# countries found a population and land proxy. **whep#698 removed that read**:
+# `.fill_with_proxies()` keys on the reporting bucket now, and no label decides
+# an identity here any more. The two alternative rules measured at the time
+# still say what the label is worth -- labelling from the code's most recent
+# reporting year cost area 248 (Yugoslavia) its entire pre-1961 proxy fill,
+# 32,677 keys, and labelling from the 1961 back-cast anchor moved the resolved
+# polity of 40 codes -- but the second of those is now moot and the first is a
+# question about `area` as a GROUPING key, which is what it still is.
+#
+# It stays ONE label per code on purpose. Labelling per `(area_code, year)` is
+# more faithful still, and whep#709 has taken the historical extension off the
+# label -- the year skeleton, the observed-source join, the share fills and the
+# proxy fills are all keyed on the code now, so a second label no longer
+# multiplies rows there. Three joins still read the label and each needs a
+# decision before it can be re-keyed: `.polity_code_from_labels()` (whep#698,
+# blocked on whep#493), the `primary_area` seed join (whep#699, which also
+# needs the seed expression settled) and `.interpolate_destiny_shares()`
+# (whep#691). Until those three are gone, a second label for one code is still
+# the whep#563 shape, so this stays one label per code.
+.cbs_area_labels <- function(dt_raw) {
+  cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
+  labels <- unique(dt_raw[, cols, with = FALSE])
+  if (nrow(labels) == 0L) {
+    return(labels[, .(area_code, area)])
+  }
+  order_vec <- .cbs_area_label_source_order()
+  if (rlang::has_name(labels, "source")) {
+    labels[, label_source_rank := match(source, order_vec)]
+    labels[
+      is.na(label_source_rank),
+      label_source_rank := length(order_vec) + 1L
+    ]
+  } else {
+    labels[, label_source_rank := 1L]
+  }
+  data.table::setorderv(
+    labels,
+    intersect(
+      c("area_code", "label_source_rank", "year", "area"),
+      names(labels)
+    )
+  )
+  unique(labels, by = "area_code")[, .(area_code, area)]
+}
+
 # -- Historical extension for CBS ---------------------------------------------
 
 .cbs_extend_historical <- function(
@@ -1788,13 +2113,24 @@ build_processing_coefs <- function(
     ) |>
     .collapse_cbs_observations()
 
+  # Every key below is the CODE, never the `area` label. The label is one
+  # display name per code (`.cbs_area_labels()`, whep#580) and it is detached
+  # here and put back once the skeleton exists, because this is where a second
+  # label for one code stops being cosmetic: the skeleton is CROSSED with the
+  # year axis, so two labels give a code two full year skeletons, and the
+  # observed-source join then matches only the half whose label agrees. That is
+  # the whep#563 shape, and whep#382 measured a 702,166-row drop from it.
+  # whep#709.
+  area_lookup <- .cbs_area_labels(
+    data.table::as.data.table(cbs_hist)[!is.na(area)]
+  )
+
   # Vectorised equivalent of the per-group .best_cbs_source() call: rank once,
   # sort NA/unrecognised sources last, then take the first (best) source per
   # group. Keeps every !is.na(value) group so all-NA-source groups still yield
   # observed_source = NA, matching the per-group call.
   obs_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -1816,13 +2152,14 @@ build_processing_coefs <- function(
   data.table::setnames(observed_sources, "source", "observed_source")
 
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of("source"))
+    dplyr::select(-dplyr::any_of(c("source", "area")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
-    id_cols = c("area", "area_code", "item_cbs", "item_cbs_code", "element"),
+    id_cols = c("area_code", "item_cbs", "item_cbs_code", "element"),
     years = years[years < 1962]
   ) |>
+    .attach_cbs_area_label(area_lookup) |>
     .fill_historical_destinies(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
@@ -1834,14 +2171,7 @@ build_processing_coefs <- function(
     dplyr::filter(year < 1961) |>
     dplyr::left_join(
       tibble::as_tibble(observed_sources),
-      by = c(
-        "year",
-        "area",
-        "area_code",
-        "item_cbs",
-        "item_cbs_code",
-        "element"
-      )
+      by = obs_keys
     ) |>
     dplyr::mutate(
       source = dplyr::coalesce(
@@ -1954,8 +2284,10 @@ build_processing_coefs <- function(
     "processing_primary_share",
     "seed_rate"
   )
+  # Grouped and ordered on the CODE alone: the label adds nothing to a key the
+  # code already determines, and a second label would split the run-length
+  # groups below without moving a value (whep#709).
   by_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code"
@@ -2067,16 +2399,104 @@ build_processing_coefs <- function(
     )
 }
 
+# Put a proxy table keyed by ISO3 on the same bucket key. Rows whose ISO3 has no
+# polity are dropped, and so are rows that would only reach an artificial
+# aggregate by folding into it from somewhere else: summing the six crosswalk
+# members that fold into Rest of World (999) would give the bucket a population
+# that is neither one member's nor the real rest of the world's, and a
+# per-capita rate against it would mean nothing. What such an aggregate's proxy
+# should be is a methodological choice, so those buckets stay unfilled here,
+# exactly as the name-keyed join left them.
+#
+# `area_code == polity_area_code` keeps the aggregates that report as themselves
+# (the pin carries RAFR, RASI, REUR, RLAM, ROCE and BLX, which ARE "Africa
+# Other" .. "Belgium-Luxembourg" rather than members of them). Nothing is being
+# summed for those, so there is no choice to defer.
+.proxy_polity_key <- function(df, iso3_col) {
+  dt <- if (data.table::is.data.table(df)) {
+    data.table::copy(df)
+  } else {
+    data.table::as.data.table(df)
+  }
+  if (iso3_col != "area_code") {
+    if ("area_code" %in% names(dt)) {
+      dt[, area_code := NULL]
+    }
+    data.table::setnames(dt, iso3_col, "area_code")
+  }
+  dt <- .iso3_to_fao_area_code(dt)
+  dt <- .add_polity_columns_dt(
+    dt,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  aggregates <- .aggregate_polity_codes()
+  dt[
+    !is.na(polity_code) &
+      (!polity_area_code %in% aggregates | area_code == polity_area_code)
+  ]
+}
+
+# The same table on the key the frames being filled actually carry: their
+# `area_code` is the reporting bucket, because `.aggregate_to_polities()`
+# groups on `polity_area_code` and renames it. Overwriting `area_code` with the
+# bucket is therefore the whole conversion -- and it is a rename, not a
+# regrouping: `.proxy_polity_key()` has already dropped every row that would
+# only reach a bucket by folding into it, so no member's proxy is being summed
+# into an aggregate here (whep#493 stays open, and the two `.read_land_areas_wide`
+# / `.fill_with_proxies` tests that pin the fold still hold).
+.proxy_bucket_key <- function(df, iso3_col) {
+  dt <- .proxy_polity_key(df, iso3_col = iso3_col)
+  dt[, area_code := as.integer(polity_area_code)]
+  dt
+}
+
 .fill_with_proxies <- function(df, gdp_pop, land_wide) {
-  by_cols <- c("area", "area_code", "item_cbs", "item_cbs_code")
+  # The CODE, not the label: `fill_proxy_growth()` carries a value forward
+  # within a group, so a second label for one code would break the series in
+  # two and each half would be filled from its own end (whep#709).
+  by_cols <- c("area_code", "item_cbs", "item_cbs_code")
   sort_cols <- c(by_cols, "year")
 
-  # Join auxiliary columns first, then sort once for all four fills.
+  # Both proxies used to be joined on `area`, and three name vocabularies meet
+  # at that join: the frame carries polity_name, the gdp/population pin carries
+  # its own labels and the LUH2 land table the crosswalk's static area_name.
+  # Measured on the pin, 57 of its 196 names (8,263 rows, 27.8%) are names no
+  # builder emits, and 96 LUH2 labels (41.7% of land rows) likewise -- all of
+  # them resolving on the polity key.
+  #
+  # The key is the REPORTING BUCKET, `polity_area_code`, and the frame's own
+  # `area_code` already is one: `.aggregate_to_polities()` groups on it and
+  # renames it. So the frame side needs no resolution at all, which is what
+  # whep#698 asked for -- it used to recover a polity_code by matching the
+  # frame's (`area_code`, `area`) pair against the crosswalk's
+  # (`polity_area_code`, `polity_name`), reading an identity out of a LABEL that
+  # is one per code for the whole build while this side resolves per year.
+  # Measured on a real 1955-1965 build (121,191 frame rows, 1,267
+  # (`area_code`, `area`, `year`) keys): 35 keys resolved to a DIFFERENT polity
+  # than the code, 70 to none at all, and four buckets whose label happened to
+  # be "Rest of World" were joined onto a single `ROW-1850-2025` proxy row
+  # holding the SUM of four promoted members' populations.
+  #
+  # Keying on the bucket removes that sum rather than deciding it: measured on
+  # the pin, no two surviving proxy rows share a (year, `polity_area_code`),
+  # while up to four shared a (year, `polity_code`). Nothing is summed into an
+  # aggregate here -- `.proxy_polity_key()` still holds back members that only
+  # reach a bucket by folding, which is whep#493's open question.
   dt <- data.table::as.data.table(df)
-  pop_dt <- data.table::as.data.table(gdp_pop)[, .(year, area, pop)]
+  dt[, area_code := as.integer(area_code)]
+  pop_dt <- .proxy_bucket_key(gdp_pop, iso3_col = "area_code")
+  # One row per bucket: a no-op on the current pin, but it keeps a future fold
+  # from fanning the frame out on the merge below.
+  pop_dt <- pop_dt[,
+    .(pop = sum(pop, na.rm = TRUE)),
+    by = .(year, area_code)
+  ]
   land_dt <- data.table::as.data.table(land_wide)
-  dt <- merge(dt, pop_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
-  dt <- merge(dt, land_dt, by = c("year", "area"), all.x = TRUE, sort = FALSE)
+  join_cols <- c("year", "area_code")
+  dt <- merge(dt, pop_dt, by = join_cols, all.x = TRUE, sort = FALSE)
+  dt <- merge(dt, land_dt, by = join_cols, all.x = TRUE, sort = FALSE)
   data.table::setorderv(dt, sort_cols)
 
   # Four consecutive fills sharing the sort established above.
@@ -2304,20 +2724,26 @@ build_processing_coefs <- function(
 ) {
   items <- whep::items_full
 
+  processed <- proc_result$processed_agg |>
+    dplyr::left_join(
+      items |> dplyr::select(item_cbs, item_cbs_code),
+      by = "item_cbs"
+    ) |>
+    dplyr::mutate(source = "Processed")
+
+  observed <- cbs_raw |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs, item_cbs_code, group),
+      by = c("item_cbs", "item_cbs_code")
+    ) |>
+    dplyr::filter(!(group == "Crop products" & element == "production"))
+
+  reconciled <- .resolve_processed_production(observed, processed, items)
+
   dplyr::bind_rows(
-    cbs_raw |>
-      dplyr::left_join(
-        items |>
-          dplyr::select(item_cbs, item_cbs_code, group),
-        by = c("item_cbs", "item_cbs_code")
-      ) |>
-      dplyr::filter(!(group == "Crop products" & element == "production")),
-    proc_result$processed_agg |>
-      dplyr::left_join(
-        items |> dplyr::select(item_cbs, item_cbs_code),
-        by = "item_cbs"
-      ) |>
-      dplyr::mutate(source = "Processed")
+    reconciled$observed,
+    reconciled$processed
   ) |>
     dplyr::filter(
       year %in% years,
@@ -2334,6 +2760,46 @@ build_processing_coefs <- function(
       source,
       value
     )
+}
+
+# Reconcile the read production of an item against the production the
+# processing pathway supplies for it, so exactly one of the two survives per
+# area-year.
+#
+# Crop products need no reconciling: every one of them is a processing output,
+# so `.cbs_add_processed()` drops their read production wholesale and the
+# pathway is the only source. Butter is not (#757). FAOSTAT reports butter
+# production from 1961, but milk's `processing` destiny — the milk churned
+# into it — is reported only by the new FBS, from 2010. The pathway is
+# therefore silent over most of the series, and a wholesale drop erases
+# 1961-2009 butter (measured: world 2000 production 7.378 to 3.527 Mt).
+#
+# So a *positive* pathway estimate supersedes the read value, and a zero or
+# absent one leaves the read value standing and is itself discarded. Keying on
+# emptiness rather than existence matters because the old FBS records a trace
+# of milk processing in some areas, which is enough to emit a butter row worth
+# nothing and cancel the observed one.
+.resolve_processed_production <- function(observed, processed, items) {
+  derived <- items |>
+    dplyr::filter(!is.na(group), group != "Crop products") |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+
+  supplied <- processed |>
+    dplyr::filter(element == "production", value > 0) |>
+    dplyr::distinct(year, area_code, item_cbs_code, element)
+
+  list(
+    observed = dplyr::anti_join(
+      observed,
+      supplied,
+      by = c("year", "area_code", "item_cbs_code", "element")
+    ),
+    processed = processed |>
+      dplyr::filter(
+        !(item_cbs_code %in% derived & element == "production" & value <= 0)
+      )
+  )
 }
 
 .extract_source_lookup <- function(df) {
@@ -2601,7 +3067,10 @@ build_processing_coefs <- function(
         is_tradeable & has_reliable_anchor & net_trade < 0 ~ -net_trade,
         TRUE ~ 0
       ),
-      production = tidyr::replace_na(production, 0),
+      # NOTE: production is intentionally left as NA here so that
+      # .reestimate_domestic_supply() can impute it from the
+      # domestic-supply residual. Do not replace_na(production) before
+      # that call or the imputation branch becomes dead code (#142).
       stock_variation = tidyr::replace_na(
         stock_variation,
         0
@@ -2670,8 +3139,18 @@ build_processing_coefs <- function(
         ),
         na.rm = TRUE
       ),
-      net_bal1 = production + import - export,
-      net_bal2 = production + import - export - stock_variation,
+      # A missing production counts as zero here, not as unknown. These two
+      # residuals are the last resort for a row that reports neither a
+      # domestic supply nor a destiny, and `production` is deliberately still
+      # NA at this point so the imputation below can derive it (#142). Reading
+      # it raw made both residuals NA, and `dplyr::if_else(NA, ...)` is NA, so
+      # `ds3` and `stock_variation` came out NA and the row was dropped
+      # downstream by the `value != 0` filters instead of balancing (#762).
+      net_bal1 = dplyr::coalesce(production, 0) + import - export,
+      net_bal2 = dplyr::coalesce(production, 0) +
+        import -
+        export -
+        stock_variation,
       ds3 = dplyr::if_else(
         !is.na(domestic_supply) & domestic_supply != 0,
         domestic_supply,
@@ -3284,16 +3763,7 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  cbs_raw8[,
-    `:=`(
-      domestic_supply = pmax(domestic_supply, 0),
-      export = data.table::fifelse(
-        balance < 0,
-        production + import - stock_variation - domestic_supply,
-        export
-      )
-    )
-  ]
+  cbs_raw8 <- .cbs_fix_final_balance(cbs_raw8)
   cbs_raw8[, default_destiny := NULL]
   cbs_raw8 <- .untest_cbs(cbs_raw8)
 
@@ -3340,4 +3810,41 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# -- Helpers -------------------------------------------------------------------
+
+# Bounds for the FBS_Old -> FBS_New scaling ratio. The [lower, upper] band
+# mirrors the clamp used for processing scalings; min_overlap avoids
+# extrapolating a single overlap year to the whole FBS_Old series.
+.fbs_scale_ratio_bounds <- function() {
+  list(lower = 0.2, upper = 5, min_overlap = 2L)
+}
+
+# Clamp the FBS scaling ratio to a plausible band and drop groups whose
+# overlap window is too thin to trust. Groups that fail the overlap threshold
+# are dropped so they stay unscaled (source remains FAOSTAT_FBS_Old).
+.clamp_fbs_scale_ratio <- function(overlap_ratio) {
+  bounds <- .fbs_scale_ratio_bounds()
+  overlap_ratio <- overlap_ratio[n_overlap >= bounds$min_overlap]
+  overlap_ratio[,
+    scale_new_old := pmin(pmax(scale_raw, bounds$lower), bounds$upper)
+  ]
+  overlap_ratio[, c("n_overlap", "scale_raw") := NULL]
+  overlap_ratio[]
+}
+
+# Reconcile the final CBS balance. Clamp domestic supply at 0 first, then
+# recompute export from the clamped supply so the export fix cannot read a
+# negative supply, and clamp export at 0 so no negative exports survive.
+.cbs_fix_final_balance <- function(cbs_dt) {
+  cbs_dt[, domestic_supply := pmax(domestic_supply, 0)]
+  cbs_dt[,
+    export := data.table::fifelse(
+      balance < 0,
+      pmax(production + import - stock_variation - domestic_supply, 0),
+      export
+    )
+  ]
+  cbs_dt[]
 }

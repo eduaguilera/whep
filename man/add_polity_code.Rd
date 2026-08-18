@@ -26,7 +26,9 @@ force current/default mapping.}
 default \code{1961}. Years before it are matched to the polity active in the
 anchor year, because WHEP's pre-anchor series are back-cast onto the
 anchor-year territory rather than reported under their data-year borders.
-Set to \code{-Inf} to disable and match strictly by data year.}
+Such a row reports \code{mapping_status == "backcast_anchor"} where the anchor
+polity is not live in its own year. Set to \code{-Inf} to disable and match
+strictly by data year.}
 }
 \value{
 A tibble with added polity metadata columns.
@@ -36,4 +38,75 @@ Adds periodized \code{polity_code} information from \link{polity_area_crosswalk}
 a table with FAOSTAT/FABIO \code{area_code} values. If a \code{year} column is
 present, the mapping is year-aware; otherwise the current/default mapping
 is used.
+
+When no mapped period covers a row's year, another period of the same area
+is used as a stand-in and \code{mapping_status} reports \code{"out_of_span"} rather
+than the crosswalk's \code{"matched"}/\code{"manual"}. Such a row is attributed to a
+polity that did not exist in that year, so treat it as a coverage gap:
+either the area needs the missing period added to the crosswalk, or the
+reporting area outlived (or predates) every polity mapped to it.
+}
+\section{The status vocabulary}{
+
+\code{mapping_status} here is a property of resolving one \verb{(area_code, year)},
+\strong{not} the same column as \link{polity_area_crosswalk}'s, which is a property of
+a published crosswalk row (whep#637). The resolver carries the selected
+crosswalk row's own status through, and overwrites it wherever the resolution
+substituted something for a real period hit:
+\itemize{
+\item \code{"matched"} / \code{"manual"}: the year fell inside the polity's period, and the
+value is the crosswalk row's own provenance, carried through.
+\item \code{"backcast_anchor"}: the row is before \code{backcast_anchor}, so it was
+resolved at the anchor year, and the polity live then is \strong{not} live in
+the row's own year. That polity is still the honest label -- the value is a
+reconstruction on the anchor year's territory -- but the row is no evidence
+the polity existed then, which is exactly what \code{"matched"} asserts.
+FAOSTAT area 238 reads \code{ETH-1952-1993} from 1850, 102 years before that
+polity began: \code{"backcast_anchor"} for 1850-1951, \code{"matched"} from 1952. A
+pre-anchor row whose anchor polity \emph{does} cover its own year keeps
+\code{"matched"}.
+\item \code{"out_of_span"}: no mapped period covered even the anchored year, so a
+nearest-period stand-in was used.
+\item \code{"unmapped"}, or \code{NA}: no polity at all, carried through from the crosswalk
+or left by an area with no applicable period. \code{polity_code} is \code{NA} too.
+}
+
+\code{"backcast_anchor"} and \code{"out_of_span"} exist only here, so a tibble carrying
+either is unambiguously this column and not the crosswalk's. The two still
+overlap in \code{"matched"}, \code{"manual"} and \code{"unmapped"}, which is whep#637 and is
+not resolved here.
+}
+
+\section{Which stand-in is picked}{
+
+A period that has \strong{not started yet} is preferred over one that has
+already \strong{ended}, and only then is the nearest in years taken. Ranking by
+distance alone split one reporting area's series between two entities at
+whichever year the arithmetic flipped: FAOSTAT area 178 Eritrea read
+\code{ERI-1889-1952} (the Italian colonial administration) up to 1972 and
+\code{ERI-1993-2025} from 1973, and area 273 Montenegro split at 1961 between
+\code{MNE-1913-1918} and \code{MNE-2006-2025} on a one-year margin. Preferring the
+not-yet-started period keeps each area on one entity and agrees with the
+back-cast anchor, whose purpose is to avoid resolving back-cast rows onto a
+larger historical-extent period. Set
+\code{options(whep.polity_stand_in = "nearest")} to restore ranking by distance
+alone; it changes 235 of the crosswalk's 46,640 \verb{(area, year)} pairs over
+1850-2025, all of them areas 178 and 273 (whep#705).
+}
+
+\examples{
+# The same area code resolves to different polities in different years:
+# area 16 reports as East Pakistan before 1971 and as Bangladesh after it.
+tibble::tibble(area_code = c(16L, 16L), year = c(1965L, 2000L)) |>
+  add_polity_code() |>
+  dplyr::select(area_code, year, polity_code, polity_name, mapping_status)
+
+# Without a year column the current/default mapping is used.
+add_polity_code(tibble::tibble(area_code = 231L), year_column = NULL) |>
+  dplyr::select(area_code, polity_code, polity_name)
+}
+\seealso{
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the \code{"out_of_span"} and
+\code{"backcast_anchor"} rows of an already-built table, whose published columns
+no longer carry \code{mapping_status}.
 }

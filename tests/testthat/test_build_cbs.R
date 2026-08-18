@@ -149,6 +149,55 @@ test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equival
   )
 })
 
+test_that(".fix_item_codes converts new-FBS rice, which is paddy basis", {
+  # faostat-fbs-new reports item 2807 "Rice and products" in paddy (rough-rice)
+  # equivalent: India 2010 production is 143,963 kt there against 96,023 kt for
+  # the milled item 2805 in faostat-fbs-old. WHEP's contract for this item is
+  # milled equivalent, so the extract path must convert it (#751).
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that(".fix_item_codes leaves an already-labelled rice row alone", {
+  # .prepare_historical_cbs() relabels rows from the items_full lookup before
+  # calling this, so "Rice and products" there is the canonical label and says
+  # nothing about the mass basis. The default must not convert it, or that path
+  # would be double-converted at 0.67^2.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  expect_equal(result$value, 100)
+})
+
+test_that(".fix_item_codes never converts milled rice", {
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,                  ~value,
+    2805L,          "Rice (Milled Equivalent)", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
@@ -161,10 +210,14 @@ test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
 })
 
 test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture rows", {
+  # `iso3c` is in the mock because .read_land_areas_wide() now resolves the
+  # LUH2 rows to a polity_code from it rather than carrying the area label
+  # through; see .fill_with_proxies().
   local_mocked_bindings(
     .read_land_areas = function(years = NULL) {
       tibble::tibble(
         year = 2023L,
+        iso3c = "ESP",
         area = "Spain",
         Land_Use = "urban",
         Area_Mha = 1
@@ -176,6 +229,73 @@ test_that(".read_land_areas_wide tolerates missing LUH2 cropland and pasture row
 
   expect_true(all(c("Cropland", "Pasture", "agriland") %in% names(result)))
   expect_equal(nrow(result), 0L)
+})
+
+test_that(".read_land_areas_wide keys its output on the reporting bucket", {
+  # The frame this table feeds is labelled with `polity_name`, but
+  # .read_land_areas() labels its rows with the crosswalk's STATIC `area_name`.
+  # Those two vocabularies diverge for most territories -- FAO area 3 is
+  # "Albania (1913-2025)" as a polity and "Albania" as an area -- so the old
+  # `by = c("year", "area")` join in .fill_with_proxies() missed them: measured
+  # on main, 96 of the LUH2 labels (41.7% of land rows) are names no builder
+  # emits, and frame coverage of `agriland` over 1900-1902 was 402 of 606
+  # (year, polity) cells against 567 once keyed on the polity.
+  #
+  # The key is `polity_area_code`, renamed to `area_code`, not `polity_code`:
+  # the frame this fills is aggregated to buckets and its `area_code` IS the
+  # bucket, so this is the key that needs no label to reach it (whep#698).
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = rep(1950L, 3),
+        iso3c = c("ALB", "ALB", "ALB"),
+        area = "Albania",
+        Land_Use = c("c3ann", "pastr", "urban"),
+        Area_Mha = c(2, 3, 9)
+      )
+    }
+  )
+
+  result <- whep:::.read_land_areas_wide(years = 1950L)
+
+  expect_equal(result$area_code, 3L)
+  expect_false("area" %in% names(result))
+  expect_false("polity_code" %in% names(result))
+  expect_equal(result$agriland, 5)
+})
+
+test_that(".read_land_areas_wide holds back folded aggregate buckets", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  # Equatorial Guinea and Syria both fold into the Rest of World bucket (999).
+  # Summing their agricultural land into it would give the bucket an extent that
+  # is neither member's nor the real rest of the world's, so proxies are not
+  # synthesised for aggregates that are only reached by folding. Deciding what an
+  # aggregate's proxy should be is a methodological choice (#493); until it is
+  # made these buckets stay unfilled, which is where the name-keyed join left
+  # them too.
+  local_mocked_bindings(
+    .read_land_areas = function(years = NULL) {
+      tibble::tibble(
+        year = rep(1950L, 3),
+        iso3c = c("ESP", "GNQ", "SYR"),
+        area = c("Spain", "Equatorial Guinea", "Syrian Arab Republic"),
+        Land_Use = "c3ann",
+        Area_Mha = c(10, 1, 2)
+      )
+    }
+  )
+
+  result <- whep:::.read_land_areas_wide(years = 1950L)
+
+  expect_equal(result$area_code, 203L)
+  # NO Rest-of-World BUCKET AT ALL. This named the polity code until whep#698
+  # re-keyed the table on the reporting bucket; 999 is that bucket's code and
+  # is what a folded member would land on now.
+  expect_false(999L %in% result$area_code)
 })
 
 test_that(".fix_palm_kernels tolerates single-year inputs without old palm-kernel anchors", {
@@ -229,6 +349,84 @@ test_that(".cbs_impute_trade tolerates missing destiny element columns", {
     ) %in%
       result$element
   ))
+})
+
+test_that(".cbs_impute_trade imputes production from destinies when missing", {
+  # Item with reported destinies + trade but NO production row: the
+  # domestic-supply residual should be imputed into production, not
+  # dumped into a large negative stock_variation (#142).
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "food", 3000, "FAOSTAT_FBS_New",
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+
+  production <- result |>
+    dplyr::filter(element == "production") |>
+    dplyr::pull(value)
+  stock_variation <- result |>
+    dplyr::filter(element == "stock_variation") |>
+    dplyr::pull(value)
+
+  # The imputed production is the domestic-supply residual: supply 3000, less
+  # imports 500, plus exports 200, less a zero stock variation, giving 2700.
+  expect_equal(production, 2700)
+  # Balance closes: no spurious negative stock change.
+  expect_equal(stock_variation, 0)
+})
+
+test_that(".cbs_impute_trade balances a traded item with no production row", {
+  # Trade but neither a production row nor any destiny. `.reestimate_domestic
+  # _supply()` derives the supply residual from `production + import - export`,
+  # which is NA while production is, and `dplyr::if_else(NA, ...)` is NA, so
+  # both `domestic_supply` and `stock_variation` came out NA. The rows then
+  # vanished downstream on the `value != 0` filters instead of balancing.
+  # This is the shape every row recovered from the trade record will have
+  # (#762), so the hole has to close before those rows can be created.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  # Nothing is produced and nothing is used, so the whole net import is the
+  # domestic supply and the stock is untouched.
+  expect_equal(value_of("domestic_supply"), 300)
+  expect_equal(value_of("production"), 0)
+  expect_equal(value_of("stock_variation"), 0)
+})
+
+test_that(".cbs_impute_trade balances a net-exported item with no production", {
+  # Same hole, mirrored: a re-exporting row whose export exceeds its import.
+  # The supply residual is negative, so domestic supply is zero and the
+  # production imputation of #142 supplies the 30 the exports need. That
+  # imputation is deliberate, and this test pins it only to keep the identity
+  # closing; whether it should fire for a row recovered from trade alone is
+  # the open question in #762, not something settled here.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Singapore", 200L, "Wheat", 2511L, "import", 50, "FAOSTAT_trade",
+    2023L, "Singapore", 200L, "Wheat", 2511L, "export", 80, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  expect_equal(value_of("domestic_supply"), 0)
+  expect_equal(value_of("production"), 30)
+  expect_equal(value_of("stock_variation"), 0)
 })
 
 
@@ -289,6 +487,101 @@ test_that(".select_best_source keys on area_code, not periodized name", {
 })
 
 
+# -- .cbs_area_labels (whep#580) ----------------------------------------------
+
+# One code, whose `area` label legitimately changes at a period boundary: `area`
+# is the periodized polity name, so a multi-year build offers several labels for
+# one code. On a real 1850-2023 `cbs_raw_all`, 75 of the 216 codes do (up to
+# four labels each) and shuffling the rows flipped the label for 13.
+.period_rows <- function() {
+  tibble::tribble(
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_Old",
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_Old"
+  )
+}
+
+test_that("a code's area label survives any reordering of the input", {
+  # whep#580: the lookup kept the FIRST row seen for an `area_code`, so which
+  # period named the code for the whole build was decided by what happened to
+  # sort first, and nothing pinned it.
+  rows <- .period_rows()
+
+  forward <- whep:::.select_best_source(rows)
+  reversed <- whep:::.select_best_source(rows[c(2L, 1L), ])
+
+  expect_equal(unique(forward$area), "Utopia (1900-1950)")
+  expect_equal(unique(reversed$area), unique(forward$area))
+})
+
+test_that("the label comes from the highest-priority source, not the first row", {
+  # The order `.assemble_cbs_sources()` binds its sources in is what actually
+  # decided the label, and it is now stated instead of implied: FBS_New outranks
+  # FBS_Old wherever it reports the code, however the rows arrive.
+  rows <- tibble::tribble(
+    ~area,          ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Old vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 100,    "FAOSTAT_FBS_Old",
+    "New vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 90,     "FAOSTAT_FBS_New"
+  )
+
+  expect_equal(unique(whep:::.select_best_source(rows)$area), "New vintage")
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "New vintage"
+  )
+})
+
+test_that("within one source the earliest year names the code", {
+  # The second criterion, and the one whep#580 is about: a code's label is a
+  # period name, so which YEAR is consulted decides it. Reversing the rows used
+  # to swap the answer.
+  rows <- tibble::tribble(
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_New",
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_New"
+  )
+
+  expect_equal(
+    unique(whep:::.select_best_source(rows)$area),
+    "Utopia (1900-1950)"
+  )
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "Utopia (1900-1950)"
+  )
+})
+
+test_that("an unranked source still labels a code it alone reports", {
+  # `trade_hist` is not in the source order, so it ranks last -- but a code only
+  # that source reports must still come out labelled. `area` is a join key, and
+  # an NA there drops the code from four inner joins.
+  rows <- tibble::tribble(
+    ~area,      ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
+    "Zedland",  400L,       "Wheat",   2511L,          "import", 1950L, 100,    "trade_hist",
+    "Aardland", 400L,       "Wheat",   2511L,          "import", 1950L, 90,     "trade_hist"
+  )
+
+  expect_equal(unique(whep:::.select_best_source(rows)$area), "Aardland")
+  expect_equal(
+    unique(whep:::.select_best_source(rows[c(2L, 1L), ])$area),
+    "Aardland"
+  )
+})
+
+test_that("one area_code still yields exactly one area label", {
+  # The invariant the value-neutrality checks cannot see (whep#563): a second
+  # label for one code splits every join keyed on the area label and its code,
+  # without moving a single value.
+  labels <- whep:::.cbs_area_labels(
+    data.table::as.data.table(.period_rows())
+  )
+
+  expect_equal(nrow(labels), 1L)
+  expect_equal(labels$area_code, 300L)
+  expect_false(anyNA(labels$area))
+})
+
+
 # -- .test_cbs -----------------------------------------------------------------
 
 test_that(".test_cbs adds balance check columns", {
@@ -342,6 +635,130 @@ test_that(".processed_raw creates value_proc column", {
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
 })
+
+# -- Dairy processing pathway (#757) ------------------------------------------
+
+# FAOSTAT's new FBS reports a `processing` destiny for milk that is the milk
+# churned into butter and ghee. Without a pathway for it,
+# .cbs_redistribute_notprocessed splits that mass onto food/feed/export and
+# deletes the processing row, inflating 2010 world milk food by 30.5%.
+
+test_that("cb_processing carries the milk to butter pathway (#757)", {
+  dairy <- whep::cb_processing |>
+    dplyr::filter(.data$ProcessedItem == "Milk - Excluding Butter")
+
+  expect_equal(nrow(dairy), 1L)
+  expect_equal(dairy$item_cbs, "Butter, Ghee")
+  # FAO (1997) Technical Conversion Factors, "Butter of Cow Milk" extraction
+  # rates: median 4.5% over 69 reporting countries (range 3.3-7.3%).
+  expect_equal(dairy$Product_fraction, 0.045)
+  expect_equal(dairy$Value_fraction, 1)
+})
+
+test_that(".processed_raw turns milk processing into butter (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "processing", 1000,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "food", 4000
+  )
+
+  result <- whep:::.processed_raw(cbs, whep::cb_processing)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$item_cbs, "Butter, Ghee")
+  expect_equal(result$element, "production")
+  expect_equal(result$value_proc, 45)
+})
+
+test_that(".cbs_redistribute_notprocessed keeps matched processing (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk", 2848L, "processing", 200,
+    2010L, "Spain", 203L, "Milk", 2848L, "food", 500,
+    2010L, "Spain", 203L, "Milk", 2848L, "feed", 60,
+    2010L, "Spain", 203L, "Milk", 2848L, "export", 240,
+    2010L, "Spain", 203L, "Milk", 2848L, "domestic_supply", 760
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+
+  matched <- tibble::tribble(
+    ~year, ~area, ~area_code, ~processed_item,
+    2010L, "Spain", 203L, "Milk"
+  )
+
+  kept <- whep:::.cbs_redistribute_notprocessed(cbs, matched)
+
+  expect_equal(
+    dplyr::filter(kept, .data$element == "processing")$value,
+    200
+  )
+  expect_equal(dplyr::filter(kept, .data$element == "food")$value, 500)
+  expect_equal(dplyr::filter(kept, .data$element == "export")$value, 240)
+
+  # Negative control: with no pathway the processing is split onto the other
+  # destinies and the processing row disappears. This is the #757 mechanism,
+  # and the reason the dairy pathway above has to exist.
+  unmatched <- matched[0L, ]
+  split <- whep:::.cbs_redistribute_notprocessed(cbs, unmatched)
+
+  expect_equal(nrow(dplyr::filter(split, .data$element == "processing")), 0L)
+  expect_gt(dplyr::filter(split, .data$element == "food")$value, 500)
+})
+
+
+test_that(".resolve_processed_production keeps read production (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Butter, Ghee", 2740L, "Livestock products",
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  observed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 7000,
+    2010L, 203L, 2740L, "production", 9000
+  )
+
+  # The old FBS records a trace of milk processing, so the pathway emits a
+  # butter row worth nothing in 2000. It must not cancel the read value.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 0,
+    2010L, 203L, 2740L, "production", 8900
+  )
+
+  result <- whep:::.resolve_processed_production(observed, processed, items)
+
+  expect_equal(result$observed$year, 2000L)
+  expect_equal(result$observed$value, 7000)
+  expect_equal(result$processed$year, 2010L)
+  expect_equal(result$processed$value, 8900)
+})
+
+test_that(".resolve_processed_production leaves crop products alone (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  # Crop production is already dropped wholesale upstream, so `observed` never
+  # carries it. A zero-valued crop estimate must still survive, because that
+  # is the pre-#757 behaviour for every existing pathway.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010L, 203L, 2571L, "production", 0
+  )
+
+  result <- whep:::.resolve_processed_production(
+    processed[0L, ],
+    processed,
+    items
+  )
+
+  expect_equal(nrow(result$processed), 1L)
+  expect_equal(result$processed$value, 0)
+})
+
 
 test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
   cb_proc <- tibble::tribble(
@@ -485,14 +902,18 @@ test_that(".cbs_extend_historical preserves observed historical sources", {
       item_cbs_code = 2511L,
       area_ha = 1
     ),
+    # The gdp/population pin is keyed by ISO3 in a column called `area_code`,
+    # and .read_land_areas_wide() emits the reporting bucket: both proxies are
+    # resolved onto the frame's own `area_code` rather than joined on a label.
     gdp_pop = tibble::tibble(
       year = 1950:1961,
       area = "Spain",
+      area_code = "ESP",
       pop = 1:12
     ),
     land_areas_wide = tibble::tibble(
       year = 1950:1961,
-      area = "Spain",
+      area_code = 203L,
       Cropland = 1,
       Pasture = 0,
       agriland = 1
@@ -510,6 +931,321 @@ test_that(".cbs_extend_historical preserves observed historical sources", {
   expect_equal(observed$source, "historical_test")
   expect_false(is.na(filled$value))
   expect_equal(filled$source, "historical_fill")
+})
+
+test_that(".fill_with_proxies keys its proxies on the polity, not the name", {
+  # Three name vocabularies used to meet at this join. The frame carries
+  # `polity_name` (.aggregate_to_polities() renames it to `area`), which is
+  # periodized: FAO area 3 arrives as "Albania (1913-2025)". The gdp/population
+  # pin calls it "Albania" and keys itself by ISO3; the LUH2 land table used to
+  # carry the crosswalk's static "Albania" too. So `by = c("year", "area")`
+  # matched neither, and the row kept its gaps. Measured on main: 57 of the pin's
+  # 196 names (8,263 rows, 27.8%) and 96 of the LUH2 labels (41.7% of land rows)
+  # are names no builder emits, and coverage of the pre-1962 frame's (year,
+  # polity) cells was 13,664 of 22,624 for `pop` and 402 of 606 for `agriland`
+  # over 1900-1902, against 18,480 and 567 once keyed on polity_code.
+  #
+  # Fixture rather than shipped data: neither proxy table is exported, both only
+  # exist inside a build, and the frame they fill is assembled mid-pipeline.
+  frame <- tibble::tibble(
+    year = 1950:1953,
+    area = "Albania (1913-2025)",
+    area_code = 3L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA, NA),
+    other_uses = NA_real_,
+    feed = c(10, NA, NA, NA),
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = 1950:1953,
+    area = "Albania",
+    area_code = "ALB",
+    pop = c(1000, 1100, 1200, 1300)
+  )
+  land_wide <- tibble::tibble(
+    year = 1950:1953,
+    area_code = 3L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = c(2, 2.2, 2.4, 2.6)
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  # Both destinies follow their proxy's growth rate: +10% a year for population,
+  # +10% a year for agricultural land.
+  expect_equal(result$food, c(100, 110, 120, 130))
+  expect_equal(result$feed, c(10, 11, 12, 13))
+  expect_equal(nrow(result), nrow(frame))
+  expect_false("polity_code" %in% names(result))
+})
+
+test_that(".fill_with_proxies reaches a bucket its label misnames", {
+  # whep#698. The frame's `area` is ONE label for the whole build, so it names
+  # one period of a code; the proxy side resolves per year with the pre-1962
+  # back-cast anchored at 1961. For FAO area 29 those are two different
+  # polities -- the label says `BDI-1962-2025`, the anchor says
+  # `BDI-1922-1962` -- and while the fill was keyed on `polity_code` the two
+  # never met, so Burundi's whole pre-1962 series went through the historical
+  # fill with no population proxy at all. Measured on a real
+  # `build_commodity_balances(prim, 1955, 1965)` frame: 35 of 1,267
+  # (`area_code`, `area`, `year`) keys resolved to a different polity that way
+  # and 70 more to none.
+  #
+  # Keyed on the reporting bucket both sides say 29 and the label is not
+  # consulted at all.
+  frame <- tibble::tibble(
+    year = 1955:1957,
+    area = "Burundi",
+    area_code = 29L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = 1955:1957,
+    area = "Burundi",
+    area_code = "BDI",
+    pop = c(1000, 1100, 1210)
+  )
+  land_wide <- tibble::tibble(
+    year = 1955:1957,
+    area_code = 29L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_false(any(is.na(result$pop)))
+  expect_equal(result$food, c(100, 110, 121))
+})
+
+test_that(".fill_with_proxies gives a promoted member its own population", {
+  # The other half of whep#698, and the reason re-keying on `polity_code` would
+  # have been wrong. `.unfold_rest_of_world()` promotes a member's
+  # `polity_area_code` but NOT its `polity_code`, so every promoted member
+  # still answers `ROW-1850-2025` and carries the shared label "Rest of World".
+  # Keyed on the polity, all of them collapsed onto one proxy row holding the
+  # SUM of their populations -- measured on the real pin, four pin rows shared
+  # `(year, ROW-1850-2025)` while no two shared a `(year, polity_area_code)` --
+  # and four buckets of a real 1955-1965 frame were being grown on that sum.
+  #
+  # Equatorial Guinea's population is flat here and Syria's quadruples, so the
+  # bucket-keyed fill leaves food flat while the polity-keyed one would have
+  # nearly doubled it.
+  frame <- tibble::tibble(
+    year = 1955:1957,
+    area = "Rest of World",
+    area_code = 61L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = rep(1955:1957, 2L),
+    area = rep(c("Equatorial Guinea", "Syria"), each = 3L),
+    area_code = rep(c("GNQ", "SYR"), each = 3L),
+    pop = c(100, 100, 100, 1000, 2000, 4000)
+  )
+  land_wide <- tibble::tibble(
+    year = 1955:1957,
+    area_code = 61L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_equal(result$pop, c(100, 100, 100))
+  expect_equal(result$food, c(100, 100, 100))
+})
+
+test_that(".fill_with_proxies leaves a folded aggregate bucket unproxied", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  # Syria folds into the Rest of World bucket (999), so the pin's Syrian
+  # population is not the bucket's population and a per-capita rate against it
+  # would mean nothing. Deciding what an aggregate's proxy should be is a
+  # methodological choice (#493), so nothing is summed into the bucket here and
+  # the gap survives -- which is also where the name-keyed join left it.
+  frame <- tibble::tibble(
+    year = 1950:1952,
+    area = "Rest of World",
+    area_code = 999L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    food = c(100, NA, NA),
+    other_uses = NA_real_,
+    feed = NA_real_,
+    processing = NA_real_
+  )
+  gdp_pop <- tibble::tibble(
+    year = 1950:1952,
+    area = "Syria",
+    area_code = "SYR",
+    pop = c(1000, 1100, 1200)
+  )
+  # Keyed on Syria's OWN reporting area, which is what `.read_land_areas_wide()`
+  # emits for it -- the fold sends the bucket's code to 999, so nothing here
+  # reaches the frame.
+  land_wide <- tibble::tibble(
+    year = 1950:1952,
+    area_code = 212L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = c(2, 2.2, 2.4)
+  )
+
+  result <- whep:::.fill_with_proxies(frame, gdp_pop, land_wide)
+
+  expect_true(all(is.na(result$pop)))
+  expect_true(all(is.na(result$agriland)))
+  expect_equal(result$food, c(100, NA, NA))
+})
+
+
+# -- historical trade wiring (issue #141) -------------------------------------
+
+.empty_cbs_component <- function() {
+  # Internal CBS helpers receive data.tables in production; mirror that here.
+  data.table::data.table(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    element = character(),
+    value = numeric(),
+    unit = character()
+  )
+}
+
+.make_trade_hist_inputs <- function(with_trade_hist = TRUE) {
+  primary_cbs <- data.table::data.table(
+    year = 1950L,
+    area = "Spain",
+    area_code = 203L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    element = "production",
+    value = 5000,
+    unit = "tonnes"
+  )
+  trade_hist <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    ~unit,
+    1950L, "Spain", 203L, "Wheat and products", 2511L, "import", 700,
+    "tonnes",
+    1950L, "Spain", 203L, "Wheat and products", 2511L, "export", 200,
+    "tonnes"
+  ) |>
+    data.table::as.data.table()
+  list(
+    fbs_new = .empty_cbs_component(),
+    fbs_old = .empty_cbs_component(),
+    cbs_animals = .empty_cbs_component(),
+    cbs_crops = .empty_cbs_component(),
+    primary_cbs = primary_cbs,
+    crop_residues = .empty_cbs_component(),
+    trade_hist = if (with_trade_hist) trade_hist else NULL
+  )
+}
+
+test_that(".assemble_cbs_sources binds historical trade under its source", {
+  inputs <- .make_trade_hist_inputs()
+  empty <- .empty_cbs_component()
+
+  result <- whep:::.assemble_cbs_sources(
+    inputs,
+    empty,
+    empty,
+    empty,
+    whep::items_full
+  )
+
+  hist_rows <- result |>
+    dplyr::filter(.data$source == "trade_hist")
+  expect_equal(nrow(hist_rows), 2L)
+  expect_setequal(hist_rows$element, c("import", "export"))
+  expect_equal(
+    hist_rows |> dplyr::filter(element == "import") |> dplyr::pull(value),
+    700
+  )
+})
+
+test_that("historical trade reaches pre-1961 CBS import/domestic supply", {
+  ext_inputs <- list(
+    primary_cbs_area = tibble::tibble(
+      year = 1950L,
+      area = "Spain",
+      area_code = 203L,
+      item_cbs = "Wheat and products",
+      item_cbs_code = 2511L,
+      area_ha = 1
+    ),
+    # Both proxies are resolved onto the frame's own `area_code`, not joined on
+    # an area label: the gdp/population pin is keyed by ISO3 in `area_code`, and
+    # .read_land_areas_wide() emits the reporting bucket.
+    gdp_pop = tibble::tibble(
+      year = 1950L,
+      area = "Spain",
+      area_code = "ESP",
+      pop = 10
+    ),
+    land_areas_wide = tibble::tibble(
+      year = 1950L,
+      area_code = 203L,
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+  empty <- .empty_cbs_component()
+
+  run_extension <- function(with_trade_hist) {
+    inputs <- .make_trade_hist_inputs(with_trade_hist)
+    whep:::.assemble_cbs_sources(
+      inputs,
+      empty,
+      empty,
+      empty,
+      whep::items_full
+    ) |>
+      whep:::.select_best_source() |>
+      tibble::as_tibble() |>
+      whep:::.cbs_extend_historical(ext_inputs, 1950L)
+  }
+
+  value_1950 <- function(ext, el) {
+    ext |>
+      dplyr::filter(.data$year == 1950L, .data$element == el) |>
+      dplyr::pull(value)
+  }
+
+  with_hist <- run_extension(TRUE)
+  expect_equal(value_1950(with_hist, "import"), 700)
+  expect_equal(value_1950(with_hist, "export"), 200)
+  # Domestic supply is production plus imports minus exports: 5000 + 700 - 200.
+  expect_equal(value_1950(with_hist, "domestic_supply"), 5500)
+
+  # Without historical trade, pre-1961 has no import/export evidence at all.
+  without_hist <- run_extension(FALSE)
+  expect_length(value_1950(without_hist, "import"), 0L)
+  expect_length(value_1950(without_hist, "domestic_supply"), 0L)
 })
 
 
@@ -604,4 +1340,432 @@ test_that(".format_cbs_output removes duplicate rows", {
     )
   expect_equal(nrow(prod_rows), 1L)
   expect_equal(prod_rows$value, 100)
+})
+
+
+# -- .resolve_hist_trade_polities ----------------------------------------------
+
+test_that(".resolve_hist_trade_polities keys on the reported year, not today", {
+  # The historical trade pins are a genuine historical source: 1746-1961 figures
+  # reported under the borders in force at the time, unlike WHEP's pre-1962
+  # FAOSTAT series which are back-cast onto ~1961 territory. Resolution used to
+  # go through .current_area_lookup, which is deliberately year-insensitive, so
+  # every row of an ISO3 got that ISO3's *present-day* polity: all 1,093 India
+  # rows landed on IND-1949-2025 and all 9,522 UK rows on GBR-1921-2025.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("IND", "IND", "IND", "GBR", "GBR"),
+    year = c(1885L, 1920L, 1961L, 1850L, 1961L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      # IND-1800-1893 is `superseded` upstream, replaced by the finer IND-1800-1886 /
+      # IND-1886-1893 split. It was returned here until the FAOSTAT area map became the
+      # resolution authority (#517); pinning a superseded polity was the bug, not the fix.
+      "IND-1800-1886",
+      "IND-1914-1937",
+      "IND-1949-2025",
+      "GBR-1800-1921",
+      "GBR-1921-2025"
+    )
+  )
+
+  # The FABIO aggregation bucket is period-invariant for both ISO3s, which is
+  # why making the lookup year-aware moved no tonnage for them: over the full
+  # pin the totals went 18,455,438,816 t -> 18,453,716,816 t (-0.0093%), and all
+  # of that was the pre-1850 aggregate rows exercised in the next test.
+  expect_equal(resolved$area_code, c(100L, 100L, 100L, 229L, 229L))
+})
+
+test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  # Guadeloupe and Martinique are folded into the ROW bucket, whose only polity
+  # ROW-1850-2025 is of type "aggregate". .add_polity_columns_dt refuses to
+  # extend aggregate reporting areas outside their range, so an 1830 figure has
+  # no polity and must be dropped rather than back-filled into ROW. That is the
+  # 64 rows / 1,722,000 t the year-aware lookup removes from the feed.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "GLP"),
+    year = c(1830L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_true(is.na(resolved$area_code[1]))
+  expect_equal(resolved$polity_code[2], "ROW-1850-2025")
+  expect_equal(resolved$area_code[2], 999L)
+})
+
+test_that("a promoted member's pre-1850 trade resolves instead of dropping", {
+  # THE OTHER SIDE OF THE TEST ABOVE, under the default. The 64 rows the fold
+  # drops are dropped because `ROW-1850-2025` starts in 1850 and is an
+  # aggregate, which `.add_polity_columns_dt()` refuses to extend -- rightly, a
+  # figure for 1830 Guadeloupe must not be booked to a bucket that did not
+  # exist. Once Guadeloupe carries `GLP-1816-2025` (whep#717) the year is
+  # inside a real period of its own and the row resolves.
+  #
+  # This is the one place the identity change moves a published quantity, and
+  # the direction is recovery: the historical trade feed goes from
+  # 18,453,716,816 t to 18,455,438,816 t (+0.0093%), all of it 64 pre-1850 rows
+  # of Guadeloupe (87) and Martinique (135).
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "MTQ", "GLP"),
+    year = c(1830L, 1830L, 1900L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      "GLP-1816-2025",
+      "MTQ-1816-2025",
+      "GLP-1816-2025"
+    )
+  )
+  expect_equal(resolved$area_code, c(87L, 135L, 87L))
+  # And a year before even the member's own period still drops, so this is not
+  # a licence to back-fill: `GLP-1816-2025` starts in 1816.
+  early <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = "GLP",
+    year = 1700L,
+    value = 1
+  ))
+  expect_equal(early$polity_code, "GLP-1816-2025")
+  expect_equal(early$area_code, 87L)
+})
+
+test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {
+  # The pins carry a handful of labels that are not ISO3 codes in the crosswalk
+  # (a placeholder for unknown origin, "BEL-LUX", "CZH"). They stay NA so the
+  # caller drops them instead of silently attaching them to a wrong polity;
+  # resolving them needs new crosswalk aliases, not a change here.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ESP"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+
+  expect_true(is.na(resolved$polity_code[1]))
+  expect_false(is.na(resolved$polity_code[2]))
+})
+
+test_that(".canonicalise_gdp_pop_area relabels through the ISO3 code", {
+  # Scoped to the explicit fold. WHEP now models the reporting members of
+  # bucket 999 in their own right (#459), so there is no Rest-of-World fold
+  # by default; what this pins is the fold behaviour itself, which still has
+  # to work for anyone reproducing a published-before number.
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  # `.fill_with_proxies()` joins population on `c("year", "area")` -- the name --
+  # and the two sides speak different vocabularies. Everything that comes through
+  # `.aggregate_to_polities()` carries the period-specific `polity_name`, while the
+  # gdp-population pin writes its own short forms. Measured on the current pin: 35
+  # of its 196 area names, 5,346 rows or 18.0%, are not names any builder emits, so
+  # the join silently found nothing and those countries went unfilled. Checked
+  # against the 1961 CBS extract's own area vocabulary, 110 of 169 labels matched
+  # before and 148 after, with 0 going from matching to not matching.
+  #
+  # The relabelling goes ISO3 -> FAOSTAT area code -> polity name for the row's
+  # year, so it is a code lookup rather than a hand-written synonym list, and it
+  # agrees with `.aggregate_to_polities()` by construction. #382 canonicalised
+  # towards the crosswalk's `area_name` instead, which is a third vocabulary: on
+  # today's main that would have renamed Bolivia, Iran, Tanzania, Venezuela and
+  # North Korea -- five labels that match today -- into names that match nothing.
+  dt <- data.table::data.table(
+    year = rep(2000L, 5L),
+    area = c("Lao", "Republic of Korea", "Albania", "Spain", "Syria"),
+    area_code = c("LAO", "KOR", "ALB", "ESP", "SYR"),
+    pop = 1:5
+  )
+
+  result <- whep:::.canonicalise_gdp_pop_area(dt)
+
+  # Short forms take the polity name, including the periodized one.
+  expect_equal(result$area[result$area_code == "LAO"], "Laos")
+  expect_equal(result$area[result$area_code == "KOR"], "South Korea")
+  expect_equal(result$area[result$area_code == "ALB"], "Albania (1913-2025)")
+
+  # A label that already IS its polity's name is left alone, so the function
+  # cannot break a join that works.
+  expect_equal(result$area[result$area_code == "ESP"], "Spain")
+
+  # Syria's FAOSTAT area folds into the Rest of World bucket, so its polity name
+  # is the aggregate's. Relabelling it would attribute one member's population to
+  # the whole bucket and collide with the other members on the same (year, area)
+  # key, so folded areas are deliberately left as they are.
+  expect_equal(result$area[result$area_code == "SYR"], "Syria")
+
+  # Nothing else changes: same rows, same values, same column order.
+  expect_equal(nrow(result), 5L)
+  expect_equal(names(result), names(dt))
+  expect_equal(result$pop[order(result$area_code)], c(3L, 4L, 2L, 1L, 5L))
+})
+
+test_that(".canonicalise_gdp_pop_area is a no-op without the columns it needs", {
+  # The pin is read straight from a remote board, so the guard matters: a revision
+  # that drops `area_code` or stores it as a number must leave the frame alone
+  # rather than half-relabel it.
+  no_code <- data.table::data.table(year = 2000L, area = "Lao", pop = 1)
+  expect_identical(whep:::.canonicalise_gdp_pop_area(no_code), no_code)
+
+  numeric_code <- data.table::data.table(
+    year = 2000L,
+    area = "Lao",
+    area_code = 120L,
+    pop = 1
+  )
+  expect_identical(
+    whep:::.canonicalise_gdp_pop_area(numeric_code),
+    numeric_code
+  )
+})
+
+test_that("build_commodity_balances defaults to the long format", {
+  long <- whep::build_commodity_balances(example = TRUE)
+
+  expect_true(rlang::has_name(long, "element"))
+  expect_false(rlang::has_name(long, "production"))
+})
+
+test_that("build_commodity_balances format = 'wide' pivots the elements", {
+  # Same dataset, one column per element instead of one row per element, with
+  # stock_variation split into the two non-negative directions.
+  wide <- whep::build_commodity_balances(example = TRUE, format = "wide")
+
+  expect_false(rlang::has_name(wide, "element"))
+  expect_true(all(
+    c("production", "import", "food", "feed", "domestic_supply") %in%
+      names(wide)
+  ))
+  expect_true(all(c("stock_addition", "stock_withdrawal") %in% names(wide)))
+})
+
+test_that("build_commodity_balances rejects an unknown format", {
+  expect_error(
+    whep::build_commodity_balances(example = TRUE, format = "matrix"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances needs primary_all for the wide format", {
+  # The live-animal rows come from primary production, so the wide format
+  # cannot be assembled from .fixed_data alone. Aborting beats silently
+  # returning a sheet with no live animals in it.
+  expect_error(
+    whep::build_commodity_balances(
+      format = "wide",
+      .fixed_data = readRDS(
+        testthat::test_path("fixtures", "cbs_fixed_small.rds")
+      )
+    ),
+    "primary_all"
+  )
+})
+
+# -- .cbs_fix_final_balance (issue #162) --------------------------------------
+
+test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
+  dt <- data.table::data.table(
+    production = c(0, 100, 50),
+    import = c(10, 5, 5),
+    stock_variation = c(20, 0, 0),
+    domestic_supply = c(-5, -30, 40),
+    export = c(0, 10, 15),
+    balance = c(-3, -2, 1)
+  )
+
+  result <- whep:::.cbs_fix_final_balance(dt)
+
+  # Domestic supply is clamped at 0 before the export fix reads it.
+  expect_true(all(result$domestic_supply >= 0))
+  # No negative exports survive.
+  expect_true(all(result$export >= 0))
+  # Row 1: 0 + 10 - 20 - 0 = -10 -> clamped to 0.
+  expect_equal(result$export[1], 0)
+  # Row 2: reads clamped DS (0), 100 + 5 - 0 - 0 = 105 (not 135 pre-clamp).
+  expect_equal(result$export[2], 105)
+  # Row 3: balance >= 0, export left untouched.
+  expect_equal(result$export[3], 15)
+})
+
+
+# -- FBS scaling ratio bounds (issue #161) ------------------------------------
+
+test_that(".select_best_source clamps extreme FBS scaling ratio", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2011L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # Raw ratio is 100x; clamp caps it at 5x -> 100 * 5 = 500, not 10000.
+  expect_equal(val_2005, 500)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old_scaled")
+})
+
+test_that(".select_best_source leaves FBS unscaled when overlap is thin", {
+  input <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year,
+    ~value, ~source, ~unit,
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    10, "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L,
+    1000, "FAOSTAT_FBS_New", "tonnes",
+    "Spain", 203L, "Wheat", 2511L, "food", 2005L,
+    100, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(input)
+
+  val_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(value)
+  # A single overlap year is not extrapolated: value stays unscaled.
+  expect_equal(val_2005, 100)
+
+  src_2005 <- result |>
+    dplyr::filter(year == 2005) |>
+    dplyr::pull(source)
+  expect_equal(src_2005, "FAOSTAT_FBS_Old")
+})
+
+# whep#709: `area` is the periodized polity name and it was a KEY in the
+# pre-1962 extension. The public `historical_data` argument reaches that key --
+# `.prepare_historical_cbs()` names its rows from the crosswalk's static
+# `area_name` while `.select_best_source()` stamps the periodized polity name,
+# and for 97 of the 262 codes in that lookup the static name is not any of the
+# code's polity names. Two labels for one code, and the whep#563 shape follows.
+
+.two_label_frame <- function() {
+  dplyr::bind_rows(
+    tibble::tribble(
+      ~year, ~area,                 ~area_code, ~item_cbs,            ~item_cbs_code, ~element,     ~value, ~source,
+      1950L, "Algeria (1919-1962)", 4L,         "Wheat and products", 2511L,          "production", 100,    "FAOSTAT_prod",
+      1955L, "Algeria (1919-1962)", 4L,         "Wheat and products", 2511L,          "production", 200,    "FAOSTAT_prod"
+    ),
+    tibble::tribble(
+      ~year, ~area,     ~area_code, ~item_cbs,            ~item_cbs_code, ~element,     ~value, ~source,
+      1950L, "Algeria", 4L,         "Wheat and products", 2511L,          "production", 140,    "historical_test",
+      1955L, "Algeria", 4L,         "Wheat and products", 2511L,          "production", 240,    "historical_test"
+    )
+  )
+}
+
+.algeria_hist_inputs <- function() {
+  list(
+    primary_cbs_area = tibble::tibble(
+      year = integer(),
+      area = character(),
+      area_code = integer(),
+      item_cbs = character(),
+      item_cbs_code = integer(),
+      area_ha = numeric()
+    ),
+    gdp_pop = tibble::tibble(
+      year = 1950:1960,
+      area = "Algeria",
+      area_code = "DZA",
+      pop = 1:11
+    ),
+    # Keyed on the reporting bucket, matching what `.read_land_areas_wide()`
+    # emits since whep#698 re-keyed it off the label. `.two_label_frame()`'s
+    # code is Algeria's 4, and the point of this fixture is that its TWO labels
+    # must not split that one code -- so the land proxy has to reach it by code.
+    land_areas_wide = tibble::tibble(
+      year = 1950:1960,
+      area_code = 4L,
+      Cropland = 1,
+      Pasture = 0,
+      agriland = 1
+    )
+  )
+}
+
+test_that("two labels for one code collapse to one observation", {
+  # Before whep#709 `.collapse_cbs_observations()` keyed on `area`, so the two
+  # rows were two territories: nothing collapsed, both survived, and
+  # `.format_cbs_output()` summed them into 240 t for a cell whose answer is
+  # 140 t.
+  result <- whep:::.collapse_cbs_observations(.two_label_frame())
+
+  expect_equal(nrow(result), 2L)
+  expect_equal(unique(result$area), "Algeria (1919-1962)")
+  expect_equal(
+    result |> dplyr::filter(.data$year == 1950L) |> dplyr::pull(.data$value),
+    140
+  )
+  # Pre-1961 a `historical_` source outranks FAOSTAT (`.cbs_source_rank()`), so
+  # reconciling on the code picks it rather than keeping both.
+  expect_equal(
+    result |> dplyr::filter(.data$year == 1950L) |> dplyr::pull(.data$source),
+    "historical_test"
+  )
+})
+
+test_that("a second area label does not double the historical skeleton", {
+  # The whep#563 shape, and the one that multiplies rows rather than only
+  # mislabelling them: `.cbs_complete_year_nesting_dt()` crosses its id_cols
+  # with the year axis, so a code with two labels used to get two full year
+  # skeletons -- 154 rows over 77 keys, every value counted twice.
+  result <- whep:::.cbs_extend_historical(
+    .two_label_frame(),
+    .algeria_hist_inputs(),
+    1950:1961
+  )
+
+  keys <- result |>
+    dplyr::distinct(
+      .data$year,
+      .data$area_code,
+      .data$item_cbs_code,
+      .data$element
+    )
+  expect_equal(nrow(result), nrow(keys))
+
+  production <- result |>
+    dplyr::filter(.data$element == "production", .data$year == 1950L)
+  expect_equal(nrow(production), 1L)
+  expect_equal(production$value, 140)
+})
+
+test_that("the historical extension keeps one area label per code", {
+  # The invariant a value comparison cannot see (whep#563). It has to hold on
+  # the frame that leaves the extension, not only on the lookup that built it.
+  result <- whep:::.cbs_extend_historical(
+    .two_label_frame(),
+    .algeria_hist_inputs(),
+    1950:1961
+  )
+
+  per_code <- result |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = "area_code"
+    )
+
+  expect_equal(per_code$n_labels, 1L)
+  expect_equal(unique(result$area), "Algeria (1919-1962)")
 })

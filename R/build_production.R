@@ -27,6 +27,28 @@
 #'   `source` are used when present; WHEP item and area tables fill canonical
 #'   names where possible. Observed historical rows are retained, and LUH2 proxy
 #'   filling can use them as anchors. Default `NULL`.
+#' @param federation_land Character. How the pre-1962 LUH2 back-cast reaches an
+#'   area whose territory is a dissolved federation. LUH2 land use is keyed on
+#'   present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and
+#'   248 Yugoslav SFR have no land record of their own.
+#'   * `"none"` (default, current published behaviour) leaves them unmatched;
+#'     their pre-1962 production is not back-cast at all and the build warns.
+#'   * `"successor_union"` rebuilds each federation's land series as the sum of
+#'     its successor states' LUH2 land, resolved from the `successor` relation
+#'     published in [polities]. This back-casts 14.3% more of the 1961-62
+#'     production tonnage and therefore moves published pre-1962 values.
+#' @param land_method Character. Which borders the pre-1962 `ha` half of
+#'   `tonnes = ha * t_ha` is measured on. The yield half is historical either
+#'   way and is untouched by this argument.
+#'   * `"present_day"` (default, current published behaviour) reads the
+#'     `luh2-areas` pin, which is LUH2 land pre-aggregated to present-day ISO3,
+#'     so a row labelled with the 1961 entity is measured on the borders that
+#'     entity has today.
+#'   * `"historical_polity"` measures it with [build_historical_land_areas()]:
+#'     gridded LUH2 summed inside the polygon of the polity `area_code`
+#'     resolved to in that year. It moves published pre-1962 values, needs
+#'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
+#'     is minutes of extra work.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -55,14 +77,24 @@ build_primary_production <- function(
   example = FALSE,
   show_duplicates = FALSE,
   historical_data = NULL,
+  federation_land = c("none", "successor_union"),
+  land_method = c("present_day", "historical_polity"),
   .raw_data = NULL
 ) {
   if (example) {
     return(.example_build_primary_prod())
   }
+  federation_land <- rlang::arg_match(federation_land)
+  land_method <- rlang::arg_match(land_method)
   cli::cli_h1("Building primary production")
   if (is.null(.raw_data)) {
-    raw <- .read_production(start_year, end_year, historical_data)
+    raw <- .read_production(
+      start_year,
+      end_year,
+      historical_data,
+      federation_land = federation_land,
+      land_method = land_method
+    )
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
@@ -143,10 +175,29 @@ build_primary_production <- function(
 #'
 #' @keywords internal
 #' @noRd
+# Years read either side of a requested window so the year-axis interpolation in
+# .fill_yields() has anchors to work from. Swept at 2010 against the full-range
+# build, warm cache, measuring the whole scoped build:
+#
+#   margin 0   31.3 s   t_ha off by 2.954e-04
+#   margin 1   35.7 s   t_ha exact
+#   margin 2   40.1 s   t_ha exact
+#   margin 3   39.5 s   t_ha exact      <- chosen
+#   margin 5   44.7 s   t_ha exact, no better than 3
+#
+# 1 is enough at this year, but that is one year's anchor spacing and leaves no
+# headroom, so 3 is used: it is the smallest margin that also reaches the floor
+# on the other units, and 5 buys nothing for a further 5 s. The margin only
+# widens the read -- the output is trimmed back to the requested years, and a
+# full-range request takes the historical branch and is unaffected.
+.yield_year_margin <- 3L
+
 .read_production <- function(
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  federation_land = "none",
+  land_method = "present_day"
 ) {
   output_years <- start_year:end_year
   years_df <- tibble::tibble(year = output_years)
@@ -155,11 +206,17 @@ build_primary_production <- function(
   # we must also read the FAOSTAT anchor years to extrapolate from.
   # All reads use `years` (which may extend beyond output_years);
   # the output is trimmed to `output_years` at the end.
+  #
+  # A requested window is also widened by a margin either side, for the same
+  # reason: .fill_yields() interpolates `yield_c` along the year axis, so a
+  # window with no neighbouring years cannot reconstruct a yield the full-range
+  # build reconstructs, and the row is dropped instead (#666). A full-range
+  # request takes the historical branch and is therefore unaffected.
   needs_historical <- start_year < 1962L
   years <- if (needs_historical) {
     start_year:max(end_year, 1965L)
   } else {
-    output_years
+    max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
   # 1. Read commodity balances (for gap-filling)
@@ -181,10 +238,7 @@ build_primary_production <- function(
   )
 
   # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(
-    fao_combined,
-    years = years
-  )
+  fao_slaughter <- .build_livestock_slaughter(fao_combined)
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
@@ -216,7 +270,9 @@ build_primary_production <- function(
   primary_ext <- .extend_historical(
     primary_raw2,
     years_df,
-    land_areas
+    land_areas,
+    federation_land = federation_land,
+    land_wide = .historical_land_wide(land_method, years)
   )
 
   # 10. Add grassland + historical yields
@@ -394,7 +450,12 @@ build_primary_production <- function(
     data.table::setnames(dt, "Flag", "fao_flag")
   }
   dt[, item_prod_code := as.character(item_prod_code)]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production"
+  )
   data.table::setorderv(
     dt,
     c(
@@ -410,26 +471,154 @@ build_primary_production <- function(
   dt
 }
 
-.read_land_areas <- function(years = NULL) {
+# `dependency_land` decides what happens to LUH2 land reported for a crown
+# dependency or overseas territory whose sovereign the crosswalk names but
+# which has no FAOSTAT `area_code` of its own: JEY, GGY, IMN, ALA, BLM, SXM.
+# "drop" is what the pipeline has always done, though only as a side effect of
+# the bridge being keyed by a numeric bucket; "sovereign" folds the land into
+# the sovereign polity's bucket instead. That is a change in what `GBR` and
+# `NLD` mean in a land series (18.8 Mha-years over 1850-2022, 0.0008% of LUH2
+# land), so it is a decision rather than a default: to take it, swap the two
+# strings below.
+.read_land_areas <- function(
+  years = NULL,
+  dependency_land = c("drop", "sovereign")
+) {
+  dependency_land <- match.arg(dependency_land)
   cli::cli_progress_step("Reading land areas")
   area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
     !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code = polity_area_code)
+    .(iso3c = area_iso3c, area_code = polity_area_code)
   ]
   area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge <- .add_land_bucket_label(area_bridge)
 
   dt <- .read_input("luh2-areas", years = years, year_col = "Year")
   data.table::setnames(dt, c("ISO3", "Year"), c("iso3c", "year"))
+  if (dependency_land == "sovereign") {
+    dt <- .attribute_dependency_land(dt, area_bridge$iso3c)
+  }
   dt <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
+  # Say WHICH KIND of unmatched. The old single message reported two unrelated
+  # facts as one, and the proportions make that misleading. Measured over the
+  # whole pin, 1850-2022:
+  #
+  #   -99, LUH2's own unassigned marker   8,620 Mha   0.358% of all LUH2 area
+  #   the six real territories                19 Mha   0.0008%
+  #
+  # The sentinel is 459x the territories, so almost everything the old warning
+  # appeared to be losing is land LUH2 itself attributes to no country -- a
+  # property of the source, not a gap in this project's coverage.
+  #
+  # The six are Jersey, Guernsey, Isle of Man, Saint-Barthelemy, Aland and Sint
+  # Maarten. Each IS in the crosswalk, carrying its sovereign's polity, but its
+  # row has no FAOSTAT area code and `include_unmapped = FALSE` above drops
+  # exactly those. So "not found in polity_area_crosswalk" was wrong about them:
+  # the mapping exists, the area code does not. Attributing their land to the
+  # sovereign is a modelling decision rather than a lookup -- LUH2 reports GBR
+  # separately, so folding Jersey in changes what GBR means -- so it is whep#407
+  # and the drop behaviour here is deliberately unchanged.
   unmatched <- unique(dt[is.na(area), iso3c])
   if (length(unmatched) > 0) {
-    cli::cli_warn(
-      "LUH2 ISO3 codes not found in polity_area_crosswalk, dropping: {unmatched}"
-    )
+    sentinels <- unmatched[!grepl("^[A-Z]{3}$", unmatched)]
+    territories <- setdiff(unmatched, sentinels)
+    if (length(sentinels) > 0) {
+      cli::cli_inform(
+        "LUH2 rows with no country assignment in the source, dropping:
+         {sentinels}. Not a coverage gap -- the source attributes this land to
+         no territory."
+      )
+    }
+    if (length(territories) > 0) {
+      cli::cli_warn(
+        "LUH2 territories with no FAOSTAT area code, dropping: {territories}.
+         Each has a polity upstream but no area code to aggregate through; see
+         whep#407."
+      )
+    }
   }
   dt <- dt[!is.na(area)]
   dt <- dt[year > 1849]
   .fix_luh2_crop_collapse(dt)
+}
+
+# The `area` label a LUH2 aggregation bucket carries, one per bucket code.
+#
+# `.current_area_lookup()` pairs each reporting area's OWN name with the
+# `polity_area_code` of the bucket it is summed into, so labelling a bucket
+# from a member gives one `area_code` several `area` values -- exactly the
+# defect whep#563 fixed in `.aggregate_to_polities()`, on the land path.
+# Bucket 206 then reaches `.build_grassland()` as two rows, "Sudan (former)"
+# and "South Sudan", sharing `area_code` 206, and its group key contains both
+# columns so the two are never summed. `.dedup_production()` keys on
+# (year, area_code, item_prod_code, unit), sees them as competing sources and
+# keeps ONE, discarding the other's pasture instead of adding it.
+#
+# The label therefore has to be a property of the bucket: the bucket code's
+# own reporting-area name, falling back to the lowest-coded member for a
+# bucket that is not itself a reporting area. Deterministic either way, so it
+# cannot depend on row order or on which member happens to report.
+.add_land_bucket_label <- function(area_bridge) {
+  lookup <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_code),
+    .(area_code = as.integer(area_code), bucket_area = area_name)
+  ]
+  lookup <- unique(lookup, by = "area_code")
+  out <- merge(area_bridge, lookup, by = "area_code", all.x = TRUE)
+  fallback <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(polity_area_code) & !is.na(area_name),
+    .(
+      area_code = as.integer(polity_area_code),
+      member_code = as.integer(area_code),
+      area_name
+    )
+  ]
+  data.table::setorderv(fallback, c("area_code", "member_code"))
+  fallback <- unique(fallback, by = "area_code")
+  fallback[, member_code := NULL]
+  out <- merge(out, fallback, by = "area_code", all.x = TRUE)
+  out[, area := data.table::fcoalesce(bucket_area, area_name)]
+  out[, c("bucket_area", "area_name") := NULL]
+  out
+}
+
+# Relabel a dependency's LUH2 rows with its sovereign's ISO3, so the ordinary
+# area bridge assigns them the sovereign's bucket and label, and sum where both
+# report the same land use in the same year. The rows have to be summed rather
+# than stacked: `.fix_luh2_crop_collapse()` writes an interpolated value into
+# every row matching an (area_code, year, Land_Use) key, so leaving two rows
+# under one bucket would repair a collapsed year to twice the intended area.
+# `known_iso3` guards against relabelling to a sovereign the bridge itself
+# cannot resolve, which would move the loss rather than remove it.
+.attribute_dependency_land <- function(land_areas, known_iso3) {
+  dt <- data.table::as.data.table(land_areas)
+  map <- .dependency_sovereign_iso3()
+  map <- map[sovereign_iso3c %in% known_iso3 & iso3c %in% dt$iso3c]
+  if (nrow(map) == 0L) {
+    return(dt)
+  }
+
+  cli::cli_alert_info(
+    "Attributing LUH2 land to the sovereign polity for: {map$iso3c}"
+  )
+  sovereign <- stats::setNames(map$sovereign_iso3c, map$iso3c)
+  dt[iso3c %in% names(sovereign), iso3c := as.character(sovereign[iso3c])]
+
+  value_cols <- intersect(c("Area_Mha", "C_stock_Tg"), names(dt))
+  key_cols <- setdiff(names(dt), value_cols)
+  touched <- unique(unname(sovereign))
+  data.table::rbindlist(
+    list(
+      dt[!iso3c %in% touched],
+      dt[
+        iso3c %in% touched,
+        lapply(.SD, sum, na.rm = TRUE),
+        by = key_cols,
+        .SDcols = value_cols
+      ]
+    ),
+    use.names = TRUE
+  )
 }
 
 .fix_luh2_crop_collapse <- function(
@@ -525,6 +714,11 @@ build_primary_production <- function(
 
 # -- Fodder --------------------------------------------------------------------
 
+# Fodder rows are not read per year. `.fill_fodder_gaps()` takes the union of
+# (area, item) groups over every year and then interpolates along the year axis,
+# so a window narrower than the fodder sources both starts from a smaller group
+# universe and has no anchors to interpolate from -- which silently drops every
+# forage item (#623). Run the whole chain over the full span and trim at the end.
 .build_fodder <- function(fao_crop_liv, years = NULL) {
   cli::cli_progress_step("Building fodder dataset")
   items_prod <- whep::items_prod_full
@@ -533,14 +727,14 @@ build_primary_production <- function(
   biomass <- whep::biomass_coefs
 
   # Old FAO fodder data
-  i_fodder <- .read_fodder_old(years = years)
+  i_fodder <- .read_fodder_old(years = NULL)
 
   # EU AgriDB fodder
-  fodder_euadb <- .read_fodder_euadb(years = years)
+  fodder_euadb <- .read_fodder_euadb(years = NULL)
 
   # DM yields for imputing fodder areas
   dm_yield <- .compute_dm_yield(
-    fao_crop_liv,
+    .fodder_crop_liv(fao_crop_liv, i_fodder),
     items_prod,
     biomass
   )
@@ -552,7 +746,22 @@ build_primary_production <- function(
     dm_yield,
     items_prod,
     biomass
-  )
+  ) |>
+    .filter_years(years)
+}
+
+# `dm_yield` supplies the `yield_dm` that turns fodder tonnage into area, so the
+# interpolation in `.fill_fodder_gaps()` needs it at every year the fodder
+# sources cover, not only the requested ones. Reuse the caller's table whenever
+# it already spans them -- a full-range build always does, so that path pays
+# nothing extra and its output is unchanged.
+.fodder_crop_liv <- function(fao_crop_liv, i_fodder) {
+  needed <- range(i_fodder$year, na.rm = TRUE)
+  have <- range(fao_crop_liv$year, na.rm = TRUE)
+  if (have[[1]] <= needed[[1]] && have[[2]] >= needed[[2]]) {
+    return(fao_crop_liv)
+  }
+  .read_fao_crop_liv(years = NULL)
 }
 
 .read_fodder_old <- function(years = NULL) {
@@ -570,7 +779,12 @@ build_primary_production <- function(
     unit = "t",
     item_prod_code = as.character(item_prod_code)
   )]
-  dt <- .aggregate_to_polities(dt, item_prod_code, item_prod)
+  dt <- .aggregate_to_polities(
+    dt,
+    item_prod_code,
+    item_prod,
+    source_label = "faostat-production-old"
+  )
   dt <- merge(
     dt,
     items_prod[, .(item_prod_code, item_cbs)],
@@ -592,14 +806,20 @@ build_primary_production <- function(
   crops_eu <- whep::crops_eurostat
   regions <- whep::regions_full
 
+  # The bridge is an ISO3-to-bucket lookup and now says so. It used to rename
+  # `area_iso3c` to `polity_code` so it would line up with `regions_full`'s
+  # column of that name, which was never a polity code but the vendored
+  # ISO3-like stem -- so this one join spoke a polity vocabulary it was not in
+  # (whep#687). Both sides keep their own name and the rename happens in the
+  # key, where it is visible.
   area_bridge <- .current_area_lookup(include_unmapped = FALSE) |>
     tibble::as_tibble() |>
     dplyr::select(
-      polity_code = area_iso3c,
-      area_code = polity_area_code
+      "area_iso3c",
+      area_code = "polity_area_code"
     ) |>
-    dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
+    dplyr::filter(!is.na(.data$area_iso3c)) |>
+    dplyr::distinct(.data$area_iso3c, .keep_all = TRUE)
 
   .read_input("eu-agridb-fodder", years = years, year_col = "Year") |>
     dplyr::rename(year = Year) |>
@@ -608,17 +828,18 @@ build_primary_production <- function(
     dplyr::left_join(
       regions |>
         dplyr::select(
-          adb_region = ADB_Region,
-          area = polity_name,
-          polity_code
+          adb_region = "ADB_Region",
+          area = "polity_name",
+          "legacy_polity_prefix"
         ),
       by = "adb_region"
     ) |>
     dplyr::left_join(
       area_bridge,
-      by = "polity_code"
+      by = c(legacy_polity_prefix = "area_iso3c")
     ) |>
-    dplyr::select(-polity_code) |>
+    .warn_unmapped_adb_regions() |>
+    dplyr::select(-"legacy_polity_prefix") |>
     dplyr::select(
       year,
       area,
@@ -628,6 +849,31 @@ build_primary_production <- function(
       Unit,
       value = Value
     )
+}
+
+# EU AgriDB rows that resolve to no WHEP area are dropped without trace by
+# `.fill_fodder_gaps()`'s `dt[!is.na(area)]`, and the affected country then
+# gets its fodder estimated from dry-matter yields while its peers use the
+# source -- with nothing in the output saying so. That is how Austria and the
+# United Kingdom lost 2030 rows, 8.8% of the input (#585). Name the gap.
+.warn_unmapped_adb_regions <- function(euadb) {
+  unmapped <- euadb |>
+    dplyr::filter(is.na(.data$area_code)) |>
+    dplyr::count(.data$adb_region)
+  if (nrow(unmapped) == 0L) {
+    return(euadb)
+  }
+  regions <- unmapped$adb_region
+  dropped <- sum(unmapped$n)
+  cli::cli_warn(c(
+    "!" = "{length(regions)} EU AgriDB region{?s} resolve{?s/} to no WHEP
+      area, so {dropped} fodder row{?s} will be dropped.",
+    "*" = "Unmapped {.field ADB_Region}: {.val {regions}}.",
+    "i" = "Add the key in
+      {.file inst/extdata/harmonization/regions_full.csv}, then rerun
+      {.file data-raw/harmonization_tables.R}."
+  ))
+  euadb
 }
 
 .compute_dm_yield <- function(fao_crop_liv, items_prod, biomass) {
@@ -911,7 +1157,24 @@ build_primary_production <- function(
   animals <- whep::animals_codes
   liv_lu <- whep::liv_lu_coefs
 
-  fao_stocks <- .read_livestock_stocks(years = years)
+  # Read the stock series over its full span, not the caller's window, for the
+  # same reason as `.compute_stock_shares()`: `.combine_livestock()` completes
+  # the year axis against the (area, item) combinations the read produced, so a
+  # combination absent from the window is absent from the completion too. Those
+  # completed rows are what give a livestock-product row its `unit` downstream in
+  # `.calculate_raw_yields()`, and without a unit the row is dropped. Measured at
+  # 2010, Italy, Kazakhstan and Latvia have no duck stock row of their own that
+  # year, so a scoped read never formed the combination at all.
+  #
+  # This is a partial improvement, not a fix for #666. It does now form the
+  # combination -- the rows appear -- but a scoped build still derives `LU` as NA
+  # where a full build derives 0, so the duck-product rows are still lost at 2010
+  # and 1995 and only half recovered at 2015. `LU` = heads * LU_head via a join
+  # on `Animal_class`, which the completion's `nesting()` does not carry; why the
+  # full build nonetheless lands on 0 is the open question. See #666.
+  #
+  # Trimmed back below, so only the read widens: full-range output is unchanged.
+  fao_stocks <- .read_livestock_stocks(years = NULL)
 
   fao_liv_raw <- .combine_livestock(
     fao_combined,
@@ -919,7 +1182,8 @@ build_primary_production <- function(
     animals
   )
 
-  .finalise_livestock(fao_liv_raw, animals, liv_lu)
+  .finalise_livestock(fao_liv_raw, animals, liv_lu) |>
+    .filter_years(years)
 }
 
 .read_livestock_stocks <- function(years = NULL) {
@@ -945,7 +1209,12 @@ build_primary_production <- function(
   if ("Source" %in% names(dt)) {
     dt <- dt[Source == "FAO TIER 1"]
   }
-  .aggregate_to_polities(dt, item_cbs_code, item_cbs)
+  .aggregate_to_polities(
+    dt,
+    item_cbs_code,
+    item_cbs,
+    source_label = "faostat-emissions-livestock"
+  )
 }
 
 .combine_livestock <- function(
@@ -989,12 +1258,12 @@ build_primary_production <- function(
         ) |>
         dplyr::select(
           year,
-          area,
+          area_code,
           item_cbs_code,
           item_st,
           value_st
         ),
-      by = c("year", "area", "item_cbs_code")
+      by = c("year", "area_code", "item_cbs_code")
     ) |>
     # Carry value_st forward (and back) in time per (area, item_cbs_code)
     # so years that fall outside the faostat-emissions-livestock pin's
@@ -1007,13 +1276,13 @@ build_primary_production <- function(
     fill_linear(
       value_st,
       time_col = year,
-      .by = c("area", "item_cbs_code")
+      .by = c("area_code", "item_cbs_code")
     ) |>
     .split_stock_share() |>
     dplyr::filter(!is.na(area_code)) |>
     dplyr::mutate(
       n = dplyr::n(),
-      .by = c(area, item_cbs, item_cbs_code)
+      .by = c(area_code, item_cbs, item_cbs_code)
     ) |>
     tidyr::complete(
       year,
@@ -1085,7 +1354,7 @@ build_primary_production <- function(
         1 / dplyr::n()
       ),
       value_comb = value * share,
-      .by = c(year, area, item_prod_code)
+      .by = c(year, area_code, item_prod_code)
     ) |>
     dplyr::select(-sum_value_st, -share)
 }
@@ -1200,7 +1469,7 @@ build_primary_production <- function(
     dplyr::filter(value > 0)
 }
 
-.split_slaughter_by_shares <- function(slaughter_raw, years) {
+.split_slaughter_by_shares <- function(slaughter_raw) {
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1223,12 +1492,15 @@ build_primary_production <- function(
   # QCL's most recent years, mirroring the value_st fill in
   # .combine_livestock(). Without this the inner_join drops those years and
   # cattle/swine/chicken slaughtered_heads silently vanish.
-  shares <- .compute_stock_shares(years) |>
+  shares <- .compute_stock_shares() |>
     .carry_forward_shares(sort(unique(needs_split$year)))
   split_result <- needs_split |>
     dplyr::select(-item_cbs_code) |>
     dplyr::distinct() |>
-    dplyr::inner_join(shares, by = c("year", "area_code", "Item_Code")) |>
+    dplyr::inner_join(
+      shares,
+      by = c("year", "area_code", "area", "Item_Code")
+    ) |>
     dplyr::mutate(value = value * share) |>
     dplyr::select(year, area, area_code, item_cbs_code, value)
 
@@ -1236,22 +1508,35 @@ build_primary_production <- function(
 }
 
 .carry_forward_shares <- function(shares, target_years) {
+  # `area` belongs in the key for the same reason it does in
+  # `.compute_stock_shares()`: one `area_code` can carry two reporting
+  # territories, and without it the two are carried forward as one series with
+  # duplicate years. That is what fill_linear's "Duplicate year values found
+  # within groups" warning was reporting.
   shares |>
     tidyr::complete(
       year = target_years,
-      tidyr::nesting(area_code, Item_Code, item_cbs_code)
+      tidyr::nesting(area_code, area, Item_Code, item_cbs_code)
     ) |>
     fill_linear(
       share,
       time_col = year,
-      .by = c("area_code", "Item_Code", "item_cbs_code")
+      .by = c("area_code", "area", "Item_Code", "item_cbs_code")
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.compute_stock_shares <- function(years) {
-  fao_stocks <- .read_livestock_stocks(years = years)
+.compute_stock_shares <- function() {
+  # Read the stock series over its full span rather than the caller's window.
+  # `.carry_forward_shares()` fills these shares along the year axis precisely
+  # because the pin lags QCL slaughter, so it needs the years either side of the
+  # requested window to fill from; a scoped read leaves it nothing to carry and
+  # the inner_join in `.split_slaughter_by_shares()` then drops the row (#665).
+  # This is safe because a share is a within-year ratio: extra years add rows
+  # without changing any existing year's value, and that join restricts the
+  # result to the requested years anyway.
+  fao_stocks <- .read_livestock_stocks(years = NULL)
   split_parents <- whep::animals_codes |>
     dplyr::count(Item_Code) |>
     dplyr::filter(n > 1) |>
@@ -1260,22 +1545,37 @@ build_primary_production <- function(
     dplyr::filter(Item_Code %in% split_parents) |>
     dplyr::select(Item_Code, item_cbs_code)
 
+  # Keyed by `area` as well as `area_code`, and that second key is LOAD-BEARING
+  # rather than defensive -- do not drop it as redundant next to `area_code`.
+  #
+  # `area_code` here is polity_area_code, the reporting bucket, and a bucket can
+  # hold more than one reporting territory: FAOSTAT area 206 carries both Sudan
+  # and South Sudan from 2012 on. Without `area` the denominator `sum(value)`
+  # spans both territories, so a share describes one territory's stock over two
+  # territories' chickens. Measured on the full pin: 48 distinct
+  # (year, area_code, Item_Code, item_cbs_code) keys had two share rows, all in
+  # bucket 206 for 2012-2023, and in 2015 Sudan's broiler share read 0.6071
+  # where its own broilers over its own chickens are 0.8000.
+  #
+  # A share says how ONE territory's stock splits between sub-items, so the
+  # reporting territory is the right grouping. Summing South Sudan into Sudan
+  # would be the other repair and is wrong: they are reported separately.
   fao_stocks |>
     dplyr::inner_join(split_cbs, by = "item_cbs_code") |>
     dplyr::mutate(
       share = value / sum(value, na.rm = TRUE),
-      .by = c(year, area_code, Item_Code)
+      .by = c(year, area_code, area, Item_Code)
     ) |>
     dplyr::filter(!is.na(share)) |>
-    dplyr::select(year, area_code, Item_Code, item_cbs_code, share)
+    dplyr::select(year, area_code, area, Item_Code, item_cbs_code, share)
 }
 
-.build_livestock_slaughter <- function(fao_combined, years = NULL) {
+.build_livestock_slaughter <- function(fao_combined) {
   cli::cli_progress_step("Building livestock slaughter counts")
   items <- whep::items_cbs
   smap <- .build_slaughter_map()
   raw <- .read_slaughter_raw(fao_combined, smap)
-  result <- .split_slaughter_by_shares(raw, years)
+  result <- .split_slaughter_by_shares(raw)
 
   result |>
     dplyr::left_join(
@@ -2409,22 +2709,103 @@ build_primary_production <- function(
 .extend_historical <- function(
   primary_raw2,
   years_df,
-  land_areas
+  land_areas,
+  federation_land = "none",
+  land_wide = NULL
 ) {
   cli::cli_progress_step("Extending historical series")
-  varnames_cropland <- c(
-    "c3ann",
-    "c3per",
-    "c4ann",
-    "c4per",
-    "c3nfx"
-  )
-  varnames_pasture <- c("pastr", "range")
 
   # Join land to production by area_code when available (robust to
   # country-name spelling differences); fall back to the area name
   # only when no code is present.
   area_key <- if ("area_code" %in% names(land_areas)) "area_code" else "area"
+
+  # The pipeline records which land method produced a back-cast row in `source`,
+  # the column that already carries this series' provenance ("LUH2_cropland",
+  # "LUH2_agriland"). A parallel `method_land` column would say the same thing
+  # while changing the schema of the default, unchanged path.
+  land_label <- if (is.null(land_wide)) "LUH2" else "LUH2_polity"
+  land_wide <- land_wide %||%
+    .land_wide_from_areas(
+      .add_federation_land_rows(
+        land_areas,
+        area_key = area_key,
+        federation_land = federation_land
+      ),
+      area_key = area_key
+    )
+
+  primary_raw2 |>
+    dplyr::mutate(
+      land_use = dplyr::if_else(
+        unit %in% c("ha", "t_ha") | (unit == "tonnes" & is.na(live_anim_code)),
+        "Cropland",
+        "Agriland"
+      )
+    ) |>
+    dplyr::full_join(years_df, by = "year") |>
+    .fill_pre_faostat(
+      land_wide,
+      join_keys = c("year", area_key),
+      land_label = land_label
+    ) |>
+    dplyr::filter(
+      !is.na(area),
+      area != "",
+      !is.na(unit)
+    )
+}
+
+# `NULL` for the default method, which leaves `.extend_historical()` reading the
+# `luh2-areas` pin exactly as before; the historical table otherwise. Only the
+# back-cast years are measured -- 1962 onward reports its own area and never
+# reaches the proxy -- so the expensive gridded read is bounded by the pre-1962
+# span the request actually covers.
+# Read the published series rather than recomputing it. The table is STATIC --
+# it depends only on the LUH2 vintage and the polities snapshot -- and building
+# it reads gridded LUH2 once per back-cast year and rasterises ~440 polygons,
+# which is tens of minutes. So the pin is the normal path and
+# `build_historical_land_areas()` is the generator behind it
+# (`data-raw/historical_land_areas.R`).
+#
+# A year the pin does not carry is NOT silently dropped: the pin covers
+# 1850-1961, the whole back-cast span, so a gap means the pin is stale against
+# the polities snapshot and the caller should regenerate rather than get a
+# quietly shorter series.
+.historical_land_wide <- function(land_method, years) {
+  if (land_method != "historical_polity") {
+    return(NULL)
+  }
+  back_cast <- years[years < 1962L]
+  if (length(back_cast) == 0L) {
+    return(NULL)
+  }
+  land <- .read_input(
+    "historical-land-areas",
+    years = back_cast,
+    year_col = "year"
+  ) |>
+    tibble::as_tibble()
+  missing <- setdiff(back_cast, unique(land$year))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "The {.val historical-land-areas} pin does not cover
+       {length(missing)} requested year{?s}: {.val {utils::head(missing, 5)}}.",
+      "i" = "Regenerate it with {.file data-raw/historical_land_areas.R} and
+             re-upload; it is static per LUH2 vintage and polities snapshot."
+    ))
+  }
+  land |>
+    dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
+}
+
+# Collapse the long LUH2 land table into the (year, area, Cropland, Pasture,
+# agriland) shape the back-cast seam merges on. Extracted so the historical
+# producer can hand `.extend_historical()` the same shape measured on each
+# year's own borders instead.
+.land_wide_from_areas <- function(land_areas, area_key = "area_code") {
+  varnames_cropland <- c("c3ann", "c3per", "c4ann", "c4per", "c3nfx")
+  varnames_pasture <- c("pastr", "range")
 
   land_wide <- land_areas |>
     dplyr::mutate(
@@ -2451,27 +2832,105 @@ build_primary_production <- function(
   if (!"Pasture" %in% names(land_wide)) {
     land_wide$Pasture <- 0
   }
-  land_wide <- land_wide |>
+  land_wide |>
     dplyr::mutate(agriland = .data$Cropland + .data$Pasture)
-
-  primary_raw2 |>
-    dplyr::mutate(
-      land_use = dplyr::if_else(
-        unit %in% c("ha", "t_ha") | (unit == "tonnes" & is.na(live_anim_code)),
-        "Cropland",
-        "Agriland"
-      )
-    ) |>
-    dplyr::full_join(years_df, by = "year") |>
-    .fill_pre_faostat(land_wide, join_keys = c("year", area_key)) |>
-    dplyr::filter(
-      !is.na(area),
-      area != "",
-      !is.na(unit)
-    )
 }
 
-.fill_pre_faostat <- function(df, land_wide, join_keys = c("year", "area")) {
+# LUH2 land use is keyed on present-day ISO3, so an area whose territory is a
+# dissolved federation (15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR, 248
+# Yugoslav SFR) has no land record and its pre-1962 production is simply never
+# back-cast -- 14.3% of 1961-62 FAOSTAT production tonnes on current `main`.
+#
+# `federation_land = "successor_union"` rebuilds a federation's land series as
+# the sum of its successor states' LUH2 land, resolved from the polities
+# database's published `successor` relation (see `.successor_iso3_map()`). This
+# is the same modern-boundary aggregate LUH2 already reports for every other
+# area at every year, and only the year-on-year *ratio* of the series is used
+# (by `fill_proxy_growth()`), so the absolute-level mismatch between a
+# federation and its successors' present-day extent does not enter the result.
+#
+# The extra rows are added to the copy of `land_areas` that `.extend_historical()`
+# turns into the back-cast proxy only. `.build_grassland()` keeps reading the
+# unaugmented table, because a federation grassland row would double-count
+# against its successors' own rows across the whole 1850-2023 span.
+.add_federation_land_rows <- function(
+  land_areas,
+  area_key = "area_code",
+  federation_land = "none"
+) {
+  if (federation_land == "none") {
+    return(land_areas)
+  }
+  needed <- c("iso3c", "area_code", "area", "year", "Land_Use", "Area_Mha")
+  if (area_key != "area_code" || !all(rlang::has_name(land_areas, needed))) {
+    cli::cli_warn(c(
+      "!" = "{.arg federation_land} needs {.field iso3c} and {.field area_code}
+        on the LUH2 land table; leaving the dissolved federations unmatched.",
+      "i" = "Their pre-1962 production stays un-back-cast."
+    ))
+    return(land_areas)
+  }
+
+  dt <- data.table::as.data.table(land_areas)
+  bridge <- .federation_land_bridge(dt)
+  if (nrow(bridge) == 0L) {
+    return(land_areas)
+  }
+  extra <- merge(
+    dt[, .(iso3c, year, Land_Use, Area_Mha)],
+    bridge,
+    by = "iso3c",
+    allow.cartesian = TRUE
+  )
+  extra <- extra[,
+    .(Area_Mha = sum(Area_Mha, na.rm = TRUE), iso3c = NA_character_),
+    by = .(area_code, area, year, Land_Use)
+  ]
+  cli::cli_alert_info(
+    "Bridged {data.table::uniqueN(bridge$area_code)} dissolved federation{?s}
+     to their successors' LUH2 land: {.val {unique(bridge$area)}}."
+  )
+  data.table::rbindlist(list(dt, extra), use.names = TRUE, fill = TRUE)
+}
+
+# Successor ISO3 codes for every production area whose own bucket has no LUH2
+# land, as a long iso3c -> (area_code, area) table.
+.federation_land_bridge <- function(land_areas_dt) {
+  empty <- data.table::data.table(
+    iso3c = character(0),
+    area_code = integer(0),
+    area = character(0)
+  )
+  available <- unique(land_areas_dt$iso3c[!is.na(land_areas_dt$iso3c)])
+  reachable <- unique(
+    land_areas_dt$area_code[!is.na(land_areas_dt$area_code)]
+  )
+  lookup <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(polity_code) & !(polity_area_code %in% reachable),
+    .(area_code = polity_area_code, area = area_name, polity_code)
+  ]
+  lookup <- unique(lookup, by = "area_code")
+  if (nrow(lookup) == 0L) {
+    return(empty)
+  }
+  iso3 <- .successor_iso3_map(lookup$polity_code, available)
+  lookup[, n_successors := lengths(iso3[polity_code])]
+  lookup <- lookup[n_successors > 0L]
+  if (nrow(lookup) == 0L) {
+    return(empty)
+  }
+  lookup[,
+    .(iso3c = iso3[[polity_code]]),
+    by = .(area_code, area)
+  ]
+}
+
+.fill_pre_faostat <- function(
+  df,
+  land_wide,
+  join_keys = c("year", "area"),
+  land_label = "LUH2"
+) {
   id_cols <- c(
     "area",
     "area_code",
@@ -2578,13 +3037,14 @@ build_primary_production <- function(
         .data$.observed_value %in% TRUE & !is.na(.data$.observed_source) ~
           .data$.observed_source,
         .data$.historical_anchor %in% TRUE & land_use == "Cropland" ~
-          "historical_LUH2_cropland",
+          paste0("historical_", land_label, "_cropland"),
         .data$.historical_anchor %in% TRUE & unit %in% livestock_units ~
           "historical_fill_linear",
-        .data$.historical_anchor %in% TRUE ~ "historical_LUH2_agriland",
-        land_use == "Cropland" ~ "LUH2_cropland",
+        .data$.historical_anchor %in% TRUE ~
+          paste0("historical_", land_label, "_agriland"),
+        land_use == "Cropland" ~ paste0(land_label, "_cropland"),
         unit %in% livestock_units ~ "fill_linear_historical",
-        TRUE ~ "LUH2_agriland"
+        TRUE ~ paste0(land_label, "_agriland")
       )
     ) |>
     dplyr::select(
@@ -2620,9 +3080,11 @@ build_primary_production <- function(
   }
   bad <- unique(unmatched$area)
   cli::cli_warn(c(
-    "!" = "Historical extension: {length(bad)} area{?s} have no LUH2 land
-      match; their pre-1962 production is not back-cast.",
-    "i" = "First unmatched: {.val {head(bad, 5)}}."
+    "!" = "Historical extension: {length(bad)} area{?s} {?has/have} no LUH2
+      land match; their pre-1962 production is not back-cast.",
+    "i" = "First unmatched: {.val {head(bad, 5)}}.",
+    "i" = "Dissolved federations can be reached via
+      {.code federation_land = \"successor_union\"}."
   ))
   invisible(NULL)
 }
@@ -2800,12 +3262,21 @@ build_primary_production <- function(
     )
   ]
 
+  # Keyed on the CODES, not the labels. `area` is a polity label and one label
+  # can cover several reporting `area_code`s -- every Rest-of-World member that
+  # `.unfold_rest_of_world()` promotes keeps the shared "Rest of World" name
+  # (whep#589). Grouping on the label then puts N areas' series in one group
+  # with N rows per year, and `fill_proxy_growth()` computes its year-on-year
+  # growth over that interleaved sequence, so the pre-1962 back-cast of `t_ha`
+  # -- and through `tonnes = ha * t_ha` below, the back-cast tonnage itself --
+  # comes out of a lag between two different countries. This is whep#632's fix
+  # applied to the second site the same mismatch reaches.
   wide <- fill_proxy_growth(
     wide,
     value_col = t_ha,
     proxy_col = "yield",
     time_col = year,
-    .by = c("area", "item_prod"),
+    .by = c("area_code", "item_prod_code"),
     verbose = FALSE
   )
   if (!data.table::is.data.table(wide)) {

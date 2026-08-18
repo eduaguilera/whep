@@ -7,16 +7,32 @@
 get_soc_climate_drivers(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
 }
 \arguments{
-\item{run_dir}{Path to the LPJmL run output directory. Defaults to
-\code{Sys.getenv("WHEP_LPJML_RUN_DIR")} via \code{\link[=read_lpjml_hydrology]{read_lpjml_hydrology()}}.}
+\item{run_dir}{Path to the LPJmL run output directory. \code{NULL} (default) uses
+\code{WHEP_LPJML_RUN_DIR} when set, and the pinned \code{lpjml-soc-hydrology}
+artifact otherwise, so running LPJmL is not a prerequisite. That artifact
+holds only the three LPJmL monthly drivers (topsoil saturation,
+precipitation, irrigation); air temperature still comes from CRU and the
+texture products from HWSD, both downloadable, so neither is pinned.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL} keeps
 every year the inputs cover.}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Optional named list of pre-loaded inputs, each falling back to
 its reader when absent: \code{temp} (CRU \code{tmp}, \code{lon}, \code{lat}, \code{year}, \code{month},
@@ -26,7 +42,16 @@ and \code{irrig} (LPJmL monthly, \code{lon}, \code{lat}, \code{year}, \code{mont
 \code{clay_pct}, required), \code{cell_polity} (\code{lon}, \code{lat}, \code{area_code}, the polity
 crosswalk, required) and \code{soil_hydraulic} (\code{lon}, \code{lat}, \code{t_field},
 \code{t_wilt}, \code{porosity}; falls back to \code{\link[=read_soil_hydraulic]{read_soil_hydraulic()}}, cropped to
-\code{cell_polity} when supplied).}
+\code{cell_polity} when supplied).
+
+\code{cell_polity} is used only to \strong{label} each cell with an \code{area_code} and
+to restrict the grid to the cells it covers; no quantity here is ever
+multiplied by an area. It therefore decides this function's \strong{footprint},
+and callers that pass different crosswalks get different footprints from
+one function. The carbon path passes the polycell support
+(\code{\link[=build_polycell_support]{build_polycell_support()}}, via \code{\link[=read_polycell_support]{read_polycell_support()}}); the water path
+still passes \code{\link[=build_cell_polity]{build_cell_polity()}} until it migrates, so the two footprints
+differ by the crosswalks' own difference until then.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -39,7 +64,9 @@ drivers), \code{water_minus_pet_mm} (the monthly RothC/HSOC surplus),
 modifier driver, repeated across a cell-year's months), \code{clay_pct},
 \code{theta}, \code{t_field}, \code{t_wilt} and \code{porosity} (the ICBM moisture drivers:
 the monthly volumetric soil water content and its static field-capacity,
-wilting-point and porosity references) and \code{method_water_input}.
+wilting-point and porosity references) and \code{method_water_input}, plus the
+polity columns below, plus \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}.
 }
 \description{
 Builds the monthly per-cell climate drivers the soil-organic-carbon
@@ -79,6 +106,49 @@ precipitation plus irrigation). Air temperature (CRU) and the soil texture
 products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 sources.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 get_soc_climate_drivers(example = TRUE)
 }

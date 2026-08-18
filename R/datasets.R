@@ -169,17 +169,28 @@
 #' agricultural products and residues. Used to convert fresh-matter production
 #' quantities into biomass flows, nutrient budgets, and energy content.
 #'
+#' Five runtime-dead below-ground fields were retired from this legacy table:
+#' `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`, `Root_kgC_kgDM`,
+#' `Rhizodeposits_mass_kgC_kgDM`, and `Rhizodeposits_N_kgN_kgRootN`. Their
+#' related item-keyed fields in `bio_coefs` are, respectively,
+#' `bg_biomass_dm_kg_ha`, `root_shoot_ratio`, `root_c_kgdm`,
+#' `rhizodeposit_mass_c_kgdm`, and `rhizodeposit_n_kgn_krootn`. This is not a
+#' universal one-to-one row mapping. [calculate_crop_roots()] uses
+#' `ipcc_root_coefs$bg_ref_dm_t_ha` and `ipcc_root_coefs$rs_default` when they
+#' are available, with the corresponding `bio_coefs` fields as fallbacks.
+#' `root_c_kgdm` and `rhizodeposit_n_kgn_krootn` are direct calculation inputs.
+#' `rhizodeposit_mass_c_kgdm` is an integrity and documentation component that
+#' is already included in `root_c_kgdm`, rather than a separate runtime input.
+#'
 #' @format
 #' A tibble where each row corresponds to one product or item. It contains
-#' 68 columns:
+#' 63 columns:
 #' - `Code`: Item code (character), corresponding to FAOSTAT production codes.
 #' - `Name_biomass`: Item name as used in biomass accounting.
 #' - `Equiv`: Reference equivalence item used when coefficients are borrowed
 #'   from another similar commodity (e.g., `"Wheat"` for oats).
 #' - `Category`: Broad commodity category (e.g., `"Cereals, other"`,
 #'   `"Barley"`, `"Vegetables"`).
-#' - `BG_Biomass_kgDM_ha`: Below-ground biomass in kg dry matter per hectare.
-#' - `Root_Shoot_ratio`: Ratio of root to aerial biomass (dimensionless).
 #' - `Product_kgDM_kgFM`: Product dry-matter content in kg DM per kg fresh
 #'   matter.
 #' - `Residue_kgDM_kgFM`: Residue dry-matter content in kg DM per kg fresh
@@ -209,16 +220,26 @@
 #' - `Calcium_mg_kgFM`: Calcium content in mg per kg fresh matter.
 #' - `VitaminA_microg_kgFM`: Vitamin A content in micrograms per kg fresh
 #'   matter.
-#' - `Edible_kgDM_kgFM`: Edible dry matter in kg per kg fresh matter.
-#' - `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter.
-#' - `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter.
-#' - `Edible_kgP_kgFM`: Edible phosphorus in kg P per kg fresh matter.
-#' - `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter.
-#' - `NonEdible_kgDM_kgFM`: Non-edible dry matter in kg per kg fresh matter.
-#' - `NonEdible_kgC_kgFM`: Non-edible carbon in kg C per kg fresh matter.
+#' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
+#' every row**, upstream in the source workbook as well as here, so no
+#' edible/non-edible nutrient split can be read from them (#361). Use
+#' `Edible_portion` with `N_kgN_kgFM` or `Product_kgN_kgDM` to derive an edible
+#' basis instead, as [build_food_supply()] does.
+#'
+#' - `Edible_kgDM_kgFM`: Edible dry matter in kg per kg fresh matter. Empty.
+#' - `Edible_kgC_kgFM`: Edible carbon in kg C per kg fresh matter. Empty.
+#' - `Edible_N_kgFM`: Edible nitrogen in kg N per kg fresh matter. Empty.
+#' - `Edible_kgP_kgFM`: Edible phosphorus in kg P per kg fresh matter. Empty.
+#' - `Edible_K_kgFM`: Edible potassium in kg K per kg fresh matter. Empty.
+#' - `NonEdible_kgDM_kgFM`: Non-edible dry matter, kg per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgC_kgFM`: Non-edible carbon in kg C per kg fresh matter. Empty.
 #' - `NonEdible_kgN_kgFM`: Non-edible nitrogen in kg N per kg fresh matter.
-#' - `NonEdible_kgP_kgFM`: Non-edible phosphorus in kg P per kg fresh matter.
-#' - `NonEdible_kgK_kgFM`: Non-edible potassium in kg K per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgP_kgFM`: Non-edible phosphorus, kg P per kg fresh matter.
+#'   Empty.
+#' - `NonEdible_kgK_kgFM`: Non-edible potassium, kg K per kg fresh matter.
+#'   Empty.
 #' - `Product_kgN_kgDM`: Nitrogen content of product in kg N per kg dry
 #'   matter.
 #' - `Product_kgP_kgDM`: Phosphorus content of product in kg P per kg dry
@@ -236,18 +257,12 @@
 #' - `Residue_humified_kgC_kgC`: Humification coefficient of residue carbon
 #'   (fraction of residue C stabilised as soil organic matter).
 #' - `MgDM_m3`: Megagrams dry matter per cubic metre (bulk density proxy).
-#' - `Root_kgC_kgDM`: Root plus rhizodeposit carbon in kg C per kg root dry
-#'   matter.
 #' - `Root_humified_kgC_kgC`: Humification coefficient for root carbon.
 #' - `Root_mass_kgC_kgDM`: Root carbon mass in kg C per kg crop dry matter.
-#' - `Rhizodeposits_mass_kgC_kgDM`: Rhizodeposit carbon in kg C per kg crop
-#'   dry matter.
 #' - `Residue_C_N`: Carbon-to-nitrogen ratio of the residue.
 #' - `Root_kgN_kgDM`: Nitrogen content of roots in kg N per kg root dry
 #'   matter.
 #' - `GE_Roots_MJ_kgDM`: Gross energy of roots in MJ per kg dry matter.
-#' - `Rhizodeposits_N_kgN_kgRootN`: Rhizodeposit nitrogen as a fraction of
-#'   root nitrogen.
 #' - `Fiber_g_kgFM`: Dietary fibre content in g per kg fresh matter.
 #' - `SFA_g_kgFM`: Saturated fatty acid content in g per kg fresh matter.
 #' - `MUFA_g_kgFM`: Monounsaturated fatty acid content in g per kg fresh
@@ -320,7 +335,24 @@
 #'   product (numeric; largely `NA` in current data).
 #' - `Required`: Marks required co-product links in selected processing
 #'   chains.
+#'
+#' A fraction is a prior conversion rate per candidate output, not a
+#' mass-conserving recipe: `.correct_processed()` rescales it per area-year to
+#' reproduce the observed production of the output item, and several inputs
+#' declare a single lossy output (olives to olive oil at 0.20).
+#'
+#' The one dairy row, `"Milk - Excluding Butter"` to `"Butter, Ghee"`, carries
+#' the milk churned into butter and ghee, which FAOSTAT's new FBS reports as
+#' milk's `processing` destiny from 2010 (the old FBS does not report it at
+#' all). Without it that mass was split onto food and feed, inflating 2010
+#' world milk food by 30.5% (#757).
 #' @source Derived from FAOSTAT commodity balance sheet processing assumptions.
+#'   The milk-to-butter fraction of 0.045 is the median `"Butter of Cow Milk"`
+#'   extraction rate over the 69 countries reporting one in FAO (1997),
+#'   *Technical Conversion Factors for Agricultural Commodities*, Rome: FAO,
+#'   MILK section (range 3.3-7.3%). It is consistent with the ratio implied by
+#'   the FBS itself: global butter production over milk processing is 0.047 in
+#'   2010 and 0.044-0.047 across 2010-2019.
 #'
 #' @examples
 #' head(cb_processing)
@@ -526,8 +558,11 @@
 #' @format
 #' A tibble where each row corresponds to one polity (country or territory).
 #' It contains the following columns:
-#' - `polity_code`: Legacy current polity prefix, usually ISO 3166-1 alpha-3
-#'   (e.g., `"AFG"`, `"ALB"`).
+#' - `legacy_polity_prefix`: Legacy current polity prefix, usually ISO 3166-1
+#'   alpha-3 (e.g., `"AFG"`, `"ALB"`). **Not a [polities] code** and not a join
+#'   key to any polity table: it was called `polity_code` until whep#687, where
+#'   the name promised an identity none of its values holds. Read
+#'   `reporting_polity_code` for the polity.
 #' - `polity_name`: Current polity, country, or territory name.
 #' - `V1`: Internal row index from the source table.
 #' - `code`: Numeric FAOSTAT country code.
@@ -538,7 +573,7 @@
 #' - `reporting_polity_has_geometry`: Logical flag indicating whether the
 #'   current reporting polity has a polygon.
 #' - `iso3c`: ISO 3166-1 alpha-3 code (character; may duplicate
-#'   `polity_code` or differ for aggregates).
+#'   `legacy_polity_prefix` or differ for aggregates).
 #' - `FAOSTAT_name`: Country name as used in FAOSTAT.
 #' - `EU27`: Logical flag; `TRUE` if the polity is a member of the EU27.
 #' - `name`: Country name used in other external databases.
@@ -577,8 +612,13 @@
 #' - `region_test`: Experimental/test regional grouping (may be incomplete).
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
-#' @note Five trailing columns containing only Excel `#REF!` errors in the
-#'   source CSV are dropped at load time and are not part of this dataset.
+#' @note Derived from [regions_full] rather than vendored separately: the
+#'   198-code membership is read from `harmonization/polities_cats.csv` and every
+#'   column value comes from `regions_full`, so the two tables cannot disagree
+#'   except where this one deliberately folds an area into a rest-of-world
+#'   aggregate. Two areas are folded, both because they had no commodity balance
+#'   sheet when the table was compiled: Bhutan under `RASI` and Comoros under
+#'   `RAFR`, each with `cbs` `FALSE` and `fabio_code` `999`.
 #'
 #' @examples
 #' head(polities_cats)
@@ -621,8 +661,12 @@
 #' A tibble where each row corresponds to one polity or aggregate region. It
 #' contains the following columns (same definitions as `polities_cats`,
 #' minus the five trailing `0...36`–`0...40` artefact columns):
-#' - `polity_code`: Legacy current polity prefix. This is kept for
-#'   compatibility with older code that expected ISO3-like values.
+#' - `legacy_polity_prefix`: Legacy current polity prefix, kept for
+#'   compatibility with older code that expected ISO3-like values. **Not a
+#'   [polities] code**: it was called `polity_code` until whep#687, where the
+#'   name promised an identity none of its 271 non-`NA` values holds, so a join
+#'   to [polities] or [polity_area_crosswalk] on it returned nothing. Read
+#'   `reporting_polity_code` for the polity.
 #' - `polity_name`: Current polity, country, territory, or aggregate name.
 #' - `V1`: Internal row index.
 #' - `code`: Numeric FAOSTAT country/region code.
@@ -643,8 +687,17 @@
 #' - `baci`: BACI trade database country code.
 #' - `fish`: Fisheries dataset numeric code.
 #' - `region_code`: Numeric regional code.
-#' - `cbs`: Logical CBS dataset membership flag.
-#' - `fabio_code`: FABIO database numeric code.
+#' - `cbs`: Logical CBS dataset membership flag; `TRUE` if the area has a
+#'   commodity balance sheet of its own. 202 areas.
+#' - `fabio_code`: FABIO database numeric code, and the value
+#'   `polity_area_code` is derived from, so it is the fold instruction as well
+#'   as a fact about FABIO. It is the area's own `code` for a `cbs` reporter and
+#'   999 (Rest of World) otherwise, with seven exceptions: 62 -> 238, 276 -> 206
+#'   and 277 -> 206 are successor-state folds, and 153, 154, 209 and 212 are
+#'   `cbs` reporters folded into 999 anyway. Those four are a contradiction
+#'   inside this table -- FABIO's own published region list enumerates all four
+#'   as regions of their own -- left standing because correcting it would move
+#'   published values. See [folded_reporting_areas] and issue 556.
 #' - `ADB_Region`: Asian Development Bank region.
 #' - `region`: General world region.
 #' - `uISO3c`: UN M49 numeric code.

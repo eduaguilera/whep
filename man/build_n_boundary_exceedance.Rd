@@ -2,91 +2,96 @@
 % Please edit documentation in R/n_boundary_exceedance.R
 \name{build_n_boundary_exceedance}
 \alias{build_n_boundary_exceedance}
-\title{Build the surplus-mode critical-nitrogen boundary exceedance.}
+\title{Build source-exact gridded critical-nitrogen exceedance.}
 \usage{
 build_n_boundary_exceedance(
-  surplus,
-  critical,
-  land_use = c("ara", "all"),
-  resolution = c("grid", "polity", "country", "image_region"),
-  metric = c("surplus", "input"),
+  surplus = NULL,
+  critical = NULL,
+  land_use = c("ara", "all", "igl"),
+  resolution = c("grid", "cell", "polity", "country", "image_region"),
+  metric = c("surplus", "input", "new_fixation"),
   cell_polity = NULL,
+  allocation_scenario = c("yield_gap", "no_increase", "new_fixation"),
+  actual_year = NULL,
+  critical_reference_year = NULL,
+  actual = NULL,
+  boundary = NULL,
+  indicator = NULL,
+  land_class = NULL,
+  impact_scope = NULL,
   example = FALSE
 )
 }
 \arguments{
-\item{surplus}{A \code{\link[=calculate_n_surplus]{calculate_n_surplus()}} output keyed by \code{lon}, \code{lat},
-\code{area_code}, \code{item_cbs_code}, \code{year}, carrying \code{area_ha} and, for
-\code{metric = "surplus"}, \code{surplus_kgn_ha}, or for \code{metric = "input"},
+\item{surplus}{A \code{\link[=calculate_n_surplus]{calculate_n_surplus()}} output with the grid/crop/year key.
+Surplus mode uses signed \code{surplus_n_t} when present, otherwise derives it
+from \code{surplus_kgn_ha * area_ha / 1000}. Input mode uses
 \code{n_input_std_t}.}
 
-\item{critical}{A \code{\link[=read_critical_n]{read_critical_n()}} output (\code{lon}, \code{lat}, \code{value} in
-kg N per hectare), the critical nitrogen surplus for \code{metric = "surplus"}
-or the critical nitrogen input for \code{metric = "input"}. Every retained
-positive-area cell must have a non-missing critical value; incomplete
-coverage aborts instead of silently dropping the cell.}
+\item{critical}{A \code{\link[=read_critical_n]{read_critical_n()}} critical layer. In addition to layer
+identity, it must carry deposited \code{source_area_ha} and \code{image_region}.}
 
-\item{land_use}{Land-use scope the \code{critical} layer was read for, \code{"all"}
-(default) or \code{"ara"}; a provenance stamp on the output.}
+\item{land_use}{Source land class: \code{"ara"}, \code{"igl"}, or \code{"all"}.}
 
-\item{resolution}{Output grain: \code{"grid"} (default, per crop per cell),
-\code{"polity"} or \code{"country"} (per crop per country) or \code{"image_region"}.}
+\item{resolution}{Output grain: source \code{"cell"}, crop-cell \code{"grid"}, crop
+\code{"polity"}/\code{"country"}, or crop \code{"image_region"}.}
 
-\item{metric}{Which pressure to compare: \code{"surplus"} (default, per-hectare
-surplus vs critical surplus) or \code{"input"} (per-hectare nitrogen input vs
-critical input).}
+\item{metric}{Selected actual pressure: signed \code{"surplus"} or total
+agricultural \code{"input"}.}
 
-\item{cell_polity}{Optional crosswalk carrying \code{area_code} and
-\code{image_region}, used only for \code{resolution = "image_region"}. Defaults to
-\code{NULL}.}
+\item{cell_polity}{Retained for API compatibility. IMAGE membership now
+comes from the deposited cell-key crosswalk in \code{critical}; country
+attribution comes from the crop rows themselves.}
 
-\item{example}{If \code{TRUE}, return a small fixture instead of computing.
-Defaults to \code{FALSE}.}
+\item{allocation_scenario}{Only source-exact \code{"yield_gap"} is supported.
+\code{"no_increase"} and \code{"new_fixation"} hard-error.}
+
+\item{actual_year}{The actual-pressure year to compare. Must select exactly
+one year from \code{surplus} and is always retained in results.}
+
+\item{critical_reference_year}{Must be \code{2010}, matching the deposited fixed
+reference surface, and is always retained in results.}
+
+\item{actual}{Alias of \code{surplus} for the selector-oriented interface.}
+
+\item{boundary}{Alias of \code{critical} for the selector-oriented interface.}
+
+\item{indicator}{Selector-oriented pressure name: \code{"surplus"},
+\code{"total_input"}, or the unsupported \code{"new_fixation"} mode (which
+hard-errors). When supplied, it overrides \code{metric}.}
+
+\item{land_class}{Alias of \code{land_use}.}
+
+\item{impact_scope}{Deposited impact surface: \code{"mi"}, \code{"sw"}, \code{"gw"}, or
+\code{"de"}. When supplied, it is validated against the critical layer.}
+
+\item{example}{If \code{TRUE}, return the package fixture.}
 }
 \value{
-For \code{resolution = "grid"}, a tibble keyed \code{lon}, \code{lat}, \code{area_code},
-\code{item_cbs_code}, \code{year} with \code{area_ha}, \code{critical_kgn_ha},
-\code{actual_kgn_ha}, \code{exceed_share}, \code{exceedance_kgn_ha},
-\code{within_boundary_kgn_ha}, the mass terms \code{exceedance_n_t},
-\code{within_boundary_n_t}, \code{actual_n_t}, \code{production_n_t} (the harvest-removal
-nitrogen the footprint's \code{"production"} category traces, carried through
-only when the \code{surplus} input supplies it), and the \code{metric}, \code{land_use},
-\code{method_boundary} stamps. For the aggregate resolutions, the grouping key
-with the summed mass terms and the same stamps.
+A tibble at the requested grain. Cell results retain actual and
+critical masses, signed margin, positive overshoot, coverage state,
+integer source-grid key, IMAGE context, explicit years, selectors, and
+provenance. Crop results additionally retain the signed pressure share and
+crop-attributed quantities, which reconcile algebraically to the cell.
 }
 \description{
-Compares a \code{\link[=calculate_n_surplus]{calculate_n_surplus()}} output against a
-\code{\link[=read_critical_n]{read_critical_n()}} critical-nitrogen layer, per grid cell and per crop.
-For \code{metric = "surplus"} each crop's per-hectare surplus (\code{surplus_kgn_ha})
-is compared to the cell's critical nitrogen surplus; for \code{metric = "input"}
-each crop's per-hectare nitrogen input (\code{n_input_std_t} per \code{area_ha}) is
-compared to the cell's critical nitrogen input. The cell's single critical
-value broadcasts to every crop sharing the cell. Each crop's nitrogen is
-split into an \code{exceedance} part (above the boundary) and a \code{within_boundary}
-part, as both a per-hectare intensity and a mass, with the exceedance share
-\code{exceed_share = (actual - critical) / actual} when the crop is above the
-critical value and \code{0} otherwise (and \code{0} when the crop is at or below zero).
-\code{exceedance + within_boundary == actual} holds by construction.
-\code{resolution = "grid"} keeps the full per-crop grid key; \code{"polity"} and
-\code{"country"} sum the mass terms over cells to \code{area_code}, \code{item_cbs_code},
-\code{year}; \code{"image_region"} sums to IMAGE region when \code{cell_polity} supplies an
-\code{image_region} column, else falls back to the polity aggregate with a note.
-}
-\section{Exceedance is a decomposition, not the overshoot}{
+Compares WHEP crop nitrogen pressure with the deposited Schulte-Uebbing et
+al. (2022) 2010 yield-gap critical surface. The calculation first aggregates
+every crop and polity contribution in a source cell, compares that one cell
+pressure with one critical allowance, and only then attributes the cell
+allowance, signed margin and positive overshoot back to crops. Total-input
+attribution uses crop input shares; surplus attribution uses signed crop
+surplus shares. Signed surplus shares can be negative or greater than one.
 
-\code{exceedance_kgn_ha} splits the actual pressure into its over- and
-within-boundary parts, so \code{exceedance + within_boundary == actual} and
-neither part can exceed the pressure itself. Where the critical value is
-negative (the cell is so sensitive that the safe surplus is a net removal)
-the whole pressure is exceedance, and the overshoot MAGNITUDE the source
-archive publishes, \code{actual - critical}, is strictly larger. Both are
-defensible; they answer different questions, and only the decomposition can
-carry a footprint. Verified against Schulte-Uebbing's own exceedance layer
-(\code{threshold = "mi"}, \code{land_use = "ara"}): the two agree to floating-point
-on all 26,497 positive-critical cells, and diverge only on the 2,076
-negative-critical ones, costing 0.6\% of global exceedance mass.
+The critical layer must carry its deposited \code{source_area_ha} and
+\code{image_region}. \code{resolution = "cell"} returns one row per source cell and
+year. Other resolutions return the approved crop attribution. Exactly zero
+or numerically near-zero pressure denominators keep the complete cell result
+but allocate no crop share; an explicit \code{cell_residual} record carries the
+unallocated critical allowance, signed margin and positive overshoot. APIs
+requiring complete crop attribution hard-error rather than fabricate a
+fallback.
 }
-
 \examples{
 build_n_boundary_exceedance(example = TRUE)
 }

@@ -145,6 +145,111 @@ test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
 })
 
 
+# -- EU AgriDB region crosswalk ------------------------------------------------
+
+# `.read_fodder_euadb()` resolves the source's `Region` through
+# `regions_full$ADB_Region`. A missing key leaves `area_code` NA and
+# `.fill_fodder_gaps()`'s `dt[!is.na(area)]` then discards the rows in silence,
+# so the country falls back to the dry-matter-yield estimator while its peers
+# use the source. `AT` and `GB` were missing, costing 2030 rows -- 8.8% of the
+# input -- for Austria and the United Kingdom over 1961-2019 (#585).
+#
+# The 28 codes are the distinct `Region` values of the `eu-agridb-fodder` pin,
+# read on 2026-08-07. They are listed here rather than read from the pin so
+# the check stays offline; a region the pin adds later is caught at runtime by
+# `.warn_unmapped_adb_regions()` instead.
+
+test_that("regions_full keys every EU AgriDB region, incl. AT and GB", {
+  euadb_regions <- c(
+    "AT",
+    "BE",
+    "BE_LU",
+    "BG",
+    "CZ",
+    "CZ_SK",
+    "DE",
+    "DK",
+    "EE",
+    "ES",
+    "FI",
+    "FR",
+    "GB",
+    "GR",
+    "HR",
+    "HU",
+    "IE",
+    "IT",
+    "LT",
+    "LU",
+    "LV",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SE",
+    "SI",
+    "SK"
+  )
+  keys <- whep::regions_full$ADB_Region
+
+  expect_equal(setdiff(euadb_regions, keys), character(0))
+
+  austria <- whep::regions_full |>
+    dplyr::filter(.data$ADB_Region == "AT")
+  expect_equal(austria$legacy_polity_prefix, "AUT")
+  expect_equal(austria$code, 11L)
+
+  uk <- whep::regions_full |>
+    dplyr::filter(.data$ADB_Region == "GB")
+  expect_equal(uk$legacy_polity_prefix, "GBR")
+  expect_equal(uk$code, 229L)
+})
+
+test_that("an ADB region resolving to no area warns and is named", {
+  euadb <- tibble::tribble(
+    ~adb_region, ~area_code,
+    "XX",        NA_integer_,
+    "XX",        NA_integer_,
+    "FR",        68L
+  )
+
+  expect_warning(
+    result <- whep:::.warn_unmapped_adb_regions(euadb),
+    "XX"
+  )
+  # the warning names how many rows go, and passes the table through untouched
+  expect_warning(whep:::.warn_unmapped_adb_regions(euadb), "2 fodder rows")
+  expect_equal(result, euadb)
+})
+
+test_that(".read_fodder_euadb warns on a region it cannot resolve", {
+  # The warning is only useful if the reader is actually wired to it, so drive
+  # the reader itself over a stubbed pin rather than the helper alone.
+  fake_pin <- tibble::tribble(
+    ~Region, ~Crop,   ~Year, ~Value, ~Label,           ~Unit,
+    "FR",    "G3000", 2000L, 1.0,    "Harvested area", "Mha",
+    "ZZ",    "G3000", 2000L, 2.0,    "Harvested area", "Mha"
+  )
+  testthat::local_mocked_bindings(
+    .read_input = function(...) fake_pin
+  )
+
+  expect_warning(result <- whep:::.read_fodder_euadb(), "ZZ")
+  expect_equal(result$area_code, c(68L, NA_integer_))
+})
+
+test_that("a fully mapped ADB table passes through without a warning", {
+  euadb <- tibble::tribble(
+    ~adb_region, ~area_code,
+    "FR",        68L,
+    "DE",        79L
+  )
+
+  expect_no_warning(result <- whep:::.warn_unmapped_adb_regions(euadb))
+  expect_equal(result, euadb)
+})
+
+
 # -- combine_primary -----------------------------------------------------------
 
 test_that(".combine_primary_raw aggregates and keeps item_prod columns", {
@@ -368,6 +473,103 @@ test_that(".extend_historical matches LUH2 land by area_code, not name", {
   expect_true(all(result$value > 0))
 })
 
+test_that(".extend_historical takes a historical land table at the seam", {
+  # whep#761: the pre-1962 area half of the back-cast was measured on
+  # present-day borders. `land_wide` lets the historical producer hand the seam
+  # the same shape measured on each year's own borders. Growth is 2x here
+  # against the pin's 1.25x, so the back-cast value has to follow the table it
+  # was given, and the `source` label has to say which one that was.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = "c3ann",
+    Area_Mha = c(8, 9, 10)
+  )
+  historical <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area_code = 99L,
+    Cropland = c(2.5, 5, 10),
+    Pasture = 0,
+    agriland = c(2.5, 5, 10)
+  )
+
+  default <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::filter(area_code == 99L, unit == "tonnes") |>
+    dplyr::arrange(year)
+  historic <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    land_wide = historical
+  ) |>
+    dplyr::filter(area_code == 99L, unit == "tonnes") |>
+    dplyr::arrange(year)
+
+  expect_equal(default$value, c(80, 90, 100))
+  expect_equal(historic$value, c(25, 50, 100))
+  expect_equal(default$source[1:2], rep("LUH2_cropland", 2))
+  expect_equal(historic$source[1:2], rep("LUH2_polity_cropland", 2))
+  # The reported year is the anchor and cannot move under either land table.
+  expect_equal(default$value[3], historic$value[3])
+  expect_equal(default$source[3], historic$source[3])
+})
+
+test_that(".historical_land_wide is NULL unless the method asks for it", {
+  expect_null(whep:::.historical_land_wide("present_day", 1850:1961))
+  # Nothing before 1962 is requested, so there is nothing to back-cast and the
+  # expensive gridded read is skipped even under the historical method.
+  expect_null(whep:::.historical_land_wide("historical_polity", 1990:2000))
+})
+
+test_that("a stale historical-land pin aborts instead of shortening the series", {
+  # The pin covers the whole back-cast span by construction, so a missing year
+  # means it is stale against the polities snapshot that produced it. Returning
+  # the short series would silently drop those years from the back-cast, which
+  # is the failure this abort exists to prevent. Offline: the reader is mocked,
+  # never called for real.
+  short <- tibble::tibble(
+    year = 1850:1900,
+    area_code = 238L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+  testthat::with_mocked_bindings(
+    expect_error(
+      whep:::.historical_land_wide("historical_polity", 1850:1961),
+      "does not cover"
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+
+  # ...and it does NOT abort when the pin covers everything asked for.
+  testthat::with_mocked_bindings(
+    expect_equal(
+      nrow(whep:::.historical_land_wide("historical_polity", 1850:1900)),
+      51L
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+})
+
 test_that(".extend_historical warns about areas with no LUH2 land match", {
   primary <- tibble::tibble(
     year = c(1960L, 1961L),
@@ -395,6 +597,158 @@ test_that(".extend_historical warns about areas with no LUH2 land match", {
   expect_warning(
     whep:::.extend_historical(primary, years, land),
     "no LUH2 land"
+  )
+})
+
+# -- Dissolved-federation LUH2 bridge (whep#408) -------------------------------
+
+.make_csk_land <- function() {
+  # LUH2 as it really is: Czechia and Slovakia have land, Czechoslovakia (area
+  # 51) does not, because LUH2 is keyed on present-day ISO3.
+  tibble::tribble(
+    ~iso3c, ~area_code, ~area, ~year, ~Land_Use, ~Area_Mha,
+    "CZE", 167L, "Czechia", 1960L, "c3ann", 2,
+    "CZE", 167L, "Czechia", 1961L, "c3ann", 3,
+    "SVK", 199L, "Slovakia", 1960L, "c3ann", 4,
+    "SVK", 199L, "Slovakia", 1961L, "c3ann", 6
+  )
+}
+
+.make_csk_production <- function() {
+  tibble::tibble(
+    year = c(1960L, 1961L),
+    area = "Czechoslovakia",
+    area_code = 51L,
+    item_prod = "Wheat",
+    item_prod_code = "15",
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_character_,
+    unit = "tonnes",
+    value = c(NA, 100),
+    source = "FAOSTAT_prod"
+  )
+}
+
+test_that(".federation_land_bridge maps a federation to its successors' ISO3", {
+  bridge <- whep:::.federation_land_bridge(
+    data.table::as.data.table(.make_csk_land())
+  )
+
+  csk <- bridge[bridge$area_code == 51L, ]
+  expect_equal(sort(csk$iso3c), c("CZE", "SVK"))
+  expect_equal(unique(csk$area), "Czechoslovakia")
+})
+
+test_that(".add_federation_land_rows is a no-op by default", {
+  land <- .make_csk_land()
+
+  expect_identical(
+    whep:::.add_federation_land_rows(land, federation_land = "none"),
+    land
+  )
+})
+
+test_that(".add_federation_land_rows sums successor LUH2 land", {
+  aug <- whep:::.add_federation_land_rows(
+    .make_csk_land(),
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages()
+
+  csk <- aug |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # 1960: CZE 2 + SVK 4 = 6 Mha; 1961: 3 + 6 = 9 Mha.
+  expect_equal(csk$Area_Mha, c(6, 9))
+  expect_true(all(is.na(csk$iso3c)))
+  # Successor rows themselves are untouched, so nothing double-counts upstream.
+  expect_equal(
+    aug$Area_Mha[aug$area_code == 167L & aug$year == 1961L],
+    3
+  )
+})
+
+test_that(".add_federation_land_rows leaves its input untouched", {
+  # `.build_grassland()` reads the same LUH2 table straight from
+  # `.read_production()`. If the bridge mutated it by reference, every
+  # federation would gain a 1850-2023 grassland row that double-counts against
+  # its successors' own rows.
+  land <- data.table::as.data.table(.make_csk_land())
+  before <- nrow(land)
+
+  invisible(suppressMessages(
+    whep:::.add_federation_land_rows(land, federation_land = "successor_union")
+  ))
+
+  expect_equal(nrow(land), before)
+  expect_false(51L %in% land$area_code)
+})
+
+test_that(".add_federation_land_rows warns without the ISO3 column", {
+  expect_warning(
+    whep:::.add_federation_land_rows(
+      .make_csk_land() |> dplyr::select(-"iso3c"),
+      federation_land = "successor_union"
+    ),
+    "iso3c"
+  )
+})
+
+test_that(".extend_historical back-casts a federation only when asked", {
+  # This is whep#408: with the default the 1960 row stays NA, because
+  # Czechoslovakia has no LUH2 land of its own to grow the proxy from.
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  status_quo <- whep:::.extend_historical(primary, years, land) |>
+    suppressWarnings() |>
+    dplyr::filter(.data$area_code == 51L, .data$year == 1960L)
+
+  expect_true(all(is.na(status_quo$value)))
+
+  bridged <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    federation_land = "successor_union"
+  ) |>
+    suppressMessages() |>
+    dplyr::filter(.data$area_code == 51L) |>
+    dplyr::arrange(.data$year)
+
+  # Cropland proxy grows 6 -> 9 Mha, so 1960 tonnes = 100 * 6 / 9.
+  expect_equal(bridged$value, c(100 * 6 / 9, 100))
+  expect_equal(bridged$source[bridged$year == 1960L], "LUH2_cropland")
+})
+
+test_that(".extend_historical stops warning once a federation is bridged", {
+  primary <- .make_csk_production()
+  years <- tibble::tibble(year = c(1960L, 1961L))
+  land <- .make_csk_land()
+
+  expect_warning(
+    whep:::.extend_historical(primary, years, land),
+    "no LUH2 land"
+  )
+  expect_no_warning(
+    whep:::.extend_historical(
+      primary,
+      years,
+      land,
+      federation_land = "successor_union"
+    ) |>
+      suppressMessages()
+  )
+})
+
+test_that("build_primary_production rejects an unknown federation_land", {
+  expect_error(
+    build_primary_production(federation_land = "spatial_intersection"),
+    class = "rlang_error"
   )
 })
 
@@ -489,6 +843,78 @@ test_that(".add_historical_yields preserves direct historical tonnes", {
 
   expect_equal(result$tonnes, 50)
   expect_equal(result$t_ha, 5)
+})
+
+test_that(".add_historical_yields back-casts each area code separately", {
+  # Two reporting areas under ONE `area` label. That is not hypothetical:
+  # `.unfold_rest_of_world()` promotes a Rest-of-World member's
+  # `polity_area_code` but leaves `polity_name`, so every promoted member
+  # carries its own code and the shared label "Rest of World" (whep#589).
+  # Grouping the pre-1962 `t_ha` back-cast on the label puts both series in
+  # one group with two rows per year, and the growth rates come out of a lag
+  # between two different countries.
+  shared <- function(area_code, tonnes_1961, ha) {
+    tibble::tribble(
+      ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~item_cbs, ~item_cbs_code, ~land_use, ~live_anim, ~live_anim_code, ~unit, ~value, ~source,
+      1961L, "Rest of World", area_code, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_character_, "tonnes", tonnes_1961, "FAOSTAT_prod",
+      1961L, "Rest of World", area_code, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_character_, "ha", ha, "FAOSTAT_prod",
+      1960L, "Rest of World", area_code, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_character_, "tonnes", 0, "FAOSTAT_prod",
+      1960L, "Rest of World", area_code, "Wheat", "15", "Wheat", 2511L, "cropland", NA_character_, NA_character_, "ha", ha, "FAOSTAT_prod"
+    )
+  }
+  df <- dplyr::bind_rows(shared(700L, 6000, 100), shared(701L, 900, 30))
+  int_yields <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~yield,
+    1960L, 700L, "15", 2.0,
+    1961L, 700L, "15", 2.5,
+    1960L, 701L, "15", 1.0,
+    1961L, 701L, "15", 4.0
+  )
+
+  result <- whep:::.add_historical_yields(df, int_yields) |>
+    tibble::as_tibble() |>
+    dplyr::filter(.data$year == 1960L) |>
+    dplyr::arrange(.data$area_code)
+
+  # Each area's own yield proxy: 100 * (60 * 2.0/2.5) and 30 * (30 * 1.0/4.0).
+  expect_equal(result$tonnes, c(4800, 225))
+  expect_equal(result$t_ha, c(48, 7.5))
+})
+
+
+# -- LUH2 land buckets ---------------------------------------------------------
+
+test_that(".read_land_areas gives a bucket one area label", {
+  # FAOSTAT bucket 206 sums two territories LUH2 reports separately, SDN and
+  # SSD. The area bridge used to pair the bucket's code with each MEMBER's
+  # name, so the bucket arrived at `.build_grassland()` as two rows sharing
+  # `area_code` 206 -- and `.dedup_production()`, which keys on
+  # (year, area_code, item_prod_code, unit) to choose between competing
+  # sources, kept one and discarded the other territory's pasture.
+  local_mocked_bindings(
+    .read_input = function(name, years = NULL, year_col = NULL, ...) {
+      data.table::as.data.table(
+        tibble::tribble(
+          ~ISO3, ~Year, ~Land_Use, ~Area_Mha, ~C_stock_Tg,
+          "SDN", 2000L, "pastr", 20, 200,
+          "SSD", 2000L, "pastr", 5, 50
+        )
+      )
+    }
+  )
+
+  land <- whep:::.read_land_areas(years = 2000L)
+
+  expect_equal(sort(unique(land$area_code)), 206L)
+  expect_length(unique(land$area), 1L)
+  expect_equal(unique(land$area), "Sudan (former)")
+
+  grass <- whep:::.build_grassland(land)
+
+  # One row per (year, area_code, item_prod_code), carrying the SUM. A second
+  # row here is land that `.dedup_production()` would silently drop.
+  expect_equal(nrow(grass), 1L)
+  expect_equal(grass$value, 25e6)
 })
 
 
@@ -655,9 +1081,9 @@ test_that("build_primary_production output has no duplicate keys", {
 
 test_that(".split_stock_share splits proportionally when both sub-items have data", {
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, 30,
-    2000, "A", "866", 100, 70
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, 30,
+    2000, 1L, "866", 100, 70
   )
 
   result <- .split_stock_share(data)
@@ -674,9 +1100,9 @@ test_that(".split_stock_share does not double-count when one sub-item is entirel
   # NA sub-item made the whole group's share NA, and BOTH sub-rows fell back
   # to the full unsplit `value` -- doubling the country's herd count.
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, NA_real_,
-    2000, "A", "866", 100, 40
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, NA_real_,
+    2000, 1L, "866", 100, 40
   )
 
   result <- .split_stock_share(data)
@@ -692,10 +1118,10 @@ test_that(".split_stock_share splits equally when every sub-item is NA", {
   # every sub-item the full total) is the only way to keep the total heads
   # conserved without an arbitrary preference for one sub-item.
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 90, NA_real_,
-    2000, "A", "866", 90, NA_real_,
-    2000, "A", "866", 90, NA_real_
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 90, NA_real_,
+    2000, 1L, "866", 90, NA_real_,
+    2000, 1L, "866", 90, NA_real_
   )
 
   result <- .split_stock_share(data)
@@ -709,25 +1135,25 @@ test_that(".split_stock_share keeps the full value for a single-item group", {
   # non-dairy-style split) should always receive the whole unsplit value,
   # whether or not it happens to have its own value_st.
   with_data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "976", 50, 12
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "976", 50, 12
   )
   without_data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "976", 50, NA_real_
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "976", 50, NA_real_
   )
 
   expect_equal(.split_stock_share(with_data)$value_comb, 50)
   expect_equal(.split_stock_share(without_data)$value_comb, 50)
 })
 
-test_that(".split_stock_share keeps groups (year, area, item_prod_code) independent", {
+test_that(".split_stock_share keeps groups (year, area_code, item_prod_code) independent", {
   data <- tibble::tribble(
-    ~year, ~area, ~item_prod_code, ~value, ~value_st,
-    2000, "A", "866", 100, NA_real_,
-    2000, "A", "866", 100, 60,
-    2000, "B", "866", 200, 10,
-    2000, "B", "866", 200, 30
+    ~year, ~area_code, ~item_prod_code, ~value, ~value_st,
+    2000, 1L, "866", 100, NA_real_,
+    2000, 1L, "866", 100, 60,
+    2000, 2L, "866", 200, 10,
+    2000, 2L, "866", 200, 30
   )
 
   result <- .split_stock_share(data)
@@ -738,12 +1164,15 @@ test_that(".split_stock_share keeps groups (year, area, item_prod_code) independ
 test_that(".carry_forward_shares extends shares to QCL's latest years", {
   # Shares from the emissions pin lag QCL by 1-2 years: here they stop at
   # 2021 while slaughter data (target_years) runs to 2023.
+  # `area` carries the reporting territory: one `area_code` can hold two of
+  # them, so it is part of the share key. See
+  # test_stock_share_territory_key.R.
   shares <- tibble::tribble(
-    ~year, ~area_code, ~Item_Code, ~item_cbs_code, ~share,
-    2020L, 203L, 866L, 867L, 0.4,
-    2020L, 203L, 866L, 868L, 0.6,
-    2021L, 203L, 866L, 867L, 0.3,
-    2021L, 203L, 866L, 868L, 0.7
+    ~year, ~area_code, ~area, ~Item_Code, ~item_cbs_code, ~share,
+    2020L, 203L, "Spain", 866L, 867L, 0.4,
+    2020L, 203L, "Spain", 866L, 868L, 0.6,
+    2021L, 203L, "Spain", 866L, 867L, 0.3,
+    2021L, 203L, "Spain", 866L, 868L, 0.7
   )
   target_years <- 2020:2023
 
@@ -766,4 +1195,118 @@ test_that(".carry_forward_shares extends shares to QCL's latest years", {
       .by = c(year, area_code, Item_Code)
     )
   expect_equal(sums$total, rep(1, 4))
+})
+
+test_that(".read_land_areas separates LUH2's own sentinel from real territories", {
+  # The old single warning said "LUH2 ISO3 codes not found in
+  # polity_area_crosswalk, dropping: BLM, ALA, -99, SXM, JEY, GGY, and IMN",
+  # which reported two unrelated facts as one and was wrong about six of the
+  # seven. Measured over the whole pin, 1850-2022:
+  #
+  #   -99, LUH2's own unassigned marker   8,620 Mha   0.358% of all LUH2 area
+  #   the six real territories                19 Mha   0.0008%
+  #
+  # So 459 parts in 460 of what looked like lost coverage is land the source
+  # itself attributes to no country. The six -- Jersey, Guernsey, Isle of Man,
+  # Saint-Barthelemy, Aland, Sint Maarten -- ARE in the crosswalk under their
+  # sovereign's polity; what they lack is a FAOSTAT area code. Both halves stay
+  # dropped, which is whep#407's question, not this one's.
+  local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::data.table(
+        ISO3 = c("ESP", "-99", "JEY"),
+        Year = 2000L,
+        Land_Use = "c3ann",
+        Area_Mha = c(10, 8620, 0.01)
+      )
+    }
+  )
+
+  warn <- suppressMessages(
+    tryCatch(whep:::.read_land_areas(years = 2000L), warning = function(w) w)
+  )
+  expect_s3_class(warn, "condition")
+  expect_match(conditionMessage(warn), "no FAOSTAT area code")
+  expect_match(conditionMessage(warn), "JEY")
+  # The sentinel must NOT appear in the warning: it is not a coverage gap.
+  expect_false(grepl("-99", conditionMessage(warn), fixed = TRUE))
+
+  msgs <- suppressWarnings(
+    testthat::capture_messages(whep:::.read_land_areas(years = 2000L))
+  )
+  expect_true(any(grepl("-99", msgs, fixed = TRUE)))
+  expect_true(any(grepl("no country assignment", msgs)))
+})
+
+test_that(".fodder_crop_liv reuses a table that already spans the fodder years", {
+  # The fodder chain interpolates along the year axis, so it needs yield_dm at
+  # every year the fodder sources cover (#623). A full-range build already holds
+  # those years, and must not pay for a second read.
+  i_fodder <- tibble::tribble(
+    ~year, ~value,
+    1961L, 1,
+    2013L, 2
+  )
+  spanning <- tibble::tribble(
+    ~year, ~unit, ~value,
+    1961L, "ha", 10,
+    2020L, "ha", 20
+  )
+
+  expect_identical(
+    whep:::.fodder_crop_liv(spanning, i_fodder),
+    spanning
+  )
+})
+
+test_that(".fodder_crop_liv ignores NA years when comparing spans", {
+  i_fodder <- tibble::tribble(
+    ~year, ~value,
+    1961L, 1,
+    NA_integer_, 2,
+    2013L, 3
+  )
+  spanning <- tibble::tribble(
+    ~year, ~unit, ~value,
+    1960L, "ha", 10,
+    NA_integer_, "ha", 15,
+    2014L, "ha", 20
+  )
+
+  expect_identical(
+    whep:::.fodder_crop_liv(spanning, i_fodder),
+    spanning
+  )
+})
+
+test_that(".split_stock_share keys on the code, so a shared label cannot dilute", {
+  # THE #589 REGRESSION, in one fixture.
+  #
+  # `.unfold_rest_of_world()` promotes `polity_area_code` but leaves
+  # `polity_code`/`polity_name` alone, so every promoted Rest-of-World member
+  # comes out of `.aggregate_to_polities()` with its own `area_code` and the
+  # SHARED label "Rest of World". Grouped by `area`, all 13 reporting members
+  # landed in one group, `sum(value_st)` summed across all of them, and each
+  # member's share collapsed to roughly 1/13 of its own stock.
+  #
+  # Measured before this fix: Syria's 2000 livestock came to 3,408,857 head
+  # against 38,048,415 after, and the published values carried fractional
+  # animals (1227745.45) -- the signature of a share that should have been 1.
+  # `slaughtered_heads` was unaffected throughout, because it never passes
+  # through this splitter, which is what made the defect look like a unit bug.
+  #
+  # Two areas, same label, one parent item: if the grouping keys on the label
+  # each gets half its own value; on the code each keeps all of it.
+  data <- tibble::tribble(
+    ~year, ~area_code, ~area, ~item_prod_code, ~value, ~value_st,
+    2000, 212L, "Rest of World", "976", 100, 40,
+    2000, 64L, "Rest of World", "976", 60, 60
+  )
+
+  result <- .split_stock_share(data)
+
+  expect_equal(result$value_comb, c(100, 60))
+  expect_equal(sum(result$value_comb), 160)
+  # Whole numbers: a single-member group has share 1, never 1/n.
+  expect_equal(result$value_comb, round(result$value_comb))
 })

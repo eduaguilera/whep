@@ -8,7 +8,7 @@ whep_coef_table(name)
 }
 \arguments{
 \item{name}{Coefficient table name (the file stem), for example
-\code{"bio_coefs"} or \code{"ipcc_residue_coefs"}.}
+\code{"bio_coefs"}, \code{"bnf"} or \code{"bnf_provenance"}.}
 }
 \value{
 A tibble with the coefficient table.
@@ -17,6 +17,9 @@ A tibble with the coefficient table.
 Reads one of the coefficient tables shipped as CSV under
 \code{inst/extdata/coefs}. These tables are small and versioned inside the
 package (read at runtime, not stored remotely), so no download is needed.
+The long \code{bnf_provenance} sidecar records cell-level evidence for every
+non-missing numeric value in \code{bnf}; it documents the runtime table but does
+not replace it as a coefficient input.
 }
 \examples{
 whep_coef_table("residue_feed_fraction")

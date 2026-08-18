@@ -12,6 +12,7 @@ build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  run_dir = NULL,
   example = FALSE
 )
 }
@@ -20,11 +21,17 @@ build_grass_natural_carbon_inputs(
 (aggregated to \code{area_code}, area-weighting the per-hectare densities).}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
-when absent: \code{npp} and \code{harvestc} (per cell, PFT and year, the
+when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},
+\code{land_use}, \code{npp_c_mgc_ha_yr}; takes precedence over both \code{run_dir} and
+the pin); \code{npp} and \code{harvestc} (per cell, PFT and year, the
 \code{\link[=read_lpjml_npp]{read_lpjml_npp()}} output); \code{stand_frac} (per cell, year and PFT name the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
-\code{name_pft}, \code{stand_frac}); \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
-\code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
+\code{name_pft}, \code{stand_frac}). Supplying all three of \code{npp}, \code{harvestc} and
+\code{stand_frac} derives \code{net_c} without needing a run directory or the pin.
+Also: \code{country_grid}, the polycell support resolved to one row per cell and
+\code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}), refused when a
+cell-\code{area_code} group is duplicated or \code{NA} (DA-23);
+\code{land_use} (per-cell class \code{area_ha}, used to spread
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
@@ -34,6 +41,11 @@ tonnes C); \code{residue_humification} (defaults to \link{residue_humification})
 LPJmL NPP, stand-fraction and land-use readers so they slice to the
 requested years; ignored for inputs supplied via \code{data}.}
 
+\item{run_dir}{Path to a finished LPJmL run output directory holding
+\code{pft_npp.nc}, \code{pft_harvestc.nc} and \code{cftfrac.nc} (the \verb{scenario_*} output
+folder). \code{NULL} (default) uses \code{WHEP_LPJML_RUN_DIR} when set, and the
+pinned artifact otherwise.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
@@ -41,12 +53,19 @@ data. Defaults to \code{FALSE}.}
 A tibble keyed by \verb{(lon, lat, area_code, year, land_use)} at \code{"grid"}
 resolution (or \verb{(area_code, year, land_use)} at \code{"polity"}), with
 \code{c_input_mgc_ha_yr}, \code{humified_fraction} and \code{method_c_input}, for
-\code{land_use} in \code{"grassland"} and \code{"natural"}.
+\code{land_use} in \code{"grassland"} and \code{"natural"}, plus the polity columns below.
 }
 \description{
 Assemble the carbon returned to soil under grassland and natural vegetation
-as the layer the soil-organic-carbon turnover models consume, from a
-finished LPJmL run. The class carbon input is the net primary production
+as the layer the soil-organic-carbon turnover models consume. The
+LPJmL-derived net carbon density is read from the pinned
+\code{lpjml-grass-natural-net-c} artifact by default, so running LPJmL is not a
+prerequisite; pass \code{run_dir} (or set \code{WHEP_LPJML_RUN_DIR}) to derive it from
+a finished local run instead, or \code{data$net_c} to supply it directly. The
+pin holds only LPJmL-derived quantities: the grazing excreta, both
+humification fractions and the polity attachment are always computed here,
+so they never differ between the pinned and the run-derived path.
+The class carbon input is the net primary production
 minus harvested carbon (both per-plant-functional-type, \code{\link[=read_lpjml_npp]{read_lpjml_npp()}}),
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
@@ -58,6 +77,49 @@ the polity's grassland area. The humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from \link{residue_humification}).
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_grass_natural_carbon_inputs(example = TRUE)
 }

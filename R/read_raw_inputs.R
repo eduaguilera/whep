@@ -7,17 +7,36 @@
 # -- Area code conversion ------------------------------------------------------
 
 #' Convert ISO3 area_code to FAOSTAT numeric area_code
+#'
+#' @details
+#' An ISO3 code can name more than one FAOSTAT reporting area, because FAOSTAT
+#' keeps the pre-split entity alongside its successor: `ETH` names both 62
+#' ("Ethiopia PDR", dissolved 1993) and 238 ("Ethiopia"), and `SDN` names both
+#' 206 ("Sudan (former)") and 276 ("Sudan").
+#'
+#' The tie used to be broken with `unique(bridge, by = "iso3c")`, i.e. on row
+#' order. `.current_area_lookup()` happens to order by `area_code`, so that kept
+#' the LOWEST code, which for `ETH` is the dissolved 62 — for every year, 2021
+#' included.
+#'
+#' The tie is now broken on the polities database instead: prefer the area code
+#' that IS its polity's `polity_area_code`, i.e. the canonical reporting area
+#' WHEP aggregates that polity to. That picks 238 for `ETH` and leaves `SDN` at
+#' 206 (276 folds into bucket 206, so 206 is the canonical one).
+#'
+#' ISO3 codes with no canonical area are the territories that fold into an
+#' aggregate bucket, whose code never equals their own. Each of those names
+#' exactly one area, so they need no tie-break — but rather than assume it, all
+#' rows are kept for such an ISO3 and the function aborts if any is still
+#' ambiguous, instead of guessing as before.
+#'
 #' @noRd
 .iso3_to_fao_area_code <- function(df) {
   if (!data.table::is.data.table(df)) {
     data.table::setDT(df)
   }
   dt <- df
-  bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area_code_fao = area_code)
-  ]
-  bridge <- unique(bridge, by = "iso3c")
+  bridge <- .iso3_area_code_bridge()
 
   dt <- merge(
     dt,
@@ -30,6 +49,40 @@
   dt[, area_code := NULL]
   data.table::setnames(dt, "area_code_fao", "area_code")
   dt
+}
+
+# One FAOSTAT `area_code` per ISO3, with the tie broken on the polities
+# database rather than on row order. See `.iso3_to_fao_area_code()`.
+.iso3_area_code_bridge <- function() {
+  bridge <- .current_area_lookup(include_unmapped = FALSE)[
+    !is.na(area_iso3c),
+    .(
+      iso3c = area_iso3c,
+      area_code_fao = area_code,
+      is_canonical = !is.na(polity_area_code) & area_code == polity_area_code
+    )
+  ]
+  bridge <- unique(bridge)
+  # Keep the canonical rows for an ISO3 when it has any, all of them otherwise.
+  bridge[, keep := if (any(is_canonical)) is_canonical else TRUE, by = "iso3c"]
+  bridge <- bridge[keep == TRUE][, c("is_canonical", "keep") := NULL]
+
+  ambiguous <- sort(unique(bridge$iso3c[duplicated(bridge$iso3c)]))
+  if (length(ambiguous) > 0L) {
+    cli::cli_abort(
+      c(
+        "Cannot map {length(ambiguous)} ISO3 code{?s} to one FAOSTAT area.",
+        x = "Still ambiguous after the canonical-area rule: {.val {ambiguous}}.",
+        i = paste(
+          "Give the intended reporting area a matching",
+          "{.field polity_area_code} in the polities database, rather than",
+          "letting row order decide."
+        )
+      ),
+      class = "whep_ambiguous_iso3_area"
+    )
+  }
+  bridge
 }
 
 #' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name
@@ -221,11 +274,37 @@
   dt
 }
 
+# Paddy-to-milled extraction rate. FAO's Technical Conversion Factors for
+# Agricultural Commodities gives national paddy-to-milled rates with a median of
+# 65% (range 60-73; China mainland 67, India 66), and the FAO Food Balance
+# Sheets handbook worked example uses 67%. WHEP applies the single global rate
+# where the source carries a country dimension.
 .rice_milled_extraction_rate <- function() {
   0.67
 }
 
-.fix_item_codes <- function(dt) {
+# Item names under which a source reports rice on a PADDY (rough-rice) basis,
+# and which therefore need converting to WHEP's milled-equivalent contract.
+#
+# Which name means paddy depends on the FAOSTAT vintage, verified against the
+# pins at India 2010 production:
+#   faostat-fbs-new        2807 "Rice and products"        143,963 kt  paddy
+#   faostat-fbs-old        2805 "Rice (Milled Equivalent)"  96,023 kt  milled
+#   faostat-cbs-old-crops  2804 "Rice (Paddy Equivalent)"  143,963,008 t paddy
+#   faostat-cbs-old-crops  2805 "Rice (Milled Equivalent)"  96,023,326 t milled
+# (96,023 / 143,963 = 0.6670.)
+#
+# `"faostat"` is only correct where `item_cbs` still holds the source's own item
+# label. Once a frame has been through the `items_full` lookup, every 2807 row
+# is called "Rice and products" whatever its basis, so that path keeps the
+# `"labelled"` default and is left alone (#751).
+.paddy_rice_names <- function(vintage = c("labelled", "faostat")) {
+  vintage <- rlang::arg_match(vintage)
+  paddy <- c("Rice, paddy", "Rice (Paddy Equivalent)")
+  if (vintage == "faostat") c(paddy, "Rice and products") else paddy
+}
+
+.fix_item_codes <- function(dt, paddy_rice_names = .paddy_rice_names()) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -263,7 +342,7 @@
     dt[
       item_cbs_code %in%
         c(2804L, 2807L) &
-        item_cbs %in% c("Rice, paddy", "Rice (Paddy Equivalent)"),
+        item_cbs %in% paddy_rice_names,
       value := value * .rice_milled_extraction_rate()
     ]
   }
@@ -307,7 +386,7 @@
   }
 })
 
-.aggregate_to_polities <- function(df, ...) {
+.aggregate_to_polities <- function(df, ..., source_label = NULL) {
   dots <- as.character(match.call(expand.dots = FALSE)$...)
 
   if (!data.table::is.data.table(df)) {
@@ -321,14 +400,19 @@
     include_unmapped = FALSE
   )
   dt <- dt[!is.na(polity_code)]
-  by_cols <- c(
-    "year",
-    "polity_area_code",
-    "polity_name",
-    "unit",
-    "element",
-    dots
-  )
+  # A bucket can fold several live territories. Say so out loud here, where the
+  # fold is created, rather than letting the summed value travel with a polity
+  # that covers only part of it (whep#414).
+  .warn_partial_bucket_polities(dt)
+  .warn_folded_areas(dt, source_label)
+  # `polity_name` is deliberately NOT a grouping key. It is a property of the
+  # member row, so keying on it splits a bucket whose members resolve to
+  # different polities -- the bucket stops summing without a single value
+  # moving (whep#563). The label is attached after the sum instead, from the
+  # bucket's own code, which is what `polity_bucket_coverage()` and the
+  # reporting columns already say a bucket is called.
+  by_cols <- c("year", "polity_area_code", "unit", "element", dots)
+  labels <- .bucket_area_labels(dt)
 
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
@@ -340,12 +424,7 @@
     dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
   }
 
-  data.table::setnames(
-    dt,
-    c("polity_area_code", "polity_name"),
-    c("area_code", "area")
-  )
-  dt
+  .apply_bucket_area_labels(dt, labels)
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
@@ -393,7 +472,9 @@
   }
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
-  dt <- .fix_item_codes(dt)
+  # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and
+  # products" row is the new Food Balances item and is on a paddy basis.
+  dt <- .fix_item_codes(dt, paddy_rice_names = .paddy_rice_names("faostat"))
   dt <- dt[element %in% cb_elements]
   cols <- c(
     "area",
@@ -409,7 +490,7 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code)
+  .aggregate_to_polities(dt, item_cbs, item_cbs_code, source_label = pin_alias)
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {

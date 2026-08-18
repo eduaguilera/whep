@@ -40,7 +40,8 @@ data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
-\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}.
+\code{impact_u} (soil N2O in kilograms CO2e) and \code{method_soil_n2o}, plus the
+polity columns below.
 }
 \description{
 Estimate IPCC 2019 Tier 1 nitrous-oxide emissions from nitrogen applied to
@@ -63,6 +64,17 @@ to soil (from \code{\link[=get_primary_residues]{get_primary_residues()}}, net o
 the crop's residue nitrogen content (IPCC 2019 Table 11.1a).
 }
 
+Both country totals are read under raw FAOSTAT \verb{Area Code} values and
+harmonised to the whep polity \code{area_code} through \link{polity_area_crosswalk}
+before they are split to crops, so reporting units that FABIO folds into one
+bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
+Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
+to 999). FAOSTAT rows that are not territories carry no polity and are
+dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
+rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
+is a documented exception rather than a coverage gap, since a rollup has no
+crop shares of its own and would double count its members.
+
 N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 factors (climate-aggregated): direct \code{EF1 = 0.010}; indirect via
 volatilisation \code{EF4 = 0.010} applied to the volatilised fraction
@@ -75,6 +87,49 @@ Manure deposited by grazing animals (F_PRP, which uses the grazing EF3 on
 pasture) and below-ground residue N are further Tier 1 inputs not yet
 included.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_crop_soil_n2o_extension(example = TRUE)
 }

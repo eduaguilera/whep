@@ -430,6 +430,13 @@ testthat::test_that("agricultural support is derived when not supplied", {
 })
 
 testthat::test_that("non-item inputs abort when no support can be derived", {
+  # Dropping data$type_cropland does not remove the input, it makes the reader
+  # fall back to WHEP_TYPE_CROPLAND_PATH. Without pinning the variable the test
+  # reads whatever gridded cropland the machine happens to have configured and
+  # asserts "no land surface exists" while one is being loaded -- so it checks
+  # the branch it is named after only where the data is absent, which is never
+  # the machines that have it.
+  withr::local_envvar(WHEP_TYPE_CROPLAND_PATH = NA)
   data <- .nbi_full_data()
   data$ag_land_support <- NULL
   data$type_cropland <- NULL
@@ -459,7 +466,9 @@ testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
 
-  out <- whep:::.n_inputs_urban(data)
+  # The iso3c form is a deprecated bridge (#463), so resolving it warns; what
+  # this test is about is that it still resolves rather than becoming NA.
+  testthat::expect_warning(out <- whep:::.n_inputs_urban(data), "deprecated")
 
   testthat::expect_equal(out$area_code, 203L)
   testthat::expect_false(anyNA(out$area_code))
@@ -507,9 +516,12 @@ testthat::test_that("manure_type maps to manure_solid/manure_liquid/excreta", {
 })
 
 testthat::test_that("manure territory resolves an iso3c code, not just a stringified area_code", {
-  # build_livestock_nutrient_flows()'s own @examples/tests use an iso3c
-  # territory ("ESP"); the real pipeline (redistribute_feed()) instead
-  # casts area_code to character. Both must resolve, not just one.
+  # The real pipeline (redistribute_feed()) casts area_code to character; an
+  # iso3c territory is a deprecated bridge for fixtures written before the
+  # manure chain's @examples used area codes (#463). It must still resolve
+  # rather than silently NA out, but it now warns, and the warning has to reach
+  # the exported boundary rather than dying inside the helper -- that is what
+  # tells a caller their fixture is on the lossy vocabulary.
   intake <- .nbi_livestock_intake()
   intake$territory <- "ESP"
   gridded <- .nbi_gridded()
@@ -519,7 +531,10 @@ testthat::test_that("manure territory resolves an iso3c code, not just a stringi
   data$livestock_intake <- intake
   data$gridded <- gridded
 
-  out <- whep::build_n_inputs(data = data)
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(data = data),
+    "deprecated"
+  )
   manure <- out[
     out$fert_type %in% c("manure_solid", "manure_liquid", "excreta"),
   ]
@@ -804,4 +819,388 @@ testthat::test_that("all-zero Coello rates fall back to conserving area shares",
   testthat::expect_equal(res$n_input_t, c(500, 500))
   testthat::expect_true(all(res$method_synthetic == "area_share"))
   testthat::expect_false(anyNA(res$n_input_t))
+})
+
+testthat::test_that("build_n_inputs re-keys FAOSTAT synthetic N to polities", {
+  # Regression for issue 464. The country_totals built inside
+  # .n_inputs_synthetic must speak the same vocabulary as crop_shares, which
+  # descends from get_primary_production and is keyed on
+  # polity_area_code. FAOSTAT reports Sudan as 276 and South Sudan as 277 after
+  # the 2011 split, both bucketed to 206; the World rollup 5000 has no polity at
+  # all. Before the crosswalk was applied, none of the three joined and this
+  # build emitted zero synthetic N for Sudan. A fixture is used because whep
+  # ships no fertiliser table -- faostat-fertilizer-nutrients is a remote pin.
+  res <- whep::build_n_inputs(
+    resolution = "polity",
+    data = list(
+      primary_prod = tibble::tribble(
+        ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+        2015L, 206L, 2511L, "ha", 100,
+        2015L, 206L, 2514L, "ha", 100
+      ),
+      fertilizer = tibble::tribble(
+        ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 700,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 300,
+        "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 5000L, 1e6
+      ),
+      synthetic_method = "area_share"
+    )
+  ) |>
+    dplyr::filter(.data$fert_type == "synthetic")
+
+  testthat::expect_setequal(res$area_code, 206L)
+  # 700 + 300 summed under the shared bucket, split equally by equal area; the
+  # World rollup contributes nothing.
+  testthat::expect_equal(sum(res$n_input_t), 1000)
+  testthat::expect_equal(res$n_input_t, c(500, 500))
+})
+
+testthat::test_that("a duplicate-ISO3 territory no longer shifts later ones", {
+  # Regression: the previous inline lookup joined on regions_full$code, where
+  # ETH and SDN each carry a second historical row. The join grew the result and
+  # shifted every LATER territory onto the wrong country -- c("ESP","ETH","DEU")
+  # returned 203, 238, 62, silently turning Germany into Ethiopia PDR.
+  #
+  # The ISO3 form is now a deprecated bridge that warns, and these assertions
+  # are about the resolved codes rather than the warning, so silence it here;
+  # the warning itself is asserted in the test below.
+  territory_codes <- function(x) {
+    suppressWarnings(whep:::.manure_territory_to_area_code(x))
+  }
+  testthat::expect_equal(
+    territory_codes(c("ESP", "ETH", "DEU")),
+    c(203L, 238L, 79L)
+  )
+  testthat::expect_equal(territory_codes(c("SDN", "DEU")), c(206L, 79L))
+  # Stringified area codes still pass straight through, mixed with ISO3.
+  testthat::expect_equal(territory_codes(c("203", "ETH")), c(203L, 238L))
+})
+
+testthat::test_that("the ISO3 territory bridge warns and area codes do not", {
+  # #463: territory carried two undocumented vocabularies. The pipeline emits
+  # only stringified area codes (feed_intake_redistribute.R:805), while the
+  # manure chain's own @examples used ISO3 literals, and the two disagree about
+  # what the resolved code means: an ISO3 resolves through polity_area_code, a
+  # FABIO aggregation bucket, which for 62 of the 257 ISO3 codes in
+  # whep::regions_full is not that territory's own code (measured). 61 land on
+  # 999, Rest of World; "SSD" lands on 206, Sudan (former), where the numeric
+  # form "277" keeps South Sudan. So the bridge must be audible.
+  testthat::expect_warning(
+    testthat::expect_equal(
+      whep:::.manure_territory_to_area_code(c("ESP", "203")),
+      c(203L, 203L)
+    ),
+    "deprecated"
+  )
+  # The warning names the offending value, so a caller can find the fixture.
+  testthat::expect_warning(
+    whep:::.manure_territory_to_area_code("SSD"),
+    "SSD"
+  )
+  # The measured collapse itself: the two vocabularies for South Sudan resolve
+  # to different area codes, hence different polities downstream (206 is
+  # SDN-2011-2025, 277 is SSD-2011-2025).
+  testthat::expect_equal(
+    suppressWarnings(whep:::.manure_territory_to_area_code("SSD")),
+    206L
+  )
+  testthat::expect_equal(whep:::.manure_territory_to_area_code("277"), 277L)
+  # The pipeline's own vocabulary stays silent: no warning for anyone who
+  # follows the (now area-code) documented examples.
+  testthat::expect_silent(
+    whep:::.manure_territory_to_area_code(c("203", "79", NA))
+  )
+})
+
+testthat::test_that("an unresolvable territory still aborts", {
+  testthat::expect_error(
+    whep:::.manure_territory_to_area_code(c("203", "NOTACODE")),
+    "NOTACODE"
+  )
+})
+
+testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
+  # #463: every @examples block in the manure chain identified a territory with
+  # an ISO literal -- "ESP" in the allocation, transport and driver examples,
+  # "ES" in the excretion and management ones -- while the pipeline itself
+  # passes as.character(area_code). "ES" is not resolvable at all: pasting the
+  # documented split_manure_management() fixture into build_n_inputs() aborted
+  # with "Could not resolve territory to an area_code", and "ESP" resolved only
+  # through the lossy iso3c bridge. The defect lives in the documentation, so
+  # this scans the roxygen @examples blocks themselves; asserting on one
+  # function's output would let the next ISO literal back in.
+  #
+  # R/ holds compiled objects rather than sources in an installed package, so
+  # the scan skips wherever the five files are not readable and is load-bearing
+  # under devtools::test() and in a source checkout.
+  files <- c(
+    "excretion.R",
+    "manure_management.R",
+    "manure_allocation.R",
+    "manure_transport.R",
+    "build_livestock_nutrient_flows.R"
+  )
+  roots <- c(testthat::test_path("..", "..", "R"), "../../00_pkg_src/whep/R")
+  found <- lapply(roots, function(r) file.path(r, files))
+  found <- Filter(function(p) all(file.exists(p)), found)
+  testthat::skip_if(
+    length(found) == 0L,
+    "the manure chain's R sources are not available next to the tests"
+  )
+  paths <- found[[1]]
+
+  # Every #' line below an @examples tag, up to the end of that roxygen block.
+  example_lines <- function(path) {
+    lines <- readLines(path, warn = FALSE)
+    rox <- grepl("^#'", lines)
+    starts <- which(rox & grepl("@examples", lines))
+    unlist(lapply(starts, function(i) {
+      j <- i + 1L
+      while (j <= length(lines) && rox[[j]]) {
+        j <- j + 1L
+      }
+      if (j > i + 1L) lines[seq(i + 1L, j - 1L)] else character()
+    }))
+  }
+  lits <- unlist(lapply(paths, function(p) {
+    ex <- example_lines(p)
+    gsub('"', "", unlist(regmatches(ex, gregexpr('"[^"]*"', ex))))
+  }))
+  testthat::expect_gt(length(lits), 0L)
+
+  iso_like <- unique(lits[grepl("^[A-Za-z]{2,3}$", lits)])
+  testthat::expect_equal(
+    iso_like,
+    character(),
+    info = paste0(
+      "ISO-shaped literals in the manure chain's examples: ",
+      paste(iso_like, collapse = ", ")
+    )
+  )
+  # In these blocks the quoted all-digit literals ARE the territory values:
+  # years and item codes are unquoted integers and cell ids carry a "_". Each
+  # must resolve through the chain's terminal step, and resolve silently, since
+  # a warning here would mean the examples still teach the bridge.
+  codes <- unique(lits[grepl("^[0-9]+$", lits)])
+  testthat::expect_gt(length(codes), 0L)
+  testthat::expect_silent(whep:::.manure_territory_to_area_code(codes))
+  testthat::expect_equal(
+    whep:::.manure_territory_to_area_code(codes),
+    as.integer(codes)
+  )
+})
+
+# ---- C3b: the ledger states which territory category it consumes -------
+#
+# build_n_deposition() now emits one row per polycell per territory
+# category, so .n_inputs_deposition() has to say which it takes. DA-14
+# leaves the substantive question open -- whether the cropland ledger should
+# be credited with only the terrestrial share of a cell's deposited mass --
+# and these blocks assert that it is NOT answered here: `deposition_kgn_ha`
+# is a whole-cell rate carried identically on every category row, so
+# filtering to one category leaves every ledger value untouched.
+#
+# What the filter does buy is that the ledger cannot silently consume all
+# three, which would charge each cell's agricultural land three times.
+
+# The same one cell and one polity, with its 2,000 ha of territory
+# decomposed 1,200 land / 500 inland water / 300 ice. Its 3,000 ha
+# cell_area_ha and polity_frac = 1 are unchanged.
+.nbi_decomposed_cell_polity <- function() {
+  dplyr::mutate(
+    .nbi_cell_polity(),
+    polity_area_ha = 2000,
+    land_area_ha = 1200,
+    inland_water_ha = 500,
+    ice_area_ha = 300
+  )
+}
+
+# The control: the same territory, undecomposed. It splits by the same
+# `polity_area_ha` key, so the ONLY difference from the fixture above is the
+# presence of the category columns.
+.nbi_undecomposed_cell_polity <- function() {
+  dplyr::mutate(.nbi_cell_polity(), polity_area_ha = 2000)
+}
+
+.nbi_deposition_rows <- function(cell_polity) {
+  data <- .nbi_full_data()
+  data$cell_polity <- cell_polity
+  whep::build_n_inputs(data = data) |>
+    dplyr::filter(.data$fert_type == "deposition") |>
+    dplyr::arrange(.data$item_cbs_code)
+}
+
+# A build_n_deposition() slice as .ni_deposition_in_scope() receives it: one
+# cell, one polity, one whole-cell rate, its 1,000 t of mass split 600 land /
+# 300 inland water / 100 ice, so the land scope is 0.6 of the territory scope.
+.nbi_scope_rows <- function(categories, method = "land_water_ice") {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    area_category = categories,
+    deposition_kgn_ha = 1000,
+    deposition_n_t = c(600, 300, 100)[seq_along(categories)],
+    method_area_split = method
+  )
+}
+
+testthat::test_that("C3b: the default scope moves no ledger value", {
+  decomposed <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+  undecomposed <- .nbi_deposition_rows(.nbi_undecomposed_cell_polity())
+
+  # Bit-identical, not merely close. DA-14 was decided on 2026-08-06 in
+  # favour of the WHOLE territory: nitrogen deposited on a lake or a glacier
+  # still drives indirect N2O and still reaches the eutrophication pathway,
+  # so the impact terms have to account for it. The scope factor is therefore
+  # exactly 1, and no published number moves on this commit -- asserted here
+  # rather than argued in a commit message.
+  testthat::expect_identical(decomposed, undecomposed)
+  # And it is the pre-C3b number: 1000 kg N/ha over 1,000 ha of cropland and
+  # 500 ha of grassland.
+  testthat::expect_equal(sum(decomposed$n_input_t), 1500)
+  testthat::expect_setequal(decomposed$item_cbs_code, c(2511L, 2807L, 3000L))
+  # One row per (cell, polity, item), not three. Consuming all three
+  # categories would charge the same hectares once per category: 4,500 t
+  # rather than 1,500, every hectare of it plausible-looking.
+  testthat::expect_identical(nrow(decomposed), 3L)
+  testthat::expect_false(any(duplicated(decomposed$item_cbs_code)))
+})
+
+testthat::test_that("C3b: the land scope is selectable and takes the land share", {
+  # The alternative DA-14 declined. The fixture's polity holds 2,000 ha of
+  # territory of which 1,200 is land, so the terrestrial scope charges 60% of
+  # what the territory scope does. The same construction on real 2014 HaNi
+  # input measured 60.7385 Tg against 61.6285 Tg (AM-30), a 1.444% fall.
+  data <- .nbi_full_data()
+  data$cell_polity <- .nbi_decomposed_cell_polity()
+  data$deposition_scope <- "land"
+  land <- whep::build_n_inputs(data = data) |>
+    dplyr::filter(.data$fert_type == "deposition")
+  territory <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+
+  testthat::expect_equal(sum(land$n_input_t), 900)
+  testthat::expect_equal(sum(land$n_input_t) / sum(territory$n_input_t), 0.6)
+  testthat::expect_identical(nrow(land), 3L)
+})
+
+testthat::test_that("C3b: the scope is recorded, and only on deposition rows", {
+  data <- .nbi_full_data()
+  data$cell_polity <- .nbi_decomposed_cell_polity()
+  out <- whep::build_n_inputs(data = data)
+  land <- whep::build_n_inputs(
+    data = c(data, list(deposition_scope = "land"))
+  )
+
+  # Without a recorded scope, a territory-scope table and a land-scope table
+  # are indistinguishable after the fact -- which is exactly how two
+  # incompatible conventions coexist unnoticed.
+  dep <- out$fert_type == "deposition"
+  testthat::expect_true(all(out$method_deposition_scope[dep] == "territory"))
+  testthat::expect_true(all(is.na(out$method_deposition_scope[!dep])))
+  testthat::expect_true(all(
+    land$method_deposition_scope[land$fert_type == "deposition"] == "land"
+  ))
+  # It survives the polity aggregation, where a method column that is not a
+  # grouping key would collapse rows of different scopes into one.
+  polity <- whep::build_n_inputs(data = data, resolution = "polity")
+  testthat::expect_true(rlang::has_name(polity, "method_deposition_scope"))
+  testthat::expect_true(all(
+    polity$method_deposition_scope[polity$fert_type == "deposition"] ==
+      "territory"
+  ))
+})
+
+testthat::test_that("C3b: a scope the support cannot serve aborts", {
+  # No silent fallback, exactly as for `split =`. The interim crosswalk
+  # carries no category columns, so its deposition table has one undecomposed
+  # "territory" row per polycell. Serving that under a "land" label would
+  # overstate the terrestrial term by the whole water and ice share.
+  data <- .nbi_full_data()
+  data$deposition_scope <- "land"
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "needs a decomposed territory"
+  )
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "land_area_ha"
+  )
+  # And an unrecognised scope is refused rather than silently defaulting.
+  data$deposition_scope <- "terrestrial"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "deposition_scope.*must be"
+  )
+})
+
+testthat::test_that("C3b: a scope filter matching nothing aborts", {
+  # THE failure this guard exists for. Under .ni_empty() semantics a
+  # deposition term that filters down to zero rows is indistinguishable from
+  # one whose inputs were absent, so a mislabelled category would delete the
+  # whole term from the ledger without a word.
+  mislabelled <- .nbi_scope_rows(c("terrestrial", "inland_water", "ice"))
+
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(mislabelled, "land"),
+    "No deposition row falls inside scope"
+  )
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(mislabelled, "land"),
+    "kept 0 of 3 rows"
+  )
+})
+
+testthat::test_that("C3b: the scope filter keeps rows under both methods", {
+  # The positive control for the block above: a filter that aborted on
+  # everything would also pass an abort test, so both decompositions and both
+  # scopes must be shown to survive it, with the right scope fraction.
+  decomposed <- .nbi_scope_rows(c("land", "inland_water", "ice"))
+  undecomposed <- .nbi_scope_rows("territory", method = "none")
+
+  territory <- whep:::.ni_deposition_in_scope(decomposed, "territory")
+  land <- whep:::.ni_deposition_in_scope(decomposed, "land")
+  testthat::expect_identical(nrow(territory), 1L)
+  testthat::expect_identical(territory$scope_frac, 1)
+  testthat::expect_equal(land$scope_frac, 0.6)
+  testthat::expect_identical(
+    whep:::.ni_deposition_in_scope(undecomposed, "territory")$scope_frac,
+    1
+  )
+  # An empty input stays empty rather than aborting: no deposition input at
+  # all is a legitimate state, and it is not what the guard is looking for.
+  testthat::expect_identical(
+    nrow(whep:::.ni_deposition_in_scope(decomposed[0, ], "land")),
+    0L
+  )
+})
+
+testthat::test_that("C3b: a cell whose polities disagree on the rate aborts", {
+  # AM-5 risk 1, guarded where the rate is CONSUMED as well as where it is
+  # produced. Two rates in one cell mean rate x area recovers the cell's whole
+  # mass once per polity, so the ledger would multiply deposition by the
+  # number of polities sharing a border, behind entirely plausible rates.
+  split_rate <- dplyr::mutate(
+    .nbi_scope_rows(c("land", "inland_water", "ice")),
+    deposition_kgn_ha = c(1000, 1000, 1200)
+  )
+
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(split_rate, "territory"),
+    "one whole-cell rate per polycell"
+  )
+  # A cell that received nothing has 0/0 categories; that is not a defect and
+  # must not become NaN in the ledger.
+  empty_cell <- dplyr::mutate(
+    .nbi_scope_rows(c("land", "inland_water", "ice")),
+    deposition_kgn_ha = 0,
+    deposition_n_t = 0
+  )
+  out <- whep:::.ni_deposition_in_scope(empty_cell, "land")
+  testthat::expect_identical(out$scope_frac, 0)
+  testthat::expect_false(anyNA(out$scope_frac))
 })

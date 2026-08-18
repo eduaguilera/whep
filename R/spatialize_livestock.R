@@ -75,14 +75,23 @@
 #'   Required columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `area_code`: Country code.
+#'   - `cell_area_frac` (or `polity_frac`, `area_frac`, `country_frac`):
+#'     This polity compartment's share of the physical cell, a partition
+#'     summing to 1 over the polities that overlap the cell. Required: a
+#'     grid carrying no share is refused, because defaulting it to 1 gives
+#'     a border cell wholly to one polity. Pass 1 only where the polity
+#'     does own the whole cell. A land fraction (`landfrac`) is a
+#'     different quantity and is refused rather than reinterpreted.
 #'   Optional columns:
-#'   - `cell_area_frac` (or `area_frac`): Fraction of the physical cell
-#'     belonging to this polity compartment. Defaults to 1.
 #'   - `polycell_id`, `cell_id`: Stable compartment/cell identifiers
 #'     preserved in outputs when present.
 #'   - `year` or validity intervals (`valid_from`/`valid_to`,
 #'     `start_year`/`end_year`, `from_year`/`to_year`) for historical,
-#'     time-varying polity overlays.
+#'     time-varying polity overlays. The start bound is inclusive; the end
+#'     bound is **exclusive at a succession** and **inclusive at the open
+#'     end**, so 2014 selects `"RUS-2014-2025"` and not `"RUS-1991-2014"`,
+#'     while 2025 still selects `"RUS-2014-2025"` because no later interval of
+#'     that compartment follows it. See [polities] for the full rule.
 #' @param species_proxy A tibble mapping each `species_group` to its
 #'   spatial proxy type: `"pasture"`, `"cropland"`, `"rangeland"`, or
 #'   `"mixed"`.
@@ -118,6 +127,11 @@
 #'   (default), all years present in `livestock_data` are processed.
 #'   When supplied, `livestock_data`, `gridded_pasture`, and
 #'   `gridded_cropland` are filtered to this set before processing.
+#' @param area_key Which area code the output is keyed on: `"grid"`
+#'   (default, the reporting codes `livestock_data` and `country_grid` are
+#'   keyed on) or `"polity_area"` (the [polity_area_crosswalk] bucket
+#'   national tables are aggregated on). See
+#'   [build_gridded_landuse()]'s *Which area code the output is keyed on*.
 #'
 #' @return A tibble with gridded livestock data. Columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
@@ -125,6 +139,8 @@
 #'   - `polity_area_code`, `reporting_polity_code`,
 #'     `reporting_polity_name`, `reporting_polity_has_geometry`: Polity
 #'     metadata for `area_code`.
+#'   - `grid_area_code`: Only under `area_key = "polity_area"`; the
+#'     reporting code the engine allocated on.
 #'   - `polycell_id`, `cell_id`: Preserved when supplied in
 #'     `country_grid`.
 #'   - `year`: Integer year.
@@ -132,6 +148,8 @@
 #'   - `heads`: Allocated live animal count.
 #'   - Any additional numeric columns from `livestock_data`
 #'     (e.g. `enteric_ch4_kt`, `manure_ch4_kt`).
+#'
+#' @inheritSection build_gridded_landuse Which area code the output is keyed on
 #'
 #' @export
 #'
@@ -152,9 +170,9 @@
 #'    0.75, 50.25, 2000L,          500
 #' )
 #' country_grid <- tibble::tribble(
-#'   ~lon,  ~lat, ~area_code,
-#'    0.25, 50.25,         1L,
-#'    0.75, 50.25,         1L
+#'   ~lon,  ~lat, ~area_code, ~cell_area_frac,
+#'    0.25, 50.25,         1L,               1,
+#'    0.75, 50.25,         1L,               1
 #' )
 #' build_gridded_livestock(
 #'   livestock_data, gridded_pasture, gridded_cropland, country_grid
@@ -168,8 +186,10 @@ build_gridded_livestock <- function(
   manure_pattern = NULL,
   glw_density = NULL,
   grass_productivity = NULL,
-  years = NULL
+  years = NULL,
+  area_key = c("grid", "polity_area")
 ) {
+  area_key <- rlang::arg_match(area_key)
   .validate_livestock_inputs(
     livestock_data,
     gridded_pasture,
@@ -190,6 +210,13 @@ build_gridded_livestock <- function(
     gridded_pasture <- filtered$gridded_pasture
     gridded_cropland <- filtered$gridded_cropland
   }
+
+  .warn_grid_missing_reporters(
+    livestock_data,
+    country_grid,
+    "heads",
+    "head"
+  )
 
   if (is.null(species_proxy)) {
     species_proxy <- .default_species_proxy()
@@ -242,6 +269,7 @@ build_gridded_livestock <- function(
     dplyr::bind_rows()
 
   result |>
+    .spatialize_apply_area_key(area_key, numeric_cols) |>
     .add_reporting_polity_columns()
 }
 
@@ -364,7 +392,17 @@ build_gridded_livestock <- function(
     }
   }
 
-  grid
+  # Carry only the compartment key and the weight, as the GLW3 path does. The
+  # join above brings every `country_grid` column along, and any of them
+  # colliding with a `livestock_data` value column would be silently suffixed
+  # in `.allocate_livestock_to_grid()`'s join and then never distributed.
+  grid |>
+    dplyr::select(
+      dplyr::any_of(.compartment_id_cols(grid)),
+      lon,
+      lat,
+      weight
+    )
 }
 
 

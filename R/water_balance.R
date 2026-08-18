@@ -37,7 +37,8 @@
 #' blue-water volume), which satisfy `water_input_mm = prec_mm + irrig_mm`;
 #' `blue_consump_mm` and `green_consump_mm`, the LPJmL-native consumptive blue
 #' and green water (the per-CFT `cft_consump_water_b` / `cft_consump_water_g`
-#' totals when supplied, otherwise the blue and green AET); and `cft_nir_mm`,
+#' cubes when supplied, summed over the bands `bands` selects, otherwise the
+#' blue and green AET); and `cft_nir_mm`,
 #' the net irrigation requirement (LPJmL `cft_nir`), the net blue-water demand,
 #' summed to cell level when `data$cft_nir` is supplied and `NA` otherwise.
 #' Potential evapotranspiration (`pet_mm`) comes from the CRU climate forcing
@@ -53,6 +54,26 @@
 #'   left out take their default.
 #' @param resolution `"grid"` (per cell, default) or `"polity"` (aggregated to
 #'   `year` and `area_code`).
+#' @param bands Optional character vector of LPJmL crop-functional-type band
+#'   names restricting which bands the per-CFT consumptive-water and net
+#'   irrigation terms are summed over, e.g. `"rainfed grassland"` to charge a
+#'   grazing footprint the grassland water alone. `NULL` (default) sums every
+#'   band, the whole-cell total. Bands are matched on the `band_name` the file
+#'   itself carries, so an unknown name aborts rather than silently returning
+#'   the whole-cell total; the band index is never used, because which crop a
+#'   given index denotes is a property of how the run was configured. Only the
+#'   consumptive-water and `cft_nir` terms are per-CFT, so this leaves the
+#'   water budget itself (AET, runoff, drainage) untouched.
+#' @param polity_validity What to do with a row whose `(area_code, year)`
+#'   resolves to a polity that did not exist in that year (the cell-polity
+#'   crosswalk has no year dimension, so an early-20th-century cell is labelled
+#'   with its present-day territory). `"keep"` (default) keeps every row, which
+#'   is the historical behaviour, and warns naming the rows, years and area
+#'   codes involved. `"flag"` keeps them and adds the per-row logical
+#'   `reporting_polity_out_of_span`, marking exactly which rows are stand-ins.
+#'   `"drop"` removes them. All three warn; only `"drop"` changes the numbers.
+#'   See [polity_coverage_gaps()], which reports the same rows for an
+#'   already-built table.
 #' @param data Optional named list of pre-loaded inputs to avoid NetCDF reads:
 #'   hydrology tibbles `transp`, `evap`, `interc`, `prec`, `irrig`, `runoff`
 #'   and `seepage` (each `lon`, `lat`, `year`, `value`; annual-summed
@@ -65,6 +86,9 @@
 #'   and a `cell_polity` crosswalk (`lon`, `lat`, `area_code`, `polity_frac`,
 #'   `cell_area_ha`). Each falls back to [read_lpjml_hydrology()] when absent,
 #'   except `cft_nir` (see Details), `pet` and the consumptive-water inputs.
+#'   Read the latter with
+#'   `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
+#'   names their CFT bands so `bands` can select among them.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`,
@@ -72,26 +96,32 @@
 #'   `aet_blue_mm`, `aet_green_mm`, `blue_consump_mm`, `green_consump_mm`,
 #'   `cft_nir_mm`, `drainage_mm`, `runoff_mm`, `soil_water_change_mm` and
 #'   `method_water`. For `resolution = "polity"`: the same terms aggregated to
-#'   `year` and `area_code`.
+#'   `year` and `area_code`. Both resolutions carry the polity columns below,
+#'   plus `reporting_polity_out_of_span` when `polity_validity = "flag"`.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_water_balance(example = TRUE)
 build_water_balance <- function(
   method = list(),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
+  bands = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   method <- .wb_resolve_method(method)
   if (isTRUE(example)) {
-    return(.wb_example(method, resolution))
+    return(.wb_example(method, resolution, polity_validity))
   }
-  .wb_read_inputs(data, method) |>
+  .wb_read_inputs(data, method, bands) |>
     .wb_compute_terms(method) |>
     .wb_blue_green(method) |>
     .wb_attach_polity(data) |>
-    .wb_finalise(method, resolution)
+    .wb_finalise(method, resolution) |>
+    .resolve_polity_validity(polity_validity)
 }
 
 #' Assemble monthly SOC climate drivers from CRU climate and LPJmL hydrology.
@@ -134,10 +164,15 @@ build_water_balance <- function(
 #' products (clay, hydraulic properties) are not LPJmL outputs, hence the mixed
 #' sources.
 #'
-#' @param run_dir Path to the LPJmL run output directory. Defaults to
-#'   `Sys.getenv("WHEP_LPJML_RUN_DIR")` via [read_lpjml_hydrology()].
+#' @param run_dir Path to the LPJmL run output directory. `NULL` (default) uses
+#'   `WHEP_LPJML_RUN_DIR` when set, and the pinned `lpjml-soc-hydrology`
+#'   artifact otherwise, so running LPJmL is not a prerequisite. That artifact
+#'   holds only the three LPJmL monthly drivers (topsoil saturation,
+#'   precipitation, irrigation); air temperature still comes from CRU and the
+#'   texture products from HWSD, both downloadable, so neither is pinned.
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year the inputs cover.
+#' @inheritParams build_water_balance
 #' @param data Optional named list of pre-loaded inputs, each falling back to
 #'   its reader when absent: `temp` (CRU `tmp`, `lon`, `lat`, `year`, `month`,
 #'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
@@ -147,6 +182,15 @@ build_water_balance <- function(
 #'   crosswalk, required) and `soil_hydraulic` (`lon`, `lat`, `t_field`,
 #'   `t_wilt`, `porosity`; falls back to [read_soil_hydraulic()], cropped to
 #'   `cell_polity` when supplied).
+#'
+#'   `cell_polity` is used only to **label** each cell with an `area_code` and
+#'   to restrict the grid to the cells it covers; no quantity here is ever
+#'   multiplied by an area. It therefore decides this function's **footprint**,
+#'   and callers that pass different crosswalks get different footprints from
+#'   one function. The carbon path passes the polycell support
+#'   ([build_polycell_support()], via [read_polycell_support()]); the water path
+#'   still passes [build_cell_polity()] until it migrates, so the two footprints
+#'   differ by the crosswalks' own difference until then.
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `month`, `temp_c`,
@@ -156,25 +200,58 @@ build_water_balance <- function(
 #'   modifier driver, repeated across a cell-year's months), `clay_pct`,
 #'   `theta`, `t_field`, `t_wilt` and `porosity` (the ICBM moisture drivers:
 #'   the monthly volumetric soil water content and its static field-capacity,
-#'   wilting-point and porosity references) and `method_water_input`.
+#'   wilting-point and porosity references) and `method_water_input`, plus the
+#'   polity columns below, plus `reporting_polity_out_of_span` when
+#'   `polity_validity = "flag"`.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' get_soc_climate_drivers(example = TRUE)
 get_soc_climate_drivers <- function(
   run_dir = NULL,
   years = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_soc_climate_drivers())
+    return(.resolve_polity_validity(
+      .example_soc_climate_drivers(),
+      polity_validity
+    ))
   }
-  swc <- .wb_swc_topsoil(data, run_dir, years)
-  monthly <- .socd_monthly_climate(data, run_dir, years)
+  status <- if (polity_validity == "flag") "flag" else NULL
+  .socd_build(run_dir, years, polity_validity, data) |>
+    .add_reporting_polity_columns(mapping_status = status)
+}
+
+# The monthly SOC climate drivers WITHOUT the reporting polity columns.
+#
+# Those four columns -- two of them character -- cost ~27 GB when attached to
+# the 8.6e7-row table a 1901-2022 span produces, and build_carbon_balance()
+# never reads them off this table: it keys the climate modifier on
+# (lon, lat, area_code, year, month) and adds its own reporting columns to its
+# own output. Polity validity itself still applies here, because it can drop
+# rows. The exported wrapper above attaches the columns, so its contract is
+# unchanged (#624).
+.socd_build <- function(run_dir, years, polity_validity, data) {
+  pin <- .socd_pin_hydrology(data, run_dir, years)
+  swc <- .wb_swc_topsoil(data, run_dir, years, pin)
+  monthly <- .socd_monthly_climate(data, run_dir, years, pin)
+  # The pin carries swc_topsoil, prec_mm and irrig_mm for every requested year --
+  # ~12 GB at 1901-2022 -- and nothing below reads it, because swc and monthly
+  # are already derived from it. Left referenced it stays resident through
+  # .assemble_soc_drivers(), which is exactly where this read peaks. The same
+  # applies to the four monthly source series .socd_monthly_climate() holds
+  # internally; reclaiming here releases those too.
+  rm(pin)
+  invisible(gc(full = TRUE))
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
-  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
+    .apply_polity_validity(polity_validity)
 }
 
 # ---- Private helpers --------------------------------------------------
@@ -201,7 +278,7 @@ get_soc_climate_drivers <- function(
 # it and join on the cell-year key into one wide tibble. The seepage term uses
 # the reader's logical "drainage" var (mseepage.nc) but the data override key is
 # `seepage`. The soil-water-change term is appended from the layered swc.
-.wb_read_inputs <- function(data, method) {
+.wb_read_inputs <- function(data, method, bands = NULL) {
   # name -> reader logical var; data overrides use the name (e.g. data$seepage).
   flux_vars <- c(
     transp = "transp",
@@ -227,7 +304,7 @@ get_soc_climate_drivers <- function(
     dplyr::inner_join,
     by = c("lon", "lat", "year")
   )
-  .wb_attach_cft_consump(wide, data)
+  .wb_attach_cft_consump(wide, data, bands)
 }
 
 # Attach cell-level blue/green consumptive water and net irrigation requirement
@@ -235,26 +312,59 @@ get_soc_climate_drivers <- function(
 # `cft_nir` inputs, summing the crop-band values per cell-year. Columns are NA
 # when the corresponding per-CFT input is not supplied; the all-NA blue/green
 # consumptive columns make the cft_native split fall back (see .wb_blue_green()).
-.wb_attach_cft_consump <- function(wide, data) {
+# `bands` restricts which CFT bands are summed (see .wb_filter_bands()).
+.wb_attach_cft_consump <- function(wide, data, bands = NULL) {
   band_inputs <- list(
     consump_blue_mm = data$cft_consump_water_b,
     consump_green_mm = data$cft_consump_water_g,
     cft_nir_mm = data$cft_nir
   )
   purrr::reduce2(
-    band_inputs,
+    purrr::map(band_inputs, .wb_filter_bands, bands = bands),
     names(band_inputs),
     .wb_join_cell_band,
     .init = wide
   )
 }
 
+# Keep only the named CFT bands of a per-CFT input before it is summed to the
+# cell. `bands = NULL` keeps every band, the whole-cell total.
+#
+# Selection is by `band_name` ("rainfed grassland"), never by band index: the
+# index is a property of how a run was configured, so a positional filter would
+# keep charging band 14 even in a run whose band 14 is a different crop. An
+# input without `band_name` therefore cannot be filtered, and asking to filter
+# one is an error rather than a silent whole-cell total.
+.wb_filter_bands <- function(raw, bands) {
+  if (is.null(raw) || is.null(bands)) {
+    return(raw)
+  }
+  if (!rlang::has_name(raw, "band_name")) {
+    cli::cli_abort(c(
+      "Cannot select CFT bands from an input without {.field band_name}.",
+      i = "{.arg bands} was {.val {bands}}.",
+      i = "Read the input with {.fun read_lpjml_hydrology}, which names the \\
+           bands from the file, or drop {.arg bands} to total every band."
+    ))
+  }
+  missing <- setdiff(bands, unique(raw$band_name))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "CFT band{?s} {.val {missing}} {?is/are} not in this input.",
+      i = "Available: {.val {sort(unique(raw$band_name))}}."
+    ))
+  }
+  dplyr::filter(raw, .data$band_name %in% bands)
+}
+
 # Join one per-CFT band input summed to cell-year as `out_col`, or add an all-NA
 # column when the input is absent.
-# TODO(cft_nir): optionally wire read_lpjml_hydrology("cft_nir") here once
-# build_water_balance() has a run-directory/year contract. Until then
-# cft_nir_mm is NA unless `data$cft_nir` is supplied as a cell-year (or
-# per-band) `lon`,`lat`,`year`,`value` tibble.
+# cft_nir stays opt-in: read_lpjml_hydrology("cft_nir") now resolves (its map
+# entry was corrected in 2026-08, having named a file no run ever wrote), but
+# the cube is ~3 GB and nothing consumes cft_nir_mm yet, so reading it by
+# default would cost every caller for an unused column. cft_nir_mm is NA unless
+# `data$cft_nir` is supplied as a cell-year (or per-band) `lon`,`lat`,`year`,
+# `value` tibble.
 .wb_join_cell_band <- function(wide, raw, out_col) {
   summed <- .wb_cell_consump(raw, out_col)
   if (is.null(summed)) {
@@ -597,7 +707,7 @@ get_soc_climate_drivers <- function(
 # method is chosen (keeping the 4-term budget closed exactly), re-stamp
 # method_water, then aggregate to polity if requested. The fixture carries the
 # cft_native blue/green split, so the realized bg method is cft_native.
-.wb_example <- function(method, resolution) {
+.wb_example <- function(method, resolution, polity_validity = "keep") {
   grid <- .example_water_balance()
   if (method$drainage == "residual") {
     grid <- dplyr::mutate(
@@ -612,18 +722,22 @@ get_soc_climate_drivers <- function(
     grid,
     method_water = .wb_method_label(method, "cft_native")
   )
-  if (resolution == "grid") {
+  out <- if (resolution == "grid") {
     .wb_drop_polity_cols(grid)
   } else {
     .wb_aggregate_polity(grid)
   }
+  .resolve_polity_validity(out, polity_validity)
 }
 
-# Topsoil soil-water saturation per cell-month, from data$swc or the reader.
-# `years` is forwarded so the reader slices the soil-water cube to the requested
-# years instead of materialising the full multi-decade 4-D array.
-.wb_swc_topsoil <- function(data, run_dir, years) {
+# Topsoil soil-water saturation per cell-month, from data$swc, the pinned
+# artifact or the reader. `years` is forwarded so the reader slices the
+# soil-water cube to the requested years instead of materialising the full
+# multi-decade 4-D array. The pinned artifact already holds the topsoil layer
+# only, so the layer filter below is a no-op on that path.
+.wb_swc_topsoil <- function(data, run_dir, years, pin = NULL) {
   swc <- data$swc %||%
+    .socd_pin_var(pin, "swc_topsoil") %||%
     read_lpjml_hydrology(
       "swc",
       run_dir = run_dir,
@@ -657,25 +771,59 @@ get_soc_climate_drivers <- function(
 # decomposition modifiers consume: precip_mm and pet_mm (monthly, for Century)
 # and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
 # source falls back to its reader when not injected.
-.socd_monthly_climate <- function(data, run_dir, years) {
-  temp <- .socd_read(data$temp, "tmp", years)
-  pet <- .socd_read(data$pet, "pet", years)
-  prec <- .socd_lpjml(data$prec, "prec", run_dir, years)
-  irrig <- .socd_lpjml(data$irrig, "irrig", run_dir, years)
-  temp |>
-    dplyr::rename(temp_c = value) |>
-    dplyr::inner_join(
-      dplyr::rename(pet, pet_mm_day = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
-    dplyr::inner_join(
-      dplyr::rename(prec, precip_mm = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
-    dplyr::inner_join(
-      dplyr::rename(irrig, irrig_mm = value),
-      by = c("lon", "lat", "year", "month")
-    ) |>
+.socd_monthly_climate <- function(data, run_dir, years, pin = NULL) {
+  sources <- .socd_monthly_sources(data, run_dir, years, pin)
+  groups <- purrr::map(sources, \(x) split(seq_len(nrow(x)), x$year))
+  shared <- Reduce(intersect, purrr::map(groups, names))
+  purrr::map(shared, \(year) .socd_monthly_year(sources, groups, year)) |>
+    dplyr::bind_rows()
+}
+
+# The four monthly driver series, each renamed to the column it contributes.
+.socd_monthly_sources <- function(data, run_dir, years, pin) {
+  list(
+    temp = dplyr::rename(.socd_read(data$temp, "tmp", years), temp_c = "value"),
+    pet = dplyr::rename(
+      .socd_read(data$pet, "pet", years),
+      pet_mm_day = "value"
+    ),
+    prec = dplyr::rename(
+      .socd_lpjml(
+        data$prec %||% .socd_pin_var(pin, "prec_mm"),
+        "prec",
+        run_dir,
+        years
+      ),
+      precip_mm = "value"
+    ),
+    irrig = dplyr::rename(
+      .socd_lpjml(
+        data$irrig %||% .socd_pin_var(pin, "irrig_mm"),
+        "irrig",
+        run_dir,
+        years
+      ),
+      irrig_mm = "value"
+    )
+  )
+}
+
+# One year of the assembled monthly drivers.
+#
+# The four series are joined on (lon, lat, year, month) and the water balance
+# sums within (lon, lat, year), so nothing crosses years and the assembly can be
+# done a year at a time. Doing it whole instead joins four 8.6e7-row tables at
+# 1901-2022, each join copying the result: the read peaks at 86.7 GB there, for
+# an 11.9 GB result, and that peak alone is what a full-span
+# build_carbon_balance() could not fit (#624).
+.socd_monthly_year <- function(sources, groups, year) {
+  rows <- function(name) {
+    sources[[name]][groups[[name]][[year]], , drop = FALSE]
+  }
+  rows("temp") |>
+    dplyr::inner_join(rows("pet"), by = c("lon", "lat", "year", "month")) |>
+    dplyr::inner_join(rows("prec"), by = c("lon", "lat", "year", "month")) |>
+    dplyr::inner_join(rows("irrig"), by = c("lon", "lat", "year", "month")) |>
     dplyr::mutate(
       pet_mm = pet_mm_day * .days_in_month(year, month),
       water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm,
@@ -718,6 +866,61 @@ get_soc_climate_drivers <- function(
 }
 
 # Read an LPJmL monthly hydrology flux from the injected tibble or the reader.
+.socd_hydro_alias <- function() {
+  "lpjml-soc-hydrology"
+}
+
+# Whether the pinned artifact has to be fetched at all: kept separate from the
+# fetch so the policy is testable without network access. Note the check is
+# "were ALL THREE supplied", not "any": a caller who overrides only `prec` still
+# needs a source for the other two.
+.socd_needs_pin <- function(data, run_dir) {
+  supplied <- !is.null(data$swc) &&
+    !is.null(data$prec) &&
+    !is.null(data$irrig)
+  has_run <- .has_path(run_dir) || .has_path(Sys.getenv("WHEP_LPJML_RUN_DIR"))
+  !supplied && !has_run
+}
+
+# The pin seam for the three LPJmL monthly drivers get_soc_climate_drivers()
+# needs (topsoil saturation, precipitation, irrigation). Read ONCE here and
+# handed to both consumers, so a call that falls back for all three fetches the
+# artifact once rather than three times. Returns NULL -- meaning "no pin
+# needed" -- whenever a run directory is available or every LPJmL var was
+# supplied directly, so neither of those paths touches the network.
+# Air temperature (CRU) and the soil texture products are NOT in this artifact:
+# both come from downloadable third-party sources, so pinning them would freeze
+# data a user can fetch themselves.
+.socd_pin_hydrology <- function(data, run_dir, years) {
+  if (!.socd_needs_pin(data, run_dir)) {
+    return(NULL)
+  }
+  raw <- .read_lpjml_pin(.socd_hydro_alias())
+  .check_columns(
+    raw,
+    c("lon", "lat", "year", "month", "swc_topsoil", "prec_mm", "irrig_mm"),
+    .socd_hydro_alias()
+  )
+  .filter_years_if_present(tibble::as_tibble(raw), years)
+}
+
+# Pull one column out of the pinned monthly table as the (lon, lat, year,
+# month, value) shape every monthly reader emits, so the pin is
+# indistinguishable from a reader downstream.
+.socd_pin_var <- function(pin, column) {
+  if (is.null(pin)) {
+    return(NULL)
+  }
+  dplyr::transmute(
+    pin,
+    .data$lon,
+    .data$lat,
+    .data$year,
+    .data$month,
+    value = .data[[column]]
+  )
+}
+
 .socd_lpjml <- function(input, var, run_dir, years) {
   raw <- input %||%
     read_lpjml_hydrology(

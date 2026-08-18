@@ -126,7 +126,12 @@
 #'   `som_sequestration_n_t`, `n_balance_t`, `surplus_t`, `surplus_share`,
 #'   the five NUE ratios (`nue_std`, `nue_residues`, `nue_som`,
 #'   `nue_useful`, `nue_full`), `total_gwp_co2e_kg`, and the `method_nh3`/
-#'   `method_soil_n2o`/`method_leaching` provenance columns.
+#'   `method_soil_n2o`/`method_leaching` provenance columns, plus the polity
+#'   columns below. When the supplied `n_inputs` carry them, the
+#'   `method_recycling_n`, `method_synthetic` and `method_deposition_scope`
+#'   stamps from [build_n_inputs()] are carried through as well, so a balance
+#'   names the input conventions that produced it.
+#' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
 #' build_nitrogen_balance(example = TRUE)
@@ -169,7 +174,8 @@ build_nitrogen_balance <- function(
     .nb_indicators_pass1() |>
     .nb_cap_som() |>
     .nb_indicators_pass2(m, data, key, gwp) |>
-    .nb_finalise()
+    .nb_finalise() |>
+    .add_reporting_polity_columns()
 }
 
 # ---- Private helpers: method validation ----------------------------------
@@ -280,7 +286,7 @@ build_nitrogen_balance <- function(
 
 .nb_input_methods <- function(n_inputs, key) {
   method_cols <- intersect(
-    c("method_recycling_n", "method_synthetic"),
+    .nb_input_method_cols(),
     names(n_inputs)
   )
   if (length(method_cols) == 0L) {
@@ -791,9 +797,18 @@ build_nitrogen_balance <- function(
     "method_nh3",
     "method_soil_n2o",
     "method_leaching",
-    intersect(c("method_recycling_n", "method_synthetic"), names(x))
+    intersect(.nb_input_method_cols(), names(x))
   )
   dplyr::select(x, dplyr::all_of(cols))
+}
+
+# The method columns build_n_inputs() stamps on its rows, carried through to
+# the balance so a published balance names the conventions that produced it.
+# `method_deposition_scope` is here because DA-14 made deposition scope a
+# choice: a territory-scope balance and a land-scope balance differ by about
+# 1.4% of the deposition term and would otherwise be indistinguishable.
+.nb_input_method_cols <- function() {
+  c("method_recycling_n", "method_synthetic", "method_deposition_scope")
 }
 
 .nb_present_key <- function(x) {
@@ -899,5 +914,6 @@ build_nitrogen_balance <- function(
     "manner",
     "ipcc2019",
     "meisinger_drainage"
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

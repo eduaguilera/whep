@@ -8,12 +8,21 @@ split_manure_management(excretion, options = list())
 }
 \arguments{
 \item{excretion}{A tibble from \code{\link[=estimate_n_excretion]{estimate_n_excretion()}} with \code{year},
-\code{territory}, \code{sub_territory}, \code{livestock_category}, \code{n_excretion},
-\code{c_excretion} and \code{vs_excretion}.}
+\code{territory} (a stringified \code{area_code}, see \code{\link[=estimate_n_excretion]{estimate_n_excretion()}}),
+\code{sub_territory}, \code{livestock_category}, \code{n_excretion}, \code{c_excretion} and
+\code{vs_excretion}.}
 
-\item{options}{A named list. \code{mms_source} selects the MMS-share table
-(\code{"regional_default"}, the global IPCC/GLEAM default in
-\code{regional_mms_distribution}).}
+\item{options}{A named list. \code{mms_source} selects how the MMS shares in
+\code{regional_mms_distribution} are read:
+\itemize{
+\item \code{"regional_default"} (default): every territory takes the table's
+\code{region == "Global"} rows, the IPCC/GLEAM global default.
+\item \code{"region_specific"}: each territory takes the rows of the region it
+resolves to, and the Global rows when its region has none. Only four
+\verb{(region, species)} pairs carry region-specific rows (North America
+cattle and swine, Western Europe cattle, Latin America cattle), so
+every other row is unchanged.
+}}
 }
 \value{
 A tibble with one row per
@@ -32,8 +41,8 @@ the per-species MMS shares sum to one.
 excretion <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,
   ~n_excretion, ~c_excretion, ~vs_excretion,
-  2020L, "ES", NA, "Cattle_milk", 100, 1900, 60,
-  2020L, "ES", NA, "Pigs", 30, 270, 20
+  2020L, "203", NA, "Cattle_milk", 100, 1900, 60,
+  2020L, "203", NA, "Pigs", 30, 270, 20
 )
 split_manure_management(excretion)
 }

@@ -4,7 +4,12 @@
 \alias{build_energy_co2_extension}
 \title{Build the livestock energy-use CO2 footprint extension (meat only).}
 \usage{
-build_energy_co2_extension(method = c("gleam"), data = list(), example = FALSE)
+build_energy_co2_extension(
+  method = c("gleam"),
+  data = list(),
+  unclassified = c("drop", "polity_region", "historical_region", "global_mean"),
+  example = FALSE
+)
 }
 \arguments{
 \item{method}{Estimation method. Only \code{"gleam"} (default), the GLEAM 3.0
@@ -14,13 +19,35 @@ per-live-weight factors, is currently available.}
 \code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output). It falls back to
 its reader when absent.}
 
+\item{unclassified}{How to treat reporting areas \code{gleam_geographic_hierarchy}
+has no row for, and which therefore get no country energy intensity.
+\code{"drop"} (default) keeps the historical behaviour: their meat production
+leaves the extension, and a warning says how much. \code{"polity_region"} gives
+the \strong{live, self-reporting} ones among them a grouping derived from their
+polity in \code{polity_area_crosswalk}, running GLEAM's own scheme rules on that
+continent, and marks those rows \code{"GLEAM_3.0_energy_meat_polity_region"};
+the aggregate buckets and dissolved entities still drop.
+\code{"historical_region"} does everything \code{"polity_region"} does and also
+groups the \strong{dissolved} entities (USSR, Czechoslovakia, the Yugoslav SFR,
+Belgium-Luxembourg, Serbia and Montenegro, the Netherlands Antilles) from
+the OECD and EU membership they held while they existed, marking those rows
+\code{"GLEAM_3.0_energy_meat_historical_region"}.
+\code{"global_mean"} instead prices every unclassifiable area at the unweighted
+world mean of the published GLEAM factors, marking those rows
+\code{"GLEAM_3.0_energy_meat_global_mean"}.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{year}, \code{area_code}, \code{item_cbs_code},
 \code{impact_u} (energy-use emissions in kilograms CO2e) and \code{method_energy}
-(e.g. \code{"GLEAM_3.0_energy_meat"}).
+(\code{"GLEAM_3.0_energy_meat"}, \code{"GLEAM_3.0_energy_meat_polity_region"} for
+rows grouped from the polity crosswalk,
+\code{"GLEAM_3.0_energy_meat_historical_region"} for dissolved entities grouped
+from their own era's memberships, or
+\code{"GLEAM_3.0_energy_meat_global_mean"} for rows priced at the world mean),
+plus the polity columns below.
 }
 \description{
 Aggregate GLEAM 3.0 on-farm (direct) and feed-production (embedded) energy
@@ -45,8 +72,69 @@ sectors in proportion to their slaughtered head counts. Because GLEAM reports
 its factors by production system and climate zone but the package has no
 country-level system or climate shares, the intensities are collapsed to one
 value per country by an unweighted mean across systems and climate zones;
-this choice is recorded in \code{method_energy}.
+this choice is recorded in \code{method_energy}. A meat group with carcass output
+but no slaughtered-head counts keeps its energy CO2e, split equally across
+the group's live-animal sectors, and triggers a warning.
+
+\code{gleam_geographic_hierarchy} is the country universe of the whole extension,
+so a reporting area absent from it gets no energy intensity and its meat
+production leaves the extension. That affects both the aggregate reporting
+buckets (\code{polity_area_code} 999 "Rest of World" and the continental residuals
+901-906) and the dissolved entities GLEAM's present-day country table cannot
+carry (USSR, Czechoslovakia, Yugoslavia, Belgium-Luxembourg, Serbia and
+Montenegro). The size of that loss is now \strong{reported} on every build rather
+than left to be inferred, and three opt-in treatments recover it instead of
+losing it: \code{unclassified = "polity_region"} groups the \strong{live} reporting
+areas GLEAM omits (today Nauru and Tuvalu) from the polity crosswalk,
+\code{unclassified = "historical_region"} additionally groups the \strong{dissolved}
+entities from the membership they themselves held while they existed, and
+\code{unclassified = "global_mean"} prices \strong{every} unclassifiable area at the
+world-mean GLEAM intensity. The default keeps the historical behaviour; see
+whep#415, whep#492 and whep#553.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_energy_co2_extension(example = TRUE)
 }

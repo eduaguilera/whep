@@ -21,9 +21,15 @@ per \code{area_code}, \code{item_prod_code}, \code{year}, columns \code{residue_
 \code{root_c_t} and \code{weed_npp_c_t}, tonnes C); \code{manure} (the \code{applied} tibble of
 \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, with \code{crop} either an existing
 \code{item_prod_code} or an \code{item_prod} name from \link{items_prod_full} (matched
-case-insensitively), and \code{territory} a stringified \code{area_code} or \code{iso3c});
-\code{country_grid} and \code{crop_patterns} (the spatialization inputs,
-\code{crop_patterns} carrying per-cell \code{crop_area_ha}); \code{harvested_area} (the
+case-insensitively), and \code{territory} a stringified \code{area_code} -- an
+\code{iso3c} literal is still resolved but deprecated, see
+\code{\link[=estimate_n_excretion]{estimate_n_excretion()}});
+\code{country_grid}, the polycell support resolved to one row per cell and
+\code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, the polycell's
+share of the cell's land), refused when a cell-\code{area_code} group is
+duplicated or \code{NA} (DA-23);
+\code{crop_patterns} (the spatialization input carrying per-cell
+\code{crop_area_ha}); \code{harvested_area} (the
 FAOSTAT national harvested area per \code{area_code}, \code{item_prod_code}, \code{year}
 in a \code{faostat_area_ha} column, used to renormalize each polity-crop-year's
 spatialized cell area to the national total so per-hectare densities are
@@ -45,7 +51,7 @@ A tibble keyed by \verb{(lon, lat, area_code, item_prod_code, year)} at
 \code{"grid"} resolution (or \verb{(area_code, item_prod_code, year)} at
 \code{"polity"}), with \code{residue_c_mgc_ha_yr}, \code{root_c_mgc_ha_yr},
 \code{weed_c_mgc_ha_yr}, \code{manure_c_mgc_ha_yr}, \code{total_c_input_mgc_ha_yr},
-\code{humified_fraction} and \code{method_c_input}.
+\code{humified_fraction} and \code{method_c_input}, plus the polity columns below.
 }
 \description{
 Builds the carbon returned to soil from crop residues, crop roots, weeds and
@@ -66,6 +72,49 @@ At \code{"polity"} resolution the component carbon masses are summed back to
 \verb{(area_code, item_prod_code, year)} and the per-hectare values and humified
 fraction re-derived from the polity totals.
 }
+\section{Polity columns}{
+
+Every area-keyed output carries the polity its \code{area_code} resolves to in
+that row's year:
+\itemize{
+\item \code{polity_area_code}: The numeric key rows are AGGREGATED on, for the matrix
+workflows. It is a bucket, not an identity: use \code{reporting_polity_code} to
+say which territory a row belongs to.
+\item \code{reporting_polity_code}: The polity itself, e.g. \code{ESP-1846-1914}. It is
+year-aware, so the same \code{area_code} resolves to different polities in
+different years, which is the point of the crosswalk.
+\item \code{reporting_polity_name}: Its name. It can differ from the area's own name
+where the area folds into an aggregate.
+\item \code{reporting_polity_has_geometry}: Whether the polity has a polygon in the
+WHEP polity database, for callers that need to map or intersect it. \code{FALSE}
+is a documented gap upstream, not an error.
+}
+
+Rows whose \code{area_code} resolves to no polity keep the columns with \code{NA}
+rather than being dropped, so a gap is visible instead of silent.
+
+Rows before the back-cast anchor year resolve to the polity live in that
+anchor year rather than to the polity live in the row's own year, because
+WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
+
+A row whose year no mapped period covers is resolved to the NEAREST period of
+the same area instead, so \code{reporting_polity_code} can name a polity that did
+not exist in that row's year -- FAOSTAT bucket 206 "Sudan (former)" keeps
+reporting after \code{SUD-1956-2011} ends, and its post-2011 rows carry that code.
+These columns do not say so: \code{\link[=add_polity_code]{add_polity_code()}} reports such a row as
+\code{mapping_status == "out_of_span"}, and that column is dropped here so that
+adding it does not change the schema of every area-keyed output at once.
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports the stand-in rows of a built table, and
+\code{options(whep.polity_mapping_status = "flag")} (or \code{"status"}) carries the
+signal on the outputs themselves. Both are opt-in; the default is no extra
+column.
+}
+
 \examples{
 build_soil_carbon_inputs(example = TRUE)
 }

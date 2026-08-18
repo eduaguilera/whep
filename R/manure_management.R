@@ -8,11 +8,18 @@
 #' the per-species MMS shares sum to one.
 #'
 #' @param excretion A tibble from [estimate_n_excretion()] with `year`,
-#'   `territory`, `sub_territory`, `livestock_category`, `n_excretion`,
-#'   `c_excretion` and `vs_excretion`.
-#' @param options A named list. `mms_source` selects the MMS-share table
-#'   (`"regional_default"`, the global IPCC/GLEAM default in
-#'   `regional_mms_distribution`).
+#'   `territory` (a stringified `area_code`, see [estimate_n_excretion()]),
+#'   `sub_territory`, `livestock_category`, `n_excretion`, `c_excretion` and
+#'   `vs_excretion`.
+#' @param options A named list. `mms_source` selects how the MMS shares in
+#'   `regional_mms_distribution` are read:
+#'   * `"regional_default"` (default): every territory takes the table's
+#'     `region == "Global"` rows, the IPCC/GLEAM global default.
+#'   * `"region_specific"`: each territory takes the rows of the region it
+#'     resolves to, and the Global rows when its region has none. Only four
+#'     `(region, species)` pairs carry region-specific rows (North America
+#'     cattle and swine, Western Europe cattle, Latin America cattle), so
+#'     every other row is unchanged.
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category x mms_type`, plus
@@ -23,12 +30,17 @@
 #' excretion <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~livestock_category,
 #'   ~n_excretion, ~c_excretion, ~vs_excretion,
-#'   2020L, "ES", NA, "Cattle_milk", 100, 1900, 60,
-#'   2020L, "ES", NA, "Pigs", 30, 270, 20
+#'   2020L, "203", NA, "Cattle_milk", 100, 1900, 60,
+#'   2020L, "203", NA, "Pigs", 30, 270, 20
 #' )
 #' split_manure_management(excretion)
 split_manure_management <- function(excretion, options = list()) {
   opt <- utils::modifyList(list(mms_source = "regional_default"), options)
+  mms_source <- opt$mms_source
+  opt$mms_source <- rlang::arg_match(
+    mms_source,
+    c("regional_default", "region_specific")
+  )
   .check_excretion_cols(excretion)
   bridge <- dplyr::select(
     .species_taxonomy_bridge(),
@@ -41,11 +53,7 @@ split_manure_management <- function(excretion, options = list()) {
   joined <- excretion |>
     tibble::as_tibble() |>
     dplyr::left_join(bridge, by = "livestock_category") |>
-    dplyr::left_join(
-      .mms_shares(opt$mms_source),
-      by = c("species_gen" = "species"),
-      relationship = "many-to-many"
-    )
+    .attach_mms_shares(opt$mms_source)
   if (anyNA(joined$mms_type)) {
     bad <- unique(joined$species_gen[is.na(joined$mms_type)])
     cli::cli_abort("No MMS distribution for species {.val {bad}}.")
@@ -99,10 +107,38 @@ split_manure_management <- function(excretion, options = list()) {
   invisible(NULL)
 }
 
-.mms_shares <- function(source) {
-  if (!identical(source, "regional_default")) {
-    cli::cli_abort("Unknown {.arg mms_source} {.val {source}}.")
+# Attach the MMS shares to the excretion rows, one row per (input row, MMS).
+# "regional_default" gives every territory the Global rows. "region_specific"
+# resolves each territory's region and takes that region's rows when
+# `regional_mms_distribution` has any, falling back to the Global rows
+# otherwise -- the same matched/fallback rule the Tier-2 methane engine
+# applies in .resolve_mms_distribution() (R/livestock_manure.R). The fallback
+# is a left_join on species only, so a territory whose region is unknown keeps
+# exactly the status-quo split rather than losing its rows.
+.attach_mms_shares <- function(rows, source) {
+  global <- .mms_global_shares()
+  if (identical(source, "regional_default")) {
+    return(.join_mms_shares(rows, global))
   }
+  rows <- dplyr::mutate(rows, mms_region = .mms_region_of(.data$territory))
+  regional <- .mms_regional_shares()
+  by <- c("species_gen" = "species", "mms_region")
+  dplyr::bind_rows(
+    dplyr::inner_join(rows, regional, by = by, relationship = "many-to-many"),
+    .join_mms_shares(dplyr::anti_join(rows, regional, by = by), global)
+  )
+}
+
+.join_mms_shares <- function(rows, shares) {
+  dplyr::left_join(
+    rows,
+    shares,
+    by = c("species_gen" = "species"),
+    relationship = "many-to-many"
+  )
+}
+
+.mms_global_shares <- function() {
   whep::regional_mms_distribution |>
     dplyr::filter(.data$region == "Global") |>
     dplyr::mutate(
@@ -110,6 +146,56 @@ split_manure_management <- function(excretion, options = list()) {
       .by = "species"
     ) |>
     dplyr::select("species", "mms_type", "fraction")
+}
+
+.mms_regional_shares <- function() {
+  whep::regional_mms_distribution |>
+    dplyr::filter(.data$region != "Global") |>
+    dplyr::mutate(
+      fraction = .data$fraction / sum(.data$fraction),
+      .by = c("region", "species")
+    ) |>
+    dplyr::select(
+      mms_region = "region",
+      "species",
+      "mms_type",
+      "fraction"
+    )
+}
+
+# `regional_mms_distribution`'s non-Global regions are IPCC region labels --
+# the vocabulary .add_ipcc_region() emits -- so the territory is resolved
+# through the same GLEAM-region lookup whep#465 built for the emission-factor
+# tables, rather than through a second crosswalk.
+#
+# The ISO3 leg is the one that resolves ordinary countries, so the area code
+# is carried WITH its ISO3. MEASURED on the 2020 national manure chain: given
+# `area_code` alone .gleam_region_of() resolves 2 of the 195 territories (the
+# two its dissolved-federation override table happens to list); with the ISO3
+# attached it resolves all 195.
+#
+# `territory` is a stringified `area_code` (see estimate_n_excretion()) but an
+# ISO3 literal is still accepted there, so a non-numeric territory is tried as
+# an ISO3. Anything that is neither resolves to NA and takes the Global rows,
+# which is why the region is resolved here and not required upstream.
+.mms_region_of <- function(territory) {
+  .add_ipcc_region(.mms_region_keys(territory))$region
+}
+
+.mms_region_keys <- function(territory) {
+  code <- suppressWarnings(as.integer(territory))
+  lookup <- .current_area_lookup(include_unmapped = TRUE)
+  tibble::tibble(
+    area_code = code,
+    iso3 = dplyr::coalesce(
+      as.character(lookup$area_iso3c)[match(code, lookup$area_code)],
+      dplyr::if_else(
+        is.na(code),
+        toupper(as.character(territory)),
+        NA_character_
+      )
+    )
+  )
 }
 
 #' Apply IPCC manure-management losses to the collected manure streams.
@@ -126,6 +212,8 @@ split_manure_management <- function(excretion, options = list()) {
 #' `applied_n` times the post-storage manure C:N (the solid/liquid/excreta value
 #' for the stream's management system), so the applied C:N reflects storage, not
 #' fresh excreta; the carbon and volatile-solids storage losses follow from that.
+#' The grazing stream undergoes no storage and keeps its full carbon and volatile
+#' solids (no storage C:N cap is applied to it).
 #'
 #' @param split A tibble from [split_manure_management()].
 #' @param options A named list. `method` selects the loss method
@@ -139,7 +227,7 @@ split_manure_management <- function(excretion, options = list()) {
 #' excretion <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~livestock_category,
 #'   ~n_excretion, ~c_excretion, ~vs_excretion,
-#'   2020L, "ES", NA, "Cattle_milk", 100, 1900, 60
+#'   2020L, "203", NA, "Cattle_milk", 100, 1900, 60
 #' )
 #' apply_management_losses(split_manure_management(excretion))
 apply_management_losses <- function(split, options = list()) {
@@ -213,7 +301,11 @@ apply_management_losses <- function(split, options = list()) {
 
   out |>
     dplyr::mutate(
-      applied_c = pmin(.data$c_stream, .data$applied_n * .data$cn_post),
+      applied_c = dplyr::if_else(
+        .data$stream == "grazing",
+        .data$c_stream,
+        pmin(.data$c_stream, .data$applied_n * .data$cn_post)
+      ),
       c_lost = .data$c_stream - .data$applied_c,
       applied_vs = dplyr::if_else(
         .data$c_stream > 0,

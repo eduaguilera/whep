@@ -72,6 +72,11 @@ utils::globalVariables(
     "live_anim_lookup_prod",
     "source_any",
     "source_prod",
+    # polities.R + build_production.R (dependency-to-sovereign attribution)
+    "sovereign_iso3c",
+    # build_cbs.R (.canonicalise_gdp_pop_area)
+    "canonical_area",
+    "key_row",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -219,6 +224,7 @@ utils::globalVariables(
     ".bnf_row",
     # residue_destiny.R
     "region_krausmann",
+    "region_un_sub",
     "cat_krausmann",
     "Cat_Krausmann",
     "recovery_rates",
@@ -282,7 +288,6 @@ utils::globalVariables(
     "cell_area_ha",
     "grass_avail_dm_t_ha",
     "grass_avail_dm_t",
-    "polity_frac",
     "total",
     "grass_npp",
     "leftover",
@@ -471,7 +476,6 @@ utils::globalVariables(
     "element_text",
     "end_year",
     "estimated",
-    "exact_start",
     "everything",
     "Excr_MgN",
     "Excreta",
@@ -538,6 +542,8 @@ utils::globalVariables(
     "q25",
     "q75",
     "from_code",
+    "from_polity_area_code",
+    "from_polity_code",
     "fu",
     "fu_mean",
     "fu_sum",
@@ -882,6 +888,8 @@ utils::globalVariables(
     "Timeline_Start",
     "to_comp",
     "to_code",
+    "to_polity_area_code",
+    "to_polity_code",
     "tonnes",
     "total_export",
     "Total_feed_import",
@@ -987,6 +995,7 @@ utils::globalVariables(
     "is_tradeable",
     "other_mean",
     "scale_new_old",
+    "scale_raw",
     # spatialize.R — data.table i.* and computed cols
     ".cell_group",
     ".cross",
@@ -1057,6 +1066,7 @@ utils::globalVariables(
     "harvested_area_ha",
     "increment",
     "ir_capacity",
+    "ir_over",
     "ir_pot_sum",
     "ir_potential",
     "ir_uniform",
@@ -1070,6 +1080,7 @@ utils::globalVariables(
     "rainfed_ha",
     "rainfed_target",
     "rf_capacity",
+    "rf_over",
     "rf_pot_sum",
     "rf_potential",
     "rf_uniform",
@@ -1224,6 +1235,7 @@ utils::globalVariables(
     "livestock_production_defaults",
     "polities",
     "polity_area_crosswalk",
+    "polity_label_aliases",
     "regional_mms_distribution",
     "temperature_adjustment",
     "uncertainty_ranges",
@@ -1390,7 +1402,14 @@ utils::globalVariables(
     "residue_c_mg",
     "root_c_mg",
     "manure_c_mg",
+    "weed_c_mg",
     "total_c_mg",
+    # .sci_sum_components() pre-masks c_mass_mg by input_type into these four
+    # dot-prefixed data.table columns, then sums them per cell.
+    ".residue",
+    ".root",
+    ".weed",
+    ".manure",
     "residue_c_mgc_ha_yr",
     "root_c_mgc_ha_yr",
     "manure_c_mgc_ha_yr",
@@ -1437,6 +1456,18 @@ utils::globalVariables(
     "deposition_kgn_ha",
     "deposition_n_t",
     "method_deposition",
+    "method_polity_split",
+    "method_area_split",
+    "polity_share",
+    "area_category",
+    "category_area_ha",
+    "category_frac",
+    "method_deposition_scope",
+    "scope_frac",
+    "rate_spread",
+    "in_scope_n_t",
+    "scope_n_t",
+    "total_n_t",
     # hyde_population.R (Module C, Task C3) — gridded HYDE population NSE
     # columns
     "urban_pop",
@@ -1506,6 +1537,9 @@ utils::globalVariables(
     "weighted_ha",
     "group_ha",
     "cropland_share",
+    # n_balance_spatialize.R (C5) — the polity share of the cell that weights
+    # every grid cell, under whichever split key was resolved
+    "cell_frac",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
     # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
@@ -1820,6 +1854,12 @@ utils::globalVariables(
     "system_productivity",
     "agri_area_ha",
     "n_productivity",
+    # polycell_support.R. The producer itself is written entirely in `.data$`
+    # form, so it needs no declarations; these two are the polycell keys the
+    # compartment helpers in spatialize_compartments.R already name, and they
+    # were absent, so any bare-symbol use of them fails `R CMD check`.
+    "polycell_id",
+    "cell_id",
     # sjos_n coefficient datasets (Module 0, Task 0.4)
     "n_boundary_params",
     "nourishment_thresholds",
@@ -1900,8 +1940,63 @@ utils::globalVariables(
     "sjos_class",
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
-    "method_n_exceedance"
+    "method_n_exceedance",
+    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
+    "ISO3_CODE",
+    "fao_area_name",
+    "iso3_code",
+    "profile_row",
+    # polity_folds.R (#419) — reporting-area fold diagnostic
+    "rows",
+    # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
+    "n_successors",
+    # polity_folds.R (#563) — bucket area-label derivation NSE columns
+    "member_name",
+    # feed_intake_build.R / feed_intake_redistribute.R (#467) — weight of each
+    # Bouwman region in an aggregate reporting bucket's herd
+    "region_weight",
+    # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
+    # period its growth rate was measured over
+    "lag_weight",
+    # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
+    "canonical_area",
+    "key_row",
+    # spatialize_compartments.R (#582) - .spatialize_to_bucket() data.table NSE
+    # columns: the carried raw reporting code and the bucket joined onto it
+    "grid_area_code",
+    "polity_bucket",
+    "i.polity_area_code",
+    # build_production.R (#633) — LUH2 land bucket-label derivation NSE columns
+    "bucket_area",
+    "member_code",
+    # build_cbs.R (#580) — .cbs_area_labels() data.table NSE column
+    "label_source_rank",
+    # read_raw_inputs.R (#586) — .iso3_area_code_bridge() data.table NSE
+    # columns for the canonical-area tie-break
+    "is_canonical",
+    "keep",
+    # water_balance.R, feed_lpjml.R, feed_intake_redistribute.R,
+    # run_spatialize.R — the cell-polity crosswalk's land-area share. Six
+    # unqualified uses survive the polycell migration and are deliberate: the
+    # water balance is owned elsewhere, the feed path is frozen, and
+    # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
+    "polity_frac",
+    # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
+    # land series measured inside each year's own polity polygon. `cell` and
+    # `ID` left with the raster cover whep#800 replaced by the polycell, which
+    # brings `polity_area_ha` in their place.
+    "n_buckets",
+    "mapping_status",
+    "polity_area_ha",
+    "frac",
+    "share",
+    "land_now",
+    "land_next",
+    "land_mha",
+    "log_ratio",
+    # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
+    # columns: the row's OWN year, joined back onto the anchored resolution
+    "data_year",
+    "i.data_year"
   )
 )
-
-# -- Helpers for spatialize scripts -------------------------------------------
