@@ -55,6 +55,101 @@
   rely on the current default and one of them is this ledger's own cropland
   anchor.
 
+* **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
+  intersection; it reads the polycell support.** whep#776 built a second answer
+  to a question whep#619 had already answered better: `.polity_cell_cover()`
+  ran `terra::extract(exact = TRUE)` over every polity polygon, where
+  `read_polycell_support()` is the same intersection measured geodesically with
+  `sf::st_area()` on s2, keyed on each polity's validity interval, conserving by
+  construction, and unable to give one cell to two overlapping polities at once.
+  The rasteriser, its grid template, its lon/lat lookup and the `sf`/`terra`
+  package assertion are all gone; this path now touches neither package. The
+  weight is `polity_area_ha`, the polity's territory in the cell, renormalised
+  to one per cell exactly as before — not `land_area_ha`, because
+  `build_polycell_support()` apportions inland water pro rata by
+  `polity_area_ha`, so within a cell the water cancels in that renormalisation
+  except where its cap bites, and there 1,502 polycells covering 62.4 Mha
+  (Canada on the Great Lakes and Hudson Bay, the USSR on the Caspian and Arctic
+  shores) carry `land_area_ha == 0` and would lose their claim on the cell
+  outright (whep#800).
+
+  **No published value moves on this commit**, because
+  `land_method = "present_day"` is still the default and the
+  `"historical_polity"` path reads the `historical-land-areas` pin rather than
+  recomputing. What moves is what `data-raw/historical_land_areas.R` now
+  produces, and the pin has to be regenerated and re-uploaded for any of it to
+  reach a user. Regenerated over 1850-1961: 18,922 rows / 215 buckets becomes
+  17,187 / 198, global cropland −0.007% at 1850, −0.004% at 1900, −0.108% at
+  1950 and −0.440% at 1961, and Ethiopia is unchanged to four decimals at every
+  checkpoint. 84% of shared bucket-years move by less than 0.1% and 87% by less
+  than 1%. The large movers are territories the old route was **halving**: an
+  aggregate's polygon overlaps its members', so a cell claimed by both was split
+  between them, and Belgium came out at 0.567 Mha of 1961 cropland instead of
+  1.015, Luxembourg at 0.037 instead of 0.063, New Caledonia at exactly half and
+  American Samoa at 51%.
+
+  **The loss of coverage is the other side of that, and it is the part to
+  review.** `build_polycell_support()` excludes `polity_type == "aggregate"`,
+  because the support must be a partition and an aggregate's polygon overlaps
+  its members'. Nine reporting buckets whose only pre-1962 territory is such an
+  aggregate therefore drop out — Belgium-Luxembourg, Yemen, the Netherlands
+  Antilles and the six "Other" residual regions, together 2.04 Mha of 1961
+  cropland as the old route measured it — and **Viet Nam keeps 1886-1953
+  unchanged but loses 1954-1961**, the span its combined-reporting entity
+  covers. The other eight (Cayman, Gibraltar, Mayotte, Anguilla, Turks and
+  Caicos, Wallis and Futuna, South Georgia, the French Southern Territories,
+  0.001 Mha between them) carry a polygon in `polities` but no row in the
+  *published* polycell pin, which predates the 2026-08-13 polity ingest; a
+  refreshed polycell pin restores those. `build_historical_land_areas()` warns
+  with the codes and separates the two causes, so neither loss is silent.
+
+* **The milk FAOSTAT reports as churned into butter is no longer counted as
+  milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
+  "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a
+  `processing` destiny with nowhere to go, so
+  `.cbs_redistribute_notprocessed()` split that mass pro-rata across food,
+  feed, other uses and export and deleted the `processing` row. The current
+  behaviour was not an omission but a claim about diets: that 198 Mt of milk
+  a year is drunk as milk (#757).
+
+  **Published values move, from 2010 onwards only.** The old Food Balances do
+  not report a `processing` destiny for milk at all — 1.0 Mt over 2010-2013
+  against the new series' 837.5 Mt — so no year before 2010 changes. World
+  2010 across the 180 areas shared with the `faostat-fbs-new` pin, Mt, WHEP
+  before to WHEP after against FAOSTAT: milk food 649.1 to 497.3 against
+  497.2; feed 74.3 to 60.6 against 60.6; export 120.6 to 89.0 against 89.0;
+  `processing` 0.0 to 198.2 against 198.5. Milk food protein falls by 5.0 Mt,
+  which is the whole of the milk discrepancy reported in #500 section 5.
+  Butter is unchanged, production 9.27 Mt against FAOSTAT's 9.37. The
+  remaining 3.2% gap in milk domestic supply is the dropped
+  losses/residuals/tourist renormalisation of #412, which this does not touch.
+
+  The fraction is 0.045, the median "Butter of Cow Milk" extraction rate over
+  the 69 countries reporting one in FAO (1997), *Technical Conversion Factors
+  for Agricultural Commodities* (range 3.3-7.3%). Per-area calibration lifts
+  it to an effective 0.0468 for 2010, against the 0.047 the FBS itself implies
+  (global butter production over milk processing, 0.044-0.047 across
+  2010-2019). Every country reporting butter production also reports milk
+  processing, and none reports butter without it.
+
+  `.cbs_add_processed()` gained `.resolve_processed_production()`, because
+  butter is the first processing output outside the "Crop products" group,
+  whose read production is dropped wholesale on the grounds that the pathway
+  always replaces it. For butter the pathway is silent before 2010, so a
+  positive pathway estimate now supersedes the read production and a zero or
+  absent one leaves it standing. Without that distinction the trace of milk
+  processing the old FBS records in some areas emits an empty butter row that
+  cancels the observed one, taking world 2000 butter production from 7.378 to
+  3.527 Mt.
+
+  **Items other than milk still lose their processing destiny.** Sugar (Raw
+  Equivalent), animal fats, coconut oil and 13 smaller items have no pathway
+  either, and roughly 17 Mt a year is still redistributed onto food and feed:
+  2010 coconut oil food is 58% above FAOSTAT's, ricebran oil 45% and
+  cottonseed oil 15%. Those carry almost no protein, so the nourishment axis
+  is largely unaffected, but the mass accounting is not. That residue is
+  unchanged here.
+
 * **The polycell is now WHEP's spatial support unit, and it carries a measured
   territory instead of a whole grid cell.** `build_polycell_support()` returns
   one row per 0.5-degree cell intersected with a polity over that polity's

@@ -346,14 +346,31 @@ urban_population <- nbd_stage(
 )
 nhx <- nbd_stage("nhx", read_n_deposition("nhx", years = year))
 noy <- nbd_stage("noy", read_n_deposition("noy", years = year))
-# Scoped to the driven year. Unscoped this builds every year the inputs cover,
-# which is what made this stage look like a hang in #455 rather than a
-# multi-hour run. A single-year balance initialises at equilibrium instead of
-# marching from 1901, which is a scientific choice for #446's sign-off, not the
-# driver's -- the driver's job is to make the stage finish and say what it did.
+# Marched, not single-year. A one-year balance initialises every cell at
+# equilibrium and takes one step, so that step absorbs the whole gap between
+# equilibrium and reality -- and .n_inputs_som() reads it as an annual nitrogen
+# input. Measured at 2010, varying only this span:
+#
+#   2010 only     median son_change 1136 kg N/ha   SOM N 1403 Tg
+#   2000-2010      479                              586 Tg
+#   1980-2010      274                              312 Tg
+#   1901-2010      280                              340 Tg
+#
+# It converges by roughly thirty years, so NBD_SPINUP_YEARS defaults to that:
+# long enough that the initialisation transient is spent, short enough that a
+# diagnostic run stays affordable. Longer buys nothing measurable.
+#
+# The converged value is still ~3-5x the physical range, which is NOT this
+# span's doing and is not fixed by lengthening it (#792) -- it is the carbon
+# balance's own calibration. The driver's job is to stop manufacturing the 4x
+# that was its own.
+NBD_SPINUP_YEARS <- 30L
 carbon_balance <- nbd_stage(
   "carbon_balance",
-  build_carbon_balance(resolution = "grid", years = year),
+  build_carbon_balance(
+    resolution = "grid",
+    years = (year - NBD_SPINUP_YEARS):year
+  ),
   heavy = TRUE
 )
 # redistribute_feed() takes two already-assembled tables (feed demand and feed

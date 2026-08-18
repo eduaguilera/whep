@@ -2759,6 +2759,17 @@ build_primary_production <- function(
 # back-cast years are measured -- 1962 onward reports its own area and never
 # reaches the proxy -- so the expensive gridded read is bounded by the pre-1962
 # span the request actually covers.
+# Read the published series rather than recomputing it. The table is STATIC --
+# it depends only on the LUH2 vintage and the polities snapshot -- and building
+# it reads gridded LUH2 once per back-cast year and rasterises ~440 polygons,
+# which is tens of minutes. So the pin is the normal path and
+# `build_historical_land_areas()` is the generator behind it
+# (`data-raw/historical_land_areas.R`).
+#
+# A year the pin does not carry is NOT silently dropped: the pin covers
+# 1850-1961, the whole back-cast span, so a gap means the pin is stale against
+# the polities snapshot and the caller should regenerate rather than get a
+# quietly shorter series.
 .historical_land_wide <- function(land_method, years) {
   if (land_method != "historical_polity") {
     return(NULL)
@@ -2767,7 +2778,22 @@ build_primary_production <- function(
   if (length(back_cast) == 0L) {
     return(NULL)
   }
-  build_historical_land_areas(years = back_cast) |>
+  land <- .read_input(
+    "historical-land-areas",
+    years = back_cast,
+    year_col = "year"
+  ) |>
+    tibble::as_tibble()
+  missing <- setdiff(back_cast, unique(land$year))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "The {.val historical-land-areas} pin does not cover
+       {length(missing)} requested year{?s}: {.val {utils::head(missing, 5)}}.",
+      "i" = "Regenerate it with {.file data-raw/historical_land_areas.R} and
+             re-upload; it is static per LUH2 vintage and polities snapshot."
+    ))
+  }
+  land |>
     dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
 }
 

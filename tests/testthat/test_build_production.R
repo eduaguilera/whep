@@ -537,6 +537,39 @@ test_that(".historical_land_wide is NULL unless the method asks for it", {
   expect_null(whep:::.historical_land_wide("historical_polity", 1990:2000))
 })
 
+test_that("a stale historical-land pin aborts instead of shortening the series", {
+  # The pin covers the whole back-cast span by construction, so a missing year
+  # means it is stale against the polities snapshot that produced it. Returning
+  # the short series would silently drop those years from the back-cast, which
+  # is the failure this abort exists to prevent. Offline: the reader is mocked,
+  # never called for real.
+  short <- tibble::tibble(
+    year = 1850:1900,
+    area_code = 238L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+  testthat::with_mocked_bindings(
+    expect_error(
+      whep:::.historical_land_wide("historical_polity", 1850:1961),
+      "does not cover"
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+
+  # ...and it does NOT abort when the pin covers everything asked for.
+  testthat::with_mocked_bindings(
+    expect_equal(
+      nrow(whep:::.historical_land_wide("historical_polity", 1850:1900)),
+      51L
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+})
+
 test_that(".extend_historical warns about areas with no LUH2 land match", {
   primary <- tibble::tibble(
     year = c(1960L, 1961L),

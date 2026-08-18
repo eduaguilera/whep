@@ -2721,20 +2721,26 @@ build_processing_coefs <- function(
 ) {
   items <- whep::items_full
 
+  processed <- proc_result$processed_agg |>
+    dplyr::left_join(
+      items |> dplyr::select(item_cbs, item_cbs_code),
+      by = "item_cbs"
+    ) |>
+    dplyr::mutate(source = "Processed")
+
+  observed <- cbs_raw |>
+    dplyr::left_join(
+      items |>
+        dplyr::select(item_cbs, item_cbs_code, group),
+      by = c("item_cbs", "item_cbs_code")
+    ) |>
+    dplyr::filter(!(group == "Crop products" & element == "production"))
+
+  reconciled <- .resolve_processed_production(observed, processed, items)
+
   dplyr::bind_rows(
-    cbs_raw |>
-      dplyr::left_join(
-        items |>
-          dplyr::select(item_cbs, item_cbs_code, group),
-        by = c("item_cbs", "item_cbs_code")
-      ) |>
-      dplyr::filter(!(group == "Crop products" & element == "production")),
-    proc_result$processed_agg |>
-      dplyr::left_join(
-        items |> dplyr::select(item_cbs, item_cbs_code),
-        by = "item_cbs"
-      ) |>
-      dplyr::mutate(source = "Processed")
+    reconciled$observed,
+    reconciled$processed
   ) |>
     dplyr::filter(
       year %in% years,
@@ -2751,6 +2757,46 @@ build_processing_coefs <- function(
       source,
       value
     )
+}
+
+# Reconcile the read production of an item against the production the
+# processing pathway supplies for it, so exactly one of the two survives per
+# area-year.
+#
+# Crop products need no reconciling: every one of them is a processing output,
+# so `.cbs_add_processed()` drops their read production wholesale and the
+# pathway is the only source. Butter is not (#757). FAOSTAT reports butter
+# production from 1961, but milk's `processing` destiny — the milk churned
+# into it — is reported only by the new FBS, from 2010. The pathway is
+# therefore silent over most of the series, and a wholesale drop erases
+# 1961-2009 butter (measured: world 2000 production 7.378 to 3.527 Mt).
+#
+# So a *positive* pathway estimate supersedes the read value, and a zero or
+# absent one leaves the read value standing and is itself discarded. Keying on
+# emptiness rather than existence matters because the old FBS records a trace
+# of milk processing in some areas, which is enough to emit a butter row worth
+# nothing and cancel the observed one.
+.resolve_processed_production <- function(observed, processed, items) {
+  derived <- items |>
+    dplyr::filter(!is.na(group), group != "Crop products") |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+
+  supplied <- processed |>
+    dplyr::filter(element == "production", value > 0) |>
+    dplyr::distinct(year, area_code, item_cbs_code, element)
+
+  list(
+    observed = dplyr::anti_join(
+      observed,
+      supplied,
+      by = c("year", "area_code", "item_cbs_code", "element")
+    ),
+    processed = processed |>
+      dplyr::filter(
+        !(item_cbs_code %in% derived & element == "production" & value <= 0)
+      )
+  )
 }
 
 .extract_source_lookup <- function(df) {

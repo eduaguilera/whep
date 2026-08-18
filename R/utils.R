@@ -1851,11 +1851,12 @@ utils::globalVariables(
     # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
     "polity_frac",
     # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
-    # land series measured inside each year's own polity polygon
+    # land series measured inside each year's own polity polygon. `cell` and
+    # `ID` left with the raster cover whep#800 replaced by the polycell, which
+    # brings `polity_area_ha` in their place.
     "n_buckets",
     "mapping_status",
-    "cell",
-    "ID",
+    "polity_area_ha",
     "frac",
     "share",
     "land_now",

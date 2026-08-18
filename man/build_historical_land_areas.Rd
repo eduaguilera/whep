@@ -35,9 +35,11 @@ Ethiopia's 1850 comes back to 3.24 Mha -- within 0.6\% of the present-day
 figure this method exists to replace (whep#761).}
 
 \item{data}{Named list of pre-loaded inputs bypassing the readers, for tests:
-\code{polity_areas} (\code{year}, \code{area_code}, \code{polity_code}), \code{cover}
-(\code{polity_code}, \code{lon}, \code{lat}, \code{frac}) and \code{cell_areas} (\code{year}, \code{lon},
-\code{lat}, \code{land_use}, \code{area_ha}). Each falls back to its reader when absent.}
+\code{polity_areas} (\code{year}, \code{area_code}, \code{polity_code}), \code{support} (a
+\code{\link[=read_polycell_support]{read_polycell_support()}} table), \code{cover} (\code{polity_code}, \code{lon}, \code{lat},
+\code{frac}, which is \code{support} already reduced to one weight per cell) and
+\code{cell_areas} (\code{year}, \code{lon}, \code{lat}, \code{land_use}, \code{area_ha}). Each falls back
+to its reader when absent.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -56,13 +58,17 @@ Emit the land table the pre-1962 production back-cast consumes -- \code{year},
 hectares summed from gridded LUH2 inside the polygon of the polity that
 \code{area_code} resolved to in that year, instead of inside present-day borders.
 
-A cell's land is shared among the polities whose polygons cover it, in
-proportion to the covered fraction renormalised to one per cell, which is the
-rule \code{build_cell_polity_fraction()} already uses. Renormalising matters:
-LUH2's state fractions are fractions of the whole cell and already discount
-open water, so weighting them by a raw coastal cell's land share would
-discount it twice and lose 12-15\% of the land of an island or heavily coastal
-country.
+The cell-by-polity intersection is not measured here: it is read from the
+polycell support table (\code{\link[=read_polycell_support]{read_polycell_support()}}), which is that
+intersection measured geodesically on s2 and keyed on each polity's validity
+interval.
+
+A cell's land is shared among the polities whose territory covers it, in
+proportion to that territory renormalised to one per cell, which is the rule
+\code{build_cell_polity_fraction()} already uses. Renormalising matters: LUH2's
+state fractions are fractions of the whole cell and already discount open
+water, so weighting them by a raw coastal cell's land share would discount it
+twice and lose 12-15\% of the land of an island or heavily coastal country.
 
 \code{fill_proxy_growth()} consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio

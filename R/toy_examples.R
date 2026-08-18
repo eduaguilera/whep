@@ -1259,23 +1259,30 @@
   )
 }
 
-# Ten rows of a real build_historical_land_areas(1850:1961) run, sampled across
-# the span and across the cases that make this method differ from the
-# present-day one: Ethiopia either side of the 1952 Eritrea handover, and the
-# dissolved federations the polygon route reaches without a successor union.
+# Ten rows of a real build_historical_land_areas(1850:1961) run at its DEFAULT
+# `boundary_step = "level_step"`, sampled across the span and across the cases
+# that make this method differ from the present-day one: Ethiopia either side of
+# the 1952 Eritrea handover, the dissolved federations the method reaches
+# without a successor union, and Belgium, which the raster route halved by
+# splitting its cells with the overlapping Belgium-Luxembourg polygon
+# (whep#800).
+#
+# The rows this replaces were taken from a `"relink"` run, so they disagreed
+# with the pin the default produces: Ethiopia 1850 read 3.2414 Mha of cropland
+# where both the shipped pin and this run read 1.5174.
 .example_historical_land_areas <- function() {
   tibble::tribble(
     ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
-    1961L, 15L, "BLX-1850-1999", 0.6056, 0.4450, 1.0506,
+    1961L, 255L, "BEL-1831-2025", 1.0152, 0.7175, 1.7327,
     1961L, 51L, "F51-1947-1993", 5.3510, 1.8063, 7.1573,
-    1900L, 203L, "ESP-1800-2025", 16.1664, 8.2025, 24.3689,
-    1961L, 228L, "F228-1945-1991", 237.8784, 331.6635, 569.5419,
-    1850L, 238L, "ETH-1800-1889", 3.2414, 9.6115, 12.8529,
-    1900L, 238L, "ETH-1897-1902", 6.4231, 16.5057, 22.9288,
-    1951L, 238L, "ETH-1941-1952", 9.7288, 24.3119, 34.0407,
-    1952L, 238L, "ETH-1952-1993", 9.9164, 24.7568, 34.6732,
-    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5830, 41.5347,
-    1961L, 248L, "F248-1947-1991", 8.3957, 6.4600, 14.8557
+    1900L, 203L, "ESP-1800-2025", 16.1666, 8.2026, 24.3692,
+    1961L, 228L, "F228-1945-1991", 237.8785, 331.6635, 569.5420,
+    1850L, 238L, "ETH-1800-1889", 1.5174, 1.8841, 3.4015,
+    1900L, 238L, "ETH-1897-1902", 6.0023, 13.5575, 19.5598,
+    1951L, 238L, "ETH-1941-1952", 9.4543, 22.9532, 32.4075,
+    1952L, 238L, "ETH-1952-1993", 10.2061, 30.0426, 40.2487,
+    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5874, 41.5391,
+    1961L, 248L, "F248-1947-1991", 8.3956, 6.4600, 14.8556
   )
 }
 
