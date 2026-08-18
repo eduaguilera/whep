@@ -176,6 +176,25 @@ test_that("inputs are allocated to destinies using item shares", {
   expect_equal(out$allocated[out$destiny_grp == "feed"], 40)
 })
 
+test_that("items with input/area but no tracked output keep their full mass", {
+  # Sugar beet has no matching row in `shares` (e.g. substituted to "Sugar").
+  shares <- tibble::tribble(
+      ~year, ~province_name, ~item, ~destiny_grp, ~share, ~output_mg,
+      2000, "A", "Wheat", "domestic_food", 1, 60
+    )
+  item_inputs <- tibble::tribble(
+      ~year, ~province_name, ~item, ~input_mg,
+      2000, "A", "Wheat", 60,
+      2000, "A", "Sugar beet", 40
+    )
+
+  out <- .allocate_by_destiny_share(item_inputs, shares, "input_mg")
+
+  expect_equal(out$allocated[out$destiny_grp == "domestic_food"], 60)
+  expect_equal(out$allocated[out$destiny_grp == "no_tracked_output"], 40)
+  expect_equal(sum(out$allocated), 100)
+})
+
 # .assemble_cropland_panel: closure and completion of missing destinies
 test_that("cropland panel computes surplus and fills missing destinies", {
   inputs_pu <- tibble::tribble(
@@ -193,13 +212,41 @@ test_that("cropland panel computes surplus and fills missing destinies", {
 
   panel <- .assemble_cropland_panel(inputs_pu, area_pu, outputs_pu)
 
-  expect_equal(nrow(panel), 4) # domestic_food, feed, exported, non_food
+  # domestic_food, feed, exported, non_food, no_tracked_output
+  expect_equal(nrow(panel), 5)
   expect_equal(
     panel$surplus[panel$destiny_grp == "domestic_food"],
     100 - 60
   )
   expect_equal(panel$surplus[panel$destiny_grp == "feed"], 0)
   expect_equal(unique(panel$total_area), 10)
+})
+
+test_that("no_tracked_output input/area count toward surplus and total_area", {
+  inputs_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~inputs,
+      2000, "A", "domestic_food", 100,
+      2000, "A", "no_tracked_output", 40
+    )
+  area_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~area,
+      2000, "A", "domestic_food", 10,
+      2000, "A", "no_tracked_output", 5
+    )
+  outputs_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~outputs,
+      2000, "A", "domestic_food", 60
+    )
+
+  panel <- .assemble_cropland_panel(inputs_pu, area_pu, outputs_pu)
+
+  # No output row for no_tracked_output, so its full input is surplus.
+  expect_equal(
+    panel$surplus[panel$destiny_grp == "no_tracked_output"],
+    40
+  )
+  # total_area includes the untracked area, not just the tracked ones.
+  expect_equal(unique(panel$total_area), 15)
 })
 
 # .cropland_area_surplus_units
@@ -387,6 +434,9 @@ test_that("species without a livestock-unit coefficient are dropped, not zero-fi
 
   expect_false("Fur animals" %in% panel$livestock_cat)
   expect_equal(panel$feed_n[panel$livestock_cat == "Pigs"], 100)
+
+  # Fur animals' 12 Mg N must still count, even though it's dropped from panel.
+  expect_equal(unique(panel$excr_total), 40 + 12)
 })
 
 # .finalize_manure_panel
@@ -396,17 +446,46 @@ test_that("manure loss fraction and herd total are computed nationally", {
     2000, "Pigs", 100, 200, 80,
     2000, "Cattle", 200, 400, 120
   )
+  excr_total <- tibble::tribble(
+    ~year, ~excr_total,
+    2000, 200
+  )
   applied <- tibble::tribble(
     ~year, ~applied,
     2000, 150
   )
 
-  out <- .finalize_manure_panel(panel, applied)
+  out <- .finalize_manure_panel(panel, excr_total, applied)
 
   # excr_total = 200, applied = 150 -> loss_frac = 50/200 = 0.25
   expect_equal(unique(out$loss_frac), 0.25)
   expect_equal(out$loss[out$livestock_cat == "Pigs"], 80 * 0.25)
   expect_equal(unique(out$herd_total), 300)
+})
+
+test_that("manure loss fraction covers species without an LU coefficient too", {
+  # excr_total must include species excluded from panel, since `applied`
+  # already covers them.
+  panel <- tibble::tribble(
+      ~year, ~livestock_cat, ~herd_lu, ~feed_n, ~excr_n,
+      2000, "Pigs", 100, 200, 80,
+      2000, "Cattle", 200, 400, 120
+    )
+  # Includes 20 Mg N from species absent from panel (e.g. Fur animals).
+  excr_total <- tibble::tribble(
+      ~year, ~excr_total,
+      2000, 220
+    )
+  applied <- tibble::tribble(
+      ~year, ~applied,
+      2000, 150
+    )
+
+  out <- .finalize_manure_panel(panel, excr_total, applied)
+
+  # excr_total = 220, applied = 150 -> loss_frac = 70/220, not 50/200.
+  expect_equal(unique(out$loss_frac), 70 / 220)
+  expect_equal(out$loss[out$livestock_cat == "Pigs"], 80 * (70 / 220))
 })
 
 # .national_manure_panel
@@ -437,6 +516,30 @@ test_that("urban panel computes per-capita loss correctly", {
   expect_equal(out$excr_pc, 10)
   expect_equal(out$loss_frac, 0.6)
   expect_equal(out$loss, 60)
+})
+
+test_that("urban panel warns when excr_h = 0 breaks the additive identity", {
+  excr_h <- tibble::tribble(~year, ~excr_h, 2000, 0)
+  recycled <- tibble::tribble(~year, ~recycled, 2000, 50)
+  pop <- tibble::tribble(~year, ~population, 2000, 10)
+
+  expect_warning(
+    out <- .assemble_urban_panel(excr_h, recycled, pop),
+    "additive identity"
+  )
+
+  # loss is real (-50); excr_pc/loss_frac collapse to 0, unlike the identity.
+  expect_equal(out$loss, -50)
+  expect_equal(out$excr_pc, 0)
+  expect_equal(out$loss_frac, 0)
+})
+
+test_that("urban panel does not warn when excr_h = 0 and recycled = 0", {
+  excr_h <- tibble::tribble(~year, ~excr_h, 2000, 0)
+  recycled <- tibble::tribble(~year, ~recycled, 2000, 0)
+  pop <- tibble::tribble(~year, ~population, 2000, 10)
+
+  expect_no_warning(.assemble_urban_panel(excr_h, recycled, pop))
 })
 
 # .warn_if_sign_change

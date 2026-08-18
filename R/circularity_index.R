@@ -39,7 +39,8 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
 #'   typology with interquartile ribbon; (b) FCI distribution at four key
 #'   periods as boxplots; (c) net change in mean FCI from first to last period.
 #'
-#' @param periods Integer vector of four years to highlight.
+#' @param periods Integer vector of years marked as dashed lines on the
+#'   `evolution` panel. `periods`/`change` always use the four fixed eras.
 #' @param finn_data Pre-computed tibble from [create_finn_indicator()].
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Passed to [create_finn_indicator()] when
@@ -73,7 +74,7 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
 #'   typologies = typologies
 #' )
 plot_finn_circularity <- function(
-  periods = c(1860, 1920, 1960, 2020),
+  periods = c(1860, 1920, 1960, 2010),
   finn_data = NULL,
   n_prov_destiny = NULL,
   typologies = NULL
@@ -95,8 +96,8 @@ plot_finn_circularity <- function(
     )
   list(
     evolution = .plot_fci_evolution(fci_df, periods),
-    periods = .plot_fci_periods(fci_df, periods),
-    change = .plot_fci_change(fci_df, periods)
+    periods = .plot_fci_periods(fci_df),
+    change = .plot_fci_change(fci_df)
   )
 }
 
@@ -111,7 +112,14 @@ plot_finn_circularity <- function(
       "Livestock",
       "People"
     ),
-    external_inputs = c("Outside", "Synthetic", "Fixation", "Deposition"),
+    external_inputs = c(
+      "Outside",
+      "Synthetic",
+      "Fixation",
+      "Deposition",
+      "Fish",
+      "Agro-industry"
+    ),
     destiny_to_comp = tibble::tribble(
       ~destiny,                       ~to_comp,
       "Cropland",                     "Cropland",
@@ -320,7 +328,7 @@ plot_finn_circularity <- function(
     dplyr::filter(!is.na(period_label))
 }
 
-.plot_fci_periods <- function(fci_df, periods) {
+.plot_fci_periods <- function(fci_df) {
   colors <- .finn_typology_colors()
   ranges <- .fci_period_ranges()
   typo_order <- .fci_typology_order()
@@ -363,21 +371,31 @@ plot_finn_circularity <- function(
     )
 }
 
-.plot_fci_change <- function(fci_df, periods) {
+.plot_fci_change <- function(fci_df) {
   ranges <- .fci_period_ranges()
   typo_colors <- .finn_typology_colors()
   typo_order <- .fci_typology_order()
 
   period_means <- .fci_period_means(fci_df, ranges)
 
+  # complete() turns a missing period into an explicit NA row, so lag()
+  # returns NA for a gap instead of reaching back further.
   with_prev <- period_means |>
+    tidyr::complete(Typology_base, period_label = ranges$period_label) |>
+    dplyr::mutate(
+      period_label = factor(period_label, levels = ranges$period_label)
+    ) |>
     dplyr::arrange(Typology_base, period_label) |>
     dplyr::group_by(Typology_base) |>
     dplyr::mutate(prev_fci = dplyr::lag(mean_fci)) |>
     dplyr::ungroup() |>
     dplyr::filter(period_label != "1860-1870") |>
     dplyr::mutate(
-      change_pct = (mean_fci - prev_fci) / prev_fci * 100
+      change_pct = dplyr::if_else(
+        is.na(mean_fci) | is.na(prev_fci) | prev_fci == 0,
+        NA_real_,
+        (mean_fci - prev_fci) / prev_fci * 100
+      )
     )
 
   sort_order <- with_prev |>

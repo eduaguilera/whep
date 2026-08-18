@@ -260,6 +260,7 @@ decompose_manure_losses <- function(
     raw$livestock_units
   ) |>
     .national_manure_panel()
+  .warn_if_sign_change(panel, loss, character(0), "Manure losses")
   if (by_period) {
     panel <- .period_average_panel(panel, character(0))
   }
@@ -1823,7 +1824,13 @@ plot_compart_factor_periods <- function(
 
 .allocate_by_destiny_share <- function(item_values, shares, value_col) {
   shares |>
-    dplyr::left_join(item_values, by = c("year", "province_name", "item")) |>
+    dplyr::full_join(item_values, by = c("year", "province_name", "item")) |>
+    dplyr::mutate(
+      # Items with no tracked-destiny output keep their full mass here,
+      # tagged instead of silently dropped or misattributed.
+      destiny_grp = dplyr::coalesce(destiny_grp, "no_tracked_output"),
+      share = dplyr::coalesce(share, 1)
+    ) |>
     dplyr::mutate(allocated = dplyr::coalesce(.data[[value_col]], 0) * share) |>
     dplyr::summarise(
       allocated = sum(allocated, na.rm = TRUE),
@@ -1869,9 +1876,18 @@ plot_compart_factor_periods <- function(
       outputs_pu,
       by = c("year", "province_name", "destiny_grp")
     ) |>
+    dplyr::mutate(
+      dplyr::across(c(inputs, area, outputs), ~ dplyr::coalesce(.x, 0))
+    ) |>
     tidyr::complete(
       tidyr::nesting(year, province_name),
-      destiny_grp = c("domestic_food", "feed", "exported", "non_food"),
+      destiny_grp = c(
+        "domestic_food",
+        "feed",
+        "exported",
+        "non_food",
+        "no_tracked_output"
+      ),
       fill = list(inputs = 0, area = 0, outputs = 0)
     ) |>
     dplyr::mutate(surplus = inputs - outputs) |>
@@ -2166,13 +2182,19 @@ plot_compart_factor_periods <- function(
       fill = list(herd_lu = 0, feed_n = 0, excr_n = 0)
     )
 
-  .finalize_manure_panel(panel, .national_manure_applied(n_prov_destiny))
-}
-
-.finalize_manure_panel <- function(panel, applied) {
-  excr_total <- panel |>
+  # excr_total must cover all species like `applied` does, not just the
+  # LU-covered ones in `panel`, or loss_frac compares mismatched scopes.
+  excr_total <- .national_excretion_n(n_excretion_ygs) |>
     dplyr::summarise(excr_total = sum(excr_n, na.rm = TRUE), .by = year)
 
+  .finalize_manure_panel(
+    panel,
+    excr_total,
+    .national_manure_applied(n_prov_destiny)
+  )
+}
+
+.finalize_manure_panel <- function(panel, excr_total, applied) {
   panel |>
     dplyr::left_join(excr_total, by = "year") |>
     dplyr::left_join(applied, by = "year") |>
@@ -2225,7 +2247,7 @@ plot_compart_factor_periods <- function(
 }
 
 .assemble_urban_panel <- function(excr_h, recycled, pop) {
-  excr_h |>
+  panel <- excr_h |>
     dplyr::full_join(recycled, by = "year") |>
     dplyr::full_join(pop, by = "year") |>
     dplyr::mutate(
@@ -2236,6 +2258,19 @@ plot_compart_factor_periods <- function(
       loss_frac = dplyr::if_else(excr_h > 0, (excr_h - recycled) / excr_h, 0),
       loss = excr_h - recycled
     )
+
+  # excr_h = 0 forces the identity to 0 even when loss (excr_h - recycled)
+  # isn't; warn instead of letting that mismatch pass silently.
+  n_broken <- sum(panel$excr_h == 0 & panel$recycled != 0)
+  if (n_broken > 0) {
+    cli::cli_warn(c(
+      "Urban losses: {n_broken} year{?s} with excr_h = 0 but recycled > 0.",
+      "i" = "excr_pc and loss_frac both collapse to 0 there, so the",
+      "i" = "additive identity no longer equals the observed loss."
+    ))
+  }
+
+  panel
 }
 
 

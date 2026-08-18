@@ -224,6 +224,26 @@ test_that(".finn_for_group returns NA if any compartment has no inflow", {
   expect_true(is.na(out$finn_index))
 })
 
+test_that(".finn_for_group counts Fish and Agro-industry as external inputs", {
+  # Fish/Agro-industry are pure sources, like Synthetic/Deposition/Fixation.
+  flows <- tibble::tribble(
+    ~origin, ~destiny, ~mg_n,
+    "Fish", "population_food", 50,
+    "Agro-industry", "livestock_mono", 20,
+    "Synthetic", "Cropland", 100,
+    "Deposition", "semi_natural_agroecosystems", 5
+  )
+
+  out <- .finn_for_group(
+    flows,
+    tibble::tibble(year = 2000, province_name = "A"),
+    .finn_mapping()
+  )
+
+  # Real 0 (nothing cycles), not NA from zero throughflow.
+  expect_equal(out$finn_index, 0)
+})
+
 test_that(".finn_for_group ignores flows whose origin is not a compartment", {
   # Only external inputs, no compartment-to-compartment flow: nothing cycles.
   flows <- tibble::tribble(

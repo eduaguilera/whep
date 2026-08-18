@@ -78,7 +78,7 @@ plot_typology_indicators_panel <- function(
   area_df <- area_df %||% .panel_area_df()
   typo_df <- typo_df %||% .panel_typology_df()
   colors <- .finn_typology_colors()
-  periods <- c(1860, 1920, 1960, 2020)
+  periods <- c(1860, 1920, 1960, 2010)
 
   p_ext <- .panel_ext_dep(flows, area_df, typo_df, colors, periods)
   p_fci <- .panel_fci(finn_data, typo_df, colors, periods)
@@ -520,6 +520,7 @@ plot_typology_periods_panel <- function(
   dplyr::full_join(ext, int, by = c("year", "province_name")) |>
     dplyr::mutate(
       year = as.numeric(year),
+      dplyr::across(c(ext_mg, int_mg), ~ dplyr::coalesce(.x, 0)),
       value = ext_mg / (ext_mg + int_mg)
     ) |>
     dplyr::filter(is.finite(value))
@@ -633,10 +634,15 @@ plot_typology_periods_panel <- function(
   ) |>
     dplyr::mutate(
       year = as.numeric(year),
+      dplyr::across(
+        c(soil_in, soil_out, lv_in, lv_out),
+        ~ dplyr::coalesce(.x, 0)
+      ),
       surplus_mg = (soil_in - soil_out) + (lv_in - lv_out),
       value = surplus_mg * 1000 / area_ha
     ) |>
-    dplyr::filter(is.finite(value), value >= 0)
+    # Negative surplus is a real value, not noise; only drop non-finite.
+    dplyr::filter(is.finite(value))
 }
 
 .panel_pollution <- function(flows, area_df, typo_df, colors, periods) {

@@ -5,14 +5,17 @@
 \title{Plot Finn Cycling Index evolution and period comparison}
 \usage{
 plot_finn_circularity(
-  periods = c(1860, 1920, 1960, 2020),
+  periods = c(1860, 1920, 1960, 2010),
   finn_data = NULL,
   n_prov_destiny = NULL,
   typologies = NULL
 )
 }
 \arguments{
-\item{periods}{Integer vector of four years to highlight.}
+\item{periods}{Integer vector of years to mark as dashed reference lines
+on the \code{evolution} panel. The \code{periods} and \code{change} panels always
+compare the four fixed historical eras (1860-1870, 1920-1930,
+1960-1970, 2010-2020) regardless of this argument.}
 
 \item{finn_data}{Pre-computed tibble from \code{\link[=create_finn_indicator]{create_finn_indicator()}}.
 If \code{NULL}, computed automatically (slow).}

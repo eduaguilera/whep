@@ -654,6 +654,8 @@ create_n_nat_destiny <- function(example = FALSE) {
     )
 
   # Substracting the Seed data from Production in grafs_prod_combined.
+  # Seed only comes off the Product row, not Residue/Grass rows for the
+  # same item.
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
       seed_rates |>
@@ -661,7 +663,11 @@ create_n_nat_destiny <- function(example = FALSE) {
       by = c("Year", "Province_name", "Item")
     ) |>
     dplyr::mutate(
-      Seeds_used_MgFM = dplyr::coalesce(Seeds_used_MgFM, 0),
+      Seeds_used_MgFM = dplyr::if_else(
+        prod_type == "Product",
+        dplyr::coalesce(Seeds_used_MgFM, 0),
+        0
+      ),
       Seeds_used_capped = dplyr::if_else(
         Seeds_used_MgFM > 0.5 * production_fm,
         0.5 * production_fm,
