@@ -101,6 +101,8 @@ single coherent fixture set drives the whole chain without any real data.</p>
 <span>  boundary_land_use <span class="op">=</span> <span class="st">"ara"</span>,</span>
 <span>  nh3_source <span class="op">=</span> <span class="st">"soil"</span>,</span>
 <span>  footprint_category <span class="op">=</span> <span class="st">"exceedance"</span>,</span>
+<span>  nourishment_thresholds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"composed"</span>, <span class="st">"flat"</span><span class="op">)</span>,</span>
+<span>  nourishment_band <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -142,6 +144,30 @@ reconstructed intensive-grassland class).</p></dd>
 <dt id="arg-footprint-category">footprint_category<a class="anchor" aria-label="anchor" href="#arg-footprint-category"></a></dt>
 <dd><p>Which per-crop nitrogen mass the footprint traces,
 <code>"exceedance"</code> (default), <code>"within_boundary"</code> or <code>"production"</code>.</p></dd>
+
+
+<dt id="arg-nourishment-thresholds">nourishment_thresholds<a class="anchor" aria-label="anchor" href="#arg-nourishment-thresholds"></a></dt>
+<dd><p>Which band the "just" axis classifies against:
+<code>"composed"</code> (default) builds it per country and year from
+<code><a href="build_nourishment_band.html">build_nourishment_band()</a></code>'s four sourced terms, or <code>"flat"</code> restores the
+retired 62.1 / 85.05 pair. <code>"flat"</code> survives for continuity and
+sensitivity only: of its five underlying numbers only the 46 g/cap/day
+floor was ever sourced, and the 1.35 multiplier behind both bounds was a
+preliminary presentation figure (whep#753).</p></dd>
+
+
+<dt id="arg-nourishment-band">nourishment_band<a class="anchor" aria-label="anchor" href="#arg-nourishment-band"></a></dt>
+<dd><p>Named list of options for the composed band, ignored
+when <code>nourishment_thresholds = "flat"</code>. <code>quality_method</code> and
+<code>quality_variant</code> select the protein-quality tier and its bracket
+(<code><a href="build_protein_quality.html">build_protein_quality()</a></code>); <code>wedge_method</code> and <code>wedge_coverage</code> select the
+loss wedge (<code><a href="build_loss_wedge.html">build_loss_wedge()</a></code>); <code>shortfall</code>, <code>ceiling</code> and
+<code>requirement_sd</code> go to <code><a href="build_nourishment_band.html">build_nourishment_band()</a></code> itself, and <code>ceiling</code> is
+the sensitivity knob the band's own documentation asks callers to sweep.
+An option this list does not name <strong>aborts</strong> rather than being ignored, so
+a mistyped knob cannot silently run the default and be reported as a
+sensitivity. Defaults to <code><a href="https://rdrr.io/r/base/list.html" class="external-link">list()</a></code>, which leaves every builder on its own
+default.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -255,8 +281,8 @@ footprints).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code nourish_norm boundary_norm population</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1        0.965          1.71 <span style="text-decoration: underline;">4</span>000<span style="text-decoration: underline;">000</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2        2.05           1.83 <span style="text-decoration: underline;">3</span>000<span style="text-decoration: underline;">000</span>000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>010         1         1.13          1.71 <span style="text-decoration: underline;">4</span>000<span style="text-decoration: underline;">000</span>000</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>010         2         1.38          1.83 <span style="text-decoration: underline;">3</span>000<span style="text-decoration: underline;">000</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $sjos_class</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 9</span></span>

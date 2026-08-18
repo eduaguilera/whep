@@ -11,11 +11,22 @@ the adequate band and 2 or above at or past the ceiling. The class is
 `"Over"` otherwise. Protein is the SJOS-N nourishment axis, so the
 defaults are the protein floor and ceiling (62.1 and 85.05 g/cap/day)
 from
-[nourishment_thresholds](https://eduaguilera.github.io/whep/reference/nourishment_thresholds.md);
-switching `value_col` to `energy_kcal_cap_day` and passing
-`thresholds = c(floor = 2300, ceiling = 2900)` classifies dietary energy
-instead, a completeness cross-check rather than the nitrogen
-classification.
+[nourishment_thresholds](https://eduaguilera.github.io/whep/reference/nourishment_thresholds.md).
+
+Of those two defaults only the underlying 46 g/cap/day floor is sourced
+(WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult, itself
+a 97.5th-percentile individual level rather than a population one). The
+63 ceiling and the 1.35 factor that lifts both to a supply basis carry
+no source; `nourishment_thresholds$provenance` says so per row.
+[`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)
+is the sourced replacement for both bounds and is not wired in here yet.
+
+Passing `value_col = energy_kcal_cap_day` runs the same arithmetic on a
+different quantity and is **not** a second WHEP axis: the packaged
+energy bounds are unsourced, and WHEP's energy column is gross
+combustion energy where a dietary threshold is metabolisable. Supply
+your own bounds and your own metabolisable series if you want that
+comparison.
 
 ## Usage
 
@@ -39,8 +50,14 @@ normalize_nourishment(x, value_col = protein_g_cap_day, thresholds = NULL)
 
 - thresholds:
 
-  Optional named `floor` and `ceiling` (a named numeric vector or list).
-  When `NULL` (default) the protein floor and ceiling from
+  Either a named `floor`/`ceiling` pair applied to every row (a named
+  numeric vector or list), or a **data frame of per-country-year
+  bounds** keyed by `year` and `area_code` with either
+  `floor_g_cap_day`/`ceiling_g_cap_day` or `floor`/`ceiling` — so a
+  [`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)
+  output passes straight through. A row that matches no band is
+  classified `NA` and named in a warning, never silently given the flat
+  default. When `NULL` (default) the flat protein bounds from
   [nourishment_thresholds](https://eduaguilera.github.io/whep/reference/nourishment_thresholds.md)
   are used.
 

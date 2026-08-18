@@ -42,6 +42,8 @@ build_sjos_nitrogen(
   boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
+  nourishment_thresholds = c("composed", "flat"),
+  nourishment_band = list(),
   example = FALSE
 )
 ```
@@ -88,6 +90,34 @@ build_sjos_nitrogen(
 
   Which per-crop nitrogen mass the footprint traces, `"exceedance"`
   (default), `"within_boundary"` or `"production"`.
+
+- nourishment_thresholds:
+
+  Which band the "just" axis classifies against: `"composed"` (default)
+  builds it per country and year from
+  [`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)'s
+  four sourced terms, or `"flat"` restores the retired 62.1 / 85.05
+  pair. `"flat"` survives for continuity and sensitivity only: of its
+  five underlying numbers only the 46 g/cap/day floor was ever sourced,
+  and the 1.35 multiplier behind both bounds was a preliminary
+  presentation figure (whep#753).
+
+- nourishment_band:
+
+  Named list of options for the composed band, ignored when
+  `nourishment_thresholds = "flat"`. `quality_method` and
+  `quality_variant` select the protein-quality tier and its bracket
+  ([`build_protein_quality()`](https://eduaguilera.github.io/whep/reference/build_protein_quality.md));
+  `wedge_method` and `wedge_coverage` select the loss wedge
+  ([`build_loss_wedge()`](https://eduaguilera.github.io/whep/reference/build_loss_wedge.md));
+  `shortfall`, `ceiling` and `requirement_sd` go to
+  [`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)
+  itself, and `ceiling` is the sensitivity knob the band's own
+  documentation asks callers to sweep. An option this list does not name
+  **aborts** rather than being ignored, so a mistyped knob cannot
+  silently run the default and be reported as a sensitivity. Defaults to
+  [`list()`](https://rdrr.io/r/base/list.html), which leaves every
+  builder on its own default.
 
 - example:
 
@@ -200,8 +230,8 @@ build_sjos_nitrogen(example = TRUE)
 #> # A tibble: 2 × 5
 #>    year area_code nourish_norm boundary_norm population
 #>   <int>     <int>        <dbl>         <dbl>      <dbl>
-#> 1  2010         1        0.965          1.71 4000000000
-#> 2  2010         2        2.05           1.83 3000000000
+#> 1  2010         1         1.13          1.71 4000000000
+#> 2  2010         2         1.38          1.83 3000000000
 #> 
 #> $sjos_class
 #> # A tibble: 6 × 9

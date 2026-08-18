@@ -285,6 +285,11 @@ long-format table (Task C6 final phase).
   : Read gridded HYDE urban population onto WHEP's grid.
 - [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
   : Read national population on WHEP area codes.
+- [`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md)
+  : Read UN World Population Prospects population.
+- [`read_habitual_cv()`](https://eduaguilera.github.io/whep/reference/read_habitual_cv.md)
+  : Read FAOSTAT's coefficient of variation of habitual caloric
+  consumption.
 - [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
   : Build gridded urban/human-excreta nitrogen inputs to agriculture.
 - [`calculate_manner_nh3()`](https://eduaguilera.github.io/whep/reference/calculate_manner_nh3.md)
@@ -351,6 +356,18 @@ becomes the intensity of an embodied-nitrogen trade footprint extension.
   : Build the pathway-mode critical-nitrogen boundary exceedance.
 - [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
   : Build per-capita food supply for the nourishment axis.
+- [`build_protein_requirement()`](https://eduaguilera.github.io/whep/reference/build_protein_requirement.md)
+  : Build the population protein requirement.
+- [`build_intake_dispersion()`](https://eduaguilera.github.io/whep/reference/build_intake_dispersion.md)
+  : Build the within-country intake dispersion.
+- [`build_loss_wedge()`](https://eduaguilera.github.io/whep/reference/build_loss_wedge.md)
+  : Build the supply-to-intake loss wedge.
+- [`build_protein_quality()`](https://eduaguilera.github.io/whep/reference/build_protein_quality.md)
+  : Build the protein-quality correction for the nourishment band.
+- [`build_protein_score()`](https://eduaguilera.github.io/whep/reference/build_protein_score.md)
+  : Score a diet's protein against the age-weighted requirement pattern.
+- [`build_nourishment_band()`](https://eduaguilera.github.io/whep/reference/build_nourishment_band.md)
+  : Build the SJOS-N nourishment band.
 - [`normalize_nourishment()`](https://eduaguilera.github.io/whep/reference/normalize_nourishment.md)
   : Normalize and classify per-capita nourishment.
 - [`calculate_food_gini()`](https://eduaguilera.github.io/whep/reference/calculate_food_gini.md)

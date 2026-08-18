@@ -61,10 +61,12 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_gridded_livestock.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_hayr_land_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_historical_land_areas.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_intake_dispersion.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_io_model.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_livestock_ghg_extension.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_livestock_nutrient_flows.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_loss_wedge.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_boundary_exceedance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_boundary_percapita.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_deposition.html</loc></url>
@@ -73,11 +75,15 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_pathway_exceedance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_n_percapita.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_nourishment_band.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_polycell_land_uses.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_polycell_support.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_prices.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_primary_production.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_processing_coefs.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_protein_quality.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_protein_requirement.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/build_protein_score.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_residue_feed_avail.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_n_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/build_sjos_nitrogen.html</loc></url>
@@ -274,6 +280,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_cru_climate.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glaciated_areas.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glwd_water.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_habitual_cv.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_hyde_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_grass_productivity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_lpjml_hydrology.html</loc></url>
@@ -286,6 +293,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/read_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_hydraulic.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_soil_ph.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_wpp_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/record_provenance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/redistribute_feed.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/regional_mms_distribution.html</loc></url>

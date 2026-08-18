@@ -39,10 +39,30 @@ output rather than wrong in it. Both warn and name them instead of
 dropping them silently; `options(whep.warn_missing_population = FALSE)`
 silences that warning.
 
+`population_source = "pin_wpp_fallback"` fills the country-years the pin
+does not reach from
+[`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md),
+and **only** those: the pin wins wherever both have a value, so turning
+it on cannot move a denominator that was already published. On the real
+inputs it adds 44 areas the pin has no row for at all — Réunion, Bhutan,
+Comoros, Western Sahara, New Caledonia, the French overseas departments
+and the small island states — and 4,755 country-years inside the pin's
+own year span. Filled rows are stamped `source_pop = "UN WPP 2024"`.
+
+It is a gap-filler and not a replacement, because the two sources
+disagree where they overlap: across 12,309 shared country-years they
+differ by a median 0.64%, a 95th percentile of 4.4% and a maximum of
+81%. That is why `"pin"` remains the default.
+
 ## Usage
 
 ``` r
-read_population(years = NULL, data = list(), example = FALSE)
+read_population(
+  years = NULL,
+  data = list(),
+  population_source = c("pin", "pin_wpp_fallback"),
+  example = FALSE
+)
 ```
 
 ## Arguments
@@ -56,9 +76,17 @@ read_population(years = NULL, data = list(), example = FALSE)
 
   Optional named list of pre-loaded inputs to avoid the pin read:
   `gdp_population` (the raw pin, with `Year`, `area_code` as ISO3, `pop`
-  in thousands). Falls back to
+  in thousands) and `wpp_population` (a
+  [`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md)
+  output). Falls back to
   [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md)
   when absent.
+
+- population_source:
+
+  `"pin"` (default, the `gdp-population` pin alone) or
+  `"pin_wpp_fallback"`, which additionally fills country-years the pin
+  does not cover from UN WPP.
 
 - example:
 
@@ -67,12 +95,17 @@ read_population(years = NULL, data = list(), example = FALSE)
 
 ## Value
 
-A tibble with `year`, `area_code` and `population` (persons), one row
-per area code and year, sorted by year then area code, plus the polity
-columns below. A row is one country in the common case, but `area_code`
-is an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are
-sums over several territories rather than a single country, as are rows
-on 999 ("Rest of World") when the Rest-of-World fold is restored.
+A tibble with `year`, `area_code`, `population` (persons) and
+`source_pop`, one row per area code and year, sorted by year then area
+code, plus the polity columns below. `source_pop` carries the pin's own
+vocabulary (`"Original"`, `"Linear interpolation"`,
+`"First value carried backwards"`), joined with `" + "` when a bucket
+sums ISO3 codes of differing provenance, or `"UN WPP 2024"` for a
+fallback-filled row. A row is one country in the common case, but
+`area_code` is an aggregation bucket: rows from 2012 on 206 ("Sudan
+(former)") are sums over several territories rather than a single
+country, as are rows on 999 ("Rest of World") when the Rest-of-World
+fold is restored.
 
 ## Polity columns
 
