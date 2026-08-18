@@ -530,3 +530,26 @@ testthat::test_that("a malformed net_c input is rejected by name", {
     "land_use"
   )
 })
+
+testthat::test_that("an uncovered natural PFT aborts, not silently dropped", {
+  # The natural selection joins on NAME, so a plant functional type the list
+  # does not cover vanishes without error. LPJmL 6.1.1 adds three such types,
+  # worth 6.94% of global natural NPP carbon and concentrated in 22 cells where
+  # the loss is total. Until whep#807 decides where they belong, the drop must
+  # at least be loud.
+  npp <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2000L,
+    name_pft = c("Temperate C3 grass", "Sphagnum moss"),
+    value = c(300, 120)
+  )
+  testthat::expect_error(
+    whep:::.gn_check_natural_pfts(npp),
+    class = "rlang_error"
+  )
+  # A band set the selector does cover passes untouched.
+  testthat::expect_silent(
+    whep:::.gn_check_natural_pfts(npp[1, ])
+  )
+})

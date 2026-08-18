@@ -166,6 +166,7 @@ build_grass_natural_carbon_inputs <- function(
     read_lpjml_npp("harvestc", years = years, run_dir = run_dir)
   stand_frac <- data$stand_frac %||%
     .gn_read_stand_frac(run_dir = run_dir, years = years)
+  .gn_check_natural_pfts(npp)
   natural <- npp |>
     dplyr::filter(.data$name_pft %in% .gn_natural_pfts()) |>
     dplyr::summarise(
@@ -207,6 +208,40 @@ build_grass_natural_carbon_inputs <- function(
     "Temperate C3 grass",
     "Polar C3 grass"
   )
+}
+
+# Natural plant functional types this selector deliberately does not cover.
+# LPJmL 6.1.1 adds three natural types the 5.9.7 band block does not have, and
+# the selection above joins on NAME, so an uncovered type is dropped silently
+# rather than erroring -- 6.94% of global natural NPP carbon, concentrated
+# entirely in 22 cells where the loss is total. Which of them belong in the
+# natural class, and what humification fraction Sphagnum should carry, are open
+# questions (whep#807); until they are answered the drop must at least be loud.
+.gn_uncovered_natural_pfts <- function() {
+  c(
+    "tropical broadleaved evergreen tree floodtolerant",
+    "C3 graminoid flood tolerant",
+    "Sphagnum moss"
+  )
+}
+
+# Refuse an NPP table carrying natural types the selector cannot classify.
+.gn_check_natural_pfts <- function(npp) {
+  present <- intersect(
+    unique(npp$name_pft),
+    .gn_uncovered_natural_pfts()
+  )
+  if (length(present) == 0) {
+    return(invisible(npp))
+  }
+  cli::cli_abort(c(
+    "{length(present)} natural plant functional type{?s} in the carbon input \
+    {?is/are} not classified: {.val {present}}.",
+    "i" = "The natural selection joins on name, so an unclassified type is \
+      dropped without error (whep#807).",
+    "x" = "Resolve where each belongs, and with which humification fraction, \
+      before running on this LPJmL version."
+  ))
 }
 
 .gn_grassland_pfts <- function() {
