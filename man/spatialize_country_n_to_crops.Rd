@@ -9,6 +9,7 @@ spatialize_country_n_to_crops(
   crop_shares,
   cell_polity,
   resolution = c("polity_crop", "grid"),
+  split = c("auto", "land_area_ha", "polity_frac"),
   polity_validity = c("keep", "flag", "drop"),
   data = list()
 )
@@ -22,14 +23,33 @@ polity-level nitrogen total for one fertiliser type.}
 country-year, e.g. from \code{\link[=build_crop_soil_n2o_extension]{build_crop_soil_n2o_extension()}}'s internal
 crop-area-share helper.}
 
-\item{cell_polity}{The \code{\link[=build_cell_polity]{build_cell_polity()}}-shaped crosswalk (\code{lon},
-\code{lat}, \code{area_code}, \code{polity_frac}, \code{cell_area_ha}). Only required when
-\code{resolution} includes \code{"grid"}.}
+\item{cell_polity}{The cell-to-polity support (\code{lon}, \code{lat}, \code{area_code},
+\code{cell_area_ha} and the \code{split} key column). Only required when
+\code{resolution} includes \code{"grid"}. Rows are keyed on \code{area_code}:
+\code{\link[=build_polycell_support]{build_polycell_support()}} keys on \code{polity_code} and does not derive the
+reporting vocabulary (DA-23), and \code{polity_area_crosswalk} folds distinct
+polities into one \code{area_code} or leaves it \code{NA}, so a support must be
+converted to one row per cell and \code{area_code} \strong{before} it is passed
+here. That conversion is refused rather than performed silently. The share
+denominator is the land of the rows supplied, so a caller that simply
+drops the unkeyable polycells renormalises the survivors onto the whole
+cell and hands them hectares that are not theirs, invisibly, because the
+shares still sum to 1. Keep that land in the denominator instead, under a
+bucket no \code{country_totals} row can join: it then dilutes nobody's share
+and receives no nitrogen.}
 
 \item{resolution}{Which resolution(s) to return: \code{"polity_crop"} (default,
 \code{year}/\code{area_code}/\code{item_cbs_code} totals only) or \code{"grid"} (also
 distributes to \code{lon}/\code{lat} grid cells; requires \code{crop_patterns} and
 \code{type_cropland} in \code{data}).}
+
+\item{split}{Which polity share of the cell weights each grid cell:
+\code{"auto"} (default) takes \code{land_area_ha} when the support carries it and
+\code{polity_frac} otherwise; \code{"land_area_ha"} and \code{"polity_frac"} demand that
+key and abort when it is absent. The resolved key is recorded in the
+\code{method_polity_split} output column, so a table's split is readable from
+the table. Read only at \code{resolution = "grid"}; the \code{"polity_crop"} output
+splits nothing across cells.}
 
 \item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
 resolves to a polity that did not exist in that year (the cell-polity
@@ -55,10 +75,10 @@ of \code{crop_patterns} via \link{items_prod_full} (the same crosswalk
 \value{
 A tibble. For \code{resolution = "polity_crop"}: \code{year}, \code{area_code},
 \code{item_cbs_code}, \code{n_t}. For \code{resolution = "grid"}: \code{lon}, \code{lat},
-\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t}. Either gains
-\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}; this
-output carries no reporting-polity columns, so the flag is attached
-directly rather than derived from them.
+\code{area_code}, \code{year}, \code{item_cbs_code}, \code{n_t} and \code{method_polity_split}.
+Either gains \code{reporting_polity_out_of_span} when
+\code{polity_validity = "flag"}; this output carries no reporting-polity
+columns, so the flag is attached directly rather than derived from them.
 }
 \description{
 Promotes a single polity-total nitrogen input (one row per \code{year},
@@ -76,6 +96,25 @@ is instead spread uniformly across the polity's cropland cells, weighted by
 each cell's cropland area, so the grid output still re-aggregates to the
 polity total. Such reallocations emit a warning naming the affected crops
 and the reallocated nitrogen.
+
+Both grid weights carry a polity share of the cell, because a border cell's
+cropland belongs to more than one polity. That share is a polycell's
+\code{land_area_ha} over the cell's total \code{land_area_ha}, the share of the cell's
+land \code{\link[=build_polycell_support]{build_polycell_support()}} measures geodesically. The transitional
+alternative is \code{polity_frac}, the subcell-count share \code{\link[=build_cell_polity]{build_cell_polity()}}
+carries, which is quantised to 1/36 of a cell.
+
+The share is of the cell's \strong{land}, never \code{land_area_ha / cell_area_ha}:
+what it splits is already land-only (LUH2 cropland hectares), so dividing by
+the whole cell would remove the inland water and ice a second time. And it
+is a \strong{share}, never an absolute area: \code{crop_pattern_ha * land_area_ha}
+would weight every cell a second time by its own size and is no partition of
+the cell at all.
+
+Because the cell weights are renormalised within each polity-crop-year,
+either key redistributes the polity total and neither can change it.
+Swapping the key moves \strong{where} the nitrogen lands, never how much of it
+there is.
 }
 \examples{
 spatialize_country_n_to_crops(

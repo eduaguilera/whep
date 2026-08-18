@@ -1,5 +1,301 @@
 # whep (development version)
 
+* **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
+  intersection; it reads the polycell support.** whep#776 built a second answer
+  to a question whep#619 had already answered better: `.polity_cell_cover()`
+  ran `terra::extract(exact = TRUE)` over every polity polygon, where
+  `read_polycell_support()` is the same intersection measured geodesically with
+  `sf::st_area()` on s2, keyed on each polity's validity interval, conserving by
+  construction, and unable to give one cell to two overlapping polities at once.
+  The rasteriser, its grid template, its lon/lat lookup and the `sf`/`terra`
+  package assertion are all gone; this path now touches neither package. The
+  weight is `polity_area_ha`, the polity's territory in the cell, renormalised
+  to one per cell exactly as before — not `land_area_ha`, because
+  `build_polycell_support()` apportions inland water pro rata by
+  `polity_area_ha`, so within a cell the water cancels in that renormalisation
+  except where its cap bites, and there 1,502 polycells covering 62.4 Mha
+  (Canada on the Great Lakes and Hudson Bay, the USSR on the Caspian and Arctic
+  shores) carry `land_area_ha == 0` and would lose their claim on the cell
+  outright (whep#800).
+
+  **No published value moves on this commit**, because
+  `land_method = "present_day"` is still the default and the
+  `"historical_polity"` path reads the `historical-land-areas` pin rather than
+  recomputing. What moves is what `data-raw/historical_land_areas.R` now
+  produces, and the pin has to be regenerated and re-uploaded for any of it to
+  reach a user. Regenerated over 1850-1961: 18,922 rows / 215 buckets becomes
+  17,187 / 198, global cropland −0.007% at 1850, −0.004% at 1900, −0.108% at
+  1950 and −0.440% at 1961, and Ethiopia is unchanged to four decimals at every
+  checkpoint. 84% of shared bucket-years move by less than 0.1% and 87% by less
+  than 1%. The large movers are territories the old route was **halving**: an
+  aggregate's polygon overlaps its members', so a cell claimed by both was split
+  between them, and Belgium came out at 0.567 Mha of 1961 cropland instead of
+  1.015, Luxembourg at 0.037 instead of 0.063, New Caledonia at exactly half and
+  American Samoa at 51%.
+
+  **The loss of coverage is the other side of that, and it is the part to
+  review.** `build_polycell_support()` excludes `polity_type == "aggregate"`,
+  because the support must be a partition and an aggregate's polygon overlaps
+  its members'. Nine reporting buckets whose only pre-1962 territory is such an
+  aggregate therefore drop out — Belgium-Luxembourg, Yemen, the Netherlands
+  Antilles and the six "Other" residual regions, together 2.04 Mha of 1961
+  cropland as the old route measured it — and **Viet Nam keeps 1886-1953
+  unchanged but loses 1954-1961**, the span its combined-reporting entity
+  covers. The other eight (Cayman, Gibraltar, Mayotte, Anguilla, Turks and
+  Caicos, Wallis and Futuna, South Georgia, the French Southern Territories,
+  0.001 Mha between them) carry a polygon in `polities` but no row in the
+  *published* polycell pin, which predates the 2026-08-13 polity ingest; a
+  refreshed polycell pin restores those. `build_historical_land_areas()` warns
+  with the codes and separates the two causes, so neither loss is silent.
+
+* **The milk FAOSTAT reports as churned into butter is no longer counted as
+  milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
+  "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a
+  `processing` destiny with nowhere to go, so
+  `.cbs_redistribute_notprocessed()` split that mass pro-rata across food,
+  feed, other uses and export and deleted the `processing` row. The current
+  behaviour was not an omission but a claim about diets: that 198 Mt of milk
+  a year is drunk as milk (#757).
+
+  **Published values move, from 2010 onwards only.** The old Food Balances do
+  not report a `processing` destiny for milk at all — 1.0 Mt over 2010-2013
+  against the new series' 837.5 Mt — so no year before 2010 changes. World
+  2010 across the 180 areas shared with the `faostat-fbs-new` pin, Mt, WHEP
+  before to WHEP after against FAOSTAT: milk food 649.1 to 497.3 against
+  497.2; feed 74.3 to 60.6 against 60.6; export 120.6 to 89.0 against 89.0;
+  `processing` 0.0 to 198.2 against 198.5. Milk food protein falls by 5.0 Mt,
+  which is the whole of the milk discrepancy reported in #500 section 5.
+  Butter is unchanged, production 9.27 Mt against FAOSTAT's 9.37. The
+  remaining 3.2% gap in milk domestic supply is the dropped
+  losses/residuals/tourist renormalisation of #412, which this does not touch.
+
+  The fraction is 0.045, the median "Butter of Cow Milk" extraction rate over
+  the 69 countries reporting one in FAO (1997), *Technical Conversion Factors
+  for Agricultural Commodities* (range 3.3-7.3%). Per-area calibration lifts
+  it to an effective 0.0468 for 2010, against the 0.047 the FBS itself implies
+  (global butter production over milk processing, 0.044-0.047 across
+  2010-2019). Every country reporting butter production also reports milk
+  processing, and none reports butter without it.
+
+  `.cbs_add_processed()` gained `.resolve_processed_production()`, because
+  butter is the first processing output outside the "Crop products" group,
+  whose read production is dropped wholesale on the grounds that the pathway
+  always replaces it. For butter the pathway is silent before 2010, so a
+  positive pathway estimate now supersedes the read production and a zero or
+  absent one leaves it standing. Without that distinction the trace of milk
+  processing the old FBS records in some areas emits an empty butter row that
+  cancels the observed one, taking world 2000 butter production from 7.378 to
+  3.527 Mt.
+
+  **Items other than milk still lose their processing destiny.** Sugar (Raw
+  Equivalent), animal fats, coconut oil and 13 smaller items have no pathway
+  either, and roughly 17 Mt a year is still redistributed onto food and feed:
+  2010 coconut oil food is 58% above FAOSTAT's, ricebran oil 45% and
+  cottonseed oil 15%. Those carry almost no protein, so the nourishment axis
+  is largely unaffected, but the mass accounting is not. That residue is
+  unchanged here.
+
+* **The polycell is now WHEP's spatial support unit, and it carries a measured
+  territory instead of a whole grid cell.** `build_polycell_support()` returns
+  one row per 0.5-degree cell intersected with a polity over that polity's
+  validity interval, with the territory decomposed into
+  `polity_area_ha = land_area_ha + inland_water_ha + ice_area_ha`, all geodesic
+  from a spherical (`s2`) intersection of the polity polygons. Aggregating
+  polycells to a polity changes no absolute value and no quantity crosses a
+  border it does not belong to, which neither of the two conventions it
+  replaces could offer: centroid assignment gave a whole border cell to one
+  polity, and the fractional crosswalk multiplied a valid partition of the land
+  by the **whole cell's** area. That last defect over-counted the global land
+  base by **11.0%** -- 14.3195 Gha of whole cells against 12.9931 Gha of LUH2
+  terrestrial area -- and it is the mechanism behind the inflated per-hectare
+  deposition rates. New: `build_polycell_support()`, `expand_polycell_years()`,
+  `read_polycell_support()`, `read_glwd_water()`, `read_glaciated_areas()`,
+  `read_luh2_terrestrial()` and `polycell_example_geometries()`.
+  * **Four definitions of "land" are live and they disagree by up to 10%**, so
+    a global area is only interpretable next to the one it was measured on. At
+    2015: whole 0.5-degree cells **14.3195 Gha**, HaNi's own land mask
+    **13.5977 Gha**, the union of the live polity polygons **13.4267 Gha**,
+    LUH2 terrestrial `(1 - icwtr) * carea` **12.9931 Gha**. The support table's
+    territory is the third, but *summing* `polity_area_ha` does not reproduce
+    it: the union is unique ground, while a sum counts shared ground once per
+    claiming polity, so the sum at 2015 is **13.4599 Gha**, above the union by
+    the **0.0332 Gha** two live polities both claim. The fourth is a
+    validation layer whose disagreement is emitted in the `"unassigned"`
+    attribute and never silently reconciled; the first is the convention
+    being replaced. A fifth mask (the
+    GLWD water layer's CRU mask, 67,420 cells) is reconciled in
+    `"water_unmatched"` rather than joined away. Re-derivable with
+    `inst/scripts/diagnose_polycell_support.R`; the polygon row moves with the
+    polity vintage and is measured by `inst/scripts/reconcile_polity_areas.R`.
+  * **`ice_area_ha` does not vary historically.** It comes from
+    `ne_10m_glaciated_areas`, a coarse present-day snapshot, so a historical
+    run carries today's ice extent and land that lay under ice in 1850 is
+    credited to `land_area_ha`. That is accepted **only** because ice is a
+    reporting category and not a driver: nothing divides by `ice_area_ha` or
+    drives a flux with it. If ice ever becomes a driver the source has to be
+    reopened. Inland water comes from the GLWD lakes-and-rivers layer at
+    30 arcmin (Ostberg et al. 2023,
+    <https://doi.org/10.5194/gmd-16-3375-2023>), not from
+    `ne_10m_lakes`, which carries roughly half of global inland water and omits
+    the Caspian.
+  * **The table keys on `polity_code` and nothing else.** `area_code` rides
+    along as a label. `polity_area_crosswalk` folds 505 polity codes into 201
+    reporting buckets, 113 of which hold more than one polity and one of which
+    (206) holds Sudan and South Sudan simultaneously, so a table whose purpose
+    is correct territorial attribution is not keyed on it. Consumers convert at
+    their own boundary, and **that conversion is where the lossy fold
+    happens** -- visible at the consumer rather than hidden in the support.
+    `build_n_deposition()` refuses an unconverted support instead of converting
+    one silently.
+  * The default grain is interval-keyed, one row per polycell per interval,
+    because no area column varies by year; `expand_polycell_years()` gives the
+    per-year view on demand. `start_year` is inclusive and `end_year` is
+    **exclusive at a succession** but **inclusive at the open end**, so a
+    handover year resolves to the successor alone and the current year still
+    resolves to the polity nothing succeeds.
+  * **A repeated polycell key now aborts instead of losing territory in
+    silence.** The interval split reads the next breakpoint with
+    `dplyr::lead()`, which is the next breakpoint only while
+    `(cell_id, polity_code, start_year, end_year)` is unique. Two rows sharing
+    it interleave, every second row comes back with `end_year == start_year`,
+    and an empty interval resolves to no year at all: measured on a two-piece
+    fixture, 70 of a polycell's 100 ha resolved to nothing at every year of its
+    life, with no error, no warning and every conservation check still passing.
+    `build_polycell_support()` now aborts with class
+    `"whep_pcs_repeated_key"`, naming the count and up to three offending keys.
+    It does not sum the duplicates: a repeated key means the geometry table is
+    not one row per polity interval, and repairing the arithmetic would leave
+    the fan-out that produced it invisible. **No published value changes**: the
+    shipped 753-row polity table repeats no
+    `(polity_code, start_year, end_year)` among the 666 rows that get clipped,
+    so no production build reaches the guard, and any input that did not carry
+    a repeated key returns exactly the table it returned before.
+
+* **Atmospheric deposition is now split as a mass over territory, and its two
+  land definitions are separated.** `build_n_deposition()` splits each cell's
+  HaNi mass across the polities holding the cell in proportion to
+  `polity_area_ha` (`split = "auto"` takes it when the support carries it and
+  the old `polity_frac` otherwise; either can be demanded explicitly, and a
+  demand that cannot be met aborts), then decomposes each polity's share over
+  land, inland water and ice (`categories = "auto"`). Both choices are
+  recorded in `method_polity_split` and `method_area_split`, so a table's
+  split is readable from the table.
+  * **WHEP's territory governs *placement*; HaNi's land mask governs the
+    *total*.** The mass placed is HaNi's block sum, and HaNi is referenced to
+    the whole 5 arcmin cell inside a land-masked domain whose mask is a third
+    land definition at 13.5977 Gha. Nothing re-references the mass to WHEP's
+    land: forming a rate on the whole cell and multiplying by `land_area_ha`
+    would shed about 9% of the source mass, and re-referencing to HaNi's own
+    mask would move the global total by about 4.5%. A global sum out of this
+    function is therefore HaNi's total redistributed onto WHEP's territory,
+    conserved exactly against the source (34.77 Tg NHx in 2014). Source: Tian
+    et al. 2022, <https://doi.org/10.5194/essd-14-4551-2022>.
+  * **Deposition scope is selectable and defaults to the whole territory.**
+    `build_n_inputs(data = list(deposition_scope = ))` takes `"territory"`
+    (default: land plus inland water plus ice) or `"land"`, recorded in
+    `method_deposition_scope`. The default is a scientific choice, not a
+    conservative one: nitrogen deposited on a lake or a glacier still drives
+    indirect N2O and still reaches the eutrophication pathway, so restricting
+    the ledger to the terrestrial share would discard 0.89 Tg N of real flux
+    that the impact terms have to account for. `"land"` remains available for
+    the purposes that want it and aborts if the support cannot be decomposed,
+    rather than silently returning the whole territory. Under the default the
+    ledger output is bit-identical to before the split.
+  * **Known limitation, not a rounding error:** **eight** reporting areas the
+    deployed crosswalk carries -- 61 Equatorial Guinea, 153 New Caledonia, 154
+    North Macedonia, 209 Eswatini, 212 Syria, 299 Palestine, 276 Sudan and 277
+    South Sudan -- receive no deposition through the polycell path. The first
+    six fold onto `ROW-1850-2025` (`polity_area_code` 999, `fabio_row_fold`)
+    while their own `GNQ-`, `NCL-`, `MKD-`, `SWZ-`, `SYR-` and `PSE-` codes
+    resolve onto that same bucket 999 through the `fabio_row_promoted` rows
+    added in #785, so their territory is folded into Rest of World rather than
+    dropped: measured on this snapshot, `GNQ-1968-2025` builds 18 polycells
+    (2,702,545 ha) and `MKD-1991-2025` 21 (2,539,428 ha), every row stamped
+    `area_code` 999. Before #785 these codes carried no crosswalk row and were
+    dropped outright, so the territory is now retained but still not attributed
+    to the reporting area. Sudan and South Sudan do resolve, but both onto 206,
+    Sudan (former), so neither 276 nor 277 is reachable on its own. **The gap is
+    identity, not extent**: of the six with a directly comparable official
+    area, all sit within 3.7% of it (Syria +0.90%, North Macedonia -1.23%,
+    Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%, Equatorial Guinea
+    -3.65%). **Fiji is no longer among them**: since the polities refresh in
+    #662 the crosswalk maps area 66 onto `FJI-1800-2025` through
+    `upstream_map`, and the polycell build returns 60 polycells holding
+    1,871,003 ha, all measured on `s2`, reproducing the polity's own polygon
+    area exactly. How this ranks against the ledger's other open terms has not
+    been measured, so no claim is made about it.
+
+* **Migrating a consumer onto the polycell: what to change and what moved.**
+  The transitional shim that let `build_polycell_support()` masquerade as the
+  old crosswalk (a `polity_frac` column plus padding rows for cells the
+  intersection did not reproduce) is **gone**. A consumer that used to
+  multiply a rate by `cell_area_ha * polity_frac` now multiplies it by
+  `polity_area_ha`, or by `land_area_ha` when the quantity is genuinely
+  terrestrial, and converts `polity_code` to its own reporting vocabulary
+  before joining. Migrated here: deposition (`build_n_deposition()`), the
+  synthetic-N grid split, the carbon path (`build_carbon_balance()` and its
+  land inputs) and the compartment keying in `spatialize()` /
+  `spatialize_livestock()`, which now **abort** on a support carrying no
+  polity share instead of defaulting `cell_area_frac = 1` and handing a border
+  cell wholly to one polity.
+  * **Measured movement, at polity grain**, is entirely in the deposition
+    input term: `n_input_full_t` -0.504%, `n_balance_t` -2.252%,
+    `surplus_t` -1.055%, `total_gwp_co2e_kg` -0.137%. Of the -678,612.5 t N,
+    **95.6% (-648,491.3 t) is unreachable reporting areas** and only
+    -30,121.2 t (0.107% of the term) is geometry, dominated by Canada
+    (-1.03%). The split key itself moves 27 of 28 ledger quantities by exactly
+    zero and the 28th by one ulp; the synthetic term moves by exactly 0 t.
+    **Basis, because it has since moved:** this was measured on the polity
+    vintage *before* #662, on which Fiji was unreachable too, so the
+    unreachable share above spans **nine** areas rather than the eight that
+    remain. Fiji's part of it has not been re-measured -- doing so needs the
+    HaNi deposition rasters, which the measuring environment does not carry --
+    so the figure is left as measured and its basis named rather than restated
+    over a population it was not measured on.
+  * **The island states are fixed.** Against official land areas, Kiribati
+    goes from **34.3x** to **1.18**, Micronesia 17.5x to 1.00, French Polynesia
+    15.3x to 1.16, Maldives 10.3x to 0.58 -- they used to draw a whole
+    0.5-degree cell each while carrying no LUH2 terrestrial area at all.
+  * **Greenland reads as +419% against FAOSTAT and is not a defect**: FAO's
+    country area for Greenland "refers to area free from ice", so the
+    comparable quantity is WHEP's territory minus its 177.5 Mha of ice, which
+    reads -12.9%.
+  * **Six `polity_frac` call sites remain and are deliberate.** Dropping
+    `"polity_frac"` from `utils::globalVariables()` was used as a detector, and
+    it named exactly six unqualified uses: `.wb_finalise()`,
+    `.wb_drop_polity_cols()` and `.wb_aggregate_polity()` in `water_balance.R`,
+    `aggregate_grass_to_polity()` in `feed_lpjml.R`, `.grass_to_cells()` in
+    `feed_intake_redistribute.R`, and `.read_fraction_country_grid()` in
+    `run_spatialize.R`. All four files are out of scope for this migration --
+    the water balance is owned elsewhere, the feed path is frozen, and
+    `.read_fraction_country_grid()` reads the deployed crosswalk on purpose --
+    and they are **not** an oversight or an unfinished migration. The detector
+    has done its job, so `"polity_frac"` is **restored** to
+    `utils::globalVariables()` and `R CMD check` is back to `Status: OK`.
+    Without it the check reported `Status: 1 NOTE` where merge-base main was
+    `Status: OK`, on a check CI cannot fail: `check-r-package@v2` defaults
+    `error-on: warning`.
+* **A traded item with no production row now balances instead of vanishing.**
+  `.reestimate_domestic_supply()` derives a last-resort domestic supply from
+  `production + import - export` for rows that report neither a supply nor a
+  destiny. `production` is deliberately still `NA` at that point, so the
+  imputation further down can derive it (#142), but reading it raw made the
+  residual `NA`, and `dplyr::if_else(NA, ...)` is `NA`, so both
+  `domestic_supply` and `stock_variation` came out `NA`. Those rows were then
+  dropped by the `value != 0` filters downstream rather than balancing. A
+  missing production now counts as zero in that residual only; the imputation
+  itself is untouched.
+
+  **Published values move, slightly and in one direction.** On a 2010 build:
+  12 rows are recovered and none is lost (17,648 to 17,660); 81 rows gain a
+  domestic supply that was wrongly zero, the largest being Ireland
+  "Miscellaneous" at 79,000 t, Switzerland at 22,000 t and Yemen tea at
+  17,000 t; world domestic supply rises 212 kt on 63,388 Mt (+0.0003%) and food
+  181 kt on 4,836 Mt (+0.004%). Every change is upward from zero. The
+  supply-use identity improves sharply: rows off by more than 1 t fall from 144
+  to 67, the worst residual from 160,000 t to 29 t, and the 12 `NA` residuals
+  disappear.
+
 * **`build_sjos_nitrogen()` gains `nourishment_band`, which makes every band
   choice selectable from the driver.** The quality tier
   (`quality_method` / `quality_variant`), the loss wedge (`wedge_method` /
@@ -469,6 +765,40 @@
   resolves through `ROW-1850-2025` are **not** a stale-map artefact and this
   re-sync does not move them; they are the FABIO Rest-of-World fold, which
   outranks the map on purpose and is tracked separately (#717, #740) (#745).
+* **The pre-1962 back-cast can now measure its hectares on each year's own
+  borders.** `tonnes = ha * t_ha`: the yield half has always been historical
+  (`.fill_yields()` back-casts `t_ha` against 1,058,295 pre-1962 observations),
+  while the area half came from the `luh2-areas` pin, which is LUH2 land
+  pre-aggregated to *present-day* ISO3. A row labelled with the 1961 entity was
+  therefore measured on the borders that entity has today. The new
+  `build_primary_production(land_method = "historical_polity")` measures it with
+  `build_historical_land_areas()` instead: gridded LUH2 summed inside the
+  polygon of the polity `area_code` resolves to in that year, resolved unfloored.
+  How a change of territory reaches the back-cast is itself selectable, because
+  `fill_proxy_growth()` reads only ratios: `boundary_step = "level_step"`
+  (default) lets a change of territory through as a level step, because a
+  different polity is a different thing being measured, and `"relink"`
+  re-measures the previous year inside the *incoming* polygon so only
+  within-territory growth is ever used. On Ethiopia in 1952, when Eritrea joins,
+  the 1952 land ratio is +8.0% under the default and +1.9% under `"relink"`.
+  `"relink"` suits a FIXED-territory series and is not the conservative choice
+  here: suppressing that channel also suppresses the correction, and Ethiopia's
+  1850 cropland comes back to 3.24 Mha against a present-day 3.22 -- the figure
+  this method exists to replace. Under the default it is 1.52 Mha (whep#761).
+  **No published values move by default**: `land_method = "present_day"` is
+  unchanged and is what the pipeline still runs. Measured over 1850-1961 against
+  the present-day series, the historical method moves 19.2% of back-cast crop
+  tonnage at 1850 (net -17.2%), 6.5% at 1900 and 0.2% at 1961 under `"relink"`;
+  31.3% / 22.9% / 0.2% under `"level_step"`. Under the new method pre-1962 rows
+  are labelled `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It
+  reaches all four dissolved federations without
+  `federation_land = "successor_union"` -- Czechoslovakia, the USSR, Yugoslavia
+  and Belgium-Luxembourg all have polygons of their own, and the USSR walks its
+  own three-period chain back to 1850. It also declines to measure a bucket
+  whose polity that year is a residual standing in for dozens of areas, or a
+  resolver stand-in from outside its period: 5 buckets carrying 1961 crop
+  tonnage lose their back-cast entirely, 0.1% of the 1961 total, the largest
+  being Syria (#761).
 
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every

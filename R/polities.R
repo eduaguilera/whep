@@ -1448,6 +1448,16 @@ get_polity_geometries <- function(polity_codes = NULL) {
     !is.na(cw$polity_start_year) &
     !is.na(cw$polity_end_year)
   cw <- cw[keep, ]
+  # DA-24's other half -- that an interval nothing succeeds also covers
+  # its terminal year -- is deliberately NOT applied here: this detector's
+  # remit is the crosswalk's DECLARED succession boundaries. The reading
+  # the resolver actually joins on is `.polity_join_conflicts()`, which
+  # widens the open end. On polities 751 / `0e52f1ff` (596 crosswalk rows,
+  # 262 widened by that rule) the two readings DISAGREE: declared spans
+  # report 0 ambiguous `(area_code, year)` pairs and the widened spans
+  # report 1 -- area 7 at 1975, `AGO-1975-2025` against `ANG-1905-1975`,
+  # which is #683. An earlier note here claimed the two agreed; that was
+  # measured on a snapshot since superseded.
   .area_year_span_conflicts(data.frame(
     area_code = cw$area_code,
     polity_code = cw$polity_code,
@@ -1563,8 +1573,14 @@ get_polity_geometries <- function(polity_codes = NULL) {
 }
 
 # One row per (area, year) a period covers, then the conflict summary.
-# `span_end` is EXCLUSIVE, so [1920, 1947) covers 1920:1946 -- getting that
-# wrong would report a spurious conflict at every boundary.
+# `span_end` is EXCLUSIVE at a succession, so [1920, 1947) covers 1920:1946 --
+# getting that wrong would report a spurious conflict at every boundary. DA-24's
+# other half, that an interval nothing succeeds also covers its terminal year,
+# is deliberately NOT applied here: this is an overlap detector, and its remit
+# is the shipped crosswalk's succession boundaries. Measured on that crosswalk,
+# adding the open end would change nothing -- 190 intervals are open and 0 areas
+# resolve to more than one polity on the open end -- so the two readings agree
+# today.
 .area_year_span_conflicts <- function(spans) {
   spans <- unique(spans[!is.na(spans$span_start) & !is.na(spans$span_end), ])
   if (nrow(spans) == 0L) {
@@ -1810,8 +1826,8 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   #
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
-  alive <- is.na(polities$wiki_status) |
-    !polities$wiki_status %in% c("retired", "superseded")
+  # `.polity_is_live()` is the package's one reading of which rows are dead.
+  alive <- .polity_is_live(polities$wiki_status)
   pol <- data.frame(
     polity_code = polities$polity_code[alive],
     start_year = polities$start_year[alive],

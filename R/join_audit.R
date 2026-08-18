@@ -100,6 +100,12 @@
     "single_year", "`cbs_yr` is one year of the CBS.",
     ".build_sw_domestic", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS.",
+    ".carbon_warn_fold", "semi_join", "lon, lat, area_code", 1L, "diagnostic",
+    "Both sides are the SAME carbon support, already filtered to
+     `.carbon_support_year()` by `.carbon_support_at_year()`, so there is no
+     second year for a key to disagree about. The join only selects which
+     `polity_code`s to name in the DA-23 fold warning; it reaches no value and
+     cannot move one.",
     ".cb_apply_equilibrium_climate", "left_join",
     "lon, lat, area_code, land_use", 1L, "time_invariant",
     "The equilibrium modifier is one number per cell and land use by
@@ -149,6 +155,16 @@
     "Both sides are two filters of one frame (`cbs_raw4`), whose label is
      already one per code, so the label cannot disagree here. It is still a
      label in a key: whep#691.",
+    ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
+    "A polity code already names its own period (`ETH-1952-1993`), so the
+     territory it is joined to cannot vary within it. Since whep#800 that
+     territory is the polycell's `polity_area_ha`, and time-invariance is
+     MEASURED rather than argued: a maximum relative standard deviation of 0
+     over the 33,433 (cell, polity) pairs the shipped support splits into more
+     than one interval. This is the join that makes the pre-1962 LAND half
+     year-aware at all (whep#761): the caller has already resolved
+     (area_code, year) -> polity_code unfloored, and every step after this one
+     carries `year`.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",

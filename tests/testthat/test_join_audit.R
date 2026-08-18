@@ -85,15 +85,36 @@ test_that("the enumerated baseline can only shrink", {
   # report which authority each resolution rests on (whep#740). The instrument
   # that measures year-blindness costs one row on the ledger it measures.
   #
-  # 62 is the loss wedge's three (whep#500, whep#753), and it is the clearest
-  # case of a rise that is not a regression: Gustavsson's Annex 1 is a single
+  # 60 and 61 arrived independently -- the carbon fold and whep#761 each added
+  # one year-free row and each recorded itself as "60". Both are kept because
+  # both are real; the cap is measured on the merge, not assumed from a sum.
+  #
+  # `.carbon_warn_fold` is not a new year-blind READ at all -- both sides of it
+  # are the same already-year-filtered carbon support, and it selects warning
+  # text rather than a value.
+  #
+  # `.land_in_polygons` is the clearest case yet of the rise that is a fall.
+  # The pre-1962 back-cast estimates production as `ha * t_ha`; the yield half
+  # was already historical and the AREA half was measured on present-day
+  # borders (whep#761). Making it historical means resolving
+  # (area_code, year) -> polity_code unfloored and then reading that polity's
+  # polygon -- and the second step keys on `polity_code` alone, because a
+  # polity code already carries its own period. One year-free row bought a land
+  # series that varies with the map. Everything downstream of it carries `year`.
+  #
+  # 64 is the loss wedge's three on top of those (whep#500, whep#753), and it
+  # is another rise that is not a regression: Gustavsson's Annex 1 is a single
   # 2011 snapshot with no time dimension at all, so the region a country's loss
   # rates come from CANNOT be year-keyed. Keying it on the year would be the
   # defect, not the fix -- it would leave every successor area (Ethiopia,
   # Sudan) without the pre-partition region Annex 1 actually assigns it. The
   # count is three and not four because `.lw_weight` reads the assignment once
   # and carries `method_region` through its grouping instead of joining twice.
-  expect_lte(sum(baseline$n), 62L)
+  #
+  # 64 is measured, not summed: `sum(.territorial_joins() |>
+  # filter(!has_year) |> count(owner, join_fn, key) |> pull(n))` reads 64 on
+  # this merge, and the enumerated baseline reads 64 with it.
+  expect_lte(sum(baseline$n), 64L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label
