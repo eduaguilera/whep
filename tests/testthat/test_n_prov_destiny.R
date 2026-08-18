@@ -1464,64 +1464,6 @@ test_that(".remove_seeds_from_system leaves non-seed items unchanged", {
 })
 
 test_that(".remove_seeds_from_system takes seed only from the Product row", {
-  # Without the fix, seed was subtracted once per prod_type instead of
-  # once per item (#147).
-  npp <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Area_ygpit_ha, ~LandUse,
-    2000, "A", "Wheat", 100, "Cropland"
-  )
-
-  pie_seed <- tibble::tribble(
-    ~Year, ~Item, ~Element, ~Destiny, ~Value_destiny,
-    2000, "Wheat", "Domestic_supply", "Seed", 10
-  )
-
-  prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~prod_type, ~production_fm,
-    2000, "A", "Wheat", "Product", 100,
-    2000, "A", "Wheat", "Residue", 80,
-    2000, "A", "Wheat", "Grass", 60
-  )
-
-  out <- .remove_seeds_from_system(npp, pie_seed, prod)
-  got <- function(type) out$production_fm[out$prod_type == type]
-
-  # Only the Product row loses the 10 Mg of seed.
-  expect_equal(got("Product"), 90)
-  expect_equal(got("Residue"), 80)
-  expect_equal(got("Grass"), 60)
-
-  # Total removed is the seed used exactly once, not once per prod_type.
-  expect_equal(sum(prod$production_fm) - sum(out$production_fm), 10)
-})
-
-test_that(".remove_seeds_from_system caps against the Product row alone", {
-  # The 50% cap must bind on the Product row's own production, not be
-  # applied separately to each prod_type against its own denominator.
-  npp <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~Area_ygpit_ha, ~LandUse,
-    2000, "A", "Wheat", 1, "Cropland"
-  )
-
-  pie_seed <- tibble::tribble(
-    ~Year, ~Item, ~Element, ~Destiny, ~Value_destiny,
-    2000, "Wheat", "Domestic_supply", "Seed", 1000
-  )
-
-  prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Item, ~prod_type, ~production_fm,
-    2000, "A", "Wheat", "Product", 10,
-    2000, "A", "Wheat", "Residue", 40
-  )
-
-  out <- .remove_seeds_from_system(npp, pie_seed, prod)
-
-  expect_equal(out$production_fm[out$prod_type == "Product"], 5)
-  expect_equal(out$production_fm[out$prod_type == "Residue"], 40)
-})
-
-
-test_that(".remove_seeds_from_system takes seed only from the Product row", {
   # Seed is grain. `grafs_prod_combined` carries Residue and Grass rows for the
   # same (Year, Province_name, Item), and the join attaches the same per-item
   # seed mass to each, so subtracting from all three removed ~3x the real seed

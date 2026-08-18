@@ -23,11 +23,12 @@
 #'   - `box`: One of the GRAFS model systems: cropland,
 #'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 #'   - `origin`: The origin category of N: Cropland,
-#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
-#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   Semi-natural agroecosystems, Livestock (manure), People (waste water),
+#'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
+#'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   Cropland (for N soil inputs).
+#'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
 #' @export
@@ -154,11 +155,12 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'   - `box`: One of the GRAFS model systems: cropland,
 #'   Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 #'   - `origin`: The origin category of N: Cropland,
-#'   Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
-#'   Fixation, Synthetic, People (waste water), Livestock (manure).
+#'   Semi-natural agroecosystems, Livestock (manure), People (waste water),
+#'   Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
+#'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   Cropland (for N soil inputs).
+#'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'   - `province_name`: Set to "Spain" for all national-level rows.
 #'
@@ -852,10 +854,11 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Forward-fill late-year processing shares ----------------------------
 #' @description `processing_coefs` currently stops in 2021, while production
-#' runs further. For each Item, its latest observed share_processing (2021)
-#' is copied forward to every year from that last observed year up to
-#' `last_year`, mirroring `.backfill_processing_shares()`'s treatment of the
-#' pre-1961 years.
+#' runs further. Each Item's own latest observed share_processing is copied
+#' forward to every year from that last observed year up to `last_year`,
+#' mirroring `.backfill_processing_shares()`'s treatment of the pre-1961
+#' years. Most items are observed to 2021, but coconuts stop in 2002, sugar
+#' cane in 2008 and palm kernels in 2018; all three are negligible in Spain.
 #'
 #' @param processing_shares Output of `.calculate_processing_shares()`.
 #' @param last_year Latest year present in the production data.
@@ -911,10 +914,11 @@ create_n_nat_destiny <- function(example = FALSE) {
 
 #' @title Forward-fill late-year processing cf/output mapping -----------------
 #' @description `processing_coefs` currently stops in 2021, while production
-#' runs further. For each Item/ProcessedItem pair, its latest observed row
-#' (2021) is copied forward to every year from that last observed year up to
+#' runs further. Each Item/ProcessedItem pair's own latest observed row is
+#' copied forward to every year from that last observed year up to
 #' `last_year`, mirroring `.backfill_processing_cf()`'s treatment of the
-#' pre-1961 years.
+#' pre-1961 years. Most pairs are observed to 2021, but the coconut, sugar
+#' cane and palm kernel pairs stop in 2002, 2008 and 2018 respectively.
 #'
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param last_year Latest year present in the production data.
