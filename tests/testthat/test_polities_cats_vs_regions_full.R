@@ -63,7 +63,8 @@ test_that("polities_cats matches regions_full outside the documented fold", {
 # polities_cats files Bhutan under rest-of-Asia and Comoros under
 # rest-of-Africa, because neither country had a commodity balance sheet in the
 # CBS vintage the table was compiled against. Whether it still holds is issue
-# #395 — the faostat-cbs-new pin carries 91 rows for Bhutan and 135 for Comoros
+# #395 — the faostat-cbs-new pin carries 175 rows for Bhutan and 237 for
+# Comoros on the 2026-06-15 CB release, up from 91 and 135 on the previous one
 # — so the values are pinned here rather than harmonised, to make revisiting
 # them an explicit edit instead of a silent one.
 test_that("polities_cats folds exactly Bhutan and Comoros into rest-of-world", {

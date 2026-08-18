@@ -24,11 +24,11 @@ historical-trade-exports,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQM
 historical-trade-imports,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T121523Z-72a63
 gdp-population,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T085548Z-ec5a9
 faostat-production-processed,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113346Z-5637e
-faostat-fbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T113807Z-b184a
+faostat-fbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260818T183718Z-8a68a
 faostat-fbs-old,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T114920Z-874a4
 faostat-cbs-old-animal,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T115537Z-9e898
 faostat-cbs-old-crops,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T120222Z-3d77b
-faostat-cbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260325T120441Z-ff6fe
+faostat-cbs-new,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260818T183647Z-b8b95
 faostat-value-of-production,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260408T104620Z-e8056
 fishstat-trade,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260330T095440Z-8bd94
 biomass_coefs,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250728T082553Z-f2fac
@@ -40,7 +40,7 @@ livestock_prod_ygps,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Mo
 n_balance_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260508T072851Z-2464a
 n_excretion_ygs,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260508T073306Z-485cb
 pie_full_destinies_fm,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260427T091304Z-76d13
-population_yg,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250728T102929Z-b4f44
+population_yg,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260818T183537Z-ca79b
 processed_prov_fixed,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250724T140654Z-23fcb
 codes_coefs_items_full,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20250728T081525Z-c6479
 npp_ygpit,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/nitrogen_spain/_pins.yaml,20260508T072412Z-feb09
