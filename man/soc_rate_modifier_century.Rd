@@ -7,7 +7,15 @@
 Parton, W. J., Schimel, D. S., Cole, C. V. & Ojima, D. S. (1987).
 \doi{10.2136/sssaj1987.03615995005100050015x}; SoilR implementation:
 Sierra, C. A., Mueller, M. & Trumbore, S. E. (2012).
-\doi{10.5194/gmd-5-1045-2012}.
+\doi{10.5194/gmd-5-1045-2012}. Temperature function
+(\code{fT.Century1}): Burke, I., Kaye, J., Bird, S., Hall, S.,
+McCulley, R. & Sommerville, G. (2003). Evaluating and testing models of
+terrestrial biogeochemistry: the role of temperature in controlling
+decomposition. In \emph{Models in Ecosystem Science}, Princeton University
+Press. The 3.439-scaled variant \code{fT.Century2}, which this function
+does NOT implement: Adair, E., Parton, W., Del Grosso, S., Silver, W.,
+Harmon, M., Hall, S., Burke, I. & Hart, S. (2008).
+\doi{10.1111/j.1365-2486.2008.01674.x}.
 }
 \usage{
 soc_rate_modifier_century(temp_c, precip_mm, pet_mm)
@@ -26,9 +34,27 @@ numeric).
 }
 \description{
 Annual Century DEFAC rate-modifying factor: the original monthly-Century
-Poisson temperature factor (normalized to 1 at the 35 degree optimum) and
-the precipitation-over-evapotranspiration logistic moisture factor,
-multiplied and averaged over the supplied series.
+Poisson temperature factor (which is 1 at the 35 degree optimum) and the
+precipitation-over-evapotranspiration logistic moisture factor, multiplied
+and averaged over the supplied series.
+
+Both terms are SoilR's, and so is their pairing. Sierra et al. (2012)
+Table 1 lists two Century temperature functions: \code{fT.Century1},
+attributed to Burke et al. (2003), and \code{fT.Century2}, attributed to
+Adair et al. (2008), which is the same expression multiplied by 3.439.
+This function implements \code{fT.Century1}, which carries no such
+prefactor; the moisture term is \code{fW.Century} verbatim; and
+\code{fT.Century1 * fW.Century} is exactly the climate decomposition index
+Sierra et al. compute in their own Sect. 4.4. The rate constants this
+modifier scales are SoilR's Century defaults as well
+(\code{whep::soc_turnover_params}: 0.094, 0.35, 0.14, 0.0038 and 0.00013
+per week for the structural, metabolic, active, slow and passive pools),
+so rates and modifier come from one implementation rather than two.
+
+What that does NOT establish is the calibration basis of the weekly rates
+themselves: whether Parton et al. (1987) publishes them as the maxima
+reached at DEFAC = 1. If they are not, every Century stock is biased high.
+That question needs the paper and is open as whep#345.
 }
 \examples{
 soc_rate_modifier_century(
