@@ -31,8 +31,8 @@
 #' chosen model is stamped into a \code{method_soc} column on the output.
 #'
 #' @param model SOC model to run: one of \code{"hsoc"}, \code{"rothc"},
-#'   \code{"icbm"}, \code{"amg"} or \code{"century"}. Defaults to the most
-#'   detailed pool structure available, \code{"hsoc"}.
+#'   \code{"icbm"}, \code{"amg"}, \code{"century"} or \code{"lpjml"}.
+#'   Defaults to the most detailed pool structure available, \code{"hsoc"}.
 #' @param data Named list of model arguments. Always carries
 #'   \code{initial_soc_mgc_ha}, \code{c_input_mgc_ha_yr} and \code{years};
 #'   may also carry \code{clay_pct} and model-specific arguments (for example

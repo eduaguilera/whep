@@ -27,7 +27,12 @@ stock, as it does for the four sibling models.}
 
 \item{years}{Number of years to simulate.}
 
-\item{clay_pct}{Soil clay content (percent); unused, kept for contract.}
+\item{clay_pct}{Soil clay content (percent); ignored here, kept for the
+shared call contract. Note that \code{build_carbon_balance(model =
+  "hsoc")} does use clay: it scales \code{humification_fraction} by the
+Aguilera et al. (2018) Eq. 5-6 texture modifier before calling this
+function, so the two entry points give different stocks for the same
+clay. Supply an already-scaled fraction to reproduce the balance.}
 
 \item{climate_modifier}{Annual climate rate modifier (dimensionless).}
 

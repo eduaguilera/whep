@@ -27,7 +27,12 @@
 #'   stock, as it does for the four sibling models.
 #' @param c_input_mgc_ha_yr Annual carbon input (Mg C per ha per year).
 #' @param years Number of years to simulate.
-#' @param clay_pct Soil clay content (percent); unused, kept for contract.
+#' @param clay_pct Soil clay content (percent); ignored here, kept for the
+#'   shared call contract. Note that \code{build_carbon_balance(model =
+#'   "hsoc")} does use clay: it scales \code{humification_fraction} by the
+#'   Aguilera et al. (2018) Eq. 5-6 texture modifier before calling this
+#'   function, so the two entry points give different stocks for the same
+#'   clay. Supply an already-scaled fraction to reproduce the balance.
 #' @param climate_modifier Annual climate rate modifier (dimensionless).
 #' @param humification_fraction Fraction of carbon input humified into the
 #'   humus pool (the remainder feeds the fresh pool).

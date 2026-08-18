@@ -24,7 +24,10 @@ build_carbon_balance(
 }
 \arguments{
 \item{model}{Turnover model: one of \code{"hsoc"} (default), \code{"rothc"},
-\code{"icbm"}, \code{"amg"} or \code{"century"}.}
+\code{"icbm"}, \code{"amg"}, \code{"century"} or \code{"lpjml"}. The
+choice sets the equilibrium target, and through the time constant
+\code{soc_eq / c_input} the speed the stock relaxes toward it; the
+transient itself is a single exponential for every model.}
 
 \item{init}{How each land-use class's opening stock is set.
 \code{"own_equilibrium"} (default) starts every class at the stock its own
