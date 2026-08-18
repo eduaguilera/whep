@@ -37,9 +37,15 @@ if (!file.exists(production_cache)) {
 }
 production <- readRDS(production_cache)
 lookups <- whep_validation_lookups()
-scorecard <- list()
+# The scorecard accumulates across ~15 independent checks, so `add()` has to
+# reach outside itself. It writes into a named environment rather than using
+# `<<-`: the target is then stated at the call site instead of resolved by
+# whichever frame happens to hold a `scorecard` binding, and it is what
+# `assignment_linter` asks for.
+scores <- new.env(parent = emptyenv())
+scores$rows <- list()
 add <- function(variable, archetype, n, ok, flag, note) {
-  scorecard[[length(scorecard) + 1L]] <<- tibble::tibble(
+  scores$rows[[length(scores$rows) + 1L]] <- tibble::tibble(
     variable = variable,
     archetype = archetype,
     n_checked = n,
@@ -47,6 +53,7 @@ add <- function(variable, archetype, n, ok, flag, note) {
     flag = flag,
     note = note
   )
+  invisible()
 }
 
 # 1. stability (internal) ------------------------------------------------------
@@ -321,4 +328,4 @@ if (length(nour_metric) == 1L) {
 }
 
 cat("\n=== WHEP validation scorecard ===\n")
-dplyr::bind_rows(scorecard) |> print(n = Inf, width = Inf)
+dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)
