@@ -49,6 +49,7 @@ reference:
     territory decomposed into land, inland water and ice so that polycells
     re-aggregate to a polity without value change or cross-border leakage.
   contents:
+  - build_polycell_land_uses
   - build_polycell_support
   - expand_polycell_years
   - polycell_example_geometries
