@@ -119,7 +119,7 @@
 #' @examples
 #' build_carbon_balance(example = TRUE)
 build_carbon_balance <- function(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   init = c("own_equilibrium", "cell_average"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),
@@ -619,6 +619,7 @@ build_carbon_balance <- function(
       combos$clay_pct
     ),
     icbm = .cb_icbm_equilibrium(input, cm),
+    lpjml = .cb_lpjml_equilibrium(input, cm),
     amg = .cb_amg_equilibrium(input, cm),
     century = .cb_century_equilibrium(input, cm, combos$clay_pct),
     rothc = .cb_rothc_equilibrium(
@@ -641,6 +642,29 @@ build_carbon_balance <- function(
   k_old <- .soc_param("icbm", "old", "decomposition_rate") * climate_modifier
   h <- .soc_param("icbm", "transfer", "humification_coefficient")
   input / k_young + h * input / k_old
+}
+
+# LPJmL: the two mineral-soil pools at their fixed points. Of the carbon
+# entering the litter layer, (1 - atmfrac) survives respiration and is split
+# fastfrac / (1 - fastfrac) between pools decaying at k_fast and k_slow, both
+# scaled by the response. Neither pool feeds the other and there is no inert
+# term, so the total is just the two fixed points: the soil-bound input --
+# the carbon reaching litter, less the share respired straight to the
+# atmosphere -- divided between the pools, the fast share over its rate plus
+# the slow share over its rate, all over the response. With the run's
+# parameters that comes to 22.25 years.
+#
+# This is algebraically what LPJmL's own equilsoil() converges to once its
+# per-layer c_shift weights are summed, because the layer weights are normalised
+# to one and the decay rate cancels out of them (Schaphoff et al. 2018
+# Eqs. 98-100). The slow pool takes 2% of the input and holds about 45% of the
+# stock, which is why LPJmL solves this rather than spinning it up.
+.cb_lpjml_equilibrium <- function(input, climate_modifier) {
+  k_fast <- .cb_param("lpjml", "fast") * climate_modifier
+  k_slow <- .cb_param("lpjml", "slow") * climate_modifier
+  fast_share <- .soc_param("lpjml", "soil", "fast_fraction")
+  soil_in <- input * (1 - .soc_param("lpjml", "litter", "atmosphere_fraction"))
+  soil_in * fast_share / k_fast + soil_in * (1 - fast_share) / k_slow
 }
 
 # AMG: active pool at its steady state ca_ss = h * input / k (k scaled by the

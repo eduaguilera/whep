@@ -53,7 +53,7 @@ test_that("soc_turnover_params namespaces all five models", {
 
   testthat::expect_setequal(
     models,
-    c("hsoc", "rothc", "icbm", "amg", "century")
+    c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   )
 })
 

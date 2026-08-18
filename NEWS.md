@@ -1,5 +1,38 @@
 # whep (development version)
 
+* **LPJmL is now a selectable soil-carbon turnover model.**
+  `calculate_soc_dynamics(model = "lpjml")` and
+  `build_carbon_balance(model = "lpjml")` run LPJmL's two-pool mineral-soil
+  kinetics, with `calculate_soc_lpjml()` and `soc_rate_modifier_lpjml()`
+  exported alongside the other five models. Of the carbon reaching the litter
+  layer, half is respired straight to the atmosphere and the remainder is split
+  98/2 between a fast pool decaying at 0.04/yr and a slow pool at 0.001/yr;
+  neither feeds the other and there is no inert pool. The equilibrium is
+  `input * (1 - atmfrac) * [fastfrac / k_fast + (1 - fastfrac) / k_slow] /
+  response`, a prefactor of 22.25 years, in which the slow pool receives 2% of
+  the input and holds 45% of the stock.
+
+  This applies LPJmL's *kinetics* to WHEP's carbon input, exactly as the RothC
+  model applies RothC's. It is not a reproduction of LPJmL's own soil carbon,
+  which is reported over 0-300 cm and layered by a rooting-depth function;
+  converting between the two needs decisions that are not settled (whep#799).
+
+  Three things are worth knowing before using it. The rate constants come from
+  the WHEP LPJmL 6.1.1 run configuration and **three of them disagree with
+  Schaphoff et al. (2018)**: the atmospheric fraction is 0.5 against a published
+  0.70, the fast fraction 0.98 against 0.985, and the fast rate 0.04 against
+  0.03. The response is capped at 1 by LPJmL's source and not by its published
+  equations, which binds from about 10.7 degrees at optimal moisture, so every
+  warm well-watered cell decomposes at exactly its nominal rate. And the model
+  needs a **soil**-temperature driver, which WHEP does not assemble; supplying
+  air temperature instead is a substitution the caller makes, so until one is
+  provided the model resolves to a neutral modifier rather than silently
+  standing air temperature in for soil.
+
+  A 5,000-year spin-up cannot converge this model -- its slow pool e-folds in
+  1,000/response years -- so the equilibrium is guarded by its defining
+  property, stationarity, rather than against a spin-up as the other five are.
+
 * **Every polycell-year is now partitioned into land uses, so a territorial
   quantity can be attributed to a land class instead of being assumed
   agricultural or dropped (#423).** `build_polycell_land_uses()` splits each

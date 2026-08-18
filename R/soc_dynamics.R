@@ -65,7 +65,7 @@
 #'   data = list(initial_soc_mgc_ha = 50, c_input_mgc_ha_yr = 2, years = 5)
 #' )
 calculate_soc_dynamics <- function(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   data = list(),
   example = FALSE
 ) {
@@ -104,7 +104,8 @@ calculate_soc_dynamics <- function(
     rothc = calculate_soc_rothc,
     icbm = calculate_soc_icbm,
     amg = calculate_soc_amg,
-    century = calculate_soc_century
+    century = calculate_soc_century,
+    lpjml = calculate_soc_lpjml
   )
   args <- data[intersect(names(data), rlang::fn_fmls_names(fn))]
   do.call(fn, args)
@@ -123,7 +124,8 @@ calculate_soc_dynamics <- function(
     rothc = soc_rate_modifier_rothc,
     icbm = soc_rate_modifier_icbm,
     amg = soc_rate_modifier_amg,
-    century = soc_rate_modifier_century
+    century = soc_rate_modifier_century,
+    lpjml = soc_rate_modifier_lpjml
   )
   do.call(fn, data[drivers])
 }
@@ -135,6 +137,11 @@ calculate_soc_dynamics <- function(
     rothc = c("temp_c", "water_minus_pet_mm", "clay_pct", "soil_cover"),
     icbm = c("temp_c", "theta", "t_field", "t_wilt", "porosity"),
     amg = c("temp_c", "water_balance_mm"),
-    century = c("temp_c", "precip_mm", "pet_mm")
+    century = c("temp_c", "precip_mm", "pet_mm"),
+    # LPJmL drives its response with SOIL temperature and the soil's degree
+    # of saturation. WHEP does not assemble a soil-temperature driver, so
+    # this resolves to the neutral modifier unless the caller supplies one:
+    # substituting air temperature is a choice, not a fallback (whep#799).
+    lpjml = c("temp_soil_c", "theta")
   )
 }

@@ -1423,3 +1423,47 @@ test_that("the sequential transfer conserves carbon against an empty pool", {
   )
   testthat::expect_equal(sum(after$mass_moved), 0, tolerance = 1e-8)
 })
+
+test_that("the LPJmL equilibrium is a fixed point of its own dynamics", {
+  # This model cannot be guarded the way the other five are. Its slow pool
+  # decays at 0.001/yr, so at a response of 0.2 its e-folding time is 5,000
+  # years -- a 5,000-year spin-up is one e-folding and lands 4% short. That is
+  # the spin-up failing to converge, not the closed form being wrong, and it is
+  # why LPJmL solves its own equilibrium analytically rather than spinning up.
+  #
+  # The right check is therefore the defining property: start AT the closed form
+  # and the trajectory must not move.
+  for (cm in c(0.2, 0.5, 1.0, 1.6)) {
+    eq <- whep:::.cb_lpjml_equilibrium(2.5, cm)
+    traj <- whep::calculate_soc_lpjml(
+      initial_soc_mgc_ha = eq,
+      c_input_mgc_ha_yr = 2.5,
+      years = 500,
+      climate_modifier = cm
+    )
+    testthat::expect_equal(
+      utils::tail(traj$soc_total, 1),
+      eq,
+      tolerance = 1e-9,
+      label = paste("LPJmL equilibrium is stationary at cm =", cm)
+    )
+  }
+})
+
+test_that("the LPJmL equilibrium matches its published closed form", {
+  # The equilibrium is the soil-bound input divided between the two pools:
+  # the fast share over its rate plus the slow share over its rate, all over
+  # the response (Schaphoff et al. 2018 Eqs. 98-100, layer weights summed).
+  # (Schaphoff et al. 2018 Eqs. 98-100, with the normalised layer weights summed
+  # out). With the run's parameters the bracket is 22.25 years, and the slow
+  # pool holds most of the stock off 2% of the input.
+  expected <- 1 * (1 - 0.5) * (0.98 / 0.04 + 0.02 / 0.001)
+  testthat::expect_equal(expected, 22.25)
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(1, 1), 22.25)
+  # Proportional to input, inversely proportional to the response.
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(4, 1), 4 * 22.25)
+  testthat::expect_equal(whep:::.cb_lpjml_equilibrium(1, 0.5), 2 * 22.25)
+  # The slow pool takes 2% of the soil-bound input and holds 45% of the stock.
+  slow_share <- (0.02 / 0.001) / (0.98 / 0.04 + 0.02 / 0.001)
+  testthat::expect_equal(slow_share, 0.4494, tolerance = 1e-3)
+})

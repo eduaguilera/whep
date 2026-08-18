@@ -241,6 +241,68 @@ calculate_soc_century <- function(
   .century_solve(state, params, c_input_mgc_ha_yr, years)
 }
 
+#' Simulate soil organic carbon with the LPJmL two-pool soil model.
+#'
+#' @description
+#' Annual trajectory of LPJmL's soil carbon submodel: a fast and a slow
+#' mineral-soil pool, each losing first-order decomposition and gaining a share
+#' of the carbon that survives litter respiration. Of the carbon entering the
+#' litter layer, \code{atmosphere_fraction} is respired straight to the
+#' atmosphere and the remainder is split \code{fast_fraction} to the fast pool
+#' and the rest to the slow pool. Neither soil pool transfers to the other and
+#' there is no inert pool, so soil respiration leaves the system entirely.
+#'
+#' This applies LPJmL's kinetics to the carbon input WHEP supplies, exactly as
+#' \code{\link{calculate_soc_rothc}} applies RothC's. It is **not** a
+#' reproduction of LPJmL's own soil carbon stock, which is reported over
+#' 0-300 cm and layered by a rooting-depth function; the stock returned here is
+#' over the same layer as WHEP's other models. The litter pool is excluded, as
+#' it is from LPJmL's own \code{soilc} output.
+#'
+#' @param initial_soc_mgc_ha Initial soil organic carbon stock (Mg C per ha),
+#'   split between the two pools by their steady-state proportions.
+#' @param c_input_mgc_ha_yr Annual carbon input to the litter layer
+#'   (Mg C per ha per year), before the atmospheric respiration share.
+#' @param years Number of years to simulate.
+#' @param clay_pct Soil clay content (percent); unused, kept for contract.
+#' @param climate_modifier Annual decomposition response (dimensionless),
+#'   scaling both pool rates. See \code{\link{soc_rate_modifier_lpjml}}.
+#' @return A tibble with one row per year: \code{year}, \code{fast},
+#'   \code{slow} and \code{soc_total}.
+#' @source Schaphoff, S., von Bloh, W., Rammig, A., Thonicke, K., Biemans, H.,
+#'   Forkel, M., ... Waha, K. (2018). LPJmL4 - a dynamic global vegetation model
+#'   with managed land - Part 1: Model description. *Geoscientific Model
+#'   Development*, 11, 1343-1375. \doi{10.5194/gmd-11-1343-2018}, Sect. 2.5 and
+#'   Eqs. 90-100. Rate constants and fractions are taken from the WHEP LPJmL
+#'   6.1.1 run configuration, which differs from the published values for
+#'   \code{atmosphere_fraction}, \code{fast_fraction} and the fast-pool rate;
+#'   see \code{\link{soc_turnover_params}}.
+#' @export
+#' @examples
+#' calculate_soc_lpjml(
+#'   initial_soc_mgc_ha = 50,
+#'   c_input_mgc_ha_yr = 2,
+#'   years = 5
+#' )
+calculate_soc_lpjml <- function(
+  initial_soc_mgc_ha,
+  c_input_mgc_ha_yr,
+  years,
+  clay_pct = NA,
+  climate_modifier = 1
+) {
+  soil_in <- c_input_mgc_ha_yr *
+    (1 - .soc_param("lpjml", "litter", "atmosphere_fraction"))
+  fast_share <- .soc_param("lpjml", "soil", "fast_fraction")
+  inputs <- c(fast = soil_in * fast_share, slow = soil_in * (1 - fast_share))
+  rates <- c(
+    fast = .soc_param("lpjml", "fast", "decomposition_rate"),
+    slow = .soc_param("lpjml", "slow", "decomposition_rate")
+  )
+  start <- .lpjml_init_pools(max(initial_soc_mgc_ha, 0), inputs, rates)
+  .lpjml_evolve(inputs, rates, climate_modifier, years, start)
+}
+
 # -- Shared parameter accessors -----------------------------------------------
 
 .soc_param <- function(model_name, component_name, parameter_name) {
@@ -261,6 +323,31 @@ calculate_soc_century <- function(
     ),
     components
   )
+}
+
+# -- LPJmL helpers ------------------------------------------------------------
+
+# Split the opening stock between the two pools in the proportion of their
+# steady states input_pool / k_pool. The response scales both rates equally so
+# it cancels, which keeps the split defined at climate_modifier = 0. With no
+# carbon input at all the stock opens wholly in the slow pool, which is the only
+# one that can still be holding legacy carbon.
+.lpjml_init_pools <- function(stock, inputs, rates) {
+  weights <- inputs / rates[names(inputs)]
+  if (sum(weights) <= 0) {
+    return(c(fast = 0, slow = stock))
+  }
+  stock * weights / sum(weights)
+}
+
+.lpjml_evolve <- function(inputs, rates, climate_modifier, years, start) {
+  decays <- rates[names(inputs)] * climate_modifier
+  stocks <- purrr::pmap(
+    list(start[names(inputs)], inputs, decays),
+    \(stock_0, input, decay) .hsoc_pool_stocks(stock_0, input, decay, years)
+  )
+  tibble::tibble(year = 0:years, fast = stocks[[1]], slow = stocks[[2]]) |>
+    dplyr::mutate(soc_total = .data$fast + .data$slow)
 }
 
 # -- HSOC helpers -------------------------------------------------------------

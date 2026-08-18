@@ -9,7 +9,7 @@ Model bodies and climate functions as cited in
 }
 \usage{
 calculate_soc_dynamics(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   data = list(),
   example = FALSE
 )

@@ -13,7 +13,7 @@ transfer ported from the Spain historical pipeline.
 }
 \usage{
 build_carbon_balance(
-  model = c("hsoc", "rothc", "icbm", "amg", "century"),
+  model = c("hsoc", "rothc", "icbm", "amg", "century", "lpjml"),
   init = c("own_equilibrium", "cell_average"),
   resolution = c("grid", "polity"),
   polity_validity = c("keep", "flag", "drop"),

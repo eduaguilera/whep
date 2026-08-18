@@ -29,7 +29,7 @@ test_that("all five models return exactly the same columns", {
   # columns, so every caller had to branch on the model. The selector now
   # reshapes whichever model ran to one long schema.
   testthat::skip_if_not_installed("deSolve")
-  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   runs <- purrr::map(
     models,
     \(m) {
@@ -57,7 +57,7 @@ test_that("all five models return exactly the same columns", {
 
 test_that("soc_total is the year's pool sum for every model", {
   testthat::skip_if_not_installed("deSolve")
-  models <- c("hsoc", "rothc", "icbm", "amg", "century")
+  models <- c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")
   purrr::walk(models, \(m) {
     out <- whep::calculate_soc_dynamics(
       model = m,

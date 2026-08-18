@@ -161,6 +161,7 @@ reference:
   contents:
   - soc_rate_modifier_rothc
   - soc_rate_modifier_icbm
+  - soc_rate_modifier_lpjml
   - soc_rate_modifier_amg
   - soc_rate_modifier_century
 
@@ -181,6 +182,7 @@ reference:
   - calculate_soc_hsoc
   - calculate_soc_rothc
   - calculate_soc_icbm
+  - calculate_soc_lpjml
   - calculate_soc_amg
   - calculate_soc_century
 
