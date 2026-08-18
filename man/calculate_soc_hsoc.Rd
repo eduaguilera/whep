@@ -27,12 +27,15 @@ stock, as it does for the four sibling models.}
 
 \item{years}{Number of years to simulate.}
 
-\item{clay_pct}{Soil clay content (percent); ignored here, kept for the
-shared call contract. Note that \code{build_carbon_balance(model =
-  "hsoc")} does use clay: it scales \code{humification_fraction} by the
-Aguilera et al. (2018) Eq. 5-6 texture modifier before calling this
-function, so the two entry points give different stocks for the same
-clay. Supply an already-scaled fraction to reproduce the balance.}
+\item{clay_pct}{Soil clay content (percent). Scales
+\code{humification_fraction} by the Aguilera et al. (2018) Eq. 5-6
+texture modifier, which runs 0.72 at 5\% clay to 1.13 at 60\% and is 1
+at RothC's Rothamsted reference of 23.4\%: coarse soils stabilise less
+of the same carbon input. \code{NA}, the default, means no texture
+information was supplied and applies no texture adjustment. The
+gridded balance always supplies clay, so this function and
+\code{build_carbon_balance(model = "hsoc")} now return the same stock
+for the same inputs.}
 
 \item{climate_modifier}{Annual climate rate modifier (dimensionless).}
 

@@ -344,6 +344,97 @@ test_that("every model starts its trajectory at initial_soc_mgc_ha", {
   }
 })
 
+# #348 item 3: `clay_pct` was accepted and never read, so this function and
+# `build_carbon_balance(model = "hsoc")` returned different stocks for the same
+# soil -- the balance scaled the humification coefficient by the Aguilera
+# et al. (2018) Eq. 5-6 texture modifier and the exported function did not.
+test_that("HSOC scales humification by soil texture", {
+  # d runs 0.72 at 5% clay to 1.13 at 60%: coarse soils stabilise less of the
+  # same carbon input, so the humus pool -- which holds most of the stock --
+  # is smaller there.
+  coarse <- whep::calculate_soc_hsoc(50, 3, years = 500, clay_pct = 5)
+  fine <- whep::calculate_soc_hsoc(50, 3, years = 500, clay_pct = 60)
+
+  testthat::expect_false(isTRUE(all.equal(coarse$soc_total, fine$soc_total)))
+  testthat::expect_lt(
+    dplyr::last(coarse$soc_total),
+    dplyr::last(fine$soc_total)
+  )
+})
+
+test_that("HSOC applies the documented texture modifier, not merely some", {
+  # Pinning the modifier itself, so a future change to `.cb_texture_modifier()`
+  # cannot pass by staying monotone in clay. 3.51 normalises d to 1 at RothC's
+  # Rothamsted reference of 23.4% clay.
+  d <- function(clay) 3.51 / (1.67 * (1.85 + 1.60 * exp(-0.0786 * clay)))
+  h <- 0.3
+
+  for (clay in c(5, 23.4, 60)) {
+    out <- whep::calculate_soc_hsoc(
+      initial_soc_mgc_ha = 50,
+      c_input_mgc_ha_yr = 2,
+      years = 0,
+      clay_pct = clay
+    )
+    hf <- min(h * d(clay), 1)
+    # Year 0 splits the active stock in the proportion of the pools' steady
+    # states, which is where the effective fraction shows up first.
+    testthat::expect_equal(
+      out$humus[1] / (out$fresh[1] + out$humus[1]),
+      (2 * hf / 0.02) / (2 * (1 - hf) / 0.48 + 2 * hf / 0.02),
+      tolerance = 1e-10
+    )
+  }
+})
+
+test_that("HSOC applies no texture adjustment when clay is unknown", {
+  # `clay_pct = NA` is the shared call contract's "not supplied", and means no
+  # texture adjustment rather than an NA trajectory. It is what every existing
+  # direct caller gets, so it must reproduce the tabulated coefficient exactly.
+  out <- whep::calculate_soc_hsoc(50, 2, years = 5, clay_pct = NA)
+
+  testthat::expect_false(anyNA(out$soc_total))
+  testthat::expect_equal(
+    out$humus[1] / (out$fresh[1] + out$humus[1]),
+    (2 * 0.3 / 0.02) / (2 * 0.7 / 0.48 + 2 * 0.3 / 0.02),
+    tolerance = 1e-10
+  )
+})
+
+# The point of the fix: one model, one answer. The exported spin-up and the
+# closed form `build_carbon_balance()` actually evaluates must agree, and they
+# must agree because both scale exactly once -- `.cb_steady_state()` hands over
+# the UNSCALED tabulated fraction now that the function scales it itself.
+test_that("HSOC agrees with the balance closed form at every clay", {
+  input <- 3
+  h <- 0.325
+  cm <- 1
+
+  for (clay in c(5, 15, 23.4, 40, 60)) {
+    seed <- whep:::.cb_seed_stock(
+      "hsoc",
+      input,
+      whep:::.cb_hsoc_hf(h, clay),
+      cm
+    )
+    spin_up <- whep::calculate_soc_hsoc(
+      initial_soc_mgc_ha = seed,
+      c_input_mgc_ha_yr = input,
+      years = 5000L,
+      clay_pct = clay,
+      climate_modifier = cm,
+      humification_fraction = h
+    )
+    closed <- whep:::.cb_hsoc_equilibrium(input, h, cm, clay)
+
+    testthat::expect_equal(dplyr::last(spin_up$soc_total), closed)
+    testthat::expect_equal(
+      whep:::.cb_steady_state("hsoc", input, h, cm, clay),
+      closed
+    )
+  }
+})
+
 test_that("HSOC carves the inert pool out of the stock, as RothC does", {
   # Falloon (1998) estimates IOM as a component of *measured total* soil organic
   # carbon, so it must be subtracted from the initial stock, not added on top of

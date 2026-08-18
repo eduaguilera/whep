@@ -27,12 +27,15 @@
 #'   stock, as it does for the four sibling models.
 #' @param c_input_mgc_ha_yr Annual carbon input (Mg C per ha per year).
 #' @param years Number of years to simulate.
-#' @param clay_pct Soil clay content (percent); ignored here, kept for the
-#'   shared call contract. Note that \code{build_carbon_balance(model =
-#'   "hsoc")} does use clay: it scales \code{humification_fraction} by the
-#'   Aguilera et al. (2018) Eq. 5-6 texture modifier before calling this
-#'   function, so the two entry points give different stocks for the same
-#'   clay. Supply an already-scaled fraction to reproduce the balance.
+#' @param clay_pct Soil clay content (percent). Scales
+#'   \code{humification_fraction} by the Aguilera et al. (2018) Eq. 5-6
+#'   texture modifier, which runs 0.72 at 5% clay to 1.13 at 60% and is 1
+#'   at RothC's Rothamsted reference of 23.4%: coarse soils stabilise less
+#'   of the same carbon input. \code{NA}, the default, means no texture
+#'   information was supplied and applies no texture adjustment. The
+#'   gridded balance always supplies clay, so this function and
+#'   \code{build_carbon_balance(model = "hsoc")} now return the same stock
+#'   for the same inputs.
 #' @param climate_modifier Annual climate rate modifier (dimensionless).
 #' @param humification_fraction Fraction of carbon input humified into the
 #'   humus pool (the remainder feeds the fresh pool).
@@ -56,8 +59,19 @@ calculate_soc_hsoc <- function(
   climate_modifier = 1,
   humification_fraction = 0.3
 ) {
+  # The effective humification coefficient is the tabulated one scaled by
+  # soil texture. `.cb_hsoc_hf()` is shared with the closed-form
+  # equilibrium in R/carbon_balance.R rather than duplicated here,
+  # because the two have to agree exactly -- the closed form is what the
+  # production build evaluates and this spin-up is the oracle it is
+  # checked against.
+  hf <- if (is.na(clay_pct)) {
+    pmin(humification_fraction, 1)
+  } else {
+    .cb_hsoc_hf(humification_fraction, clay_pct)
+  }
   iom <- 0.049 * initial_soc_mgc_ha^1.139
-  humus_in <- c_input_mgc_ha_yr * humification_fraction
+  humus_in <- c_input_mgc_ha_yr * hf
   fresh_in <- c_input_mgc_ha_yr - humus_in
   inputs <- c(fresh = fresh_in, humus = humus_in)
   rates <- c(

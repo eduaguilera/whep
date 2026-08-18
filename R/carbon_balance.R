@@ -853,6 +853,10 @@ build_carbon_balance <- function(
 .cb_steady_state <- function(model, input, humified_fraction, cm, clay) {
   # HSOC's humification is texture-dependent (Aguilera Eq. 5-6); the other
   # models carry their own texture terms, so only HSOC's fraction is scaled.
+  # Scaled HERE for the analytic seed only. `calculate_soc_hsoc()` applies
+  # the same modifier itself from the `clay_pct` passed below, so the
+  # fraction handed to it has to be the unscaled tabulated one or the
+  # texture term lands twice.
   hf <- if (model == "hsoc") {
     .cb_hsoc_hf(humified_fraction, clay)
   } else {
@@ -867,7 +871,7 @@ build_carbon_balance <- function(
     climate_modifier = cm
   )
   if (model == "hsoc") {
-    args$humification_fraction <- hf
+    args$humification_fraction <- humified_fraction
   }
   if (model == "amg") {
     # fixed_iom would split the arbitrary analytic `seed` by a fixed stable

@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **`calculate_soc_hsoc()` now honours `clay_pct`, so the HSOC model gives
+  one answer from either entry point.** The argument was accepted and never
+  read: the function returned identical trajectories at 5% and 60% clay,
+  while `build_carbon_balance(model = "hsoc")` scaled the humification
+  coefficient by the Aguilera et al. (2018) Eq. 5-6 texture modifier before
+  calling it. The same model therefore returned different stocks depending on
+  which door you came through (whep#348 item 3). The scaling now happens
+  inside the exported function, and `.cb_steady_state()` hands over the
+  unscaled tabulated fraction so the modifier is still applied exactly once.
+
+  **Published values do not move.** `build_carbon_balance()` evaluates the
+  closed form, which already scaled by texture; the spin-up oracle and the
+  closed form still agree to 0 across 5-60% clay.
+
+  **Direct callers who passed `clay_pct` do move**, from a modifier of 1 to
+  the documented one: at a 3 Mg C/ha/yr input and a tabulated coefficient of
+  0.325 the 5000-year equilibrium goes 57.19 -> 43.98 Mg C/ha at 5% clay
+  (x0.769), 57.19 -> 57.13 at 23.4% (x0.999, RothC's Rothamsted reference)
+  and 57.19 -> 63.14 at 60% (x1.104). `clay_pct = NA`, the default, applies
+  no texture adjustment and reproduces the previous behaviour exactly.
+
 * **LPJmL is now a selectable soil-carbon turnover model.**
   `calculate_soc_dynamics(model = "lpjml")` and
   `build_carbon_balance(model = "lpjml")` run LPJmL's two-pool mineral-soil
