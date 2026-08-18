@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **Three silent losses on the cropland and natural-land carbon paths are now
+  reported.** None changes a published number; each converts a quantity that
+  vanished without trace into one that says so.
+
+  * An LPJmL plant functional type the natural selection cannot classify now
+    aborts instead of being dropped. The selection joins on name, and the 6.1.1
+    run carries three natural types the list does not cover, worth 6.94% of
+    global natural NPP carbon and concentrated in 22 cells where the loss is
+    total. Which of them belong in the natural class, and what humification
+    fraction Sphagnum should carry, stay open (#807).
+  * Weed carbon is zero for every crop, polity and year on the default path,
+    because the turnkey chain never calls `calculate_crop_npp_components()`.
+    `build_soil_carbon_inputs()` advertised weeds as one of its four components
+    regardless; the description now says otherwise and the zero warns once per
+    session (#806).
+  * Manure above the nitrogen ceiling is placed back on cropland by the default
+    disposal method and carries carbon, but the carbon path drops it for having
+    no crop, so the nitrogen balance applies that manure and the carbon balance
+    does not. The tonnage is now reported. Which way the two should agree is a
+    science decision (#805).
+
 * **Soil-carbon equilibria change: HSOC humification is now texture-dependent,
   as the model it ports specifies.** `.cb_hsoc_equilibrium()` was a verbatim
   port of Aguilera et al. (2018) Eq. 4 but omitted that paper's Eq. 5-6, which

@@ -68,6 +68,14 @@ carbon-weighted humification fraction is computed per cell-year from
 \link{residue_humification}, with the weed carbon humified at the weed
 (spontaneous-grass) coefficient.
 
+The weed stream is structurally present but ZERO on the default path: the
+turnkey chain runs \code{\link[=calculate_crop_npp]{calculate_crop_npp()}} and
+\code{\link[=calculate_npp_carbon_nitrogen]{calculate_npp_carbon_nitrogen()}} without \code{\link[=calculate_crop_npp_components]{calculate_crop_npp_components()}},
+which is the only producer of \code{weed_ag_dm_t}, so weed carbon is zero for
+every crop, polity and year unless \code{data$npp} is supplied from a chain that
+includes it. Whether to wire it into the default path is open (whep#806);
+until then the zero is reported rather than passed off as computed.
+
 At \code{"polity"} resolution the component carbon masses are summed back to
 \verb{(area_code, item_prod_code, year)} and the per-hectare values and humified
 fraction re-derived from the polity totals.

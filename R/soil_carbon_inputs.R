@@ -15,6 +15,14 @@
 #' [residue_humification], with the weed carbon humified at the weed
 #' (spontaneous-grass) coefficient.
 #'
+#' The weed stream is structurally present but ZERO on the default path: the
+#' turnkey chain runs [calculate_crop_npp()] and
+#' [calculate_npp_carbon_nitrogen()] without [calculate_crop_npp_components()],
+#' which is the only producer of `weed_ag_dm_t`, so weed carbon is zero for
+#' every crop, polity and year unless `data$npp` is supplied from a chain that
+#' includes it. Whether to wire it into the default path is open (whep#806);
+#' until then the zero is reported rather than passed off as computed.
+#'
 #' At `"polity"` resolution the component carbon masses are summed back to
 #' `(area_code, item_prod_code, year)` and the per-hectare values and humified
 #' fraction re-derived from the polity totals.
@@ -177,13 +185,37 @@ build_soil_carbon_inputs <- function(
     )
 }
 
+# Report a weed stream that is identically zero. The exported description
+# advertises weeds as one of the four cropland carbon components, but the
+# turnkey chain never calls calculate_crop_npp_components(), the only function
+# creating weed_ag_dm_t, so the column exists and is zero throughout. Checking
+# that the column is PRESENT -- which is all this file used to do -- cannot tell
+# those two cases apart (whep#806).
+.sci_warn_zero_weeds <- function(npp) {
+  weed <- npp$weed_npp_c_t
+  if (length(weed) > 0 && all(is.na(weed) | weed == 0)) {
+    cli::cli_warn(
+      c(
+        "Weed carbon is zero for every row of {.field npp}.",
+        "i" = "The default chain omits {.fun calculate_crop_npp_components}, \
+        weeds contribute nothing to the cropland carbon input (whep#806)."
+      ),
+      # Weeds are zero on EVERY default build, so an unconditional
+      # warning would drown the ones that mean something (whep#647).
+      .frequency = "once",
+      .frequency_id = "sci_zero_weeds"
+    )
+  }
+  invisible(npp)
+}
+
 .sci_check_npp <- function(npp) {
   required <- c("residue_soil_c_t", "root_c_t", "weed_npp_c_t")
   missing <- required[
     !purrr::map_lgl(required, \(col) rlang::has_name(npp, col))
   ]
   if (length(missing) == 0) {
-    return(invisible(npp))
+    return(.sci_warn_zero_weeds(npp))
   }
   cli::cli_abort(c(
     "{.field npp} is missing required carbon column{?s} {.field {missing}}.",
@@ -199,7 +231,34 @@ build_soil_carbon_inputs <- function(
 # item_prod_code strings; resolve either form through items_prod_full. Territory
 # is a stringified area_code or an iso3c, resolved via the same helper the
 # N-inputs manure engine uses (both mappings abort rather than silently emit NA).
+# The default disposal method puts manure above the nitrogen ceiling back on
+# CROPLAND with no crop attached, and gives it carbon like any other applied row
+# (R/manure_allocation.R:462-481, :380). The filter below then drops it, because
+# it has no crop -- so the nitrogen balance applies that manure and the carbon
+# balance does not. Which way the two should agree is a science decision
+# (whep#805); reporting the mass is what stops it being invisible meanwhile.
+.sci_warn_dropped_manure_c <- function(manure) {
+  if (!rlang::has_name(manure, "applied_c")) {
+    return(invisible(manure))
+  }
+  dropped <- manure |>
+    dplyr::filter(.data$land_use == "Cropland", is.na(.data$crop)) |>
+    dplyr::pull("applied_c")
+  total <- sum(dropped, na.rm = TRUE)
+  if (total <= 0) {
+    return(invisible(manure))
+  }
+  cli::cli_warn(c(
+    "{.val {round(total)}} t C of cropland manure has no crop and is dropped \
+    from the carbon input.",
+    "i" = "The nitrogen balance keeps this manure; the carbon balance does not \
+      (whep#805)."
+  ))
+  invisible(manure)
+}
+
 .sci_manure_components <- function(manure) {
+  .sci_warn_dropped_manure_c(manure)
   manure |>
     dplyr::filter(
       .data$land_use == "Cropland",
