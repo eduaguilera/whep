@@ -162,65 +162,54 @@ typology_stacked_bars <- function() {
 
 typology_area_stacked_bars <- function() {
   indicators <- create_typo_ts_plot()
+  npp_ygpit <- whep_read_file("npp_ygpit")
 
-  df_area <- indicators |>
-    dplyr::group_by(year, Typology_base) |>
+  typologies_df <- indicators |>
     dplyr::summarise(
-      area_mha = sum(Area_ha, na.rm = TRUE) / 1e6,
-      .groups = "drop"
+      Typology = dplyr::first(Typology_base),
+      .by = c(year, province_name)
     )
 
-  typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
+  colors <- c(
     "Specialized cropping systems (intensive)" = "#F7DD5A",
     "Specialized cropping systems (extensive)" = "#FFF7C2",
     "Specialized livestock systems (intensive)" = "#b3001b",
     "Specialized livestock systems (extensive)" = "#C94F6B",
+    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
+    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
     "Connected crop-livestock systems (intensive)" = "#7A4F20",
     "Connected crop-livestock systems (extensive)" = "#AF814B",
-    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
-    "Disconnected crop-livestock systems (extensive)" = "#F6A640"
+    "Semi-natural agroecosystems" = "#66a61e"
   )
 
-  typology_order <- c(
-    "Specialized cropping systems (intensive)",
-    "Specialized cropping systems (extensive)",
-    "Specialized livestock systems (intensive)",
-    "Specialized livestock systems (extensive)",
-    "Disconnected crop-livestock systems (intensive)",
-    "Disconnected crop-livestock systems (extensive)",
-    "Connected crop-livestock systems (intensive)",
-    "Connected crop-livestock systems (extensive)",
-    "Semi-natural agroecosystems"
-  )
+  df <- .build_area_totals(.sum_area_by_prov(npp_ygpit), typologies_df, colors)
 
-  df_area$Typology_base <- factor(
-    df_area$Typology_base,
-    levels = typology_order
-  )
-
-  year_breaks <- df_area$year |>
+  year_breaks <- df$Year |>
     unique() |>
     sort()
   year_breaks <- year_breaks[year_breaks %% 20 == 0]
 
-  ggplot2::ggplot(
-    df_area,
-    ggplot2::aes(x = factor(year), y = area_mha, fill = Typology_base)
-  ) +
-    ggplot2::geom_bar(stat = "identity") +
-    ggplot2::scale_x_discrete(breaks = year_breaks) +
-    ggplot2::scale_y_continuous(
-      expand = ggplot2::expansion(mult = c(0, 0.05))
-    ) +
-    ggplot2::scale_fill_manual(values = typology_colors) +
-    ggplot2::labs(
-      x = "Year",
-      y = "Total area (Mha)",
-      fill = "Typology"
-    ) +
-    ggplot2::theme_minimal() +
-    .stacked_bar_theme()
+  p_total <- .plot_area_stacked(
+    df,
+    year_breaks,
+    "Mha",
+    "Total area by typology",
+    "Total area (Mha)",
+    colors
+  )
+  p_pct <- .plot_area_stacked(
+    df,
+    year_breaks,
+    "Percent_ha",
+    "Land area by typology (%)",
+    "Share of total area (%)",
+    colors
+  )
+
+  print(p_total)
+  print(p_pct)
+
+  list(df = df, p_total = p_total, p_pct = p_pct)
 }
 
 
@@ -236,4 +225,50 @@ typology_area_stacked_bars <- function() {
       margin = ggplot2::margin(t = 1)
     )
   )
+}
+
+.sum_area_by_prov <- function(npp_ygpit, land_uses = NULL) {
+  if (!is.null(land_uses)) {
+    npp_ygpit <- npp_ygpit |> dplyr::filter(LandUse %in% land_uses)
+  }
+  npp_ygpit |>
+    dplyr::summarise(
+      Area_ha = sum(Area_ygpit_ha, na.rm = TRUE),
+      .by = c(Year, Province_name)
+    )
+}
+
+.build_area_totals <- function(area_by_prov, typologies_df, colors) {
+  area_by_prov |>
+    dplyr::left_join(
+      typologies_df,
+      by = c("Year" = "year", "Province_name" = "province_name")
+    ) |>
+    dplyr::mutate(Typology = factor(Typology, levels = names(colors))) |>
+    dplyr::summarise(
+      Total_ha = sum(Area_ha, na.rm = TRUE),
+      .by = c(Year, Typology)
+    ) |>
+    dplyr::arrange(Year, Typology) |>
+    dplyr::mutate(
+      Mha = Total_ha / 1e6,
+      Percent_ha = Total_ha / sum(Total_ha) * 100,
+      .by = Year
+    )
+}
+
+.plot_area_stacked <- function(df, year_breaks, y_var, title, y_label, colors) {
+  ggplot2::ggplot(
+    df,
+    ggplot2::aes(x = factor(Year), y = .data[[y_var]], fill = Typology)
+  ) +
+    ggplot2::geom_bar(stat = "identity") +
+    ggplot2::scale_x_discrete(breaks = year_breaks) +
+    ggplot2::scale_y_continuous(
+      expand = ggplot2::expansion(mult = c(0, 0.05))
+    ) +
+    ggplot2::scale_fill_manual(values = colors) +
+    ggplot2::labs(title = title, x = "Year", y = y_label, fill = "Typology") +
+    ggplot2::theme_minimal() +
+    .stacked_bar_theme()
 }
