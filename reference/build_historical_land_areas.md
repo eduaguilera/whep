@@ -6,13 +6,19 @@ hectares summed from gridded LUH2 inside the polygon of the polity that
 `area_code` resolved to in that year, instead of inside present-day
 borders.
 
-A cell's land is shared among the polities whose polygons cover it, in
-proportion to the covered fraction renormalised to one per cell, which
-is the rule `build_cell_polity_fraction()` already uses. Renormalising
-matters: LUH2's state fractions are fractions of the whole cell and
-already discount open water, so weighting them by a raw coastal cell's
-land share would discount it twice and lose 12-15% of the land of an
-island or heavily coastal country.
+The cell-by-polity intersection is not measured here: it is read from
+the polycell support table
+([`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)),
+which is that intersection measured geodesically on s2 and keyed on each
+polity's validity interval.
+
+A cell's land is shared among the polities whose territory covers it, in
+proportion to that territory renormalised to one per cell, which is the
+rule `build_cell_polity_fraction()` already uses. Renormalising matters:
+LUH2's state fractions are fractions of the whole cell and already
+discount open water, so weighting them by a raw coastal cell's land
+share would discount it twice and lose 12-15% of the land of an island
+or heavily coastal country.
 
 [`fill_proxy_growth()`](https://eduaguilera.github.io/whep/reference/fill_proxy_growth.md)
 consumes only this series' year-on-year ratios, so a change of territory
@@ -84,10 +90,12 @@ build_historical_land_areas(
 - data:
 
   Named list of pre-loaded inputs bypassing the readers, for tests:
-  `polity_areas` (`year`, `area_code`, `polity_code`), `cover`
-  (`polity_code`, `lon`, `lat`, `frac`) and `cell_areas` (`year`, `lon`,
-  `lat`, `land_use`, `area_ha`). Each falls back to its reader when
-  absent.
+  `polity_areas` (`year`, `area_code`, `polity_code`), `support` (a
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  table), `cover` (`polity_code`, `lon`, `lat`, `frac`, which is
+  `support` already reduced to one weight per cell) and `cell_areas`
+  (`year`, `lon`, `lat`, `land_use`, `area_ha`). Each falls back to its
+  reader when absent.
 
 - example:
 
@@ -110,14 +118,14 @@ build_historical_land_areas(example = TRUE)
 #> # A tibble: 10 × 6
 #>     year area_code polity_code    Cropland Pasture agriland
 #>    <int>     <int> <chr>             <dbl>   <dbl>    <dbl>
-#>  1  1961        15 BLX-1850-1999     0.606   0.445     1.05
-#>  2  1961        51 F51-1947-1993     5.35    1.81      7.16
-#>  3  1900       203 ESP-1800-2025    16.2     8.20     24.4 
-#>  4  1961       228 F228-1945-1991  238.    332.      570.  
-#>  5  1850       238 ETH-1800-1889     3.24    9.61     12.9 
-#>  6  1900       238 ETH-1897-1902     6.42   16.5      22.9 
-#>  7  1951       238 ETH-1941-1952     9.73   24.3      34.0 
-#>  8  1952       238 ETH-1952-1993     9.92   24.8      34.7 
-#>  9  1961       238 ETH-1952-1993    12.0    29.6      41.5 
-#> 10  1961       248 F248-1947-1991    8.40    6.46     14.9 
+#>  1  1961       255 BEL-1831-2025      1.02   0.718     1.73
+#>  2  1961        51 F51-1947-1993      5.35   1.81      7.16
+#>  3  1900       203 ESP-1800-2025     16.2    8.20     24.4 
+#>  4  1961       228 F228-1945-1991   238.   332.      570.  
+#>  5  1850       238 ETH-1800-1889      1.52   1.88      3.40
+#>  6  1900       238 ETH-1897-1902      6.00  13.6      19.6 
+#>  7  1951       238 ETH-1941-1952      9.45  23.0      32.4 
+#>  8  1952       238 ETH-1952-1993     10.2   30.0      40.2 
+#>  9  1961       238 ETH-1952-1993     12.0   29.6      41.5 
+#> 10  1961       248 F248-1947-1991     8.40   6.46     14.9 
 ```

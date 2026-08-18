@@ -3,13 +3,16 @@
 area_code, Cropland, Pasture and agriland, all in Mha – with the
 hectares summed from gridded LUH2 inside the polygon of the polity that
 area_code resolved to in that year, instead of inside present-day borders.
-A cell's land is shared among the polities whose polygons cover it, in
-proportion to the covered fraction renormalised to one per cell, which is the
-rule build_cell_polity_fraction() already uses. Renormalising matters:
-LUH2's state fractions are fractions of the whole cell and already discount
-open water, so weighting them by a raw coastal cell's land share would
-discount it twice and lose 12-15% of the land of an island or heavily coastal
-country.
+The cell-by-polity intersection is not measured here: it is read from the
+polycell support table (read_polycell_support()), which is that
+intersection measured geodesically on s2 and keyed on each polity's validity
+interval.
+A cell's land is shared among the polities whose territory covers it, in
+proportion to that territory renormalised to one per cell, which is the rule
+build_cell_polity_fraction() already uses. Renormalising matters: LUH2's
+state fractions are fractions of the whole cell and already discount open
+water, so weighting them by a raw coastal cell's land share would discount it
+twice and lose 12-15% of the land of an island or heavily coastal country.
 fill_proxy_growth() consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and boundary_step makes it:
@@ -33,13 +36,16 @@ a test or an example."><meta property="og:description" content="Emit the land ta
 area_code, Cropland, Pasture and agriland, all in Mha – with the
 hectares summed from gridded LUH2 inside the polygon of the polity that
 area_code resolved to in that year, instead of inside present-day borders.
-A cell's land is shared among the polities whose polygons cover it, in
-proportion to the covered fraction renormalised to one per cell, which is the
-rule build_cell_polity_fraction() already uses. Renormalising matters:
-LUH2's state fractions are fractions of the whole cell and already discount
-open water, so weighting them by a raw coastal cell's land share would
-discount it twice and lose 12-15% of the land of an island or heavily coastal
-country.
+The cell-by-polity intersection is not measured here: it is read from the
+polycell support table (read_polycell_support()), which is that
+intersection measured geodesically on s2 and keyed on each polity's validity
+interval.
+A cell's land is shared among the polities whose territory covers it, in
+proportion to that territory renormalised to one per cell, which is the rule
+build_cell_polity_fraction() already uses. Renormalising matters: LUH2's
+state fractions are fractions of the whole cell and already discount open
+water, so weighting them by a raw coastal cell's land share would discount it
+twice and lose 12-15% of the land of an island or heavily coastal country.
 fill_proxy_growth() consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and boundary_step makes it:
@@ -103,13 +109,16 @@ a test or an example."><meta property="og:image" content="https://eduaguilera.gi
 <code>area_code</code>, <code>Cropland</code>, <code>Pasture</code> and <code>agriland</code>, all in Mha – with the
 hectares summed from gridded LUH2 inside the polygon of the polity that
 <code>area_code</code> resolved to in that year, instead of inside present-day borders.</p>
-<p>A cell's land is shared among the polities whose polygons cover it, in
-proportion to the covered fraction renormalised to one per cell, which is the
-rule <code>build_cell_polity_fraction()</code> already uses. Renormalising matters:
-LUH2's state fractions are fractions of the whole cell and already discount
-open water, so weighting them by a raw coastal cell's land share would
-discount it twice and lose 12-15% of the land of an island or heavily coastal
-country.</p>
+<p>The cell-by-polity intersection is not measured here: it is read from the
+polycell support table (<code><a href="read_polycell_support.html">read_polycell_support()</a></code>), which is that
+intersection measured geodesically on s2 and keyed on each polity's validity
+interval.</p>
+<p>A cell's land is shared among the polities whose territory covers it, in
+proportion to that territory renormalised to one per cell, which is the rule
+<code>build_cell_polity_fraction()</code> already uses. Renormalising matters: LUH2's
+state fractions are fractions of the whole cell and already discount open
+water, so weighting them by a raw coastal cell's land share would discount it
+twice and lose 12-15% of the land of an island or heavily coastal country.</p>
 <p><code><a href="fill_proxy_growth.html">fill_proxy_growth()</a></code> consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and <code>boundary_step</code> makes it:</p><ul><li><p><code>"relink"</code> (default) re-measures the previous year inside the <strong>incoming</strong>
@@ -169,9 +178,11 @@ figure this method exists to replace (whep#761).</p></dd>
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Named list of pre-loaded inputs bypassing the readers, for tests:
-<code>polity_areas</code> (<code>year</code>, <code>area_code</code>, <code>polity_code</code>), <code>cover</code>
-(<code>polity_code</code>, <code>lon</code>, <code>lat</code>, <code>frac</code>) and <code>cell_areas</code> (<code>year</code>, <code>lon</code>,
-<code>lat</code>, <code>land_use</code>, <code>area_ha</code>). Each falls back to its reader when absent.</p></dd>
+<code>polity_areas</code> (<code>year</code>, <code>area_code</code>, <code>polity_code</code>), <code>support</code> (a
+<code><a href="read_polycell_support.html">read_polycell_support()</a></code> table), <code>cover</code> (<code>polity_code</code>, <code>lon</code>, <code>lat</code>,
+<code>frac</code>, which is <code>support</code> already reduced to one weight per cell) and
+<code>cell_areas</code> (<code>year</code>, <code>lon</code>, <code>lat</code>, <code>land_use</code>, <code>area_ha</code>). Each falls back
+to its reader when absent.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -195,16 +206,16 @@ semicolon-separated where a bucket holds more than one polity in a year.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 6</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     year area_code polity_code    Cropland Pasture agriland</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>961        15 BLX-1850-1999     0.606   0.445     1.05</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>961        51 F51-1947-1993     5.35    1.81      7.16</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>900       203 ESP-1800-2025    16.2     8.20     24.4 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>961       228 F228-1945-1991  238.    332.      570.  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>850       238 ETH-1800-1889     3.24    9.61     12.9 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>900       238 ETH-1897-1902     6.42   16.5      22.9 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>951       238 ETH-1941-1952     9.73   24.3      34.0 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>952       238 ETH-1952-1993     9.92   24.8      34.7 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>961       238 ETH-1952-1993    12.0    29.6      41.5 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>961       248 F248-1947-1991    8.40    6.46     14.9 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">1</span>961       255 BEL-1831-2025      1.02   0.718     1.73</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">1</span>961        51 F51-1947-1993      5.35   1.81      7.16</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">1</span>900       203 ESP-1800-2025     16.2    8.20     24.4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">1</span>961       228 F228-1945-1991   238.   332.      570.  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>850       238 ETH-1800-1889      1.52   1.88      3.40</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>900       238 ETH-1897-1902      6.00  13.6      19.6 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">1</span>951       238 ETH-1941-1952      9.45  23.0      32.4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">1</span>952       238 ETH-1952-1993     10.2   30.0      40.2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">1</span>961       238 ETH-1952-1993     12.0   29.6      41.5 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">1</span>961       248 F248-1947-1991     8.40   6.46     14.9 </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
