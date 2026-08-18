@@ -1997,6 +1997,14 @@ utils::globalVariables(
     # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
-    "i.data_year"
+    "i.data_year",
+    # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
+    # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
+    # creates inside the data.table `.()` expression
+    "luh2_ha",
+    # n_prov_destiny.R (#449) — .spain_processing_coefs() reads
+    # get_processing_coefs() instead of the frozen pin, so it selects on the
+    # builder's conversion-factor column rather than the pin's `cf`
+    "final_conversion_factor"
   )
 )

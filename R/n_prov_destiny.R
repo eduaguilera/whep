@@ -1,3 +1,7 @@
+# FAOSTAT area code for Spain. The national tables this file reads are keyed
+# on codes, never on names -- see "Join on codes, never on names" in CLAUDE.md.
+.spain_area_code <- 203L
+
 #' @title GRAFS Nitrogen (N) flows
 #'
 #' @description
@@ -41,7 +45,7 @@ create_n_prov_destiny <- function(example = FALSE) {
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
-  processing_coefs <- whep_read_file("processing_coefs")
+  processing_coefs <- get_processing_coefs()
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
   npp_ygpit <- whep_read_file("npp_ygpit")
@@ -744,14 +748,15 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 #' @title Spain processing coefficients -----------------------------------------
-#' @description Filters the cached national processing-coefficients pin
-#' (`get_processing_coefs()`) down to Spain, using its own item names — the
-#' pin's `ProcessedItem` column is actually the primary/input item (e.g.
-#' `"Cottonseed"`) and its `item` column is the processed output (e.g.
-#' `"Cottonseed Cake"`), so they are relabelled here to the Item/ProcessedItem
-#' convention used throughout this file. `value_to_process` (the amount of
-#' the primary item consumed by processing) isn't stored directly, but
-#' `value_proc = value_to_process * cf`, so it is recovered by division.
+#' @description Filters `get_processing_coefs()` down to Spain and relabels it
+#' to the Item/ProcessedItem convention used throughout this file: the builder
+#' names its two sides `item_cbs_code_to_process` (the primary input, e.g.
+#' `"Cottonseed"`) and `item_cbs_code_processed` (the output, e.g.
+#' `"Cottonseed Cake"`). Both arrive as codes, so the names are attached here.
+#'
+#' Spain is selected on `area_code`, not on a name column: the builder emits
+#' codes only, and joining on names has caused silent drops elsewhere in the
+#' package.
 #'
 #' @param processing_coefs Output of `get_processing_coefs()`.
 #'
@@ -760,13 +765,25 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @noRd
 .spain_processing_coefs <- function(processing_coefs) {
   processing_coefs |>
-    dplyr::filter(area == "Spain", !is.na(cf), cf > 0) |>
+    dplyr::filter(
+      area_code == .spain_area_code,
+      !is.na(final_conversion_factor),
+      final_conversion_factor > 0
+    ) |>
+    add_item_cbs_name(
+      code_column = "item_cbs_code_to_process",
+      name_column = "Item"
+    ) |>
+    add_item_cbs_name(
+      code_column = "item_cbs_code_processed",
+      name_column = "ProcessedItem"
+    ) |>
     dplyr::transmute(
-      Year,
-      Item = ProcessedItem,
-      ProcessedItem = item,
-      value_to_process = value_proc / cf,
-      cf
+      Year = year,
+      Item,
+      ProcessedItem,
+      value_to_process,
+      cf = final_conversion_factor
     )
 }
 
@@ -790,9 +807,10 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @title Processing shares by item -------------------------------------------
 #' @description Computes the national fraction of each item's production
 #' that goes to processing, capped at 1. An item can yield several
-#' ProcessedItem outputs, each with its own (near-identical, up to rounding)
-#' estimate of `value_to_process` — these are averaged down to a single
-#' value per Year/Item so downstream joins don't duplicate rows.
+#' ProcessedItem outputs, which repeat the same `value_to_process` — the
+#' builder carries it on the input side, so the repeats are exact rather than
+#' equal up to rounding. They are collapsed to a single value per Year/Item so
+#' downstream joins don't duplicate rows.
 #'
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param national_production Output of `.national_item_production()`.
@@ -851,11 +869,17 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 #' @title Forward-fill late-year processing shares ----------------------------
-#' @description `processing_coefs` currently stops in 2021, while production
-#' runs further. For each Item, its latest observed share_processing (2021)
-#' is copied forward to every year from that last observed year up to
-#' `last_year`, mirroring `.backfill_processing_shares()`'s treatment of the
-#' pre-1961 years.
+#' @description Individual items stop being observed before production does.
+#' Each Item's own latest observed share_processing is copied forward to every
+#' year from that last observed year up to `last_year`, mirroring
+#' `.backfill_processing_shares()`'s treatment of the pre-1961 years.
+#'
+#' This used to carry every item across two whole years, because the frozen
+#' `processing_coefs` pin ended in 2021 while production ran further. Reading
+#' `get_processing_coefs()` instead removes that: the coefficients now end
+#' where FAOSTAT's own reporting does. What remains is the genuinely short
+#' series -- coconuts stop in 2002, sugar cane in 2008 and palm kernels in
+#' 2018 -- all of which are negligible in Spain.
 #'
 #' @param processing_shares Output of `.calculate_processing_shares()`.
 #' @param last_year Latest year present in the production data.
@@ -910,11 +934,15 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 #' @title Forward-fill late-year processing cf/output mapping -----------------
-#' @description `processing_coefs` currently stops in 2021, while production
-#' runs further. For each Item/ProcessedItem pair, its latest observed row
-#' (2021) is copied forward to every year from that last observed year up to
-#' `last_year`, mirroring `.backfill_processing_cf()`'s treatment of the
-#' pre-1961 years.
+#' @description Individual Item/ProcessedItem pairs stop being observed before
+#' production does. Each pair's own latest observed row is copied forward to
+#' every year from that last observed year up to `last_year`, mirroring
+#' `.backfill_processing_cf()`'s treatment of the pre-1961 years.
+#'
+#' As with `.forwardfill_processing_shares()`, this no longer spans the two
+#' years the frozen `processing_coefs` pin was missing; what remains is the
+#' coconut, sugar cane and palm kernel pairs, which stop in 2002, 2008 and
+#' 2018 respectively.
 #'
 #' @param spain_coefs Output of `.spain_processing_coefs()`.
 #' @param last_year Latest year present in the production data.
@@ -939,12 +967,15 @@ create_n_nat_destiny <- function(example = FALSE) {
 }
 
 #' @title Forward-fill late-year province population --------------------------
-#' @description `population_yg` currently stops in 2021, while production
-#' runs further. For each Province_name, its latest observed row (2021) is
-#' copied forward to every year from that last observed year up to
-#' `last_year`. Population changes little year to year, so reusing the last
-#' known year is a safe approximation, on the same reasoning as the
-#' processing-coefficient forward-fill.
+#' @description For each Province_name, its latest observed row is copied
+#' forward to every year from that last observed year up to `last_year`.
+#' Population changes little year to year, so reusing the last known year is a
+#' safe approximation, on the same reasoning as the processing-coefficient
+#' forward-fill.
+#'
+#' The `population_yg` pin reached only 2021 until it was refreshed to
+#' Spain_Hist's 1860-2023 output (#449), so in practice this now fills nothing
+#' unless production runs past the population series again.
 #'
 #' @param population_yg Raw dataframe from `whep_read_file("population_yg")`.
 #' @param last_year Latest year present in the production data.

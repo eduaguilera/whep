@@ -193,37 +193,40 @@ test_that(".add_grass_wood filters out NA production", {
 
 # .spain_processing_coefs -------------------------------------------------------
 
-test_that(".spain_processing_coefs filters to Spain and relabels item names", {
-  # Mirrors the real pin's schema: `ProcessedItem` is actually the primary
-  # (input) item and `item` is the processed output.
+test_that(".spain_processing_coefs filters to Spain and names item codes", {
+  # Mirrors get_processing_coefs(): both sides arrive as CBS codes, Spain is
+  # selected on area_code (203), and value_to_process is carried directly
+  # rather than recovered from value_proc / cf as the old pin required.
   processing_coefs <- tibble::tribble(
-    ~Year, ~area, ~ProcessedItem, ~item, ~cf,
-    2000, "Spain", "Grapes", "Wine", 0.5,
-    2000, "Afghanistan", "Grapes", "Wine", 0.5
+    ~year, ~area_code, ~item_cbs_code_to_process, ~item_cbs_code_processed,
+    2000L, 203L, 2620L, 2655L,
+    2000L, 2L, 2620L, 2655L
   ) |>
-    dplyr::mutate(value_proc = 50)
+    dplyr::mutate(value_to_process = 100, final_conversion_factor = 0.5)
 
   out <- .spain_processing_coefs(processing_coefs)
 
   expect_equal(nrow(out), 1)
-  expect_equal(out$Item, "Grapes")
+  expect_equal(out$Item, "Grapes and products (excl wine)")
   expect_equal(out$ProcessedItem, "Wine")
   expect_equal(out$value_to_process, 100)
   expect_equal(out$cf, 0.5)
+  expect_equal(out$Year, 2000L)
 })
 
 test_that(".spain_processing_coefs drops non-positive or missing cf", {
   processing_coefs <- tibble::tribble(
-    ~Year, ~area, ~ProcessedItem, ~item, ~cf, ~value_proc,
-    2000, "Spain", "Grapes", "Wine", 0.5, 50,
-    2000, "Spain", "Olives", "Oil", 0, 0,
-    2000, "Spain", "Wheat", "Flour", NA_real_, 10
+    ~year, ~area_code, ~item_cbs_code_to_process, ~item_cbs_code_processed,
+    ~value_to_process, ~final_conversion_factor,
+    2000L, 203L, 2620L, 2655L, 100, 0.5,
+    2000L, 203L, 2563L, 2580L, 0, 0,
+    2000L, 203L, 2511L, 2592L, 10, NA_real_
   )
 
   out <- .spain_processing_coefs(processing_coefs)
 
   expect_equal(nrow(out), 1)
-  expect_equal(out$Item, "Grapes")
+  expect_equal(out$Item, "Grapes and products (excl wine)")
 })
 
 
