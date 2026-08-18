@@ -413,9 +413,24 @@ cft_to_pft <- c(
 }
 
 # ---- Read EarthStat mapping ---------------------------------------------
-# Rows whose `item_prod_code` is NA correspond to EarthStat raster
-# layers (fodder grasses, alfalfa, clover, etc.) that have no direct
-# FAOSTAT QCL item. Downstream consumers usually filter with
+# One row per crop layer in the Monfreda et al. (2008) 175-crop archive,
+# whether or not WHEP maps it. Rows whose `item_prod_code` is NA carry an
+# `unmapped_reason` saying which kind of gap they are:
+#
+#   no_fao_crop_name  the archive's own metadata table gives no FAO crop
+#                     name for the layer, repeating the EarthStat code in
+#                     its Cropname_FAO column instead. The 15 fodder
+#                     layers (alfalfa, clover, maizefor, grassnes, ...).
+#   unmapped          the archive names an FAO crop but WHEP has not
+#                     chosen an item code for it.
+#
+# The distinction is the point. Before it, a layer WHEP had simply never
+# been told about looked exactly like one deliberately left out, and
+# barley -- a major cereal -- sat absent from the file for as long as it
+# existed. `test_earthstat_mapping.R` now asserts the file covers all 175
+# layers, so the next omission fails a test instead of vanishing.
+#
+# Downstream consumers usually filter with
 # `dplyr::filter(!is.na(item_prod_code))`.
 .read_earthstat_mapping <- function() {
   .find_extdata_file("earthstat_mapping.csv") |>
@@ -424,31 +439,43 @@ cft_to_pft <- c(
       col_types = readr::cols(
         earthstat_name = readr::col_character(),
         item_prod_code = readr::col_integer(),
-        item_prod_name = readr::col_character()
+        item_prod_name = readr::col_character(),
+        unmapped_reason = readr::col_character()
       )
     )
 }
 
 # ---- EarthStat Crop Specific Fertilizer mapping (17 crops) ---------------
+# The 17 crops of the EarthStat Crop Specific Fertilizer product, keyed to
+# the same `item_prod_code` space as `earthstat_mapping.csv` above.
+#
+# Seven of these codes were from another vintage of the item table and
+# named a different crop, or no crop at all: cassava 340 and cotton 274
+# resolved to nothing in `items_prod`, while potato 328 was "Seed cotton,
+# unginned", oilpalm 217 "Cashew nuts, in shell", rapeseed 223
+# "Pistachios, in shell", sugarcane 780 "Jute, raw or retted" and
+# sunflower 222 "Walnuts, in shell". The crosswalk 900 lines above had the
+# right code for every one of them under the same EarthStat name, which is
+# what these now use; `test_earthstat_mapping.R` asserts the two agree.
 .earthstat_fertilizer_mapping <- function() {
   tibble::tribble(
     ~earthstat_fert_name, ~item_prod_code,
     "barley",      44L,
-    "cassava",    340L,
-    "cotton",     274L,
+    "cassava",    125L,
+    "cotton",     328L,
     "groundnut",  242L,
     "maize",       56L,
     "millet",      79L,
-    "oilpalm",    217L,
-    "potato",     328L,
-    "rapeseed",   223L,
+    "oilpalm",    254L,
+    "potato",     116L,
+    "rapeseed",   270L,
     "rice",        27L,
     "rye",         71L,
     "sorghum",     83L,
     "soybean",    236L,
     "sugarbeet",  157L,
-    "sugarcane",  780L,
-    "sunflower",  222L,
+    "sugarcane",  156L,
+    "sunflower",  267L,
     "wheat",       15L
   )
 }
