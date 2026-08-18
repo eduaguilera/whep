@@ -346,3 +346,66 @@ testthat::test_that("an area in two Annex 1 regions aborts, not double-weights",
     "more than one region"
   )
 })
+
+testthat::test_that("two clashing areas are named, not a cli crash", {
+  # Same defect as the single-area case above, one step further: the abort
+  # interpolates the integer area codes as cli's pluralisation quantity, which
+  # cli accepts only at length 1. With two clashing areas the guard aborted
+  # with "length(object) == 1 is not TRUE" instead of naming them.
+  regions <- tibble::tribble(
+    ~iso3c,        ~area_code, ~region,
+    NA_character_, 10L,        "Europe",
+    NA_character_, 10L,        "Sub-Saharan Africa",
+    NA_character_, 20L,        "Europe",
+    NA_character_, 20L,        "South and Southeast Asia"
+  )
+  testthat::expect_error(
+    whep::build_loss_wedge(
+      data = list(
+        protein_supply = .lw_supply(),
+        food_loss_regions = regions
+      ),
+      method = "gustavsson_regional_actual"
+    ),
+    "Area codes: 10 and 20"
+  )
+})
+
+testthat::test_that("two ungrouped areas are named, not a cli crash", {
+  # An area whose whole basket falls outside Annex 2 gets no wedge, and the
+  # warning that says so carried the same length-1 pluralisation quantity.
+  groups <- tibble::tribble(
+    ~item_cbs_code, ~loss_group,
+    9999L,          "Cereals"
+  )
+  testthat::expect_warning(
+    whep::build_loss_wedge(
+      data = list(
+        protein_supply = .lw_supply(),
+        food_loss_item_groups = groups
+      )
+    ),
+    "Area codes: 10 and 20"
+  )
+})
+
+testthat::test_that("two unregioned areas are named, not a cli crash", {
+  # Under `coverage = "annex1_only"` an area Annex 1 does not list gets no
+  # wedge on purpose, and must still be reported. Third instance of the same
+  # length-1 quantity.
+  regions <- tibble::tribble(
+    ~iso3c, ~area_code, ~region,
+    "ESP",  999L,       "Europe"
+  )
+  testthat::expect_warning(
+    whep::build_loss_wedge(
+      data = list(
+        protein_supply = .lw_supply(),
+        food_loss_regions = regions
+      ),
+      method = "gustavsson_regional_actual",
+      coverage = "annex1_only"
+    ),
+    "Area codes: 10 and 20"
+  )
+})

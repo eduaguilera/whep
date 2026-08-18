@@ -207,3 +207,26 @@ testthat::test_that("a band with a missing ceiling is reported, not silent", {
   )
   testthat::expect_true(is.na(out$nourish))
 })
+
+testthat::test_that("two unbanded areas are named, not a cli crash", {
+  # `areas` is an integer vector, and interpolating one as cli's pluralisation
+  # quantity is only allowed at length 1. One unbanded area warned; two or more
+  # aborted from inside the warning with "length(object) == 1 is not TRUE", so
+  # the guard against a silent classification gap took down the classification
+  # instead. It fired on the real 2010 build, which has several unbanded areas.
+  supply <- tibble::tribble(
+    ~year, ~area_code, ~protein_g_cap_day,
+    2010L, 10L,        70,
+    2010L, 20L,        70,
+    2010L, 30L,        70
+  )
+  band <- tibble::tribble(
+    ~year, ~area_code, ~floor_g_cap_day, ~ceiling_g_cap_day,
+    2010L, 10L,        60,               90
+  )
+  testthat::expect_warning(
+    out <- whep::normalize_nourishment(supply, thresholds = band),
+    "Area codes: 20 and 30"
+  )
+  testthat::expect_equal(sum(is.na(out$nourish)), 2L)
+})

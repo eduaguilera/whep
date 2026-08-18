@@ -89,12 +89,12 @@ is what the FBS pin reports food on. Keying on \code{iso3c} alone would drop are
 351 and with it a fifth of world food protein.
 
 Items that Gustavsson's Annex 2 does not place in a commodity group carry no
-rate rather than borrowing a neighbour's. They are dropped from the weighting,
-which gives them the basket's mean wedge implicitly, and their share is
-reported in \code{protein_grouped_share} so the choice stays visible. On the 2010
-world basket they are 5.0\% of food protein, eggs alone being 3.7\%; assigning
-eggs to meat or to dairy instead moves \code{omega} by less than 0.1 percentage
-points either way.
+rate rather than borrowing a neighbour's. They are dropped from the
+weighting, which gives them the basket's mean wedge implicitly, and their
+share is reported in \code{protein_grouped_share} so the choice stays visible. On
+the 2010 world basket they are 5.0\% of food protein, eggs alone being 3.7\%;
+assigning eggs to meat or to dairy instead moves \code{omega} by less than 0.1
+percentage points either way.
 }
 \section{Polity columns}{
 

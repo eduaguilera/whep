@@ -85,12 +85,12 @@
 #' 351 and with it a fifth of world food protein.
 #'
 #' Items that Gustavsson's Annex 2 does not place in a commodity group carry no
-#' rate rather than borrowing a neighbour's. They are dropped from the weighting,
-#' which gives them the basket's mean wedge implicitly, and their share is
-#' reported in `protein_grouped_share` so the choice stays visible. On the 2010
-#' world basket they are 5.0% of food protein, eggs alone being 3.7%; assigning
-#' eggs to meat or to dairy instead moves `omega` by less than 0.1 percentage
-#' points either way.
+#' rate rather than borrowing a neighbour's. They are dropped from the
+#' weighting, which gives them the basket's mean wedge implicitly, and their
+#' share is reported in `protein_grouped_share` so the choice stays visible. On
+#' the 2010 world basket they are 5.0% of food protein, eggs alone being 3.7%;
+#' assigning eggs to meat or to dairy instead moves `omega` by less than 0.1
+#' percentage points either way.
 #'
 #' @param data Named list of injected inputs. Supply the basket either as
 #'   `protein_supply` (`year`, `area_code`, `item_cbs_code`, `protein_t`) or as
@@ -309,7 +309,7 @@ build_loss_wedge <- function(
   cli::cli_abort(c(
     "{.field data$food_loss_regions} puts {nrow(clashing)} area{?s} in more
      than one region.",
-    "x" = "Area code{?s}: {codes}.",
+    "x" = "Area code{cli::qty(length(codes))}{?s}: {codes}.",
     "i" = "Each area must resolve to one Annex 1 region; two would weight its
            basket twice, at two different rates."
   ))
@@ -406,7 +406,7 @@ build_loss_wedge <- function(
   cli::cli_warn(c(
     "!" = "No Annex 2 commodity group covers any protein in {nrow(bad)}
            country-year{?s}, whose wedge is therefore missing.",
-    "i" = "Area code{?s}: {areas}."
+    "i" = "Area code{cli::qty(length(areas))}{?s}: {areas}."
   ))
 }
 
@@ -421,7 +421,7 @@ build_loss_wedge <- function(
   cli::cli_warn(c(
     "!" = "Gustavsson's Annex 1 lists no region for {nrow(bad)} area{?s}, whose
            wedge is therefore missing.",
-    "i" = "Area code{?s}: {codes}.",
+    "i" = "Area code{cli::qty(length(codes))}{?s}: {codes}.",
     "i" = "Use {.code coverage = \"global_mean\"} to give them the mean rate
            across the seven regions instead."
   ))

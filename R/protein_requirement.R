@@ -221,7 +221,8 @@ build_protein_requirement <- function(
   missing <- sort(unique(expanded$age[is.na(expanded$requirement_g_day)]))
   if (length(missing) > 0L) {
     cli::cli_abort(c(
-      "No protein requirement for age{?s} {.val {missing}}.",
+      "No protein requirement for
+       age{cli::qty(length(missing))}{?s} {.val {missing}}.",
       "i" = "The coefficient table must cover every year of age present in
              {.arg data$population_age}."
     ))

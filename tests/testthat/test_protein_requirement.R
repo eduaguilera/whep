@@ -230,3 +230,24 @@ testthat::test_that("a missing scoring-pattern column aborts", {
     "lysine_mg_g"
   )
 })
+
+testthat::test_that("more than one uncovered age is named, not a cli crash", {
+  # The ages are integers, and cli takes a number as a pluralisation quantity
+  # only at length 1. A single uncovered age aborted with its own message; an
+  # uncovered age GROUP -- the only way this can actually happen, since the
+  # population arrives in five-year bands -- aborted with "length(object) == 1
+  # is not TRUE", hiding the coverage gap the guard exists to name.
+  coefs <- dplyr::filter(
+    whep::whep_coef_table("protein_requirement"),
+    .data$age_class != "19+"
+  )
+  testthat::expect_error(
+    whep::build_protein_requirement(
+      data = list(
+        population_age = .pr_adults(),
+        protein_requirement = coefs
+      )
+    ),
+    "No protein requirement for ages"
+  )
+})

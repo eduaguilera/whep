@@ -183,7 +183,7 @@ normalize_nourishment <- function(
   cli::cli_warn(c(
     "!" = "{nrow(missing)} row{?s} have no threshold band, so their
            {.field nourish} class is {.val {NA}}.",
-    "i" = "Area code{?s}: {areas}."
+    "i" = "Area code{cli::qty(length(areas))}{?s}: {areas}."
   ))
 }
 
