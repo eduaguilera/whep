@@ -1042,6 +1042,8 @@
     critical_loads = .sjos_n_crit_loads_fixture(),
     cbs_food = .sjos_n_cbs_food_fixture(),
     population = .sjos_n_pop_fixture(),
+    population_age = .sjos_n_pop_age_fixture(),
+    habitual_cv = .sjos_n_habitual_cv_fixture(),
     n_inputs = .sjos_n_inputs_fixture(),
     biomass_coefs = .sjos_n_coefs_fixture(),
     items_full = .sjos_n_items_fixture()
@@ -1148,6 +1150,38 @@
     ~year, ~area_code, ~population,
     2010L, 1L, 4.0e9,
     2010L, 2L, 3.0e9
+  )
+}
+
+# Population by age and sex, for the nourishment band's requirement terms. Two
+# classes per area is enough to exercise the demographic weighting while keeping
+# the fixture readable, and the totals match .sjos_n_pop_fixture() so the band
+# and the per-capita supply share one denominator. It is here, rather than being
+# read, because build_sjos_nitrogen() now composes the band by default and the
+# suite must never reach UN DESA (#490).
+.sjos_n_pop_age_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~age_start, ~age_span, ~sex, ~population,
+    2010L, 1L,         0L,         5L,        "m",  0.6e9,
+    2010L, 1L,         0L,         5L,        "f",  0.6e9,
+    2010L, 1L,         30L,        5L,        "m",  1.4e9,
+    2010L, 1L,         30L,        5L,        "f",  1.4e9,
+    2010L, 2L,         0L,         5L,        "m",  0.3e9,
+    2010L, 2L,         0L,         5L,        "f",  0.3e9,
+    2010L, 2L,         30L,        5L,        "m",  1.2e9,
+    2010L, 2L,         30L,        5L,        "f",  1.2e9
+  )
+}
+
+# Habitual-intake coefficients of variation for the band's dispersion term, at
+# the two ends of FAOSTAT item 21058's observed range so the fixture exercises
+# an equal and an unequal population. Injected for the same offline reason as
+# the age structure above.
+.sjos_n_habitual_cv_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~cv,
+    2010L, 1L,         0.20,
+    2010L, 2L,         0.35
   )
 }
 

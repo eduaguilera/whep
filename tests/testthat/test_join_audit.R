@@ -85,9 +85,9 @@ test_that("the enumerated baseline can only shrink", {
   # report which authority each resolution rests on (whep#740). The instrument
   # that measures year-blindness costs one row on the ledger it measures.
   #
-  # 60 and 61 arrived independently -- this branch and whep#761 each added one
-  # year-free row and each recorded itself as "60". Both are kept because both
-  # are real; the cap is 61, measured on the merge, not 59 + 1 + 1 assumed.
+  # 60 and 61 arrived independently -- the carbon fold and whep#761 each added
+  # one year-free row and each recorded itself as "60". Both are kept because
+  # both are real; the cap is measured on the merge, not assumed from a sum.
   #
   # `.carbon_warn_fold` is not a new year-blind READ at all -- both sides of it
   # are the same already-year-filtered carbon support, and it selects warning
@@ -114,7 +114,21 @@ test_that("the enumerated baseline can only shrink", {
   # `.read_luh2_cft`, so that row moved rather than multiplied), the LUH2 anchor
   # became a grouped lookup instead of a second merge, and the toy fixture's
   # polity tail is built in place instead of joined.
-  expect_lte(sum(baseline$n), 62L)
+  #
+  # 65 is the loss wedge's three on top of that (whep#500, whep#753), and they
+  # are another rise that is not a regression: Gustavsson's Annex 1 is a single
+  # 2011 snapshot with no time dimension at all, so the region a country's loss
+  # rates come from CANNOT be year-keyed. Keying it on the year would be the
+  # defect, not the fix -- it would leave every successor area (Ethiopia,
+  # Sudan) without the pre-partition region Annex 1 actually assigns it. The
+  # count is three and not four because `.lw_weight` reads the assignment once
+  # and carries `method_region` through its grouping instead of joining twice.
+  #
+  # Both numbers are measured on the merge, never summed from the two sides:
+  # `sum(.territorial_joins() |> filter(!has_year) |> count(owner, join_fn,
+  # key) |> pull(n))` reads 65 here, and the enumerated baseline reads 65 with
+  # it (61 rows).
+  expect_lte(sum(baseline$n), 65L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

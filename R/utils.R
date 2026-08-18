@@ -1867,6 +1867,46 @@ utils::globalVariables(
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
     "i.data_year",
+    # protein_requirement.R — TRS 935 age/sex requirement classes and the
+    # population-by-age input they are weighted by
+    "age",
+    "age_end",
+    "age_span",
+    "age_start",
+    "avg_req_g_day",
+    "avg_req_g_kg_day",
+    "avg_to_safe_ratio",
+    "reference_weight_kg",
+    "requirement_g_cap_day",
+    "requirement_g_day",
+    "safe_req_g_day",
+    "sex",
+    "year_from",
+    "year_to",
+    "lysine_mg_g",
+    "protein_weight",
+    "saa_mg_g",
+    "threonine_mg_g",
+    "tryptophan_mg_g",
+    # intake_dispersion.R — FAOSTAT food-security columns and the CV carry-back
+    "Value",
+    "cv",
+    "fao_area_code",
+    "first_cv",
+    "first_year",
+    "method_cv_year",
+    "sigma",
+    # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
+    "AgeGrpSpan",
+    "AgeGrpStart",
+    "ISO3_code",
+    "LocTypeName",
+    "PopFemale",
+    "PopMale",
+    "Time",
+    "female",
+    "iso3c",
+    "male",
     # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
     # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
     # creates inside the data.table `.()` expression
