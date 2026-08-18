@@ -62,6 +62,22 @@
       ~year, ~area_code, ~population,
       2010L, 1L, 1.0e9
     ),
+    # The band's demographic and dispersion terms. Injected rather than left to
+    # their readers: the default band composes from all four terms, so a
+    # fixture without these two sends the suite to population.un.org and
+    # FAOSTAT (#490). The age groups sum to the `population` row above, so the
+    # requirement is weighted over the same country the supply is divided by.
+    population_age = tibble::tribble(
+      ~year, ~area_code, ~age_start, ~age_span, ~sex, ~population,
+      2010L, 1L,         0L,         5L,        "m",  0.15e9,
+      2010L, 1L,         0L,         5L,        "f",  0.15e9,
+      2010L, 1L,         30L,        5L,        "m",  0.35e9,
+      2010L, 1L,         30L,        5L,        "f",  0.35e9
+    ),
+    habitual_cv = tibble::tribble(
+      ~year, ~area_code, ~cv,
+      2010L, 1L,         0.25
+    ),
     n_inputs = tibble::tribble(
       ~year, ~area_code, ~fert_type, ~n_input_t,
       2010L, 1L, "synthetic", 3.0e7,
@@ -222,6 +238,27 @@ testthat::test_that("the composed band is the default and needs no network", {
   testthat::expect_true(all(
     c("value_norm", "nourish") %in% names(out$nourishment)
   ))
+  testthat::expect_false(any(is.na(out$nourishment$value_norm)))
+})
+
+testthat::test_that("the INJECTED path needs no network either", {
+  # `example = TRUE` was guarded above; the injected-data path was not, and it
+  # reaches the same two readers through the same default. It is the path every
+  # other test in this file uses for the non-example chain, so a fixture that
+  # omits `population_age` or `habitual_cv` puts a 29 MB download from
+  # population.un.org inside `R CMD check` -- green on a warm cache, red the
+  # day UN DESA is slow. Caught by the offline-tests job, which runs the suite
+  # behind a dead proxy (#490).
+  testthat::local_mocked_bindings(
+    read_wpp_population = function(...) {
+      testthat::fail("read_wpp_population() reached from the injected path")
+    },
+    read_habitual_cv = function(...) {
+      testthat::fail("read_habitual_cv() reached from the injected path")
+    }
+  )
+  out <- whep::build_sjos_nitrogen(data = .sjos_nitrogen_test_data())
+  testthat::expect_gt(nrow(out$nourishment), 0)
   testthat::expect_false(any(is.na(out$nourishment$value_norm)))
 })
 
