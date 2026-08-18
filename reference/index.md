@@ -46,6 +46,8 @@ the territory decomposed into land, inland water and ice so that
 polycells re-aggregate to a polity without value change or cross-border
 leakage.
 
+- [`build_polycell_land_uses()`](https://eduaguilera.github.io/whep/reference/build_polycell_land_uses.md)
+  : Partition each polycell into mutually exclusive land uses.
 - [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
   : Build the polycell spatial support table
 - [`expand_polycell_years()`](https://eduaguilera.github.io/whep/reference/expand_polycell_years.md)
