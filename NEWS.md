@@ -1,5 +1,107 @@
 # whep (development version)
 
+* **Every polycell-year is now partitioned into land uses, so a territorial
+  quantity can be attributed to a land class instead of being assumed
+  agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
+  polycell's `land_area_ha` into `cropland`, `grassland`, `urban`, `natural` and
+  `unclassified`. The *level* of each agricultural class comes from the
+  statistical record, which is authoritative; LUH2 supplies only the
+  within-country spatial pattern, taken from its `fraction` (LUH2's share of the
+  whole cell) so the classes tile the polycell's measured land by construction
+  rather than to a tolerance. `level_source` and `pattern_source` are separate
+  columns and their per-polycell difference is emitted as
+  `statistical_pattern_disagreement_ha` rather than absorbed into `natural`;
+  that column is the criterion for retiring LUH2 as a source. Inland water and
+  ice are never land uses.
+
+  Two conventions are worth knowing. FAO counts temporary meadows and pastures
+  (Land Use item 6633) inside arable land while LUH2 books that ground as
+  grassland, so that component keeps its FAO class but is spread over the LUH2
+  grassland pattern. And because FAOSTAT land use starts in 1961, the pasture
+  level is back-cast before then by carrying the FAO 1961 level on LUH2's own
+  national trend, mirroring what `get_arable_permanent_land()` already does for
+  cropland, so the gridded grassland series does not step at the splice. A
+  back-cast row is labelled in `level_source` and excluded from the
+  statistical-versus-pattern diagnostic, since it would otherwise measure LUH2
+  against itself.
+
+  A national total spread by the LUH2 pattern can give a polycell more
+  agricultural land than it has, driven by countries where FAO and LUH2 disagree
+  about how much land is permanent pasture. Measured on the function itself at
+  2020: 63.50 Mha, 1.33% of the anchored agricultural area, of which Saudi
+  Arabia is 35.10 Mha and Sudan (former) 14.20 Mha. `overfull_method` selects
+  the treatment and is recorded in `method_overfull`. `"spillover"` (default)
+  places the excess on same-country neighbours, widening the search ring until
+  it is absorbed and taking non-forested natural land before forest: at 2020 it
+  places 63.45 Mha of it across 3,878 receiving polycells, at a median ring of 2
+  and a maximum of 22, and names the remaining 42,765 ha in
+  `unplaceable_statistical_ha`. A neighbour can only receive a class it has a
+  row for, so land the pattern classified nowhere is reported rather than
+  credited to a row that does not exist. `"cap"` caps pro rata and leaves the
+  whole 63.50 Mha in `unplaceable_statistical_ha`. The two are alternatives,
+  never fallbacks, and both close the same ledger: 4,716.99 + 63.50 =
+  4,780.44 + 0.04 Mha of anchored area in.
+
+  On a real 2020 build the five classes sum to each polycell's `land_area_ha`
+  to a maximum relative deviation of 1.7e-10 over 73,873 polycells, with none
+  off by more than 1e-6. Global class areas come out at natural 7,985.3 Mha,
+  grassland 3,225.3, cropland 1,565.7, urban 77.9 and unclassified 71.2.
+
+  No published value changes: this adds a producer and does not alter any
+  existing output. The ledger anchors grassland on FAO item 6655 by passing
+  `source = "faostat_pasture"` explicitly, which differs from
+  `build_grassland_land_extension()`'s own `"luh2"` default; that divergence is
+  tracked in #759 and deliberately not resolved here, because three consumers
+  rely on the current default and one of them is this ledger's own cropland
+  anchor.
+
+* **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
+  intersection; it reads the polycell support.** whep#776 built a second answer
+  to a question whep#619 had already answered better: `.polity_cell_cover()`
+  ran `terra::extract(exact = TRUE)` over every polity polygon, where
+  `read_polycell_support()` is the same intersection measured geodesically with
+  `sf::st_area()` on s2, keyed on each polity's validity interval, conserving by
+  construction, and unable to give one cell to two overlapping polities at once.
+  The rasteriser, its grid template, its lon/lat lookup and the `sf`/`terra`
+  package assertion are all gone; this path now touches neither package. The
+  weight is `polity_area_ha`, the polity's territory in the cell, renormalised
+  to one per cell exactly as before — not `land_area_ha`, because
+  `build_polycell_support()` apportions inland water pro rata by
+  `polity_area_ha`, so within a cell the water cancels in that renormalisation
+  except where its cap bites, and there 1,502 polycells covering 62.4 Mha
+  (Canada on the Great Lakes and Hudson Bay, the USSR on the Caspian and Arctic
+  shores) carry `land_area_ha == 0` and would lose their claim on the cell
+  outright (whep#800).
+
+  **No published value moves on this commit**, because
+  `land_method = "present_day"` is still the default and the
+  `"historical_polity"` path reads the `historical-land-areas` pin rather than
+  recomputing. What moves is what `data-raw/historical_land_areas.R` now
+  produces, and the pin has to be regenerated and re-uploaded for any of it to
+  reach a user. Regenerated over 1850-1961: 18,922 rows / 215 buckets becomes
+  17,187 / 198, global cropland −0.007% at 1850, −0.004% at 1900, −0.108% at
+  1950 and −0.440% at 1961, and Ethiopia is unchanged to four decimals at every
+  checkpoint. 84% of shared bucket-years move by less than 0.1% and 87% by less
+  than 1%. The large movers are territories the old route was **halving**: an
+  aggregate's polygon overlaps its members', so a cell claimed by both was split
+  between them, and Belgium came out at 0.567 Mha of 1961 cropland instead of
+  1.015, Luxembourg at 0.037 instead of 0.063, New Caledonia at exactly half and
+  American Samoa at 51%.
+
+  **The loss of coverage is the other side of that, and it is the part to
+  review.** `build_polycell_support()` excludes `polity_type == "aggregate"`,
+  because the support must be a partition and an aggregate's polygon overlaps
+  its members'. Nine reporting buckets whose only pre-1962 territory is such an
+  aggregate therefore drop out — Belgium-Luxembourg, Yemen, the Netherlands
+  Antilles and the six "Other" residual regions, together 2.04 Mha of 1961
+  cropland as the old route measured it — and **Viet Nam keeps 1886-1953
+  unchanged but loses 1954-1961**, the span its combined-reporting entity
+  covers. The other eight (Cayman, Gibraltar, Mayotte, Anguilla, Turks and
+  Caicos, Wallis and Futuna, South Georgia, the French Southern Territories,
+  0.001 Mha between them) carry a polygon in `polities` but no row in the
+  *published* polycell pin, which predates the 2026-08-13 polity ingest; a
+  refreshed polycell pin restores those. `build_historical_land_areas()` warns
+  with the codes and separates the two causes, so neither loss is silent.
 * **Three silent losses on the cropland and natural-land carbon paths are now
   reported.** None changes a published number; each converts a quantity that
   vanished without trace into one that says so.
@@ -105,6 +207,7 @@
 * `build_carbon_balance()`'s `@source` cited a DOI resolving to a paper on bird
   escape behaviour in urban parks; it now cites Aguilera et al. (2018),
   *Sci Total Environ* 621:634-648 (#346).
+
 
 * **The milk FAOSTAT reports as churned into butter is no longer counted as
   milk eaten.** `cb_processing` gained the one dairy pathway it lacked,

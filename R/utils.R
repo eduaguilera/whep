@@ -1851,11 +1851,12 @@ utils::globalVariables(
     # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
     "polity_frac",
     # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
-    # land series measured inside each year's own polity polygon
+    # land series measured inside each year's own polity polygon. `cell` and
+    # `ID` left with the raster cover whep#800 replaced by the polycell, which
+    # brings `polity_area_ha` in their place.
     "n_buckets",
     "mapping_status",
-    "cell",
-    "ID",
+    "polity_area_ha",
     "frac",
     "share",
     "land_now",
@@ -1865,6 +1866,10 @@ utils::globalVariables(
     # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
-    "i.data_year"
+    "i.data_year",
+    # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
+    # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
+    # creates inside the data.table `.()` expression
+    "luh2_ha"
   )
 )

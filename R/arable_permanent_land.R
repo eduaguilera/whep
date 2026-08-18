@@ -264,6 +264,45 @@ get_arable_permanent_land <- function(
 
 # -- Pre-1961 LUH2 backcast ----------------------------------------------------
 
+# ISO3 -> area_code, deduplicated to one row per ISO3. Extracted so the LUH2
+# national readers share one bridge instead of each growing their own: it is the
+# only place the iso3c identity join lives.
+.luh2_bridge_iso3c <- function(dt) {
+  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
+    !is.na(area_iso3c),
+    .(iso3c = area_iso3c, area_code = as.integer(polity_area_code))
+  ]
+  bridge <- unique(bridge, by = "iso3c")
+  merge(dt, bridge, by = "iso3c", sort = FALSE)
+}
+
+# National LUH2 area (ha) per (area_code, year) for an arbitrary set of states,
+# from the same `luh2-areas` input the cropland back-cast reads.
+.luh2_national_states <- function(states, luh2_data = NULL) {
+  raw <- if (!is.null(luh2_data)) {
+    luh2_data
+  } else {
+    .read_input("luh2-areas", years = NULL, year_col = "Year")
+  }
+  dt <- data.table::as.data.table(raw)
+  if (!is.null(luh2_data) && data.table::is.data.table(raw)) {
+    dt <- data.table::copy(dt)
+  }
+  if ("ISO3" %in% names(dt) && !"iso3c" %in% names(dt)) {
+    data.table::setnames(dt, "ISO3", "iso3c")
+  }
+  if ("Year" %in% names(dt) && !"year" %in% names(dt)) {
+    data.table::setnames(dt, "Year", "year")
+  }
+  dt <- dt[Land_Use %in% states]
+  dt <- .luh2_bridge_iso3c(dt)
+  tibble::as_tibble(dt[,
+    .(luh2_ha = sum(Area_Mha, na.rm = TRUE) * 1e6),
+    by = .(area_code, year = as.integer(year))
+  ])
+}
+
+
 # Per (area_code, year) LUH2 annual vs perennial cropland (Mha -> ha), mapped to
 # whep area_code via ISO3. annual = c3ann+c4ann+c3nfx, perennial = c3per+c4per.
 .read_luh2_cft <- function(luh2_data = NULL) {
@@ -289,12 +328,7 @@ get_arable_permanent_land <- function(
   dt <- dt[Land_Use %in% c(annual, perennial)]
   dt[, kind := data.table::fifelse(Land_Use %in% annual, "annual", "perennial")]
 
-  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area_code = as.integer(polity_area_code))
-  ]
-  bridge <- unique(bridge, by = "iso3c")
-  dt <- merge(dt, bridge, by = "iso3c", sort = FALSE)
+  dt <- .luh2_bridge_iso3c(dt)
   agg <- dt[,
     .(area_ha = sum(Area_Mha, na.rm = TRUE) * 1e6),
     by = .(area_code, year = as.integer(year), kind)

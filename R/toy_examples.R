@@ -1264,23 +1264,30 @@
   )
 }
 
-# Ten rows of a real build_historical_land_areas(1850:1961) run, sampled across
-# the span and across the cases that make this method differ from the
-# present-day one: Ethiopia either side of the 1952 Eritrea handover, and the
-# dissolved federations the polygon route reaches without a successor union.
+# Ten rows of a real build_historical_land_areas(1850:1961) run at its DEFAULT
+# `boundary_step = "level_step"`, sampled across the span and across the cases
+# that make this method differ from the present-day one: Ethiopia either side of
+# the 1952 Eritrea handover, the dissolved federations the method reaches
+# without a successor union, and Belgium, which the raster route halved by
+# splitting its cells with the overlapping Belgium-Luxembourg polygon
+# (whep#800).
+#
+# The rows this replaces were taken from a `"relink"` run, so they disagreed
+# with the pin the default produces: Ethiopia 1850 read 3.2414 Mha of cropland
+# where both the shipped pin and this run read 1.5174.
 .example_historical_land_areas <- function() {
   tibble::tribble(
     ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
-    1961L, 15L, "BLX-1850-1999", 0.6056, 0.4450, 1.0506,
+    1961L, 255L, "BEL-1831-2025", 1.0152, 0.7175, 1.7327,
     1961L, 51L, "F51-1947-1993", 5.3510, 1.8063, 7.1573,
-    1900L, 203L, "ESP-1800-2025", 16.1664, 8.2025, 24.3689,
-    1961L, 228L, "F228-1945-1991", 237.8784, 331.6635, 569.5419,
-    1850L, 238L, "ETH-1800-1889", 3.2414, 9.6115, 12.8529,
-    1900L, 238L, "ETH-1897-1902", 6.4231, 16.5057, 22.9288,
-    1951L, 238L, "ETH-1941-1952", 9.7288, 24.3119, 34.0407,
-    1952L, 238L, "ETH-1952-1993", 9.9164, 24.7568, 34.6732,
-    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5830, 41.5347,
-    1961L, 248L, "F248-1947-1991", 8.3957, 6.4600, 14.8557
+    1900L, 203L, "ESP-1800-2025", 16.1666, 8.2026, 24.3692,
+    1961L, 228L, "F228-1945-1991", 237.8785, 331.6635, 569.5420,
+    1850L, 238L, "ETH-1800-1889", 1.5174, 1.8841, 3.4015,
+    1900L, 238L, "ETH-1897-1902", 6.0023, 13.5575, 19.5598,
+    1951L, 238L, "ETH-1941-1952", 9.4543, 22.9532, 32.4075,
+    1952L, 238L, "ETH-1952-1993", 10.2061, 30.0426, 40.2487,
+    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5874, 41.5391,
+    1961L, 248L, "F248-1947-1991", 8.3956, 6.4600, 14.8556
   )
 }
 
@@ -1298,4 +1305,53 @@
     2020, "Barcelona", 776463., 684476., 39563.0, 724039., 0.945,
     2020, "Bizkaia", 106968., 94295.4, 3505.52, 97800.9, 0.964
   )
+}
+
+# Three polycells over two polities that share one cell, at the default
+# `overfull_method`. Each polycell's classes sum exactly to its land area
+# (60, 40 and 100 ha), which is the partition invariant the producer exists to
+# hold. The constant and polity columns are attached rather than repeated, so
+# the tribble shows only what varies per row.
+.example_polycell_land_uses <- function() {
+  tibble::tribble(
+    ~polycell_id, ~lon, ~lat, ~polity_code, ~area_code, ~year,
+    ~land_use, ~area_ha, ~area_source, ~level_source,
+    ~allocation_status, ~statistical_pattern_disagreement_ha, ~coverage_status,
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 36, "anchored", "fao_cropland", "ok", 6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 6, "anchored", "faostat_pasture", "ok", -6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 15, "residual", NA, "ok", NA, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "urban", 3, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "cropland", 10, "anchored", "fao_cropland", "ok", -10, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "grassland", 4, "anchored", "faostat_pasture", "ok", -4, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "natural", 24, "residual", NA, "ok", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "urban", 2, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 24, "anchored", "fao_cropland", "ok", 4, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 20, "anchored", "faostat_pasture", "ok", -20, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 56, "residual", NA, "ok", NA, "observed"
+  ) |>
+    dplyr::mutate(
+      pattern_source = "luh2",
+      unplaceable_statistical_ha = 0,
+      method_overfull = "spillover",
+      spillover_max_ring = NA_integer_,
+      polity_area_code = .data$area_code,
+      reporting_polity_code = .data$polity_code,
+      reporting_polity_name = paste(
+        "Polity",
+        stringr::str_sub(.data$polity_code, 1L, 1L)
+      ),
+      reporting_polity_has_geometry = TRUE
+    ) |>
+    dplyr::select(dplyr::all_of(.plu_output_cols()))
 }

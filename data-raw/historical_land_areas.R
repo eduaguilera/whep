@@ -1,11 +1,11 @@
 # Materialise the pre-1962 land series measured on each year's own borders.
 #
-# `build_historical_land_areas()` reads gridded LUH2 once per back-cast year and
-# rasterises every polity polygon it needs, so a full 1850-1961 run is tens of
-# minutes. The result is STATIC -- it depends only on the LUH2 vintage and the
-# polities snapshot, neither of which moves between builds -- so it is computed
-# once here rather than inside every
-# `build_primary_production(land_method = "historical_polity")` call.
+# `build_historical_land_areas()` reads gridded LUH2 once per back-cast year, so
+# a full 1850-1961 run is tens of minutes. The result is STATIC -- it depends
+# only on the LUH2 vintage, the polycell support and the polities snapshot, none
+# of which moves between builds -- so it is computed once here rather than
+# inside every `build_primary_production(land_method = "historical_polity")`
+# call.
 #
 # This writes a parquet rather than a `data/*.rda`: it is an INPUT to the
 # pipeline, not a harmonisation table, so its home is the pins board that
@@ -18,6 +18,10 @@
 #   * LUH2 states vintage -- read it off the result of
 #     `read_luh2_landuse()` with `get_provenance()`; the reference is
 #     LUH2-GCB2022, doi:10.5281/zenodo.15556812.
+#   * The `polycell_support` pin version this ran against, from
+#     `whep::whep_inputs`. It decides which cells each polity holds, and a
+#     polity absent from it is a bucket absent from the result, so the two pins
+#     must be refreshed in that order: polycell first, then this one.
 #   * The `polities` snapshot -- `max(whep::polities$last_ingest)`.
 #
 # Usage:
