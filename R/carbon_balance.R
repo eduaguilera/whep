@@ -1340,7 +1340,7 @@ build_carbon_balance <- function(
     pool$carbon <- pool$carbon + lost_c
     pool$area <- pool$area + lost_area
     list(stock = stock, mass_moved = -lost_c, pool = pool)
-  } else if (new_area > old_area && pool$area > 0) {
+  } else if (new_area > old_area) {
     .cb_apply_gain(stock, old_area, new_area, pool)
   } else {
     list(stock = stock, mass_moved = 0, pool = pool)
@@ -1353,7 +1353,11 @@ build_carbon_balance <- function(
 .cb_apply_gain <- function(stock, old_area, new_area, pool) {
   gained_area <- new_area - old_area
   drawn_area <- min(gained_area, pool$area)
-  dens <- pool$carbon / pool$area
+  # An empty buffer has no density. Guarding here rather than at the call site
+  # keeps a grower that can draw nothing on the same path as one that can: it
+  # re-averages what it already holds over its new area (drawn_c = 0) instead of
+  # carrying its old density onto more hectares and manufacturing carbon.
+  dens <- if (pool$area > 0) pool$carbon / pool$area else 0
   drawn_c <- dens * drawn_area
   list(
     stock = (stock * old_area + drawn_c) / new_area,

@@ -1353,3 +1353,73 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
     kept
   )
 })
+
+test_that("the sequential and vectorised marches agree", {
+  # .cb_march() is what runs; .cb_march_cell() is the reference implementation
+  # it replaced and is called from nowhere in the package, so the fast path has
+  # had no oracle. That gap is not hypothetical: the empty-pool grower bug was
+  # fixed in the vectorised transfer while the sequential twin still turned
+  # 1,000 Mg C into 5,000, and nothing compared them.
+  classes <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 0.25, 1L, "cropland", 2000L, 60, 2.5, 40, 0.6,
+    0.25, 0.25, 1L, "natural", 2000L, 40, 1.5, 70, 0.4,
+    0.25, 0.25, 1L, "cropland", 2001L, 30, 2.5, 40, 0.3,
+    0.25, 0.25, 1L, "natural", 2001L, 70, 1.5, 70, 0.7,
+    0.25, 0.25, 1L, "cropland", 2002L, 55, 2.5, 40, 0.55,
+    0.25, 0.25, 1L, "natural", 2002L, 45, 1.5, 70, 0.45
+  )
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+
+  cell <- classes |>
+    dplyr::mutate(
+      eff_rate = dplyr::if_else(
+        .data$soc_eq_mgc_ha > 0,
+        .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+        0
+      )
+    )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+
+  for (col in c(
+    "stock_mgc_ha",
+    "mineralization_mgc_ha",
+    "c_input_mgc_ha",
+    "luc_transfer_mgc_ha",
+    "rate_mgc_ha"
+  )) {
+    testthat::expect_equal(
+      fast[[col]],
+      slow[[col]],
+      tolerance = 1e-10,
+      label = paste("vectorised vs sequential", col)
+    )
+  }
+})
+
+test_that("the sequential transfer conserves carbon against an empty pool", {
+  # The twin of the .cb_luc_all() regression: a grower that can draw nothing
+  # must dilute what it holds over its new area, not carry its old density onto
+  # more hectares.
+  before <- tibble::tibble(
+    land_use = c("cropland", "natural"),
+    stock_mgc_ha = c(100, 0),
+    old_area_ha = c(10, 90),
+    new_area_ha = c(50, 50)
+  )
+  after <- whep:::.cb_luc_transfer(before)
+  testthat::expect_equal(
+    sum(after$stock_mgc_ha * after$new_area_ha),
+    sum(before$stock_mgc_ha * before$old_area_ha),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(sum(after$mass_moved), 0, tolerance = 1e-8)
+})

@@ -54,16 +54,22 @@
   the nitrogen balance, 312 against 211 Tg N (whep#792, whep#799).
   **Published values move.**
 
-* **The land-use-change carbon transfer could create carbon.** `.cb_luc_all()`
-  let a growing land-use class that could draw nothing from the shrink pool
-  keep its per-hectare *density* over its larger area rather than diluting the
-  carbon it held. A class growing 10 to 50 ha at 100 Mg C/ha against an empty
-  pool turned 1,000 Mg C into 5,000. It was invisible to every existing check
-  because `luc_transfer_mgc_ha` still summed to zero across the cell: the
-  transfer looked balanced while the stock it produced was not. The march now
-  carries a conservation assertion, the test that claimed to make one having
-  computed the terms and asserted nothing about them. Whether the branch fires
-  on real LUH2 input is unmeasured; on the shipped fixtures it does not.
+* **The land-use-change carbon transfer could create carbon, in both of its
+  implementations.** A growing land-use class that could draw nothing from the
+  shrink pool kept its per-hectare *density* over its larger area rather than
+  diluting the carbon it held. A class growing 10 to 50 ha at 100 Mg C/ha
+  against an empty pool turned 1,000 Mg C into 5,000. It was invisible to every
+  existing check because `luc_transfer_mgc_ha` still summed to zero across the
+  cell: the transfer looked balanced while the stock it produced was not.
+
+  The bug was present in the vectorised `.cb_luc_all()` that runs and in the
+  sequential `.cb_luc_transfer()` that documents it, and fixing only the first
+  is exactly the mistake the second half of this entry now prevents: the two
+  march implementations are asserted to agree, and the reference path had no
+  oracle before. The march also carries a conservation assertion, the test that
+  claimed to make one having computed the terms and asserted nothing about them.
+  Whether the branch fires on real LUH2 input is unmeasured; on the shipped
+  fixtures it does not.
 
 * **`calculate_soc_hsoc()` discarded its `initial_soc_mgc_ha` argument**,
   opening both pools at their own equilibrium regardless: given 200 Mg C/ha it
