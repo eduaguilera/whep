@@ -18,6 +18,14 @@
 # ISO3 cannot answer for a dissolved federation). This is that intervention
 # generalised from total dissolutions to every territorial change, and it
 # subsumes it -- Czechoslovakia has a polygon, so it needs no successor union.
+#
+# WHICH cells a polity holds is NOT decided here. whep#776 rasterised the
+# polygons itself with `terra::extract(exact = TRUE)`; whep#619 had already
+# shipped the same intersection as the package's canonical spatial support, the
+# polycell -- geodesic `sf::st_area()` on s2, keyed on validity intervals,
+# conserving by construction, and unable to hand one cell to two polities twice
+# over. This file now reads that table instead of building a second answer to
+# the same question (whep#800).
 
 #' Build a pre-1962 land series measured on each year's own borders
 #'
@@ -27,13 +35,17 @@
 #' hectares summed from gridded LUH2 inside the polygon of the polity that
 #' `area_code` resolved to in that year, instead of inside present-day borders.
 #'
-#' A cell's land is shared among the polities whose polygons cover it, in
-#' proportion to the covered fraction renormalised to one per cell, which is the
-#' rule `build_cell_polity_fraction()` already uses. Renormalising matters:
-#' LUH2's state fractions are fractions of the whole cell and already discount
-#' open water, so weighting them by a raw coastal cell's land share would
-#' discount it twice and lose 12-15% of the land of an island or heavily coastal
-#' country.
+#' The cell-by-polity intersection is not measured here: it is read from the
+#' polycell support table ([read_polycell_support()]), which is that
+#' intersection measured geodesically on s2 and keyed on each polity's validity
+#' interval.
+#'
+#' A cell's land is shared among the polities whose territory covers it, in
+#' proportion to that territory renormalised to one per cell, which is the rule
+#' `build_cell_polity_fraction()` already uses. Renormalising matters: LUH2's
+#' state fractions are fractions of the whole cell and already discount open
+#' water, so weighting them by a raw coastal cell's land share would discount it
+#' twice and lose 12-15% of the land of an island or heavily coastal country.
 #'
 #' `fill_proxy_growth()` consumes only this series' year-on-year ratios, so a
 #' change of territory can only reach the back-cast as a ratio. What that ratio
@@ -78,9 +90,11 @@
 #'   Ethiopia's 1850 comes back to 3.24 Mha -- within 0.6% of the present-day
 #'   figure this method exists to replace (whep#761).
 #' @param data Named list of pre-loaded inputs bypassing the readers, for tests:
-#'   `polity_areas` (`year`, `area_code`, `polity_code`), `cover`
-#'   (`polity_code`, `lon`, `lat`, `frac`) and `cell_areas` (`year`, `lon`,
-#'   `lat`, `land_use`, `area_ha`). Each falls back to its reader when absent.
+#'   `polity_areas` (`year`, `area_code`, `polity_code`), `support` (a
+#'   [read_polycell_support()] table), `cover` (`polity_code`, `lon`, `lat`,
+#'   `frac`, which is `support` already reduced to one weight per cell) and
+#'   `cell_areas` (`year`, `lon`, `lat`, `land_use`, `area_ha`). Each falls back
+#'   to its reader when absent.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -109,8 +123,8 @@ build_historical_land_areas <- function(
   data <- data %||% list()
   polity_areas <- data$polity_areas %||% .polity_area_by_year(years)
   cover <- data$cover %||%
-    .polity_cell_cover(unique(polity_areas$polity_code))
-  .warn_land_without_geometry(polity_areas, cover)
+    .polity_cell_cover(unique(polity_areas$polity_code), data$support)
+  .warn_land_without_polycell(polity_areas, cover)
 
   purrr::map(
     years,
@@ -222,64 +236,60 @@ build_historical_land_areas <- function(
   invisible(NULL)
 }
 
-# The fraction of each 0.5-degree LUH2 cell that each polity's polygon covers.
+# How much of each 0.5-degree LUH2 cell each polity holds, read off the polycell
+# support table rather than measured here.
 #
-# This is the one join in this file keyed on a territorial column without a
-# year, and it is genuinely time-invariant: a polity code already names its own
-# period (`ETH-1952-1993`), so its polygon cannot depend on a year. It is
-# classified in `.territorial_join_baseline()` on exactly that ground.
-.polity_cell_cover <- function(polity_codes) {
-  .assert_polygon_packages()
-  polygons <- get_polity_geometries(polity_codes)
-  polygons <- polygons[!sf::st_is_empty(sf::st_geometry(polygons)), ]
-  if (nrow(polygons) == 0L) {
-    cli::cli_abort("No polity in {.arg polity_codes} carries a polygon.")
+# WHICH COLUMN IS THE WEIGHT is a decision, and it is measured rather than
+# assumed. It is `polity_area_ha`, the polity's whole territory in the cell, and
+# NOT `land_area_ha`:
+#
+#   * `.land_in_polygons()` renormalises the weights to one per cell, and
+#     `build_polycell_support()` apportions a cell's inland water across its
+#     polycells PRO RATA BY `polity_area_ha`. Within a cell the water is
+#     therefore a common factor that cancels exactly in that renormalisation, so
+#     subtracting it changes nothing -- except where the cap that keeps
+#     `land_area_ha` non-negative bites, and there it does something bad. 1,502
+#     polycells covering 62.4 Mha of territory have their whole territory
+#     consumed by apportioned water and carry `land_area_ha == 0`: Canada on the
+#     Great Lakes and Hudson Bay (12.7 Mha over its periods) and the USSR on the
+#     Caspian and Arctic shores (~3 Mha per period) are the largest. Weighting
+#     by land drops their claim on those cells outright and hands the cell to a
+#     neighbour -- the 12-15% coastal loss whep#776 fought, arriving through a
+#     different door. Measured over 1850-1961 it moves Eritrea by up to 23.5%,
+#     Switzerland 21.7%, Mali 20.7% and Eswatini 12.1%, and takes two
+#     bucket-years to NA outright.
+#   * Permanent ice is the one component that does NOT cancel, and it is the
+#     small one. `polity_area_ha - ice_area_ha` is a one-expression alternative
+#     that moves no bucket-year by as much as 1% -- its largest single-bucket
+#     maximum over 1850-1961 is 0.52% on Switzerland, and 246 of 16,125
+#     bucket-years move by more than 0.1%. It would also discount 1850 land with
+#     a present-day glacier outline, so it is left in.
+#
+# `polity_area_ha` is also EXACTLY time-invariant per (cell, polity): a maximum
+# relative standard deviation of 0 over the 33,433 (cell, polity) pairs the
+# shipped table splits into more than one interval, because it is pure geometry.
+# That is what lets one cover serve every year, and it is why
+# `.land_in_polygons()`'s join on `polity_code` alone really is the
+# time-invariant join `.territorial_join_baseline()` classifies it as.
+# `land_area_ha` is not time-invariant -- it moves with the water apportionment
+# as a cell's set of claimants changes -- so a single cover built on it would
+# mix bases across intervals.
+.polity_cell_cover <- function(polity_codes, support = NULL) {
+  support <- data.table::as.data.table(support %||% read_polycell_support())
+  held <- support[polity_code %in% polity_codes & polity_area_ha > 0]
+  if (nrow(held) == 0L) {
+    cli::cli_abort(c(
+      "No polity in {.arg polity_codes} has a row in the polycell support.",
+      i = "The support is keyed on {.field polity_code}. None of
+           {.val {utils::head(polity_codes, 3)}} appears in it, which usually
+           means it was built against a different {.code polities} vintage;
+           regenerate it with {.fn build_polycell_support}."
+    ))
   }
-  cli::cli_progress_step(
-    "Rasterising {nrow(polygons)} polity polygon{?s} onto the LUH2 grid"
-  )
-  template <- .luh2_cell_template()
-  extracted <- terra::extract(
-    template,
-    terra::vect(polygons[, "polity_code"]),
-    exact = TRUE
-  )
-  data.table::setDT(extracted)
-  extracted[, polity_code := polygons$polity_code[ID]]
-  extracted <- extracted[
-    !is.na(cell) & fraction > 0,
-    .(frac = sum(fraction)),
-    by = .(polity_code, cell)
-  ]
-  merge(extracted, .luh2_cell_lookup(template), by = "cell", sort = FALSE)[,
-    .(polity_code, lon, lat, frac)
-  ]
-}
-
-# A 0.5-degree global raster whose cell centres are the LUH2 cell centres this
-# package reports (-179.75 .. 179.75, 89.75 .. -89.75), carrying the cell index
-# so `terra::extract()` returns something joinable back to lon/lat.
-.luh2_cell_template <- function() {
-  template <- terra::rast(
-    xmin = -180,
-    xmax = 180,
-    ymin = -90,
-    ymax = 90,
-    resolution = 0.5,
-    crs = "EPSG:4326"
-  )
-  terra::values(template) <- seq_len(terra::ncell(template))
-  names(template) <- "cell"
-  template
-}
-
-.luh2_cell_lookup <- function(template) {
-  centres <- terra::xyFromCell(template, seq_len(terra::ncell(template)))
-  data.table::data.table(
-    cell = seq_len(terra::ncell(template)),
-    lon = centres[, 1],
-    lat = centres[, 2]
-  )
+  # `max()`, not `unique()`: successive intervals of one polycell repeat the
+  # same geometry, and reducing them cannot be allowed to emit the polity twice
+  # in one cell, which would double its weight there.
+  held[, .(frac = max(polity_area_ha)), by = .(polity_code, lon, lat)]
 }
 
 # Land measured for one year, twice: `land_now` inside the polygons live THAT
@@ -417,11 +427,19 @@ build_historical_land_areas <- function(
     dplyr::arrange(.data$year, .data$area_code)
 }
 
-# A polity with data and no polygon cannot be measured, and because the series
+# A polity with data and no polycell cannot be measured, and because the series
 # is chain-linked a hole also stops every earlier year of that bucket from being
 # reached. Say so with the codes, rather than emitting a shorter series and
 # letting the loss look like a year range.
-.warn_land_without_geometry <- function(polity_areas, cover) {
+#
+# Two disjoint reasons land here and the message keeps them apart, because only
+# one of them is this package's to fix. A polity has no polycell either because
+# it has no polygon at all (`polygon_status = "unassigned"`, whep-polities#155)
+# or because `build_polycell_support()` excludes it: it drops
+# `polity_type == "aggregate"`, since an aggregate's polygon overlaps its
+# members' and the support has to be a partition. Ten of the polities the
+# pre-1962 resolver reaches are aggregates, `BLX-1850-1999` among them.
+.warn_land_without_polycell <- function(polity_areas, cover) {
   missing <- setdiff(
     unique(polity_areas$polity_code),
     unique(cover$polity_code)
@@ -434,28 +452,13 @@ build_historical_land_areas <- function(
   )
   cli::cli_warn(c(
     "!" = "{length(missing)} polit{?y/ies} reachable from a reporting area have
-      no polygon, so {length(affected)} bucket{?s} cannot be measured in every
+      no polycell, so {length(affected)} bucket{?s} cannot be measured in every
       year: {.val {utils::head(missing, 5)}}.",
+    "i" = "A polity has none when it carries no polygon
+      (whep-polities#155) or when {.fn build_polycell_support} excludes it,
+      which it does for every {.val aggregate}.",
     "i" = "The series is chain-linked, so a hole also cuts off every earlier
-      year of that bucket. See whep-polities#155."
+      year of that bucket."
   ))
-  invisible(NULL)
-}
-
-.assert_polygon_packages <- function() {
-  needed <- c("sf", "terra")
-  missing <- needed[
-    !vapply(needed, requireNamespace, logical(1), quietly = TRUE)
-  ]
-  if (length(missing) > 0L) {
-    cli::cli_abort(
-      c(
-        "Package{?s} {.pkg {missing}} {?is/are} required to measure land inside
-         polity polygons.",
-        i = "Install {?it/them}, or use the present-day land series."
-      ),
-      class = "whep_sf_required"
-    )
-  }
   invisible(NULL)
 }
