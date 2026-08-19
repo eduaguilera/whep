@@ -229,9 +229,17 @@ testthat::test_that("gridded example cells carry the grid's own area code", {
   # 20260625T101041Z-8ff94, 58,795 cells). An empty `area_code` means the pin has
   # no row for that cell: the deliberately abstract toy cells around (0.25, 0.25)
   # and (0.25, 50.25) are open water, so they make no claim about a place and are
-  # left alone. Every land cell must agree with the grid, and every cell an
-  # example emits must be listed -- a new fixture cell has to be looked up
-  # against the pin, not invented.
+  # left alone. Every cell an example emits must be listed -- a new fixture cell
+  # has to be looked up, not invented.
+  #
+  # A cell may list MORE THAN ONE area, and a fixture row only has to name one of
+  # them. The country grid assigns each cell to its majority country, but a
+  # polycell-based output splits a border cell between every polity that owns
+  # part of it, so both codes are right for the same cell. (9.25, 47.75) is such
+  # a cell -- Lake Constance, majority Germany (79), shared with Switzerland
+  # (211), which is why `.example_luh2_landuse()`, sampled from a real polycell
+  # run, emits both. Membership still catches the defect this guards: the Kenyan
+  # Rift Valley cells list 114 only, so coding them 79 fails.
   grid <- tibble::as_tibble(utils::read.csv(
     testthat::test_path("fixtures", "country_grid_example_cells.csv")
   ))
@@ -254,30 +262,37 @@ testthat::test_that("gridded example cells carry the grid's own area code", {
     checked <- c(checked, nm)
     cells <- frame |>
       dplyr::select("lon", "lat", "area_code") |>
-      dplyr::distinct() |>
-      dplyr::left_join(
-        dplyr::rename(grid, grid_area_code = "area_code"),
-        by = c("lon", "lat")
-      )
+      dplyr::distinct()
     missing <- dplyr::anti_join(cells, grid, by = c("lon", "lat"))
     unlisted <- c(
       unlisted,
       sprintf("%s (%s, %s)", nm, missing$lon, missing$lat)
     )
-    bad <- dplyr::filter(
-      cells,
-      !is.na(.data$grid_area_code),
-      .data$area_code != .data$grid_area_code
-    )
+    bad <- cells |>
+      dplyr::inner_join(
+        dplyr::filter(grid, !is.na(.data$area_code)) |>
+          dplyr::summarise(
+            owners = list(.data$area_code),
+            .by = c("lon", "lat")
+          ),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::filter(
+        !purrr::map2_lgl(
+          .data$area_code,
+          .data$owners,
+          \(code, owners) code %in% owners
+        )
+      )
     disagree <- c(
       disagree,
       sprintf(
-        "%s (%s, %s): fixture %d, grid %d",
+        "%s (%s, %s): fixture %d, grid %s",
         nm,
         bad$lon,
         bad$lat,
         bad$area_code,
-        bad$grid_area_code
+        purrr::map_chr(bad$owners, \(o) paste(o, collapse = "/"))
       )
     )
   }
