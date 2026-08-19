@@ -237,11 +237,13 @@ test_that("the GLEAM registry's carried polity is a present-day one", {
   successors <- live$successor[resolved]
   expect_true(all(is.na(successors) | !nzchar(trimws(successors))))
 
-  # The gaps are named rather than counted: each is a territory GLEAM reports
-  # and whep-polities has no polity for at all (upstream whep-polities#187,
-  # the same class as ABW and VAT in whep-polities#185). `NA` keeps them
-  # visible; inventing a polity downstream is what the epic forbids.
-  expect_setequal(value$iso3[!resolved], c("ATF", "SGS", "WLF"))
+  # THERE ARE NO GAPS LEFT, and the empty set is the assertion. This used to
+  # name three -- ATF, SGS and WLF, territories GLEAM reports and whep-polities
+  # had no polity for at all -- and upstream closed them in whep-polities#187,
+  # so the 2830fb7 re-sync gave all 204 a code. A gap is still allowed to come
+  # back rather than being an error: `NA` keeps it visible, and inventing a
+  # polity downstream is what the epic forbids. This says which one, if it does.
+  expect_equal(value$iso3[!resolved], character(0))
 })
 
 test_that("a consumer-resolved label really needs the consumer's year", {

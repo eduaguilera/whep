@@ -1,0 +1,36 @@
+source_name,true_digestibility,entry_type
+American mixed diet,0.96,mixture
+Beans,0.78,single_food
+Brazilian mixed diet,0.78,mixture
+Chinese mixed diet,0.96,mixture
+"Corn, cereal",0.70,single_food
+"Corn, whole",0.87,single_food
+Cottonseed,0.90,single_food
+Egg,0.97,single_food
+Farina,0.99,single_food
+Filipino mixed diet,0.88,mixture
+Indian rice + beans diet,0.78,mixture
+Indian rice diet,0.77,mixture
+Indian rice diet + milk,0.87,mixture
+Maize,0.85,single_food
+Maize + beans,0.78,mixture
+Maize + beans + milk,0.84,mixture
+"Meat, fish",0.94,single_food
+"Milk, cheese",0.95,single_food
+Millet,0.79,single_food
+Oatmeal,0.86,single_food
+"Oats, cereal",0.72,single_food
+Peanut butter,0.95,single_food
+Peanuts,0.94,single_food
+"Peas, mature",0.88,single_food
+"Rice, cereal",0.75,single_food
+"Rice, polished",0.88,single_food
+Soy flour,0.86,single_food
+Soy protein isolate,0.95,single_food
+Sunflower seed flour,0.90,single_food
+Triticale,0.90,single_food
+"Wheat flour, white",0.96,single_food
+Wheat gluten,0.99,single_food
+"Wheat, cereal",0.77,single_food
+"Wheat, refined",0.96,single_food
+"Wheat, whole",0.86,single_food

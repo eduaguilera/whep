@@ -3,9 +3,9 @@
 #                            (Tg N/yr boundary range, per-capita cap,
 #                            synthetic-to-total agricultural ratio, food share
 #                            of agricultural N).
-#   nourishment_thresholds - protein/energy floors + targets, the 1.35 waste-
-#                            inequality factor and the normalised-score class
-#                            cutoffs.
+#   nourishment_thresholds - protein/energy floors + ceilings, the 1.35 waste-
+#                            inequality factor, the normalised-score class
+#                            cutoffs, and a provenance label per row.
 #   sjos_levels            - the 2-way boundary axis crossed with the 3-way
 #                            nourishment axis, plus plotting colours.
 #   nourish_levels         - nourishment classification levels + colours.
@@ -47,47 +47,68 @@ n_boundary_params <- tibble::tribble(
   "Food share of agricultural reactive nitrogen."
 )
 
+# `bound` says "ceiling", not "target": normalize_nourishment() uses the upper
+# value as the top of the ADEQUATE band, above which a country is classified
+# Over. Calling it a target read as something to aim at, which is the opposite
+# of what the axis does with it (whep#753).
+#
+# `provenance` exists so no shipped number can look sourced when it is not.
+# Only the protein floor has a citation; 63, 2300, 2900 and 1.35 are inherited
+# from the Global SJOS-N analysis with no source anyone has been able to
+# produce, and the author has confirmed 1.35 was a preliminary presentation
+# figure (whep#753). They are labelled rather than removed because they are
+# still what the shipped axis uses.
 nourishment_thresholds <- tibble::tribble(
   ~metric,
   ~bound,
   ~value,
   ~unit,
+  ~provenance,
   "protein_raw",
   "floor",
   46,
   "g/cap/day",
+  "trs935_table46_55kg_safe_level",
   "protein_raw",
-  "target",
+  "ceiling",
   63,
   "g/cap/day",
+  "inherited_unsourced",
   "protein",
   "floor",
   46 * 1.35,
   "g/cap/day",
+  "derived_raw_times_waste_inequality",
   "protein",
-  "target",
+  "ceiling",
   63 * 1.35,
   "g/cap/day",
+  "derived_raw_times_waste_inequality",
   "energy",
   "floor",
   2300,
   "kcal/cap/day",
+  "inherited_unsourced",
   "energy",
-  "target",
+  "ceiling",
   2900,
   "kcal/cap/day",
+  "inherited_unsourced",
   "waste_inequality",
   "factor",
   1.35,
   "ratio",
+  "inherited_unsourced",
   "class",
   "under",
   1,
   "score",
+  "definition",
   "class",
   "over",
   2,
-  "score"
+  "score",
+  "definition"
 )
 
 # Boundary axis (Within_boundary/Exceedance) crossed with the nourishment axis

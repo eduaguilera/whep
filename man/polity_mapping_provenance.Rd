@@ -36,11 +36,16 @@ rows of \code{table} that pair carries (always 1 when \code{table} is \code{NULL
 \description{
 \link{polity_area_crosswalk} is not the upstream FAOSTAT-to-polity map. It is that
 map plus rows this package manufactures, and its \code{mapping_source} column says
-which. Measured on the shipped snapshot, of 596 crosswalk rows:
+which. Measured on the shipped snapshot, of 631 crosswalk rows:
 \itemize{
 \item \code{"upstream_map"} (245 rows): a row of \code{faostat_area_polity_map.csv} in
 \code{eduaguilera/whep-polities}. Upstream's statement about the territory.
-\item \code{"prefix_outside_map"} (262) and \code{"prefix_fallback"} (27): WHEP's own
+\item \code{"fabio_row_promoted"} (36): the same file, for the 31 areas the FABIO
+Rest-of-World fold used to shadow. Equally upstream's statement, and kept
+separate only because \code{.unfold_rest_of_world()} chooses between it and the
+fold row (whep#717). The two together consume the map's 281 rows exactly
+once.
+\item \code{"prefix_outside_map"} (261) and \code{"prefix_fallback"} (27): WHEP's own
 ISO3-prefix match, built in \code{data-raw/table_mappings.R}. No upstream
 authority. A prefix match can only ever produce an ISO3-family guess, so it
 cannot express the statements the pre-1961 era actually needs -- Turkey
@@ -48,23 +53,29 @@ before 1913 is the Ottoman Empire, Pakistan before 1947 is British India --
 whose target stem differs from the source's (whep#740).
 \item \code{"fabio_row_fold"} (62): WHEP's own Rest-of-World bucket. Legitimately
 WHEP's to decide, but the territory still has no upstream row of its own.
+In the default mode only the 31 members upstream names nowhere resolve
+through one; see \code{\link[=row_promotion_status]{row_promotion_status()}}.
 }
 
 Counting crosswalk rows overstates the exposure, because most manufactured
 rows are never picked. This reports the provenance of the \strong{resolution}: for
 each \verb{(area_code, year)}, the class of the crosswalk row that
 \code{\link[=add_polity_code]{add_polity_code()}} actually selected, which is what a published value rests
-on. Measured over the crosswalk's own 1850-2025 grid, 257 of the 262
+on. Measured over the crosswalk's own 1850-2025 grid, 256 of the 261
 \code{"prefix_outside_map"} rows are the resolution of no \verb{(area_code, year)} at
 all: the back-cast anchor floors every lookup at \code{backcast_anchor}, so the
 pre-1961 era resolves through whatever answers the anchor year rather than
 through the historical periods the prefix rule invented for it.
+
+The same measurement is what whep#717 moved: 10,912 of those \verb{(area_code, year)} resolutions used to rest on \code{"fabio_row_fold"}, and 5,456 of them --
+every year of the 31 members upstream names -- now rest on the upstream map
+instead.
 }
 \section{Authority}{
 
 \code{authority} collapses \code{mapping_source} to the question "who said so":
 \itemize{
-\item \code{"upstream"}: \code{"upstream_map"}.
+\item \code{"upstream"}: \code{"upstream_map"} or \code{"fabio_row_promoted"}.
 \item \code{"whep_prefix"}: \code{"prefix_outside_map"} or \code{"prefix_fallback"} -- a WHEP
 guess, and the population whep#740 asks to delete rather than replace.
 \item \code{"whep_bucket"}: \code{"fabio_row_fold"} -- WHEP's own documented bucket.

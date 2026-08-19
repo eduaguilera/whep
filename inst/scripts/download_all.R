@@ -48,7 +48,8 @@ download_all <- function(dest_dir, datasets = NULL) {
     "global_dams",
     "hwsd",
     "climate",
-    "population"
+    "population",
+    "hyde"
   )
 
   if (is.null(datasets)) {
@@ -85,7 +86,8 @@ download_all <- function(dest_dir, datasets = NULL) {
       global_dams = download_global_dams(dest_dir),
       hwsd = download_hwsd(dest_dir),
       climate = download_climate(dest_dir),
-      population = download_population(dest_dir)
+      population = download_population(dest_dir),
+      hyde = download_hyde(dest_dir)
     )
   }
 
