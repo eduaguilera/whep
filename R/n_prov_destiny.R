@@ -45,7 +45,6 @@ create_n_prov_destiny <- function(example = FALSE) {
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
   biomass_coefs <- whep_read_file("biomass_coefs")
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
-  processing_coefs <- get_processing_coefs()
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
   npp_ygpit <- whep_read_file("npp_ygpit")
@@ -78,6 +77,8 @@ create_n_prov_destiny <- function(example = FALSE) {
   first_year <- min(national_production$Year, na.rm = TRUE)
   last_year <- max(national_production$Year, na.rm = TRUE)
 
+  processing_coefs <- get_processing_coefs(years = 1961:last_year)
+
   spain_coefs_observed <- .spain_processing_coefs(processing_coefs)
   spain_coefs <- spain_coefs_observed |>
     .backfill_processing_cf(first_year) |>
@@ -89,8 +90,11 @@ create_n_prov_destiny <- function(example = FALSE) {
     .backfill_processing_shares(first_year) |>
     .forwardfill_processing_shares(last_year)
 
+  prod_combined_boxes_no_seeds <- biomass_item_merged |>
+    .remove_seeds_from_system(pie_full_destinies_fm, prod_combined_boxes)
+
   processed <- .calculate_processed_amounts(
-    prod_combined_boxes,
+    prod_combined_boxes_no_seeds,
     processing_shares,
     spain_coefs,
     coefs = list(
@@ -104,11 +108,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     .calculate_population_share() |>
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
-  grafs_prod_item_trade <- biomass_item_merged |>
-    .remove_seeds_from_system(
-      pie_full_destinies_fm,
-      processed$non_processed
-    ) |>
+  grafs_prod_item_trade <- processed$non_processed |>
     .add_grass_wood() |>
     .prepare_prod_data(
       processed$processed_items,
@@ -659,7 +659,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   # Substracting the Seed data from Production in grafs_prod_combined.
   # Seed only comes off the Product row, not Residue/Grass rows for the
-  # same item (#147).
+  # same item.
   grafs_prod_combined_no_seeds <- grafs_prod_combined |>
     dplyr::left_join(
       seed_rates |>
