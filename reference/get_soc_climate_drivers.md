@@ -192,9 +192,9 @@ get_soc_climate_drivers(example = TRUE)
 #> # A tibble: 3 × 21
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
-#> 1  2000        11               11 AUT-1919-2025         Austria              
-#> 2  2000        11               11 AUT-1919-2025         Austria              
-#> 3  2000        11               11 AUT-1919-2025         Austria              
+#> 1  2000        79               79 DEU-1990-2025         Germany              
+#> 2  2000        79               79 DEU-1990-2025         Germany              
+#> 3  2000        79               79 DEU-1990-2025         Germany              
 #> # ℹ 16 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
 #> #   lat <dbl>, month <int>, temp_c <dbl>, swc_topsoil <dbl>, precip_mm <dbl>,
 #> #   pet_mm <dbl>, water_minus_pet_mm <dbl>, water_balance_mm <dbl>,

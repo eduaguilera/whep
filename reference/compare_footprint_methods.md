@@ -22,7 +22,9 @@ compare_footprint_methods(method_a, method_b)
 
 A tibble with `area_code`, `item_cbs_code`, `value_a`, `value_b`,
 `abs_diff` and `rel_diff` (relative to the larger of the two), ordered
-by descending `abs_diff`.
+by descending `abs_diff`. A cell missing from one method counts as zero
+there; a cell present with an `NA` value stays `NA`, so its differences
+are `NA` too.
 
 ## Examples
 

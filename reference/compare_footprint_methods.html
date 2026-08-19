@@ -69,7 +69,9 @@ localises where a method's assumptions matter most.</p>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>area_code</code>, <code>item_cbs_code</code>, <code>value_a</code>,
 <code>value_b</code>, <code>abs_diff</code> and <code>rel_diff</code> (relative to the larger
-of the two), ordered by descending <code>abs_diff</code>.</p>
+of the two), ordered by descending <code>abs_diff</code>. A cell missing
+from one method counts as zero there; a cell present with an
+<code>NA</code> value stays <code>NA</code>, so its differences are <code>NA</code> too.</p>
     </div>
 
     <div class="section level2">

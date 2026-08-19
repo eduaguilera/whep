@@ -182,12 +182,12 @@ build_water_balance(example = TRUE)
 #> # A tibble: 8 × 22
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
-#> 1  2000        11               11 AUT-1919-2025         Austria              
-#> 2  2000        11               11 AUT-1919-2025         Austria              
+#> 1  2000        79               79 DEU-1990-2025         Germany              
+#> 2  2000        79               79 DEU-1990-2025         Germany              
 #> 3  2000        21               21 BRA-1909-2025         Brazil               
 #> 4  2000        21               21 BRA-1909-2025         Brazil               
-#> 5  2000        79               79 DEU-1990-2025         Germany              
-#> 6  2000        79               79 DEU-1990-2025         Germany              
+#> 5  2000       114              114 KEN-1963-2025         Kenya                
+#> 6  2000       114              114 KEN-1963-2025         Kenya                
 #> 7  2000       203              203 ESP-1800-2025         Spain                
 #> 8  2000       203              203 ESP-1800-2025         Spain                
 #> # ℹ 17 more variables: reporting_polity_has_geometry <lgl>, lon <dbl>,
