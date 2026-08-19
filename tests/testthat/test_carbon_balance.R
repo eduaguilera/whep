@@ -1467,3 +1467,62 @@ test_that("the LPJmL equilibrium matches its published closed form", {
   slow_share <- (0.02 / 0.001) / (0.98 / 0.04 + 0.02 / 0.001)
   testthat::expect_equal(slow_share, 0.4494, tolerance = 1e-3)
 })
+
+# `.cb_attach_equilibrium()` evaluates a closed form in place rather than
+# deduping the drivers and joining the result back (#394). Two things have to
+# hold for that to be safe, and neither is obvious from reading it.
+.cb_fake_classes <- function(n) {
+  set.seed(11)
+  tibble::tibble(
+    lon = round(stats::runif(n, -180, 180), 2),
+    lat = round(stats::runif(n, -60, 80), 2),
+    area_code = sample.int(50L, n, replace = TRUE),
+    year = sample(1900:2020, n, replace = TRUE),
+    land_use = sample(c("cropland", "grassland", "natural"), n, replace = TRUE),
+    area_ha = stats::runif(n, 1, 5000),
+    # Coarse on purpose, so driver combinations genuinely repeat: with unique
+    # drivers the join could not duplicate a row even if it were wrong.
+    c_input_mgc_ha_yr = round(stats::runif(n, 0.5, 8), 1),
+    humified_fraction = round(stats::runif(n, 0.1, 0.4), 2),
+    climate_modifier = round(stats::runif(n, 0.2, 1.6), 1),
+    clay_pct = round(stats::runif(n, 3, 60), 0)
+  )
+}
+
+test_that("attaching the equilibrium neither drops nor duplicates a row", {
+  # The join this replaced keyed on `climate_modifier` and `clay_pct`, both
+  # doubles. Repeated driver combinations are exactly the case where a join
+  # can fan a row out; evaluating in place cannot.
+  classes <- .cb_fake_classes(2000L)
+
+  for (model in c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")) {
+    out <- whep:::.cb_attach_equilibrium(classes, model)
+    testthat::expect_equal(nrow(out), nrow(classes))
+    testthat::expect_true(all(is.finite(out$soc_eq_mgc_ha)))
+  }
+})
+
+test_that("the attached equilibrium is the model's own closed form", {
+  classes <- .cb_fake_classes(2000L)
+
+  for (model in c("hsoc", "rothc", "icbm", "amg", "century", "lpjml")) {
+    out <- whep:::.cb_attach_equilibrium(classes, model)
+    closed <- whep:::.cb_closed_form_equilibrium(model, classes)
+    # Exact, not approximate: it is the same expression on the same doubles.
+    testthat::expect_equal(out$soc_eq_mgc_ha, closed, tolerance = 0)
+  }
+})
+
+test_that("the non-finite equilibrium guard survives the in-place path", {
+  # Every closed form is proportional to 1 / climate_modifier, and a zero
+  # modifier is reachable (HSOC/RothC at or below -18.27 C). The guard used to
+  # sit on the deduped table; it now sees the class table directly, and it
+  # still has to abort rather than let an Inf reach the march.
+  classes <- .cb_fake_classes(50L)
+  classes$climate_modifier[7] <- 0
+
+  testthat::expect_error(
+    whep:::.cb_attach_equilibrium(classes, "hsoc"),
+    "not finite"
+  )
+})

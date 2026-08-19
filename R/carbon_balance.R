@@ -603,7 +603,7 @@ build_carbon_balance <- function(
   }
   cli::cli_abort(c(
     "Equilibrium soil carbon is not finite for \\
-    {sum(bad)} input combination{?s}.",
+    {sum(bad)} row{?s}.",
     "i" = "The equilibrium scales as 1 / {.field climate_modifier}, which is \\
       {.val {signif(min(eq$climate_modifier[bad]), 3)}} at the worst of them.",
     "x" = "A non-finite equilibrium silently becomes a cell that never \\
@@ -839,13 +839,35 @@ build_carbon_balance <- function(
   pmin(humified_fraction * .cb_texture_modifier(clay_pct), 1)
 }
 
-# Attach the equilibrium density to every class-year row by joining on the
-# input combination that drives it.
+# Attach the equilibrium density to every class-year row.
+#
+# A closed form is already vectorised over the whole column, so there is
+# nothing to dedupe FOR: it is evaluated in place and no join happens at all.
+# Measured at global grain (58,800 cells x 3 classes x 20 years = 3.5e6 rows,
+# HSOC): 9.86 s through the dedupe-and-join path against 1.84 s in place, for
+# identical values to 1e-12. The dedup was not merely a poor trade, it was
+# free of any benefit -- `distinct()` returned 100.0% of the rows at every
+# scale tried, including with a deliberately discretised humification
+# fraction and climate rounded to two decimals, because `c_input_mgc_ha_yr`
+# and `clay_pct` are near-unique per cell on their own (#394).
+#
+# The join it removes was also an exact float-equality match on
+# `climate_modifier` and `clay_pct`, which is a fragile thing to key on and
+# is now simply absent.
+#
+# The spin-up fall-through keeps the dedup, and genuinely wants it: there the
+# cost is one 5000-year trajectory per distinct combination, not one
+# vectorised expression.
 .cb_attach_equilibrium <- function(classes, model) {
-  eq <- .cb_equilibrium(model, classes)
+  closed <- .cb_closed_form_equilibrium(model, classes)
+  if (!is.null(closed)) {
+    return(.cb_check_equilibrium(
+      dplyr::mutate(classes, soc_eq_mgc_ha = closed)
+    ))
+  }
   classes |>
     dplyr::left_join(
-      eq,
+      .cb_equilibrium(model, classes),
       by = c(
         "land_use",
         "c_input_mgc_ha_yr",
