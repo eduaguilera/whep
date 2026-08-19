@@ -51,14 +51,23 @@ Expected columns:
 \item \code{lon}: Longitude of cell centre.
 \item \code{lat}: Latitude of cell centre.
 \item \code{area_code}: Country code.
+\item \code{cell_area_frac} (or \code{polity_frac}, \code{area_frac}, \code{country_frac}):
+This polity compartment's share of the physical cell, a partition
+summing to 1 over the polities that overlap the cell. Required: a
+grid carrying no share is refused, because defaulting it to 1 gives
+a border cell wholly to one polity. Pass 1 only where the polity
+does own the whole cell. A land fraction (\code{landfrac}) is a
+different quantity and is refused rather than reinterpreted.
 Optional columns:
-\item \code{cell_area_frac} (or \code{area_frac}): Fraction of the physical cell
-belonging to this polity compartment. Defaults to 1.
 \item \code{polycell_id}, \code{cell_id}: Stable compartment/cell identifiers
 preserved in outputs when present.
 \item \code{year} or validity intervals (\code{valid_from}/\code{valid_to},
 \code{start_year}/\code{end_year}, \code{from_year}/\code{to_year}) for historical,
-time-varying polity overlays.
+time-varying polity overlays. The start bound is inclusive; the end
+bound is \strong{exclusive at a succession} and \strong{inclusive at the open
+end}, so 2014 selects \code{"RUS-2014-2025"} and not \code{"RUS-1991-2014"},
+while 2025 still selects \code{"RUS-2014-2025"} because no later interval of
+that compartment follows it. See \link{polities} for the full rule.
 }}
 
 \item{config}{Named list of optional extras. Unknown keys raise
@@ -207,9 +216,9 @@ gridded_cropland <- tibble::tribble(
   0.75, 50.25, 2000L, 500
 )
 country_grid <- tibble::tribble(
-  ~lon, ~lat, ~area_code,
-  0.25, 50.25, 1L,
-  0.75, 50.25, 1L
+  ~lon, ~lat, ~area_code, ~cell_area_frac,
+  0.25, 50.25, 1L, 1,
+  0.75, 50.25, 1L, 1
 )
 build_gridded_landuse(
   country_areas, crop_patterns, gridded_cropland, country_grid,

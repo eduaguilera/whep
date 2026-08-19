@@ -274,11 +274,37 @@
   dt
 }
 
+# Paddy-to-milled extraction rate. FAO's Technical Conversion Factors for
+# Agricultural Commodities gives national paddy-to-milled rates with a median of
+# 65% (range 60-73; China mainland 67, India 66), and the FAO Food Balance
+# Sheets handbook worked example uses 67%. WHEP applies the single global rate
+# where the source carries a country dimension.
 .rice_milled_extraction_rate <- function() {
   0.67
 }
 
-.fix_item_codes <- function(dt) {
+# Item names under which a source reports rice on a PADDY (rough-rice) basis,
+# and which therefore need converting to WHEP's milled-equivalent contract.
+#
+# Which name means paddy depends on the FAOSTAT vintage, verified against the
+# pins at India 2010 production:
+#   faostat-fbs-new        2807 "Rice and products"        143,963 kt  paddy
+#   faostat-fbs-old        2805 "Rice (Milled Equivalent)"  96,023 kt  milled
+#   faostat-cbs-old-crops  2804 "Rice (Paddy Equivalent)"  143,963,008 t paddy
+#   faostat-cbs-old-crops  2805 "Rice (Milled Equivalent)"  96,023,326 t milled
+# (96,023 / 143,963 = 0.6670.)
+#
+# `"faostat"` is only correct where `item_cbs` still holds the source's own item
+# label. Once a frame has been through the `items_full` lookup, every 2807 row
+# is called "Rice and products" whatever its basis, so that path keeps the
+# `"labelled"` default and is left alone (#751).
+.paddy_rice_names <- function(vintage = c("labelled", "faostat")) {
+  vintage <- rlang::arg_match(vintage)
+  paddy <- c("Rice, paddy", "Rice (Paddy Equivalent)")
+  if (vintage == "faostat") c(paddy, "Rice and products") else paddy
+}
+
+.fix_item_codes <- function(dt, paddy_rice_names = .paddy_rice_names()) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -316,7 +342,7 @@
     dt[
       item_cbs_code %in%
         c(2804L, 2807L) &
-        item_cbs %in% c("Rice, paddy", "Rice (Paddy Equivalent)"),
+        item_cbs %in% paddy_rice_names,
       value := value * .rice_milled_extraction_rate()
     ]
   }
@@ -433,7 +459,9 @@
   }
   dt <- .harmonize_element_names(dt)
   dt <- .normalise_units(dt)
-  dt <- .fix_item_codes(dt)
+  # `item_cbs` still holds FAOSTAT's own item label here, so a "Rice and
+  # products" row is the new Food Balances item and is on a paddy basis.
+  dt <- .fix_item_codes(dt, paddy_rice_names = .paddy_rice_names("faostat"))
   dt <- dt[element %in% cb_elements]
   cols <- c(
     "area",

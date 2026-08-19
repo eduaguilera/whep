@@ -18,6 +18,7 @@ read_luh2_landuse(
   resolution = c("grid", "polity"),
   years = NULL,
   states_source = c("auto", "local", "zenodo"),
+  area_basis = c("polycell_land", "luh2_fraction"),
   data = NULL,
   example = FALSE
 )
@@ -35,33 +36,55 @@ every year present in the source.}
 checksum-verified reference vintage only, ignoring any local tree). Recorded
 in the provenance record's \code{input_origin}.}
 
+\item{area_basis}{Which land definition the class areas are measured on:
+\code{"polycell_land"} (default) spreads each class's share of the cell's LUH2
+land over the polycell's measured \code{land_area_ha}; \code{"luh2_fraction"} keeps
+LUH2's own land total (\code{fraction} times the spherical cell area) and splits
+it between the polycells of a cell by their share of the cell's land. Both
+partition the cell identically and differ only in the total spread
+(~12.78 Gha against ~12.99 Gha globally). The choice is recorded in the
+\code{method_land_area} output column.}
+
 \item{data}{Named list of pre-loaded inputs bypassing the readers: \code{states}
 (raw per-cell-year-state fractions with \code{lon}, \code{lat}, \code{year}, \code{land_use},
-\code{fraction}) and \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
-\code{cell_area_frac}). Each falls back to its reader when absent.}
+\code{fraction}) and \code{country_grid}, the polycell support resolved to one row
+per cell and \code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac} and,
+for \code{area_basis = "polycell_land"}, \code{land_area_ha}). Each falls back to its
+reader when absent. A support carrying more than one row per cell and
+\code{area_code}, or an \code{NA} one, is refused rather than folded (DA-23).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with columns \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{land_use},
-\code{fraction} and \code{area_ha} at \code{"grid"} resolution; at \code{"polity"} resolution
-\code{lon} and \code{lat} are dropped and \code{area_ha} is summed per
-\verb{(area_code, year, land_use)}. Both resolutions carry the polity columns
-below, resolved from the \code{area_code} the cell grid assigns and the row's
-\code{year}; the cell-to-area assignment itself is the static present-day grid,
-which is what LUH2 has, so a pre-modern year is the present-day cell's area
-read at that year. When the states grid was read from a NetCDF, a provenance
-record naming the vintage is attached; read it back with \code{\link[=get_provenance]{get_provenance()}}.
+\code{fraction}, \code{area_ha} and \code{method_land_area} at \code{"grid"} resolution; at
+\code{"polity"} resolution \code{lon} and \code{lat} are dropped and \code{area_ha} is summed
+per \verb{(area_code, year, land_use)}. \code{fraction} stays LUH2's share of the
+whole cell and is repeated on every polycell of that cell, so under
+\code{"polycell_land"} it is a source datum rather than a factor \code{area_ha} can
+be recovered from. Both resolutions carry the polity columns below,
+resolved from the \code{area_code} the support assigns and the row's \code{year};
+the cell-to-area assignment itself is a static snapshot, which is what LUH2
+has, so a pre-modern year is the snapshot cell's area read at that year.
+When the states grid was read from a NetCDF, a provenance record naming the
+vintage is attached; read it back with \code{\link[=get_provenance]{get_provenance()}}.
 }
 \description{
 Read the LUH2 v2h gridded land-use "states" product and aggregate its 12
 subgrid states into the four carbon-balance classes (cropland, grassland,
 natural, urban). Per cell-year-class the \code{fraction} is the sum of the member
-states' grid-cell fractions (0..1); \code{area_ha} is that fraction times the
-spherical 0.5-degree cell area. At \code{resolution = "polity"} the areas are
-summed to each overlapping polity via the country grid; a border cell keeps
-every polity it overlaps.
+states' grid-cell fractions (0..1), LUH2's own share of the \strong{whole} cell.
+\code{area_ha} is that class's area inside one polycell: by default the class's
+share of the cell's LUH2 land, spread over the polycell's own measured land
+(\code{area_basis = "polycell_land"}), so the four classes tile the polycell's land
+exactly and the carbon path uses the same land definition as the nitrogen
+path. At \code{resolution = "polity"} the areas are summed to each overlapping
+polity; a border cell keeps every polity it overlaps.
+
+The cell-to-polity assignment is a \strong{static snapshot}, because LUH2 carries
+no territorial history: a pre-modern year is the snapshot polity's territory
+holding that year's land-use composition.
 
 The states grid comes from a \code{WHEP_LUH2_DIR} tree when there is one, else the
 reference LUH2-GCB2022 \code{states.nc} is downloaded on demand from Zenodo
@@ -96,7 +119,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did

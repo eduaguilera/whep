@@ -94,6 +94,19 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{Spatial support}{
+
+Every default reader on the carbon path -- the land-use areas, the carbon
+inputs, the climate drivers and the clay -- resolves its cell-to-polity table
+through one polycell support (\code{\link[=read_polycell_support]{read_polycell_support()}}), read at a static
+reference year. A cell shared between polities therefore delivers to each
+only the land it holds there, and no reader can be left on a different
+crosswalk: half the path on one footprint and half on another would surface
+as an ordinary climate-coverage warning from the modifier join, not as an
+error. Land the reporting vocabulary cannot key (no \code{area_code}) is reported
+and dropped, never folded into another polity's.
+}
+
 \section{Polity columns}{
 
 Every area-keyed output carries the polity its \code{area_code} resolves to in
@@ -118,7 +131,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did

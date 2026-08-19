@@ -210,23 +210,23 @@ build_energy_co2_extension <- function(
 # Dissolved entities such as SUN and YUG are absent from a present-day table by
 # construction, the regional buckets RAFR to ROW are aggregates a country table
 # should not carry, and territories folded into a FABIO bucket are represented by
-# that bucket rather than by themselves. What remains on the current crosswalk is
-# Nauru and Tuvalu: they exist today, report under their own area codes, and are
-# unclassifiable. Tuvalu is the sharpest case -- `.energy_ldc_iso3()` lists TUV
-# as least-developed, so this file asserts a classification for a country the
+# that bucket rather than by themselves. That used to leave Nauru and Tuvalu
+# alone. Tuvalu is the sharpest case -- `.energy_ldc_iso3()` lists TUV as
+# least-developed, so this file asserted a classification for a country the
 # table it joins against cannot represent.
 #
-# whep#415 lists Bermuda, Guam and Palau alongside those two, and they are still
-# not named here -- but the REASON changed with whep#628 and the note that used
-# to stand here (that bucket 999 carries their production) is no longer true.
-# Since the Rest-of-World fold was lifted they DO report under their own area
-# codes: `.energy_self_reporting_gaps()` now contains all three. What keeps them
-# out is the `polity_type` filter below. `.unfold_rest_of_world()` promotes
-# `polity_area_code` only, so their polity is still the ROW aggregate, and the
-# crosswalk gives that polity `continent = "World"`, which is not in
-# `.energy_scheme_continents()` -- so `unclassified = "polity_region"` could not
-# group them even if the warning named them. Giving a promoted Rest-of-World
-# member a polity and a continent of its own is a crosswalk question, whep#646.
+# whep#415 lists Bermuda, Guam and Palau alongside those two, and it took two
+# separate crosswalk fixes to reach them. whep#628 promoted a Rest-of-World
+# member's `polity_area_code`, so all three began reporting under their own area
+# codes and `.energy_self_reporting_gaps()` picked them up -- and then the
+# `polity_type` filter below dropped them again, because promotion left their
+# POLITY as the ROW aggregate, on `continent = "World"`, which is not in
+# `.energy_scheme_continents()`. whep#717 promoted the territorial identity too,
+# and the live gap set went from 2 areas to 16.
+#
+# The default treatment is still `"drop"`, so this is a wider WARNING rather
+# than a different number: what moved is which areas `"polity_region"` and
+# `"historical_region"` can reach when a caller asks for them.
 #
 # The source table is not edited: it is parsed from the GLEAM Excel workbook, so
 # adding rows would make this package's copy diverge from the published source
