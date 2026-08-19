@@ -63,6 +63,7 @@ Suggests:
     readxl,
     rmarkdown,
     RSQLite,
+    s2,
     sf,
     terra,
     testthat (>= 3.0.0),

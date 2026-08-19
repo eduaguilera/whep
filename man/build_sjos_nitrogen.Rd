@@ -10,6 +10,8 @@ build_sjos_nitrogen(
   boundary_land_use = "ara",
   nh3_source = "soil",
   footprint_category = "exceedance",
+  nourishment_thresholds = c("composed", "flat"),
+  nourishment_band = list(),
   example = FALSE
 )
 }
@@ -38,6 +40,26 @@ reconstructed intensive-grassland class).}
 
 \item{footprint_category}{Which per-crop nitrogen mass the footprint traces,
 \code{"exceedance"} (default), \code{"within_boundary"} or \code{"production"}.}
+
+\item{nourishment_thresholds}{Which band the "just" axis classifies against:
+\code{"composed"} (default) builds it per country and year from
+\code{\link[=build_nourishment_band]{build_nourishment_band()}}'s four sourced terms, or \code{"flat"} restores the
+retired 62.1 / 85.05 pair. \code{"flat"} survives for continuity and
+sensitivity only: of its five underlying numbers only the 46 g/cap/day
+floor was ever sourced, and the 1.35 multiplier behind both bounds was a
+preliminary presentation figure (whep#753).}
+
+\item{nourishment_band}{Named list of options for the composed band, ignored
+when \code{nourishment_thresholds = "flat"}. \code{quality_method} and
+\code{quality_variant} select the protein-quality tier and its bracket
+(\code{\link[=build_protein_quality]{build_protein_quality()}}); \code{wedge_method} and \code{wedge_coverage} select the
+loss wedge (\code{\link[=build_loss_wedge]{build_loss_wedge()}}); \code{shortfall}, \code{ceiling} and
+\code{requirement_sd} go to \code{\link[=build_nourishment_band]{build_nourishment_band()}} itself, and \code{ceiling} is
+the sensitivity knob the band's own documentation asks callers to sweep.
+An option this list does not name \strong{aborts} rather than being ignored, so
+a mistyped knob cannot silently run the default and be reported as a
+sensitivity. Defaults to \code{list()}, which leaves every builder on its own
+default.}
 
 \item{example}{If \code{TRUE}, drive the whole chain from the coherent fixture set
 instead of \code{data}. Defaults to \code{FALSE}.}

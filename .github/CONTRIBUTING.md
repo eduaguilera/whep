@@ -14,7 +14,8 @@ so you can find it.
 - [Finding something to work on](#finding-something-to-work-on)
 - [Do I need the data?](#do-i-need-the-data)
 - [Setting up](#setting-up)
-- [The six CI checks, and how to run them locally](#the-six-ci-checks-and-how-to-run-them-locally)
+- [Formatting, which CI does not check before merge](#formatting-which-ci-does-not-check-before-merge)
+- [The five CI checks, and how to run them locally](#the-five-ci-checks-and-how-to-run-them-locally)
 - [Code style](#code-style)
 - [Documentation](#documentation)
 - [Tests](#tests)
@@ -98,28 +99,32 @@ devtools::load_all()
 ```
 
 You also need the [`air`](https://github.com/posit-dev/air) formatter binary on
-your `PATH` — see the formatting check below. It is not an R package; download a
-release for your platform.
+your `PATH` — see the formatting section below. It is not an R package; download
+a release for your platform.
 
-## The six CI checks, and how to run them locally
-
-Six workflows run on every pull request, including one from a fork. Five of them
-gate the merge; `test-coverage` is informational. Each is reproducible on your
-machine, and doing that first is much faster than pushing and waiting.
-
-### 1. `format-suggest` — code formatting
+## Formatting, which CI does not check before merge
 
 ```bash
 air format .
 ```
 
-**This is mandatory and it is not optional or approximate.** CI runs the `air`
-binary and posts a failing suggestion for any diff, so hand-matching the style
-does not work. Run the binary. Note that it formats *every* `.R` file in the
-repo — `R/`, `tests/`, `data-raw/` — not only the ones you edited, so commit only
-your own hunks if it reformats something unrelated.
+**This is mandatory and it is not optional or approximate**, even though no
+check will fail if you skip it. Nothing gates formatting on a pull request; the
+`format-main` workflow reformats `main` after every merge instead. That is
+there for the times someone forgets, and leaning on it has a real cost: the
+diff a reviewer read stops being the diff that landed, and `main` collects
+formatting-only commits. So run the binary yourself — hand-matching the style
+does not work. Note that it formats *every* `.R` file in the repo — `R/`,
+`tests/`, `data-raw/` — not only the ones you edited, so commit only your own
+hunks if it reformats something unrelated.
 
-### 2. `lint` — `lintr`
+## The five CI checks, and how to run them locally
+
+Five workflows run on every pull request, including one from a fork. Four of
+them gate the merge; `test-coverage` is informational. Each is reproducible on
+your machine, and doing that first is much faster than pushing and waiting.
+
+### 1. `lint` — `lintr`
 
 ```r
 lintr::lint_package(
@@ -139,7 +144,7 @@ Note that `line_length_linter` being off does **not** license long lines — the
 80-character maximum is still a house rule (see below), it just is not machine
 enforced.
 
-### 3. `R-CMD-check` — five platforms
+### 2. `R-CMD-check` — five platforms
 
 macOS release, Windows release, and Ubuntu on R-devel, release and oldrel-1.
 **No errors, no warnings, no notes.** This job also runs the test suite, so a
@@ -162,7 +167,7 @@ Two things account for most avoidable failures here:
 - Every `stats::` and `utils::` function needs its explicit namespace prefix
   (`stats::median()`, not `median()`).
 
-### 4. The test suite
+### 3. The test suite
 
 Run it directly while you work, rather than through the full check:
 
@@ -173,7 +178,7 @@ devtools::test(filter = "footprint")      # one file
 
 The whole suite must be green — 100%, no skips added to get there.
 
-### 5. `offline-tests` — no test may touch the network
+### 4. `offline-tests` — no test may touch the network
 
 Reproduce the CI condition exactly:
 
@@ -186,7 +191,7 @@ If this job fails on its own while the ordinary test job passes, you have added
 a test that quietly fetches something. The fix is to give it an offline fixture,
 **not** to skip the test and not to relax the job.
 
-### 6. `pkgdown` — the documentation site
+### 5. `pkgdown` — the documentation site
 
 Every documented topic — functions *and* datasets with roxygen docs — must
 appear in `_pkgdown.yml` under `reference:`. Adding an exported function without
@@ -205,9 +210,8 @@ Empty output means you are fine.
 `test-coverage` runs the suite under `covr` and reports to Codecov. Treat a
 coverage drop as a prompt to add a test, not as a blocker.
 
-One note on `format-suggest`: it is deliberately configured to work on pull
-requests from forks, which is the normal path for an outside contribution. If it
-posts suggestions on your PR, run `air format .` and push again.
+All five gating checks run on pull requests from forks, which is the normal path
+for an outside contribution, so you get the same signal we do.
 
 ### The short version, before you push
 

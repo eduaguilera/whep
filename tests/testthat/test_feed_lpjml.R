@@ -169,6 +169,103 @@ test_that("aggregate_grass_to_polity splits a border cell by polity_frac", {
   expect_equal(agg$grass_avail_dm_t[agg$area_code == 2L], 30)
 })
 
+# ---- C0 characterisation baseline (polycell consumer migration) --------
+#
+# THESE ARE CHARACTERISATION TESTS, NOT CORRECTNESS ASSERTIONS. They pin
+# what aggregate_grass_to_polity() does TODAY, on unmodified pre-migration
+# code, so that any value change the polycell consumer migration
+# introduces is visible and attributable instead of silent.
+#
+# aggregate_grass_to_polity() (R/feed_lpjml.R:166-178) multiplies an
+# ALREADY-ABSOLUTE per-cell tonnage by polity_frac and sums. There is no
+# area term, so grass tonnage is conserved whenever polity_frac partitions
+# the cell, and substituting an absolute area for polity_frac here would
+# multiply tonnes by hectares. The existing two tests above cover a
+# single-polity crosswalk and one two-polity cell in isolation; the
+# fixture below shares one cell three ways alongside cells at other
+# latitudes, which is the shape a polycell crosswalk actually has.
+#
+# Note that R/feed_lpjml.R's OTHER cell_area_ha use, at :110, is FROZEN
+# by AM-2 and is deliberately not characterised here: it inverts a
+# normalisation prepare_spatialize_all.R applied when building the LPJmL
+# input, so it must not be migrated.
+
+.grass_c0_grass <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~grass_avail_dm_t,
+    -0.25, -0.25, 2000L, 1000,
+    0.25, 59.75, 2000L, 250,
+    0.75, 0.25, 2000L, 40
+  )
+}
+
+.grass_c0_cell_polity <- function() {
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~polity_frac,
+    -0.25, -0.25, 1L, 0.5,
+    -0.25, -0.25, 2L, 0.3,
+    -0.25, -0.25, 3L, 0.2,
+    0.25, 59.75, 4L, 0.6,
+    0.25, 59.75, 5L, 0.4,
+    0.75, 0.25, 6L, 1.0
+  )
+}
+
+test_that("C0: grass is conserved across multi-polity cells", {
+  agg <- whep::aggregate_grass_to_polity(
+    .grass_c0_grass(),
+    .grass_c0_cell_polity()
+  )
+
+  # 1000 + 250 + 40 t DM in, the same out. Tolerance is DA-18's locked
+  # 1e-9 relative bound; the measured gap on this fixture today is 0.
+  expect_equal(
+    sum(agg$grass_avail_dm_t),
+    sum(.grass_c0_grass()$grass_avail_dm_t),
+    tolerance = 1e-9
+  )
+  expect_equal(sum(agg$grass_avail_dm_t), 1290)
+  expect_equal(
+    agg$grass_avail_dm_t[match(c(1L, 2L, 3L), agg$area_code)],
+    c(500, 300, 200)
+  )
+})
+
+test_that("C0: no area column reaches grass aggregation", {
+  base <- whep::aggregate_grass_to_polity(
+    .grass_c0_grass(),
+    .grass_c0_cell_polity()
+  )
+  # Hand the crosswalk both area columns the migration will introduce.
+  # Today they are ignored: the tonnage is already absolute, so the only
+  # weight is polity_frac. THIS IS THE GUARD against multiplying tonnes
+  # of dry matter by hectares.
+  with_areas <- whep::aggregate_grass_to_polity(
+    .grass_c0_grass(),
+    dplyr::mutate(
+      .grass_c0_cell_polity(),
+      cell_area_ha = 308000,
+      land_area_ha = 270000
+    )
+  )
+
+  expect_identical(with_areas, base)
+})
+
+test_that("C0: a grass cell absent from the crosswalk is dropped silently", {
+  # R/feed_lpjml.R:169 joins with dplyr::inner_join(), so grass in a cell
+  # the crosswalk does not carry disappears with no warning. Pinned as
+  # current behaviour; it is not asserted to be right.
+  one_cell <- dplyr::filter(.grass_c0_cell_polity(), lon == -0.25)
+  agg <- expect_no_warning(
+    whep::aggregate_grass_to_polity(.grass_c0_grass(), one_cell)
+  )
+
+  # 290 of the fixture's 1290 t DM is lost without trace.
+  expect_equal(sum(agg$grass_avail_dm_t), 1000)
+  expect_setequal(agg$area_code, c(1L, 2L, 3L))
+})
+
 # ---- polity_validity (#675) -------------------------------------------
 
 # Area 277 is South Sudan (SSD-2011-2025); a 2000 grass row on a cell the

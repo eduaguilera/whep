@@ -473,6 +473,103 @@ test_that(".extend_historical matches LUH2 land by area_code, not name", {
   expect_true(all(result$value > 0))
 })
 
+test_that(".extend_historical takes a historical land table at the seam", {
+  # whep#761: the pre-1962 area half of the back-cast was measured on
+  # present-day borders. `land_wide` lets the historical producer hand the seam
+  # the same shape measured on each year's own borders. Growth is 2x here
+  # against the pin's 1.25x, so the back-cast value has to follow the table it
+  # was given, and the `source` label has to say which one that was.
+  primary <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    item_prod = "Wheat",
+    item_prod_code = 15L,
+    item_cbs = "Wheat and products",
+    item_cbs_code = 2511L,
+    live_anim = NA_character_,
+    live_anim_code = NA_integer_,
+    unit = "tonnes",
+    value = c(NA, NA, 100),
+    source = "FAOSTAT_prod"
+  )
+  years <- tibble::tibble(year = c(1959L, 1960L, 1961L))
+  land <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area = "Ruritania",
+    area_code = 99L,
+    Land_Use = "c3ann",
+    Area_Mha = c(8, 9, 10)
+  )
+  historical <- tibble::tibble(
+    year = c(1959L, 1960L, 1961L),
+    area_code = 99L,
+    Cropland = c(2.5, 5, 10),
+    Pasture = 0,
+    agriland = c(2.5, 5, 10)
+  )
+
+  default <- whep:::.extend_historical(primary, years, land) |>
+    dplyr::filter(area_code == 99L, unit == "tonnes") |>
+    dplyr::arrange(year)
+  historic <- whep:::.extend_historical(
+    primary,
+    years,
+    land,
+    land_wide = historical
+  ) |>
+    dplyr::filter(area_code == 99L, unit == "tonnes") |>
+    dplyr::arrange(year)
+
+  expect_equal(default$value, c(80, 90, 100))
+  expect_equal(historic$value, c(25, 50, 100))
+  expect_equal(default$source[1:2], rep("LUH2_cropland", 2))
+  expect_equal(historic$source[1:2], rep("LUH2_polity_cropland", 2))
+  # The reported year is the anchor and cannot move under either land table.
+  expect_equal(default$value[3], historic$value[3])
+  expect_equal(default$source[3], historic$source[3])
+})
+
+test_that(".historical_land_wide is NULL unless the method asks for it", {
+  expect_null(whep:::.historical_land_wide("present_day", 1850:1961))
+  # Nothing before 1962 is requested, so there is nothing to back-cast and the
+  # expensive gridded read is skipped even under the historical method.
+  expect_null(whep:::.historical_land_wide("historical_polity", 1990:2000))
+})
+
+test_that("a stale historical-land pin aborts instead of shortening the series", {
+  # The pin covers the whole back-cast span by construction, so a missing year
+  # means it is stale against the polities snapshot that produced it. Returning
+  # the short series would silently drop those years from the back-cast, which
+  # is the failure this abort exists to prevent. Offline: the reader is mocked,
+  # never called for real.
+  short <- tibble::tibble(
+    year = 1850:1900,
+    area_code = 238L,
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+  testthat::with_mocked_bindings(
+    expect_error(
+      whep:::.historical_land_wide("historical_polity", 1850:1961),
+      "does not cover"
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+
+  # ...and it does NOT abort when the pin covers everything asked for.
+  testthat::with_mocked_bindings(
+    expect_equal(
+      nrow(whep:::.historical_land_wide("historical_polity", 1850:1900)),
+      51L
+    ),
+    .read_input = function(...) short,
+    .package = "whep"
+  )
+})
+
 test_that(".extend_historical warns about areas with no LUH2 land match", {
   primary <- tibble::tibble(
     year = c(1960L, 1961L),

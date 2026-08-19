@@ -990,3 +990,217 @@ testthat::test_that("the manure chain's examples use the pipeline vocabulary", {
     as.integer(codes)
   )
 })
+
+# ---- C3b: the ledger states which territory category it consumes -------
+#
+# build_n_deposition() now emits one row per polycell per territory
+# category, so .n_inputs_deposition() has to say which it takes. DA-14
+# leaves the substantive question open -- whether the cropland ledger should
+# be credited with only the terrestrial share of a cell's deposited mass --
+# and these blocks assert that it is NOT answered here: `deposition_kgn_ha`
+# is a whole-cell rate carried identically on every category row, so
+# filtering to one category leaves every ledger value untouched.
+#
+# What the filter does buy is that the ledger cannot silently consume all
+# three, which would charge each cell's agricultural land three times.
+
+# The same one cell and one polity, with its 2,000 ha of territory
+# decomposed 1,200 land / 500 inland water / 300 ice. Its 3,000 ha
+# cell_area_ha and polity_frac = 1 are unchanged.
+.nbi_decomposed_cell_polity <- function() {
+  dplyr::mutate(
+    .nbi_cell_polity(),
+    polity_area_ha = 2000,
+    land_area_ha = 1200,
+    inland_water_ha = 500,
+    ice_area_ha = 300
+  )
+}
+
+# The control: the same territory, undecomposed. It splits by the same
+# `polity_area_ha` key, so the ONLY difference from the fixture above is the
+# presence of the category columns.
+.nbi_undecomposed_cell_polity <- function() {
+  dplyr::mutate(.nbi_cell_polity(), polity_area_ha = 2000)
+}
+
+.nbi_deposition_rows <- function(cell_polity) {
+  data <- .nbi_full_data()
+  data$cell_polity <- cell_polity
+  whep::build_n_inputs(data = data) |>
+    dplyr::filter(.data$fert_type == "deposition") |>
+    dplyr::arrange(.data$item_cbs_code)
+}
+
+# A build_n_deposition() slice as .ni_deposition_in_scope() receives it: one
+# cell, one polity, one whole-cell rate, its 1,000 t of mass split 600 land /
+# 300 inland water / 100 ice, so the land scope is 0.6 of the territory scope.
+.nbi_scope_rows <- function(categories, method = "land_water_ice") {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 50.25,
+    area_code = 10L,
+    year = 2010L,
+    area_category = categories,
+    deposition_kgn_ha = 1000,
+    deposition_n_t = c(600, 300, 100)[seq_along(categories)],
+    method_area_split = method
+  )
+}
+
+testthat::test_that("C3b: the default scope moves no ledger value", {
+  decomposed <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+  undecomposed <- .nbi_deposition_rows(.nbi_undecomposed_cell_polity())
+
+  # Bit-identical, not merely close. DA-14 was decided on 2026-08-06 in
+  # favour of the WHOLE territory: nitrogen deposited on a lake or a glacier
+  # still drives indirect N2O and still reaches the eutrophication pathway,
+  # so the impact terms have to account for it. The scope factor is therefore
+  # exactly 1, and no published number moves on this commit -- asserted here
+  # rather than argued in a commit message.
+  testthat::expect_identical(decomposed, undecomposed)
+  # And it is the pre-C3b number: 1000 kg N/ha over 1,000 ha of cropland and
+  # 500 ha of grassland.
+  testthat::expect_equal(sum(decomposed$n_input_t), 1500)
+  testthat::expect_setequal(decomposed$item_cbs_code, c(2511L, 2807L, 3000L))
+  # One row per (cell, polity, item), not three. Consuming all three
+  # categories would charge the same hectares once per category: 4,500 t
+  # rather than 1,500, every hectare of it plausible-looking.
+  testthat::expect_identical(nrow(decomposed), 3L)
+  testthat::expect_false(any(duplicated(decomposed$item_cbs_code)))
+})
+
+testthat::test_that("C3b: the land scope is selectable and takes the land share", {
+  # The alternative DA-14 declined. The fixture's polity holds 2,000 ha of
+  # territory of which 1,200 is land, so the terrestrial scope charges 60% of
+  # what the territory scope does. The same construction on real 2014 HaNi
+  # input measured 60.7385 Tg against 61.6285 Tg (AM-30), a 1.444% fall.
+  data <- .nbi_full_data()
+  data$cell_polity <- .nbi_decomposed_cell_polity()
+  data$deposition_scope <- "land"
+  land <- whep::build_n_inputs(data = data) |>
+    dplyr::filter(.data$fert_type == "deposition")
+  territory <- .nbi_deposition_rows(.nbi_decomposed_cell_polity())
+
+  testthat::expect_equal(sum(land$n_input_t), 900)
+  testthat::expect_equal(sum(land$n_input_t) / sum(territory$n_input_t), 0.6)
+  testthat::expect_identical(nrow(land), 3L)
+})
+
+testthat::test_that("C3b: the scope is recorded, and only on deposition rows", {
+  data <- .nbi_full_data()
+  data$cell_polity <- .nbi_decomposed_cell_polity()
+  out <- whep::build_n_inputs(data = data)
+  land <- whep::build_n_inputs(
+    data = c(data, list(deposition_scope = "land"))
+  )
+
+  # Without a recorded scope, a territory-scope table and a land-scope table
+  # are indistinguishable after the fact -- which is exactly how two
+  # incompatible conventions coexist unnoticed.
+  dep <- out$fert_type == "deposition"
+  testthat::expect_true(all(out$method_deposition_scope[dep] == "territory"))
+  testthat::expect_true(all(is.na(out$method_deposition_scope[!dep])))
+  testthat::expect_true(all(
+    land$method_deposition_scope[land$fert_type == "deposition"] == "land"
+  ))
+  # It survives the polity aggregation, where a method column that is not a
+  # grouping key would collapse rows of different scopes into one.
+  polity <- whep::build_n_inputs(data = data, resolution = "polity")
+  testthat::expect_true(rlang::has_name(polity, "method_deposition_scope"))
+  testthat::expect_true(all(
+    polity$method_deposition_scope[polity$fert_type == "deposition"] ==
+      "territory"
+  ))
+})
+
+testthat::test_that("C3b: a scope the support cannot serve aborts", {
+  # No silent fallback, exactly as for `split =`. The interim crosswalk
+  # carries no category columns, so its deposition table has one undecomposed
+  # "territory" row per polycell. Serving that under a "land" label would
+  # overstate the terrestrial term by the whole water and ice share.
+  data <- .nbi_full_data()
+  data$deposition_scope <- "land"
+
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "needs a decomposed territory"
+  )
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "land_area_ha"
+  )
+  # And an unrecognised scope is refused rather than silently defaulting.
+  data$deposition_scope <- "terrestrial"
+  testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    "deposition_scope.*must be"
+  )
+})
+
+testthat::test_that("C3b: a scope filter matching nothing aborts", {
+  # THE failure this guard exists for. Under .ni_empty() semantics a
+  # deposition term that filters down to zero rows is indistinguishable from
+  # one whose inputs were absent, so a mislabelled category would delete the
+  # whole term from the ledger without a word.
+  mislabelled <- .nbi_scope_rows(c("terrestrial", "inland_water", "ice"))
+
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(mislabelled, "land"),
+    "No deposition row falls inside scope"
+  )
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(mislabelled, "land"),
+    "kept 0 of 3 rows"
+  )
+})
+
+testthat::test_that("C3b: the scope filter keeps rows under both methods", {
+  # The positive control for the block above: a filter that aborted on
+  # everything would also pass an abort test, so both decompositions and both
+  # scopes must be shown to survive it, with the right scope fraction.
+  decomposed <- .nbi_scope_rows(c("land", "inland_water", "ice"))
+  undecomposed <- .nbi_scope_rows("territory", method = "none")
+
+  territory <- whep:::.ni_deposition_in_scope(decomposed, "territory")
+  land <- whep:::.ni_deposition_in_scope(decomposed, "land")
+  testthat::expect_identical(nrow(territory), 1L)
+  testthat::expect_identical(territory$scope_frac, 1)
+  testthat::expect_equal(land$scope_frac, 0.6)
+  testthat::expect_identical(
+    whep:::.ni_deposition_in_scope(undecomposed, "territory")$scope_frac,
+    1
+  )
+  # An empty input stays empty rather than aborting: no deposition input at
+  # all is a legitimate state, and it is not what the guard is looking for.
+  testthat::expect_identical(
+    nrow(whep:::.ni_deposition_in_scope(decomposed[0, ], "land")),
+    0L
+  )
+})
+
+testthat::test_that("C3b: a cell whose polities disagree on the rate aborts", {
+  # AM-5 risk 1, guarded where the rate is CONSUMED as well as where it is
+  # produced. Two rates in one cell mean rate x area recovers the cell's whole
+  # mass once per polity, so the ledger would multiply deposition by the
+  # number of polities sharing a border, behind entirely plausible rates.
+  split_rate <- dplyr::mutate(
+    .nbi_scope_rows(c("land", "inland_water", "ice")),
+    deposition_kgn_ha = c(1000, 1000, 1200)
+  )
+
+  testthat::expect_error(
+    whep:::.ni_deposition_in_scope(split_rate, "territory"),
+    "one whole-cell rate per polycell"
+  )
+  # A cell that received nothing has 0/0 categories; that is not a defect and
+  # must not become NaN in the ledger.
+  empty_cell <- dplyr::mutate(
+    .nbi_scope_rows(c("land", "inland_water", "ice")),
+    deposition_kgn_ha = 0,
+    deposition_n_t = 0
+  )
+  out <- whep:::.ni_deposition_in_scope(empty_cell, "land")
+  testthat::expect_identical(out$scope_frac, 0)
+  testthat::expect_false(anyNA(out$scope_frac))
+})

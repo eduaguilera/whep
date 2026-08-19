@@ -12,6 +12,7 @@ build_primary_production(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
+  land_method = c("present_day", "historical_polity"),
   .raw_data = NULL
 )
 }
@@ -50,6 +51,21 @@ their pre-1962 production is not back-cast at all and the build warns.
 its successor states' LUH2 land, resolved from the \code{successor} relation
 published in \link{polities}. This back-casts 14.3\% more of the 1961-62
 production tonnage and therefore moves published pre-1962 values.
+}}
+
+\item{land_method}{Character. Which borders the pre-1962 \code{ha} half of
+\code{tonnes = ha * t_ha} is measured on. The yield half is historical either
+way and is untouched by this argument.
+\itemize{
+\item \code{"present_day"} (default, current published behaviour) reads the
+\code{luh2-areas} pin, which is LUH2 land pre-aggregated to present-day ISO3,
+so a row labelled with the 1961 entity is measured on the borders that
+entity has today.
+\item \code{"historical_polity"} measures it with \code{\link[=build_historical_land_areas]{build_historical_land_areas()}}:
+gridded LUH2 summed inside the polygon of the polity \code{area_code}
+resolved to in that year. It moves published pre-1962 values, needs
+\code{sf} and \code{terra}, and reads gridded LUH2 for every back-cast year, so it
+is minutes of extra work.
 }}
 
 \item{.raw_data}{Optional tibble with the same structure as the output

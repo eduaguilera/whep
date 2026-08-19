@@ -288,7 +288,6 @@ utils::globalVariables(
     "cell_area_ha",
     "grass_avail_dm_t_ha",
     "grass_avail_dm_t",
-    "polity_frac",
     "total",
     "grass_npp",
     "leftover",
@@ -1027,6 +1026,7 @@ utils::globalVariables(
     "harvested_area_ha",
     "increment",
     "ir_capacity",
+    "ir_over",
     "ir_pot_sum",
     "ir_potential",
     "ir_uniform",
@@ -1040,6 +1040,7 @@ utils::globalVariables(
     "rainfed_ha",
     "rainfed_target",
     "rf_capacity",
+    "rf_over",
     "rf_pot_sum",
     "rf_potential",
     "rf_uniform",
@@ -1415,6 +1416,18 @@ utils::globalVariables(
     "deposition_kgn_ha",
     "deposition_n_t",
     "method_deposition",
+    "method_polity_split",
+    "method_area_split",
+    "polity_share",
+    "area_category",
+    "category_area_ha",
+    "category_frac",
+    "method_deposition_scope",
+    "scope_frac",
+    "rate_spread",
+    "in_scope_n_t",
+    "scope_n_t",
+    "total_n_t",
     # hyde_population.R (Module C, Task C3) — gridded HYDE population NSE
     # columns
     "urban_pop",
@@ -1484,6 +1497,9 @@ utils::globalVariables(
     "weighted_ha",
     "group_ha",
     "cropland_share",
+    # n_balance_spatialize.R (C5) — the polity share of the cell that weights
+    # every grid cell, under whichever split key was resolved
+    "cell_frac",
     # n_balance_inputs.R — recycling-N basis provenance stamp
     "method_recycling_n",
     # n_balance_spatialize.R / n_balance_inputs.R — synthetic-N crop-split
@@ -1707,6 +1723,12 @@ utils::globalVariables(
     "share_other",
     "total_gap",
     "total_production",
+    # polycell_support.R. The producer itself is written entirely in `.data$`
+    # form, so it needs no declarations; these two are the polycell keys the
+    # compartment helpers in spatialize_compartments.R already name, and they
+    # were absent, so any bare-symbol use of them fails `R CMD check`.
+    "polycell_id",
+    "cell_id",
     # sjos_n coefficient datasets (Module 0, Task 0.4)
     "n_boundary_params",
     "nourishment_thresholds",
@@ -1822,6 +1844,73 @@ utils::globalVariables(
     # columns for the canonical-area tie-break
     "is_canonical",
     "keep",
+    # water_balance.R, feed_lpjml.R, feed_intake_redistribute.R,
+    # run_spatialize.R — the cell-polity crosswalk's land-area share. Six
+    # unqualified uses survive the polycell migration and are deliberate: the
+    # water balance is owned elsewhere, the feed path is frozen, and
+    # `.read_fraction_country_grid()` reads the deployed crosswalk on purpose.
+    "polity_frac",
+    # historical_land_areas.R (#761) — data.table NSE columns for the pre-1962
+    # land series measured inside each year's own polity polygon. `cell` and
+    # `ID` left with the raster cover whep#800 replaced by the polycell, which
+    # brings `polity_area_ha` in their place.
+    "n_buckets",
+    "mapping_status",
+    "polity_area_ha",
+    "frac",
+    "share",
+    "land_now",
+    "land_next",
+    "land_mha",
+    "log_ratio",
+    # polities.R (#763) — .mark_backcast_anchor_status() data.table NSE
+    # columns: the row's OWN year, joined back onto the anchored resolution
+    "data_year",
+    "i.data_year",
+    # protein_requirement.R — TRS 935 age/sex requirement classes and the
+    # population-by-age input they are weighted by
+    "age",
+    "age_end",
+    "age_span",
+    "age_start",
+    "avg_req_g_day",
+    "avg_req_g_kg_day",
+    "avg_to_safe_ratio",
+    "reference_weight_kg",
+    "requirement_g_cap_day",
+    "requirement_g_day",
+    "safe_req_g_day",
+    "sex",
+    "year_from",
+    "year_to",
+    "lysine_mg_g",
+    "protein_weight",
+    "saa_mg_g",
+    "threonine_mg_g",
+    "tryptophan_mg_g",
+    # intake_dispersion.R — FAOSTAT food-security columns and the CV carry-back
+    "Value",
+    "cv",
+    "fao_area_code",
+    "first_cv",
+    "first_year",
+    "method_cv_year",
+    "sigma",
+    # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
+    "AgeGrpSpan",
+    "AgeGrpStart",
+    "ISO3_code",
+    "LocTypeName",
+    "PopFemale",
+    "PopMale",
+    "Time",
+    "female",
+    "iso3c",
+    "male",
+    # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
+    # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
+    # creates inside the data.table `.()` expression
+    "luh2_ha",
     # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
     # zero-land bucket of the back-cast warning
     "zero_proxy",

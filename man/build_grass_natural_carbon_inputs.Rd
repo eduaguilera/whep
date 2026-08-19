@@ -28,8 +28,10 @@ the pin); \code{npp} and \code{harvestc} (per cell, PFT and year, the
 managed-grassland stand fractions with columns \code{lon}, \code{lat}, \code{year},
 \code{name_pft}, \code{stand_frac}). Supplying all three of \code{npp}, \code{harvestc} and
 \code{stand_frac} derives \code{net_c} without needing a run directory or the pin.
-Also: \code{country_grid} (\code{lon}, \code{lat}, \code{area_code},
-\code{cell_area_frac}); \code{land_use} (per-cell class \code{area_ha}, used to spread
+Also: \code{country_grid}, the polycell support resolved to one row per cell and
+\code{area_code} (\code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}), refused when a
+cell-\code{area_code} group is duplicated or \code{NA} (DA-23);
+\code{land_use} (per-cell class \code{area_ha}, used to spread
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
 tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
@@ -99,7 +101,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did
