@@ -81,6 +81,49 @@ if (length(pins_metric) == 1L) {
   )
 }
 
+# 0b. Packaged coefficients vs their upstream workbooks ----------------------
+# Also above the abort, and for the same reason as section 0: this reads an
+# artifact outside the repository, so it is the one check a fresh checkout
+# most needs and the one the test suite is forbidden to make (#490).
+#
+# `test_data_raw_freshness.R` proves each data/*.rda matches its builder from
+# the inputs IN the repo. It cannot see a CSV and an .rda that agree with each
+# other and are both stale against a workbook in another repository, which is
+# what #524 found: 92 changed cells sat unreported for four months.
+coef_out <- tryCatch(
+  system2(
+    "Rscript",
+    "validation/upstream_coefs.R",
+    stdout = TRUE,
+    stderr = FALSE
+  ),
+  error = function(e) character(0)
+)
+coef_metric <- grep("^METRIC", coef_out, value = TRUE)
+if (length(coef_metric) == 1L) {
+  coef_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9]+).*"), "\\1", coef_metric))
+  }
+  cat(grep("^METRIC", coef_out, value = TRUE, invert = TRUE), sep = "\n")
+  add(
+    "upstream_coefs",
+    "contract",
+    coef_num("sources_checked"),
+    coef_num("sources_ok"),
+    coef_num("drifted") + coef_num("unavailable"),
+    "packaged coefficient tables vs their upstream workbooks (#524)"
+  )
+} else {
+  add(
+    "upstream_coefs",
+    "contract",
+    NA,
+    NA,
+    NA,
+    "no METRIC line; see validation/upstream_coefs.R"
+  )
+}
+
 # The production build is NOT triggered here on purpose: it takes minutes to
 # hours and reads pins, which is not something a validation sweep should start
 # without being asked. But a bare readRDS() on a missing cache dies inside
