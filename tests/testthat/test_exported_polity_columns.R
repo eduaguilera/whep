@@ -215,6 +215,93 @@ testthat::test_that("every example row resolves to a polity", {
   testthat::expect_setequal(unresolved, character())
 })
 
+testthat::test_that("gridded example cells carry the grid's own area code", {
+  # whep#686. The guard above only asks that a code RESOLVES, which five fixture
+  # rows did -- to the wrong country: cells in the Kenyan Rift Valley coded 79
+  # (Germany) and cells in Baden-Wurttemberg coded 11 (Austria). A wrong-country
+  # code is worse than a missing one, because nothing looks wrong.
+  #
+  # Verifying a cell-to-country claim needs the majority cell-to-area assignment
+  # the real builders use, and the offline suite must not read the
+  # `spatialize-country-grid` pin. So the pin's rows for exactly the cells the
+  # example fixtures use are checked in as
+  # `fixtures/country_grid_example_cells.csv` (pin revision
+  # 20260625T101041Z-8ff94, 58,795 cells). An empty `area_code` means the pin has
+  # no row for that cell: the deliberately abstract toy cells around (0.25, 0.25)
+  # and (0.25, 50.25) are open water, so they make no claim about a place and are
+  # left alone. Every cell an example emits must be listed -- a new fixture cell
+  # has to be looked up, not invented.
+  #
+  # A cell may list MORE THAN ONE area, and a fixture row only has to name one of
+  # them. The country grid assigns each cell to its majority country, but a
+  # polycell-based output splits a border cell between every polity that owns
+  # part of it, so both codes are right for the same cell. (9.25, 47.75) is such
+  # a cell -- Lake Constance, majority Germany (79), shared with Switzerland
+  # (211), which is why `.example_luh2_landuse()`, sampled from a real polycell
+  # run, emits both. Membership still catches the defect this guards: the Kenyan
+  # Rift Valley cells list 114 only, so coding them 79 fails.
+  grid <- tibble::as_tibble(utils::read.csv(
+    testthat::test_path("fixtures", "country_grid_example_cells.csv")
+  ))
+  testthat::expect_true(any(!is.na(grid$area_code)))
+
+  fns <- .exports_with_example()
+  testthat::expect_gt(length(fns), 50L)
+
+  checked <- character()
+  disagree <- character()
+  unlisted <- character()
+  for (nm in fns) {
+    frame <- tryCatch(as.data.frame(.run_example(nm)), error = function(e) NULL)
+    if (is.null(frame)) {
+      next
+    }
+    if (!all(c("lon", "lat", "area_code") %in% names(frame))) {
+      next
+    }
+    checked <- c(checked, nm)
+    cells <- frame |>
+      dplyr::select("lon", "lat", "area_code") |>
+      dplyr::distinct()
+    missing <- dplyr::anti_join(cells, grid, by = c("lon", "lat"))
+    unlisted <- c(
+      unlisted,
+      sprintf("%s (%s, %s)", nm, missing$lon, missing$lat)
+    )
+    bad <- cells |>
+      dplyr::inner_join(
+        dplyr::filter(grid, !is.na(.data$area_code)) |>
+          dplyr::summarise(
+            owners = list(.data$area_code),
+            .by = c("lon", "lat")
+          ),
+        by = c("lon", "lat")
+      ) |>
+      dplyr::filter(
+        !purrr::map2_lgl(
+          .data$area_code,
+          .data$owners,
+          \(code, owners) code %in% owners
+        )
+      )
+    disagree <- c(
+      disagree,
+      sprintf(
+        "%s (%s, %s): fixture %d, grid %s",
+        nm,
+        bad$lon,
+        bad$lat,
+        bad$area_code,
+        purrr::map_chr(bad$owners, \(o) paste(o, collapse = "/"))
+      )
+    )
+  }
+  # Non-vacuous: the sweep must reach the gridded exports.
+  testthat::expect_gt(length(checked), 10L)
+  testthat::expect_setequal(unlisted, character())
+  testthat::expect_setequal(disagree, character())
+})
+
 testthat::test_that("the mapping-status switch is off, and adds one column", {
   # THE RECONCILIATION whep#545 needs. The pins above say the polity columns are
   # PRESENT; this one says the default set is exactly those four, so the

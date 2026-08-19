@@ -32,6 +32,16 @@
   `build_grass_natural_carbon_inputs()` now names every unmatched natural band
   instead. It warns rather than aborting, so a newer LPJmL still runs.
 
+* **Exported functions now work when the package is loaded but not attached.**
+  With `LazyData: true` the shipped datasets live in the namespace's lazydata
+  environment, which `library(whep)` puts on the search path but package code
+  cannot see by bare name, so calling e.g. `whep::get_polity_geometries()` or
+  `whep::add_polity_code()` from a script without `library(whep)` aborted with
+  `object 'polities' not found`. `.onLoad()` now binds every lazy-loaded
+  dataset into the namespace as a promise, so bare-name references resolve in
+  both states. No published value changes: the bindings are the same objects
+  `whep::<dataset>` returns, and they stay lazy (#641).
+
 * **Every polycell-year is now partitioned into land uses, so a territorial
   quantity can be attributed to a land class instead of being assumed
   agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
