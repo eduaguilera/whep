@@ -486,6 +486,28 @@ test_that(".select_best_source keys on area_code, not periodized name", {
   expect_equal(prod_fmt$value, 100)
 })
 
+test_that("a duplicated (key, source) pair is summed, not counted", {
+  # whep#557: with no `fun.aggregate`, dcast falls back to a row count, and it
+  # applies that to EVERY cell, so one duplicate anywhere turns the whole table
+  # into counts. The two buckets that used to duplicate, 206 and 999, no longer do,
+  # which is why this guard is pinned by a test instead of by a measurement.
+  cbs_raw_all <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "Bucket", 206L, "Wheat", 2511L, "production", 2010L, 244000, "FAOSTAT_FBS_Old", "tonnes",
+    "Bucket", 206L, "Wheat", 2511L, "production", 2010L, 3103000, "FAOSTAT_FBS_Old", "tonnes",
+    "Bucket", 206L, "Maize", 2514L, "production", 2010L, 500, "FAOSTAT_FBS_Old", "tonnes"
+  )
+
+  result <- whep:::.select_best_source(cbs_raw_all)
+  wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
+  maize <- result |> dplyr::filter(item_cbs_code == 2514L)
+
+  expect_equal(nrow(wheat), 1L)
+  expect_equal(wheat$value, 3347000)
+  # The unduplicated key must keep its tonnes, not become its row count (1).
+  expect_equal(maize$value, 500)
+})
+
 
 # -- .cbs_area_labels (whep#580) ----------------------------------------------
 

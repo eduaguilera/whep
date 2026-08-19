@@ -1777,15 +1777,33 @@ build_processing_coefs <- function(
   #   maxima  = 4, 4, 1
   #
   # Those columns are tonnes. A maximum of 4 is impossible. 31,642 duplicated combinations
-  # exist at full range, in areas 206 and 999, so the fallback fired in every build.
+  # existed at full range, in buckets 206 and 999, so the fallback fired in every build.
   #
   # SUM is the right aggregate, established from the data rather than assumed. The duplicates
-  # are one reporting bucket's folded members: `.aggregate_to_polities()` emits one row per
-  # (bucket, polity_name) and `key_cols` deliberately excludes the name -- see the comment
-  # above, which is why that exclusion is correct. Dumped, bucket 999 in 2010 for wheat holds
-  # four distinct territories with production 0 / 244,000 / 0 / 3,103,000. FABIO's
-  # rest-of-world IS the sum of its members, so summing reproduces the bucket. `first` would
-  # keep one member (0, here) and discard the rest.
+  # were one reporting bucket's folded members: `.aggregate_to_polities()` then emitted one row
+  # per (bucket, polity_name), and `key_cols` deliberately excludes the name -- see the comment
+  # above, which is why that exclusion is correct. FABIO's rest-of-world IS the sum of its
+  # members, so summing reproduces the bucket; `first` would keep one member and discard the
+  # rest.
+  #
+  # NEITHER of those two buckets duplicates any more, so the measurement above is history and
+  # not a live diagnosis (whep#557):
+  #
+  #   - 999 stopped because its members are no longer folded into the bucket by default: see
+  #     `.unfold_rest_of_world()`, whose `"all"` default gives each member upstream names its
+  #     own `polity_area_code`. The members upstream names nowhere DO stay on 999, and they
+  #     all share the one aggregate polity `ROW-1850-2025`, so the bucket key still carries a
+  #     single territory. Asserted on `.polity_crosswalk()` in test_polity_folds.R -- not on
+  #     raw `polity_area_crosswalk`, which carries both answers per member and so shows 44
+  #     apparent folds before the choice is made.
+  #   - 206 stopped when whep#563 removed `polity_name` from `.aggregate_to_polities()`'s
+  #     grouping keys, so a bucket folding several live territories (206 is the only one --
+  #     Sudan and South Sudan from 2011, asserted in test_polity_folds.R) now emits one row.
+  #
+  # `fun.aggregate` STAYS regardless, as a guard rather than as a fix for a known duplicate:
+  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket, a re-mapped
+  # item code, one key reported in two units, since `key_cols` excludes `unit` -- would silently
+  # turn every cell of the table into a row count instead of erroring.
   #
   # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
   # zero where there is no observation is a different claim from a missing one. `fill = NA` is
