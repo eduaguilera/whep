@@ -119,10 +119,25 @@
 #'     organic carbon is sequestered (net carbon gain).}
 #' }
 #'
-#' @source Soil carbon-to-nitrogen ratios from the Spain historical SOC
-#'   pipeline coefficient set, consistent with the RothC framework of
-#'   Coleman, K. & Jenkinson, D. S. (1996).
-#'   \doi{10.1007/978-3-642-61094-3_17}.
+#' @source **Undocumented expert parameterisation. There is no published
+#'   source for these five numbers.** They are a cell-for-cell port of the
+#'   Spain historical SOC pipeline's coefficient workbook
+#'   (\code{SOC_coefs.xlsx}, sheet \code{Soil_CN_ratios}), which carries no
+#'   source column and no cell comment, and the packaged
+#'   \code{inst/extdata/balances/soil_cn_ratios.csv} carries none either.
+#'
+#'   This entry previously cited Coleman & Jenkinson's RothC (1996) as the
+#'   framework the values are "consistent with". That attribution has been
+#'   removed: RothC is a carbon-only model and sets no carbon-to-nitrogen
+#'   ratio at all -- \code{\link{calculate_soc_rothc}} returns \code{dpm},
+#'   \code{rpm}, \code{bio}, \code{hum}, \code{iom} and \code{soc_total},
+#'   and no nitrogen anywhere -- so no RothC reference can be a source for
+#'   these numbers. Naming one made an undocumented coefficient set read as
+#'   a sourced one (whep#346).
+#'
+#'   The values move published nitrogen: every soil-carbon stock change is
+#'   divided by one of them to reach mineralized or sequestered nitrogen.
+#'   Replacing this note with a real citation is whep#346 and still open.
 #'
 #' @examples
 #' soil_cn_ratios
