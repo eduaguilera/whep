@@ -560,9 +560,15 @@ build_carbon_balance <- function(
   # distinct combinations rather than running a 5000-year spin-up per
   # combination. At global grain the near-continuous climate/clay values barely
   # dedupe, so the old per-combination trajectory dominated the whole run; the
-  # closed form is the exact point that spin-up converges to (verified identical
-  # to < 1e-9 relative). Models without a wired closed form (RothC, Century)
-  # fall back to the one-trajectory-per-combination path (see #352).
+  # closed form is the exact point that spin-up converges to (see #352).
+  #
+  # All six models have one wired now, so the spin-up below is unreachable in
+  # production. It stays because it is the oracle `test_carbon_balance.R` runs
+  # each closed form against, which is what catches an edited rate constant or
+  # pool structure quietly ceasing to be the fixed point of the model's own
+  # kinetics -- an equality test on the formula alone cannot. The
+  # fall-through stays for the next model added before its closed form is
+  # derived.
   closed <- .cb_closed_form_equilibrium(model, combos)
   if (!is.null(closed)) {
     return(.cb_check_equilibrium(dplyr::mutate(combos, soc_eq_mgc_ha = closed)))

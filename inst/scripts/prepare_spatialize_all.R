@@ -515,6 +515,11 @@ cft_to_pft <- c(
   tif_name <- paste0(crop_name, "_", nutrient, "Application_Rate.tif")
   tif_path <- file.path(fert_dir, paste0("Fertilizer_", crop_name), tif_name)
   if (!file.exists(tif_path)) {
+    # Said out loud, like the harvested-area reader above. A layer that is
+    # simply absent used to leave nothing behind at all: an empty tibble
+    # binds away to nothing, so the output was short by one crop with no
+    # record anywhere that it had been asked for.
+    cli::cli_alert_warning("Missing: {tif_path}")
     return(tibble::tibble())
   }
   r <- terra::rast(tif_path)
@@ -544,6 +549,7 @@ cft_to_pft <- c(
     paste0(crop_name, "_YieldPerHectare.tif")
   )
   if (!file.exists(tif_path)) {
+    cli::cli_alert_warning("Missing: {tif_path}")
     return(tibble::tibble())
   }
   r <- terra::rast(tif_path)
