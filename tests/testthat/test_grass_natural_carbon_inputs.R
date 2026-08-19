@@ -102,7 +102,7 @@ testthat::test_that("grid output has the documented schema and classes", {
   )
 })
 
-testthat::test_that("natural C input sums the natural PFT bands (1-11)", {
+testthat::test_that("natural C input sums the natural PFT bands", {
   out <- whep::build_grass_natural_carbon_inputs(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
@@ -520,5 +520,109 @@ testthat::test_that("a malformed net_c input is rejected by name", {
   testthat::expect_error(
     whep::build_grass_natural_carbon_inputs(data = d),
     "land_use"
+  )
+})
+
+# -- Natural PFT band guard (whep#400) ----------------------------------------
+
+# The three bands LPJmL 6.1.1 added over 5.x, now summed. Real band names, read
+# from the run's pft_npp.nc NamePFT variable.
+.gn_npp_fixture_611 <- function() {
+  dplyr::bind_rows(
+    .gn_npp_fixture(),
+    tibble::tribble(
+      ~lon, ~lat, ~year, ~npft, ~name_pft, ~value,
+      0.25, 0.25, 2000L, 2L,
+      "tropical broadleaved evergreen tree floodtolerant", 700,
+      0.25, 0.25, 2000L, 13L, "C3 graminoid flood tolerant", 200,
+      0.25, 0.25, 2000L, 14L, "Sphagnum moss", 100
+    )
+  )
+}
+
+# A band no LPJmL version writes, standing in for the next version's addition.
+.gn_npp_fixture_future <- function() {
+  dplyr::bind_rows(
+    .gn_npp_fixture(),
+    tibble::tribble(
+      ~lon, ~lat, ~year, ~npft, ~name_pft, ~value,
+      0.25, 0.25, 2000L, 12L, "temperate liana", 250
+    )
+  )
+}
+
+testthat::test_that("the guard is silent on the 6.x natural PFT set", {
+  testthat::expect_silent(
+    whep:::.gn_check_natural_pfts(.gn_npp_fixture_611())
+  )
+})
+
+testthat::test_that("the guard is silent on a subset of the list", {
+  testthat::expect_silent(
+    whep:::.gn_check_natural_pfts(.gn_npp_fixture())
+  )
+})
+
+testthat::test_that("the guard warns on a band no version of the list has", {
+  testthat::expect_warning(
+    whep:::.gn_check_natural_pfts(.gn_npp_fixture_future()),
+    "temperate liana"
+  )
+})
+
+testthat::test_that("the guard counts and names every unlisted band", {
+  w <- testthat::capture_warnings(
+    whep:::.gn_check_natural_pfts(.gn_npp_fixture_future())
+  )
+  testthat::expect_match(w[1], "1 natural PFT band")
+  testthat::expect_match(w[1], "temperate liana", fixed = TRUE)
+})
+
+testthat::test_that("natural bands stop at the first managed band", {
+  testthat::expect_equal(
+    whep:::.gn_natural_bands_present(.gn_npp_fixture()),
+    c(
+      "tropical broadleaved evergreen tree",
+      "temperate needleleaved evergreen tree",
+      "Temperate C3 grass"
+    )
+  )
+})
+
+testthat::test_that("an all-managed file reports no natural bands", {
+  # pft_harvestc.nc carries only managed bands. The guard must stay silent
+  # rather than treating the whole file as unlisted natural vegetation.
+  managed_only <- .gn_npp_fixture() |>
+    dplyr::filter(stringr::str_detect(.data$name_pft, "grassland"))
+  testthat::expect_length(
+    whep:::.gn_natural_bands_present(managed_only),
+    0
+  )
+  testthat::expect_silent(whep:::.gn_check_natural_pfts(managed_only))
+})
+
+testthat::test_that("the three 6.x bands are summed into natural C input", {
+  fixture <- .gn_fixture_data(excreta = FALSE)
+  fixture$npp <- .gn_npp_fixture_611()
+  out <- whep::build_grass_natural_carbon_inputs(
+    resolution = "grid",
+    data = fixture
+  )
+  # Cell A natural: tree 500 + Temp C3 grass 300 + floodtolerant tree 700 +
+  # C3 graminoid 200 + Sphagnum 100 = 1800 gC/m2 = 18.0 MgC/ha. Before the
+  # three were listed this was 8.0.
+  cell_a <- out[out$lon == 0.25 & out$land_use == "natural", ]
+  testthat::expect_equal(cell_a$c_input_mgc_ha_yr, 18.0)
+})
+
+testthat::test_that("all fourteen 6.x natural PFTs are listed", {
+  testthat::expect_length(whep:::.gn_natural_pfts(), 14)
+  purrr::walk(
+    c(
+      "tropical broadleaved evergreen tree floodtolerant",
+      "C3 graminoid flood tolerant",
+      "Sphagnum moss"
+    ),
+    \(nm) testthat::expect_true(nm %in% whep:::.gn_natural_pfts())
   )
 })

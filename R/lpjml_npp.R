@@ -4,8 +4,12 @@
 #
 # CONFIRMED LPJmL FACTS (run inspected; do not re-guess):
 # - pft_npp.nc holds var "NPP" (gC/m2/yr) with dims [lon(720), lat(277),
-#   npft(43), time(109)] and a char var "NamePFT" (43 names). time is ANNUAL,
+#   npft, time] and a char var "NamePFT" (one name per band). time is ANNUAL,
 #   "years since 1901-1-1" (index 1 = 1901); NOT the monthly hydrology axis.
+#   The band COUNT is VERSION-DEPENDENT: 5.x wrote 43 (11 natural + 32 CFT),
+#   6.x writes 46 (14 natural + 32 CFT). Never hardcode it, and never slice
+#   natural PFTs by band position -- select by NAME against
+#   .gn_natural_pfts(), which .gn_check_natural_pfts() guards.
 # - pft_harvestc.nc holds var "harvestc" (gC/m2/yr) with dims [lon, lat,
 #   npft(32), time(109)] and a DIFFERENT NamePFT (32 names, no natural PFTs).
 #   Positional band indices differ between the two files, so callers must join
@@ -13,7 +17,7 @@
 # - The per-PFT values are PER STAND (gC per m2 of the PFT's own stand), not per
 #   grid cell: verified empirically at year 2000 by reconstructing mnpp.nc's
 #   annual total as natfrac*sum(natural pft NPP) + sum(cftfrac*cft NPP) (ratio
-#   0.996-1.001 across sampled land cells; the naive 43-band sum overshoots
+#   0.996-1.001 across sampled land cells; the naive all-band sum overshoots
 #   2-20x). The per-stand value IS the per-hectare-of-that-land-use density used
 #   by build_grass_natural_carbon_inputs().
 # - Run dir from Sys.getenv("WHEP_LPJML_RUN_DIR"); never hardcode a path.
@@ -66,7 +70,8 @@ read_lpjml_npp <- function(
 # -- Private helpers ----------------------------------------------------------
 
 # Logical variable name -> (file, in-file variable) for the per-PFT carbon
-# outputs. NPP carries 43 bands, harvestc 32 (no natural PFTs).
+# outputs. NPP carries 43 bands in 5.x and 46 in 6.x; harvestc carries 32 in
+# both (no natural PFTs), so the two files' band positions never correspond.
 .lpjml_npp_var_map <- function() {
   tibble::tribble(
     ~var, ~file, ~netcdf_var,

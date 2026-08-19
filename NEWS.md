@@ -1,5 +1,37 @@
 # whep (development version)
 
+* **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
+  functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
+  natural-land soil carbon input by ~7%.** The natural-land carbon input selects
+  PFTs by name, and the list was written for 5.x. LPJmL 6.1.1 adds `tropical
+  broadleaved evergreen tree floodtolerant`, `C3 graminoid flood tolerant` and
+  `Sphagnum moss`, so on a 6.x run those three matched nothing and their net
+  primary production was dropped with no error and no warning. Measured on
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` at 2010: the mean natural
+  carbon-input density rises from 6.739 to 7.218 MgC/ha (**+7.12%**), changing
+  33,510 of 58,795 cells, of which 10,835 rise by more than 10%; the largest
+  single-cell change is +16.25 MgC/ha. The excluded share grows over time, from
+  3.31% of natural net primary production in 1901 to 8.92% in 2023, so the old
+  behaviour biased trends as well as levels. The two flood-tolerant types carry
+  most of it (3.33% and 3.39% of natural NPP at 2010); Sphagnum moss is the
+  smallest at 0.58%, though it appears in the most cells.
+
+  Downstream, this raises the carbon input to `build_carbon_balance()` for
+  natural land and therefore its equilibrium SOC, so it moves in the *opposite*
+  direction to the excess-natural-SOC question in #799 — it is a correctness fix
+  to the PFT set, not a calibration change, and #799 still needs its own answer.
+
+  **The pinned default path is not yet affected.** `lpjml-grass-natural-net-c`
+  stores the already-summed natural density, so a caller without a run directory
+  still receives the eleven-band numbers. The pin must be regenerated from a
+  6.x run for the two paths to agree; until then they differ by the ~7% above.
+
+* **A new warning fires when an LPJmL run writes natural PFT bands the list does
+  not cover.** The band selection is a name match, so a future LPJmL adding a
+  PFT would silently drop it exactly as 6.x's three were dropped.
+  `build_grass_natural_carbon_inputs()` now names every unmatched natural band
+  instead. It warns rather than aborting, so a newer LPJmL still runs.
+
 * **Exported functions now work when the package is loaded but not attached.**
   With `LazyData: true` the shipped datasets live in the namespace's lazydata
   environment, which `library(whep)` puts on the search path but package code
