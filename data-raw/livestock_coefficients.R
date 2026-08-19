@@ -905,12 +905,15 @@ parse_geographic_hierarchy <- function(raw) {
 # column names this call and `test_territorial_identity.R` recomputes it, so
 # this table cannot drift from the resolver without the suite failing.
 #
-# Three of the 204 resolve to nothing and keep NA rather than being dropped or
-# guessed at: ATF (French Southern and Antarctic Territories), SGS (South
-# Georgia and the South Sandwich Islands) and WLF (Wallis and Futuna) have no
-# upstream polity at all -- they sit in whep-polities' own
-# `registry_unmapped.csv` as "registry area with no polity family". Proposing
-# one is upstream's call (whep-polities#187), not this script's.
+# All 204 resolve as of the whep-polities 2830fb7 re-sync. Three used to keep NA
+# rather than being dropped or guessed at -- ATF (French Southern and Antarctic
+# Territories), SGS (South Georgia and the South Sandwich Islands) and WLF
+# (Wallis and Futuna) sat in whep-polities' own `registry_unmapped.csv` as
+# "registry area with no polity family", and proposing a polity was upstream's
+# call, not this script's. Upstream made it in whep-polities#187, so the three
+# now carry `ATF-1800-2025`, `SGS-1800-2025` and `WLF-1800-2025`. That is the
+# only cell in this file the re-sync moved, and the equality in
+# `test_territorial_identity.R` is what caught the table going stale.
 add_present_day_polity <- function(hierarchy) {
   if (!requireNamespace("whep", quietly = TRUE)) {
     stop(

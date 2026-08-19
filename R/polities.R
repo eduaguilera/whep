@@ -339,6 +339,40 @@
   )
 }
 
+# Say when a row's polity was resolved AT THE ANCHOR rather than at its own
+# year, instead of reporting it as `"matched"`.
+#
+# The floor below is the honest label for a back-cast VALUE: a pre-anchor row is
+# the anchor year's tonnage walked backwards, so the anchor year's territory is
+# what it describes. What is not honest is the STATUS. `"matched"` is a claim
+# about the year -- "the year fell inside this polity's period" -- and for
+# 12,208 of the 29,415 `(area, year)` cells of 1850-1960 x the crosswalk's 265
+# resolving reporting areas it is false. FAOSTAT area 238's 1850 row reads
+# `ETH-1952-1993`, `matched`, 102 years before that polity began.
+#
+# The floor is applied BEFORE the span check, so `polity_coverage_gaps()` -- the
+# instrument built to audit exactly this -- resolved such a row as 1961 and came
+# back clean: 9,544 of those cells were invisible to it (whep#763).
+#
+# Only the rows the anchor actually moved are marked. A floored row whose anchor
+# polity DOES cover its own year keeps `"matched"`, which is 125 of the 265
+# areas for all 111 back-cast years. `"out_of_span"` outranks this: it says no
+# period covered even the ANCHORED year, which is the stronger statement and the
+# one the diagnostic already reported (2,664 of the 12,208).
+.mark_backcast_anchor_status <- function(map, data_years, rowid_col) {
+  map[data_years, on = rowid_col, "data_year" := i.data_year]
+  map[
+    !is.na(mapping_status) &
+      mapping_status != "out_of_span" &
+      !is.na(polity_start_year) &
+      !is.na(data_year) &
+      data_year < polity_start_year,
+    mapping_status := "backcast_anchor"
+  ]
+  map[, "data_year" := NULL]
+  map
+}
+
 .add_polity_columns_dt <- function(
   data,
   code_col = "area_code",
@@ -544,6 +578,16 @@
         data.table::setkey(map, NULL)
       }
     }
+    map <- .mark_backcast_anchor_status(
+      map,
+      dt[,
+        .(
+          ..whep_polity_rowid = get(rowid_col),
+          data_year = as.numeric(get(year_col))
+        )
+      ],
+      rowid_col
+    )
   } else {
     lookup <- .current_area_lookup(include_unmapped = include_unmapped)
     lookup <- lookup[, c("area_code", base_cols), with = FALSE]
@@ -579,6 +623,34 @@
 #' either the area needs the missing period added to the crosswalk, or the
 #' reporting area outlived (or predates) every polity mapped to it.
 #'
+#' @section The status vocabulary:
+#' `mapping_status` here is a property of resolving one `(area_code, year)`,
+#' **not** the same column as [polity_area_crosswalk]'s, which is a property of
+#' a published crosswalk row (whep#637). The resolver carries the selected
+#' crosswalk row's own status through, and overwrites it wherever the resolution
+#' substituted something for a real period hit:
+#'
+#' - `"matched"` / `"manual"`: the year fell inside the polity's period, and the
+#'   value is the crosswalk row's own provenance, carried through.
+#' - `"backcast_anchor"`: the row is before `backcast_anchor`, so it was
+#'   resolved at the anchor year, and the polity live then is **not** live in
+#'   the row's own year. That polity is still the honest label -- the value is a
+#'   reconstruction on the anchor year's territory -- but the row is no evidence
+#'   the polity existed then, which is exactly what `"matched"` asserts.
+#'   FAOSTAT area 238 reads `ETH-1952-1993` from 1850, 102 years before that
+#'   polity began: `"backcast_anchor"` for 1850-1951, `"matched"` from 1952. A
+#'   pre-anchor row whose anchor polity *does* cover its own year keeps
+#'   `"matched"`.
+#' - `"out_of_span"`: no mapped period covered even the anchored year, so a
+#'   nearest-period stand-in was used.
+#' - `"unmapped"`, or `NA`: no polity at all, carried through from the crosswalk
+#'   or left by an area with no applicable period. `polity_code` is `NA` too.
+#'
+#' `"backcast_anchor"` and `"out_of_span"` exist only here, so a tibble carrying
+#' either is unambiguously this column and not the crosswalk's. The two still
+#' overlap in `"matched"`, `"manual"` and `"unmapped"`, which is whep#637 and is
+#' not resolved here.
+#'
 #' @section Which stand-in is picked:
 #' A period that has **not started yet** is preferred over one that has
 #' already **ended**, and only then is the nearest in years taken. Ranking by
@@ -603,12 +675,14 @@
 #'   default `1961`. Years before it are matched to the polity active in the
 #'   anchor year, because WHEP's pre-anchor series are back-cast onto the
 #'   anchor-year territory rather than reported under their data-year borders.
-#'   Set to `-Inf` to disable and match strictly by data year.
+#'   Such a row reports `mapping_status == "backcast_anchor"` where the anchor
+#'   polity is not live in its own year. Set to `-Inf` to disable and match
+#'   strictly by data year.
 #'
 #' @returns A tibble with added polity metadata columns.
-#' @seealso [polity_coverage_gaps()], which reports the stand-in rows of an
-#'   already-built table, whose published columns no longer carry
-#'   `mapping_status`.
+#' @seealso [polity_coverage_gaps()], which reports the `"out_of_span"` and
+#'   `"backcast_anchor"` rows of an already-built table, whose published columns
+#'   no longer carry `mapping_status`.
 #' @export
 #'
 #' @examples
@@ -648,41 +722,46 @@ add_polity_code <- function(
   tibble::as_tibble(out)
 }
 
-#' Find rows whose polity is a nearest-period stand-in
+#' Find rows attributed to a polity not live in the row's year
 #'
 #' @description
-#' [add_polity_code()] reports a nearest-period stand-in as
-#' `mapping_status == "out_of_span"`, but WHEP's published outputs do not carry
-#' that column: `reporting_polity_code` and `reporting_polity_name` say which
-#' polity a row was attributed to, and nothing says the polity did not exist in
-#' that row's year. This answers that question for a table that has already been
-#' built, so a consumer joining on `reporting_polity_code` can tell a real period
-#' hit from a stand-in without re-deriving the crosswalk.
+#' [add_polity_code()] reports these rows in `mapping_status`, but WHEP's
+#' published outputs do not carry that column: `reporting_polity_code` and
+#' `reporting_polity_name` say which polity a row was attributed to, and nothing
+#' says the polity did not exist in that row's year. This answers that question
+#' for a table that has already been built, so a consumer joining on
+#' `reporting_polity_code` can tell a real period hit from the two kinds of
+#' substitute without re-deriving the crosswalk.
 #'
-#' A stand-in is not an error and the row is not dropped. It means either that
-#' the area needs the missing period added to the crosswalk, or that the
-#' reporting area outlived (or predates) every polity mapped to it, so treat it
-#' as a coverage gap: the polygon, population and period of the returned polity
-#' describe a different year than the value does.
+#' Neither kind is an error and no row is dropped. It means the polygon,
+#' population and period of the returned polity describe a different year than
+#' the value does, so `gap_kind` names which kind a row is:
 #'
-#' The two directions are not the same defect, so `gap_kind` names which one a
-#' row is:
-#'
-#' - `"polity_not_started"`: the polity begins after the row's year. This is
-#'   mostly WHEP's own back-cast convention rather than a hole -- pre-1961
-#'   series are back-cast onto the anchor-year territory, so a Soviet
-#'   republic's 1900 land is attributed to the republic that reports it today.
-#' - `"polity_ended"`: the polity had ended by the row's year, so the value
-#'   covers a territory that entity no longer describes. This is the harder
-#'   case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
-#'   Sudan fold into bucket 206, whose label `SUD-1956-2011` ended at the
-#'   secession, and no live polity means "Sudan and South Sudan".
+#' - `"backcast_anchor"`: the row is before `backcast_anchor` and its polity was
+#'   resolved at the anchor year, which is WHEP's own back-cast convention --
+#'   pre-1961 series are reconstructions on the anchor year's territory, so a
+#'   Soviet republic's 1900 land is booked to the republic that reports it
+#'   today. The polity was matched at the anchor and simply had not begun by the
+#'   row's own year.
+#' - `"polity_not_started"`: no mapped period covered even the anchored year and
+#'   the stand-in taken begins after it.
+#' - `"polity_ended"`: the polity had ended, so the value covers a territory
+#'   that entity no longer describes. This is the harder case, and the one
+#'   whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
+#'   bucket 206, whose label `SUD-1956-2011` ended at the secession, and no live
+#'   polity means "Sudan and South Sudan".
 #'
 #' `gap_kind` is not derivable from the returned columns, which is why it is
-#' returned rather than left to the caller. The comparison is against the year
-#' the resolver actually matched on, which the back-cast anchor floors at
-#' `backcast_anchor`, so a pre-anchor row is classified as the anchor year it
-#' was resolved as rather than as the year it carries.
+#' returned rather than left to the caller. `"backcast_anchor"` is not visible
+#' in the years at all -- the resolver matched a real period, at the anchor --
+#' and the direction of the other two is read at the year the resolver actually
+#' matched on, which the back-cast anchor floors at `backcast_anchor`, so a
+#' pre-anchor row is classified as the anchor year it was resolved as rather
+#' than as the year it carries.
+#'
+#' Measured on a real full-range `get_primary_production()`: 2,301 `(area,
+#' year)` pairs / 7,247 rows are stand-ins, and the back-cast class adds 9,544
+#' pairs the floor previously hid from this function entirely (whep#763).
 #'
 #' The resolution here is the same one the builds use, including the back-cast
 #' anchor, so it reports what the table actually got rather than a second
@@ -695,16 +774,17 @@ add_polity_code <- function(
 #' @param code_column Name of the column holding numeric area codes.
 #' @param year_column Name of the column holding years. Set to `NULL`, or leave
 #'   it absent from `table`, to use the current/default mapping, which has no
-#'   stand-ins by construction.
+#'   gaps by construction.
 #' @param backcast_anchor First year of reported (non-back-cast) FAOSTAT data;
 #'   passed to the same resolution [add_polity_code()] documents.
 #'
-#' @returns A tibble with one row per `(area_code, year)` resolved by a
-#'   stand-in, ordered by area code and year, carrying `area_code`, `year`,
-#'   `polity_code`, `polity_name`, `polity_start_year`, `polity_end_year`,
-#'   `gap_kind` (`"polity_not_started"` or `"polity_ended"`) and `n_rows`, the
-#'   number of rows of `table` that pair carries. Zero rows means every row of
-#'   `table` landed inside its polity's period, which is the intended state.
+#' @returns A tibble with one row per reported `(area_code, year)`, ordered by
+#'   area code and year, carrying `area_code`, `year`, `polity_code`,
+#'   `polity_name`, `polity_start_year`, `polity_end_year`, `gap_kind`
+#'   (`"backcast_anchor"`, `"polity_not_started"` or `"polity_ended"`) and
+#'   `n_rows`, the number of rows of `table` that pair carries. Zero rows means
+#'   every row of `table` landed inside its polity's period, which is the
+#'   intended state.
 #'
 #' @seealso [add_polity_code()] for the resolution itself, and
 #'   [polity_bucket_coverage()] for the related question of which buckets sum
@@ -712,9 +792,15 @@ add_polity_code <- function(
 #' @export
 #' @examples
 #' # FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
-#' # after `SUD-1956-2011` ends, so post-2011 rows are stand-ins.
+#' # after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's
+#' # 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is
+#' # the polity live at the anchor, 102 years later.
 #' polity_coverage_gaps(
-#'   tibble::tibble(area_code = 206L, year = c(2005L, 2015L), value = 1)
+#'   tibble::tibble(
+#'     area_code = c(206L, 206L, 238L),
+#'     year = c(2005L, 2015L, 1850L),
+#'     value = 1
+#'   )
 #' )
 polity_coverage_gaps <- function(
   table,
@@ -749,7 +835,7 @@ polity_coverage_gaps <- function(
   }
 
   resolved[
-    !is.na(mapping_status) & mapping_status == "out_of_span",
+    !is.na(mapping_status) & mapping_status %in% .polity_gap_statuses(),
     .(n_rows = .N),
     by = .(
       area_code,
@@ -757,7 +843,8 @@ polity_coverage_gaps <- function(
       polity_code,
       polity_name,
       polity_start_year,
-      polity_end_year
+      polity_end_year,
+      mapping_status
     )
   ] |>
     tibble::as_tibble() |>
@@ -765,35 +852,71 @@ polity_coverage_gaps <- function(
       gap_kind = .polity_gap_kind(
         .data$year,
         .data$polity_start_year,
-        backcast_anchor
+        backcast_anchor,
+        .data$mapping_status
       ),
       .before = "n_rows"
     ) |>
+    dplyr::select(-"mapping_status") |>
     dplyr::arrange(.data$area_code, .data$year)
 }
 
-# Which side of its polity's period a stand-in fell on.
+# The two resolutions that attribute a row to a polity not live in its year:
+# the nearest-period stand-in, and the back-cast anchor. Named once, because
+# `.polity_validity_gaps()` selects on the classes and a literal there would
+# silently stop tracking this one.
+.polity_gap_statuses <- function() {
+  c("out_of_span", "backcast_anchor")
+}
+
+# Which class of gap a reported row is.
 #
-# The comparison is against the year the resolver matched on, not the row's
-# year: `.add_polity_columns_dt()` floors the lookup year at `backcast_anchor`,
-# so a pre-anchor row is matched as the anchor year and could land on a polity
-# that had already ENDED by then, which comparing the raw year would call
+# `"backcast_anchor"` is read off the status rather than off the years, and has
+# to be: the whole point of that class is that the resolver matched a real
+# period AT THE ANCHOR, so no comparison the caller can write on the returned
+# columns separates it from a row that matched at its own year. Its direction
+# is not in question -- a period covering the anchor that does not cover an
+# earlier row's year can only start after it -- so naming the direction again
+# would say nothing, while naming the CAUSE distinguishes WHEP's own back-cast
+# convention from a hole in the crosswalk.
+#
+# For the stand-ins the direction is the question, and the comparison is
+# against the year the resolver matched on, not the row's year:
+# `.add_polity_columns_dt()` floors the lookup year at `backcast_anchor`, so a
+# pre-anchor row is matched as the anchor year and could land on a polity that
+# had already ENDED by then, which comparing the raw year would call
 # `"polity_not_started"`. The two answers used to differ for 165 rows of a real
 # `get_primary_production()`, areas 178 and 273; whep#705 made the stand-in
-# prefer a not-yet-started period, so on the shipped snapshot they now agree
-# for every (area, year) pair of the crosswalk. Keep the matched year anyway --
-# it is what the resolver decided on, and a future crosswalk with an area whose
-# only periods all lie behind the anchor brings the divergence back.
+# prefer a not-yet-started period, so on the
+# shipped snapshot they now agree for every (area, year) pair of the crosswalk.
+# Keep the matched year anyway -- it is what the resolver decided on, and a
+# future crosswalk with an area whose only periods all lie behind the anchor
+# brings the divergence back.
 #
 # A polity with no published start year cannot be one this row precedes, so it
 # is reported as ended: `mapping_status == "out_of_span"` already established
 # that the row is outside the period in one direction or the other.
-.polity_gap_kind <- function(year, polity_start_year, backcast_anchor) {
+.polity_gap_kind <- function(
+  year,
+  polity_start_year,
+  backcast_anchor,
+  mapping_status = NA_character_
+) {
   match_year <- pmax(as.numeric(year), as.numeric(backcast_anchor))
   not_started <- !is.na(polity_start_year) &
     !is.na(match_year) &
     match_year < polity_start_year
-  data.table::fifelse(not_started, "polity_not_started", "polity_ended")
+  # `%in%` rather than `==`, so a missing status is FALSE instead of NA, and
+  # `rep_len()` so the default scalar widens to the vector `fcase()` needs.
+  anchored <- rep_len(
+    mapping_status %in% "backcast_anchor",
+    length(not_started)
+  )
+  data.table::fcase(
+    anchored    , "backcast_anchor"    ,
+    not_started , "polity_not_started" ,
+    default = "polity_ended"
+  )
 }
 
 # ---- ISO3 -> numeric area_code -----------------------------------------
@@ -845,6 +968,11 @@ polity_coverage_gaps <- function(
 # - `"flag"`: one logical `reporting_polity_out_of_span` /
 #   `partner_polity_out_of_span`, the only part of the status a consumer can act
 #   on, leaving `"matched"`/`"manual"` provenance to `polity_area_crosswalk`.
+#   It stays STRICTLY `"out_of_span"`: whep#763 added `"backcast_anchor"` to the
+#   vocabulary, and folding it into a column named after the other class would
+#   move the values of an already-published (if opt-in) column while making
+#   the two indistinguishable again, which is the defect that issue is about.
+#   `"status"` and `polity_coverage_gaps()` both carry the new class.
 # - `"status"`: the full `reporting_mapping_status` / `partner_mapping_status`,
 #   which loses no information.
 #
@@ -1304,13 +1432,32 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @keywords internal
 #' @noRd
 .area_year_polity_conflicts <- function(crosswalk = NULL) {
-  cw <- if (is.null(crosswalk)) whep::polity_area_crosswalk else crosswalk
+  # THE RESOLVED CROSSWALK, NOT THE SHIPPED TABLE, and since whep#717 those are
+  # different questions. The shipped table carries BOTH answers for a
+  # Rest-of-World member -- the bucket's `ROW-1850-2025` over 1850-2025 and, for
+  # the 31 upstream names, that member's own periods -- and
+  # `.unfold_rest_of_world()` keeps exactly one per area. Read raw, every one of
+  # those pairs looks like an overlap; read as `add_polity_code()` reads it,
+  # which is what a published value rests on, it is a partition again. This
+  # matches `.polity_join_conflicts()`, which has always read the resolved
+  # table.
+  cw <- crosswalk %||% .polity_crosswalk(include_unmapped = TRUE)
   cw <- as.data.frame(cw)
   keep <- !is.na(cw$area_code) &
     !is.na(cw$polity_code) &
     !is.na(cw$polity_start_year) &
     !is.na(cw$polity_end_year)
   cw <- cw[keep, ]
+  # DA-24's other half -- that an interval nothing succeeds also covers
+  # its terminal year -- is deliberately NOT applied here: this detector's
+  # remit is the crosswalk's DECLARED succession boundaries. The reading
+  # the resolver actually joins on is `.polity_join_conflicts()`, which
+  # widens the open end. On polities 751 / `0e52f1ff` (596 crosswalk rows,
+  # 262 widened by that rule) the two readings DISAGREE: declared spans
+  # report 0 ambiguous `(area_code, year)` pairs and the widened spans
+  # report 1 -- area 7 at 1975, `AGO-1975-2025` against `ANG-1905-1975`,
+  # which is #683. An earlier note here claimed the two agreed; that was
+  # measured on a snapshot since superseded.
   .area_year_span_conflicts(data.frame(
     area_code = cw$area_code,
     polity_code = cw$polity_code,
@@ -1426,8 +1573,14 @@ get_polity_geometries <- function(polity_codes = NULL) {
 }
 
 # One row per (area, year) a period covers, then the conflict summary.
-# `span_end` is EXCLUSIVE, so [1920, 1947) covers 1920:1946 -- getting that
-# wrong would report a spurious conflict at every boundary.
+# `span_end` is EXCLUSIVE at a succession, so [1920, 1947) covers 1920:1946 --
+# getting that wrong would report a spurious conflict at every boundary. DA-24's
+# other half, that an interval nothing succeeds also covers its terminal year,
+# is deliberately NOT applied here: this is an overlap detector, and its remit
+# is the shipped crosswalk's succession boundaries. Measured on that crosswalk,
+# adding the open end would change nothing -- 190 intervals are open and 0 areas
+# resolve to more than one polity on the open end -- so the two readings agree
+# today.
 .area_year_span_conflicts <- function(spans) {
   spans <- unique(spans[!is.na(spans$span_start) & !is.na(spans$span_end), ])
   if (nrow(spans) == 0L) {
@@ -1673,8 +1826,8 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
   #
   # `polities` is an sf data frame and sf is only suggested, so the attribute
   # columns are taken by name rather than through `sf::st_drop_geometry()`.
-  alive <- is.na(polities$wiki_status) |
-    !polities$wiki_status %in% c("retired", "superseded")
+  # `.polity_is_live()` is the package's one reading of which rows are dead.
+  alive <- .polity_is_live(polities$wiki_status)
   pol <- data.frame(
     polity_code = polities$polity_code[alive],
     start_year = polities$start_year[alive],

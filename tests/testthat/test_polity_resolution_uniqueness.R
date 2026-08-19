@@ -88,10 +88,53 @@ testthat::test_that("the shipped crosswalk resolves every area-year uniquely", {
   #
   # Any regression here means a NEW overlap, so the offending code pairs are
   # asserted before the count: a bare `nrow == 0` failure would not say which.
-  out <- whep:::.area_year_polity_conflicts()
+  #
+  # ASSERTED IN EVERY MODE, because since whep#717 the shipped table holds two
+  # ALTERNATIVE answers for a Rest-of-World member -- `ROW-1850-2025` over
+  # 1850-2025 and, where upstream names them, that member's own periods -- and
+  # `.unfold_rest_of_world()` keeps one per area. What must partition time is
+  # the table the resolver reads, once per mode; the raw table is a union of
+  # three partitions and overlaps by construction (37 pairs, 4,111 area-years).
+  # Reading the raw table here would therefore be asserting the wrong thing in
+  # the loudest possible way.
+  for (mode in c("all", "none", "cbs_reporters")) {
+    out <- withr::with_options(
+      list(whep.unfold_rest_of_world = mode),
+      suppressWarnings(whep:::.area_year_polity_conflicts())
+    )
+    testthat::expect_equal(unique(out$polity_codes), character(0))
+    testthat::expect_equal(nrow(out), 0L)
+  }
+})
 
-  testthat::expect_equal(unique(out$polity_codes), character(0))
-  testthat::expect_equal(nrow(out), 0L)
+testthat::test_that("the raw crosswalk holds one answer per area and mode", {
+  # The other half of the test above: an area may carry two answers ONLY when
+  # they belong to different `.unfold_rest_of_world()` modes, and the shipped
+  # table must not smuggle a genuine overlap in behind that licence. So every
+  # overlapping pair in the raw table has to be a fold row against the promoted
+  # rows of the SAME area -- never two fold rows, never two promoted ones, and
+  # never an area outside bucket 999.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  out <- whep:::.area_year_polity_conflicts(cw)
+
+  testthat::expect_gt(nrow(out), 0L)
+  sources <- lapply(strsplit(out$polity_codes, ", ", fixed = TRUE), \(codes) {
+    sort(unique(cw$mapping_source[cw$polity_code %in% codes]))
+  })
+  testthat::expect_true(all(vapply(
+    sources,
+    \(s) identical(s, c("fabio_row_fold", "fabio_row_promoted")),
+    logical(1)
+  )))
+  conflicting_areas <- unique(out$area_code)
+  testthat::expect_true(all(
+    cw$fabio_code[cw$area_code %in% conflicting_areas] == 999L
+  ))
+  # And exactly the areas the promotion gives an identity to.
+  promoted <- sort(unique(
+    cw$area_code[cw$mapping_source == "fabio_row_promoted"]
+  ))
+  testthat::expect_setequal(conflicting_areas, promoted)
 })
 
 # THE CONTRACT ------------------------------------------------------------------

@@ -1,5 +1,860 @@
 # whep (development version)
 
+* **Every polycell-year is now partitioned into land uses, so a territorial
+  quantity can be attributed to a land class instead of being assumed
+  agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
+  polycell's `land_area_ha` into `cropland`, `grassland`, `urban`, `natural` and
+  `unclassified`. The *level* of each agricultural class comes from the
+  statistical record, which is authoritative; LUH2 supplies only the
+  within-country spatial pattern, taken from its `fraction` (LUH2's share of the
+  whole cell) so the classes tile the polycell's measured land by construction
+  rather than to a tolerance. `level_source` and `pattern_source` are separate
+  columns and their per-polycell difference is emitted as
+  `statistical_pattern_disagreement_ha` rather than absorbed into `natural`;
+  that column is the criterion for retiring LUH2 as a source. Inland water and
+  ice are never land uses.
+
+  Two conventions are worth knowing. FAO counts temporary meadows and pastures
+  (Land Use item 6633) inside arable land while LUH2 books that ground as
+  grassland, so that component keeps its FAO class but is spread over the LUH2
+  grassland pattern. And because FAOSTAT land use starts in 1961, the pasture
+  level is back-cast before then by carrying the FAO 1961 level on LUH2's own
+  national trend, mirroring what `get_arable_permanent_land()` already does for
+  cropland, so the gridded grassland series does not step at the splice. A
+  back-cast row is labelled in `level_source` and excluded from the
+  statistical-versus-pattern diagnostic, since it would otherwise measure LUH2
+  against itself.
+
+  A national total spread by the LUH2 pattern can give a polycell more
+  agricultural land than it has, driven by countries where FAO and LUH2 disagree
+  about how much land is permanent pasture. Measured on the function itself at
+  2020: 63.50 Mha, 1.33% of the anchored agricultural area, of which Saudi
+  Arabia is 35.10 Mha and Sudan (former) 14.20 Mha. `overfull_method` selects
+  the treatment and is recorded in `method_overfull`. `"spillover"` (default)
+  places the excess on same-country neighbours, widening the search ring until
+  it is absorbed and taking non-forested natural land before forest: at 2020 it
+  places 63.45 Mha of it across 3,878 receiving polycells, at a median ring of 2
+  and a maximum of 22, and names the remaining 42,765 ha in
+  `unplaceable_statistical_ha`. A neighbour can only receive a class it has a
+  row for, so land the pattern classified nowhere is reported rather than
+  credited to a row that does not exist. `"cap"` caps pro rata and leaves the
+  whole 63.50 Mha in `unplaceable_statistical_ha`. The two are alternatives,
+  never fallbacks, and both close the same ledger: 4,716.99 + 63.50 =
+  4,780.44 + 0.04 Mha of anchored area in.
+
+  On a real 2020 build the five classes sum to each polycell's `land_area_ha`
+  to a maximum relative deviation of 1.7e-10 over 73,873 polycells, with none
+  off by more than 1e-6. Global class areas come out at natural 7,985.3 Mha,
+  grassland 3,225.3, cropland 1,565.7, urban 77.9 and unclassified 71.2.
+
+  No published value changes: this adds a producer and does not alter any
+  existing output. The ledger anchors grassland on FAO item 6655 by passing
+  `source = "faostat_pasture"` explicitly, which differs from
+  `build_grassland_land_extension()`'s own `"luh2"` default; that divergence is
+  tracked in #759 and deliberately not resolved here, because three consumers
+  rely on the current default and one of them is this ledger's own cropland
+  anchor.
+
+* **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
+  intersection; it reads the polycell support.** whep#776 built a second answer
+  to a question whep#619 had already answered better: `.polity_cell_cover()`
+  ran `terra::extract(exact = TRUE)` over every polity polygon, where
+  `read_polycell_support()` is the same intersection measured geodesically with
+  `sf::st_area()` on s2, keyed on each polity's validity interval, conserving by
+  construction, and unable to give one cell to two overlapping polities at once.
+  The rasteriser, its grid template, its lon/lat lookup and the `sf`/`terra`
+  package assertion are all gone; this path now touches neither package. The
+  weight is `polity_area_ha`, the polity's territory in the cell, renormalised
+  to one per cell exactly as before — not `land_area_ha`, because
+  `build_polycell_support()` apportions inland water pro rata by
+  `polity_area_ha`, so within a cell the water cancels in that renormalisation
+  except where its cap bites, and there 1,502 polycells covering 62.4 Mha
+  (Canada on the Great Lakes and Hudson Bay, the USSR on the Caspian and Arctic
+  shores) carry `land_area_ha == 0` and would lose their claim on the cell
+  outright (whep#800).
+
+  **No published value moves on this commit**, because
+  `land_method = "present_day"` is still the default and the
+  `"historical_polity"` path reads the `historical-land-areas` pin rather than
+  recomputing. What moves is what `data-raw/historical_land_areas.R` now
+  produces, and the pin has to be regenerated and re-uploaded for any of it to
+  reach a user. Regenerated over 1850-1961: 18,922 rows / 215 buckets becomes
+  17,187 / 198, global cropland −0.007% at 1850, −0.004% at 1900, −0.108% at
+  1950 and −0.440% at 1961, and Ethiopia is unchanged to four decimals at every
+  checkpoint. 84% of shared bucket-years move by less than 0.1% and 87% by less
+  than 1%. The large movers are territories the old route was **halving**: an
+  aggregate's polygon overlaps its members', so a cell claimed by both was split
+  between them, and Belgium came out at 0.567 Mha of 1961 cropland instead of
+  1.015, Luxembourg at 0.037 instead of 0.063, New Caledonia at exactly half and
+  American Samoa at 51%.
+
+  **The loss of coverage is the other side of that, and it is the part to
+  review.** `build_polycell_support()` excludes `polity_type == "aggregate"`,
+  because the support must be a partition and an aggregate's polygon overlaps
+  its members'. Nine reporting buckets whose only pre-1962 territory is such an
+  aggregate therefore drop out — Belgium-Luxembourg, Yemen, the Netherlands
+  Antilles and the six "Other" residual regions, together 2.04 Mha of 1961
+  cropland as the old route measured it — and **Viet Nam keeps 1886-1953
+  unchanged but loses 1954-1961**, the span its combined-reporting entity
+  covers. The other eight (Cayman, Gibraltar, Mayotte, Anguilla, Turks and
+  Caicos, Wallis and Futuna, South Georgia, the French Southern Territories,
+  0.001 Mha between them) carry a polygon in `polities` but no row in the
+  *published* polycell pin, which predates the 2026-08-13 polity ingest; a
+  refreshed polycell pin restores those. `build_historical_land_areas()` warns
+  with the codes and separates the two causes, so neither loss is silent.
+
+* **The milk FAOSTAT reports as churned into butter is no longer counted as
+  milk eaten.** `cb_processing` gained the one dairy pathway it lacked,
+  "Milk - Excluding Butter" to "Butter, Ghee". Without it, item 2848 carried a
+  `processing` destiny with nowhere to go, so
+  `.cbs_redistribute_notprocessed()` split that mass pro-rata across food,
+  feed, other uses and export and deleted the `processing` row. The current
+  behaviour was not an omission but a claim about diets: that 198 Mt of milk
+  a year is drunk as milk (#757).
+
+  **Published values move, from 2010 onwards only.** The old Food Balances do
+  not report a `processing` destiny for milk at all — 1.0 Mt over 2010-2013
+  against the new series' 837.5 Mt — so no year before 2010 changes. World
+  2010 across the 180 areas shared with the `faostat-fbs-new` pin, Mt, WHEP
+  before to WHEP after against FAOSTAT: milk food 649.1 to 497.3 against
+  497.2; feed 74.3 to 60.6 against 60.6; export 120.6 to 89.0 against 89.0;
+  `processing` 0.0 to 198.2 against 198.5. Milk food protein falls by 5.0 Mt,
+  which is the whole of the milk discrepancy reported in #500 section 5.
+  Butter is unchanged, production 9.27 Mt against FAOSTAT's 9.37. The
+  remaining 3.2% gap in milk domestic supply is the dropped
+  losses/residuals/tourist renormalisation of #412, which this does not touch.
+
+  The fraction is 0.045, the median "Butter of Cow Milk" extraction rate over
+  the 69 countries reporting one in FAO (1997), *Technical Conversion Factors
+  for Agricultural Commodities* (range 3.3-7.3%). Per-area calibration lifts
+  it to an effective 0.0468 for 2010, against the 0.047 the FBS itself implies
+  (global butter production over milk processing, 0.044-0.047 across
+  2010-2019). Every country reporting butter production also reports milk
+  processing, and none reports butter without it.
+
+  `.cbs_add_processed()` gained `.resolve_processed_production()`, because
+  butter is the first processing output outside the "Crop products" group,
+  whose read production is dropped wholesale on the grounds that the pathway
+  always replaces it. For butter the pathway is silent before 2010, so a
+  positive pathway estimate now supersedes the read production and a zero or
+  absent one leaves it standing. Without that distinction the trace of milk
+  processing the old FBS records in some areas emits an empty butter row that
+  cancels the observed one, taking world 2000 butter production from 7.378 to
+  3.527 Mt.
+
+  **Items other than milk still lose their processing destiny.** Sugar (Raw
+  Equivalent), animal fats, coconut oil and 13 smaller items have no pathway
+  either, and roughly 17 Mt a year is still redistributed onto food and feed:
+  2010 coconut oil food is 58% above FAOSTAT's, ricebran oil 45% and
+  cottonseed oil 15%. Those carry almost no protein, so the nourishment axis
+  is largely unaffected, but the mass accounting is not. That residue is
+  unchanged here.
+
+* **The polycell is now WHEP's spatial support unit, and it carries a measured
+  territory instead of a whole grid cell.** `build_polycell_support()` returns
+  one row per 0.5-degree cell intersected with a polity over that polity's
+  validity interval, with the territory decomposed into
+  `polity_area_ha = land_area_ha + inland_water_ha + ice_area_ha`, all geodesic
+  from a spherical (`s2`) intersection of the polity polygons. Aggregating
+  polycells to a polity changes no absolute value and no quantity crosses a
+  border it does not belong to, which neither of the two conventions it
+  replaces could offer: centroid assignment gave a whole border cell to one
+  polity, and the fractional crosswalk multiplied a valid partition of the land
+  by the **whole cell's** area. That last defect over-counted the global land
+  base by **11.0%** -- 14.3195 Gha of whole cells against 12.9931 Gha of LUH2
+  terrestrial area -- and it is the mechanism behind the inflated per-hectare
+  deposition rates. New: `build_polycell_support()`, `expand_polycell_years()`,
+  `read_polycell_support()`, `read_glwd_water()`, `read_glaciated_areas()`,
+  `read_luh2_terrestrial()` and `polycell_example_geometries()`.
+  * **Four definitions of "land" are live and they disagree by up to 10%**, so
+    a global area is only interpretable next to the one it was measured on. At
+    2015: whole 0.5-degree cells **14.3195 Gha**, HaNi's own land mask
+    **13.5977 Gha**, the union of the live polity polygons **13.4267 Gha**,
+    LUH2 terrestrial `(1 - icwtr) * carea` **12.9931 Gha**. The support table's
+    territory is the third, but *summing* `polity_area_ha` does not reproduce
+    it: the union is unique ground, while a sum counts shared ground once per
+    claiming polity, so the sum at 2015 is **13.4599 Gha**, above the union by
+    the **0.0332 Gha** two live polities both claim. The fourth is a
+    validation layer whose disagreement is emitted in the `"unassigned"`
+    attribute and never silently reconciled; the first is the convention
+    being replaced. A fifth mask (the
+    GLWD water layer's CRU mask, 67,420 cells) is reconciled in
+    `"water_unmatched"` rather than joined away. Re-derivable with
+    `inst/scripts/diagnose_polycell_support.R`; the polygon row moves with the
+    polity vintage and is measured by `inst/scripts/reconcile_polity_areas.R`.
+  * **`ice_area_ha` does not vary historically.** It comes from
+    `ne_10m_glaciated_areas`, a coarse present-day snapshot, so a historical
+    run carries today's ice extent and land that lay under ice in 1850 is
+    credited to `land_area_ha`. That is accepted **only** because ice is a
+    reporting category and not a driver: nothing divides by `ice_area_ha` or
+    drives a flux with it. If ice ever becomes a driver the source has to be
+    reopened. Inland water comes from the GLWD lakes-and-rivers layer at
+    30 arcmin (Ostberg et al. 2023,
+    <https://doi.org/10.5194/gmd-16-3375-2023>), not from
+    `ne_10m_lakes`, which carries roughly half of global inland water and omits
+    the Caspian.
+  * **The table keys on `polity_code` and nothing else.** `area_code` rides
+    along as a label. `polity_area_crosswalk` folds 505 polity codes into 201
+    reporting buckets, 113 of which hold more than one polity and one of which
+    (206) holds Sudan and South Sudan simultaneously, so a table whose purpose
+    is correct territorial attribution is not keyed on it. Consumers convert at
+    their own boundary, and **that conversion is where the lossy fold
+    happens** -- visible at the consumer rather than hidden in the support.
+    `build_n_deposition()` refuses an unconverted support instead of converting
+    one silently.
+  * The default grain is interval-keyed, one row per polycell per interval,
+    because no area column varies by year; `expand_polycell_years()` gives the
+    per-year view on demand. `start_year` is inclusive and `end_year` is
+    **exclusive at a succession** but **inclusive at the open end**, so a
+    handover year resolves to the successor alone and the current year still
+    resolves to the polity nothing succeeds.
+  * **A repeated polycell key now aborts instead of losing territory in
+    silence.** The interval split reads the next breakpoint with
+    `dplyr::lead()`, which is the next breakpoint only while
+    `(cell_id, polity_code, start_year, end_year)` is unique. Two rows sharing
+    it interleave, every second row comes back with `end_year == start_year`,
+    and an empty interval resolves to no year at all: measured on a two-piece
+    fixture, 70 of a polycell's 100 ha resolved to nothing at every year of its
+    life, with no error, no warning and every conservation check still passing.
+    `build_polycell_support()` now aborts with class
+    `"whep_pcs_repeated_key"`, naming the count and up to three offending keys.
+    It does not sum the duplicates: a repeated key means the geometry table is
+    not one row per polity interval, and repairing the arithmetic would leave
+    the fan-out that produced it invisible. **No published value changes**: the
+    shipped 753-row polity table repeats no
+    `(polity_code, start_year, end_year)` among the 666 rows that get clipped,
+    so no production build reaches the guard, and any input that did not carry
+    a repeated key returns exactly the table it returned before.
+
+* **Atmospheric deposition is now split as a mass over territory, and its two
+  land definitions are separated.** `build_n_deposition()` splits each cell's
+  HaNi mass across the polities holding the cell in proportion to
+  `polity_area_ha` (`split = "auto"` takes it when the support carries it and
+  the old `polity_frac` otherwise; either can be demanded explicitly, and a
+  demand that cannot be met aborts), then decomposes each polity's share over
+  land, inland water and ice (`categories = "auto"`). Both choices are
+  recorded in `method_polity_split` and `method_area_split`, so a table's
+  split is readable from the table.
+  * **WHEP's territory governs *placement*; HaNi's land mask governs the
+    *total*.** The mass placed is HaNi's block sum, and HaNi is referenced to
+    the whole 5 arcmin cell inside a land-masked domain whose mask is a third
+    land definition at 13.5977 Gha. Nothing re-references the mass to WHEP's
+    land: forming a rate on the whole cell and multiplying by `land_area_ha`
+    would shed about 9% of the source mass, and re-referencing to HaNi's own
+    mask would move the global total by about 4.5%. A global sum out of this
+    function is therefore HaNi's total redistributed onto WHEP's territory,
+    conserved exactly against the source (34.77 Tg NHx in 2014). Source: Tian
+    et al. 2022, <https://doi.org/10.5194/essd-14-4551-2022>.
+  * **Deposition scope is selectable and defaults to the whole territory.**
+    `build_n_inputs(data = list(deposition_scope = ))` takes `"territory"`
+    (default: land plus inland water plus ice) or `"land"`, recorded in
+    `method_deposition_scope`. The default is a scientific choice, not a
+    conservative one: nitrogen deposited on a lake or a glacier still drives
+    indirect N2O and still reaches the eutrophication pathway, so restricting
+    the ledger to the terrestrial share would discard 0.89 Tg N of real flux
+    that the impact terms have to account for. `"land"` remains available for
+    the purposes that want it and aborts if the support cannot be decomposed,
+    rather than silently returning the whole territory. Under the default the
+    ledger output is bit-identical to before the split.
+  * **Known limitation, not a rounding error:** **eight** reporting areas the
+    deployed crosswalk carries -- 61 Equatorial Guinea, 153 New Caledonia, 154
+    North Macedonia, 209 Eswatini, 212 Syria, 299 Palestine, 276 Sudan and 277
+    South Sudan -- receive no deposition through the polycell path. The first
+    six fold onto `ROW-1850-2025` (`polity_area_code` 999, `fabio_row_fold`)
+    while their own `GNQ-`, `NCL-`, `MKD-`, `SWZ-`, `SYR-` and `PSE-` codes
+    resolve onto that same bucket 999 through the `fabio_row_promoted` rows
+    added in #785, so their territory is folded into Rest of World rather than
+    dropped: measured on this snapshot, `GNQ-1968-2025` builds 18 polycells
+    (2,702,545 ha) and `MKD-1991-2025` 21 (2,539,428 ha), every row stamped
+    `area_code` 999. Before #785 these codes carried no crosswalk row and were
+    dropped outright, so the territory is now retained but still not attributed
+    to the reporting area. Sudan and South Sudan do resolve, but both onto 206,
+    Sudan (former), so neither 276 nor 277 is reachable on its own. **The gap is
+    identity, not extent**: of the six with a directly comparable official
+    area, all sit within 3.7% of it (Syria +0.90%, North Macedonia -1.23%,
+    Eswatini -1.30%, New Caledonia +1.17%, Palestine +3.22%, Equatorial Guinea
+    -3.65%). **Fiji is no longer among them**: since the polities refresh in
+    #662 the crosswalk maps area 66 onto `FJI-1800-2025` through
+    `upstream_map`, and the polycell build returns 60 polycells holding
+    1,871,003 ha, all measured on `s2`, reproducing the polity's own polygon
+    area exactly. How this ranks against the ledger's other open terms has not
+    been measured, so no claim is made about it.
+
+* **Migrating a consumer onto the polycell: what to change and what moved.**
+  The transitional shim that let `build_polycell_support()` masquerade as the
+  old crosswalk (a `polity_frac` column plus padding rows for cells the
+  intersection did not reproduce) is **gone**. A consumer that used to
+  multiply a rate by `cell_area_ha * polity_frac` now multiplies it by
+  `polity_area_ha`, or by `land_area_ha` when the quantity is genuinely
+  terrestrial, and converts `polity_code` to its own reporting vocabulary
+  before joining. Migrated here: deposition (`build_n_deposition()`), the
+  synthetic-N grid split, the carbon path (`build_carbon_balance()` and its
+  land inputs) and the compartment keying in `spatialize()` /
+  `spatialize_livestock()`, which now **abort** on a support carrying no
+  polity share instead of defaulting `cell_area_frac = 1` and handing a border
+  cell wholly to one polity.
+  * **Measured movement, at polity grain**, is entirely in the deposition
+    input term: `n_input_full_t` -0.504%, `n_balance_t` -2.252%,
+    `surplus_t` -1.055%, `total_gwp_co2e_kg` -0.137%. Of the -678,612.5 t N,
+    **95.6% (-648,491.3 t) is unreachable reporting areas** and only
+    -30,121.2 t (0.107% of the term) is geometry, dominated by Canada
+    (-1.03%). The split key itself moves 27 of 28 ledger quantities by exactly
+    zero and the 28th by one ulp; the synthetic term moves by exactly 0 t.
+    **Basis, because it has since moved:** this was measured on the polity
+    vintage *before* #662, on which Fiji was unreachable too, so the
+    unreachable share above spans **nine** areas rather than the eight that
+    remain. Fiji's part of it has not been re-measured -- doing so needs the
+    HaNi deposition rasters, which the measuring environment does not carry --
+    so the figure is left as measured and its basis named rather than restated
+    over a population it was not measured on.
+  * **The island states are fixed.** Against official land areas, Kiribati
+    goes from **34.3x** to **1.18**, Micronesia 17.5x to 1.00, French Polynesia
+    15.3x to 1.16, Maldives 10.3x to 0.58 -- they used to draw a whole
+    0.5-degree cell each while carrying no LUH2 terrestrial area at all.
+  * **Greenland reads as +419% against FAOSTAT and is not a defect**: FAO's
+    country area for Greenland "refers to area free from ice", so the
+    comparable quantity is WHEP's territory minus its 177.5 Mha of ice, which
+    reads -12.9%.
+  * **Six `polity_frac` call sites remain and are deliberate.** Dropping
+    `"polity_frac"` from `utils::globalVariables()` was used as a detector, and
+    it named exactly six unqualified uses: `.wb_finalise()`,
+    `.wb_drop_polity_cols()` and `.wb_aggregate_polity()` in `water_balance.R`,
+    `aggregate_grass_to_polity()` in `feed_lpjml.R`, `.grass_to_cells()` in
+    `feed_intake_redistribute.R`, and `.read_fraction_country_grid()` in
+    `run_spatialize.R`. All four files are out of scope for this migration --
+    the water balance is owned elsewhere, the feed path is frozen, and
+    `.read_fraction_country_grid()` reads the deployed crosswalk on purpose --
+    and they are **not** an oversight or an unfinished migration. The detector
+    has done its job, so `"polity_frac"` is **restored** to
+    `utils::globalVariables()` and `R CMD check` is back to `Status: OK`.
+    Without it the check reported `Status: 1 NOTE` where merge-base main was
+    `Status: OK`, on a check CI cannot fail: `check-r-package@v2` defaults
+    `error-on: warning`.
+* **A traded item with no production row now balances instead of vanishing.**
+  `.reestimate_domestic_supply()` derives a last-resort domestic supply from
+  `production + import - export` for rows that report neither a supply nor a
+  destiny. `production` is deliberately still `NA` at that point, so the
+  imputation further down can derive it (#142), but reading it raw made the
+  residual `NA`, and `dplyr::if_else(NA, ...)` is `NA`, so both
+  `domestic_supply` and `stock_variation` came out `NA`. Those rows were then
+  dropped by the `value != 0` filters downstream rather than balancing. A
+  missing production now counts as zero in that residual only; the imputation
+  itself is untouched.
+
+  **Published values move, slightly and in one direction.** On a 2010 build:
+  12 rows are recovered and none is lost (17,648 to 17,660); 81 rows gain a
+  domestic supply that was wrongly zero, the largest being Ireland
+  "Miscellaneous" at 79,000 t, Switzerland at 22,000 t and Yemen tea at
+  17,000 t; world domestic supply rises 212 kt on 63,388 Mt (+0.0003%) and food
+  181 kt on 4,836 Mt (+0.004%). Every change is upward from zero. The
+  supply-use identity improves sharply: rows off by more than 1 t fall from 144
+  to 67, the worst residual from 160,000 t to 29 t, and the 12 `NA` residuals
+  disappear.
+
+* **`build_sjos_nitrogen()` gains `nourishment_band`, which makes every band
+  choice selectable from the driver.** The quality tier
+  (`quality_method` / `quality_variant`), the loss wedge (`wedge_method` /
+  `wedge_coverage`) and the band's own `shortfall`, `ceiling` and
+  `requirement_sd` were all reachable on their builders but frozen at their
+  defaults inside the driver, so a sensitivity could not be run end to end.
+  `ceiling` in particular is the knob the band's documentation names as WHEP's
+  own criterion and asks callers to sweep.
+
+  An option the list does not recognise **aborts**. A sensitivity analysis is
+  the worst place for a silently ignored argument: the run completes, nothing
+  moves, and the sweep gets reported as showing insensitivity. Nothing is
+  defaulted in the driver either — an option the caller omits is simply not
+  passed on, so each builder's own default applies and the two cannot drift.
+
+* **Three guards against silent row multiplication and silent gaps**, all found
+  by review of this branch rather than in the field:
+
+  * `normalize_nourishment()` now **aborts** when a data-frame `thresholds`
+    carries two rows for one `year`/`area_code`. It previously duplicated the
+    country, once per candidate band and each with its own class, so every
+    headcount downstream counted it twice. `build_nourishment_band()` output is
+    unique by construction, but the argument accepts any data frame.
+  * `normalize_nourishment()` now also warns when a matched band has a missing
+    **ceiling**. The check tested the floor alone, so such a row scored `NA` and
+    disappeared from the classification without a word.
+  * `read_wpp_population()` now drops and **names** ISO3 codes the crosswalk
+    does not resolve, instead of returning them on a missing `area_code` for
+    `build_protein_requirement()` to weight into an `NA`-keyed country. On WPP
+    2024 that is 7 codes at 0.03% of world population, Kosovo the largest.
+
+  `build_loss_wedge()` additionally asserts one Annex 1 region per area. The
+  packaged tables satisfy it, but `data$food_loss_regions` is injectable and two
+  regions for one area would weight its whole basket twice, at two rates.
+
+* **`build_protein_quality()` gains tier 1a and makes it the default:
+  per-item measured digestibility instead of a two-rate class split.**
+  `method = "trs935_item"` uses the true digestibility TRS 935 Table 5 publishes
+  for each commodity — now packaged verbatim as `protein_digestibility_trs935` —
+  and falls back to the tier 1b class rate for items the report does not
+  measure. Table 5 prints **no fruit, vegetable, root, tuber or sugar row at
+  all**, so the fallback is not a corner case: on the 2010 world basket
+  **84.5%** of food protein carries a measured value and the rest takes the
+  class rate. `protein_measured_share` reports it per row.
+
+  On that basket the diet quality moves from a tier 1b median of 0.867 to
+  **0.891** (0.818–0.940), lowering the floor from 67.77 to **66.23** and the
+  ceiling from 98.13 to **96.04**. Against the flat band **50 of 167 countries
+  change class** (58 under tier 1b), and world headcounts are **216 million
+  below requirement** and 2,438 million above twice the safe level.
+
+  `variant` brackets the one judgement tier 1a makes. Table 5 prints several
+  forms of the same commodity and CBS cannot say which was eaten. **The
+  processing direction is not uniform** — refining raises wheat (whole 0.86 →
+  flour white 0.96, bran removed) and lowers maize, rice and oats (0.85 → 0.70,
+  0.88 → 0.75, 0.86 → 0.72, through extrusion and Maillard damage) — so there is
+  no single axis to sweep and the bracket is carried per item. `"default"` takes
+  the least-processed form, the consistent partner for WHEP's whole-commodity
+  agronomic nitrogen; `"low"` and `"high"` give a diet-quality span of 0.853 to
+  0.913 at the median country. The choice is stamped in `method_quality`
+  (`"trs935_item_default"`), so a sensitivity is self-labelling.
+
+* **New `build_protein_score()`: tier 2 of the protein-quality ladder, the full
+  aggregate PDCAAS.** It implements the aggregation FAO prints as a worked
+  example in WHO/FAO/UNU TRS 935 Table 6 — digestible protein per item, the
+  digestible-protein-weighted amino acid profile, the minimum ratio against the
+  age reference pattern, truncated at 1 and multiplied by diet digestibility.
+
+  **Averaging per-item scores is not an approximation of this.** FAO forbids it
+  in words twice (TRS 935 p.99, FNP 92 p.17) and FNP 51 p.37 gives the reason.
+  Because `min()` is concave, the average of item scores is a rigorous lower
+  bound on diet quality and so a rigorous upper bound on the floor. The
+  digestible-protein weighting is the correction TRS 935 makes to its own 1991
+  report; on Table 6 it moves the lysine profile from 44.14 to 44.34 mg/g.
+
+  Truncation follows the **TRS 935** convention — score truncated at 1, *then*
+  multiplied by digestibility, so the ceiling is the diet's digestibility — not
+  FNP 92's, which truncates the DIAAS itself at 1.0. For a diet at score 1.4 and
+  digestibility 0.85 the two differ by 18% of the floor, and it bites on exactly
+  the animal-rich diets that truncate.
+
+  The function is **code-complete and validated but not yet wired**: it needs a
+  per-item amino acid composition table WHEP does not have. It ships now because
+  the aggregation is the part that is easy to get wrong, and it can be validated
+  today against FAO's own example.
+
+* **New packaged table `protein_digestibility_trs935`:** TRS 935 Table 5's 35
+  measured true-digestibility values (26 single foods, 9 mixed diets),
+  transcribed verbatim. It is the input tier 1a needs, and it records the
+  milling spread that CBS cannot observe — wheat whole 0.86 against refined
+  0.96, and three distinct maize rows at 0.85 / 0.87 / 0.70.
+
+* **PUBLISHED VALUES MOVE: the SJOS-N nourishment axis now classifies against a
+  composed, per-country-year band instead of a flat 62.1 / 85.05.**
+  `build_sjos_nitrogen()` gains `nourishment_thresholds`, defaulting to
+  `"composed"`. `normalize_nourishment()` accepts a data frame of per-row bounds
+  — a `build_nourishment_band()` output passes straight through — alongside the
+  scalar pair it always took.
+
+  **On the 2010 build, 58 of 167 countries change nourishment class**, 21 of
+  them Adequate → Under and 37 Over → Adequate. The floor moves from a flat 62.1
+  to a median 67.77 (58.79–88.81) and the ceiling from a flat 85.05 to a median
+  98.13 (84.84–107.70). Where the axis had one number for every country it now
+  has a distribution, built from four sourced terms: the demographic
+  requirement, within-country intake dispersion, the unavoidable-loss wedge and
+  diet protein quality.
+
+  Those figures are measured with **tier 1b** protein quality, the default when
+  this landed. Tier 1a became the default later in the same release and is what
+  ships: 50 of 167 change class, the floor median is 66.23 and the ceiling
+  96.04. See the tier 1a entry at the top for the full comparison.
+
+  `nourishment_thresholds = "flat"` restores the old pair for continuity and
+  sensitivity. It is not a peer of the default: of its five underlying numbers
+  only the 46 g/cap/day floor was ever sourced, and the 1.35 multiplier behind
+  both bounds was a preliminary presentation figure (whep#753).
+
+  A row that matches no band is classified `NA` and named in a warning — it
+  never falls back to the flat pair, which would mix two threshold vintages
+  inside one classification.
+
+  One number in the composed band remains **WHEP's own criterion rather than a
+  sourced value**: `ceiling$share`, the tolerated fraction of a population above
+  twice the safe level, default 0.5. TRS 935 declines to set a tolerable upper
+  intake, so nothing external fixes it. It is selectable, stamped in
+  `method_ceiling`, and any published use should carry a sensitivity across it.
+
+* **New `build_protein_quality()`: the band is no longer on crude protein.**
+  TRS 935 issues its safe level "for proteins with a protein
+  digestibility-corrected amino acid score value of **1.0**" (section 14.2). No
+  real diet reaches 1.0, so every uncorrected band was low by at least `1/D` —
+  for every country, in one direction.
+
+  `method = "digestibility_share"` takes the diet's digestibility as the
+  protein-weighted mean of **0.95 for animal and 0.80 for plant protein**, which
+  is how TRS 935 Table 43 footnote b computes it. The animal/plant split follows
+  FAO's own Food Balance Sheet grouping and reconciles against FAOSTAT's
+  published aggregates to within 0.07% on each side.
+
+  This is **tier 1b of four**, and a *provable lower bound* on the full
+  correction, since PDCAAS is `min(1, AAS) × D ≤ D`. It is conservative about
+  the **size of the correction**, not about adequacy: it under-corrects and so
+  classifies fewer countries deficient than the full amino acid score would.
+  Tier 2 needs a per-item composition table WHEP does not have; when it lands it
+  becomes a new method rather than silently changing this one.
+
+  Quality **divides both bounds**, which is algebraically the diet-side
+  correction TRS 935 section 14.1.5 prefers: it keeps the published supply
+  series untouched and moves floor and ceiling together, where correcting only
+  the floor would leave the ceiling on crude protein.
+
+  **On the 2010 build** the diet quality runs 0.82–0.91 (median 0.87), lifting
+  the floor from a crude median of 58.60 to **67.77 g/cap/day** and the ceiling
+  from 85.68 to **98.13**. That reverses the headline: the composed floor now
+  sits *above* the retired flat 62.1, not below it. Against the flat band **58
+  of 167 countries change class**, up from 21 without the correction, with 21
+  moving Adequate → Under. World headcounts move from 99 to **266 million
+  people below requirement** and from 3,278 to 2,258 million above twice the
+  safe level.
+
+  These are the **tier 1b** figures, measured when nothing yet composed the
+  term. Both statements were superseded within the same release: the composed
+  band became the default of `build_sjos_nitrogen()`, so the values do move, and
+  tier 1a became the default quality method. The shipped figures are in the tier
+  1a entry at the top.
+
+* **`read_population()` can now fill its coverage gaps from UN WPP, and always
+  reports where each row came from (#644).** The `gdp-population` pin does not
+  reach every area WHEP models, and the two per-capita consumers inner-join it,
+  so an uncovered area is absent from their output rather than wrong in it. The
+  new `population_source = "pin_wpp_fallback"` fills **only** the country-years
+  the pin does not reach, from `read_wpp_population()`: on the real inputs that
+  is 44 areas the pin has no row for at all (Réunion, Bhutan, Comoros, Western
+  Sahara, New Caledonia, the French overseas departments and the small island
+  states) and 4,755 country-years inside the pin's own year span.
+
+  The pin wins wherever both have a value, so turning the fallback on cannot
+  move a denominator that was already published — it can only add one that was
+  missing. It is a gap-filler rather than a replacement because the two sources
+  disagree where they overlap: across 12,309 shared country-years by a median
+  0.64%, a 95th percentile of 4.4% and a maximum of 81%.
+
+  The output gains `source_pop`, carrying the pin's own vocabulary
+  (`"Original"`, `"Linear interpolation"`, `"First value carried backwards"`),
+  joined with `" + "` where an `area_code` bucket sums ISO3 codes of differing
+  provenance, or `"UN WPP 2024"` for a filled row.
+
+  **No published value changes**: the default is `"pin"`.
+
+* **`nourishment_thresholds` now says which of its numbers are sourced, and its
+  upper bound is renamed `"ceiling"`.** Four of the five values the shipped
+  nourishment axis runs on had no source and nothing said so. A new
+  `provenance` column records it per row: only the 46 g/cap/day protein floor
+  is cited (WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult —
+  itself a 97.5th-percentile *individual* level that TRS 935 p.41 says is
+  incorrect to apply to a population). The 63 ceiling, the 2300 and 2900 energy
+  bounds and the 1.35 factor are labelled `inherited_unsourced`.
+
+  **Breaking for anyone filtering the table**: `bound == "target"` is now
+  `bound == "ceiling"` and returns zero rows under the old name.
+  `normalize_nourishment()` uses that value as the top of the Adequate band,
+  above which a country is classified Over, so "target" read as something to
+  aim at — the opposite of its role.
+
+  `normalize_nourishment()` also stops presenting protein and dietary energy as
+  interchangeable. The arithmetic is shared, the bases are not: the energy
+  bounds are unsourced, and WHEP's energy column is gross combustion energy
+  where a dietary kcal threshold is metabolisable. Nothing in the package reads
+  the energy path.
+
+  **No published value changes**: the floor and ceiling are numerically
+  unchanged at 62.1 and 85.05 g/cap/day and every classification is identical.
+
+* **New `build_nourishment_band()`: both SJOS-N bounds are now composed from
+  sourced terms, and the 1.35 multiplier is gone from each.** It implements
+  WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
+  `S_D = sqrt(S_I^2 + S_R^2)`, prevalence `Phi(-M_D/S_D)` — and inverts it twice
+  to give a floor and a ceiling on mean per-capita protein supply:
+
+  ```
+  bound = anchor * exp(z * S_D + S_I^2 / 2) / (1 - omega)
+  ```
+
+  The **floor** anchors on the demographically weighted *average* requirement at
+  `z = qnorm(1 - shortfall)`; the **ceiling** on `multiple` times the
+  demographically weighted *safe level* at `z = qnorm(share)`. `multiple`
+  defaults to 2, which TRS 935 section 13.7 calls "twice the recommended intake,
+  previously identified as a safe upper limit … likely to be safe"; 3–4× is the
+  report's own sensitivity ("approach the tolerable upper limit").
+
+  **The two tails do not take the same tolerance, and the model says so.**
+  Applying the floor's 2.5% to the upper tail puts the ceiling *below* the floor
+  for 162 of 167 country-years, because TRS 935 calls intakes below requirement
+  harmful while calling twice the safe level "unlikely to be associated with any
+  risk". `share` therefore defaults to 0.5 — "Over" means the typical member
+  exceeds the limit — and that 0.5 is WHEP's construction, not a sourced value.
+  At 0.5 the band never inverts: the lowest ceiling (74.81) exceeds the highest
+  floor (73.75).
+
+  **On the 2010 build**, floor median 58.60 (53.0–73.8) against the flat 62.1,
+  and ceiling median 85.68 (74.8–91.5) against the flat 85.05. The ceiling's
+  agreement with the retired number at the world median is a coincidence worth
+  noting and not a justification: 85.05 was 63 × 1.35 and flat, this varies by
+  country through demography, inequality and loss.
+
+  It also reports **how many people**, not only the country's class:
+  `prevalence_protein_deficit`, `prevalence_protein_excess`, `people_under` and
+  `people_over`. A country is not uniformly under or over — on the 2010 build
+  **99 million people are below requirement and 3,278 million above twice the
+  safe level**, and the share below requirement ranges 0% to 48.9% *within* the
+  countries the flat band called Adequate.
+
+  The anchor is the **average** requirement from `build_protein_requirement()`,
+  not the safe level, because TRS 935 says applying an individual safe level to
+  a population is incorrect (p.41) and a safe population intake "cannot be
+  defined as a simple function of the mean requirement" (p.241). Passing a
+  safe-level requirement warns, because the formula adds its own population
+  margin and would count the requirement margin twice. `shortfall` defaults to
+  2.5%, fixed independently by TRS 935 Figure 7 and by FAO's stated lowest
+  feasible PoU target. `requirement_sd` defaults to TRS 935's `S_R = 0.12` and
+  is exposed because the report itself notes that captures only about a fifth
+  of observed between-individual variance.
+
+  **On the 2010 build the median country floor is 58.6 g/cap/day against the
+  shipped flat 62.1**, ranging 53.0 to 73.8, with 39 of 167 countries above
+  62.1. Where the axis had one number for every country it now has a
+  distribution: demography pulls the requirement down to a median 32.0
+  g/cap/day, and the dispersion margin (median `S_D` 0.29) puts most of it back.
+
+  **The protein-quality term is not built**, and the floor is a known
+  understatement without it — TRS 935's safe level is defined for a PDCAAS of
+  1.0 and real diets score below that, a level shift the evidence record puts
+  at +11% to +36%. `quality = "none"` is stamped in `method_quality` so the
+  method name cannot silently change meaning when the term lands.
+
+  **No published value changes.** Nothing calls this function yet;
+  `normalize_nourishment()` still uses the flat threshold.
+
+* **New `build_loss_wedge()`: the nourishment floor can now allow for the food
+  that never becomes intake.** The floor asks whether supply *can* meet needs,
+  so it has to account for loss between the retail shelf and the mouth — but
+  only for the part no food system avoids. Avoidable waste belongs to the
+  over-nourishment problem, and inflating the floor by it would turn a behaviour
+  problem into an apparent adequacy failure; `omega = 0`, meanwhile, asserts
+  that all edible loss is eliminable, which SDG target 12.3 does not even aim
+  at.
+
+  The wedge is built from Gustavsson et al. (2011) Annex 4, composing only the
+  two steps at or after retail — `Distribution` and `Consumption` — because FBS
+  food availability is already measured at the retail level and includes retail
+  and consumer loss. The default `"gustavsson_half_min"` takes each rate's
+  minimum across the seven world regions and halves it, giving roughly 2.5% of
+  protein on the 2010 world basket (floor divisor 1.026). It is documented as a
+  **deliberate lower bound, not an estimate of achievable loss**: the
+  consumption-step minimum is sub-Saharan Africa in every commodity group, and
+  those are scarcity figures rather than efficiency figures. `"gustavsson_min"`
+  (roughly 4.9%) and `"none"` are selectable, and the choice is stamped in
+  `method_loss_wedge`.
+
+  `"gustavsson_regional_actual"` is the sensitivity arm, giving each country its
+  Annex 1 region's own observed rates: 14.2% on the same basket, divisor 1.166,
+  spanning 4.1% to 21.4% across countries. It is not an unavoidable-loss
+  estimate, and its country structure is contested — Gustavsson's rich-high
+  gradient runs opposite to UNEP's Food Waste Index — so it quantifies that
+  disagreement rather than settling it. Annex 1's 152 countries cover 99.0% of
+  2010 world food protein; the rest take the mean rate across the seven regions
+  and are stamped `method_region = "global_mean"`, or return nothing under
+  `coverage = "annex1_only"`.
+
+  FBS element 5123 `Losses` is deliberately not used: it is pre-retail and
+  already netted out of the Food element, so subtracting it would double-count.
+
+  **No published value changes.** Nothing calls this function yet; the axis
+  still uses the flat 1.35 multiplier until the remaining terms land. Two
+  packaged coefficient tables are new
+  (`inst/extdata/coefs/food_loss_wedge.csv`, the Annex 4 rates, and
+  `inst/extdata/coefs/food_loss_item_groups.csv`, the Annex 2 item-to-group
+  mapping); both are recorded in `validation/SOURCES.md`.
+
+* **New `build_protein_requirement()`: the nourishment floor can now account
+  for a population's age and sex structure.** The SJOS-N "just" axis has always
+  compared per-capita protein supply against a flat 46 g/cap/day, which is
+  WHO/FAO/UNU TRS 935's safe intake for a 55 kg **adult** applied to whole
+  populations including children. Children need far less in absolute terms
+  (17.1 g/day at ages 4-6), so the flat value overstates every population's
+  requirement, and most in the youngest. The new function weights the TRS 935
+  per-class requirements by an injected population-by-age-and-sex table.
+
+  It defaults to `requirement = "average"`, the class average requirement,
+  because TRS 935 states that applying an individual safe level to a population
+  is incorrect (p.41) and that a safe population intake "cannot be defined as a
+  simple function of the mean requirement" (p.241); `"safe"` remains selectable
+  for continuity. This does **not** lower the eventual threshold — the margin
+  that turns an average requirement into a supply floor is applied downstream,
+  once, over the convolution of requirement and intake variability.
+
+  **No published value changes yet.** Nothing calls this function; the axis
+  still uses the flat floor until the remaining terms land. The packaged
+  requirement table is new (`inst/extdata/coefs/protein_requirement.csv`), and
+  its derivation and the TRS 935 tables behind it are recorded in
+  `validation/SOURCES.md`.
+
+* **Rice from the new FAOSTAT Food Balances is now converted to milled
+  equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes rice on
+  two bases depending on vintage: the historic series carry item 2805 "Rice
+  (Milled Equivalent)" and 2804 "Rice (Paddy Equivalent)", while the new Food
+  Balances carry item 2807 "Rice and products" in **paddy** (rough-rice)
+  equivalent. `.fix_item_codes()` selected rows for the paddy-to-milled
+  conversion by item name, and "Rice and products" was in neither of the two
+  names it matched, so new-FBS rice was never converted. Since
+  `build_primary_production()` does convert its own rice, a single item mixed
+  milled production with paddy utilisation, and the difference was absorbed by
+  the residual `stock_variation` plug. The extract path now recognises the
+  new-FBS name as paddy; frames that have already been through the `items_full`
+  lookup keep the previous behaviour, because there "Rice and products" is the
+  canonical label and carries no basis information (#751).
+
+  **Published values move.** Every element of item 2807 sourced from
+  `faostat-fbs-new` falls by the 0.67 extraction rate. World 2010, tonnes:
+  food 570,038,000 to 381,925,460; production 694,377,000 to 465,232,590;
+  domestic supply 684,012,000 to 458,288,040; imports, exports, feed, seed,
+  processing and other uses likewise. The corrected figures land close to
+  FAOSTAT's own published milled-equivalent series: India 2010 production is
+  96,455,210 against FAOSTAT item 2805's 96,023,000, a 0.45% difference which
+  is the gap between WHEP's global 0.67 and FAO's implied 0.667. Every
+  downstream consumer of rice tonnage inherits the change, including the
+  nourishment axis, where rice protein per tonne of food moves from 1.550x
+  FAOSTAT to 1.039x and which was how the defect was found (#500).
+
+  **The historic series moves too, and by more than the FBS-new years.** The
+  old-to-new FBS harmonisation derives its scaling ratio from the 2010-2013
+  overlap, so with the new series on paddy and the old series on milled it was
+  computing a median ratio of **1.4981** (= 1/0.667) for rice and scaling every
+  FBS_Old rice year up by it — well inside the [0.2, 5] band
+  `.clamp_fbs_scale_ratio()` allows, so nothing flagged it. That ratio is now
+  **1.0037**: the two vintages agree on rice to 0.4% instead of disagreeing by
+  50%. Wheat, which uses one basis in both vintages, is unchanged at 1.016 and
+  serves as the control. `validation/rice_mass_basis.R` is the real-data guard.
+* **A promoted Rest-of-World member now publishes under its own territory, not
+  under the bucket's aggregate polity.** Lifting the FABIO Rest-of-World fold
+  had promoted a member's numeric `polity_area_code` and nothing else, so all
+  62 folded areas reported as themselves (`area_code == polity_area_code`) while
+  still carrying `polity_code == "ROW-1850-2025"`, `polity_type "aggregate"`,
+  `continent "World"` and no geometry -- a row that reports as itself and is
+  identified as somewhere else. `data-raw/table_mappings.R` no longer discards
+  the upstream FAOSTAT map's answer for those areas: 36 map rows over 31 areas
+  that reached no crosswalk row at all are now carried as
+  `mapping_source == "fabio_row_promoted"`, and `.unfold_rest_of_world()`
+  chooses between them and the fold row per mode. **This is an identity change,
+  and it moves quantities only at the third decimal place of a percent.** Over a
+  full `get_primary_production()` (6,310,390 rows) and `get_wide_cbs()`
+  (2,184,850 rows) no row and no key is added or removed;
+  `reporting_polity_code` / `reporting_polity_name` change on 212,163 production
+  rows across 22 areas -- Syria to
+  `SYR-1946-1967` before 1967 and `SYR-1967-2025` after it, Eswatini to
+  `SWZ-1894-2025`, New Caledonia to `NCL-1800-2025`, Palestine to
+  `PSE-1948-2025`, and 27 more. The resolution is year-aware, so a 1950 row and
+  a 2020 row of the same area need not agree. The 30 members the upstream map
+  names nowhere stay on `ROW-1850-2025`; the new `row_promotion_status()`
+  reports which is which and why, splitting them into `own_polity` (31),
+  `polity_unmapped` (6 -- a live polity exists upstream and only the map row is
+  missing) and `no_polity` (24, three of which are not territories at all).
+  `options(whep.unfold_rest_of_world = "none")` still restores the fold
+  crosswalk exactly, column for column.
+
+  The quantities that do move are these, and both are pre-1961. 64 rows and
+  1,722,000 t of historical trade for Guadeloupe and Martinique are
+  **recovered**: their pre-1850 rows used to be dropped because `ROW-1850-2025`
+  begins in 1850 and `add_polity_code()` refuses to extend an aggregate, and
+  they now land on `GLP-1816-2025` / `MTQ-1816-2025` (historical trade feed
+  +0.0093%). And 430 CBS rows (0.02% of the table, 340,474 t of movement, or
+  3.5e-6% of its tonnage) shift between columns in 10 areas, 96% of it Eswatini
+  reclassifying export as seed; `production`, `stock_addition` and
+  `stock_withdrawal` are identical to the last bit. In
+  `get_primary_production()` 338 rows (0.005%) move by at most 5.6e-4 in
+  `t_LU`, in Italy, the Netherlands and Belgium, through the global-yield
+  denominator: `.fill_yields()` keys on the `area` LABEL as well as the code,
+  and that label is resolved per year, so an area whose polity changes
+  mid-series has its rows completed under both labels. 39 area codes already
+  did that before this change and 2 more (Syria, Equatorial Guinea) now do;
+  the pre-existing defect is filed separately.
+
+  Two further consequences worth naming: `polity_coverage_gaps()` now reports
+  FAOSTAT areas 42, 88, 154, 180 and 187 as coverage gaps, because their
+  upstream periods do not span the years FAOSTAT reports them -- the fold hid
+  that behind a period running to 2025 -- and the energy CO2 extension's opt-in
+  `unclassified = "polity_region"` treatment reaches 16 live areas instead of 2,
+  resolving the second half of #415/#646. Its default (`"drop"`) is unchanged
+  and moves no number.
+
+* **A back-cast row no longer reports `mapping_status == "matched"` for a polity
+  that was not alive in its year.** `add_polity_code()` floors the polity-lookup
+  year at `backcast_anchor` (1961), because a pre-1961 WHEP value is a
+  reconstruction on the anchor year's territory -- that convention is unchanged.
+  What was wrong is that the row then claimed the polity had existed then, and
+  for 12,208 of the 29,415 pre-1961 `(area, year)` cells it had not: FAOSTAT area
+  238's 1850 row read `ETH-1952-1993`, `matched`, 102 years before that polity
+  began. Those rows now report `mapping_status == "backcast_anchor"`, and
+  `polity_coverage_gaps()` reports them as `gap_kind == "backcast_anchor"`
+  alongside `polity_ended` / `polity_not_started`. The floor was applied before
+  the span check, so the diagnostic could previously see only 2,664 of the
+  12,208 cells; it now sees all of them, 9,544 of which are new.
+  `polity_bucket_coverage()` surfaces the same resolver column, so its
+  `bucket_mapping_status` would read `"backcast_anchor"` for a pre-1961
+  `years =` argument; on the shipped crosswalk no bucket folds more than one
+  polity before 1961, so it emits no such row today, and its `coverage`
+  classification is unchanged either way. **No published value changes** -- a
+  full `get_primary_production()` (6,310,390 rows) is `identical()` across the
+  change, `mapping_status` is not on any published schema by default, and the
+  `polity_validity` argument keeps its current scope, so `"drop"` still drops
+  only nearest-period stand-ins (#763).
+* **The polities snapshot is re-synced to `whep-polities` `2830fb7`, and no
+  published value moves.** `polities` gains four rows (`ATF-1800-2025`,
+  `SGS-1800-2025`, `WLF-1800-2025` and `FEZ-1943-1951`) and ten geometries,
+  four wrong `cow_code` values are corrected (Albania 400 to 339, Comoros 403 to
+  581, Sao Tome and Principe 411 to 403, Sardinia 338 to 325), and six
+  predecessor/successor edges are filled in. `polity_label_aliases` gains the
+  `Libya Fezzan` alias and three corrected `year_start` bounds.
+  `gleam_geographic_hierarchy` resolves all 204 territories: `ATF`, `SGS` and
+  `WLF` carried `NA` for want of any upstream polity and now carry one.
+  `polity_area_crosswalk` keeps all 595 rows with **every routing column
+  bit-identical** -- only three `cow_code` cells and one `polygon_status` cell
+  change -- so a full `get_primary_production()` (6,310,390 rows, 1850-2023)
+  comes back identical in all twelve columns, with no key added or removed, no
+  `(area, year)` re-attributed and a zero delta in all eight units. Note for
+  anyone reading #745: the 31 areas the upstream map names but the crosswalk
+  resolves through `ROW-1850-2025` are **not** a stale-map artefact and this
+  re-sync does not move them; they are the FABIO Rest-of-World fold, which
+  outranks the map on purpose and is tracked separately (#717, #740) (#745).
+* **The pre-1962 back-cast can now measure its hectares on each year's own
+  borders.** `tonnes = ha * t_ha`: the yield half has always been historical
+  (`.fill_yields()` back-casts `t_ha` against 1,058,295 pre-1962 observations),
+  while the area half came from the `luh2-areas` pin, which is LUH2 land
+  pre-aggregated to *present-day* ISO3. A row labelled with the 1961 entity was
+  therefore measured on the borders that entity has today. The new
+  `build_primary_production(land_method = "historical_polity")` measures it with
+  `build_historical_land_areas()` instead: gridded LUH2 summed inside the
+  polygon of the polity `area_code` resolves to in that year, resolved unfloored.
+  How a change of territory reaches the back-cast is itself selectable, because
+  `fill_proxy_growth()` reads only ratios: `boundary_step = "level_step"`
+  (default) lets a change of territory through as a level step, because a
+  different polity is a different thing being measured, and `"relink"`
+  re-measures the previous year inside the *incoming* polygon so only
+  within-territory growth is ever used. On Ethiopia in 1952, when Eritrea joins,
+  the 1952 land ratio is +8.0% under the default and +1.9% under `"relink"`.
+  `"relink"` suits a FIXED-territory series and is not the conservative choice
+  here: suppressing that channel also suppresses the correction, and Ethiopia's
+  1850 cropland comes back to 3.24 Mha against a present-day 3.22 -- the figure
+  this method exists to replace. Under the default it is 1.52 Mha (whep#761).
+  **No published values move by default**: `land_method = "present_day"` is
+  unchanged and is what the pipeline still runs. Measured over 1850-1961 against
+  the present-day series, the historical method moves 19.2% of back-cast crop
+  tonnage at 1850 (net -17.2%), 6.5% at 1900 and 0.2% at 1961 under `"relink"`;
+  31.3% / 22.9% / 0.2% under `"level_step"`. Under the new method pre-1962 rows
+  are labelled `LUH2_polity_cropland` / `LUH2_polity_agriland` in `source`. It
+  reaches all four dissolved federations without
+  `federation_land = "successor_union"` -- Czechoslovakia, the USSR, Yugoslavia
+  and Belgium-Luxembourg all have polygons of their own, and the USSR walks its
+  own three-period chain back to 1850. It also declines to measure a bucket
+  whose polity that year is a residual standing in for dozens of areas, or a
+  resolver stand-in from outside its period: 5 buckets carrying 1961 crop
+  tonnage lose their back-cast entirely, 0.1% of the 1961 total, the largest
+  being Syria (#761).
+
 * **The SOC climate driver read releases the LPJmL hydrology pin once it has
   been used.** The pin carries `swc_topsoil`, `prec_mm` and `irrig_mm` for every
   requested year -- ~12 GB at 1901-2022 -- and nothing reads it after the
