@@ -1866,10 +1866,13 @@ build_processing_coefs <- function(
   # NEITHER of those two buckets duplicates any more, so the measurement above is history and
   # not a live diagnosis (whep#557):
   #
-  #   - 999 stopped when the crosswalk started folding Rest-of-World at polity level: all 62
-  #     areas with `fabio_code == 999` resolve to the single polity `ROW-1850-2025`, and they
-  #     are no longer folded into the bucket at all by default -- see
-  #     `.unfold_rest_of_world()`, whose `"all"` default models each member in its own right.
+  #   - 999 stopped because its members are no longer folded into the bucket by default: see
+  #     `.unfold_rest_of_world()`, whose `"all"` default gives each member upstream names its
+  #     own `polity_area_code`. The members upstream names nowhere DO stay on 999, and they
+  #     all share the one aggregate polity `ROW-1850-2025`, so the bucket key still carries a
+  #     single territory. Asserted on `.polity_crosswalk()` in test_polity_folds.R -- not on
+  #     raw `polity_area_crosswalk`, which carries both answers per member and so shows 44
+  #     apparent folds before the choice is made.
   #   - 206 stopped when whep#563 removed `polity_name` from `.aggregate_to_polities()`'s
   #     grouping keys, so a bucket folding several live territories (206 is the only one --
   #     Sudan and South Sudan from 2011, asserted in test_polity_folds.R) now emits one row.
