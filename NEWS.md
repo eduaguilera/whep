@@ -1,5 +1,117 @@
 # whep (development version)
 
+* **Every polycell-year is now partitioned into land uses, so a territorial
+  quantity can be attributed to a land class instead of being assumed
+  agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
+  polycell's `land_area_ha` into `cropland`, `grassland`, `urban`, `natural` and
+  `unclassified`. The *level* of each agricultural class comes from the
+  statistical record, which is authoritative; LUH2 supplies only the
+  within-country spatial pattern, taken from its `fraction` (LUH2's share of the
+  whole cell) so the classes tile the polycell's measured land by construction
+  rather than to a tolerance. `level_source` and `pattern_source` are separate
+  columns and their per-polycell difference is emitted as
+  `statistical_pattern_disagreement_ha` rather than absorbed into `natural`;
+  that column is the criterion for retiring LUH2 as a source. Inland water and
+  ice are never land uses.
+
+  Two conventions are worth knowing. FAO counts temporary meadows and pastures
+  (Land Use item 6633) inside arable land while LUH2 books that ground as
+  grassland, so that component keeps its FAO class but is spread over the LUH2
+  grassland pattern. And because FAOSTAT land use starts in 1961, the pasture
+  level is back-cast before then by carrying the FAO 1961 level on LUH2's own
+  national trend, mirroring what `get_arable_permanent_land()` already does for
+  cropland, so the gridded grassland series does not step at the splice. A
+  back-cast row is labelled in `level_source` and excluded from the
+  statistical-versus-pattern diagnostic, since it would otherwise measure LUH2
+  against itself.
+
+  A national total spread by the LUH2 pattern can give a polycell more
+  agricultural land than it has, driven by countries where FAO and LUH2 disagree
+  about how much land is permanent pasture. Measured on the function itself at
+  2020: 63.50 Mha, 1.33% of the anchored agricultural area, of which Saudi
+  Arabia is 35.10 Mha and Sudan (former) 14.20 Mha. `overfull_method` selects
+  the treatment and is recorded in `method_overfull`. `"spillover"` (default)
+  places the excess on same-country neighbours, widening the search ring until
+  it is absorbed and taking non-forested natural land before forest: at 2020 it
+  places 63.45 Mha of it across 3,878 receiving polycells, at a median ring of 2
+  and a maximum of 22, and names the remaining 42,765 ha in
+  `unplaceable_statistical_ha`. A neighbour can only receive a class it has a
+  row for, so land the pattern classified nowhere is reported rather than
+  credited to a row that does not exist. `"cap"` caps pro rata and leaves the
+  whole 63.50 Mha in `unplaceable_statistical_ha`. The two are alternatives,
+  never fallbacks, and both close the same ledger: 4,716.99 + 63.50 =
+  4,780.44 + 0.04 Mha of anchored area in.
+
+  On a real 2020 build the five classes sum to each polycell's `land_area_ha`
+  to a maximum relative deviation of 1.7e-10 over 73,873 polycells, with none
+  off by more than 1e-6. Global class areas come out at natural 7,985.3 Mha,
+  grassland 3,225.3, cropland 1,565.7, urban 77.9 and unclassified 71.2.
+
+  No published value changes: this adds a producer and does not alter any
+  existing output. The ledger anchors grassland on FAO item 6655 by passing
+  `source = "faostat_pasture"` explicitly, which differs from
+  `build_grassland_land_extension()`'s own `"luh2"` default; that divergence is
+  tracked in #759 and deliberately not resolved here, because three consumers
+  rely on the current default and one of them is this ledger's own cropland
+  anchor.
+
+* **`create_n_prov_destiny()` derives processed items itself, and the
+  substitution now conserves nitrogen exactly.** Processing shares and
+  processed amounts come from the `processing_coefs` pin instead of the
+  externally built `processed_prov_fixed` pin, and a processed item (wine,
+  oil, flour) now subtracts its share from the primary crop's own production
+  rather than being added on top of it. Applying every output's `cf` to the
+  same input mass did not conserve N — the sum of coefficients per input item
+  reaches 5.22 for maize and 5.11 for wheat, because beer and starch are
+  water-diluted — so the substitution added a net +1.875 Mt N (+1.56%) over
+  1860-2023, ranging from -2.75% to +7.84% by year. Output is now capped at
+  the input's N and only accounted N is removed, balancing to 2.1e-16 every
+  year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
+  sugar) should go is still open (whep#432).
+
+* **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
+  The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
+  pins now cover 1860-2023, so the internal 2021 clip and its coverage warning
+  are gone. `population_yg` and `processing_coefs` still end in 2021 and are
+  held flat over 2022-2023, on the same reasoning as the existing pre-1961
+  backfill; three items whose processing is observed only to 2002 (coconuts),
+  2008 (sugar cane) and 2018 (palm kernels) are held flat from those years
+  instead, and all three are negligible in Spanish production. **Published
+  values move**: the two new years are structurally complete (50 provinces,
+  every origin and destiny) but national N falls from 5,097,518 Mg in 2021 to
+  4,607,382 Mg in 2022 and 4,201,534 Mg in 2023. That decline is in the input
+  pin, not in this code — synthetic N drops 29.7% between 2021 and 2022 while
+  cropland area stays flat at 50.56 Mha — and it has not been cross-checked
+  against an independent source. Note also that the four analysis eras end at
+  2010-2020, so 2021-2023 appear in yearly and evolution views but in no
+  period aggregate.
+
+* **The cropland destiny panel no longer silently drops items that have area
+  but no tracked output.** `.allocate_by_destiny_share()` joined destiny
+  shares onto item values with a `left_join`, so an item with cropland area
+  and N inputs but no output in the destiny table vanished from the
+  compartment-factor decomposition entirely. Those rows are now kept and
+  tagged `no_tracked_output`. **Published values move**: the recovered rows
+  are 1.32% of cropland area and 1.55% of N inputs over the full span, rising
+  from 0.05% in the 1860s to about 5% by the 2020s, so the trend changes and
+  not only the level. They are almost entirely the oilseed complex —
+  sunflower seed, rape and mustardseed, cottonseed and sugar beet — whose
+  output the processed-item change reassigns, which makes them a quantified
+  instance of whep#432.
+
+* **Three smaller accounting fixes in the typology and decomposition
+  analysis.** The Finn flow matrix was built transposed, so `.calculate_finn()`
+  read outflow where it needed inflow; mean FCI moves 0.1105 to 0.1102, but up
+  to 0.035 absolute for a single province-year, and the 1860-versus-2020 trend
+  tilts (whep#430). `decompose_manure_losses()` compared applied manure against
+  an excretion total covering only the livestock-unit species in the panel, so
+  `loss_frac` was measured against a base 0.16% to 1.26% too small, a gap that
+  widens over time. The N surplus panel filtered out negative values as noise;
+  a negative surplus is a real soil deficit, and keeping it lowers pre-1950
+  decade means by up to 6% while affecting 86 of 8,200 province-years, all of
+  them before 1950.
+
+
 * **`build_historical_land_areas()` no longer rasterises its own cell-by-polity
   intersection; it reads the polycell support.** whep#776 built a second answer
   to a question whep#619 had already answered better: `.polity_cell_cover()`

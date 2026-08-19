@@ -101,7 +101,20 @@ test_that("the enumerated baseline can only shrink", {
   # polygon -- and the second step keys on `polity_code` alone, because a
   # polity code already carries its own period. One year-free row bought a land
   # series that varies with the map. Everything downstream of it carries `year`.
-  expect_lte(sum(baseline$n), 61L)
+  # 62: whep#423 adds exactly ONE year-free join, `.plu_bind_pasture_backcast`,
+  # and it buys the same thing `.land_in_polygons` did. FAOSTAT land use starts
+  # in 1961, so anchoring grassland on it alone would step the gridded series at
+  # that year; carrying the FAO 1961 level backwards on LUH2's own national
+  # trend removes the step. The join that does it keys on `area_code` because
+  # its anchor side is already filtered to 1961 -- fixed, not missing.
+  #
+  # It did not cost four. The producer first grew four year-free joins, three of
+  # which were duplicating machinery the cropland back-cast already had: the
+  # ISO3 bridge is now shared (`.luh2_bridge_iso3c`, extracted from
+  # `.read_luh2_cft`, so that row moved rather than multiplied), the LUH2 anchor
+  # became a grouped lookup instead of a second merge, and the toy fixture's
+  # polity tail is built in place instead of joined.
+  expect_lte(sum(baseline$n), 62L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` is deliberately absent: it classified exactly one join,
   # the one whep#698 removed. Putting it back means arguing again that a label

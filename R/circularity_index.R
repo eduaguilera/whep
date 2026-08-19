@@ -39,8 +39,10 @@ create_finn_indicator <- function(n_prov_destiny = NULL, example = FALSE) {
 #'   typology with interquartile ribbon; (b) FCI distribution at four key
 #'   periods as boxplots; (c) net change in mean FCI from first to last period.
 #'
-#' @param periods Integer vector of years marked as dashed lines on the
-#'   `evolution` panel. `periods`/`change` always use the four fixed eras.
+#' @param periods Integer vector of years to mark as dashed reference lines
+#'   on the `evolution` panel. The `periods` and `change` panels always
+#'   compare the four fixed historical eras (1860-1870, 1920-1930,
+#'   1960-1970, 2010-2020) regardless of this argument.
 #' @param finn_data Pre-computed tibble from [create_finn_indicator()].
 #'   If `NULL`, computed automatically (slow).
 #' @param n_prov_destiny Passed to [create_finn_indicator()] when
