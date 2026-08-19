@@ -1910,6 +1910,10 @@ utils::globalVariables(
     # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
     # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
     # creates inside the data.table `.()` expression
-    "luh2_ha"
+    "luh2_ha",
+    # footprint_balance.R (#212) — presence flags telling a cell absent
+    # from one method apart from a present but NA-valued one
+    "in_a",
+    "in_b"
   )
 )
