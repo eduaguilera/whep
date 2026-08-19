@@ -41,6 +41,15 @@ argument (the \code{\link[=redistribute_feed]{redistribute_feed()}} realised-int
 \code{gridded} (its land-surface layer) and \code{resolution}/\code{methods}
 (forwarded as-is).
 \item \code{nhx}, \code{noy}, \code{cell_polity}: \code{\link[=build_n_deposition]{build_n_deposition()}}'s inputs.
+\item \code{deposition_scope}: which of a polycell's territory the \code{"deposition"}
+term is credited with. \code{"territory"} (default) is land plus inland
+water plus ice: nitrogen deposited on a lake or a glacier still drives
+indirect N2O and still reaches the eutrophication pathway, so the
+impact terms have to account for it. \code{"land"} is the terrestrial
+surface alone, for purposes that want it, and it needs a \code{cell_polity}
+carrying \code{land_area_ha}, \code{inland_water_ha} and \code{ice_area_ha}; asking
+for it without them aborts rather than silently returning the whole
+territory. Recorded in \code{method_deposition_scope}.
 \item \code{ag_land_support}: agricultural physical land support keyed by \code{lon},
 \code{lat}, \code{area_code}, \code{year}, \code{item_cbs_code}, with \code{land_use}
 (\code{"cropland"} or \code{"grassland"}) and positive \code{area_ha}. Optional: when
@@ -85,17 +94,20 @@ real data. Defaults to \code{FALSE}.}
 \value{
 A tibble. At \code{resolution = "grid"}: \code{lon}, \code{lat}, \code{area_code},
 \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{n_input_t},
-\code{method_recycling_n}, \code{method_synthetic}. At \code{resolution = "polity"}:
-\code{area_code}, \code{item_cbs_code}, \code{year}, \code{fert_type}, \code{method_recycling_n},
-\code{method_synthetic}, \code{n_input_t} (summed over cells).
+\code{method_recycling_n}, \code{method_synthetic}, \code{method_deposition_scope}. At
+\code{resolution = "polity"}: \code{area_code}, \code{item_cbs_code}, \code{year},
+\code{fert_type}, \code{method_recycling_n}, \code{method_synthetic},
+\code{method_deposition_scope}, \code{n_input_t} (summed over cells).
 \code{method_recycling_n} records which residue basis the \code{"recycling"} term
 used: \code{"residue_soil_returned"} when the upstream NPP input supplied
 \code{residue_soil_dm_t} (residue N net of removal for feed/fuel/burning) or
 \code{"total_residue"} when only gross residue N was available; it is \code{NA} for
 every other \code{fert_type}. \code{method_synthetic} records the synthetic
 crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} rows and
-is \code{NA} for every other \code{fert_type}. Both grains also carry the polity
-columns below.
+is \code{NA} for every other \code{fert_type}. \code{method_deposition_scope} records
+which of the polycell's territory the \code{"deposition"} term was credited
+with (\code{"territory"} or \code{"land"}) and is \code{NA} for every other \code{fert_type}.
+Both grains also carry the polity columns below.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N
@@ -149,7 +161,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did

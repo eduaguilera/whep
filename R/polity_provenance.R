@@ -3,11 +3,16 @@
 #' @description
 #' [polity_area_crosswalk] is not the upstream FAOSTAT-to-polity map. It is that
 #' map plus rows this package manufactures, and its `mapping_source` column says
-#' which. Measured on the shipped snapshot, of 596 crosswalk rows:
+#' which. Measured on the shipped snapshot, of 631 crosswalk rows:
 #'
 #' - `"upstream_map"` (245 rows): a row of `faostat_area_polity_map.csv` in
 #'   `eduaguilera/whep-polities`. Upstream's statement about the territory.
-#' - `"prefix_outside_map"` (262) and `"prefix_fallback"` (27): WHEP's own
+#' - `"fabio_row_promoted"` (36): the same file, for the 31 areas the FABIO
+#'   Rest-of-World fold used to shadow. Equally upstream's statement, and kept
+#'   separate only because `.unfold_rest_of_world()` chooses between it and the
+#'   fold row (whep#717). The two together consume the map's 281 rows exactly
+#'   once.
+#' - `"prefix_outside_map"` (261) and `"prefix_fallback"` (27): WHEP's own
 #'   ISO3-prefix match, built in `data-raw/table_mappings.R`. No upstream
 #'   authority. A prefix match can only ever produce an ISO3-family guess, so it
 #'   cannot express the statements the pre-1961 era actually needs -- Turkey
@@ -15,21 +20,28 @@
 #'   whose target stem differs from the source's (whep#740).
 #' - `"fabio_row_fold"` (62): WHEP's own Rest-of-World bucket. Legitimately
 #'   WHEP's to decide, but the territory still has no upstream row of its own.
+#'   In the default mode only the 31 members upstream names nowhere resolve
+#'   through one; see [row_promotion_status()].
 #'
 #' Counting crosswalk rows overstates the exposure, because most manufactured
 #' rows are never picked. This reports the provenance of the **resolution**: for
 #' each `(area_code, year)`, the class of the crosswalk row that
 #' [add_polity_code()] actually selected, which is what a published value rests
-#' on. Measured over the crosswalk's own 1850-2025 grid, 257 of the 262
+#' on. Measured over the crosswalk's own 1850-2025 grid, 256 of the 261
 #' `"prefix_outside_map"` rows are the resolution of no `(area_code, year)` at
 #' all: the back-cast anchor floors every lookup at `backcast_anchor`, so the
 #' pre-1961 era resolves through whatever answers the anchor year rather than
 #' through the historical periods the prefix rule invented for it.
 #'
+#' The same measurement is what whep#717 moved: 10,912 of those `(area_code,
+#' year)` resolutions used to rest on `"fabio_row_fold"`, and 5,456 of them --
+#' every year of the 31 members upstream names -- now rest on the upstream map
+#' instead.
+#'
 #' @section Authority:
 #' `authority` collapses `mapping_source` to the question "who said so":
 #'
-#' - `"upstream"`: `"upstream_map"`.
+#' - `"upstream"`: `"upstream_map"` or `"fabio_row_promoted"`.
 #' - `"whep_prefix"`: `"prefix_outside_map"` or `"prefix_fallback"` -- a WHEP
 #'   guess, and the population whep#740 asks to delete rather than replace.
 #' - `"whep_bucket"`: `"fabio_row_fold"` -- WHEP's own documented bucket.
@@ -191,6 +203,7 @@ polity_mapping_provenance <- function(
   tibble::tribble(
     ~mapping_source,      ~authority,
     "upstream_map",       "upstream",
+    "fabio_row_promoted", "upstream",
     "prefix_outside_map", "whep_prefix",
     "prefix_fallback",    "whep_prefix",
     "fabio_row_fold",     "whep_bucket"

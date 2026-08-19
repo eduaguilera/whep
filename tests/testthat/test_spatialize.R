@@ -24,11 +24,11 @@ two_country_fixture <- function() {
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L,
-    1.25, 50.25, 2L,
-    1.75, 50.25, 2L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1,
+    1.25, 50.25, 2L, 1,
+    1.75, 50.25, 2L, 1
   )
 
   list(
@@ -61,9 +61,9 @@ multi_crop_fixture <- function() {
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
 
   list(
@@ -259,8 +259,8 @@ testthat::test_that("build_gridded_landuse distributes proportionally when withi
     0.25, 50.25, 2000L, 1000
   )
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1
   )
 
   result <- build_gridded_landuse(
@@ -313,9 +313,9 @@ testthat::test_that("build_gridded_landuse handles irrigation split", {
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
 
   result <- build_gridded_landuse(
@@ -383,8 +383,8 @@ testthat::test_that("build_gridded_landuse errors on missing columns", {
     0.25, 50.25, 2000L, 500
   )
   good_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1
   )
 
   testthat::expect_error(
@@ -417,9 +417,9 @@ testthat::test_that("build_gridded_landuse handles cells with no pattern gracefu
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
 
   result <- build_gridded_landuse(
@@ -455,9 +455,9 @@ testthat::test_that("type-aware allocation excludes cells lacking the crop's LUH
     0.75, 50.25, 2000L, 500
   )
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
   # Crop 15 maps to c3ann, present only in the first cell (sparse table:
   # the second cell has no c3ann row).
@@ -512,9 +512,9 @@ testthat::test_that("type-aware allocation falls back to total cropland when no 
     0.75, 50.25, 2000L, 500
   )
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
   type_mapping <- tibble::tribble(
     ~item_prod_code, ~luh2_type,
@@ -569,9 +569,9 @@ testthat::test_that("build_gridded_landuse handles multiple years", {
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
 
   result <- build_gridded_landuse(
@@ -623,9 +623,9 @@ testthat::test_that("build_gridded_landuse filters year-keyed inputs when years 
   )
 
   country_grid <- tibble::tribble(
-    ~lon, ~lat, ~area_code,
-    0.25, 50.25, 1L,
-    0.75, 50.25, 1L
+    ~lon, ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25, 1L, 1,
+    0.75, 50.25, 1L, 1
   )
 
   result <- whep::build_gridded_landuse(
@@ -707,6 +707,321 @@ testthat::test_that("shared cells keep independent polity landuse compartments",
   testthat::expect_setequal(cft_result$area_code, c(1L, 2L))
 })
 
+# S-A6 -- every allocation is keyed on the polycell -----------------------------
+#
+# The border fixture the criterion asks for: two polities sharing one cell with
+# deliberately incompatible national totals. It is built to be NON-degenerate,
+# because a fixture with one key per cell, equal shares or equal totals cannot
+# tell polycell keying apart from cell-then-split: two polycells per shared
+# cell, unequal shares (10/90), totals differing 100-fold, and each polity also
+# present in a cell it holds alone so its share denominator is testable.
+.sa6_border_fixture <- function(area_1 = 1000, area_2 = 10) {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,             area_1,
+      2000L,         2L,             15L,             area_2
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               0.5,
+      0.75, 50.25,             15L,               0.5,
+      1.25, 50.25,             15L,               0.5
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,       100000,
+      0.75, 50.25, 2000L,       100000,
+      1.25, 50.25, 2000L,       100000
+    ),
+    country_grid = tibble::tribble(
+      ~polycell_id,  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      "shared-1",   0.25, 50.25,         1L,             0.1,
+      "shared-2",   0.25, 50.25,         2L,             0.9,
+      "own-1",      0.75, 50.25,         1L,             1.0,
+      "own-2",      1.25, 50.25,         2L,             1.0
+    )
+  )
+}
+
+testthat::test_that("a shared cell delivers only what each polycell carries", {
+  fix <- .sa6_border_fixture()
+  result <- do.call(whep::build_gridded_landuse, fix)
+
+  # Every output row is polycell-keyed, and the shared cell carries two.
+  testthat::expect_setequal(
+    result$polycell_id,
+    c("shared-1", "shared-2", "own-1", "own-2")
+  )
+
+  totals <- result |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha), .by = area_code) |>
+    dplyr::arrange(area_code)
+  testthat::expect_equal(totals$total, c(1000, 10), tolerance = 1e-9)
+
+  # Each polity's share denominator is over ITS OWN polycells: polity 1 has
+  # 0.5 * 100000 * 0.1 in the shared cell against 0.5 * 100000 in its own, so
+  # it keeps 1000 * 5000 / 55000 there; polity 2 keeps 10 * 45000 / 95000.
+  by_pc <- stats::setNames(
+    result$rainfed_ha + result$irrigated_ha,
+    result$polycell_id
+  )
+  testthat::expect_equal(
+    unname(by_pc[["shared-1"]]),
+    1000 * 5000 / 55000,
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    unname(by_pc[["shared-2"]]),
+    10 * 45000 / 95000,
+    tolerance = 1e-9
+  )
+
+  # THE discriminating assertion. Computing the cell's allocation and splitting
+  # it afterwards makes the two compartments' shares equal to the AREA shares,
+  # 0.1 / 0.9. Keyed on the polycell they are 19.2, because the national totals
+  # differ 100-fold. Conservation alone cannot tell these apart.
+  ratio <- by_pc[["shared-1"]] / by_pc[["shared-2"]]
+  testthat::expect_gt(ratio, 19)
+  testthat::expect_false(isTRUE(all.equal(ratio, 0.1 / 0.9)))
+})
+
+testthat::test_that("a neighbour's national total cannot move a polycell", {
+  # S-A3/S-A6 stated as an independence property rather than a number: change
+  # ONLY polity 1's national area and polity 2's grid must be bit-identical.
+  small <- do.call(whep::build_gridded_landuse, .sa6_border_fixture(1000, 10))
+  # The large run breaches polity 1's own ceiling and says so; that warning is
+  # incidental here and is pinned by its own test below.
+  large <- suppressWarnings(do.call(
+    whep::build_gridded_landuse,
+    .sa6_border_fixture(50000000, 10)
+  ))
+  pick <- function(x) {
+    x |>
+      dplyr::filter(area_code == 2L) |>
+      dplyr::arrange(polycell_id) |>
+      dplyr::select(polycell_id, rainfed_ha, irrigated_ha)
+  }
+  testthat::expect_identical(pick(small), pick(large))
+  # ... and polity 1 really did move, so the test is not vacuously satisfied.
+  testthat::expect_gt(
+    sum(dplyr::filter(large, area_code == 1L)$rainfed_ha),
+    sum(dplyr::filter(small, area_code == 1L)$rainfed_ha)
+  )
+})
+
+testthat::test_that("capacity is clipped per polycell, not per physical cell", {
+  # The shared cell holds 1000 ha of cropland split 50/50, so each compartment
+  # may carry 500 ha. Polity 1 is forced over its half; polity 2 must not be
+  # rescaled by its neighbour's overload.
+  fix <- .sa6_border_fixture()
+  fix$gridded_cropland <- tibble::tribble(
+    ~lon,  ~lat,  ~year, ~cropland_ha,
+    0.25, 50.25, 2000L,         1000,
+    0.75, 50.25, 2000L,          100,
+    1.25, 50.25, 2000L,       100000
+  )
+  fix$country_grid$cell_area_frac <- c(0.5, 0.5, 1, 1)
+  fix$country_areas$harvested_area_ha <- c(2000, 10)
+
+  result <- suppressWarnings(do.call(whep::build_gridded_landuse, fix))
+  totals <- result |>
+    dplyr::summarise(total = sum(rainfed_ha + irrigated_ha), .by = area_code) |>
+    dplyr::arrange(area_code)
+  testthat::expect_equal(totals$total, c(2000, 10), tolerance = 1e-6)
+
+  # Polity 2's own two compartments are untouched by polity 1's redistribution.
+  reference <- fix
+  reference$country_areas$harvested_area_ha <- c(600, 10)
+  ref_result <- suppressWarnings(
+    do.call(whep::build_gridded_landuse, reference)
+  )
+  pick <- function(x) {
+    x |>
+      dplyr::filter(area_code == 2L) |>
+      dplyr::arrange(polycell_id) |>
+      dplyr::pull(rainfed_ha)
+  }
+  testthat::expect_equal(pick(result), pick(ref_result), tolerance = 1e-12)
+})
+
+testthat::test_that("a breached capacity ceiling is reported, not absorbed", {
+  # AM-5 risk 19. `.redistribute_country_dt()` rescales back to the national
+  # target after the logit passes, so when a country's cells cannot hold its
+  # total the per-cell ceiling gives way silently. Shrinking the land
+  # denominator makes this strictly more common, so the breach is measured.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                500
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          100
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1
+    )
+  )
+  testthat::expect_warning(
+    result <- do.call(whep::build_gridded_landuse, fix),
+    "more harvested area than their capacity"
+  )
+  # The magnitude is reported, and it is the real excess: 500 allocated into a
+  # 100 ha ceiling.
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, fix),
+    "400 ha over"
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 500, tolerance = 1e-6)
+
+  # Halving the compartment's share halves the ceiling and the breach grows --
+  # the mechanism the migration makes more common, pinned.
+  tighter <- fix
+  tighter$country_grid$cell_area_frac <- 0.5
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, tighter),
+    "450 ha over"
+  )
+
+  # A country that fits inside its ceiling raises nothing.
+  roomy <- fix
+  roomy$gridded_cropland$cropland_ha <- 10000
+  testthat::expect_no_warning(do.call(whep::build_gridded_landuse, roomy))
+})
+
+testthat::test_that("splitting a polycell in two changes no cell's allocation", {
+  # The one S-A6 property the border fixtures above cannot reach: two polycells
+  # of the SAME `area_code` inside one cell. That is not hypothetical -- DA-23
+  # records `polity_area_crosswalk` folding 544 polity codes into 201 buckets,
+  # with bucket 206 holding Sudan and South Sudan, so a cell on that border
+  # yields exactly this shape.
+  #
+  # Both potential and capacity are linear in `cell_area_frac`, so splitting one
+  # compartment into two whose shares sum to the original is EXACTLY neutral
+  # under polycell-keyed redistribution. Grouping `.cell_group` on
+  # (lon, lat) instead pools the two and then takes `first(rf_capacity)` --
+  # one compartment's ceiling applied to both -- and the identity breaks.
+  # Capacity must bind, or the redistribution never runs and the test is
+  # vacuous; the warning below is the evidence that it did.
+  base_fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,               1500
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      0.75, 50.25,             15L,               0.1
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,         1000,
+      0.75, 50.25, 2000L,         1000
+    )
+  )
+  whole <- c(
+    base_fix,
+    list(
+      country_grid = tibble::tribble(
+    ~polycell_id,  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    "a",          0.25, 50.25,         1L,             1.0,
+    "b",          0.75, 50.25,         1L,             1.0
+  )
+    )
+  )
+  split <- c(
+    base_fix,
+    list(
+      country_grid = tibble::tribble(
+    ~polycell_id,  ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    "a1",         0.25, 50.25,         1L,             0.4,
+    "a2",         0.25, 50.25,         1L,             0.6,
+    "b",          0.75, 50.25,         1L,             1.0
+  )
+    )
+  )
+
+  testthat::expect_warning(
+    whole_out <- do.call(whep::build_gridded_landuse, whole),
+    "more harvested area than their capacity"
+  )
+  split_out <- suppressWarnings(do.call(whep::build_gridded_landuse, split))
+
+  per_cell <- function(x) {
+    x |>
+      dplyr::summarise(
+        total = sum(rainfed_ha + irrigated_ha),
+        .by = c(lon, lat)
+      ) |>
+      dplyr::arrange(lon) |>
+      dplyr::pull(total)
+  }
+  testthat::expect_equal(
+    per_cell(split_out),
+    per_cell(whole_out),
+    tolerance = 1e-9
+  )
+  # Not vacuous: the two cells really do hold different amounts, and the
+  # concentrated cell really was pushed past its ceiling.
+  testthat::expect_gt(per_cell(whole_out)[[1L]], per_cell(whole_out)[[2L]])
+  testthat::expect_gt(per_cell(whole_out)[[1L]], 1000)
+  # The split cell's two compartments keep their own shares of it.
+  split_shared <- split_out |>
+    dplyr::filter(lon == 0.25) |>
+    dplyr::arrange(polycell_id)
+  testthat::expect_equal(
+    split_shared$rainfed_ha[[2L]] / split_shared$rainfed_ha[[1L]],
+    0.6 / 0.4,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("a pattern cell no compartment claims gets no allocation", {
+  # `.build_base_grid_cp()` keeps every `crop_patterns` cell, so a cell outside
+  # `country_grid` used to arrive with an NA `area_code` and an NA share that
+  # was replaced by 1 -- a whole-cell allocation to a polity that does not
+  # exist, reachable whenever `country_areas` itself carries an NA code.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                100,
+      2000L,         NA_integer_,    15L,               9999
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      9.25,  9.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,         1000,
+      9.25,  9.25, 2000L,         1000
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1
+    )
+  )
+  testthat::expect_warning(
+    result <- do.call(whep::build_gridded_landuse, fix),
+    "in no polity compartment"
+  )
+  testthat::expect_false(any(is.na(result$area_code)))
+  testthat::expect_false(any(result$lon == 9.25))
+  # The unkeyed national total is not fabricated onto the orphan cell.
+  testthat::expect_equal(
+    sum(result$rainfed_ha + result$irrigated_ha),
+    100,
+    tolerance = 1e-9
+  )
+})
+
 testthat::test_that("time-varying country grids select the valid polity year", {
   country_areas <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
@@ -723,9 +1038,9 @@ testthat::test_that("time-varying country grids select the valid polity year", {
     0.25, 50.25, 2000L, 1000
   )
   country_grid <- tibble::tribble(
-    ~lon,  ~lat, ~area_code, ~year,
-    0.25, 50.25,         1L, 1990L,
-    0.25, 50.25,         2L, 2000L
+    ~lon,  ~lat, ~area_code, ~cell_area_frac, ~year,
+    0.25, 50.25,         1L,               1, 1990L,
+    0.25, 50.25,         2L,               1, 2000L
   )
 
   result <- whep::build_gridded_landuse(
@@ -805,12 +1120,14 @@ testthat::test_that("build_gridded_landuse warns on off-bucket area codes", {
 testthat::test_that("build_gridded_landuse keeps on-bucket grids silent", {
   fix <- off_bucket_fixture()
   on_bucket <- dplyr::filter(fix$country_grid, area_code == 68L)
+  on_bucket_patterns <- dplyr::filter(fix$crop_patterns, lon == 1.25)
+  on_bucket_cropland <- dplyr::filter(fix$gridded_cropland, lon == 1.25)
 
   testthat::expect_no_warning(
     whep::build_gridded_landuse(
       dplyr::filter(fix$country_areas, area_code == 68L),
-      fix$crop_patterns,
-      fix$gridded_cropland,
+      on_bucket_patterns,
+      on_bucket_cropland,
       on_bucket
     )
   )
@@ -953,15 +1270,22 @@ testthat::test_that("the re-key keeps a code the crosswalk does not carry", {
       0.25, 50.25, 2000L,          5000,
       0.75, 50.25, 2000L,          5000
     ),
+    # `cell_area_frac` is explicit because C8/S-A5 forbids the share-less grid
+    # this fixture arrived with: `.abort_missing_polity_share()` refuses a
+    # crosswalk carrying no share rather than defaulting it to 1 and handing a
+    # border cell wholly to one polity. `1` is the honest value here -- each of
+    # these cells is owned outright by the single polity keyed on it -- so the
+    # missing-reporter behaviour under test is unchanged and the guard is not
+    # weakened to accommodate the fixture.
     live_grid = tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-      0.25, 50.25,       238L,
-      0.75, 50.25,        68L
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,       238L,               1,
+      0.75, 50.25,        68L,               1
     ),
     retired_grid = tibble::tribble(
-      ~lon,  ~lat, ~area_code,
-      0.25, 50.25,        62L,
-      0.75, 50.25,        68L
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,        62L,               1,
+      0.75, 50.25,        68L,               1
     )
   )
 }
