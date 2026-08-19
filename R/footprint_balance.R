@@ -97,7 +97,9 @@ compute_footprint_balance <- function(production, trade, extension) {
 #'
 #' @return A tibble with `area_code`, `item_cbs_code`, `value_a`,
 #'   `value_b`, `abs_diff` and `rel_diff` (relative to the larger
-#'   of the two), ordered by descending `abs_diff`.
+#'   of the two), ordered by descending `abs_diff`. A cell missing
+#'   from one method counts as zero there; a cell present with an
+#'   `NA` value stays `NA`, so its differences are `NA` too.
 #'
 #' @export
 #'
@@ -112,20 +114,27 @@ compare_footprint_methods <- function(method_a, method_b) {
   a <- dplyr::summarise(
     method_a,
     value_a = sum(value),
+    in_a = TRUE,
     .by = c(area_code, item_cbs_code)
   )
   b <- dplyr::summarise(
     method_b,
     value_b = sum(value),
+    in_b = TRUE,
     .by = c(area_code, item_cbs_code)
   )
+  # A cell absent from one method is a true zero footprint there, but a
+  # cell that is present with an NA value is unknown, not zero: keeping
+  # it NA avoids fabricating an abs_diff equal to the other method's
+  # full value.
   dplyr::full_join(a, b, by = c("area_code", "item_cbs_code")) |>
     dplyr::mutate(
-      value_a = tidyr::replace_na(value_a, 0),
-      value_b = tidyr::replace_na(value_b, 0),
+      value_a = dplyr::if_else(is.na(in_a), 0, value_a),
+      value_b = dplyr::if_else(is.na(in_b), 0, value_b),
       abs_diff = abs(value_a - value_b),
       rel_diff = .safe_rel(abs_diff, pmax(value_a, value_b))
     ) |>
+    dplyr::select(-in_a, -in_b) |>
     dplyr::arrange(dplyr::desc(abs_diff))
 }
 

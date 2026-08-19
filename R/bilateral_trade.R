@@ -156,7 +156,14 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   n <- length(exports)
 
   if (sum(exports) == 0 && sum(imports) == 0) {
-    return(matrix(0, nrow = n, ncol = n))
+    # Keep the country dimnames here too: the documented contract is name
+    # indexing (`m["A", "B"]`), so the zero path must stay indexable.
+    return(matrix(
+      0,
+      nrow = n,
+      ncol = n,
+      dimnames = dimnames(trade_matrix)
+    ))
   }
 
   # Only run IPF on active countries to reduce matrix size.

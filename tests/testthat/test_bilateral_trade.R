@@ -646,6 +646,30 @@ testthat::test_that(".balance_matrix returns zero matrix when all trade is zero"
   testthat::expect_equal(result, matrix(0, nrow = 3, ncol = 3))
 })
 
+testthat::test_that(".balance_matrix keeps dimnames when all trade is zero", {
+  # Regression for #235: the all-zero short circuit used to return a matrix
+  # with no dimnames, so name indexing (the documented contract) failed.
+  codes <- c("1", "2", "3")
+  total_trade <- tibble::tibble(
+    area_code = factor(codes),
+    export = c(0, 0, 0),
+    import = c(0, 0, 0)
+  ) |>
+    .balance_total_trade()
+
+  trade_matrix <- matrix(
+    0,
+    nrow = 3,
+    ncol = 3,
+    dimnames = list(codes, codes)
+  )
+
+  result <- .balance_matrix(trade_matrix, total_trade)
+
+  testthat::expect_equal(dimnames(result), list(codes, codes))
+  testthat::expect_equal(result["1", "2"], 0)
+})
+
 testthat::test_that(".balance_matrix handles single active country", {
   total_trade <- tibble::tibble(
     area_code = c(1, 2, 3),

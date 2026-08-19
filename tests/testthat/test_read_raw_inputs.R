@@ -2,6 +2,52 @@
 
 # -- .aggregate_to_polities fao_flag handling ----------------------------------
 
+# `.aggregate_to_polities()` resolves areas through `.polity_crosswalk()` (via
+# `.add_polity_columns_dt()`), so that is the binding a hermetic test has to
+# mock. These tests used to mock a `.polity_bridge()` helper that nothing
+# called, and passed only because the shipped crosswalk happens to resolve area
+# 203 to Spain (whep#590). The fixture below names the polity `Testland` so an
+# inert mock cannot be mistaken for a live one.
+.local_aggregator_crosswalk <- function(env = parent.frame()) {
+  fixture <- data.table::data.table(
+    area_code = 203L,
+    area_name = "Testland",
+    area_iso3c = "TST",
+    polity_area_code = 203L,
+    polity_code = "TST-1900-2025",
+    polity_name = "Testland",
+    polity_start_year = 1900L,
+    polity_end_year = 2025L,
+    polity_type = "national",
+    mapping_status = "matched",
+    has_geometry = TRUE
+  )
+  testthat::local_mocked_bindings(
+    .polity_crosswalk = function(include_unmapped = TRUE) {
+      data.table::copy(fixture)
+    },
+    .env = env
+  )
+}
+
+test_that(".aggregate_to_polities resolves through the mocked crosswalk", {
+  dt <- data.table::data.table(
+    area_code = 203L,
+    year = 2000L,
+    element = "production",
+    unit = "tonnes",
+    item_prod_code = "15",
+    item_prod = "Wheat",
+    value = 5000
+  )
+
+  .local_aggregator_crosswalk()
+
+  result <- whep:::.aggregate_to_polities(dt, item_prod_code, item_prod)
+  expect_equal(result$area, "Testland")
+  expect_equal(result$reporting_polity_code, "TST-1900-2025")
+})
+
 test_that(".aggregate_to_polities preserves fao_flag when present", {
   dt <- data.table::data.table(
     area_code = c(203L, 203L),
@@ -14,16 +60,7 @@ test_that(".aggregate_to_polities preserves fao_flag when present", {
     fao_flag = c("A", "E")
   )
 
-  local_mocked_bindings(
-    .polity_bridge = function() {
-      data.table::data.table(
-        area_code = 203L,
-        polity_code = "ESP",
-        polity_name = "Spain",
-        polity_area_code = 203L
-      )
-    }
-  )
+  .local_aggregator_crosswalk()
 
   result <- whep:::.aggregate_to_polities(dt, item_prod_code, item_prod)
   expect_true("fao_flag" %in% names(result))
@@ -40,16 +77,7 @@ test_that(".aggregate_to_polities works without fao_flag", {
     value = 5000
   )
 
-  local_mocked_bindings(
-    .polity_bridge = function() {
-      data.table::data.table(
-        area_code = 203L,
-        polity_code = "ESP",
-        polity_name = "Spain",
-        polity_area_code = 203L
-      )
-    }
-  )
+  .local_aggregator_crosswalk()
 
   result <- whep:::.aggregate_to_polities(dt, item_prod_code, item_prod)
   expect_false("fao_flag" %in% names(result))

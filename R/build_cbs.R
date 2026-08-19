@@ -705,95 +705,18 @@ build_processing_coefs <- function(
   )
 }
 
+# The pin's `area` label is carried through untouched, because nothing keys on
+# it. `.fill_with_proxies()` is this input's only consumer, and it reduces the
+# pin to `(year, area_code, pop)` on the reporting bucket resolved from the
+# ISO3 in `area_code` -- so the label never reaches a join (whep#721). This
+# reader used to relabel `area` into the `polity_name` vocabulary for a
+# name-keyed proxy join; commit 2210d05d moved that join onto the polity, and
+# the relabelling became inert with respect to every published number.
 .read_gdp_pop <- function(years = NULL) {
   dt <- .read_input("gdp-population", years = years, year_col = "Year")
   if ("Year" %in% names(dt)) {
     data.table::setnames(dt, "Year", "year")
   }
-  .canonicalise_gdp_pop_area(dt)
-}
-
-# Relabel this input's areas with the polity name the rest of the pipeline uses.
-#
-# `.fill_with_proxies()` joins population on `c("year", "area")` -- the name, not
-# a code -- and the two sides speak different vocabularies. Every builder that
-# goes through `.aggregate_to_polities()` emits the period-specific
-# `polity_name` ("Albania (1913-2025)", "Cote d'Ivoire"), while this pin writes
-# its own short forms. Measured on the current pin: 35 of its 196 area names,
-# 5,346 rows or 18.0%, are not names any builder emits, so the join found nothing
-# and the failure is silent -- an unmatched proxy is an NA, not an error, so those
-# countries simply went unfilled.
-#
-# Resolved through the CODE, not through a synonym list. The pin already carries
-# the area's ISO3 in `area_code`, so the label is mapped ISO3 -> FAOSTAT area
-# code -> polity name for that row's year, by the same two helpers
-# `.aggregate_to_polities()` uses. The two vocabularies therefore agree by
-# construction, including the pre-1962 back-cast: 1900 Bangladesh resolves to
-# "East Pakistan (1947-1971)" on both sides because both anchor at 1961.
-#
-# TWO THINGS IT DELIBERATELY DOES NOT DO.
-#
-# It only renames a label that differs from its own polity name, so a label that
-# already matches cannot be rewritten. Checked against the 1961 CBS extract's
-# area vocabulary: 110 of 169 labels matched before, 148 after, and 0 went from
-# matching to not matching.
-#
-# It only renames an area that IS its polity's canonical reporting area
-# (`area_code == polity_area_code`). An area folded into an aggregate -- Syria and
-# Equatorial Guinea into Rest of World -- would otherwise be relabelled as the
-# aggregate, which would both attribute one member's population to the whole
-# bucket and put several pin rows on one `(year, area)` key. Whether the bucket's
-# proxy should be the SUM over its members is a real question and not one a
-# relabelling can answer, so those 6 areas are left unfilled as before.
-#
-# This is not #382's version of the fix. That one canonicalised towards the
-# crosswalk's `area_name`, which is the vocabulary `.read_land_areas()` uses but
-# not the one the frame being filled carries; applied here it would have renamed
-# Bolivia, Iran, Tanzania, Venezuela and North Korea -- five labels that match
-# today -- into names that match nothing.
-.canonicalise_gdp_pop_area <- function(dt) {
-  if (!all(c("area", "area_code", "year") %in% names(dt))) {
-    return(dt)
-  }
-  if (!is.character(dt$area_code)) {
-    return(dt)
-  }
-  dt <- data.table::as.data.table(dt)
-
-  keys <- unique(dt[, .(area, area_code, year)])
-  keys[, key_row := .I]
-  mapped <- .iso3_to_fao_area_code(data.table::copy(keys))
-  mapped <- .add_polity_columns_dt(
-    mapped,
-    code_col = "area_code",
-    year_col = "year",
-    include_unmapped = FALSE
-  )
-  mapped <- mapped[
-    !is.na(polity_name) &
-      !is.na(polity_area_code) &
-      area_code == polity_area_code,
-    .(key_row, canonical_area = polity_name)
-  ]
-  keys <- merge(keys, mapped, by = "key_row", all.x = TRUE, sort = FALSE)
-  keys <- keys[!is.na(canonical_area) & canonical_area != area]
-  if (nrow(keys) == 0L) {
-    return(dt)
-  }
-
-  cols <- names(dt)
-  dt <- merge(
-    dt,
-    keys[, .(area, area_code, year, canonical_area)],
-    by = c("area", "area_code", "year"),
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[!is.na(canonical_area), area := canonical_area]
-  dt[, canonical_area := NULL]
-  # The merge puts the join keys first; callers read this pin by name but the
-  # order is what the pin published, so put it back.
-  data.table::setcolorder(dt, cols)
   dt
 }
 
@@ -1854,15 +1777,33 @@ build_processing_coefs <- function(
   #   maxima  = 4, 4, 1
   #
   # Those columns are tonnes. A maximum of 4 is impossible. 31,642 duplicated combinations
-  # exist at full range, in areas 206 and 999, so the fallback fired in every build.
+  # existed at full range, in buckets 206 and 999, so the fallback fired in every build.
   #
   # SUM is the right aggregate, established from the data rather than assumed. The duplicates
-  # are one reporting bucket's folded members: `.aggregate_to_polities()` emits one row per
-  # (bucket, polity_name) and `key_cols` deliberately excludes the name -- see the comment
-  # above, which is why that exclusion is correct. Dumped, bucket 999 in 2010 for wheat holds
-  # four distinct territories with production 0 / 244,000 / 0 / 3,103,000. FABIO's
-  # rest-of-world IS the sum of its members, so summing reproduces the bucket. `first` would
-  # keep one member (0, here) and discard the rest.
+  # were one reporting bucket's folded members: `.aggregate_to_polities()` then emitted one row
+  # per (bucket, polity_name), and `key_cols` deliberately excludes the name -- see the comment
+  # above, which is why that exclusion is correct. FABIO's rest-of-world IS the sum of its
+  # members, so summing reproduces the bucket; `first` would keep one member and discard the
+  # rest.
+  #
+  # NEITHER of those two buckets duplicates any more, so the measurement above is history and
+  # not a live diagnosis (whep#557):
+  #
+  #   - 999 stopped because its members are no longer folded into the bucket by default: see
+  #     `.unfold_rest_of_world()`, whose `"all"` default gives each member upstream names its
+  #     own `polity_area_code`. The members upstream names nowhere DO stay on 999, and they
+  #     all share the one aggregate polity `ROW-1850-2025`, so the bucket key still carries a
+  #     single territory. Asserted on `.polity_crosswalk()` in test_polity_folds.R -- not on
+  #     raw `polity_area_crosswalk`, which carries both answers per member and so shows 44
+  #     apparent folds before the choice is made.
+  #   - 206 stopped when whep#563 removed `polity_name` from `.aggregate_to_polities()`'s
+  #     grouping keys, so a bucket folding several live territories (206 is the only one --
+  #     Sudan and South Sudan from 2011, asserted in test_polity_folds.R) now emits one row.
+  #
+  # `fun.aggregate` STAYS regardless, as a guard rather than as a fix for a known duplicate:
+  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket, a re-mapped
+  # item code, one key reported in two units, since `key_cols` excludes `unit` -- would silently
+  # turn every cell of the table into a row count instead of erroring.
   #
   # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
   # zero where there is no observation is a different claim from a missing one. `fill = NA` is

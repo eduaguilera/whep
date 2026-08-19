@@ -142,6 +142,36 @@ testthat::test_that("compare handles items present in only one method", {
   testthat::expect_equal(sum(cmp$value_b), 12)
 })
 
+testthat::test_that("compare keeps a missing cell at zero", {
+  a <- tibble::tibble(area_code = 1L, item_cbs_code = 10L, value = 30)
+  b <- tibble::tibble(area_code = 2L, item_cbs_code = 10L, value = 12)
+  cmp <- whep::compare_footprint_methods(a, b)
+
+  missing_b <- cmp |> dplyr::filter(area_code == 1L)
+  testthat::expect_equal(missing_b$value_b, 0)
+  testthat::expect_equal(missing_b$abs_diff, 30)
+})
+
+testthat::test_that("compare does not turn an NA value into zero", {
+  a <- tibble::tibble(
+    area_code = c(1L, 2L),
+    item_cbs_code = c(10L, 10L),
+    value = c(NA_real_, 20)
+  )
+  b <- tibble::tibble(
+    area_code = c(1L, 2L),
+    item_cbs_code = c(10L, 10L),
+    value = c(25, 20)
+  )
+  cmp <- whep::compare_footprint_methods(a, b)
+
+  na_cell <- cmp |> dplyr::filter(area_code == 1L)
+  testthat::expect_true(is.na(na_cell$value_a))
+  testthat::expect_true(is.na(na_cell$abs_diff))
+  testthat::expect_true(is.na(na_cell$rel_diff))
+  testthat::expect_equal(na_cell$value_b, 25)
+})
+
 # melt_bilateral_trade ------------------------------------------------
 
 testthat::test_that("melt_bilateral_trade melts items and drops self-trade", {
