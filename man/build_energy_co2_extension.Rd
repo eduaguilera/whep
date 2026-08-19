@@ -116,7 +116,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did

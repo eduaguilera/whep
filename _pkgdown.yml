@@ -23,6 +23,7 @@ reference:
     and balance validation.
   contents:
   - build_primary_production
+  - build_historical_land_areas
   - build_commodity_balances
   - build_processing_coefs
   - build_detailed_trade
@@ -40,6 +41,23 @@ reference:
   - run_spatialize
   - build_gridded_landuse
   - build_gridded_livestock
+
+- title: Polycell spatial support
+  desc: >
+    Build the canonical spatial support unit, the polycell: a 0.5-degree grid
+    cell intersected with a polity over its validity interval, carrying the
+    territory decomposed into land, inland water and ice so that polycells
+    re-aggregate to a polity without value change or cross-border leakage.
+  contents:
+  - build_polycell_land_uses
+  - build_polycell_support
+  - expand_polycell_years
+  - polycell_example_geometries
+  - read_polycell_support
+  - read_glwd_water
+  - glwd_water_fraction
+  - read_glaciated_areas
+  - read_luh2_terrestrial
 
 - title: Constant-territory back-casting
   desc: >
@@ -202,6 +220,8 @@ reference:
   - build_n_deposition
   - read_hyde_population
   - read_population
+  - read_wpp_population
+  - read_habitual_cv
   - build_urban_n
   - calculate_manner_nh3
   - calculate_manner_nh3_default
@@ -247,6 +267,12 @@ reference:
   - build_n_boundary_exceedance
   - build_n_pathway_exceedance
   - build_food_supply
+  - build_protein_requirement
+  - build_intake_dispersion
+  - build_loss_wedge
+  - build_protein_quality
+  - build_protein_score
+  - build_nourishment_band
   - normalize_nourishment
   - calculate_food_gini
   - disaggregate_ussr
@@ -366,6 +392,7 @@ reference:
   - add_area_name
   - get_polity_geometries
   - folded_reporting_areas
+  - row_promotion_status
   - whep_polity_columns
   - resolve_polity_label
   - polity_identity_conventions

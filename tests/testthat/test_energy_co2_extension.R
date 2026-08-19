@@ -147,72 +147,191 @@ testthat::test_that("the crosswalk read follows the Rest-of-World unfold", {
   testthat::expect_false(any(c(17L, 88L, 180L) %in% refolded$area_code))
 })
 
-testthat::test_that("Bermuda, Guam and Palau still cannot be grouped", {
-  # They report as themselves now (previous test), so the OLD reason recorded
-  # here -- "bucket 999 carries their production" -- is gone. What keeps them
-  # out is that `.unfold_rest_of_world()` promotes `polity_area_code` only: the
-  # polity is still the Rest-of-World aggregate, and the crosswalk gives that
-  # polity `continent = "World"`, which is not one of the four continents the
-  # GLEAM scheme rules can settle. So the warning does not name them and
-  # `unclassified = "polity_region"` could not group them if it did. Whether a
-  # promoted member should carry a polity and a continent of its own is a
-  # crosswalk question, whep#646.
+testthat::test_that("Bermuda, Guam and Palau are grouped like their peers", {
+  # THIS TEST ASSERTED THE OPPOSITE until whep#717. They reported as themselves
+  # (previous test) but `.unfold_rest_of_world()` promoted `polity_area_code`
+  # ONLY, so their polity was still the Rest-of-World aggregate and the
+  # crosswalk gave that polity `continent = "World"`, which is not one of the
+  # four continents the GLEAM scheme rules can settle. The `polity_type` filter
+  # in `.areas_gleam_cannot_group()` therefore dropped them one line after
+  # whep#628 let them in, and the `polity_region` treatment could not group
+  # them even if the warning named them. That was whep#646's second half, and
+  # giving a promoted member its own polity resolves it.
   rows <- .energy_self_reporting_gaps() |>
     dplyr::filter(.data$area_code %in% c(17L, 88L, 180L))
 
-  testthat::expect_equal(nrow(rows), 3L)
-  testthat::expect_true(all(rows$polity_type == "aggregate"))
-  testthat::expect_true(all(rows$continent == "World"))
-  testthat::expect_false(
-    .energy_gleam_continent("World") %in% .energy_scheme_continents()
-  )
-
-  testthat::expect_false(any(
-    c(17L, 88L, 180L) %in% .areas_gleam_cannot_group()$area_code
+  # Four rows over three areas: Bermuda carries two upstream periods, which is
+  # itself the year-aware identity whep#717 gives a promoted member.
+  testthat::expect_equal(nrow(rows), 4L)
+  testthat::expect_setequal(rows$area_code, c(17L, 88L, 180L))
+  testthat::expect_false(any(rows$polity_type == "aggregate"))
+  testthat::expect_false(any(rows$continent == "World"))
+  testthat::expect_true(all(
+    .energy_gleam_continent(rows$continent) %in% .energy_scheme_continents()
   ))
+
+  # Bermuda and Palau are live, so they join whep#415's `polity_region`
+  # treatment. Guam does NOT: its only upstream period `GUM-1898-1950` ended in
+  # 1950, so it is a dissolved entity by the same derived test every other one
+  # passes. Splitting the three that way is the crosswalk speaking, not a list
+  # typed in here.
+  live <- .areas_gleam_cannot_group()$area_code
+  testthat::expect_true(all(c(17L, 180L) %in% live))
+  testthat::expect_false(88L %in% live)
+  testthat::expect_true(88L %in% .energy_dissolved_areas()$area_code)
+
   grouped <- suppressMessages(.energy_hierarchy("polity_region"))
-  testthat::expect_false(any(c("BMU", "GUM", "PLW") %in% grouped$iso3))
+  testthat::expect_true(all(c("BMU", "PLW") %in% grouped$iso3))
+
+  # And Guam is STILL not priced, because `historical_region` needs the OECD/EU
+  # membership the entity held while it existed and
+  # `.energy_dissolved_membership()` records none for it. That is the right
+  # answer, not a gap to fill here: inventing a membership for a colonial
+  # administration would be exactly the manufactured value this package forbids.
+  historical <- suppressMessages(.energy_hierarchy("historical_region"))
+  testthat::expect_false(any(c("GUM", "CXR", "SHN") %in% historical$iso3))
+  testthat::expect_equal(nrow(.energy_dissolved_rows()), 6L)
 })
 
-testthat::test_that("the unfold does not move what the energy file reads", {
-  # The whep#646 fix is a correctness fix with no numbers behind it TODAY, and
-  # this is that claim as a guard rather than as a sentence in a PR body: the
-  # three surfaces the crosswalk feeds are identical under both fold states, so
-  # the first time a promoted Rest-of-World member starts mattering, this fails
-  # instead of the change being silent.
+testthat::test_that("the unfold moves what the energy file reads", {
+  # THE OPPOSITE CLAIM, AND IT IS THE POINT. This guard was written while the
+  # promotion was numeric only, asserting that the three crosswalk-fed surfaces
+  # were identical under both fold states so that "the first time a promoted
+  # Rest-of-World member starts mattering, this fails instead of the change
+  # being silent". whep#717 is that time: 31 members now carry a territory, and
+  # 16 live plus 3 dissolved ones are GLEAM omissions the extension can group.
+  #
+  # So the guard is inverted rather than deleted -- the sets must differ by
+  # EXACTLY the promoted members, and re-folding must put every one of them
+  # back. A change that moved anything else, or that moved these silently in
+  # only one direction, still fails here.
   gaps <- .areas_gleam_cannot_group()
   dissolved <- .energy_dissolved_areas()
   iso3 <- .energy_area_iso3()
 
+  promoted <- whep::row_promotion_status()
+  own <- promoted$area_code[promoted$status == "own_polity"]
+
   withr::local_options(whep.unfold_rest_of_world = "none")
-  testthat::expect_equal(suppressWarnings(.areas_gleam_cannot_group()), gaps)
-  testthat::expect_equal(suppressWarnings(.energy_dissolved_areas()), dissolved)
+  refolded_gaps <- suppressWarnings(.areas_gleam_cannot_group())
+  refolded_dissolved <- suppressWarnings(.energy_dissolved_areas())
+
+  testthat::expect_setequal(
+    setdiff(gaps$area_code, refolded_gaps$area_code),
+    c(
+      5L,
+      6L,
+      17L,
+      22L,
+      36L,
+      65L,
+      82L,
+      85L,
+      94L,
+      125L,
+      140L,
+      142L,
+      161L,
+      163L,
+      172L,
+      180L,
+      190L,
+      192L,
+      218L,
+      224L,
+      239L,
+      240L,
+      258L,
+      270L,
+      279L,
+      281L
+    )
+  )
+  # 164 joined on 2026-08-13, the same shape as the three below it: the Pacific Islands
+  # Trust Territory now resolves to TTPI-1947-1994, a period that ENDED, where the fold
+  # had hidden it behind ROW-1850-2025's open end. FAOSTAT stops reporting area 164 in
+  # 1990 and TTPI covers to 1993, so the gap this creates is latent -- no data falls in it.
+  testthat::expect_setequal(
+    setdiff(dissolved$area_code, refolded_dissolved$area_code),
+    c(42L, 88L, 164L, 187L)
+  )
+  # Everything added is a promoted member, and re-folding removes nothing else.
+  testthat::expect_true(all(
+    setdiff(gaps$area_code, refolded_gaps$area_code) %in% own
+  ))
+  testthat::expect_true(all(
+    setdiff(dissolved$area_code, refolded_dissolved$area_code) %in% own
+  ))
+  testthat::expect_length(setdiff(refolded_gaps$area_code, gaps$area_code), 0L)
+  testthat::expect_length(
+    setdiff(refolded_dissolved$area_code, dissolved$area_code),
+    0L
+  )
+  # The ISO3 lookup is keyed on the bucket, which whep#628 already moved, so it
+  # is the one surface the territorial half leaves alone.
   testthat::expect_equal(suppressWarnings(.energy_area_iso3()), iso3)
 })
 
 testthat::test_that("polity_region groups an omitted area like its GLEAM peers", {
   # The point of deriving rather than tabulating: no grouping label is typed in
-  # here. Nauru and Tuvalu go through the same `case_when()` as the 204 published
-  # countries, on the continent their polity carries, so each label they get must
-  # already be one GLEAM's own non-OECD countries of that continent carry.
+  # here. Each derived area goes through the same `case_when()` as the 204
+  # published countries, on the continent its polity carries, so every label it
+  # gets must already be one GLEAM's own non-OECD countries of that continent
+  # carry.
+  #
+  # It used to be two areas on one continent, which whep#717 took to 16 across
+  # four -- so the peer comparison is made PER CONTINENT rather than against
+  # Oceania's labels. Comparing the pooled sets would pass on a derivation that
+  # gave Greenland the Pacific's labels.
   extended <- suppressMessages(
     .energy_country_grouping(.energy_hierarchy("polity_region"))
   )
   derived <- dplyr::filter(extended, .data$ef_scope == "polity_region")
-  testthat::expect_setequal(derived$iso3, c("NRU", "TUV"))
+  gaps <- .areas_gleam_cannot_group()
+  testthat::expect_setequal(derived$iso3, gaps$area_iso3c)
+  # 16 -> 28 on 2026-08-13: sixteen Rest-of-World members gained their own polity upstream
+  # (whep-polities #209/#210/#212), so sixteen more areas get polity_region treatment instead
+  # of the bucket's. The setequal above is the invariant; this count follows it.
+  testthat::expect_equal(nrow(derived), 28L)
 
+  # The peer set is taken on GLEAM's OWN continent vocabulary, which is what the
+  # scheme rules are written against: the crosswalk splits the Americas in two
+  # and `.energy_gleam_continent()` merges them back.
   hierarchy <- tibble::as_tibble(whep::gleam_geographic_hierarchy)
-  peers <- extended |>
-    dplyr::filter(
-      .data$ef_scope == "country",
-      .data$iso3 %in%
-        hierarchy$iso3[
-          hierarchy$continent == "Oceania" & hierarchy$oecd == 0
-        ]
-    )
-  testthat::expect_setequal(derived$region5, unique(peers$region5))
-  testthat::expect_setequal(derived$detailed15, unique(peers$detailed15))
-  testthat::expect_equal(unique(peers$detailed15), "Non-OECD Pacific")
+  polity_rows <- .energy_polity_hierarchy_rows()
+  continent <- polity_rows$continent[match(derived$iso3, polity_rows$iso3)]
+  testthat::expect_false(any(is.na(continent)))
+  for (cont in unique(continent)) {
+    peers <- extended |>
+      dplyr::filter(
+        .data$ef_scope == "country",
+        .data$iso3 %in%
+          hierarchy$iso3[
+            hierarchy$continent == cont &
+              hierarchy$oecd == 0 &
+              hierarchy$eu27 == 0
+          ]
+      )
+    # SUBSET, not setequal. `detailed15` carves the Russian Federation out of
+    # Europe as its own group, so Europe's non-OECD peers do not share ONE
+    # label and demanding the derived areas exhaust the peer set would assert
+    # that some derived area must be Russia. What must hold is the other
+    # direction: no derived area may carry a label its continent's peers do not
+    # already carry, which is what "derived, not typed in" means.
+    testthat::expect_gt(nrow(peers), 0L)
+    testthat::expect_true(all(
+      derived$region5[continent == cont] %in% peers$region5
+    ))
+    testthat::expect_true(all(
+      derived$detailed15[continent == cont] %in% peers$detailed15
+    ))
+  }
+  # Oceania is still the case the original whep#415 pair sat in, and there the
+  # stronger equality holds.
+  testthat::expect_equal(
+    unique(derived$detailed15[continent == "Oceania"]),
+    "Non-OECD Pacific"
+  )
 
   # `development3` is a property of the country, not the continent, and comes
   # from `.energy_ldc_iso3()`. That resolves the contradiction whep#415 named:
@@ -225,9 +344,25 @@ testthat::test_that("polity_region groups an omitted area like its GLEAM peers",
   testthat::expect_equal(derived$development3[derived$iso3 == "NRU"], "Others")
 
   # The GLEAM region comes from the merged whep#465 override table rather than a
-  # second copy of that decision, and only feeds the dressing fraction.
-  testthat::expect_true(
-    all(.energy_polity_hierarchy_rows()$gleam_region == "Oceania")
+  # second copy of that decision, and only feeds the dressing fraction. That
+  # table covers eight areas, and the 14 whep#717 added to this treatment are
+  # not among them -- so they carry `NA` and take the GLOBAL-MEAN dressing
+  # fraction, which `.energy_join_dressing()` documents as the fallback for a
+  # row with no region. Filling those 14 in here would be inventing a regional
+  # assignment; leaving them NA is the honest answer and it is asserted, not
+  # left to chance.
+  polity_rows <- .energy_polity_hierarchy_rows()
+  named <- polity_rows$gleam_region[!is.na(polity_rows$gleam_region)]
+  testthat::expect_true(all(
+    named %in% whep::gleam_geographic_hierarchy$gleam_region
+  ))
+  testthat::expect_equal(
+    polity_rows$gleam_region[polity_rows$iso3 %in% c("NRU", "TUV")],
+    c("Oceania", "Oceania")
+  )
+  testthat::expect_setequal(
+    polity_rows$iso3[is.na(polity_rows$gleam_region)],
+    setdiff(polity_rows$iso3, c("NRU", "TUV"))
   )
 })
 
@@ -589,9 +724,17 @@ testthat::test_that("the dissolved set is derived, not typed in", {
   # period a dissolved area carries ended before the crosswalk's open end.
   dissolved <- .energy_dissolved_areas()
 
+  # 42 Christmas Island, 88 Guam and 187 Saint Helena joined the six original
+  # ones with whep#717. They are Rest-of-World members whose own upstream
+  # period ended -- `CXR-1946-1958`, `GUM-1898-1950`, `SHN-1834-1967` -- which
+  # the fold hid behind `ROW-1850-2025`, a period that runs to the open end and
+  # so never looks dissolved. That upstream has no live successor period for
+  # them is a coverage gap `polity_coverage_gaps()` now reports.
+  # 164 Pacific Islands Trust Territory joined on 2026-08-13, by the same mechanism: it now
+  # resolves to TTPI-1947-1994, whose period ended in 1994.
   testthat::expect_setequal(
     dissolved$area_code,
-    c(15L, 51L, 151L, 186L, 228L, 248L)
+    c(15L, 42L, 51L, 88L, 151L, 164L, 186L, 187L, 228L, 248L)
   )
   # The live omissions stay with whep#415's treatment ...
   testthat::expect_false(any(c(148L, 227L) %in% dissolved$area_code))

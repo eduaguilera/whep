@@ -164,8 +164,8 @@ n_applied <- tibble::tribble(
 calculate_soil_n2o(n_applied)
 #> # A tibble: 2 × 6
 #>   area_code climate irrig_type n_input_t n2o_direct_n_t method_soil_n2o
-#>       <dbl> <chr>   <chr>          <dbl>          <dbl> <chr>          
-#> 1       203 MED     Rainfed         1000              5 ipcc2019       
+#>       <dbl> <chr>   <chr>          <dbl>          <dbl> <chr>
+#> 1       203 MED     Rainfed         1000              5 ipcc2019
 #> 2        11 ATL     Rainfed         1000             10 ipcc2019
 ```
 
@@ -178,8 +178,8 @@ distinguish the two climates:
 calculate_soil_n2o(n_applied, method = "ipcc2006")
 #> # A tibble: 2 × 6
 #>   area_code climate irrig_type n_input_t n2o_direct_n_t method_soil_n2o
-#>       <dbl> <chr>   <chr>          <dbl>          <dbl> <chr>          
-#> 1       203 MED     Rainfed         1000             10 ipcc2006       
+#>       <dbl> <chr>   <chr>          <dbl>          <dbl> <chr>
+#> 1       203 MED     Rainfed         1000             10 ipcc2006
 #> 2        11 ATL     Rainfed         1000             10 ipcc2006
 ```
 

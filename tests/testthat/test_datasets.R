@@ -108,14 +108,31 @@ test_that("CBS and FABIO area codes map to polity database rows", {
       .data$fabio_code,
       .data$polity_area_code,
       .data$polity_code,
+      .data$mapping_source,
       .data$has_geometry
     )
 
-  expect_equal(nrow(fabio_row_sources), 6L)
+  # Eight rows over six areas since whep#717: French Guiana (69) and Palestine
+  # (299) carry the upstream map's answer as well as the bucket's, and
+  # `.unfold_rest_of_world()` chooses. The bucket's row still says
+  # `ROW-1850-2025` for all six, which is what `whep.unfold_rest_of_world =
+  # "none"` restores; the promoted rows say the territory.
+  expect_equal(nrow(fabio_row_sources), 8L)
   expect_true(all(fabio_row_sources$fabio_code == 999L))
   expect_true(all(fabio_row_sources$polity_area_code == 999L))
-  expect_true(all(fabio_row_sources$polity_code == "ROW-1850-2025"))
   expect_true(all(fabio_row_sources$has_geometry))
+
+  fold <- fabio_row_sources[
+    fabio_row_sources$mapping_source == "fabio_row_fold",
+  ]
+  expect_setequal(fold$area_code, c(30L, 69L, 152L, 252L, 254L, 299L))
+  expect_true(all(fold$polity_code == "ROW-1850-2025"))
+
+  promoted <- fabio_row_sources[
+    fabio_row_sources$mapping_source == "fabio_row_promoted",
+  ]
+  expect_setequal(promoted$area_code, c(69L, 299L))
+  expect_setequal(promoted$polity_code, c("GUF-1946-2025", "PSE-1948-2025"))
 })
 
 
