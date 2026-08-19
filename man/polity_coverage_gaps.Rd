@@ -2,7 +2,7 @@
 % Please edit documentation in R/polities.R
 \name{polity_coverage_gaps}
 \alias{polity_coverage_gaps}
-\title{Find rows whose polity is a nearest-period stand-in}
+\title{Find rows attributed to a polity not live in the row's year}
 \usage{
 polity_coverage_gaps(
   table,
@@ -19,53 +19,58 @@ the resolution is to be year-aware.}
 
 \item{year_column}{Name of the column holding years. Set to \code{NULL}, or leave
 it absent from \code{table}, to use the current/default mapping, which has no
-stand-ins by construction.}
+gaps by construction.}
 
 \item{backcast_anchor}{First year of reported (non-back-cast) FAOSTAT data;
 passed to the same resolution \code{\link[=add_polity_code]{add_polity_code()}} documents.}
 }
 \value{
-A tibble with one row per \verb{(area_code, year)} resolved by a
-stand-in, ordered by area code and year, carrying \code{area_code}, \code{year},
-\code{polity_code}, \code{polity_name}, \code{polity_start_year}, \code{polity_end_year},
-\code{gap_kind} (\code{"polity_not_started"} or \code{"polity_ended"}) and \code{n_rows}, the
-number of rows of \code{table} that pair carries. Zero rows means every row of
-\code{table} landed inside its polity's period, which is the intended state.
+A tibble with one row per reported \verb{(area_code, year)}, ordered by
+area code and year, carrying \code{area_code}, \code{year}, \code{polity_code},
+\code{polity_name}, \code{polity_start_year}, \code{polity_end_year}, \code{gap_kind}
+(\code{"backcast_anchor"}, \code{"polity_not_started"} or \code{"polity_ended"}) and
+\code{n_rows}, the number of rows of \code{table} that pair carries. Zero rows means
+every row of \code{table} landed inside its polity's period, which is the
+intended state.
 }
 \description{
-\code{\link[=add_polity_code]{add_polity_code()}} reports a nearest-period stand-in as
-\code{mapping_status == "out_of_span"}, but WHEP's published outputs do not carry
-that column: \code{reporting_polity_code} and \code{reporting_polity_name} say which
-polity a row was attributed to, and nothing says the polity did not exist in
-that row's year. This answers that question for a table that has already been
-built, so a consumer joining on \code{reporting_polity_code} can tell a real period
-hit from a stand-in without re-deriving the crosswalk.
+\code{\link[=add_polity_code]{add_polity_code()}} reports these rows in \code{mapping_status}, but WHEP's
+published outputs do not carry that column: \code{reporting_polity_code} and
+\code{reporting_polity_name} say which polity a row was attributed to, and nothing
+says the polity did not exist in that row's year. This answers that question
+for a table that has already been built, so a consumer joining on
+\code{reporting_polity_code} can tell a real period hit from the two kinds of
+substitute without re-deriving the crosswalk.
 
-A stand-in is not an error and the row is not dropped. It means either that
-the area needs the missing period added to the crosswalk, or that the
-reporting area outlived (or predates) every polity mapped to it, so treat it
-as a coverage gap: the polygon, population and period of the returned polity
-describe a different year than the value does.
-
-The two directions are not the same defect, so \code{gap_kind} names which one a
-row is:
+Neither kind is an error and no row is dropped. It means the polygon,
+population and period of the returned polity describe a different year than
+the value does, so \code{gap_kind} names which kind a row is:
 \itemize{
-\item \code{"polity_not_started"}: the polity begins after the row's year. This is
-mostly WHEP's own back-cast convention rather than a hole -- pre-1961
-series are back-cast onto the anchor-year territory, so a Soviet
-republic's 1900 land is attributed to the republic that reports it today.
-\item \code{"polity_ended"}: the polity had ended by the row's year, so the value
-covers a territory that entity no longer describes. This is the harder
-case, and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
-Sudan fold into bucket 206, whose label \code{SUD-1956-2011} ended at the
-secession, and no live polity means "Sudan and South Sudan".
+\item \code{"backcast_anchor"}: the row is before \code{backcast_anchor} and its polity was
+resolved at the anchor year, which is WHEP's own back-cast convention --
+pre-1961 series are reconstructions on the anchor year's territory, so a
+Soviet republic's 1900 land is booked to the republic that reports it
+today. The polity was matched at the anchor and simply had not begun by the
+row's own year.
+\item \code{"polity_not_started"}: no mapped period covered even the anchored year and
+the stand-in taken begins after it.
+\item \code{"polity_ended"}: the polity had ended, so the value covers a territory
+that entity no longer describes. This is the harder case, and the one
+whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
+bucket 206, whose label \code{SUD-1956-2011} ended at the secession, and no live
+polity means "Sudan and South Sudan".
 }
 
 \code{gap_kind} is not derivable from the returned columns, which is why it is
-returned rather than left to the caller. The comparison is against the year
-the resolver actually matched on, which the back-cast anchor floors at
-\code{backcast_anchor}, so a pre-anchor row is classified as the anchor year it
-was resolved as rather than as the year it carries.
+returned rather than left to the caller. \code{"backcast_anchor"} is not visible
+in the years at all -- the resolver matched a real period, at the anchor --
+and the direction of the other two is read at the year the resolver actually
+matched on, which the back-cast anchor floors at \code{backcast_anchor}, so a
+pre-anchor row is classified as the anchor year it was resolved as rather
+than as the year it carries.
+
+Measured on a real full-range \code{get_primary_production()}: 2,301 \verb{(area, year)} pairs / 7,247 rows are stand-ins, and the back-cast class adds 9,544
+pairs the floor previously hid from this function entirely (whep#763).
 
 The resolution here is the same one the builds use, including the back-cast
 anchor, so it reports what the table actually got rather than a second
@@ -75,9 +80,15 @@ by; both resolve through the same lookup.
 }
 \examples{
 # FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
-# after `SUD-1956-2011` ends, so post-2011 rows are stand-ins.
+# after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's
+# 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is
+# the polity live at the anchor, 102 years later.
 polity_coverage_gaps(
-  tibble::tibble(area_code = 206L, year = c(2005L, 2015L), value = 1)
+  tibble::tibble(
+    area_code = c(206L, 206L, 238L),
+    year = c(2005L, 2015L, 1850L),
+    value = 1
+  )
 )
 }
 \seealso{

@@ -670,26 +670,39 @@
 }
 
 # Gridded LUH2 land-use-class fixture: three 0.5-degree cells, one year, the
-# four carbon-balance classes. Per cell the four fractions tile to 1 and
-# area_ha = fraction * .luh2_cell_area_ha(lat). Mirrors read_luh2_landuse()
-# output at "grid" resolution. Each cell's area_code is the one the
-# spatialize-country-grid pin assigns to that cell (whep#686): 203 Spain,
-# 114 Kenya, 79 Germany.
+# four carbon-balance classes. Sampled from a real
+# read_luh2_landuse(resolution = "grid", years = 2015) run on the LUH2-GCB2022
+# states and the polycell support, so it shows what the schema really looks
+# like: cell (9.25, 47.75) is a BORDER cell, shared between Germany (79) and
+# Switzerland (211), whose two polycells carry the SAME `fraction` -- LUH2's
+# share of the whole cell -- and different `area_ha`, each class's share of that
+# cell's LUH2 land spread over its own polycell's measured land.
 .example_luh2_landuse <- function() {
   tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~land_use, ~fraction, ~area_ha,
-    -3.25, 40.25, 203L, 2000L, "cropland", 0.40, 94368.14,
-    -3.25, 40.25, 203L, 2000L, "grassland", 0.20, 47184.07,
-    -3.25, 40.25, 203L, 2000L, "natural", 0.35, 82572.12,
-    -3.25, 40.25, 203L, 2000L, "urban", 0.05, 11796.02,
-    35.25, -1.25, 114L, 2000L, "cropland", 0.30, 92709.98,
-    35.25, -1.25, 114L, 2000L, "grassland", 0.25, 77258.31,
-    35.25, -1.25, 114L, 2000L, "natural", 0.40, 123613.30,
-    35.25, -1.25, 114L, 2000L, "urban", 0.05, 15451.66,
-    9.25, 47.75, 79L, 2000L, "cropland", 0.25, 51958.29,
-    9.25, 47.75, 79L, 2000L, "grassland", 0.20, 41566.63,
-    9.25, 47.75, 79L, 2000L, "natural", 0.50, 103916.58,
-    9.25, 47.75, 79L, 2000L, "urban", 0.05, 10391.66
+    ~lon,
+    ~lat,
+    ~area_code,
+    ~year,
+    ~land_use,
+    ~fraction,
+    ~area_ha,
+    ~method_land_area,
+    -3.25, 40.25, 203L, 2015L, "cropland", 0.4717921, 111305.54, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "grassland", 0.2671119, 63017.22, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "natural", 0.2285400, 53917.33, "polycell_land",
+    -3.25, 40.25, 203L, 2015L, "urban", 0.0325560, 7680.63, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "cropland", 0.2331222, 33737.83, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "grassland", 0.2005688, 29026.65, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "natural", 0.3654755, 52892.21, "polycell_land",
+    9.25, 47.75, 79L, 2015L, "urban", 0.0498313, 7211.67, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "cropland", 0.2331222, 14178.27, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "grassland", 0.2005688, 12198.40, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "natural", 0.3654755, 22227.86, "polycell_land",
+    9.25, 47.75, 211L, 2015L, "urban", 0.0498313, 3030.69, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "cropland", 0.1634304, 50505.91, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "grassland", 0.4838348, 149522.47, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "natural", 0.3527347, 109007.80, "polycell_land",
+    35.25, -1.25, 114L, 2015L, "urban", 0.0000000, 0.00, "polycell_land"
   ) |>
     .add_reporting_polity_columns()
 }
@@ -1033,6 +1046,8 @@
     critical_loads = .sjos_n_crit_loads_fixture(),
     cbs_food = .sjos_n_cbs_food_fixture(),
     population = .sjos_n_pop_fixture(),
+    population_age = .sjos_n_pop_age_fixture(),
+    habitual_cv = .sjos_n_habitual_cv_fixture(),
     n_inputs = .sjos_n_inputs_fixture(),
     biomass_coefs = .sjos_n_coefs_fixture(),
     items_full = .sjos_n_items_fixture()
@@ -1139,6 +1154,38 @@
     ~year, ~area_code, ~population,
     2010L, 1L, 4.0e9,
     2010L, 2L, 3.0e9
+  )
+}
+
+# Population by age and sex, for the nourishment band's requirement terms. Two
+# classes per area is enough to exercise the demographic weighting while keeping
+# the fixture readable, and the totals match .sjos_n_pop_fixture() so the band
+# and the per-capita supply share one denominator. It is here, rather than being
+# read, because build_sjos_nitrogen() now composes the band by default and the
+# suite must never reach UN DESA (#490).
+.sjos_n_pop_age_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~age_start, ~age_span, ~sex, ~population,
+    2010L, 1L,         0L,         5L,        "m",  0.6e9,
+    2010L, 1L,         0L,         5L,        "f",  0.6e9,
+    2010L, 1L,         30L,        5L,        "m",  1.4e9,
+    2010L, 1L,         30L,        5L,        "f",  1.4e9,
+    2010L, 2L,         0L,         5L,        "m",  0.3e9,
+    2010L, 2L,         0L,         5L,        "f",  0.3e9,
+    2010L, 2L,         30L,        5L,        "m",  1.2e9,
+    2010L, 2L,         30L,        5L,        "f",  1.2e9
+  )
+}
+
+# Habitual-intake coefficients of variation for the band's dispersion term, at
+# the two ends of FAOSTAT item 21058's observed range so the fixture exercises
+# an equal and an unequal population. Injected for the same offline reason as
+# the age structure above.
+.sjos_n_habitual_cv_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~cv,
+    2010L, 1L,         0.20,
+    2010L, 2L,         0.35
   )
 }
 
@@ -1250,6 +1297,33 @@
   )
 }
 
+# Ten rows of a real build_historical_land_areas(1850:1961) run at its DEFAULT
+# `boundary_step = "level_step"`, sampled across the span and across the cases
+# that make this method differ from the present-day one: Ethiopia either side of
+# the 1952 Eritrea handover, the dissolved federations the method reaches
+# without a successor union, and Belgium, which the raster route halved by
+# splitting its cells with the overlapping Belgium-Luxembourg polygon
+# (whep#800).
+#
+# The rows this replaces were taken from a `"relink"` run, so they disagreed
+# with the pin the default produces: Ethiopia 1850 read 3.2414 Mha of cropland
+# where both the shipped pin and this run read 1.5174.
+.example_historical_land_areas <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
+    1961L, 255L, "BEL-1831-2025", 1.0152, 0.7175, 1.7327,
+    1961L, 51L, "F51-1947-1993", 5.3510, 1.8063, 7.1573,
+    1900L, 203L, "ESP-1800-2025", 16.1666, 8.2026, 24.3692,
+    1961L, 228L, "F228-1945-1991", 237.8785, 331.6635, 569.5420,
+    1850L, 238L, "ETH-1800-1889", 1.5174, 1.8841, 3.4015,
+    1900L, 238L, "ETH-1897-1902", 6.0023, 13.5575, 19.5598,
+    1951L, 238L, "ETH-1941-1952", 9.4543, 22.9532, 32.4075,
+    1952L, 238L, "ETH-1952-1993", 10.2061, 30.0426, 40.2487,
+    1961L, 238L, "ETH-1952-1993", 11.9517, 29.5874, 41.5391,
+    1961L, 248L, "F248-1947-1991", 8.3956, 6.4600, 14.8556
+  )
+}
+
 .ex_josette_feed_share <- function() {
   tibble::tribble(
     ~Year, ~Province_name, ~LU_total, ~Feed_import_MgN, ~Domestic_feed_MgN, ~Total_feed_MgN, ~Imported_feed_share,
@@ -1264,4 +1338,53 @@
     2020, "Barcelona", 776463., 684476., 39563.0, 724039., 0.945,
     2020, "Bizkaia", 106968., 94295.4, 3505.52, 97800.9, 0.964
   )
+}
+
+# Three polycells over two polities that share one cell, at the default
+# `overfull_method`. Each polycell's classes sum exactly to its land area
+# (60, 40 and 100 ha), which is the partition invariant the producer exists to
+# hold. The constant and polity columns are attached rather than repeated, so
+# the tribble shows only what varies per row.
+.example_polycell_land_uses <- function() {
+  tibble::tribble(
+    ~polycell_id, ~lon, ~lat, ~polity_code, ~area_code, ~year,
+    ~land_use, ~area_ha, ~area_source, ~level_source,
+    ~allocation_status, ~statistical_pattern_disagreement_ha, ~coverage_status,
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 36, "anchored", "fao_cropland", "ok", 6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 6, "anchored", "faostat_pasture", "ok", -6, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 15, "residual", NA, "ok", NA, "observed",
+    "A-X", 0.25, 0.25, "X-1900-2025", 10L, 2000L,
+    "urban", 3, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "cropland", 10, "anchored", "fao_cropland", "ok", -10, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "grassland", 4, "anchored", "faostat_pasture", "ok", -4, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "natural", 24, "residual", NA, "ok", NA, "observed",
+    "A-Y", 0.25, 0.25, "Y-1900-2025", 20L, 2000L,
+    "urban", 2, "pattern_only", "luh2", "no_level_source", NA, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "cropland", 24, "anchored", "fao_cropland", "ok", 4, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "grassland", 20, "anchored", "faostat_pasture", "ok", -20, "observed",
+    "B-X", 0.75, 0.25, "X-1900-2025", 10L, 2000L,
+    "natural", 56, "residual", NA, "ok", NA, "observed"
+  ) |>
+    dplyr::mutate(
+      pattern_source = "luh2",
+      unplaceable_statistical_ha = 0,
+      method_overfull = "spillover",
+      spillover_max_ring = NA_integer_,
+      polity_area_code = .data$area_code,
+      reporting_polity_code = .data$polity_code,
+      reporting_polity_name = paste(
+        "Polity",
+        stringr::str_sub(.data$polity_code, 1L, 1L)
+      ),
+      reporting_polity_has_geometry = TRUE
+    ) |>
+    dplyr::select(dplyr::all_of(.plu_output_cols()))
 }

@@ -40,10 +40,21 @@
 #' Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
 #'
 #' An area with food but no `population` row has no denominator, so it is
-#' absent from the output rather than wrong in it. Those areas are named in a
-#' warning with the share of food protein that leaves with them; on the real
-#' `gdp-population` pin they are 15 areas headed by Bhutan and Comoros
-#' (#543). `options(whep.warn_missing_population = FALSE)` silences it.
+#' absent from the output rather than wrong in it. Those areas are **named at
+#' runtime** in a warning, with the share of food protein that leaves with
+#' them, because which areas they are moves with every refresh of the
+#' `gdp-population` pin and of the food input: this sentence carried a count of
+#' 15 that was already 16 by the time #644 measured it. Read the warning, not a
+#' number in the documentation.
+#'
+#' For orientation only, the areas with food protein and no population row in
+#' any year, measured against the `faostat-fbs-new` pin over the population
+#' pin's 1850-2021 span, are 13, headed by the `China` aggregate (351), `Sudan`
+#' (276) and `South Sudan` (277), then Comoros, New Caledonia, Bhutan and the
+#' small island states. Two of those are known open issues rather than data
+#' gaps: 351 is the aggregate whose members carry population separately, and
+#' 151 `Netherlands Antilles` is #787.
+#' `options(whep.warn_missing_population = FALSE)` silences the warning.
 #'
 #' @param method Supply source: `"whep_native"` (default, commodity-balance
 #'   food tonnes times `whep::biomass_coefs` divided by population) or
@@ -149,6 +160,12 @@ build_food_supply <- function(
 # gross-energy content per kilogram fresh matter.
 .food_nutrition_lookup <- function(items, coefs, protein_basis) {
   .check_columns(coefs, .food_coef_cols(), "data$biomass_coefs")
+  # ANIMAL PRODUCTS is a section header that leaked into the coefficient table:
+  # it carries Edible_portion 4.0 and 3 kg of nitrogen per kg of fresh matter,
+  # which as food would be 18.75 kg of protein per kg. No item_cbs_code bridges
+  # to it today (asserted in test_biomass_coefs_hygiene.R), so dropping it
+  # changes nothing now and stops it going live if a future items_full does.
+  coefs <- dplyr::filter(coefs, .data$Name_biomass != "ANIMAL PRODUCTS")
   bridge <- dplyr::distinct(items, .data$item_cbs_code, .data$Name_biomass)
   nutrition <- dplyr::transmute(
     coefs,

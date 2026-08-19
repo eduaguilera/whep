@@ -396,6 +396,10 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   expected <- whep::polity_area_crosswalk |>
     dplyr::filter(area_iso3c == "ESP", !is.na(polity_code)) |>
     dplyr::distinct(polity_code, polity_start_year, polity_end_year)
+  # DA-24's convention: `polity_end_year` is EXCLUSIVE at a succession and
+  # INCLUSIVE at the open end. Read through the package's own
+  # `.open_polity_codes()` rather than re-derived here, so the test cannot
+  # drift from the rule the resolvers apply.
   covered_to <- expected$polity_end_year +
     (expected$polity_code %in% whep:::.open_polity_codes())
   resolved <- vapply(

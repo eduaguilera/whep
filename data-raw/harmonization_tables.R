@@ -51,7 +51,27 @@ if (!exists("polity_area_crosswalk")) {
   load(here::here("data", "polity_area_crosswalk.rda"))
 }
 
+# A REST-OF-WORLD MEMBER CARRIES TWO ANSWERS, and only one of them is the
+# present-day carrier. Since whep#717 the shipped crosswalk holds both the
+# bucket's `fabio_row_fold` row (`ROW-1850-2025`, spanning 1850-2025) and, for
+# the 31 areas upstream names, the member's own `fabio_row_promoted` periods.
+# `.unfold_rest_of_world()` keeps the promoted rows under the default mode, so
+# that is what `add_polity_code()` resolves and what this column must equal --
+# `test_territorial_identity.R` re-executes the resolver and compares.
+#
+# Stated as a filter rather than left to the ordering below, which would reach
+# the right row today only by accident: `SYR-1967-2025` outranks
+# `ROW-1850-2025` on `polity_start_year` alone, and an area whose own period
+# started before 1850 would silently take the bucket's label instead.
+row_promoted_areas <- polity_area_crosswalk$area_code[
+  polity_area_crosswalk$mapping_source == "fabio_row_promoted"
+]
+
 current_area_polities <- polity_area_crosswalk |>
+  dplyr::filter(
+    !(.data$mapping_source == "fabio_row_fold" &
+      .data$area_code %in% row_promoted_areas)
+  ) |>
   dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
   dplyr::mutate(
     current_or_latest = !is.na(.data$polity_end_year) &
