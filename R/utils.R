@@ -1908,6 +1908,10 @@ utils::globalVariables(
     # footprint_balance.R (#212) — presence flags telling a cell absent
     # from one method apart from a present but NA-valued one
     "in_a",
-    "in_b"
+    "in_b",
+    # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
+    # zero-land bucket of the back-cast warning
+    "zero_proxy",
+    "all_zero"
   )
 )
