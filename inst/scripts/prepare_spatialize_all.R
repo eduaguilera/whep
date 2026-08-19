@@ -430,6 +430,13 @@ cft_to_pft <- c(
 # existed. `test_earthstat_mapping.R` now asserts the file covers all 175
 # layers, so the next omission fails a test instead of vanishing.
 #
+# `in_raster_archive` is a separate axis: whether the layer actually SHIPS
+# in the zip the EarthStat URL serves. Three of the metadata table's 175
+# names -- coir, gums and popcorn -- do not, verified by a fresh download on
+# 2026-08-19 that extracted 172 crop directories. They exist as rasters in an
+# older distribution, so this is the served archive being incomplete against
+# its own metadata rather than the crops not existing.
+#
 # Downstream consumers usually filter with
 # `dplyr::filter(!is.na(item_prod_code))`.
 .read_earthstat_mapping <- function() {
@@ -440,7 +447,8 @@ cft_to_pft <- c(
         earthstat_name = readr::col_character(),
         item_prod_code = readr::col_integer(),
         item_prod_name = readr::col_character(),
-        unmapped_reason = readr::col_character()
+        unmapped_reason = readr::col_character(),
+        in_raster_archive = readr::col_logical()
       )
     )
 }

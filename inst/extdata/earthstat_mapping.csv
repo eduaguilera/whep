@@ -1,176 +1,176 @@
-"earthstat_name","item_prod_code","item_prod_name","unmapped_reason"
-"abaca",821,"Other fibre crops, raw, n.e.c.",
-"agave",800,"Agave fibres, raw, n.e.c.",
-"alfalfa",,,"no_fao_crop_name"
-"almond",221,"Almonds, in shell",
-"aniseetc",711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",
-"apple",515,"Apples",
-"apricot",526,"Apricots",
-"areca",226,"Areca nuts",
-"artichoke",366,"Artichokes",
-"asparagus",367,"Asparagus",
-"avocado",572,"Avocados",
-"bambara",203,"Bambara beans, dry",
-"banana",486,"Bananas",
-"barley",44,"Barley",
-"bean",176,"Beans, dry",
-"beetfor",,,"no_fao_crop_name"
-"berrynes",558,"Other berries and fruits of the genus vaccinium n.e.c.",
-"blueberry",552,"Blueberries",
-"brazil",216,"Brazil nuts, in shell",
-"broadbean",181,"Broad beans and horse beans, dry",
-"buckwheat",89,"Buckwheat",
-"cabbage",358,"Cabbages",
-"cabbagefor",,,"no_fao_crop_name"
-"canaryseed",101,"Canary seed",
-"carob",461,"Locust beans (carobs)",
-"carrot",426,"Carrots and turnips",
-"carrotfor",,,"no_fao_crop_name"
-"cashew",217,"Cashew nuts, in shell",
-"cashewapple",,,"unmapped"
-"cassava",125,"Cassava, fresh",
-"castor",265,"Castor oil seeds",
-"cauliflower",393,"Cauliflowers and broccoli",
-"cerealnes",108,"Cereals n.e.c.",
-"cherry",531,"Cherries",
-"chestnut",220,"Chestnuts, in shell",
-"chickpea",191,"Chick peas, dry",
-"chicory",372,"Lettuce and chicory",
-"chilleetc",401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",
-"cinnamon",693,"Cinnamon and cinnamon-tree flowers, raw",
-"citrusnes",512,"Other citrus fruit, n.e.c.",
-"clove",698,"Cloves (whole stems), raw",
-"clover",,,"no_fao_crop_name"
-"cocoa",661,"Cocoa beans",
-"coconut",249,"Coconuts, in shell",
-"coffee",656,"Coffee, green",
-"coir",,,"unmapped"
-"cotton",328,"Seed cotton, unginned",
-"cowpea",195,"Cow peas, dry",
-"cranberry",554,"Cranberries",
-"cucumberetc",397,"Cucumbers and gherkins",
-"currant",550,"Currants",
-"date",577,"Dates",
-"eggplant",399,"Eggplants (aubergines)",
-"fibrenes",821,"Other fibre crops, raw, n.e.c.",
-"fig",569,"Figs",
-"flax",773,"Flax, processed but not spun",
-"fonio",94,"Fonio",
-"fornes",,,"no_fao_crop_name"
-"fruitnes",619,"Other fruits, n.e.c.",
-"garlic",406,"Green garlic",
-"ginger",720,"Ginger, raw",
-"gooseberry",549,"Gooseberries",
-"grape",560,"Grapes",
-"grapefruitetc",507,"Pomelos and grapefruits",
-"grassnes",,,"no_fao_crop_name"
-"greenbean",414,"Other beans, green",
-"greenbroadbean",181,"Broad beans and horse beans, dry",
-"greencorn",,,"unmapped"
-"greenonion",402,"Onions and shallots, green",
-"greenpea",417,"Peas, green",
-"groundnut",242,"Groundnuts, excluding shelled",
-"gums",,,"unmapped"
-"hazelnut",225,"Hazelnuts, in shell",
-"hemp",777,"True hemp, raw or retted",
-"hempseed",,,"unmapped"
-"hop",677,"Hop cones",
-"jute",780,"Jute, raw or retted",
-"jutelikefiber",780,"Jute, raw or retted",
-"kapokfiber",778,"Kapok fibre, raw",
-"kapokseed",339,"Other oil seeds, n.e.c.",
-"karite",263,"Karite nuts (sheanuts)",
-"kiwi",592,"Kiwi fruit",
-"kolanut",224,"Kola nuts",
-"legumenes",463,"Other vegetables, fresh n.e.c.",
-"lemonlime",497,"Lemons and limes",
-"lentil",201,"Lentils, dry",
-"lettuce",372,"Lettuce and chicory",
-"linseed",333,"Linseed",
-"lupin",210,"Lupins",
-"maize",56,"Maize (corn)",
-"maizefor",,,"no_fao_crop_name"
-"mango",571,"Mangoes, guavas and mangosteens",
-"mate",671,"Mate leaves",
-"melonetc",568,"Cantaloupes and other melons",
-"melonseed",299,"Melonseed",
-"millet",79,"Millet",
-"mixedgrain",103,"Mixed grain",
-"mixedgrass",,,"no_fao_crop_name"
-"mushroom",449,"Mushrooms and truffles",
-"mustard",292,"Mustard seed",
-"nutmeg",702,"Nutmeg, mace, cardamoms, raw",
-"nutnes",234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",
-"oats",75,"Oats",
-"oilpalm",254,"Oil palm fruit",
-"oilseedfor",,,"no_fao_crop_name"
-"oilseednes",339,"Other oil seeds, n.e.c.",
-"okra",430,"Okra",
-"olive",260,"Olives",
-"onion",403,"Onions and shallots, dry (excluding dehydrated)",
-"orange",490,"Oranges",
-"papaya",600,"Papayas",
-"pea",187,"Peas, dry",
-"peachetc",534,"Peaches and nectarines",
-"pear",521,"Pears",
-"pepper",687,"Pepper (Piper spp.), raw",
-"peppermint",748,"Peppermint, spearmint",
-"persimmon",587,"Persimmons",
-"pigeonpea",197,"Pigeon peas, dry",
-"pimento",723,"Other stimulant, spice and aromatic crops, n.e.c.",
-"pineapple",574,"Pineapples",
-"pistachio",223,"Pistachios, in shell",
-"plantain",489,"Plantains and cooking bananas",
-"plum",536,"Plums and sloes",
-"popcorn",,,"unmapped"
-"poppy",296,"Poppy seed",
-"potato",116,"Potatoes",
-"pulsenes",211,"Other pulses n.e.c.",
-"pumpkinetc",394,"Pumpkins, squash and gourds",
-"pyrethrum",754,"Pyrethrum, dried flowers",
-"quince",523,"Quinces",
-"quinoa",92,"Quinoa",
-"ramie",788,"Ramie, raw or retted",
-"rapeseed",270,"Rape or colza seed",
-"rasberry",547,"Raspberries",
-"rice",27,"Rice",
-"rootnes",,,"unmapped"
-"rubber",836,"Natural rubber in primary forms",
-"rye",71,"Rye",
-"ryefor",,,"no_fao_crop_name"
-"safflower",280,"Safflower seed",
-"sesame",289,"Sesame seed",
-"sisal",789,"Sisal, raw",
-"sorghum",83,"Sorghum",
-"sorghumfor",,,"no_fao_crop_name"
-"sourcherry",530,"Sour cherries",
-"soybean",236,"Soya beans",
-"spicenes",723,"Other stimulant, spice and aromatic crops, n.e.c.",
-"spinach",373,"Spinach",
-"stonefruitnes",541,"Other stone fruits",
-"strawberry",544,"Strawberries",
-"stringbean",423,"String beans",
-"sugarbeet",157,"Sugar beet",
-"sugarcane",156,"Sugar cane",
-"sugarnes",,,"unmapped"
-"sunflower",267,"Sunflower seed",
-"swedefor",,,"no_fao_crop_name"
-"sweetpotato",122,"Sweet potatoes",
-"tangetc",495,"Tangerines, mandarins, clementines",
-"taro",136,"Taro",
-"tea",667,"Tea leaves",
-"tobacco",826,"Unmanufactured tobacco",
-"tomato",388,"Tomatoes",
-"triticale",97,"Triticale",
-"tropicalnes",603,"Other tropical fruits, n.e.c.",
-"tung",275,"Tung nuts",
-"turnipfor",,,"no_fao_crop_name"
-"vanilla",692,"Vanilla, raw",
-"vegetablenes",463,"Other vegetables, fresh n.e.c.",
-"vegfor",,,"no_fao_crop_name"
-"vetch",205,"Vetches",
-"walnut",222,"Walnuts, in shell",
-"watermelon",567,"Watermelons",
-"wheat",15,"Wheat",
-"yam",137,"Yams",
-"yautia",135,"Yautia",
+"earthstat_name","item_prod_code","item_prod_name","unmapped_reason","in_raster_archive"
+"abaca",821,"Other fibre crops, raw, n.e.c.",,TRUE
+"agave",800,"Agave fibres, raw, n.e.c.",,TRUE
+"alfalfa",,,"no_fao_crop_name",TRUE
+"almond",221,"Almonds, in shell",,TRUE
+"aniseetc",711,"Anise, badian, coriander, cumin, caraway, fennel and juniper berries, raw",,TRUE
+"apple",515,"Apples",,TRUE
+"apricot",526,"Apricots",,TRUE
+"areca",226,"Areca nuts",,TRUE
+"artichoke",366,"Artichokes",,TRUE
+"asparagus",367,"Asparagus",,TRUE
+"avocado",572,"Avocados",,TRUE
+"bambara",203,"Bambara beans, dry",,TRUE
+"banana",486,"Bananas",,TRUE
+"barley",44,"Barley",,TRUE
+"bean",176,"Beans, dry",,TRUE
+"beetfor",,,"no_fao_crop_name",TRUE
+"berrynes",558,"Other berries and fruits of the genus vaccinium n.e.c.",,TRUE
+"blueberry",552,"Blueberries",,TRUE
+"brazil",216,"Brazil nuts, in shell",,TRUE
+"broadbean",181,"Broad beans and horse beans, dry",,TRUE
+"buckwheat",89,"Buckwheat",,TRUE
+"cabbage",358,"Cabbages",,TRUE
+"cabbagefor",,,"no_fao_crop_name",TRUE
+"canaryseed",101,"Canary seed",,TRUE
+"carob",461,"Locust beans (carobs)",,TRUE
+"carrot",426,"Carrots and turnips",,TRUE
+"carrotfor",,,"no_fao_crop_name",TRUE
+"cashew",217,"Cashew nuts, in shell",,TRUE
+"cashewapple",,,"unmapped",TRUE
+"cassava",125,"Cassava, fresh",,TRUE
+"castor",265,"Castor oil seeds",,TRUE
+"cauliflower",393,"Cauliflowers and broccoli",,TRUE
+"cerealnes",108,"Cereals n.e.c.",,TRUE
+"cherry",531,"Cherries",,TRUE
+"chestnut",220,"Chestnuts, in shell",,TRUE
+"chickpea",191,"Chick peas, dry",,TRUE
+"chicory",372,"Lettuce and chicory",,TRUE
+"chilleetc",401,"Chillies and peppers, green (Capsicum spp. and Pimenta spp.)",,TRUE
+"cinnamon",693,"Cinnamon and cinnamon-tree flowers, raw",,TRUE
+"citrusnes",512,"Other citrus fruit, n.e.c.",,TRUE
+"clove",698,"Cloves (whole stems), raw",,TRUE
+"clover",,,"no_fao_crop_name",TRUE
+"cocoa",661,"Cocoa beans",,TRUE
+"coconut",249,"Coconuts, in shell",,TRUE
+"coffee",656,"Coffee, green",,TRUE
+"coir",,,"unmapped",FALSE
+"cotton",328,"Seed cotton, unginned",,TRUE
+"cowpea",195,"Cow peas, dry",,TRUE
+"cranberry",554,"Cranberries",,TRUE
+"cucumberetc",397,"Cucumbers and gherkins",,TRUE
+"currant",550,"Currants",,TRUE
+"date",577,"Dates",,TRUE
+"eggplant",399,"Eggplants (aubergines)",,TRUE
+"fibrenes",821,"Other fibre crops, raw, n.e.c.",,TRUE
+"fig",569,"Figs",,TRUE
+"flax",773,"Flax, processed but not spun",,TRUE
+"fonio",94,"Fonio",,TRUE
+"fornes",,,"no_fao_crop_name",TRUE
+"fruitnes",619,"Other fruits, n.e.c.",,TRUE
+"garlic",406,"Green garlic",,TRUE
+"ginger",720,"Ginger, raw",,TRUE
+"gooseberry",549,"Gooseberries",,TRUE
+"grape",560,"Grapes",,TRUE
+"grapefruitetc",507,"Pomelos and grapefruits",,TRUE
+"grassnes",,,"no_fao_crop_name",TRUE
+"greenbean",414,"Other beans, green",,TRUE
+"greenbroadbean",181,"Broad beans and horse beans, dry",,TRUE
+"greencorn",,,"unmapped",TRUE
+"greenonion",402,"Onions and shallots, green",,TRUE
+"greenpea",417,"Peas, green",,TRUE
+"groundnut",242,"Groundnuts, excluding shelled",,TRUE
+"gums",,,"unmapped",FALSE
+"hazelnut",225,"Hazelnuts, in shell",,TRUE
+"hemp",777,"True hemp, raw or retted",,TRUE
+"hempseed",,,"unmapped",TRUE
+"hop",677,"Hop cones",,TRUE
+"jute",780,"Jute, raw or retted",,TRUE
+"jutelikefiber",780,"Jute, raw or retted",,TRUE
+"kapokfiber",778,"Kapok fibre, raw",,TRUE
+"kapokseed",339,"Other oil seeds, n.e.c.",,TRUE
+"karite",263,"Karite nuts (sheanuts)",,TRUE
+"kiwi",592,"Kiwi fruit",,TRUE
+"kolanut",224,"Kola nuts",,TRUE
+"legumenes",463,"Other vegetables, fresh n.e.c.",,TRUE
+"lemonlime",497,"Lemons and limes",,TRUE
+"lentil",201,"Lentils, dry",,TRUE
+"lettuce",372,"Lettuce and chicory",,TRUE
+"linseed",333,"Linseed",,TRUE
+"lupin",210,"Lupins",,TRUE
+"maize",56,"Maize (corn)",,TRUE
+"maizefor",,,"no_fao_crop_name",TRUE
+"mango",571,"Mangoes, guavas and mangosteens",,TRUE
+"mate",671,"Mate leaves",,TRUE
+"melonetc",568,"Cantaloupes and other melons",,TRUE
+"melonseed",299,"Melonseed",,TRUE
+"millet",79,"Millet",,TRUE
+"mixedgrain",103,"Mixed grain",,TRUE
+"mixedgrass",,,"no_fao_crop_name",TRUE
+"mushroom",449,"Mushrooms and truffles",,TRUE
+"mustard",292,"Mustard seed",,TRUE
+"nutmeg",702,"Nutmeg, mace, cardamoms, raw",,TRUE
+"nutnes",234,"Other nuts (excluding wild edible nuts and groundnuts), in shell, n.e.c.",,TRUE
+"oats",75,"Oats",,TRUE
+"oilpalm",254,"Oil palm fruit",,TRUE
+"oilseedfor",,,"no_fao_crop_name",TRUE
+"oilseednes",339,"Other oil seeds, n.e.c.",,TRUE
+"okra",430,"Okra",,TRUE
+"olive",260,"Olives",,TRUE
+"onion",403,"Onions and shallots, dry (excluding dehydrated)",,TRUE
+"orange",490,"Oranges",,TRUE
+"papaya",600,"Papayas",,TRUE
+"pea",187,"Peas, dry",,TRUE
+"peachetc",534,"Peaches and nectarines",,TRUE
+"pear",521,"Pears",,TRUE
+"pepper",687,"Pepper (Piper spp.), raw",,TRUE
+"peppermint",748,"Peppermint, spearmint",,TRUE
+"persimmon",587,"Persimmons",,TRUE
+"pigeonpea",197,"Pigeon peas, dry",,TRUE
+"pimento",723,"Other stimulant, spice and aromatic crops, n.e.c.",,TRUE
+"pineapple",574,"Pineapples",,TRUE
+"pistachio",223,"Pistachios, in shell",,TRUE
+"plantain",489,"Plantains and cooking bananas",,TRUE
+"plum",536,"Plums and sloes",,TRUE
+"popcorn",,,"unmapped",FALSE
+"poppy",296,"Poppy seed",,TRUE
+"potato",116,"Potatoes",,TRUE
+"pulsenes",211,"Other pulses n.e.c.",,TRUE
+"pumpkinetc",394,"Pumpkins, squash and gourds",,TRUE
+"pyrethrum",754,"Pyrethrum, dried flowers",,TRUE
+"quince",523,"Quinces",,TRUE
+"quinoa",92,"Quinoa",,TRUE
+"ramie",788,"Ramie, raw or retted",,TRUE
+"rapeseed",270,"Rape or colza seed",,TRUE
+"rasberry",547,"Raspberries",,TRUE
+"rice",27,"Rice",,TRUE
+"rootnes",,,"unmapped",TRUE
+"rubber",836,"Natural rubber in primary forms",,TRUE
+"rye",71,"Rye",,TRUE
+"ryefor",,,"no_fao_crop_name",TRUE
+"safflower",280,"Safflower seed",,TRUE
+"sesame",289,"Sesame seed",,TRUE
+"sisal",789,"Sisal, raw",,TRUE
+"sorghum",83,"Sorghum",,TRUE
+"sorghumfor",,,"no_fao_crop_name",TRUE
+"sourcherry",530,"Sour cherries",,TRUE
+"soybean",236,"Soya beans",,TRUE
+"spicenes",723,"Other stimulant, spice and aromatic crops, n.e.c.",,TRUE
+"spinach",373,"Spinach",,TRUE
+"stonefruitnes",541,"Other stone fruits",,TRUE
+"strawberry",544,"Strawberries",,TRUE
+"stringbean",423,"String beans",,TRUE
+"sugarbeet",157,"Sugar beet",,TRUE
+"sugarcane",156,"Sugar cane",,TRUE
+"sugarnes",,,"unmapped",TRUE
+"sunflower",267,"Sunflower seed",,TRUE
+"swedefor",,,"no_fao_crop_name",TRUE
+"sweetpotato",122,"Sweet potatoes",,TRUE
+"tangetc",495,"Tangerines, mandarins, clementines",,TRUE
+"taro",136,"Taro",,TRUE
+"tea",667,"Tea leaves",,TRUE
+"tobacco",826,"Unmanufactured tobacco",,TRUE
+"tomato",388,"Tomatoes",,TRUE
+"triticale",97,"Triticale",,TRUE
+"tropicalnes",603,"Other tropical fruits, n.e.c.",,TRUE
+"tung",275,"Tung nuts",,TRUE
+"turnipfor",,,"no_fao_crop_name",TRUE
+"vanilla",692,"Vanilla, raw",,TRUE
+"vegetablenes",463,"Other vegetables, fresh n.e.c.",,TRUE
+"vegfor",,,"no_fao_crop_name",TRUE
+"vetch",205,"Vetches",,TRUE
+"walnut",222,"Walnuts, in shell",,TRUE
+"watermelon",567,"Watermelons",,TRUE
+"wheat",15,"Wheat",,TRUE
+"yam",137,"Yams",,TRUE
+"yautia",135,"Yautia",,TRUE

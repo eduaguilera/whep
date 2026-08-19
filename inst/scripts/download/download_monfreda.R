@@ -48,15 +48,19 @@ download_monfreda <- function(dest_dir) {
   invisible()
 }
 
-# The crop layers `prepare_crop_patterns()` will look for, which is the
-# authority for what "complete" means: `earthstat_mapping.csv` carries one row
-# per layer of the 175-crop archive, mapped or not.
+# The crop layers a complete extraction should contain.
+#
+# `earthstat_mapping.csv` carries one row per name in the archive's metadata
+# table (175), and `in_raster_archive` says which of those actually ship as a
+# raster directory. Three do not -- coir, gums and popcorn -- verified by a
+# fresh download on 2026-08-19 that extracted 172. Expecting 175 here would
+# make this warn on every correct download, which is how a guard gets ignored.
 #
 # Counting directories is not enough and was not enough. The old guard passed
-# any extraction with 170 of the 175, and a local copy sat at 169 for long
-# enough that `earthstat_mapping.csv` was built from it -- which is how barley,
-# a major cereal, came to have no crosswalk row at all. A count cannot say
-# WHICH layer is absent, and that is the only thing worth knowing here.
+# any extraction with 170, and a local copy sat at 169 for long enough that
+# `earthstat_mapping.csv` was built from it -- which is how barley, a major
+# cereal, came to have no crosswalk row at all. A count cannot say WHICH layer
+# is absent, and that is the only thing worth knowing here.
 .monfreda_expected_crops <- function() {
   path <- system.file("extdata", "earthstat_mapping.csv", package = "whep")
   if (!nzchar(path)) {
@@ -65,7 +69,8 @@ download_monfreda <- function(dest_dir) {
   if (!file.exists(path)) {
     return(character())
   }
-  utils::read.csv(path, stringsAsFactors = FALSE)$earthstat_name
+  crosswalk <- utils::read.csv(path, stringsAsFactors = FALSE)
+  crosswalk$earthstat_name[crosswalk$in_raster_archive]
 }
 
 .monfreda_missing <- function(target_dir) {

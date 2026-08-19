@@ -295,8 +295,26 @@ test_that("the fertilizer mapping agrees with the crosswalk", {
   expect_equal(fert$item_prod_code, as.integer(expected))
 })
 
-# The download-side half of the same failure. `download_monfreda.R` used to
-# accept any extraction with >= 170 of the 175 crop directories, which is how a
+# Which of the 175 metadata names actually SHIP as a raster directory is a
+# separate axis from whether WHEP maps them. The zip served today extracts 172:
+# coir, gums and popcorn are absent from it, verified by a fresh download on
+# 2026-08-19 (902,458,036 bytes). They exist as rasters in an older
+# distribution, so this is the served archive being incomplete against its own
+# metadata, not the crops failing to exist.
+test_that("the crosswalk records which layers ship in the raster archive", {
+  crosswalk <- .earthstat_crosswalk()
+
+  expect_type(crosswalk$in_raster_archive, "logical")
+  expect_false(anyNA(crosswalk$in_raster_archive))
+  expect_setequal(
+    crosswalk$earthstat_name[!crosswalk$in_raster_archive],
+    c("coir", "gums", "popcorn")
+  )
+  expect_equal(sum(crosswalk$in_raster_archive), 172L)
+})
+
+# The download-side half of the barley failure. `download_monfreda.R` used to
+# accept any extraction with >= 170 of the crop directories, which is how a
 # 169-crop copy came to be the thing `earthstat_mapping.csv` was built from. A
 # count cannot say WHICH layer is absent, and that is the only useful fact.
 .monfreda_env <- function() {
@@ -322,55 +340,62 @@ test_that("the fertilizer mapping agrees with the crosswalk", {
   env
 }
 
+.shipping_layers <- function() {
+  crosswalk <- .earthstat_crosswalk()
+  crosswalk$earthstat_name[crosswalk$in_raster_archive]
+}
+
 # A crop archive on disk, minus whichever layers the caller wants absent. Built
 # under `tempdir()`, which R clears at session end, so no cleanup dance and no
 # dependency on withr (which this package does not declare).
 .fake_monfreda_dir <- function(absent = character()) {
   root <- tempfile("monfreda-")
   dir.create(root, recursive = TRUE)
-  for (crop in setdiff(.earthstat_archive_layers(), absent)) {
+  for (crop in setdiff(.shipping_layers(), absent)) {
     dir.create(file.path(root, crop))
   }
   root
 }
 
-test_that("the download guard names the absent crop layers", {
+test_that("the guard expects the layers that ship, not all 175 names", {
   env <- .monfreda_env()
-  absent <- c("barley", "coir", "greencorn", "gums", "hempseed", "popcorn")
 
-  root <- .fake_monfreda_dir(absent)
-
-  # 169 of 175 -- the exact state that produced the missing barley row.
-  expect_length(list.dirs(root, recursive = FALSE), 169L)
-  expect_setequal(env$.monfreda_missing(root), absent)
+  # Expecting 175 would make this warn on every correct download, which is
+  # exactly how a guard comes to be ignored.
+  expect_setequal(env$.monfreda_expected_crops(), .shipping_layers())
+  expect_length(env$.monfreda_expected_crops(), 172L)
 })
 
-test_that("the download guard passes a complete archive", {
+test_that("a complete extraction passes silently", {
   env <- .monfreda_env()
 
   root <- .fake_monfreda_dir()
 
-  expect_length(list.dirs(root, recursive = FALSE), 175L)
+  expect_length(list.dirs(root, recursive = FALSE), 172L)
   expect_equal(env$.monfreda_missing(root), character())
+  expect_silent(env$.monfreda_check_complete(root))
 })
 
-# The 170th directory is where the old count guard turned on, so this is the
-# case worth pinning: five absent layers used to read as a complete archive.
-test_that("the download guard rejects the 170-of-175 the count guard passed", {
+test_that("the guard names the absent crop layers", {
   env <- .monfreda_env()
-  absent <- c("barley", "coir", "greencorn", "gums", "hempseed")
+  absent <- c("barley", "greencorn", "hempseed")
+
+  root <- .fake_monfreda_dir(absent)
+
+  # 169 of 172 -- the exact state that produced the missing barley row.
+  expect_length(list.dirs(root, recursive = FALSE), 169L)
+  expect_setequal(env$.monfreda_missing(root), absent)
+  expect_message(env$.monfreda_check_complete(root), "barley")
+})
+
+# 170 directories is where the old count guard turned on, so this is the case
+# worth pinning: two absent layers used to read as a complete archive.
+test_that("the guard rejects what the old count guard passed", {
+  env <- .monfreda_env()
+  absent <- c("barley", "wheat")
 
   root <- .fake_monfreda_dir(absent)
 
   expect_length(list.dirs(root, recursive = FALSE), 170L)
   expect_setequal(env$.monfreda_missing(root), absent)
-})
-
-test_that("the guard warns rather than aborting on a partial archive", {
-  env <- .monfreda_env()
-
-  # Warn, not abort: the crops that did arrive are still worth using, but the
-  # consumer is silent about the ones that did not.
-  expect_message(env$.monfreda_check_complete(.fake_monfreda_dir("barley")))
-  expect_silent(env$.monfreda_check_complete(.fake_monfreda_dir()))
 })
