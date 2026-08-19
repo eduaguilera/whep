@@ -25,6 +25,36 @@ testthat::test_that("the gap set names the out-of-span pair and nothing else", {
   testthat::expect_equal(gaps$year, 1990L)
 })
 
+testthat::test_that("a back-cast row is not a year-validity gap", {
+  # The gap diagnostic now also reports the back-cast anchor class -- a
+  # pre-anchor row labelled with the polity live at the anchor (whep#763) --
+  # and this argument must NOT inherit it. Area 238's 1850 row carries
+  # `ETH-1952-1993` by WHEP's own back-cast convention, which is a modelling
+  # question about the convention (whep#748), not the year-less cell crosswalk
+  # `polity_validity` exists for; letting it through would make `"drop"` delete
+  # most of the pre-1961 record.
+  table <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    238L, 1850L, 1,
+    277L, 1990L, 2
+  )
+  reported <- whep::polity_coverage_gaps(table)
+  gaps <- whep:::.polity_validity_gaps(table)
+
+  testthat::expect_setequal(reported$area_code, c(238L, 277L))
+  testthat::expect_equal(
+    reported$gap_kind[reported$area_code == 238L],
+    "backcast_anchor"
+  )
+  testthat::expect_equal(nrow(gaps), 1L)
+  testthat::expect_equal(gaps$area_code, 277L)
+  # And "drop" keeps the back-cast row, so no published value moves with it.
+  testthat::expect_warning(
+    out <- whep:::.resolve_polity_validity(table, "drop")
+  )
+  testthat::expect_equal(out$area_code, 238L)
+})
+
 testthat::test_that("a table with no area_code or year has an empty gap set", {
   gaps <- whep:::.polity_validity_gaps(tibble::tibble(value = 1))
 

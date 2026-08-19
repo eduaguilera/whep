@@ -149,6 +149,55 @@ test_that(".fix_item_codes keeps milled rice when old CBS also has paddy equival
   )
 })
 
+test_that(".fix_item_codes converts new-FBS rice, which is paddy basis", {
+  # faostat-fbs-new reports item 2807 "Rice and products" in paddy (rough-rice)
+  # equivalent: India 2010 production is 143,963 kt there against 96,023 kt for
+  # the milled item 2805 in faostat-fbs-old. WHEP's contract for this item is
+  # milled equivalent, so the extract path must convert it (#751).
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that(".fix_item_codes leaves an already-labelled rice row alone", {
+  # .prepare_historical_cbs() relabels rows from the items_full lookup before
+  # calling this, so "Rice and products" there is the canonical label and says
+  # nothing about the mass basis. The default must not convert it, or that path
+  # would be double-converted at 0.67^2.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~value,
+    2807L,          "Rice and products", 100
+  )
+
+  result <- whep:::.fix_item_codes(df)
+
+  expect_equal(result$value, 100)
+})
+
+test_that(".fix_item_codes never converts milled rice", {
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,                  ~value,
+    2805L,          "Rice (Milled Equivalent)", 100
+  )
+
+  result <- whep:::.fix_item_codes(
+    df,
+    paddy_rice_names = whep:::.paddy_rice_names("faostat")
+  )
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(result$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
@@ -327,6 +376,57 @@ test_that(".cbs_impute_trade imputes production from destinies when missing", {
   expect_equal(production, 2700)
   # Balance closes: no spurious negative stock change.
   expect_equal(stock_variation, 0)
+})
+
+test_that(".cbs_impute_trade balances a traded item with no production row", {
+  # Trade but neither a production row nor any destiny. `.reestimate_domestic
+  # _supply()` derives the supply residual from `production + import - export`,
+  # which is NA while production is, and `dplyr::if_else(NA, ...)` is NA, so
+  # both `domestic_supply` and `stock_variation` came out NA. The rows then
+  # vanished downstream on the `value != 0` filters instead of balancing.
+  # This is the shape every row recovered from the trade record will have
+  # (#762), so the hole has to close before those rows can be created.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Spain", 203L, "Wheat", 2511L, "import", 500, "FAOSTAT_trade",
+    2023L, "Spain", 203L, "Wheat", 2511L, "export", 200, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  # Nothing is produced and nothing is used, so the whole net import is the
+  # domestic supply and the stock is untouched.
+  expect_equal(value_of("domestic_supply"), 300)
+  expect_equal(value_of("production"), 0)
+  expect_equal(value_of("stock_variation"), 0)
+})
+
+test_that(".cbs_impute_trade balances a net-exported item with no production", {
+  # Same hole, mirrored: a re-exporting row whose export exceeds its import.
+  # The supply residual is negative, so domestic supply is zero and the
+  # production imputation of #142 supplies the 30 the exports need. That
+  # imputation is deliberate, and this test pins it only to keep the identity
+  # closing; whether it should fire for a row recovered from trade alone is
+  # the open question in #762, not something settled here.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2023L, "Singapore", 200L, "Wheat", 2511L, "import", 50, "FAOSTAT_trade",
+    2023L, "Singapore", 200L, "Wheat", 2511L, "export", 80, "FAOSTAT_trade"
+  )
+
+  result <- whep:::.cbs_impute_trade(raw)
+  value_of <- function(x) {
+    dplyr::pull(dplyr::filter(result, element == x), value)
+  }
+
+  expect_false(any(is.na(result$value)))
+  expect_equal(value_of("domestic_supply"), 0)
+  expect_equal(value_of("production"), 30)
+  expect_equal(value_of("stock_variation"), 0)
 })
 
 
@@ -535,6 +635,130 @@ test_that(".processed_raw creates value_proc column", {
   expect_true("value_proc" %in% names(result))
   expect_true("processed_item" %in% names(result))
 })
+
+# -- Dairy processing pathway (#757) ------------------------------------------
+
+# FAOSTAT's new FBS reports a `processing` destiny for milk that is the milk
+# churned into butter and ghee. Without a pathway for it,
+# .cbs_redistribute_notprocessed splits that mass onto food/feed/export and
+# deletes the processing row, inflating 2010 world milk food by 30.5%.
+
+test_that("cb_processing carries the milk to butter pathway (#757)", {
+  dairy <- whep::cb_processing |>
+    dplyr::filter(.data$ProcessedItem == "Milk - Excluding Butter")
+
+  expect_equal(nrow(dairy), 1L)
+  expect_equal(dairy$item_cbs, "Butter, Ghee")
+  # FAO (1997) Technical Conversion Factors, "Butter of Cow Milk" extraction
+  # rates: median 4.5% over 69 reporting countries (range 3.3-7.3%).
+  expect_equal(dairy$Product_fraction, 0.045)
+  expect_equal(dairy$Value_fraction, 1)
+})
+
+test_that(".processed_raw turns milk processing into butter (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "processing", 1000,
+    2010L, "Spain", 203L, "Milk - Excluding Butter", 2848L, "food", 4000
+  )
+
+  result <- whep:::.processed_raw(cbs, whep::cb_processing)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$item_cbs, "Butter, Ghee")
+  expect_equal(result$element, "production")
+  expect_equal(result$value_proc, 45)
+})
+
+test_that(".cbs_redistribute_notprocessed keeps matched processing (#757)", {
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2010L, "Spain", 203L, "Milk", 2848L, "processing", 200,
+    2010L, "Spain", 203L, "Milk", 2848L, "food", 500,
+    2010L, "Spain", 203L, "Milk", 2848L, "feed", 60,
+    2010L, "Spain", 203L, "Milk", 2848L, "export", 240,
+    2010L, "Spain", 203L, "Milk", 2848L, "domestic_supply", 760
+  ) |>
+    dplyr::mutate(source = "FAOSTAT_FBS_New")
+
+  matched <- tibble::tribble(
+    ~year, ~area, ~area_code, ~processed_item,
+    2010L, "Spain", 203L, "Milk"
+  )
+
+  kept <- whep:::.cbs_redistribute_notprocessed(cbs, matched)
+
+  expect_equal(
+    dplyr::filter(kept, .data$element == "processing")$value,
+    200
+  )
+  expect_equal(dplyr::filter(kept, .data$element == "food")$value, 500)
+  expect_equal(dplyr::filter(kept, .data$element == "export")$value, 240)
+
+  # Negative control: with no pathway the processing is split onto the other
+  # destinies and the processing row disappears. This is the #757 mechanism,
+  # and the reason the dairy pathway above has to exist.
+  unmatched <- matched[0L, ]
+  split <- whep:::.cbs_redistribute_notprocessed(cbs, unmatched)
+
+  expect_equal(nrow(dplyr::filter(split, .data$element == "processing")), 0L)
+  expect_gt(dplyr::filter(split, .data$element == "food")$value, 500)
+})
+
+
+test_that(".resolve_processed_production keeps read production (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Butter, Ghee", 2740L, "Livestock products",
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  observed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 7000,
+    2010L, 203L, 2740L, "production", 9000
+  )
+
+  # The old FBS records a trace of milk processing, so the pathway emits a
+  # butter row worth nothing in 2000. It must not cancel the read value.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2000L, 203L, 2740L, "production", 0,
+    2010L, 203L, 2740L, "production", 8900
+  )
+
+  result <- whep:::.resolve_processed_production(observed, processed, items)
+
+  expect_equal(result$observed$year, 2000L)
+  expect_equal(result$observed$value, 7000)
+  expect_equal(result$processed$year, 2010L)
+  expect_equal(result$processed$value, 8900)
+})
+
+test_that(".resolve_processed_production leaves crop products alone (#757)", {
+  items <- tibble::tribble(
+    ~item_cbs, ~item_cbs_code, ~group,
+    "Soyabean Oil", 2571L, "Crop products"
+  )
+
+  # Crop production is already dropped wholesale upstream, so `observed` never
+  # carries it. A zero-valued crop estimate must still survive, because that
+  # is the pre-#757 behaviour for every existing pathway.
+  processed <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010L, 203L, 2571L, "production", 0
+  )
+
+  result <- whep:::.resolve_processed_production(
+    processed[0L, ],
+    processed,
+    items
+  )
+
+  expect_equal(nrow(result$processed), 1L)
+  expect_equal(result$processed$value, 0)
+})
+
 
 test_that(".prepare_cb_processing_for_cbs excludes unconditional beer grains", {
   cb_proc <- tibble::tribble(
@@ -1176,6 +1400,44 @@ test_that(".resolve_hist_trade_polities drops pre-range aggregate rows", {
   expect_true(is.na(resolved$area_code[1]))
   expect_equal(resolved$polity_code[2], "ROW-1850-2025")
   expect_equal(resolved$area_code[2], 999L)
+})
+
+test_that("a promoted member's pre-1850 trade resolves instead of dropping", {
+  # THE OTHER SIDE OF THE TEST ABOVE, under the default. The 64 rows the fold
+  # drops are dropped because `ROW-1850-2025` starts in 1850 and is an
+  # aggregate, which `.add_polity_columns_dt()` refuses to extend -- rightly, a
+  # figure for 1830 Guadeloupe must not be booked to a bucket that did not
+  # exist. Once Guadeloupe carries `GLP-1816-2025` (whep#717) the year is
+  # inside a real period of its own and the row resolves.
+  #
+  # This is the one place the identity change moves a published quantity, and
+  # the direction is recovery: the historical trade feed goes from
+  # 18,453,716,816 t to 18,455,438,816 t (+0.0093%), all of it 64 pre-1850 rows
+  # of Guadeloupe (87) and Martinique (135).
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("GLP", "MTQ", "GLP"),
+    year = c(1830L, 1830L, 1900L),
+    value = 1
+  ))
+
+  expect_equal(
+    resolved$polity_code,
+    c(
+      "GLP-1816-2025",
+      "MTQ-1816-2025",
+      "GLP-1816-2025"
+    )
+  )
+  expect_equal(resolved$area_code, c(87L, 135L, 87L))
+  # And a year before even the member's own period still drops, so this is not
+  # a licence to back-fill: `GLP-1816-2025` starts in 1816.
+  early <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = "GLP",
+    year = 1700L,
+    value = 1
+  ))
+  expect_equal(early$polity_code, "GLP-1816-2025")
+  expect_equal(early$area_code, 87L)
 })
 
 test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", {

@@ -199,17 +199,24 @@ testthat::test_that("origin_area accepts a polity_area_code for a folded area", 
 })
 
 testthat::test_that("origin_area keeps the legacy meaning of an area code", {
-  # American Samoa (5) is folded into rest-of-world, so its `polity_area_code`
-  # is 999 -- which is also a legacy `area_code` in its own right. Resolving the
-  # polity vocabulary must not widen an existing legacy selection: 999 keeps
-  # meaning the single rest-of-world sector, while the polity code shared by
-  # both label rows selects both.
+  # Area 252 "Unspecified" resolves to `ROW-1850-2025` -- which is also a legacy
+  # `area_code` (999) in its own right. Resolving the polity vocabulary must not
+  # widen an existing legacy selection: 999 keeps meaning the single
+  # rest-of-world sector, while the polity code shared by both label rows
+  # selects both.
+  #
+  # It used to be American Samoa (5), which whep#717 gave `ASM-1900-2025`, so
+  # 5 no longer shares the bucket's polity with anything. 252 is the stable
+  # choice rather than the next area that happens to still be on the bucket: it
+  # is not a territory, so no upstream polity can ever be minted for it, which
+  # `test_polity_folds.R` asserts under "a member upstream does not name keeps
+  # the bucket".
   z_mat <- matrix(0, nrow = 2, ncol = 2)
   x_vec <- c(100, 200)
   y_mat <- matrix(c(10, 20), nrow = 2)
   extensions <- c(100, 200)
   labels <- tibble::tibble(
-    area_code = c(5L, 999L),
+    area_code = c(252L, 999L),
     item_cbs_code = c(10L, 20L)
   )
   fd_labels <- tibble::tibble(area_code = 999L, fd_col = "food")
@@ -236,7 +243,7 @@ testthat::test_that("origin_area keeps the legacy meaning of an area code", {
   )
 
   testthat::expect_equal(row_only$origin_area, 999L)
-  testthat::expect_setequal(both$origin_area, c(5L, 999L))
+  testthat::expect_setequal(both$origin_area, c(252L, 999L))
 })
 
 testthat::test_that("origin_area rejects values that resolve to no sector", {

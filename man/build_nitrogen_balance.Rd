@@ -89,7 +89,10 @@ per-hectare rate), the input aggregates
 the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 \code{nue_useful}, \code{nue_full}), \code{total_gwp_co2e_kg}, and the \code{method_nh3}/
 \code{method_soil_n2o}/\code{method_leaching} provenance columns, plus the polity
-columns below.
+columns below. When the supplied \code{n_inputs} carry them, the
+\code{method_recycling_n}, \code{method_synthetic} and \code{method_deposition_scope}
+stamps from \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance
+names the input conventions that produced it.
 }
 \description{
 Assembles \code{\link[=build_n_inputs]{build_n_inputs()}}'s long-format nitrogen inputs into the
@@ -126,7 +129,11 @@ rather than being dropped, so a gap is visible instead of silent.
 Rows before the back-cast anchor year resolve to the polity live in that
 anchor year rather than to the polity live in the row's own year, because
 WHEP's pre-anchor series are back-cast onto the anchor-year territory. See
-\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning.
+\code{\link[=add_polity_code]{add_polity_code()}} for the reasoning. Where that polity is not live in the
+row's own year -- 41.5\% of the pre-1961 \verb{(area, year)} cells --
+\code{\link[=add_polity_code]{add_polity_code()}} says so as \code{mapping_status == "backcast_anchor"}, and
+\code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}} reports it as \code{gap_kind == "backcast_anchor"}.
+These columns do not say so either way.
 
 A row whose year no mapped period covers is resolved to the NEAREST period of
 the same area instead, so \code{reporting_polity_code} can name a polity that did
