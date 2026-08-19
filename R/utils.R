@@ -74,9 +74,6 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
-    # build_cbs.R (.canonicalise_gdp_pop_area)
-    "canonical_area",
-    "key_row",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -1827,9 +1824,6 @@ utils::globalVariables(
     # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
     # period its growth rate was measured over
     "lag_weight",
-    # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
-    "canonical_area",
-    "key_row",
     # spatialize_compartments.R (#582) - .spatialize_to_bucket() data.table NSE
     # columns: the carried raw reporting code and the bucket joined onto it
     "grid_area_code",
@@ -1911,6 +1905,10 @@ utils::globalVariables(
     # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
     # creates inside the data.table `.()` expression
     "luh2_ha",
+    # footprint_balance.R (#212) — presence flags telling a cell absent
+    # from one method apart from a present but NA-valued one
+    "in_a",
+    "in_b",
     # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
     # zero-land bucket of the back-cast warning
     "zero_proxy",
