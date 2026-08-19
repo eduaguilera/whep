@@ -77,6 +77,13 @@
      pre-1962 year skeleton and the observed-source join, where a second label
      for one code doubled the skeleton rather than only mislabelling it: the
      label's identity role is now this one lookup instead of four keys.",
+    ".plu_bind_pasture_backcast", "inner_join", "area_code", 1L, "single_year",
+    "Carries the FAO 1961 pasture level onto LUH2's pre-1961 rows so the
+     gridded grassland series does not step at FAOSTAT's start. The anchor side
+     is filtered to 1961 before joining, so the year is fixed by construction
+     rather than missing -- which is what an anchored back-cast is. The LUH2
+     side's own 1961 value is a grouped lookup on the same table, not a second
+     join.",
     ".attach_mapping_source", "left_join",
     "area_code, polity_code, polity_start_year, polity_end_year", 1L,
     "diagnostic",
@@ -100,6 +107,12 @@
     "single_year", "`cbs_yr` is one year of the CBS.",
     ".build_sw_domestic", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS.",
+    ".carbon_warn_fold", "semi_join", "lon, lat, area_code", 1L, "diagnostic",
+    "Both sides are the SAME carbon support, already filtered to
+     `.carbon_support_year()` by `.carbon_support_at_year()`, so there is no
+     second year for a key to disagree about. The join only selects which
+     `polity_code`s to name in the DA-23 fold warning; it reaches no value and
+     cannot move one.",
     ".cb_apply_equilibrium_climate", "left_join",
     "lon, lat, area_code, land_use", 1L, "time_invariant",
     "The equilibrium modifier is one number per cell and land use by
@@ -149,9 +162,31 @@
     "Both sides are two filters of one frame (`cbs_raw4`), whose label is
      already one per code, so the label cannot disagree here. It is still a
      label in a key: whep#691.",
+    ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
+    "A polity code already names its own period (`ETH-1952-1993`), so the
+     territory it is joined to cannot vary within it. Since whep#800 that
+     territory is the polycell's `polity_area_ha`, and time-invariance is
+     MEASURED rather than argued: a maximum relative standard deviation of 0
+     over the 33,433 (cell, polity) pairs the shipped support splits into more
+     than one interval. This is the join that makes the pre-1962 LAND half
+     year-aware at all (whep#761): the caller has already resolved
+     (area_code, year) -> polity_code unfloored, and every step after this one
+     carries `year`.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
+    ".lw_area_regions", "inner_join", "iso3c", 1L, "time_invariant",
+    "Gustavsson's Annex 1 is one 2011 snapshot with no time dimension, so the
+     region a country's loss rates come from cannot vary by year. The join is
+     year-free ON PURPOSE: where one ISO3 spans two WHEP areas across a polity
+     split (Ethiopia 238/62, Sudan 276/206) Annex 1's pre-partition entry
+     covers both, and a year-keyed join would give the successor no region.",
+    ".lw_assign_regions", "left_join", "area_code", 1L, "time_invariant",
+    "Attaches that same year-free region to each area, plus the `method_region`
+     stamp that says whether it came from Annex 1 or from the global mean.",
+    ".lw_weight", "left_join", "area_code", 1L, "time_invariant",
+    "Puts the region on the item rows so the wedge can be looked up per region
+     and commodity group. Same year-free assignment as above, read once.",
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
@@ -166,8 +201,11 @@
      ISO3-like stem; the key now names both vocabularies it actually bridges.",
     ".read_land_areas", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
-    ".read_luh2_cft", "merge", "iso3c", 1L, "identity_lookup",
-    "ISO3 -> bucket bridge; the LUH2 rows keep their year.",
+    ".luh2_bridge_iso3c", "merge", "iso3c", 1L, "identity_lookup",
+    "ISO3 names the territory, not one of its periods; the year rides on the
+     LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
+     national readers share ONE bridge: this row used to be that function's,
+     and the move is why the count did not rise with the pasture reader.",
     ".reconcile_fao_arable_fallow", "merge", "area_code", 1L, "single_year",
     "Inside the per-year fallow attribution loop.",
     ".reconcile_fao_arable_fallow", "merge", "area_code, item_cbs_code", 1L,

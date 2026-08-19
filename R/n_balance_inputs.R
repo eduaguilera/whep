@@ -80,6 +80,15 @@
 #'     `gridded` (its land-surface layer) and `resolution`/`methods`
 #'     (forwarded as-is).
 #'   * `nhx`, `noy`, `cell_polity`: [build_n_deposition()]'s inputs.
+#'   * `deposition_scope`: which of a polycell's territory the `"deposition"`
+#'     term is credited with. `"territory"` (default) is land plus inland
+#'     water plus ice: nitrogen deposited on a lake or a glacier still drives
+#'     indirect N2O and still reaches the eutrophication pathway, so the
+#'     impact terms have to account for it. `"land"` is the terrestrial
+#'     surface alone, for purposes that want it, and it needs a `cell_polity`
+#'     carrying `land_area_ha`, `inland_water_ha` and `ice_area_ha`; asking
+#'     for it without them aborts rather than silently returning the whole
+#'     territory. Recorded in `method_deposition_scope`.
 #'   * `ag_land_support`: agricultural physical land support keyed by `lon`,
 #'     `lat`, `area_code`, `year`, `item_cbs_code`, with `land_use`
 #'     (`"cropland"` or `"grassland"`) and positive `area_ha`. Optional: when
@@ -120,17 +129,20 @@
 #'   real data. Defaults to `FALSE`.
 #' @return A tibble. At `resolution = "grid"`: `lon`, `lat`, `area_code`,
 #'   `item_cbs_code`, `year`, `fert_type`, `n_input_t`,
-#'   `method_recycling_n`, `method_synthetic`. At `resolution = "polity"`:
-#'   `area_code`, `item_cbs_code`, `year`, `fert_type`, `method_recycling_n`,
-#'   `method_synthetic`, `n_input_t` (summed over cells).
+#'   `method_recycling_n`, `method_synthetic`, `method_deposition_scope`. At
+#'   `resolution = "polity"`: `area_code`, `item_cbs_code`, `year`,
+#'   `fert_type`, `method_recycling_n`, `method_synthetic`,
+#'   `method_deposition_scope`, `n_input_t` (summed over cells).
 #'   `method_recycling_n` records which residue basis the `"recycling"` term
 #'   used: `"residue_soil_returned"` when the upstream NPP input supplied
 #'   `residue_soil_dm_t` (residue N net of removal for feed/fuel/burning) or
 #'   `"total_residue"` when only gross residue N was available; it is `NA` for
 #'   every other `fert_type`. `method_synthetic` records the synthetic
 #'   crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows and
-#'   is `NA` for every other `fert_type`. Both grains also carry the polity
-#'   columns below.
+#'   is `NA` for every other `fert_type`. `method_deposition_scope` records
+#'   which of the polycell's territory the `"deposition"` term was credited
+#'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
+#'   Both grains also carry the polity columns below.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -187,7 +199,8 @@ build_n_inputs <- function(
     "fert_type",
     "n_input_t",
     "method_recycling_n",
-    "method_synthetic"
+    "method_synthetic",
+    "method_deposition_scope"
   )
 }
 
@@ -266,7 +279,8 @@ build_n_inputs <- function(
         "year",
         "fert_type",
         "method_recycling_n",
-        "method_synthetic"
+        "method_synthetic",
+        "method_deposition_scope"
       )
     )
 }
@@ -549,17 +563,12 @@ build_n_inputs <- function(
   if (is.null(data$cell_polity)) {
     return(.ni_empty())
   }
+  scope <- .ni_deposition_scope(data)
   support <- .ni_land_support(data)
   deposition <- build_n_deposition(
     data = list(nhx = data$nhx, noy = data$noy, cell_polity = data$cell_polity)
   ) |>
-    dplyr::select(
-      "lon",
-      "lat",
-      "area_code",
-      "year",
-      "deposition_kgn_ha"
-    )
+    .ni_deposition_in_scope(scope)
   dplyr::inner_join(
     support,
     deposition,
@@ -573,8 +582,119 @@ build_n_inputs <- function(
       item_cbs_code = .data$item_cbs_code,
       year = .data$year,
       fert_type = "deposition",
-      n_input_t = .data$deposition_kgn_ha * .data$area_ha / 1000
+      n_input_t = .data$deposition_kgn_ha *
+        .data$scope_frac *
+        .data$area_ha /
+        1000,
+      method_deposition_scope = scope
     )
+}
+
+# DA-14, decided 2026-08-06 on the measurement in
+# inst/scripts/measure_deposition_categories.R: the ledger takes the WHOLE
+# territory. Deposition on inland water and on ice is real flux that drives
+# indirect N2O and feeds the eutrophication pathway, so the impact terms have
+# to account for it; the terrestrial-only scope would have discarded 0.89 Tg N
+# of it. "land" stays selectable, per the repo's multi-method rule, because a
+# different purpose may want the terrestrial surface alone.
+.ni_deposition_scope <- function(data) {
+  scope <- data$deposition_scope %||% "territory"
+  if (!rlang::is_string(scope) || !scope %in% c("territory", "land")) {
+    cli::cli_abort(c(
+      "{.field data$deposition_scope} must be {.val territory} or
+       {.val land}.",
+      x = "Got {.val {scope}}."
+    ))
+  }
+  scope
+}
+
+# Collapse build_n_deposition()'s per-category rows to one row per polycell,
+# carrying the whole-cell rate and `scope_frac`, the fraction of that
+# polycell's deposited mass the scope covers. Under "territory" the numerator
+# and the denominator are the same sum, so `scope_frac` is exactly 1 and every
+# ledger value is bit-identical to the pre-C3b one -- which is what makes
+# DA-14's "keep whole" decision a no-op on published numbers rather than a
+# claim about one.
+#
+# The filter is explicit and its emptiness is an abort, not a shrug: under
+# `.ni_empty()` semantics a filter that matches nothing is indistinguishable
+# from an absent input, so a mislabelled category would delete the entire
+# deposition term without a word.
+.ni_deposition_in_scope <- function(deposition, scope) {
+  if (nrow(deposition) == 0L) {
+    return(.ni_deposition_scope_cols(deposition))
+  }
+  wanted <- .nd_scope_categories(scope, deposition$method_area_split)
+  in_scope <- deposition$area_category %in% wanted
+  if (!any(in_scope)) {
+    cli::cli_abort(c(
+      "No deposition row falls inside scope {.val {scope}}.",
+      x = "Filtering {.field area_category} to {.val {wanted}} kept 0 of
+           {nrow(deposition)} row{?s}.",
+      i = "Present categor{?y/ies}:
+           {.val {unique(deposition$area_category)}}."
+    ))
+  }
+  deposition |>
+    dplyr::mutate(
+      in_scope_n_t = dplyr::if_else(in_scope, .data$deposition_n_t, 0)
+    ) |>
+    dplyr::summarise(
+      # `rate_spread` FIRST. A later expression in dplyr::summarise() sees the
+      # earlier results, so computing it after a `deposition_kgn_ha` summary
+      # would measure the spread of a scalar and be 0 by construction -- a
+      # guard that reads as if it fires and never can.
+      rate_spread = max(.data$deposition_kgn_ha) -
+        min(.data$deposition_kgn_ha),
+      deposition_kgn_ha = max(.data$deposition_kgn_ha),
+      scope_n_t = sum(.data$in_scope_n_t),
+      total_n_t = sum(.data$deposition_n_t),
+      .by = c("lon", "lat", "area_code", "year")
+    ) |>
+    .ni_check_one_rate() |>
+    dplyr::mutate(
+      # A cell that received no deposition has 0/0 categories. Its rate is 0
+      # too, so the charge is 0 whatever this fraction is; NaN would poison
+      # every sum downstream instead.
+      scope_frac = dplyr::if_else(
+        .data$total_n_t != 0,
+        .data$scope_n_t / .data$total_n_t,
+        0
+      )
+    ) |>
+    .ni_deposition_scope_cols()
+}
+
+.ni_deposition_scope_cols <- function(x) {
+  if (!rlang::has_name(x, "scope_frac")) {
+    x <- dplyr::mutate(x, scope_frac = double())
+  }
+  dplyr::select(
+    x,
+    "lon",
+    "lat",
+    "area_code",
+    "year",
+    "deposition_kgn_ha",
+    "scope_frac"
+  )
+}
+
+# AM-5 risk 1, checked where the rate is consumed rather than only where it is
+# produced: `deposition_kgn_ha` is a whole-cell mean, so every polity and every
+# category row of a cell must carry the same one. If they ever diverge, then
+# rate x area recovers the cell's whole mass once per polity and the ledger
+# silently multiplies deposition by the number of polities sharing a border.
+.ni_check_one_rate <- function(x) {
+  if (all(x$rate_spread == 0)) {
+    return(dplyr::select(x, -"rate_spread"))
+  }
+  cli::cli_abort(c(
+    "{.field deposition_kgn_ha} must be one whole-cell rate per polycell.",
+    x = "{sum(x$rate_spread != 0)} polycell{?s} carry more than one rate
+         (worst spread {sprintf('%.3g', max(x$rate_spread))})."
+  ))
 }
 
 # ---- 5. Urban N (cell-level, not crop-specific) ---------------------------
@@ -826,7 +946,8 @@ build_n_inputs <- function(
     fert_type = character(),
     n_input_t = double(),
     method_recycling_n = character(),
-    method_synthetic = character()
+    method_synthetic = character(),
+    method_deposition_scope = character()
   )
 }
 
@@ -913,6 +1034,11 @@ build_n_inputs <- function(
       method_synthetic = dplyr::if_else(
         .data$fert_type == "synthetic",
         "coello",
+        NA_character_
+      ),
+      method_deposition_scope = dplyr::if_else(
+        .data$fert_type == "deposition",
+        "territory",
         NA_character_
       )
     ) |>

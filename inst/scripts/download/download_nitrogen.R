@@ -32,6 +32,25 @@ download_nitrogen <- function(dest_dir) {
       )
       cli::cli_alert_success("HaNi {fname}: saved")
     }
+    .extract_hani(hani_dir, files)
+    invisible()
+  }
+
+  # PANGAEA ships the two deposition grids zipped, but read_n_deposition()
+  # reads NetCDF, so downloading is only half the job: without this the
+  # directory this script fills cannot be used as WHEP_HANI_DIR. Each archive
+  # holds one ~12 GB .nc, so extract only when that .nc is absent.
+  .extract_hani <- function(hani_dir, files) {
+    for (fname in files) {
+      nc_name <- sub("[.]zip$", ".nc", fname)
+      if (file.exists(file.path(hani_dir, nc_name))) {
+        cli::cli_alert_info("HaNi {nc_name}: already extracted")
+        next
+      }
+      cli::cli_alert("Extracting {nc_name} (~12 GB)...")
+      utils::unzip(file.path(hani_dir, fname), exdir = hani_dir)
+      cli::cli_alert_success("HaNi {nc_name}: extracted")
+    }
     invisible()
   }
 

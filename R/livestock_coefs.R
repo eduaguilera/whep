@@ -35,9 +35,10 @@
 #' This is GLEAM's own registry of the countries that exist today, so
 #' [polity_identity_conventions()] types it `"present_day_polity"` and it
 #' carries the polity its `iso3` resolves to in the present day, as
-#' [regions_full] does. Three of the 204 rows keep `NA`: ATF, SGS and WLF have
-#' no WHEP polity at all, and a gap stays visible rather than being guessed at.
-#' The 204 GLEAM regions themselves are unchanged.
+#' [regions_full] does. All 204 rows now resolve: ATF, SGS and WLF used to keep
+#' `NA` for want of any WHEP polity, and upstream supplied one for each. A gap
+#' would still stay visible rather than being guessed at. The 204 GLEAM regions
+#' themselves are unchanged.
 #'
 #' @format A tibble with columns:
 #' \describe{

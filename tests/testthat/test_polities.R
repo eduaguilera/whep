@@ -173,8 +173,20 @@ test_that("add_polity_code reports nearest-period stand-ins as out_of_span", {
         ),
       by = c("area_code", "polity_code")
     )
+  # An OPEN period covers its own `polity_end_year`, which is the third arm of
+  # `.polity_join_end_year()` and the one this model used to omit. It had no
+  # effect while every area it applies to was folded into Rest of World;
+  # promoting them (whep#717) exposed it on FAOSTAT area 187 Saint Helena, whose
+  # `SHN-1834-1967` upstream records no successor for, so the resolver reads
+  # 1967 as a period hit while a strictly exclusive end would call it a stand-in.
+  # Read from `.open_polity_codes()` rather than re-derived, because openness is
+  # upstream's `successor`/`predecessor` record and a second reading of it here
+  # would be a second authority, not a check.
   covered_to <- pmax(
-    resolved$polity_end_year - 1L,
+    resolved$polity_end_year -
+      1L +
+      (resolved$polity_code %in%
+        whep:::.open_polity_codes()),
     dplyr::coalesce(resolved$map_year_end, -Inf)
   )
   stand_in <- !is.na(resolved$polity_code) &
@@ -787,27 +799,218 @@ testthat::test_that("the gap direction is read at the back-cast anchor", {
 testthat::test_that("gap_kind agrees with the anchored comparison", {
   # An invariant over the whole shipped crosswalk rather than two hand-picked
   # areas: whatever upstream re-syncs do to the polity set, `gap_kind` must
-  # stay the answer to "was the matched year before this polity started?".
+  # stay the answer to "was the matched year before this polity started?" --
+  # for the STAND-INS. The back-cast class is deliberately not derivable that
+  # way (whep#763): it matched a real period at the anchor, so it is read off
+  # the resolution and asserted separately below.
   crosswalk <- whep::polity_area_crosswalk
   grid <- expand.grid(
     area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
     year = c(1850L, 1900L, 1961L, 1990L, 2015L, 2025L)
   )
   gaps <- whep::polity_coverage_gaps(grid)
+  stand_ins <- gaps[gaps$gap_kind != "backcast_anchor", ]
   expected <- ifelse(
-    !is.na(gaps$polity_start_year) &
-      pmax(gaps$year, 1961L) < gaps$polity_start_year,
+    !is.na(stand_ins$polity_start_year) &
+      pmax(stand_ins$year, 1961L) < stand_ins$polity_start_year,
     "polity_not_started",
     "polity_ended"
   )
 
-  testthat::expect_gt(nrow(gaps), 0L)
-  testthat::expect_equal(gaps$gap_kind, expected)
-  # Both directions really occur, so neither branch is untested by accident.
+  testthat::expect_gt(nrow(stand_ins), 0L)
+  testthat::expect_equal(stand_ins$gap_kind, expected)
+  # All three classes really occur, so no branch is untested by accident.
   testthat::expect_setequal(
     unique(gaps$gap_kind),
-    c("polity_ended", "polity_not_started")
+    c("polity_ended", "polity_not_started", "backcast_anchor")
   )
+  # And the back-cast rows are exactly the pre-anchor ones whose polity was
+  # resolved at the anchor: none of them sits at or after 1961.
+  anchored <- gaps[gaps$gap_kind == "backcast_anchor", ]
+  testthat::expect_gt(nrow(anchored), 0L)
+  testthat::expect_true(all(anchored$year < 1961L))
+  testthat::expect_true(all(anchored$polity_start_year > anchored$year))
+})
+
+# ---- the back-cast anchor is not a match (whep#763) --------------------------
+
+# Every reporting area the crosswalk resolves, over the whole back-cast block.
+# The invariants below are stated on this rather than on hand-picked areas
+# because the population is the point: 12,208 of these 29,415 cells sit outside
+# the lifetime of the polity they are labelled with.
+.backcast_grid <- function() {
+  crosswalk <- whep::polity_area_crosswalk
+  expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = 1850:1960
+  )
+}
+
+testthat::test_that("a matched row really was inside its polity's period", {
+  # THE GUARD. `"matched"` is a claim about the YEAR -- the year fell inside
+  # this polity's period -- and `.add_polity_columns_dt()` floors the lookup
+  # year at `backcast_anchor` BEFORE the span check, so a pre-anchor row used to
+  # come back `"matched"` for a polity that did not exist for another century.
+  # FAOSTAT area 238's 1850 row read `ETH-1952-1993`, `matched`. This is the
+  # restatement of the claim, over every area and every back-cast year, so it
+  # fails on any resolution that makes the assertion without checking it.
+  resolved <- whep::add_polity_code(.backcast_grid())
+  claimed <- resolved[
+    !is.na(resolved$mapping_status) &
+      resolved$mapping_status %in% c("matched", "manual"),
+  ]
+
+  testthat::expect_gt(nrow(claimed), 0L)
+  testthat::expect_true(all(claimed$year >= claimed$polity_start_year))
+  # And the class the floored rows go to instead is really populated, so the
+  # invariant above cannot be satisfied by nothing ever being matched.
+  testthat::expect_true(any(resolved$mapping_status %in% "backcast_anchor"))
+})
+
+testthat::test_that("backcast_anchor is exactly the rows the anchor moved", {
+  # The definition, pinned both ways: a row is `"backcast_anchor"` if and only
+  # if it is pre-anchor AND its polity had not started in its own year AND a
+  # period was found (a row no period covers at all stays `"out_of_span"`,
+  # which is the stronger statement). An area whose anchor polity DOES cover
+  # its own year keeps `"matched"` -- 125 of the 265 resolving areas are in
+  # that position for all 111 back-cast years, and for them the floor changed
+  # nothing.
+  resolved <- whep::add_polity_code(.backcast_grid())
+  anchored <- !is.na(resolved$mapping_status) &
+    resolved$mapping_status == "backcast_anchor"
+  expected <- !is.na(resolved$polity_code) &
+    !is.na(resolved$polity_start_year) &
+    resolved$year < resolved$polity_start_year &
+    !is.na(resolved$mapping_status) &
+    resolved$mapping_status != "out_of_span"
+
+  testthat::expect_equal(anchored, expected)
+  testthat::expect_true(any(anchored))
+  testthat::expect_true(any(
+    !is.na(resolved$mapping_status) & resolved$mapping_status == "matched"
+  ))
+})
+
+testthat::test_that("the anchor status is inert from the anchor year on", {
+  # The floor only fires below `backcast_anchor`, so nothing at or after it can
+  # carry the status -- which is what makes this a labelling change with no
+  # reach into the FAOSTAT era.
+  crosswalk <- whep::polity_area_crosswalk
+  grid <- expand.grid(
+    area_code = sort(unique(stats::na.omit(crosswalk$area_code))),
+    year = 1961:2025
+  )
+
+  testthat::expect_false(any(
+    whep::add_polity_code(grid)$mapping_status %in% "backcast_anchor"
+  ))
+  # And switching the anchor off removes the class entirely: with no floor
+  # there is nothing to distinguish from a real period hit. Area 238 in 1850
+  # then resolves to `ETH-1800-1889`, the period that really covers 1850, and
+  # is honestly `"matched"` -- which is the pair of readings the status keeps
+  # apart, since the anchored answer is a period that starts a century later.
+  eth_1850 <- tibble::tibble(area_code = 238L, year = 1850L)
+  raw <- whep::add_polity_code(eth_1850, backcast_anchor = -Inf)
+  testthat::expect_equal(raw$polity_code, "ETH-1800-1889")
+  testthat::expect_equal(raw$mapping_status, "matched")
+  testthat::expect_false(any(
+    whep::add_polity_code(
+      .backcast_grid(),
+      backcast_anchor = -Inf
+    )$mapping_status %in%
+      "backcast_anchor"
+  ))
+
+  anchored <- whep::add_polity_code(eth_1850)
+  testthat::expect_equal(anchored$polity_code, "ETH-1952-1993")
+  testthat::expect_equal(anchored$mapping_status, "backcast_anchor")
+})
+
+testthat::test_that("polity_coverage_gaps sees what the floor used to hide", {
+  # The defect was not only the label: the floor is applied BEFORE the span
+  # check, so the instrument built to audit exactly this resolved an 1850 row as
+  # 1961 and came back clean. Over the back-cast block the diagnostic saw 2,664
+  # of the 12,208 misattributed cells; it must now see all of them.
+  grid <- .backcast_grid()
+  resolved <- whep::add_polity_code(grid)
+  # OUTSIDE IN EITHER DIRECTION, AND IN EITHER YEAR. This used to test only
+  # "the row's own year is before the polity started", because on the shipped
+  # crosswalk the back-cast block held no other kind: an area whose periods had
+  # all ENDED resolved to `ROW-1850-2025`, which covers 1850-2025 and is
+  # therefore never outside anything. Promoting the Rest-of-World members
+  # (whep#717) makes that class real -- FAOSTAT area 42 Christmas Island now
+  # resolves to `CXR-1946-1958`, an upstream period that ends before FAOSTAT
+  # starts reporting -- so restricting the expectation to one direction would
+  # assert that the diagnostic MISSES it.
+  #
+  # The two years are the two gap classes, restated without reading the status
+  # the diagnostic is being checked on: the resolver matches on the ANCHORED
+  # year, so a period the anchored year misses is the stand-in (`out_of_span`),
+  # and a period the anchored year hits but the row's OWN year does not is the
+  # back-cast (`backcast_anchor`). `polity_end_year` is exclusive.
+  in_span <- function(year, start, end) {
+    !is.na(start) & !is.na(end) & year >= start & year < end
+  }
+  anchored <- pmax(resolved$year, 1961L)
+  outside <- resolved[
+    !is.na(resolved$polity_code) &
+      (!in_span(
+        anchored,
+        resolved$polity_start_year,
+        resolved$polity_end_year
+      ) |
+        !in_span(
+          resolved$year,
+          resolved$polity_start_year,
+          resolved$polity_end_year
+        )),
+  ]
+  gaps <- whep::polity_coverage_gaps(grid)
+
+  testthat::expect_gt(nrow(outside), 0L)
+  testthat::expect_setequal(
+    paste(gaps$area_code, gaps$year),
+    paste(outside$area_code, outside$year)
+  )
+  # All three classes are present, and the back-cast one is still the larger
+  # half -- the part that was invisible.
+  testthat::expect_setequal(
+    unique(gaps$gap_kind),
+    c("backcast_anchor", "polity_not_started", "polity_ended")
+  )
+  testthat::expect_gt(
+    sum(gaps$gap_kind == "backcast_anchor"),
+    sum(gaps$gap_kind != "backcast_anchor")
+  )
+})
+
+testthat::test_that("gap_kind separates a back-cast row from a hole", {
+  # The three classes on one call, on the canonical area for each. 238 in 1850
+  # matched a real period AT THE ANCHOR and is WHEP's own convention; 1 Armenia
+  # in 1900 matched nothing even at the anchor; 206 post-secession is the
+  # ended-polity case whep#414 is about.
+  gaps <- whep::polity_coverage_gaps(
+    tibble::tibble(
+      area_code = c(238L, 1L, 206L),
+      year = c(1850L, 1900L, 2015L)
+    )
+  )
+
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 238L],
+    "backcast_anchor"
+  )
+  testthat::expect_equal(
+    gaps$gap_kind[gaps$area_code == 1L],
+    "polity_not_started"
+  )
+  testthat::expect_equal(gaps$gap_kind[gaps$area_code == 206L], "polity_ended")
+  # The polity really is the anchor year's, not the row's.
+  testthat::expect_equal(
+    gaps$polity_code[gaps$area_code == 238L],
+    "ETH-1952-1993"
+  )
+  testthat::expect_gt(gaps$polity_start_year[gaps$area_code == 238L], 1850L)
 })
 
 testthat::test_that("a stand-in never splits one area between two entities", {

@@ -349,3 +349,100 @@ testthat::test_that("a bucket with one member in a year is not a fold", {
   # buckets (SDN 2005 + SDN 2015 + SSD 2015) would claim.
   testthat::expect_equal(sum(cells$population), 49000)
 })
+
+# ---- population_source: the UN WPP fallback (#644) --------------------------
+
+.popf_wpp <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~iso3c, ~population,
+    2010L, 203L,       "ESP",  46000000,
+    2010L, 18L,        "BTN",  701633,
+    2010L, 45L,        "COM",  654839
+  )
+}
+
+testthat::test_that("the default source is the pin alone", {
+  # Nothing published may move by default, so the fallback must not be reached
+  # unless it is asked for. An injected reader that errors proves it is not.
+  out <- suppressMessages(
+    whep::read_population(data = list(gdp_population = .popf_raw()))
+  )
+  testthat::expect_false(any(out$area_code %in% c(18L, 45L)))
+  testthat::expect_equal(unique(out$source_pop), "pin")
+})
+
+testthat::test_that("the fallback fills areas the pin never covers", {
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw(), wpp_population = .popf_wpp()),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  filled <- dplyr::filter(out, .data$area_code %in% c(18L, 45L))
+  testthat::expect_setequal(filled$area_code, c(18L, 45L))
+  testthat::expect_equal(unique(filled$source_pop), "UN WPP 2024")
+  testthat::expect_equal(
+    dplyr::filter(filled, .data$area_code == 18L)$population,
+    701633
+  )
+})
+
+testthat::test_that("the fallback never overwrites a pin row", {
+  # Spain is in both, at different values. The pin has to win, or turning the
+  # fallback on would silently move a published denominator.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw(), wpp_population = .popf_wpp()),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
+  testthat::expect_equal(nrow(esp), 1L)
+  testthat::expect_equal(esp$population, 46600)
+  testthat::expect_equal(esp$source_pop, "pin")
+})
+
+testthat::test_that("the pin's own Source_pop vocabulary is carried", {
+  raw <- dplyr::mutate(
+    .popf_raw(),
+    Source_pop = ifelse(
+      .data$area_code == "ESP",
+      "Original",
+      "Linear
+      interpolation"
+    )
+  )
+  out <- suppressMessages(
+    whep::read_population(data = list(gdp_population = raw))
+  )
+  esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
+  testthat::expect_equal(esp$source_pop, "Original")
+})
+
+testthat::test_that("a bucket mixing sources reports both, not one", {
+  # area_code is a bucket: several ISO3 codes are summed into one row, and they
+  # need not share a provenance. Reporting only the first would hide that half
+  # the row is interpolated.
+  raw <- tibble::tribble(
+    ~Year, ~area,         ~area_code, ~pop,  ~Source_pop,
+    2015L, "Sudan",       "SDN",      38171, "Original",
+    2015L, "South Sudan", "SSD",      11194, "Linear interpolation"
+  )
+  out <- suppressMessages(
+    whep::read_population(data = list(gdp_population = raw))
+  )
+  testthat::expect_equal(
+    out$source_pop,
+    "Linear interpolation + Original"
+  )
+})
+
+testthat::test_that("an unknown population_source is rejected", {
+  testthat::expect_error(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw()),
+      population_source = "wpp"
+    ),
+    "arg_match|must be one of|wpp"
+  )
+})
