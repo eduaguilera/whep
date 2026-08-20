@@ -1,5 +1,27 @@
 # whep (development version)
 
+* **`resolve_polity_label()` now covers the current year (#712).** Its year
+  filter read `polity_end_year` strictly exclusively, so a polity whose interval
+  ends at the open-period sentinel stopped covering its own terminal year: at
+  2025 only 1 of the 204 ISO3 codes in `gleam_geographic_hierarchy` resolved,
+  against 204 at 2024, while `add_polity_code()` resolved them normally because
+  the numeric route already goes through `.polity_join_end_year()`. The label
+  route now applies the same convention -- exclusive at a succession, inclusive
+  at an open end (#577) -- and a period upstream records no successor for also
+  covers its last year away from the sentinel (`ANT-1961-2010` in 2010).
+  Declared containment still outranks that widening, so a succession year keeps
+  resolving to exactly one polity and cannot become ambiguous (#720).
+
+  **What changes for callers.** Resolutions are only ADDED, never moved: over
+  1,020 identifiers x 1850:2026 the fix turns 700 `NA`s into codes (680 at the
+  2025 sentinel, 20 in the last year of a terminated period) and changes no
+  answer that already resolved. Any consumer that asked the label route about
+  the snapshot's last year -- `mueller_synthetic_n`, `crops_manure_n`, the GLEAM
+  tables, `R/sources.R` -- got `NA` for essentially every country and now gets
+  the polity. No packaged value changes: the two in-package callers resolve
+  below the sentinel (`expand_trade_sources()` stops at 2014,
+  `add_present_day_polity()` asks `max(end_year) - 1`), so both are unmoved.
+
 * **The destiny-share interpolation is keyed on `area_code`, not on the `area`
   label (#691).** `.interpolate_destiny_shares()` named the label beside the
   code in its skeleton join, its anti-join and its dedup — the last year-free
