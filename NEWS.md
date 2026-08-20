@@ -1,5 +1,46 @@
 # whep (development version)
 
+* **Three input pins were refreshed to their current upstream releases, and
+  processing coefficients now reach 2023 with real data instead of a 7%
+  stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
+  vintage: 4,660,700 rows ending in 2022. Its version stamp
+  (`20260325T113807Z`) recorded when the file was uploaded, not when FAO
+  published it, so the staleness was invisible. The current FBS release
+  (2025-10-28) has 4,820,497 rows and runs to 2023, with a complete
+  `Processing` element for that year (5,769 rows, 211 areas, 83 items).
+  `faostat-cbs-new` moves to the 2026-06-15 CB release, growing from 58,107
+  rows and 11 items to 127,558 rows and 13 items. `population_yg` moves from
+  1860-2021 to 1860-2023, taking the two new years from Spain_Hist's own
+  output rather than repeating 2021 (Spanish national population 47.37,
+  47.79 and 48.33 million over 2021-2023).
+
+  **Published values move.** `get_processing_coefs()` for 2023 goes from 359
+  rows, 108 Mt and 14 of 45 input items to 5,986 rows, 1,548 Mt and all 45 --
+  16.7x the rows and 14.3x the tonnage. That year previously held only what
+  could be inferred from downstream production (oilseed crush, sugar and the
+  milk-to-butter path); cereal and fruit processing, so beer, wine and flour,
+  were absent entirely. The overlap years move much less: total processed
+  tonnage shifts -0.374% (2019), -0.511% (2020), -0.104% (2021) and +0.607%
+  (2022). Those are far smaller than the underlying FBS revision, which moves
+  summed `Processing` by -6.3% to +2.4% across 2010-2022, because the
+  per-country calibration in `build_processing_coefs()` absorbs most of it.
+
+  The 2026-06-15 CB release also adds a `Processed` element (code 5023) for
+  rubber, wool and silk. `.harmonize_element_names()` has no entry for it, so
+  it passes through unmapped and `.extract_fao()` filters it out before
+  `.get_fiber_tobacco()` runs, even though `cbs_trade_codes` maps all three
+  onto CBS items (Rubber 2672, Wool (Clean Eq.) 2746, Silk 2747). Behaviour
+  is therefore unchanged by this release, but the flow is not negligible --
+  in 2023 reporting countries processed 14.66 Mt of the 15.62 Mt of natural
+  rubber they produced, and 0.591 Mt of 0.606 Mt of silk-worm cocoons.
+  Consuming it would give those items a processing flow they have never
+  carried, so it is tracked as #811 rather than folded in here.
+
+  `inst/scripts/prepare_faostat_balances.R` fetches these domains from the
+  FAOSTAT bulk endpoint and reports the year span each file actually
+  contains, so the next refresh is traceable to a dated FAO release rather
+  than to whoever last downloaded a file by hand.
+
 * **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
   functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
   natural-land soil carbon input by ~7%.** The natural-land carbon input selects
@@ -116,16 +157,16 @@
   pins now cover 1860-2023, so the internal 2021 clip and its coverage warning
   are gone. Processing coefficients now come from `get_processing_coefs()`
   rather than the frozen July-2025 pin, so they track FAOSTAT as it is
-  republished (whep#449); they are complete through 2022, while 2023 is still
-  partial pending the pin refresh in whep#812 and is therefore carried
-  forward from 2022. `population_yg` still ends in 2021 and is held flat over
-  2022-2023, on the same reasoning as the existing pre-1961 backfill. Three
-  items whose processing is observed only to 2002 (coconuts), 2008 (sugar
-  cane) and 2018 (palm kernels) are held flat from those years instead, and
-  all three are negligible in Spanish production. **Published
-  values move**: the two new years are structurally complete (50 provinces,
-  every origin and destiny) but national N falls from 5,096,684 Mg in 2021 to
-  4,606,882 Mg in 2022 and 4,202,828 Mg in 2023. That decline is in the input
+  republished (whep#449), and with the pin refresh in whep#812 they now reach
+  2023 in full: 5,999 coefficient rows globally and 82 for Spain, against the
+  358 and 1 a stale `faostat-fbs-new` vintage had allowed. `population_yg`
+  covers 1860-2023 as well, so its forward-fill is now a no-op. Three items
+  whose processing is observed only to 2002 (coconuts), 2008 (sugar cane) and
+  2018 (palm kernels) are still held flat from those years, and all three are
+  negligible in Spanish production. **Published values move**: the two new
+  years are structurally complete (50 provinces,
+  every origin and destiny) but national N falls from 5,096,664 Mg in 2021 to
+  4,607,682 Mg in 2022 and 4,203,893 Mg in 2023. That decline is in the input
   pin, not in this code — synthetic N drops 29.7% between 2021 and 2022 while
   cropland area stays flat at 50.56 Mha — and it has not been cross-checked
   against an independent source. Note also that the four analysis eras end at
