@@ -145,6 +145,96 @@ test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
 })
 
 
+test_that(".merge_euadb_fodder keys the EU yield on area_code, not the label", {
+  # Two areas can carry the same label -- the yield join used to be keyed on it,
+  # so each area's row picked up both areas' yields and fanned out (#655). The
+  # label rides along in the fixture only to show the old key had it available.
+  fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~t, ~t_dm, ~ha,
+    2010L, "Foo", 100L, "Grass", "3001", 5, 4, 10,
+    2010L, "Foo", 101L, "Grass", "3001", 7, 6, 20
+  )
+  fodder_euadb <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Name_Eurostat, ~Label, ~Unit, ~value,
+    2010L, "Foo", 100L, "GrassEuro", "Area", "Mha", 5,
+    2010L, "Foo", 100L, "GrassEuro", "Yield", "kgN/ha", 200,
+    2010L, "Foo", 101L, "GrassEuro", "Area", "Mha", 6,
+    2010L, "Foo", 101L, "GrassEuro", "Yield", "kgN/ha", 300
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_Eurostat,
+    "Grass", "3001", "GrassEuro"
+  )
+
+  result <- whep:::.merge_euadb_fodder(fodder, fodder_euadb, items_prod)
+
+  expect_equal(nrow(result), 2L)
+  expect_equal(
+    result$kgnha_euadb[result$area_code == 100L],
+    200
+  )
+  expect_equal(
+    result$kgnha_euadb[result$area_code == 101L],
+    300
+  )
+})
+
+
+test_that(".combine_fodder keeps one row per area_code and item (#655)", {
+  # FAO labels are periodized, so one `area_code` carries several labels over a
+  # series. While the label was a grouping key, `.fill_fodder_gaps()`'s cross
+  # join gave every label the full year span, and the country ended up with one
+  # full-area copy of each item per label -- Egypt (59) had three in 1961.
+  i_fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    1961L, "Egypt (1925-1967)", 59L, "Clover", "640", 100,
+    1962L, "Egypt", 59L, "Clover", "640", 120
+  )
+  fodder_euadb <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    Name_Eurostat = character(),
+    Label = character(),
+    Unit = character(),
+    value = numeric()
+  )
+  dm_yield <- tibble::tribble(
+    ~year, ~area_code, ~yield_dm,
+    1961L, 59L, 4,
+    1962L, 59L, 4
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_biomass, ~Name_Eurostat,
+    "Clover", "640", "Clover biomass", NA_character_
+  )
+  biomass <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+    "Clover biomass", 0.2, 0.03
+  )
+
+  result <- whep:::.combine_fodder(
+    i_fodder,
+    fodder_euadb,
+    dm_yield,
+    items_prod,
+    biomass
+  )
+
+  dups <- result |>
+    dplyr::count(year, area_code, item_prod_code, unit) |>
+    dplyr::filter(n > 1L)
+  expect_equal(nrow(dups), 0L)
+  # one label per (year, area_code), taken from the polity crosswalk for that
+  # year -- the same rule `.aggregate_to_polities()` labels a bucket by
+  expect_equal(
+    nrow(dplyr::distinct(result, year, area_code, area)),
+    2L
+  )
+  expect_false(any(is.na(result$area)))
+})
+
+
 # -- EU AgriDB region crosswalk ------------------------------------------------
 
 # `.read_fodder_euadb()` resolves the source's `Region` through
