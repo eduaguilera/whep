@@ -1,5 +1,32 @@
 # whep (development version)
 
+* **`cell_polity_fraction.parquet` regenerated, and a stale copy is now
+  refused (#694).** The deployed fractional cell-to-polity crosswalk had been
+  rasterized through an older `inst/extdata/regions.csv` than the centroid
+  `country_grid` beside it: it keyed Ethiopia `62` and Sudan (former) `206`,
+  plus `6`, `125`, `192` and `205`, where today's lookup uses `238` / `276` and
+  folds the other four upstream. Any consumer that adopted it deleted Ethiopia
+  and Sudan outright -- 27.10 Mha of harvested area (2.0 % of the global
+  1,365.9 Mha) and 332.0 M head (1.16 % of 28.638 bn), measured at 2015 in
+  #461. Re-running sections 1 and 1b of
+  `inst/scripts/prepare_spatialize_all.R` against the same Natural Earth
+  polygons rebuilds it in the current vocabulary: 62,784 rows over 58,791
+  cells and 178 area codes, exactly the 178 the centroid grid carries, so the
+  `setdiff()` between the two grids is now empty in both directions. The
+  centroid `country_grid` re-derives row-for-row identically (58,795 cells,
+  178 codes, every code equal), so only the
+  fractional artefact moved.
+
+  `build_cell_polity()` now aborts with class `whep_stale_cell_polity_grid`
+  when the parquet it is handed carries an area code today's `regions.csv` no
+  longer has, naming the codes, the cells affected and the producer re-run.
+  This is deliberately fatal rather than a warning: the #461 warning already
+  made the loss visible and did not stop it, because the deletion lives in the
+  artefact. **No published value changes** -- the `"centroid"` /
+  `"polycell"` crosswalks that back published runs are untouched; what changes
+  is that `country_grid = "fraction"` no longer loses two countries, and that
+  a stale local copy fails instead of quietly deleting them.
+
 * **`resolve_polity_label()` now covers the current year (#712).** Its year
   filter read `polity_end_year` strictly exclusively, so a polity whose interval
   ends at the open-period sentinel stopped covering its own terminal year: at

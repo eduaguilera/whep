@@ -66,6 +66,17 @@ identity needs the cell x polity x validity-interval unit tracked by epic
 whep#458, not a column added here.
 }
 
+\section{Vintage of the area vocabulary}{
+
+The parquet's \code{area_code} values must all exist in the \code{regions.csv} the
+installed package carries, because that is the table its producer
+rasterizes through. A copy built through an older vintage keyed Ethiopia
+\code{62} and Sudan (former) \code{206} where today's lookup uses \code{238} and \code{276}, so
+adopting it deleted both countries from every consumer (whep#694). Such a
+file is now \strong{refused} with class \code{whep_stale_cell_polity_grid} rather than
+read, and the message names the producer re-run that rebuilds it.
+}
+
 \examples{
 # Requires WHEP_POLITY_FRACTION_PATH to be set; not run without it.
 if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {

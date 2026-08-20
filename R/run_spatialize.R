@@ -96,14 +96,18 @@
 #' fractional coverage; the engines already read its `polity_frac` as
 #' `cell_area_frac`, so no engine change is involved.
 #'
-#' They are alternatives, never a fallback, and `"centroid"` remains the
-#' default because the two are not interchangeable as deployed. The
-#' fractional parquet was rasterized through an older `iso3c -> area_code`
-#' lookup: it keys Ethiopia `62` and Sudan `206` where the centroid grid and
-#' today's `regions.csv` use `238` and `276`, so substituting it drops both
-#' countries entirely (whep#461). It also cannot rescue a polity smaller than
-#' a cell, because its producer restricts it to the cells the centroid grid
-#' already has. Whichever is selected, `build_gridded_landuse()` and
+#' They are alternatives, never a fallback. The fractional parquet used to
+#' carry a different area vocabulary from the centroid grid — it keyed
+#' Ethiopia `62` and Sudan `206` where today's `regions.csv` uses `238` and
+#' `276`, so substituting it dropped both countries entirely (whep#461).
+#' Regenerating it closed that gap: the two grids now carry the same 178 area
+#' codes, and [build_cell_polity()] refuses a copy still holding a retired
+#' code instead of deleting the countries silently (whep#694). It still cannot
+#' rescue a polity smaller than a cell, because its producer restricts it to
+#' the cells the centroid grid already has, and it drops 4 of those cells,
+#' whose only land is a sliver covering the 0.5-degree cell centre but no
+#' 1/12-degree subcell centre. Whichever is selected,
+#' `build_gridded_landuse()` and
 #' `build_gridded_livestock()` now warn once per call naming every reporting
 #' area the chosen grid has no cell for and the national total at stake.
 #'
@@ -627,12 +631,15 @@ run_spatialize <- function(
 # because it is usable.
 #
 # `"fraction"` is the fractional-coverage crosswalk `build_cell_polity()`
-# reads, whose `polity_frac` is a share quantised to 1/36 of a cell. It stays
-# available because the deployed fractional parquet is a DIFFERENT vintage of
-# the `iso3c -> area_code` lookup: substituting it deletes every reporting area
-# whose code it does not carry, 27.1 Mha of harvested area on Ethiopia and
-# Sudan alone (whep#461). `.warn_grid_missing_reporters()` is what makes that
-# visible before it reaches an output.
+# reads, whose `polity_frac` is a share quantised to 1/36 of a cell. The
+# deployed parquet used to be a DIFFERENT vintage of the
+# `iso3c -> area_code` lookup, so substituting it deleted every reporting area
+# whose code it did not carry -- 27.1 Mha of harvested area on Ethiopia and
+# Sudan alone (whep#461). It was regenerated in whep#694 and now carries
+# exactly the centroid grid's 178 codes; `build_cell_polity()` aborts on a
+# copy that still holds a retired one, and
+# `.warn_grid_missing_reporters()` still reports whatever a grid cannot
+# represent before it reaches an output.
 #
 # The three are alternatives, never a fallback: a run asked for one crosswalk
 # must fail rather than quietly allocate into another.
