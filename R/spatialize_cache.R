@@ -8,31 +8,47 @@
 # restructure (whep#628, published areas 195 -> 216) yet kept being reused
 # because its year span still covered the request (whep#657).
 #
-# The fingerprint below hashes *every* package dataset, discovered at run time
-# rather than enumerated, so a harmonization table that becomes an input later
-# cannot be missed: any change under `data/` moves the hash and the cache
-# rebuilds loudly. These helpers live in `R/` (not in the script, which is
-# outside `R CMD check` and `lintr`) so the invalidation logic is testable.
+# The fingerprint below hashes the package's data payload *by file*, so it
+# covers every dataset without enumerating any: a harmonization table that
+# becomes a production input later cannot be missed, and neither can an object
+# bundled inside a multi-object archive. Hashing the files rather than the
+# loaded objects also keeps the hash a pure function of bytes on disk. An
+# earlier version loaded the objects by name and was both incomplete (name
+# lookups for archive members resolve to nothing, because `utils::data()` keys
+# on dataset files, so 45 of 100 objects went unhashed against an installed
+# package) and unstable between calls. These helpers live in `R/` -- not in the
+# script, which is outside `R CMD check` and `lintr` -- so the invalidation
+# logic is testable.
 
-.whep_dataset_names <- function() {
-  found <- utils::data(package = "whep")$results
-  if (length(found) == 0) {
-    cli::cli_abort("No {.pkg whep} datasets found; cannot fingerprint inputs.")
+.whep_data_files <- function() {
+  dir <- system.file("data", package = "whep")
+  if (!nzchar(dir) || !dir.exists(dir)) {
+    cli::cli_abort("No {.pkg whep} data directory found; cannot fingerprint.")
   }
-  # `data()` reports aliases as "name (alias)"; keep the object name only.
-  sort(unique(stringr::str_remove(found[, "Item"], " .*$")))
+  files <- sort(list.files(dir, full.names = TRUE))
+  if (length(files) == 0) {
+    cli::cli_abort("{.path {dir}} holds no files; cannot fingerprint inputs.")
+  }
+  files
 }
 
-.whep_data_digests <- function(names = .whep_dataset_names()) {
-  env <- new.env(parent = emptyenv())
-  # Some `.rda` files hold several objects (`livestock_coefs.rda` holds 40+),
-  # so hash what was loaded, not the file names.
-  utils::data(list = names, package = "whep", envir = env)
-  objs <- ls(env, sorted = TRUE)
-  vapply(objs, \(nm) rlang::hash(get(nm, envir = env)), character(1))
+.whep_data_digests <- function(files = .whep_data_files()) {
+  missing <- files[!file.exists(files)]
+  if (length(missing) > 0) {
+    cli::cli_abort("Cannot fingerprint missing file{?s}: {.path {missing}}.")
+  }
+  digests <- vapply(
+    files,
+    \(path) rlang::hash(readBin(path, "raw", n = file.size(path))),
+    character(1)
+  )
+  rlang::set_names(digests, basename(files))
 }
 
 .prod_cache_fingerprint <- function(digests = .whep_data_digests()) {
+  if (length(digests) == 0 || anyNA(digests)) {
+    cli::cli_abort("Refusing to build a fingerprint from an empty digest set.")
+  }
   rlang::hash(digests[order(names(digests))])
 }
 

@@ -3,36 +3,85 @@
     dplyr::mutate(item_prod_code = 15L, value = 1)
 }
 
-test_that("dataset discovery finds the package tables", {
-  names <- whep:::.whep_dataset_names()
-  expect_gt(length(names), 40)
-  expect_true("regions_full" %in% names)
-  expect_false(any(stringr::str_detect(names, " ")))
+test_that("the data payload is discovered and every file exists", {
+  files <- whep:::.whep_data_files()
+  expect_gt(length(files), 0)
+  expect_true(all(file.exists(files)))
+  expect_false(anyDuplicated(files) > 0)
 })
 
-test_that("the fingerprint hashes every dataset object once", {
-  digests <- whep:::.whep_data_digests(c("regions_full", "items_cbs"))
-  expect_named(digests, c("items_cbs", "regions_full"))
+test_that("the digest set covers every dataset the package ships", {
+  digests <- whep:::.whep_data_digests()
+  expect_gt(length(digests), 0)
+  expect_false(anyNA(digests))
+  expect_true(all(nchar(digests) > 16))
+  expect_named(digests, basename(whep:::.whep_data_files()))
+  # Nothing may be silently missed: either the source layout, where every
+  # dataset is its own `<name>.rda`, or the installed lazy-load database,
+  # which holds all of them (whep#657 -- an earlier version keyed on object
+  # names and dropped the 45 objects inside multi-object archives).
+  shipped <- unique(stringr::str_remove(
+    utils::data(package = "whep")$results[, "Item"],
+    " .*$"
+  ))
+  covered <- "Rdata.rdb" %in%
+    names(digests) ||
+    all(paste0(shipped, ".rda") %in% names(digests))
+  expect_true(covered)
+})
+
+test_that("the digest set is identical across calls", {
+  expect_identical(
+    whep:::.whep_data_digests(),
+    whep:::.whep_data_digests()
+  )
+})
+
+test_that("digests are a pure function of file bytes", {
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "fake.rda")
+  writeBin(as.raw(1:10), path)
+  before <- whep:::.whep_data_digests(path)
+  expect_identical(before, whep:::.whep_data_digests(path))
+  writeBin(as.raw(c(99L, 2:10)), path)
+  expect_false(identical(before, whep:::.whep_data_digests(path)))
+})
+
+test_that("digesting a missing file aborts", {
+  expect_error(
+    whep:::.whep_data_digests(file.path(tempdir(), "absent.rda")),
+    "missing file"
+  )
+})
+
+test_that("the fingerprint is order-independent and stable", {
+  digests <- c(a = "aaa", b = "bbb")
   expect_identical(
     whep:::.prod_cache_fingerprint(digests),
     whep:::.prod_cache_fingerprint(rev(digests))
   )
+  fingerprint <- whep:::.prod_cache_fingerprint()
+  expect_type(fingerprint, "character")
+  expect_gt(nchar(fingerprint), 16)
+  expect_identical(fingerprint, whep:::.prod_cache_fingerprint())
+  expect_identical(fingerprint, whep:::.prod_cache_fingerprint())
 })
 
-test_that("the fingerprint moves when any dataset changes", {
-  digests <- c(regions_full = "aaa", items_cbs = "bbb")
-  moved <- c(regions_full = "ccc", items_cbs = "bbb")
+test_that("the fingerprint moves when any one dataset changes", {
+  digests <- c(regions_full.rda = "aaa", items_cbs.rda = "bbb")
+  moved <- c(regions_full.rda = "ccc", items_cbs.rda = "bbb")
   expect_false(identical(
     whep:::.prod_cache_fingerprint(digests),
     whep:::.prod_cache_fingerprint(moved)
   ))
 })
 
-test_that("the real fingerprint is a stable non-empty hash", {
-  fingerprint <- whep:::.prod_cache_fingerprint()
-  expect_type(fingerprint, "character")
-  expect_gt(nchar(fingerprint), 16)
-  expect_identical(fingerprint, whep:::.prod_cache_fingerprint())
+test_that("the fingerprint refuses an empty or NA digest set", {
+  expect_error(whep:::.prod_cache_fingerprint(character(0)), "empty digest")
+  expect_error(
+    whep:::.prod_cache_fingerprint(c(a = NA_character_)),
+    "empty digest"
+  )
 })
 
 test_that("the table digest tracks columns and the area_code domain", {

@@ -8,7 +8,8 @@
   and every spatialize pin derived from it inherited the old `area_code`
   vocabulary (codes `276`/`277` instead of `206`, and no cell of their own for
   the 21 areas promoted out of bucket 999). The cache is now keyed on a
-  fingerprint of every package dataset plus the cached table's own column set
+  content hash of the package's whole data payload plus the cached table's
+  own column set
   and sorted `area_code` domain, recorded in a `.prod_cache.meta.rds` sidecar
   written next to it. A cache with no sidecar -- which is every cache deployed
   today -- is discarded with a warning naming the reason. No published values
