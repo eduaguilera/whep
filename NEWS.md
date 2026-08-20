@@ -1,5 +1,95 @@
 # whep (development version)
 
+* **`resolve_polity_label()` now covers the current year (#712).** Its year
+  filter read `polity_end_year` strictly exclusively, so a polity whose interval
+  ends at the open-period sentinel stopped covering its own terminal year: at
+  2025 only 1 of the 204 ISO3 codes in `gleam_geographic_hierarchy` resolved,
+  against 204 at 2024, while `add_polity_code()` resolved them normally because
+  the numeric route already goes through `.polity_join_end_year()`. The label
+  route now applies the same convention -- exclusive at a succession, inclusive
+  at an open end (#577) -- and a period upstream records no successor for also
+  covers its last year away from the sentinel (`ANT-1961-2010` in 2010).
+  Declared containment still outranks that widening, so a succession year keeps
+  resolving to exactly one polity and cannot become ambiguous (#720).
+
+  **What changes for callers.** Resolutions are only ADDED, never moved: over
+  1,020 identifiers x 1850:2026 the fix turns 700 `NA`s into codes (680 at the
+  2025 sentinel, 20 in the last year of a terminated period) and changes no
+  answer that already resolved. Any consumer that asked the label route about
+  the snapshot's last year -- `mueller_synthetic_n`, `crops_manure_n`, the GLEAM
+  tables, `R/sources.R` -- got `NA` for essentially every country and now gets
+  the polity. No packaged value changes: the two in-package callers resolve
+  below the sentinel (`expand_trade_sources()` stops at 2014,
+  `add_present_day_polity()` asks `max(end_year) - 1`), so both are unmoved.
+
+* **The destiny-share interpolation is keyed on `area_code`, not on the `area`
+  label (#691).** `.interpolate_destiny_shares()` named the label beside the
+  code in its skeleton join, its anti-join and its dedup — the last year-free
+  territorial join in the package that read a label, and the shape behind #589
+  (a shared label diluted Syria's livestock by 12x) and #563. It could not
+  disagree in the current build, because `balance` and `destiny` are two
+  filters of one frame, but the guarantee was the caller's rather than the
+  function's and an unmatched key here drops a row silently instead of
+  aborting. The keys are the code now and the one display label per code is
+  re-attached at the end. **No published value changes**: on the real
+  1850-2023 frames the old and new function return 20,314,086 rows with the
+  same `(year, area_code, item_cbs_code, element)` key set (0 keys either
+  side), the same 2,845,173 summed `dest_share`, a maximum per-key difference
+  of 0 and one label per code in both. Measured on a fixture where the two
+  sides disagree about the label, the old keys turned a 6-row skeleton into 2
+  and lost two years of shares entirely.
+
+* **`inst/scripts/prepare_spatialize_all.R` no longer reuses a production
+  cache built under an older area model (#657).** The on-disk
+  `.prod_cache.parquet` was invalidated on the requested year span alone, so a
+  cache written before the polity restructure (#628, published areas
+  195 -> 216) kept being reused for as long as its years covered the request,
+  and every spatialize pin derived from it inherited the old `area_code`
+  vocabulary (codes `276`/`277` instead of `206`, and no cell of their own for
+  the 21 areas promoted out of bucket 999). The cache is now keyed on a
+  content hash of the package's whole data payload plus the cached table's
+  own column set
+  and sorted `area_code` domain, recorded in a `.prod_cache.meta.rds` sidecar
+  written next to it. A cache with no sidecar -- which is every cache deployed
+  today -- is discarded with a warning naming the reason. No published values
+  change from this commit alone; the next run of the prep script rebuilds
+  production instead of reading a stale table, which is where the spatialize
+  pins pick up today's area model.
+
+* **`build_n_inputs()` and `build_nitrogen_balance()` now take
+  `polity_validity` (#727).** Both gained the same
+  `polity_validity = c("keep", "flag", "drop")` argument the four gridded
+  builders they call already had, and forward it to all of them:
+  `build_ag_land_support()`, `build_n_deposition()`, `build_urban_n()` and
+  `spatialize_country_n_to_crops()`. The choice is then applied to the
+  assembled inputs and to the balance rows themselves, so one call decides the
+  fate of every row whose `(area_code, year)` resolves to a polity that did not
+  exist in that year, instead of each builder deciding on its own key space.
+  `"keep"` stays the default, so **no published value changes**: a default
+  build is byte-identical and still only warns. `"flag"` now adds
+  `reporting_polity_out_of_span` to both outputs, and `"drop"` removes those
+  rows throughout the chain. Under `"drop"` a non-item input supplied directly
+  (a `carbon_balance` table, say) can outlive the support rows it must be
+  allocated over; that aborts in the existing mass check, whose message now
+  names `polity_validity` as the cause.
+
+* **`fill_proxy_growth()` no longer lags or smooths a proxy across the
+  boundary between two series (#608).** The proxy lag and the
+  `proxy_smooth_window` moving average were taken within the *aggregation*
+  group of a `"variable:group"` proxy spec rather than within the individual
+  series, so when two members of one group had non-overlapping but adjacent
+  year coverage, the first year of the later series took the last value of the
+  earlier one as its own previous observation. The `year == lag_yr + 1`
+  adjacency guard cannot see the difference. In the issue's fixture (ESP with
+  `gdp` to 2002, FRA from 2003, both in region `eu`) FRA's 2003 growth rate
+  came out as 7.264463 -- FRA's 2003 `gdp` over ESP's 2002 `gdp` -- where the
+  correct answer is `NA`, and a third member of the group with a 2002
+  observation was inflated 8.26-fold (200 to 1652.893). Both are now `NA`.
+  **No published values change**: every `fill_proxy_growth()` call in the
+  package passes a plain numeric proxy column, for which the aggregation group
+  already equals `.by`, and a 11,333-row randomised fixture on that form is
+  bit-identical before and after.
+
 * **Fodder is now built on `area_code` alone, and no longer counts a country
   once per historical name (#655).** `.merge_euadb_fodder()` and
   `.fill_fodder_gaps()` carried the periodized area *label* in their join and
