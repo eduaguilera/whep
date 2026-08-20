@@ -152,6 +152,40 @@
   year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
   sugar) should go is still open (whep#432).
 
+* **The N left over from a zero-N processed-item substitution (wine, olive
+  oil, sugar) now gets its own `processing_losses` destiny instead of
+  staying folded into the primary crop's own destinies (whep#432).**
+  Previously, `removal_scale` only ever removed the N actually credited to
+  a named output, so a near-zero-N output (wine from grapes, oil from
+  olives) left most of the diverted mass sitting with the primary crop,
+  inflating that crop's own `export` residual. The full processed mass is
+  now always removed, the credited share still goes to the processed item,
+  and the remainder is booked as `destiny = "processing_losses"`,
+  `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
+  LMDI decomposition) tracks this destiny by name, so it falls into
+  whatever each of them already treats as surplus, the same way
+  `no_tracked_output` items already do.
+
+  Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
+  re-derived national production as the sum of every `Origin == Box` row,
+  which now includes `processing_losses` too, reinflating the national
+  `export` residual by exactly the amount this fix removes provincially;
+  `processing_losses` is now excluded from that sum and re-added as its own
+  row. And `.combine_destinies()` gave every row in a multi-row
+  `(Year, Province_name, Item)` group a full `production_share = 1` when
+  their combined production was zero, instead of splitting evenly, so an
+  item processed away entirely for a year duplicated its consumption once
+  per remaining row (41 province-years, all Grapes in 1983, where fuller
+  removal now reaches exactly zero where partial removal rarely did).
+
+  **Published values move.** Over 1860-2023, national `export` falls from
+  44,232,140 Mg to 42,069,913 Mg (-2.16 Mt), and the new
+  `processing_losses` destiny totals 2,235,059 Mg over the same span
+  (averaging 3.7% of Cropland-origin flows, from ~3.8% in 1860 to ~4.9% by
+  2020; olives, grapes and barley account for essentially all of it). The
+  residual N-conservation gap left by the `.combine_destinies()` fix is
+  -6,655 Mg (-0.0016% of total N), down from +129,716 Mg (+0.032%) before it.
+
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
   pins now cover 1860-2023, so the internal 2021 clip and its coverage warning

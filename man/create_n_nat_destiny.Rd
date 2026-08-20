@@ -25,6 +25,7 @@ Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
 \code{box} values, not origins; their nitrogen enters as Outside.
 \item \code{destiny}: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
+processing_losses (N not credited to a processed output, see #432),
 Cropland and semi_natural_agroecosystems (for N soil inputs).
 \item \code{mg_n}: Nitrogen amount in megagrams (Mg).
 \item \code{province_name}: Set to "Spain" for all national-level rows.

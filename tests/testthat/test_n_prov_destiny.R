@@ -43,6 +43,26 @@ test_that(".merge_items_biomass returns NA for unmatched biomass", {
 })
 
 
+# .assemble_n_nat_destiny -------------------------------------------------------
+
+test_that(".assemble_n_nat_destiny keeps processing losses out of export", {
+  prov_raw <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "population_food", 10,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "export", 5,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "processing_losses", 20
+  )
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  # The provincial export amount must survive unchanged: processing losses
+  # must not fold back into the national production/export residual (#432).
+  expect_equal(out$mg_n[out$destiny == "export"], 5)
+  expect_equal(out$mg_n[out$destiny == "processing_losses"], 20)
+  expect_equal(sum(out$mg_n), 35)
+})
+
+
 # .summarise_crops_residues ----------------------------------------------------
 
 test_that(".summarise_crops_residues groups and sums correctly", {
@@ -532,9 +552,9 @@ test_that(".forwardfill_population does nothing when data already ends at last_y
 
 test_that(".calculate_processed_amounts splits and expands production", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100,
-    2000, "A", "beef_bm", "Beef", "Livestock", "Product", 50
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "grape_bm", "Grapes", "Cropland", "rainfed", "Product", 100,
+    2000, "A", "beef_bm", "Beef", "Livestock", NA, "Product", 50
   )
 
   processing_shares <- tibble::tribble(
@@ -572,10 +592,10 @@ test_that(".calculate_processed_amounts splits and expands production", {
   expect_true(all(out$processed_items$prod_type == "Product"))
 })
 
-test_that(".calculate_processed_amounts conserves N when outputs are N-poor", {
+test_that(".calculate_processed_amounts tracks unaccounted N as processing losses when outputs are N-poor", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "grape_bm", "Grapes", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -594,24 +614,31 @@ test_that(".calculate_processed_amounts conserves N when outputs are N-poor", {
     .test_processing_coefs()
   )
 
+  # The full processed mass leaves the primary item, however little of its N
+  # the named outputs can account for.
+  expect_equal(out$non_processed$production_fm, 100 - 40)
+
+  n_removed <- 40 * .test_n_per_fm("Grapes")
   n_added <- sum(
     out$processed_items$production_fm *
       vapply(out$processed_items$Item, .test_n_per_fm, numeric(1))
   )
-  removed_fm <- 100 - out$non_processed$production_fm
-  n_removed <- removed_fm * .test_n_per_fm("Grapes")
+  n_loss <- sum(out$processing_losses$MgN)
 
-  expect_equal(n_removed, n_added)
-  # Grapes keep the N the named outputs cannot account for, rather than
-  # losing it: only 17.5% of the diverted mass is actually accounted for.
-  expect_equal(removed_fm, 40 * (n_added / (40 * .test_n_per_fm("Grapes"))))
-  expect_lt(removed_fm, 40)
+  # Wine and juice are nearly N-free, so most of the diverted N is untracked
+  # and shows up as its own processing_losses destiny instead of vanishing.
+  expect_equal(n_removed, n_added + n_loss)
+  expect_lt(n_added, n_removed)
+  expect_gt(n_loss, 0)
+  expect_equal(out$processing_losses$Item, "Grapes")
+  expect_equal(out$processing_losses$Destiny, "processing_losses")
+  expect_equal(out$processing_losses$Box, "Cropland")
 })
 
 test_that(".calculate_processed_amounts never creates N when outputs are N-rich", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -652,8 +679,8 @@ test_that(".calculate_processed_amounts never creates N when outputs are N-rich"
 
 test_that(".calculate_processed_amounts drops substitutions it cannot price in N", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "unknown_bm", "Mystery crop", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "unknown_bm", "Mystery crop", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -676,10 +703,11 @@ test_that(".calculate_processed_amounts drops substitutions it cannot price in N
 
   expect_equal(out$non_processed$production_fm, 100)
   expect_equal(sum(out$processed_items$production_fm), 0)
+  expect_equal(nrow(out$processing_losses), 0)
 })
 
 test_that(".processing_n_scaling leaves an exactly balanced substitution alone", {
-  # Outputs carry precisely the input's N: both scales must be 1.
+  # Outputs carry precisely the input's N: no loss, outputs unscaled.
   candidate <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
     2000, "A", "grape_bm", "Grapes", 100
@@ -692,7 +720,7 @@ test_that(".processing_n_scaling leaves an exactly balanced substitution alone",
   out <- .processing_n_scaling(candidate, outputs, .test_processing_coefs())
 
   expect_equal(out$output_scale, 1)
-  expect_equal(out$removal_scale, 1)
+  expect_equal(out$processing_loss_n, 0)
 })
 
 
@@ -987,6 +1015,32 @@ test_that(".combine_destinies adds food_pets to food", {
 
   # food should include food_pets
   expect_equal(out$food, (10 + 5) * 1)
+})
+
+test_that(".combine_destinies splits evenly, not duplicates, when production is zero across multiple rows", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
+    2000, "A", "Grapes", "Cropland", "irrig", 0, "Product",
+    2000, "A", "Grapes", "Cropland", "rainfed", 0, "Product"
+  )
+
+  feed <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~feed, ~food_pets,
+    2000, "A", "Grapes", 0, 0
+  )
+
+  food_other <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~food, ~other_uses,
+    2000, "A", "Grapes", 50, 20
+  )
+
+  out <- .combine_destinies(prod, feed, food_other)
+
+  # Each row must get an even share, not the full demand duplicated once per
+  # row: total food/other_uses must stay 50/20, not 100/40.
+  expect_equal(sum(out$food), 50)
+  expect_equal(sum(out$other_uses), 20)
+  expect_equal(out$food, c(25, 25))
 })
 
 
