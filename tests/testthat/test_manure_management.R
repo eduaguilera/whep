@@ -364,3 +364,102 @@ test_that("apply_management_losses guards bad input", {
   bad$mms_type <- NULL
   expect_error(whep::apply_management_losses(bad), "missing")
 })
+
+# The shared MMS-share resolver (#679) ---------------------------------------
+
+test_that(".resolve_mms_shares serves both engines' region columns", {
+  # #679: the Tier-2 methane engine and the manure split used to carry two
+  # implementations of one rule. The resolver is now shared, and the only
+  # thing that differs between the two call sites is the name of the column
+  # holding the region -- "region" for the methane engine, "mms_region" for the
+  # split. Both must resolve to the same region-specific mix.
+  methane_shape <- tibble::tibble(
+    species_gen = "Cattle",
+    region = "Latin America"
+  ) |>
+    whep:::.resolve_mms_shares("region")
+  split_shape <- tibble::tibble(
+    species_gen = "Cattle",
+    mms_region = "Latin America"
+  ) |>
+    whep:::.resolve_mms_shares("mms_region")
+
+  expect_equal(
+    dplyr::arrange(methane_shape, mms_type)$fraction,
+    dplyr::arrange(split_shape, mms_type)$fraction
+  )
+  expect_equal(sum(methane_shape$fraction), 1)
+  expect_setequal(
+    methane_shape$mms_type,
+    c(
+      "Pasture/Range/Paddock",
+      "Solid Storage",
+      "Daily Spread",
+      "Liquid/Slurry"
+    )
+  )
+})
+
+test_that(".resolve_mms_shares falls back to the Global mix", {
+  # The fallback branch: an unmatched region, an NA region, and no region
+  # column at all must all give the Global split for that species -- never a
+  # dropped row and never a missing fraction (#201).
+  global <- tibble::tibble(species_gen = "Cattle") |>
+    whep:::.resolve_mms_shares() |>
+    dplyr::arrange(mms_type)
+
+  purrr::walk(list("Africa", "not a region", NA_character_), function(case) {
+    got <- tibble::tibble(species_gen = "Cattle", region = case) |>
+      whep:::.resolve_mms_shares("region") |>
+      dplyr::arrange(mms_type)
+    expect_equal(got$mms_type, global$mms_type)
+    expect_equal(got$fraction, global$fraction)
+  })
+
+  # A named region column the rows do not carry also takes the Global branch.
+  absent <- tibble::tibble(species_gen = "Cattle") |>
+    whep:::.resolve_mms_shares("region") |>
+    dplyr::arrange(mms_type)
+  expect_equal(absent$fraction, global$fraction)
+  expect_equal(sum(global$fraction), 1)
+})
+
+test_that(".resolve_mms_shares keeps every input row, matched or not", {
+  rows <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    region = c(unique(whep::regional_mms_distribution$region), "Africa", NA)
+  ) |>
+    dplyr::mutate(row_id = dplyr::row_number())
+
+  res <- whep:::.resolve_mms_shares(rows, "region")
+
+  expect_setequal(res$row_id, rows$row_id)
+  expect_false(anyNA(res$fraction))
+  expect_false(anyNA(res$mms_type))
+  # Mass conservation: each input row's shares sum to one.
+  sums <- res |>
+    dplyr::summarise(total = sum(fraction), .by = row_id)
+  expect_true(all(abs(sums$total - 1) < 1e-12))
+})
+
+test_that("both engines see the same MMS mix for one territory", {
+  # Cross-engine agreement, the point of the dedup: Brazil (area_code 21,
+  # IPCC "Latin America") must get the same MMS fractions through the methane
+  # engine's region column as through split_manure_management().
+  split <- whep::split_manure_management(
+    .cattle_in("21"),
+    options = list(mms_source = "region_specific")
+  )
+  engine <- tibble::tibble(
+    species_gen = "Cattle",
+    region = whep:::.mms_region_of("21")
+  ) |>
+    whep:::.resolve_mms_shares("region")
+
+  expect_equal(
+    stats::setNames(split$n_stream / 100, split$mms_type)[
+      sort(split$mms_type)
+    ],
+    stats::setNames(engine$fraction, engine$mms_type)[sort(engine$mms_type)]
+  )
+})
