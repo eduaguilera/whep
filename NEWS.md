@@ -1,5 +1,44 @@
 # whep (development version)
 
+* **`resolve_polity_label()` now covers the current year (#712).** Its year
+  filter read `polity_end_year` strictly exclusively, so a polity whose interval
+  ends at the open-period sentinel stopped covering its own terminal year: at
+  2025 only 1 of the 204 ISO3 codes in `gleam_geographic_hierarchy` resolved,
+  against 204 at 2024, while `add_polity_code()` resolved them normally because
+  the numeric route already goes through `.polity_join_end_year()`. The label
+  route now applies the same convention -- exclusive at a succession, inclusive
+  at an open end (#577) -- and a period upstream records no successor for also
+  covers its last year away from the sentinel (`ANT-1961-2010` in 2010).
+  Declared containment still outranks that widening, so a succession year keeps
+  resolving to exactly one polity and cannot become ambiguous (#720).
+
+  **What changes for callers.** Resolutions are only ADDED, never moved: over
+  1,020 identifiers x 1850:2026 the fix turns 700 `NA`s into codes (680 at the
+  2025 sentinel, 20 in the last year of a terminated period) and changes no
+  answer that already resolved. Any consumer that asked the label route about
+  the snapshot's last year -- `mueller_synthetic_n`, `crops_manure_n`, the GLEAM
+  tables, `R/sources.R` -- got `NA` for essentially every country and now gets
+  the polity. No packaged value changes: the two in-package callers resolve
+  below the sentinel (`expand_trade_sources()` stops at 2014,
+  `add_present_day_polity()` asks `max(end_year) - 1`), so both are unmoved.
+
+* **The destiny-share interpolation is keyed on `area_code`, not on the `area`
+  label (#691).** `.interpolate_destiny_shares()` named the label beside the
+  code in its skeleton join, its anti-join and its dedup — the last year-free
+  territorial join in the package that read a label, and the shape behind #589
+  (a shared label diluted Syria's livestock by 12x) and #563. It could not
+  disagree in the current build, because `balance` and `destiny` are two
+  filters of one frame, but the guarantee was the caller's rather than the
+  function's and an unmatched key here drops a row silently instead of
+  aborting. The keys are the code now and the one display label per code is
+  re-attached at the end. **No published value changes**: on the real
+  1850-2023 frames the old and new function return 20,314,086 rows with the
+  same `(year, area_code, item_cbs_code, element)` key set (0 keys either
+  side), the same 2,845,173 summed `dest_share`, a maximum per-key difference
+  of 0 and one label per code in both. Measured on a fixture where the two
+  sides disagree about the label, the old keys turned a 6-row skeleton into 2
+  and lost two years of shares entirely.
+
 * **`inst/scripts/prepare_spatialize_all.R` no longer reuses a production
   cache built under an older area model (#657).** The on-disk
   `.prod_cache.parquet` was invalidated on the requested year span alone, so a
