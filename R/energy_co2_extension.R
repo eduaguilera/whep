@@ -883,7 +883,15 @@ build_energy_co2_extension <- function(
 .energy_allocate_to_sectors <- function(co2e, primary_prod) {
   heads <- .energy_slaughter_heads(primary_prod)
   allocated <- co2e |>
-    dplyr::inner_join(.energy_sector_map(), by = "grp") |>
+    # The fan-out is the point of this join: one meat group feeds several
+    # live-animal sectors. `co2e` is one row per (year, area_code, grp) and the
+    # map is one row per (grp, item_cbs_code), so each group recurs on both
+    # sides -- many-to-many by design, not a duplicated key (whep#647).
+    dplyr::inner_join(
+      .energy_sector_map(),
+      by = "grp",
+      relationship = "many-to-many"
+    ) |>
     dplyr::left_join(
       heads,
       by = c("year", "area_code", "grp", "item_cbs_code")

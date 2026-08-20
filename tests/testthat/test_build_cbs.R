@@ -1787,3 +1787,98 @@ test_that("the historical extension keeps one area label per code", {
   expect_equal(per_code$n_labels, 1L)
   expect_equal(unique(result$area), "Algeria (1919-1962)")
 })
+
+# -- Destiny-share interpolation (whep#691) ------------------------------------
+
+# One code, two labels: the balance side carries the current FAOSTAT name and
+# the destiny side the periodized one. Every real caller hands
+# `.interpolate_destiny_shares()` two filters of ONE frame, so today the labels
+# agree by construction -- but that is the caller's invariant, not this
+# function's, and an unmatched key here is a dropped row, not an error.
+.two_label_destiny_frames <- function() {
+  balance <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 100,
+    2001L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 200,
+    2002L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 300
+  ) |>
+    dplyr::mutate(elem_cat = "balance", source = "FAOSTAT_FBS_New")
+
+  destiny <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "food", 60,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "feed", 40
+  ) |>
+    dplyr::mutate(
+      elem_cat = "destiny",
+      source = "FAOSTAT_FBS_New",
+      dest_share = value / 100
+    )
+
+  list(balance = balance, destiny = destiny)
+}
+
+test_that("a second area label does not drop a destiny-share skeleton", {
+  # Before whep#691 the skeleton join keyed on `area` as well as `area_code`,
+  # so the two labels were two territories: no target year matched, the
+  # skeleton collapsed to the single observed year and 2001-2002 lost their
+  # shares entirely.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_setequal(unique(result$year), 2000:2002)
+  expect_equal(
+    result |>
+      dplyr::filter(.data$element == "food") |>
+      dplyr::arrange(.data$year) |>
+      dplyr::pull(.data$dest_share),
+    c(0.6, 0.6, 0.6)
+  )
+})
+
+test_that("the destiny-share skeleton keeps one area label per code", {
+  # The invariant a value comparison cannot see (whep#563): the label is
+  # re-attached from the code once, so a disagreeing input label cannot leave
+  # two territories behind.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  per_code <- result |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = "area_code"
+    )
+
+  expect_equal(per_code$n_labels, 1L)
+})
+
+test_that("agreeing labels leave the destiny-share skeleton unchanged", {
+  # What the real build hands it: one label per code on both sides. Dropping
+  # the label from the key must move nothing here.
+  frames <- .two_label_destiny_frames()
+  frames$destiny$area <- "Algeria"
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_equal(unique(result$area), "Algeria")
+  expect_equal(
+    result |>
+      dplyr::filter(.data$year == 2002L) |>
+      dplyr::arrange(.data$element) |>
+      dplyr::pull(.data$dest_share),
+    c(0.4, 0.6)
+  )
+})

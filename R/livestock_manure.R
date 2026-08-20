@@ -364,7 +364,7 @@
       climate_zone,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_distribution() |>
+    .resolve_mms_shares("region") |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
@@ -387,56 +387,6 @@
       weighted_mcf = dplyr::coalesce(weighted_mcf, 0.02)
     ) |>
     dplyr::select(-row_id)
-}
-
-#' Resolve each row's manure-management-system (MMS) distribution.
-#'
-#' Joins `regional_mms_distribution` on `species_gen` (and `region` when
-#' present). Region-specific rows exist for only a handful of (region, species)
-#' pairs; for every other pair the exact-region join finds nothing, so we fall
-#' back to the `region == "Global"` distribution for that species instead of
-#' letting `fraction` collapse to a flat default. Rows keyed as `region` but
-#' with a value not covered by the table also take the Global fallback.
-#' @noRd
-.resolve_mms_distribution <- function(row_keys) {
-  global_mms <- regional_mms_distribution |>
-    dplyr::filter(region == "Global") |>
-    dplyr::select(species, mms_type, fraction)
-
-  if (!rlang::has_name(row_keys, "region")) {
-    return(
-      row_keys |>
-        dplyr::left_join(
-          global_mms,
-          by = c("species_gen" = "species"),
-          relationship = "many-to-many"
-        )
-    )
-  }
-
-  regional_mms <- regional_mms_distribution |>
-    dplyr::filter(region != "Global") |>
-    dplyr::select(region, species, mms_type, fraction)
-
-  matched <- row_keys |>
-    dplyr::inner_join(
-      regional_mms,
-      by = c("species_gen" = "species", "region"),
-      relationship = "many-to-many"
-    )
-
-  fallback <- row_keys |>
-    dplyr::anti_join(
-      regional_mms,
-      by = c("species_gen" = "species", "region")
-    ) |>
-    dplyr::left_join(
-      global_mms,
-      by = c("species_gen" = "species"),
-      relationship = "many-to-many"
-    )
-
-  dplyr::bind_rows(matched, fallback)
 }
 
 #' Calculate nitrogen excretion (n_excretion).
@@ -537,7 +487,7 @@
       heads,
       dplyr::any_of("region")
     ) |>
-    .resolve_mms_distribution() |>
+    .resolve_mms_shares("region") |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     dplyr::mutate(
       ef3 = dplyr::coalesce(ef3, 0.005),

@@ -22,8 +22,8 @@
 
 # The classification of every join in the package that keys on a territory and
 # not on a year, one row per distinct (owner, join function, key) signature with
-# the number of calls carrying it. Four verdicts, and one more for the single
-# join that still names the LABEL in its key:
+# the number of calls carrying it. Four verdicts, and none of them may name a
+# LABEL in the key:
 #
 #   single_year      the call site is already scoped to one year, so the year is
 #                    a constant there and adding it to the key changes nothing.
@@ -37,17 +37,18 @@
 #                    year-scoped polity.
 #   diagnostic       a warning or comparison path that reports on keys; it moves
 #                    no published value.
-#   label_redundant  the key names `area` as well as `area_code`. Both sides
-#                    come from one frame here, so the label cannot disagree, but
-#                    keying on a label is the shape behind whep#589/#563 and
-#                    this entry exists so it stays visible.
-#
-# A sixth verdict, `label_identity`, is GONE and is deliberately not in the
-# vocabulary any more. It covered one join, `.polity_code_from_labels()`, which
-# read the pre-1962 CBS frame's polity out of its `area` label; whep#698 keyed
-# that frame on the reporting bucket it already carries and deleted the
-# function. Re-introducing the class means re-arguing that a label may be an
-# identity, which is the whole thing this audit exists to stop.
+# Two verdicts are GONE and are deliberately not in the vocabulary any more.
+# `label_identity` covered one join, `.polity_code_from_labels()`, which read
+# the pre-1962 CBS frame's polity out of its `area` label; whep#698 keyed that
+# frame on the reporting bucket it already carries and deleted the function.
+# `label_redundant` covered the last one, `.interpolate_destiny_shares()`, whose
+# skeleton join named `area` beside `area_code`: both sides were two filters of
+# one frame, so the label could not disagree there, but the guarantee was the
+# caller's and an unmatched key was a dropped row rather than an error. whep#691
+# keyed it on the code alone and re-attached the label once at the end, so no
+# year-free join in the package names a label at all. Re-introducing either
+# class means re-arguing that a label may be a key, which is the whole thing
+# this audit exists to stop.
 #
 # Adding a row is not a way to pass the gate: it is a statement, reviewed like
 # any other, that the join means the same thing in 1850 and in 2023.
@@ -158,10 +159,16 @@
     ".infer_target_labels", "left_join", "area_code", 1L, "identity_lookup",
     "Reporting-polity labels for the IO model's final-demand columns.",
     ".interpolate_destiny_shares", "[",
-    "area, area_code, item_cbs, item_cbs_code", 1L, "label_redundant",
-    "Both sides are two filters of one frame (`cbs_raw4`), whose label is
-     already one per code, so the label cannot disagree here. It is still a
-     label in a key: whep#691.",
+    "area_code, item_cbs, item_cbs_code", 1L, "identity_lookup",
+    "The last label-keyed join in the package until whep#691 dropped `area`
+     from it. What is left is the skeleton crossing itself: the joined side is
+     `ds_keys`, the (year, area_code, item) triples where domestic_supply
+     exists, so
+     the YEAR comes out of the join rather than being missing from it, and the
+     year-free half is the SET of destiny elements the area-item ever reports --
+     which is year-free on purpose, because carrying a share into a year that
+     did not report it is what the interpolation is for. The label is
+     re-attached once from the code afterwards.",
     ".land_in_polygons", "merge", "polity_code", 1L, "time_invariant",
     "A polity code already names its own period (`ETH-1952-1993`), so the
      territory it is joined to cannot vary within it. Since whep#800 that
