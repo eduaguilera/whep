@@ -3,11 +3,19 @@
 boundary axis (Within_boundary versus Exceedance) crossed with
 the nourishment axis (Under, Adequate, Over), with a
 plotting colour per combined level. Used to classify and colour polities on
-the safe-and-just nitrogen space."><meta property="og:description" content="The ordered levels of the SJOS-N 2-way classification: the reactive-nitrogen
+the safe-and-just nitrogen space. The rows are in the realised
+afsetools::load_vectors() SJOS_levels order, which that source
+reverses: &quot;Exceedance Over&quot; first, &quot;Within_boundary Under&quot;
+last. That is the factor-level order Global's SJOS-N figures stack and
+legend on, so a figure built from these levels reproduces theirs."><meta property="og:description" content="The ordered levels of the SJOS-N 2-way classification: the reactive-nitrogen
 boundary axis (Within_boundary versus Exceedance) crossed with
 the nourishment axis (Under, Adequate, Over), with a
 plotting colour per combined level. Used to classify and colour polities on
-the safe-and-just nitrogen space."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+the safe-and-just nitrogen space. The rows are in the realised
+afsetools::load_vectors() SJOS_levels order, which that source
+reverses: &quot;Exceedance Over&quot; first, &quot;Within_boundary Under&quot;
+last. That is the factor-level order Global's SJOS-N figures stack and
+legend on, so a figure built from these levels reproduces theirs."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -51,7 +59,11 @@ the safe-and-just nitrogen space."><meta property="og:image" content="https://ed
 boundary axis (<code>Within_boundary</code> versus <code>Exceedance</code>) crossed with
 the nourishment axis (<code>Under</code>, <code>Adequate</code>, <code>Over</code>), with a
 plotting colour per combined level. Used to classify and colour polities on
-the safe-and-just nitrogen space.</p>
+the safe-and-just nitrogen space. The rows are in the realised
+<code>afsetools::load_vectors()</code> <code>SJOS_levels</code> order, which that source
+reverses: <code>"Exceedance Over"</code> first, <code>"Within_boundary Under"</code>
+last. That is the factor-level order Global's SJOS-N figures stack and
+legend on, so a figure built from these levels reproduces theirs.</p>
     </div>
 
     <div class="section level2">
@@ -63,10 +75,11 @@ the safe-and-just nitrogen space.</p>
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A tibble with columns:</p><dl><dt>level</dt>
 <dd><p>Combined classification level (e.g.
-<code>"Within_boundary Under"</code>, <code>"Exceedance Over"</code>).</p></dd>
+<code>"Exceedance Over"</code>, <code>"Within_boundary Under"</code>).</p></dd>
 
 <dt>order</dt>
-<dd><p>Integer plotting/factor order (1 to 6).</p></dd>
+<dd><p>Integer plotting/factor order (1 to 6), matching the row
+order.</p></dd>
 
 <dt>colour</dt>
 <dd><p>Plotting colour (an R colour name).</p></dd>
@@ -82,8 +95,9 @@ de Vries, W. (2022). <a href="https://doi.org/10.1038/s41586-022-05158-2" class=
 al. (2013). <a href="https://doi.org/10.1016/j.cosust.2013.07.004" class="external-link">doi:10.1016/j.cosust.2013.07.004</a>
 ; nourishment axis from the
 nourishment thresholds (see <a href="nourishment_thresholds.html">nourishment_thresholds</a>). The level
-labels and colours are ported by value from <code>afsetools::load_vectors()</code>
-(<code>SJOS_levels</code> and <code>SJOS_colours</code>); verify against Zotero before
+labels, their order and the colours are ported by value from
+<code>afsetools::load_vectors()</code> (<code>SJOS_levels</code>, which is wrapped in
+<code><a href="https://rdrr.io/r/base/rev.html" class="external-link">rev()</a></code> there, and <code>SJOS_colours</code>); verify against Zotero before
 any manuscript use.</p>
     </div>
 
@@ -93,12 +107,12 @@ any manuscript use.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 3</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   level                    order colour       </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Within_boundary Under        1 lightseagreen</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> Within_boundary Adequate     2 lightgreen   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> Within_boundary Over         3 burlywood3   </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> Exceedance Under             4 mediumpurple </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> Exceedance Adequate          5 salmon1      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> Exceedance Over              6 indianred3   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Exceedance Over              1 indianred3   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> Exceedance Adequate          2 salmon1      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> Exceedance Under             3 mediumpurple </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> Within_boundary Over         4 burlywood3   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> Within_boundary Adequate     5 lightgreen   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> Within_boundary Under        6 lightseagreen</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
