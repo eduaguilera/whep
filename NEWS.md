@@ -90,6 +90,26 @@
   already equals `.by`, and a 11,333-row randomised fixture on that form is
   bit-identical before and after.
 
+* **Fodder is now built on `area_code` alone, and no longer counts a country
+  once per historical name (#655).** `.merge_euadb_fodder()` and
+  `.fill_fodder_gaps()` carried the periodized area *label* in their join and
+  grouping keys, so one `area_code` whose label changes over the series became
+  several independent series, and `.fill_fodder_gaps()`'s cross join then gave
+  each of them the full year span. Egypt (59) ended up with three full-area
+  copies of every fodder item — 308.6 Mt of clover in 2017 where FAOSTAT-scale
+  production is 55.4 Mt. The label is now resolved once, at the end, from the
+  polity crosswalk for the row's own year, the same rule
+  `.aggregate_to_polities()` labels a bucket by. **Published values move**: the
+  fodder table drops from 63,484 to 60,556 rows, total harvested area by 5.37%
+  (9.353 to 8.851 Gha summed over 1961-2019) and total production by 7.36%
+  (226.3 to 209.6 Gt); 2,574 duplicated `(year, area_code, item, unit)` keys
+  become none, and 1,709 further keys change because `ha_share` and the
+  year-axis interpolation now run over one series per country instead of one
+  per label (Czechoslovakia, Germany, Romania, Poland, Hungary, Bulgaria,
+  Greece, Finland). A side effect is that a fodder row now always carries the
+  same `area` label as the FAOSTAT crop row it is bound to: 745 of 5,769
+  `(year, area_code)` pairs disagreed before, none do now.
+
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
   stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
