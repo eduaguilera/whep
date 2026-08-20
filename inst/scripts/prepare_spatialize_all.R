@@ -3016,10 +3016,8 @@ prepare_nitrogen_inputs <- function(
           manure_mg_n * 1000 / area_ha_base,
         fert_type == "Manure" & !is.na(kg_n_ha_manure_west) ~
           kg_n_ha_manure_west,
-        fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~
-          kg_n_ha_synth,
-        fert_type == "Synthetic" & !is.na(kg_n_ha_synth_es) ~
-          kg_n_ha_synth_es,
+        fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~ kg_n_ha_synth,
+        fert_type == "Synthetic" & !is.na(kg_n_ha_synth_es) ~ kg_n_ha_synth_es,
         TRUE ~ NA_real_
       )
     ) |>
@@ -3451,8 +3449,7 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
     ) |>
     dplyr::mutate(
       source = dplyr::case_when(
-        !is.na(nex_lookup) & use_regional ~
-          "ipcc_2019_tier1_regional",
+        !is.na(nex_lookup) & use_regional ~ "ipcc_2019_tier1_regional",
         !is.na(nex_lookup) ~ "ipcc_2019_tier1_global",
         TRUE ~ "fallback_other_2kg"
       ),

@@ -84,6 +84,28 @@ plot_input_output <- function(
       "Residues" = "goldenrod3",
       "Production" = "orange3"
     ),
+    breaks = c(
+      "Surplus",
+      "Accumulation",
+      "Production",
+      "Residues",
+      "Urban",
+      "Deposition",
+      "Fixation",
+      "Manure",
+      "Synthetic_fertilizer"
+    ),
+    labels = c(
+      "Surplus",
+      "Accumulation",
+      "Production",
+      "Residues",
+      "Urban",
+      "Deposition",
+      "Fixation",
+      "Manure",
+      "Synthetic fertilizer"
+    ),
     annotate_label = if (system == "Cropland") {
       "Cropland"
     } else {
@@ -204,6 +226,32 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       "Export" = "orange3",
       "Surplus" = "slategray"
     ),
+    breaks = c(
+      "Surplus",
+      "Accumulation",
+      "Feed",
+      "Food",
+      "Other_uses",
+      "Export",
+      "Food_import",
+      "Feed_import",
+      "Deposition",
+      "Fixation",
+      "Synthetic_fertilizer"
+    ),
+    labels = c(
+      "Surplus",
+      "Accumulation",
+      "Feed",
+      "Food",
+      "Other uses",
+      "Export",
+      "Food import",
+      "Feed import",
+      "Deposition",
+      "Fixation",
+      "Synthetic fertilizer"
+    ),
     annotate_label = "Agro-food system",
     y_lab = if (per_ha) "kg N/ha" else "Gg N"
   )
@@ -313,6 +361,13 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       "Surplus" = "slategray",
       "Production" = "orange3"
     ),
+    breaks = c("Surplus", "Production", "Feed_monogastric", "Feed_ruminants"),
+    labels = c(
+      "Surplus",
+      "Production",
+      "Feed monogastric",
+      "Feed ruminants"
+    ),
     annotate_label = "Livestock system"
   )
 }
@@ -358,6 +413,22 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       "Production_rum" = "orange3",
       "Production_mono" = "darkorange3"
     ),
+    breaks = c(
+      "Surplus",
+      "Production_rum",
+      "Production_mono",
+      "Grass_local",
+      "Crops_local",
+      "Imports"
+    ),
+    labels = c(
+      "Surplus",
+      "Production ruminants",
+      "Production monogastric",
+      "Grass local",
+      "Crops local",
+      "Imports"
+    ),
     annotate_label = "Livestock system",
     y_lab = if (per_ha) "kg N/ha" else "Gg N"
   )
@@ -389,11 +460,14 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     "Horses",
     "Donkeys_mules"
   )
-  # Other_birds is monogastric, consistent with .add_feed() in
-  # n_prov_destiny.R; without it the stock_prod_ygps rows for that
-  # category fall through to NA and are dropped below.
+  # Hogs/Other_birds are distinct Livestock_cat values from Pigs/Poultry
+  # (see typologies_spain_plot.R weights); Other_birds is monogastric,
+  # consistent with .add_feed() in n_prov_destiny.R. Without either, the
+  # stock_prod_ygps rows for those categories fall through to NA and are
+  # dropped below.
   monogastric_cats <- c(
     "Pigs",
+    "Hogs",
     "Poultry",
     "Rabbits",
     "Bees",
@@ -550,6 +624,8 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   plot_df,
   title,
   fill_values,
+  breaks = NULL,
+  labels = NULL,
   annotate_label = NULL,
   y_lab = "Gg N"
 ) {
@@ -560,8 +636,17 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
     ggplot2::labs(title = title, x = "Year", y = y_lab, fill = "") +
-    ggplot2::scale_fill_manual(values = fill_values) +
-    ggplot2::theme_minimal()
+    ggplot2::scale_fill_manual(
+      breaks = breaks,
+      labels = labels,
+      values = fill_values
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      legend.text = ggplot2::element_text(size = 15),
+      legend.key.size = ggplot2::unit(1.2, "cm"),
+      axis.text = ggplot2::element_text(size = 13)
+    )
 
   if (!is.null(annotate_label)) {
     plot <- plot +
@@ -572,7 +657,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
         label = annotate_label,
         hjust = -0.05,
         vjust = 1.5,
-        size = 3.5,
+        size = 7,
         fontface = "bold"
       )
   }

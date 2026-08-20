@@ -667,12 +667,12 @@ polity_area_crosswalk <- dplyr::bind_rows(
         "fabio_row_promoted" ~ "Upstream names this polity for the area; it applies when the area is promoted out of the FABIO Rest of World bucket.",
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code !=
-          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
-      .data$mapping_status ==
-        "not_a_reporting_area" ~ "No FAOSTAT/FABIO reporting area exists for this territory, so nothing can be joined to this row; it records which polity the territory belongs to.",
-      .data$mapping_status ==
-        "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
+        .data$area_code != 999L ~
+        "FABIO collapses this source area into the Rest of World reporting polity.",
+      .data$mapping_status == "not_a_reporting_area" ~
+        "No FAOSTAT/FABIO reporting area exists for this territory, so nothing can be joined to this row; it records which polity the territory belongs to.",
+      .data$mapping_status == "unmapped" ~
+        "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       .data$mapping_status == "manual" ~ paste0(
         "Upstream FAOSTAT area map decided this period by hand, route ",
         .data$map_match_route,

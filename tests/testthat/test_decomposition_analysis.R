@@ -1,129 +1,604 @@
-# test_decomposition_analysis.R — tests for R/decomposition_analysis.R
-#
-# Both builders read national N flows plus a pinned population / crop-area
-# table. All three readers are stubbed, so the tests are offline.
-
-# National N flows: soil inputs into the two agricultural boxes, harvested
-# output leaving them, and one flow that is neither.
-lmdi_flows_fixture <- function() {
-  tibble::tribble(
-    ~year, ~origin,      ~destiny,                     ~mg_n,
-    1990,  "Synthetic",  "Cropland",                   10,
-    2000,  "Synthetic",  "Cropland",                   100,
-    2000,  "Deposition", "semi_natural_agroecosystems", 20,
-    2000,  "Cropland",   "population_food",            30,
-    2000,  "Cropland",   "export",                     10,
-    2000,  "semi_nat",   "livestock_rum",              5,
-    2000,  "Cropland",   "Losses",                     40,
-    2001,  "Synthetic",  "Cropland",                   200,
-    2001,  "Cropland",   "population_food",            50
-  ) |>
-    dplyr::mutate(
-      origin = dplyr::if_else(
-        origin == "semi_nat",
-        "semi_natural_agroecosystems",
-        origin
-      )
-    )
-}
-
-lmdi_population_fixture <- function() {
-  tibble::tribble(
-    ~Year, ~POP_MPEOP_YG,
-    2000,  15,
-    2000,  25,
-    2001,  50
+# .national_area_panel
+test_that("national area panel sums area/inputs/surplus across finer grain", {
+  panel <- tibble::tribble(
+    ~year, ~province_name, ~destiny_grp, ~area, ~inputs, ~surplus,
+    2000, "A", "feed", 40, 100, 20,
+    2000, "A", "domestic_food", 20, 50, 10,
+    2000, "B", "feed", 10, 30, 5
   )
-}
 
-lmdi_area_fixture <- function() {
-  tibble::tribble(
-    ~Year, ~Area_ygpit_ha,
-    2000,  40,
-    2000,  50,
-    2001,  100
-  )
-}
+  out <- .national_area_panel(panel)
 
-local_mocked_lmdi_readers <- function() {
-  local_mocked_bindings(
-    create_n_nat_destiny = function(...) lmdi_flows_fixture(),
-    whep_read_file = function(name, ...) {
-      if (name == "population_yg") {
-        lmdi_population_fixture()
-      } else {
-        lmdi_area_fixture()
-      }
-    },
-    .env = parent.frame()
-  )
-}
+  expect_equal(out$total_area, 70)
+  expect_equal(out$inputs, 180)
+  expect_equal(out$surplus, 35)
+})
 
-# prepare_lmdi_dataset --------------------------------------------------------
-
-test_that("prepare_lmdi_dataset nets harvested output out of soil inputs", {
-  local_mocked_lmdi_readers()
-
-  out <- prepare_lmdi_dataset()
+# .simple_area_identity
+test_that("simple area identity uses Size/Intensity/Inefficiency labels", {
+  identity <- .simple_area_identity("Cropland N surplus")
 
   expect_equal(
-    names(out),
-    c("year", "surplus", "population", "food", "A", "t_ratio")
+    identity$formula,
+    "surplus:total_area*(inputs/total_area)*(surplus/inputs)"
   )
-  expect_equal(out$year, c(1990, 2000, 2001))
-  # 2000: inputs 100 + 20 = 120, output 30 + 10 + 5 = 45. The 40 MgN going to
-  # "Losses" is neither an input to the boxes nor a harvested output.
-  expect_equal(out$surplus, c(10, 75, 150))
-  expect_equal(out$food, c(0, 30, 50))
+  expect_equal(
+    identity$labels,
+    c("Cropland N surplus", "Size", "Intensity", "Inefficiency")
+  )
 })
 
-test_that("prepare_lmdi_dataset derives per-capita food and the N ratio", {
-  local_mocked_lmdi_readers()
+# .period_average_panel
+test_that("period averaging keeps only reference years and averages within them", {
+  panel <- tibble::tribble(
+    ~year, ~province_name, ~value,
+    1860, "A", 10,
+    1870, "A", 20,
+    1900, "A", 999, # outside all four reference periods, dropped
+    1920, "A", 100
+  )
 
-  out <- prepare_lmdi_dataset()
+  out <- .period_average_panel(panel, "province_name")
 
-  # Population is summed over the sub-national rows of the pin.
-  expect_equal(out$population, c(0, 40, 50))
-  expect_equal(out$A, c(NA, 0.75, 1))
-  expect_equal(out$t_ratio, c(NA, 2.5, 3))
+  expect_equal(sort(out$year), c(1860, 1920))
+  expect_equal(out$value[out$year == 1860], mean(c(10, 20)))
+  expect_equal(out$value[out$year == 1920], 100)
 })
 
-test_that("prepare_lmdi_dataset guards the divisions instead of emitting Inf", {
-  local_mocked_lmdi_readers()
+# .reference_period_pairs
+test_that("reference period pairs chain each period against the previous one", {
+  out <- .reference_period_pairs()
 
-  out <- prepare_lmdi_dataset() |> dplyr::filter(year == 1990)
-
-  # 1990 has a soil input but no harvest and no population row. Both ratios
-  # come back NA rather than Inf or NaN.
-  expect_equal(out$surplus, 10)
-  expect_true(is.na(out$A))
-  expect_true(is.na(out$t_ratio))
-  expect_false(is.nan(out$A))
+  expect_equal(out$t0, c(1860, 1920, 1960, 1860))
+  expect_equal(out$t_t, c(1920, 1960, 2010, 2010))
 })
 
-# prepare_lmdi_production_area ------------------------------------------------
+# .relabel_period_transitions
+test_that("transition labels are replaced with the mean-year comparison", {
+  df <- tibble::tribble(
+    ~period, ~value,
+    "1860-1920", 1,
+    "1920-1960", 2,
+    "1960-2010", 3,
+    "1860-2010", 4
+  )
 
-test_that("prepare_lmdi_production_area yields output per hectare", {
-  local_mocked_lmdi_readers()
+  out <- .relabel_period_transitions(df)
 
-  out <- prepare_lmdi_production_area()
-
-  expect_equal(names(out), c("year", "surplus", "area", "yield", "intensity"))
-  expect_equal(out$year, c(1990, 2000, 2001))
-  # Cropland area is summed over the rows of the pin: 40 + 50 in 2000.
-  expect_equal(out$area, c(NA, 90, 100))
-  # Harvested output is 45 MgN in 2000 and 50 in 2001.
-  expect_equal(out$yield, c(NA, 45 / 90, 50 / 100))
+  expect_equal(
+    as.character(out$period),
+    c("1865-1925", "1925-1965", "1965-2015", "Total (1865-2015)")
+  )
+  expect_equal(
+    levels(out$period),
+    c("1865-1925", "1925-1965", "1965-2015", "Total (1865-2015)")
+  )
 })
 
-test_that("prepare_lmdi_production_area totals every flow as `surplus`", {
-  local_mocked_lmdi_readers()
+# .aggregate_period_series
+test_that("period series sums contributions per transition without cumulating", {
+  detail <- tibble::tribble(
+    ~period, ~compartment, ~component_type, ~additive, ~period_years,
+    "1860-1920", "cropland", "target", 10, 60,
+    "1860-1920", "manure", "target", -4, 60,
+    "1920-1960", "cropland", "target", 25, 40
+  )
 
-  out <- prepare_lmdi_production_area()
+  out <- .aggregate_period_series(detail, "compartment", target_only = TRUE)
 
-  # Unlike prepare_lmdi_dataset(), this builder's `surplus` column is the sum
-  # of *all* national flows, harvest and losses included, not inputs minus
-  # outputs: 100 + 20 + 30 + 10 + 5 + 40 in 2000.
-  expect_equal(out$surplus, c(10, 205, 250))
-  expect_equal(out$intensity, c(NA, 205 / 45, 5))
+  expect_equal(
+    out$contribution_mgn[
+      out$period == "1865-1925" & out$compartment == "cropland"
+    ],
+    10
+  )
+  expect_equal(
+    out$contribution_per_yr_mgn[
+      out$period == "1865-1925" & out$compartment == "cropland"
+    ],
+    10 / 60
+  )
+  expect_equal(
+    out$contribution_mgn[
+      out$period == "1865-1925" & out$compartment == "manure"
+    ],
+    -4
+  )
+  expect_equal(
+    out$contribution_mgn[
+      out$period == "1925-1965" & out$compartment == "cropland"
+    ],
+    25
+  )
+})
+
+# .destiny_group
+test_that(".destiny_group maps raw destinies to the four buckets", {
+  out <- .destiny_group(c(
+    "population_food",
+    "population_other_uses",
+    "livestock_rum",
+    "livestock_mono",
+    "export"
+  ))
+
+  expect_equal(
+    out,
+    c("domestic_food", "non_food", "feed", "feed", "exported")
+  )
+})
+
+# Tests for .crop_output_by_destiny and .crop_item_destiny_shares
+test_that("crop destiny shares are computed proportionally per item", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~item, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 60,
+    2000, "A", "Wheat", "Cropland", "livestock_rum", 40,
+    2000, "A", "Barley", "Cropland", "export", 10
+  )
+
+  shares <- .crop_output_by_destiny(n_prov_destiny) |>
+    .crop_item_destiny_shares()
+
+  wheat_food <- shares |>
+    dplyr::filter(item == "Wheat", destiny_grp == "domestic_food") |>
+    dplyr::pull(share)
+  wheat_feed <- shares |>
+    dplyr::filter(item == "Wheat", destiny_grp == "feed") |>
+    dplyr::pull(share)
+  barley_export <- shares |>
+    dplyr::filter(item == "Barley", destiny_grp == "exported") |>
+    dplyr::pull(share)
+
+  expect_equal(wheat_food, 0.6)
+  expect_equal(wheat_feed, 0.4)
+  expect_equal(barley_export, 1)
+})
+
+# .allocate_by_destiny_share
+test_that("inputs are allocated to destinies using item shares", {
+  shares <- tibble::tribble(
+    ~year, ~province_name, ~item, ~destiny_grp, ~share, ~output_mg,
+    2000, "A", "Wheat", "domestic_food", 0.6, 60,
+    2000, "A", "Wheat", "feed", 0.4, 40
+  )
+  item_inputs <- tibble::tribble(
+    ~year, ~province_name, ~item, ~input_mg,
+    2000, "A", "Wheat", 100
+  )
+
+  out <- .allocate_by_destiny_share(item_inputs, shares, "input_mg")
+
+  expect_equal(
+    out$allocated[out$destiny_grp == "domestic_food"],
+    60
+  )
+  expect_equal(out$allocated[out$destiny_grp == "feed"], 40)
+})
+
+test_that("items with input/area but no tracked output keep their full mass", {
+  # Sugar beet has no matching row in `shares` (e.g. substituted to "Sugar").
+  shares <- tibble::tribble(
+      ~year, ~province_name, ~item, ~destiny_grp, ~share, ~output_mg,
+      2000, "A", "Wheat", "domestic_food", 1, 60
+    )
+  item_inputs <- tibble::tribble(
+      ~year, ~province_name, ~item, ~input_mg,
+      2000, "A", "Wheat", 60,
+      2000, "A", "Sugar beet", 40
+    )
+
+  out <- .allocate_by_destiny_share(item_inputs, shares, "input_mg")
+
+  expect_equal(out$allocated[out$destiny_grp == "domestic_food"], 60)
+  expect_equal(out$allocated[out$destiny_grp == "no_tracked_output"], 40)
+  expect_equal(sum(out$allocated), 100)
+})
+
+# .assemble_cropland_panel: closure and completion of missing destinies
+test_that("cropland panel computes surplus and fills missing destinies", {
+  inputs_pu <- tibble::tribble(
+    ~year, ~province_name, ~destiny_grp, ~inputs,
+    2000, "A", "domestic_food", 100
+  )
+  area_pu <- tibble::tribble(
+    ~year, ~province_name, ~destiny_grp, ~area,
+    2000, "A", "domestic_food", 10
+  )
+  outputs_pu <- tibble::tribble(
+    ~year, ~province_name, ~destiny_grp, ~outputs,
+    2000, "A", "domestic_food", 60
+  )
+
+  panel <- .assemble_cropland_panel(inputs_pu, area_pu, outputs_pu)
+
+  # domestic_food, feed, exported, non_food, no_tracked_output
+  expect_equal(nrow(panel), 5)
+  expect_equal(
+    panel$surplus[panel$destiny_grp == "domestic_food"],
+    100 - 60
+  )
+  expect_equal(panel$surplus[panel$destiny_grp == "feed"], 0)
+  expect_equal(unique(panel$total_area), 10)
+})
+
+test_that("no_tracked_output input/area count toward surplus and total_area", {
+  inputs_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~inputs,
+      2000, "A", "domestic_food", 100,
+      2000, "A", "no_tracked_output", 40
+    )
+  area_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~area,
+      2000, "A", "domestic_food", 10,
+      2000, "A", "no_tracked_output", 5
+    )
+  outputs_pu <- tibble::tribble(
+      ~year, ~province_name, ~destiny_grp, ~outputs,
+      2000, "A", "domestic_food", 60
+    )
+
+  panel <- .assemble_cropland_panel(inputs_pu, area_pu, outputs_pu)
+
+  # No output row for no_tracked_output, so its full input is surplus.
+  expect_equal(
+    panel$surplus[panel$destiny_grp == "no_tracked_output"],
+    40
+  )
+  # total_area includes the untracked area, not just the tracked ones.
+  expect_equal(unique(panel$total_area), 15)
+})
+
+# .cropland_area_surplus_units
+test_that("cropland area/surplus units compute area share and per-ha surplus", {
+  panel <- tibble::tribble(
+    ~year, ~province_name, ~destiny_grp, ~area, ~surplus, ~total_area,
+    2000, "A", "domestic_food", 40, 400, 100,
+    2000, "A", "feed", 20, 100, 100,
+    2000, "B", "domestic_food", 40, 200, 100
+  )
+
+  units <- .cropland_area_surplus_units(panel, "province_name")
+
+  expect_equal(units$w[units$province_name == "A"], 0.6)
+  expect_equal(units$s[units$province_name == "A"], (400 + 100) / 60)
+  expect_equal(units$w[units$province_name == "B"], 0.4)
+})
+
+# .manure_species_units
+test_that("manure species units compute herd share and loss per LU", {
+  panel <- tibble::tribble(
+    ~year, ~livestock_cat, ~herd_lu, ~loss, ~herd_total,
+    2000, "Pigs", 200, 40, 1000,
+    2000, "Cattle", 800, 80, 1000
+  )
+
+  units <- .manure_species_units(panel)
+
+  expect_equal(units$w[units$livestock_cat == "Pigs"], 0.2)
+  expect_equal(units$s[units$livestock_cat == "Pigs"], 40 / 200)
+})
+
+# .olley_pakes_covariance
+test_that("covariance is positive when weight concentrates on the high-value unit", {
+  units <- tibble::tribble(
+    ~year, ~w, ~s,
+    2000, 0.6, 10,
+    2000, 0.4, 5
+  )
+
+  out <- .olley_pakes_covariance(units)
+
+  # mean weight is 0.5 and mean surplus is 7.5; the covariance between
+  # weight and surplus across the two units works out to 0.5
+  expect_equal(out$covariance, 0.5)
+})
+
+# .local_feed_self_sufficiency
+test_that("feed self-sufficiency is the local share of total feed", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Cropland", "livestock_rum", 60,
+    2000, "A", "Outside", "livestock_mono", 40
+  )
+
+  out <- .local_feed_self_sufficiency(n_prov_destiny)
+
+  expect_equal(out$total_feed, 100)
+  expect_equal(out$local_feed, 60)
+  expect_equal(out$self_sufficiency, 0.6)
+})
+
+# .manure_recycling_ratio
+test_that("manure recycling ratio is manure's share of total land N inputs", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Livestock", "Cropland", 30,
+    2000, "A", "Synthetic", "Cropland", 70
+  )
+
+  out <- .manure_recycling_ratio(n_prov_destiny)
+
+  expect_equal(out$total_n, 100)
+  expect_equal(out$manure_n, 30)
+  expect_equal(out$recycling_ratio, 0.3)
+})
+
+# .crop_livestock_conn_panel
+test_that("connectivity panel joins self-sufficiency and recycling ratio", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Cropland", "livestock_rum", 60,
+    2000, "A", "Outside", "livestock_mono", 40,
+    2000, "A", "Livestock", "Cropland", 30,
+    2000, "A", "Synthetic", "Cropland", 70
+  )
+
+  out <- .crop_livestock_conn_panel(n_prov_destiny)
+
+  expect_equal(out$self_sufficiency, 0.6)
+  expect_equal(out$recycling_ratio, 0.3)
+})
+
+# .assemble_semi_natural_panel
+test_that("semi-natural panel computes surplus and national total area", {
+  inputs_p <- tibble::tribble(
+    ~year, ~province_name, ~inputs,
+    2000, "A", 50,
+    2000, "B", 30
+  )
+  outputs_p <- tibble::tribble(
+    ~year, ~province_name, ~outputs,
+    2000, "A", 20
+  )
+  area_p <- tibble::tribble(
+    ~year, ~province_name, ~area,
+    2000, "A", 100,
+    2000, "B", 50
+  )
+
+  panel <- .assemble_semi_natural_panel(inputs_p, outputs_p, area_p)
+
+  expect_equal(panel$surplus[panel$province_name == "A"], 50 - 20)
+  expect_equal(panel$surplus[panel$province_name == "B"], 30 - 0)
+  expect_equal(unique(panel$total_area), 150)
+})
+
+# .national_livestock_lu
+test_that("national livestock LU sums stock across provinces and converts to LU", {
+  stock_prod_ygps <- tibble::tribble(
+    ~Year, ~Province_name, ~Livestock_cat, ~Item, ~Stock_number,
+    2000, "A", "Pigs", "Meat", 100,
+    2000, "A", "Pigs", "Live", 100, # duplicate stock_number, must be deduped
+    2000, "B", "Pigs", "Meat", 50,
+    2000, "A", "Pets", "Live", 10
+  )
+  livestock_units <- tibble::tribble(
+    ~Livestock_cat, ~Lu_head, ~System,
+    "Pigs", 0.5, "monogastric",
+    "Pets", 0.1, "monogastric"
+  )
+
+  out <- .national_livestock_lu(stock_prod_ygps, livestock_units)
+
+  expect_equal(out$herd_lu[out$livestock_cat == "Pigs"], (100 + 50) * 0.5)
+  expect_false("Pets" %in% out$livestock_cat)
+})
+
+# .national_feed_n
+test_that("national feed N sums intake_MgN across provinces per species", {
+  intake_ygiac <- tibble::tribble(
+    ~Year, ~Province_name, ~Livestock_cat, ~intake_MgN,
+    2000, "A", "Pigs", 100,
+    2000, "B", "Pigs", 50,
+    2000, "A", "Pets", 10
+  )
+
+  out <- .national_feed_n(intake_ygiac)
+
+  expect_equal(out$feed_n[out$livestock_cat == "Pigs"], 150)
+  expect_false("Pets" %in% out$livestock_cat)
+})
+
+# .build_manure_panel
+test_that("species without a livestock-unit coefficient are dropped, not zero-filled", {
+  stock_prod_ygps <- tibble::tribble(
+    ~Year, ~Province_name, ~Livestock_cat, ~Item, ~Stock_number,
+    2000, "A", "Pigs", "Meat", 100
+  )
+  livestock_units <- tibble::tribble(
+    ~Livestock_cat, ~Lu_head, ~System,
+    "Pigs", 0.5, "monogastric"
+  )
+  intake_ygiac <- tibble::tribble(
+    ~Year, ~Province_name, ~Livestock_cat, ~intake_MgN,
+    2000, "A", "Pigs", 100,
+    2000, "A", "Fur animals", 30 # no LU coefficient above
+  )
+  n_excretion_ygs <- tibble::tribble(
+    ~Year, ~Province_name, ~Livestock_cat, ~N_excr_MgN,
+    2000, "A", "Pigs", 40,
+    2000, "A", "Fur animals", 12
+  )
+
+  panel <- .build_manure_panel(
+    n_prov_destiny = tibble::tribble(
+      ~year, ~origin, ~destiny, ~mg_n,
+      2000, "Livestock", "Cropland", 20
+    ),
+    intake_ygiac,
+    n_excretion_ygs,
+    stock_prod_ygps,
+    livestock_units
+  )
+
+  expect_false("Fur animals" %in% panel$livestock_cat)
+  expect_equal(panel$feed_n[panel$livestock_cat == "Pigs"], 100)
+
+  # Fur animals' 12 Mg N must still count, even though it's dropped from panel.
+  expect_equal(unique(panel$excr_total), 40 + 12)
+})
+
+# .finalize_manure_panel
+test_that("manure loss fraction and herd total are computed nationally", {
+  panel <- tibble::tribble(
+    ~year, ~livestock_cat, ~herd_lu, ~feed_n, ~excr_n,
+    2000, "Pigs", 100, 200, 80,
+    2000, "Cattle", 200, 400, 120
+  )
+  excr_total <- tibble::tribble(
+    ~year, ~excr_total,
+    2000, 200
+  )
+  applied <- tibble::tribble(
+    ~year, ~applied,
+    2000, 150
+  )
+
+  out <- .finalize_manure_panel(panel, excr_total, applied)
+
+  # excr_total = 200, applied = 150 -> loss_frac = 50/200 = 0.25
+  expect_equal(unique(out$loss_frac), 0.25)
+  expect_equal(out$loss[out$livestock_cat == "Pigs"], 80 * 0.25)
+  expect_equal(unique(out$herd_total), 300)
+})
+
+test_that("manure loss fraction covers species without an LU coefficient too", {
+  # excr_total must include species excluded from panel, since `applied`
+  # already covers them.
+  panel <- tibble::tribble(
+      ~year, ~livestock_cat, ~herd_lu, ~feed_n, ~excr_n,
+      2000, "Pigs", 100, 200, 80,
+      2000, "Cattle", 200, 400, 120
+    )
+  # Includes 20 Mg N from species absent from panel (e.g. Fur animals).
+  excr_total <- tibble::tribble(
+      ~year, ~excr_total,
+      2000, 220
+    )
+  applied <- tibble::tribble(
+      ~year, ~applied,
+      2000, 150
+    )
+
+  out <- .finalize_manure_panel(panel, excr_total, applied)
+
+  # excr_total = 220, applied = 150 -> loss_frac = 70/220, not 50/200.
+  expect_equal(unique(out$loss_frac), 70 / 220)
+  expect_equal(out$loss[out$livestock_cat == "Pigs"], 80 * (70 / 220))
+})
+
+# .national_manure_panel
+test_that("national manure panel collapses species into national totals", {
+  panel <- tibble::tribble(
+    ~year, ~livestock_cat, ~herd_lu, ~feed_n, ~excr_n, ~herd_total, ~excr_total, ~loss_frac,
+    2000, "Pigs", 100, 200, 80, 300, 200, 0.25,
+    2000, "Cattle", 200, 400, 120, 300, 200, 0.25
+  )
+
+  out <- .national_manure_panel(panel)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$feed_total, 600)
+  expect_equal(out$herd_total, 300)
+  expect_equal(out$excr_total, 200)
+  expect_equal(out$loss, 200 * 0.25)
+})
+
+# .assemble_urban_panel
+test_that("urban panel computes per-capita loss correctly", {
+  excr_h <- tibble::tribble(~year, ~excr_h, 2000, 100)
+  recycled <- tibble::tribble(~year, ~recycled, 2000, 40)
+  pop <- tibble::tribble(~year, ~population, 2000, 10)
+
+  out <- .assemble_urban_panel(excr_h, recycled, pop)
+
+  expect_equal(out$excr_pc, 10)
+  expect_equal(out$loss_frac, 0.6)
+  expect_equal(out$loss, 60)
+})
+
+test_that("urban panel warns when excr_h = 0 breaks the additive identity", {
+  excr_h <- tibble::tribble(~year, ~excr_h, 2000, 0)
+  recycled <- tibble::tribble(~year, ~recycled, 2000, 50)
+  pop <- tibble::tribble(~year, ~population, 2000, 10)
+
+  expect_warning(
+    out <- .assemble_urban_panel(excr_h, recycled, pop),
+    "additive identity"
+  )
+
+  # loss is real (-50); excr_pc/loss_frac collapse to 0, unlike the identity.
+  expect_equal(out$loss, -50)
+  expect_equal(out$excr_pc, 0)
+  expect_equal(out$loss_frac, 0)
+})
+
+test_that("urban panel does not warn when excr_h = 0 and recycled = 0", {
+  excr_h <- tibble::tribble(~year, ~excr_h, 2000, 0)
+  recycled <- tibble::tribble(~year, ~recycled, 2000, 0)
+  pop <- tibble::tribble(~year, ~population, 2000, 10)
+
+  expect_no_warning(.assemble_urban_panel(excr_h, recycled, pop))
+})
+
+# .warn_if_sign_change
+test_that("sign changes across years trigger a warning", {
+  panel <- tibble::tribble(
+    ~year, ~surplus,
+    2000, 10,
+    2001, -5
+  )
+
+  expect_warning(
+    .warn_if_sign_change(panel, surplus, character(0), "Test surplus"),
+    "sign changes"
+  )
+  expect_no_warning(
+    .warn_if_sign_change(
+      tibble::tribble(~year, ~surplus, 2000, 10, 2001, 20),
+      surplus,
+      character(0),
+      "Test surplus"
+    )
+  )
+})
+
+# .tag_mechanism
+test_that("factor rows are tagged with their mechanism and targets as Total", {
+  decomp_df <- tibble::tribble(
+    ~factor_label, ~component_type,
+    "Size", "factor",
+    "Feed intensity", "factor",
+    "Cropland N surplus", "target"
+  )
+
+  out <- .tag_mechanism(decomp_df)
+
+  expect_equal(out$mechanism[out$factor_label == "Size"], "Size")
+  expect_equal(
+    out$mechanism[out$factor_label == "Feed intensity"],
+    "Intensification"
+  )
+  expect_equal(out$mechanism[out$component_type == "target"], "Total")
+})
+
+# .cumulate_series
+test_that("contributions are cumulated over time within each group", {
+  detail <- tibble::tribble(
+    ~t0, ~compartment, ~component_type, ~additive,
+    2000, "cropland", "target", 10,
+    2001, "cropland", "target", 5,
+    2000, "semi_natural", "target", -2,
+    2001, "semi_natural", "target", 3
+  )
+
+  out <- .cumulate_series(detail, "compartment", target_only = TRUE)
+
+  crop <- out |> dplyr::filter(compartment == "cropland") |> dplyr::arrange(t0)
+  expect_equal(crop$cumulative_mgn, c(10, 15))
+  semi_nat <- out |>
+    dplyr::filter(compartment == "semi_natural") |>
+    dplyr::arrange(t0)
+  expect_equal(semi_nat$cumulative_mgn, c(-2, 1))
 })

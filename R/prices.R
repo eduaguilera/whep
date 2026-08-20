@@ -213,8 +213,10 @@ build_cbs_prices <- function(
   # Standardise element names
   dt[,
     element := data.table::fcase(
-      grepl("Import", element) , "import" ,
-      grepl("Export", element) , "export" ,
+      grepl("Import", element) ,
+      "import"                 ,
+      grepl("Export", element) ,
+      "export"                 ,
       default = tolower(element)
     )
   ]

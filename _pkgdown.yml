@@ -458,6 +458,9 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - run_typology_sensitivity
+  - plot_typology_indicators_panel
+  - plot_typology_periods_panel
 
 - title: Data-frame utilities
   desc: >
@@ -487,10 +490,54 @@ reference:
 
 - title: Decomposition analysis
   desc: >
-    Functions for index decomposition analysis.
+    Functions for index decomposition analysis, and LMDI decomposition of
+    territorial nitrogen surplus and losses (cropland, semi-natural,
+    livestock manure, urban), specialization and crop-livestock
+    connectivity covariance, and destiny-mix shifts.
   contents:
   - calculate_lmdi
   - decompose_weighted_ratio
+  - decompose_cropland_surplus
+  - decompose_semi_natural_surplus
+  - decompose_manure_losses
+  - decompose_urban_losses
+  - decompose_terr_losses
+  - decompose_terr_losses_periods
+  - decompose_specialization_cov
+  - decompose_crop_livestock_conn
+  - decompose_destiny_mix
+  - plot_loss_decomp
+  - plot_loss_decomp_periods
+  - plot_loss_decomp_periods_panel
+  - plot_loss_decomp_rolling
+  - plot_loss_decomp_rolling_panel
+  - plot_loss_decomp_yearly
+  - plot_compart_factor
+  - plot_compart_factor_periods
+  - plot_compart_factor_roll
+  - plot_compart_factor_roll_panel
+  - plot_compart_factor_yearly
+  - plot_specialization_cov
+  - plot_crop_livestock_conn
+  - plot_destiny_mix
+
+- title: Circularity index
+  desc: >
+    Finn's cycling index for the nitrogen flow network.
+  contents:
+  - create_finn_indicator
+  - plot_finn_circularity
+
+- title: National trade validation
+  desc: >
+    Compare provincial-model trade flows against raw FAOSTAT bilateral
+    trade totals.
+  contents:
+  - compute_trade_flows_raw
+  - validate_national_trade
+  - validate_national_trade_raw
+  - plot_national_trade_flows_raw
+  - plot_national_trade_validation
 
 - title: Multi-regional input-output model
   desc: >

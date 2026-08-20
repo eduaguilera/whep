@@ -817,6 +817,245 @@
   )
 }
 
+.example_decomp_cropland <- function() {
+  tibble::tribble(
+    ~period, ~period_years, ~factor_label, ~component_type, ~additive, ~multiplicative, ~multiplicative_log,
+    "1860-1861",       1, "Size", "factor", 1004.17,  1.0064,  0.0064,
+    "1860-1861",       1, "Intensity", "factor", -171.365,  0.9989, -0.0011,
+    "1860-1861",       1, "Inefficiency", "factor", -17200.1,  0.8969, -0.1088,
+    "1860-1861",       1, "Cropland N surplus", "target", -16367.3,  0.9016, -0.1035,
+    "1861-1862",       1, "Size", "factor", 1082.17,  1.0063,  0.0063,
+    "1861-1862",       1, "Intensity", "factor", 13085.2,  1.0788,  0.0758,
+    "1861-1862",       1, "Inefficiency", "factor", 32978.6,  1.2106,  0.1911,
+    "1861-1862",       1, "Cropland N surplus", "target",   47146,  1.3142,  0.2732
+  )
+}
+
+.example_decomp_seminat <- function() {
+  tibble::tribble(
+    ~period, ~period_years, ~factor_label, ~component_type, ~additive, ~multiplicative, ~multiplicative_log,
+    "1860-1861",       1, "Size", "factor", -287.436,  0.9969, -0.0032,
+    "1860-1861",       1, "Intensity", "factor", -3264.71,  0.9648, -0.0358,
+    "1860-1861",       1, "Inefficiency", "factor", -10384.2,  0.8924, -0.1138,
+    "1860-1861",       1, "Semi-natural N surplus", "target", -13936.4,  0.8583, -0.1528,
+    "1861-1862",       1, "Size", "factor", -400.827,  0.9969, -0.0031,
+    "1861-1862",       1, "Intensity", "factor", 30173.8,  1.2667,  0.2364,
+    "1861-1862",       1, "Inefficiency", "factor", 69339.4,  1.7216,  0.5432,
+    "1861-1862",       1, "Semi-natural N surplus", "target", 99112.4,  2.1738,  0.7765
+  )
+}
+
+.example_decomp_manure <- function() {
+  tibble::tribble(
+    ~period, ~period_years, ~factor_label, ~component_type, ~additive, ~multiplicative, ~multiplicative_log,
+    "1860-1861",       1, "Herd size", "factor",       0,       1,       0,
+    "1860-1861",       1, "Feed intensity", "factor",  1.7821,       1,       0,
+    "1860-1861",       1, "Excreted feed fraction", "factor", 16.7154,  1.0003,  0.0003,
+    "1860-1861",       1, "Management loss fraction", "factor", 56.3402,   1.001,   0.001,
+    "1860-1861",       1, "Manure management loss", "target", 74.8377,  1.0014,  0.0014,
+    "1861-1862",       1, "Herd size", "factor",       0,       1,       0,
+    "1861-1862",       1, "Feed intensity", "factor", 80.0949,  1.0015,  0.0015,
+    "1861-1862",       1, "Excreted feed fraction", "factor", -25.0364,  0.9995, -0.0005,
+    "1861-1862",       1, "Management loss fraction", "factor", -126.289,  0.9977, -0.0023,
+    "1861-1862",       1, "Manure management loss", "target", -71.2302,  0.9987, -0.0013
+  )
+}
+
+.example_decomp_urban <- function() {
+  tibble::tribble(
+    ~period, ~period_years, ~factor_label, ~component_type, ~additive, ~multiplicative, ~multiplicative_log,
+    "1860-1861",       1, "Population", "factor",  392.95,  1.0037,  0.0037,
+    "1860-1861",       1, "Per-capita excretion", "factor", -388.044,  0.9963, -0.0037,
+    "1860-1861",       1, "Non-recycled fraction", "factor", -17.5196,  0.9998, -0.0002,
+    "1860-1861",       1, "Urban N loss", "target", -12.6135,  0.9999, -0.0001,
+    "1861-1862",       1, "Population", "factor", 391.454,  1.0037,  0.0037,
+    "1861-1862",       1, "Per-capita excretion", "factor", -386.549,  0.9964, -0.0036,
+    "1861-1862",       1, "Non-recycled fraction", "factor", -17.4596,  0.9998, -0.0002,
+    "1861-1862",       1, "Urban N loss", "target", -12.5543,  0.9999, -0.0001
+  )
+}
+
+.example_decomp_terr <- function() {
+  list(
+    detail = tibble::tribble(
+      ~period, ~factor_label, ~component_type, ~additive, ~compartment, ~mechanism, ~t0,
+      "1860-1861", "Size", "factor", 1004.17, "cropland", "Size",    1860,
+      "1860-1861", "Intensity", "factor", -171.365, "cropland", "Intensification",    1860,
+      "1860-1861", "Inefficiency", "factor", -17200.1, "cropland", "Inefficiency",    1860,
+      "1860-1861", "Cropland N surplus", "target", -16367.3, "cropland", "Total",    1860,
+      "1861-1862", "Size", "factor", 1082.17, "cropland", "Size",    1861,
+      "1861-1862", "Intensity", "factor", 13085.2, "cropland", "Intensification",    1861,
+      "1861-1862", "Inefficiency", "factor", 32978.6, "cropland", "Inefficiency",    1861,
+      "1861-1862", "Cropland N surplus", "target",   47146, "cropland", "Total",    1861,
+      "1860-1861", "Size", "factor", -287.436, "semi_natural", "Size",    1860,
+      "1860-1861", "Intensity", "factor", -3264.71, "semi_natural", "Intensification",    1860
+    ),
+    by_compartment = tibble::tribble(
+      ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+         1860, "cropland", -16367.3, -16367.3,
+         1860, "semi_natural", -13936.4, -13936.4,
+         1860, "manure", 74.8377, 74.8377,
+         1860, "urban", -12.6135, -12.6135,
+         1861, "cropland",   47146, 30778.7,
+         1861, "semi_natural", 99112.4,   85176,
+         1861, "manure", -71.2302,  3.6075,
+         1861, "urban", -12.5543, -25.1678
+    ),
+    by_mechanism = tibble::tribble(
+      ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+         1860, "Size",  721.64,  721.64,
+         1860, "Intensification", -3434.29, -3434.29,
+         1860, "Inefficiency", -27528.8, -27528.8,
+         1861, "Size", 686.249, 1407.89,
+         1861, "Intensification", 43339.1, 39904.8,
+         1861, "Inefficiency",  102149, 74620.4
+    )
+  )
+}
+
+.example_decomp_terr_periods <- function() {
+  list(
+    detail = tibble::tribble(
+      ~period, ~factor_label, ~component_type, ~additive, ~compartment, ~mechanism,
+      "1860-1920", "Size", "factor", 33252.6, "cropland", "Size",
+      "1860-1920", "Intensity", "factor", 16267.7, "cropland", "Intensification",
+      "1860-1920", "Inefficiency", "factor", -53899.3, "cropland", "Inefficiency",
+      "1860-1920", "Cropland N surplus", "target", -4379.08, "cropland", "Total",
+      "1860-1920", "Size", "factor", -15149.5, "semi_natural", "Size",
+      "1860-1920", "Intensity", "factor",  9235.5, "semi_natural", "Intensification",
+      "1860-1920", "Inefficiency", "factor", 53368.2, "semi_natural", "Inefficiency",
+      "1860-1920", "Semi-natural N surplus", "target", 47454.1, "semi_natural", "Total"
+    ),
+    by_compartment = tibble::tribble(
+      ~period, ~compartment, ~contribution_mgn, ~period_years, ~contribution_per_yr_mgn,
+            1, "cropland", -4379.08,      60, -72.9846,
+            2, "cropland",  395464,      40,  9886.6,
+            1, "semi_natural", 47454.1,      60, 790.903,
+            2, "semi_natural",  163739,      40, 4093.48,
+            1, "manure", -1648.74,      60, -27.4789,
+            2, "manure", 33042.9,      40, 826.073,
+            1, "urban", 62451.4,      60, 1040.86,
+            2, "urban",   33567,      40, 839.176
+    ),
+    by_mechanism = tibble::tribble(
+      ~period, ~mechanism, ~contribution_mgn, ~period_years, ~contribution_per_yr_mgn,
+            1, "Size", 80495.6,      60, 1341.59,
+            1, "Intensification", 25861.2,      60, 431.021,
+            1, "Inefficiency", -2600.95,      60, -43.3492,
+            2, "Size", 39875.3,      40, 996.884,
+            2, "Intensification",  364865,      40, 9121.62,
+            2, "Inefficiency",  221223,      40, 5530.57
+    )
+  )
+}
+
+.example_decomp_spec_cov <- function() {
+  list(
+    cropland_province = tibble::tribble(
+      ~year, ~covariance,
+         1900, -0.0009,
+         1950, -0.0031,
+         2000, -0.0152
+    ),
+    cropland_destiny = tibble::tribble(
+      ~year, ~covariance,
+         1900,  0.0026,
+         1950,  0.0002,
+         2000, -0.0178
+    ),
+    livestock_species = tibble::tribble(
+      ~year, ~covariance,
+         1900, -0.0007,
+         1950, -0.0006,
+         2000, -0.0041
+    )
+  )
+}
+
+.example_decomp_cl_conn <- function() {
+  list(
+    by_province = tibble::tribble(
+      ~year, ~province_name, ~self_sufficiency, ~recycling_ratio,
+         2000, "A_Coruna",  0.4829,  0.3742,
+         2000, "Albacete",  0.6437,  0.0821,
+         2000, "Alicante",  0.3179,    0.07
+    ),
+    national = tibble::tribble(
+      ~year, ~self_sufficiency, ~recycling_ratio,
+         1900,  0.7726,  0.2523,
+         1950,  0.7636,  0.3825,
+         2000,   0.465,  0.2254
+    )
+  )
+}
+
+.example_finn_indicator <- function() {
+  tibble::tribble(
+    ~year, ~province_name, ~finn_index,
+       1900, "A_Coruna",  0.0942,
+       1900, "Albacete",  0.0765,
+       1900, "Alicante",  0.0476,
+       1900, "Almeria",   0.115,
+       1900, "Araba",  0.1124,
+       1900, "Asturias",  0.1368,
+       1900, "Avila",  0.1938,
+       1900, "Badajoz",  0.1127
+  )
+}
+
+
+.example_decomp_destiny <- function() {
+  tibble::tribble(
+    ~year, ~destiny_grp, ~output_mg, ~share,
+       1960, "exported", 54087.1,  0.1548,
+       1960, "feed",  188775,  0.5404,
+       1960, "domestic_food",  101884,  0.2917,
+       1960, "non_food", 4554.32,   0.013,
+       2000, "feed",  426311,  0.5564,
+       2000, "domestic_food",  119629,  0.1561,
+       2000, "exported",  205771,  0.2686,
+       2000, "non_food", 14475.5,  0.0189
+  )
+}
+
+.example_trade_flows_raw <- function() {
+  tibble::tribble(
+    ~year, ~item, ~source, ~category, ~flow, ~value_n,
+       1930, "Nuts and products", "FAO (raw)", "Crop", "Export", 824.538,
+       1931, "Nuts and products", "FAO (raw)", "Crop", "Export", 966.218,
+       1932, "Nuts and products", "FAO (raw)", "Crop", "Export", 849.856,
+       1933, "Nuts and products", "FAO (raw)", "Crop", "Export", 927.754,
+       1934, "Nuts and products", "FAO (raw)", "Crop", "Export", 1049.56,
+       1935, "Nuts and products", "FAO (raw)", "Crop", "Export", 1312.26,
+       1904, "Barley and products", "FAO (raw)", "Crop", "Import",  584.41,
+       1905, "Barley and products", "FAO (raw)", "Crop", "Import", 1227.82
+  )
+}
+
+.example_nat_trade <- function() {
+  tibble::tribble(
+    ~year, ~item, ~net_prov, ~net_fao, ~diff_net,
+       2000, "Barley and products", 56942.7,  2175.4, 54767.3,
+       2000, "Beans", -1235.75, -1459.2, 223.451,
+       2000, "Bovine Meat", 1601.15,  1568.8, 32.3528,
+       2000, "Cassava and products", -1672.78, -1738.01, 65.2269,
+       2000, "Cereals, Other", 1634.53, -176.255, 1810.78,
+       2000, "Coffee and products",   -2009, -2328.2, 319.204
+  )
+}
+
+.example_nat_trade_raw <- function() {
+  tibble::tribble(
+    ~year, ~item, ~net_fao, ~net_prov, ~diff_net,
+       1930, "Nuts and products", 820.371, -19777.4, -20597.8,
+       1931, "Nuts and products",  963.93, -19818.1,  -20782,
+       1932, "Nuts and products", 849.632, -19843.9, -20693.6,
+       1933, "Nuts and products", 927.024,  -18580,  -19507,
+       1934, "Nuts and products", 1048.54, -17606.1, -18654.6,
+       1935, "Nuts and products",  1311.6, -18917.9, -20229.5
+  )
+}
+
 .example_critical_n <- function() {
   tibble::tribble(
     ~lon, ~lat, ~value,

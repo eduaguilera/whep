@@ -828,7 +828,8 @@ build_energy_co2_extension <- function(
         .data$species %in% c("Sheep", "Goats") ~ "mutton_goat",
         .data$species == "Pigs" ~ "pig",
         .data$species == "Chicken" &
-          .data$production_system == "Broilers" ~ "poultry",
+          .data$production_system == "Broilers" ~
+          "poultry",
         .default = NA_character_
       )
     ) |>
