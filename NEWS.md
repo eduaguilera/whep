@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **Four `polity_area_code` bridges now read the crosswalk the pipeline
+  resolves through, so 61 reporting areas stop being summed into bucket 999
+  (#716).** `get_arable_permanent_land()`'s FAO and LUH2 legs, the crop/soil
+  N2O extension's country-N bridge and the feed redistribution's cell bridge
+  all built their bucket from the shipped `polity_area_crosswalk` instead of
+  `.polity_crosswalk()`, where `.unfold_rest_of_world()` is applied. Since the
+  Rest-of-World un-fold (#628) made promotion the default, those 61 areas --
+  Syria 212, Greenland 85, Bermuda 17 and 58 more -- carry their own code
+  everywhere else in the pipeline, so each bridge was aggregating onto a bucket
+  the side it joins against no longer has. Measured on real inputs:
+  `get_arable_permanent_land(years = 1850:2022)` goes from 194 to 227 areas and
+  moves 786,562,273 ha-yr of cropland out of bucket 999 onto the areas that
+  reported it (Syria alone 693.6 M ha-yr); the total falls 0.017%, entirely
+  pre-1961, because each territory now splices its LUH2 back-cast on its own
+  FAO-1961 anchor rather than on the aggregate's. In the crop/soil N2O
+  extension the nitrogen that reaches crop shares rises 0.048% for synthetic
+  fertiliser and 0.085% for applied manure (2015-2020) -- bucket 999 has no
+  crop shares, so that mass was previously dropped outright. In the feed
+  redistribution 151 cell-polity rows (0.18% of gridded land) keep their own
+  code instead of being re-keyed to a bucket the demand does not carry.
+
 * **`resolve_polity_label()` now covers the current year (#712).** Its year
   filter read `polity_end_year` strictly exclusively, so a polity whose interval
   ends at the open-period sentinel stopped covering its own terminal year: at
