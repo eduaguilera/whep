@@ -56,6 +56,17 @@
 #' therefore outside the agricultural balance. Grassland is represented by CBS
 #' 3000; no intensive/extensive class is inferred.
 #'
+#' @details
+#' `polity_validity` is forwarded to every builder this function calls that
+#' offers it -- [build_ag_land_support()], [build_n_deposition()],
+#' [build_urban_n()] and [spatialize_country_n_to_crops()] -- and then applied
+#' to the assembled output, so one choice governs the whole assembly instead of
+#' each builder deciding on its own key space (whep#727). Under `"drop"` the
+#' support table loses those rows too, so a non-item input (deposition, urban,
+#' SOM mineralization) whose own rows were supplied directly and therefore not
+#' dropped can find no cropland support left to allocate over; that aborts in
+#' the mass check rather than silently losing nitrogen.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the assembled inputs cover.
 #' @param synthetic_method Synthetic-N crop allocation method, `"coello"` or
@@ -63,6 +74,7 @@
 #'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
+#' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded, caller-supplied upstream inputs.
 #'   Each of the following is required for its corresponding `fert_type` to
 #'   be emitted (a missing one silently skips that source rather than
@@ -142,7 +154,8 @@
 #'   is `NA` for every other `fert_type`. `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
-#'   Both grains also carry the polity columns below.
+#'   Both grains also carry the polity columns below, plus
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -151,12 +164,14 @@ build_n_inputs <- function(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_n_inputs())
+    return(.resolve_polity_validity(.example_n_inputs(), polity_validity))
   }
   if (!is.null(synthetic_method)) {
     data$synthetic_method <- rlang::arg_match(
@@ -165,6 +180,7 @@ build_n_inputs <- function(
     )
   }
   data$.n_input_resolution <- resolution
+  data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
   data$ag_land_support <- .ni_resolve_land_support(data, years)
   assembled <- dplyr::bind_rows(
@@ -181,7 +197,7 @@ build_n_inputs <- function(
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -241,6 +257,15 @@ build_n_inputs <- function(
   if (resolution == "grid") "subnational" else "national"
 }
 
+# The assembly-wide polity_validity choice, stashed on `data` by
+# build_n_inputs() (and by build_nitrogen_balance(), which resolves the land
+# support before it calls build_n_inputs()) so the source helpers can forward it
+# without a second argument each. "keep" is the package-wide default, so an
+# unset value means the historical behaviour.
+.ni_polity_validity <- function(data) {
+  data$.polity_validity %||% "keep"
+}
+
 # Materialise the agricultural land support ONCE, before assembly, so the
 # deposition term and the unattributed-input allocation share one table instead
 # of each rebuilding it. A caller-supplied table always wins; otherwise it is
@@ -255,6 +280,7 @@ build_n_inputs <- function(
   build_ag_land_support(
     years = years,
     grassland = data$grassland_source %||% "gridded_pasture",
+    polity_validity = .ni_polity_validity(data),
     data = list(
       cell_polity = data$cell_polity,
       type_cropland = data$type_cropland,
@@ -566,6 +592,7 @@ build_n_inputs <- function(
   scope <- .ni_deposition_scope(data)
   support <- .ni_land_support(data)
   deposition <- build_n_deposition(
+    polity_validity = .ni_polity_validity(data),
     data = list(nhx = data$nhx, noy = data$noy, cell_polity = data$cell_polity)
   ) |>
     .ni_deposition_in_scope(scope)
@@ -704,6 +731,7 @@ build_n_inputs <- function(
     return(.ni_empty())
   }
   build_urban_n(
+    polity_validity = .ni_polity_validity(data),
     data = list(
       urban_population = data$urban_population,
       cell_polity = data$cell_polity,
@@ -851,7 +879,10 @@ build_n_inputs <- function(
   if (!isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
     cli::cli_abort(c(
       "Could not allocate all non-item nitrogen over agricultural support.",
-      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N."
+      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N.",
+      i = "{.code polity_validity = \"drop\"} removes support rows whose
+           polity did not exist in that year; a non-item input supplied
+           directly still carries them."
     ))
   }
   dplyr::bind_rows(
@@ -874,7 +905,7 @@ build_n_inputs <- function(
     data$coello_rates
   )
   spatialized <- if (is.null(data$cell_polity)) {
-    .ni_synthetic_polity(country_totals, crop_shares)
+    .ni_synthetic_polity(country_totals, crop_shares, data)
   } else {
     .ni_synthetic_grid(country_totals, crop_shares, data)
   }
@@ -894,12 +925,13 @@ build_n_inputs <- function(
   dplyr::left_join(spatialized, lookup, by = c("year", "area_code"))
 }
 
-.ni_synthetic_polity <- function(country_totals, crop_shares) {
+.ni_synthetic_polity <- function(country_totals, crop_shares, data) {
   spatialize_country_n_to_crops(
     country_totals,
     crop_shares,
     cell_polity = NULL,
-    resolution = "polity_crop"
+    resolution = "polity_crop",
+    polity_validity = .ni_polity_validity(data)
   ) |>
     dplyr::transmute(
       lon = NA_real_,
@@ -918,6 +950,7 @@ build_n_inputs <- function(
     crop_shares,
     cell_polity = data$cell_polity,
     resolution = "grid",
+    polity_validity = .ni_polity_validity(data),
     data = list(
       crop_patterns = data$crop_patterns,
       type_cropland = data$type_cropland

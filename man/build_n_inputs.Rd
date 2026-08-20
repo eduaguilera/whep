@@ -8,6 +8,7 @@ build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -22,6 +23,17 @@ keeps every year the assembled inputs cover.}
 \item{synthetic_method}{Synthetic-N crop allocation method, \code{"coello"} or
 \code{"area_share"}. When \code{NULL} (default), uses
 \code{data$synthetic_method \%||\% "coello"} for backwards compatibility.}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Named list of pre-loaded, caller-supplied upstream inputs.
 Each of the following is required for its corresponding \code{fert_type} to
@@ -107,7 +119,8 @@ crop-split basis (\code{"coello"} or \code{"area_share"}) on \code{"synthetic"} 
 is \code{NA} for every other \code{fert_type}. \code{method_deposition_scope} records
 which of the polycell's territory the \code{"deposition"} term was credited
 with (\code{"territory"} or \code{"land"}) and is \code{NA} for every other \code{fert_type}.
-Both grains also carry the polity columns below.
+Both grains also carry the polity columns below, plus
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{
 Combines biological nitrogen fixation (\code{\link[=calculate_bnf]{calculate_bnf()}}), residue/root N
@@ -136,6 +149,17 @@ support, so manure is not reassigned to grassland after the manure engine's
 capacity allocation. Forest and natural land are outside that support and
 therefore outside the agricultural balance. Grassland is represented by CBS
 3000; no intensive/extensive class is inferred.
+}
+\details{
+\code{polity_validity} is forwarded to every builder this function calls that
+offers it -- \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}},
+\code{\link[=build_urban_n]{build_urban_n()}} and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied
+to the assembled output, so one choice governs the whole assembly instead of
+each builder deciding on its own key space (whep#727). Under \code{"drop"} the
+support table loses those rows too, so a non-item input (deposition, urban,
+SOM mineralization) whose own rows were supplied directly and therefore not
+dropped can find no cropland support left to allocate over; that aborts in
+the mass check rather than silently losing nitrogen.
 }
 \section{Polity columns}{
 

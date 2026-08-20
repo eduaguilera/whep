@@ -56,6 +56,23 @@
   production instead of reading a stale table, which is where the spatialize
   pins pick up today's area model.
 
+* **`build_n_inputs()` and `build_nitrogen_balance()` now take
+  `polity_validity` (#727).** Both gained the same
+  `polity_validity = c("keep", "flag", "drop")` argument the four gridded
+  builders they call already had, and forward it to all of them:
+  `build_ag_land_support()`, `build_n_deposition()`, `build_urban_n()` and
+  `spatialize_country_n_to_crops()`. The choice is then applied to the
+  assembled inputs and to the balance rows themselves, so one call decides the
+  fate of every row whose `(area_code, year)` resolves to a polity that did not
+  exist in that year, instead of each builder deciding on its own key space.
+  `"keep"` stays the default, so **no published value changes**: a default
+  build is byte-identical and still only warns. `"flag"` now adds
+  `reporting_polity_out_of_span` to both outputs, and `"drop"` removes those
+  rows throughout the chain. Under `"drop"` a non-item input supplied directly
+  (a `carbon_balance` table, say) can outlive the support rows it must be
+  allocated over; that aborts in the existing mass check, whose message now
+  names `polity_validity` as the cause.
+
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
   stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
