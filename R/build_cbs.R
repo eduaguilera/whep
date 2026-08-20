@@ -804,12 +804,23 @@ build_processing_coefs <- function(
 # .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
 # whose reported year predates every period of its area, keep NA and are dropped
 # by the caller.
+#
+# The ISO3 bridge goes through `.iso3_area_code_bridge()`, which breaks the tie
+# an ISO3 naming two reporting areas creates on the polities database rather
+# than on row order (whep#586/whep#718). Doing it here with
+# `unique(..., by = "iso3c")` kept the LOWEST `area_code`, so `ETH` entered as
+# 62 ("Ethiopia PDR", dissolved 1993) instead of 238 -- and because the
+# resolution below is year-aware on the code it is given, that decided the
+# `polity_code` too, not only the label (whep#719).
+#
+# The `area` label is attached from the resolved BUCKET rather than carried in
+# from the bridge row, the same rule `.aggregate_to_polities()` follows: the
+# label has to be a property of `area_code`, and `area_code` here is the
+# aggregation bucket. Taking it from the member row instead gave bucket 206 two
+# labels ("Sudan (former)" and "South Sudan") in the same year.
 .resolve_hist_trade_polities <- function(dt) {
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge <- .iso3_area_code_bridge()
+  data.table::setnames(area_bridge, "area_code_fao", "area_code")
 
   out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   out <- .add_polity_columns_dt(
@@ -819,6 +830,8 @@ build_processing_coefs <- function(
     include_unmapped = FALSE,
     backcast_anchor = -Inf
   )
+  labels <- .bucket_area_labels(out)
+  out[labels, on = c("polity_area_code", "year"), area := i.area]
   out[, area_code := polity_area_code]
   keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
   out[, keep, with = FALSE]
