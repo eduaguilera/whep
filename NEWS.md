@@ -22,6 +22,23 @@
   below the sentinel (`expand_trade_sources()` stops at 2014,
   `add_present_day_polity()` asks `max(end_year) - 1`), so both are unmoved.
 
+* **The destiny-share interpolation is keyed on `area_code`, not on the `area`
+  label (#691).** `.interpolate_destiny_shares()` named the label beside the
+  code in its skeleton join, its anti-join and its dedup — the last year-free
+  territorial join in the package that read a label, and the shape behind #589
+  (a shared label diluted Syria's livestock by 12x) and #563. It could not
+  disagree in the current build, because `balance` and `destiny` are two
+  filters of one frame, but the guarantee was the caller's rather than the
+  function's and an unmatched key here drops a row silently instead of
+  aborting. The keys are the code now and the one display label per code is
+  re-attached at the end. **No published value changes**: on the real
+  1850-2023 frames the old and new function return 20,314,086 rows with the
+  same `(year, area_code, item_cbs_code, element)` key set (0 keys either
+  side), the same 2,845,173 summed `dest_share`, a maximum per-key difference
+  of 0 and one label per code in both. Measured on a fixture where the two
+  sides disagree about the label, the old keys turned a 6-row skeleton into 2
+  and lost two years of shares entirely.
+
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
   stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
