@@ -21,6 +21,7 @@ the nitrous-oxide streams. Ported from Spain_Hist's
 build_nitrogen_balance(
   methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   gwp = c("ar6", "ar5", "ar4"),
   example = FALSE
@@ -46,6 +47,20 @@ build_nitrogen_balance(
   [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md);
   `"polity"` sums every term (and re-derives every indicator) over
   cells.
+
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
 
 - data:
 
@@ -148,7 +163,23 @@ columns below. When the supplied `n_inputs` carry them, the
 stamps from
 [`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
 are carried through as well, so a balance names the input conventions
-that produced it.
+that produced it. Gains `reporting_polity_out_of_span` when
+`polity_validity = "flag"`.
+
+## Details
+
+`polity_validity` is forwarded to
+[`build_n_inputs()`](https://eduaguilera.github.io/whep/reference/build_n_inputs.md)
+– which forwards it in turn to
+[`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
+[`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
+[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+and
+[`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
+– and then applied to the balance rows themselves, so one choice governs
+the whole build (whep#727). A `data$n_inputs` table supplied directly is
+left alone: it was built by its own call with its own choice, and the
+balance rows derived from it still get this argument's fate at the tail.
 
 ## Polity columns
 

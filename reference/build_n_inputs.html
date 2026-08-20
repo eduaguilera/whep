@@ -117,6 +117,7 @@ therefore outside the agricultural balance. Grassland is represented by CBS
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
 <span>  synthetic_method <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -140,6 +141,19 @@ keeps every year the assembled inputs cover.</p></dd>
 <dd><p>Synthetic-N crop allocation method, <code>"coello"</code> or
 <code>"area_share"</code>. When <code>NULL</code> (default), uses
 <code>data$synthetic_method %||% "coello"</code> for backwards compatibility.</p></dd>
+
+
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -229,7 +243,20 @@ crop-split basis (<code>"coello"</code> or <code>"area_share"</code>) on <code>"
 is <code>NA</code> for every other <code>fert_type</code>. <code>method_deposition_scope</code> records
 which of the polycell's territory the <code>"deposition"</code> term was credited
 with (<code>"territory"</code> or <code>"land"</code>) and is <code>NA</code> for every other <code>fert_type</code>.
-Both grains also carry the polity columns below.</p>
+Both grains also carry the polity columns below, plus
+<code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><code>polity_validity</code> is forwarded to every builder this function calls that
+offers it – <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code>, <code><a href="build_n_deposition.html">build_n_deposition()</a></code>,
+<code><a href="build_urban_n.html">build_urban_n()</a></code> and <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code> – and then applied
+to the assembled output, so one choice governs the whole assembly instead of
+each builder deciding on its own key space (whep#727). Under <code>"drop"</code> the
+support table loses those rows too, so a non-item input (deposition, urban,
+SOM mineralization) whose own rows were supplied directly and therefore not
+dropped can find no cropland support left to allocate over; that aborts in
+the mass check rather than silently losing nitrogen.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>

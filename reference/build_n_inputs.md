@@ -43,6 +43,7 @@ build_n_inputs(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 )
@@ -65,6 +66,20 @@ build_n_inputs(
   Synthetic-N crop allocation method, `"coello"` or `"area_share"`. When
   `NULL` (default), uses `data$synthetic_method %||% "coello"` for
   backwards compatibility.
+
+- polity_validity:
+
+  What to do with a row whose `(area_code, year)` resolves to a polity
+  that did not exist in that year (the cell-polity crosswalk has no year
+  dimension, so an early-20th-century cell is labelled with its
+  present-day territory). `"keep"` (default) keeps every row, which is
+  the historical behaviour, and warns naming the rows, years and area
+  codes involved. `"flag"` keeps them and adds the per-row logical
+  `reporting_polity_out_of_span`, marking exactly which rows are
+  stand-ins. `"drop"` removes them. All three warn; only `"drop"`
+  changes the numbers. See
+  [`polity_coverage_gaps()`](https://eduaguilera.github.io/whep/reference/polity_coverage_gaps.md),
+  which reports the same rows for an already-built table.
 
 - data:
 
@@ -179,7 +194,25 @@ crop-split basis (`"coello"` or `"area_share"`) on `"synthetic"` rows
 and is `NA` for every other `fert_type`. `method_deposition_scope`
 records which of the polycell's territory the `"deposition"` term was
 credited with (`"territory"` or `"land"`) and is `NA` for every other
-`fert_type`. Both grains also carry the polity columns below.
+`fert_type`. Both grains also carry the polity columns below, plus
+`reporting_polity_out_of_span` when `polity_validity = "flag"`.
+
+## Details
+
+`polity_validity` is forwarded to every builder this function calls that
+offers it –
+[`build_ag_land_support()`](https://eduaguilera.github.io/whep/reference/build_ag_land_support.md),
+[`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
+[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+and
+[`spatialize_country_n_to_crops()`](https://eduaguilera.github.io/whep/reference/spatialize_country_n_to_crops.md)
+– and then applied to the assembled output, so one choice governs the
+whole assembly instead of each builder deciding on its own key space
+(whep#727). Under `"drop"` the support table loses those rows too, so a
+non-item input (deposition, urban, SOM mineralization) whose own rows
+were supplied directly and therefore not dropped can find no cropland
+support left to allocate over; that aborts in the mass check rather than
+silently losing nitrogen.
 
 ## Polity columns
 

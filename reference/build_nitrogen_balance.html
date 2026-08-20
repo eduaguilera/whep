@@ -71,6 +71,7 @@ Spain_Hist's <code>Balance_parameters()</code>/<code>N_Figs.R</code> equations.<
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">build_nitrogen_balance</span><span class="op">(</span></span>
 <span>  methods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>nh3 <span class="op">=</span> <span class="st">"manner"</span>, n2o <span class="op">=</span> <span class="st">"ipcc2019"</span>, leaching <span class="op">=</span> <span class="st">"meisinger_drainage"</span><span class="op">)</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"polity"</span><span class="op">)</span>,</span>
+<span>  polity_validity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"keep"</span>, <span class="st">"flag"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  gwp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ar6"</span>, <span class="st">"ar5"</span>, <span class="st">"ar4"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
@@ -93,6 +94,19 @@ IPCC 2019 Tier 1 method) and <code>leaching</code> (forwarded to
 <dd><p><code>"grid"</code> (default) or <code>"polity"</code>, as in
 <code><a href="build_n_inputs.html">build_n_inputs()</a></code>; <code>"polity"</code> sums every term (and re-derives every
 indicator) over cells.</p></dd>
+
+
+<dt id="arg-polity-validity">polity_validity<a class="anchor" aria-label="anchor" href="#arg-polity-validity"></a></dt>
+<dd><p>What to do with a row whose <code>(area_code, year)</code>
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). <code>"keep"</code> (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. <code>"flag"</code> keeps them and adds the per-row logical
+<code>reporting_polity_out_of_span</code>, marking exactly which rows are stand-ins.
+<code>"drop"</code> removes them. All three warn; only <code>"drop"</code> changes the numbers.
+See <code><a href="polity_coverage_gaps.html">polity_coverage_gaps()</a></code>, which reports the same rows for an
+already-built table.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
@@ -169,7 +183,18 @@ the five NUE ratios (<code>nue_std</code>, <code>nue_residues</code>, <code>nue_
 columns below. When the supplied <code>n_inputs</code> carry them, the
 <code>method_recycling_n</code>, <code>method_synthetic</code> and <code>method_deposition_scope</code>
 stamps from <code><a href="build_n_inputs.html">build_n_inputs()</a></code> are carried through as well, so a balance
-names the input conventions that produced it.</p>
+names the input conventions that produced it. Gains
+<code>reporting_polity_out_of_span</code> when <code>polity_validity = "flag"</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p><code>polity_validity</code> is forwarded to <code><a href="build_n_inputs.html">build_n_inputs()</a></code> – which forwards it in
+turn to <code><a href="build_ag_land_support.html">build_ag_land_support()</a></code>, <code><a href="build_n_deposition.html">build_n_deposition()</a></code>, <code><a href="build_urban_n.html">build_urban_n()</a></code>
+and <code><a href="spatialize_country_n_to_crops.html">spatialize_country_n_to_crops()</a></code> – and then applied to the balance rows
+themselves, so one choice governs the whole build (whep#727). A
+<code>data$n_inputs</code> table supplied directly is left alone: it was built by its
+own call with its own choice, and the balance rows derived from it still get
+this argument's fate at the tail.</p>
     </div>
     <div class="section level2">
     <h2 id="polity-columns">Polity columns<a class="anchor" aria-label="anchor" href="#polity-columns"></a></h2>
