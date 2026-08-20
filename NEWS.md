@@ -73,6 +73,23 @@
   allocated over; that aborts in the existing mass check, whose message now
   names `polity_validity` as the cause.
 
+* **`fill_proxy_growth()` no longer lags or smooths a proxy across the
+  boundary between two series (#608).** The proxy lag and the
+  `proxy_smooth_window` moving average were taken within the *aggregation*
+  group of a `"variable:group"` proxy spec rather than within the individual
+  series, so when two members of one group had non-overlapping but adjacent
+  year coverage, the first year of the later series took the last value of the
+  earlier one as its own previous observation. The `year == lag_yr + 1`
+  adjacency guard cannot see the difference. In the issue's fixture (ESP with
+  `gdp` to 2002, FRA from 2003, both in region `eu`) FRA's 2003 growth rate
+  came out as 7.264463 -- FRA's 2003 `gdp` over ESP's 2002 `gdp` -- where the
+  correct answer is `NA`, and a third member of the group with a 2002
+  observation was inflated 8.26-fold (200 to 1652.893). Both are now `NA`.
+  **No published values change**: every `fill_proxy_growth()` call in the
+  package passes a plain numeric proxy column, for which the aggregation group
+  already equals `.by`, and a 11,333-row randomised fixture on that form is
+  bit-identical before and after.
+
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
   stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
