@@ -128,37 +128,38 @@ test_that("the enumerated baseline can only shrink", {
   # `sum(.territorial_joins() |> filter(!has_year) |> count(owner, join_fn,
   # key) |> pull(n))` reads 65 here, and the enumerated baseline reads 65 with
   # it (61 rows).
+  #
+  # whep#691 leaves the number at 65 and is still the ratchet moving: the
+  # destiny-share skeleton join did not go away, it stopped naming the `area`
+  # label, so one row changed key rather than leaving. The count says nothing
+  # about that; the third test does, and it now reads EMPTY.
   expect_lte(sum(baseline$n), 65L)
   expect_true(all(nzchar(baseline$why)))
-  # `label_identity` is deliberately absent: it classified exactly one join,
-  # the one whep#698 removed. Putting it back means arguing again that a label
-  # may be an identity.
+  # `label_identity` and `label_redundant` are deliberately absent: they
+  # classified one join each, the ones whep#698 and whep#691 removed. Putting
+  # either back means arguing again that a label may be a key.
   expect_true(all(
     baseline$class %in%
       c(
         "single_year",
         "time_invariant",
         "identity_lookup",
-        "diagnostic",
-        "label_redundant"
+        "diagnostic"
       )
   ))
 })
 
-test_that("no year-free join keys on the area LABEL beyond those registered", {
+test_that("no year-free join keys on the area LABEL at all", {
   # Keying on `area` rather than `area_code` is the shape behind whep#589 (a
-  # shared label diluted Syria's livestock by 12x) and whep#563. ONE survives,
-  # redundant (whep#691): whep#698 removed the load-bearing one. A second must
-  # not appear unnoticed.
+  # shared label diluted Syria's livestock by 12x) and whep#563. whep#698
+  # removed the load-bearing one and whep#691 the last redundant one
+  # (`.interpolate_destiny_shares`), so the set is now EMPTY and a new one
+  # cannot be classified into existence -- it has to be keyed on the code.
   labelled <- whep:::.territorial_joins() |>
     dplyr::filter(!.data$has_year, .data$has_label) |>
     dplyr::pull(.data$owner) |>
     sort()
-  registered <- whep:::.territorial_join_baseline() |>
-    dplyr::filter(.data$class == "label_redundant") |>
-    dplyr::pull(.data$owner) |>
-    sort()
-  expect_equal(labelled, registered)
+  expect_equal(labelled, character(0))
 })
 
 # The detector has to be able to fail. These run it over fixture functions
