@@ -1,5 +1,46 @@
 # whep (development version)
 
+* **Three input pins were refreshed to their current upstream releases, and
+  processing coefficients now reach 2023 with real data instead of a 7%
+  stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
+  vintage: 4,660,700 rows ending in 2022. Its version stamp
+  (`20260325T113807Z`) recorded when the file was uploaded, not when FAO
+  published it, so the staleness was invisible. The current FBS release
+  (2025-10-28) has 4,820,497 rows and runs to 2023, with a complete
+  `Processing` element for that year (5,769 rows, 211 areas, 83 items).
+  `faostat-cbs-new` moves to the 2026-06-15 CB release, growing from 58,107
+  rows and 11 items to 127,558 rows and 13 items. `population_yg` moves from
+  1860-2021 to 1860-2023, taking the two new years from Spain_Hist's own
+  output rather than repeating 2021 (Spanish national population 47.37,
+  47.79 and 48.33 million over 2021-2023).
+
+  **Published values move.** `get_processing_coefs()` for 2023 goes from 359
+  rows, 108 Mt and 14 of 45 input items to 5,986 rows, 1,548 Mt and all 45 --
+  16.7x the rows and 14.3x the tonnage. That year previously held only what
+  could be inferred from downstream production (oilseed crush, sugar and the
+  milk-to-butter path); cereal and fruit processing, so beer, wine and flour,
+  were absent entirely. The overlap years move much less: total processed
+  tonnage shifts -0.374% (2019), -0.511% (2020), -0.104% (2021) and +0.607%
+  (2022). Those are far smaller than the underlying FBS revision, which moves
+  summed `Processing` by -6.3% to +2.4% across 2010-2022, because the
+  per-country calibration in `build_processing_coefs()` absorbs most of it.
+
+  The 2026-06-15 CB release also adds a `Processed` element (code 5023) for
+  rubber, wool and silk. `.harmonize_element_names()` has no entry for it, so
+  it passes through unmapped and `.extract_fao()` filters it out before
+  `.get_fiber_tobacco()` runs, even though `cbs_trade_codes` maps all three
+  onto CBS items (Rubber 2672, Wool (Clean Eq.) 2746, Silk 2747). Behaviour
+  is therefore unchanged by this release, but the flow is not negligible --
+  in 2023 reporting countries processed 14.66 Mt of the 15.62 Mt of natural
+  rubber they produced, and 0.591 Mt of 0.606 Mt of silk-worm cocoons.
+  Consuming it would give those items a processing flow they have never
+  carried, so it is tracked as #811 rather than folded in here.
+
+  `inst/scripts/prepare_faostat_balances.R` fetches these domains from the
+  FAOSTAT bulk endpoint and reports the year span each file actually
+  contains, so the next refresh is traceable to a dated FAO release rather
+  than to whoever last downloaded a file by hand.
+
 * **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
   functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
   natural-land soil carbon input by ~7%.** The natural-land carbon input selects

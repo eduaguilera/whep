@@ -245,6 +245,12 @@
     "Processing" = "processing",
     "Production" = "production"
   )
+  # The 2026-06-15 Commodity Balances (non-food) release added a "Processed"
+  # element (5023) for rubber, wool and silk. It is absent here, so those rows
+  # are filtered out by .extract_fao() before .get_fiber_tobacco() ever sees
+  # them -- even though cbs_trade_codes maps all three onto CBS items. Adding
+  # it would introduce a processing flow those items do not currently carry,
+  # which moves published values; that is #811, not this change.
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
