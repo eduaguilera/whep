@@ -1834,6 +1834,24 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     end_year = polities$end_year[alive],
     stringsAsFactors = FALSE
   )
+  # The exclusive upper bound the year test below compares against: EXCLUSIVE AT
+  # A SUCCESSION, INCLUSIVE AT AN OPEN END, the same reading
+  # `.polity_join_end_year()` gives `add_polity_code()` (#577). Read strictly
+  # exclusively, the label route answered `NA` for every polity whose interval
+  # ends at the open-period sentinel -- 203 of the 204 present-day countries in
+  # `gleam_geographic_hierarchy` at 2025 -- while the numeric route resolved them
+  # normally (#712).
+  #
+  # Openness is ABSENCE OF A SUCCESSOR, not `end_year == max(end_year)`. The year
+  # test would widen a period that ends at the maximum AND is succeeded, and that
+  # is what puts two candidates on a succession year; `.open_polity_codes()`
+  # already excludes the handed-over periods, so the widening can only add years
+  # nothing else claims.
+  pol$join_end_year <- .polity_join_end_year(
+    pol$end_year,
+    NA_integer_,
+    pol$polity_code %in% .open_polity_codes()
+  )
   name_key <- .norm_polity_label(polities$polity_name[alive])
   # The ISO3 index is what makes this usable for the datasets that motivated it.
   # The alias map is keyed on the labels curators had to decide about, so a label
@@ -1862,9 +1880,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     }
     cand <- pol[hit, , drop = FALSE]
     if (!is.na(year[i])) {
-      # `end_year` is exclusive, so live in Y means start_year <= Y < end_year.
-      live <- year[i] >= cand$start_year & year[i] < cand$end_year
-      cand <- cand[!is.na(live) & live, , drop = FALSE]
+      cand <- .polity_year_candidates(cand, year[i])
     }
     # THE AMBIGUITY GUARD IS THE DESIGN. Nested periodisations and known
     # duplicates make several polities share a normalised name, so resolving by
@@ -1966,6 +1982,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     },
     character(1)
   )
+}
+
+# The candidate periods of one identifier that cover `year`, read the way
+# `add_polity_code()` reads a span: EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT AN
+# OPEN END (#577).
+#
+# STRICT CONTAINMENT OUTRANKS THE WIDENING, and that precedence is the whole
+# reason this is a helper rather than one predicate. Widening every open period
+# unconditionally is what puts two candidates on a boundary year -- the failure
+# mode of #720 -- because a terminated aggregate records no successor and is
+# therefore open by the successor test: `EGYSUD-1934-1956` reaches 1956 beside
+# `EGY-1925-1967`, `CODRU-1922-1960` reaches 1960 beside `COD-1960-2025`, and
+# `MASG-1946-1963` reaches 1963 beside `MYS-1963-1965`. The ambiguity guard in
+# the caller then answers `NA` for a year that used to resolve. A period whose
+# declared span really contains the year is the better answer than one that only
+# reaches it by the open-end rule, so the widened bound is consulted only when
+# nothing claims the year outright. Measured on the shipped snapshot: over 1,020
+# identifiers x 1850:2026 this adds 700 resolutions (680 at the 2025 sentinel,
+# 20 in the last year of a terminated period upstream records no successor for,
+# `ANT-1961-2010` in 2010 among them) and moves NONE.
+.polity_year_candidates <- function(cand, year) {
+  starts <- !is.na(cand$start_year) & year >= cand$start_year
+  declared <- starts & !is.na(cand$end_year) & year < cand$end_year
+  widened <- starts & !is.na(cand$join_end_year) & year < cand$join_end_year
+  cand[if (any(declared)) declared else widened, , drop = FALSE]
 }
 
 # -- Dissolved-federation successor closure ------------------------------------
