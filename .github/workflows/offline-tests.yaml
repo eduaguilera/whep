@@ -50,9 +50,11 @@ concurrency:
 jobs:
   offline-tests:
     runs-on: ubuntu-latest
-    # Backstop against a hung test. The suite is a few minutes; the headroom is
-    # for a cold dependency install of the geo stack.
-    timeout-minutes: 30
+    # Backstop against a hung test. The suite is ~11 min; the rest of the
+    # headroom is for a cold dependency install of the geo stack, measured at 29
+    # min on a slow package mirror -- which is what the old 30-minute budget
+    # could not survive, killing this job before the suite had started.
+    timeout-minutes: 45
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 

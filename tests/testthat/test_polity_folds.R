@@ -337,6 +337,58 @@ testthat::test_that("the areas that report real data of their own are folded", {
   testthat::expect_equal(unique(resolved$mapping_status), "matched")
 })
 
+testthat::test_that("206 is the only bucket folding live territories", {
+  # whep#557: the `fun.aggregate` guard in `.select_best_source` was justified by
+  # 206 AND 999 each folding several live territories into one bucket key. 999 no
+  # longer does -- so this pins the property the comment there now records,
+  # straight off the crosswalk, with no pins and no network.
+  #
+  # Measured on `.polity_crosswalk()`, NOT on the raw `polity_area_crosswalk`.
+  # The raw table deliberately carries BOTH answers for a Rest-of-World member --
+  # a `"fabio_row_fold"` row on `ROW-1850-2025` and, where upstream names one,
+  # `"fabio_row_promoted"` rows on the real polity -- and 44 buckets look folded
+  # there for that reason alone. `.unfold_rest_of_world()` picks one per area, and
+  # its result is what `.aggregate_to_polities()` (and hence
+  # `.select_best_source()`) actually keys on. So the property is pinned where it
+  # bites, on the default `whep.unfold_rest_of_world = "all"`, made explicit here.
+  withr::local_options(whep.unfold_rest_of_world = "all")
+  resolved <- tibble::as_tibble(whep:::.polity_crosswalk(
+    include_unmapped = FALSE
+  ))
+
+  cw <- resolved |>
+    dplyr::filter(!is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      .data$polity_area_code,
+      .data$polity_code,
+      .data$polity_start_year,
+      .data$polity_end_year
+    )
+
+  folds <- cw |>
+    dplyr::cross_join(tibble::tibble(year = 1850L:2023L)) |>
+    dplyr::filter(
+      .data$polity_start_year <= .data$year,
+      .data$polity_end_year > .data$year
+    ) |>
+    dplyr::summarise(
+      n_polities = dplyr::n_distinct(.data$polity_code),
+      .by = c("polity_area_code", "year")
+    ) |>
+    dplyr::filter(.data$n_polities > 1L)
+
+  testthat::expect_equal(unique(folds$polity_area_code), 206L)
+  testthat::expect_equal(max(folds$n_polities), 2L)
+  testthat::expect_equal(min(folds$year), 2011L)
+
+  # Everything still ON the bucket answers as the bucket: the members upstream
+  # names nowhere keep their fold row, and they all share the one aggregate
+  # polity, so the bucket key cannot carry two live territories.
+  bucket_rows <- resolved |>
+    dplyr::filter(.data$polity_area_code == 999L)
+  testthat::expect_equal(unique(bucket_rows$polity_code), "ROW-1850-2025")
+})
+
 testthat::test_that("regions_full and the crosswalk state the fold alike", {
   # Scoped to the explicit fold, because it is no longer the default: WHEP
   # now models the reporting members in their own right (#459). What this
