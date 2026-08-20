@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **`build_primary_production()` is now `identical()` to itself across
+  sessions (#747).** The four commodity-balance extracts it carries as its
+  `.cb_extracts` attribute (`fbs_new`, `fbs_old`, `cbs_crops`, `cbs_animals`)
+  came back in a session-dependent row order, because the parquet reads go
+  through arrow's multi-threaded scanner and nothing downstream pinned an
+  order. The published frame was unaffected, but the object as a whole was not
+  reproducible, so the natural `identical(build_primary_production(),
+  baseline)` reproducibility check failed on a change that moved nothing.
+  `.extract_cb()` now sorts on its aggregation key
+  (`year`, `area_code`, `item_cbs_code`, `item_cbs`, `element`, `unit`).
+  **No published value changes**: the four extracts hold the same rows with
+  bitwise-identical values before and after (verified at 2010-2013 on the real
+  pins, 1,070,446 rows in total), and the CBS production aggregate derived from
+  them is bitwise identical, totals included.
+
 * **`resolve_polity_label()` now covers the current year (#712).** Its year
   filter read `polity_end_year` strictly exclusively, so a polity whose interval
   ends at the open-period sentinel stopped covering its own terminal year: at

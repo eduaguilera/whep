@@ -489,7 +489,25 @@
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  # Pin the row order. Nothing above this line pins one: `.read_input()` reads
+  # the parquet through arrow's multi-threaded scanner, whose row order varies
+  # between sessions, and neither the `by=` aggregation in
+  # `.aggregate_to_polities()` nor `merge(sort = FALSE)` restores one. These
+  # four tables travel as the `.cb_extracts` attribute of
+  # `build_primary_production()`, so an unpinned order made that published
+  # object not `identical()` to itself across sessions -- same rows, same
+  # values, different order -- and broke the `identical()` reproducibility
+  # control that a change is judged with (whep#747). The key below is unique
+  # (it is the aggregation key), so the order is total.
+  data.table::setorderv(
+    out,
+    intersect(
+      c("year", "area_code", "item_cbs_code", "item_cbs", "element", "unit"),
+      names(out)
+    )
+  )
+  out
 }
 
 # -- Processing helpers (from comdat_global) -----------------------------------
