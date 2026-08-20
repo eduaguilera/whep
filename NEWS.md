@@ -124,8 +124,8 @@
   cane) and 2018 (palm kernels) are held flat from those years instead, and
   all three are negligible in Spanish production. **Published
   values move**: the two new years are structurally complete (50 provinces,
-  every origin and destiny) but national N falls from 5,097,518 Mg in 2021 to
-  4,607,382 Mg in 2022 and 4,201,534 Mg in 2023. That decline is in the input
+  every origin and destiny) but national N falls from 5,096,684 Mg in 2021 to
+  4,606,882 Mg in 2022 and 4,202,828 Mg in 2023. That decline is in the input
   pin, not in this code — synthetic N drops 29.7% between 2021 and 2022 while
   cropland area stays flat at 50.56 Mha — and it has not been cross-checked
   against an independent source. Note also that the four analysis eras end at
