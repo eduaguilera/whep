@@ -4,7 +4,12 @@
 \alias{read_population}
 \title{Read national population on WHEP area codes.}
 \usage{
-read_population(years = NULL, data = list(), example = FALSE)
+read_population(
+  years = NULL,
+  data = list(),
+  population_source = c("pin", "pin_wpp_fallback"),
+  example = FALSE
+)
 }
 \arguments{
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
@@ -12,15 +17,23 @@ read_population(years = NULL, data = list(), example = FALSE)
 
 \item{data}{Optional named list of pre-loaded inputs to avoid the pin read:
 \code{gdp_population} (the raw pin, with \code{Year}, \code{area_code} as ISO3, \code{pop} in
-thousands). Falls back to \code{\link[=whep_read_file]{whep_read_file()}} when absent.}
+thousands) and \code{wpp_population} (a \code{\link[=read_wpp_population]{read_wpp_population()}} output). Falls
+back to \code{\link[=whep_read_file]{whep_read_file()}} when absent.}
+
+\item{population_source}{\code{"pin"} (default, the \code{gdp-population} pin alone) or
+\code{"pin_wpp_fallback"}, which additionally fills country-years the pin does
+not cover from UN WPP.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{year}, \code{area_code} and \code{population} (persons), one row
-per area code and year, sorted by year then area code, plus the polity
-columns below. A row is one country in the common case, but \code{area_code} is
+A tibble with \code{year}, \code{area_code}, \code{population} (persons) and
+\code{source_pop}, one row per area code and year, sorted by year then area
+code, plus the polity columns below. \code{source_pop} carries the pin's own
+vocabulary (\code{"Original"}, \code{"Linear interpolation"}, \code{"First value carried backwards"}), joined with \code{" + "} when a bucket sums ISO3 codes of
+differing provenance, or \code{"UN WPP 2024"} for a fallback-filled row. A row
+is one country in the common case, but \code{area_code} is
 an aggregation bucket: rows from 2012 on 206 ("Sudan (former)") are sums
 over several territories rather than a single country, as are rows on 999
 ("Rest of World") when the Rest-of-World fold is restored.
@@ -57,6 +70,20 @@ food to. \code{\link[=build_food_supply]{build_food_supply()}} and \code{\link[=
 table, so those areas are absent from their per-capita output rather than
 wrong in it. Both warn and name them instead of dropping them silently;
 \code{options(whep.warn_missing_population = FALSE)} silences that warning.
+
+\code{population_source = "pin_wpp_fallback"} fills the country-years the pin
+does not reach from \code{\link[=read_wpp_population]{read_wpp_population()}}, and \strong{only} those: the pin wins
+wherever both have a value, so turning it on cannot move a denominator that
+was already published. On the real inputs it adds 44 areas the pin has no row
+for at all — Réunion, Bhutan, Comoros, Western Sahara, New Caledonia, the
+French overseas departments and the small island states — and 4,755
+country-years inside the pin's own year span. Filled rows are stamped
+\code{source_pop = "UN WPP 2024"}.
+
+It is a gap-filler and not a replacement, because the two sources disagree
+where they overlap: across 12,309 shared country-years they differ by a
+median 0.64\%, a 95th percentile of 4.4\% and a maximum of 81\%. That is why
+\code{"pin"} remains the default.
 }
 \section{Polity columns}{
 

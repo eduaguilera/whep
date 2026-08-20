@@ -69,10 +69,21 @@ dropped. The \code{"faostat_fbs"} method returns the injected FAOSTAT Food
 Balance Sheet per-capita supply unchanged, as a cross-check / sensitivity.
 
 An area with food but no \code{population} row has no denominator, so it is
-absent from the output rather than wrong in it. Those areas are named in a
-warning with the share of food protein that leaves with them; on the real
-\code{gdp-population} pin they are 15 areas headed by Bhutan and Comoros
-(#543). \code{options(whep.warn_missing_population = FALSE)} silences it.
+absent from the output rather than wrong in it. Those areas are \strong{named at
+runtime} in a warning, with the share of food protein that leaves with
+them, because which areas they are moves with every refresh of the
+\code{gdp-population} pin and of the food input: this sentence carried a count of
+15 that was already 16 by the time #644 measured it. Read the warning, not a
+number in the documentation.
+
+For orientation only, the areas with food protein and no population row in
+any year, measured against the \code{faostat-fbs-new} pin over the population
+pin's 1850-2021 span, are 13, headed by the \code{China} aggregate (351), \code{Sudan}
+(276) and \verb{South Sudan} (277), then Comoros, New Caledonia, Bhutan and the
+small island states. Two of those are known open issues rather than data
+gaps: 351 is the aggregate whose members carry population separately, and
+151 \verb{Netherlands Antilles} is #787.
+\code{options(whep.warn_missing_population = FALSE)} silences the warning.
 }
 \section{Polity columns}{
 

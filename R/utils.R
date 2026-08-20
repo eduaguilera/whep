@@ -74,9 +74,6 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
-    # build_cbs.R (.canonicalise_gdp_pop_area)
-    "canonical_area",
-    "key_row",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -1958,9 +1955,6 @@ utils::globalVariables(
     # gapfilling.R (#171) — proxy-growth aggregation weight, lagged to the
     # period its growth rate was measured over
     "lag_weight",
-    # build_cbs.R (#187) — .canonicalise_gdp_pop_area() data.table NSE columns
-    "canonical_area",
-    "key_row",
     # spatialize_compartments.R (#582) - .spatialize_to_bucket() data.table NSE
     # columns: the carried raw reporting code and the bucket joined onto it
     "grid_area_code",
@@ -1998,10 +1992,58 @@ utils::globalVariables(
     # columns: the row's OWN year, joined back onto the anchored resolution
     "data_year",
     "i.data_year",
+    # protein_requirement.R — TRS 935 age/sex requirement classes and the
+    # population-by-age input they are weighted by
+    "age",
+    "age_end",
+    "age_span",
+    "age_start",
+    "avg_req_g_day",
+    "avg_req_g_kg_day",
+    "avg_to_safe_ratio",
+    "reference_weight_kg",
+    "requirement_g_cap_day",
+    "requirement_g_day",
+    "safe_req_g_day",
+    "sex",
+    "year_from",
+    "year_to",
+    "lysine_mg_g",
+    "protein_weight",
+    "saa_mg_g",
+    "threonine_mg_g",
+    "tryptophan_mg_g",
+    # intake_dispersion.R — FAOSTAT food-security columns and the CV carry-back
+    "Value",
+    "cv",
+    "fao_area_code",
+    "first_cv",
+    "first_year",
+    "method_cv_year",
+    "sigma",
+    # wpp_population.R — UN WPP 2024 column names and the pivoted sexes
+    "AgeGrpSpan",
+    "AgeGrpStart",
+    "ISO3_code",
+    "LocTypeName",
+    "PopFemale",
+    "PopMale",
+    "Time",
+    "female",
+    "iso3c",
+    "male",
     # arable_permanent_land.R (#423) — .luh2_national_states() aggregates the
     # LUH2 national areas for an arbitrary state set; luh2_ha is the column it
     # creates inside the data.table `.()` expression
     "luh2_ha",
+    # footprint_balance.R (#212) — presence flags telling a cell absent
+    # from one method apart from a present but NA-valued one
+    "in_a",
+    "in_b",
+    # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
+    # zero-land bucket of the back-cast warning
+    "zero_proxy",
+    "all_zero",
     # n_prov_destiny.R (#449) — .spain_processing_coefs() reads
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`

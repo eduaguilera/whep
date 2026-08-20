@@ -13,8 +13,13 @@ normalize_nourishment(x, value_col = protein_g_cap_day, thresholds = NULL)
 \item{value_col}{The unquoted nourishment column to normalize. Defaults to
 \code{protein_g_cap_day}.}
 
-\item{thresholds}{Optional named \code{floor} and \code{ceiling} (a named numeric
-vector or list). When \code{NULL} (default) the protein floor and ceiling from
+\item{thresholds}{Either a named \code{floor}/\code{ceiling} pair applied to every row
+(a named numeric vector or list), or a \strong{data frame of per-country-year
+bounds} keyed by \code{year} and \code{area_code} with either
+\code{floor_g_cap_day}/\code{ceiling_g_cap_day} or \code{floor}/\code{ceiling} — so a
+\code{\link[=build_nourishment_band]{build_nourishment_band()}} output passes straight through. A row that
+matches no band is classified \code{NA} and named in a warning, never silently
+given the flat default. When \code{NULL} (default) the flat protein bounds from
 \link{nourishment_thresholds} are used.}
 }
 \value{
@@ -30,9 +35,21 @@ between 1 and 2 across the adequate band and 2 or above at or past the
 ceiling. The class is \code{"Under"} when \code{value_norm < 1}, \code{"Adequate"} when
 \code{value_norm < 2} and \code{"Over"} otherwise. Protein is the SJOS-N nourishment
 axis, so the defaults are the protein floor and ceiling (62.1 and 85.05
-g/cap/day) from \link{nourishment_thresholds}; switching \code{value_col} to
-\code{energy_kcal_cap_day} and passing \code{thresholds = c(floor = 2300, ceiling = 2900)} classifies dietary energy instead, a completeness cross-check rather
-than the nitrogen classification.
+g/cap/day) from \link{nourishment_thresholds}.
+
+Of those two defaults only the underlying 46 g/cap/day floor is sourced
+(WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult, itself a
+97.5th-percentile individual level rather than a population one). The 63
+ceiling and the 1.35 factor that lifts both to a supply basis carry no
+source; \code{nourishment_thresholds$provenance} says so per row.
+\code{\link[=build_nourishment_band]{build_nourishment_band()}} is the sourced replacement for both bounds and is
+not wired in here yet.
+
+Passing \code{value_col = energy_kcal_cap_day} runs the same arithmetic on a
+different quantity and is \strong{not} a second WHEP axis: the packaged energy
+bounds are unsourced, and WHEP's energy column is gross combustion energy
+where a dietary threshold is metabolisable. Supply your own bounds and your
+own metabolisable series if you want that comparison.
 }
 \examples{
 normalize_nourishment(

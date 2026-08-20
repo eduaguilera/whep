@@ -82,3 +82,111 @@ if (stats::median(compared$ratio_energy, na.rm = TRUE) > 1.1) {
   ))
 }
 invisible(list(supply = supply, nourishment = nourishment, compared = compared))
+
+# ---- Per-item comparison (#500 J2.2) ---------------------------------------
+#
+# The Grand-Total comparison above is necessary and NOT sufficient. On the 2010
+# build the axis's net excess is small, but that is cancellation: wheat and nuts
+# run high while vegetables, poultry and pigmeat run low. An axis that agrees in
+# total while being 30-50% wrong per item is not accurate, and for a per-country
+# Under/Adequate/Over classification the item composition matters more than the
+# global net. So the per-item ratios are reported, never only the net.
+
+cli::cli_h2("Per item, against FAOSTAT FBS protein (element 671, tonnes)")
+
+whep_item <- cbs_food |>
+  whep:::.food_join_nutrition(
+    whep:::.food_nutrition_lookup(
+      whep::items_full,
+      whep::biomass_coefs,
+      "edible_portion"
+    )
+  ) |>
+  dplyr::summarise(
+    whep_protein_t = sum(.data$food_t * .data$protein_frac_kgfm, na.rm = TRUE),
+    .by = c("area_code", "item_cbs_code")
+  )
+
+fbs_item <- whep_read_file("faostat-fbs-new") |>
+  dplyr::filter(
+    as.integer(.data$Year) == !!year,
+    as.integer(.data[["Element Code"]]) == 671L
+  ) |>
+  dplyr::transmute(
+    area_code = as.integer(.data[["Area Code"]]),
+    item_cbs_code = as.integer(.data[["Item Code"]]),
+    fbs_protein_t = as.numeric(.data$Value)
+  ) |>
+  dplyr::filter(is.finite(.data$fbs_protein_t), .data$fbs_protein_t > 0)
+
+paired <- dplyr::inner_join(
+  whep_item,
+  fbs_item,
+  by = c("area_code", "item_cbs_code")
+)
+
+by_item <- paired |>
+  dplyr::summarise(
+    countries = dplyr::n(),
+    whep_t = sum(.data$whep_protein_t),
+    fbs_t = sum(.data$fbs_protein_t),
+    .by = "item_cbs_code"
+  ) |>
+  dplyr::mutate(
+    conc_ratio = .data$whep_t / .data$fbs_t,
+    residual_t = .data$whep_t - .data$fbs_t
+  ) |>
+  add_item_cbs_name() |>
+  dplyr::arrange(dplyr::desc(abs(.data$residual_t)))
+
+net_ratio <- sum(by_item$whep_t) / sum(by_item$fbs_t)
+off_10 <- sum(abs(by_item$conc_ratio - 1) > 0.10)
+gross <- sum(abs(by_item$residual_t))
+net <- abs(sum(by_item$residual_t))
+
+cli::cli_inform(c(
+  "items compared: {nrow(by_item)}; outside +-10%: {off_10}",
+  "*" = "net ratio {round(net_ratio, 4)} -- the number a Grand-Total check sees",
+  "*" = "gross item error {round(gross / 1e6, 2)} Mt against a net of
+         {round(net / 1e6, 2)} Mt: cancellation factor
+         {round(gross / max(net, 1), 1)}x"
+))
+cli::cli_inform("Largest absolute item residuals:")
+print(utils::head(
+  dplyr::select(
+    by_item,
+    "item_cbs_name",
+    "countries",
+    "conc_ratio",
+    "residual_t"
+  ),
+  12
+))
+
+# Country spread within an item: a per-country classification cannot be read
+# off a world ratio, so the dispersion is reported for the worst items.
+country_spread <- paired |>
+  dplyr::mutate(ratio = .data$whep_protein_t / .data$fbs_protein_t) |>
+  dplyr::filter(is.finite(.data$ratio)) |>
+  dplyr::summarise(
+    countries = dplyr::n(),
+    q25 = stats::quantile(.data$ratio, 0.25),
+    median = stats::median(.data$ratio),
+    q75 = stats::quantile(.data$ratio, 0.75),
+    .by = "item_cbs_code"
+  ) |>
+  dplyr::semi_join(
+    utils::head(by_item, 8),
+    by = "item_cbs_code"
+  ) |>
+  add_item_cbs_name()
+cli::cli_inform("Country ratio spread, the eight largest-residual items:")
+print(country_spread)
+
+cat(sprintf(
+  "METRIC items_compared=%d items_off_10pct=%d net_ratio=%.4f cancellation=%.1f\n",
+  nrow(by_item),
+  off_10,
+  net_ratio,
+  gross / max(net, 1)
+))

@@ -1,5 +1,47 @@
 # whep (development version)
 
+* **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
+  functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
+  natural-land soil carbon input by ~7%.** The natural-land carbon input selects
+  PFTs by name, and the list was written for 5.x. LPJmL 6.1.1 adds `tropical
+  broadleaved evergreen tree floodtolerant`, `C3 graminoid flood tolerant` and
+  `Sphagnum moss`, so on a 6.x run those three matched nothing and their net
+  primary production was dropped with no error and no warning. Measured on
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` at 2010: the mean natural
+  carbon-input density rises from 6.739 to 7.218 MgC/ha (**+7.12%**), changing
+  33,510 of 58,795 cells, of which 10,835 rise by more than 10%; the largest
+  single-cell change is +16.25 MgC/ha. The excluded share grows over time, from
+  3.31% of natural net primary production in 1901 to 8.92% in 2023, so the old
+  behaviour biased trends as well as levels. The two flood-tolerant types carry
+  most of it (3.33% and 3.39% of natural NPP at 2010); Sphagnum moss is the
+  smallest at 0.58%, though it appears in the most cells.
+
+  Downstream, this raises the carbon input to `build_carbon_balance()` for
+  natural land and therefore its equilibrium SOC, so it moves in the *opposite*
+  direction to the excess-natural-SOC question in #799 — it is a correctness fix
+  to the PFT set, not a calibration change, and #799 still needs its own answer.
+
+  **The pinned default path is not yet affected.** `lpjml-grass-natural-net-c`
+  stores the already-summed natural density, so a caller without a run directory
+  still receives the eleven-band numbers. The pin must be regenerated from a
+  6.x run for the two paths to agree; until then they differ by the ~7% above.
+
+* **A new warning fires when an LPJmL run writes natural PFT bands the list does
+  not cover.** The band selection is a name match, so a future LPJmL adding a
+  PFT would silently drop it exactly as 6.x's three were dropped.
+  `build_grass_natural_carbon_inputs()` now names every unmatched natural band
+  instead. It warns rather than aborting, so a newer LPJmL still runs.
+
+* **Exported functions now work when the package is loaded but not attached.**
+  With `LazyData: true` the shipped datasets live in the namespace's lazydata
+  environment, which `library(whep)` puts on the search path but package code
+  cannot see by bare name, so calling e.g. `whep::get_polity_geometries()` or
+  `whep::add_polity_code()` from a script without `library(whep)` aborted with
+  `object 'polities' not found`. `.onLoad()` now binds every lazy-loaded
+  dataset into the namespace as a promise, so bare-name references resolve in
+  both states. No published value changes: the bindings are the same objects
+  `whep::<dataset>` returns, and they stay lazy (#641).
+
 * **Every polycell-year is now partitioned into land uses, so a territorial
   quantity can be attributed to a land class instead of being assumed
   agricultural or dropped (#423).** `build_polycell_land_uses()` splits each
@@ -72,11 +114,15 @@
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
   pins now cover 1860-2023, so the internal 2021 clip and its coverage warning
-  are gone. `population_yg` and `processing_coefs` still end in 2021 and are
-  held flat over 2022-2023, on the same reasoning as the existing pre-1961
-  backfill; three items whose processing is observed only to 2002 (coconuts),
-  2008 (sugar cane) and 2018 (palm kernels) are held flat from those years
-  instead, and all three are negligible in Spanish production. **Published
+  are gone. Processing coefficients now come from `get_processing_coefs()`
+  rather than the frozen July-2025 pin, so they track FAOSTAT as it is
+  republished (whep#449); they are complete through 2022, while 2023 is still
+  partial pending the pin refresh in whep#812 and is therefore carried
+  forward from 2022. `population_yg` still ends in 2021 and is held flat over
+  2022-2023, on the same reasoning as the existing pre-1961 backfill. Three
+  items whose processing is observed only to 2002 (coconuts), 2008 (sugar
+  cane) and 2018 (palm kernels) are held flat from those years instead, and
+  all three are negligible in Spanish production. **Published
   values move**: the two new years are structurally complete (50 provinces,
   every origin and destiny) but national N falls from 5,097,518 Mg in 2021 to
   4,607,382 Mg in 2022 and 4,201,534 Mg in 2023. That decline is in the input
@@ -407,6 +453,348 @@
   supply-use identity improves sharply: rows off by more than 1 t fall from 144
   to 67, the worst residual from 160,000 t to 29 t, and the 12 `NA` residuals
   disappear.
+
+* **`build_sjos_nitrogen()` gains `nourishment_band`, which makes every band
+  choice selectable from the driver.** The quality tier
+  (`quality_method` / `quality_variant`), the loss wedge (`wedge_method` /
+  `wedge_coverage`) and the band's own `shortfall`, `ceiling` and
+  `requirement_sd` were all reachable on their builders but frozen at their
+  defaults inside the driver, so a sensitivity could not be run end to end.
+  `ceiling` in particular is the knob the band's documentation names as WHEP's
+  own criterion and asks callers to sweep.
+
+  An option the list does not recognise **aborts**. A sensitivity analysis is
+  the worst place for a silently ignored argument: the run completes, nothing
+  moves, and the sweep gets reported as showing insensitivity. Nothing is
+  defaulted in the driver either — an option the caller omits is simply not
+  passed on, so each builder's own default applies and the two cannot drift.
+
+* **Three guards against silent row multiplication and silent gaps**, all found
+  by review of this branch rather than in the field:
+
+  * `normalize_nourishment()` now **aborts** when a data-frame `thresholds`
+    carries two rows for one `year`/`area_code`. It previously duplicated the
+    country, once per candidate band and each with its own class, so every
+    headcount downstream counted it twice. `build_nourishment_band()` output is
+    unique by construction, but the argument accepts any data frame.
+  * `normalize_nourishment()` now also warns when a matched band has a missing
+    **ceiling**. The check tested the floor alone, so such a row scored `NA` and
+    disappeared from the classification without a word.
+  * `read_wpp_population()` now drops and **names** ISO3 codes the crosswalk
+    does not resolve, instead of returning them on a missing `area_code` for
+    `build_protein_requirement()` to weight into an `NA`-keyed country. On WPP
+    2024 that is 7 codes at 0.03% of world population, Kosovo the largest.
+
+  `build_loss_wedge()` additionally asserts one Annex 1 region per area. The
+  packaged tables satisfy it, but `data$food_loss_regions` is injectable and two
+  regions for one area would weight its whole basket twice, at two rates.
+
+* **`build_protein_quality()` gains tier 1a and makes it the default:
+  per-item measured digestibility instead of a two-rate class split.**
+  `method = "trs935_item"` uses the true digestibility TRS 935 Table 5 publishes
+  for each commodity — now packaged verbatim as `protein_digestibility_trs935` —
+  and falls back to the tier 1b class rate for items the report does not
+  measure. Table 5 prints **no fruit, vegetable, root, tuber or sugar row at
+  all**, so the fallback is not a corner case: on the 2010 world basket
+  **84.5%** of food protein carries a measured value and the rest takes the
+  class rate. `protein_measured_share` reports it per row.
+
+  On that basket the diet quality moves from a tier 1b median of 0.867 to
+  **0.891** (0.818–0.940), lowering the floor from 67.77 to **66.23** and the
+  ceiling from 98.13 to **96.04**. Against the flat band **50 of 167 countries
+  change class** (58 under tier 1b), and world headcounts are **216 million
+  below requirement** and 2,438 million above twice the safe level.
+
+  `variant` brackets the one judgement tier 1a makes. Table 5 prints several
+  forms of the same commodity and CBS cannot say which was eaten. **The
+  processing direction is not uniform** — refining raises wheat (whole 0.86 →
+  flour white 0.96, bran removed) and lowers maize, rice and oats (0.85 → 0.70,
+  0.88 → 0.75, 0.86 → 0.72, through extrusion and Maillard damage) — so there is
+  no single axis to sweep and the bracket is carried per item. `"default"` takes
+  the least-processed form, the consistent partner for WHEP's whole-commodity
+  agronomic nitrogen; `"low"` and `"high"` give a diet-quality span of 0.853 to
+  0.913 at the median country. The choice is stamped in `method_quality`
+  (`"trs935_item_default"`), so a sensitivity is self-labelling.
+
+* **New `build_protein_score()`: tier 2 of the protein-quality ladder, the full
+  aggregate PDCAAS.** It implements the aggregation FAO prints as a worked
+  example in WHO/FAO/UNU TRS 935 Table 6 — digestible protein per item, the
+  digestible-protein-weighted amino acid profile, the minimum ratio against the
+  age reference pattern, truncated at 1 and multiplied by diet digestibility.
+
+  **Averaging per-item scores is not an approximation of this.** FAO forbids it
+  in words twice (TRS 935 p.99, FNP 92 p.17) and FNP 51 p.37 gives the reason.
+  Because `min()` is concave, the average of item scores is a rigorous lower
+  bound on diet quality and so a rigorous upper bound on the floor. The
+  digestible-protein weighting is the correction TRS 935 makes to its own 1991
+  report; on Table 6 it moves the lysine profile from 44.14 to 44.34 mg/g.
+
+  Truncation follows the **TRS 935** convention — score truncated at 1, *then*
+  multiplied by digestibility, so the ceiling is the diet's digestibility — not
+  FNP 92's, which truncates the DIAAS itself at 1.0. For a diet at score 1.4 and
+  digestibility 0.85 the two differ by 18% of the floor, and it bites on exactly
+  the animal-rich diets that truncate.
+
+  The function is **code-complete and validated but not yet wired**: it needs a
+  per-item amino acid composition table WHEP does not have. It ships now because
+  the aggregation is the part that is easy to get wrong, and it can be validated
+  today against FAO's own example.
+
+* **New packaged table `protein_digestibility_trs935`:** TRS 935 Table 5's 35
+  measured true-digestibility values (26 single foods, 9 mixed diets),
+  transcribed verbatim. It is the input tier 1a needs, and it records the
+  milling spread that CBS cannot observe — wheat whole 0.86 against refined
+  0.96, and three distinct maize rows at 0.85 / 0.87 / 0.70.
+
+* **PUBLISHED VALUES MOVE: the SJOS-N nourishment axis now classifies against a
+  composed, per-country-year band instead of a flat 62.1 / 85.05.**
+  `build_sjos_nitrogen()` gains `nourishment_thresholds`, defaulting to
+  `"composed"`. `normalize_nourishment()` accepts a data frame of per-row bounds
+  — a `build_nourishment_band()` output passes straight through — alongside the
+  scalar pair it always took.
+
+  **On the 2010 build, 58 of 167 countries change nourishment class**, 21 of
+  them Adequate → Under and 37 Over → Adequate. The floor moves from a flat 62.1
+  to a median 67.77 (58.79–88.81) and the ceiling from a flat 85.05 to a median
+  98.13 (84.84–107.70). Where the axis had one number for every country it now
+  has a distribution, built from four sourced terms: the demographic
+  requirement, within-country intake dispersion, the unavoidable-loss wedge and
+  diet protein quality.
+
+  Those figures are measured with **tier 1b** protein quality, the default when
+  this landed. Tier 1a became the default later in the same release and is what
+  ships: 50 of 167 change class, the floor median is 66.23 and the ceiling
+  96.04. See the tier 1a entry at the top for the full comparison.
+
+  `nourishment_thresholds = "flat"` restores the old pair for continuity and
+  sensitivity. It is not a peer of the default: of its five underlying numbers
+  only the 46 g/cap/day floor was ever sourced, and the 1.35 multiplier behind
+  both bounds was a preliminary presentation figure (whep#753).
+
+  A row that matches no band is classified `NA` and named in a warning — it
+  never falls back to the flat pair, which would mix two threshold vintages
+  inside one classification.
+
+  One number in the composed band remains **WHEP's own criterion rather than a
+  sourced value**: `ceiling$share`, the tolerated fraction of a population above
+  twice the safe level, default 0.5. TRS 935 declines to set a tolerable upper
+  intake, so nothing external fixes it. It is selectable, stamped in
+  `method_ceiling`, and any published use should carry a sensitivity across it.
+
+* **New `build_protein_quality()`: the band is no longer on crude protein.**
+  TRS 935 issues its safe level "for proteins with a protein
+  digestibility-corrected amino acid score value of **1.0**" (section 14.2). No
+  real diet reaches 1.0, so every uncorrected band was low by at least `1/D` —
+  for every country, in one direction.
+
+  `method = "digestibility_share"` takes the diet's digestibility as the
+  protein-weighted mean of **0.95 for animal and 0.80 for plant protein**, which
+  is how TRS 935 Table 43 footnote b computes it. The animal/plant split follows
+  FAO's own Food Balance Sheet grouping and reconciles against FAOSTAT's
+  published aggregates to within 0.07% on each side.
+
+  This is **tier 1b of four**, and a *provable lower bound* on the full
+  correction, since PDCAAS is `min(1, AAS) × D ≤ D`. It is conservative about
+  the **size of the correction**, not about adequacy: it under-corrects and so
+  classifies fewer countries deficient than the full amino acid score would.
+  Tier 2 needs a per-item composition table WHEP does not have; when it lands it
+  becomes a new method rather than silently changing this one.
+
+  Quality **divides both bounds**, which is algebraically the diet-side
+  correction TRS 935 section 14.1.5 prefers: it keeps the published supply
+  series untouched and moves floor and ceiling together, where correcting only
+  the floor would leave the ceiling on crude protein.
+
+  **On the 2010 build** the diet quality runs 0.82–0.91 (median 0.87), lifting
+  the floor from a crude median of 58.60 to **67.77 g/cap/day** and the ceiling
+  from 85.68 to **98.13**. That reverses the headline: the composed floor now
+  sits *above* the retired flat 62.1, not below it. Against the flat band **58
+  of 167 countries change class**, up from 21 without the correction, with 21
+  moving Adequate → Under. World headcounts move from 99 to **266 million
+  people below requirement** and from 3,278 to 2,258 million above twice the
+  safe level.
+
+  These are the **tier 1b** figures, measured when nothing yet composed the
+  term. Both statements were superseded within the same release: the composed
+  band became the default of `build_sjos_nitrogen()`, so the values do move, and
+  tier 1a became the default quality method. The shipped figures are in the tier
+  1a entry at the top.
+
+* **`read_population()` can now fill its coverage gaps from UN WPP, and always
+  reports where each row came from (#644).** The `gdp-population` pin does not
+  reach every area WHEP models, and the two per-capita consumers inner-join it,
+  so an uncovered area is absent from their output rather than wrong in it. The
+  new `population_source = "pin_wpp_fallback"` fills **only** the country-years
+  the pin does not reach, from `read_wpp_population()`: on the real inputs that
+  is 44 areas the pin has no row for at all (Réunion, Bhutan, Comoros, Western
+  Sahara, New Caledonia, the French overseas departments and the small island
+  states) and 4,755 country-years inside the pin's own year span.
+
+  The pin wins wherever both have a value, so turning the fallback on cannot
+  move a denominator that was already published — it can only add one that was
+  missing. It is a gap-filler rather than a replacement because the two sources
+  disagree where they overlap: across 12,309 shared country-years by a median
+  0.64%, a 95th percentile of 4.4% and a maximum of 81%.
+
+  The output gains `source_pop`, carrying the pin's own vocabulary
+  (`"Original"`, `"Linear interpolation"`, `"First value carried backwards"`),
+  joined with `" + "` where an `area_code` bucket sums ISO3 codes of differing
+  provenance, or `"UN WPP 2024"` for a filled row.
+
+  **No published value changes**: the default is `"pin"`.
+
+* **`nourishment_thresholds` now says which of its numbers are sourced, and its
+  upper bound is renamed `"ceiling"`.** Four of the five values the shipped
+  nourishment axis runs on had no source and nothing said so. A new
+  `provenance` column records it per row: only the 46 g/cap/day protein floor
+  is cited (WHO/FAO/UNU TRS 935 Table 46, the safe intake of a 55 kg adult —
+  itself a 97.5th-percentile *individual* level that TRS 935 p.41 says is
+  incorrect to apply to a population). The 63 ceiling, the 2300 and 2900 energy
+  bounds and the 1.35 factor are labelled `inherited_unsourced`.
+
+  **Breaking for anyone filtering the table**: `bound == "target"` is now
+  `bound == "ceiling"` and returns zero rows under the old name.
+  `normalize_nourishment()` uses that value as the top of the Adequate band,
+  above which a country is classified Over, so "target" read as something to
+  aim at — the opposite of its role.
+
+  `normalize_nourishment()` also stops presenting protein and dietary energy as
+  interchangeable. The arithmetic is shared, the bases are not: the energy
+  bounds are unsourced, and WHEP's energy column is gross combustion energy
+  where a dietary kcal threshold is metabolisable. Nothing in the package reads
+  the energy path.
+
+  **No published value changes**: the floor and ceiling are numerically
+  unchanged at 62.1 and 85.05 g/cap/day and every classification is identical.
+
+* **New `build_nourishment_band()`: both SJOS-N bounds are now composed from
+  sourced terms, and the 1.35 multiplier is gone from each.** It implements
+  WHO/FAO/UNU TRS 935 Box 1 — log-deficit normal with
+  `S_D = sqrt(S_I^2 + S_R^2)`, prevalence `Phi(-M_D/S_D)` — and inverts it twice
+  to give a floor and a ceiling on mean per-capita protein supply:
+
+  ```
+  bound = anchor * exp(z * S_D + S_I^2 / 2) / (1 - omega)
+  ```
+
+  The **floor** anchors on the demographically weighted *average* requirement at
+  `z = qnorm(1 - shortfall)`; the **ceiling** on `multiple` times the
+  demographically weighted *safe level* at `z = qnorm(share)`. `multiple`
+  defaults to 2, which TRS 935 section 13.7 calls "twice the recommended intake,
+  previously identified as a safe upper limit … likely to be safe"; 3–4× is the
+  report's own sensitivity ("approach the tolerable upper limit").
+
+  **The two tails do not take the same tolerance, and the model says so.**
+  Applying the floor's 2.5% to the upper tail puts the ceiling *below* the floor
+  for 162 of 167 country-years, because TRS 935 calls intakes below requirement
+  harmful while calling twice the safe level "unlikely to be associated with any
+  risk". `share` therefore defaults to 0.5 — "Over" means the typical member
+  exceeds the limit — and that 0.5 is WHEP's construction, not a sourced value.
+  At 0.5 the band never inverts: the lowest ceiling (74.81) exceeds the highest
+  floor (73.75).
+
+  **On the 2010 build**, floor median 58.60 (53.0–73.8) against the flat 62.1,
+  and ceiling median 85.68 (74.8–91.5) against the flat 85.05. The ceiling's
+  agreement with the retired number at the world median is a coincidence worth
+  noting and not a justification: 85.05 was 63 × 1.35 and flat, this varies by
+  country through demography, inequality and loss.
+
+  It also reports **how many people**, not only the country's class:
+  `prevalence_protein_deficit`, `prevalence_protein_excess`, `people_under` and
+  `people_over`. A country is not uniformly under or over — on the 2010 build
+  **99 million people are below requirement and 3,278 million above twice the
+  safe level**, and the share below requirement ranges 0% to 48.9% *within* the
+  countries the flat band called Adequate.
+
+  The anchor is the **average** requirement from `build_protein_requirement()`,
+  not the safe level, because TRS 935 says applying an individual safe level to
+  a population is incorrect (p.41) and a safe population intake "cannot be
+  defined as a simple function of the mean requirement" (p.241). Passing a
+  safe-level requirement warns, because the formula adds its own population
+  margin and would count the requirement margin twice. `shortfall` defaults to
+  2.5%, fixed independently by TRS 935 Figure 7 and by FAO's stated lowest
+  feasible PoU target. `requirement_sd` defaults to TRS 935's `S_R = 0.12` and
+  is exposed because the report itself notes that captures only about a fifth
+  of observed between-individual variance.
+
+  **On the 2010 build the median country floor is 58.6 g/cap/day against the
+  shipped flat 62.1**, ranging 53.0 to 73.8, with 39 of 167 countries above
+  62.1. Where the axis had one number for every country it now has a
+  distribution: demography pulls the requirement down to a median 32.0
+  g/cap/day, and the dispersion margin (median `S_D` 0.29) puts most of it back.
+
+  **The protein-quality term is not built**, and the floor is a known
+  understatement without it — TRS 935's safe level is defined for a PDCAAS of
+  1.0 and real diets score below that, a level shift the evidence record puts
+  at +11% to +36%. `quality = "none"` is stamped in `method_quality` so the
+  method name cannot silently change meaning when the term lands.
+
+  **No published value changes.** Nothing calls this function yet;
+  `normalize_nourishment()` still uses the flat threshold.
+
+* **New `build_loss_wedge()`: the nourishment floor can now allow for the food
+  that never becomes intake.** The floor asks whether supply *can* meet needs,
+  so it has to account for loss between the retail shelf and the mouth — but
+  only for the part no food system avoids. Avoidable waste belongs to the
+  over-nourishment problem, and inflating the floor by it would turn a behaviour
+  problem into an apparent adequacy failure; `omega = 0`, meanwhile, asserts
+  that all edible loss is eliminable, which SDG target 12.3 does not even aim
+  at.
+
+  The wedge is built from Gustavsson et al. (2011) Annex 4, composing only the
+  two steps at or after retail — `Distribution` and `Consumption` — because FBS
+  food availability is already measured at the retail level and includes retail
+  and consumer loss. The default `"gustavsson_half_min"` takes each rate's
+  minimum across the seven world regions and halves it, giving roughly 2.5% of
+  protein on the 2010 world basket (floor divisor 1.026). It is documented as a
+  **deliberate lower bound, not an estimate of achievable loss**: the
+  consumption-step minimum is sub-Saharan Africa in every commodity group, and
+  those are scarcity figures rather than efficiency figures. `"gustavsson_min"`
+  (roughly 4.9%) and `"none"` are selectable, and the choice is stamped in
+  `method_loss_wedge`.
+
+  `"gustavsson_regional_actual"` is the sensitivity arm, giving each country its
+  Annex 1 region's own observed rates: 14.2% on the same basket, divisor 1.166,
+  spanning 4.1% to 21.4% across countries. It is not an unavoidable-loss
+  estimate, and its country structure is contested — Gustavsson's rich-high
+  gradient runs opposite to UNEP's Food Waste Index — so it quantifies that
+  disagreement rather than settling it. Annex 1's 152 countries cover 99.0% of
+  2010 world food protein; the rest take the mean rate across the seven regions
+  and are stamped `method_region = "global_mean"`, or return nothing under
+  `coverage = "annex1_only"`.
+
+  FBS element 5123 `Losses` is deliberately not used: it is pre-retail and
+  already netted out of the Food element, so subtracting it would double-count.
+
+  **No published value changes.** Nothing calls this function yet; the axis
+  still uses the flat 1.35 multiplier until the remaining terms land. Two
+  packaged coefficient tables are new
+  (`inst/extdata/coefs/food_loss_wedge.csv`, the Annex 4 rates, and
+  `inst/extdata/coefs/food_loss_item_groups.csv`, the Annex 2 item-to-group
+  mapping); both are recorded in `validation/SOURCES.md`.
+
+* **New `build_protein_requirement()`: the nourishment floor can now account
+  for a population's age and sex structure.** The SJOS-N "just" axis has always
+  compared per-capita protein supply against a flat 46 g/cap/day, which is
+  WHO/FAO/UNU TRS 935's safe intake for a 55 kg **adult** applied to whole
+  populations including children. Children need far less in absolute terms
+  (17.1 g/day at ages 4-6), so the flat value overstates every population's
+  requirement, and most in the youngest. The new function weights the TRS 935
+  per-class requirements by an injected population-by-age-and-sex table.
+
+  It defaults to `requirement = "average"`, the class average requirement,
+  because TRS 935 states that applying an individual safe level to a population
+  is incorrect (p.41) and that a safe population intake "cannot be defined as a
+  simple function of the mean requirement" (p.241); `"safe"` remains selectable
+  for continuity. This does **not** lower the eventual threshold — the margin
+  that turns an average requirement into a supply floor is applied downstream,
+  once, over the convolution of requirement and intake variability.
+
+  **No published value changes yet.** Nothing calls this function; the axis
+  still uses the flat floor until the remaining terms land. The packaged
+  requirement table is new (`inst/extdata/coefs/protein_requirement.csv`), and
+  its derivation and the TRS 935 tables behind it are recorded in
+  `validation/SOURCES.md`.
 
 * **Rice from the new FAOSTAT Food Balances is now converted to milled
   equivalent, so CBS item 2807 is on one mass basis.** FAOSTAT publishes rice on

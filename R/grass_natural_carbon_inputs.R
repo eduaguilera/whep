@@ -13,8 +13,8 @@
 # to within 0.1% at sampled land cells (the naive 43-band sum overshoots
 # 2-20x). The per-stand density IS the per-hectare-of-that-land-use value the
 # carbon balance needs, so:
-#   - natural: the 11 natural PFTs coexist in one natural stand, so their
-#     per-m2 densities ADD -> sum over bands 1-11 (they are not harvested).
+#   - natural: the 14 natural PFTs coexist in one natural stand, so their
+#     per-m2 densities ADD -> sum over bands 1-14 (they are not harvested).
 #   - grassland: rainfed and irrigated grassland are SEPARATE stands, so the
 #     per-hectare-of-grassland density is the stand-area-weighted mean of their
 #     net (NPP - harvest) densities (weights from the cftfrac stand fractions).
@@ -133,6 +133,14 @@ build_grass_natural_carbon_inputs <- function(
     .filter_years_if_present(years)
 }
 
+# ESTABLISHED 2026-08-18 (whep#807): the shipped pin was built from the 46-band
+# LPJmL 6.1.1 run but with the eleven-name list, so it is MISSING the three
+# natural PFTs added below. Proven by reading the pin and the run side by side at
+# 2010: the pin is identical to the eleven-band sum over all 58,795 natural cells
+# (max absolute difference 0) and differs from the fourteen-band sum by 0.48
+# MgC/ha on average, up to 16.25. So the pin path returns numbers ~7% lower than
+# the run path until the pin is regenerated, which is deferred to the next LPJmL
+# run so all four LPJmL-derived pins are refreshed from one model version.
 .gn_net_c_alias <- function() {
   "lpjml-grass-natural-net-c"
 }
@@ -157,7 +165,7 @@ build_grass_natural_carbon_inputs <- function(
 }
 
 # Derive the net carbon density per cell, year and land-use class from the run:
-# natural sums the eleven natural PFT densities (one shared stand, never
+# natural sums the fourteen natural PFT densities (one shared stand, never
 # harvested); grassland takes the stand-area-weighted mean of the rainfed and
 # irrigated net (NPP - harvest) densities.
 .gn_net_c_from_lpjml <- function(data, years, run_dir = NULL) {
@@ -166,6 +174,7 @@ build_grass_natural_carbon_inputs <- function(
     read_lpjml_npp("harvestc", years = years, run_dir = run_dir)
   stand_frac <- data$stand_frac %||%
     .gn_read_stand_frac(run_dir = run_dir, years = years)
+  .gn_check_natural_pfts(npp)
   natural <- npp |>
     dplyr::filter(.data$name_pft %in% .gn_natural_pfts()) |>
     dplyr::summarise(
@@ -191,8 +200,15 @@ build_grass_natural_carbon_inputs <- function(
     dplyr::select("lon", "lat", "year", "npp_c_mgc_ha_yr")
 }
 
-# The natural-land PFT names (natural stand: trees plus the three natural
-# grasses), matching pft_npp.nc bands 1-11. Joined by name, never band index.
+# The natural-land PFT names (natural stand: trees plus the natural grasses and
+# moss), matching pft_npp.nc bands 1-14 in LPJmL 6.x. Joined by name, never band
+# index, because pft_npp.nc and pft_harvestc.nc order their bands differently.
+#
+# LPJmL 5.x had eleven; 6.x adds the flood-tolerant tropical tree, the
+# flood-tolerant C3 graminoid and Sphagnum moss. Measured on
+# global_1901-2023_spinup_300_our_inputs_lpjml611, the three carry 7.30% of
+# natural net primary production at 2010 (7.85 of 107.53 PgC) in 35,639 of
+# 56,008 land cells, rising from 3.31% in 1901 to 8.92% in 2023.
 .gn_natural_pfts <- function() {
   c(
     "tropical broadleaved evergreen tree",
@@ -205,12 +221,59 @@ build_grass_natural_carbon_inputs <- function(
     "boreal needleleaved summergreen tree",
     "Tropical C4 grass",
     "Temperate C3 grass",
-    "Polar C3 grass"
+    "Polar C3 grass",
+    "tropical broadleaved evergreen tree floodtolerant",
+    "C3 graminoid flood tolerant",
+    "Sphagnum moss"
   )
 }
 
 .gn_grassland_pfts <- function() {
   c("rainfed grassland", "irrigated grassland")
+}
+
+# The natural PFT bands a per-PFT LPJmL file actually carries. LPJmL writes the
+# natural PFTs first and every managed band is prefixed "rainfed " or
+# "irrigated ", so the natural block is whatever precedes the first managed
+# band. Used only to compare the file against .gn_natural_pfts().
+.gn_natural_bands_present <- function(npp) {
+  names_in_order <- npp |>
+    dplyr::distinct(.data$npft, .data$name_pft) |>
+    dplyr::arrange(.data$npft) |>
+    dplyr::pull("name_pft")
+  managed <- stringr::str_detect(
+    names_in_order,
+    "^(rainfed|irrigated) "
+  )
+  if (!any(managed)) {
+    return(names_in_order)
+  }
+  names_in_order[seq_len(which(managed)[1] - 1L)]
+}
+
+# Guard the name-keyed natural-PFT selection against an LPJmL run whose natural
+# PFT set is wider than .gn_natural_pfts(). The selection is a `%in%` filter, so
+# a band the run writes but the list omits contributes zero carbon with no error
+# and no warning. That is how 6.x's three additions went unnoticed after the 5.x
+# list stopped matching the run (whep#400); the list now covers 6.x, and this
+# guard is what makes the next such divergence visible instead of silent.
+# Warns rather than aborts so a newer LPJmL still runs, just loudly.
+#
+# Deliberately does NOT check the reverse direction. A caller may legitimately
+# pass a subset of bands (every test fixture does), so a name in the list with
+# no matching band is not evidence of a rename at this seam.
+.gn_check_natural_pfts <- function(npp) {
+  extra <- setdiff(.gn_natural_bands_present(npp), .gn_natural_pfts())
+  if (length(extra) > 0) {
+    cli::cli_warn(c(
+      "Ignoring {length(extra)} natural PFT
+       band{cli::qty(length(extra))}{?s} the LPJmL run writes but
+       {.fun .gn_natural_pfts} does not list: {.val {extra}}.",
+      i = "Their net primary production is excluded from the natural-land
+           carbon input."
+    ))
+  }
+  invisible(npp)
 }
 
 # -- Natural-land carbon input ------------------------------------------------

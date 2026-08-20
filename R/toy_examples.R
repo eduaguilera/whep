@@ -549,7 +549,9 @@
 # water_input - aet - runoff - soil_water_change for each row. blue/green
 # consumptive water mirror the blue/green AET (the per-CFT inputs are absent in
 # the fixture); cft_nir_mm is NA (no net-irrigation-requirement input).
-# method_water carries the default cft_native blue/green label.
+# method_water carries the default cft_native blue/green label. Each cell's
+# area_code is the one the spatialize-country-grid pin assigns to that cell
+# (whep#686): 79 Germany, 21 Brazil, 114 Kenya, 203 Spain.
 .example_water_balance <- function() {
   label <- "aet:components|drain:seepage|bg:cft_native"
   tibble::tribble(
@@ -557,17 +559,17 @@
     ~pet_mm, ~aet_mm, ~aet_blue_mm, ~aet_green_mm, ~blue_consump_mm,
     ~green_consump_mm, ~cft_nir_mm, ~drainage_mm, ~runoff_mm,
     ~soil_water_change_mm, ~method_water, ~polity_frac, ~cell_area_ha,
-    9.25, 47.75, 11L, 2000L, 1200, 950, 250, NA, 800, 200, 600, 200, 600, NA,
+    9.25, 47.75, 79L, 2000L, 1200, 950, 250, NA, 800, 200, 600, 200, 600, NA,
     300, 50, 50, label, 1, 30100,
-    9.75, 47.75, 11L, 2000L, 1100, 880, 220, NA, 760, 180, 580, 180, 580, NA,
+    9.75, 47.75, 79L, 2000L, 1100, 880, 220, NA, 760, 180, 580, 180, 580, NA,
     260, 40, 40, label, 1, 30100,
     -55.25, -12.25, 21L, 2000L, 1800, 1300, 500, NA, 1300, 400, 900, 400, 900,
     NA, 400, 80, 20, label, 1, 33500,
     -55.75, -12.25, 21L, 2000L, 1750, 1270, 480, NA, 1260, 380, 880, 380, 880,
     NA, 400, 70, 20, label, 1, 33500,
-    35.75, -1.25, 79L, 2000L, 900, 720, 180, NA, 650, 150, 500, 150, 500, NA,
+    35.75, -1.25, 114L, 2000L, 900, 720, 180, NA, 650, 150, 500, 150, 500, NA,
     170, 30, 50, label, 1, 30900,
-    35.25, -1.25, 79L, 2000L, 950, 760, 190, NA, 690, 160, 530, 160, 530, NA,
+    35.25, -1.25, 114L, 2000L, 950, 760, 190, NA, 690, 160, 530, 160, 530, NA,
     190, 30, 40, label, 1, 30900,
     -3.75, 40.25, 203L, 2000L, 600, 500, 100, NA, 420, 80, 340, 80, 340, NA,
     130, 20, 30, label, 1, 27500,
@@ -584,17 +586,19 @@
 # that surplus (-10 + 5 + 20 = 15), repeated on every month for the AMG modifier.
 # theta/t_field/t_wilt/porosity drive the ICBM moisture response: t_field, t_wilt
 # and porosity are the loam-class references (0.29/0.14/0.43) and theta is the
-# monthly volumetric water content swc_topsoil * porosity.
+# monthly volumetric water content swc_topsoil * porosity. The cell's area_code
+# is the one the spatialize-country-grid pin assigns to it (whep#686): 79
+# Germany.
 .example_soc_climate_drivers <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~year, ~month, ~temp_c, ~swc_topsoil, ~precip_mm,
     ~pet_mm, ~water_minus_pet_mm, ~water_balance_mm, ~clay_pct, ~theta,
     ~t_field, ~t_wilt, ~porosity, ~method_water_input,
-    9.25, 47.75, 11L, 2000L, 1L, 1.2, 0.62, 45, 55, -10, 15, 18, 0.2666,
+    9.25, 47.75, 79L, 2000L, 1L, 1.2, 0.62, 45, 55, -10, 15, 18, 0.2666,
     0.29, 0.14, 0.43, "lpjml_prec_irrig",
-    9.25, 47.75, 11L, 2000L, 2L, 3.4, 0.58, 50, 45, 5, 15, 18, 0.2494,
+    9.25, 47.75, 79L, 2000L, 2L, 3.4, 0.58, 50, 45, 5, 15, 18, 0.2494,
     0.29, 0.14, 0.43, "lpjml_prec_irrig",
-    9.25, 47.75, 11L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
+    9.25, 47.75, 79L, 2000L, 3L, 7.8, 0.51, 60, 40, 20, 15, 18, 0.2193,
     0.29, 0.14, 0.43, "lpjml_prec_irrig"
   ) |>
     .add_reporting_polity_columns()
@@ -1281,6 +1285,8 @@
     critical_loads = .sjos_n_crit_loads_fixture(),
     cbs_food = .sjos_n_cbs_food_fixture(),
     population = .sjos_n_pop_fixture(),
+    population_age = .sjos_n_pop_age_fixture(),
+    habitual_cv = .sjos_n_habitual_cv_fixture(),
     n_inputs = .sjos_n_inputs_fixture(),
     biomass_coefs = .sjos_n_coefs_fixture(),
     items_full = .sjos_n_items_fixture()
@@ -1387,6 +1393,38 @@
     ~year, ~area_code, ~population,
     2010L, 1L, 4.0e9,
     2010L, 2L, 3.0e9
+  )
+}
+
+# Population by age and sex, for the nourishment band's requirement terms. Two
+# classes per area is enough to exercise the demographic weighting while keeping
+# the fixture readable, and the totals match .sjos_n_pop_fixture() so the band
+# and the per-capita supply share one denominator. It is here, rather than being
+# read, because build_sjos_nitrogen() now composes the band by default and the
+# suite must never reach UN DESA (#490).
+.sjos_n_pop_age_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~age_start, ~age_span, ~sex, ~population,
+    2010L, 1L,         0L,         5L,        "m",  0.6e9,
+    2010L, 1L,         0L,         5L,        "f",  0.6e9,
+    2010L, 1L,         30L,        5L,        "m",  1.4e9,
+    2010L, 1L,         30L,        5L,        "f",  1.4e9,
+    2010L, 2L,         0L,         5L,        "m",  0.3e9,
+    2010L, 2L,         0L,         5L,        "f",  0.3e9,
+    2010L, 2L,         30L,        5L,        "m",  1.2e9,
+    2010L, 2L,         30L,        5L,        "f",  1.2e9
+  )
+}
+
+# Habitual-intake coefficients of variation for the band's dispersion term, at
+# the two ends of FAOSTAT item 21058's observed range so the fixture exercises
+# an equal and an unequal population. Injected for the same offline reason as
+# the age structure above.
+.sjos_n_habitual_cv_fixture <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~cv,
+    2010L, 1L,         0.20,
+    2010L, 2L,         0.35
   )
 }
 
