@@ -1,5 +1,33 @@
 # whep (development version)
 
+* **The four LPJmL-derived input pins now come from the 6.1.1
+  `..._socn_diag` run, raising natural-land carbon input ~7%.** They were
+  regenerated together from one run, as they must be: each carries the same
+  model's carbon and water, so refreshing a subset would leave WHEP mixing two
+  LPJmL versions across its feed, soil-carbon and water chains at once.
+
+  **Only `lpjml-grass-natural-net-c` moves.** Its natural-land carbon input
+  rises **+7.12% at 2010**, which is #810's PFT fix reaching pin users for the
+  first time -- the pin stores the already-summed natural density, so until
+  now the pinned path stayed on the eleven-band sum while a caller with a run
+  directory got fourteen. The rise grows over the span, +3.15% in 1901 to
+  +8.77% in 2023, because the three unlisted PFTs take a growing share of
+  natural net primary production.
+
+  **The other three are numerically unchanged**, which is the expected result
+  and was checked on every column rather than the one the comparison reports:
+  `lpjml-soc-hydrology` moves -0.000% on `swc_topsoil`, +0.000% on `prec_mm`
+  and +0.004% on `irrig_mm`; `lpjml-grass-availability` +0.000% on both of
+  its value columns. `lpjml-grass-productivity` gains one row on 6,809,325 --
+  seven marginal arid cells enter and six leave, all near 53-58E/17-23N with
+  tiny values, which is cells crossing the finite-value threshold rather than
+  a change in the data.
+
+  Downstream this raises the equilibrium SOC of natural land, so it moves in
+  the *opposite* direction to the excess-natural-SOC question in #799. It is a
+  correctness fix to the PFT set, not a calibration change, and #799 still
+  needs its own answer.
+
 * **`calculate_soc_hsoc()` now honours `clay_pct`, so the HSOC model gives
   one answer from either entry point.** The argument was accepted and never
   read: the function returned identical trajectories at 5% and 60% clay,

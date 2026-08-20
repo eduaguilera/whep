@@ -6,29 +6,29 @@
       "n_rows": 5239855,
       "first_year": 1901,
       "last_year": 2023,
-      "mean": 1.497867262552,
-      "median": 0.8131793171264
+      "mean": 1.497873698378,
+      "median": 0.8131964091524
     },
     "lpjml-grass-productivity": {
-      "n_rows": 6809325,
+      "n_rows": 6809326,
       "first_year": 1901,
       "last_year": 2023,
-      "mean": 183.282239534719,
-      "median": 102.713092803955
+      "mean": 183.282793100573,
+      "median": 102.712291717529
     },
     "lpjml-grass-natural-net-c": {
       "n_rows": 12577999,
       "first_year": 1901,
       "last_year": 2023,
-      "mean": 6.212994850758,
-      "median": 5.025367842573
+      "mean": 6.515723439151,
+      "median": 5.050242689103
     },
     "lpjml-soc-hydrology": {
       "n_rows": 86781420,
       "first_year": 1901,
       "last_year": 2023,
-      "mean": 0.4661382837461,
-      "median": 0.4954651743174
+      "mean": 0.4661381981875,
+      "median": 0.495465233922
     }
   }
 }
