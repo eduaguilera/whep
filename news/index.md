@@ -170,6 +170,73 @@
   deliberately not resolved here, because three consumers rely on the
   current default and one of them is this ledger’s own cropland anchor.
 
+- **[`create_n_prov_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_prov_destiny.md)
+  derives processed items itself, and the substitution now conserves
+  nitrogen exactly.** Processing shares and processed amounts come from
+  the `processing_coefs` pin instead of the externally built
+  `processed_prov_fixed` pin, and a processed item (wine, oil, flour)
+  now subtracts its share from the primary crop’s own production rather
+  than being added on top of it. Applying every output’s `cf` to the
+  same input mass did not conserve N — the sum of coefficients per input
+  item reaches 5.22 for maize and 5.11 for wheat, because beer and
+  starch are water-diluted — so the substitution added a net +1.875 Mt N
+  (+1.56%) over 1860-2023, ranging from -2.75% to +7.84% by year. Output
+  is now capped at the input’s N and only accounted N is removed,
+  balancing to 2.1e-16 every year. Where the primary-crop N of a zero-N
+  processed item (wine, olive oil, sugar) should go is still open
+  (whep#432).
+
+- **The GRAFS provincial chain runs to 2023 instead of stopping at
+  2021.** The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and
+  `n_excretion_ygs` pins now cover 1860-2023, so the internal 2021 clip
+  and its coverage warning are gone. Processing coefficients now come
+  from
+  [`get_processing_coefs()`](https://eduaguilera.github.io/whep/reference/get_processing_coefs.md)
+  rather than the frozen July-2025 pin, so they track FAOSTAT as it is
+  republished (whep#449), and with the pin refresh in whep#812 they now
+  reach 2023 in full: 5,999 coefficient rows globally and 82 for Spain,
+  against the 358 and 1 a stale `faostat-fbs-new` vintage had allowed.
+  `population_yg` covers 1860-2023 as well, so its forward-fill is now a
+  no-op. Three items whose processing is observed only to 2002
+  (coconuts), 2008 (sugar cane) and 2018 (palm kernels) are still held
+  flat from those years, and all three are negligible in Spanish
+  production. **Published values move**: the two new years are
+  structurally complete (50 provinces, every origin and destiny) but
+  national N falls from 5,096,664 Mg in 2021 to 4,607,682 Mg in 2022 and
+  4,203,893 Mg in 2023. That decline is in the input pin, not in this
+  code — synthetic N drops 29.7% between 2021 and 2022 while cropland
+  area stays flat at 50.56 Mha — and it has not been cross-checked
+  against an independent source. Note also that the four analysis eras
+  end at 2010-2020, so 2021-2023 appear in yearly and evolution views
+  but in no period aggregate.
+
+- **The cropland destiny panel no longer silently drops items that have
+  area but no tracked output.** `.allocate_by_destiny_share()` joined
+  destiny shares onto item values with a `left_join`, so an item with
+  cropland area and N inputs but no output in the destiny table vanished
+  from the compartment-factor decomposition entirely. Those rows are now
+  kept and tagged `no_tracked_output`. **Published values move**: the
+  recovered rows are 1.32% of cropland area and 1.55% of N inputs over
+  the full span, rising from 0.05% in the 1860s to about 5% by the
+  2020s, so the trend changes and not only the level. They are almost
+  entirely the oilseed complex — sunflower seed, rape and mustardseed,
+  cottonseed and sugar beet — whose output the processed-item change
+  reassigns, which makes them a quantified instance of whep#432.
+
+- **Three smaller accounting fixes in the typology and decomposition
+  analysis.** The Finn flow matrix was built transposed, so
+  `.calculate_finn()` read outflow where it needed inflow; mean FCI
+  moves 0.1105 to 0.1102, but up to 0.035 absolute for a single
+  province-year, and the 1860-versus-2020 trend tilts (whep#430).
+  [`decompose_manure_losses()`](https://eduaguilera.github.io/whep/reference/decompose_manure_losses.md)
+  compared applied manure against an excretion total covering only the
+  livestock-unit species in the panel, so `loss_frac` was measured
+  against a base 0.16% to 1.26% too small, a gap that widens over time.
+  The N surplus panel filtered out negative values as noise; a negative
+  surplus is a real soil deficit, and keeping it lowers pre-1950 decade
+  means by up to 6% while affecting 86 of 8,200 province-years, all of
+  them before 1950.
+
 - **[`build_historical_land_areas()`](https://eduaguilera.github.io/whep/reference/build_historical_land_areas.md)
   no longer rasterises its own cell-by-polity intersection; it reads the
   polycell support.** whep#776 built a second answer to a question

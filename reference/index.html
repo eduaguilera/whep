@@ -1747,6 +1747,27 @@
 
         </dt>
         <dd>GRAFS Nitrogen (N) flows – National Spain</dd>
+
+        <dt>
+
+          <code><a href="run_typology_sensitivity.html">run_typology_sensitivity()</a></code>
+
+        </dt>
+        <dd>Run one-at-a-time sensitivity analysis on typology thresholds.</dd>
+
+        <dt>
+
+          <code><a href="plot_typology_indicators_panel.html">plot_typology_indicators_panel()</a></code>
+
+        </dt>
+        <dd>Plot four N indicators as time series per typology</dd>
+
+        <dt>
+
+          <code><a href="plot_typology_periods_panel.html">plot_typology_periods_panel()</a></code>
+
+        </dt>
+        <dd>Plot four N indicators as period comparisons per typology</dd>
       </dl></div><div class="section level2">
       <h2 id="data-frame-utilities">Data-frame utilities<a class="anchor" aria-label="anchor" href="#data-frame-utilities"></a></h2>
 
@@ -1819,7 +1840,7 @@
       </dl></div><div class="section level2">
       <h2 id="decomposition-analysis">Decomposition analysis<a class="anchor" aria-label="anchor" href="#decomposition-analysis"></a></h2>
 
-      <div class="section-desc"><p>Functions for index decomposition analysis.</p></div>
+      <div class="section-desc"><p>Functions for index decomposition analysis, and LMDI decomposition of territorial nitrogen surplus and losses (cropland, semi-natural, livestock manure, urban), specialization and crop-livestock connectivity covariance, and destiny-mix shifts.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -1839,6 +1860,234 @@
 
         </dt>
         <dd>Decompose a weighted aggregate ratio.</dd>
+
+        <dt>
+
+          <code><a href="decompose_cropland_surplus.html">decompose_cropland_surplus()</a></code>
+
+        </dt>
+        <dd>Decompose cropland N surplus into size, intensity, and inefficiency drivers</dd>
+
+        <dt>
+
+          <code><a href="decompose_semi_natural_surplus.html">decompose_semi_natural_surplus()</a></code>
+
+        </dt>
+        <dd>Decompose semi-natural agroecosystem N surplus into size, intensity, and inefficiency drivers</dd>
+
+        <dt>
+
+          <code><a href="decompose_manure_losses.html">decompose_manure_losses()</a></code>
+
+        </dt>
+        <dd>Decompose livestock manure management losses into herd, feed, excretion, and management-loss drivers</dd>
+
+        <dt>
+
+          <code><a href="decompose_urban_losses.html">decompose_urban_losses()</a></code>
+
+        </dt>
+        <dd>Decompose urban nitrogen losses into population, per-capita, and recycling drivers</dd>
+
+        <dt>
+
+          <code><a href="decompose_terr_losses.html">decompose_terr_losses()</a></code>
+
+        </dt>
+        <dd>Decompose total territorial N losses into compartments and mechanisms</dd>
+
+        <dt>
+
+          <code><a href="decompose_terr_losses_periods.html">decompose_terr_losses_periods()</a></code>
+
+        </dt>
+        <dd>Decompose territorial N losses by reference period (chained)</dd>
+
+        <dt>
+
+          <code><a href="decompose_specialization_cov.html">decompose_specialization_cov()</a></code>
+
+        </dt>
+        <dd>Decompose specialization from diversification via the Olley-Pakes allocation covariance</dd>
+
+        <dt>
+
+          <code><a href="decompose_crop_livestock_conn.html">decompose_crop_livestock_conn()</a></code>
+
+        </dt>
+        <dd>Compute the crop-livestock connectivity index per province</dd>
+
+        <dt>
+
+          <code><a href="decompose_destiny_mix.html">decompose_destiny_mix()</a></code>
+
+        </dt>
+        <dd>Compute the national cropland destiny mix over time</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp.html">plot_loss_decomp()</a></code>
+
+        </dt>
+        <dd>Plot cumulative drivers of the change in territorial N losses</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp_periods.html">plot_loss_decomp_periods()</a></code>
+
+        </dt>
+        <dd>Plot period-based drivers of the change in territorial N losses</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp_periods_panel.html">plot_loss_decomp_periods_panel()</a></code>
+
+        </dt>
+        <dd>Plot period-based drivers of territorial N losses, as one combined panel plot</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp_rolling.html">plot_loss_decomp_rolling()</a></code>
+
+        </dt>
+        <dd>Plot rolling-mean year-on-year drivers of the change in territorial N losses</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp_rolling_panel.html">plot_loss_decomp_rolling_panel()</a></code>
+
+        </dt>
+        <dd>Plot rolling-mean year-on-year drivers of territorial N losses, as one combined panel plot</dd>
+
+        <dt>
+
+          <code><a href="plot_loss_decomp_yearly.html">plot_loss_decomp_yearly()</a></code>
+
+        </dt>
+        <dd>Plot year-on-year (non-cumulative) drivers of the change in territorial N losses</dd>
+
+        <dt>
+
+          <code><a href="plot_compart_factor.html">plot_compart_factor()</a></code>
+
+        </dt>
+        <dd>Plot each compartment's own factor breakdown</dd>
+
+        <dt>
+
+          <code><a href="plot_compart_factor_periods.html">plot_compart_factor_periods()</a></code>
+
+        </dt>
+        <dd>Plot each compartment's own factor breakdown by period, as one combined panel plot</dd>
+
+        <dt>
+
+          <code><a href="plot_compart_factor_roll.html">plot_compart_factor_roll()</a></code>
+
+        </dt>
+        <dd>Plot each compartment's own factor breakdown, rolling mean</dd>
+
+        <dt>
+
+          <code><a href="plot_compart_factor_roll_panel.html">plot_compart_factor_roll_panel()</a></code>
+
+        </dt>
+        <dd>Plot each compartment's own factor breakdown, rolling mean, as one combined panel plot</dd>
+
+        <dt>
+
+          <code><a href="plot_compart_factor_yearly.html">plot_compart_factor_yearly()</a></code>
+
+        </dt>
+        <dd>Plot each compartment's own factor breakdown, year-on-year (non-cumulative)</dd>
+
+        <dt>
+
+          <code><a href="plot_specialization_cov.html">plot_specialization_cov()</a></code>
+
+        </dt>
+        <dd>Plot the specialization-vs-diversification allocation covariance</dd>
+
+        <dt>
+
+          <code><a href="plot_crop_livestock_conn.html">plot_crop_livestock_conn()</a></code>
+
+        </dt>
+        <dd>Plot the crop-livestock connectivity index</dd>
+
+        <dt>
+
+          <code><a href="plot_destiny_mix.html">plot_destiny_mix()</a></code>
+
+        </dt>
+        <dd>Plot the cropland destiny mix over time</dd>
+      </dl></div><div class="section level2">
+      <h2 id="circularity-index">Circularity index<a class="anchor" aria-label="anchor" href="#circularity-index"></a></h2>
+
+      <div class="section-desc"><p>Finn’s cycling index for the nitrogen flow network.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="create_finn_indicator.html">create_finn_indicator()</a></code>
+
+        </dt>
+        <dd>Calculate Finn Cycling Index for each province and year</dd>
+
+        <dt>
+
+          <code><a href="plot_finn_circularity.html">plot_finn_circularity()</a></code>
+
+        </dt>
+        <dd>Plot Finn Cycling Index evolution and period comparison</dd>
+      </dl></div><div class="section level2">
+      <h2 id="national-trade-validation">National trade validation<a class="anchor" aria-label="anchor" href="#national-trade-validation"></a></h2>
+
+      <div class="section-desc"><p>Compare provincial-model trade flows against raw FAOSTAT bilateral trade totals.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="compute_trade_flows_raw.html">compute_trade_flows_raw()</a></code>
+
+        </dt>
+        <dd>Compute national trade flows: model vs. raw historical FAO series</dd>
+
+        <dt>
+
+          <code><a href="validate_national_trade.html">validate_national_trade()</a></code>
+
+        </dt>
+        <dd>Validate national net trade balance</dd>
+
+        <dt>
+
+          <code><a href="validate_national_trade_raw.html">validate_national_trade_raw()</a></code>
+
+        </dt>
+        <dd>Validate national net trade against raw historical FAO series</dd>
+
+        <dt>
+
+          <code><a href="plot_national_trade_flows_raw.html">plot_national_trade_flows_raw()</a></code>
+
+        </dt>
+        <dd>Plot national trade flows: model vs. raw historical FAO series</dd>
+
+        <dt>
+
+          <code><a href="plot_national_trade_validation.html">plot_national_trade_validation()</a></code>
+
+        </dt>
+        <dd>Plot national net trade validation</dd>
       </dl></div><div class="section level2">
       <h2 id="multi-regional-input-output-model">Multi-regional input-output model<a class="anchor" aria-label="anchor" href="#multi-regional-input-output-model"></a></h2>
 

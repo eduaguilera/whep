@@ -35,12 +35,13 @@ includes the following columns:
   agroecosystems, Livestock, Fish, or Agro-industry.
 
 - `origin`: The origin category of N: Cropland, Semi-natural
-  agroecosystems, Livestock, Fish, Agro-industry, Deposition, Fixation,
-  Synthetic, People (waste water), Livestock (manure).
+  agroecosystems, Livestock (manure), People (waste water), Deposition,
+  Fixation, Synthetic, or Outside. Fish and Agro-industry are `box`
+  values, not origins; their nitrogen enters as Outside.
 
 - `destiny`: The destiny category of N: population_food,
   population_other_uses, livestock_mono, livestock_rum (feed), export,
-  Cropland (for N soil inputs).
+  Cropland and semi_natural_agroecosystems (for N soil inputs).
 
 - `mg_n`: Nitrogen amount in megagrams (Mg).
 

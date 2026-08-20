@@ -938,6 +938,12 @@ typologies, etc.
   : System NUE
 - [`create_n_nat_destiny()`](https://eduaguilera.github.io/whep/reference/create_n_nat_destiny.md)
   : GRAFS Nitrogen (N) flows – National Spain
+- [`run_typology_sensitivity()`](https://eduaguilera.github.io/whep/reference/run_typology_sensitivity.md)
+  : Run one-at-a-time sensitivity analysis on typology thresholds.
+- [`plot_typology_indicators_panel()`](https://eduaguilera.github.io/whep/reference/plot_typology_indicators_panel.md)
+  : Plot four N indicators as time series per typology
+- [`plot_typology_periods_panel()`](https://eduaguilera.github.io/whep/reference/plot_typology_periods_panel.md)
+  : Plot four N indicators as period comparisons per typology
 
 ## Data-frame utilities
 
@@ -976,12 +982,99 @@ and an isolated-flip continuity override.
 
 ## Decomposition analysis
 
-Functions for index decomposition analysis.
+Functions for index decomposition analysis, and LMDI decomposition of
+territorial nitrogen surplus and losses (cropland, semi-natural,
+livestock manure, urban), specialization and crop-livestock connectivity
+covariance, and destiny-mix shifts.
 
 - [`calculate_lmdi()`](https://eduaguilera.github.io/whep/reference/calculate_lmdi.md)
   : Calculate LMDI decomposition.
 - [`decompose_weighted_ratio()`](https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.md)
   : Decompose a weighted aggregate ratio.
+- [`decompose_cropland_surplus()`](https://eduaguilera.github.io/whep/reference/decompose_cropland_surplus.md)
+  : Decompose cropland N surplus into size, intensity, and inefficiency
+  drivers
+- [`decompose_semi_natural_surplus()`](https://eduaguilera.github.io/whep/reference/decompose_semi_natural_surplus.md)
+  : Decompose semi-natural agroecosystem N surplus into size, intensity,
+  and inefficiency drivers
+- [`decompose_manure_losses()`](https://eduaguilera.github.io/whep/reference/decompose_manure_losses.md)
+  : Decompose livestock manure management losses into herd, feed,
+  excretion, and management-loss drivers
+- [`decompose_urban_losses()`](https://eduaguilera.github.io/whep/reference/decompose_urban_losses.md)
+  : Decompose urban nitrogen losses into population, per-capita, and
+  recycling drivers
+- [`decompose_terr_losses()`](https://eduaguilera.github.io/whep/reference/decompose_terr_losses.md)
+  : Decompose total territorial N losses into compartments and
+  mechanisms
+- [`decompose_terr_losses_periods()`](https://eduaguilera.github.io/whep/reference/decompose_terr_losses_periods.md)
+  : Decompose territorial N losses by reference period (chained)
+- [`decompose_specialization_cov()`](https://eduaguilera.github.io/whep/reference/decompose_specialization_cov.md)
+  : Decompose specialization from diversification via the Olley-Pakes
+  allocation covariance
+- [`decompose_crop_livestock_conn()`](https://eduaguilera.github.io/whep/reference/decompose_crop_livestock_conn.md)
+  : Compute the crop-livestock connectivity index per province
+- [`decompose_destiny_mix()`](https://eduaguilera.github.io/whep/reference/decompose_destiny_mix.md)
+  : Compute the national cropland destiny mix over time
+- [`plot_loss_decomp()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp.md)
+  : Plot cumulative drivers of the change in territorial N losses
+- [`plot_loss_decomp_periods()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp_periods.md)
+  : Plot period-based drivers of the change in territorial N losses
+- [`plot_loss_decomp_periods_panel()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp_periods_panel.md)
+  : Plot period-based drivers of territorial N losses, as one combined
+  panel plot
+- [`plot_loss_decomp_rolling()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp_rolling.md)
+  : Plot rolling-mean year-on-year drivers of the change in territorial
+  N losses
+- [`plot_loss_decomp_rolling_panel()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp_rolling_panel.md)
+  : Plot rolling-mean year-on-year drivers of territorial N losses, as
+  one combined panel plot
+- [`plot_loss_decomp_yearly()`](https://eduaguilera.github.io/whep/reference/plot_loss_decomp_yearly.md)
+  : Plot year-on-year (non-cumulative) drivers of the change in
+  territorial N losses
+- [`plot_compart_factor()`](https://eduaguilera.github.io/whep/reference/plot_compart_factor.md)
+  : Plot each compartment's own factor breakdown
+- [`plot_compart_factor_periods()`](https://eduaguilera.github.io/whep/reference/plot_compart_factor_periods.md)
+  : Plot each compartment's own factor breakdown by period, as one
+  combined panel plot
+- [`plot_compart_factor_roll()`](https://eduaguilera.github.io/whep/reference/plot_compart_factor_roll.md)
+  : Plot each compartment's own factor breakdown, rolling mean
+- [`plot_compart_factor_roll_panel()`](https://eduaguilera.github.io/whep/reference/plot_compart_factor_roll_panel.md)
+  : Plot each compartment's own factor breakdown, rolling mean, as one
+  combined panel plot
+- [`plot_compart_factor_yearly()`](https://eduaguilera.github.io/whep/reference/plot_compart_factor_yearly.md)
+  : Plot each compartment's own factor breakdown, year-on-year
+  (non-cumulative)
+- [`plot_specialization_cov()`](https://eduaguilera.github.io/whep/reference/plot_specialization_cov.md)
+  : Plot the specialization-vs-diversification allocation covariance
+- [`plot_crop_livestock_conn()`](https://eduaguilera.github.io/whep/reference/plot_crop_livestock_conn.md)
+  : Plot the crop-livestock connectivity index
+- [`plot_destiny_mix()`](https://eduaguilera.github.io/whep/reference/plot_destiny_mix.md)
+  : Plot the cropland destiny mix over time
+
+## Circularity index
+
+Finn’s cycling index for the nitrogen flow network.
+
+- [`create_finn_indicator()`](https://eduaguilera.github.io/whep/reference/create_finn_indicator.md)
+  : Calculate Finn Cycling Index for each province and year
+- [`plot_finn_circularity()`](https://eduaguilera.github.io/whep/reference/plot_finn_circularity.md)
+  : Plot Finn Cycling Index evolution and period comparison
+
+## National trade validation
+
+Compare provincial-model trade flows against raw FAOSTAT bilateral trade
+totals.
+
+- [`compute_trade_flows_raw()`](https://eduaguilera.github.io/whep/reference/compute_trade_flows_raw.md)
+  : Compute national trade flows: model vs. raw historical FAO series
+- [`validate_national_trade()`](https://eduaguilera.github.io/whep/reference/validate_national_trade.md)
+  : Validate national net trade balance
+- [`validate_national_trade_raw()`](https://eduaguilera.github.io/whep/reference/validate_national_trade_raw.md)
+  : Validate national net trade against raw historical FAO series
+- [`plot_national_trade_flows_raw()`](https://eduaguilera.github.io/whep/reference/plot_national_trade_flows_raw.md)
+  : Plot national trade flows: model vs. raw historical FAO series
+- [`plot_national_trade_validation()`](https://eduaguilera.github.io/whep/reference/plot_national_trade_validation.md)
+  : Plot national net trade validation
 
 ## Multi-regional input-output model
 

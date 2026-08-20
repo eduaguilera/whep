@@ -80,11 +80,12 @@ It includes the following columns:</p><ul><li><p><code>year</code>: The year in 
 <li><p><code>box</code>: One of the GRAFS model systems: cropland,
 Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.</p></li>
 <li><p><code>origin</code>: The origin category of N: Cropland,
-Semi-natural agroecosystems, Livestock, Fish, Agro-industry, Deposition,
-Fixation, Synthetic, People (waste water), Livestock (manure).</p></li>
+Semi-natural agroecosystems, Livestock (manure), People (waste water),
+Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
+<code>box</code> values, not origins; their nitrogen enters as Outside.</p></li>
 <li><p><code>destiny</code>: The destiny category of N: population_food,
 population_other_uses, livestock_mono, livestock_rum (feed), export,
-Cropland (for N soil inputs).</p></li>
+Cropland and semi_natural_agroecosystems (for N soil inputs).</p></li>
 <li><p><code>mg_n</code>: Nitrogen amount in megagrams (Mg).</p></li>
 <li><p><code>province_name</code>: Set to "Spain" for all national-level rows.</p></li>
 </ul></div>
