@@ -39,6 +39,23 @@
   sides disagree about the label, the old keys turned a 6-row skeleton into 2
   and lost two years of shares entirely.
 
+* **`inst/scripts/prepare_spatialize_all.R` no longer reuses a production
+  cache built under an older area model (#657).** The on-disk
+  `.prod_cache.parquet` was invalidated on the requested year span alone, so a
+  cache written before the polity restructure (#628, published areas
+  195 -> 216) kept being reused for as long as its years covered the request,
+  and every spatialize pin derived from it inherited the old `area_code`
+  vocabulary (codes `276`/`277` instead of `206`, and no cell of their own for
+  the 21 areas promoted out of bucket 999). The cache is now keyed on a
+  content hash of the package's whole data payload plus the cached table's
+  own column set
+  and sorted `area_code` domain, recorded in a `.prod_cache.meta.rds` sidecar
+  written next to it. A cache with no sidecar -- which is every cache deployed
+  today -- is discarded with a warning naming the reason. No published values
+  change from this commit alone; the next run of the prep script rebuilds
+  production instead of reading a stale table, which is where the spatialize
+  pins pick up today's area model.
+
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
   stub (#449).** `faostat-fbs-new` had been carrying a pre-October-2025 FBS
