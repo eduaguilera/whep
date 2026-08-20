@@ -235,6 +235,55 @@ test_that(".combine_fodder keeps one row per area_code and item (#655)", {
 })
 
 
+test_that(".combine_fodder ignores dm_yield years no fodder source covers", {
+  # `dm_yield` spans every FAOSTAT year, the fodder sources do not: 7705 of its
+  # keys carry no fodder record. They used to arrive as `NA`-label rows and be
+  # dropped by `.fill_fodder_gaps()`'s `!is.na(area)`; now that the drop keys on
+  # `area_code`, which they do have, the join type is what keeps them out -- and
+  # they must stay out, or the cross join fabricates a fodder series for a year
+  # no source covers.
+  i_fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    1961L, "Egypt (1925-1967)", 59L, "Clover", "640", 100
+  )
+  fodder_euadb <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    Name_Eurostat = character(),
+    Label = character(),
+    Unit = character(),
+    value = numeric()
+  )
+  dm_yield <- tibble::tribble(
+    ~year, ~area_code, ~yield_dm,
+    1961L, 59L, 4,
+    # a year, and an area, the fodder sources say nothing about
+    2020L, 59L, 4,
+    1961L, 100L, 4
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_biomass, ~Name_Eurostat,
+    "Clover", "640", "Clover biomass", NA_character_
+  )
+  biomass <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+    "Clover biomass", 0.2, 0.03
+  )
+
+  result <- whep:::.combine_fodder(
+    i_fodder,
+    fodder_euadb,
+    dm_yield,
+    items_prod,
+    biomass
+  )
+
+  expect_equal(sort(unique(result$year)), 1961)
+  expect_equal(unique(result$area_code), 59L)
+})
+
+
 # -- EU AgriDB region crosswalk ------------------------------------------------
 
 # `.read_fodder_euadb()` resolves the source's `Region` through

@@ -929,6 +929,13 @@ build_primary_production <- function(
       value = dplyr::if_else(value == 0, NA_real_, value)
     ) |>
     dplyr::select(-dplyr::any_of("area")) |>
+    # `inner_join`, not `right_join`: the 7705 `dm_yield` keys with no fodder
+    # record added rows carrying nothing but a `yield_dm`, and the old
+    # `!is.na(area)` drop in `.fill_fodder_gaps()` removed every one of them --
+    # swapping the join type on `main` leaves that build byte-identical. Once
+    # that drop keys on `area_code`, which those rows do have, they would
+    # instead reach the cross join and hand it 12 years (2013-2024) no fodder
+    # source covers, so the join type has to say what the label filter used to.
     dplyr::inner_join(
       dm_yield |> dplyr::select(year, area_code, yield_dm),
       by = c("year", "area_code")
