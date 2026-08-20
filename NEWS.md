@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`polity_area_crosswalk` no longer names an ISO3 stem after a polity
+  (#711).** Two of its columns were `reporting_polity_code` and
+  `reporting_polity_name`, the package's own published names for "the polity
+  itself" (`?whep_polity_columns`), but held the ISO3-like stems and legacy
+  labels this package vendors from `regions_full.csv`: `"ARM"`, `"ROCE"`,
+  `"REUR"`, and **0 of the 641 non-`NA` values was a `polities$polity_code`**.
+  The table's own documentation sent readers there to ask which territory a row
+  belongs to, so following it returned a column that answers nothing -- the same
+  trap #687 removed from `regions_full`, in the opposite column. They are now
+  `legacy_polity_prefix` and `legacy_polity_name`, matching the vocabulary #687
+  settled on, and the `@format` block documents both as explicitly *not* an
+  identity. **This is a published schema break** for anything reading those two
+  names off the crosswalk; the answer they appeared to promise is the table's
+  `polity_code`/`polity_name`, and in a WHEP *output* it is
+  `reporting_polity_code`, which is unchanged and still a real periodized code.
+  **No published values change**: every cell of the table is byte-identical and
+  nothing in the package computed from the renamed pair except
+  `resolve_polity_label()`'s refusal list, which reads the same values under the
+  new name and returns the same result.
+
 * **`resolve_polity_label()` now covers the current year (#712).** Its year
   filter read `polity_end_year` strictly exclusively, so a polity whose interval
   ends at the open-period sentinel stopped covering its own terminal year: at

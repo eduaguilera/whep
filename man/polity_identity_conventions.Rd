@@ -92,6 +92,13 @@ is a \link{polities} code}. Until whep#687 that column was literally named
 back empty and nothing warned. It is now \code{legacy_polity_prefix}, which claims
 nothing. Their real carrier is \code{reporting_polity_code}, a \link{polities} code on
 all 259 of \code{regions_full}'s non-\code{NA} rows and all 198 of \code{polities_cats}'s.
+
+\link{polity_area_crosswalk} vendors the same stems, and shipped them under
+\code{reporting_polity_code} — the name that means the opposite — until whep#711
+renamed them \code{legacy_polity_prefix}/\code{legacy_polity_name} to match. The
+register does not reach that table, because it enumerates year-\emph{less}
+objects and the crosswalk carries a year; the guard for it lives in
+\code{tests/testthat/test_territorial_identity.R} alongside #687's.
 }
 
 \examples{

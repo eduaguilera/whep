@@ -1688,7 +1688,7 @@ get_polity_geometries <- function(polity_codes = NULL) {
   unmapped <- cw[!is.na(cw$mapping_status) & cw$mapping_status == "unmapped", ]
   unique(stats::na.omit(.norm_polity_label(c(
     unmapped$area_name,
-    unmapped$reporting_polity_name
+    unmapped$legacy_polity_name
   ))))
 }
 
