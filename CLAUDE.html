@@ -235,7 +235,7 @@
 <h2 id="ci-checks">CI Checks<a class="anchor" aria-label="anchor" href="#ci-checks"></a></h2>
 <p>The PR must pass these GitHub Actions checks:</p>
 <ol style="list-style-type: decimal"><li>
-<strong>R-CMD-check</strong> (5 platforms, 30-min timeout): <code><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck::rcmdcheck()</a></code> with no errors, warnings, or notes. Tests run here, which is why a network-dependent test breaks the build.</li>
+<strong>R-CMD-check</strong> (4 platforms, 45-min timeout): <code><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck::rcmdcheck()</a></code> with no errors, warnings, or notes. Tests run here, which is why a network-dependent test breaks the build. <strong>R-devel is not one of the four</strong>: RSPM ships no R-devel binaries, so that leg source-builds the geo stack every time the R-devel snapshot rolls its cache key, and it told you nothing about your change while you waited. It runs as a separate weekly job (<code>R-CMD-check-devel</code>, Wednesdays 04:00 UTC, also <code>workflow_dispatch</code>) with <code>continue-on-error</code>, so a new R is still caught early without blocking a merge. Check it when R releases; do not expect it green on a PR.</li>
 <li>
 <strong>lint</strong> (<code>lintr</code>): with <code>object_usage_linter</code>, <code>line_length_linter</code>, <code>indentation_linter</code> and <code>commas_linter</code> disabled (they conflict with <code>air</code>). <code>inst/scripts</code> and <code>inst/analysis</code> are excluded.</li>
 <li>

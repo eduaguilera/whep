@@ -454,10 +454,17 @@ Conventions of the codebase (follow them; they are how the code reads):
 
 The PR must pass these GitHub Actions checks:
 
-1.  **R-CMD-check** (5 platforms, 30-min timeout):
+1.  **R-CMD-check** (4 platforms, 45-min timeout):
     [`rcmdcheck::rcmdcheck()`](http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.md)
     with no errors, warnings, or notes. Tests run here, which is why a
-    network-dependent test breaks the build.
+    network-dependent test breaks the build. **R-devel is not one of the
+    four**: RSPM ships no R-devel binaries, so that leg source-builds
+    the geo stack every time the R-devel snapshot rolls its cache key,
+    and it told you nothing about your change while you waited. It runs
+    as a separate weekly job (`R-CMD-check-devel`, Wednesdays 04:00 UTC,
+    also `workflow_dispatch`) with `continue-on-error`, so a new R is
+    still caught early without blocking a merge. Check it when R
+    releases; do not expect it green on a PR.
 2.  **lint** (`lintr`): with `object_usage_linter`,
     `line_length_linter`, `indentation_linter` and `commas_linter`
     disabled (they conflict with `air`). `inst/scripts` and
