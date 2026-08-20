@@ -15,9 +15,18 @@ permissions: read-all
 jobs:
   pkgdown:
     runs-on: ubuntu-latest
-    # Only restrict concurrency for non-PR jobs
+    # Per ref, and cancelling: a superseded site build has nothing to
+    # contribute. The upstream template keyed the group so that PR runs each got
+    # their own (`github.run_id`) while every non-PR run shared one, which made
+    # consecutive merges queue behind each other and cancel while pending
+    # instead of the newest simply superseding the oldest.
     concurrency:
-      group: pkgdown-${{ github.event_name != 'pull_request' || github.run_id }}
+      group: pkgdown-${{ github.ref }}
+      cancel-in-progress: true
+    # Backstop. Without one this inherits GitHub's 360-minute default; a healthy
+    # build is ~10 min plus the dependency install. The site also pulls
+    # bootstrap-toc from a CDN, which has hung rather than failed.
+    timeout-minutes: 30
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     permissions:
