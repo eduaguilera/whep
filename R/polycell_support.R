@@ -30,8 +30,11 @@
 #'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
 #'   **exclusive at a succession** and **inclusive at the open end**, the
 #'   convention `polities` is documented under, and neither bound is ever
-#'   parsed out of `polity_code`. Optional `wiki_status`, `polity_type`,
-#'   `polygon_status` and `area_code` columns are honoured.
+#'   parsed out of `polity_code`. The intervals of one polity must partition
+#'   time: two that overlap are an error rather than a shape the producer
+#'   reconciles, and abort with class `whep_pcs_overlapping_interval`. Optional
+#'   `wiki_status`, `polity_type`, `polygon_status` and `area_code` columns are
+#'   honoured.
 #' @param water Optional per-cell `tibble` of inland water with `lon`, `lat`
 #'   and `water_frac`, a fraction of the **whole** cell, as
 #'   [read_glwd_water()] returns it.
@@ -971,6 +974,7 @@ expand_polycell_years <- function(support, years) {
   }
   keys <- c("cell_id", "polity_code", "start_year", "end_year")
   .pcs_abort_repeated_key(pieces, keys)
+  .pcs_abort_interval_overlap(pieces)
   pieces |>
     dplyr::inner_join(
       .pcs_breakpoints(pieces),
@@ -1037,6 +1041,82 @@ expand_polycell_years <- function(support, years) {
            without a warning."
     ),
     class = "whep_pcs_repeated_key"
+  )
+}
+
+# A repeated key is only the subset of overlapping validity that a comparison
+# of whole keys happens to see: two intervals of one polity in one cell that
+# are not identical but do overlap, `[2000, 2015)` against `[2010, 2020)`, pass
+# it because `end_year` is part of the key. Measured on the example geometry
+# supplied twice at those two intervals, `build_polycell_support()` completed
+# with no abort and emitted `[2010, 2015)` TWICE for every one of the six
+# cells, double counting that polity's territory over the shared years. The
+# failure mode the guard exists for is overlapping validity, so this checks for
+# that directly.
+#
+# `end_year` is EXCLUSIVE at a succession, so touching intervals -- `[2000,
+# 2010)` then `[2010, 2020)`, the ordinary shape of two epochs of one polity in
+# one cell -- are not an overlap and must still split. The comparison is
+# therefore strict: only a `start_year` BELOW the previous `end_year` overlaps.
+# The inclusive open end cannot make a false positive, because an interval that
+# another interval of the same polity and cell starts on is a succession, not
+# an open end.
+#
+# Sorting by `start_year` makes the consecutive comparison complete rather than
+# merely cheap: if every interval starts at or after its predecessor's end then
+# the ends chain, `end_k <= start_(k+1) <= start_j`, so no non-consecutive pair
+# can overlap either.
+#
+# This ABORTS, like the repeated-key guard it extends. An overlap silently
+# doubles a polity's area over the shared years while every row stays
+# individually well formed, so the additivity and reaggregation checks
+# downstream all still pass; and whep#461's overlap WARNING was ignored long
+# enough for a bad artifact to be adopted, which is the evidence that a warning
+# is not enough here.
+.pcs_abort_interval_overlap <- function(pieces) {
+  # No `distinct()` first: `.pcs_abort_repeated_key()` runs ahead of this and
+  # aborts on a repeated key, so the keys here are already unique -- and a
+  # direct caller that skips it gets the repeat reported as the overlap it also
+  # is, rather than deduplicated away.
+  overlaps <- pieces |>
+    dplyr::select(
+      "cell_id",
+      "polity_code",
+      "start_year",
+      "end_year"
+    ) |>
+    dplyr::arrange(
+      .data$cell_id,
+      .data$polity_code,
+      .data$start_year,
+      .data$end_year
+    ) |>
+    dplyr::mutate(
+      previous_start = dplyr::lag(.data$start_year),
+      previous_end = dplyr::lag(.data$end_year),
+      .by = c("cell_id", "polity_code")
+    ) |>
+    dplyr::filter(.data$start_year < .data$previous_end)
+  if (nrow(overlaps) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- utils::head(overlaps, 3L)
+  labels <- stringr::str_glue(
+    "cell {shown$cell_id} / {shown$polity_code} ",
+    "[{shown$previous_start}, {shown$previous_end}) overlaps ",
+    "[{shown$start_year}, {shown$end_year})"
+  )
+  cli::cli_abort(
+    c(
+      "{nrow(overlaps)} pair{?s} of polycell intervals overlap in the
+       clipped pieces.",
+      x = "Showing up to three: {.val {labels}}.",
+      i = "{.fn build_polycell_support} needs the intervals of one polity in
+           one cell to partition time. {.field end_year} is exclusive at a
+           succession, so touching intervals are fine; an overlap emits the
+           shared years twice and doubles that polity's territory over them."
+    ),
+    class = "whep_pcs_overlapping_interval"
   )
 }
 

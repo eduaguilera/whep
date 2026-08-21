@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`build_polycell_support()` now aborts on overlapping validity intervals,
+  not only on repeated keys (#758).** The existing guard keyed on
+  `(cell_id, polity_code, start_year, end_year)`, so it saw only the subset of
+  overlapping validity in which two intervals of one polity in one cell are
+  identical. Supplying the same polity at `[2000, 2015)` and `[2010, 2020)`
+  through the `geometries` argument completed with no abort and no warning, and
+  emitted the shared interval `[2010, 2015)` twice per cell, doubling that
+  polity's territory over those years. The producer now checks the intervals of
+  each `(cell_id, polity_code)` for genuine overlap and aborts with class
+  `whep_pcs_overlapping_interval`. The comparison is strict, so a succession —
+  `[2000, 2010)` then `[2010, 2020)`, `end_year` being exclusive at a
+  succession — is not an overlap and still splits as before. No published value
+  changes: the shipped `polities` table (767 rows) carries no `polity_code`
+  twice and no overlapping intervals, so no production build reached this, and
+  a full offline `build_polycell_support()` from it finds zero overlapping
+  pairs.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not

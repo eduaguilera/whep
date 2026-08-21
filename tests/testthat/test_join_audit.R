@@ -189,12 +189,17 @@ test_that("every year-free territorial grouping is classified", {
   )
   expect_equal(counts$n_found, counts$n_baseline)
 
-  # 71 is the count on the commit that introduced this gate, measured the same
+  # 71 was the count on the commit that introduced this gate, measured the same
   # way the join cap is: `sum(.territorial_groupings() |> filter(!has_year) |>
   # count(owner, group_fn, key) |> pull(n))`. Lower it when a group gains a
   # year; raise it only with the reason written into the row.
+  #
+  # 72 since whep#758: `.pcs_abort_interval_overlap()` compares each polycell
+  # interval with the previous one inside `(cell_id, polity_code)`, which is a
+  # year-free territorial group by necessity -- the previous interval only
+  # exists while the group holds the whole sequence.
   full <- whep:::.territorial_grouping_baseline()
-  expect_lte(sum(full$n), 71L)
+  expect_lte(sum(full$n), 72L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
