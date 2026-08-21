@@ -2048,7 +2048,7 @@ utils::globalVariables(
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`
     "final_conversion_factor",
-    # n_prov_destiny.R (#432) — .processing_n_scaling()'s N-conserving scaling
+    # n_prov_destiny.R — .processing_n_scaling()'s N-conserving scaling
     # table and the helpers that consume it
     "priced",
     "processing_loss_n",

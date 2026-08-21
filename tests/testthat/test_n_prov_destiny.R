@@ -56,7 +56,7 @@ test_that(".assemble_n_nat_destiny keeps processing losses out of export", {
   out <- .assemble_n_nat_destiny(prov_raw)
 
   # The provincial export amount must survive unchanged: processing losses
-  # must not fold back into the national production/export residual (#432).
+  # must not fold back into the national production/export residual.
   expect_equal(out$mg_n[out$destiny == "export"], 5)
   expect_equal(out$mg_n[out$destiny == "processing_losses"], 20)
   expect_equal(sum(out$mg_n), 35)

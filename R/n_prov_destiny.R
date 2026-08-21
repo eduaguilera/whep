@@ -32,7 +32,7 @@
 #'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   processing_losses (N not credited to a processed output, see #432),
+#'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
@@ -166,7 +166,7 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
-#'   processing_losses (N not credited to a processed output, see #432),
+#'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'   - `province_name`: Set to "Spain" for all national-level rows.
@@ -213,8 +213,8 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::slice_max(weight, n = 1, with_ties = FALSE) |>
     dplyr::ungroup()
 
-  # processing_losses is N the primary item's destinies never see (#432): it
-  # must stay out of the production/export residual below, or it re-inflates
+  # processing_losses is N the primary item's destinies never see: it must
+  # stay out of the production/export residual below, or it re-inflates
   # national export exactly as it used to inflate provincial export.
   nat_production_detail <- prov |>
     dplyr::filter(Origin == Box, Destiny != "processing_losses") |>
@@ -1352,7 +1352,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' share of processed_fm, and tagged with `destiny = "processing_losses"`
 #' instead of being left inside the primary item's own destinies. Downstream
 #' surplus calculations only recognise a fixed set of tracked output
-#' destinies, so this falls into surplus automatically (#432).
+#' destinies, so this falls into surplus automatically.
 #'
 #' @param candidate Production rows with processed_fm, as built by
 #' `.calculate_processed_amounts()`.

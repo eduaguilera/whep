@@ -154,7 +154,7 @@
 
 * **The N left over from a zero-N processed-item substitution (wine, olive
   oil, sugar) now gets its own `processing_losses` destiny instead of
-  staying folded into the primary crop's own destinies (whep#432).**
+  staying folded into the primary crop's own destinies.**
   Previously, `removal_scale` only ever removed the N actually credited to
   a named output, so a near-zero-N output (wine from grapes, oil from
   olives) left most of the diverted mass sitting with the primary crop,
