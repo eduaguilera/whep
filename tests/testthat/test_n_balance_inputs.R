@@ -693,10 +693,15 @@ testthat::test_that("the crops layer the carbon path builds resolves (#788)", {
   layer <- whep:::.sci_manure_crop_layer(production)
   testthat::expect_setequal(layer$crop, c("15", "44", "56"))
 
-  # Resolves with no abort and no deprecation warning, and to the crosswalk's
-  # own item_cbs_code -- an invariant, not a hand-picked expectation.
+  # Resolves with no abort and without taking the deprecated name bridge, and
+  # to the crosswalk's own item_cbs_code -- an invariant, not a hand-picked
+  # expectation. Narrowed to the bridge's own condition class: a bare
+  # expect_no_warning() also catches dplyr's lifecycle warnings, which fire
+  # from unrelated code and differ by dplyr version (dplyr 1.2.0 deprecates
+  # dplyr::case_match(), which .ni_manure_fert_type() still uses).
   resolved <- testthat::expect_no_warning(
-    whep:::.ni_crop_to_item_cbs(layer$crop)
+    whep:::.ni_crop_to_item_cbs(layer$crop),
+    class = "whep_crop_key_name_deprecated"
   )
   expected <- whep:::.ni_item_cbs_from_prod(layer$crop)
   testthat::expect_equal(resolved, expected)
@@ -705,13 +710,27 @@ testthat::test_that("the crops layer the carbon path builds resolves (#788)", {
 
 testthat::test_that("the code key survives the full nitrogen assembly (#788)", {
   # End to end through build_n_inputs(), with the crops layer keyed the way
-  # .sci_manure_crop_layer() keys it, and no deprecation warning.
+  # .sci_manure_crop_layer() keys it, and without taking the name bridge.
+  #
+  # The assertion is narrowed twice over, for two different reasons:
+  #  * NOT bare. A bare expect_no_warning() failed in CI on dplyr 1.2.0, which
+  #    deprecates dplyr::case_match() and so warns from .ni_manure_fert_type()
+  #    -- unrelated to the key under test, and invisible on an older dplyr.
+  #  * By MESSAGE, not by condition class. build_n_inputs() reaches the
+  #    resolver from inside dplyr::mutate(), which catches an inner warning and
+  #    re-signals its own chained one ("There was 1 warning in
+  #    `dplyr::mutate()`"). The chained warning keeps the original TEXT but not
+  #    its class, so a class filter here matches nothing and would pass
+  #    vacuously. The class assertion lives on the direct call above instead.
   gridded <- .nbi_gridded()
   gridded$crops$crop <- "15"
   data <- .nbi_full_data()
   data$gridded <- gridded
 
-  out <- testthat::expect_no_warning(whep::build_n_inputs(data = data))
+  out <- testthat::expect_no_warning(
+    whep::build_n_inputs(data = data),
+    message = "Resolving the manure"
+  )
   cropland_manure <- out[
     out$fert_type %in%
       c("manure_solid", "manure_liquid") &
@@ -724,14 +743,24 @@ testthat::test_that("the code key survives the full nitrogen assembly (#788)", {
 })
 
 testthat::test_that("a name-keyed crop still resolves but warns as deprecated", {
+  # The condition class is asserted where it survives: on a direct call, with
+  # no dplyr::mutate() in between to re-signal the warning and drop its class.
+  testthat::expect_warning(
+    whep:::.ni_crop_to_item_cbs("barley"),
+    class = "whep_crop_key_name_deprecated"
+  )
+
   gridded <- .nbi_gridded()
   gridded$crops$crop <- "barley"
   data <- .nbi_full_data()
   data$gridded <- gridded
 
+  # End to end, the assertion is on the bridge's own wording rather than the
+  # bare word "deprecated", which dplyr's lifecycle warnings carry too -- a
+  # loose match could pass for the wrong reason.
   testthat::expect_warning(
     out <- whep::build_n_inputs(data = data),
-    "deprecated"
+    "Resolving the manure"
   )
   cropland_manure <- out[
     out$fert_type %in%

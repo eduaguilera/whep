@@ -547,7 +547,9 @@ build_n_inputs <- function(
 # one of its 9298 rows for 2010, all 171 crops, 1.383e9 ha (#788).
 #
 # A crop name is still accepted as a deprecated compatibility bridge, for layers
-# hand-built against the old contract, and warns. Ordering is unambiguous: no
+# hand-built against the old contract, and warns with the condition class
+# "whep_crop_key_name_deprecated" -- tests assert on that class rather than on
+# the word "deprecated", which dplyr's own lifecycle warnings also carry. Ordering is unambiguous: no
 # item_prod name equals a DIFFERENT item_prod_code in the crosswalk (`Fallow` is
 # the only name/code collision and both rows are the same item), so trying codes
 # first can never steal a name's match.
@@ -566,15 +568,18 @@ build_n_inputs <- function(
     resolved[by_name] <- from_name
     bridged <- unique(crop[by_name][!is.na(from_name)])
     if (length(bridged) > 0) {
-      cli::cli_warn(c(
-        "Resolving the manure {.field crop} key from a crop name is
+      cli::cli_warn(
+        c(
+          "Resolving the manure {.field crop} key from a crop name is
          deprecated.",
-        i = "Bridged by name: {.val {bridged}}. Pass
+          i = "Bridged by name: {.val {bridged}}. Pass
              {.code as.character(item_prod_code)} instead, the key the carbon
              balance's own crops layer already uses.",
-        i = "A name is not a unique key: {.val Fallow} names two
+          i = "A name is not a unique key: {.val Fallow} names two
              {.field item_prod_code}s and three codes carry no name."
-      ))
+        ),
+        class = "whep_crop_key_name_deprecated"
+      )
     }
   }
   unresolved <- unique(crop[is.na(resolved) & !is.na(crop)])
