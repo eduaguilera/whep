@@ -79,6 +79,17 @@ no polity code string is recoverable from this year-less grid. Carrying
 that identity needs the cell x polity x validity-interval unit tracked
 by epic whep#458, not a column added here.
 
+## Vintage of the area vocabulary
+
+The parquet's `area_code` values must all exist in the `regions.csv` the
+installed package carries, because that is the table its producer
+rasterizes through. A copy built through an older vintage keyed Ethiopia
+`62` and Sudan (former) `206` where today's lookup uses `238` and `276`,
+so adopting it deleted both countries from every consumer (whep#694).
+Such a file is now **refused** with class `whep_stale_cell_polity_grid`
+rather than read, and the message names the producer re-run that
+rebuilds it.
+
 ## Examples
 
 ``` r

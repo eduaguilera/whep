@@ -122,6 +122,18 @@ polity code string is recoverable from this year-less grid. Carrying that
 identity needs the cell x polity x validity-interval unit tracked by epic
 whep#458, not a column added here.</p>
     </div>
+    <div class="section level2">
+    <h2 id="vintage-of-the-area-vocabulary">Vintage of the area vocabulary<a class="anchor" aria-label="anchor" href="#vintage-of-the-area-vocabulary"></a></h2>
+
+
+<p>The parquet's <code>area_code</code> values must all exist in the <code>regions.csv</code> the
+installed package carries, because that is the table its producer
+rasterizes through. A copy built through an older vintage keyed Ethiopia
+<code>62</code> and Sudan (former) <code>206</code> where today's lookup uses <code>238</code> and <code>276</code>, so
+adopting it deleted both countries from every consumer (whep#694). Such a
+file is now <strong>refused</strong> with class <code>whep_stale_cell_polity_grid</code> rather than
+read, and the message names the producer re-run that rebuilds it.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
