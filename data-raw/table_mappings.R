@@ -357,14 +357,16 @@ reporting_areas <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    # NOT a polity code, and the published crosswalk column keeps the name it
-    # has always had so this rename is not two schema breaks at once: it is the
-    # vendored ISO3-LIKE STEM (`legacy_polity_prefix` since #687), used a few
-    # lines below only as a candidate PREFIX for polity inference. Every real
-    # answer this script emits is `polity_code`, resolved from the upstream map.
-    # Renaming the crosswalk's own column is whep#711.
-    reporting_polity_code = .data$legacy_polity_prefix,
-    reporting_polity_name = .data$polity_name,
+    # NOT a polity code and NOT a polity name. This is the vendored ISO3-LIKE
+    # STEM from regions_full.csv (`legacy_polity_prefix` since #687) and the
+    # legacy label that ships beside it, used a few lines below only as a
+    # candidate PREFIX for polity inference. Every real answer this script
+    # emits is `polity_code`/`polity_name`, resolved from the upstream map.
+    # Until whep#711 the pair was published as `reporting_polity_code` and
+    # `reporting_polity_name` -- the package's own names for a real periodized
+    # polity -- so the crosswalk answered the identity question with a stem.
+    legacy_polity_prefix = .data$legacy_polity_prefix,
+    legacy_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),
     region = .data$region
@@ -377,8 +379,8 @@ reporting_areas <- regions_for_crosswalk |>
       NA_character_
     ),
     reporting_prefix = dplyr::if_else(
-      .data$reporting_polity_code %in% known_polity_prefixes,
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix %in% known_polity_prefixes,
+      .data$legacy_polity_prefix,
       NA_character_
     ),
     fabio_row_prefix = dplyr::if_else(
@@ -392,7 +394,7 @@ reporting_areas <- regions_for_crosswalk |>
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix,
       .data$area_iso3c
     ),
     area_in_map = .data$area_code %in% faostat_area_map$area_code
@@ -685,8 +687,8 @@ polity_area_crosswalk <- dplyr::bind_rows(
     area_code,
     area_name,
     area_iso3c,
-    reporting_polity_code,
-    reporting_polity_name,
+    legacy_polity_prefix,
+    legacy_polity_name,
     cbs,
     fabio_code,
     region,
