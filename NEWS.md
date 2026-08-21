@@ -15,6 +15,31 @@
   pins, 1,070,446 rows in total), and the CBS production aggregate derived from
   them is bitwise identical, totals included.
 
+* **Historical trade rows no longer carry a dissolved country's label
+  (#719).** `.resolve_hist_trade_polities()` built its ISO3 -> area bridge by
+  keeping the first row per ISO3, and the area lookup orders by `area_code`, so
+  an ISO3 that names two FAOSTAT reporting areas entered as the lower code:
+  `ETH` as 62 ("Ethiopia PDR", dissolved 1993) rather than 238 ("Ethiopia").
+  The bridge now goes through `.iso3_area_code_bridge()`, which breaks that tie
+  on the polities database (#586, #718), and the `area` label is attached from
+  the resolved aggregation bucket rather than carried in from the member row --
+  the rule `.aggregate_to_polities()` and `.read_crop_residues()` already
+  follow.
+
+  **No published value moves.** On the real historical-trade pins the row keys,
+  `value`, `area_code` and `polity_code` are all identical before and after
+  (248,508 rows, 18,639,792,136.89 t). Only the `area` label changes, on 81,388
+  of those rows across 70 `area_code`s, from the plain FAOSTAT area name to the
+  year-aware polity name that every other CBS source already emits -- so the
+  feed stops offering a second `area` vocabulary for the same `area_code`
+  (the split that dropped 702,166 rows in #382). Two identity defects are
+  fixed along the way: Ethiopia is no longer labelled "Ethiopia PDR" on
+  `area_code` 238, and a post-1993 Ethiopian row no longer resolves to the
+  ended polity `ETH-1952-1993`; neither case occurs in the current pins, whose
+  Ethiopian rows are all 1961 and whose only consumer keeps years before 1961.
+  Bucket 206 also stops carrying two labels in one year ("Sudan (former)" from
+  `SDN` and "South Sudan" from `SSD`).
+
 * **`resolve_polity_label()` now covers the current year (#712).** Its year
   filter read `polity_end_year` strictly exclusively, so a polity whose interval
   ends at the open-period sentinel stopped covering its own terminal year: at
