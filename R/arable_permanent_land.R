@@ -56,8 +56,10 @@
 #'   remote data. Defaults to `FALSE`.
 #'
 #' @return A tibble with one row per `(area_code, year)`:
-#' - `area_code`: integer FAOSTAT area code (harmonised via
-#'   [polity_area_crosswalk]; the FAOSTAT "China" aggregate 351 is dropped).
+#' - `area_code`: integer FAOSTAT area code, harmonised onto the
+#'   `polity_area_code` bucket the rest of the pipeline aggregates on, at the
+#'   fold state `options(whep.unfold_rest_of_world)` selects (the FAOSTAT
+#'   "China" aggregate 351 is dropped). See [polity_area_crosswalk].
 #' - `year`: integer.
 #' - `arable_ha`, `permanent_ha`, `cropland_ha`: physical land area in hectares.
 #' - `source`: provenance, `"fao"` (>= 1961) or `"luh2"` (pre-1961 backcast).
@@ -180,7 +182,14 @@ get_arable_permanent_land <- function(
   # territories line up (Ethiopia PDR 62 -> 238, Sudan 276/South Sudan 277 ->
   # 206, ...). FAOSTAT aggregates with no ISO3 (notably "China" 351, which
   # overlaps 41/96/128/214) have no crosswalk row and are dropped.
-  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
+  #
+  # Read through `.polity_crosswalk()`, the one place `.unfold_rest_of_world()`
+  # is applied (`R/polities.R`), so this bridge shares the fold state the rest
+  # of the pipeline resolves through. The shipped `polity_area_crosswalk` still
+  # puts the 61 Rest-of-World members promoted by whep#628 -- Syria 212,
+  # Greenland 85, Bermuda 17, ... -- in bucket 999, and summing their land there
+  # hides it from a production side keyed on their own code (whep#716).
+  bridge <- .polity_crosswalk()[
     !is.na(area_iso3c),
     .(
       area_code_fao = as.integer(area_code),
@@ -270,8 +279,13 @@ get_arable_permanent_land <- function(
 # ISO3 -> area_code, deduplicated to one row per ISO3. Extracted so the LUH2
 # national readers share one bridge instead of each growing their own: it is the
 # only place the iso3c identity join lives.
+#
+# Read through `.polity_crosswalk()` for the same reason as
+# `.fao_rl_to_polity()` above: on the shipped object the promoted Rest-of-World
+# members still carry bucket 999, so the back-cast leg would key them
+# differently from the FAO leg it is spliced onto (whep#716).
 .luh2_bridge_iso3c <- function(dt) {
-  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
+  bridge <- .polity_crosswalk()[
     !is.na(area_iso3c),
     .(iso3c = area_iso3c, area_code = as.integer(polity_area_code))
   ]
