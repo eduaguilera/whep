@@ -138,7 +138,8 @@ write_parquet_checked <- function(data, path, deep = FALSE, ...) {
   on.exit(close(con), add = TRUE)
   seek(con, size - 8)
   tail <- readBin(con, "raw", n = 8)
-  if (!identical(rawToChar(tail[5:8]), "PAR1")) {
+  # Compare raws, not strings: rawToChar() can abort on arbitrary bytes.
+  if (!identical(tail[5:8], charToRaw("PAR1"))) {
     cli::cli_abort("{.path {path}} does not end with the Parquet magic.")
   }
   footer_len <- readBin(tail[1:4], "integer", size = 4, endian = "little")
