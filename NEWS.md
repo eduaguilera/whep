@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **`build_primary_production()` is now `identical()` to itself across
+  sessions (#747).** The four commodity-balance extracts it carries as its
+  `.cb_extracts` attribute (`fbs_new`, `fbs_old`, `cbs_crops`, `cbs_animals`)
+  came back in a session-dependent row order, because the parquet reads go
+  through arrow's multi-threaded scanner and nothing downstream pinned an
+  order. The published frame was unaffected, but the object as a whole was not
+  reproducible, so the natural `identical(build_primary_production(),
+  baseline)` reproducibility check failed on a change that moved nothing.
+  `.extract_cb()` now sorts on its aggregation key
+  (`year`, `area_code`, `item_cbs_code`, `item_cbs`, `element`, `unit`).
+  **No published value changes**: the four extracts hold the same rows with
+  bitwise-identical values before and after (verified at 2010-2013 on the real
+  pins, 1,070,446 rows in total), and the CBS production aggregate derived from
+  them is bitwise identical, totals included.
+
 * **Historical trade rows no longer carry a dissolved country's label
   (#719).** `.resolve_hist_trade_polities()` built its ISO3 -> area bridge by
   keeping the first row per ISO3, and the area lookup orders by `area_code`, so
@@ -114,6 +129,26 @@
   package passes a plain numeric proxy column, for which the aggregation group
   already equals `.by`, and a 11,333-row randomised fixture on that form is
   bit-identical before and after.
+
+* **Fodder is now built on `area_code` alone, and no longer counts a country
+  once per historical name (#655).** `.merge_euadb_fodder()` and
+  `.fill_fodder_gaps()` carried the periodized area *label* in their join and
+  grouping keys, so one `area_code` whose label changes over the series became
+  several independent series, and `.fill_fodder_gaps()`'s cross join then gave
+  each of them the full year span. Egypt (59) ended up with three full-area
+  copies of every fodder item — 308.6 Mt of clover in 2017 where FAOSTAT-scale
+  production is 55.4 Mt. The label is now resolved once, at the end, from the
+  polity crosswalk for the row's own year, the same rule
+  `.aggregate_to_polities()` labels a bucket by. **Published values move**: the
+  fodder table drops from 63,484 to 60,556 rows, total harvested area by 5.37%
+  (9.353 to 8.851 Gha summed over 1961-2019) and total production by 7.36%
+  (226.3 to 209.6 Gt); 2,574 duplicated `(year, area_code, item, unit)` keys
+  become none, and 1,709 further keys change because `ha_share` and the
+  year-axis interpolation now run over one series per country instead of one
+  per label (Czechoslovakia, Germany, Romania, Poland, Hungary, Bulgaria,
+  Greece, Finland). A side effect is that a fodder row now always carries the
+  same `area` label as the FAOSTAT crop row it is bound to: 745 of 5,769
+  `(year, area_code)` pairs disagreed before, none do now.
 
 * **Three input pins were refreshed to their current upstream releases, and
   processing coefficients now reach 2023 with real data instead of a 7%
