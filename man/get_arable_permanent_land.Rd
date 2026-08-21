@@ -35,8 +35,10 @@ remote data. Defaults to \code{FALSE}.}
 \value{
 A tibble with one row per \verb{(area_code, year)}:
 \itemize{
-\item \code{area_code}: integer FAOSTAT area code (harmonised via
-\link{polity_area_crosswalk}; the FAOSTAT "China" aggregate 351 is dropped).
+\item \code{area_code}: integer FAOSTAT area code, harmonised onto the
+\code{polity_area_code} bucket the rest of the pipeline aggregates on, at the
+fold state \code{options(whep.unfold_rest_of_world)} selects (the FAOSTAT
+"China" aggregate 351 is dropped). See \link{polity_area_crosswalk}.
 \item \code{year}: integer.
 \item \code{arable_ha}, \code{permanent_ha}, \code{cropland_ha}: physical land area in hectares.
 \item \code{source}: provenance, \code{"fao"} (>= 1961) or \code{"luh2"} (pre-1961 backcast).

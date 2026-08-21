@@ -128,37 +128,118 @@ test_that("the enumerated baseline can only shrink", {
   # `sum(.territorial_joins() |> filter(!has_year) |> count(owner, join_fn,
   # key) |> pull(n))` reads 65 here, and the enumerated baseline reads 65 with
   # it (61 rows).
+  #
+  # whep#691 leaves the number at 65 and is still the ratchet moving: the
+  # destiny-share skeleton join did not go away, it stopped naming the `area`
+  # label, so one row changed key rather than leaving. The count says nothing
+  # about that; the third test does, and it now reads EMPTY.
   expect_lte(sum(baseline$n), 65L)
   expect_true(all(nzchar(baseline$why)))
-  # `label_identity` is deliberately absent: it classified exactly one join,
-  # the one whep#698 removed. Putting it back means arguing again that a label
-  # may be an identity.
+  # `label_identity` and `label_redundant` are deliberately absent: they
+  # classified one join each, the ones whep#698 and whep#691 removed. Putting
+  # either back means arguing again that a label may be a key.
   expect_true(all(
     baseline$class %in%
       c(
         "single_year",
         "time_invariant",
         "identity_lookup",
-        "diagnostic",
-        "label_redundant"
+        "diagnostic"
       )
   ))
 })
 
-test_that("no year-free join keys on the area LABEL beyond those registered", {
+test_that("every year-free territorial grouping is classified", {
+  # whep#692, the other half of whep#669. Measured on the commit this arrived
+  # at: 279 GROUPING keys in the installed namespace mention a territory
+  # column, 208 of them carry `year` and 71 do not, in 67 distinct signatures.
+  # Before this test all 71 were unclassified -- a `.by = c(area_code,
+  # item_cbs_code)` that collapses 1961 into 2023 was indistinguishable from
+  # one sitting inside a per-year scope.
+  audit <- whep:::.territorial_groupings()
+  found <- audit |>
+    dplyr::filter(!.data$has_year) |>
+    dplyr::count(.data$owner, .data$group_fn, .data$key, name = "n")
+  baseline <- whep:::.territorial_grouping_baseline() |>
+    dplyr::select("owner", "group_fn", "key", "n")
+
+  # The ratchet, in the same shape as the join gate above: a new year-free
+  # territorial group means either put `year` in the key, or add a row to
+  # `.territorial_grouping_baseline()` saying which of the five reasons a
+  # year-free group is allowed to have applies.
+  unclassified <- dplyr::anti_join(
+    found,
+    baseline,
+    by = c("owner", "group_fn", "key")
+  )
+  expect_equal(paste(unclassified$owner, unclassified$key), character(0))
+
+  stale <- dplyr::anti_join(
+    baseline,
+    found,
+    by = c("owner", "group_fn", "key")
+  )
+  expect_equal(paste(stale$owner, stale$key), character(0))
+
+  counts <- dplyr::inner_join(
+    found,
+    baseline,
+    by = c("owner", "group_fn", "key"),
+    suffix = c("_found", "_baseline")
+  )
+  expect_equal(counts$n_found, counts$n_baseline)
+
+  # 71 is the count on the commit that introduced this gate, measured the same
+  # way the join cap is: `sum(.territorial_groupings() |> filter(!has_year) |>
+  # count(owner, group_fn, key) |> pull(n))`. Lower it when a group gains a
+  # year; raise it only with the reason written into the row.
+  full <- whep:::.territorial_grouping_baseline()
+  expect_lte(sum(full$n), 71L)
+  expect_true(all(nzchar(full$why)))
+  expect_true(all(
+    full$class %in%
+      c(
+        "single_year",
+        "time_invariant",
+        "identity_lookup",
+        "diagnostic",
+        # The two verdicts a group needs and a join does not.
+        "year_axis",
+        "row_wise"
+      )
+  ))
+})
+
+test_that("a year-free grouping label always comes with its code", {
+  # The grouping analogue of the join label rule below, and deliberately
+  # weaker: adding a label BESIDE the code it is functionally determined by
+  # only splits groups further, so it cannot merge two territories. A label
+  # WITHOUT a code can -- that is whep#589's shape, where a shared display name
+  # diluted Syria's livestock 12-fold.
+  #
+  # This is a one-entry expectation rather than an empty set, which is weaker
+  # than the join rule and says why in the row: `.zero_proxy_land_areas()`
+  # groups on `area_key`, a column whose NAME is chosen by its caller, and
+  # `.fill_pre_faostat()` still falls back to `"area"` when the LUH2 land table
+  # carries no `area_code` (whep#584). A SECOND one fails here.
+  offenders <- whep:::.territorial_groupings() |>
+    dplyr::filter(!.data$has_year, .data$has_label, !.data$has_code) |>
+    dplyr::pull(.data$owner) |>
+    sort()
+  expect_equal(offenders, ".zero_proxy_land_areas")
+})
+
+test_that("no year-free join keys on the area LABEL at all", {
   # Keying on `area` rather than `area_code` is the shape behind whep#589 (a
-  # shared label diluted Syria's livestock by 12x) and whep#563. ONE survives,
-  # redundant (whep#691): whep#698 removed the load-bearing one. A second must
-  # not appear unnoticed.
+  # shared label diluted Syria's livestock by 12x) and whep#563. whep#698
+  # removed the load-bearing one and whep#691 the last redundant one
+  # (`.interpolate_destiny_shares`), so the set is now EMPTY and a new one
+  # cannot be classified into existence -- it has to be keyed on the code.
   labelled <- whep:::.territorial_joins() |>
     dplyr::filter(!.data$has_year, .data$has_label) |>
     dplyr::pull(.data$owner) |>
     sort()
-  registered <- whep:::.territorial_join_baseline() |>
-    dplyr::filter(.data$class == "label_redundant") |>
-    dplyr::pull(.data$owner) |>
-    sort()
-  expect_equal(labelled, registered)
+  expect_equal(labelled, character(0))
 })
 
 # The detector has to be able to fail. These run it over fixture functions
@@ -199,6 +280,54 @@ test_that("the audit ignores joins that carry a year or no territory", {
   ns$not_a_join <- function(x) dplyr::filter(x, .data$area_code == 1L)
 
   audit <- whep:::.territorial_joins(ns)
+
+  expect_equal(audit$owner, "with_year")
+  expect_true(audit$has_year)
+})
+
+test_that("the grouping audit sees every shape of year-free group", {
+  ns <- rlang::new_environment()
+  ns$summarised <- function(x) {
+    dplyr::summarise(x, v = sum(.data$v), .by = c(area_code, item_cbs_code))
+  }
+  ns$windowed <- function(x) {
+    x |> dplyr::mutate(share = .data$v / sum(.data$v), .by = "area_code")
+  }
+  ns$deduped <- function(x) dplyr::distinct(x, area_code, .keep_all = TRUE)
+  ns$data_table <- function(x) x[, .(v = sum(v)), by = .(area, area_code)]
+  ns$grouped <- function(x) dplyr::group_by(x, .data$area_code, .add = TRUE)
+
+  audit <- whep:::.territorial_groupings(ns)
+
+  expect_setequal(
+    audit$owner,
+    c("summarised", "windowed", "deduped", "data_table", "grouped")
+  )
+  expect_true(all(!audit$has_year))
+  expect_equal(
+    audit$owner[audit$has_label],
+    "data_table"
+  )
+  expect_true(all(audit$has_code))
+})
+
+test_that("the grouping audit ignores year-keyed and non-territorial groups", {
+  ns <- rlang::new_environment()
+  ns$with_year <- function(x) {
+    dplyr::summarise(x, v = sum(.data$v), .by = c(area_code, year))
+  }
+  ns$no_territory <- function(x) {
+    dplyr::summarise(x, v = sum(.data$v), .by = "item_cbs_code")
+  }
+  # A whep series helper: its `.by` is the series identity and the year is its
+  # own argument, so it is not a grouping key this audit should see.
+  ns$series <- function(x) {
+    whep::fill_linear(x, v, time_col = year, .by = c("area_code"))
+  }
+  # A data.table JOIN, which the other detector owns.
+  ns$joined <- function(x, y) x[y, on = c("area_code")]
+
+  audit <- whep:::.territorial_groupings(ns)
 
   expect_equal(audit$owner, "with_year")
   expect_true(audit$has_year)

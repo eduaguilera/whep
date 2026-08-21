@@ -804,12 +804,23 @@ build_processing_coefs <- function(
 # .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
 # whose reported year predates every period of its area, keep NA and are dropped
 # by the caller.
+#
+# The ISO3 bridge goes through `.iso3_area_code_bridge()`, which breaks the tie
+# an ISO3 naming two reporting areas creates on the polities database rather
+# than on row order (whep#586/whep#718). Doing it here with
+# `unique(..., by = "iso3c")` kept the LOWEST `area_code`, so `ETH` entered as
+# 62 ("Ethiopia PDR", dissolved 1993) instead of 238 -- and because the
+# resolution below is year-aware on the code it is given, that decided the
+# `polity_code` too, not only the label (whep#719).
+#
+# The `area` label is attached from the resolved BUCKET rather than carried in
+# from the bridge row, the same rule `.aggregate_to_polities()` follows: the
+# label has to be a property of `area_code`, and `area_code` here is the
+# aggregation bucket. Taking it from the member row instead gave bucket 206 two
+# labels ("Sudan (former)" and "South Sudan") in the same year.
 .resolve_hist_trade_polities <- function(dt) {
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge <- .iso3_area_code_bridge()
+  data.table::setnames(area_bridge, "area_code_fao", "area_code")
 
   out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   out <- .add_polity_columns_dt(
@@ -819,6 +830,8 @@ build_processing_coefs <- function(
     include_unmapped = FALSE,
     backcast_anchor = -Inf
   )
+  labels <- .bucket_area_labels(out)
+  out[labels, on = c("polity_area_code", "year"), area := i.area]
   out[, area_code := polity_area_code]
   keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
   out[, keep, with = FALSE]
@@ -2001,12 +2014,13 @@ build_processing_coefs <- function(
 # more faithful still, and whep#709 has taken the historical extension off the
 # label -- the year skeleton, the observed-source join, the share fills and the
 # proxy fills are all keyed on the code now, so a second label no longer
-# multiplies rows there. Three joins still read the label and each needs a
-# decision before it can be re-keyed: `.polity_code_from_labels()` (whep#698,
-# blocked on whep#493), the `primary_area` seed join (whep#699, which also
-# needs the seed expression settled) and `.interpolate_destiny_shares()`
-# (whep#691). Until those three are gone, a second label for one code is still
-# the whep#563 shape, so this stays one label per code.
+# multiplies rows there. whep#691 has since taken the destiny-share skeleton off
+# it too -- `.interpolate_destiny_shares()` keys on the code and calls
+# `.attach_cbs_area_label()` at the end, so this lookup now feeds the label back
+# on in three places instead of being read as a key. ONE join still
+# reads the label: the `primary_area` seed join (whep#699, which also needs the
+# seed expression settled). Until it is gone, a second label for one code is
+# still the whep#563 shape, so this stays one label per code.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
@@ -3182,9 +3196,14 @@ build_processing_coefs <- function(
 
 # Fill dest_share across time using a sparse skeleton:
 # interpolate/extrapolate shares at all years with domestic_supply data.
+#
+# Every key here is the CODE, never the `area` label (whep#691). The two sides
+# are two filters of one frame today, so the labels cannot disagree -- but that
+# is the caller's invariant, not this function's, and an unmatched key here is a
+# dropped row rather than an error. The label is detached and re-attached once
+# from the code at the end, the pattern `.select_best_source()` already uses.
 .interpolate_destiny_shares <- function(balance, destiny) {
   by_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3201,19 +3220,21 @@ build_processing_coefs <- function(
   dt_bal <- balance
   dt_dest <- destiny
 
+  area_lookup <- .cbs_area_labels(dt_dest[!is.na(area)])
+
   # Target years: where domestic_supply exists (shares needed here).
   ds_keys <- unique(dt_bal[
     element == "domestic_supply",
-    .(year, area, area_code, item_cbs, item_cbs_code)
+    .(year, area_code, item_cbs, item_cbs_code)
   ])
 
   dest_elem <- unique(dt_dest[,
-    .(area, area_code, item_cbs, item_cbs_code, element, elem_cat)
+    .(area_code, item_cbs, item_cbs_code, element, elem_cat)
   ])
 
   target_rows <- ds_keys[
     dest_elem,
-    on = c("area", "area_code", "item_cbs", "item_cbs_code"),
+    on = c("area_code", "item_cbs", "item_cbs_code"),
     nomatch = 0,
     allow.cartesian = TRUE
   ]
@@ -3227,7 +3248,6 @@ build_processing_coefs <- function(
 
   anti_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3239,7 +3259,6 @@ build_processing_coefs <- function(
   # different sources contribute to one key.
   join_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3272,7 +3291,14 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  fill_linear(out, dest_share, time_col = year, .by = by_cols, .copy = FALSE)
+  out <- fill_linear(
+    out,
+    dest_share,
+    time_col = year,
+    .by = by_cols,
+    .copy = FALSE
+  )
+  .attach_cbs_area_label(out, area_lookup)
 }
 
 # Apply filled destiny shares to domestic supply and return final CBS rows.

@@ -1,0 +1,128 @@
+{
+  "layers": {
+    "production": {
+      "2010": {
+        "LU": {
+          "keys_only_full": 0,
+          "keys_only_scoped": 0,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "ha": {
+          "keys_only_full": 0,
+          "keys_only_scoped": 0,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "heads": {
+          "keys_only_full": 0,
+          "keys_only_scoped": 0,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "slaughtered_heads": {
+          "keys_only_full": 0,
+          "keys_only_scoped": 0,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "t_LU": {
+          "keys_only_full": 3,
+          "keys_only_scoped": 0,
+          "rel_total": 0.00016069249873169528,
+          "max_rel_key": 0.78848348281606917
+        },
+        "t_ha": {
+          "keys_only_full": 0,
+          "keys_only_scoped": 0,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "t_head": {
+          "keys_only_full": 3,
+          "keys_only_scoped": 0,
+          "rel_total": 0.00028364541867838445,
+          "max_rel_key": 0.78848348281606928
+        },
+        "tonnes": {
+          "keys_only_full": 3,
+          "keys_only_scoped": 0,
+          "rel_total": 4.4557540066419621e-07,
+          "max_rel_key": 0
+        }
+      }
+    },
+    "wide_cbs": {
+      "2010": {
+        "domestic_supply": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 1.0782508336001803e-05,
+          "max_rel_key": 1
+        },
+        "export": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 1.0612877298931097e-05,
+          "max_rel_key": 1
+        },
+        "feed": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 1.2595699808281835e-05,
+          "max_rel_key": 1
+        },
+        "food": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 0.00017662449653860871,
+          "max_rel_key": 1
+        },
+        "import": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 0,
+          "max_rel_key": 0
+        },
+        "other_uses": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 1.4501906188964486e-05,
+          "max_rel_key": 1
+        },
+        "processing": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 4.5929449088689308e-06,
+          "max_rel_key": 1
+        },
+        "production": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 1.5303518091730127e-05,
+          "max_rel_key": 1
+        },
+        "seed": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 0.0001908914622633848,
+          "max_rel_key": 1
+        },
+        "stock_addition": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 0.00036974050954535542,
+          "max_rel_key": 1
+        },
+        "stock_withdrawal": {
+          "keys_only_full": 14,
+          "keys_only_scoped": 30,
+          "rel_total": 5.0282465982862469e-05,
+          "max_rel_key": 1
+        }
+      }
+    }
+  },
+  "recorded_at": "2026-08-20T18:01:06+0200",
+  "note": "Divergence budget per layer and unit, not a tolerance: a scoped build should equal the full-range build filtered to the same years. Every non-zero entry is a filed defect. Tighten with --record when one is fixed."
+}

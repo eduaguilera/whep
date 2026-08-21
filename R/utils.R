@@ -2052,6 +2052,9 @@ utils::globalVariables(
     # table and the helpers that consume it
     "priced",
     "processing_loss_n",
-    "remove_mass"
+    "remove_mass",
+    # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
+    # polity label with the label the fodder source itself carried
+    "source_area"
   )
 )

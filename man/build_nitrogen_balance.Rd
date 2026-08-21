@@ -7,6 +7,7 @@
 build_nitrogen_balance(
   methods = list(nh3 = "manner", n2o = "ipcc2019", leaching = "meisinger_drainage"),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   gwp = c("ar6", "ar5", "ar4"),
   example = FALSE
@@ -22,6 +23,17 @@ IPCC 2019 Tier 1 method) and \code{leaching} (forwarded to
 \item{resolution}{\code{"grid"} (default) or \code{"polity"}, as in
 \code{\link[=build_n_inputs]{build_n_inputs()}}; \code{"polity"} sums every term (and re-derives every
 indicator) over cells.}
+
+\item{polity_validity}{What to do with a row whose \verb{(area_code, year)}
+resolves to a polity that did not exist in that year (the cell-polity
+crosswalk has no year dimension, so an early-20th-century cell is labelled
+with its present-day territory). \code{"keep"} (default) keeps every row, which
+is the historical behaviour, and warns naming the rows, years and area
+codes involved. \code{"flag"} keeps them and adds the per-row logical
+\code{reporting_polity_out_of_span}, marking exactly which rows are stand-ins.
+\code{"drop"} removes them. All three warn; only \code{"drop"} changes the numbers.
+See \code{\link[=polity_coverage_gaps]{polity_coverage_gaps()}}, which reports the same rows for an
+already-built table.}
 
 \item{data}{Named list of pre-loaded upstream inputs. \code{n_inputs}
 (\code{\link[=build_n_inputs]{build_n_inputs()}}'s output) is used directly when supplied, else
@@ -92,7 +104,8 @@ the five NUE ratios (\code{nue_std}, \code{nue_residues}, \code{nue_som},
 columns below. When the supplied \code{n_inputs} carry them, the
 \code{method_recycling_n}, \code{method_synthetic} and \code{method_deposition_scope}
 stamps from \code{\link[=build_n_inputs]{build_n_inputs()}} are carried through as well, so a balance
-names the input conventions that produced it.
+names the input conventions that produced it. Gains
+\code{reporting_polity_out_of_span} when \code{polity_validity = "flag"}.
 }
 \description{
 Assembles \code{\link[=build_n_inputs]{build_n_inputs()}}'s long-format nitrogen inputs into the
@@ -104,6 +117,15 @@ balance (\code{N_input_full - N_output_full}), applies the N-limitation cap on
 SOM sequestration, and derives nutrient-use-efficiency (NUE) indicators
 plus a GWP/CO2e indicator for the nitrous-oxide streams. Ported from
 Spain_Hist's \code{Balance_parameters()}/\code{N_Figs.R} equations.
+}
+\details{
+\code{polity_validity} is forwarded to \code{\link[=build_n_inputs]{build_n_inputs()}} -- which forwards it in
+turn to \code{\link[=build_ag_land_support]{build_ag_land_support()}}, \code{\link[=build_n_deposition]{build_n_deposition()}}, \code{\link[=build_urban_n]{build_urban_n()}}
+and \code{\link[=spatialize_country_n_to_crops]{spatialize_country_n_to_crops()}} -- and then applied to the balance rows
+themselves, so one choice governs the whole build (whep#727). A
+\code{data$n_inputs} table supplied directly is left alone: it was built by its
+own call with its own choice, and the balance rows derived from it still get
+this argument's fate at the tail.
 }
 \section{Polity columns}{
 

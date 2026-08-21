@@ -621,6 +621,59 @@ test_that("reported zero land components remain distinct from missing reports", 
   expect_equal(all_arable$permanent_ha, 0)
 })
 
+# whep#716: both land legs aggregate onto `polity_area_code`, and must read the
+# crosswalk the pipeline resolves through (`.polity_crosswalk()`). On the shipped
+# `polity_area_crosswalk` the Rest-of-World members promoted by whep#628 still
+# carry 999, so their land area would be summed into a bucket that
+# get_primary_production() no longer keys on.
+test_that("get_arable_permanent_land keys FAO land on the pipeline's bucket", {
+  expected <- .promoted_row_members()
+  fao <- tibble::tibble(
+    `Area Code` = rep(expected$area_code, each = 2L),
+    `Item Code` = rep(c(6620, 6621), times = nrow(expected)),
+    Element = "Area",
+    Unit = "1000 ha",
+    Year = 2020,
+    Value = rep(c(10, 7), times = nrow(expected))
+  )
+
+  ap <- whep::get_arable_permanent_land(data = fao, years = 2020)
+
+  expect_setequal(ap$area_code, expected$area_code_expected)
+  expect_false(999L %in% ap$area_code)
+  # Syria (212) files its own FAOSTAT returns and is not a residual territory.
+  expect_equal(ap$cropland_ha[ap$area_code == 212L], 10000)
+})
+
+test_that("get_arable_permanent_land keys the LUH2 backcast on the same bucket", {
+  expected <- .promoted_row_members_iso3()
+  fao <- tibble::tibble(
+    `Area Code` = rep(expected$area_code_expected, each = 2L),
+    `Item Code` = rep(c(6620, 6621), times = nrow(expected)),
+    Element = "Area",
+    Unit = "1000 ha",
+    Year = 1961,
+    Value = rep(c(10, 7), times = nrow(expected))
+  )
+  luh2 <- tibble::tibble(
+    ISO3 = rep(expected$area_iso3c, each = 4L),
+    Year = rep(c(1960L, 1960L, 1961L, 1961L), times = nrow(expected)),
+    Land_Use = rep(c("c3ann", "c3per"), times = 2L * nrow(expected)),
+    Area_Mha = rep(c(0.08, 0.02, 0.09, 0.02), times = nrow(expected))
+  )
+
+  ap <- whep::get_arable_permanent_land(
+    data = fao,
+    luh2_data = luh2,
+    years = 1960:1961
+  )
+  pre <- ap[ap$year == 1960L, ]
+
+  expect_setequal(pre$area_code, expected$area_code_expected)
+  expect_false(999L %in% pre$area_code)
+  expect_true(212L %in% pre$area_code)
+})
+
 test_that("get_arable_permanent_land drops the FAOSTAT China aggregate 351", {
   ap <- whep::get_arable_permanent_land(data = .rl_fixture(), years = 2020)
   expect_false(351L %in% ap$area_code)

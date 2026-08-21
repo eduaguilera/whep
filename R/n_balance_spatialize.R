@@ -8,9 +8,12 @@
 #   R/feed_lpjml.R (a private package helper, called directly, never
 #   redefined).
 # - Its size is NOT fixed. This comment used to assert 68,527 rows; that is
-#   the pre-#381 vintage. The deployed file now measures 62,808 rows / 58,791
-#   cells / 182 area codes, after the producer restricted the crosswalk to
-#   the simulated grid. Do not re-assert a literal here.
+#   the pre-#381 vintage, and 62,808 rows / 182 area codes was the vintage
+#   rasterized through a retired regions.csv (whep#694). Regenerated it
+#   measures 62,784 rows / 58,791 cells / 178 area codes, the same 178 codes
+#   the centroid country_grid carries. Do not re-assert a literal here;
+#   .check_cell_polity_vintage() asserts the vocabulary instead, which is the
+#   part that has to hold.
 # - crop_patterns.parquet (Sys.getenv("WHEP_CROP_PATTERNS_PATH")): lon, lat,
 #   item_prod_code, harvest_fraction, a STATIC crop-pattern weight (no year
 #   dimension), 2,247,239 rows.
@@ -71,6 +74,15 @@
 #' identity needs the cell x polity x validity-interval unit tracked by epic
 #' whep#458, not a column added here.
 #'
+#' @section Vintage of the area vocabulary:
+#' The parquet's `area_code` values must all exist in the `regions.csv` the
+#' installed package carries, because that is the table its producer
+#' rasterizes through. A copy built through an older vintage keyed Ethiopia
+#' `62` and Sudan (former) `206` where today's lookup uses `238` and `276`, so
+#' adopting it deleted both countries from every consumer (whep#694). Such a
+#' file is now **refused** with class `whep_stale_cell_polity_grid` rather than
+#' read, and the message names the producer re-run that rebuilds it.
+#'
 #' @param polity_fraction_path Path to the cell-polity fraction parquet.
 #'   Defaults to `Sys.getenv("WHEP_POLITY_FRACTION_PATH")`.
 #' @param area_key Which area code the output is keyed on: `"grid"` (default,
@@ -96,6 +108,7 @@ build_cell_polity <- function(
     c("lon", "lat", "area_code", "polity_frac"),
     "cell_polity"
   )
+  .check_cell_polity_vintage(raw, path)
   raw |>
     .cell_polity_apply_area_key(area_key) |>
     dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
@@ -410,6 +423,65 @@ spatialize_country_n_to_crops <- function(
       buckets national tables are aggregated on."
   ))
   invisible(raw)
+}
+
+# Reporting-area codes the producer can emit. `build_cell_polity_fraction()`
+# (inst/scripts/prepare_spatialize_all.R, section 1b) rasterizes NaturalEarth
+# polygons through the `iso3c -> area_code` table in `inst/extdata/regions.csv`
+# and drops every feature that does not match, so a freshly produced crosswalk
+# carries a SUBSET of this domain by construction. Anything outside it is a
+# code the current regions.csv no longer knows.
+.regions_csv_area_codes <- function() {
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  sort(unique(as.integer(regions$area_code[!is.na(regions$area_code)])))
+}
+
+# Codes the crosswalk carries that today's regions.csv retired.
+.cell_polity_retired_codes <- function(raw) {
+  sort(setdiff(
+    unique(as.integer(raw$area_code)),
+    .regions_csv_area_codes()
+  ))
+}
+
+# ABORT, DO NOT WARN, ON A CROSSWALK FROM AN OLDER regions.csv VINTAGE.
+#
+# The deployed parquet was rasterized through a lookup that still keyed
+# Ethiopia `62` and Sudan (former) `206`, where today's regions.csv uses `238`
+# and `276` (whep#694). Those codes join to nothing downstream, so adopting
+# such a copy deletes both countries outright -- measured at 2015, 27.10 Mha of
+# harvested area (2.0 % of global) and 332.0 M head (1.16 %). It also carried
+# `6`, `125`, `192` and `205`, which upstream now folds into `REUR` / `RAFR`.
+#
+# `.warn_grid_missing_reporters()` (whep#461) already made the loss visible,
+# and a warning was not enough: the deletion sits in the artefact, so every
+# consumer of a stale copy silently reproduces it. The vocabulary is a hard
+# contract with the producer rather than a modelling choice -- a fresh
+# crosswalk cannot violate it -- so this refuses the file and names the re-run
+# that fixes it.
+.check_cell_polity_vintage <- function(raw, path) {
+  codes <- .cell_polity_retired_codes(raw)
+  if (length(codes) == 0) {
+    return(invisible(raw))
+  }
+  affected <- raw[as.integer(raw$area_code) %in% codes, c("lon", "lat")]
+  n_cells <- nrow(unique(affected))
+  cli::cli_abort(
+    c(
+      "The cell-polity crosswalk at {.path {path}} was rasterized through a
+       retired {.file regions.csv} vintage.",
+      x = "{length(codes)} area code{?s} covering {n_cells} cell{?s},
+        absent from today's {.file regions.csv}: {.val {codes}}.",
+      i = "Their whole national total is deleted by any consumer that adopts
+        this file.",
+      i = "Re-run sections 1 and 1b of
+        {.file inst/scripts/prepare_spatialize_all.R}
+        ({.fun prepare_country_grid} then {.fun build_cell_polity_fraction})
+        to rebuild it against the current area vocabulary."
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
 }
 
 # Re-key the grid on polity_area_code. Border cells that held two areas of one
