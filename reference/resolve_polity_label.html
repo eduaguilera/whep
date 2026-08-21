@@ -79,7 +79,7 @@ for Belize, <code>"ROM"</code> for Romania, <code>"ZAR"</code> for Zaire) and
 <dt id="arg-source">source<a class="anchor" aria-label="anchor" href="#arg-source"></a></dt>
 <dd><p>Optional source slug (e.g. <code>"lassaletta-grassland-share"</code>).
 Length 1, or the same length as <code>label</code>. On the alias route <code>NULL</code> matches
-unscoped aliases only – 171 of 869 – so a <code>NULL</code> source narrows that route
+unscoped aliases only – 180 of 903 – so a <code>NULL</code> source narrows that route
 sharply; the identity routes then get their turn, subject to the guards
 above.</p></dd>
 
@@ -87,7 +87,7 @@ above.</p></dd>
 <dt id="arg-year">year<a class="anchor" aria-label="anchor" href="#arg-year"></a></dt>
 <dd><p>Optional integer vector of years. Length 1, or the same length as
 <code>label</code>. On the alias route <code>NULL</code> matches aliases with no year scope only,
-which is the 17 of 869 published aliases carrying NEITHER bound. The name
+which is the 15 of 903 published aliases carrying NEITHER bound. The name
 and ISO3 routes can still answer without a year, but only for an identifier
 exactly one polity has ever carried, so supplying a year remains much the
 stronger question: it is what lets a label resolve to the right <em>period</em>
@@ -120,13 +120,20 @@ Without the name half a caller passing the database's own name for a polity
 got <code>NA</code>: <code>resolve_polity_label("Netherlands")</code> found nothing while <a href="polities.html">polities</a>
 carried a polity named exactly that. Without the ISO3 half the map answers
 only for labels a curator had to decide about, which is 380 of
-<a href="mueller_synthetic_n.html">mueller_synthetic_n</a>'s 5,043 rows – the 10 legacy codes – against 4,999 with
-it. Two guards bound both halves.</p><ul><li><p>An identifier resolves only when <strong>exactly one</strong> polity carries it in the
-year asked about. 9 pairs of polities in the shipped <a href="polities.html">polities</a> snapshot
-share a normalised name and overlap in years, so row order would otherwise
-decide, and <code>NA</code> is the honest answer. <code>"SDN"</code> in 2000 is the case that
-matters: the only polity carrying that ISO3 runs from 2011, so the answer is
-<code>NA</code> rather than the post-secession state.</p></li>
+<a href="mueller_synthetic_n.html">mueller_synthetic_n</a>'s 5,043 rows – the 11 legacy codes – against all
+5,043 with it, asked at <code>year = 2000</code>. Asking without a year resolves only
+1,255, because the guard below then refuses every identifier more than one
+live polity has ever carried. Two guards bound both halves.</p><ul><li><p>An identifier resolves only when <strong>exactly one</strong> polity carries it in the
+year asked about, because otherwise row order would decide and <code>NA</code> is the
+honest answer. Sharing an identifier is common in the shipped <a href="polities.html">polities</a>
+snapshot: of its 726 live rows, 110 normalised names and 133 ISO3 codes are
+carried by more than one polity. A year separates nearly all of them – no
+two live polities sharing a normalised name cover a common year – but not
+the ISO3 index, where 69 pairs still do, 62 of them naming different
+territories rather than successive periods of one. <code>"PAN"</code> in 1970 is the
+case that matters: <code>PAN-1903-1979</code> and the Canal Zone <code>CZN-1903-1979</code> both
+carry that ISO3 then – a real territorial overlap no re-sync removes –
+so the answer is <code>NA</code>, while <code>"PAN"</code> in 2000 resolves to <code>PAN-1979-2025</code>.</p></li>
 <li><p>An alias covering that year outranks both, whatever its source, and a label
 naming an area the crosswalk leaves unmapped is refused outright.</p></li>
 </ul><p>Returns <code>NA</code> when neither route resolves, which is a real answer rather than a
@@ -134,11 +141,11 @@ failure. Some labels are aggregates a source keeps reporting after the
 territory stopped existing – <code>"FSU"</code> runs to 2009 though nothing has held
 that territory since 1991 – and those years are deliberately unmapped rather
 than routed to a polity that had ended.</p>
-<p>A resolved code names a polity in the published upstream database, which is
-ahead of the <a href="polities.html">polities</a> snapshot this package ships (740 rows upstream against
-603 here). 225 of the 869 published aliases therefore point at one of 115
-codes <code><a href="get_polity_geometries.html">get_polity_geometries()</a></code> cannot yet return a row for; refreshing
-<a href="polities.html">polities</a> closes that gap without changing any resolution.</p>
+<p>Every resolved code is one <code><a href="get_polity_geometries.html">get_polity_geometries()</a></code> can return a row for,
+and that is an invariant rather than a happy accident: <a href="polity_label_aliases.html">polity_label_aliases</a>
+and <a href="polities.html">polities</a> are regenerated together from a single upstream revision, and
+<code>data-raw/table_mappings.R</code> aborts the build if any alias names a polity the
+shipped table does not carry. A dangling resolution therefore cannot ship.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

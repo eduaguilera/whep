@@ -31,7 +31,7 @@ resolve_polity_label(label, source = NULL, year = NULL)
 
   Optional source slug (e.g. `"lassaletta-grassland-share"`). Length 1,
   or the same length as `label`. On the alias route `NULL` matches
-  unscoped aliases only – 171 of 869 – so a `NULL` source narrows that
+  unscoped aliases only – 180 of 903 – so a `NULL` source narrows that
   route sharply; the identity routes then get their turn, subject to the
   guards above.
 
@@ -39,7 +39,7 @@ resolve_polity_label(label, source = NULL, year = NULL)
 
   Optional integer vector of years. Length 1, or the same length as
   `label`. On the alias route `NULL` matches aliases with no year scope
-  only, which is the 17 of 869 published aliases carrying NEITHER bound.
+  only, which is the 15 of 903 published aliases carrying NEITHER bound.
   The name and ISO3 routes can still answer without a year, but only for
   an identifier exactly one polity has ever carried, so supplying a year
   remains much the stronger question: it is what lets a label resolve to
@@ -83,16 +83,25 @@ database's own name for a polity got `NA`:
 carried a polity named exactly that. Without the ISO3 half the map
 answers only for labels a curator had to decide about, which is 380 of
 [mueller_synthetic_n](https://eduaguilera.github.io/whep/reference/mueller_synthetic_n.md)'s
-5,043 rows – the 10 legacy codes – against 4,999 with it. Two guards
-bound both halves.
+5,043 rows – the 11 legacy codes – against all 5,043 with it, asked at
+`year = 2000`. Asking without a year resolves only 1,255, because the
+guard below then refuses every identifier more than one live polity has
+ever carried. Two guards bound both halves.
 
 - An identifier resolves only when **exactly one** polity carries it in
-  the year asked about. 9 pairs of polities in the shipped
+  the year asked about, because otherwise row order would decide and
+  `NA` is the honest answer. Sharing an identifier is common in the
+  shipped
   [polities](https://eduaguilera.github.io/whep/reference/polities.md)
-  snapshot share a normalised name and overlap in years, so row order
-  would otherwise decide, and `NA` is the honest answer. `"SDN"` in 2000
-  is the case that matters: the only polity carrying that ISO3 runs from
-  2011, so the answer is `NA` rather than the post-secession state.
+  snapshot: of its 726 live rows, 110 normalised names and 133 ISO3
+  codes are carried by more than one polity. A year separates nearly all
+  of them – no two live polities sharing a normalised name cover a
+  common year – but not the ISO3 index, where 69 pairs still do, 62 of
+  them naming different territories rather than successive periods of
+  one. `"PAN"` in 1970 is the case that matters: `PAN-1903-1979` and the
+  Canal Zone `CZN-1903-1979` both carry that ISO3 then – a real
+  territorial overlap no re-sync removes – so the answer is `NA`, while
+  `"PAN"` in 2000 resolves to `PAN-1979-2025`.
 
 - An alias covering that year outranks both, whatever its source, and a
   label naming an area the crosswalk leaves unmapped is refused
@@ -104,15 +113,16 @@ after the territory stopped existing – `"FSU"` runs to 2009 though
 nothing has held that territory since 1991 – and those years are
 deliberately unmapped rather than routed to a polity that had ended.
 
-A resolved code names a polity in the published upstream database, which
-is ahead of the
-[polities](https://eduaguilera.github.io/whep/reference/polities.md)
-snapshot this package ships (740 rows upstream against 603 here). 225 of
-the 869 published aliases therefore point at one of 115 codes
+Every resolved code is one
 [`get_polity_geometries()`](https://eduaguilera.github.io/whep/reference/get_polity_geometries.md)
-cannot yet return a row for; refreshing
-[polities](https://eduaguilera.github.io/whep/reference/polities.md)
-closes that gap without changing any resolution.
+can return a row for, and that is an invariant rather than a happy
+accident:
+[polity_label_aliases](https://eduaguilera.github.io/whep/reference/polity_label_aliases.md)
+and [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+are regenerated together from a single upstream revision, and
+`data-raw/table_mappings.R` aborts the build if any alias names a polity
+the shipped table does not carry. A dangling resolution therefore cannot
+ship.
 
 ## See also
 

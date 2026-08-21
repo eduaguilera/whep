@@ -2,6 +2,56 @@
 
 ## whep (development version)
 
+- **[`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+  is now [`identical()`](https://rdrr.io/r/base/identical.html) to
+  itself across sessions
+  ([\#747](https://github.com/eduaguilera/whep/issues/747)).** The four
+  commodity-balance extracts it carries as its `.cb_extracts` attribute
+  (`fbs_new`, `fbs_old`, `cbs_crops`, `cbs_animals`) came back in a
+  session-dependent row order, because the parquet reads go through
+  arrow’s multi-threaded scanner and nothing downstream pinned an order.
+  The published frame was unaffected, but the object as a whole was not
+  reproducible, so the natural
+  `identical(build_primary_production(), baseline)` reproducibility
+  check failed on a change that moved nothing. `.extract_cb()` now sorts
+  on its aggregation key (`year`, `area_code`, `item_cbs_code`,
+  `item_cbs`, `element`, `unit`). **No published value changes**: the
+  four extracts hold the same rows with bitwise-identical values before
+  and after (verified at 2010-2013 on the real pins, 1,070,446 rows in
+  total), and the CBS production aggregate derived from them is bitwise
+  identical, totals included.
+
+- **Historical trade rows no longer carry a dissolved country’s label
+  ([\#719](https://github.com/eduaguilera/whep/issues/719)).**
+  `.resolve_hist_trade_polities()` built its ISO3 -\> area bridge by
+  keeping the first row per ISO3, and the area lookup orders by
+  `area_code`, so an ISO3 that names two FAOSTAT reporting areas entered
+  as the lower code: `ETH` as 62 (“Ethiopia PDR”, dissolved 1993) rather
+  than 238 (“Ethiopia”). The bridge now goes through
+  `.iso3_area_code_bridge()`, which breaks that tie on the polities
+  database ([\#586](https://github.com/eduaguilera/whep/issues/586),
+  [\#718](https://github.com/eduaguilera/whep/issues/718)), and the
+  `area` label is attached from the resolved aggregation bucket rather
+  than carried in from the member row – the rule
+  `.aggregate_to_polities()` and `.read_crop_residues()` already follow.
+
+  **No published value moves.** On the real historical-trade pins the
+  row keys, `value`, `area_code` and `polity_code` are all identical
+  before and after (248,508 rows, 18,639,792,136.89 t). Only the `area`
+  label changes, on 81,388 of those rows across 70 `area_code`s, from
+  the plain FAOSTAT area name to the year-aware polity name that every
+  other CBS source already emits – so the feed stops offering a second
+  `area` vocabulary for the same `area_code` (the split that dropped
+  702,166 rows in
+  [\#382](https://github.com/eduaguilera/whep/issues/382)). Two identity
+  defects are fixed along the way: Ethiopia is no longer labelled
+  “Ethiopia PDR” on `area_code` 238, and a post-1993 Ethiopian row no
+  longer resolves to the ended polity `ETH-1952-1993`; neither case
+  occurs in the current pins, whose Ethiopian rows are all 1961 and
+  whose only consumer keeps years before 1961. Bucket 206 also stops
+  carrying two labels in one year (“Sudan (former)” from `SDN` and
+  “South Sudan” from `SSD`).
+
 - **[`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
   now covers the current year
   ([\#712](https://github.com/eduaguilera/whep/issues/712)).** Its year
