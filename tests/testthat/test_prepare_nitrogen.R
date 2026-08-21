@@ -442,7 +442,12 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
     area_lookup = regions,
     route = "alias_map"
   )
-  expect_equal(sum(!is.na(after)), 6682L)
+  expect_equal(sum(!is.na(after)), 6713L)
+  # "FSU" joined the list in the #835 upstream re-sync. Its alias row is
+  # unchanged (`FSU` -> `F228-1945-1991`, 1961-1991); what changed is that
+  # upstream filled that polity's `iso3_code` with `SUN`, so the
+  # polity -> iso3 -> area bridge that `.spatialize_label_area_code()` uses now
+  # completes where it used to dead-end on `NA`.
   expect_setequal(
     unique(lass$Country[is.na(before) & !is.na(after)]),
     c(
@@ -454,6 +459,7 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
       "Sudan (former)",
       "Ethiopia PDR",
       "Belgium-Luxemburg",
+      "FSU",
       "Occupied Palestinian Territory"
     )
   )
@@ -467,7 +473,7 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
       "Botswana"
     )
   )
-  expect_equal(sum(is.na(before) & !is.na(after)), 414L)
+  expect_equal(sum(is.na(before) & !is.na(after)), 445L)
   expect_equal(sum(!is.na(before) & is.na(after)), 102L)
 })
 
