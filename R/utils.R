@@ -2047,6 +2047,9 @@ utils::globalVariables(
     # n_prov_destiny.R (#449) — .spain_processing_coefs() reads
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`
-    "final_conversion_factor"
+    "final_conversion_factor",
+    # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
+    # polity label with the label the fodder source itself carried
+    "source_area"
   )
 )
