@@ -1194,6 +1194,118 @@ testthat::test_that("a repeated polycell key aborts rather than vanishing", {
   )
 })
 
+testthat::test_that("overlapping intervals of one polity in a cell abort", {
+  testthat::skip_if_not_installed("sf")
+
+  # whep#758. The repeated-key guard keys on `end_year`, so it sees only the
+  # subset of overlapping validity in which the two intervals are IDENTICAL.
+  # `[2000, 2015)` against `[2010, 2020)` is an overlap it cannot see, and the
+  # split then emits the shared years twice: measured before this guard,
+  # `build_polycell_support()` on the example geometry supplied at those two
+  # intervals completed with no abort and returned `[2010, 2015)` twice for
+  # every one of its six cells, doubling that polity's territory over the
+  # shared years.
+  pieces <- tibble::tibble(
+    cell_id = 1L,
+    lon = 10.25,
+    lat = 45.25,
+    cell_area_ha = 1000,
+    polity_area_ha = c(70, 30),
+    area_engine = "s2",
+    polity_code = "AAA-2000-2020",
+    # NOT a shared start year and NOT an identical key, which is what makes
+    # this fixture unreachable for the repeated-key guard: a test built on a
+    # shared start would also pass a key widened to
+    # `(cell_id, polity_code, start_year)` and prove nothing about overlap.
+    start_year = c(2000L, 2010L),
+    end_year = c(2015L, 2020L),
+    area_code = 11L,
+    polygon_status = "assigned",
+    coverage_status = "has_geometry",
+    ice_area_ha = 0
+  )
+
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    class = "whep_pcs_overlapping_interval"
+  )
+  # The offending PAIR is named, both intervals of it: "some interval overlaps"
+  # sends the reader back to a 400,000-piece clip with nothing to look for.
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    "1 pair of polycell intervals overlap"
+  )
+  testthat::expect_error(
+    whep:::.pcs_split_intervals(pieces),
+    "\\[2000, 2015\\) overlaps \\[2010, 2020\\)"
+  )
+
+  # Reachable from the exported entry point with no mock: `geometries` is a
+  # user-supplied argument, and two overlapping rows of it clip to two
+  # overlapping pieces in every cell the polity touches.
+  geometries <- whep::polycell_example_geometries()
+  overlapping <- rbind(geometries, geometries)
+  overlapping$start_year <- c(2000L, 2010L)
+  overlapping$end_year <- c(2015L, 2020L)
+  testthat::expect_error(
+    suppressWarnings(whep::build_polycell_support(geometries = overlapping)),
+    class = "whep_pcs_overlapping_interval"
+  )
+
+  # And the shared-start case the issue was filed on, which the repeated-key
+  # guard also misses because `end_year` differs.
+  shared_start <- rbind(geometries, geometries)
+  shared_start$end_year <- c(2010L, 2020L)
+  testthat::expect_error(
+    suppressWarnings(whep::build_polycell_support(geometries = shared_start)),
+    class = "whep_pcs_overlapping_interval"
+  )
+})
+
+testthat::test_that("touching intervals of one polity in a cell still split", {
+  testthat::skip_if_not_installed("sf")
+
+  # The convention the guard has to respect: `end_year` is EXCLUSIVE at a
+  # succession, so `[2000, 2010)` followed by `[2010, 2020)` partitions time
+  # and is the ordinary shape of two epochs of one polity in one cell. A guard
+  # comparing `<=` instead of `<` would reject every such pair, and a key
+  # widened to `(cell_id, polity_code, start_year)` would let a genuine overlap
+  # through, so this is the false-positive half of the same contract.
+  pieces <- tibble::tibble(
+    cell_id = 1L,
+    lon = 10.25,
+    lat = 45.25,
+    cell_area_ha = 1000,
+    polity_area_ha = c(70, 30),
+    area_engine = "s2",
+    polity_code = "AAA-2000-2020",
+    start_year = c(2000L, 2010L),
+    end_year = c(2010L, 2020L),
+    area_code = 11L,
+    polygon_status = "assigned",
+    coverage_status = "has_geometry",
+    ice_area_ha = 0
+  )
+
+  split <- whep:::.pcs_split_intervals(pieces)
+  testthat::expect_equal(nrow(split), 2L)
+  testthat::expect_true(all(split$end_year > split$start_year))
+  testthat::expect_equal(split$start_year, c(2000L, 2010L))
+  testthat::expect_equal(split$end_year, c(2010L, 2020L))
+  testthat::expect_equal(sum(split$polity_area_ha), 100)
+
+  # An empty input reaches neither `dplyr::lag()` nor the abort.
+  testthat::expect_equal(
+    nrow(whep:::.pcs_split_intervals(pieces[0L, ])),
+    0L
+  )
+  # A single interval has no predecessor: `dplyr::lag()` gives NA and `NA < x`
+  # is NA, which `dplyr::filter()` drops rather than treating as an overlap.
+  testthat::expect_silent(
+    whep:::.pcs_abort_interval_overlap(pieces[1L, ])
+  )
+})
+
 testthat::test_that("the collection fan-out reaches the repeated-key guard", {
   testthat::skip_if_not_installed("sf")
 
