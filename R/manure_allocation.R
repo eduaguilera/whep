@@ -281,7 +281,12 @@ allocate_manure_to_land <- function(
       "{.val {opt$cap_method}} needs a precomputed {.field crop_n_cap} in {.field crops}."
     )
   }
-  dplyr::mutate(crops, cap_n = .data$crop_n_cap * opt$f_n_tolerance)
+  # A capacity can't be negative; the supplied crop_n_cap occasionally is,
+  # from the underlying growth model's own edge cases.
+  dplyr::mutate(
+    crops,
+    cap_n = pmax(.data$crop_n_cap * opt$f_n_tolerance, 0)
+  )
 }
 
 .prepare_grass_cap <- function(grass, opt) {
@@ -305,9 +310,11 @@ allocate_manure_to_land <- function(
         "{.val {opt$cap_method}} needs a precomputed {.field grass_n_cap} in {.field grass}."
       )
     }
+    # A capacity can't be negative; the supplied grass_n_cap occasionally is,
+    # from the underlying growth model's own edge cases.
     grass <- dplyr::mutate(
       grass,
-      grass_n_cap = .data$grass_n_cap * opt$f_n_tolerance
+      grass_n_cap = pmax(.data$grass_n_cap * opt$f_n_tolerance, 0)
     )
   }
   dplyr::select(grass, "year", "territory", "sub_territory", "grass_n_cap")
