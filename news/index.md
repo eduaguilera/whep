@@ -2,6 +2,40 @@
 
 ## whep (development version)
 
+- **The cell-polity crosswalk is a pin now, so no user regenerates it
+  ([\#694](https://github.com/eduaguilera/whep/issues/694),
+  [\#461](https://github.com/eduaguilera/whep/issues/461)).**
+  `cell_polity_fraction.parquet` was the only one of the ten artefacts
+  `inst/scripts/prepare_spatialize_all.R` produces that was not
+  published: its nine siblings are pins, and it was gated behind
+  `WHEP_POLITY_FRACTION_PATH`. But env-var gating is for the multi-GB
+  third-party archives a user cannot be handed, and this is a 62 KB
+  table WHEP builds itself from Natural Earth plus its own
+  `inst/extdata/regions.csv`, so every user had to run the producer —
+  which is how the retired-vocabulary copy that deleted Ethiopia and
+  Sudan came to be the one everybody read.
+
+  It is published as `spatialize-cell-polity-fraction`
+  (`20260821T095211Z-a4952`, 62,784 rows over 58,791 cells and 178 area
+  codes), and
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  reads that pin **by default**. `WHEP_POLITY_FRACTION_PATH` and the new
+  `polity_fraction_path` / `version` arguments are overrides for a local
+  producer build, exactly the shape
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  already had. Calling it with neither set no longer aborts. The
+  published pin payload is byte-identical to the regenerated parquet
+  [\#694](https://github.com/eduaguilera/whep/issues/694) verified, so
+  **no published value changes**.
+
+  The [\#694](https://github.com/eduaguilera/whep/issues/694)
+  stale-vocabulary guard stays on, and now covers both routes: the
+  override, which is the one that can go stale, and an explicitly pinned
+  older `version`.
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  also gained `example = TRUE`, so its example runs offline instead of
+  being skipped for want of an environment variable.
+
 - **[`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
   is now [`identical()`](https://rdrr.io/r/base/identical.html) to
   itself across sessions

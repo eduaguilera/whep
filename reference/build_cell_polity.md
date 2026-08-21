@@ -1,9 +1,8 @@
 # Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 
-Reads the cached cell-polity fraction parquet (`lon`, `lat`,
-`area_code`, `polity_frac`) and adds `cell_area_ha`, computed from
-latitude with the same 0.5-degree cell-area formula used across the
-package (see
+Reads the cell-polity fraction table (`lon`, `lat`, `area_code`,
+`polity_frac`) and adds `cell_area_ha`, computed from latitude with the
+same 0.5-degree cell-area formula used across the package (see
 [`build_grass_availability_lpjml()`](https://eduaguilera.github.io/whep/reference/build_grass_availability_lpjml.md)).
 This assembles the `data$cell_polity` contract that every Module C
 function (e.g.
@@ -17,7 +16,9 @@ expects as a required input.
 ``` r
 build_cell_polity(
   polity_fraction_path = NULL,
-  area_key = c("grid", "polity_area")
+  area_key = c("grid", "polity_area"),
+  version = NULL,
+  example = FALSE
 )
 ```
 
@@ -25,15 +26,27 @@ build_cell_polity(
 
 - polity_fraction_path:
 
-  Path to the cell-polity fraction parquet. Defaults to
-  `Sys.getenv("WHEP_POLITY_FRACTION_PATH")`.
+  Optional path to a local parquet, overriding
+  `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin.
 
 - area_key:
 
-  Which area code the output is keyed on: `"grid"` (default, the
-  parquet's own reporting-area codes) or `"polity_area"` (the
+  Which area code the output is keyed on: `"grid"` (default, the table's
+  own reporting-area codes) or `"polity_area"` (the
   [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
   bucket national tables are aggregated on).
+
+- version:
+
+  Pin version, passed to
+  [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md).
+  `NULL` takes the version frozen in
+  [whep_inputs](https://eduaguilera.github.io/whep/reference/whep_inputs.md).
+
+- example:
+
+  If `TRUE`, return a small fixture instead of reading the pin, so the
+  example runs offline.
 
 ## Value
 
@@ -79,22 +92,44 @@ no polity code string is recoverable from this year-less grid. Carrying
 that identity needs the cell x polity x validity-interval unit tracked
 by epic whep#458, not a column added here.
 
+## Where the table comes from
+
+WHEP produces this crosswalk itself, in section 1b of
+`inst/scripts/prepare_spatialize_all.R`, from Natural Earth polygons and
+`inst/extdata/regions.csv`. It is therefore published as the
+`spatialize-cell-polity-fraction` pin alongside the nine other artefacts
+of that script, and the pin is what this function reads by default: no
+user has to run the producer, or hold the Natural Earth shapefile, to
+get the table WHEP's own runs use. `WHEP_POLITY_FRACTION_PATH` and
+`polity_fraction_path` are **overrides** for a local development build,
+in the shape
+[`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+already uses.
+
 ## Vintage of the area vocabulary
 
-The parquet's `area_code` values must all exist in the `regions.csv` the
+The table's `area_code` values must all exist in the `regions.csv` the
 installed package carries, because that is the table its producer
 rasterizes through. A copy built through an older vintage keyed Ethiopia
 `62` and Sudan (former) `206` where today's lookup uses `238` and `276`,
 so adopting it deleted both countries from every consumer (whep#694).
-Such a file is now **refused** with class `whep_stale_cell_polity_grid`
+Such a table is **refused** with class `whep_stale_cell_polity_grid`
 rather than read, and the message names the producer re-run that
-rebuilds it.
+rebuilds it. The check guards the override, which is the only route that
+can now go stale, but it runs on the pin too so that pinning an older
+`version` cannot reintroduce the deletion either.
 
 ## Examples
 
 ``` r
-# Requires WHEP_POLITY_FRACTION_PATH to be set; not run without it.
-if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {
-  build_cell_polity()
-}
+build_cell_polity(example = TRUE)
+#> # A tibble: 6 × 5
+#>     lon   lat area_code polity_frac cell_area_ha
+#>   <dbl> <dbl>     <int>       <dbl>        <dbl>
+#> 1 -0.25  10.2        81      1           304174.
+#> 2 -0.25  10.8        81      0.917       303682.
+#> 3 -0.25  10.8       217      0.0833      303682.
+#> 4 -0.25  11.2       233      0.778       303167.
+#> 5 -0.25  11.2        81      0.194       303167.
+#> 6 -0.25  11.2       217      0.0278      303167.
 ```

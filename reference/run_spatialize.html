@@ -193,8 +193,10 @@ carry a different area vocabulary from the centroid grid — it keyed
 Ethiopia <code>62</code> and Sudan <code>206</code> where today's <code>regions.csv</code> uses <code>238</code> and
 <code>276</code>, so substituting it dropped both countries entirely (whep#461).
 Regenerating it closed that gap: the two grids now carry the same 178 area
-codes, and <code><a href="build_cell_polity.html">build_cell_polity()</a></code> refuses a copy still holding a retired
-code instead of deleting the countries silently (whep#694). It still cannot
+codes, it is published as the <code>spatialize-cell-polity-fraction</code> pin so no
+user has to rebuild it, and <code><a href="build_cell_polity.html">build_cell_polity()</a></code> refuses a copy still
+holding a retired code instead of deleting the countries silently
+(whep#694). It still cannot
 rescue a polity smaller than a cell, because its producer restricts it to
 the cells the centroid grid already has, and it drops 4 of those cells,
 whose only land is a sliver covering the 0.5-degree cell centre but no

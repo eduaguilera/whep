@@ -151,7 +151,8 @@ carry a different area vocabulary from the centroid grid — it keyed
 Ethiopia `62` and Sudan `206` where today's `regions.csv` uses `238` and
 `276`, so substituting it dropped both countries entirely (whep#461).
 Regenerating it closed that gap: the two grids now carry the same 178
-area codes, and
+area codes, it is published as the `spatialize-cell-polity-fraction` pin
+so no user has to rebuild it, and
 [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
 refuses a copy still holding a retired code instead of deleting the
 countries silently (whep#694). It still cannot rescue a polity smaller
