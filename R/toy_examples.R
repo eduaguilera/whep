@@ -1627,3 +1627,22 @@
     ) |>
     dplyr::select(dplyr::all_of(.plu_output_cols()))
 }
+
+# Three adjacent cells of the real cell-polity crosswalk (the
+# spatialize-cell-polity-fraction pin), chosen so the fixture shows all three
+# shapes a cell can take: whole (Ghana 81), split between two polities
+# (81 / Togo 217) and between three (Burkina Faso 233 / 81 / 217). The
+# fractions are written as their subcell counts over 36 because that is what
+# the producer measures, and so each cell still sums to exactly 1.
+.example_cell_polity <- function() {
+  tibble::tribble(
+    ~lon,   ~lat, ~area_code, ~polity_frac,
+    -0.25, 10.25,        81L,            1,
+    -0.25, 10.75,        81L,        33 / 36,
+    -0.25, 10.75,       217L,         3 / 36,
+    -0.25, 11.25,       233L,        28 / 36,
+    -0.25, 11.25,        81L,         7 / 36,
+    -0.25, 11.25,       217L,         1 / 36
+  ) |>
+    dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
+}
