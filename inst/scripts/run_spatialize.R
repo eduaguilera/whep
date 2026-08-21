@@ -17,12 +17,12 @@ l_files_dir <- "LPJmL_inputs"
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 output_dir <- file.path(l_files_dir, "whep")
 
-# Subset of years to process (must be within the range used
-# in prepare_spatialize_inputs.R). ONE assignment only: this used to be
-# two consecutive lines, so the 1850L:2022L above was silently replaced
-# by the 2000L:2022L below and a run produced 23 years where the script
-# said 173 (whep#531). Widen to 1850L:2022L for the full historical
-# span; the inputs do not all reach 2023.
+# Subset of years to process (must be within the range used in
+# prepare_spatialize_inputs.R). Keep this to ONE assignment: it used to be
+# two consecutive lines, `1850L:2022L` then `2000L:2022L`, so the first was
+# silently overwritten and a run produced 23 years while the script read as
+# if it produced 173 (whep#531). Set it to 1850L:2022L for the full
+# historical span; not every input reaches 2023.
 year_range <- 2000L:2022L
 
 # ---- Load inputs -----------------------------------------------------
