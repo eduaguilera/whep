@@ -95,6 +95,39 @@ testthat::test_that("a group is split across its sectors by slaughtered heads", 
   testthat::expect_equal(cattle / buffalo, 30)
 })
 
+# Spain (203) alongside the USA (231), in two years, so every meat group recurs
+# on both sides of the group -> sector fan-out. Both areas are classified by
+# GLEAM, so neither is reported as unpriced meat.
+.energy_multi_area_fixture <- function() {
+  both <- .energy_prod_fixture() |>
+    dplyr::bind_rows(dplyr::mutate(.energy_prod_fixture(), area_code = 203L))
+  dplyr::bind_rows(both, dplyr::mutate(both, year = 2001L))
+}
+
+testthat::test_that("the sector fan-out is not reported as unexpected", {
+  # The join is many-to-many by design, so only the extension's own warnings
+  # (unpriced meat, missing slaughter shares) should ever reach a caller.
+  testthat::expect_no_warning(
+    result <- whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_multi_area_fixture())
+    ),
+    class = "dplyr_warning_join_relationship_many_to_many"
+  )
+
+  # The fan-out spreads each group without duplicating an output key...
+  testthat::expect_equal(
+    nrow(dplyr::distinct(result, year, area_code, item_cbs_code)),
+    nrow(result)
+  )
+  # ...and it leaves each country-year exactly where it was on its own.
+  single <- whep::build_energy_co2_extension(
+    data = list(primary_prod = .energy_prod_fixture())
+  )
+  usa_2000 <- dplyr::filter(result, year == 2000L, area_code == 231L)
+  testthat::expect_equal(nrow(usa_2000), nrow(single))
+  testthat::expect_equal(sum(usa_2000$impact_u), sum(single$impact_u))
+})
+
 testthat::test_that("areas GLEAM cannot classify are named, not dropped mutely", {
   # `gleam_geographic_hierarchy` is the country universe of the whole extension,
   # so an area with no row there gets no grouping, hence no `ef_total`, and the

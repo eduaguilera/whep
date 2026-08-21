@@ -1204,3 +1204,107 @@ testthat::test_that("C3b: a cell whose polities disagree on the rate aborts", {
   testthat::expect_identical(out$scope_frac, 0)
   testthat::expect_false(anyNA(out$scope_frac))
 })
+
+# polity_validity threading (whep#727) ----------------------------------------
+
+# Records the `polity_validity` each mocked builder was handed, then delegates
+# to the real function so the assembly still runs end to end. The original
+# closure is captured BEFORE the mock is installed, so calling it here does not
+# re-enter the mock.
+.nbi_validity_recorder <- function(seen, name, fn) {
+  # Forced HERE, not at the first call: `fn` is passed as `whep::the_builder`,
+  # and a promise forced after local_mocked_bindings() has run would resolve to
+  # the mock itself and recurse until the C stack overflows.
+  force(fn)
+  force(name)
+  function(...) {
+    args <- list(...)
+    seen[[name]] <- args$polity_validity
+    do.call(fn, args)
+  }
+}
+
+testthat::test_that("polity_validity reaches all four gridded builders", {
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    build_ag_land_support = .nbi_validity_recorder(
+      seen,
+      "ag_land_support",
+      whep::build_ag_land_support
+    ),
+    build_n_deposition = .nbi_validity_recorder(
+      seen,
+      "deposition",
+      whep::build_n_deposition
+    ),
+    build_urban_n = .nbi_validity_recorder(
+      seen,
+      "urban",
+      whep::build_urban_n
+    ),
+    spatialize_country_n_to_crops = .nbi_validity_recorder(
+      seen,
+      "spatialize",
+      whep::spatialize_country_n_to_crops
+    )
+  )
+  data <- .nbi_full_data()
+  # Derived rather than injected, so build_ag_land_support() is really called.
+  data$ag_land_support <- NULL
+  data$grassland_ha <- .nbi_grassland_ha()
+  out <- whep::build_n_inputs(data = data, polity_validity = "flag")
+
+  testthat::expect_equal(seen$ag_land_support, "flag")
+  testthat::expect_equal(seen$deposition, "flag")
+  testthat::expect_equal(seen$urban, "flag")
+  testthat::expect_equal(seen$spatialize, "flag")
+  testthat::expect_true(nrow(out) > 0L)
+})
+
+testthat::test_that("the polity_crop synthetic path forwards it too", {
+  # The grid branch of the synthetic term is covered above; the polity_crop
+  # branch is a second call site and gets its own check.
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    spatialize_country_n_to_crops = .nbi_validity_recorder(
+      seen,
+      "spatialize",
+      whep::spatialize_country_n_to_crops
+    )
+  )
+  data <- .nbi_full_data()
+  data$cell_polity <- NULL
+  data$urban_population <- NULL
+  whep::build_n_inputs(
+    resolution = "polity",
+    data = data,
+    polity_validity = "drop"
+  )
+  testthat::expect_equal(seen$spatialize, "drop")
+})
+
+testthat::test_that("polity_validity = flag adds the per-row flag column", {
+  out <- whep::build_n_inputs(data = .nbi_full_data(), polity_validity = "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+  testthat::expect_type(out$reporting_polity_out_of_span, "logical")
+  testthat::expect_false(anyNA(out$reporting_polity_out_of_span))
+  kept <- whep::build_n_inputs(data = .nbi_full_data())
+  testthat::expect_false(
+    "reporting_polity_out_of_span" %in% names(kept)
+  )
+})
+
+testthat::test_that("the example fixture honours polity_validity", {
+  out <- whep::build_n_inputs(example = TRUE, polity_validity = "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+})
+
+testthat::test_that("polity_validity is validated", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      polity_validity = "discard",
+      data = .nbi_full_data()
+    ),
+    "polity_validity"
+  )
+})

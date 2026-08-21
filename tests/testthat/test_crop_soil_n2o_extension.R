@@ -180,7 +180,8 @@ testthat::test_that("country N totals are re-keyed onto the polity vocabulary", 
     # into 206, so the two must be summed under 206, not dropped.
     "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 276L, 900,
     "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 277L, 100,
-    # Aruba and Eswatini both fold into the "rest of world" bucket 999.
+    # Aruba and Eswatini are Rest-of-World members, promoted to their own bucket
+    # by whep#628, so each keeps its own code instead of being summed into 999.
     "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 22L, 3,
     "Agricultural Use", "Nutrient nitrogen N (total)", 2015L, 209L, 7,
     # Australia's FAOSTAT code already IS its polity area code: unchanged.
@@ -193,10 +194,13 @@ testthat::test_that("country N totals are re-keyed onto the polity vocabulary", 
   synthetic <- whep:::.synthetic_n_country(fertilizer)
 
   testthat::expect_named(synthetic, c("year", "area_code", "synthetic_n_t"))
-  testthat::expect_setequal(synthetic$area_code, c(206L, 999L, 10L))
+  testthat::expect_setequal(synthetic$area_code, c(206L, 22L, 209L, 10L))
   testthat::expect_equal(
-    synthetic$synthetic_n_t[match(c(206L, 999L, 10L), synthetic$area_code)],
-    c(1000, 10, 50)
+    synthetic$synthetic_n_t[match(
+      c(206L, 22L, 209L, 10L),
+      synthetic$area_code
+    )],
+    c(1000, 3, 7, 50)
   )
 
   manure <- tibble::tribble(
@@ -250,4 +254,40 @@ testthat::test_that("residue_removed_frac is validated", {
     whep::build_crop_soil_n2o_extension(residue_removed_frac = 1, data = f),
     "residue_removed_frac"
   )
+})
+
+# whep#716: the bridge must read the crosswalk the pipeline resolves through
+# (`.polity_crosswalk()`), not the shipped `polity_area_crosswalk`, where the
+# Rest-of-World members promoted by whep#628 still carry `polity_area_code` 999.
+testthat::test_that(".n_country_to_polity bridges onto the pipeline's bucket", {
+  expected <- .promoted_row_members()
+  totals <- tibble::tibble(
+    year = 2010L,
+    area_code = expected$area_code,
+    synthetic_n_t = 1
+  )
+
+  bridged <- whep:::.n_country_to_polity(totals, "synthetic_n_t")
+
+  testthat::expect_equal(nrow(bridged), nrow(expected))
+  testthat::expect_setequal(bridged$area_code, expected$area_code)
+  testthat::expect_false(999L %in% bridged$area_code)
+  # Syria (212) files its own FAOSTAT returns and is not a residual territory.
+  testthat::expect_true(212L %in% bridged$area_code)
+})
+
+testthat::test_that(".n_country_to_polity still folds when the fold is asked for", {
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  totals <- tibble::tibble(
+    year = 2010L,
+    area_code = c(212L, 85L),
+    synthetic_n_t = c(3, 4)
+  )
+
+  bridged <- suppressWarnings(
+    whep:::.n_country_to_polity(totals, "synthetic_n_t")
+  )
+
+  testthat::expect_setequal(bridged$area_code, 999L)
+  testthat::expect_equal(bridged$synthetic_n_t, 7)
 })

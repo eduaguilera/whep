@@ -238,7 +238,10 @@ testthat::test_that("gridded example cells carry the grid's own area code", {
   # part of it, so both codes are right for the same cell. (9.25, 47.75) is such
   # a cell -- Lake Constance, majority Germany (79), shared with Switzerland
   # (211), which is why `.example_luh2_landuse()`, sampled from a real polycell
-  # run, emits both. Membership still catches the defect this guards: the Kenyan
+  # run, emits both. The three cells at lon -0.25 are the same situation on the
+  # Ghana/Togo/Burkina Faso corner, sampled from the fractional crosswalk for
+  # `.example_cell_polity()`: 10.25 is Ghana (81) alone, 10.75 splits 81/217 and
+  # 11.25 splits 233/81/217, and all owners of each are listed. Membership still catches the defect this guards: the Kenyan
   # Rift Valley cells list 114 only, so coding them 79 fails.
   grid <- tibble::as_tibble(utils::read.csv(
     testthat::test_path("fixtures", "country_grid_example_cells.csv")

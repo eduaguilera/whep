@@ -65,6 +65,7 @@
 #' @param resolution `"grid"` (default) or `"polity"`, as in
 #'   [build_n_inputs()]; `"polity"` sums every term (and re-derives every
 #'   indicator) over cells.
+#' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded upstream inputs. `n_inputs`
 #'   ([build_n_inputs()]'s output) is used directly when supplied, else
 #'   [build_n_inputs()] is called with this SAME `data` list (so its nested
@@ -130,7 +131,17 @@
 #'   columns below. When the supplied `n_inputs` carry them, the
 #'   `method_recycling_n`, `method_synthetic` and `method_deposition_scope`
 #'   stamps from [build_n_inputs()] are carried through as well, so a balance
-#'   names the input conventions that produced it.
+#'   names the input conventions that produced it. Gains
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
+#'
+#' @details
+#' `polity_validity` is forwarded to [build_n_inputs()] -- which forwards it in
+#' turn to [build_ag_land_support()], [build_n_deposition()], [build_urban_n()]
+#' and [spatialize_country_n_to_crops()] -- and then applied to the balance rows
+#' themselves, so one choice governs the whole build (whep#727). A
+#' `data$n_inputs` table supplied directly is left alone: it was built by its
+#' own call with its own choice, and the balance rows derived from it still get
+#' this argument's fate at the tail.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -142,14 +153,19 @@ build_nitrogen_balance <- function(
     leaching = "meisinger_drainage"
   ),
   resolution = c("grid", "polity"),
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   gwp = c("ar6", "ar5", "ar4"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   gwp <- rlang::arg_match(gwp)
   if (isTRUE(example)) {
-    return(.example_nitrogen_balance())
+    return(.resolve_polity_validity(
+      .example_nitrogen_balance(),
+      polity_validity
+    ))
   }
   m <- .nb_methods(methods)
   key <- .nb_key(resolution)
@@ -163,9 +179,14 @@ build_nitrogen_balance <- function(
   # area_ha denominator and build_n_inputs()'s non-item allocation share ONE
   # table: derived twice they could disagree, and area_ha would silently fall
   # back to harvested area even though physical support was available.
+  data$.polity_validity <- polity_validity
   data$ag_land_support <- .ni_resolve_land_support(data, years = NULL)
   n_inputs <- data$n_inputs %||%
-    build_n_inputs(resolution = resolution, data = data)
+    build_n_inputs(
+      resolution = resolution,
+      polity_validity = polity_validity,
+      data = data
+    )
   .nb_validate_input_grain(n_inputs, resolution)
 
   .nb_inputs(n_inputs, key) |>
@@ -175,7 +196,7 @@ build_nitrogen_balance <- function(
     .nb_cap_som() |>
     .nb_indicators_pass2(m, data, key, gwp) |>
     .nb_finalise() |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers: method validation ----------------------------------

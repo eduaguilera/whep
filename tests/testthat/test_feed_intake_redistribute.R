@@ -1214,6 +1214,35 @@ test_that(".cells_to_polity_area re-keys cells to the demand's polity_area_code"
   expect_equal(out$heads, c(100, 50, 70))
 })
 
+# whep#716: the demand is keyed on the crosswalk the pipeline resolves through
+# (`.polity_crosswalk()`), so this bridge must be too. On the shipped
+# `polity_area_crosswalk` the members promoted by whep#628 still carry 999, which
+# is a bucket the demand no longer has, so their cells would find no demand.
+test_that(".cells_to_polity_area leaves promoted RoW members on their own code", {
+  expected <- .promoted_row_members()
+  cells <- tibble::tibble(
+    area_code = expected$area_code,
+    lon = 0,
+    lat = 0,
+    heads = 1
+  )
+
+  out <- whep:::.cells_to_polity_area(cells)
+
+  expect_equal(out$area_code, expected$area_code_expected)
+  expect_false(999L %in% out$area_code)
+  expect_equal(nrow(out), nrow(expected))
+})
+
+test_that(".cells_to_polity_area still folds when the fold is asked for", {
+  withr::local_options(whep.unfold_rest_of_world = "none")
+  cells <- tibble::tibble(area_code = c(212L, 85L), lon = 0, lat = 0, heads = 1)
+
+  out <- suppressWarnings(whep:::.cells_to_polity_area(cells))
+
+  expect_equal(out$area_code, c(999L, 999L))
+})
+
 test_that(".grass_to_cells maps grass to per-cell local grass_availability", {
   grass <- tibble::tribble(
     ~lon,

@@ -10,6 +10,16 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 \item \code{area_code}: Numeric FAOSTAT/FABIO reporting area code.
 \item \code{area_name}: Reporting area name.
 \item \code{area_iso3c}: Reporting-area ISO3-like code where available.
+\item \code{legacy_polity_prefix}, \code{legacy_polity_name}: The ISO3-like stem (\code{"ARM"},
+\code{"ROCE"}, \code{"REUR"}) and legacy label this package vendors from
+\code{regions_full.csv}, kept for older callers and used at build time only as a
+\emph{candidate prefix} for polity inference. \strong{Neither is an identity}: not one
+stem is a \link{polities} \code{polity_code}, so a join to \link{polities} on it comes back
+empty. Read \code{polity_code} for the polity this row resolves to. Until #711
+the pair shipped as \code{reporting_polity_code}/\code{reporting_polity_name}, the
+package's own names for a real periodized polity (see
+\link{whep_polity_columns}), which is exactly the trap #687 removed from
+\link{regions_full}.
 \item \code{polity_area_code}: Numeric area code retained for WHEP matrix workflows.
 \item \code{polity_code}, \code{polity_name}: Matched WHEP polity, or \code{NA} for
 statistical composites that are not real polities.
@@ -83,8 +93,11 @@ one member, or its members agree, \verb{(polity_area_code, year)} recovers the
 polity too. Over 1961-2025 exactly one bucket does not: \strong{206}, which holds
 Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
 polities in all 65 reported years. See #414. To say which territory a row
-belongs to, read \code{reporting_polity_code}, or resolve through
-\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket.
+belongs to, read this table's own \code{polity_code}, or resolve through
+\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket. In a WHEP \emph{output} the
+same answer is \code{reporting_polity_code}, materialised from this table's
+\code{polity_code}. This table carries no column of that name, and
+\code{legacy_polity_prefix} is not a substitute for one (#711).
 }
 
 \section{Confidence is the pair, not \code{mapping_status} alone}{

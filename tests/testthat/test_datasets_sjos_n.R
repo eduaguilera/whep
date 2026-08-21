@@ -70,18 +70,20 @@ testthat::test_that("sjos/nourish level tables are ordered and coloured", {
   nl <- whep::nourish_levels
   pointblank::expect_col_exists(s, c("level", "order", "colour"))
   pointblank::expect_col_exists(nl, c("level", "order", "colour"))
-  # 2-way boundary axis crossed with the 3-way nourishment axis.
-  testthat::expect_equal(
-    s$level,
-    c(
-      "Within_boundary Under",
-      "Within_boundary Adequate",
-      "Within_boundary Over",
-      "Exceedance Under",
-      "Exceedance Adequate",
-      "Exceedance Over"
-    )
-  )
+  # 2-way boundary axis crossed with the 3-way nourishment axis, in the
+  # realised afsetools SJOS_levels order (load_vectors.R:684 wraps the vector
+  # in rev(), so "Exceedance Over" is element 1).
+  afsetools_sjos_levels <- rev(c(
+    "Within_boundary Under",
+    "Within_boundary Adequate",
+    "Within_boundary Over",
+    "Exceedance Under",
+    "Exceedance Adequate",
+    "Exceedance Over"
+  ))
+  testthat::expect_equal(s$level, afsetools_sjos_levels)
+  # order is the row order, so it is the factor/legend order too.
+  testthat::expect_equal(s$order, seq_along(afsetools_sjos_levels))
   testthat::expect_equal(nl$level, c("Over", "Adequate", "Under"))
   # Colours ported by value from afsetools::load_vectors() (R colour names).
   testthat::expect_equal(

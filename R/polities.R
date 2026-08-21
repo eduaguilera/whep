@@ -1688,7 +1688,7 @@ get_polity_geometries <- function(polity_codes = NULL) {
   unmapped <- cw[!is.na(cw$mapping_status) & cw$mapping_status == "unmapped", ]
   unique(stats::na.omit(.norm_polity_label(c(
     unmapped$area_name,
-    unmapped$reporting_polity_name
+    unmapped$legacy_polity_name
   ))))
 }
 
@@ -1730,15 +1730,22 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' got `NA`: `resolve_polity_label("Netherlands")` found nothing while [polities]
 #' carried a polity named exactly that. Without the ISO3 half the map answers
 #' only for labels a curator had to decide about, which is 380 of
-#' [mueller_synthetic_n]'s 5,043 rows -- the 10 legacy codes -- against 4,999 with
-#' it. Two guards bound both halves.
+#' [mueller_synthetic_n]'s 5,043 rows -- the 11 legacy codes -- against all
+#' 5,043 with it, asked at `year = 2000`. Asking without a year resolves only
+#' 1,255, because the guard below then refuses every identifier more than one
+#' live polity has ever carried. Two guards bound both halves.
 #'
 #' - An identifier resolves only when **exactly one** polity carries it in the
-#'   year asked about. 9 pairs of polities in the shipped [polities] snapshot
-#'   share a normalised name and overlap in years, so row order would otherwise
-#'   decide, and `NA` is the honest answer. `"SDN"` in 2000 is the case that
-#'   matters: the only polity carrying that ISO3 runs from 2011, so the answer is
-#'   `NA` rather than the post-secession state.
+#'   year asked about, because otherwise row order would decide and `NA` is the
+#'   honest answer. Sharing an identifier is common in the shipped [polities]
+#'   snapshot: of its 726 live rows, 110 normalised names and 133 ISO3 codes are
+#'   carried by more than one polity. A year separates nearly all of them -- no
+#'   two live polities sharing a normalised name cover a common year -- but not
+#'   the ISO3 index, where 69 pairs still do, 62 of them naming different
+#'   territories rather than successive periods of one. `"PAN"` in 1970 is the
+#'   case that matters: `PAN-1903-1979` and the Canal Zone `CZN-1903-1979` both
+#'   carry that ISO3 then -- a real territorial overlap no re-sync removes --
+#'   so the answer is `NA`, while `"PAN"` in 2000 resolves to `PAN-1979-2025`.
 #' - An alias covering that year outranks both, whatever its source, and a label
 #'   naming an area the crosswalk leaves unmapped is refused outright.
 #'
@@ -1748,21 +1755,21 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' that territory since 1991 -- and those years are deliberately unmapped rather
 #' than routed to a polity that had ended.
 #'
-#' A resolved code names a polity in the published upstream database, which is
-#' ahead of the [polities] snapshot this package ships (740 rows upstream against
-#' 603 here). 225 of the 869 published aliases therefore point at one of 115
-#' codes [get_polity_geometries()] cannot yet return a row for; refreshing
-#' [polities] closes that gap without changing any resolution.
+#' Every resolved code is one [get_polity_geometries()] can return a row for,
+#' and that is an invariant rather than a happy accident: [polity_label_aliases]
+#' and [polities] are regenerated together from a single upstream revision, and
+#' `data-raw/table_mappings.R` aborts the build if any alias names a polity the
+#' shipped table does not carry. A dangling resolution therefore cannot ship.
 #'
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. On the alias route `NULL` matches
-#'   unscoped aliases only -- 171 of 869 -- so a `NULL` source narrows that route
+#'   unscoped aliases only -- 180 of 903 -- so a `NULL` source narrows that route
 #'   sharply; the identity routes then get their turn, subject to the guards
 #'   above.
 #' @param year Optional integer vector of years. Length 1, or the same length as
 #'   `label`. On the alias route `NULL` matches aliases with no year scope only,
-#'   which is the 17 of 869 published aliases carrying NEITHER bound. The name
+#'   which is the 15 of 903 published aliases carrying NEITHER bound. The name
 #'   and ISO3 routes can still answer without a year, but only for an identifier
 #'   exactly one polity has ever carried, so supplying a year remains much the
 #'   stronger question: it is what lets a label resolve to the right *period*
@@ -1834,12 +1841,30 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     end_year = polities$end_year[alive],
     stringsAsFactors = FALSE
   )
+  # The exclusive upper bound the year test below compares against: EXCLUSIVE AT
+  # A SUCCESSION, INCLUSIVE AT AN OPEN END, the same reading
+  # `.polity_join_end_year()` gives `add_polity_code()` (#577). Read strictly
+  # exclusively, the label route answered `NA` for every polity whose interval
+  # ends at the open-period sentinel -- 203 of the 204 present-day countries in
+  # `gleam_geographic_hierarchy` at 2025 -- while the numeric route resolved them
+  # normally (#712).
+  #
+  # Openness is ABSENCE OF A SUCCESSOR, not `end_year == max(end_year)`. The year
+  # test would widen a period that ends at the maximum AND is succeeded, and that
+  # is what puts two candidates on a succession year; `.open_polity_codes()`
+  # already excludes the handed-over periods, so the widening can only add years
+  # nothing else claims.
+  pol$join_end_year <- .polity_join_end_year(
+    pol$end_year,
+    NA_integer_,
+    pol$polity_code %in% .open_polity_codes()
+  )
   name_key <- .norm_polity_label(polities$polity_name[alive])
   # The ISO3 index is what makes this usable for the datasets that motivated it.
   # The alias map is keyed on the labels curators had to decide about, so a label
   # that is simply a current ISO3 code is not in it: without this route,
   # `mueller_synthetic_n`'s `iso3c` column resolved 380 of 5,043 rows -- only the
-  # 10 FAO-style legacy codes the map does carry -- and `crops_manure_n`'s `ISO`
+  # 11 FAO-style legacy codes the map does carry -- and `crops_manure_n`'s `ISO`
   # 860 of 31,648. Upstream's matcher resolves "by alias, then ISO/name family +
   # year containment", so this is the second half of that rule, not a new one.
   iso_key <- toupper(trimws(polities$iso3_code[alive]))
@@ -1862,9 +1887,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     }
     cand <- pol[hit, , drop = FALSE]
     if (!is.na(year[i])) {
-      # `end_year` is exclusive, so live in Y means start_year <= Y < end_year.
-      live <- year[i] >= cand$start_year & year[i] < cand$end_year
-      cand <- cand[!is.na(live) & live, , drop = FALSE]
+      cand <- .polity_year_candidates(cand, year[i])
     }
     # THE AMBIGUITY GUARD IS THE DESIGN. Nested periodisations and known
     # duplicates make several polities share a normalised name, so resolving by
@@ -1966,6 +1989,31 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     },
     character(1)
   )
+}
+
+# The candidate periods of one identifier that cover `year`, read the way
+# `add_polity_code()` reads a span: EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT AN
+# OPEN END (#577).
+#
+# STRICT CONTAINMENT OUTRANKS THE WIDENING, and that precedence is the whole
+# reason this is a helper rather than one predicate. Widening every open period
+# unconditionally is what puts two candidates on a boundary year -- the failure
+# mode of #720 -- because a terminated aggregate records no successor and is
+# therefore open by the successor test: `EGYSUD-1934-1956` reaches 1956 beside
+# `EGY-1925-1967`, `CODRU-1922-1960` reaches 1960 beside `COD-1960-2025`, and
+# `MASG-1946-1963` reaches 1963 beside `MYS-1963-1965`. The ambiguity guard in
+# the caller then answers `NA` for a year that used to resolve. A period whose
+# declared span really contains the year is the better answer than one that only
+# reaches it by the open-end rule, so the widened bound is consulted only when
+# nothing claims the year outright. Measured on the shipped snapshot: over 1,020
+# identifiers x 1850:2026 this adds 700 resolutions (680 at the 2025 sentinel,
+# 20 in the last year of a terminated period upstream records no successor for,
+# `ANT-1961-2010` in 2010 among them) and moves NONE.
+.polity_year_candidates <- function(cand, year) {
+  starts <- !is.na(cand$start_year) & year >= cand$start_year
+  declared <- starts & !is.na(cand$end_year) & year < cand$end_year
+  widened <- starts & !is.na(cand$join_end_year) & year < cand$join_end_year
+  cand[if (any(declared)) declared else widened, , drop = FALSE]
 }
 
 # -- Dissolved-federation successor closure ------------------------------------

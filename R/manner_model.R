@@ -203,13 +203,20 @@ calculate_manner_nh3_default <- function(
 # thresholds.
 .manner_rate_bin <- function(rate_kg_ha) {
   data.table::fcase(
-    rate_kg_ha > 200 , ">200"    ,
-    rate_kg_ha > 180 , "180-200" ,
-    rate_kg_ha > 150 , "150-180" ,
-    rate_kg_ha > 120 , "120-150" ,
-    rate_kg_ha > 90  , "90-120"  ,
-    rate_kg_ha > 60  , "60-90"   ,
-    rate_kg_ha > 30  , "30-60"   ,
+    rate_kg_ha > 200 ,
+    ">200"           ,
+    rate_kg_ha > 180 ,
+    "180-200"        ,
+    rate_kg_ha > 150 ,
+    "150-180"        ,
+    rate_kg_ha > 120 ,
+    "120-150"        ,
+    rate_kg_ha > 90  ,
+    "90-120"         ,
+    rate_kg_ha > 60  ,
+    "60-90"          ,
+    rate_kg_ha > 30  ,
+    "30-60"          ,
     default = "0-30"
   )
 }
@@ -308,11 +315,16 @@ calculate_manner_nh3_default <- function(
 # Climate factor AE, precipitation-banded, clamped to [0.6, 1.5].
 .manner_climate_factor_ae <- function(precip_mm_period, temp_c) {
   raw <- data.table::fcase(
-    precip_mm_period > 120 , 0.0030 * temp_c + 0.3248 ,
-    precip_mm_period > 90  , 0.0043 * temp_c + 0.4641 ,
-    precip_mm_period > 60  , 0.0062 * temp_c + 0.6629 ,
-    precip_mm_period > 30  , 0.0236 * temp_c + 0.8745 ,
-    precip_mm_period > 15  , 0.0319 * temp_c + 1.1806 ,
+    precip_mm_period > 120   ,
+    0.0030 * temp_c + 0.3248 ,
+    precip_mm_period > 90    ,
+    0.0043 * temp_c + 0.4641 ,
+    precip_mm_period > 60    ,
+    0.0062 * temp_c + 0.6629 ,
+    precip_mm_period > 30    ,
+    0.0236 * temp_c + 0.8745 ,
+    precip_mm_period > 15    ,
+    0.0319 * temp_c + 1.1806 ,
     default = 0.0431 * temp_c + 1.5936
   )
   pmin(1.5, pmax(0.6, raw))
@@ -407,13 +419,17 @@ calculate_manner_nh3_default <- function(
     min(rainfall_mm / 100 * 15, 15)
   }
   wetness <- data.table::fcase(
-    days_rain > 11 , "wet"      ,
-    days_rain > 5  , "moderate" ,
+    days_rain > 11 ,
+    "wet"          ,
+    days_rain > 5  ,
+    "moderate"     ,
     default = "dry"
   )
   rain_level <- data.table::fcase(
-    rainfall_mm > 110 , "heavyrain" ,
-    rainfall_mm > 50  , "lightrain" ,
+    rainfall_mm > 110 ,
+    "heavyrain"       ,
+    rainfall_mm > 50  ,
+    "lightrain"       ,
     default = "norain"
   )
   paste0(rain_level, wetness)
@@ -421,8 +437,10 @@ calculate_manner_nh3_default <- function(
 
 .manner_windspeed_class <- function(windspeed_ms) {
   data.table::fcase(
-    windspeed_ms > 8 , "strongwind" ,
-    windspeed_ms > 4 , "moderawind" ,
+    windspeed_ms > 8 ,
+    "strongwind"     ,
+    windspeed_ms > 4 ,
+    "moderawind"     ,
     default = "nowind"
   )
 }

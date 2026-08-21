@@ -878,21 +878,31 @@ cft_to_pft <- c(
 }
 
 # ---- Load or cache production data ----------------------------------------
+# The cache is keyed on a fingerprint of every package dataset plus the
+# cached table's own schema and `area_code` domain, not on the year span
+# alone: a cache written under an older area model must be rebuilt loudly
+# rather than silently reused (whep#657). The logic lives in
+# `whep:::.prod_cache_*()` so it is covered by the test suite.
 .load_or_cache_production <- function(output_dir, year_range) {
   prod_cache <- file.path(output_dir, ".prod_cache.parquet")
+  meta_path <- file.path(output_dir, ".prod_cache.meta.rds")
+  fingerprint <- whep:::.prod_cache_fingerprint()
   if (file.exists(prod_cache)) {
     cached <- nanoparquet::read_parquet(prod_cache)
-    cached_years <- sort(unique(as.integer(cached$year)))
-    if (
-      min(year_range) >= min(cached_years) &&
-        max(year_range) <= max(cached_years)
-    ) {
+    meta <- if (file.exists(meta_path)) readRDS(meta_path) else NULL
+    reason <- whep:::.prod_cache_stale_reason(
+      meta,
+      year_range,
+      fingerprint,
+      cached
+    )
+    if (is.null(reason)) {
       cli::cli_alert_info("Reading cached production data")
       return(cached)
     }
-    cli::cli_alert_info(
-      "Cache covers {min(cached_years)}-{max(cached_years)}, \\
-      rebuilding for {min(year_range)}-{max(year_range)}"
+    cli::cli_alert_warning(
+      "Discarding stale production cache ({reason}); rebuilding for \\
+      {min(year_range)}-{max(year_range)}"
     )
   }
   prod <- whep::build_primary_production(
@@ -900,6 +910,7 @@ cft_to_pft <- c(
     end_year = max(year_range)
   )
   nanoparquet::write_parquet(prod, prod_cache)
+  saveRDS(whep:::.prod_cache_meta(prod, fingerprint), meta_path)
   cli::cli_alert_info("Cached production data for reuse")
   prod
 }
@@ -3057,10 +3068,8 @@ prepare_nitrogen_inputs <- function(
           manure_mg_n * 1000 / area_ha_base,
         fert_type == "Manure" & !is.na(kg_n_ha_manure_west) ~
           kg_n_ha_manure_west,
-        fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~
-          kg_n_ha_synth,
-        fert_type == "Synthetic" & !is.na(kg_n_ha_synth_es) ~
-          kg_n_ha_synth_es,
+        fert_type == "Synthetic" & !is.na(kg_n_ha_synth) ~ kg_n_ha_synth,
+        fert_type == "Synthetic" & !is.na(kg_n_ha_synth_es) ~ kg_n_ha_synth_es,
         TRUE ~ NA_real_
       )
     ) |>
@@ -3492,8 +3501,7 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
     ) |>
     dplyr::mutate(
       source = dplyr::case_when(
-        !is.na(nex_lookup) & use_regional ~
-          "ipcc_2019_tier1_regional",
+        !is.na(nex_lookup) & use_regional ~ "ipcc_2019_tier1_regional",
         !is.na(nex_lookup) ~ "ipcc_2019_tier1_global",
         TRUE ~ "fallback_other_2kg"
       ),

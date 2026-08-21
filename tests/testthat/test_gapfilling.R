@@ -2129,3 +2129,102 @@ test_that("fill_proxy_growth takes the weight from the previous year", {
     tolerance = 1e-9
   )
 })
+
+# Series-boundary lag (#608) ---------------------------------------------------
+
+disjoint_span_fixture <- function() {
+  # ESP and FRA are both in region "eu" but their `gdp` coverages do not
+  # overlap: ESP ends in 2002 and FRA starts in 2003. DEU has no `gdp` at all,
+  # so it contributes no growth of its own and is filled purely from the region
+  # rate.
+  tibble::tribble(
+    ~region, ~country, ~year, ~gdp, ~value,
+    "eu",    "ESP",     2000,  100,     50,
+    "eu",    "ESP",     2001,  110,     NA,
+    "eu",    "ESP",     2002,  121,     NA,
+    "eu",    "FRA",     2003, 1000,     80,
+    "eu",    "FRA",     2004, 1000,     NA,
+    "eu",    "DEU",     2002,   NA,    200,
+    "eu",    "DEU",     2003,   NA,     NA
+  )
+}
+
+test_that("fill_proxy_growth does not lag across a series boundary", {
+  # Regression (#608): the proxy lag was taken within the aggregation group
+  # ("region") instead of within the individual series ("country"), so FRA's
+  # first year picked up ESP's last `gdp` as its own previous value. The years
+  # are adjacent, so the `year == lag_yr + 1` guard did not catch it.
+  result <- whep::fill_proxy_growth(
+    disjoint_span_fixture(),
+    value_col = value,
+    proxy_col = "gdp:region",
+    .by = "country",
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # FRA 2003 has no 2002 observation of its own, so there is no growth rate.
+  # Under the bug it was (1000 - 121) / 121 = 7.264463, ESP's 2002 `gdp`.
+  expect_true(
+    result |>
+      dplyr::filter(year == 2003) |>
+      dplyr::pull(growth_1_gdp_region) |>
+      is.na() |>
+      all()
+  )
+
+  # DEU 2003 is therefore not fillable, instead of being inflated 8.26-fold.
+  expect_true(
+    result |>
+      dplyr::filter(country == "DEU", year == 2003) |>
+      dplyr::pull(value) |>
+      is.na()
+  )
+
+  # The within-series growth rates are untouched.
+  expect_equal(
+    result |>
+      dplyr::filter(country == "ESP") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(50, 55, 60.5),
+    tolerance = 1e-9
+  )
+})
+
+test_that("fill_proxy_growth smooths the proxy within each series", {
+  # The same grouping is handed to the moving average, so a smoothed proxy was
+  # averaged across the boundary too: FRA's 2004 window mixed its own 1000 with
+  # ESP's 121 and produced a 2.015861 growth rate out of a flat series.
+  result <- whep::fill_proxy_growth(
+    disjoint_span_fixture(),
+    value_col = value,
+    proxy_col = "gdp:region",
+    .by = "country",
+    proxy_smooth_window = 2,
+    output_format = "detailed",
+    verbose = FALSE
+  )
+
+  # FRA's own two-year window cannot be formed in 2003 (its first year), so it
+  # has no smoothed growth in 2004 and 2004 stays missing. Under the bug the
+  # window reached back into ESP and 2004 rose to 241.2689 out of a flat proxy.
+  expect_equal(
+    result |>
+      dplyr::filter(country == "FRA") |>
+      dplyr::arrange(year) |>
+      dplyr::pull(value),
+    c(80, NA_real_),
+    tolerance = 1e-9
+  )
+
+  # ESP's own smoothed growth still comes through: the 2002 window mean
+  # (110 + 121) / 2 over the 2001 one (100 + 110) / 2 is 0.05.
+  expect_equal(
+    result |>
+      dplyr::filter(country == "ESP", year == 2002) |>
+      dplyr::pull(growth_1_gdp_region),
+    0.05,
+    tolerance = 1e-9
+  )
+})

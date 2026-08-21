@@ -24,8 +24,11 @@
 #' harmonised to the whep polity `area_code` through [polity_area_crosswalk]
 #' before they are split to crops, so reporting units that FABIO folds into one
 #' bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
-#' Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
-#' to 999). FAOSTAT rows that are not territories carry no polity and are
+#' Ethiopia PDR 62 to 238). The fold state is the one the rest of the pipeline
+#' resolves through, so under the default
+#' `options(whep.unfold_rest_of_world = "all")` the Rest-of-World members keep
+#' their own code rather than being summed into bucket 999.
+#' FAOSTAT rows that are not territories carry no polity and are
 #' dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
 #' rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
 #' is a documented exception rather than a coverage gap, since a rollup has no
@@ -220,8 +223,17 @@ build_crop_soil_n2o_extension <- function(
 # is no output resolution that could carry them: both of
 # spatialize_country_n_to_crops()'s resolutions need a crop share. Keeping them
 # would double count the members they roll up.
+#
+# Read through `.polity_crosswalk()`, the one place `.unfold_rest_of_world()` is
+# applied (`R/polities.R`), so the bridge carries the fold state the crop shares
+# it joins against carry. On the shipped `polity_area_crosswalk` the 61
+# Rest-of-World members promoted by whep#628 -- Syria 212 among them -- still
+# map to bucket 999, which no crop-share key uses, so their national N would be
+# summed into a bucket the inner join then discards (whep#716).
 .n_country_to_polity <- function(totals, value_col) {
-  bridge <- whep::polity_area_crosswalk |>
+  bridge <- .polity_crosswalk() |>
+    as.data.frame() |>
+    tibble::as_tibble() |>
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
     dplyr::distinct(
       area_code = as.integer(.data$area_code),

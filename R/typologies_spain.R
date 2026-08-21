@@ -221,36 +221,7 @@ create_typologies_spain <- function(
     )
 
   indicators <- indicators |>
-    dplyr::mutate(
-      Typology_base = dplyr::case_when(
-        production_seminatural > production_crops ~
-          "Semi-natural agroecosystems",
-        production_crops > animal_ingestion &
-          synthetic_share > 0.4 &
-          crop_productivity >= 10 ~
-          "Specialized cropping systems (intensive)",
-        production_crops > animal_ingestion &
-          synthetic_share <= 0.4 &
-          crop_productivity < 8 ~
-          "Specialized cropping systems (extensive)",
-        Livestock_density > 1.3 &
-          imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.4 ~
-          "Specialized livestock systems (intensive)",
-        Livestock_density > 1 &
-          Livestock_density <= 1.3 &
-          imported_feed_share > 0.6 &
-          feed_from_seminatural_share < 0.4 ~
-          "Specialized livestock systems (extensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity >= 30 ~
-          "Connected crop-livestock systems (intensive)",
-        local_feed_share > 0.3 & Manure_share > 0.3 & crop_productivity < 30 ~
-          "Connected crop-livestock systems (extensive)",
-        local_feed_share < 0.6 & Manure_share < 0.6 ~
-          "Disconnected crop-livestock systems (intensive)",
-        TRUE ~ "Disconnected crop-livestock systems (extensive)"
-      )
-    )
+    .classify_typology_base(.typology_thresholds())
 
   indicators <- indicators |>
     dplyr::mutate(
@@ -317,35 +288,30 @@ create_typologies_spain <- function(
       )
 
     typology_colors <- c(
-      "Semi-natural agroecosystems" = "#66a61e",
-
       "Specialized cropping systems (intensive)" = "#F7DD5A",
       "Specialized cropping systems (extensive)" = "#FFF7C2",
-
       "Specialized livestock systems (intensive)" = "#b3001b",
       "Specialized livestock systems (extensive)" = "#C94F6B",
-
-      "Connected crop-livestock systems (intensive)" = "#7A4F20",
-      "Connected crop-livestock systems (extensive)" = "#AF814B",
-
       "Disconnected crop-livestock systems (intensive)" = "#E67E00",
       "Disconnected crop-livestock systems (extensive)" = "#F6A640",
-
+      "Connected crop-livestock systems (intensive)" = "#7A4F20",
+      "Connected crop-livestock systems (extensive)" = "#AF814B",
+      "Semi-natural agroecosystems" = "#66a61e",
       "Urban systems" = "#6A5ACD"
     )
 
     typologies_map$Typology_base <- factor(
       typologies_map$Typology_base,
       levels = c(
-        "Semi-natural agroecosystems",
         "Specialized cropping systems (intensive)",
         "Specialized cropping systems (extensive)",
         "Specialized livestock systems (intensive)",
         "Specialized livestock systems (extensive)",
+        "Disconnected crop-livestock systems (intensive)",
+        "Disconnected crop-livestock systems (extensive)",
         "Connected crop-livestock systems (intensive)",
         "Connected crop-livestock systems (extensive)",
-        "Disconnected crop-livestock systems (intensive)",
-        "Disconnected crop-livestock systems (extensive)"
+        "Semi-natural agroecosystems"
       )
     )
 
@@ -386,4 +352,88 @@ create_typologies_spain <- function(
       ggplot2::theme_minimal()
   }
   indicators
+}
+
+# --- Typology classification ------------------------------------------------
+
+#' @title Default typology classification thresholds -------------------------
+#' @description The single source of truth for the cut-offs that define the
+#' typologies. `create_typologies_spain()` classifies with these, and
+#' `run_typology_sensitivity()` perturbs them one at a time; keeping both on
+#' one list is what stops the baseline and the sensitivity analysis from
+#' silently diverging.
+#'
+#' @return A named list of thresholds.
+#' @keywords internal
+#' @noRd
+.typology_thresholds <- function() {
+  list(
+    synthetic_crop_int = 0.4,
+    crop_productivity_int = 10,
+    synthetic_crop_ext = 0.4,
+    crop_productivity_ext = 10,
+    livestock_density_int = 1.3,
+    imported_feed_int = 0.6,
+    feed_seminatural_int = 0.4,
+    livestock_density_ext_lo = 1.0,
+    livestock_density_ext_hi = 1.3,
+    imported_feed_ext = 0.6,
+    feed_seminatural_ext = 0.4,
+    local_feed_connected = 0.3,
+    manure_connected = 0.25,
+    crop_productivity_connected = 30,
+    local_feed_disconnected = 0.6,
+    manure_disconnected = 0.6
+  )
+}
+
+#' @title Assign the base typology from indicator values ----------------------
+#' @description Applies the typology decision rules to an indicator table.
+#' Order matters: the branches are evaluated top to bottom, so the
+#' semi-natural test pre-empts the rest and the disconnected-extensive label
+#' is the fallback.
+#'
+#' @param indicators Indicator table with the columns referenced below.
+#' @param th Threshold list, e.g. `.typology_thresholds()`.
+#'
+#' @return `indicators` with a `Typology_base` column.
+#' @keywords internal
+#' @noRd
+.classify_typology_base <- function(indicators, th) {
+  indicators |>
+    dplyr::mutate(
+      Typology_base = dplyr::case_when(
+        production_seminatural > production_crops ~
+          "Semi-natural agroecosystems",
+        production_crops > animal_ingestion &
+          synthetic_share > th$synthetic_crop_int &
+          crop_productivity >= th$crop_productivity_int ~
+          "Specialized cropping systems (intensive)",
+        production_crops > animal_ingestion &
+          synthetic_share <= th$synthetic_crop_ext &
+          crop_productivity < th$crop_productivity_ext ~
+          "Specialized cropping systems (extensive)",
+        Livestock_density > th$livestock_density_int &
+          imported_feed_share > th$imported_feed_int &
+          feed_from_seminatural_share < th$feed_seminatural_int ~
+          "Specialized livestock systems (intensive)",
+        Livestock_density > th$livestock_density_ext_lo &
+          Livestock_density <= th$livestock_density_ext_hi &
+          imported_feed_share > th$imported_feed_ext &
+          feed_from_seminatural_share < th$feed_seminatural_ext ~
+          "Specialized livestock systems (extensive)",
+        local_feed_share > th$local_feed_connected &
+          Manure_share > th$manure_connected &
+          crop_productivity >= th$crop_productivity_connected ~
+          "Connected crop-livestock systems (intensive)",
+        local_feed_share > th$local_feed_connected &
+          Manure_share > th$manure_connected &
+          crop_productivity < th$crop_productivity_connected ~
+          "Connected crop-livestock systems (extensive)",
+        local_feed_share < th$local_feed_disconnected &
+          Manure_share < th$manure_disconnected ~
+          "Disconnected crop-livestock systems (intensive)",
+        TRUE ~ "Disconnected crop-livestock systems (extensive)"
+      )
+    )
 }

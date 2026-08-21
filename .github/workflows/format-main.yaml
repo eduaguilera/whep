@@ -18,10 +18,19 @@ on:
 
 name: format-main.yaml
 
+# Serialised, but NOT cancel-in-progress: this job pushes a commit, so a run
+# killed between formatting and committing would drop that formatting silently.
+# Queueing instead lets each merge get formatted in turn.
+concurrency:
+  group: format-main
+
 jobs:
   format-main:
     name: format-main
     runs-on: ubuntu-latest
+    # Backstop. A healthy run is well under a minute; without this it could sit
+    # for GitHub's 360-minute default.
+    timeout-minutes: 15
 
     steps:
       - name: Check push token is configured

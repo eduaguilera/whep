@@ -240,8 +240,13 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   `WHEP_LPJML_RUN_DIR`, `WHEP_HYDE_DIR`, `WHEP_HANI_DIR`, `WHEP_WIND_DIR`,
   `WHEP_LUH2_DIR`, `WHEP_HWSD_DIR`, `WHEP_CRITICAL_N_DIR`, plus the gridded
   land surfaces (`WHEP_TYPE_CROPLAND_PATH`, `WHEP_CROP_PATTERNS_PATH`,
-  `WHEP_GRIDDED_PASTURE_PATH`, `WHEP_POLITY_FRACTION_PATH`). The readers
-  **abort with an instruction** when unset. Never hardcode an absolute path,
+  `WHEP_GRIDDED_PASTURE_PATH`). The readers
+  **abort with an instruction** when unset. `WHEP_POLITY_FRACTION_PATH` is
+  **not** one of them any more: the cell-polity crosswalk is WHEP-built, so it
+  is the `spatialize-cell-polity-fraction` pin and the env var is only an
+  override (#694). A WHEP-built artifact belongs in a pin, however small —
+  gating one behind an env var means every user regenerates it, and then
+  everyone reads a different vintage. Never hardcode an absolute path,
   and never invent a fallback that silently reads something else.
   Every one of these must be **reproducibly obtainable**: an
   `inst/scripts/download/download_*.R` fetches it from the official source into
@@ -384,9 +389,15 @@ Conventions of the codebase (follow them; they are how the code reads):
 
 The PR must pass these GitHub Actions checks:
 
-1. **R-CMD-check** (5 platforms, 30-min timeout): `rcmdcheck::rcmdcheck()`
+1. **R-CMD-check** (4 platforms, 45-min timeout): `rcmdcheck::rcmdcheck()`
    with no errors, warnings, or notes. Tests run here, which is why a
-   network-dependent test breaks the build.
+   network-dependent test breaks the build. **R-devel is not one of the four**:
+   RSPM ships no R-devel binaries, so that leg source-builds the geo stack every
+   time the R-devel snapshot rolls its cache key, and it told you nothing about
+   your change while you waited. It runs as a separate weekly job
+   (`R-CMD-check-devel`, Wednesdays 04:00 UTC, also `workflow_dispatch`) with
+   `continue-on-error`, so a new R is still caught early without blocking a
+   merge. Check it when R releases; do not expect it green on a PR.
 2. **lint** (`lintr`): with `object_usage_linter`, `line_length_linter`,
    `indentation_linter` and `commas_linter` disabled (they conflict with
    `air`). `inst/scripts` and `inst/analysis` are excluded.

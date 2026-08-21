@@ -2,15 +2,19 @@
 # (Module C, Task C6).
 #
 # CONFIRMED FACTS (local files inspected; do not re-guess):
-# - The cell-polity parquet at Sys.getenv("WHEP_POLITY_FRACTION_PATH") has
-#   lon, lat, area_code, polity_frac already but no cell_area_ha; that is
+# - The cell-polity table -- the spatialize-cell-polity-fraction pin since
+#   whep#694, or a local parquet named by the WHEP_POLITY_FRACTION_PATH
+#   override -- has lon, lat, area_code, polity_frac but no cell_area_ha; that is
 #   added here from latitude via the SAME formula .cell_area_ha_lat() in
 #   R/feed_lpjml.R (a private package helper, called directly, never
 #   redefined).
 # - Its size is NOT fixed. This comment used to assert 68,527 rows; that is
-#   the pre-#381 vintage. The deployed file now measures 62,808 rows / 58,791
-#   cells / 182 area codes, after the producer restricted the crosswalk to
-#   the simulated grid. Do not re-assert a literal here.
+#   the pre-#381 vintage, and 62,808 rows / 182 area codes was the vintage
+#   rasterized through a retired regions.csv (whep#694). Regenerated it
+#   measures 62,784 rows / 58,791 cells / 178 area codes, the same 178 codes
+#   the centroid country_grid carries. Do not re-assert a literal here;
+#   .check_cell_polity_vintage() asserts the vocabulary instead, which is the
+#   part that has to hold.
 # - crop_patterns.parquet (Sys.getenv("WHEP_CROP_PATTERNS_PATH")): lon, lat,
 #   item_prod_code, harvest_fraction, a STATIC crop-pattern weight (no year
 #   dimension), 2,247,239 rows.
@@ -29,7 +33,7 @@
 #' Assemble WHEP's cell-polity crosswalk with true grid-cell area.
 #'
 #' @description
-#' Reads the cached cell-polity fraction parquet (`lon`, `lat`, `area_code`,
+#' Reads the cell-polity fraction table (`lon`, `lat`, `area_code`,
 #' `polity_frac`) and adds `cell_area_ha`, computed from latitude with the
 #' same 0.5-degree cell-area formula used across the package (see
 #' [build_grass_availability_lpjml()]). This assembles the
@@ -71,26 +75,54 @@
 #' identity needs the cell x polity x validity-interval unit tracked by epic
 #' whep#458, not a column added here.
 #'
-#' @param polity_fraction_path Path to the cell-polity fraction parquet.
-#'   Defaults to `Sys.getenv("WHEP_POLITY_FRACTION_PATH")`.
+#' @section Where the table comes from:
+#' WHEP produces this crosswalk itself, in section 1b of
+#' `inst/scripts/prepare_spatialize_all.R`, from Natural Earth polygons and
+#' `inst/extdata/regions.csv`. It is therefore published as the
+#' `spatialize-cell-polity-fraction` pin alongside the nine other artefacts of
+#' that script, and the pin is what this function reads by default: no user has
+#' to run the producer, or hold the Natural Earth shapefile, to get the table
+#' WHEP's own runs use. `WHEP_POLITY_FRACTION_PATH` and `polity_fraction_path`
+#' are **overrides** for a local development build, in the shape
+#' [read_polycell_support()] already uses.
+#'
+#' @section Vintage of the area vocabulary:
+#' The table's `area_code` values must all exist in the `regions.csv` the
+#' installed package carries, because that is the table its producer
+#' rasterizes through. A copy built through an older vintage keyed Ethiopia
+#' `62` and Sudan (former) `206` where today's lookup uses `238` and `276`, so
+#' adopting it deleted both countries from every consumer (whep#694). Such a
+#' table is **refused** with class `whep_stale_cell_polity_grid` rather than
+#' read, and the message names the producer re-run that rebuilds it. The check
+#' guards the override, which is the only route that can now go stale, but it
+#' runs on the pin too so that pinning an older `version` cannot reintroduce
+#' the deletion either.
+#'
+#' @param polity_fraction_path Optional path to a local parquet, overriding
+#'   `Sys.getenv("WHEP_POLITY_FRACTION_PATH")` and the pin.
 #' @param area_key Which area code the output is keyed on: `"grid"` (default,
-#'   the parquet's own reporting-area codes) or `"polity_area"` (the
+#'   the table's own reporting-area codes) or `"polity_area"` (the
 #'   [polity_area_crosswalk] bucket national tables are aggregated on).
+#' @param version Pin version, passed to [whep_read_file()]. `NULL` takes the
+#'   version frozen in [whep_inputs].
+#' @param example If `TRUE`, return a small fixture instead of reading the pin,
+#'   so the example runs offline.
 #' @return A tibble with `lon`, `lat`, `area_code`, `polity_frac` and
 #'   `cell_area_ha`.
 #' @export
 #' @examples
-#' # Requires WHEP_POLITY_FRACTION_PATH to be set; not run without it.
-#' if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {
-#'   build_cell_polity()
-#' }
+#' build_cell_polity(example = TRUE)
 build_cell_polity <- function(
   polity_fraction_path = NULL,
-  area_key = c("grid", "polity_area")
+  area_key = c("grid", "polity_area"),
+  version = NULL,
+  example = FALSE
 ) {
   area_key <- rlang::arg_match(area_key)
-  path <- .resolve_polity_fraction_path(polity_fraction_path)
-  raw <- nanoparquet::read_parquet(path) |> tibble::as_tibble()
+  if (isTRUE(example)) {
+    return(.example_cell_polity())
+  }
+  raw <- .read_cell_polity_fraction(polity_fraction_path, version)
   .check_columns(
     raw,
     c("lon", "lat", "area_code", "polity_frac"),
@@ -412,6 +444,65 @@ spatialize_country_n_to_crops <- function(
   invisible(raw)
 }
 
+# Reporting-area codes the producer can emit. `build_cell_polity_fraction()`
+# (inst/scripts/prepare_spatialize_all.R, section 1b) rasterizes NaturalEarth
+# polygons through the `iso3c -> area_code` table in `inst/extdata/regions.csv`
+# and drops every feature that does not match, so a freshly produced crosswalk
+# carries a SUBSET of this domain by construction. Anything outside it is a
+# code the current regions.csv no longer knows.
+.regions_csv_area_codes <- function() {
+  path <- system.file("extdata", "regions.csv", package = "whep")
+  regions <- utils::read.csv(path, stringsAsFactors = FALSE)
+  sort(unique(as.integer(regions$area_code[!is.na(regions$area_code)])))
+}
+
+# Codes the crosswalk carries that today's regions.csv retired.
+.cell_polity_retired_codes <- function(raw) {
+  sort(setdiff(
+    unique(as.integer(raw$area_code)),
+    .regions_csv_area_codes()
+  ))
+}
+
+# ABORT, DO NOT WARN, ON A CROSSWALK FROM AN OLDER regions.csv VINTAGE.
+#
+# The deployed parquet was rasterized through a lookup that still keyed
+# Ethiopia `62` and Sudan (former) `206`, where today's regions.csv uses `238`
+# and `276` (whep#694). Those codes join to nothing downstream, so adopting
+# such a copy deletes both countries outright -- measured at 2015, 27.10 Mha of
+# harvested area (2.0 % of global) and 332.0 M head (1.16 %). It also carried
+# `6`, `125`, `192` and `205`, which upstream now folds into `REUR` / `RAFR`.
+#
+# `.warn_grid_missing_reporters()` (whep#461) already made the loss visible,
+# and a warning was not enough: the deletion sits in the artefact, so every
+# consumer of a stale copy silently reproduces it. The vocabulary is a hard
+# contract with the producer rather than a modelling choice -- a fresh
+# crosswalk cannot violate it -- so this refuses the file and names the re-run
+# that fixes it.
+.check_cell_polity_vintage <- function(raw, source) {
+  codes <- .cell_polity_retired_codes(raw)
+  if (length(codes) == 0) {
+    return(invisible(raw))
+  }
+  affected <- raw[as.integer(raw$area_code) %in% codes, c("lon", "lat")]
+  n_cells <- nrow(unique(affected))
+  cli::cli_abort(
+    c(
+      "The cell-polity crosswalk from {source} was rasterized through a
+       retired {.file regions.csv} vintage.",
+      x = "{length(codes)} area code{?s} covering {n_cells} cell{?s},
+        absent from today's {.file regions.csv}: {.val {codes}}.",
+      i = "Their whole national total is deleted by any consumer that adopts
+        this file.",
+      i = "Re-run sections 1 and 1b of
+        {.file inst/scripts/prepare_spatialize_all.R}
+        ({.fun prepare_country_grid} then {.fun build_cell_polity_fraction})
+        to rebuild it against the current area vocabulary."
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
+}
+
 # Re-key the grid on polity_area_code. Border cells that held two areas of one
 # bucket (Sudan/South Sudan) collapse to a single row, so polity_frac is
 # re-summed within the cell; codes absent from the crosswalk keep their own
@@ -462,19 +553,70 @@ spatialize_country_n_to_crops <- function(
   )
 }
 
-# Resolve the cell-polity fraction parquet path from the argument, else the
-# env var.
-.resolve_polity_fraction_path <- function(polity_fraction_path) {
-  resolved <- polity_fraction_path %||%
-    Sys.getenv("WHEP_POLITY_FRACTION_PATH")
-  if (!.has_path(resolved)) {
-    cli::cli_abort(c(
-      "No cell-polity fraction parquet available.",
-      i = "Pass {.arg polity_fraction_path} or set
-           {.envvar WHEP_POLITY_FRACTION_PATH}."
+# THE PIN IS THE DEFAULT; THE PATH IS AN OVERRIDE.
+#
+# This table is not a third-party archive: WHEP generates it from Natural Earth
+# plus its own regions.csv, in the same script that produces the nine sibling
+# artefacts that are all pins. Env-var gating is for the multi-GB inputs a user
+# cannot be handed (see CLAUDE.md, "Where input data comes from"), and gating a
+# 62 KB WHEP-built table that way meant every user had to re-run the producer --
+# which is exactly how the retired-vocabulary copy of whep#694 came to be the
+# one everybody read.
+#
+# Both routes are checked for vintage: the pin cannot be stale at its frozen
+# version, but `version =` can ask for an older one, and the override is a
+# local build with no guarantees at all.
+.read_cell_polity_fraction <- function(polity_fraction_path, version = NULL) {
+  path <- polity_fraction_path %||%
+    Sys.getenv("WHEP_POLITY_FRACTION_PATH", "")
+  if (!.has_path(path)) {
+    # `alias` is a local because cli >= 3.4.0 reads a `{}` expression starting
+    # with a dot as a style name: `{.val {.cell_polity_pin()}}` aborts with
+    # "Invalid cli literal" instead of naming the pin (same trap as
+    # `.download_natural_earth()`, whep#618).
+    alias <- .cell_polity_pin()
+    return(.checked_cell_polity(
+      .read_cell_polity_pin(version),
+      cli::format_inline("the {.val {alias}} pin")
     ))
   }
-  resolved
+  if (!file.exists(path)) {
+    cli::cli_abort("Cell-polity fraction table not found at {.file {path}}.")
+  }
+  .checked_cell_polity(
+    nanoparquet::read_parquet(path),
+    cli::format_inline("{.file {path}}")
+  )
+}
+
+.cell_polity_pin <- function() "spatialize-cell-polity-fraction"
+
+# Name both routes when the pin cannot be reached: a pins/board error on its own
+# hides the fact that a local producer build is an equally valid answer.
+.read_cell_polity_pin <- function(version) {
+  alias <- .cell_polity_pin()
+  tryCatch(
+    whep_read_file(alias, version = version),
+    error = function(e) {
+      cli::cli_abort(
+        c(
+          "Could not read the pinned {.val {alias}} crosswalk.",
+          i = "Either fetch the pin (network access required) or point
+               {.envvar WHEP_POLITY_FRACTION_PATH} at a local parquet written
+               by section 1b of
+               {.file inst/scripts/prepare_spatialize_all.R}.",
+          x = conditionMessage(e)
+        ),
+        call = NULL
+      )
+    }
+  )
+}
+
+.checked_cell_polity <- function(raw, source) {
+  raw <- tibble::as_tibble(raw)
+  .check_cell_polity_vintage(raw, source)
+  raw
 }
 
 # Each crop's harvested cropland hectares per country-year (grassland

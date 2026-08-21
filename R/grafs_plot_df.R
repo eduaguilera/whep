@@ -393,8 +393,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::left_join(item_box_lookup, by = c("Item" = "item")) |>
     dplyr::mutate(
       Box_filled = dplyr::case_when(
-        Item %in% c("Holm oak", "Average wood") ~
-          "semi_natural_agroecosystems",
+        Item %in% c("Holm oak", "Average wood") ~ "semi_natural_agroecosystems",
         Item == "Fallow" ~ "Cropland",
         group %in% c("Crop products", "Primary crops", "crop residue") ~
           "Cropland",

@@ -1245,7 +1245,7 @@ fill_proxy_growth <- function(
   }
 
   # 2. Compute Individual Row Growth (with Smoothing)
-  prep <- .fg_growth_calc_individual(prep, spec, smooth_window, time_col)
+  prep <- .fg_growth_calc_individual(prep, spec, smooth_window, .by, time_col)
 
   # 3. Aggregate to Groups
   summary_dt <- .fg_growth_aggregate(
@@ -1274,13 +1274,22 @@ fill_proxy_growth <- function(
   as.data.frame(result)
 }
 
+# The columns that identify one individual proxy series: the caller's `.by`
+# groups plus the spec's aggregation groups. Lags and moving averages of the
+# proxy must be taken within a series, not within the coarser aggregation
+# group, or they reach across the boundary between two series of the same
+# group whenever their year coverages are disjoint but adjacent (#608).
+.fg_series_vars <- function(spec, .by, data_names) {
+  series_vars <- unique(c(.by, spec$present_group_vars))
+  series_vars[series_vars %in% data_names]
+}
+
 .fg_growth_prep <- function(data, spec, .by, time_col) {
   if (!spec$source_var %in% names(data)) {
     return(data.frame())
   }
 
-  lag_vars <- unique(c(.by, spec$present_group_vars))
-  lag_vars <- lag_vars[lag_vars %in% names(data)]
+  lag_vars <- .fg_series_vars(spec, .by, names(data))
 
   cols <- unique(c(time_col, lag_vars, spec$source_var, spec$weight_col))
   cols <- cols[!is.na(cols)]
@@ -1295,13 +1304,11 @@ fill_proxy_growth <- function(
   as.data.frame(dt)
 }
 
-.fg_growth_calc_individual <- function(data, spec, window, time_col) {
-  # Helper to manage lag vars
-  by_vars <- if (length(spec$present_group_vars) > 0) {
-    spec$present_group_vars
-  } else {
-    NULL
-  }
+.fg_growth_calc_individual <- function(data, spec, window, .by, time_col) {
+  # Smooth and lag within the individual series, not within the coarser
+  # aggregation group (#608).
+  series_vars <- .fg_series_vars(spec, .by, names(data))
+  by_vars <- if (length(series_vars) > 0) series_vars else NULL
 
   # Apply Smoothing (Moving Average)
   if (window > 1) {

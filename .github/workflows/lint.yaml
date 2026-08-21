@@ -22,9 +22,23 @@ name: lint.yaml
 
 permissions: read-all
 
+# Cancel a superseded run on the same branch/PR, as R-CMD-check, offline-tests
+# and test-coverage already do. This job was the only check without it, and on a
+# push it lints the WHOLE package -- so merging nine PRs in a row started nine
+# simultaneous whole-package lints that competed for runners and took 1-2 hours
+# of wall clock each, none of them cancelling the others.
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    # Backstop. Without one this job inherits GitHub's 360-minute default, so a
+    # run wedged in dependency install sits for six hours instead of failing.
+    # A healthy run is ~2 min on a PR (changed files only) and ~10 min on a push
+    # (whole package), both plus a dependency install.
+    timeout-minutes: 30
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:

@@ -4,6 +4,13 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  # The R-devel leg below runs on this schedule, not on a PR. Wednesday 04:00
+  # UTC: far from a working day, so a cold-cache source build costs nobody a
+  # wait, and weekly is often enough to catch an incompatibility with the next R
+  # while it is still cheap to fix.
+  schedule:
+    - cron: "0 4 * * 3"
+  workflow_dispatch:
 
 name: R-CMD-check.yaml
 
@@ -11,19 +18,23 @@ permissions: read-all
 
 # Cancel a superseded run of this workflow on the same branch/PR when a new
 # commit is pushed, so stale runs do not pile up.
+# `event_name` is in the key so the weekly R-devel run does not share a group
+# with pushes to main -- both carry `github.ref` of refs/heads/main, so without
+# it a merge landing during the scheduled run would cancel it.
 concurrency:
-  group: R-CMD-check-${{ github.ref }}
+  group: R-CMD-check-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
     # Backstop against a hung test (e.g. a large remote read) that would
-    # otherwise run for tens of minutes. Set well above a healthy run: the
-    # check itself is ~5-7 min, but the R-devel matrix leg compiles the geo
-    # deps (sf/terra/ncdf4/deSolve) from source on a cold cache, which alone can
-    # approach 15 min. 30 leaves headroom for that yet still kills a real hang.
-    timeout-minutes: 30
+    # otherwise run for tens of minutes. A healthy leg is ~13-15 min end to end
+    # (2-3 min setup on a warm dependency cache, ~11-13 min checking), so 45
+    # absorbs a slow package mirror -- measured at 24 min of dependency install
+    # on a bad day, which the old 30-minute budget could not survive -- while
+    # still killing a real hang well inside GitHub's 360-minute default.
+    timeout-minutes: 45
 
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
@@ -33,7 +44,6 @@ jobs:
         config:
           - {os: macos-latest,   r: 'release'}
           - {os: windows-latest, r: 'release'}
-          - {os: ubuntu-latest,   r: 'devel', http-user-agent: 'release'}
           - {os: ubuntu-latest,   r: 'release'}
           - {os: ubuntu-latest,   r: 'oldrel-1'}
 
@@ -54,6 +64,54 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-snapshots: true
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+
+  # R-devel, deliberately OFF the pull-request path.
+  #
+  # Posit's public RSPM publishes Linux binaries for release and oldrel but not
+  # for R-devel, so this leg installs the geo stack (sf, terra, ncdf4, deSolve
+  # and their dependencies) from source whenever its dependency cache is cold --
+  # and because the cache key follows the R-devel snapshot, it goes cold every
+  # time that snapshot rolls, not once. Warm, the install is ~45 s; cold, it is
+  # the better part of an hour. Paying that on a pull request meant waiting on a
+  # leg that says nothing about the change under review.
+  #
+  # It still runs weekly (and on demand), so an incompatibility with the next R
+  # is caught while there is time to fix it -- just never in front of someone
+  # waiting to merge. `continue-on-error` keeps a broken R-devel snapshot, which
+  # is not this package's defect, from showing up as a repository-wide failure;
+  # read the run to see whether it is R or us.
+  R-CMD-check-devel:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 90
+
+    name: ubuntu-latest (devel)
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+      _R_CHECK_SYSTEM_CLOCK_: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'devel'
+          http-user-agent: 'release'
           use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2

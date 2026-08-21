@@ -314,4 +314,81 @@ test_that("the published alias map keeps the contract this package reads", {
   expect_false(any(is.na(aliases$polity_code)))
   # Every alias must name a real WHEP polity code, prefix included.
   expect_true(all(grepl("^[A-Z0-9-]+-[0-9]{4}-[0-9]{4}$", aliases$polity_code)))
+
+  # #768: the roxygen states as an INVARIANT, not as a snapshot count, that
+  # every code this function can return is one `get_polity_geometries()` can
+  # return a row for. `data-raw/table_mappings.R` aborts the build when an alias
+  # names a polity the shipped table lacks, because both artifacts come from one
+  # upstream revision; this is that guard read from the shipped data, so the
+  # documented claim cannot quietly stop being true.
+  expect_equal(
+    setdiff(aliases$polity_code, whep::polities$polity_code),
+    character(0)
+  )
+})
+
+test_that("a still-open period covers the open-period sentinel year", {
+  # #712: the year filter read `end_year` STRICTLY exclusively, so every polity
+  # whose interval ends at the open-period sentinel stopped covering its own
+  # terminal year and the label route answered NA for essentially every country
+  # that exists -- 1 of the 204 `gleam_geographic_hierarchy` ISO3 codes resolved
+  # at 2025 against 204 at 2024 -- while `add_polity_code()`, which goes through
+  # `.polity_join_end_year()`, resolved them normally. The convention is
+  # exclusive at a succession, INCLUSIVE AT AN OPEN END (#577).
+  #
+  # The sentinel is read from the snapshot rather than written down: it has moved
+  # twice in this epic (#530, #551), and a literal would stop testing anything.
+  sentinel <- max(whep::polities$end_year, na.rm = TRUE)
+  expect_equal(
+    resolve_polity_label("ESP", year = sentinel),
+    paste0("ESP-1800-", sentinel)
+  )
+  expect_equal(
+    resolve_polity_label("Netherlands", year = sentinel),
+    paste0("NLD-1830-", sentinel)
+  )
+
+  # The coverage claim itself, as an invariant rather than a hand-picked row: the
+  # sentinel year must resolve as many present-day countries as the year before
+  # it. Nothing succeeds those polities, so no country can drop out.
+  iso3 <- unique(whep::gleam_geographic_hierarchy$iso3)
+  expect_equal(
+    sum(!is.na(resolve_polity_label(iso3, year = sentinel))),
+    sum(!is.na(resolve_polity_label(iso3, year = sentinel - 1L)))
+  )
+
+  # Past the sentinel there is nothing to cover: the widening adds ONE year, it
+  # does not make an open period unbounded.
+  expect_true(is.na(resolve_polity_label("ESP", year = sentinel + 1L)))
+})
+
+test_that("a period nothing succeeds covers its own last year", {
+  # The same rule away from the sentinel. `ANT-1961-2010` is the Netherlands
+  # Antilles, dissolved in 2010 with no successor recorded, and 2010 is a year it
+  # reported in -- the case `.polity_join_end_year()` calls out for the numeric
+  # route. Read strictly exclusively the label route lost it.
+  expect_equal(resolve_polity_label("ANT", year = 2010L), "ANT-1961-2010")
+  expect_true(is.na(resolve_polity_label("ANT", year = 2011L)))
+})
+
+test_that("a succession year still resolves to exactly one polity", {
+  # THE FAILURE MODE THE WIDENING MUST NOT INTRODUCE (#720): widen every open
+  # period unconditionally and a boundary year gets two candidates, because a
+  # terminated aggregate records no successor and is therefore "open" by the
+  # successor test. Measured on the shipped snapshot, three collide --
+  # `EGYSUD-1934-1956` beside `EGY-1925-1967` at 1956, `CODRU-1922-1960` beside
+  # `COD-1960-2025` at 1960, `MASG-1946-1963` beside `MYS-1963-1965` at 1963 --
+  # and the ambiguity guard would answer NA for a year that used to resolve.
+  # `.polity_year_candidates()` consults the widened bound only when nothing
+  # claims the year outright, so declared containment keeps winning.
+  expect_equal(resolve_polity_label("EGY", year = 1956L), "EGY-1925-1967")
+  expect_equal(resolve_polity_label("COD", year = 1960L), "COD-1960-2025")
+  expect_equal(resolve_polity_label("MYS", year = 1963L), "MYS-1963-1965")
+
+  # And the plain succession boundaries: the year belongs to the SUCCESSOR, which
+  # is the half of the convention the exclusive reading buys.
+  expect_equal(resolve_polity_label("SDN", year = 2011L), "SDN-2011-2025")
+  expect_equal(resolve_polity_label("PAN", year = 1979L), "PAN-1979-2025")
+  expect_equal(resolve_polity_label("EGY", year = 1967L), "EGY-1967-1979")
+  expect_equal(resolve_polity_label("MYS", year = 1965L), "MYS-1965-2025")
 })

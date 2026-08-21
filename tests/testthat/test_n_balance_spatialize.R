@@ -76,12 +76,101 @@
 
 # build_cell_polity --------------------------------------------------------
 
-testthat::test_that("build_cell_polity aborts with no path or env var", {
+# The crosswalk is a pin since whep#694, so the DEFAULT route is the pin and
+# the env var is only an override. The pin is never fetched here: it is mocked,
+# so this stays offline (the fetch would also make the suite depend on a host
+# being up, whep#490).
+.nbs_pin_payload <- function() {
+  tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~polity_frac,
+    0.25, 50.25,       114L,          1.0
+  )
+}
+
+testthat::test_that("build_cell_polity reads the pin by default", {
   withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  asked <- NULL
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      asked <<- file_alias
+      .nbs_pin_payload()
+    },
+    .package = "whep"
+  )
+
+  result <- whep::build_cell_polity()
+
+  testthat::expect_equal(asked, "spatialize-cell-polity-fraction")
+  testthat::expect_equal(result$area_code, 114L)
+  testthat::expect_true(all(result$cell_area_ha > 0))
+})
+
+testthat::test_that("the pin alias is the one frozen in whep_inputs", {
+  # A pin the registry does not carry would resolve to no version at all, and
+  # `whep_read_file()` would fail at the board rather than here.
+  testthat::expect_true(
+    whep:::.cell_polity_pin() %in% whep::whep_inputs$alias
+  )
+})
+
+testthat::test_that("an env var override wins over the pin", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~polity_frac,
+      1.25, 40.25,       203L,          1.0
+    ),
+    path
+  )
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = path)
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      testthat::fail("the pin must not be read when the override is set")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_equal(whep::build_cell_polity()$area_code, 203L)
+})
+
+testthat::test_that("a missing override path aborts, and says so", {
+  testthat::expect_error(
+    whep::build_cell_polity(polity_fraction_path = "/nowhere/absent.parquet"),
+    "not found"
+  )
+})
+
+testthat::test_that("an unreachable pin names both routes", {
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) cli::cli_abort("board is down"),
+    .package = "whep"
+  )
+
   testthat::expect_error(
     whep::build_cell_polity(),
     "WHEP_POLITY_FRACTION_PATH"
   )
+})
+
+testthat::test_that("the example fixture runs offline and is well formed", {
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      testthat::fail("example = TRUE must not read the pin")
+    },
+    .package = "whep"
+  )
+
+  result <- whep::build_cell_polity(example = TRUE)
+
+  pointblank::expect_col_exists(
+    result,
+    c("lon", "lat", "area_code", "polity_frac", "cell_area_ha")
+  )
+  sums <- result |>
+    dplyr::summarise(total = sum(polity_frac), .by = c(lon, lat))
+  pointblank::expect_col_vals_equal(sums, columns = "total", value = 1)
 })
 
 testthat::test_that("build_cell_polity adds cell_area_ha from latitude", {
@@ -106,9 +195,11 @@ testthat::test_that("build_cell_polity adds cell_area_ha from latitude", {
 # The grid is rasterized from regions.csv, so it carries reporting-area codes
 # that are folded away in polity_area_crosswalk: 212 Syria and 299 Palestine
 # both live in bucket 999, and 277 South Sudan in bucket 206 alongside 276
-# Sudan. On the deployed cell_polity_fraction parquet 12 such codes cover 819
-# cells, and every one of them is invisible to the polity-keyed national
-# tables every gridded consumer joins against.
+# Sudan. On the cell_polity_fraction parquet regenerated in whep#694, 276 and
+# 277 are the two such codes left and they cover 881 cells; both are invisible
+# to the polity-keyed national tables every gridded consumer joins against.
+# (212 and 299 became buckets of their own with the Rest-of-World un-fold,
+# whep#628, so this fixture keeps testing the mechanism, not that census.)
 .nbs_off_bucket_grid <- function() {
   tibble::tribble(
     ~lon,  ~lat, ~area_code, ~polity_frac,
@@ -204,6 +295,103 @@ testthat::test_that("area_key = polity_area emits no off-bucket code", {
   )
 
   testthat::expect_equal(whep:::.cell_polity_off_bucket(result), integer(0))
+})
+
+# A crosswalk rasterized through a retired regions.csv (whep#694) -----------
+
+# The fixture is the real defect in miniature: Ethiopia `62`, Sudan (former)
+# `206` and Andorra `6` are codes today's regions.csv has no row for, so the
+# producer cannot emit them, and every consumer that adopted such a copy
+# deleted those countries' whole national totals.
+.nbs_retired_grid_path <- function() {
+  testthat::test_path("fixtures", "cell_polity_retired_codes.parquet")
+}
+
+testthat::test_that("build_cell_polity refuses a retired-vocabulary grid", {
+  # Since the default is a pin, the override is the route that can go stale --
+  # which is what this check is for now.
+  testthat::expect_error(
+    whep::build_cell_polity(
+      polity_fraction_path = .nbs_retired_grid_path()
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
+})
+
+testthat::test_that("a retired-vocabulary PIN payload is refused too", {
+  # `version =` can ask the board for an older version, so the check cannot be
+  # scoped to the override route only. The message has to name the pin rather
+  # than a path.
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      nanoparquet::read_parquet(.nbs_retired_grid_path())
+    },
+    .package = "whep"
+  )
+
+  err <- testthat::expect_error(
+    whep::build_cell_polity(),
+    class = "whep_stale_cell_polity_grid"
+  )
+  testthat::expect_match(
+    conditionMessage(err),
+    "spatialize-cell-polity-fraction"
+  )
+})
+
+testthat::test_that("the refusal names every retired code, and only those", {
+  raw <- nanoparquet::read_parquet(.nbs_retired_grid_path())
+
+  testthat::expect_equal(
+    whep:::.cell_polity_retired_codes(raw),
+    c(6L, 62L, 206L)
+  )
+})
+
+testthat::test_that("the retired-vocabulary check fires under both area keys", {
+  # `"polity_area"` re-keys 206 onto a bucket that does exist, so a check run
+  # after the re-key would pass on the very file that deletes Sudan.
+  testthat::expect_error(
+    whep::build_cell_polity(
+      polity_fraction_path = .nbs_retired_grid_path(),
+      area_key = "polity_area"
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
+})
+
+testthat::test_that("a current-vocabulary grid passes the vintage check", {
+  # The successors of the fixture's retired codes: ETH -> 238, SDN -> 276.
+  path <- .nbs_write_grid(tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~polity_frac,
+    38.25,  8.25,      238L,          1.0,
+    30.25, 12.25,      276L,          0.7,
+    30.25, 12.25,      114L,          0.3
+  ))
+
+  # 276 is a reporting code and not a bucket, so the pre-existing off-bucket
+  # warning still fires; what this pins is that the vintage check does not.
+  testthat::expect_warning(
+    result <- whep::build_cell_polity(polity_fraction_path = path),
+    "cannot join"
+  )
+
+  testthat::expect_equal(sort(unique(result$area_code)), c(114L, 238L, 276L))
+})
+
+testthat::test_that("the vintage domain is regions.csv's own area codes", {
+  regions <- utils::read.csv(
+    system.file("extdata", "regions.csv", package = "whep"),
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_equal(
+    whep:::.regions_csv_area_codes(),
+    sort(unique(as.integer(regions$area_code)))
+  )
+  testthat::expect_false(any(c(6L, 62L, 206L) %in% regions$area_code))
+  testthat::expect_true(all(c(238L, 276L) %in% regions$area_code))
 })
 
 testthat::test_that("build_cell_polity rejects an unknown area_key", {

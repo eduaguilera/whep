@@ -273,3 +273,45 @@ test_that("an ISO3 still ambiguous after the rule aborts instead of guessing", {
     class = "whep_ambiguous_iso3_area"
   )
 })
+
+# -- .extract_cb row order -----------------------------------------------------
+
+# The four CB extracts travel as the `.cb_extracts` attribute of
+# `build_primary_production()`, so their row order is part of a published
+# object. `.read_input()` reads the parquet through arrow's multi-threaded
+# scanner, which hands back the same rows in a session-dependent order, and
+# nothing downstream pinned one -- so the build was not `identical()` to itself
+# across sessions (whep#747). Feeding the same rows in two orders reproduces
+# that here without touching a pin or the network.
+.cb_order_fixture <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2000L, 100,
+    203L,         "Testland", 2511,         "Wheat and products", "Food",       "tonnes", 2000L, 40,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2000L, 70,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2001L, 80,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2001L, 110
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".extract_cb row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_cb("faostat-fbs-old") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})

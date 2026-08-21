@@ -1477,6 +1477,78 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
   expect_false(is.na(resolved$polity_code[2]))
 })
 
+test_that("an ISO3 naming two areas resolves to the canonical one", {
+  # Issue whep#719, the same defect as whep#586 and whep#718. The ISO3 bridge
+  # used to be built here by taking the first row of each ISO3, and the area
+  # lookup orders by `area_code`, so `ETH` entered as the LOWEST code: 62, the
+  # "Ethiopia PDR" entity dissolved in 1993, rather than 238, plain
+  # "Ethiopia". Two things followed. The label came out "Ethiopia PDR" on an
+  # `area_code` whose own name is "Ethiopia", in every year including 2015;
+  # and because the polity resolution is year-aware on the code it is handed,
+  # a 2015 row resolved to `ETH-1952-1993` -- a polity that had ended 22
+  # years earlier.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("ETH", "ETH"),
+    year = c(1980L, 2015L),
+    value = 1
+  ))
+
+  expect_equal(resolved$area_code, c(238L, 238L))
+  expect_equal(resolved$polity_code, c("ETH-1952-1993", "ETH-1993-2025"))
+  expect_false(any(resolved$area == "Ethiopia PDR"))
+})
+
+test_that("hist trade gives one area label per area_code and year", {
+  # The invariant behind whep#719, over EVERY ISO3 the crosswalk knows rather
+  # than the two that were measured. `area_code` here is the aggregation
+  # bucket, so the label has to be a property of the bucket -- the rule
+  # `.aggregate_to_polities()` and `.read_crop_residues()` already follow.
+  # Carrying it in from the member row instead gave bucket 206 two labels in
+  # the same year, "Sudan (former)" from SDN and "South Sudan" from SSD, which
+  # is the vocabulary split that dropped 702,166 rows in whep#382.
+  lookup <- whep:::.current_area_lookup(include_unmapped = FALSE)
+  iso3 <- sort(unique(stats::na.omit(lookup$area_iso3c)))
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    expand.grid(
+      iso3c = iso3,
+      year = c(1900L, 1950L, 1980L, 2015L),
+      stringsAsFactors = FALSE
+    ),
+    value = 1
+  ))
+  resolved <- resolved[!is.na(resolved$area_code), ]
+
+  labels_per_key <- resolved |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = c("area_code", "year")
+    ) |>
+    dplyr::filter(.data$n_labels > 1L)
+
+  expect_equal(labels_per_key$area_code, integer(0))
+})
+
+test_that("hist trade still returns the area column with nothing to label", {
+  # The label now arrives by an update join on the resolved bucket, so the
+  # branch where NO row resolves has to keep emitting `area` rather than drop
+  # the column the caller's `keep` set names.
+  none <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ZZZ"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+  empty <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = character(0),
+    year = integer(0),
+    value = numeric(0)
+  ))
+
+  expect_true(all(is.na(none$area)))
+  expect_true("area" %in% names(none))
+  expect_true("area" %in% names(empty))
+  expect_equal(nrow(empty), 0L)
+})
+
 test_that(".read_gdp_pop renames only the year column", {
   # whep#721. This reader used to relabel the pin's `area` into the polity-name
   # vocabulary for a name-keyed proxy join. That join is gone -- commit 2210d05d
@@ -1786,4 +1858,99 @@ test_that("the historical extension keeps one area label per code", {
 
   expect_equal(per_code$n_labels, 1L)
   expect_equal(unique(result$area), "Algeria (1919-1962)")
+})
+
+# -- Destiny-share interpolation (whep#691) ------------------------------------
+
+# One code, two labels: the balance side carries the current FAOSTAT name and
+# the destiny side the periodized one. Every real caller hands
+# `.interpolate_destiny_shares()` two filters of ONE frame, so today the labels
+# agree by construction -- but that is the caller's invariant, not this
+# function's, and an unmatched key here is a dropped row, not an error.
+.two_label_destiny_frames <- function() {
+  balance <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 100,
+    2001L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 200,
+    2002L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 300
+  ) |>
+    dplyr::mutate(elem_cat = "balance", source = "FAOSTAT_FBS_New")
+
+  destiny <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "food", 60,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "feed", 40
+  ) |>
+    dplyr::mutate(
+      elem_cat = "destiny",
+      source = "FAOSTAT_FBS_New",
+      dest_share = value / 100
+    )
+
+  list(balance = balance, destiny = destiny)
+}
+
+test_that("a second area label does not drop a destiny-share skeleton", {
+  # Before whep#691 the skeleton join keyed on `area` as well as `area_code`,
+  # so the two labels were two territories: no target year matched, the
+  # skeleton collapsed to the single observed year and 2001-2002 lost their
+  # shares entirely.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_setequal(unique(result$year), 2000:2002)
+  expect_equal(
+    result |>
+      dplyr::filter(.data$element == "food") |>
+      dplyr::arrange(.data$year) |>
+      dplyr::pull(.data$dest_share),
+    c(0.6, 0.6, 0.6)
+  )
+})
+
+test_that("the destiny-share skeleton keeps one area label per code", {
+  # The invariant a value comparison cannot see (whep#563): the label is
+  # re-attached from the code once, so a disagreeing input label cannot leave
+  # two territories behind.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  per_code <- result |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = "area_code"
+    )
+
+  expect_equal(per_code$n_labels, 1L)
+})
+
+test_that("agreeing labels leave the destiny-share skeleton unchanged", {
+  # What the real build hands it: one label per code on both sides. Dropping
+  # the label from the key must move nothing here.
+  frames <- .two_label_destiny_frames()
+  frames$destiny$area <- "Algeria"
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_equal(unique(result$area), "Algeria")
+  expect_equal(
+    result |>
+      dplyr::filter(.data$year == 2002L) |>
+      dplyr::arrange(.data$element) |>
+      dplyr::pull(.data$dest_share),
+    c(0.4, 0.6)
+  )
 })

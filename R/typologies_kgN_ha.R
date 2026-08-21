@@ -10,15 +10,15 @@ typology_area_stacked_bars <- function() {
     )
 
   typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
     "Specialized cropping systems (intensive)" = "#F7DD5A",
     "Specialized cropping systems (extensive)" = "#FFF7C2",
     "Specialized livestock systems (intensive)" = "#b3001b",
     "Specialized livestock systems (extensive)" = "#C94F6B",
+    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
+    "Disconnected crop-livestock systems (extensive)" = "#F6A640",
     "Connected crop-livestock systems (intensive)" = "#7A4F20",
     "Connected crop-livestock systems (extensive)" = "#AF814B",
-    "Disconnected crop-livestock systems (intensive)" = "#E67E00",
-    "Disconnected crop-livestock systems (extensive)" = "#F6A640"
+    "Semi-natural agroecosystems" = "#66a61e"
   )
 
   df <- .build_area_totals(
@@ -128,11 +128,11 @@ typology_kgha_lines <- function() {
   df_all <- build_kgha(area_all, soil_all)
 
   typology_colors <- c(
-    "Semi-natural agroecosystems" = "#66a61e",
     "Specialized cropping systems" = "#F7DD5A",
     "Specialized livestock systems" = "#b3001b",
+    "Disconnected crop-livestock systems" = "#E67E00",
     "Connected crop-livestock systems" = "#7A4F20",
-    "Disconnected crop-livestock systems" = "#E67E00"
+    "Semi-natural agroecosystems" = "#66a61e"
   )
 
   df_agri$Typology <- factor(df_agri$Typology, levels = names(typology_colors))
