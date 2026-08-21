@@ -159,6 +159,12 @@ is a <a href="polities.html">polities</a> code</strong>. Until whep#687 that col
 back empty and nothing warned. It is now <code>legacy_polity_prefix</code>, which claims
 nothing. Their real carrier is <code>reporting_polity_code</code>, a <a href="polities.html">polities</a> code on
 all 259 of <code>regions_full</code>'s non-<code>NA</code> rows and all 198 of <code>polities_cats</code>'s.</p>
+<p><a href="polity_area_crosswalk.html">polity_area_crosswalk</a> vendors the same stems, and shipped them under
+<code>reporting_polity_code</code> — the name that means the opposite — until whep#711
+renamed them <code>legacy_polity_prefix</code>/<code>legacy_polity_name</code> to match. The
+register does not reach that table, because it enumerates year-<em>less</em>
+objects and the crosswalk carries a year; the guard for it lives in
+<code>tests/testthat/test_territorial_identity.R</code> alongside #687's.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

@@ -55,6 +55,16 @@ FAOSTAT/FABIO-derived WHEP data to periodized WHEP <code>polity_code</code> valu
     <p>A tibble with one row per area-code/polity-period mapping. Key columns:</p><ul><li><p><code>area_code</code>: Numeric FAOSTAT/FABIO reporting area code.</p></li>
 <li><p><code>area_name</code>: Reporting area name.</p></li>
 <li><p><code>area_iso3c</code>: Reporting-area ISO3-like code where available.</p></li>
+<li><p><code>legacy_polity_prefix</code>, <code>legacy_polity_name</code>: The ISO3-like stem (<code>"ARM"</code>,
+<code>"ROCE"</code>, <code>"REUR"</code>) and legacy label this package vendors from
+<code>regions_full.csv</code>, kept for older callers and used at build time only as a
+<em>candidate prefix</em> for polity inference. <strong>Neither is an identity</strong>: not one
+stem is a <a href="polities.html">polities</a> <code>polity_code</code>, so a join to <a href="polities.html">polities</a> on it comes back
+empty. Read <code>polity_code</code> for the polity this row resolves to. Until #711
+the pair shipped as <code>reporting_polity_code</code>/<code>reporting_polity_name</code>, the
+package's own names for a real periodized polity (see
+<a href="whep_polity_columns.html">whep_polity_columns</a>), which is exactly the trap #687 removed from
+<a href="regions_full.html">regions_full</a>.</p></li>
 <li><p><code>polity_area_code</code>: Numeric area code retained for WHEP matrix workflows.</p></li>
 <li><p><code>polity_code</code>, <code>polity_name</code>: Matched WHEP polity, or <code>NA</code> for
 statistical composites that are not real polities.</p></li>
@@ -123,8 +133,11 @@ one member, or its members agree, <code>(polity_area_code, year)</code> recovers
 polity too. Over 1961-2025 exactly one bucket does not: <strong>206</strong>, which holds
 Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
 polities in all 65 reported years. See #414. To say which territory a row
-belongs to, read <code>reporting_polity_code</code>, or resolve through
-<code><a href="add_polity_code.html">add_polity_code()</a></code>; do not infer it from the bucket.</p>
+belongs to, read this table's own <code>polity_code</code>, or resolve through
+<code><a href="add_polity_code.html">add_polity_code()</a></code>; do not infer it from the bucket. In a WHEP <em>output</em> the
+same answer is <code>reporting_polity_code</code>, materialised from this table's
+<code>polity_code</code>. This table carries no column of that name, and
+<code>legacy_polity_prefix</code> is not a substitute for one (#711).</p>
     </div>
     <div class="section level2">
     <h2 id="confidence-is-the-pair-not-mapping-status-alone">Confidence is the pair, not <code>mapping_status</code> alone<a class="anchor" aria-label="anchor" href="#confidence-is-the-pair-not-mapping-status-alone"></a></h2>

@@ -19,6 +19,22 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 
 - `area_iso3c`: Reporting-area ISO3-like code where available.
 
+- `legacy_polity_prefix`, `legacy_polity_name`: The ISO3-like stem
+  (`"ARM"`, `"ROCE"`, `"REUR"`) and legacy label this package vendors
+  from `regions_full.csv`, kept for older callers and used at build time
+  only as a *candidate prefix* for polity inference. **Neither is an
+  identity**: not one stem is a
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  `polity_code`, so a join to
+  [polities](https://eduaguilera.github.io/whep/reference/polities.md)
+  on it comes back empty. Read `polity_code` for the polity this row
+  resolves to. Until \#711 the pair shipped as
+  `reporting_polity_code`/`reporting_polity_name`, the package's own
+  names for a real periodized polity (see
+  [whep_polity_columns](https://eduaguilera.github.io/whep/reference/whep_polity_columns.md)),
+  which is exactly the trap \#687 removed from
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md).
+
 - `polity_area_code`: Numeric area code retained for WHEP matrix
   workflows.
 
@@ -99,10 +115,13 @@ has one member, or its members agree, `(polity_area_code, year)`
 recovers the polity too. Over 1961-2025 exactly one bucket does not:
 **206**, which holds Sudan (former) 206, Sudan 276 and South Sudan 277
 and answers with three polities in all 65 reported years. See \#414. To
-say which territory a row belongs to, read `reporting_polity_code`, or
-resolve through
+say which territory a row belongs to, read this table's own
+`polity_code`, or resolve through
 [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md);
-do not infer it from the bucket.
+do not infer it from the bucket. In a WHEP *output* the same answer is
+`reporting_polity_code`, materialised from this table's `polity_code`.
+This table carries no column of that name, and `legacy_polity_prefix` is
+not a substitute for one (#711).
 
 ## Confidence is the pair, not `mapping_status` alone
 

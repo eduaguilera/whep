@@ -21,8 +21,11 @@ Both country totals are read under raw FAOSTAT Area Code values and
 harmonised to the whep polity area_code through polity_area_crosswalk
 before they are split to crops, so reporting units that FABIO folds into one
 bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
-Ethiopia PDR 62 to 238, the small territories that fold into &quot;rest of world&quot;
-to 999). FAOSTAT rows that are not territories carry no polity and are
+Ethiopia PDR 62 to 238). The fold state is the one the rest of the pipeline
+resolves through, so under the default
+options(whep.unfold_rest_of_world = &quot;all&quot;) the Rest-of-World members keep
+their own code rather than being summed into bucket 999.
+FAOSTAT rows that are not territories carry no polity and are
 dropped: 5000 &quot;World&quot;, the continent, region, EU-27, OECD and income-group
 rollups, and the &quot;China&quot; aggregate 351, which overlaps 41/96/128/214. This
 is a documented exception rather than a coverage gap, since a rollup has no
@@ -58,8 +61,11 @@ Both country totals are read under raw FAOSTAT Area Code values and
 harmonised to the whep polity area_code through polity_area_crosswalk
 before they are split to crops, so reporting units that FABIO folds into one
 bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
-Ethiopia PDR 62 to 238, the small territories that fold into &quot;rest of world&quot;
-to 999). FAOSTAT rows that are not territories carry no polity and are
+Ethiopia PDR 62 to 238). The fold state is the one the rest of the pipeline
+resolves through, so under the default
+options(whep.unfold_rest_of_world = &quot;all&quot;) the Rest-of-World members keep
+their own code rather than being summed into bucket 999.
+FAOSTAT rows that are not territories carry no polity and are
 dropped: 5000 &quot;World&quot;, the continent, region, EU-27, OECD and income-group
 rollups, and the &quot;China&quot; aggregate 351, which overlaps 41/96/128/214. This
 is a documented exception rather than a coverage gap, since a rollup has no
@@ -132,8 +138,11 @@ the crop's residue nitrogen content (IPCC 2019 Table 11.1a).</p></li>
 harmonised to the whep polity <code>area_code</code> through <a href="polity_area_crosswalk.html">polity_area_crosswalk</a>
 before they are split to crops, so reporting units that FABIO folds into one
 bucket are summed rather than dropped (Sudan 276 + South Sudan 277 to 206,
-Ethiopia PDR 62 to 238, the small territories that fold into "rest of world"
-to 999). FAOSTAT rows that are not territories carry no polity and are
+Ethiopia PDR 62 to 238). The fold state is the one the rest of the pipeline
+resolves through, so under the default
+<code>options(whep.unfold_rest_of_world = "all")</code> the Rest-of-World members keep
+their own code rather than being summed into bucket 999.
+FAOSTAT rows that are not territories carry no polity and are
 dropped: 5000 "World", the continent, region, EU-27, OECD and income-group
 rollups, and the "China" aggregate 351, which overlaps 41/96/128/214. This
 is a documented exception rather than a coverage gap, since a rollup has no

@@ -72,9 +72,11 @@ get_arable_permanent_land(
 
 A tibble with one row per `(area_code, year)`:
 
-- `area_code`: integer FAOSTAT area code (harmonised via
-  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md);
-  the FAOSTAT "China" aggregate 351 is dropped).
+- `area_code`: integer FAOSTAT area code, harmonised onto the
+  `polity_area_code` bucket the rest of the pipeline aggregates on, at
+  the fold state `options(whep.unfold_rest_of_world)` selects (the
+  FAOSTAT "China" aggregate 351 is dropped). See
+  [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md).
 
 - `year`: integer.
 

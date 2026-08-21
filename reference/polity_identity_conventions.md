@@ -127,6 +127,14 @@ Their real carrier is `reporting_polity_code`, a
 code on all 259 of `regions_full`'s non-`NA` rows and all 198 of
 `polities_cats`'s.
 
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+vendors the same stems, and shipped them under `reporting_polity_code` —
+the name that means the opposite — until whep#711 renamed them
+`legacy_polity_prefix`/`legacy_polity_name` to match. The register does
+not reach that table, because it enumerates year-*less* objects and the
+crosswalk carries a year; the guard for it lives in
+`tests/testthat/test_territorial_identity.R` alongside \#687's.
+
 ## See also
 
 [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)

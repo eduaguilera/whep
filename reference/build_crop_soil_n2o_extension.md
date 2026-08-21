@@ -34,13 +34,15 @@ harmonised to the whep polity `area_code` through
 [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
 before they are split to crops, so reporting units that FABIO folds into
 one bucket are summed rather than dropped (Sudan 276 + South Sudan 277
-to 206, Ethiopia PDR 62 to 238, the small territories that fold into
-"rest of world" to 999). FAOSTAT rows that are not territories carry no
-polity and are dropped: 5000 "World", the continent, region, EU-27, OECD
-and income-group rollups, and the "China" aggregate 351, which overlaps
-41/96/128/214. This is a documented exception rather than a coverage
-gap, since a rollup has no crop shares of its own and would double count
-its members.
+to 206, Ethiopia PDR 62 to 238). The fold state is the one the rest of
+the pipeline resolves through, so under the default
+`options(whep.unfold_rest_of_world = "all")` the Rest-of-World members
+keep their own code rather than being summed into bucket 999. FAOSTAT
+rows that are not territories carry no polity and are dropped: 5000
+"World", the continent, region, EU-27, OECD and income-group rollups,
+and the "China" aggregate 351, which overlaps 41/96/128/214. This is a
+documented exception rather than a coverage gap, since a rollup has no
+crop shares of its own and would double count its members.
 
 N2O is then estimated with IPCC 2019 Refinement (Vol 4, Ch 11) Tier 1
 factors (climate-aggregated): direct `EF1 = 0.010`; indirect via

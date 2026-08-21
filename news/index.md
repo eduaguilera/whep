@@ -52,6 +52,57 @@
   carrying two labels in one year (“Sudan (former)” from `SDN` and
   “South Sudan” from `SSD`).
 
+- **Four `polity_area_code` bridges now read the crosswalk the pipeline
+  resolves through, so 61 reporting areas stop being summed into bucket
+  999 ([\#716](https://github.com/eduaguilera/whep/issues/716)).**
+  [`get_arable_permanent_land()`](https://eduaguilera.github.io/whep/reference/get_arable_permanent_land.md)’s
+  FAO and LUH2 legs, the crop/soil N2O extension’s country-N bridge and
+  the feed redistribution’s cell bridge all built their bucket from the
+  shipped `polity_area_crosswalk` instead of `.polity_crosswalk()`,
+  where `.unfold_rest_of_world()` is applied. Since the Rest-of-World
+  un-fold ([\#628](https://github.com/eduaguilera/whep/issues/628)) made
+  promotion the default, those 61 areas – Syria 212, Greenland 85,
+  Bermuda 17 and 58 more – carry their own code everywhere else in the
+  pipeline, so each bridge was aggregating onto a bucket the side it
+  joins against no longer has. Measured on real inputs:
+  `get_arable_permanent_land(years = 1850:2022)` goes from 194 to 227
+  areas and moves 786,562,273 ha-yr of cropland out of bucket 999 onto
+  the areas that reported it (Syria alone 693.6 M ha-yr); the total
+  falls 0.017%, entirely pre-1961, because each territory now splices
+  its LUH2 back-cast on its own FAO-1961 anchor rather than on the
+  aggregate’s. In the crop/soil N2O extension the nitrogen that reaches
+  crop shares rises 0.048% for synthetic fertiliser and 0.085% for
+  applied manure (2015-2020) – bucket 999 has no crop shares, so that
+  mass was previously dropped outright. In the feed redistribution 151
+  cell-polity rows (0.18% of gridded land) keep their own code instead
+  of being re-keyed to a bucket the demand does not carry.
+
+- **`polity_area_crosswalk` no longer names an ISO3 stem after a polity
+  ([\#711](https://github.com/eduaguilera/whep/issues/711)).** Two of
+  its columns were `reporting_polity_code` and `reporting_polity_name`,
+  the package’s own published names for “the polity itself”
+  ([`?whep_polity_columns`](https://eduaguilera.github.io/whep/reference/whep_polity_columns.md)),
+  but held the ISO3-like stems and legacy labels this package vendors
+  from `regions_full.csv`: `"ARM"`, `"ROCE"`, `"REUR"`, and **0 of the
+  641 non-`NA` values was a `polities$polity_code`**. The table’s own
+  documentation sent readers there to ask which territory a row belongs
+  to, so following it returned a column that answers nothing – the same
+  trap [\#687](https://github.com/eduaguilera/whep/issues/687) removed
+  from `regions_full`, in the opposite column. They are now
+  `legacy_polity_prefix` and `legacy_polity_name`, matching the
+  vocabulary [\#687](https://github.com/eduaguilera/whep/issues/687)
+  settled on, and the `@format` block documents both as explicitly *not*
+  an identity. **This is a published schema break** for anything reading
+  those two names off the crosswalk; the answer they appeared to promise
+  is the table’s `polity_code`/`polity_name`, and in a WHEP *output* it
+  is `reporting_polity_code`, which is unchanged and still a real
+  periodized code. **No published values change**: every cell of the
+  table is byte-identical and nothing in the package computed from the
+  renamed pair except
+  [`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)’s
+  refusal list, which reads the same values under the new name and
+  returns the same result.
+
 - **[`resolve_polity_label()`](https://eduaguilera.github.io/whep/reference/resolve_polity_label.md)
   now covers the current year
   ([\#712](https://github.com/eduaguilera/whep/issues/712)).** Its year
