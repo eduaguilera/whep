@@ -101,8 +101,10 @@
 #' Ethiopia `62` and Sudan `206` where today's `regions.csv` uses `238` and
 #' `276`, so substituting it dropped both countries entirely (whep#461).
 #' Regenerating it closed that gap: the two grids now carry the same 178 area
-#' codes, and [build_cell_polity()] refuses a copy still holding a retired
-#' code instead of deleting the countries silently (whep#694). It still cannot
+#' codes, it is published as the `spatialize-cell-polity-fraction` pin so no
+#' user has to rebuild it, and [build_cell_polity()] refuses a copy still
+#' holding a retired code instead of deleting the countries silently
+#' (whep#694). It still cannot
 #' rescue a polity smaller than a cell, because its producer restricts it to
 #' the cells the centroid grid already has, and it drops 4 of those cells,
 #' whose only land is a sliver covering the 0.5-degree cell centre but no
@@ -684,12 +686,12 @@ run_spatialize <- function(
   grid
 }
 
-# The fractional crosswalk has no pin: it is the parquet `build_cell_polity()`
-# reads, so it is resolved the same way. An `input_dir` that does not hold it
-# aborts rather than falling back to `WHEP_POLITY_FRACTION_PATH`: a run asked
-# for one directory's inputs must not silently mix in another's. With no
-# `input_dir` the env var is the only source, and `build_cell_polity()` aborts
-# with an instruction when it is unset.
+# The fractional crosswalk is whatever `build_cell_polity()` reads, so it is
+# resolved the same way. An `input_dir` that does not hold it aborts rather than
+# falling back to the pin or to `WHEP_POLITY_FRACTION_PATH`: a run asked for one
+# directory's inputs must not silently mix in another's. With no `input_dir` it
+# resolves like any other call -- the `spatialize-cell-polity-fraction` pin by
+# default, the env var when set as an override (whep#694).
 .read_fraction_country_grid <- function(input_dir) {
   path <- NULL
   if (!is.null(input_dir)) {

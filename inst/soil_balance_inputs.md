@@ -23,7 +23,7 @@ checks and `?`-examples run without any of these variables set.
 | `WHEP_HANI_DIR` | `build_n_deposition()` | HaNi nitrogen-deposition directory. |
 | `WHEP_WIND_DIR` | `read_lpjml_wind()` | Directory with the wind input (`wind_gswp3-w5e5.txt`). |
 | `WHEP_CROP_PATTERNS_PATH` | `n_balance_spatialize.R` | Path to the crop-patterns grid. |
-| `WHEP_POLITY_FRACTION_PATH` | `n_balance_spatialize.R` | Path to the per-cell polity-fraction grid. |
+| `WHEP_POLITY_FRACTION_PATH` | `build_cell_polity()` | **Optional override** — the per-cell polity-fraction grid is the `spatialize-cell-polity-fraction` pin, read by default (#694). Set this only to use a local producer build instead. |
 | `WHEP_TYPE_CROPLAND_PATH` | `n_balance_spatialize.R` | Path to the LUH2-type cropland grid. |
 
 ## LPJmL year coverage — read this before requesting a year
