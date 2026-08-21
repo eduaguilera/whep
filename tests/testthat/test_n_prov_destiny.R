@@ -159,6 +159,16 @@ test_that(".combine_production_boxes binds crop and livestock data", {
 
 # .add_grass_wood --------------------------------------------------------------
 
+# A distinctive (non-0.2) coefficient, so a test passing only proves the
+# lookup is actually used rather than coincidentally matching a hardcoded
+# fallback.
+.test_grass_biomass_coefs <- function() {
+  tibble::tribble(
+    ~Name_biomass, ~Residue_kgDM_kgFM,
+    "Grass", 0.25
+  )
+}
+
 test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
   input <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
@@ -167,16 +177,17 @@ test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
     2000, "A", "Wheat", "Wheat", "Cropland", "Cropland", "irrig", "Product", 100
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   # Fallow grass stays as Fallow item
   fallow <- out |> dplyr::filter(Item == "Fallow")
   expect_equal(fallow$production_fm, 10)
   expect_equal(fallow$Name_biomass, "Fallow")
 
-  # Non-fallow grass becomes Grassland, DM → FM (/ 0.2)
+  # Non-fallow grass becomes Grassland, DM → FM using biomass_coefs' own
+  # Grass coefficient rather than a hardcoded one.
   grassland <- out |> dplyr::filter(Item == "Grassland")
-  expect_equal(grassland$production_fm, 20 / 0.2)
+  expect_equal(grassland$production_fm, 20 / 0.25)
   expect_equal(grassland$Name_biomass, "Grass")
 
   # Regular product unchanged
@@ -191,7 +202,7 @@ test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
     2000, "A", "Conifers", "Conifers", "semi_natural_agroecosystems", "Forest_low", NA, "Residue", 30
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   expect_true(all(out$Item == "Firewood"))
   expect_true(all(out$Name_biomass == "Firewood"))
@@ -204,7 +215,7 @@ test_that(".add_grass_wood filters out NA production", {
     2000, "A", "Barley", "Barley", "Cropland", "Cropland", "irrig", "Product", 50
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   expect_equal(nrow(out), 1)
   expect_equal(out$Item, "Barley")

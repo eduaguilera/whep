@@ -111,7 +111,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
   grafs_prod_item_trade <- processed$non_processed |>
-    .add_grass_wood() |>
+    .add_grass_wood(biomass_coefs) |>
     .prepare_prod_data(
       processed$processed_items,
       codes_coefs_items_full
@@ -728,11 +728,19 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @description Replace production_fm with GrazedWeeds_MgDM (for Fallow).
 #'
 #' @param grafs_prod_combined_no_seeds Dataframe of production without seeds.
+#' @param biomass_coefs Output of `whep_read_file("biomass_coefs")`, used to
+#' convert grazed grass from DM to FM with the same `Residue_kgDM_kgFM`
+#' coefficient `.convert_fm_dm_n()` later converts it back with, instead of
+#' a second, independent hardcoded copy of that number.
 #'
 #' @return A dataframe with added grass and wood production.
 #' @keywords internal
 #' @noRd
-.add_grass_wood <- function(grafs_prod_combined_no_seeds) {
+.add_grass_wood <- function(grafs_prod_combined_no_seeds, biomass_coefs) {
+  grass_dm_to_fm <- biomass_coefs |>
+    dplyr::filter(Name_biomass == "Grass") |>
+    dplyr::pull(Residue_kgDM_kgFM)
+
   grafs_prod_added <- grafs_prod_combined_no_seeds |>
     dplyr::mutate(
       Item = dplyr::case_when(
@@ -755,11 +763,10 @@ create_n_nat_destiny <- function(example = FALSE) {
         TRUE ~ Name_biomass
       )
     ) |>
-    # 20% DM to FM for Grass
     dplyr::mutate(
       production_fm = dplyr::if_else(
         prod_type == "Grass" & Item == "Grassland" & !is.na(production_fm),
-        production_fm / 0.2,
+        production_fm / grass_dm_to_fm,
         production_fm
       )
     ) |>
