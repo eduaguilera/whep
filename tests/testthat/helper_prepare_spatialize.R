@@ -17,22 +17,32 @@
 # ncdf4 at top level and ncdf4 is Suggests-only: where it is missing the script
 # genuinely cannot load, and the callers' `exists()` guards should skip instead
 # of erroring the whole file. That is why those guards stay.
-.source_prepare_spatialize <- function() {
+#
+# Because those guards skip rather than fail, a future path regression would
+# again be silent. `.prepare_spatialize_path()` exposes the resolution so
+# test_prepare_nitrogen.R can assert it loudly (#402): a layout the resolution
+# does not cover is a test failure, not 22 quiet skips.
+.prepare_spatialize_path <- function() {
   path <- system.file(
     "scripts",
     "prepare_spatialize_all.R",
     package = "whep"
   )
-  if (!nzchar(path)) {
-    path <- testthat::test_path(
-      "..",
-      "..",
-      "inst",
-      "scripts",
-      "prepare_spatialize_all.R"
-    )
+  if (nzchar(path)) {
+    return(path)
   }
-  if (!file.exists(path)) {
+  testthat::test_path(
+    "..",
+    "..",
+    "inst",
+    "scripts",
+    "prepare_spatialize_all.R"
+  )
+}
+
+.source_prepare_spatialize <- function() {
+  path <- .prepare_spatialize_path()
+  if (!nzchar(path) || !file.exists(path)) {
     return(invisible(FALSE))
   }
   ok <- tryCatch(

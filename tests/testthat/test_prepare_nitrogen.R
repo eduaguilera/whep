@@ -8,6 +8,47 @@
 .source_prepare_spatialize()
 
 
+# The `exists()` guards below skip rather than fail, so a path regression like
+# #402 -- where only the source-checkout layout resolved and `R CMD check` saw
+# none of the helpers -- turned every test in this file into an invisible skip.
+# These two assert the resolution loudly, so the next such regression is a
+# failure on the platform that has it.
+test_that("the prepare_spatialize script resolves in this layout", {
+  path <- .prepare_spatialize_path()
+  expect_true(nzchar(path))
+  expect_true(file.exists(path))
+})
+
+
+test_that("sourcing the script defines the helpers the tests need", {
+  # ncdf4 is Suggests and the script attaches it at top level, so where it is
+  # absent the script legitimately cannot load.
+  skip_if_not_installed("ncdf4")
+  expect_true(.source_prepare_spatialize())
+  needed <- c(
+    ".smil_global_yearly",
+    ".smil_synth_pre_1961",
+    ".faostat_manure_shares_const",
+    ".livestock_manure_split",
+    ".fill_n_inputs_to_target_year",
+    ".aggregate_nitrogen_pft",
+    ".spatialize_label_area_code",
+    ".crops_manure_label_year",
+    ".grass_share_area_code",
+    ".dedup_grass_share"
+  )
+  # The script is sourced into `topenv()`, which this frame's enclosing chain
+  # reaches -- so `exists()` needs that env named, not `vapply()`'s own frame.
+  here <- environment()
+  found <- vapply(
+    needed,
+    function(nm) exists(nm, envir = here, mode = "function"),
+    logical(1)
+  )
+  expect_equal(needed[!found], character(0))
+})
+
+
 test_that(".smil_global_yearly interpolates linearly between anchors", {
   skip_if_not(exists(".smil_global_yearly", mode = "function"))
   out <- .smil_global_yearly(first_year = 1950L, last_year = 1965L)
