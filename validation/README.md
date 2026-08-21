@@ -37,6 +37,8 @@ a hardcoded grid.
 | `validate.R` | Shared deterministic core (resolve/extract/judge, unit canonicalization, build cache). |
 | `variables.R` | Variable registry (production, area, occupation, cycle_length, cropping_intensity, stability) + their WHEP-side extractors. |
 | `stability.R` | Time-series stability check (internal archetype): flags year-over-year discontinuities in WHEP's own series. No external data. |
+| `year_scoping.R` | Year-scoping equivalence check (internal archetype): a scoped `build_x(years = Y)` must equal the full-range build filtered to `Y`. See below. |
+| `gt_year_scoping.json` | Recorded per-unit divergence budget for that check. **Committed** — a ratchet, meant to be tightened as each filed defect is fixed. |
 | `compare_variable.R` | Variable-aware comparator: extracts WHEP's value, joins ground truth on the registry grain, judges (ratio or bound mode). |
 | `validate_all.R` | One-shot sweep: runs every variable's check and prints a combined scorecard. |
 | `gaez_potential.R` | Builds the per-country GAEZ potential cropping-intensity ceiling. **Downloads** GAEZ v4 multiple-cropping zones (rainfed `mcr` + irrigated `mci`) from the open FAO bucket → `cache/files/GAEZ/`. No local copy needed (`WHEP_GAEZ_DIR` overrides). |
@@ -49,6 +51,69 @@ a hardcoded grid.
 | `lpjml_globalflux.R` | Checks a finished **LPJmL run's** global fluxes for spinup equilibration and against published observational estimates. See below. |
 | `lpjml_pins.R` | Guards the four **LPJmL-derived input pins** against their recorded contract, physical invariants and magnitudes, so a pin swap cannot pass silently. See below. |
 | `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
+
+## Year-scoping equivalence (`year_scoping.R`)
+
+A `years =` window is a request for a **subset**, not for a different method, so
+the invariant is arithmetic:
+
+```
+build_x(years = Y)  ==  build_x(full range) |> filter(year in Y)
+```
+
+`tests/` cannot check it — the full builds are ~170 s / 14 GB (primary
+production) and ~250 s / 23 GB (wide CBS) and read pins. That is precisely how
+three violations shipped green on CI: **#623** (`.fill_fodder_gaps()`
+interpolates along the year axis, so a narrow window lost *every* forage crop —
+1.16% of production tonnes, 1.85% of `t_ha`, 1.36% of wide-CBS `feed`, while
+PR #570 was 10/10 green), the **#625** residual underneath it (since split into
+#665/#666/#667), and the trade/stock cross-year dependency that #570 papered
+over with the `.context_years()` margin.
+
+```bash
+Rscript validation/year_scoping.R                       # production, 2010
+Rscript validation/year_scoping.R wide_cbs 2010
+Rscript validation/year_scoping.R production 2010 --record   # re-record
+Rscript validation/year_scoping.R production 2010 --refresh  # rebuild the cache
+```
+
+One layer per process, so the session build cache never holds the full
+production *and* the full CBS at once. Only the **full** build is cached (under
+the gitignored `.whep_cache/`); the scoped build is redone every run, so a stale
+cache cannot mask a regression. Pass `--refresh` when WHEP code or its input
+pins change what the full build reads.
+
+Comparison is **per unit** (production) and **per quantity column** (wide CBS,
+melted so one comparator serves both). An aggregate over everything would have
+hidden #625 behind #623. Three things are compared at that grain: keys present
+in only one build (either direction), the total, and the worst per-key value
+difference among keys both builds have — #625's second half was 20 *shared* rows
+whose values differed while the row sets agreed.
+
+**The tolerance is not a measurement tolerance.** The target is exact equality;
+two slacks are allowed and both are explicit:
+
+- **Floating point** — the builds sum the same numbers in a different order.
+  `1e-9` relative, and nothing larger.
+- **Known, filed defects** — `gt_year_scoping.json` records the measured state
+  per layer, **per year** and per unit. Exceeding it plus the floor fails. So
+  the check is a regression net today and a **ratchet**: fix a filed defect,
+  re-record, and the tighter number becomes the ceiling. The script says so
+  itself when a unit comes in well inside its budget. A recorded number is a
+  budget for a defect with an issue number, never a claim that the difference
+  is fine.
+
+The budget is keyed on the **year** because the residual is not year-invariant:
+#666 measured its own cluster at 2.18e-04 at 2010 and 3.06e-03 at 1995, ~14x
+worse. Sharing one budget across years would let a recording at 1995 raise the
+ceiling a later 2010 run is judged against. A year that has never been recorded
+is therefore required to be exact, and fails loudly the first time — record it
+deliberately. 2010 is what ships recorded, and it is the *favourable* year, so
+`VAL_SCOPING_YEAR=1995` is the more searching run.
+
+`validate_all.R` reports both layers, but only *runs* a layer whose cached full
+build already exists — the sweep deliberately does not start a multi-minute
+build unasked. Force one with `VAL_SCOPING_LAYERS=production,wide_cbs`.
 
 ## Validating an LPJmL run (different target)
 
@@ -158,6 +223,7 @@ each tagged with an **archetype** that decides how it's checked:
 | cropping_intensity | **bound** | country·crop | CROPGRIDS physical ÷ harvested | GAEZ v4 potential ceiling (auto-download, `gaez_potential.R`) |
 | cycle_length | parameter | crop | `mirca_season.csv` (months) | FAO calendars / GGCMI (not pinned yet) |
 | stability | internal | time series | WHEP series | none (self-consistency) |
+| year_scoping | internal | unit / quantity column | scoped build vs full-range build | none (arithmetic identity) |
 
 A third comparator, **bound** (one-sided), is for ceilings like GAEZ *potential*:
 pass if WHEP's observed value stays at/below it. Occupation is split into two
@@ -173,7 +239,8 @@ across every variable). Per-variable: `validation/stability.R`,
 
 - **external** — WHEP value vs an authoritative figure (ratio within tolerance).
 - **parameter** — a coefficient/weight WHEP *uses* vs an authoritative coefficient.
-- **internal** — WHEP's own consistency, no external source (`stability.R`).
+- **internal** — WHEP's own consistency, no external source (`stability.R`,
+  `year_scoping.R`).
 
 All extractors run from packaged data + public pins (no LPJmL). The deterministic
 comparators are proven; ground truth is now mostly automated — GAEZ (the
