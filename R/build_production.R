@@ -896,7 +896,7 @@ build_primary_production <- function(
     dplyr::summarise(
       ha = sum(ha, na.rm = TRUE),
       dm = sum(dm, na.rm = TRUE),
-      .by = c(year, area, area_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(yield_dm = dm * 4 / ha)
 }
@@ -916,12 +916,27 @@ build_primary_production <- function(
     dplyr::select(item_prod_code, Product_kgDM_kgFM) |>
     dplyr::filter(!is.na(Product_kgDM_kgFM))
 
+  # The area label is a property of the `(year, area_code)` bucket, never a join
+  # or grouping key: keying on it split one country's series into one series per
+  # historical label, so Egypt (59) got three full-area copies of every fodder
+  # item in 1961 (#655). Everything below is keyed on `area_code`; the label is
+  # attached once, at the end.
+  source_labels <- .fodder_source_labels(i_fodder, fodder_euadb)
+
   fodder_all <- i_fodder |>
     dplyr::filter(year != 2013) |>
     dplyr::mutate(
       value = dplyr::if_else(value == 0, NA_real_, value)
     ) |>
-    dplyr::right_join(
+    dplyr::select(-dplyr::any_of("area")) |>
+    # `inner_join`, not `right_join`: the 7705 `dm_yield` keys with no fodder
+    # record added rows carrying nothing but a `yield_dm`, and the old
+    # `!is.na(area)` drop in `.fill_fodder_gaps()` removed every one of them --
+    # swapping the join type on `main` leaves that build byte-identical. Once
+    # that drop keys on `area_code`, which those rows do have, they would
+    # instead reach the cross join and hand it 12 years (2013-2024) no fodder
+    # source covers, so the join type has to say what the label filter used to.
+    dplyr::inner_join(
       dm_yield |> dplyr::select(year, area_code, yield_dm),
       by = c("year", "area_code")
     ) |>
@@ -935,6 +950,7 @@ build_primary_production <- function(
     .fill_fodder_gaps(dm_yield, items_prod, biomass)
 
   fodder_all |>
+    .attach_fodder_area(source_labels) |>
     dplyr::select(
       year,
       area,
@@ -953,31 +969,54 @@ build_primary_production <- function(
     )
 }
 
+# The label each source gave the bucket, one row per `(year, area_code)` so it
+# cannot fan a row out. Only a fallback: it is used where the bucket's own code
+# resolves to no polity in that year, exactly as `.bucket_area_labels()` falls
+# back to a member's name.
+.fodder_source_labels <- function(i_fodder, fodder_euadb) {
+  dplyr::bind_rows(
+    i_fodder |> tibble::as_tibble() |> dplyr::select(year, area_code, area),
+    fodder_euadb |> tibble::as_tibble() |> dplyr::select(year, area_code, area)
+  ) |>
+    dplyr::filter(!is.na(area), !is.na(area_code)) |>
+    dplyr::distinct(year, area_code, area) |>
+    dplyr::slice_head(n = 1, by = c(year, area_code)) |>
+    dplyr::rename(source_area = area)
+}
+
+# Attach the area label, at the end, from the row's own `(year, area_code)`. The
+# crosswalk is the same rule `.aggregate_to_polities()` labels a bucket by, so a
+# fodder row reads with the same label as the FAOSTAT crop row it is bound to --
+# 745 of 5769 `(year, area_code)` pairs disagreed while the label travelled as a
+# join key (#655).
+.attach_fodder_area <- function(fodder, source_labels) {
+  resolved <- .add_polity_columns_dt(
+    data.table::data.table(
+      year = as.integer(fodder$year),
+      area_code = fodder$area_code
+    ),
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+
+  fodder |>
+    dplyr::mutate(area = resolved$polity_name) |>
+    dplyr::left_join(source_labels, by = c("year", "area_code")) |>
+    dplyr::mutate(area = dplyr::coalesce(area, source_area)) |>
+    dplyr::select(-"source_area")
+}
+
 .merge_euadb_fodder <- function(
   fodder,
   fodder_euadb,
   items_prod
 ) {
-  # `.read_fodder_euadb()` labels rows with the plain `polity_name`, but
-  # `fodder` carries periodized names, so a name-keyed join fragments rows.
-  # Rekey EU AgriDB onto the FAO name for the same (year, area_code) so the
-  # joins below match on a consistent (year, area_code, area) key.
-  fao_area <- fodder |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::distinct(year, area_code, area) |>
-    dplyr::rename(fao_area = area)
-
-  fodder_euadb <- fodder_euadb |>
-    dplyr::left_join(fao_area, by = c("year", "area_code")) |>
-    dplyr::mutate(area = dplyr::coalesce(fao_area, area)) |>
-    dplyr::select(-fao_area)
-
   euadb_area <- fodder_euadb |>
     dplyr::filter(Unit == "Mha") |>
     dplyr::mutate(ha_euadb = value * 1e6) |>
     dplyr::select(
       year,
-      area,
       area_code,
       Name_Eurostat,
       ha_euadb
@@ -991,14 +1030,13 @@ build_primary_production <- function(
   euadb_yield <- fodder_euadb |>
     dplyr::filter(Label == "Yield") |>
     dplyr::mutate(kgnha_euadb = value) |>
-    dplyr::select(year, area, Name_Eurostat, kgnha_euadb)
+    dplyr::select(year, area_code, Name_Eurostat, kgnha_euadb)
 
   fodder |>
     dplyr::full_join(
       euadb_area,
       by = c(
         "year",
-        "area",
         "area_code",
         "item_prod",
         "item_prod_code"
@@ -1006,11 +1044,11 @@ build_primary_production <- function(
     ) |>
     dplyr::left_join(
       euadb_yield,
-      by = c("year", "area", "Name_Eurostat")
+      by = c("year", "area_code", "Name_Eurostat")
     ) |>
     dplyr::mutate(
       ha_tot = sum(ha, na.rm = TRUE),
-      .by = c(year, area, area_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(
       sum_ha = sum(ha, na.rm = TRUE),
@@ -1019,7 +1057,7 @@ build_primary_production <- function(
         NA_real_,
         dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
       ),
-      .by = c(year, area, area_code, Name_Eurostat)
+      .by = c(year, area_code, Name_Eurostat)
     )
 }
 
@@ -1030,7 +1068,6 @@ build_primary_production <- function(
   biomass
 ) {
   grp_cols <- c(
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -1038,7 +1075,9 @@ build_primary_production <- function(
   )
 
   dt <- data.table::as.data.table(fodder)
-  dt <- dt[!is.na(area)]
+  # EU AgriDB rows that resolve to no WHEP area (`.warn_unmapped_adb_regions()`
+  # names them) have nothing to be keyed on, so they are dropped here.
+  dt <- dt[!is.na(area_code)]
   dt <- dt[,
     .(
       t = .sum_if_any(t),
@@ -1085,7 +1124,6 @@ build_primary_production <- function(
   dt <- dt[,
     .(
       year,
-      area,
       area_code,
       item_prod,
       item_prod_code,
