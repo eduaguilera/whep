@@ -897,6 +897,23 @@ build_processing_coefs <- function(
     )
   ]
   dt[, unit := "tonnes"]
+  # Pin the row order, for the reason `.extract_fao()` does: the two pins are
+  # read through arrow's multi-threaded scanner and the `by=` aggregation above
+  # emits groups in order of first appearance, so this table came back in a
+  # session-dependent order -- 2 distinct orders over 7 sessions on the real
+  # pins at 1950-1965, same 45,871 rows and same values each time (whep#420).
+  # The `by=` key is unique, so the order is total.
+  data.table::setorderv(
+    dt,
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "item_cbs",
+      "element",
+      "polity_code"
+    )
+  )
   dt[!is.na(polity_code)]
 }
 

@@ -315,3 +315,34 @@ test_that(".extract_cb row order does not depend on the read order", {
   expect_gt(nrow(forward), 1L)
   expect_identical(forward, reversed)
 })
+
+# -- .extract_fao row order ----------------------------------------------------
+
+# The same defect one stage earlier, and the stage the CBS build consumes
+# directly: `.read_fao_trade()` and the `faostat-cbs-new` extract stop at
+# `.extract_fao()`, so `.extract_cb()`'s sort never reaches them. Measured on
+# the real pins at 1950-1965, `.read_fao_trade()` came back in a different row
+# order in every one of three sessions (339,220 rows, same rows and same
+# values), because the `by=` aggregation in `.aggregate_to_polities()` emits
+# groups in order of first appearance and arrow's multi-threaded scanner
+# decides what appears first (whep#420).
+test_that(".extract_fao row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_fao("faostat-trade-totals") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
