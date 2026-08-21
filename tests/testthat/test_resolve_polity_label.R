@@ -314,6 +314,17 @@ test_that("the published alias map keeps the contract this package reads", {
   expect_false(any(is.na(aliases$polity_code)))
   # Every alias must name a real WHEP polity code, prefix included.
   expect_true(all(grepl("^[A-Z0-9-]+-[0-9]{4}-[0-9]{4}$", aliases$polity_code)))
+
+  # #768: the roxygen states as an INVARIANT, not as a snapshot count, that
+  # every code this function can return is one `get_polity_geometries()` can
+  # return a row for. `data-raw/table_mappings.R` aborts the build when an alias
+  # names a polity the shipped table lacks, because both artifacts come from one
+  # upstream revision; this is that guard read from the shipped data, so the
+  # documented claim cannot quietly stop being true.
+  expect_equal(
+    setdiff(aliases$polity_code, whep::polities$polity_code),
+    character(0)
+  )
 })
 
 test_that("a still-open period covers the open-period sentinel year", {
