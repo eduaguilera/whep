@@ -524,10 +524,10 @@ build_n_inputs <- function(
 # sentinel: a Cropland residual (e.g. an over_apply_local remainder) and a
 # transport landing (pooled across crop and grass capacity with no crop)
 # alike. The is.na(crop) branch is checked before the crosswalk default so a
-# missing crop never reaches .ni_crop_name_to_item_cbs(). A real crop name
-# resolves via the item_prod crosswalk.
+# missing crop never reaches .ni_crop_to_item_cbs(). A real crop resolves via
+# the item_prod crosswalk.
 .ni_manure_item_cbs <- function(crop, land_use) {
-  resolved <- .ni_crop_name_to_item_cbs(crop)
+  resolved <- .ni_crop_to_item_cbs(crop)
   dplyr::case_when(
     land_use == "Grassland" ~ 3000L,
     is.na(crop) ~ NA_integer_,
@@ -535,36 +535,89 @@ build_n_inputs <- function(
   )
 }
 
-# Cropland `crop` names are free-form lowercase strings from the manure
-# engine; resolve each to item_cbs_code via the case-folded item_prod
-# crosswalk. A non-NA crop name that matches nothing is a genuine mapping gap
-# (a renamed or free-form crop the crosswalk does not know), so abort naming it
-# rather than emit an NA item_cbs_code indistinguishable from the deliberately
-# non-crop-specific deposition/urban/SOM rows, mirroring
+# Resolve the manure engine's Cropland `crop` key to an item_cbs_code.
+#
+# The canonical key is `as.character(item_prod_code)` -- a code, per CLAUDE.md's
+# "join on codes, never on names": item_prod_code -> item_cbs_code is 1:1 across
+# all 310 crosswalk rows, whereas item_prod is not (`Fallow` names two codes)
+# and three codes carry no name at all. `.sci_manure_crop_layer()`
+# (R/soil_carbon_inputs.R), the only in-package producer of a real gridded crops
+# layer, emits codes; before this contract was fixed the nitrogen side resolved
+# the same column by name only, so the carbon path's layer aborted here -- every
+# one of its 9298 rows for 2010, all 171 crops, 1.383e9 ha (#788).
+#
+# A crop name is still accepted as a deprecated compatibility bridge, for layers
+# hand-built against the old contract, and warns. Ordering is unambiguous: no
+# item_prod name equals a DIFFERENT item_prod_code in the crosswalk (`Fallow` is
+# the only name/code collision and both rows are the same item), so trying codes
+# first can never steal a name's match.
+#
+# A non-NA crop that matches neither is a genuine mapping gap, so abort naming
+# it rather than emit an NA item_cbs_code indistinguishable from the
+# deliberately non-crop-specific deposition/urban/SOM rows, mirroring
 # .manure_territory_to_area_code()'s treatment of unresolvable territories. An
 # NA crop never reaches this abort: .ni_manure_item_cbs() assigns either the
 # grass code or the no-specific-item sentinel from land_use.
-.ni_crop_name_to_item_cbs <- function(crop) {
+.ni_crop_to_item_cbs <- function(crop) {
+  resolved <- .ni_crop_code_lookup(crop)
+  by_name <- is.na(resolved) & !is.na(crop)
+  if (any(by_name)) {
+    from_name <- .ni_crop_name_lookup(crop[by_name])
+    resolved[by_name] <- from_name
+    bridged <- unique(crop[by_name][!is.na(from_name)])
+    if (length(bridged) > 0) {
+      cli::cli_warn(c(
+        "Resolving the manure {.field crop} key from a crop name is
+         deprecated.",
+        i = "Bridged by name: {.val {bridged}}. Pass
+             {.code as.character(item_prod_code)} instead, the key the carbon
+             balance's own crops layer already uses.",
+        i = "A name is not a unique key: {.val Fallow} names two
+             {.field item_prod_code}s and three codes carry no name."
+      ))
+    }
+  }
+  unresolved <- unique(crop[is.na(resolved) & !is.na(crop)])
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Could not resolve manure {.field crop} to an {.field item_cbs_code}.",
+      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected
+           {.code as.character(item_prod_code)} from
+           {.code whep::items_prod_full} (a crop name is accepted but
+           deprecated)."
+    ))
+  }
+  resolved
+}
+
+# item_prod_code -> item_cbs_code, keyed on the stringified code. Rows whose
+# item_cbs_code is NA are dropped from the lookup so they fall through to the
+# name bridge and then the abort, rather than resolving to a silent NA.
+.ni_crop_code_lookup <- function(crop) {
+  lookup <- whep::items_prod_full |>
+    dplyr::transmute(
+      crop = as.character(.data$item_prod_code),
+      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(!is.na(.data$crop), !is.na(.data$item_cbs_code)) |>
+    dplyr::distinct(.data$crop, .keep_all = TRUE)
+  tibble::tibble(crop = as.character(crop)) |>
+    dplyr::left_join(lookup, by = "crop", na_matches = "never") |>
+    dplyr::pull("item_cbs_code")
+}
+
+# Case-folded item_prod name -> item_cbs_code, the deprecated bridge.
+.ni_crop_name_lookup <- function(crop) {
   lookup <- whep::items_prod_full |>
     dplyr::transmute(
       crop_lower = stringr::str_to_lower(.data$item_prod),
       item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
     ) |>
+    dplyr::filter(!is.na(.data$crop_lower), !is.na(.data$item_cbs_code)) |>
     dplyr::distinct(.data$crop_lower, .keep_all = TRUE)
-  resolved <- tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
-    dplyr::left_join(lookup, by = "crop_lower", na_matches = "never")
-  unresolved <- unique(
-    crop[!is.na(resolved$crop_lower) & is.na(resolved$item_cbs_code)]
-  )
-  if (length(unresolved) > 0) {
-    cli::cli_abort(c(
-      "Could not resolve manure {.field crop} to an {.field item_cbs_code}.",
-      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected a crop name
-           matching {.field item_prod} in {.code whep::items_prod_full}
-           (matched case-insensitively)."
-    ))
-  }
-  resolved$item_cbs_code
+  tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
+    dplyr::left_join(lookup, by = "crop_lower", na_matches = "never") |>
+    dplyr::pull("item_cbs_code")
 }
 
 .ni_manure_fert_type <- function(manure_type) {
