@@ -13,10 +13,10 @@
   Cyprus (50), Romania (183), Portugal (174), Bolivia (19) and the United
   Kingdom (229). The scoped build now runs that chain over the whole series and
   trims afterwards, the remedy already used for the fodder chain and the stock
-  series. At 2010 every one of the eight units is now exact — 0 rows lost,
-  0 rows gained, relative total difference 0, worst per-row difference 0 —
-  which also clears the three `t_LU` / `t_head` / `tonnes` keys #666 left
-  missing. Full-range output is unchanged: a request that starts before 1962
+  series. At 2010 **and at 1995**, the year where #666 measured this cluster
+  ~14x worse, every one of the eight units is now exact — 0 rows lost, 0 rows
+  gained, relative total difference 0, worst per-row difference 0 — which also
+  clears the three `t_LU` / `t_head` / `tonnes` keys #666 left missing. Full-range output is unchanged: a request that starts before 1962
   takes the historical branch and reads exactly what it read before. A scoped
   single-year production build costs about 1.7x what it did — 74.5 s to 128.6 s
   back to back on the same machine, against ~200 s for the full range — and
