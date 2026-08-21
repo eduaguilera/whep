@@ -1511,3 +1511,88 @@ test_that(".split_stock_share keys on the code, so a shared label cannot dilute"
   # Whole numbers: a single-member group has share 1, never 1/n.
   expect_equal(result$value_comb, round(result$value_comb))
 })
+
+
+# -- year-scoped yield chain (#834) --------------------------------------------
+
+# A window of any width truncates the year axis the yield chain reaches along:
+# `.fill_yields()` interpolates `yield_c` from the nearest year that has one,
+# and `.add_global_yields()` divides sums taken over the (area, item) universe
+# `tidyr::complete()` built from the years in hand. Both move with the window,
+# so a row whose own yield is missing lands on a different imputed value without
+# disappearing -- 20 shared rows at 2010, up to 79% apart, all `t_LU`/`t_head`.
+# The chain therefore reads the whole series (`years = NULL`) and is trimmed
+# afterwards, while the CBS read stays scoped.
+.mock_yield_chain_spans <- function(seen) {
+  local_mocked_bindings(
+    .read_cbs_production = function(years = NULL, ...) {
+      seen$cbs <- years
+      tibble::tibble(year = integer(0))
+    },
+    .read_fao_crop_liv = function(years = NULL, ...) {
+      seen$fao <- years
+      tibble::tibble(year = 2010L, value = 1)
+    },
+    .build_fodder = function(fao_crop_liv, years = NULL, ...) {
+      seen$fodder <- years
+      tibble::tibble(year = integer(0))
+    },
+    .build_livestock_stocks = function(fao_combined, years = NULL, ...) {
+      seen$stocks <- years
+      tibble::tibble(year = integer(0))
+    },
+    .build_livestock_slaughter = function(fao_combined, ...) {
+      seen$slaughter <- sort(unique(fao_combined$year))
+      tibble::tibble(year = integer(0))
+    },
+    .combine_primary_raw = function(...) tibble::tibble(year = integer(0)),
+    .compute_yields = function(...) {
+      tibble::tibble(year = 2000L:2020L, value = 1)
+    },
+    .assemble_production_raw = function(yield_all, ...) {
+      seen$assembled <- sort(unique(yield_all$year))
+      cli::cli_abort("stop_here", class = "whep_test_stop")
+    },
+    .env = rlang::caller_env()
+  )
+}
+
+test_that(".read_production reads the yield chain over the whole series", {
+  seen <- new.env(parent = emptyenv())
+  .mock_yield_chain_spans(seen)
+
+  expect_error(
+    whep:::.read_production(start_year = 2010L, end_year = 2010L),
+    class = "whep_test_stop"
+  )
+
+  # The three yield-chain reads take the whole series ...
+  expect_null(seen$fao)
+  expect_null(seen$fodder)
+  expect_null(seen$stocks)
+  # ... while the CBS read stays scoped to the window plus the margin ...
+  expect_equal(seen$cbs, 2007L:2013L)
+  # ... and so does the slaughter branch, which carries read counts, not ratios.
+  expect_equal(seen$slaughter, 2010L)
+  # The yield table is trimmed back before anything downstream sees it, so the
+  # wider read cannot leak extra years into the output.
+  expect_equal(seen$assembled, 2007L:2013L)
+})
+
+test_that(".read_production leaves a full-range request's reads alone", {
+  seen <- new.env(parent = emptyenv())
+  .mock_yield_chain_spans(seen)
+
+  expect_error(
+    whep:::.read_production(start_year = 1850L, end_year = 2023L),
+    class = "whep_test_stop"
+  )
+
+  # The historical branch already reads 1850-2023, and must keep doing exactly
+  # that: the full-range output is the reference the scoped build is judged
+  # against, so it may not move.
+  expect_equal(seen$fao, 1850L:2023L)
+  expect_equal(seen$fodder, 1850L:2023L)
+  expect_equal(seen$stocks, 1850L:2023L)
+  expect_equal(seen$cbs, 1850L:2023L)
+})

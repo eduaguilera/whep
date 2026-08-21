@@ -27,10 +27,10 @@
           "max_rel_key": 0
         },
         "t_LU": {
-          "keys_only_full": 3,
+          "keys_only_full": 0,
           "keys_only_scoped": 0,
-          "rel_total": 0.00016069249873169528,
-          "max_rel_key": 0.78848348281606917
+          "rel_total": 0,
+          "max_rel_key": 0
         },
         "t_ha": {
           "keys_only_full": 0,
@@ -39,15 +39,15 @@
           "max_rel_key": 0
         },
         "t_head": {
-          "keys_only_full": 3,
+          "keys_only_full": 0,
           "keys_only_scoped": 0,
-          "rel_total": 0.00028364541867838445,
-          "max_rel_key": 0.78848348281606928
+          "rel_total": 0,
+          "max_rel_key": 0
         },
         "tonnes": {
-          "keys_only_full": 3,
+          "keys_only_full": 0,
           "keys_only_scoped": 0,
-          "rel_total": 4.4557540066419621e-07,
+          "rel_total": 0,
           "max_rel_key": 0
         }
       }
