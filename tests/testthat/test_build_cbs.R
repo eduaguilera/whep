@@ -1477,6 +1477,78 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
   expect_false(is.na(resolved$polity_code[2]))
 })
 
+test_that("an ISO3 naming two areas resolves to the canonical one", {
+  # Issue whep#719, the same defect as whep#586 and whep#718. The ISO3 bridge
+  # used to be built here by taking the first row of each ISO3, and the area
+  # lookup orders by `area_code`, so `ETH` entered as the LOWEST code: 62, the
+  # "Ethiopia PDR" entity dissolved in 1993, rather than 238, plain
+  # "Ethiopia". Two things followed. The label came out "Ethiopia PDR" on an
+  # `area_code` whose own name is "Ethiopia", in every year including 2015;
+  # and because the polity resolution is year-aware on the code it is handed,
+  # a 2015 row resolved to `ETH-1952-1993` -- a polity that had ended 22
+  # years earlier.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("ETH", "ETH"),
+    year = c(1980L, 2015L),
+    value = 1
+  ))
+
+  expect_equal(resolved$area_code, c(238L, 238L))
+  expect_equal(resolved$polity_code, c("ETH-1952-1993", "ETH-1993-2025"))
+  expect_false(any(resolved$area == "Ethiopia PDR"))
+})
+
+test_that("hist trade gives one area label per area_code and year", {
+  # The invariant behind whep#719, over EVERY ISO3 the crosswalk knows rather
+  # than the two that were measured. `area_code` here is the aggregation
+  # bucket, so the label has to be a property of the bucket -- the rule
+  # `.aggregate_to_polities()` and `.read_crop_residues()` already follow.
+  # Carrying it in from the member row instead gave bucket 206 two labels in
+  # the same year, "Sudan (former)" from SDN and "South Sudan" from SSD, which
+  # is the vocabulary split that dropped 702,166 rows in whep#382.
+  lookup <- whep:::.current_area_lookup(include_unmapped = FALSE)
+  iso3 <- sort(unique(stats::na.omit(lookup$area_iso3c)))
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    expand.grid(
+      iso3c = iso3,
+      year = c(1900L, 1950L, 1980L, 2015L),
+      stringsAsFactors = FALSE
+    ),
+    value = 1
+  ))
+  resolved <- resolved[!is.na(resolved$area_code), ]
+
+  labels_per_key <- resolved |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = c("area_code", "year")
+    ) |>
+    dplyr::filter(.data$n_labels > 1L)
+
+  expect_equal(labels_per_key$area_code, integer(0))
+})
+
+test_that("hist trade still returns the area column with nothing to label", {
+  # The label now arrives by an update join on the resolved bucket, so the
+  # branch where NO row resolves has to keep emitting `area` rather than drop
+  # the column the caller's `keep` set names.
+  none <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ZZZ"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+  empty <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = character(0),
+    year = integer(0),
+    value = numeric(0)
+  ))
+
+  expect_true(all(is.na(none$area)))
+  expect_true("area" %in% names(none))
+  expect_true("area" %in% names(empty))
+  expect_equal(nrow(empty), 0L)
+})
+
 test_that(".read_gdp_pop renames only the year column", {
   # whep#721. This reader used to relabel the pin's `area` into the polity-name
   # vocabulary for a name-keyed proxy join. That join is gone -- commit 2210d05d

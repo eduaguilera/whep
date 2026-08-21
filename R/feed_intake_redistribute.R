@@ -1100,8 +1100,16 @@ build_feed_demand <- function(
 # collapse to polity_area_code 206 (FABIO's combined Sudan) while country_grid
 # uses 276/277, so their demand (keyed 206) found no cells. Falls back to the
 # area_code itself when the crosswalk has no entry.
+#
+# Read through `.polity_crosswalk()`, the one place `.unfold_rest_of_world()` is
+# applied (`R/polities.R`), so cells and demand share one fold state. On the
+# shipped `polity_area_crosswalk` the 61 Rest-of-World members promoted by
+# whep#628 still carry 999, so their cells would be re-keyed onto a bucket the
+# demand no longer has -- the inverse of the Sudan case above (whep#716).
 .cells_to_polity_area <- function(cells) {
-  lookup <- tibble::as_tibble(whep::polity_area_crosswalk) |>
+  lookup <- .polity_crosswalk() |>
+    as.data.frame() |>
+    tibble::as_tibble() |>
     dplyr::filter(!is.na(area_code), !is.na(polity_area_code)) |>
     dplyr::transmute(
       area_code = as.integer(area_code),
