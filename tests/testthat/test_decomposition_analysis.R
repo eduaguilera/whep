@@ -602,3 +602,132 @@ test_that("contributions are cumulated over time within each group", {
     dplyr::arrange(t0)
   expect_equal(semi_nat$cumulative_mgn, c(-2, 1))
 })
+
+
+# --- patchwork panel composition ---------------------------------------------
+# The four exported panel plots return patchwork objects. patchwork is a
+# Suggests, so they must (a) compose without it being attached and (b) say
+# which package is missing before doing any work when it is absent.
+
+.rolling_decomp_fixture <- function() {
+  list(
+    by_compartment = tibble::tribble(
+      ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+      1861, "cropland", 12000, 12000,
+      1862, "cropland", 8000, 20000,
+      1863, "cropland", 9000, 29000
+    ),
+    by_mechanism = tibble::tribble(
+      ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+      1861, "Size", 9000, 9000,
+      1862, "Size", 5000, 14000,
+      1863, "Size", 6000, 20000
+    )
+  )
+}
+
+.periods_decomp_fixture <- function() {
+  list(
+    by_compartment = tibble::tribble(
+      ~period, ~compartment, ~contribution_per_yr_mgn,
+      "1865-1925", "cropland", 120,
+      "1925-1965", "cropland", 260,
+      "1865-1925", "urban", 15,
+      "1925-1965", "urban", 35
+    ),
+    by_mechanism = tibble::tribble(
+      ~period, ~mechanism, ~contribution_per_yr_mgn,
+      "1865-1925", "Size", 90,
+      "1925-1965", "Size", 150,
+      "1865-1925", "Intensification", 45,
+      "1925-1965", "Intensification", 145
+    )
+  )
+}
+
+.rolling_lmdi_fixture <- function() {
+  tibble::tribble(
+    ~period, ~factor_label, ~component_type, ~additive,
+    "1861-1862", "N surplus", "target", 20000,
+    "1861-1862", "Size", "factor", 9000,
+    "1862-1863", "N surplus", "target", 10000,
+    "1862-1863", "Size", "factor", 5000,
+    "1863-1864", "N surplus", "target", 12000,
+    "1863-1864", "Size", "factor", 6000
+  )
+}
+
+.periods_lmdi_fixture <- function() {
+  tibble::tribble(
+    ~period, ~period_years, ~factor_label, ~component_type, ~additive,
+    "1865-1925", 60, "Size", "factor", 5400,
+    "1865-1925", 60, "Intensity", "factor", 3600,
+    "1865-1925", 60, "Inefficiency", "factor", -1200,
+    "1925-1965", 40, "Size", "factor", 4000,
+    "1925-1965", 40, "Intensity", "factor", 9200,
+    "1925-1965", 40, "Inefficiency", "factor", 2800
+  )
+}
+
+.decomp_panel_calls <- function() {
+  lmdi_roll <- .rolling_lmdi_fixture()
+  lmdi_per <- .periods_lmdi_fixture()
+  list(
+    plot_loss_decomp_rolling_panel = function() {
+      whep::plot_loss_decomp_rolling_panel(.rolling_decomp_fixture(), 3)
+    },
+    plot_loss_decomp_periods_panel = function() {
+      whep::plot_loss_decomp_periods_panel(.periods_decomp_fixture())
+    },
+    plot_compart_factor_roll_panel = function() {
+      whep::plot_compart_factor_roll_panel(
+        lmdi_roll,
+        lmdi_roll,
+        lmdi_roll,
+        lmdi_roll,
+        window = 3
+      )
+    },
+    plot_compart_factor_periods = function() {
+      whep::plot_compart_factor_periods(
+        lmdi_per,
+        lmdi_per,
+        lmdi_per,
+        lmdi_per
+      )
+    }
+  )
+}
+
+test_that("decomposition panels compose without patchwork attached", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+  skip_if("package:patchwork" %in% search(), "patchwork is attached")
+
+  .decomp_panel_calls() |>
+    purrr::iwalk(\(call, name) {
+      expect_s3_class(call(), "patchwork")
+    })
+})
+
+test_that("decomposition panels check their plotting packages up front", {
+  skip_if_not_installed("ggplot2")
+  skip_if_not_installed("patchwork")
+
+  calls <- .decomp_panel_calls()
+  record <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    check_installed = function(pkg, ...) {
+      record$pkg <- pkg
+      cli::cli_abort("Stub guard.", class = "whep_test_stub_guard")
+    },
+    .package = "rlang"
+  )
+
+  calls |>
+    purrr::iwalk(\(call, name) {
+      record$pkg <- NULL
+      expect_error(call(), class = "whep_test_stub_guard")
+      expect_equal(record$pkg, c("ggplot2", "patchwork"))
+    })
+})
