@@ -465,3 +465,64 @@ testthat::test_that("coverage is read from the annual axis for annual cubes", {
     "1901-1905"
   )
 })
+
+# Write the three actual-evapotranspiration component cubes into one run
+# directory, each holding a single constant value, so "aet" must come back as
+# their sum.
+.lpjml_hydro_aet_fixture <- function(first_year = 1900L, n_years = 3L) {
+  dir <- withr::local_tempdir(.local_envir = parent.frame())
+  lon <- c(-179.75, -179.25)
+  lat <- c(0.25, 0.75)
+  n_time <- n_years * 12L
+  spec <- tibble::tribble(
+    ~var_name, ~file, ~value,
+    "transp", "mtransp.nc", 1,
+    "evap", "mevap.nc", 2,
+    "interc", "minterc.nc", 4
+  )
+  purrr::pwalk(spec, function(var_name, file, value) {
+    dim_lon <- ncdf4::ncdim_def("lon", "degrees_east", lon)
+    dim_lat <- ncdf4::ncdim_def("lat", "degrees_north", lat)
+    dim_time <- ncdf4::ncdim_def("time", "months", seq_len(n_time))
+    var <- ncdf4::ncvar_def(
+      var_name,
+      "mm",
+      list(dim_lon, dim_lat, dim_time),
+      missval = -9999
+    )
+    nc <- ncdf4::nc_create(file.path(dir, file), list(var))
+    ncdf4::ncvar_put(
+      nc,
+      var,
+      array(value, dim = c(length(lon), length(lat), n_time))
+    )
+    ncdf4::nc_close(nc)
+  })
+  list(dir = dir, n_cells = length(lon) * length(lat), sum = 7)
+}
+
+testthat::test_that("aet sums its three components, and checks coverage", {
+  # The synthetic "aet" reads three files rather than one, so the coverage
+  # check has to fire per component; distinct constants make a dropped or
+  # double-counted component visible in the sum.
+  cube <- .lpjml_hydro_aet_fixture(first_year = 1900L, n_years = 3L)
+
+  result <- whep::read_lpjml_hydrology(
+    "aet",
+    run_dir = cube$dir,
+    years = 1901L,
+    first_year = 1900L
+  )
+  testthat::expect_equal(nrow(result), cube$n_cells * 12)
+  testthat::expect_equal(unique(result$value), cube$sum)
+
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "aet",
+      run_dir = cube$dir,
+      years = 1905L,
+      first_year = 1900L
+    ),
+    "outside the run's coverage"
+  )
+})
