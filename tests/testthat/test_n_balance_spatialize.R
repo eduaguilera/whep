@@ -106,9 +106,11 @@ testthat::test_that("build_cell_polity adds cell_area_ha from latitude", {
 # The grid is rasterized from regions.csv, so it carries reporting-area codes
 # that are folded away in polity_area_crosswalk: 212 Syria and 299 Palestine
 # both live in bucket 999, and 277 South Sudan in bucket 206 alongside 276
-# Sudan. On the deployed cell_polity_fraction parquet 12 such codes cover 819
-# cells, and every one of them is invisible to the polity-keyed national
-# tables every gridded consumer joins against.
+# Sudan. On the cell_polity_fraction parquet regenerated in whep#694, 276 and
+# 277 are the two such codes left and they cover 881 cells; both are invisible
+# to the polity-keyed national tables every gridded consumer joins against.
+# (212 and 299 became buckets of their own with the Rest-of-World un-fold,
+# whep#628, so this fixture keeps testing the mechanism, not that census.)
 .nbs_off_bucket_grid <- function() {
   tibble::tribble(
     ~lon,  ~lat, ~area_code, ~polity_frac,
@@ -204,6 +206,79 @@ testthat::test_that("area_key = polity_area emits no off-bucket code", {
   )
 
   testthat::expect_equal(whep:::.cell_polity_off_bucket(result), integer(0))
+})
+
+# A crosswalk rasterized through a retired regions.csv (whep#694) -----------
+
+# The fixture is the real defect in miniature: Ethiopia `62`, Sudan (former)
+# `206` and Andorra `6` are codes today's regions.csv has no row for, so the
+# producer cannot emit them, and every consumer that adopted such a copy
+# deleted those countries' whole national totals.
+.nbs_retired_grid_path <- function() {
+  testthat::test_path("fixtures", "cell_polity_retired_codes.parquet")
+}
+
+testthat::test_that("build_cell_polity refuses a retired-vocabulary grid", {
+  testthat::expect_error(
+    whep::build_cell_polity(
+      polity_fraction_path = .nbs_retired_grid_path()
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
+})
+
+testthat::test_that("the refusal names every retired code, and only those", {
+  raw <- nanoparquet::read_parquet(.nbs_retired_grid_path())
+
+  testthat::expect_equal(
+    whep:::.cell_polity_retired_codes(raw),
+    c(6L, 62L, 206L)
+  )
+})
+
+testthat::test_that("the retired-vocabulary check fires under both area keys", {
+  # `"polity_area"` re-keys 206 onto a bucket that does exist, so a check run
+  # after the re-key would pass on the very file that deletes Sudan.
+  testthat::expect_error(
+    whep::build_cell_polity(
+      polity_fraction_path = .nbs_retired_grid_path(),
+      area_key = "polity_area"
+    ),
+    class = "whep_stale_cell_polity_grid"
+  )
+})
+
+testthat::test_that("a current-vocabulary grid passes the vintage check", {
+  # The successors of the fixture's retired codes: ETH -> 238, SDN -> 276.
+  path <- .nbs_write_grid(tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~polity_frac,
+    38.25,  8.25,      238L,          1.0,
+    30.25, 12.25,      276L,          0.7,
+    30.25, 12.25,      114L,          0.3
+  ))
+
+  # 276 is a reporting code and not a bucket, so the pre-existing off-bucket
+  # warning still fires; what this pins is that the vintage check does not.
+  testthat::expect_warning(
+    result <- whep::build_cell_polity(polity_fraction_path = path),
+    "cannot join"
+  )
+
+  testthat::expect_equal(sort(unique(result$area_code)), c(114L, 238L, 276L))
+})
+
+testthat::test_that("the vintage domain is regions.csv's own area codes", {
+  regions <- utils::read.csv(
+    system.file("extdata", "regions.csv", package = "whep"),
+    stringsAsFactors = FALSE
+  )
+
+  testthat::expect_equal(
+    whep:::.regions_csv_area_codes(),
+    sort(unique(as.integer(regions$area_code)))
+  )
+  testthat::expect_false(any(c(6L, 62L, 206L) %in% regions$area_code))
+  testthat::expect_true(all(c(238L, 276L) %in% regions$area_code))
 })
 
 testthat::test_that("build_cell_polity rejects an unknown area_key", {
