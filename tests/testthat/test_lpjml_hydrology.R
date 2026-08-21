@@ -401,3 +401,67 @@ testthat::test_that("years= slices an annual cube on the annual time axis", {
   grass <- dplyr::filter(result, band_name == "rainfed grassland")
   testthat::expect_equal(unique(grass$value), 202)
 })
+
+testthat::test_that("a year past the run's end aborts naming the coverage", {
+  # WHEP's LPJmL runs end in 2009, 2018 and 2023 and sit side by side, so
+  # whether a year exists depends on which run `run_dir` names. Before #598
+  # this reached ncdf4 as an out-of-bounds start=/count= and died with
+  # "NetCDF: Start+count exceeds dimension bound", naming neither the run,
+  # the coverage, nor the offending years.
+  cube <- .lpjml_hydro_multiyear_fixture(first_year = 1900L, n_years = 3L)
+
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      years = 1905L,
+      first_year = cube$first_year
+    ),
+    "1900-1902"
+  )
+  # A partially covered request is caught too: the covered part must not come
+  # back as a silently truncated series.
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      years = 1901:1905,
+      first_year = cube$first_year
+    ),
+    "3 requested years outside the run's coverage"
+  )
+  # Years before the run starts are equally out of coverage.
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      years = c(1850L, 1901L),
+      first_year = cube$first_year
+    ),
+    "1 requested year outside the run's coverage"
+  )
+})
+
+testthat::test_that("coverage is read from the annual axis for annual cubes", {
+  # steps_per_year = 1 for the per-CFT consumptive-water cubes: dividing the
+  # 5-step time axis by 12 would report a one-year run and reject year 2.
+  cube <- .lpjml_hydro_cft_fixture(first_year = 1901L, n_years = 5L)
+
+  testthat::expect_no_error(
+    whep::read_lpjml_hydrology(
+      "cft_consump_water_g",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      years = 1905L
+    )
+  )
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "cft_consump_water_g",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      years = 1906L
+    ),
+    "1901-1905"
+  )
+})
