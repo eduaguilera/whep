@@ -379,10 +379,13 @@ test_that("every adjacent-epoch boundary year resolves to the successor", {
   expect_equal(unname(starts[winner]), pairs$start_year_succ)
 
   # The named successor is the winner except where its own family has a SECOND
-  # interval starting the same year -- an upstream duplicate. Nine such cases on
-  # the 749-row table, up from eight on the 740-row one: #551 added
-  # `CAN-1886-1949` beside the now-retired `CAN-1886-1948`. Pinned as an
-  # enumerated exception so the next one cannot hide inside a tolerance.
+  # interval starting the same year -- an upstream duplicate. Eleven such cases
+  # on the 779-row table, up from nine on the 749-row one: #551 added
+  # `CAN-1886-1949` beside the now-retired `CAN-1886-1948`, and the #835
+  # re-sync re-dated two more periods, leaving `IDN-1949-1969` (retired beside
+  # `IDN-1949-1963`) and `MOR-1904-1956` (superseded beside `MOR-1904-1911`).
+  # Pinned as an enumerated exception so the next one cannot hide inside a
+  # tolerance.
   losers <- sort(unique(pairs$polity_code_succ[
     winner != pairs$polity_code_succ
   ]))
@@ -396,12 +399,14 @@ test_that("every adjacent-epoch boundary year resolves to the successor", {
       "F248-1920-1991",
       "GRC-1919-2025",
       "HUN-1938-1947",
+      "IDN-1949-1969",
       "MNE-1913-1918",
+      "MOR-1904-1956",
       "ROU-1940-2025"
     )
   )
   # `flat` withholds `wiki_status`, so this is the STATUS-BLIND list, and two of
-  # the nine losers are live rows that lose to a dead one: on a shared start
+  # the eleven losers are live rows that lose to a dead one: on a shared start
   # year nothing decides. That is the documented consequence of supplying only
   # the three required columns, pinned here so the two call styles cannot drift
   # apart unnoticed. The block below re-measures the same list WITH the column,
@@ -418,8 +423,8 @@ test_that("every adjacent-epoch boundary year resolves to the successor", {
 
 test_that("with `wiki_status`, no live interval loses its own start year", {
   # DA-29 re-measures the block above with the optional column supplied. The
-  # list stays nine long, because each swap replaces a live loser with the dead
-  # row it now beats -- but every remaining loser is `retired` or `superseded`,
+  # list stays eleven long, because each swap replaces a live loser with the
+  # dead row it now beats -- but every remaining loser is `retired` or `superseded`,
   # i.e. a row the tie-break is SUPPOSED to pass over. Zero live losers is the
   # property; the enumeration is what makes a new one visible.
   flat <- .ct_polities_status()
@@ -453,7 +458,9 @@ test_that("with `wiki_status`, no live interval loses its own start year", {
       "F248-1920-1991",
       "GRC-1919-2025",
       "HUN-1938-1947",
+      "IDN-1949-1969",
       "MNE-1913-1915",
+      "MOR-1904-1956",
       "ROU-1940-2025"
     )
   )

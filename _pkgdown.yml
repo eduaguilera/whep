@@ -586,6 +586,9 @@ reference:
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_parquet_integrity
+  - assert_parquet_integrity
+  - write_parquet_checked
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality
