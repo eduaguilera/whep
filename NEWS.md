@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`build_water_balance()` now warns when the per-CFT consumptive-water
+  inputs carry the LPJmL 6.x green/blue defect (#737).** The default
+  `blue_green = "cft_native"` method partitions evapotranspiration with the
+  `cft_consump_water_b` / `cft_consump_water_g` cubes. LPJmL 6.x before
+  `lbm364dl/LPJmL#3` books infiltrating rain as blue water, so those cubes
+  split it badly wrong: on the current 6.1.1 production run, rainfed
+  grassland comes out green 134.2 / blue 382.2 mm where the same cells of a
+  run built with the fix give 516.4 / 0.0. A rainfed crop band receives no
+  irrigation, so blue water on one is proof of the defect, and that is what
+  the check tests — measured over every rainfed band and cell of year 2005,
+  the blue share is 0.899 on the affected run against 0.0199 (6.1.1 with the
+  fix) and 0.0002 (5.9.7), so the warning fires above 0.10. It is detected
+  from the data rather than from a version number because a run directory
+  carries no version stamp. **No published value changes**: the split is
+  still computed and returned exactly as before, and
+  `blue_green = "irrig_share"` never reads these cubes. Nothing in the
+  package consumes `blue_consump_mm` / `green_consump_mm` /
+  `aet_blue_mm` / `aet_green_mm` yet, so this makes a trap visible rather
+  than correcting a live error.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
