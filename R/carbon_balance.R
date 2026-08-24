@@ -604,11 +604,25 @@ build_carbon_balance <- function(
   #
   # All six models have one wired now, so the spin-up below is unreachable in
   # production. It stays because it is the oracle `test_carbon_balance.R` runs
-  # each closed form against, which is what catches an edited rate constant or
-  # pool structure quietly ceasing to be the fixed point of the model's own
-  # kinetics -- an equality test on the formula alone cannot. The
+  # FIVE of the six closed forms against, which is what catches an edited rate
+  # constant or pool structure quietly ceasing to be the fixed point of the
+  # model's own kinetics -- an equality test on the formula alone cannot. The
   # fall-through stays for the next model added before its closed form is
   # derived.
+  #
+  # LPJmL is the sixth and is NOT checked this way: its slow pool e-folds in
+  # 1,000 / response years, so a 5,000-year spin-up has not converged and
+  # would fail the comparison for being the wrong oracle rather than for any
+  # defect in the formula. It is guarded instead by the property that defines
+  # an equilibrium -- that the trajectory started there stays there.
+  #
+  # The spin-up also stops being a usable oracle for the other five below a
+  # climate modifier of roughly 0.3: at 5,000 years Century breaches its own
+  # 1e-4 tolerance near cm 0.27 and ICBM its 1e-3 near cm 0.178, and in both
+  # cases it is the trajectory that has not arrived, not the closed form that
+  # is wrong. That regime is not exotic -- every closed form scales as
+  # 1 / climate_modifier, so it is exactly where the equilibrium is largest,
+  # and natural land sits in it.
   closed <- .cb_closed_form_equilibrium(model, combos)
   if (!is.null(closed)) {
     return(.cb_check_equilibrium(dplyr::mutate(combos, soc_eq_mgc_ha = closed)))

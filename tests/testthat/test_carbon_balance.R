@@ -97,7 +97,11 @@ test_that("HSOC equilibrium density matches analytic I/k per pool", {
 
 test_that("vectorised closed-form equilibria match the spin-up they replace", {
   # .cb_equilibrium() computes the equilibrium with a closed form instead of a
-  # 5000-year spin-up per input combination for all five models. Guard each
+  # 5000-year spin-up per input combination. FIVE of the six are checked here;
+  # LPJmL is not, and cannot be -- see the stationarity test below, and the
+  # note in .cb_equilibrium(). The combinations below all sit at climate
+  # modifiers >= 0.4 because the spin-up itself has not converged much under
+  # that, so widening them would test the oracle rather than the formula. Guard each
   # fast path against the trajectory it replaces across a grid of inputs. HSOC,
   # AMG and RothC reach a flat/converged spin-up so match to machine precision;
   # ICBM and Century match the true fixed point, which differs slightly from
