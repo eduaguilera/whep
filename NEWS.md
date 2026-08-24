@@ -1,5 +1,16 @@
 # whep (development version)
 
+* `build_carbon_balance()` no longer applies a cell's irrigation to its
+  natural land. The RothC/HSOC moisture driver `water_minus_pet_mm` is a
+  cell-level surplus that already includes irrigation, while the climate
+  modifier is built per land-use class, so natural vegetation in every
+  irrigated cell was decomposing at the moisture of the crop beside it.
+  Natural land now uses `precip_mm - pet_mm`; cropland and managed grassland
+  are unchanged. Natural-land soil carbon rises slightly in irrigated cells
+  (a drier soil decomposes more slowly), and no other class moves. The
+  precomputed-`climate_modifier` path cannot separate rain from irrigation
+  and is passed through untouched.
+
 * New `read_hwsd_topsoil_soc()` reads observed 0-30 cm soil organic carbon
   from HWSD onto WHEP's grid. HWSD v1.2's topsoil is 0-30 cm, the same layer
   `build_carbon_balance()` reports, so this is the first observational anchor

@@ -1526,3 +1526,79 @@ test_that("the non-finite equilibrium guard survives the in-place path", {
     "not finite"
   )
 })
+
+# ---- irrigation is applied to managed land, not to natural land --------
+
+# Monthly drivers for one cell, carrying rain and irrigation separately the
+# way get_soc_climate_drivers() does: precip_mm is precipitation ALONE, while
+# water_minus_pet_mm already has the cell's irrigation folded in.
+.irrigated_cell_drivers <- function(irrig_mm = 40) {
+  tidyr::expand_grid(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      temp_c = 18,
+      precip_mm = 20,
+      pet_mm = 80,
+      clay_pct = 25,
+      water_minus_pet_mm = precip_mm + irrig_mm - pet_mm
+    )
+}
+
+testthat::test_that(".cb_attach_class_water strips irrigation from natural", {
+  prepared <- .irrigated_cell_drivers() |>
+    tidyr::crossing(land_use = c("cropland", "grassland", "natural")) |>
+    whep:::.cb_attach_class_water()
+
+  natural <- dplyr::filter(prepared, land_use == "natural")
+  managed <- dplyr::filter(prepared, land_use != "natural")
+
+  # Natural land falls back to rain minus PET: 20 - 80.
+  testthat::expect_true(all(natural$water_minus_pet_mm == -60))
+  # Managed land keeps the cell value, irrigation included: 20 + 40 - 80.
+  testthat::expect_true(all(managed$water_minus_pet_mm == -20))
+})
+
+testthat::test_that("a driver table without rain columns is untouched", {
+  # The precomputed-climate_modifier path carries no precip_mm/pet_mm, so
+  # rain and irrigation cannot be separated. Passing it through unchanged is
+  # the only honest option; silently treating the surplus as rainfed would
+  # dry out every natural cell in that path.
+  bare <- .irrigated_cell_drivers() |>
+    dplyr::select(-"precip_mm", -"pet_mm") |>
+    tidyr::crossing(land_use = c("cropland", "natural"))
+
+  testthat::expect_identical(whep:::.cb_attach_class_water(bare), bare)
+})
+
+testthat::test_that("phantom irrigation raised natural decomposition", {
+  # The defect this guards: an irrigated cell's natural land was decomposing
+  # at the moisture of the irrigated crop beside it. A wetter soil has a
+  # HIGHER RothC moisture term, so the modifier must fall once the phantom
+  # water is removed -- and equilibrium SOC scales as 1 / modifier.
+  drivers <- .irrigated_cell_drivers()
+  classes <- c("cropland", "natural")
+
+  fixed <- drivers |>
+    tidyr::crossing(land_use = classes) |>
+    whep:::.cb_attach_class_water() |>
+    dplyr::mutate(soil_cover = 0.85)
+  unfixed <- drivers |>
+    tidyr::crossing(land_use = classes) |>
+    dplyr::mutate(soil_cover = 0.85)
+
+  keys <- c("lon", "lat", "area_code", "year", "land_use")
+  m_fixed <- whep:::.cb_rothc_modifier_vectorised(fixed, "hsoc", keys)
+  m_unfixed <- whep:::.cb_rothc_modifier_vectorised(unfixed, "hsoc", keys)
+
+  nat <- \(x) x$climate_modifier[x$land_use == "natural"]
+  crop <- \(x) x$climate_modifier[x$land_use == "cropland"]
+
+  testthat::expect_lt(nat(m_fixed), nat(m_unfixed))
+  # Cropland is untouched by this change.
+  testthat::expect_equal(crop(m_fixed), crop(m_unfixed))
+})

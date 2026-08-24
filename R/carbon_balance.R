@@ -327,7 +327,8 @@ build_carbon_balance <- function(
   prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes)
+    .cb_attach_soil_cover(land_use_classes) |>
+    .cb_attach_class_water()
   group_keys <- c(keys, "land_use")
 
   # Vectorised across cell-years where the shape allows it; NULL means fall
@@ -499,6 +500,45 @@ build_carbon_balance <- function(
     dplyr::select(-".cover_key")
 }
 
+# Put natural land back on its rainfed water balance.
+#
+# `water_minus_pet_mm` arrives from the drivers as a CELL-level surplus that
+# already includes the cell's irrigation -- `(precip_mm + irrig_mm) - pet_mm`
+# at R/water_balance.R:829 -- while this modifier table is built per land-use
+# class. Leaving it untouched therefore waters the natural vegetation of every
+# irrigated cell with water it never received, raising its moisture term and
+# so its decomposition rate. Natural land is returned to `precip_mm - pet_mm`,
+# which the driver table carries because `precip_mm` is precipitation alone
+# (R/water_balance.R:156-157).
+#
+# Cropland and managed grassland keep the cell-level value: dividing the
+# cell's irrigation between them, and between each one's rainfed and irrigated
+# stands, needs a per-crop irrigation layer, and the LPJmL run exposes
+# irrigation either monthly (`mirrig`, no crop dimension) or per crop
+# (`cft_nir`, annual), never both.
+#
+# The moisture term is concave -- capped at 1 once the soil is wet -- so
+# spreading a cell's irrigation evenly is not neutral: it overstates the mean
+# response relative to concentrating it where the water actually goes.
+#
+# A climate table lacking `precip_mm`/`pet_mm` cannot separate rain from
+# irrigation (the precomputed-`climate_modifier` path, or a caller supplying
+# only the RothC drivers). It is passed through exactly as supplied rather
+# than guessed at.
+.cb_attach_class_water <- function(prepared) {
+  needed <- c("precip_mm", "pet_mm", "water_minus_pet_mm", "land_use")
+  if (!all(purrr::map_lgl(needed, \(x) rlang::has_name(prepared, x)))) {
+    return(prepared)
+  }
+  prepared |>
+    dplyr::mutate(
+      water_minus_pet_mm = dplyr::if_else(
+        stringr::str_to_lower(.data$land_use) == "natural",
+        .data$precip_mm - .data$pet_mm,
+        .data$water_minus_pet_mm
+      )
+    )
+}
 # Signed month offset of each month from the cell-year's warmest (peak-canopy)
 # month, on a 12-month circle mapped to -5..6 (0 = the warmest month). Aligns
 # the crop cover curve's mid-season peak to the growing-season temperature peak,
