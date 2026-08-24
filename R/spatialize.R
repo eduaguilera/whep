@@ -233,6 +233,7 @@ build_gridded_landuse <- function(
     "harvested_area_ha",
     "ha of harvested area"
   )
+  .warn_patterns_missing_crops(country_areas, crop_patterns)
 
   # Build type lookup: item_prod_code -> luh2_type
   type_lookup <- NULL

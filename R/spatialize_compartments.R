@@ -187,6 +187,46 @@
   ))
 }
 
+#' Warn about crops the spatial pattern cannot represent at all.
+#'
+#' The twin of [.warn_grid_missing_reporters()], on the other axis. A crop with
+#' no `crop_patterns` row **anywhere** has no cell to be allocated into in any
+#' country in any year, so its entire world total is dropped -- and
+#' `.warn_unallocated_crops()` reports that as one more (country, crop) pair per
+#' country per year, indistinguishable from a country that simply has no cells
+#' for a crop it grows a little of. That is not a data limitation but a hole in
+#' `earthstat_mapping.csv`: `barley` shipped without a row in it, so every
+#' barley cell was missing from `crop_patterns` and 54.5 Mha -- 5.7% of the
+#' world's 1961 harvested area, the fourth-largest crop on Earth -- was dropped
+#' by a pipeline that warned only in per-country fragments (whep#761).
+#' Report it once per call, on its own, naming the crops.
+#' @noRd
+.warn_patterns_missing_crops <- function(country_areas, crop_patterns) {
+  codes <- sort(setdiff(
+    unique(as.integer(country_areas$item_prod_code)),
+    unique(as.integer(crop_patterns$item_prod_code))
+  ))
+  if (length(codes) == 0L) {
+    return(invisible(NULL))
+  }
+  at_stake <- country_areas |>
+    dplyr::filter(as.integer(item_prod_code) %in% codes) |>
+    dplyr::pull("harvested_area_ha") |>
+    sum(na.rm = TRUE)
+  # `codes` is integer, so the plural marker must follow an explicit scalar
+  # count: cli's make_quantity() errors on a numeric vector of length > 1.
+  cli::cli_warn(c(
+    "{length(codes)} crop{?s} in the national table have no row in
+     {.arg crop_patterns} at all, carrying {round(at_stake)} ha of harvested
+     area:",
+    "x" = "{length(codes)} item_prod_code{?s}: {.val {codes}}.",
+    "i" = "Their whole world total is dropped, in every country and every year.
+       A crop absent from the pattern layer is a gap in
+       {.file earthstat_mapping.csv}, not a country that happens to grow none
+       of it."
+  ))
+}
+
 #' National quantity carried by area codes the grid cannot represent.
 #' @noRd
 .grid_missing_quantity <- function(national, codes, value_col) {

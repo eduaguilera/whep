@@ -555,3 +555,97 @@ test_that("an open-ended or missing bound still resolves", {
   )
   expect_equal(whep:::.filter_country_grid_year(static, 2014), static)
 })
+
+# A crop with no `crop_patterns` row anywhere loses its whole world total, and
+# `.warn_unallocated_crops()` reports that as ordinary per-(country, crop)
+# leakage, indistinguishable from a country that grows a little of something in
+# cells the grid does not have. That is how `barley` -- absent from
+# `earthstat_mapping.csv` -- had 54.5 Mha, 5.7% of the world's 1961 harvested
+# area, dropped in production while the pipeline warned (whep#761). The warning
+# has to name the crop and count what that crop alone carries.
+test_that("a crop absent from crop_patterns is warned about by name", {
+  # Barley is reported in 1961 and not in 1962, so a rule that looked at one
+  # year's crops rather than the table's would miss it entirely.
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    1961L,         1L,             15L,               7000,
+    1961L,         1L,             44L,               3000,
+    1962L,         1L,             15L,               1000
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               0.6
+  )
+
+  expect_warning(
+    whep:::.warn_patterns_missing_crops(country_areas, crop_patterns),
+    "44"
+  )
+  # 3000 ha of barley, not the 11000 ha the whole table carries: a warning
+  # quoting the wrong total is one nobody can act on.
+  expect_warning(
+    whep:::.warn_patterns_missing_crops(country_areas, crop_patterns),
+    "3000 ha"
+  )
+  msg <- tryCatch(
+    whep:::.warn_patterns_missing_crops(country_areas, crop_patterns),
+    warning = conditionMessage
+  )
+  # Wheat has a pattern, so it is not named.
+  expect_false(grepl("15", msg))
+})
+
+test_that("build_gridded_landuse itself raises the missing-crop warning", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    2000L,         1L,             15L,               1000,
+    2000L,         1L,             44L,                500
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               0.6
+  )
+  gridded_cropland <- tibble::tribble(
+    ~lon,  ~lat, ~year, ~cropland_ha,
+    0.25, 50.25, 2000L,         5000
+  )
+  country_grid <- tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~cell_area_frac,
+    0.25, 50.25,         1L,               1
+  )
+
+  # The call site matters, not just the helper: a warning nobody calls is not a
+  # guard. `barley` was dropped by this very function for years. The engine also
+  # warns that the same crop could not be allocated -- the per-pair message this
+  # one exists to be distinguishable from -- so only the new one is asserted.
+  seen <- character()
+  withCallingHandlers(
+    whep::build_gridded_landuse(
+      country_areas,
+      crop_patterns,
+      gridded_cropland,
+      country_grid,
+      config = list(years = 2000L)
+    ),
+    warning = function(w) {
+      seen <<- c(seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(any(grepl("no row in", seen)))
+  expect_true(any(grepl("44", seen[grepl("no row in", seen)])))
+})
+
+test_that("no warning when every crop has a pattern", {
+  country_areas <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+    1961L,         1L,             15L,               7000
+  )
+  crop_patterns <- tibble::tribble(
+    ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 50.25,             15L,               0.6
+  )
+  expect_no_warning(
+    whep:::.warn_patterns_missing_crops(country_areas, crop_patterns)
+  )
+})
