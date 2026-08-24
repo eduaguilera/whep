@@ -77,6 +77,21 @@
   Global 80) to +21% (Luxembourg, Lithuania, Latvia, Switzerland), and 176 of
   the 195 territories move by more than 1%.
 
+* **`read_critical_n()`'s first-run fetch works from a path with a space in
+  it, and its download-failure message no longer crashes (#451).** Two defects
+  on the on-demand Zenodo path, both found by finally exercising it against an
+  offline 7z fixture. The 7-Zip binary back-end passed the extraction
+  directory to `7z` unquoted, so a cache path containing a space (a user name
+  is enough on macOS or Windows) split at the space: 7-Zip read the tail as a
+  member filter, extracted nothing, exited 0, and the reader then aborted with
+  "did not unpack as expected" after a successful 18.4 MB download. And when
+  the download itself failed, the abort interpolated the URL as
+  `{.critn_archive_url()}`, which cli reads as a style name and rejects, so
+  the intended message was replaced by "Invalid cli literal". Both back-ends
+  (the `archive` package and a `7z`/`7za`/`7zr`/`7zz` binary) and the
+  back-end selection are now covered by tests. No published value changes: the
+  layers read out of a successfully extracted archive are unchanged.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
