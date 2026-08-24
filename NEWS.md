@@ -1,5 +1,212 @@
 # whep (development version)
 
+* **The six patchwork panel plots now say which package is missing
+  instead of failing inside `loadNamespace()` (#431).**
+  `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
+  `plot_loss_decomp_rolling_panel()`, `plot_loss_decomp_periods_panel()`,
+  `plot_compart_factor_roll_panel()` and `plot_compart_factor_periods()`
+  compose their figures with `patchwork`, and every panel is a `ggplot2`
+  object, but both packages are `Suggests`. Without them the functions
+  aborted with `there is no package called 'patchwork'` only after minutes
+  of pin reads and decomposition work; their examples failed outright on any
+  machine that lacks either package. They now call
+  `rlang::check_installed(c("ggplot2", "patchwork"))` as their first
+  statement, and their examples are wrapped in a `requireNamespace()` guard.
+  No published value changes: the guard is a no-op whenever both packages
+  are installed, which is the case on all CI platforms.
+
+* **`build_primary_production()` now reports same-source duplicate rows
+  instead of dropping them silently (#650).** `.dedup_production()` exists to
+  arbitrate between competing *sources* for one
+  `(year, area_code, item_prod_code, unit)` key, keeping the better-ranked
+  one. Two rows carrying the *same* source are not that case: they are either
+  an exact duplicate or, as in #633, two territories that should have been
+  summed upstream, and keeping one silently lost the other's mass. The
+  arbitration is unchanged -- summing here would double-count a FAOSTAT
+  aggregate that legitimately arrives alongside its own components -- but such
+  a collision now raises a warning naming the affected keys and the value
+  discarded per unit, silenceable with
+  `options(whep.warn_prod_dupes = FALSE)`. `show_duplicates = TRUE` likewise
+  flags keys that repeat one source, which is why that source's cell holds a
+  list rather than a number. No published value changes: on a full 1850-2023
+  build (6,310,171 rows) every key is already unique, so the warning does not
+  fire and dedup drops nothing.
+
+* **`read_lpjml_hydrology()` checks the run's year coverage, and no longer
+  documents a last year it does not read (#598).** Requesting a year outside
+  the run's own time axis used to fail deep inside `ncdf4` with
+  `NetCDF: Start+count exceeds dimension bound`, which names neither the run,
+  the years at fault, nor the coverage the run does have; it now aborts with
+  all three. Which years exist is a property of `run_dir`, not of the reader:
+  WHEP's LPJmL runs end in 2009, 2018 and 2023 and sit side by side in one
+  folder, and the file header claimed a fixed `lastyear 2009` (1308 monthly
+  steps) that stopped being true when the reference run became
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` (LPJmL 6.1.1, 123 years,
+  1476 monthly steps, the run the four LPJmL-derived pins came from, #558).
+  The reader never used that constant — the span has always been read from
+  the file's time dimension — so **no published value changes**: every call
+  this now rejects already aborted, only less legibly, and every call that
+  succeeded returns byte-identical output. The check reads the *written* time
+  axis, so it still cannot see a run configured past the end of its forcing
+  (the `global_1901-2018_spinup_200_our_inputs` trap of #340).
+
+* **An `area_code`-keyed frame now resolves its GLEAM/IPCC region instead of
+  silently taking the Global emission factor (#678).** The livestock emission
+  helpers advertise `area_code` as an accepted territory key, but the shared
+  resolver had no leg for it: it matched an explicit `iso3` column, then a
+  `polity_area_code` override table covering only dissolved federations. An
+  `area_code`-only frame therefore resolved 8 of the 266 reporting areas and
+  every other row fell through to the Global default. The resolver now derives
+  the ISO3 from `area_code` as a middle leg, taking `area_code` from 8 resolved
+  areas to 214 — the same 214 an explicit ISO3 resolves. The 52 that stay
+  unresolved are the dependencies, micro-states and residual aggregates GLEAM
+  itself does not list, and they keep the Global default as before.
+
+  **No published value changes.** Every in-package caller reaches the resolver
+  through `prepare_livestock_emissions()`, which already attaches `iso3`:
+  MEASURED on the full 241,434-row livestock frame from
+  `build_primary_production()`, the resolved region is bit-identical before and
+  after, with no unresolved row, so `build_livestock_ghg_extension()` and the
+  manure chain are unmoved. What changes is the answer a *user* gets when
+  calling `calculate_livestock_emissions()`, `calculate_enteric_ch4()`,
+  `calculate_manure_emissions()` or `estimate_energy_demand()` on a frame keyed
+  by `area_code` alone. MEASURED on the 2020 national head counts at Tier 1
+  (AR6 GWP100): global livestock CO2e moves from 4,277 to 4,158 Mt (-2.8%), but
+  the per-country change ranges from -31% (Madagascar, Tanzania, Eswatini and
+  the rest of Sub-Saharan Africa, whose IPCC dairy factor is 46 against the
+  Global 80) to +21% (Luxembourg, Lithuania, Latvia, Switzerland), and 176 of
+  the 195 territories move by more than 1%.
+
+* **`read_critical_n()`'s first-run fetch works from a path with a space in
+  it, and its download-failure message no longer crashes (#451).** Two defects
+  on the on-demand Zenodo path, both found by finally exercising it against an
+  offline 7z fixture. The 7-Zip binary back-end passed the extraction
+  directory to `7z` unquoted, so a cache path containing a space (a user name
+  is enough on macOS or Windows) split at the space: 7-Zip read the tail as a
+  member filter, extracted nothing, exited 0, and the reader then aborted with
+  "did not unpack as expected" after a successful 18.4 MB download. And when
+  the download itself failed, the abort interpolated the URL as
+  `{.critn_archive_url()}`, which cli reads as a style name and rejects, so
+  the intended message was replaced by "Invalid cli literal". Both back-ends
+  (the `archive` package and a `7z`/`7za`/`7zr`/`7zz` binary) and the
+  back-end selection are now covered by tests. No published value changes: the
+  layers read out of a successfully extracted archive are unchanged.
+
+* **The gridded crops layer has one key now, and it is a code (#788).**
+  `build_livestock_nutrient_flows()`'s `gridded$crops` tibble was read two
+  incompatible ways. `.sci_manure_crop_layer()`, the only in-package producer of
+  a real layer and the one the carbon balance uses, sets
+  `crop = as.character(item_prod_code)`. The nitrogen side resolved the same
+  column by crop *name* only, and aborted on anything else — so the layer the
+  carbon path builds could not be handed to `build_nitrogen_balance()` at all:
+  measured on real data, every one of the 9,298 rows for 2010 (all 171 crops,
+  1.383e9 ha) failed to match, and 1,102,005 rows over the full 1850–2023 span.
+
+  The code is now the canonical key, documented on
+  `build_livestock_nutrient_flows()` and `allocate_manure_to_land()`, and both
+  consumers honour it. A crop name still resolves, as a deprecated compatibility
+  bridge that warns — a name is not a unique key (`Fallow` names two
+  `item_prod_code`s, and three codes carry no name), which is why the code
+  direction is the one kept.
+
+  **No published value changes.** Over the full-span layer the code-to-name map
+  is a bijection (172 codes, 172 distinct names, none missing) and both keys
+  resolve to the identical `item_cbs_code` for every one of them, so the
+  name-round-trip workaround `inst/scripts/run_nitrogen_balance.R` carried was
+  numerically lossless; it is now deleted and the driver passes
+  `.sci_manure_crop_layer()`'s output straight through.
+
+* **`build_polycell_support()` now aborts on overlapping validity intervals,
+  not only on repeated keys (#758).** The existing guard keyed on
+  `(cell_id, polity_code, start_year, end_year)`, so it saw only the subset of
+  overlapping validity in which two intervals of one polity in one cell are
+  identical. Supplying the same polity at `[2000, 2015)` and `[2010, 2020)`
+  through the `geometries` argument completed with no abort and no warning, and
+  emitted the shared interval `[2010, 2015)` twice per cell, doubling that
+  polity's territory over those years. The producer now checks the intervals of
+  each `(cell_id, polity_code)` for genuine overlap and aborts with class
+  `whep_pcs_overlapping_interval`. The comparison is strict, so a succession —
+  `[2000, 2010)` then `[2010, 2020)`, `end_year` being exclusive at a
+  succession — is not an overlap and still splits as before. No published value
+  changes: the shipped `polities` table (767 rows) carries no `polity_code`
+  twice and no overlapping intervals, so no production build reached this, and
+  a full offline `build_polycell_support()` from it finds zero overlapping
+  pairs.
+
+* **Parquet artifacts over 4 GiB were written corrupt, and now cannot be
+  (#531).** `nanoparquet` before 0.5.0 stored column-chunk file offsets and
+  sizes as 32-bit integers, so past 4 GiB (2^32 bytes) they wrapped around.
+  The footer still declared every row group and row, but pointed at the wrong
+  bytes for everything after the first 4 GiB: a reader returned the readable
+  prefix and threw thrift "Deserializing page header failed" on the rest, so a
+  consumer that did not open each row group individually silently got
+  truncated data. Reproduced here on a 5.16 GiB file: 7 of 11 row groups
+  readable under 0.4.2, 11 of 11 under 0.5.1, with the offsets of row group 7
+  short by exactly 2^32. `nanoparquet (>= 0.5.0)` is now required, and the new
+  `check_parquet_integrity()` / `assert_parquet_integrity()` verify a file's
+  layout in milliseconds regardless of size (`deep = TRUE` also decodes every
+  row group). `write_parquet_checked()` writes and then verifies, and the
+  gridded landuse, livestock, yield and nitrogen cubes of
+  `build_gridded_landuse()` and `inst/scripts/run_spatialize.R` go through it,
+  so a bad write now aborts the build instead of shipping. The bytes written
+  are unchanged, so no published value changes; only files that were already
+  corrupt behave differently, and they now fail loudly.
+
+* **The three polity tables are re-synced to upstream `whep-polities`
+  (#835, #384).** `polity_area_crosswalk`, `polities` and
+  `polity_label_aliases` are committed build products of
+  `data-raw/table_mappings.R`, whose inputs live outside this repo, so
+  `test_data_raw_freshness.R` could not check them and they had been shipping
+  from a superseded upstream revision. They are rebuilt here from
+  `eduaguilera/whep-polities` at `8e2bb78` ("Merge pull request #550 from
+  eduaguilera/fix/retest-reunion-baseline"), which is that repository's `main`.
+
+  What moved: the crosswalk goes 647 → 649 rows (upstream added
+  `CPV-1800-1886` Cape Verde and `SUR-1800-1886` Dutch Guiana); `polities`
+  goes 767 → 779 rows (21 new codes, 9 retired) and gains a
+  `polygon_feature_date` column; `polity_label_aliases` goes 903 → 995 rows
+  over 523 labels (up from 479), mostly British West Indies trade labels plus
+  a new `federico_tena` source. Nine polity codes were re-dated by a year
+  (Chad, Côte d'Ivoire, Ghana, Hungary, Kenya, Laos, Senegal, Syria and
+  Antilles), and Indonesia's post-independence boundary moved from 1969 to
+  1963.
+
+  What that does to resolution: over the full `(area_code, year)` grid
+  1850–2023 (46,284 pairs), **`polity_area_code` — the bucket the matrix
+  workflows aggregate on — does not change for a single pair**, and neither
+  does `mapping_status` or `has_geometry`. `polity_code` changes for 126 pairs,
+  all of them FAOSTAT area 101 Indonesia, which now reports
+  `IDN-1949-1963`/`IDN-1963-1976` where it reported
+  `IDN-1949-1969`/`IDN-1969-1976`. Outputs carrying `reporting_polity_code`
+  for Indonesia therefore change label; no aggregate changes value.
+  `harmonization_tables.R` and `balance_coefficients.R` both read the
+  crosswalk and their rebuilt tables are byte-for-byte unchanged, so
+  `regions_full`, `polities_cats` and `urban_n_reference` do not move.
+
+  Two behaviour changes ride along, both from upstream filling a field that
+  was `NA`. `BLX-1850-1999` now publishes its successors, so FAOSTAT area 15
+  Belgium-Luxembourg reaches `BEL`+`LUX` in `.federation_land_bridge()` and
+  its pre-1962 production is back-cast under
+  `federation_land = "successor_union"` — an opt-in; the default is `"none"`,
+  so nothing changes unless it is asked for. And the three USSR periods
+  (`F228-*`) gained `iso3_code = "SUN"`. The `"FSU"` alias itself is unchanged
+  (`FSU` -> `F228-1945-1991`, 1961-1991); what changed is that the
+  polity -> ISO3 -> area bridge behind it no longer dead-ends on `NA`, so the
+  `"alias_map"` route of `inst/scripts/prepare_spatialize_all.R`'s
+  grassland-share reader resolves 6,713 of 6,909 Lassaletta rows instead of
+  6,682. That route is not the default either. The same fill makes
+  `.successor_iso3_map("F228-1945-1991", vocab)` answer `"SUN"` rather than the
+  15 republics for any caller whose `vocab` contains `"SUN"`; the LUH2
+  vocabulary the one production caller passes does not.
+
+* **`table_mappings.R` is now checked against upstream wherever upstream is
+  checked out (#835).** `test_data_raw_freshness.R` gains a block that re-runs
+  the builder and compares all five of its tables with the committed `.rda`,
+  guarded on the three `whep-polities` files existing. It skips on CI,
+  r-universe and CRAN, where they do not, so the suite still reads no `WHEP_*`
+  path and touches no network — but a maintainer who *can* re-sync now finds
+  out from `devtools::test()` rather than from a manual audit.
+
 * **A year-scoped `build_primary_production()` now returns exactly the
   full-range build's rows and values for those years (#834, #666).** The yield
   chain reaches along the whole year axis in two ways a window of any width

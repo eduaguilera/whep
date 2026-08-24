@@ -987,22 +987,22 @@ cft_to_pft <- c(
 
 # Resolve `whep::lassaletta_grassland_share`'s country labels to the grid's
 # `area_code`. THE TWO ROUTES ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and they
-# disagree on 516 of 6,909 rows, so which one runs is the caller's choice:
+# disagree on 547 of 6,909 rows, so which one runs is the caller's choice:
 #
 #   "area_name"  joins the label onto `regions.csv`'s `area_name` (status quo).
 #   "alias_map"  decides it against `whep::polity_label_aliases` at the row's
 #                own year, then bridges polity -> iso3 -> area exactly as
 #                `.spatialize_label_area_code()` does for the other readers.
 #
-# Measured against real package data, `"alias_map"` resolves 6,682 rows where
-# `"area_name"` resolves 6,370: it gains 414 rows over 9 labels the name join
+# Measured against real package data, `"alias_map"` resolves 6,713 rows where
+# `"area_name"` resolves 6,370: it gains 445 rows over 10 labels the name join
 # simply spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
-# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, Occupied
-# Palestinian Territory) and loses 102 over 5 the name join keeps but the
-# resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR 18,
-# Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the grid
-# is a present-day rasterisation, which argues for the modern successors; the
-# polity migration argues for the territory that existed in the data year --
+# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, FSU,
+# Occupied Palestinian Territory) and loses 102 over 5 the name join keeps but
+# the resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR
+# 18, Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the
+# grid is a present-day rasterisation, which argues for the modern successors;
+# the polity migration argues for the territory that existed in the data year --
 # so whep#576 leaves the choice open and the default stays where it was.
 .grass_share_area_code <- function(label, year, area_lookup, route) {
   if (identical(route, "alias_map")) {

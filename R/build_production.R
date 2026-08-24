@@ -3529,10 +3529,94 @@ build_primary_production <- function(
   )]
   by_cols <- c("year", "area_code", "item_prod_code", "unit")
   data.table::setorderv(dt, c(by_cols, ".src_rank"))
+  .warn_same_source_dupes(dt, by_cols)
   dt <- dt[dt[, .I[1L], by = by_cols]$V1]
   data.table::setorderv(dt, ".orig_row")
   dt[, c(".src_rank", ".orig_row") := NULL]
   tibble::as_tibble(dt)
+}
+
+# `.dedup_production()` exists to arbitrate between competing SOURCES: two
+# datasets reporting the same quantity for one key, of which the better-ranked
+# one wins. Two rows carrying the SAME `source` are not that case -- nothing
+# competes -- so they are either an exact duplicate or, as in whep#633, two
+# territories that should have been summed upstream. Keeping one then discards
+# real mass, and the only way to notice was to diff a full build against the
+# raw pin (whep#650). This reports it; the arbitration itself is unchanged,
+# because summing here would double-count a FAOSTAT aggregate that legitimately
+# arrives alongside its own components. Expects `dt` already ordered by
+# `c(by_cols, ".src_rank")`, so the first row of each key is the survivor.
+.warn_same_source_dupes <- function(dt, by_cols) {
+  if (!isTRUE(getOption("whep.warn_prod_dupes", TRUE))) {
+    return(invisible(NULL))
+  }
+  collided <- .same_source_collisions(dt, by_cols)
+  if (nrow(collided) == 0L) {
+    return(invisible(collided))
+  }
+  by_unit <- collided[,
+    .(dropped = sum(dropped, na.rm = TRUE)),
+    by = "unit"
+  ]
+  data.table::setorderv(by_unit, "dropped", order = -1L)
+  bullets <- stats::setNames(
+    paste(scales::comma(by_unit$dropped), by_unit$unit, "discarded"),
+    rep("*", nrow(by_unit))
+  )
+  examples <- utils::head(collided, 3L)
+  cli::cli_warn(c(
+    "!" = "{nrow(collided)} production key{?s} carr{cli::qty(nrow(collided))}
+           {?ies/y} more than one row from the {.emph same} {.field source};
+           only one is kept.",
+    "i" = "Same-source rows are not competing measurements, so this is a
+           duplicate or an addend that was not summed upstream (whep#633),
+           not source arbitration.",
+    bullets,
+    "i" = "First example{?s}: {.val {examples$label}}.",
+    "i" = "Silence with {.code options(whep.warn_prod_dupes = FALSE)}."
+  ))
+  invisible(collided)
+}
+
+# One row per key that keeps a source with duplicate rows, carrying the value
+# that dedup drops (group total minus the surviving first row).
+.same_source_collisions <- function(dt, by_cols) {
+  needed <- c(by_cols, "source", "value")
+  if (!all(needed %in% names(dt)) || nrow(dt) == 0L) {
+    return(data.table::data.table(unit = character(), dropped = numeric()))
+  }
+  # Subset to duplicated keys first. The build hands this 6.3M rows of which
+  # normally none is duplicated, and grouping that whole table by key costs
+  # more than the dedup it reports on.
+  is_dup <- duplicated(dt, by = by_cols) |
+    duplicated(dt, by = by_cols, fromLast = TRUE)
+  if (!any(is_dup)) {
+    return(data.table::data.table(unit = character(), dropped = numeric()))
+  }
+  dup <- dt[is_dup, c(by_cols, "source", "value"), with = FALSE]
+  dup[, .keep_source := source[1L], by = by_cols]
+  collided <- dup[
+    source == .keep_source,
+    .(rows = .N, dropped = sum(value, na.rm = TRUE) - value[1L]),
+    by = by_cols
+  ][rows > 1L]
+  if (nrow(collided) == 0L) {
+    return(collided)
+  }
+  collided[,
+    label := paste0(
+      "year ",
+      year,
+      ", area ",
+      area_code,
+      ", item ",
+      item_prod_code,
+      " (",
+      rows,
+      " rows)"
+    )
+  ]
+  collided[]
 }
 
 .show_prod_duplicates <- function(df) {
@@ -3554,6 +3638,19 @@ build_primary_production <- function(
   cli::cli_alert_info(
     "{n_keys} key{?s} with competing sources found."
   )
+  # A key repeating one source is not a competition (whep#650), and
+  # `pivot_wider()` below then puts a list in that source's cell instead of a
+  # number. Name it, so the shape is explained rather than merely warned about.
+  same_src <- dupes |>
+    dplyr::count(dplyr::across(dplyr::all_of(c(key_cols, "source")))) |>
+    dplyr::filter(n > 1L)
+  if (nrow(same_src) > 0L) {
+    cli::cli_alert_warning(
+      "{nrow(same_src)} of them repeat a single {.field source}, so that
+       cell holds a list of values rather than one number: same-source rows
+       are duplicates or unsummed addends, not competitors."
+    )
+  }
 
   dupes |>
     dplyr::select(
