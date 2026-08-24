@@ -588,6 +588,7 @@ reference:
   - check_parquet_integrity
   - assert_parquet_integrity
   - write_parquet_checked
+  - write_table_checked
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality
