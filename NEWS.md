@@ -1,5 +1,58 @@
 # whep (development version)
 
+* **`build_commodity_balances()` gained `trade_recovery`, which lets the CBS
+  keep an import it has no row for (#762).** `.cbs_impute_trade()` left-joins
+  the crosswalked FAOSTAT/FishStat trade onto the already-pivoted CBS, so it
+  can fill an `(area, item, year)` the CBS already carries but never create
+  one. An area whose balance sheet omits an item it demonstrably imports loses
+  that import outright. Measured at 2010 on the real pins, 3,336 crosswalked
+  import records and 2,119 export records have no row to land on; among
+  tonnes-denominated items 1,197 `(area, item)` pairs are net imports the CBS
+  never sees. Singapore alone loses 72 items and 2.56 Mt of net imports.
+
+  `trade_recovery = "net_import"` creates those rows first, so the join lands.
+  It is restricted to what can be balanced without inventing anything:
+  tonnes-denominated items only (live-animal trade is counted in heads and
+  reaches the wide CBS through `get_livestock_cbs()`), net importers only (a
+  created row has no production, so a net-exported one would force the cascade
+  to invent some), and areas the CBS already covers in that year (so the
+  `area` label is read from the CBS bucket rather than a year-free lookup).
+  Recovered rows carry `source = "FAOSTAT_trade"`.
+
+  **The default is `"none"`, which is exactly today's behaviour**, and
+  `get_wide_cbs()` always uses it. Nothing published moves unless the argument
+  is passed.
+
+  **What moves when it is passed.** On a 2010 build (wide CBS, context window
+  2005-2015): 1,164 keys are added and none removed (17,685 to 18,849 rows),
+  1,138 of them created directly from the trade record and 26 more processed
+  products the cascade then derives from them; 200 areas before and after.
+  Over tonnes items, world imports rise 53.7 Mt (+3.4%), exports 12.3 Mt
+  (+0.8%), domestic supply 41.7 Mt (+0.2%), feed 36.7 Mt (+0.4%) and food
+  4.1 Mt (+0.09%); 34.6 Mt of the domestic supply is fodder (items 2000, 2001,
+  2002), which is missing from 97 areas' balance sheets and present in the
+  trade record for all of them. Every recovered import reaches the output
+  unchanged (0 of 1,138 keys differ). No pre-existing row's supply-use
+  residual worsens by more than 0.05 t. 205 created rows do end up with
+  production, 210 kt in total, and all of them are processed products (beer,
+  wine, oils, cakes, DDGS, sugar, butter) whose output the processing cascade
+  derives from the newly recovered inputs.
+
+  Downstream, on the nourishment axis at 2010: areas classified `Under` fall
+  from 33 to 31. Singapore goes from 30.5 to 65.7 g protein/cap/day
+  (`Under` to `Adequate`), Bahrain from 33.7 to 79.0 (`Under` to `Adequate`)
+  and Qatar from 81.0 to 127.7 (`Adequate` to `Over`). Equatorial Guinea
+  (11.4 to 18.3) and Puerto Rico (12.5, no trade record at all) stay `Under`:
+  those two are a genuine data absence, not a join artifact. Spain, the USA,
+  Niger, Kiribati and Saint Kitts and Nevis do not move at all.
+
+  **Two things are deliberately not settled here**, which is why the default
+  is unchanged. A created row has no destiny of its own, so the existing
+  fallback assigns its whole domestic supply to the item's default destiny —
+  processing for rice, not food — and that is an allocation rule, not an
+  identity. And 144 net-exported pairs / 28.9 Mt at 2010 stay uncreated,
+  because balancing them would fabricate supply. Both are open in #762.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
