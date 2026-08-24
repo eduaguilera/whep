@@ -1602,3 +1602,42 @@ testthat::test_that("phantom irrigation raised natural decomposition", {
   # Cropland is untouched by this change.
   testthat::expect_equal(crop(m_fixed), crop(m_unfixed))
 })
+
+# ---- RothC sub-step count comes from one expression --------------------
+
+testthat::test_that("the RothC closed form and the model agree on n_sub", {
+  # These were two separately-written floating-point expressions:
+  # `max(rates) * cm / 12` in the closed form against `max(rates) * cm * dt`
+  # with `dt <- 1/12` in the model. Over 49,991 modifiers in [0.001, 5] they
+  # split at exactly one, cm = 4.8000000000000007, for a 0.14% difference in
+  # the equilibrium. Sweeping the whole range is what found it; keep the
+  # sweep rather than a spot check.
+  rates <- whep:::.soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  cm <- seq(0.001, 5, length.out = 20000)
+
+  shared <- whep:::.rothc_substeps(rates, cm, 1 / 12)
+  old_closed_form <- pmax(1L, as.integer(ceiling(max(rates) * cm / 12)))
+
+  testthat::expect_length(shared, length(cm))
+  testthat::expect_true(all(shared >= 1L))
+  # The exact boundaries are where the two used to be able to disagree.
+  boundaries <- c(1.2, 2.4, 3.6, 4.8, 4.8000000000000007)
+  testthat::expect_equal(
+    whep:::.rothc_substeps(rates, boundaries, 1 / 12),
+    pmax(1L, as.integer(ceiling(max(rates) * boundaries * (1 / 12))))
+  )
+  # Documented as agreeing with the old form everywhere except those ulps.
+  testthat::expect_lte(sum(shared != old_closed_form), 2L)
+})
+
+testthat::test_that(".rothc_substeps is unchanged for a scalar modifier", {
+  # pmax replaced max so the closed form can call it vectorised. A scalar
+  # caller -- calculate_soc_rothc() -- must be completely unaffected.
+  rates <- whep:::.soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
+  for (cm in c(0.05, 0.5, 1, 1.2, 2.4, 5)) {
+    testthat::expect_identical(
+      whep:::.rothc_substeps(rates, cm, 1 / 12),
+      max(1L, as.integer(ceiling(max(rates) * cm * (1 / 12))))
+    )
+  }
+})

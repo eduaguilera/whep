@@ -459,12 +459,16 @@ calculate_soc_lpjml <- function(
   )
 }
 
+# Sub-step count within each month. `pmax`, not `max`: the RothC closed-form
+# equilibrium calls this vectorised over every distinct climate modifier in
+# the grid, and it is the SAME accessor so the two cannot drift apart. With a
+# scalar `abc` it is identical to `max`.
 # Sub-step count within each month. The analytical exp() decay is
 # unconditionally stable, so sub-stepping is no longer needed for stability; it
 # only refines the within-month coupling between decomposition and the carbon
 # inputs added each sub-step (finer for fast pools under warm/wet climate).
 .rothc_substeps <- function(rates, abc, dt) {
-  max(1L, as.integer(ceiling(max(rates) * abc * dt)))
+  pmax(1L, as.integer(ceiling(max(rates) * abc * dt)))
 }
 
 .rothc_step <- function(state, rates, splits, abc, step) {

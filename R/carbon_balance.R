@@ -798,7 +798,11 @@ build_carbon_balance <- function(
 # BIO+HUM feedback closes because the total decomposition flux is
 # (c_dpm + c_rpm) / (1 - frac_bio - frac_hum). The inert IOM pool is the Falloon
 # (1998) function of the seed stock, matching calculate_soc_rothc(). Uses the
-# same sub-step count as the run, so it equals what the spin-up converges to.
+# same sub-step count as the run -- literally the same accessor,
+# `.rothc_substeps()`, because two copies of the expression is exactly how
+# they came to disagree: `x / 12` and `x * (1 / 12)` round differently, and
+# over 49,991 modifiers in [0.001, 5] they split at cm = 4.8000000000000007
+# for a 0.14% difference in the equilibrium.
 .cb_rothc_equilibrium <- function(
   input,
   climate_modifier,
@@ -806,7 +810,7 @@ build_carbon_balance <- function(
   humified_fraction
 ) {
   rates <- .soc_rates("rothc", c("dpm", "rpm", "bio", "hum"))
-  n_sub <- pmax(1L, as.integer(ceiling(max(rates) * climate_modifier / 12)))
+  n_sub <- .rothc_substeps(rates, climate_modifier, 1 / 12)
   step_dt <- 1 / (12 * n_sub)
   ratio <- .soc_param("rothc", "input", "dpm_rpm_ratio")
   frac_dpm <- ratio / (1 + ratio)
