@@ -22,7 +22,12 @@
 #'   matching pipeline function's `options`.
 #' @param gridded The land-surface layer (`crops` and optional `grass` tibbles)
 #'   passed to [allocate_manure_to_land()]; required for the default
-#'   `"potential_uptake"` cap. `NULL` is treated as an empty list.
+#'   `"potential_uptake"` cap. `NULL` is treated as an empty list. The `crop`
+#'   column of `crops` is a *code*: `as.character(item_prod_code)` from
+#'   [items_prod_full]. That is the one contract, honoured by both consumers of
+#'   this function's `applied` stream (the carbon balance and the nitrogen
+#'   balance); a crop name is still resolved by the nitrogen path but is
+#'   deprecated and warns.
 #'
 #' @return A named list with `applied` (manure applied per
 #'   `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
@@ -40,8 +45,8 @@
 #' gridded <- list(
 #'   crops = tibble::tribble(
 #'     ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-#'     2020L, "203", NA, "barley", 6, 200,
-#'     2020L, "203", NA, "wheat", 4, 200
+#'     2020L, "203", NA, "44", 6, 200,
+#'     2020L, "203", NA, "15", 4, 200
 #'   )
 #' )
 #' build_livestock_nutrient_flows(intake, gridded = gridded)

@@ -483,7 +483,30 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code, source_label = pin_alias)
+  out <- .aggregate_to_polities(
+    dt,
+    item_cbs,
+    item_cbs_code,
+    source_label = pin_alias
+  )
+  # Pin the row order, for the same reason `.extract_cb()` below does and one
+  # stage earlier, so the two callers that stop here get it too: the CBS build
+  # reads `faostat-cbs-new` and `faostat-trade-totals` through this function
+  # and never reaches `.extract_cb()`. `.read_input()` reads the parquet
+  # through arrow's multi-threaded scanner, whose row order varies between
+  # sessions, and the `by=` aggregation above emits groups in order of first
+  # appearance -- so it hands that variation straight on. Measured on the real
+  # pins at 1950-1965, `.read_fao_trade()` came back in a different order in
+  # every one of three sessions (339,220 rows, same rows, same values,
+  # whep#420). The key is the aggregation key, so the order is total.
+  data.table::setorderv(
+    out,
+    intersect(
+      c("year", "area_code", "item_cbs_code", "item_cbs", "element", "unit"),
+      names(out)
+    )
+  )
+  out
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {
@@ -585,6 +608,19 @@
   dt[, scaling_raw := value / value_proc]
   dt[scaling_raw == 0, scaling_raw := NA_real_]
 
+  # This fill is unbounded along the year axis, and it decides whether a
+  # processing output EXISTS, not only what it is worth: with no anchor in the
+  # frame at all, `scaling_raw` stays NA and the `scaling` below collapses to 0
+  # for every item that is neither `Required` nor a `no_data_product`, so the
+  # pathway emits a zero that the `value != 0` filters downstream delete.
+  #
+  # That makes the frame's year span load-bearing, which is half of whep#833:
+  # a year-scoped build hands this function a truncated axis and loses outputs
+  # a full-range build keeps. Measured at 2010, the 14 keys the scoped build
+  # lost sit 7 to 49 years from their nearest anchor -- Italy's Ricebran Oil is
+  # calibrated at 2010 off a single 1961 observation carried forward 49 years.
+  # A wider `.context_years()` margin therefore cannot fix it; see the margin
+  # comment in R/build_cache.R.
   dt <- fill_linear(
     dt,
     scaling_raw,

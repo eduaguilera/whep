@@ -19,54 +19,63 @@
 #' @export
 #'
 #' @examples
-#' # Two provinces at two dates is enough to exercise the four panels; the
-#' # real figure spans 50 provinces and 1860-2023.
-#' flows <- tibble::tribble(
-#'   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
-#'   1960, "A", "Cropland", "Synthetic", "Cropland", 900,
-#'   1960, "A", "Cropland", "Outside", "livestock_mono", 300,
-#'   1960, "A", "Cropland", "Cropland", "population_food", 500,
-#'   1960, "B", "Cropland", "Synthetic", "Cropland", 400,
-#'   1960, "B", "Cropland", "Outside", "livestock_mono", 100,
-#'   2000, "A", "Cropland", "Synthetic", "Cropland", 2600,
-#'   2000, "A", "Cropland", "Outside", "livestock_mono", 1800,
-#'   2000, "A", "Cropland", "Cropland", "population_food", 700,
-#'   2000, "B", "Cropland", "Synthetic", "Cropland", 900,
-#'   2000, "B", "Cropland", "Outside", "livestock_mono", 500
-#' )
-#' area_df <- tibble::tribble(
-#'   ~year, ~province_name, ~area_ha,
-#'   1960, "A", 10000,
-#'   1960, "B", 8000,
-#'   2000, "A", 9000,
-#'   2000, "B", 7000
-#' )
-#' typo_df <- tibble::tribble(
-#'   ~year, ~province_name, ~Typology_base,
-#'   1960, "A", "Specialized cropping systems",
-#'   1960, "B", "Semi-natural agroecosystems",
-#'   2000, "A", "Specialized cropping systems",
-#'   2000, "B", "Semi-natural agroecosystems"
-#' )
-#' finn_data <- tibble::tribble(
-#'   ~year, ~province_name, ~finn_index,
-#'   1960, "A", 0.12,
-#'   1960, "B", 0.18,
-#'   2000, "A", 0.07,
-#'   2000, "B", 0.09
-#' )
-#' panel <- plot_typology_indicators_panel(
-#'   finn_data = finn_data,
-#'   n_prov_destiny = flows,
-#'   area_df = area_df,
-#'   typo_df = typo_df
-#' )
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   # Two provinces at two dates is enough to exercise the four panels; the
+#'   # real figure spans 50 provinces and 1860-2023.
+#'   flows <- tibble::tribble(
+#'     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+#'     1960, "A", "Cropland", "Synthetic", "Cropland", 900,
+#'     1960, "A", "Cropland", "Outside", "livestock_mono", 300,
+#'     1960, "A", "Cropland", "Cropland", "population_food", 500,
+#'     1960, "B", "Cropland", "Synthetic", "Cropland", 400,
+#'     1960, "B", "Cropland", "Outside", "livestock_mono", 100,
+#'     2000, "A", "Cropland", "Synthetic", "Cropland", 2600,
+#'     2000, "A", "Cropland", "Outside", "livestock_mono", 1800,
+#'     2000, "A", "Cropland", "Cropland", "population_food", 700,
+#'     2000, "B", "Cropland", "Synthetic", "Cropland", 900,
+#'     2000, "B", "Cropland", "Outside", "livestock_mono", 500
+#'   )
+#'   area_df <- tibble::tribble(
+#'     ~year, ~province_name, ~area_ha,
+#'     1960, "A", 10000,
+#'     1960, "B", 8000,
+#'     2000, "A", 9000,
+#'     2000, "B", 7000
+#'   )
+#'   typo_df <- tibble::tribble(
+#'     ~year, ~province_name, ~Typology_base,
+#'     1960, "A", "Specialized cropping systems",
+#'     1960, "B", "Semi-natural agroecosystems",
+#'     2000, "A", "Specialized cropping systems",
+#'     2000, "B", "Semi-natural agroecosystems"
+#'   )
+#'   finn_data <- tibble::tribble(
+#'     ~year, ~province_name, ~finn_index,
+#'     1960, "A", 0.12,
+#'     1960, "B", 0.18,
+#'     2000, "A", 0.07,
+#'     2000, "B", 0.09
+#'   )
+#'   panel <- plot_typology_indicators_panel(
+#'     finn_data = finn_data,
+#'     n_prov_destiny = flows,
+#'     area_df = area_df,
+#'     typo_df = typo_df
+#'   )
+#' }
 plot_typology_indicators_panel <- function(
   finn_data = NULL,
   n_prov_destiny = NULL,
   area_df = NULL,
   typo_df = NULL
 ) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the typology indicator panels."
+  )
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }
@@ -115,52 +124,61 @@ plot_typology_indicators_panel <- function(
 #' @export
 #'
 #' @examples
-#' # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-#' # 2010-2020, so an example needs at least one year inside two of them.
-#' flows <- tibble::tribble(
-#'   ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
-#'   1865, "A", "Cropland", "Synthetic", "Cropland", 900,
-#'   1865, "A", "Cropland", "Outside", "livestock_mono", 300,
-#'   1865, "B", "Cropland", "Synthetic", "Cropland", 400,
-#'   1965, "A", "Cropland", "Synthetic", "Cropland", 2600,
-#'   1965, "A", "Cropland", "Outside", "livestock_mono", 1800,
-#'   1965, "B", "Cropland", "Synthetic", "Cropland", 900
-#' )
-#' panel_data <- list(
-#'   area_df = tibble::tribble(
-#'     ~year, ~province_name, ~area_ha,
-#'     1865, "A", 10000,
-#'     1865, "B", 8000,
-#'     1965, "A", 9000,
-#'     1965, "B", 7000
-#'   ),
-#'   typo_df = tibble::tribble(
-#'     ~year, ~province_name, ~Typology_base,
-#'     1865, "A", "Specialized cropping systems",
-#'     1865, "B", "Semi-natural agroecosystems",
-#'     1965, "A", "Specialized cropping systems",
-#'     1965, "B", "Semi-natural agroecosystems"
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
+#'   # 2010-2020, so an example needs at least one year inside two of them.
+#'   flows <- tibble::tribble(
+#'     ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+#'     1865, "A", "Cropland", "Synthetic", "Cropland", 900,
+#'     1865, "A", "Cropland", "Outside", "livestock_mono", 300,
+#'     1865, "B", "Cropland", "Synthetic", "Cropland", 400,
+#'     1965, "A", "Cropland", "Synthetic", "Cropland", 2600,
+#'     1965, "A", "Cropland", "Outside", "livestock_mono", 1800,
+#'     1965, "B", "Cropland", "Synthetic", "Cropland", 900
 #'   )
-#' )
-#' finn_data <- tibble::tribble(
-#'   ~year, ~province_name, ~finn_index,
-#'   1865, "A", 0.12,
-#'   1865, "B", 0.18,
-#'   1965, "A", 0.07,
-#'   1965, "B", 0.09
-#' )
-#' panel <- plot_typology_periods_panel(
-#'   finn_data = finn_data,
-#'   n_prov_destiny = flows,
-#'   n_nat_destiny = flows,
-#'   panel_data = panel_data
-#' )
+#'   panel_data <- list(
+#'     area_df = tibble::tribble(
+#'       ~year, ~province_name, ~area_ha,
+#'       1865, "A", 10000,
+#'       1865, "B", 8000,
+#'       1965, "A", 9000,
+#'       1965, "B", 7000
+#'     ),
+#'     typo_df = tibble::tribble(
+#'       ~year, ~province_name, ~Typology_base,
+#'       1865, "A", "Specialized cropping systems",
+#'       1865, "B", "Semi-natural agroecosystems",
+#'       1965, "A", "Specialized cropping systems",
+#'       1965, "B", "Semi-natural agroecosystems"
+#'     )
+#'   )
+#'   finn_data <- tibble::tribble(
+#'     ~year, ~province_name, ~finn_index,
+#'     1865, "A", 0.12,
+#'     1865, "B", 0.18,
+#'     1965, "A", 0.07,
+#'     1965, "B", 0.09
+#'   )
+#'   panel <- plot_typology_periods_panel(
+#'     finn_data = finn_data,
+#'     n_prov_destiny = flows,
+#'     n_nat_destiny = flows,
+#'     panel_data = panel_data
+#'   )
+#' }
 plot_typology_periods_panel <- function(
   finn_data = NULL,
   n_prov_destiny = NULL,
   n_nat_destiny = NULL,
   panel_data = NULL
 ) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the typology indicator panels."
+  )
   if (is.null(n_prov_destiny)) {
     n_prov_destiny <- create_n_prov_destiny()
   }

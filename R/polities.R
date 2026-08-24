@@ -1764,12 +1764,12 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. On the alias route `NULL` matches
-#'   unscoped aliases only -- 180 of 903 -- so a `NULL` source narrows that route
+#'   unscoped aliases only -- 188 of 995 -- so a `NULL` source narrows that route
 #'   sharply; the identity routes then get their turn, subject to the guards
 #'   above.
 #' @param year Optional integer vector of years. Length 1, or the same length as
 #'   `label`. On the alias route `NULL` matches aliases with no year scope only,
-#'   which is the 15 of 903 published aliases carrying NEITHER bound. The name
+#'   which is the 14 of 995 published aliases carrying NEITHER bound. The name
 #'   and ISO3 routes can still answer without a year, but only for an identifier
 #'   exactly one polity has ever carried, so supplying a year remains much the
 #'   stronger question: it is what lets a label resolve to the right *period*

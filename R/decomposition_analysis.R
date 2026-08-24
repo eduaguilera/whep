@@ -972,25 +972,34 @@ plot_loss_decomp_rolling <- function(decomp = NULL, window = 10) {
 #' @export
 #'
 #' @examples
-#' decomp <- list(
-#'   by_compartment = tibble::tribble(
-#'     ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
-#'     1861, "cropland", 12000, 12000,
-#'     1862, "cropland", 8000, 20000,
-#'     1863, "cropland", 9000, 29000
-#'   ),
-#'   by_mechanism = tibble::tribble(
-#'     ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
-#'     1861, "Size", 9000, 9000,
-#'     1862, "Size", 5000, 14000,
-#'     1863, "Size", 6000, 20000
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   decomp <- list(
+#'     by_compartment = tibble::tribble(
+#'       ~t0, ~compartment, ~contribution_mgn, ~cumulative_mgn,
+#'       1861, "cropland", 12000, 12000,
+#'       1862, "cropland", 8000, 20000,
+#'       1863, "cropland", 9000, 29000
+#'     ),
+#'     by_mechanism = tibble::tribble(
+#'       ~t0, ~mechanism, ~contribution_mgn, ~cumulative_mgn,
+#'       1861, "Size", 9000, 9000,
+#'       1862, "Size", 5000, 14000,
+#'       1863, "Size", 6000, 20000
+#'     )
 #'   )
-#' )
-#' panel <- plot_loss_decomp_rolling_panel(decomp, window = 3)
+#'   panel <- plot_loss_decomp_rolling_panel(decomp, window = 3)
+#' }
 plot_loss_decomp_rolling_panel <- function(
   decomp = NULL,
   window = 10
 ) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the decomposition panel."
+  )
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses()
   }
@@ -1105,24 +1114,33 @@ plot_loss_decomp_periods <- function(decomp = NULL) {
 #' @export
 #'
 #' @examples
-#' decomp <- list(
-#'   by_compartment = tibble::tribble(
-#'     ~period, ~compartment, ~contribution_per_yr_mgn,
-#'     "1865-1925", "cropland", 120,
-#'     "1925-1965", "cropland", 260,
-#'     "1865-1925", "urban", 15,
-#'     "1925-1965", "urban", 35
-#'   ),
-#'   by_mechanism = tibble::tribble(
-#'     ~period, ~mechanism, ~contribution_per_yr_mgn,
-#'     "1865-1925", "Size", 90,
-#'     "1925-1965", "Size", 150,
-#'     "1865-1925", "Intensification", 45,
-#'     "1925-1965", "Intensification", 145
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   decomp <- list(
+#'     by_compartment = tibble::tribble(
+#'       ~period, ~compartment, ~contribution_per_yr_mgn,
+#'       "1865-1925", "cropland", 120,
+#'       "1925-1965", "cropland", 260,
+#'       "1865-1925", "urban", 15,
+#'       "1925-1965", "urban", 35
+#'     ),
+#'     by_mechanism = tibble::tribble(
+#'       ~period, ~mechanism, ~contribution_per_yr_mgn,
+#'       "1865-1925", "Size", 90,
+#'       "1925-1965", "Size", 150,
+#'       "1865-1925", "Intensification", 45,
+#'       "1925-1965", "Intensification", 145
+#'     )
 #'   )
-#' )
-#' panel <- plot_loss_decomp_periods_panel(decomp)
+#'   panel <- plot_loss_decomp_periods_panel(decomp)
+#' }
 plot_loss_decomp_periods_panel <- function(decomp = NULL) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the decomposition panel."
+  )
   if (is.null(decomp)) {
     decomp <- decompose_terr_losses_periods()
   }
@@ -1548,22 +1566,27 @@ plot_compart_factor_roll <- function(
 #' @export
 #'
 #' @examples
-#' lmdi <- tibble::tribble(
-#'   ~period, ~factor_label, ~component_type, ~additive,
-#'   "1861-1862", "N surplus", "target", 20000,
-#'   "1861-1862", "Size", "factor", 9000,
-#'   "1862-1863", "N surplus", "target", 10000,
-#'   "1862-1863", "Size", "factor", 5000,
-#'   "1863-1864", "N surplus", "target", 12000,
-#'   "1863-1864", "Size", "factor", 6000
-#' )
-#' panel <- plot_compart_factor_roll_panel(
-#'   lmdi,
-#'   lmdi,
-#'   lmdi,
-#'   lmdi,
-#'   window = 3
-#' )
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   lmdi <- tibble::tribble(
+#'     ~period, ~factor_label, ~component_type, ~additive,
+#'     "1861-1862", "N surplus", "target", 20000,
+#'     "1861-1862", "Size", "factor", 9000,
+#'     "1862-1863", "N surplus", "target", 10000,
+#'     "1862-1863", "Size", "factor", 5000,
+#'     "1863-1864", "N surplus", "target", 12000,
+#'     "1863-1864", "Size", "factor", 6000
+#'   )
+#'   panel <- plot_compart_factor_roll_panel(
+#'     lmdi,
+#'     lmdi,
+#'     lmdi,
+#'     lmdi,
+#'     window = 3
+#'   )
+#' }
 plot_compart_factor_roll_panel <- function(
   cropland = NULL,
   semi_natural = NULL,
@@ -1571,6 +1594,10 @@ plot_compart_factor_roll_panel <- function(
   urban = NULL,
   window = 10
 ) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the decomposition panel."
+  )
   if (is.null(cropland)) {
     cropland <- decompose_cropland_surplus()
   }
@@ -1667,24 +1694,33 @@ plot_compart_factor_roll_panel <- function(
 #' @export
 #'
 #' @examples
-#' # Each argument is a by-period calculate_lmdi() table, as returned by
-#' # decompose_cropland_surplus(by_period = TRUE).
-#' lmdi <- tibble::tribble(
-#'   ~period, ~period_years, ~factor_label, ~component_type, ~additive,
-#'   "1865-1925", 60, "Size", "factor", 5400,
-#'   "1865-1925", 60, "Intensity", "factor", 3600,
-#'   "1865-1925", 60, "Inefficiency", "factor", -1200,
-#'   "1925-1965", 40, "Size", "factor", 4000,
-#'   "1925-1965", 40, "Intensity", "factor", 9200,
-#'   "1925-1965", 40, "Inefficiency", "factor", 2800
-#' )
-#' panel <- plot_compart_factor_periods(lmdi, lmdi, lmdi, lmdi)
+#' if (
+#'   requireNamespace("ggplot2", quietly = TRUE) &&
+#'     requireNamespace("patchwork", quietly = TRUE)
+#' ) {
+#'   # Each argument is a by-period calculate_lmdi() table, as returned by
+#'   # decompose_cropland_surplus(by_period = TRUE).
+#'   lmdi <- tibble::tribble(
+#'     ~period, ~period_years, ~factor_label, ~component_type, ~additive,
+#'     "1865-1925", 60, "Size", "factor", 5400,
+#'     "1865-1925", 60, "Intensity", "factor", 3600,
+#'     "1865-1925", 60, "Inefficiency", "factor", -1200,
+#'     "1925-1965", 40, "Size", "factor", 4000,
+#'     "1925-1965", 40, "Intensity", "factor", 9200,
+#'     "1925-1965", 40, "Inefficiency", "factor", 2800
+#'   )
+#'   panel <- plot_compart_factor_periods(lmdi, lmdi, lmdi, lmdi)
+#' }
 plot_compart_factor_periods <- function(
   cropland = NULL,
   semi_natural = NULL,
   manure = NULL,
   urban = NULL
 ) {
+  rlang::check_installed(
+    c("ggplot2", "patchwork"),
+    "to draw the decomposition panel."
+  )
   if (is.null(cropland)) {
     cropland <- decompose_cropland_surplus(by_period = TRUE)
   }

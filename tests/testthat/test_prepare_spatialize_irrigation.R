@@ -6,7 +6,7 @@
 
 
 test_that(".cap_national_irrigation caps summed irrigation at the total", {
-  skip_if_not(exists(".cap_national_irrigation", mode = "function"))
+  .need_spatialize_helper(".cap_national_irrigation")
   # MIRCA crops already absorb the whole 1000-ha national total; a MIRCA-absent
   # crop then received an extra 400 ha from the per-CFT fallback -> 1400 total.
   crop_areas <- tibble::tribble(
@@ -25,7 +25,7 @@ test_that(".cap_national_irrigation caps summed irrigation at the total", {
 })
 
 test_that(".cap_national_irrigation leaves within-budget countries untouched", {
-  skip_if_not(exists(".cap_national_irrigation", mode = "function"))
+  .need_spatialize_helper(".cap_national_irrigation")
   crop_areas <- tibble::tribble(
     ~year, ~area_code, ~irrigated_area_ha, ~total_irrig_ha,
     2000L, 2L, 300, 1000,
@@ -36,7 +36,7 @@ test_that(".cap_national_irrigation leaves within-budget countries untouched", {
 })
 
 test_that(".cap_national_irrigation caps each country-year independently", {
-  skip_if_not(exists(".cap_national_irrigation", mode = "function"))
+  .need_spatialize_helper(".cap_national_irrigation")
   crop_areas <- tibble::tribble(
     ~year, ~area_code, ~irrigated_area_ha, ~total_irrig_ha,
     2000L, 1L, 1000, 1000, # over budget -> scaled

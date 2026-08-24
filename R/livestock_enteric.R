@@ -157,14 +157,17 @@
 #' region they resolved to before whep#465; the polity-keyed overrides only fill
 #' rows the ISO3 leg left empty, which is every territory whose ISO3 is missing
 #' from `gleam_geographic_hierarchy`'s 204 modern sovereign states.
+#'
+#' `.has_gleam_region_key()` accepts `area_code`, so the ISO3 leg reads an
+#' `iso3` column when there is one and otherwise derives the ISO3 from
+#' `area_code` (whep#678). Without that middle leg an `area_code`-only frame
+#' matched nothing but the dissolved-federation overrides -- MEASURED: 8 of the
+#' 266 reporting areas -- and every other row silently took the Global
+#' emission factor, which is the failure mode whep#465 was opened to remove.
 #' @noRd
 .gleam_region_of <- function(data) {
   hierarchy <- gleam_geographic_hierarchy
-  region <- if (rlang::has_name(data, "iso3")) {
-    hierarchy$gleam_region[match(data$iso3, hierarchy$iso3)]
-  } else {
-    rep(NA_character_, nrow(data))
-  }
+  region <- hierarchy$gleam_region[match(.gleam_iso3_of(data), hierarchy$iso3)]
 
   key <- .polity_area_key_of(data)
   if (is.null(key)) {
@@ -174,6 +177,40 @@
   dplyr::coalesce(
     region,
     overrides$gleam_region[match(key, overrides$polity_area_code)]
+  )
+}
+
+#' The ISO3 of each row: an explicit `iso3` column, else derived from
+#' `area_code`.
+#'
+#' The `area_code` -> ISO3 direction needs no tie-break:
+#' `.current_area_lookup()` is unique by `area_code`, so one code names one
+#' ISO3. (The reverse direction is the ambiguous one, and is what
+#' `.iso3_area_code_bridge()` exists for.)
+#' `include_unmapped = TRUE` keeps `.polity_area_key_of()`'s key space, so the
+#' two legs see the same set of areas.
+#'
+#' An explicit `iso3` wins over the derived one so a caller that already carries
+#' a harmonised ISO3 (e.g. `prepare_livestock_emissions()`) resolves exactly as
+#' before. MEASURED: no reporting area whose derived ISO3 resolves against
+#' `gleam_geographic_hierarchy` also has a row in `.gleam_region_overrides()`,
+#' so the middle leg cannot steal a row from the overrides.
+#' @noRd
+.gleam_iso3_of <- function(data) {
+  explicit <- if (rlang::has_name(data, "iso3")) {
+    as.character(data$iso3)
+  } else {
+    rep(NA_character_, nrow(data))
+  }
+  if (!rlang::has_name(data, "area_code")) {
+    return(explicit)
+  }
+  lookup <- .current_area_lookup(include_unmapped = TRUE)
+  dplyr::coalesce(
+    explicit,
+    as.character(lookup$area_iso3c)[
+      match(as.integer(data$area_code), lookup$area_code)
+    ]
   )
 }
 

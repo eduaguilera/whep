@@ -897,6 +897,23 @@ build_processing_coefs <- function(
     )
   ]
   dt[, unit := "tonnes"]
+  # Pin the row order, for the reason `.extract_fao()` does: the two pins are
+  # read through arrow's multi-threaded scanner and the `by=` aggregation above
+  # emits groups in order of first appearance, so this table came back in a
+  # session-dependent order -- 2 distinct orders over 7 sessions on the real
+  # pins at 1950-1965, same 45,871 rows and same values each time (whep#420).
+  # The `by=` key is unique, so the order is total.
+  data.table::setorderv(
+    dt,
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "item_cbs",
+      "element",
+      "polity_code"
+    )
+  )
   dt[!is.na(polity_code)]
 }
 
@@ -3291,6 +3308,17 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+  # Unbounded along the year axis on purpose: one observed split anywhere in
+  # the series is carried to every year that has none. What the frame does not
+  # contain, it cannot carry -- a key with no anchor at all keeps `dest_share`
+  # NA and falls back to the world average split in `.assemble_cbs_destinies()`,
+  # which is the other half of whep#833. The fallback hands the key a
+  # `processing` share it never reported, and `.cbs_second_processed_round()`
+  # then MANUFACTURES the oil and cake rows that crush implies. Measured at
+  # 2010, that is 30 keys a scoped build has and the full-range build does not
+  # (Qatar barley: all feed in the full build, 22% processing in the scoped
+  # one, whence beer, brans and DDGS). Their nearest anchors are 7 to 43 years
+  # away, so this is not a margin the window can be widened by.
   out <- fill_linear(
     out,
     dest_share,

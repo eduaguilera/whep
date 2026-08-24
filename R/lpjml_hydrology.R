@@ -2,7 +2,18 @@
 #
 # CONFIRMED LPJmL FACTS (run inspected; do not re-guess):
 # - Gridded NetCDF lon[720] x lat[277] x time, 0.5 deg, monthly, firstyear
-#   1901, lastyear 2009 (monthly time len 1308 = 109*12).
+#   1901.
+# - The LAST year is a property of the run, not of this reader, so it is read
+#   from the file's own time dimension and never assumed. WHEP's runs end in
+#   different years and sit side by side in one LPJmL_runs/ folder: the
+#   5.9.7 grassland-livestock-fix run stops at 2009, the 5.9.7 and 6.1.1
+#   1901-2023 runs carry 123 years (monthly time len 1476 = 123*12). The
+#   current reference run is global_1901-2023_spinup_300_our_inputs_lpjml611
+#   (LPJmL 6.1.1, the run the four LPJmL-derived pins came from, #558), whose
+#   mprec.nc reports firstyear 1901, lastyear 2023, nyear 123.
+#   Requesting a year the run does not have is caught by
+#   .hydro_check_coverage() with the coverage it does have, instead of the
+#   bare NetCDF "Start+count exceeds dimension bound" the raw read gave (#598).
 # - The in-file variable name differs from the filename:
 #     mseepage.nc holds var "seepage" (drainage, mm/month, 1 band)
 #     mtransp.nc -> "transp", mevap.nc -> "evap", minterc.nc -> "interc"
@@ -54,8 +65,13 @@
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
-#'   keeps every year present in the file.
-#' @param first_year First calendar year of the run's monthly time axis.
+#'   keeps every year present in the file. A requested year the run does not
+#'   have aborts, naming the coverage it does have: LPJmL runs ending in
+#'   different years sit side by side in one folder, so the coverage is a
+#'   property of `run_dir`, never an assumption of this reader.
+#' @param first_year First calendar year of the run's monthly time axis. The
+#'   last year is not an argument — it is read from the file's own time
+#'   dimension.
 #' @param monthly If `TRUE`, return one row per cell-month; if `FALSE`,
 #'   aggregate the 12 months of each year per cell (flux variables summed,
 #'   soil water content averaged). Immaterial for the annual per-CFT
@@ -273,6 +289,7 @@ read_lpjml_hydrology <- function(
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
   netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
+  .hydro_check_coverage(nc, first_year, years, path, steps_per_year)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
   slice <- .hydro_time_slice(
@@ -323,6 +340,43 @@ read_lpjml_hydrology <- function(
   }
   names_pft <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
   dplyr::mutate(long, band_name = names_pft[.data$layer])
+}
+
+# Abort unless every requested year lies on the file's own time axis.
+#
+# The run's last year is a property of the run, not of the reader, and WHEP's
+# LPJmL runs end in 2009, 2018 and 2023 side by side in one folder, selected by
+# whichever path WHEP_LPJML_RUN_DIR happens to hold. Without this check an
+# out-of-coverage year reaches ncdf4 as an out-of-bounds start=/count= and
+# fails as "NetCDF: Start+count exceeds dimension bound", naming neither the
+# run, the coverage it does have, nor the years at fault (#598). Reading the
+# span from the time dimension is also why no `lastyear` constant lives in this
+# file: there is nothing to go stale.
+.hydro_check_coverage <- function(
+  nc,
+  first_year,
+  years,
+  path,
+  steps_per_year = 12L
+) {
+  if (is.null(years)) {
+    return(invisible(NULL))
+  }
+  n_steps <- nc$dim[["time"]]$len
+  available <- first_year + seq_len(n_steps %/% steps_per_year) - 1L
+  outside <- setdiff(as.integer(years), available)
+  if (length(outside) == 0L) {
+    return(invisible(NULL))
+  }
+  span <- paste0(min(available), "-", max(available))
+  cli::cli_abort(c(
+    "{length(outside)} requested year{?s} outside the run's coverage.",
+    i = "{.file {basename(path)}} covers {span} ({n_steps} time steps at
+         {steps_per_year} per year from {.val {first_year}}).",
+    i = "Outside: {.val {outside}}.",
+    i = "Check {.arg first_year} and which LPJmL run {.arg run_dir} (or
+         {.envvar WHEP_LPJML_RUN_DIR}) points at."
+  ))
 }
 
 # Compute the ncvar_get() start=/count= slice covering min(years):max(years),

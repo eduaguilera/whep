@@ -23,24 +23,25 @@
 #     committed data/*.rda.
 #   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
 #     from table_mappings.R, which cannot run past `sf::st_read()` on the
-#     whep-polities GeoPackage (`WHEP_POLITIES_GPKG`); it does read items_cbs
-#     and items_prod verbatim from CSVs before that point, but only the whole
-#     script is a builder. coello_synthetic_n.R reads an off-repo >50 MB CSV
-#     (`WHEP_COELLO_DIR`). livestock_coefficients.R needs `openxlsx`, which the
-#     package does not even declare, and writes with `save()` from inside
-#     `main()` rather than through `use_data()`, so this mechanism does not
-#     reach it at all.
+#     whep-polities GeoPackage (`WHEP_POLITIES_GPKG`) -- those five get the
+#     opportunistic check at the end of this file instead; it does read
+#     items_cbs and items_prod verbatim from CSVs before that point, but only
+#     the whole script is a builder. coello_synthetic_n.R reads an off-repo
+#     >50 MB CSV (`WHEP_COELLO_DIR`). livestock_coefficients.R needs
+#     `openxlsx`, which the package does not even declare, and writes with
+#     `save()` from inside `main()` rather than through `use_data()`, so this
+#     mechanism does not reach it at all.
 #
 # R/sysdata.rda (one constant, from data-raw/constants.R) is internal data
 # rather than a data/*.rda, and is out of scope here.
 #
 # What the gate proves is that each table matches its builder's output from the
 # inputs currently in the repo. It does not prove those inputs are current
-# against their upstream source: polity_area_crosswalk is excluded, and
-# harmonization_tables.R reads it, so a crosswalk lagging whep-polities stays
-# invisible here. test_polity_output_coverage.R is the narrow backstop for that
-# -- it fails if regions_full or polities_cats stops resolving an area to a
-# reporting polity with a polygon.
+# against their upstream source. Two things narrow that hole:
+# test_polity_output_coverage.R fails if regions_full or polities_cats stops
+# resolving an area to a reporting polity with a polygon, and the last block of
+# this file re-runs table_mappings.R itself wherever the whep-polities checkout
+# happens to be present, skipping where it is not (#835).
 #
 # The gate skips where data-raw/ is absent, which is every check of a built
 # tarball -- `^data-raw$` is in .Rbuildignore. The `offline-tests` job runs
@@ -240,4 +241,81 @@ testthat::test_that("a data/*.rda built from its inputs passes", {
     .drop_readr_bookkeeping(rebuilt$toy_table),
     .drop_readr_bookkeeping(.committed_data_object("toy_table", root))
   )
+})
+
+# Upstream-input builder -------------------------------------------------
+
+# `table_mappings.R` is excluded from the gate above because its three inputs
+# are published by `whep-polities`, not by this repo. That exclusion is what
+# made #835 invisible: `polity_area_crosswalk` had been built from a superseded
+# upstream revision and shipped looking exactly like a fresh one, and nothing
+# ever compared the builder's output with its `.rda`.
+#
+# The builder IS runnable wherever that checkout exists -- which is every
+# machine that can regenerate the tables in the first place -- so it is run
+# there. This is deliberately a WEAKER check than the gate above: it proves
+# nothing on CI, where the inputs are absent and it skips. What it buys is that
+# the person who *can* re-sync finds out, on their next `devtools::test()`,
+# that the shipped tables no longer match upstream.
+#
+# It reads no `WHEP_*` path that is not already set: `Sys.getenv()` with the
+# builder's own default resolves to `~/whep-polities`, the check is
+# file-existence, and absence skips. No network is involved -- the GeoPackage
+# and the two CSVs are local files.
+.whep_polities_input_files <- function() {
+  c(
+    WHEP_POLITIES_GPKG = "polities_database.gpkg",
+    WHEP_POLITIES_FAOSTAT_MAP = "faostat_area_polity_map.csv",
+    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv"
+  )
+}
+
+# The same resolution `data-raw/table_mappings.R` performs: the env var if set,
+# the checkout's published path otherwise.
+.upstream_polity_input_paths <- function() {
+  files <- .whep_polities_input_files()
+  purrr::imap_chr(files, function(file, envvar) {
+    Sys.getenv(
+      envvar,
+      unset = path.expand(
+        file.path("~", "whep-polities", "data", "final", file)
+      )
+    )
+  })
+}
+
+.skip_without_upstream <- function() {
+  testthat::skip_if_not_installed("sf")
+  paths <- .upstream_polity_input_paths()
+  absent <- names(paths)[!file.exists(paths)]
+  if (length(absent) > 0) {
+    testthat::skip(paste(
+      "whep-polities inputs are not on this machine:",
+      toString(absent)
+    ))
+  }
+  invisible(paths)
+}
+
+testthat::test_that("table_mappings.R matches upstream where it can be run", {
+  root <- .skip_without_data_raw()
+  .skip_without_upstream()
+  rebuilt <- .rebuild_data_objects("table_mappings.R", root)
+
+  # All five, not just the crosswalk: #835 was filed about
+  # `polity_area_crosswalk`, and the rebuild moved `polities` and
+  # `polity_label_aliases` too. One builder, one revision, one comparison.
+  excluded <- .externally_built_datasets()
+  testthat::expect_setequal(
+    names(rebuilt),
+    excluded$dataset[excluded$builder == "table_mappings.R"]
+  )
+  purrr::iwalk(rebuilt, function(object, dataset) {
+    testthat::expect_equal(
+      .drop_readr_bookkeeping(object),
+      .drop_readr_bookkeeping(.committed_data_object(dataset, root)),
+      label = paste0("data-raw/table_mappings.R rebuild of ", dataset),
+      expected.label = paste0("committed data/", dataset, ".rda")
+    )
+  })
 })

@@ -1954,3 +1954,114 @@ test_that("agreeing labels leave the destiny-share skeleton unchanged", {
     c(0.4, 0.6)
   )
 })
+
+# -- .read_historical_trade row order ------------------------------------------
+
+# The pre-1961 trade source. Its two pins are read through arrow's
+# multi-threaded scanner and the aggregation at the end of
+# `.read_historical_trade()` emits groups in order of first appearance, so the
+# table came back in a session-dependent order: 2 distinct orders over 7
+# sessions on the real pins at 1950-1965, always the same 45,871 rows with the
+# same values (whep#420). Feeding the same rows in two orders reproduces that
+# here with no pin and no network.
+.hist_trade_fixture <- function() {
+  tibble::tribble(
+    ~iso3, ~year, ~item_code, ~measurement, ~value,
+    "ESP", 1950L, 15,         "1000 MT",    10,
+    "ESP", 1950L, 16,         "1000 MT",    4,
+    "FRA", 1950L, 15,         "1000 MT",    7,
+    "FRA", 1951L, 15,         "1000 MT",    8,
+    "ESP", 1951L, 15,         "1000 MT",    11
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".read_historical_trade row order does not depend on the read", {
+  fixture <- .hist_trade_fixture()
+
+  read_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.read_historical_trade() |>
+      as.data.frame()
+  }
+
+  forward <- read_in_order(fixture)
+  reversed <- read_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# Issue whep#833, the other half. `.cbs_fill_destinies()` splits domestic
+# supply with the area's own observed split, carried across the year axis, and
+# falls back to the world average split for a key that has no split anywhere
+# in the frame. On a truncated axis a key whose only observation lies outside the
+# window takes the fallback instead of its own answer, which hands it a
+# `processing` destiny it never reported -- and `.cbs_second_processed_round()`
+# turns that into oil and cake rows the full-range build does not have.
+.destiny_axis_fixture <- function(years) {
+  destinies <- c("food", "feed", "seed", "other_uses", "processing")
+  anchor <- tidyr::expand_grid(year = years, element = destinies) |>
+    dplyr::mutate(
+      area = "Anchorland",
+      area_code = 991L,
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      value = dplyr::if_else(year == 1995L & element == "food", 1000, 0),
+      source = "FBS"
+    )
+  # A second area with a stable half-food, half-crush split, so the world
+  # average the fallback reads is not the anchor area's own.
+  world <- tidyr::expand_grid(year = years, element = destinies) |>
+    dplyr::mutate(
+      area = "Worldland",
+      area_code = 992L,
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      value = dplyr::if_else(element %in% c("food", "processing"), 500, 0),
+      source = "FBS"
+    )
+  supply <- tidyr::expand_grid(
+    year = years,
+    tibble::tribble(
+      ~area, ~area_code,
+      "Anchorland", 991L,
+      "Worldland", 992L
+    )
+  ) |>
+    dplyr::mutate(
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      element = "domestic_supply",
+      value = 1000,
+      source = "FBS"
+    )
+  dplyr::bind_rows(anchor, world, supply)
+}
+
+.destiny_axis_processing <- function(years) {
+  whep:::.cbs_fill_destinies(.destiny_axis_fixture(years)) |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      area_code == 991L,
+      year == 2010L,
+      element == "processing"
+    ) |>
+    dplyr::pull(value)
+}
+
+test_that(".cbs_fill_destinies carries one observed split across the axis", {
+  expect_length(.destiny_axis_processing(1990:2015), 0L)
+})
+
+test_that(".cbs_fill_destinies invents a crush off-anchor (whep#833)", {
+  # The defect, pinned offline: the same area and year gets no `processing` at
+  # all on an axis holding its 1995 split, and half its domestic supply crushed
+  # on one that does not. Fixing #833 makes both branches emit nothing, and
+  # this expectation must then be replaced by the empty one above.
+  expect_equal(.destiny_axis_processing(2005:2015), 500)
+})

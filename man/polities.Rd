@@ -21,14 +21,14 @@ double-counts every boundary year). Inclusive at the open end, so 2025
 still belongs to \code{"RUS-2014-2025"}, because no later interval of that
 polity follows it and a uniformly exclusive read would leave the current
 year with no polity at all. \strong{Openness is absence of a successor, not a
-comparison against the last year in the table.} 244 live polities have no
-successor, 227 of them end in 2025, and no live polity ending in 2025
+comparison against the last year in the table.} 257 live polities have no
+successor, 244 of them end in 2025, and no live polity ending in 2025
 carries one, so the two readings agree on this vintage; the successor test
 is the one that keeps agreeing when the horizon moves. The distinction is
-not decoration: 237 of the 749 rows end in 2025 but only 229 are open,
-because eight are succeeded there (\code{AGO-1816-2025} by \code{AGO-1975-2025}, and
-likewise ARG, BLZ, BRA, CAN, GRC, IRQ and ROU), and opening those too would
-count the terminal year twice.
+not decoration: 254 of the 779 rows end in 2025 but only 251 are open,
+because three are succeeded there (\code{BLZ-1800-2025}, \code{CAN-1948-2025} and
+\code{IRQ-1921-2025}, all \code{retired} or \code{superseded}), and opening those too
+would count the terminal year twice.
 \item \code{iso3_code}, \code{iso3c}: ISO3 code where one exists. \code{iso3c} is retained as
 a compatibility alias.
 \item \code{wiki_status}: Upstream review state. \code{"retired"} and \code{"superseded"} mark a
@@ -37,6 +37,10 @@ never a resolution target: \link{polity_area_crosswalk} excludes them, so resolv
 through it rather than through this table.
 \item \code{polygon_status}: Polygon status in \code{whep-polities} (\code{"assigned"},
 \code{"proxy"}, \code{"missing"}, or \code{"excluded"}).
+\item \code{polygon_feature_year}, \code{polygon_feature_date}: The vintage of the source
+feature the polygon was taken from. \code{polygon_feature_date} arrived with the
+#835 upstream re-sync and is populated on 3 rows, where upstream recorded a
+day rather than only a year.
 \item \code{has_geometry}: Logical flag indicating whether the geometry is non-empty.
 \item \code{geom}: Multipolygon geometry.
 }

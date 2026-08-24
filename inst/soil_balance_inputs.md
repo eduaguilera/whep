@@ -15,7 +15,7 @@ checks and `?`-examples run without any of these variables set.
 
 | Variable | Read by | Expected contents |
 |---|---|---|
-| `WHEP_LPJML_RUN_DIR` | `read_lpjml_hydrology()`, `read_lpjml_npp()`, `build_water_balance()` | An LPJmL run output directory holding the monthly NetCDFs: `mseepage.nc`, `mtransp.nc`, `mevap.nc`, `minterc.nc`, `mprec.nc`, `mrain.nc`, `mirrig.nc`, `mrunoff.nc`, `mdischarge.nc`, `mswc.nc`, `mcft_nir.nc`. **See the year-coverage warning below.** |
+| `WHEP_LPJML_RUN_DIR` | `read_lpjml_hydrology()`, `read_lpjml_npp()`, `build_water_balance()` | An LPJmL run output directory holding the monthly NetCDFs: `mseepage.nc`, `mtransp.nc`, `mevap.nc`, `minterc.nc`, `mprec.nc`, `mrain.nc`, `mirrig.nc`, `mrunoff.nc`, `mdischarge.nc`, `mswc.nc`, `cft_nir.nc`. **See the year-coverage warning below.** |
 | `WHEP_CRU_DIR` | `read_cru_climate()` | A CRU TS directory with `cru_ts<version>.<years>.<var>.dat.nc` files (`tmp`, `pet`, `pre`, `tmn`, `tmx`, `frs`, …). Any CRU TS version is accepted; the newest present is used. |
 | `WHEP_HWSD_DIR` | `read_soil_ph()`, `read_soil_hydraulic()` | HWSD **v1.2** soil directory with `hwsd_data.csv` and `hwsd.bil`. The 2023 HWSD2 release is not wired (see #343). |
 | `WHEP_LUH2_DIR` | `read_luh2_landuse()` | **Optional** — without it the reference `states.nc` is downloaded from Zenodo and cached (see below). LUH2 directory with the gridded `states.nc` product (Hurtt et al. 2020). The base v2h release covers 850-2015; the annually-updated Global Carbon Budget variants extend further (the reference is LUH2-GCB2022, 850-2022), so check `states.nc`'s own time axis rather than assuming 2015. Whichever source is read, its vintage is recorded on the result, and an off-reference vintage warns — see below. Populate it with `inst/scripts/download/download_luh2.R`. |
@@ -48,6 +48,20 @@ Consequences:
   forcings and their end years are recorded in the run's
   `configurations/config_*.json`; `prepare_spatialize_all.R` (Section 9d)
   provides `report_forcing_end_years()` for the input side.
+- The current reference run is
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` (LPJmL 6.1.1, 1901-2023,
+  123 years, CRU TS 4.09-era forcing). It is the run the four LPJmL-derived
+  pins were regenerated from (#558), so pointing `WHEP_LPJML_RUN_DIR` at an
+  older run makes a local read disagree with those pins. Runs ending in 2009,
+  2018 and 2023 sit side by side in the same `LPJmL_runs/` folder, so which
+  years exist is a property of the path, not of the reader.
+- `read_lpjml_hydrology(years = )` now **aborts** when a requested year is off
+  the file's own time axis, naming the span the file does cover, instead of
+  failing inside ncdf4 with `NetCDF: Start+count exceeds dimension bound`
+  (#598). That checks the *written* time axis only — it cannot see the
+  forcing, so it does **not** catch the `global_1901-2018_spinup_200_our_inputs`
+  trap above, where 2010-2018 are written but empty. The forcing check is
+  still yours to make.
 
 ## LUH2 vintage — which v2h tree produced a result
 

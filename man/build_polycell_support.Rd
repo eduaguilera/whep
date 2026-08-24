@@ -22,8 +22,11 @@ polycell-year and adds a \code{year} column.}
 \code{\link[=get_polity_geometries]{get_polity_geometries()}}. \code{start_year} is inclusive; \code{end_year} is
 \strong{exclusive at a succession} and \strong{inclusive at the open end}, the
 convention \code{polities} is documented under, and neither bound is ever
-parsed out of \code{polity_code}. Optional \code{wiki_status}, \code{polity_type},
-\code{polygon_status} and \code{area_code} columns are honoured.}
+parsed out of \code{polity_code}. The intervals of one polity must partition
+time: two that overlap are an error rather than a shape the producer
+reconciles, and abort with class \code{whep_pcs_overlapping_interval}. Optional
+\code{wiki_status}, \code{polity_type}, \code{polygon_status} and \code{area_code} columns are
+honoured.}
 
 \item{water}{Optional per-cell \code{tibble} of inland water with \code{lon}, \code{lat}
 and \code{water_frac}, a fraction of the \strong{whole} cell, as

@@ -238,7 +238,10 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
   pair <- table(cw$mapping_status, cw$mapping_source)
   testthat::expect_equal(pair["matched", "upstream_map"], 233L)
   testthat::expect_equal(pair["matched", "fabio_row_promoted"], 50L)
-  testthat::expect_equal(pair["matched", "prefix_outside_map"], 246L)
+  # 248 since the #835 upstream re-sync, up from 246: upstream added
+  # `CPV-1800-1886` and `SUR-1800-1886`, and the prefix rule picks both up
+  # because neither area is named by an upstream map row for those years.
+  testthat::expect_equal(pair["matched", "prefix_outside_map"], 248L)
   testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
   # Unchanged at 62: the fold row of every Rest-of-World member survives in the
   # shipped table, which is what lets `whep.unfold_rest_of_world = "none"`

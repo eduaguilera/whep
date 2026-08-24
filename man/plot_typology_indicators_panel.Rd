@@ -35,46 +35,51 @@ surplus per ha), and intensification (synthetic + feed imports per ha)
 as mean lines per typology with interquartile ribbons.
 }
 \examples{
-# Two provinces at two dates is enough to exercise the four panels; the
-# real figure spans 50 provinces and 1860-2023.
-flows <- tibble::tribble(
-  ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
-  1960, "A", "Cropland", "Synthetic", "Cropland", 900,
-  1960, "A", "Cropland", "Outside", "livestock_mono", 300,
-  1960, "A", "Cropland", "Cropland", "population_food", 500,
-  1960, "B", "Cropland", "Synthetic", "Cropland", 400,
-  1960, "B", "Cropland", "Outside", "livestock_mono", 100,
-  2000, "A", "Cropland", "Synthetic", "Cropland", 2600,
-  2000, "A", "Cropland", "Outside", "livestock_mono", 1800,
-  2000, "A", "Cropland", "Cropland", "population_food", 700,
-  2000, "B", "Cropland", "Synthetic", "Cropland", 900,
-  2000, "B", "Cropland", "Outside", "livestock_mono", 500
-)
-area_df <- tibble::tribble(
-  ~year, ~province_name, ~area_ha,
-  1960, "A", 10000,
-  1960, "B", 8000,
-  2000, "A", 9000,
-  2000, "B", 7000
-)
-typo_df <- tibble::tribble(
-  ~year, ~province_name, ~Typology_base,
-  1960, "A", "Specialized cropping systems",
-  1960, "B", "Semi-natural agroecosystems",
-  2000, "A", "Specialized cropping systems",
-  2000, "B", "Semi-natural agroecosystems"
-)
-finn_data <- tibble::tribble(
-  ~year, ~province_name, ~finn_index,
-  1960, "A", 0.12,
-  1960, "B", 0.18,
-  2000, "A", 0.07,
-  2000, "B", 0.09
-)
-panel <- plot_typology_indicators_panel(
-  finn_data = finn_data,
-  n_prov_destiny = flows,
-  area_df = area_df,
-  typo_df = typo_df
-)
+if (
+  requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("patchwork", quietly = TRUE)
+) {
+  # Two provinces at two dates is enough to exercise the four panels; the
+  # real figure spans 50 provinces and 1860-2023.
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+    1960, "A", "Cropland", "Synthetic", "Cropland", 900,
+    1960, "A", "Cropland", "Outside", "livestock_mono", 300,
+    1960, "A", "Cropland", "Cropland", "population_food", 500,
+    1960, "B", "Cropland", "Synthetic", "Cropland", 400,
+    1960, "B", "Cropland", "Outside", "livestock_mono", 100,
+    2000, "A", "Cropland", "Synthetic", "Cropland", 2600,
+    2000, "A", "Cropland", "Outside", "livestock_mono", 1800,
+    2000, "A", "Cropland", "Cropland", "population_food", 700,
+    2000, "B", "Cropland", "Synthetic", "Cropland", 900,
+    2000, "B", "Cropland", "Outside", "livestock_mono", 500
+  )
+  area_df <- tibble::tribble(
+    ~year, ~province_name, ~area_ha,
+    1960, "A", 10000,
+    1960, "B", 8000,
+    2000, "A", 9000,
+    2000, "B", 7000
+  )
+  typo_df <- tibble::tribble(
+    ~year, ~province_name, ~Typology_base,
+    1960, "A", "Specialized cropping systems",
+    1960, "B", "Semi-natural agroecosystems",
+    2000, "A", "Specialized cropping systems",
+    2000, "B", "Semi-natural agroecosystems"
+  )
+  finn_data <- tibble::tribble(
+    ~year, ~province_name, ~finn_index,
+    1960, "A", 0.12,
+    1960, "B", 0.18,
+    2000, "A", 0.07,
+    2000, "B", 0.09
+  )
+  panel <- plot_typology_indicators_panel(
+    finn_data = finn_data,
+    n_prov_destiny = flows,
+    area_df = area_df,
+    typo_df = typo_df
+  )
+}
 }

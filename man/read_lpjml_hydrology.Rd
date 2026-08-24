@@ -29,9 +29,14 @@ dimension, and carry \code{band_name} when the file names its bands.}
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
-keeps every year present in the file.}
+keeps every year present in the file. A requested year the run does not
+have aborts, naming the coverage it does have: LPJmL runs ending in
+different years sit side by side in one folder, so the coverage is a
+property of \code{run_dir}, never an assumption of this reader.}
 
-\item{first_year}{First calendar year of the run's monthly time axis.}
+\item{first_year}{First calendar year of the run's monthly time axis. The
+last year is not an argument — it is read from the file's own time
+dimension.}
 
 \item{monthly}{If \code{TRUE}, return one row per cell-month; if \code{FALSE},
 aggregate the 12 months of each year per cell (flux variables summed,

@@ -36,16 +36,16 @@ rows of \code{table} that pair carries (always 1 when \code{table} is \code{NULL
 \description{
 \link{polity_area_crosswalk} is not the upstream FAOSTAT-to-polity map. It is that
 map plus rows this package manufactures, and its \code{mapping_source} column says
-which. Measured on the shipped snapshot, of 631 crosswalk rows:
+which. Measured on the shipped snapshot, of 649 crosswalk rows:
 \itemize{
 \item \code{"upstream_map"} (245 rows): a row of \code{faostat_area_polity_map.csv} in
 \code{eduaguilera/whep-polities}. Upstream's statement about the territory.
-\item \code{"fabio_row_promoted"} (36): the same file, for the 31 areas the FABIO
+\item \code{"fabio_row_promoted"} (52): the same file, for the 47 areas the FABIO
 Rest-of-World fold used to shadow. Equally upstream's statement, and kept
 separate only because \code{.unfold_rest_of_world()} chooses between it and the
-fold row (whep#717). The two together consume the map's 281 rows exactly
+fold row (whep#717). The two together consume the map's 297 rows exactly
 once.
-\item \code{"prefix_outside_map"} (261) and \code{"prefix_fallback"} (27): WHEP's own
+\item \code{"prefix_outside_map"} (263) and \code{"prefix_fallback"} (27): WHEP's own
 ISO3-prefix match, built in \code{data-raw/table_mappings.R}. No upstream
 authority. A prefix match can only ever produce an ISO3-family guess, so it
 cannot express the statements the pre-1961 era actually needs -- Turkey
@@ -61,7 +61,7 @@ Counting crosswalk rows overstates the exposure, because most manufactured
 rows are never picked. This reports the provenance of the \strong{resolution}: for
 each \verb{(area_code, year)}, the class of the crosswalk row that
 \code{\link[=add_polity_code]{add_polity_code()}} actually selected, which is what a published value rests
-on. Measured over the crosswalk's own 1850-2025 grid, 256 of the 261
+on. Measured over the crosswalk's own 1850-2025 grid, 259 of the 263
 \code{"prefix_outside_map"} rows are the resolution of no \verb{(area_code, year)} at
 all: the back-cast anchor floors every lookup at \code{backcast_anchor}, so the
 pre-1961 era resolves through whatever answers the anchor year rather than

@@ -17,9 +17,12 @@ l_files_dir <- "LPJmL_inputs"
 input_dir <- file.path(l_files_dir, "whep", "inputs")
 output_dir <- file.path(l_files_dir, "whep")
 
-# Subset of years to process (must be within the range used
-# in prepare_spatialize_inputs.R)
-year_range <- 1850L:2022L
+# Subset of years to process (must be within the range used in
+# prepare_spatialize_inputs.R). Keep this to ONE assignment: it used to be
+# two consecutive lines, `1850L:2022L` then `2000L:2022L`, so the first was
+# silently overwritten and a run produced 23 years while the script read as
+# if it produced 173 (whep#531). Set it to 1850L:2022L for the full
+# historical span; not every input reaches 2023.
 year_range <- 2000L:2022L
 
 # ---- Load inputs -----------------------------------------------------
@@ -141,7 +144,7 @@ cli::cli_alert_info(
 # ---- Save individual crop output --------------------------------------
 
 crop_path <- file.path(output_dir, "gridded_landuse_crops.parquet")
-nanoparquet::write_parquet(result_crops, crop_path)
+whep::write_parquet_checked(result_crops, crop_path)
 cli::cli_alert_success("Individual crops saved to {crop_path}")
 
 # ---- Aggregate to CFT level -------------------------------------------
@@ -178,7 +181,7 @@ cli::cli_alert_info(
 # ---- Save CFT output --------------------------------------------------
 
 out_path <- file.path(output_dir, "gridded_landuse.parquet")
-nanoparquet::write_parquet(result, out_path)
+whep::write_parquet_checked(result, out_path)
 cli::cli_alert_success("CFT output saved to {out_path}")
 
 # ---- Summary by year and CFT ------------------------------------------
@@ -345,7 +348,7 @@ if (file.exists(yields_file)) {
     )
 
   y_path <- file.path(output_dir, "gridded_yields.parquet")
-  nanoparquet::write_parquet(gridded_y, y_path)
+  whep::write_parquet_checked(gridded_y, y_path)
   cli::cli_alert_success(
     "Gridded yields: {nrow(gridded_y)} rows \u2192 {y_path}"
   )
@@ -488,7 +491,7 @@ if (file.exists(n_inputs_file)) {
     )
 
   n_grid_path <- file.path(output_dir, "gridded_nitrogen.parquet")
-  nanoparquet::write_parquet(gridded_n, n_grid_path)
+  whep::write_parquet_checked(gridded_n, n_grid_path)
   cli::cli_alert_success(
     "Gridded nitrogen: {nrow(gridded_n)} rows → {n_grid_path}"
   )
@@ -534,7 +537,7 @@ if (file.exists(n_inputs_file)) {
     )
 
   n_cft_path <- file.path(output_dir, "gridded_nitrogen_cft.parquet")
-  nanoparquet::write_parquet(gridded_n_cft, n_cft_path)
+  whep::write_parquet_checked(gridded_n_cft, n_cft_path)
   cli::cli_alert_success(
     "CFT nitrogen: {nrow(gridded_n_cft)} rows → {n_cft_path}"
   )

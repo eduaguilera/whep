@@ -781,7 +781,7 @@ run_spatialize <- function(
 ) {
   paths <- list()
   crop_path <- file.path(out_dir, "gridded_landuse_crops.parquet")
-  nanoparquet::write_parquet(result_crops, crop_path)
+  write_parquet_checked(result_crops, crop_path)
   paths$landuse_crops <- crop_path
 
   if (isTRUE(config$aggregate_to_cft)) {
@@ -815,7 +815,7 @@ run_spatialize <- function(
         .by = dplyr::all_of(group_cols)
       )
     cft_path <- file.path(out_dir, "gridded_landuse.parquet")
-    nanoparquet::write_parquet(cft_result, cft_path)
+    write_parquet_checked(cft_result, cft_path)
     paths$landuse_cft <- cft_path
   }
 
@@ -824,7 +824,7 @@ run_spatialize <- function(
 
 .write_livestock_outputs <- function(gridded_livestock, out_dir) {
   path <- file.path(out_dir, "gridded_livestock_emissions.parquet")
-  nanoparquet::write_parquet(gridded_livestock, path)
+  write_parquet_checked(gridded_livestock, path)
   list(livestock = path)
 }
 

@@ -590,10 +590,25 @@ test_that(".successor_iso3_map stops at the first reachable ISO3", {
 })
 
 test_that(".successor_iso3_map returns nothing when no successor is published", {
-  # Belgium-Luxembourg carries no `successor` upstream, so it stays unreachable
-  # and the caller must keep warning rather than invent an attribution.
+  # A polity with no published `successor` stays unreachable and the caller must
+  # keep warning rather than invent an attribution. `BLX-1850-1999` used to be
+  # the example here; the #835 upstream re-sync gave it
+  # `BEL-1831-2025; LUX-1839-2025`, so it now resolves (asserted below) and the
+  # no-successor property needs a row that still has none. `CEM-1800-2025`
+  # (Ceuta and Melilla) is one, and it is a terminal enclave rather than a
+  # federation, so it is not a candidate for gaining one.
+  res <- whep:::.successor_iso3_map("CEM-1800-2025", c("ESP", "MAR"))
+  expect_equal(res[["CEM-1800-2025"]], character(0))
+})
+
+test_that("Belgium-Luxembourg reaches its successors after the #835 re-sync", {
+  # The upstream re-sync published `BLX-1850-1999`'s successors, so FAOSTAT area
+  # 15 now bridges to BEL+LUX in `.federation_land_bridge()`. That is only
+  # reached under `federation_land = "successor_union"` (the default is
+  # `"none"`), but it is the one attribution this data change adds, so it is
+  # pinned rather than left to a caller to discover.
   res <- whep:::.successor_iso3_map("BLX-1850-1999", c("BEL", "LUX"))
-  expect_equal(res[["BLX-1850-1999"]], character(0))
+  expect_equal(res[["BLX-1850-1999"]], c("BEL", "LUX"))
 })
 
 # ---- ISO3 -> numeric area_code lookup --------------------------------------
