@@ -228,10 +228,11 @@ test_that("the loss stage handles the MMS only region_specific can emit", {
 })
 
 test_that(".mms_region_of resolves an area-code territory to an IPCC region", {
-  # MEASURED: .gleam_region_of() given area_code alone resolves 2 of the 195
-  # territories the 2020 national manure chain carries, because its second leg
-  # only lists dissolved federations; with the ISO3 attached it resolves all
-  # 195. The region lookup must therefore attach the ISO3.
+  # Before #678, the shared GLEAM-region resolver given `area_code` alone
+  # resolved only the areas its dissolved-federation override table lists, 8 of
+  # 266, so this helper had to attach the ISO3 itself. Since #678 it derives
+  # the ISO3 from `area_code`, and the expected regions below are unchanged --
+  # MEASURED as bit-identical over every reporting area plus an ISO3 literal.
   expect_equal(
     whep:::.mms_region_of(c("231", "21", "79", "114", "ES", NA)),
     c(
