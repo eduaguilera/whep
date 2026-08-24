@@ -1,5 +1,24 @@
 # whep (development version)
 
+* **New `population_source_reach()` reports which areas a population source
+  keyed on present-day ISO3 can reach, and area 151 is the one it cannot
+  (#787).** Both population sources WHEP reads — the `gdp-population` pin and
+  UN WPP 2024 — are keyed on a present-day ISO3 code, so neither can carry a
+  territory that no longer exists. This classifies each of the 297 reporting
+  periods in `polity_area_crosswalk` as `"direct"`, `"successor"` (the polities
+  database's `successor` relation reaches present-day codes) or
+  `"unreachable"`. Measured against UN WPP 2024, 283 are direct, 8 resolve
+  through successors, and exactly one reporting area outside the Rest-of-World
+  bucket is unreachable: `ANT-1961-2010`, area 151 Netherlands Antilles, which
+  carries commodity-balance food in every year from 1961 to 2010. Upstream
+  publishes no successor for it and models neither Sint Maarten nor the BES
+  islands as polities, so reconstructing it is an upstream identity gap rather
+  than a missing value. No published value changes: this reports coverage and
+  builds no denominator. It deliberately does **not** fill area 151 or any
+  other area — a successor sum over UN WPP falls 17.5% short of the pin's own
+  figure for the Yugoslav SFR, because WPP reports Kosovo separately and the
+  successor relation does not name it.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
