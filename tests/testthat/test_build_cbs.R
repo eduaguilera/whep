@@ -233,7 +233,7 @@ test_that("a milled-basis source is left alone when keying on source", {
 })
 
 test_that("one historical rice row yields one tonnage in both pipelines", {
-  # whep#778: `.read_historical_production()` is the single reader behind the
+  # whep#778: `.read_historical_production` is the single reader behind the
   # public `historical_data` argument of BOTH `build_primary_production()` and
   # `build_commodity_balances()`. Item 2807 is milled equivalent throughout
   # WHEP (validation/rice_mass_basis.R enforces it across FBS vintages), so
