@@ -92,6 +92,30 @@
   back-end selection are now covered by tests. No published value changes: the
   layers read out of a successfully extracted archive are unchanged.
 
+* **The gridded crops layer has one key now, and it is a code (#788).**
+  `build_livestock_nutrient_flows()`'s `gridded$crops` tibble was read two
+  incompatible ways. `.sci_manure_crop_layer()`, the only in-package producer of
+  a real layer and the one the carbon balance uses, sets
+  `crop = as.character(item_prod_code)`. The nitrogen side resolved the same
+  column by crop *name* only, and aborted on anything else — so the layer the
+  carbon path builds could not be handed to `build_nitrogen_balance()` at all:
+  measured on real data, every one of the 9,298 rows for 2010 (all 171 crops,
+  1.383e9 ha) failed to match, and 1,102,005 rows over the full 1850–2023 span.
+
+  The code is now the canonical key, documented on
+  `build_livestock_nutrient_flows()` and `allocate_manure_to_land()`, and both
+  consumers honour it. A crop name still resolves, as a deprecated compatibility
+  bridge that warns — a name is not a unique key (`Fallow` names two
+  `item_prod_code`s, and three codes carry no name), which is why the code
+  direction is the one kept.
+
+  **No published value changes.** Over the full-span layer the code-to-name map
+  is a bijection (172 codes, 172 distinct names, none missing) and both keys
+  resolve to the identical `item_cbs_code` for every one of them, so the
+  name-round-trip workaround `inst/scripts/run_nitrogen_balance.R` carried was
+  numerically lossless; it is now deleted and the driver passes
+  `.sci_manure_crop_layer()`'s output straight through.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
