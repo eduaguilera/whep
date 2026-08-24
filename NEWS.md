@@ -32,6 +32,24 @@
   build (6,310,171 rows) every key is already unique, so the warning does not
   fire and dedup drops nothing.
 
+* **`read_lpjml_hydrology()` checks the run's year coverage, and no longer
+  documents a last year it does not read (#598).** Requesting a year outside
+  the run's own time axis used to fail deep inside `ncdf4` with
+  `NetCDF: Start+count exceeds dimension bound`, which names neither the run,
+  the years at fault, nor the coverage the run does have; it now aborts with
+  all three. Which years exist is a property of `run_dir`, not of the reader:
+  WHEP's LPJmL runs end in 2009, 2018 and 2023 and sit side by side in one
+  folder, and the file header claimed a fixed `lastyear 2009` (1308 monthly
+  steps) that stopped being true when the reference run became
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` (LPJmL 6.1.1, 123 years,
+  1476 monthly steps, the run the four LPJmL-derived pins came from, #558).
+  The reader never used that constant — the span has always been read from
+  the file's time dimension — so **no published value changes**: every call
+  this now rejects already aborted, only less legibly, and every call that
+  succeeded returns byte-identical output. The check reads the *written* time
+  axis, so it still cannot see a run configured past the end of its forcing
+  (the `global_1901-2018_spinup_200_our_inputs` trap of #340).
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
