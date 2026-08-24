@@ -132,17 +132,20 @@ test_that("only the recorded areas resolve through a WHEP prefix guess", {
     c(63L, 119L, 126L, 238L)
   )
 
-  # 261 `prefix_outside_map` rows are shipped and 4 of them are ever the answer
-  # to an `(area_code, year)`. The other 257 decide nothing -- which is why #740
+  # 263 `prefix_outside_map` rows are shipped and 4 of them are ever the answer
+  # to an `(area_code, year)`. The other 259 decide nothing -- which is why #740
   # is NOT the 288-row deletion its title claims: the live population is tiny,
   # and one of the four (238 -> `ETH-1952-1993`) is load-bearing for 35,558 rows,
   # so it wants an upstream answer rather than a delete.
   #
-  # Both numbers fell by one in whep#741/#743; see the note above.
+  # Both numbers fell by one in whep#741/#743; see the note above. The shipped
+  # total then rose from 261 to 263 in the #835 upstream re-sync (two new
+  # pre-1886 polities, Cape Verde and Dutch Guiana), while the LIVE population
+  # stayed at four -- which is the point of the distinction.
   expect_equal(nrow(outside_map), 4L)
   expect_equal(
     sum(whep::polity_area_crosswalk$mapping_source == "prefix_outside_map"),
-    261L
+    263L
   )
 })
 
