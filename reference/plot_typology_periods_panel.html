@@ -106,46 +106,51 @@ automatically.</p></dd>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># The four reference periods are 1860-1870, 1920-1930, 1960-1970 and</span></span></span>
-<span class="r-in"><span><span class="co"># 2010-2020, so an example needs at least one year inside two of them.</span></span></span>
-<span class="r-in"><span><span class="va">flows</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">box</span>, <span class="op">~</span><span class="va">origin</span>, <span class="op">~</span><span class="va">destiny</span>, <span class="op">~</span><span class="va">mg_n</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">900</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Outside"</span>, <span class="st">"livestock_mono"</span>, <span class="fl">300</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">400</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">2600</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Outside"</span>, <span class="st">"livestock_mono"</span>, <span class="fl">1800</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">900</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">panel_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  area_df <span class="op">=</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>    <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">area_ha</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="fl">10000</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="fl">8000</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="fl">9000</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="fl">7000</span></span></span>
-<span class="r-in"><span>  <span class="op">)</span>,</span></span>
-<span class="r-in"><span>  typo_df <span class="op">=</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>    <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">Typology_base</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Specialized cropping systems"</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="st">"Semi-natural agroecosystems"</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Specialized cropping systems"</span>,</span></span>
-<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="st">"Semi-natural agroecosystems"</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"ggplot2"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">&amp;&amp;</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"patchwork"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>  <span class="co"># The four reference periods are 1860-1870, 1920-1930, 1960-1970 and</span></span></span>
+<span class="r-in"><span>  <span class="co"># 2010-2020, so an example needs at least one year inside two of them.</span></span></span>
+<span class="r-in"><span>  <span class="va">flows</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">box</span>, <span class="op">~</span><span class="va">origin</span>, <span class="op">~</span><span class="va">destiny</span>, <span class="op">~</span><span class="va">mg_n</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">900</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Outside"</span>, <span class="st">"livestock_mono"</span>, <span class="fl">300</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">400</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">2600</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Cropland"</span>, <span class="st">"Outside"</span>, <span class="st">"livestock_mono"</span>, <span class="fl">1800</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="st">"Cropland"</span>, <span class="st">"Synthetic"</span>, <span class="st">"Cropland"</span>, <span class="fl">900</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">finn_data</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">finn_index</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="fl">0.12</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="fl">0.18</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="fl">0.07</span>,</span></span>
-<span class="r-in"><span>  <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="fl">0.09</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">panel</span> <span class="op">&lt;-</span> <span class="fu">plot_typology_periods_panel</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  finn_data <span class="op">=</span> <span class="va">finn_data</span>,</span></span>
-<span class="r-in"><span>  n_prov_destiny <span class="op">=</span> <span class="va">flows</span>,</span></span>
-<span class="r-in"><span>  n_nat_destiny <span class="op">=</span> <span class="va">flows</span>,</span></span>
-<span class="r-in"><span>  panel_data <span class="op">=</span> <span class="va">panel_data</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">panel_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    area_df <span class="op">=</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>      <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">area_ha</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="fl">10000</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="fl">8000</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="fl">9000</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="fl">7000</span></span></span>
+<span class="r-in"><span>    <span class="op">)</span>,</span></span>
+<span class="r-in"><span>    typo_df <span class="op">=</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>      <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">Typology_base</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="st">"Specialized cropping systems"</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="st">"Semi-natural agroecosystems"</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="st">"Specialized cropping systems"</span>,</span></span>
+<span class="r-in"><span>      <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="st">"Semi-natural agroecosystems"</span></span></span>
+<span class="r-in"><span>    <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">finn_data</span> <span class="op">&lt;-</span> <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tribble.html" class="external-link">tribble</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    <span class="op">~</span><span class="va">year</span>, <span class="op">~</span><span class="va">province_name</span>, <span class="op">~</span><span class="va">finn_index</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"A"</span>, <span class="fl">0.12</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1865</span>, <span class="st">"B"</span>, <span class="fl">0.18</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"A"</span>, <span class="fl">0.07</span>,</span></span>
+<span class="r-in"><span>    <span class="fl">1965</span>, <span class="st">"B"</span>, <span class="fl">0.09</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">panel</span> <span class="op">&lt;-</span> <span class="fu">plot_typology_periods_panel</span><span class="op">(</span></span></span>
+<span class="r-in"><span>    finn_data <span class="op">=</span> <span class="va">finn_data</span>,</span></span>
+<span class="r-in"><span>    n_prov_destiny <span class="op">=</span> <span class="va">flows</span>,</span></span>
+<span class="r-in"><span>    n_nat_destiny <span class="op">=</span> <span class="va">flows</span>,</span></span>
+<span class="r-in"><span>    panel_data <span class="op">=</span> <span class="va">panel_data</span></span></span>
+<span class="r-in"><span>  <span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">}</span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

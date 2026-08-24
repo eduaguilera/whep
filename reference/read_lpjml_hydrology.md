@@ -45,11 +45,15 @@ read_lpjml_hydrology(
 - years:
 
   Optional integer vector of calendar years to keep. `NULL` keeps every
-  year present in the file.
+  year present in the file. A requested year the run does not have
+  aborts, naming the coverage it does have: LPJmL runs ending in
+  different years sit side by side in one folder, so the coverage is a
+  property of `run_dir`, never an assumption of this reader.
 
 - first_year:
 
-  First calendar year of the run's monthly time axis.
+  First calendar year of the run's monthly time axis. The last year is
+  not an argument — it is read from the file's own time dimension.
 
 - monthly:
 

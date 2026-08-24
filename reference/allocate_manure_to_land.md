@@ -33,9 +33,13 @@ allocate_manure_to_land(applied, gridded = list(), options = list())
   A named list describing the land surface for each polity:
 
   - `crops`: a tibble keyed by `year`, `territory`, `sub_territory`,
-    `crop` with the allocation weight (`manure_n_receptivity` for
-    `"area_x_receptivity"`, `crop_n_demand` for `"crop_n_demand"`) and
-    the cap basis (`crop_n_cap`, t N, for
+    `crop` (a code, `as.character(item_prod_code)`; this function treats
+    it as an opaque label but the downstream nitrogen balance resolves
+    it through
+    [items_prod_full](https://eduaguilera.github.io/whep/reference/items_prod_full.md),
+    so a name is deprecated there) with the allocation weight
+    (`manure_n_receptivity` for `"area_x_receptivity"`, `crop_n_demand`
+    for `"crop_n_demand"`) and the cap basis (`crop_n_cap`, t N, for
     `"potential_uptake"`/`"realised_removal"`; `crop_area_ha` for
     `"fixed_ceiling"`).
 
@@ -85,16 +89,16 @@ applied <- tibble::tribble(
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-  2020L, "203", NA, "barley", 6, 50,
-  2020L, "203", NA, "wheat", 4, 40
+  2020L, "203", NA, "44", 6, 50,
+  2020L, "203", NA, "15", 4, 40
 )
 allocate_manure_to_land(applied, list(crops = crops))
 #> # A tibble: 3 × 14
-#>    year territory sub_territory land_use  crop   source_stream manure_type
-#>   <int> <chr>     <lgl>         <chr>     <chr>  <chr>         <chr>      
-#> 1  2020 203       NA            Cropland  barley collected     Solid      
-#> 2  2020 203       NA            Cropland  wheat  collected     Solid      
-#> 3  2020 203       NA            Grassland NA     grazing       Excreta    
+#>    year territory sub_territory land_use  crop  source_stream manure_type
+#>   <int> <chr>     <lgl>         <chr>     <chr> <chr>         <chr>      
+#> 1  2020 203       NA            Cropland  44    collected     Solid      
+#> 2  2020 203       NA            Cropland  15    collected     Solid      
+#> 3  2020 203       NA            Grassland NA    grazing       Excreta    
 #> # ℹ 7 more variables: applied_n <dbl>, applied_c <dbl>, applied_vs <dbl>,
 #> #   over_cap <lgl>, method_allocation <chr>, method_cap <chr>,
 #> #   disposal_method <chr>

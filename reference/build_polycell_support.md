@@ -54,8 +54,11 @@ build_polycell_support(
   `start_year` is inclusive; `end_year` is **exclusive at a succession**
   and **inclusive at the open end**, the convention `polities` is
   documented under, and neither bound is ever parsed out of
-  `polity_code`. Optional `wiki_status`, `polity_type`, `polygon_status`
-  and `area_code` columns are honoured.
+  `polity_code`. The intervals of one polity must partition time: two
+  that overlap are an error rather than a shape the producer reconciles,
+  and abort with class `whep_pcs_overlapping_interval`. Optional
+  `wiki_status`, `polity_type`, `polygon_status` and `area_code` columns
+  are honoured.
 
 - water:
 

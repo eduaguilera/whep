@@ -57,44 +57,49 @@ A patchwork ggplot object.
 ## Examples
 
 ``` r
-# The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
-# 2010-2020, so an example needs at least one year inside two of them.
-flows <- tibble::tribble(
-  ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
-  1865, "A", "Cropland", "Synthetic", "Cropland", 900,
-  1865, "A", "Cropland", "Outside", "livestock_mono", 300,
-  1865, "B", "Cropland", "Synthetic", "Cropland", 400,
-  1965, "A", "Cropland", "Synthetic", "Cropland", 2600,
-  1965, "A", "Cropland", "Outside", "livestock_mono", 1800,
-  1965, "B", "Cropland", "Synthetic", "Cropland", 900
-)
-panel_data <- list(
-  area_df = tibble::tribble(
-    ~year, ~province_name, ~area_ha,
-    1865, "A", 10000,
-    1865, "B", 8000,
-    1965, "A", 9000,
-    1965, "B", 7000
-  ),
-  typo_df = tibble::tribble(
-    ~year, ~province_name, ~Typology_base,
-    1865, "A", "Specialized cropping systems",
-    1865, "B", "Semi-natural agroecosystems",
-    1965, "A", "Specialized cropping systems",
-    1965, "B", "Semi-natural agroecosystems"
+if (
+  requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("patchwork", quietly = TRUE)
+) {
+  # The four reference periods are 1860-1870, 1920-1930, 1960-1970 and
+  # 2010-2020, so an example needs at least one year inside two of them.
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~box, ~origin, ~destiny, ~mg_n,
+    1865, "A", "Cropland", "Synthetic", "Cropland", 900,
+    1865, "A", "Cropland", "Outside", "livestock_mono", 300,
+    1865, "B", "Cropland", "Synthetic", "Cropland", 400,
+    1965, "A", "Cropland", "Synthetic", "Cropland", 2600,
+    1965, "A", "Cropland", "Outside", "livestock_mono", 1800,
+    1965, "B", "Cropland", "Synthetic", "Cropland", 900
   )
-)
-finn_data <- tibble::tribble(
-  ~year, ~province_name, ~finn_index,
-  1865, "A", 0.12,
-  1865, "B", 0.18,
-  1965, "A", 0.07,
-  1965, "B", 0.09
-)
-panel <- plot_typology_periods_panel(
-  finn_data = finn_data,
-  n_prov_destiny = flows,
-  n_nat_destiny = flows,
-  panel_data = panel_data
-)
+  panel_data <- list(
+    area_df = tibble::tribble(
+      ~year, ~province_name, ~area_ha,
+      1865, "A", 10000,
+      1865, "B", 8000,
+      1965, "A", 9000,
+      1965, "B", 7000
+    ),
+    typo_df = tibble::tribble(
+      ~year, ~province_name, ~Typology_base,
+      1865, "A", "Specialized cropping systems",
+      1865, "B", "Semi-natural agroecosystems",
+      1965, "A", "Specialized cropping systems",
+      1965, "B", "Semi-natural agroecosystems"
+    )
+  )
+  finn_data <- tibble::tribble(
+    ~year, ~province_name, ~finn_index,
+    1865, "A", 0.12,
+    1865, "B", 0.18,
+    1965, "A", 0.07,
+    1965, "B", 0.09
+  )
+  panel <- plot_typology_periods_panel(
+    finn_data = finn_data,
+    n_prov_destiny = flows,
+    n_nat_destiny = flows,
+    panel_data = panel_data
+  )
+}
 ```

@@ -96,11 +96,16 @@ dimension, and carry <code>band_name</code> when the file names its bands.</p></
 
 <dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
 <dd><p>Optional integer vector of calendar years to keep. <code>NULL</code>
-keeps every year present in the file.</p></dd>
+keeps every year present in the file. A requested year the run does not
+have aborts, naming the coverage it does have: LPJmL runs ending in
+different years sit side by side in one folder, so the coverage is a
+property of <code>run_dir</code>, never an assumption of this reader.</p></dd>
 
 
 <dt id="arg-first-year">first_year<a class="anchor" aria-label="anchor" href="#arg-first-year"></a></dt>
-<dd><p>First calendar year of the run's monthly time axis.</p></dd>
+<dd><p>First calendar year of the run's monthly time axis. The
+last year is not an argument — it is read from the file's own time
+dimension.</p></dd>
 
 
 <dt id="arg-monthly">monthly<a class="anchor" aria-label="anchor" href="#arg-monthly"></a></dt>

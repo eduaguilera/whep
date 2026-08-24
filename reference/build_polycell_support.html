@@ -120,8 +120,11 @@ polycell-year and adds a <code>year</code> column.</p></dd>
 <code><a href="get_polity_geometries.html">get_polity_geometries()</a></code>. <code>start_year</code> is inclusive; <code>end_year</code> is
 <strong>exclusive at a succession</strong> and <strong>inclusive at the open end</strong>, the
 convention <code>polities</code> is documented under, and neither bound is ever
-parsed out of <code>polity_code</code>. Optional <code>wiki_status</code>, <code>polity_type</code>,
-<code>polygon_status</code> and <code>area_code</code> columns are honoured.</p></dd>
+parsed out of <code>polity_code</code>. The intervals of one polity must partition
+time: two that overlap are an error rather than a shape the producer
+reconciles, and abort with class <code>whep_pcs_overlapping_interval</code>. Optional
+<code>wiki_status</code>, <code>polity_type</code>, <code>polygon_status</code> and <code>area_code</code> columns are
+honoured.</p></dd>
 
 
 <dt id="arg-water">water<a class="anchor" aria-label="anchor" href="#arg-water"></a></dt>

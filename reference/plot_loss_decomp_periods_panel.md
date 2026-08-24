@@ -30,21 +30,26 @@ mechanism").
 ## Examples
 
 ``` r
-decomp <- list(
-  by_compartment = tibble::tribble(
-    ~period, ~compartment, ~contribution_per_yr_mgn,
-    "1865-1925", "cropland", 120,
-    "1925-1965", "cropland", 260,
-    "1865-1925", "urban", 15,
-    "1925-1965", "urban", 35
-  ),
-  by_mechanism = tibble::tribble(
-    ~period, ~mechanism, ~contribution_per_yr_mgn,
-    "1865-1925", "Size", 90,
-    "1925-1965", "Size", 150,
-    "1865-1925", "Intensification", 45,
-    "1925-1965", "Intensification", 145
+if (
+  requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("patchwork", quietly = TRUE)
+) {
+  decomp <- list(
+    by_compartment = tibble::tribble(
+      ~period, ~compartment, ~contribution_per_yr_mgn,
+      "1865-1925", "cropland", 120,
+      "1925-1965", "cropland", 260,
+      "1865-1925", "urban", 15,
+      "1925-1965", "urban", 35
+    ),
+    by_mechanism = tibble::tribble(
+      ~period, ~mechanism, ~contribution_per_yr_mgn,
+      "1865-1925", "Size", 90,
+      "1925-1965", "Size", 150,
+      "1865-1925", "Intensification", 45,
+      "1925-1965", "Intensification", 145
+    )
   )
-)
-panel <- plot_loss_decomp_periods_panel(decomp)
+  panel <- plot_loss_decomp_periods_panel(decomp)
+}
 ```

@@ -59,20 +59,25 @@ a single shared legend.
 ## Examples
 
 ``` r
-lmdi <- tibble::tribble(
-  ~period, ~factor_label, ~component_type, ~additive,
-  "1861-1862", "N surplus", "target", 20000,
-  "1861-1862", "Size", "factor", 9000,
-  "1862-1863", "N surplus", "target", 10000,
-  "1862-1863", "Size", "factor", 5000,
-  "1863-1864", "N surplus", "target", 12000,
-  "1863-1864", "Size", "factor", 6000
-)
-panel <- plot_compart_factor_roll_panel(
-  lmdi,
-  lmdi,
-  lmdi,
-  lmdi,
-  window = 3
-)
+if (
+  requireNamespace("ggplot2", quietly = TRUE) &&
+    requireNamespace("patchwork", quietly = TRUE)
+) {
+  lmdi <- tibble::tribble(
+    ~period, ~factor_label, ~component_type, ~additive,
+    "1861-1862", "N surplus", "target", 20000,
+    "1861-1862", "Size", "factor", 9000,
+    "1862-1863", "N surplus", "target", 10000,
+    "1862-1863", "Size", "factor", 5000,
+    "1863-1864", "N surplus", "target", 12000,
+    "1863-1864", "Size", "factor", 6000
+  )
+  panel <- plot_compart_factor_roll_panel(
+    lmdi,
+    lmdi,
+    lmdi,
+    lmdi,
+    window = 3
+  )
+}
 ```
