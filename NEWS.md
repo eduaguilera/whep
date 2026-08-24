@@ -382,7 +382,13 @@
   `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
   LMDI decomposition) tracks this destiny by name, so it falls into
   whatever each of them already treats as surplus, the same way
-  `no_tracked_output` items already do.
+  `no_tracked_output` items already do. Concretely,
+  `.create_land_surplus_df()` computes cropland surplus as inputs minus
+  tracked outputs, so reported cropland N surplus rises by exactly the
+  amount removed from `export`. That is the methodological choice this
+  destiny embodies: the residue (grape pomace, olive cake, beet pulp) is
+  counted as surplus rather than as product, pending explicit by-product
+  items.
 
   Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
   re-derived national production as the sum of every `Origin == Box` row,
@@ -396,13 +402,20 @@
   per remaining row (41 province-years, all Grapes in 1983, where fuller
   removal now reaches exactly zero where partial removal rarely did).
 
-  **Published values move.** Over 1860-2023, national `export` falls from
-  44,232,140 Mg to 42,069,913 Mg (-2.16 Mt), and the new
-  `processing_losses` destiny totals 2,235,059 Mg over the same span
-  (averaging 3.7% of Cropland-origin flows, from ~3.8% in 1860 to ~4.9% by
-  2020; olives, grapes and barley account for essentially all of it). The
-  residual N-conservation gap left by the `.combine_destinies()` fix is
-  -6,655 Mg (-0.0016% of total N), down from +129,716 Mg (+0.032%) before it.
+  **Published values move.** Over 1860-2023, the new `processing_losses`
+  destiny totals 1,899,115 Mg, averaging 2.97% of Cropland-origin flows and
+  rising from 2.53% in 1860 to 5.34% by 2020; olives (1,460,624 Mg), barley
+  (230,838 Mg) and grapes (139,855 Mg) account for essentially all of it.
+  `export` falls by the same order in both outputs: from 44,226,105 Mg to
+  42,400,855 Mg (-1.83 Mt) in `create_n_prov_destiny()`, and from
+  17,691,588 Mg to 15,897,066 Mg (-1.79 Mt) in `create_n_nat_destiny()`,
+  whose `export` is a net residual on a different basis. Reported cropland N
+  surplus rises by 1,899,115 Mg, exactly the amount the new destiny carries.
+  The remaining destinies move only by what the `.combine_destinies()` fix
+  stops double-counting: `livestock_rum` -35,742 Mg, `population_food`
+  -21,094 Mg, `livestock_mono` -12,812 Mg, `population_other_uses` -542 Mg.
+  `Cropland` and `semi_natural_agroecosystems` soil inputs are unchanged.
+  National totals close to +34,403 Mg (+0.0090% of total N).
 
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`

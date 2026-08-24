@@ -1048,8 +1048,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' rows are considered for processing; other boxes pass through unchanged.
 #'
 #' The substitution is N-conserving by construction: the N removed from the
-#' primary item is exactly the N credited to its processed outputs. See
-#' `.processing_n_scaling()` for why that needs enforcing and what it costs.
+#' primary item is exactly the N credited to its processed outputs plus the N
+#' booked as `"processing_losses"`. See `.processing_n_scaling()` for why that
+#' needs enforcing and what it costs.
 #'
 #' @param prod_combined_boxes Dataframe with production_fm by province.
 #' @param processing_shares Output of `.calculate_processing_shares()`.
@@ -1057,7 +1058,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param coefs Named list with `items` (`codes_coefs_items_full`) and
 #' `biomass` (`biomass_coefs`), used to price each item's N per tonne FM.
 #'
-#' @return A list with 'non_processed' and 'processed_items' dataframes.
+#' @return A list with 'non_processed', 'processed_items' and
+#' 'processing_losses' dataframes.
 #' @keywords internal
 #' @noRd
 .calculate_processed_amounts <- function(
@@ -1359,7 +1361,13 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' share of processed_fm, and tagged with `destiny = "processing_losses"`
 #' instead of being left inside the primary item's own destinies. Downstream
 #' surplus calculations only recognise a fixed set of tracked output
-#' destinies, so this falls into surplus automatically.
+#' destinies, so this falls into surplus automatically: in particular
+#' `.create_land_surplus_df()` computes cropland surplus as inputs minus
+#' tracked outputs, so every Mg booked here raises reported cropland N
+#' surplus by the same amount it removes from `export`. That is the
+#' methodological choice this destiny embodies — the residue (grape pomace,
+#' olive cake, beet pulp) is counted as surplus rather than as product,
+#' pending explicit by-product items.
 #'
 #' @param candidate Production rows with processed_fm, as built by
 #' `.calculate_processed_amounts()`.
