@@ -1955,6 +1955,47 @@ test_that("agreeing labels leave the destiny-share skeleton unchanged", {
   )
 })
 
+# -- .read_historical_trade row order ------------------------------------------
+
+# The pre-1961 trade source. Its two pins are read through arrow's
+# multi-threaded scanner and the aggregation at the end of
+# `.read_historical_trade()` emits groups in order of first appearance, so the
+# table came back in a session-dependent order: 2 distinct orders over 7
+# sessions on the real pins at 1950-1965, always the same 45,871 rows with the
+# same values (whep#420). Feeding the same rows in two orders reproduces that
+# here with no pin and no network.
+.hist_trade_fixture <- function() {
+  tibble::tribble(
+    ~iso3, ~year, ~item_code, ~measurement, ~value,
+    "ESP", 1950L, 15,         "1000 MT",    10,
+    "ESP", 1950L, 16,         "1000 MT",    4,
+    "FRA", 1950L, 15,         "1000 MT",    7,
+    "FRA", 1951L, 15,         "1000 MT",    8,
+    "ESP", 1951L, 15,         "1000 MT",    11
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".read_historical_trade row order does not depend on the read", {
+  fixture <- .hist_trade_fixture()
+
+  read_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.read_historical_trade() |>
+      as.data.frame()
+  }
+
+  forward <- read_in_order(fixture)
+  reversed <- read_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
 # Issue whep#833, the other half. `.cbs_fill_destinies()` splits domestic
 # supply with the area's own observed split, carried across the year axis, and
 # falls back to the world average split for a key that has no split anywhere
