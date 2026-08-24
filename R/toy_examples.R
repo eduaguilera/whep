@@ -1568,22 +1568,22 @@
 # ends and middle of the span. Barley is deliberately among them -- it is the
 # crop `earthstat_mapping.csv` shipped without a row for, so a fixture without
 # it could not show that this method reaches it at all (whep#761). The USA's
-# 1851 row is a fifth of its 1961 one and India's is nine tenths, which is the
-# spread the cell-level series exists to keep.
+# 1851 wheat is a thirtieth of its 1961 figure and India's is nine tenths, which
+# is the spread the cell-level series exists to keep.
 .example_cell_crop_land <- function() {
   tibble::tribble(
     ~year, ~area_code,   ~polity_code, ~item_prod_code, ~cropland_mha,
-    1851L,       100L, "IND-1800-1886",           15,      11.5435887,
-    1851L,       100L, "IND-1800-1886",           44,       2.2529225,
-    1851L,       203L, "ESP-1800-2025",           15,       2.7119300,
-    1851L,       203L, "ESP-1800-2025",           44,       1.0590123,
-    1851L,       231L, "USA-1848-1867",           15,       1.1857996,
-    1851L,       231L, "USA-1848-1867",           56,       3.5419605,
-    1900L,       100L, "IND-1893-1914",           56,       3.7977982,
-    1900L,       231L, "USA-1867-1959",           15,      10.4153422,
-    1961L,       100L, "IND-1949-2025",           15,      12.8730337,
-    1961L,       203L, "ESP-1800-2025",           44,       1.4687839,
-    1961L,       231L, "USA-1959-2025",           56,      23.3211085
+    1851L,       100L, "IND-1800-1886",           15,      11.5556886,
+    1851L,       100L, "IND-1800-1886",           44,       2.2547368,
+    1851L,       203L, "ESP-1800-2025",           15,       2.7633621,
+    1851L,       203L, "ESP-1800-2025",           44,       1.0726616,
+    1851L,       231L, "USA-1848-1867",           15,       0.6806247,
+    1851L,       231L, "USA-1848-1867",           56,       3.0324719,
+    1900L,       100L, "IND-1893-1914",           56,       3.8099750,
+    1900L,       231L, "USA-1867-1959",           15,       9.6766250,
+    1961L,       100L, "IND-1949-2025",           15,      12.8288893,
+    1961L,       203L, "ESP-1800-2025",           44,       1.4787207,
+    1961L,       231L, "USA-1959-2025",           56,      23.3237203
   )
 }
 
