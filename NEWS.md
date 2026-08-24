@@ -15,6 +15,23 @@
   No published value changes: the guard is a no-op whenever both packages
   are installed, which is the case on all CI platforms.
 
+* **`build_primary_production()` now reports same-source duplicate rows
+  instead of dropping them silently (#650).** `.dedup_production()` exists to
+  arbitrate between competing *sources* for one
+  `(year, area_code, item_prod_code, unit)` key, keeping the better-ranked
+  one. Two rows carrying the *same* source are not that case: they are either
+  an exact duplicate or, as in #633, two territories that should have been
+  summed upstream, and keeping one silently lost the other's mass. The
+  arbitration is unchanged -- summing here would double-count a FAOSTAT
+  aggregate that legitimately arrives alongside its own components -- but such
+  a collision now raises a warning naming the affected keys and the value
+  discarded per unit, silenceable with
+  `options(whep.warn_prod_dupes = FALSE)`. `show_duplicates = TRUE` likewise
+  flags keys that repeat one source, which is why that source's cell holds a
+  list rather than a number. No published value changes: on a full 1850-2023
+  build (6,310,171 rows) every key is already unique, so the warning does not
+  fire and dedup drops nothing.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
