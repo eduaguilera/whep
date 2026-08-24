@@ -2062,6 +2062,10 @@ utils::globalVariables(
     "chunk_end",
     "prev_end",
     "issue",
-    "detail"
+    "detail",
+    # build_production.R (#650) — .same_source_collisions() NSE columns for the
+    # same-source duplicate report of .dedup_production()
+    ".keep_source",
+    "dropped"
   )
 )

@@ -188,6 +188,64 @@ testthat::test_that("the region resolves from polity_area_code without iso3", {
   )
 })
 
+testthat::test_that("a plain country resolves from area_code alone", {
+  # Regression for #678. `.has_gleam_region_key()` accepts `area_code`, but the
+  # resolver had no leg for it: the ISO3 leg needed an `iso3` column and the
+  # polity leg only covered dissolved federations. MEASURED on `origin/main`,
+  # all four of these returned region = NA and the Global dairy EF of 80.
+  result <- tibble::tribble(
+    ~area_code, ~species,
+    203L, "Dairy Cattle", # Spain  -> Western Europe
+    231L, "Dairy Cattle", # USA    -> North America
+    21L, "Dairy Cattle", # Brazil -> Latin America
+    79L, "Dairy Cattle" # Germany -> Western Europe
+  ) |>
+    dplyr::mutate(heads = 1) |>
+    whep:::.calc_enteric_ch4_tier1()
+
+  # IPCC Table 10.10 dairy: Western Europe 117, North America 128,
+  # Latin America 72. None of them is the Global 80.
+  testthat::expect_equal(result$enteric_ef_kgch4, c(117, 128, 72, 117))
+})
+
+testthat::test_that("area_code and iso3 keys resolve to the same region", {
+  # The invariant behind #678: attaching the ISO3 that `.current_area_lookup()`
+  # already holds for an `area_code` must not change the answer, over EVERY
+  # reporting area rather than a handful. Before the fix the `area_code`-only
+  # frame resolved 8 of 266 areas (the override table) against 214 with the
+  # ISO3 attached.
+  lookup <- tibble::as_tibble(
+    whep:::.current_area_lookup(include_unmapped = TRUE)
+  )
+  by_code <- tibble::tibble(area_code = lookup$area_code)
+  by_both <- dplyr::mutate(by_code, iso3 = as.character(lookup$area_iso3c))
+
+  testthat::expect_equal(
+    whep:::.gleam_region_of(by_code),
+    whep:::.gleam_region_of(by_both)
+  )
+  # Guards the measurement itself: a lookup that stopped carrying ISO3 codes
+  # would make the equality above hold vacuously.
+  testthat::expect_gt(sum(!is.na(whep:::.gleam_region_of(by_code))), 200L)
+})
+
+testthat::test_that("the derived ISO3 leg never displaces an override", {
+  # The middle leg runs BEFORE the polity overrides, so an area whose derived
+  # ISO3 happens to sit in `gleam_geographic_hierarchy` would take the ISO3
+  # region instead of the region #465 assigned it. MEASURED: no reporting area
+  # is in both sets, so the ordering is currently unobservable. This pins it,
+  # so a future ISO3 that lands in both fails here rather than silently
+  # re-routing a dissolved federation.
+  lookup <- tibble::as_tibble(
+    whep:::.current_area_lookup(include_unmapped = TRUE)
+  )
+  overrides <- whep:::.gleam_region_overrides()
+  in_hierarchy <- lookup$area_iso3c %in% whep::gleam_geographic_hierarchy$iso3
+  has_override <- lookup$polity_area_code %in% overrides$polity_area_code
+
+  testthat::expect_equal(sum(in_hierarchy & has_override), 0L)
+})
+
 testthat::test_that("every override region is a key the IPCC crosswalk knows", {
   # An override value that does not match a `gleam_region` shipped in
   # `gleam_geographic_hierarchy` would crosswalk to region = NA and put the row
