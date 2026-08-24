@@ -99,7 +99,7 @@ get_primary_production(example = TRUE)
 #>  1  1969       216              216 THA-1909-2025         Thailand              
 #>  2  2018       100              100 IND-1949-2025         India                 
 #>  3  1962        16               16 BGD-1947-1971         East Pakistan (1947-1…
-#>  4  1974       101              101 IDN-1969-1976         Indonesia (1969-1976) 
+#>  4  1974       101              101 IDN-1963-1976         Indonesia (1963-1976) 
 #>  5  1990       225              225 ARE-1892-2025         United Arab Emirates  
 #>  6  2005         4                4 DZA-1962-2025         Algeria (1962-2025)   
 #>  7  1988       137              137 MUS-1800-2025         Mauritius             

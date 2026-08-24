@@ -66,14 +66,14 @@ double-counts every boundary year). Inclusive at the open end, so 2025
 still belongs to <code>"RUS-2014-2025"</code>, because no later interval of that
 polity follows it and a uniformly exclusive read would leave the current
 year with no polity at all. <strong>Openness is absence of a successor, not a
-comparison against the last year in the table.</strong> 244 live polities have no
-successor, 227 of them end in 2025, and no live polity ending in 2025
+comparison against the last year in the table.</strong> 257 live polities have no
+successor, 244 of them end in 2025, and no live polity ending in 2025
 carries one, so the two readings agree on this vintage; the successor test
 is the one that keeps agreeing when the horizon moves. The distinction is
-not decoration: 237 of the 749 rows end in 2025 but only 229 are open,
-because eight are succeeded there (<code>AGO-1816-2025</code> by <code>AGO-1975-2025</code>, and
-likewise ARG, BLZ, BRA, CAN, GRC, IRQ and ROU), and opening those too would
-count the terminal year twice.</p></li>
+not decoration: 254 of the 779 rows end in 2025 but only 251 are open,
+because three are succeeded there (<code>BLZ-1800-2025</code>, <code>CAN-1948-2025</code> and
+<code>IRQ-1921-2025</code>, all <code>retired</code> or <code>superseded</code>), and opening those too
+would count the terminal year twice.</p></li>
 <li><p><code>iso3_code</code>, <code>iso3c</code>: ISO3 code where one exists. <code>iso3c</code> is retained as
 a compatibility alias.</p></li>
 <li><p><code>wiki_status</code>: Upstream review state. <code>"retired"</code> and <code>"superseded"</code> mark a
@@ -82,6 +82,10 @@ never a resolution target: <a href="polity_area_crosswalk.html">polity_area_cros
 through it rather than through this table.</p></li>
 <li><p><code>polygon_status</code>: Polygon status in <code>whep-polities</code> (<code>"assigned"</code>,
 <code>"proxy"</code>, <code>"missing"</code>, or <code>"excluded"</code>).</p></li>
+<li><p><code>polygon_feature_year</code>, <code>polygon_feature_date</code>: The vintage of the source
+feature the polygon was taken from. <code>polygon_feature_date</code> arrived with the
+#835 upstream re-sync and is populated on 3 rows, where upstream recorded a
+day rather than only a year.</p></li>
 <li><p><code>has_geometry</code>: Logical flag indicating whether the geometry is non-empty.</p></li>
 <li><p><code>geom</code>: Multipolygon geometry.</p></li>
 </ul></div>

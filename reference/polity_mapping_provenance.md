@@ -3,18 +3,18 @@
 [polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
 is not the upstream FAOSTAT-to-polity map. It is that map plus rows this
 package manufactures, and its `mapping_source` column says which.
-Measured on the shipped snapshot, of 631 crosswalk rows:
+Measured on the shipped snapshot, of 649 crosswalk rows:
 
 - `"upstream_map"` (245 rows): a row of `faostat_area_polity_map.csv` in
   `eduaguilera/whep-polities`. Upstream's statement about the territory.
 
-- `"fabio_row_promoted"` (36): the same file, for the 31 areas the FABIO
+- `"fabio_row_promoted"` (52): the same file, for the 47 areas the FABIO
   Rest-of-World fold used to shadow. Equally upstream's statement, and
   kept separate only because `.unfold_rest_of_world()` chooses between
-  it and the fold row (whep#717). The two together consume the map's 281
+  it and the fold row (whep#717). The two together consume the map's 297
   rows exactly once.
 
-- `"prefix_outside_map"` (261) and `"prefix_fallback"` (27): WHEP's own
+- `"prefix_outside_map"` (263) and `"prefix_fallback"` (27): WHEP's own
   ISO3-prefix match, built in `data-raw/table_mappings.R`. No upstream
   authority. A prefix match can only ever produce an ISO3-family guess,
   so it cannot express the statements the pre-1961 era actually needs –
@@ -34,7 +34,7 @@ manufactured rows are never picked. This reports the provenance of the
 row that
 [`add_polity_code()`](https://eduaguilera.github.io/whep/reference/add_polity_code.md)
 actually selected, which is what a published value rests on. Measured
-over the crosswalk's own 1850-2025 grid, 256 of the 261
+over the crosswalk's own 1850-2025 grid, 259 of the 263
 `"prefix_outside_map"` rows are the resolution of no `(area_code, year)`
 at all: the back-cast anchor floors every lookup at `backcast_anchor`,
 so the pre-1961 era resolves through whatever answers the anchor year

@@ -30,14 +30,14 @@ over a continuous time interval. Key columns include:
   `"RUS-2014-2025"`, because no later interval of that polity follows it
   and a uniformly exclusive read would leave the current year with no
   polity at all. **Openness is absence of a successor, not a comparison
-  against the last year in the table.** 244 live polities have no
-  successor, 227 of them end in 2025, and no live polity ending in 2025
+  against the last year in the table.** 257 live polities have no
+  successor, 244 of them end in 2025, and no live polity ending in 2025
   carries one, so the two readings agree on this vintage; the successor
   test is the one that keeps agreeing when the horizon moves. The
-  distinction is not decoration: 237 of the 749 rows end in 2025 but
-  only 229 are open, because eight are succeeded there (`AGO-1816-2025`
-  by `AGO-1975-2025`, and likewise ARG, BLZ, BRA, CAN, GRC, IRQ and
-  ROU), and opening those too would count the terminal year twice.
+  distinction is not decoration: 254 of the 779 rows end in 2025 but
+  only 251 are open, because three are succeeded there (`BLZ-1800-2025`,
+  `CAN-1948-2025` and `IRQ-1921-2025`, all `retired` or `superseded`),
+  and opening those too would count the terminal year twice.
 
 - `iso3_code`, `iso3c`: ISO3 code where one exists. `iso3c` is retained
   as a compatibility alias.
@@ -50,6 +50,11 @@ over a continuous time interval. Key columns include:
 
 - `polygon_status`: Polygon status in `whep-polities` (`"assigned"`,
   `"proxy"`, `"missing"`, or `"excluded"`).
+
+- `polygon_feature_year`, `polygon_feature_date`: The vintage of the
+  source feature the polygon was taken from. `polygon_feature_date`
+  arrived with the \#835 upstream re-sync and is populated on 3 rows,
+  where upstream recorded a day rather than only a year.
 
 - `has_geometry`: Logical flag indicating whether the geometry is
   non-empty.

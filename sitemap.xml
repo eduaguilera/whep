@@ -29,6 +29,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/animals_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/apply_management_losses.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/assert_footprint_invariants.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/assert_parquet_integrity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/attach_provenance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/attach_scope.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/attribute_fallow_to_crops.html</loc></url>
@@ -130,6 +131,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/cbs_trade_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/cft_mapping.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_footprint_conservation.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/check_parquet_integrity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_series_jumps.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_supply_use_balance.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/classify_sjos_n.html</loc></url>
@@ -362,5 +364,6 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_list_file_versions.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_polity_columns.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/whep_read_file.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/write_parquet_checked.html</loc></url>
 </urlset>
 

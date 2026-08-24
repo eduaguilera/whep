@@ -1159,6 +1159,12 @@ and other data-quality diagnostics.
   : Check the commodity balance sheet supply-use identity.
 - [`check_series_jumps()`](https://eduaguilera.github.io/whep/reference/check_series_jumps.md)
   : Flag implausible year-on-year jumps in a time series.
+- [`check_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/check_parquet_integrity.md)
+  : Check the structural integrity of a Parquet file.
+- [`assert_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/assert_parquet_integrity.md)
+  : Assert that a Parquet file is structurally sound.
+- [`write_parquet_checked()`](https://eduaguilera.github.io/whep/reference/write_parquet_checked.md)
+  : Write a Parquet file and verify it before returning.
 
 ### Uncertainty and sensitivity
 

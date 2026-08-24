@@ -176,6 +176,99 @@
   [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
   from it finds zero overlapping pairs.
 
+- **Parquet artifacts over 4 GiB were written corrupt, and now cannot be
+  ([\#531](https://github.com/eduaguilera/whep/issues/531)).**
+  `nanoparquet` before 0.5.0 stored column-chunk file offsets and sizes
+  as 32-bit integers, so past 4 GiB (2^32 bytes) they wrapped around.
+  The footer still declared every row group and row, but pointed at the
+  wrong bytes for everything after the first 4 GiB: a reader returned
+  the readable prefix and threw thrift “Deserializing page header
+  failed” on the rest, so a consumer that did not open each row group
+  individually silently got truncated data. Reproduced here on a 5.16
+  GiB file: 7 of 11 row groups readable under 0.4.2, 11 of 11 under
+  0.5.1, with the offsets of row group 7 short by exactly 2^32.
+  `nanoparquet (>= 0.5.0)` is now required, and the new
+  [`check_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/check_parquet_integrity.md)
+  /
+  [`assert_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/assert_parquet_integrity.md)
+  verify a file’s layout in milliseconds regardless of size
+  (`deep = TRUE` also decodes every row group).
+  [`write_parquet_checked()`](https://eduaguilera.github.io/whep/reference/write_parquet_checked.md)
+  writes and then verifies, and the gridded landuse, livestock, yield
+  and nitrogen cubes of
+  [`build_gridded_landuse()`](https://eduaguilera.github.io/whep/reference/build_gridded_landuse.md)
+  and `inst/scripts/run_spatialize.R` go through it, so a bad write now
+  aborts the build instead of shipping. The bytes written are unchanged,
+  so no published value changes; only files that were already corrupt
+  behave differently, and they now fail loudly.
+
+- **The three polity tables are re-synced to upstream `whep-polities`
+  ([\#835](https://github.com/eduaguilera/whep/issues/835),
+  [\#384](https://github.com/eduaguilera/whep/issues/384)).**
+  `polity_area_crosswalk`, `polities` and `polity_label_aliases` are
+  committed build products of `data-raw/table_mappings.R`, whose inputs
+  live outside this repo, so `test_data_raw_freshness.R` could not check
+  them and they had been shipping from a superseded upstream revision.
+  They are rebuilt here from `eduaguilera/whep-polities` at `8e2bb78`
+  (“Merge pull request
+  [\#550](https://github.com/eduaguilera/whep/issues/550) from
+  eduaguilera/fix/retest-reunion-baseline”), which is that repository’s
+  `main`.
+
+  What moved: the crosswalk goes 647 → 649 rows (upstream added
+  `CPV-1800-1886` Cape Verde and `SUR-1800-1886` Dutch Guiana);
+  `polities` goes 767 → 779 rows (21 new codes, 9 retired) and gains a
+  `polygon_feature_date` column; `polity_label_aliases` goes 903 → 995
+  rows over 523 labels (up from 479), mostly British West Indies trade
+  labels plus a new `federico_tena` source. Nine polity codes were
+  re-dated by a year (Chad, Côte d’Ivoire, Ghana, Hungary, Kenya, Laos,
+  Senegal, Syria and Antilles), and Indonesia’s post-independence
+  boundary moved from 1969 to
+
+  1963. 
+
+  What that does to resolution: over the full `(area_code, year)` grid
+  1850–2023 (46,284 pairs), **`polity_area_code` — the bucket the matrix
+  workflows aggregate on — does not change for a single pair**, and
+  neither does `mapping_status` or `has_geometry`. `polity_code` changes
+  for 126 pairs, all of them FAOSTAT area 101 Indonesia, which now
+  reports `IDN-1949-1963`/`IDN-1963-1976` where it reported
+  `IDN-1949-1969`/`IDN-1969-1976`. Outputs carrying
+  `reporting_polity_code` for Indonesia therefore change label; no
+  aggregate changes value. `harmonization_tables.R` and
+  `balance_coefficients.R` both read the crosswalk and their rebuilt
+  tables are byte-for-byte unchanged, so `regions_full`, `polities_cats`
+  and `urban_n_reference` do not move.
+
+  Two behaviour changes ride along, both from upstream filling a field
+  that was `NA`. `BLX-1850-1999` now publishes its successors, so
+  FAOSTAT area 15 Belgium-Luxembourg reaches `BEL`+`LUX` in
+  `.federation_land_bridge()` and its pre-1962 production is back-cast
+  under `federation_land = "successor_union"` — an opt-in; the default
+  is `"none"`, so nothing changes unless it is asked for. And the three
+  USSR periods (`F228-*`) gained `iso3_code = "SUN"`. The `"FSU"` alias
+  itself is unchanged (`FSU` -\> `F228-1945-1991`, 1961-1991); what
+  changed is that the polity -\> ISO3 -\> area bridge behind it no
+  longer dead-ends on `NA`, so the `"alias_map"` route of
+  `inst/scripts/prepare_spatialize_all.R`’s grassland-share reader
+  resolves 6,713 of 6,909 Lassaletta rows instead of 6,682. That route
+  is not the default either. The same fill makes
+  `.successor_iso3_map("F228-1945-1991", vocab)` answer `"SUN"` rather
+  than the 15 republics for any caller whose `vocab` contains `"SUN"`;
+  the LUH2 vocabulary the one production caller passes does not.
+
+- **`table_mappings.R` is now checked against upstream wherever upstream
+  is checked out
+  ([\#835](https://github.com/eduaguilera/whep/issues/835)).**
+  `test_data_raw_freshness.R` gains a block that re-runs the builder and
+  compares all five of its tables with the committed `.rda`, guarded on
+  the three `whep-polities` files existing. It skips on CI, r-universe
+  and CRAN, where they do not, so the suite still reads no `WHEP_*` path
+  and touches no network — but a maintainer who *can* re-sync now finds
+  out from
+  [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
+  rather than from a manual audit.
+
 - **The cell-polity crosswalk is a pin now, so no user regenerates it
   ([\#694](https://github.com/eduaguilera/whep/issues/694),
   [\#461](https://github.com/eduaguilera/whep/issues/461)).**
