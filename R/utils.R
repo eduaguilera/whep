@@ -2066,6 +2066,11 @@ utils::globalVariables(
     # build_production.R (#650) — .same_source_collisions() NSE columns for the
     # same-source duplicate report of .dedup_production()
     ".keep_source",
-    "dropped"
+    "dropped",
+    # table_schema.R (#373) — diagnostic columns the schema validator sorts
+    # and filters its report by
+    "row",
+    "rule",
+    "severity"
   )
 )
