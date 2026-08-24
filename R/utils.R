@@ -2051,6 +2051,18 @@ utils::globalVariables(
     # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
     # polity label with the label the fodder source itself carried
     "source_area",
+    # parquet_integrity.R (#531) — Parquet footer column-chunk metadata and
+    # the derived byte range the layout check walks
+    "row_group",
+    "column",
+    "data_page_offset",
+    "dictionary_page_offset",
+    "total_compressed_size",
+    "chunk_start",
+    "chunk_end",
+    "prev_end",
+    "issue",
+    "detail",
     # build_production.R (#650) — .same_source_collisions() NSE columns for the
     # same-source duplicate report of .dedup_production()
     ".keep_source",

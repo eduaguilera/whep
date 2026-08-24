@@ -133,6 +133,25 @@
   a full offline `build_polycell_support()` from it finds zero overlapping
   pairs.
 
+* **Parquet artifacts over 4 GiB were written corrupt, and now cannot be
+  (#531).** `nanoparquet` before 0.5.0 stored column-chunk file offsets and
+  sizes as 32-bit integers, so past 4 GiB (2^32 bytes) they wrapped around.
+  The footer still declared every row group and row, but pointed at the wrong
+  bytes for everything after the first 4 GiB: a reader returned the readable
+  prefix and threw thrift "Deserializing page header failed" on the rest, so a
+  consumer that did not open each row group individually silently got
+  truncated data. Reproduced here on a 5.16 GiB file: 7 of 11 row groups
+  readable under 0.4.2, 11 of 11 under 0.5.1, with the offsets of row group 7
+  short by exactly 2^32. `nanoparquet (>= 0.5.0)` is now required, and the new
+  `check_parquet_integrity()` / `assert_parquet_integrity()` verify a file's
+  layout in milliseconds regardless of size (`deep = TRUE` also decodes every
+  row group). `write_parquet_checked()` writes and then verifies, and the
+  gridded landuse, livestock, yield and nitrogen cubes of
+  `build_gridded_landuse()` and `inst/scripts/run_spatialize.R` go through it,
+  so a bad write now aborts the build instead of shipping. The bytes written
+  are unchanged, so no published value changes; only files that were already
+  corrupt behave differently, and they now fail loudly.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
