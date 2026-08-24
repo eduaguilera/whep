@@ -608,6 +608,19 @@
   dt[, scaling_raw := value / value_proc]
   dt[scaling_raw == 0, scaling_raw := NA_real_]
 
+  # This fill is unbounded along the year axis, and it decides whether a
+  # processing output EXISTS, not only what it is worth: with no anchor in the
+  # frame at all, `scaling_raw` stays NA and the `scaling` below collapses to 0
+  # for every item that is neither `Required` nor a `no_data_product`, so the
+  # pathway emits a zero that the `value != 0` filters downstream delete.
+  #
+  # That makes the frame's year span load-bearing, which is half of whep#833:
+  # a year-scoped build hands this function a truncated axis and loses outputs
+  # a full-range build keeps. Measured at 2010, the 14 keys the scoped build
+  # lost sit 7 to 49 years from their nearest anchor -- Italy's Ricebran Oil is
+  # calibrated at 2010 off a single 1961 observation carried forward 49 years.
+  # A wider `.context_years()` margin therefore cannot fix it; see the margin
+  # comment in R/build_cache.R.
   dt <- fill_linear(
     dt,
     scaling_raw,

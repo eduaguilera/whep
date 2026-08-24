@@ -346,3 +346,48 @@ test_that(".extract_fao row order does not depend on the read order", {
   expect_gt(nrow(forward), 1L)
   expect_identical(forward, reversed)
 })
+
+# Issue whep#833. `.correct_processed()` calibrates a processing output by
+# dividing the observed production of that output by the production its parent's
+# `processing` implies, and then carries the one ratio it finds across the
+# whole year axis. Where it finds none, `scaling` collapses to 0 for every item
+# that is neither `Required` in `cb_processing` nor a `no_data_product`, and
+# the output is deleted by the `value != 0` filters downstream. So the SPAN of
+# the frame decides whether the row exists, which is how a year-scoped build
+# loses 14 keys the full-range build has (Italy's Ricebran Oil at 2010 is
+# calibrated off a single 1961 observation, 49 years away).
+.processed_axis_fixture <- function(years) {
+  key <- tibble::tibble(
+    area = "Testland",
+    area_code = 999L,
+    item_cbs = "Ricebran Oil",
+    element = "production"
+  )
+  list(
+    processed = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(value_proc = 200),
+    cbs = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(item_cbs_code = 2581L, value = 100) |>
+      dplyr::filter(year == 2000L)
+  )
+}
+
+.processed_axis_value <- function(years) {
+  fixture <- .processed_axis_fixture(years)
+  whep:::.correct_processed(fixture$processed, fixture$cbs) |>
+    tibble::as_tibble() |>
+    dplyr::filter(year == 2010L) |>
+    dplyr::pull(value_final)
+}
+
+test_that(".correct_processed carries one anchor across the year axis", {
+  expect_equal(.processed_axis_value(2000:2010), 100)
+})
+
+test_that(".correct_processed deletes the output off-anchor (whep#833)", {
+  # The defect, pinned so it is reproducible without a pipeline build: the same
+  # 2010 output is worth 100 t on an axis holding the 2000 anchor and 0 t on
+  # one that does not. Fixing #833 makes these two agree, and this expectation
+  # must then be replaced by an equality against the full-axis answer.
+  expect_equal(.processed_axis_value(2005:2010), 0)
+})

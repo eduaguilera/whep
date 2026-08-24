@@ -14,6 +14,9 @@ allocate_manure_to_land(applied, gridded = list(), options = list())
 \item{gridded}{A named list describing the land surface for each polity:
 \itemize{
 \item \code{crops}: a tibble keyed by \code{year}, \code{territory}, \code{sub_territory}, \code{crop}
+(a code, \code{as.character(item_prod_code)}; this function treats it as an
+opaque label but the downstream nitrogen balance resolves it through
+\link{items_prod_full}, so a name is deprecated there)
 with the allocation weight (\code{manure_n_receptivity} for
 \code{"area_x_receptivity"}, \code{crop_n_demand} for \code{"crop_n_demand"}) and the cap
 basis (\code{crop_n_cap}, t N, for \code{"potential_uptake"}/\code{"realised_removal"};
@@ -71,8 +74,8 @@ applied <- tibble::tribble(
 )
 crops <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-  2020L, "203", NA, "barley", 6, 50,
-  2020L, "203", NA, "wheat", 4, 40
+  2020L, "203", NA, "44", 6, 50,
+  2020L, "203", NA, "15", 4, 40
 )
 allocate_manure_to_land(applied, list(crops = crops))
 }
