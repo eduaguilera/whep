@@ -50,6 +50,33 @@
   axis, so it still cannot see a run configured past the end of its forcing
   (the `global_1901-2018_spinup_200_our_inputs` trap of #340).
 
+* **An `area_code`-keyed frame now resolves its GLEAM/IPCC region instead of
+  silently taking the Global emission factor (#678).** The livestock emission
+  helpers advertise `area_code` as an accepted territory key, but the shared
+  resolver had no leg for it: it matched an explicit `iso3` column, then a
+  `polity_area_code` override table covering only dissolved federations. An
+  `area_code`-only frame therefore resolved 8 of the 266 reporting areas and
+  every other row fell through to the Global default. The resolver now derives
+  the ISO3 from `area_code` as a middle leg, taking `area_code` from 8 resolved
+  areas to 214 — the same 214 an explicit ISO3 resolves. The 52 that stay
+  unresolved are the dependencies, micro-states and residual aggregates GLEAM
+  itself does not list, and they keep the Global default as before.
+
+  **No published value changes.** Every in-package caller reaches the resolver
+  through `prepare_livestock_emissions()`, which already attaches `iso3`:
+  MEASURED on the full 241,434-row livestock frame from
+  `build_primary_production()`, the resolved region is bit-identical before and
+  after, with no unresolved row, so `build_livestock_ghg_extension()` and the
+  manure chain are unmoved. What changes is the answer a *user* gets when
+  calling `calculate_livestock_emissions()`, `calculate_enteric_ch4()`,
+  `calculate_manure_emissions()` or `estimate_energy_demand()` on a frame keyed
+  by `area_code` alone. MEASURED on the 2020 national head counts at Tier 1
+  (AR6 GWP100): global livestock CO2e moves from 4,277 to 4,158 Mt (-2.8%), but
+  the per-country change ranges from -31% (Madagascar, Tanzania, Eswatini and
+  the rest of Sub-Saharan Africa, whose IPCC dairy factor is 46 against the
+  Global 80) to +21% (Luxembourg, Lithuania, Latvia, Switzerland), and 176 of
+  the 195 territories move by more than 1%.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
