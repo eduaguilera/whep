@@ -1,5 +1,33 @@
 # whep (development version)
 
+* **`build_urban_n()` resolves its inputs' `area_code` at the input boundary
+  instead of after transport (#597).** The function builds the transport
+  allocator's `territory` key itself, as `as.character(area_code)` of both
+  `data$cell_polity` and `data$cropland_ha`, and used to resolve it back to a
+  numeric `area_code` only in `.urban_finalise()`, after
+  `allocate_manure_transport()` had already partitioned on the unresolved
+  string. Two consequences were invisible to any schema or `area_code` census,
+  because the output columns and the output codes were identical either way
+  and only the cell the nitrogen lands on moved: two inputs written in
+  different vocabularies for the same polity (`"ESP"` in one, `203` in the
+  other) produced `territory` keys that never met, so a source cell found no
+  reachable sink and its whole load stranded on its own room-less cell while
+  still being relabelled `203`; and an ISO3 folding onto another territory's
+  bucket was partitioned as its own territory but published as the fold
+  (`"SSD"` and `"SDN"` sharing a cell transported separately, then merged onto
+  206). Both are now resolved once, up front, so the partition and the label
+  agree. The abort on an unresolvable code moved with it: it names the input
+  frame that carries the bad value, carries class
+  `whep_urban_area_code_unresolved`, and fires before any computation, rather
+  than surfacing as a `dplyr` mutate error about a `territory` field no caller
+  ever supplied. **No published value changes**: the
+  `spatialize-cell-polity-fraction` pin `build_cell_polity()` reads is
+  integer-keyed, and the resolution is the exact identity on all 178 grid area
+  codes it carries (172 under `area_key = "polity_area"`) — asserted over the
+  whole `regions_full` vocabulary in the tests. Values move only for a caller
+  that hand-supplies ISO3 or mixed-vocabulary inputs, a path that warns as
+  deprecated.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
