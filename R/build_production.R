@@ -49,6 +49,16 @@
 #'     resolved to in that year. It moves published pre-1962 values, needs
 #'     `sf` and `terra`, and reads gridded LUH2 for every back-cast year, so it
 #'     is minutes of extra work.
+#'   * `"cell_polity"` measures it with [build_cell_crop_land()]: every grid
+#'     cell's 1961 harvested area rescaled by that cell's own LUH2 cropland
+#'     ratio, then summed inside the same year's polity polygon. Unlike the
+#'     other two it is **crop-specific** -- each crop follows the cropland of
+#'     the cells it actually occupies -- and it references 1961 directly
+#'     instead of walking year by year, so a year whose territory cannot be
+#'     resolved costs that year alone rather than every year before it. Only
+#'     the crop half is measured this way; the `agriland` proxy the livestock
+#'     tonnages use still comes from [build_historical_land_areas()], so this
+#'     method reads that table too. It moves published pre-1962 values.
 #' @param .raw_data Optional tibble with the same structure as the output
 #'   of the internal `.read_production()` step. When supplied, the
 #'   remote-data read is skipped entirely and the pipeline starts from
@@ -78,7 +88,7 @@ build_primary_production <- function(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
-  land_method = c("present_day", "historical_polity"),
+  land_method = c("present_day", "historical_polity", "cell_polity"),
   .raw_data = NULL
 ) {
   if (example) {
@@ -272,7 +282,8 @@ build_primary_production <- function(
     years_df,
     land_areas,
     federation_land = federation_land,
-    land_wide = .historical_land_wide(land_method, years)
+    land_wide = .historical_land_wide(land_method, years),
+    crop_land = .cell_crop_land_wide(land_method, years)
   )
 
   # 10. Add grassland + historical yields
@@ -2749,7 +2760,8 @@ build_primary_production <- function(
   years_df,
   land_areas,
   federation_land = "none",
-  land_wide = NULL
+  land_wide = NULL,
+  crop_land = NULL
 ) {
   cli::cli_progress_step("Extending historical series")
 
@@ -2762,7 +2774,11 @@ build_primary_production <- function(
   # the column that already carries this series' provenance ("LUH2_cropland",
   # "LUH2_agriland"). A parallel `method_land` column would say the same thing
   # while changing the schema of the default, unchanged path.
-  land_label <- if (is.null(land_wide)) "LUH2" else "LUH2_polity"
+  land_label <- dplyr::case_when(
+    !is.null(crop_land) ~ "LUH2_cell",
+    !is.null(land_wide) ~ "LUH2_polity",
+    .default = "LUH2"
+  )
   land_wide <- land_wide %||%
     .land_wide_from_areas(
       .add_federation_land_rows(
@@ -2785,7 +2801,8 @@ build_primary_production <- function(
     .fill_pre_faostat(
       land_wide,
       join_keys = c("year", area_key),
-      land_label = land_label
+      land_label = land_label,
+      crop_land = crop_land
     ) |>
     dplyr::filter(
       !is.na(area),
@@ -2811,7 +2828,10 @@ build_primary_production <- function(
 # the polities snapshot and the caller should regenerate rather than get a
 # quietly shorter series.
 .historical_land_wide <- function(land_method, years) {
-  if (land_method != "historical_polity") {
+  # `"cell_polity"` reads it too: it replaces the Cropland proxy only, and the
+  # `agriland` proxy the livestock tonnages use still has to be measured on the
+  # same borders rather than silently reverting to present-day ones.
+  if (!land_method %in% c("historical_polity", "cell_polity")) {
     return(NULL)
   }
   back_cast <- years[years < 1962L]
@@ -2967,7 +2987,8 @@ build_primary_production <- function(
   df,
   land_wide,
   join_keys = c("year", "area"),
-  land_label = "LUH2"
+  land_label = "LUH2",
+  crop_land = NULL
 ) {
   id_cols <- c(
     "area",
@@ -3043,13 +3064,7 @@ build_primary_production <- function(
 
   pre_crop <- pre |>
     dplyr::filter(!(unit %in% livestock_units), land_use == "Cropland") |>
-    fill_proxy_growth(
-      value_col = value_cropland,
-      proxy_col = "Cropland",
-      time_col = year,
-      .by = fill_cols,
-      verbose = FALSE
-    )
+    .fill_crop_backcast(crop_land, join_keys, fill_cols)
 
   pre_agri <- pre |>
     dplyr::filter(
@@ -3096,6 +3111,125 @@ build_primary_production <- function(
   post <- df |> dplyr::filter(year > 1961)
 
   dplyr::bind_rows(pre, post)
+}
+
+# Back-cast the pre-1962 crop rows. Two methods, never a fallback between them.
+#
+# Without `crop_land` the national Cropland column is walked year by year by
+# `fill_proxy_growth()` -- the published behaviour, and the one whose chain a
+# single unmeasurable year breaks.
+#
+# With it, each row is referenced straight to its own anchor through the
+# crop-specific cell-derived series, so nothing is chained. On a series with no
+# gaps the two agree to floating point, because the walk telescopes: 1959 =
+# 1960 * L(1959)/L(1960) = 1961 * L(1959)/L(1961). `test_cell_backcast.R`
+# asserts that agreement, and asserts that they part company exactly where the
+# series has a hole.
+.fill_crop_backcast <- function(pre_crop, crop_land, join_keys, fill_cols) {
+  if (is.null(crop_land)) {
+    return(fill_proxy_growth(
+      pre_crop,
+      value_col = value_cropland,
+      proxy_col = "Cropland",
+      time_col = year,
+      .by = fill_cols,
+      verbose = FALSE
+    ))
+  }
+  area_key <- setdiff(join_keys, "year")
+  .fill_anchor_ratio(
+    pre_crop,
+    crop_land,
+    keys = c("year", area_key, "item_prod_code"),
+    fill_cols = fill_cols
+  )
+}
+
+# value(Y) = value(anchor) * proxy(Y) / proxy(anchor), with `anchor` the
+# observed year NEAREST to Y inside the group. In a default build the pre-1962
+# window holds exactly one observed year per series -- 1961, where FAOSTAT
+# begins -- so the anchor is 1961 for every row and this is the single ratio the
+# method is defined by. `historical_data` can seed earlier observations, and
+# then each gap is referenced to whichever observation is closest to it rather
+# than to a distant one.
+#
+# A year whose proxy is missing, zero or non-finite is left NA: it is the year
+# that cannot be measured, and no other year's result depends on it.
+.fill_anchor_ratio <- function(pre_crop, crop_land, keys, fill_cols) {
+  dt <- data.table::as.data.table(pre_crop)
+  if (nrow(dt) == 0L) {
+    return(tibble::as_tibble(dt))
+  }
+  dt <- .join_crop_land(dt, crop_land, keys)
+  obs <- .anchor_observations(dt, fill_cols)
+  if (nrow(obs) == 0L) {
+    return(.drop_anchor_cols(dt))
+  }
+  # `X[Y]` returns one row per row of `Y`, in `Y`'s order, so `hit` is aligned
+  # with `dt` position by position and needs no key of its own.
+  hit <- obs[dt, on = c(fill_cols, "year"), roll = "nearest"]
+  filled <- hit$.anchor_value * dt$.proxy / hit$.anchor_proxy
+  dt[,
+    value_cropland := data.table::fifelse(
+      .observed_value %in% TRUE,
+      value_cropland,
+      filled
+    )
+  ]
+  dt[!is.finite(value_cropland), value_cropland := NA_real_]
+  .drop_anchor_cols(dt)
+}
+
+# One anchor per (series, year): an observed value whose own proxy is usable, so
+# the ratio has a denominator. Deduplicated because the rolling join must return
+# exactly one row per row it is joined onto.
+.anchor_observations <- function(dt, fill_cols) {
+  obs <- dt[
+    .observed_value %in% TRUE & is.finite(value_cropland) & .proxy_ok,
+    c(fill_cols, "year", "value_cropland", ".proxy"),
+    with = FALSE
+  ]
+  data.table::setnames(
+    obs,
+    c("value_cropland", ".proxy"),
+    c(".anchor_value", ".anchor_proxy")
+  )
+  obs <- unique(obs, by = c(fill_cols, "year"))
+  data.table::setkeyv(obs, c(fill_cols, "year"))
+  obs
+}
+
+# Attach the crop-specific proxy. `item_prod_code` is character on one side and
+# numeric on the other depending on where the pipeline is entered, so both are
+# compared as character rather than left to silently match nothing.
+.join_crop_land <- function(dt, crop_land, keys) {
+  land <- data.table::as.data.table(crop_land)
+  land[, item_prod_code := as.character(item_prod_code)]
+  land <- land[,
+    .(.proxy = sum(cropland_mha, na.rm = TRUE)),
+    by = c(setdiff(keys, "item_prod_code"), "item_prod_code")
+  ]
+  dt[, .item_chr := as.character(item_prod_code)]
+  join_on <- stats::setNames(
+    c(setdiff(keys, "item_prod_code"), "item_prod_code"),
+    c(setdiff(keys, "item_prod_code"), ".item_chr")
+  )
+  out <- merge(
+    dt,
+    land,
+    by.x = names(join_on),
+    by.y = unname(join_on),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out[, .proxy_ok := is.finite(.proxy) & .proxy > 0]
+  out[!(.proxy_ok), .proxy := NA_real_]
+  out
+}
+
+.drop_anchor_cols <- function(dt) {
+  dt[, c(".proxy", ".proxy_ok", ".item_chr") := NULL]
+  tibble::as_tibble(dt)
 }
 
 # Warn loudly when pre-1962 crop/agriland rows cannot be back-cast, so the

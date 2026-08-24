@@ -1,5 +1,33 @@
 # whep (development version)
 
+* **`earthstat_mapping.csv` had no row for barley, so the spatialization
+  dropped the world's fourth-largest crop (#761).** `prepare_crop_patterns()`
+  reads one EarthStat raster per row of that crosswalk, and three of the 172
+  crops EarthStat ships — `barley`, `greencorn` and `hempseed` — had no row.
+  `crop_patterns` therefore carried no cell for them, and
+  `build_gridded_landuse()` dropped their entire world total in every year:
+  54.5 Mha of barley at 1961 alone, 5.7% of the world's harvested area.
+  Measured by re-aggregating a 1961 spatialization back to its reporting
+  areas, the round trip returned **93.90%** of the harvested area that went
+  in; with the three rows added it returns **99.69%**. The crosswalk is
+  fixed here, but the `spatialize-crop-patterns` pin has to be regenerated
+  before any published value moves — nothing changes until it is.
+  `build_gridded_landuse()` now also warns, once per call and separately from
+  its per-(country, crop) leakage message, naming every crop the pattern layer
+  cannot represent at all and the hectares at stake.
+
+* **`build_primary_production()` gains `land_method = "cell_polity"`, a
+  crop-specific pre-1962 back-cast that does not chain (#761).** The two
+  existing methods scale a country's pre-1962 production by a *national* land
+  series that `fill_proxy_growth()` walks backwards one year at a time, so a
+  single year the series cannot measure destroys every earlier year of that
+  series. The new method scales each **grid cell's** 1961 harvested area by
+  that cell's own LUH2 cropland ratio and sums the cells into the year's
+  polity, referencing 1961 directly. `build_cell_crop_land()` is the new
+  exported producer and `data-raw/cell_crop_land.R` materialises it. The
+  default is unchanged and post-1961 values are bit-for-bit identical under
+  all three methods.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,

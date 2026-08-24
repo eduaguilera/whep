@@ -321,6 +321,23 @@ build_historical_land_areas <- function(
 # Sum gridded land into each bucket, sharing every cell among the polygons that
 # cover it in proportion to the covered fraction, renormalised to one per cell.
 .land_in_polygons <- function(cell_areas, live, cover) {
+  merge(
+    cell_areas,
+    .polity_cell_shares(live, cover),
+    by = c("lon", "lat"),
+    allow.cartesian = TRUE
+  )[,
+    .(land_mha = sum(area_ha * share) / 1e6),
+    by = .(area_code, land_use)
+  ]
+}
+
+# Each live polity's share of each cell it covers, renormalised to one per cell.
+# Extracted so the crop-level aggregation in `cell_backcast.R` reuses this exact
+# table instead of building a second answer to the same question -- and so the
+# year-free `polity_code` join `.territorial_join_baseline()` classifies stays
+# ONE join with one owner rather than multiplying with each new consumer.
+.polity_cell_shares <- function(live, cover) {
   shares <- merge(
     data.table::as.data.table(live)[, .(area_code, polity_code)],
     cover,
@@ -329,15 +346,7 @@ build_historical_land_areas <- function(
   )
   shares <- unique(shares, by = c("area_code", "lon", "lat"))
   shares[, share := frac / sum(frac), by = .(lon, lat)]
-  merge(
-    cell_areas,
-    shares[, .(area_code, lon, lat, share)],
-    by = c("lon", "lat"),
-    allow.cartesian = TRUE
-  )[,
-    .(land_mha = sum(area_ha * share) / 1e6),
-    by = .(area_code, land_use)
-  ]
+  shares[, .(area_code, lon, lat, share)]
 }
 
 # Per-cell LUH2 class areas for one year, UNCLIPPED by the present-day country

@@ -24,6 +24,7 @@ reference:
   contents:
   - build_primary_production
   - build_historical_land_areas
+  - build_cell_crop_land
   - build_commodity_balances
   - build_processing_coefs
   - build_detailed_trade

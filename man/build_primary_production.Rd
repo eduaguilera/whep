@@ -12,7 +12,7 @@ build_primary_production(
   show_duplicates = FALSE,
   historical_data = NULL,
   federation_land = c("none", "successor_union"),
-  land_method = c("present_day", "historical_polity"),
+  land_method = c("present_day", "historical_polity", "cell_polity"),
   .raw_data = NULL
 )
 }
@@ -66,6 +66,16 @@ gridded LUH2 summed inside the polygon of the polity \code{area_code}
 resolved to in that year. It moves published pre-1962 values, needs
 \code{sf} and \code{terra}, and reads gridded LUH2 for every back-cast year, so it
 is minutes of extra work.
+\item \code{"cell_polity"} measures it with \code{\link[=build_cell_crop_land]{build_cell_crop_land()}}: every grid
+cell's 1961 harvested area rescaled by that cell's own LUH2 cropland
+ratio, then summed inside the same year's polity polygon. Unlike the
+other two it is \strong{crop-specific} -- each crop follows the cropland of
+the cells it actually occupies -- and it references 1961 directly
+instead of walking year by year, so a year whose territory cannot be
+resolved costs that year alone rather than every year before it. Only
+the crop half is measured this way; the \code{agriland} proxy the livestock
+tonnages use still comes from \code{\link[=build_historical_land_areas]{build_historical_land_areas()}}, so this
+method reads that table too. It moves published pre-1962 values.
 }}
 
 \item{.raw_data}{Optional tibble with the same structure as the output

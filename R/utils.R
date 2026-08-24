@@ -2054,6 +2054,13 @@ utils::globalVariables(
     # build_production.R (#650) — .same_source_collisions() NSE columns for the
     # same-source duplicate report of .dedup_production()
     ".keep_source",
-    "dropped"
+    "dropped",
+    # cell_backcast.R + build_production.R (#761) — the cell-level pre-1962
+    # back-cast: the per-cell 1961 cropland denominator, and the crop-specific
+    # proxy the anchor ratio joins onto each row
+    "cropland_1961",
+    ".proxy",
+    ".proxy_ok",
+    ".item_chr"
   )
 )
