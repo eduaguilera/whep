@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **The package no longer calls `dplyr::case_match()`, which dplyr 1.2.0
+  deprecated (#850).** The five call sites — the `fert_type` bridge in the
+  nitrogen balance, the `manure_type` bridge in its inputs, the GLEAM
+  continent and method-label helpers in the energy CO2 extension, and the
+  live-animal unit rename in the production assembly — now use
+  `dplyr::case_when()`. This is deliberately not `recode_values()`, dplyr's
+  named successor: that function does not exist before dplyr 1.2.0, so using
+  it would force a `dplyr (>= 1.2.0)` bound in `DESCRIPTION` and break
+  installation for anyone on an older dplyr, while `case_when()` behaves
+  identically on both. No published value changes: every affected helper was
+  run over its whole input vocabulary plus `NA`, an unmatched value and an
+  empty input, under dplyr 1.1.4 and 1.2.1, and the output is identical in
+  all cases. What does change is that a build on dplyr >= 1.2.0 no longer
+  emits deprecation warnings from these paths.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
