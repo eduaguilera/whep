@@ -1,5 +1,15 @@
 # whep (development version)
 
+* New `read_hwsd_topsoil_soc()` reads observed 0-30 cm soil organic carbon
+  from HWSD onto WHEP's grid. HWSD v1.2's topsoil is 0-30 cm, the same layer
+  `build_carbon_balance()` reports, so this is the first observational anchor
+  available at the modelled depth -- and it comes from the archive the carbon
+  balance already reads for clay, one column across from it. It is a
+  benchmark only: no pipeline function consumes it, and no published value
+  changes. `bulk_density = "measured"` is the default because HWSD's
+  texture-derived `t_ref_bulk_density` knows nothing about organic matter and
+  would inflate peat carbon stocks roughly 3.6-fold.
+
 * **The four LPJmL-derived input pins now come from the 6.1.1
   `..._socn_diag` run, raising natural-land carbon input ~7%.** They were
   regenerated together from one run, as they must be: each carries the same

@@ -18,7 +18,12 @@
 # under the name t_usda_tex (matching the HWSD2 SQLite schema used by
 # inst/scripts/download/download_hwsd.R), so it is renamed on export.
 #
-# t_clay (HWSD field T_CLAY, "Topsoil Clay Fraction, % wt.") is exported
+# t_oc, t_bulk_density, t_ref_bulk_density and t_gravel are exported for
+# read_hwsd_topsoil_soc(), the observed 0-30 cm carbon benchmark. They sit
+# in this same table one column across from t_clay, which is why WHEP could
+# read the clay driving its carbon model while having no observed carbon to
+# check that model against.
+## t_clay (HWSD field T_CLAY, "Topsoil Clay Fraction, % wt.") is exported
 # too: the soil-carbon per-cell clay driver reads it (.cb_hwsd_clay() in
 # R/carbon_balance.R), and an extract written without it made that reader
 # fail with a dplyr missing-column error (whep#596). The whole column set
@@ -47,7 +52,8 @@ if (!file.exists(sqlite_path)) {
 db <- DBI::dbConnect(RSQLite::SQLite(), sqlite_path)
 hwsd_attr <- DBI::dbGetQuery(
   db,
-  "SELECT mu_global, t_usda_tex_class AS t_usda_tex, share, t_clay, t_ph_h2o
+  "SELECT mu_global, t_usda_tex_class AS t_usda_tex, share, t_clay, t_ph_h2o,
+          t_oc, t_bulk_density, t_ref_bulk_density, t_gravel
    FROM hwsd_data"
 )
 DBI::dbDisconnect(db)

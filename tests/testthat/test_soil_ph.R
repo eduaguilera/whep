@@ -432,3 +432,133 @@ testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
   testthat::expect_gt(nrow(result), 0L)
   testthat::expect_true(all(result$soil_ph >= 3.5 & result$soil_ph <= 10))
 })
+
+# ---- observed topsoil carbon benchmark ---------------------------------
+
+# Fixture mimicking the carbon columns of hwsd_data.csv. Unit 1 exercises
+# share weighting and the measured/reference bulk-density switch; unit 2 is
+# an organic soil, where the two densities diverge most; unit 3 has a
+# component with no carbon at all.
+.hwsd_soc_fixture <- function() {
+  tibble::tribble(
+    ~mu_global, ~share, ~t_oc, ~t_bulk_density, ~t_ref_bulk_density, ~t_gravel,
+    1L,         75,     1.0,   1.30,            1.40,                10,
+    1L,         25,     2.0,   1.20,            1.40,                0,
+    2L,         100,    30.0,  0.25,            1.30,                0,
+    3L,         50,     1.5,   1.50,            1.50,                0,
+    3L,         50,     NA,    1.50,            1.50,                0
+  )
+}
+
+testthat::test_that(".hwsd_soc_columns tracks the bulk-density method", {
+  testthat::expect_true(
+    "t_bulk_density" %in% whep:::.hwsd_soc_columns("measured")
+  )
+  # "reference" never reads t_bulk_density, so requiring it would refuse an
+  # extract that is perfectly adequate for that method.
+  testthat::expect_false(
+    "t_bulk_density" %in% whep:::.hwsd_soc_columns("reference")
+  )
+  testthat::expect_true(
+    all(
+      c("mu_global", "share", "t_oc", "t_gravel") %in%
+        whep:::.hwsd_soc_columns("reference")
+    )
+  )
+})
+
+testthat::test_that(".derive_map_unit_soc computes the documented stock", {
+  soc <- whep:::.derive_map_unit_soc(.hwsd_soc_fixture(), "measured")
+
+  # t_oc * bulk * 30 * (1 - gravel), share-weighted within the map unit:
+  #   0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30 * 1.0)
+  expected <- 0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30)
+  testthat::expect_equal(
+    soc$soc_obs_mgc_ha[soc$mu_global == 1L],
+    expected
+  )
+})
+
+testthat::test_that("the bulk-density method changes an organic soil most", {
+  measured <- whep:::.derive_map_unit_soc(.hwsd_soc_fixture(), "measured")
+  reference <- whep:::.derive_map_unit_soc(.hwsd_soc_fixture(), "reference")
+  peat <- \(x) x$soc_obs_mgc_ha[x$mu_global == 2L]
+
+  testthat::expect_equal(peat(measured), 30 * 0.25 * 30)
+  testthat::expect_equal(peat(reference), 30 * 1.30 * 30)
+  # This ratio is the whole reason "measured" is the default: a texture-
+  # derived density knows nothing about organic matter.
+  testthat::expect_gt(peat(reference) / peat(measured), 5)
+})
+
+testthat::test_that(".derive_map_unit_soc drops components with no carbon", {
+  soc <- whep:::.derive_map_unit_soc(.hwsd_soc_fixture(), "measured")
+
+  # Unit 3's second component reports no t_oc. It must not be counted as a
+  # zero-carbon soil, which would halve the unit's stock.
+  testthat::expect_equal(
+    soc$soc_obs_mgc_ha[soc$mu_global == 3L],
+    1.5 * 1.50 * 30
+  )
+})
+
+testthat::test_that(".derive_map_unit_soc falls back on reference density", {
+  attr <- .hwsd_soc_fixture()
+  attr$t_bulk_density[attr$mu_global == 2L] <- NA_real_
+
+  soc <- whep:::.derive_map_unit_soc(attr, "measured")
+  testthat::expect_equal(
+    soc$soc_obs_mgc_ha[soc$mu_global == 2L],
+    30 * 1.30 * 30
+  )
+})
+
+testthat::test_that("missing gravel is treated as stone-free, not dropped", {
+  attr <- .hwsd_soc_fixture()
+  attr$t_gravel <- NA_real_
+
+  soc <- whep:::.derive_map_unit_soc(attr, "measured")
+  testthat::expect_equal(
+    soc$soc_obs_mgc_ha[soc$mu_global == 3L],
+    1.5 * 1.50 * 30
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_soc names a stale extract", {
+  # The pH-era fixture carries none of the carbon columns.
+  dir <- .write_hwsd_extract(withr::local_tempdir())
+
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(
+      dir,
+      required = whep:::.hwsd_soc_columns("measured")
+    ),
+    "t_oc"
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_soc rejects an unknown method", {
+  testthat::expect_error(
+    whep::read_hwsd_topsoil_soc(bulk_density = "guessed"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("read_hwsd_topsoil_soc example is self-contained", {
+  out <- whep::read_hwsd_topsoil_soc(example = TRUE)
+
+  testthat::skip_if_not_installed("pointblank")
+  pointblank::expect_col_exists(
+    out,
+    columns = c("lon", "lat", "soc_obs_mgc_ha", "method_soc_obs")
+  )
+  pointblank::expect_col_vals_not_null(out, columns = "soc_obs_mgc_ha")
+  # A topsoil carbon stock is a positive density; the fixture must stay a
+  # plausible mineral soil so it reads as a real value, not a placeholder.
+  pointblank::expect_col_vals_between(
+    out,
+    columns = "soc_obs_mgc_ha",
+    left = 1,
+    right = 600
+  )
+})

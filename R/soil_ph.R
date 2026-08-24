@@ -131,6 +131,73 @@ read_soil_hydraulic <- function(
   .gapfill_soil_hydraulic(grid, data$cell_polity)
 }
 
+#' Read observed topsoil organic carbon from HWSD onto WHEP's grid.
+#'
+#' @description
+#' Read the observed **0-30 cm** soil organic carbon stock per 0.5-degree
+#' cell from the HWSD (Harmonized World Soil Database) map-unit attribute
+#' table and raster. Each map unit's stock is the share-weighted mean over
+#' its soil components of `t_oc * bulk_density * 30 * (1 - t_gravel / 100)`,
+#' and the map units are then averaged over the native HWSD cells inside
+#' each 0.5-degree block by the same aggregation [read_soil_ph()] uses.
+#'
+#' This exists to be a **benchmark**, not a model input: nothing in the
+#' carbon pipeline consumes it. HWSD version 1.2's topsoil is 0-30 cm,
+#' exactly the layer [build_carbon_balance()] reports (see its Soil depth
+#' section), so it is the only observational anchor available at WHEP's own
+#' modelled depth -- and it comes out of the archive the carbon balance
+#' already reads for clay, so it needs no new download. Note that HWSD**2**,
+#' which `inst/scripts/download/download_hwsd.R` fetches, layers its topsoil
+#' as D1 = 0-20 cm instead; the two are not interchangeable (whep#851).
+#'
+#' @param bulk_density Which HWSD bulk density to use. `"measured"`
+#'   (default) takes `t_bulk_density`, falling back to
+#'   `t_ref_bulk_density` where it is absent; `"reference"` takes
+#'   `t_ref_bulk_density` alone. The default is not cosmetic:
+#'   `t_ref_bulk_density` is derived from texture and so knows nothing about
+#'   organic matter, and over the 1,375 map units with `t_oc` above 6% it
+#'   averages 1.33 against a measured 0.37, which would inflate a peat
+#'   soil's carbon stock roughly 3.6-fold. Recorded in `method_soc_obs`.
+#' @inheritParams read_soil_ph
+#' @return A tibble with `lon`, `lat`, `soc_obs_mgc_ha` (0-30 cm soil organic
+#'   carbon, Mg C per ha) and `method_soc_obs`.
+#' @source FAO/IIASA/ISRIC/ISSCAS/JRC (2012). *Harmonized World Soil Database
+#'   version 1.2*. FAO, Rome and IIASA, Laxenburg -- topsoil defined as
+#'   0-30 cm. Stock equation and the bulk-density caveat: Hiederer, R. &
+#'   Koechy, M. (2011). *Global Soil Organic Carbon Estimates and the
+#'   Harmonized World Soil Database*. EUR 25225 EN, Publications Office of
+#'   the European Union, 79 pp.
+#' @export
+#' @examples
+#' read_hwsd_topsoil_soc(example = TRUE)
+read_hwsd_topsoil_soc <- function(
+  hwsd_dir = NULL,
+  bulk_density = c("measured", "reference"),
+  data = list(),
+  example = FALSE
+) {
+  if (isTRUE(example)) {
+    return(.example_hwsd_topsoil_soc())
+  }
+  bulk_density <- rlang::arg_match(bulk_density)
+  rlang::check_installed("terra")
+  dir <- .resolve_hwsd_dir(hwsd_dir)
+  mu_soc <- .read_hwsd_attributes_local(
+    dir,
+    required = .hwsd_soc_columns(bulk_density)
+  ) |>
+    .derive_map_unit_soc(bulk_density)
+  .aggregate_hwsd(
+    dir,
+    mu_soc,
+    target_res = 0.5,
+    target_grid = data$cell_polity,
+    value_col = "soc_obs_mgc_ha",
+    out_col = "soc_obs_mgc_ha"
+  ) |>
+    dplyr::mutate(method_soc_obs = bulk_density)
+}
+
 # ---- Private helpers --------------------------------------------------
 
 # The hwsd_data.csv columns each HWSD reader needs, named once so a caller's
@@ -150,6 +217,45 @@ read_soil_hydraulic <- function(
   c("mu_global", "share", "t_clay")
 }
 
+# Topsoil organic carbon (T_OC, % weight), bulk density and gravel content,
+# the HWSD fields the 0-30 cm carbon benchmark needs. t_bulk_density is
+# required only by the "measured" method, so a "reference" run is not
+# refused over a column it never reads.
+.hwsd_soc_columns <- function(bulk_density = "measured") {
+  base <- c("mu_global", "share", "t_oc", "t_ref_bulk_density", "t_gravel")
+  if (bulk_density == "measured") c(base, "t_bulk_density") else base
+}
+
+# Per-map-unit 0-30 cm carbon stock (MgC/ha), share-weighted over the map
+# unit's soil components. HWSD 1.2's topsoil is 0-30 cm, so the stock is
+#   t_oc / 100 * bulk [kg/m3] * 0.3 [m] * (1 - gravel)   kg C / m2
+# which, with bulk in g/cm3 and 1 kg/m2 = 10 Mg/ha, collapses to
+#   t_oc * bulk * 30 * (1 - gravel)                      Mg C / ha
+# (Hiederer & Koechy 2011). A component with no carbon or no density reports
+# nothing rather than zero, so it is dropped from its map unit's mean
+# instead of dragging it down.
+.derive_map_unit_soc <- function(attrs, bulk_density) {
+  attrs |>
+    dplyr::mutate(
+      bulk = if (bulk_density == "measured") {
+        dplyr::coalesce(.data$t_bulk_density, .data$t_ref_bulk_density)
+      } else {
+        .data$t_ref_bulk_density
+      },
+      gravel = dplyr::coalesce(pmin(pmax(.data$t_gravel, 0), 100), 0) / 100
+    ) |>
+    dplyr::filter(!is.na(.data$t_oc), !is.na(.data$bulk)) |>
+    dplyr::mutate(
+      soc_obs_mgc_ha = .data$t_oc * .data$bulk * 30 * (1 - .data$gravel)
+    ) |>
+    dplyr::summarise(
+      soc_obs_mgc_ha = stats::weighted.mean(
+        .data$soc_obs_mgc_ha,
+        .data$share
+      ),
+      .by = "mu_global"
+    )
+}
 # Resolve the HWSD data directory from the argument, else the env var.
 .resolve_hwsd_dir <- function(hwsd_dir) {
   resolved <- hwsd_dir %||% Sys.getenv("WHEP_HWSD_DIR")
@@ -485,6 +591,13 @@ read_soil_hydraulic <- function(
   )
 }
 
+# Toy fixture for a runnable example (one cell, a mid-range mineral soil).
+.example_hwsd_topsoil_soc <- function() {
+  tibble::tribble(
+    ~lon,  ~lat,  ~soc_obs_mgc_ha, ~method_soc_obs,
+    -0.25, -0.25, 41.6,            "measured"
+  )
+}
 # Toy fixture for a runnable example (one cell, loam-class hydraulics).
 .example_soil_hydraulic <- function() {
   tibble::tribble(
