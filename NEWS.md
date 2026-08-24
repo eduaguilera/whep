@@ -1,5 +1,82 @@
 # whep (development version)
 
+* **The six patchwork panel plots now say which package is missing
+  instead of failing inside `loadNamespace()` (#431).**
+  `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
+  `plot_loss_decomp_rolling_panel()`, `plot_loss_decomp_periods_panel()`,
+  `plot_compart_factor_roll_panel()` and `plot_compart_factor_periods()`
+  compose their figures with `patchwork`, and every panel is a `ggplot2`
+  object, but both packages are `Suggests`. Without them the functions
+  aborted with `there is no package called 'patchwork'` only after minutes
+  of pin reads and decomposition work; their examples failed outright on any
+  machine that lacks either package. They now call
+  `rlang::check_installed(c("ggplot2", "patchwork"))` as their first
+  statement, and their examples are wrapped in a `requireNamespace()` guard.
+  No published value changes: the guard is a no-op whenever both packages
+  are installed, which is the case on all CI platforms.
+
+* **`build_primary_production()` now reports same-source duplicate rows
+  instead of dropping them silently (#650).** `.dedup_production()` exists to
+  arbitrate between competing *sources* for one
+  `(year, area_code, item_prod_code, unit)` key, keeping the better-ranked
+  one. Two rows carrying the *same* source are not that case: they are either
+  an exact duplicate or, as in #633, two territories that should have been
+  summed upstream, and keeping one silently lost the other's mass. The
+  arbitration is unchanged -- summing here would double-count a FAOSTAT
+  aggregate that legitimately arrives alongside its own components -- but such
+  a collision now raises a warning naming the affected keys and the value
+  discarded per unit, silenceable with
+  `options(whep.warn_prod_dupes = FALSE)`. `show_duplicates = TRUE` likewise
+  flags keys that repeat one source, which is why that source's cell holds a
+  list rather than a number. No published value changes: on a full 1850-2023
+  build (6,310,171 rows) every key is already unique, so the warning does not
+  fire and dedup drops nothing.
+
+* **`read_lpjml_hydrology()` checks the run's year coverage, and no longer
+  documents a last year it does not read (#598).** Requesting a year outside
+  the run's own time axis used to fail deep inside `ncdf4` with
+  `NetCDF: Start+count exceeds dimension bound`, which names neither the run,
+  the years at fault, nor the coverage the run does have; it now aborts with
+  all three. Which years exist is a property of `run_dir`, not of the reader:
+  WHEP's LPJmL runs end in 2009, 2018 and 2023 and sit side by side in one
+  folder, and the file header claimed a fixed `lastyear 2009` (1308 monthly
+  steps) that stopped being true when the reference run became
+  `global_1901-2023_spinup_300_our_inputs_lpjml611` (LPJmL 6.1.1, 123 years,
+  1476 monthly steps, the run the four LPJmL-derived pins came from, #558).
+  The reader never used that constant — the span has always been read from
+  the file's time dimension — so **no published value changes**: every call
+  this now rejects already aborted, only less legibly, and every call that
+  succeeded returns byte-identical output. The check reads the *written* time
+  axis, so it still cannot see a run configured past the end of its forcing
+  (the `global_1901-2018_spinup_200_our_inputs` trap of #340).
+
+* **An `area_code`-keyed frame now resolves its GLEAM/IPCC region instead of
+  silently taking the Global emission factor (#678).** The livestock emission
+  helpers advertise `area_code` as an accepted territory key, but the shared
+  resolver had no leg for it: it matched an explicit `iso3` column, then a
+  `polity_area_code` override table covering only dissolved federations. An
+  `area_code`-only frame therefore resolved 8 of the 266 reporting areas and
+  every other row fell through to the Global default. The resolver now derives
+  the ISO3 from `area_code` as a middle leg, taking `area_code` from 8 resolved
+  areas to 214 — the same 214 an explicit ISO3 resolves. The 52 that stay
+  unresolved are the dependencies, micro-states and residual aggregates GLEAM
+  itself does not list, and they keep the Global default as before.
+
+  **No published value changes.** Every in-package caller reaches the resolver
+  through `prepare_livestock_emissions()`, which already attaches `iso3`:
+  MEASURED on the full 241,434-row livestock frame from
+  `build_primary_production()`, the resolved region is bit-identical before and
+  after, with no unresolved row, so `build_livestock_ghg_extension()` and the
+  manure chain are unmoved. What changes is the answer a *user* gets when
+  calling `calculate_livestock_emissions()`, `calculate_enteric_ch4()`,
+  `calculate_manure_emissions()` or `estimate_energy_demand()` on a frame keyed
+  by `area_code` alone. MEASURED on the 2020 national head counts at Tier 1
+  (AR6 GWP100): global livestock CO2e moves from 4,277 to 4,158 Mt (-2.8%), but
+  the per-country change ranges from -31% (Madagascar, Tanzania, Eswatini and
+  the rest of Sub-Saharan Africa, whose IPCC dairy factor is 46 against the
+  Global 80) to +21% (Luxembourg, Lithuania, Latvia, Switzerland), and 176 of
+  the 195 territories move by more than 1%.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
