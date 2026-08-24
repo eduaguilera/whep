@@ -227,6 +227,20 @@ up an overlapping row by accident, and a consumer that wants a bucket's own
 territory asks for \code{role = "overlap"} (or \code{"all"}) and states that it is
 summing a layer that double-counts by construction. Never aggregate across
 the two roles.
+
+\strong{The layer is not a partition of itself either}, and that is not a defect
+to be fixed by a tolerance: \code{ROW-1850-2025} Rest of World contains the six
+regional residuals it is the sum of. Built on the 19 live aggregates of
+\code{whep::polities} (779 rows, ingest 2026-08-13) it is 12,644 polycells, and
+at 2015 it puts more territory in a cell than the cell holds in 2,751 cells
+shared by \code{ROW} and \code{REUR}, 92 by \code{ROW} and \code{RAFR}, 8 by \code{ROW} and \code{ROCE}
+and 7 by \code{ROW} and \code{RLAM} -- plus 2 cells where \code{CODRU-1922-1960} and
+\code{EGYSUD-1934-1956} overlap in 1950, which is a polygon disagreement rather
+than nesting. So a consumer takes \strong{one polity's} polycells out of the
+layer -- the one its bucket resolves to that year -- and never sums the
+layer as a whole. That is also why the \code{"overlap"} diagnostic keeps
+measuring the partition only: an over-full cell means something there, and
+in this layer it means nothing.
 }
 
 \examples{
