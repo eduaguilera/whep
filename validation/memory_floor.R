@@ -123,7 +123,11 @@ do_trim <- Sys.getenv("VAL_MEM_TRIM", "1") != "0"
   )
 }
 
-checkpoints <- list()
+# Held in an environment rather than mutated with `<<-`: the collector is
+# called from inside a function, and an explicit environment makes the
+# mutation target unambiguous (assignment_linter).
+.mf_state <- new.env(parent = emptyenv())
+.mf_state$checkpoints <- list()
 
 .checkpoint <- function(label) {
   collected <- gc(verbose = FALSE, full = FALSE)
@@ -141,7 +145,7 @@ checkpoints <- list()
     arrow_allocated_gb = arrow_pool[["allocated"]],
     arrow_max_gb = arrow_pool[["max"]]
   )
-  checkpoints[[length(checkpoints) + 1L]] <<- row
+  .mf_state$checkpoints[[length(.mf_state$checkpoints) + 1L]] <- row
   cat(sprintf(
     "%-28s resident %6.2f peak %6.2f live %6.2f glibc-freed-kept %6.2f\n",
     label,
@@ -228,7 +232,7 @@ cat(sprintf(
 
 cat("\nCHECKPOINTS_JSON_START\n")
 cat(jsonlite::toJSON(
-  dplyr::bind_rows(checkpoints),
+  dplyr::bind_rows(.mf_state$checkpoints),
   dataframe = "rows",
   auto_unbox = TRUE,
   digits = 3,
