@@ -467,6 +467,12 @@
      that follows it DOES carry `year`.",
     ".nd_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same guard again, for the deposition support.",
+    ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
+    "year_axis",
+    "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
+     one cell IS the reduction over the year axis: the group has to hold the
+     whole interval sequence for the previous interval to exist. Keying on a
+     year would compare each interval with itself.",
     ".pcs_area_code", "distinct", "polity_code", 1L, "identity_lookup",
     "polity_code -> polity_area_code, one row per polity, for the polycell
      support's area key.",
