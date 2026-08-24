@@ -2050,6 +2050,10 @@ utils::globalVariables(
     "final_conversion_factor",
     # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
     # polity label with the label the fodder source itself carried
-    "source_area"
+    "source_area",
+    # build_production.R (#650) — .same_source_collisions() NSE columns for the
+    # same-source duplicate report of .dedup_production()
+    ".keep_source",
+    "dropped"
   )
 )
