@@ -22,8 +22,11 @@
 #'   to a parquet/csv file. CBS-shaped rows should provide `year`, `value`,
 #'   one of `area_code` or `polity_area_code`, one of `item_cbs_code` or
 #'   `item_prod_code`, and preferably `element`. Production-shaped rows without
-#'   `element` are accepted as `production` when their unit is tonnes. Default
-#'   `NULL`.
+#'   `element` are accepted as `production` when their unit is tonnes.
+#'   **Rice supplied here is assumed to be on a paddy (rough-rice)
+#'   basis** and is multiplied by the paddy-to-milled extraction rate,
+#'   matching [build_primary_production()]; pre-divide by that rate if the
+#'   series is already milled. Default `NULL`.
 #' @param format One of `"long"` (default) or `"wide"`. `"long"` returns one row
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
@@ -1166,7 +1169,12 @@ build_processing_coefs <- function(
     return(.empty_historical_cbs())
   }
 
-  dt <- .fix_item_codes(dt)
+  # #778: `items_full` above has just overwritten every 2807 label with the
+  # canonical "Rice and products", so the item name can no longer say whether
+  # the row is paddy or milled -- only the source can. Keyed on source, a
+  # historical rice row lands on the same milled-equivalent tonnage here as the
+  # same row does through `build_primary_production()`.
+  dt <- .fix_item_codes(dt, paddy_by_source = TRUE)
   key_cols <- c(
     "year",
     "area",

@@ -26,7 +26,10 @@
 #'   `polity_area_code`. Names such as `item_prod_name`, `item_cbs_name`, and
 #'   `source` are used when present; WHEP item and area tables fill canonical
 #'   names where possible. Observed historical rows are retained, and LUH2 proxy
-#'   filling can use them as anchors. Default `NULL`.
+#'   filling can use them as anchors. **Rice supplied here is assumed to be
+#'   on a paddy (rough-rice) basis** and is multiplied by the paddy-to-milled
+#'   extraction rate, because WHEP's rice item is milled equivalent throughout;
+#'   pre-divide by that rate if the series is already milled. Default `NULL`.
 #' @param federation_land Character. How the pre-1962 LUH2 back-cast reaches an
 #'   area whose territory is a dissolved federation. LUH2 land use is keyed on
 #'   present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and
@@ -2671,32 +2674,12 @@ build_primary_production <- function(
   force(df)
   cli::cli_progress_step("Converting rice to milled equivalent")
   rice_units <- c("tonnes", "t_ha")
-  paddy_sources <- c(
-    "FAOSTAT_prod",
-    "fill_linear",
-    "fill_linear_historical",
-    "LUH2_cropland",
-    "LUH2_agriland",
-    "historical_LUH2_cropland",
-    "historical_LUH2_agriland"
-  )
 
   df |>
     dplyr::mutate(
-      rice_source_is_paddy = .data$source %in%
-        paddy_sources |
-        stringr::str_starts(
-          tidyr::replace_na(.data$source, ""),
-          "imputed_yield"
-        ) |
-        stringr::str_starts(
-          tidyr::replace_na(.data$source, ""),
-          "historical_"
-        ),
-      rice_source_is_paddy = tidyr::replace_na(
-        .data$rice_source_is_paddy,
-        FALSE
-      ),
+      # #778: one definition of "this source reports paddy", shared with the
+      # CBS historical ingest so both pipelines cannot drift apart.
+      rice_source_is_paddy = .rice_source_is_paddy(.data$source),
       value = dplyr::if_else(
         as.character(.data$item_prod_code) == "27" &
           .data$item_cbs_code == 2807L &
