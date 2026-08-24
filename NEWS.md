@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **The six patchwork panel plots now say which package is missing
+  instead of failing inside `loadNamespace()` (#431).**
+  `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
+  `plot_loss_decomp_rolling_panel()`, `plot_loss_decomp_periods_panel()`,
+  `plot_compart_factor_roll_panel()` and `plot_compart_factor_periods()`
+  compose their figures with `patchwork`, and every panel is a `ggplot2`
+  object, but both packages are `Suggests`. Without them the functions
+  aborted with `there is no package called 'patchwork'` only after minutes
+  of pin reads and decomposition work; their examples failed outright on any
+  machine that lacks either package. They now call
+  `rlang::check_installed(c("ggplot2", "patchwork"))` as their first
+  statement, and their examples are wrapped in a `requireNamespace()` guard.
+  No published value changes: the guard is a no-op whenever both packages
+  are installed, which is the case on all CI platforms.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
