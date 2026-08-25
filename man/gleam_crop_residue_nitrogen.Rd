@@ -18,7 +18,8 @@ above-ground biomass.}
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+\code{GLEAM_3.0_Supplement_S1.xlsx} (FAO 2022; see the provenance note
+at the top of this file),
 Tables S.6.7 and S.6.8.
 }
 \usage{

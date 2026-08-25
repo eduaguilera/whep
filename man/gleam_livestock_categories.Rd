@@ -14,7 +14,9 @@ A tibble with columns:
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Model Description.
+FAO. 2022. Global Livestock Environmental Assessment Model.
+Version 3.0 - Model description. Rome, FAO.
+\url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 }
 \usage{
 gleam_livestock_categories

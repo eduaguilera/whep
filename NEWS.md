@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **The GLEAM citation was wrong in both halves, on 17 `@source` blocks, not
+  four (#893).** `R CMD check --as-cran` flagged `\doi{10.1088/1748-9326/aad4d8}`
+  on four datasets; it is **not a registered DOI** (404 on doi.org *and* on the
+  Crossref API, so an unregistered string rather than a dead landing page), and
+  its `1748-9326` prefix is *Environmental Research Letters*, where no GLEAM
+  output was published. The attribution was wrong everywhere it appeared:
+  "MacLeod et al. (2018) GLEAM 3.0" cannot hold, because MacLeod et al. (2018) is
+  a position paper on the model — verified via Crossref as *Animal* 12(2):
+  383–397, `10.1017/S1751731117001847` — and predates GLEAM 3.0 by four years.
+  All 17 blocks now cite FAO. 2022. *Global Livestock Environmental Assessment
+  Model. Version 3.0 — Model description*, Rome, FAO, by its stable handle; that
+  record carries **no DOI**, including the `10.4060/cd8425en` pattern FAO usually
+  mints, so there is no DOI to give. Whether
+  `data-raw/GLEAM_3.0_Supplement_S1.xlsx` is the supplement *of* that publication
+  is **marked unverified rather than guessed**: the FAO record has one attached
+  bitstream and no supplementary file. What the workbook does evidence, from its
+  OOXML properties, is FAO authorship — Company "FAO of the UN", creator "Monica
+  Rulli (AGAL)", last modified by GLEAM co-author "Giuseppe Tempio" on
+  2022-12-20, ten days after the model description was published. Documentation
+  only; no value changes. Refs #893, #574.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and

@@ -20,8 +20,11 @@ present day, \code{NA} where WHEP has no polity for the territory.}
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+\code{GLEAM_3.0_Supplement_S1.xlsx}, Tables S.A1-S.A2. FAO. 2022. Global
+Livestock Environmental Assessment Model. Version 3.0 - Model description.
+Rome, FAO. \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
+The workbook's link to that publication is unverified; see the provenance
+note at the top of \code{R/livestock_coefs.R} (#893).
 }
 \usage{
 gleam_geographic_hierarchy

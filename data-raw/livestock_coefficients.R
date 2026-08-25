@@ -4,9 +4,15 @@
 # methodologies.
 #
 # Sources:
-# - GLEAM 3.0: MacLeod et al. (2018)
-#   https://doi.org/10.1088/1748-9326/aad4d8
-#   Supplement S1: GLEAM_3.0_Supplement_S1.xlsx
+# - GLEAM 3.0: FAO. 2022. Global Livestock Environmental Assessment Model.
+#   Version 3.0 - Model description. Rome, FAO.
+#   https://openknowledge.fao.org/handle/20.500.14283/cd8425en
+#   (no DOI is registered for this record)
+#   Supplement S1: GLEAM_3.0_Supplement_S1.xlsx -- FAO-authored by its document
+#   properties, but its link to the publication above is UNVERIFIED. The DOI
+#   10.1088/1748-9326/aad4d8 cited here previously is not registered at all
+#   (404 on doi.org and Crossref) and MacLeod et al. (2018) predates GLEAM 3.0.
+#   See the provenance note at the top of R/livestock_coefs.R (#893).
 # - IPCC 2019: 2019 Refinement to the 2006 IPCC Guidelines
 #   Volume 4, Chapter 10: Emissions from Livestock and Manure Management
 #   https://www.ipcc-nggip.iges.or.jp/public/2019rf/vol4.html

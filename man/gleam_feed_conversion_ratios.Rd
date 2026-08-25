@@ -19,7 +19,8 @@ A tibble with columns:
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+\code{GLEAM_3.0_Supplement_S1.xlsx} (FAO 2022; see the provenance note
+at the top of this file),
 Table S.3.4.
 }
 \usage{

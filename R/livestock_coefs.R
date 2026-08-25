@@ -2,6 +2,45 @@
 #
 # Roxygen2 documentation for all livestock coefficient data
 # objects stored in data/livestock_coefs.rda.
+#
+# PROVENANCE OF THE GLEAM TABLES, and what is verified about it (#893).
+#
+# Every `@source` below used to read "MacLeod et al. (2018) GLEAM 3.0", four of
+# them with `\doi{10.1088/1748-9326/aad4d8}`. Both halves were wrong:
+#
+#   * That DOI is NOT REGISTERED -- 404 on doi.org and on the Crossref API, so
+#     it is an unregistered string rather than a dead landing page. `R CMD check
+#     --as-cran` reports it. The `1748-9326` prefix is Environmental Research
+#     Letters, which is not where any GLEAM output was published.
+#   * MacLeod et al. (2018) cannot be the source of GLEAM **3.0**. Verified via
+#     Crossref: MacLeod, M.J., Vellinga, T., Opio, C., Falcucci, A. & Tempio, G.
+#     2018. "Invited review: A position on the Global Livestock Environmental
+#     Assessment Model (GLEAM)". Animal 12(2): 383-397.
+#     doi:10.1017/S1751731117001847. It is a position paper on the model, and it
+#     predates GLEAM 3.0 by four years.
+#
+# GLEAM 3.0 is an FAO publication: FAO. 2022. Global Livestock Environmental
+# Assessment Model. Version 3.0 - Model description. Rome, FAO.
+# https://openknowledge.fao.org/handle/20.500.14283/cd8425en
+# That record carries NO DOI -- checked, including the 10.4060/cd8425en pattern
+# FAO usually mints, which is also unregistered -- so a stable handle URL is the
+# citable identifier and there is no DOI to give.
+#
+# UNVERIFIED, and left marked as such rather than guessed: that
+# `data-raw/GLEAM_3.0_Supplement_S1.xlsx` is the supplement OF that publication.
+# The FAO record has a single attached bitstream (the PDF) and no supplementary
+# file, so the link cannot be closed from the public record. What the workbook
+# itself evidences, from its OOXML document properties, is FAO authorship:
+# Company "FAO of the UN", creator "Monica Rulli (AGAL)" -- FAO's Animal
+# Production and Health Division -- and last modified by "Giuseppe Tempio", a
+# GLEAM co-author, on 2022-12-20, ten days after the Model description was
+# published on 2022-12-10. Its sheet numbering (Tab. S.3.1 ... S.9.1,
+# S.A1-S.A2) matches an FAO model-documentation supplement, not a journal one.
+#
+# So each `@source` cites the FAO 2022 model description as the publication and
+# names the workbook table, and says the workbook-to-publication link is
+# unverified. Do not substitute the Animal DOI: it resolves, which would make an
+# unverifiable citation look verified while being the wrong document.
 
 # GLEAM Excel Supplement Tables ----
 
@@ -19,8 +58,11 @@
 #'   \item{intercept}{Intercept for residue yield calculation.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source `GLEAM_3.0_Supplement_S1.xlsx`, Table S.3.1. FAO. 2022. Global
+#'   Livestock Environmental Assessment Model. Version 3.0 - Model description.
+#'   Rome, FAO. \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
+#'   The workbook's link to that publication is unverified; see the provenance
+#'   note at the top of `R/livestock_coefs.R` (#893).
 #'
 #' @examples
 #' gleam_crop_residue_params
@@ -54,8 +96,11 @@
 #'   \item{reporting_polity_name}{The name of that polity.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+#' @source `GLEAM_3.0_Supplement_S1.xlsx`, Tables S.A1-S.A2. FAO. 2022. Global
+#'   Livestock Environmental Assessment Model. Version 3.0 - Model description.
+#'   Rome, FAO. \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
+#'   The workbook's link to that publication is unverified; see the provenance
+#'   note at the top of `R/livestock_coefs.R` (#893).
 #'
 #' @examples
 #' gleam_geographic_hierarchy
@@ -75,7 +120,8 @@
 #'   \item{feed_use_efficiency}{FUE value (0-1 fraction).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Table S.3.2.
 #'
 #' @examples
@@ -97,7 +143,8 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Table S.3.3.
 #'
 #' @examples
@@ -123,7 +170,8 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Table S.3.4.
 #'
 #' @examples
@@ -147,7 +195,8 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Tables S.6.1 and S.6.2.
 #'
 #' @examples
@@ -171,7 +220,8 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Tables S.6.3 and S.6.4.
 #'
 #' @examples
@@ -196,7 +246,8 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Tables S.6.5 and S.6.6.
 #'
 #' @examples
@@ -221,7 +272,8 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Tables S.6.7 and S.6.8.
 #'
 #' @examples
@@ -243,7 +295,8 @@
 #'     (0 to 1).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
+#' @source `GLEAM_3.0_Supplement_S1.xlsx` (FAO 2022; see the provenance note
+#'   at the top of this file),
 #'   Table S.6.9.
 #'
 #' @examples
@@ -298,8 +351,12 @@
 #'     kg of the \code{denominator}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.7.1 through S.7.7. \doi{10.1088/1748-9326/aad4d8}
+#' @source `GLEAM_3.0_Supplement_S1.xlsx`, Tables S.7.1 through S.7.7. FAO.
+#'   2022. Global Livestock Environmental Assessment Model. Version 3.0 - Model
+#'   description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
+#'   The workbook's link to that publication is unverified; see the provenance
+#'   note at the top of `R/livestock_coefs.R` (#893).
 #'
 #' @examples
 #' gleam_energy_use_ef
@@ -329,8 +386,11 @@
 #'   \item{dressing_percent}{Dressing percentage.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source `GLEAM_3.0_Supplement_S1.xlsx`, Table S.9.1. FAO. 2022. Global
+#'   Livestock Environmental Assessment Model. Version 3.0 - Model description.
+#'   Rome, FAO. \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
+#'   The workbook's link to that publication is unverified; see the provenance
+#'   note at the top of `R/livestock_coefs.R` (#893).
 #'
 #' @examples
 #' gleam_dressing_percentages
@@ -350,7 +410,9 @@
 #'   \item{description}{Cohort description.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Model Description.
+#' @source FAO. 2022. Global Livestock Environmental Assessment Model.
+#'   Version 3.0 - Model description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 #'
 #' @examples
 #' gleam_livestock_categories
@@ -364,7 +426,9 @@
 #' @format A tibble with `feed_category`, `feed_type`,
 #'   `description`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source FAO. 2022. Global Livestock Environmental Assessment Model.
+#'   Version 3.0 - Model description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 #'
 #' @examples
 #' gleam_feed_categories
@@ -393,7 +457,9 @@
 #' @format A tibble with `region`, `species`, `system`, `mms`,
 #'   `share_percent`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source FAO. 2022. Global Livestock Environmental Assessment Model.
+#'   Version 3.0 - Model description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 #'
 #' @examples
 #' gleam_mms_shares
@@ -407,7 +473,9 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `cohort`, `weight_kg`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source FAO. 2022. Global Livestock Environmental Assessment Model.
+#'   Version 3.0 - Model description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 #'
 #' @examples
 #' gleam_animal_weights
@@ -421,7 +489,9 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `milk_kg_head_yr`, `lactation_days`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source FAO. 2022. Global Livestock Environmental Assessment Model.
+#'   Version 3.0 - Model description. Rome, FAO.
+#'   \url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 #'
 #' @examples
 #' gleam_milk_production

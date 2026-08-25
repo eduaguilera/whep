@@ -9,7 +9,9 @@ A tibble with \code{region}, \code{species}, \code{system},
 \code{milk_kg_head_yr}, \code{lactation_days}.
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0.
+FAO. 2022. Global Livestock Environmental Assessment Model.
+Version 3.0 - Model description. Rome, FAO.
+\url{https://openknowledge.fao.org/handle/20.500.14283/cd8425en}
 }
 \usage{
 gleam_milk_production
