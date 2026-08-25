@@ -1180,6 +1180,80 @@ build_cell_polity_fraction <- function(
 #
 # FAOSTAT harvested area + LUH2/MIRCA irrigation allocation.
 
+# ---- Back-extend country crop areas before the production series starts -----
+# `build_primary_production()` reconstructs FAOSTAT back to 1850 and no further,
+# so a `year_range` starting earlier has no country-level crop areas for its
+# first years -- and `run_crop_spatialize()` takes the output year axis from
+# `country_areas`, so those years would silently vanish from the LPJmL forcing
+# rather than fail. (LPJmL would then clamp them to the file's first year:
+# `readdata()` sets `year<0` to 0 with no warning, so a 1750 run would have used
+# 1851 land use for a century and completed cleanly.)
+#
+# Method: hold each country's crop MIX at the earliest year the production
+# series covers, and scale it by LUH2's own growth for that crop's LUH2 type in
+# that country:
+#
+#   area(country, crop, y) = area(country, crop, base)
+#                            * luh2_crop_ha(country, type(crop), y)
+#                            / luh2_crop_ha(country, type(crop), base)
+#
+# Scaling per LUH2 type rather than by one cropland total lets annuals,
+# N-fixers and perennials diverge as LUH2 says they did. What is frozen is the
+# split WITHIN a type -- wheat versus barley -- which no dataset gives us for
+# 1750 anyway, and which `crop_patterns` already holds constant across all
+# years. Irrigation is NOT scaled here: it is allocated downstream from LUH2's
+# own per-year irrigated fractions, so the added years get real LUH2 irrigation.
+.backcast_crop_areas <- function(crop_areas, luh2_totals, year_range) {
+  base_year <- min(crop_areas$year)
+  pre_years <- sort(year_range[year_range < base_year])
+  if (length(pre_years) == 0L) {
+    return(crop_areas)
+  }
+  cli::cli_alert_info(
+    "Back-extending crop areas to {min(pre_years)}-{max(pre_years)} from LUH2
+     growth, crop mix held at {base_year}"
+  )
+  base_mix <- crop_areas |>
+    dplyr::filter(.data$year == base_year) |>
+    dplyr::select(
+      "area_code",
+      "item_prod_code",
+      "luh2_type",
+      "harvested_area_ha"
+    )
+  base_luh2 <- luh2_totals |>
+    dplyr::filter(.data$year == base_year) |>
+    dplyr::select("area_code", "luh2_type", base_crop_ha = "crop_ha") |>
+    dplyr::filter(.data$base_crop_ha > 0)
+  pre <- luh2_totals |>
+    dplyr::filter(.data$year %in% pre_years) |>
+    dplyr::select("year", "area_code", "luh2_type", "crop_ha") |>
+    dplyr::inner_join(base_luh2, by = c("area_code", "luh2_type")) |>
+    dplyr::inner_join(
+      base_mix,
+      by = c("area_code", "luh2_type"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      harvested_area_ha = .data$harvested_area_ha *
+        .data$crop_ha /
+        .data$base_crop_ha
+    ) |>
+    dplyr::filter(.data$harvested_area_ha > 0) |>
+    dplyr::select(
+      "year",
+      "area_code",
+      "item_prod_code",
+      "harvested_area_ha",
+      "luh2_type"
+    )
+  cli::cli_alert_success(
+    "Added {nrow(pre)} back-extended crop-area rows for
+     {dplyr::n_distinct(pre$year)} year{?s}"
+  )
+  dplyr::bind_rows(pre, crop_areas)
+}
+
 prepare_country_areas <- function(
   l_files_dir,
   year_range,
@@ -1229,6 +1303,8 @@ prepare_country_areas <- function(
   type_map <- dplyr::select(cft_mapping, "item_prod_code", "luh2_type")
   crop_areas <- crop_areas |>
     dplyr::left_join(type_map, by = "item_prod_code")
+
+  crop_areas <- .backcast_crop_areas(crop_areas, luh2_totals, year_range)
 
   luh2_irrig <- luh2_totals |>
     dplyr::select("year", "area_code", "luh2_type", "irrig_ha")
@@ -3667,7 +3743,13 @@ prepare_livestock_inputs <- function(
   carea_ha <- .read_luh2_carea(luh2_dir) * 100
   agg_factor <- as.integer(target_res / 0.25)
 
-  pasture_years <- sort(intersect(unique(livestock_country$year), year_range))
+  # Pasture AREA is read straight from LUH2 below, so it is bounded by LUH2
+  # (850-2022), not by the livestock series. Intersecting with
+  # livestock_country$year capped it at that series' 1851 start for no reason:
+  # having no head counts for 1800 does not mean there was no pasture. The
+  # livestock-dependent output is grassland_lsuha, which is written elsewhere
+  # and legitimately still starts at 1851.
+  pasture_years <- sort(year_range)
   n_workers <- .auto_spatialize_workers(
     length(pasture_years),
     worker_mb_default = 9000

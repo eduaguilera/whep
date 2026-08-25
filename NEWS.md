@@ -1,5 +1,37 @@
 # whep (development version)
 
+* **`prepare_spatialize_all()` can now build LPJmL land-use forcing for years
+  before the production series starts, so a pre-industrial transient is
+  possible.** The forcing file began in 1851 not because of any limit in the
+  data but because that is `year_range`'s default:
+  `build_primary_production()` reconstructs FAOSTAT back to 1850 and no
+  further, and `run_crop_spatialize()` takes its output year axis from
+  `country_areas`. Asking for an earlier start therefore produced a *shorter*
+  file rather than an error -- and LPJmL's `readdata()` silently clamps any
+  year below a file's first year, so a 1750 run would have held land use at
+  1851 for a century and completed cleanly.
+
+  A new `.backcast_crop_areas()` holds each country's crop mix at the earliest
+  year the production series covers, and scales it by LUH2's own growth for
+  that crop's LUH2 type in that country. LUH2 `states.nc` covers 850 onward,
+  so any start year from 850 is now reachable. Scaling per LUH2 type rather
+  than by one cropland total lets annuals, N-fixers and perennials diverge as
+  LUH2 says they did; what is frozen is the split *within* a type, which
+  `crop_patterns` already holds constant across every year. Irrigation is not
+  scaled, because it is allocated downstream from LUH2's own per-year
+  irrigated fractions, so the added years carry real LUH2 irrigation.
+  Back-extended harvested area is 273 Mha at 1750 and 323 Mha at 1800,
+  against 410 Mha at the 1851 base.
+
+  Gridded pasture was separately capped at 1851 by
+  `intersect(unique(livestock_country$year), year_range)`, although pasture
+  *area* is read straight from LUH2 and never depended on the livestock
+  series; it now follows `year_range`. `grassland_lsuha`, which genuinely does
+  need head counts, still starts at 1851.
+
+  No published value changes: `year_range` still defaults to `1851:2023`, so
+  an unchanged call produces the same files as before.
+
 * **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
   functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
   natural-land soil carbon input by ~7%.** The natural-land carbon input selects
