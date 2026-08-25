@@ -43,19 +43,43 @@ A tibble with one row per year: \code{year}, \code{fast},
 \description{
 Annual trajectory of LPJmL's soil carbon submodel: a fast and a slow
 mineral-soil pool, each losing first-order decomposition and gaining a share
-of the carbon that survives litter respiration. Of the carbon entering the
-litter layer, \code{atmosphere_fraction} is respired straight to the
+of the carbon that survives litter respiration. Of the litter carbon that
+DECOMPOSES, \code{atmosphere_fraction} is respired straight to the
 atmosphere and the remainder is split \code{fast_fraction} to the fast pool
 and the rest to the slow pool. Neither soil pool transfers to the other and
 there is no inert pool, so soil respiration leaves the system entirely.
+}
+\section{What the atmospheric fraction applies to}{
+
+In LPJmL the fraction multiplies the flux LEAVING the litter pool by
+decomposition, not the litterfall entering it. The two are equal only when
+the litter pool is at steady state, and litterfall is strictly the larger
+wherever litter burns or methanogenises. WHEP has no litter pool, so this
+function applies the fraction to the carbon input it is given and is
+therefore a steady-state reading of that chain. Over a transient the
+approximation is good for leaf and fine-root litter, which transit in one
+to three years, and poor for woody litter, whose 10-26 year transit is
+comparable to the 22.25-year soil-bound residence itself.
+
+Earlier wording here said the fraction applied to carbon "entering the
+litter layer", which contradicted \code{\link{soc_turnover_params}}'s own
+description of it ("Share of decomposed litter respired straight to the
+atmosphere"). The parameter table was right.
 
 This applies LPJmL's kinetics to the carbon input WHEP supplies, exactly as
 \code{\link{calculate_soc_rothc}} applies RothC's. It is \strong{not} a
 reproduction of LPJmL's own soil carbon stock, which is reported over
-0-300 cm and layered by a rooting-depth function; the stock returned here is
+0-300 cm and distributed down the profile; the stock returned here is
 over the same layer as WHEP's other models. The litter pool is excluded, as
 it is from LPJmL's own \code{soilc} output.
+
+That vertical distribution is not a rooting-depth function, as this page
+previously said: LPJmL sums leaf, woody and belowground decomposition into
+one flux before applying the layer weights, so surface litter is carried
+down too, and Schaphoff et al. (2018) attribute the weights to cryoturbation
+and bioturbation.
 }
+
 \examples{
 calculate_soc_lpjml(
   initial_soc_mgc_ha = 50,

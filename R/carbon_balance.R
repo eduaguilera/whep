@@ -707,15 +707,22 @@ build_carbon_balance <- function(
   input / k_young + h * input / k_old
 }
 
-# LPJmL: the two mineral-soil pools at their fixed points. Of the carbon
-# entering the litter layer, (1 - atmfrac) survives respiration and is split
+# LPJmL: the two mineral-soil pools at their fixed points. Of the litter
+# carbon that DECOMPOSES, (1 - atmfrac) survives respiration and is split
 # fastfrac / (1 - fastfrac) between pools decaying at k_fast and k_slow, both
 # scaled by the response. Neither pool feeds the other and there is no inert
 # term, so the total is just the two fixed points: the soil-bound input --
-# the carbon reaching litter, less the share respired straight to the
+# the decomposed litter, less the share respired straight to the
 # atmosphere -- divided between the pools, the fast share over its rate plus
 # the slow share over its rate, all over the response. With the run's
 # parameters that comes to 22.25 years.
+#
+# The distinction matters and this comment used to get it wrong. In LPJmL the
+# fraction multiplies the flux LEAVING the litter pool, never the litterfall
+# entering it; the two coincide only at litter steady state. Since this is an
+# equilibrium expression, using it here is exact -- but the same wording was
+# also on the trajectory function, where it is not, and it contradicted
+# soc_turnover_params' own description of the parameter. The table was right.
 #
 # This is algebraically what LPJmL's own equilsoil() converges to once its
 # per-layer c_shift weights are summed, because the layer weights are normalised
