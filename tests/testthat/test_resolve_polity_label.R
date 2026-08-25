@@ -55,21 +55,34 @@ test_that("resolution is year-aware, so a label reaches the right period", {
 })
 
 test_that("a source-scoped alias never applies to another source", {
-  # The IIA aliases for "burundi" route 1922-1961 to Ruanda-Urundi, because that
-  # is the entity IIA reported under the label; FAOSTAT means the modern state.
-  # Reading the IIA rule while processing FAOSTAT would misattribute the data.
+  # The IIA alias for "burundi" routes 1922-1961 to BDI-1922-1962, the colonial
+  # constituent, not to RWB-1922-1962, the Ruanda-Urundi composite: IIA files
+  # Burundi's rows under the part it names, and a part's rows belong to the part.
+  # Upstream moved this deliberately (whep-polities, Ruanda-Urundi part-row
+  # split); the snapshot resync of #890 is where it arrives here. FAOSTAT means
+  # the modern state, and reading either rule while processing the other source
+  # would misattribute the data -- which is what this test is really for.
   expect_equal(
     resolve_polity_label("burundi", source = "iia", year = 1930L),
-    "RWB-1922-1962"
+    "BDI-1922-1962"
   )
   expect_equal(
     resolve_polity_label("burundi", source = "faostat", year = 2000L),
     "BDI-1962-2025"
   )
-  # With no source given, only unscoped aliases apply. Every "burundi" alias is
-  # source-scoped, so the name route gets its turn -- and refuses, because the
-  # rules that speak about 1930 name the RWB family while the name names BDI.
-  expect_true(is.na(resolve_polity_label("burundi", year = 1930L)))
+  # The composite is still reachable under the label the composite is reported
+  # by, so the split added a route rather than replacing one.
+  expect_equal(
+    resolve_polity_label("Ruanda-Urundi", source = "iia", year = 1930L),
+    "RWB-1922-1962"
+  )
+  # With no source given, only unscoped aliases apply and the name route gets
+  # its turn. It now agrees with the IIA rule -- both name the BDI family for
+  # 1930 -- so the label resolves where it used to refuse for disagreement.
+  expect_equal(
+    resolve_polity_label("burundi", year = 1930L),
+    "BDI-1922-1962"
+  )
 })
 
 test_that("a missing year bound is unbounded on that side, not unscoped", {
@@ -363,12 +376,40 @@ test_that("a still-open period covers the open-period sentinel year", {
 })
 
 test_that("a period nothing succeeds covers its own last year", {
-  # The same rule away from the sentinel. `ANT-1961-2010` is the Netherlands
-  # Antilles, dissolved in 2010 with no successor recorded, and 2010 is a year it
-  # reported in -- the case `.polity_join_end_year()` calls out for the numeric
-  # route. Read strictly exclusively the label route lost it.
-  expect_equal(resolve_polity_label("ANT", year = 2010L), "ANT-1961-2010")
-  expect_true(is.na(resolve_polity_label("ANT", year = 2011L)))
+  # The same rule away from the sentinel, on a polity that still has no
+  # successor. `ANT-1961-2010` used to be this test's example and no longer
+  # qualifies: the #890 resync gave it three (CUW, SXM, BES), so the widening
+  # correctly stops applying to it. See the test below for what that costs.
+  # `SMO-1912-1956` is Spanish Morocco: it ends in 1956 and upstream records no
+  # successor, so the widening applies and its own last year resolves.
+  succ <- whep::polities$successor[
+    match("SMO-1912-1956", whep::polities$polity_code)
+  ]
+  expect_true(is.na(succ) || !nzchar(succ))
+  expect_equal(resolve_polity_label("SMO", year = 1956L), "SMO-1912-1956")
+  expect_true(is.na(resolve_polity_label("SMO", year = 1957L)))
+})
+
+test_that("a succeeded period's last year stays reachable numerically", {
+  # What the #890 resync moved, pinned so it cannot drift unnoticed.
+  # `ANT-1961-2010` gained three successors, all of which START in 2010, so the
+  # "nothing succeeds it" widening no longer applies and the LABEL route reads
+  # the period strictly exclusively -- `resolve_polity_label("ANT", 2010)` is
+  # now NA where it used to answer. The NUMERIC route is unaffected, because
+  # `.polity_join_end_year()` treats the declared end inclusively, and that is
+  # the route the crosswalk and every build use. So no published series loses a
+  # row; only the label helper refuses.
+  #
+  # Whether the label route SHOULD refuse at a dissolution year is a convention
+  # question for upstream: ANT declares 1961-2010 and its successors declare
+  # 2010-2025, so 2010 is double-claimed in the declared bounds. If the answer
+  # is that successors begin the year after, the fix belongs in whep-polities,
+  # not here.
+  expect_true(is.na(resolve_polity_label("ANT", year = 2010L)))
+  expect_equal(resolve_polity_label("ANT", year = 2009L), "ANT-1961-2010")
+
+  numeric <- add_polity_code(data.frame(area_code = 151L, year = 2010L))
+  expect_equal(numeric$polity_code, "ANT-1961-2010")
 })
 
 test_that("a succession year still resolves to exactly one polity", {

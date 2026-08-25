@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`data/polities.rda` and its two siblings are resynced with upstream, which
+  had gained BES and SXM (#890).** `test_data_raw_freshness.R` was failing on a
+  plain `devtools::test()` on `main` and passing on CI, because the test reads
+  the whep-polities pin and is gated — the gate was doing its job locally and
+  nowhere else. The rebuild adds `BES-2010-2025` and `SXM-2010-2025`, both 2010
+  Netherlands Antilles successors, and carries in six `polygon_area_km2`
+  corrections, five `polygon_source` normalisations, the ANT succession chain,
+  and ten label aliases (the Ruanda-Urundi part-row split, and eight
+  OCR-corrected fao1952 labels). Four consequences, all measured: the
+  `not_a_reporting_area` crosswalk block drops from 20 rows to 19 because the
+  Sint Maarten territory stopped reaching NLD **twice** by prefix fallback;
+  `resolve_polity_label()` gains two answers and changes none under
+  `source = "trade-sources"`, the only source this package queries;
+  `iia | burundi` for 1922-1961 now routes to `BDI-1922-1962` rather than the
+  `RWB-1922-1962` composite; and `resolve_polity_label("ANT", 2010)` is now `NA`
+  because ANT's three successors all start in 2010, so the "nothing succeeds it"
+  widening no longer applies. **No published series loses a row** — the numeric
+  route is unaffected, and `add_polity_code()` still resolves area 151 at 2010 to
+  `ANT-1961-2010`. Refs #890, #384, #870.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and

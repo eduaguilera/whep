@@ -260,14 +260,27 @@ testthat::test_that("a row with no reporting area is labelled as one", {
   # `not_a_reporting_area` used to be documented and ship on ZERO rows: it sat
   # BELOW `matched` in the build's `case_when`, so it could only fire for a row
   # with neither an `area_code` nor a `polity_code`, and no such row exists.
-  # The 20 rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
+  # The rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
   # the Isle of Man and Sint Maarten, which `regions_full` carries without a
   # FAOSTAT code, plus the six regional aggregate polities -- all match a polity
   # and so shipped as `matched`, indistinguishable from a real area mapping.
+  #
+  # 20 before the #890 snapshot resync, 19 after, and the difference is a
+  # DE-DUPLICATION rather than a loss. The Sint Maarten territory had no polity
+  # of its own, so it reached NLD twice by prefix fallback -- one row against
+  # `NLD-1800-1830` and one against `NLD-1830-2025`, both labelled
+  # `area_name = "Netherlands"`. Upstream now ships `SXM-2010-2025`, so the
+  # territory resolves to itself in a single row. The `area_iso3c` set below is
+  # unchanged: SXM is still here, once instead of twice.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   no_area <- cw[cw$mapping_status == "not_a_reporting_area", ]
 
-  testthat::expect_equal(nrow(no_area), 20L)
+  testthat::expect_equal(nrow(no_area), 19L)
+  # The de-duplication itself, so a regression back to the fallback is caught:
+  # one row for the SXM territory, and it names the SXM polity.
+  sxm <- no_area[!is.na(no_area$area_iso3c) & no_area$area_iso3c == "SXM", ]
+  testthat::expect_equal(nrow(sxm), 1L)
+  testthat::expect_equal(sxm$polity_code, "SXM-2010-2025")
   # The label means exactly one thing, in both directions.
   testthat::expect_equal(
     which(cw$mapping_status == "not_a_reporting_area"),
