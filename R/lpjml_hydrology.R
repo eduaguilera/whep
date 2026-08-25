@@ -105,6 +105,9 @@ read_lpjml_hydrology <- function(
     "runoff",
     "discharge",
     "swc",
+    "pet",
+    "soiltemp1",
+    "soiltemp2",
     "cft_nir",
     "cft_consump_water_b",
     "cft_consump_water_g"
@@ -129,6 +132,25 @@ read_lpjml_hydrology <- function(
   if (monthly) long else .aggregate_hydro_annual(long, var, agg)
 }
 
+# `pet` and `soiltemp1`/`soiltemp2` are here because the SOC drivers have been
+# taking both from CRU instead, and both are inconsistent with the LPJmL water
+# and carbon beside them:
+#
+#   PET  CRU ships a Penman-Monteith PET at FIXED stomatal resistance, so it
+#        carries no CO2 response, while the precipitation it is differenced
+#        against comes from a CO2-aware LPJmL run. Over the historical period
+#        that is an inconsistency of order 3-5% in the RothC/HSOC moisture
+#        term. R/water_balance.R:459 recorded this as "pet placeholder (no
+#        LPJmL PET)", which was true of an earlier delivery and is not now.
+#
+#   soil A soil decomposition modifier driven by AIR temperature is a choice
+#        made when nothing else was available. Soil temperature damps and lags
+#        the air signal, most in the cold and snow-covered cells where the
+#        modifier collapses toward zero and the equilibrium diverges (#365).
+#
+# Reading them does not by itself change any published number: nothing
+# consumes them yet, and the pinned driver path cannot until the pin carries
+# them. Wiring them in is a science decision and is deliberately separate.
 # Logical name -> (file, in-file variable, time steps per year) for each LPJmL
 # hydrology output. `steps_per_year` is 12 for the monthly outputs and 1 for the
 # annual per-CFT consumptive-water cubes (see the header facts).
@@ -145,6 +167,9 @@ read_lpjml_hydrology <- function(
     "runoff", "mrunoff.nc", "runoff", 12L,
     "discharge", "mdischarge.nc", "discharge", 12L,
     "swc", "mswc.nc", "SWC", 12L,
+    "pet", "pet.nc", "PET", 12L,
+    "soiltemp1", "soiltemp1.nc", "soiltemp1", 12L,
+    "soiltemp2", "soiltemp2.nc", "soiltemp2", 12L,
     "cft_nir", "cft_nir.nc", "nir", 1L,
     "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
     "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L
