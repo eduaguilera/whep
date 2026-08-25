@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **The GLEAM coefficient tables now cite the FAO workbook they were actually
+  read from, not an unregistered DOI (#607).** All fifteen GLEAM `@source`
+  tags in `R/livestock_coefs.R` credited "MacLeod et al. (2018) GLEAM 3.0
+  Supplement S1", four of them with an IOP-prefixed DOI that is not
+  registered at all (a 404 at doi.org, "Resource not found" in Crossref),
+  which is what produced the `--as-cran` "possibly invalid DOIs" NOTE.
+  MacLeod et al. (2018) is the *Animal* position paper on GLEAM
+  (`10.1017/S1751731117001847`), which publishes none of these tables. The
+  twelve tables parsed from `data-raw/GLEAM_3.0_Supplement_S1.xlsx` are now
+  cited as FAO (2022) GLEAM version 3.0 Supplement S1 by title and URL, the
+  committed workbook having been confirmed byte-identical to the one FAO
+  publishes; FAO issues no DOI for it. The other five -- `gleam_mms_shares`,
+  `gleam_animal_weights`, `gleam_milk_production`,
+  `gleam_livestock_categories` and `gleam_feed_categories` -- are hardcoded
+  in `data-raw/livestock_coefficients.R`, could not be traced to any GLEAM
+  document, and their documentation now says so instead of naming a source
+  they do not have; `gleam_animal_weights` feeds the Tier 2 energy
+  calculation, so #881 tracks sourcing it. Documentation only: no data value
+  and no published number changes.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
