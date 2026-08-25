@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **`run_crop_spatialize()` and `run_livestock_spatialize()` work again.**
+  `build_gridded_landuse()` has refused a grid with no polity share since C8,
+  and both read `country_grid.parquet` -- the centroid crosswalk, which has no
+  share column -- and passed it straight to the engines. So from 2026-08-07 the
+  script aborted on its first chunk for any year range, and the last forcing it
+  produced is dated 2026-06-09. `.spatialize_grid_with_share()` now attaches
+  `cell_area_frac = 1` explicitly, with a warning naming what a centroid grid
+  asserts and what each alternative costs. A grid that already carries a share
+  passes through untouched, so `run_spatialize()`'s polycell and fraction paths
+  are unchanged.
+
+  Measured against `country_areas` at 2015, reporting areas the grid holds no
+  cell for: centroid 19 areas and 0.094 Mha of harvested area (0.007%);
+  polycell 11 areas and 18.771 Mha (1.374%). Polycell carries more area codes
+  (189 against 178) yet drops Sudan (12.9 Mha), Syria (3.8), South Sudan (1.4),
+  North Macedonia, Eswatini, Palestine, Equatorial Guinea and New Caledonia,
+  all of which the centroid grid covers -- the same `iso3c -> area_code`
+  vintage problem already recorded for the `fraction` grid. **Follow-up:** the
+  polycell support's area-code vocabulary needs those eight areas before it can
+  be the grid this caller uses.
+
+  No published value changes: this restores the allocation every deployed
+  forcing was built on rather than substituting a different one.
+
 * **`prepare_spatialize_all()` can now build LPJmL land-use forcing for years
   before the production series starts, so a pre-industrial transient is
   possible.** The forcing file began in 1851 not because of any limit in the
