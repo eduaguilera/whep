@@ -100,7 +100,8 @@ so the interval grain is the form to store.</p>
 <span>  geometries <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  water <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  ice <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  aggregates <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"exclude"</span>, <span class="st">"overlap_layer"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -150,6 +151,15 @@ the DA-12 footprint reconciliation: no crosswalk column is carried into
 the output, and no crosswalk row the intersection did not reproduce is
 appended to it.</p></dd>
 
+
+<dt id="arg-aggregates">aggregates<a class="anchor" aria-label="anchor" href="#arg-aggregates"></a></dt>
+<dd><p>What to do with <code>polity_type == "aggregate"</code> rows, which
+cannot join the partition because an aggregate's polygon covers its
+members'. <code>"exclude"</code> (default) drops them, which is what every published
+polycell table holds. <code>"overlap_layer"</code> clips them too and emits them
+alongside the partition marked <code>support_role == "overlap"</code> – see
+<em>The aggregate overlap layer</em> below.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -157,8 +167,9 @@ appended to it.</p></dd>
 <code>lon</code>, <code>lat</code>, <code>polity_code</code>, <code>area_code</code>, <code>start_year</code>, <code>end_year</code>,
 <code>cell_area_ha</code>, <code>polity_area_ha</code>, <code>land_area_ha</code>, <code>inland_water_ha</code>,
 <code>ice_area_ha</code>, <code>geometry_source</code>, <code>polygon_status</code>, <code>split_method</code>,
-<code>coverage_status</code>, <code>area_engine</code> and <code>luh2_vintage</code>, plus <code>year</code> when
-<code>years</code> is supplied. <code>area_engine</code> is
+<code>coverage_status</code>, <code>support_role</code>, <code>area_engine</code> and <code>luh2_vintage</code>, plus
+<code>year</code> when <code>years</code> is supplied. <code>support_role</code> is <code>"partition"</code> on every
+row unless <code>aggregates = "overlap_layer"</code> was asked for. <code>area_engine</code> is
 <code>"s2"</code> except on the pieces the spherical engine cannot read back, which
 are measured with <code><a href="https://rspatial.github.io/terra/reference/expanse.html" class="external-link">terra::expanse()</a></code> rather than dropped. Diagnostics ride
 as attributes:
@@ -250,6 +261,55 @@ carries a single time step. That is why the default grain is
 interval-keyed: no area column varies by year, so a per-year grain would
 repeat identical rows about 173 times.</p>
     </div>
+    <div class="section level2">
+    <h2 id="the-aggregate-overlap-layer">The aggregate overlap layer<a class="anchor" aria-label="anchor" href="#the-aggregate-overlap-layer"></a></h2>
+
+
+<p>An <strong>aggregate</strong> polity – <code>BLX-1850-1999</code> Belgium-Luxembourg,
+<code>F249-1918-1990</code> Yemen, the six residual <code>"Other"</code> regions – is a reporting
+bucket's territory, and its polygon covers its members'. It therefore cannot
+be a row of the partition: two rows claiming the same ground would hand the
+cell's land out twice, which is exactly what the rasterised cover this table
+replaced did, halving Belgium's 1961 cropland (whep#800).</p>
+<p>Dropping it outright is not free either. FAOSTAT keys its pre-2000 data on
+those buckets: Belgium (255) and Luxembourg (256) carry no data before 2000,
+bucket 15 does, and bucket 15's only territory is <code>BLX-1850-1999</code>. Measured
+against <code>polity_area_crosswalk</code> over 1850-1961, <strong>ten</strong> of the 460 polities
+the pre-1962 resolver reaches are aggregates and <strong>ten</strong> reporting buckets
+have no other territory in at least one year: 15, 151, 237 (1954-1961 only),
+249 and 901-906.</p>
+<p>So both granularities are kept, and they are kept apart. With
+<code>aggregates = "overlap_layer"</code>:</p><ul><li><p>every row carries <code>support_role</code>, <code>"partition"</code> or <code>"overlap"</code>;</p></li>
+<li><p><code>"partition"</code> rows are exactly what <code>"exclude"</code> emits – same polities,
+same territory, same land, water and ice, split into more intervals only
+where an aggregate's validity adds a breakpoint to a cell;</p></li>
+<li><p>the cell's inland water is apportioned over the <strong>partition's</strong> territory
+in that cell, so an aggregate receives what its members receive and the
+members' share is not diluted by the layer covering them;</p></li>
+<li><p>every diagnostic that describes the partition – <code>"overlap"</code>,
+<code>"unassigned"</code>, <code>"water_unmatched"</code>, <code>"footprints"</code> – is measured on the
+partition alone, so admitting the layer cannot make the polygons look like
+they over-claim the validation layer.</p></li>
+</ul><p>The consumer contract is the other half: <code><a href="read_polycell_support.html">read_polycell_support()</a></code> returns
+the <strong>partition</strong> unless asked otherwise, so no existing consumer can pick
+up an overlapping row by accident, and a consumer that wants a bucket's own
+territory asks for <code>role = "overlap"</code> (or <code>"all"</code>) and states that it is
+summing a layer that double-counts by construction. Never aggregate across
+the two roles.</p>
+<p><strong>The layer is not a partition of itself either</strong>, and that is not a defect
+to be fixed by a tolerance: <code>ROW-1850-2025</code> Rest of World contains the six
+regional residuals it is the sum of. Built on the 19 live aggregates of
+<code><a href="polities.html">whep::polities</a></code> (779 rows, ingest 2026-08-13) it is 12,644 polycells, and
+at 2015 it puts more territory in a cell than the cell holds in 2,751 cells
+shared by <code>ROW</code> and <code>REUR</code>, 92 by <code>ROW</code> and <code>RAFR</code>, 8 by <code>ROW</code> and <code>ROCE</code>
+and 7 by <code>ROW</code> and <code>RLAM</code> – plus 2 cells where <code>CODRU-1922-1960</code> and
+<code>EGYSUD-1934-1956</code> overlap in 1950, which is a polygon disagreement rather
+than nesting. So a consumer takes <strong>one polity's</strong> polycells out of the
+layer – the one its bucket resolves to that year – and never sums the
+layer as a whole. That is also why the <code>"overlap"</code> diagnostic keeps
+measuring the partition only: an over-full cell means something there, and
+in this layer it means nothing.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -259,7 +319,7 @@ repeat identical rows about 173 times.</p>
 <span class="r-in"><span>    geometries <span class="op">=</span> <span class="fu"><a href="polycell_example_geometries.html">polycell_example_geometries</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 21</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 22</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> AAA-2000-2020@3802…  <span style="text-decoration: underline;">380</span>269  10.2  44.8 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
@@ -268,11 +328,11 @@ repeat identical rows about 173 times.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> AAA-2000-2020@3812…  <span style="text-decoration: underline;">381</span>270  10.8  45.2 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> AAA-2000-2020@3822…  <span style="text-decoration: underline;">382</span>269  11.2  44.8 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> AAA-2000-2020@3822…  <span style="text-decoration: underline;">382</span>270  11.2  45.2 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 13 more variables: end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   polity_area_ha &lt;dbl&gt;, land_area_ha &lt;dbl&gt;, inland_water_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   ice_area_ha &lt;dbl&gt;, geometry_source &lt;chr&gt;, polygon_status &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   split_method &lt;chr&gt;, coverage_status &lt;chr&gt;, area_engine &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   luh2_vintage &lt;chr&gt;, water_excess_ha &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   split_method &lt;chr&gt;, coverage_status &lt;chr&gt;, support_role &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_engine &lt;chr&gt;, luh2_vintage &lt;chr&gt;, water_excess_ha &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

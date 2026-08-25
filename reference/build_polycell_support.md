@@ -34,7 +34,8 @@ build_polycell_support(
   geometries = NULL,
   water = NULL,
   ice = NULL,
-  data = list()
+  data = list(),
+  aggregates = c("exclude", "overlap_layer")
 )
 ```
 
@@ -88,15 +89,26 @@ build_polycell_support(
   output, and no crosswalk row the intersection did not reproduce is
   appended to it.
 
+- aggregates:
+
+  What to do with `polity_type == "aggregate"` rows, which cannot join
+  the partition because an aggregate's polygon covers its members'.
+  `"exclude"` (default) drops them, which is what every published
+  polycell table holds. `"overlap_layer"` clips them too and emits them
+  alongside the partition marked `support_role == "overlap"` – see *The
+  aggregate overlap layer* below.
+
 ## Value
 
 A `tibble` whose columns are a superset of `polycell_id`, `cell_id`,
 `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-`coverage_status`, `area_engine` and `luh2_vintage`, plus `year` when
-`years` is supplied. `area_engine` is `"s2"` except on the pieces the
-spherical engine cannot read back, which are measured with
+`coverage_status`, `support_role`, `area_engine` and `luh2_vintage`,
+plus `year` when `years` is supplied. `support_role` is `"partition"` on
+every row unless `aggregates = "overlap_layer"` was asked for.
+`area_engine` is `"s2"` except on the pieces the spherical engine cannot
+read back, which are measured with
 [`terra::expanse()`](https://rspatial.github.io/terra/reference/expanse.html)
 rather than dropped. Diagnostics ride as attributes: `"unassigned"` (the
 validation-layer disagreement, in both directions: `unassigned_land_ha`
@@ -204,6 +216,67 @@ file carries a single time step. That is why the default grain is
 interval-keyed: no area column varies by year, so a per-year grain would
 repeat identical rows about 173 times.
 
+## The aggregate overlap layer
+
+An **aggregate** polity – `BLX-1850-1999` Belgium-Luxembourg,
+`F249-1918-1990` Yemen, the six residual `"Other"` regions – is a
+reporting bucket's territory, and its polygon covers its members'. It
+therefore cannot be a row of the partition: two rows claiming the same
+ground would hand the cell's land out twice, which is exactly what the
+rasterised cover this table replaced did, halving Belgium's 1961
+cropland (whep#800).
+
+Dropping it outright is not free either. FAOSTAT keys its pre-2000 data
+on those buckets: Belgium (255) and Luxembourg (256) carry no data
+before 2000, bucket 15 does, and bucket 15's only territory is
+`BLX-1850-1999`. Measured against `polity_area_crosswalk` over
+1850-1961, **ten** of the 460 polities the pre-1962 resolver reaches are
+aggregates and **ten** reporting buckets have no other territory in at
+least one year: 15, 151, 237 (1954-1961 only), 249 and 901-906.
+
+So both granularities are kept, and they are kept apart. With
+`aggregates = "overlap_layer"`:
+
+- every row carries `support_role`, `"partition"` or `"overlap"`;
+
+- `"partition"` rows are exactly what `"exclude"` emits – same polities,
+  same territory, same land, water and ice, split into more intervals
+  only where an aggregate's validity adds a breakpoint to a cell;
+
+- the cell's inland water is apportioned over the **partition's**
+  territory in that cell, so an aggregate receives what its members
+  receive and the members' share is not diluted by the layer covering
+  them;
+
+- every diagnostic that describes the partition – `"overlap"`,
+  `"unassigned"`, `"water_unmatched"`, `"footprints"` – is measured on
+  the partition alone, so admitting the layer cannot make the polygons
+  look like they over-claim the validation layer.
+
+The consumer contract is the other half:
+[`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+returns the **partition** unless asked otherwise, so no existing
+consumer can pick up an overlapping row by accident, and a consumer that
+wants a bucket's own territory asks for `role = "overlap"` (or `"all"`)
+and states that it is summing a layer that double-counts by
+construction. Never aggregate across the two roles.
+
+**The layer is not a partition of itself either**, and that is not a
+defect to be fixed by a tolerance: `ROW-1850-2025` Rest of World
+contains the six regional residuals it is the sum of. Built on the 19
+live aggregates of
+[`whep::polities`](https://eduaguilera.github.io/whep/reference/polities.md)
+(779 rows, ingest 2026-08-13) it is 12,644 polycells, and at 2015 it
+puts more territory in a cell than the cell holds in 2,751 cells shared
+by `ROW` and `REUR`, 92 by `ROW` and `RAFR`, 8 by `ROW` and `ROCE` and 7
+by `ROW` and `RLAM` – plus 2 cells where `CODRU-1922-1960` and
+`EGYSUD-1934-1956` overlap in 1950, which is a polygon disagreement
+rather than nesting. So a consumer takes **one polity's** polycells out
+of the layer – the one its bucket resolves to that year – and never sums
+the layer as a whole. That is also why the `"overlap"` diagnostic keeps
+measuring the partition only: an over-full cell means something there,
+and in this layer it means nothing.
+
 ## Examples
 
 ``` r
@@ -213,7 +286,7 @@ if (requireNamespace("sf", quietly = TRUE)) {
     geometries = polycell_example_geometries()
   )
 }
-#> # A tibble: 6 × 21
+#> # A tibble: 6 × 22
 #>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year
 #>   <chr>                 <int> <dbl> <dbl> <chr>           <int> <int>      <int>
 #> 1 AAA-2000-2020@3802…  380269  10.2  44.8 AAA-2000-2…        11  2015       2000
@@ -222,9 +295,9 @@ if (requireNamespace("sf", quietly = TRUE)) {
 #> 4 AAA-2000-2020@3812…  381270  10.8  45.2 AAA-2000-2…        11  2015       2000
 #> 5 AAA-2000-2020@3822…  382269  11.2  44.8 AAA-2000-2…        11  2015       2000
 #> 6 AAA-2000-2020@3822…  382270  11.2  45.2 AAA-2000-2…        11  2015       2000
-#> # ℹ 13 more variables: end_year <int>, cell_area_ha <dbl>,
+#> # ℹ 14 more variables: end_year <int>, cell_area_ha <dbl>,
 #> #   polity_area_ha <dbl>, land_area_ha <dbl>, inland_water_ha <dbl>,
 #> #   ice_area_ha <dbl>, geometry_source <chr>, polygon_status <chr>,
-#> #   split_method <chr>, coverage_status <chr>, area_engine <chr>,
-#> #   luh2_vintage <chr>, water_excess_ha <dbl>
+#> #   split_method <chr>, coverage_status <chr>, support_role <chr>,
+#> #   area_engine <chr>, luh2_vintage <chr>, water_excess_ha <dbl>
 ```

@@ -26,6 +26,30 @@
   because WPP reports Kosovo separately and the successor relation does
   not name it.
 
+- **[`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  can now emit aggregate polities as an explicit, non-partitioning
+  overlap layer
+  ([\#803](https://github.com/eduaguilera/whep/issues/803)).** An
+  aggregate – `BLX-1850-1999` Belgium-Luxembourg, `F249-1918-1990`
+  Yemen, the six residual `"Other"` regions – is the only territory some
+  FAOSTAT reporting buckets ever have: bucket 15 carries data before
+  2000 where Belgium (255) and Luxembourg (256) carry none. Excluding
+  them left ten buckets with no territory in at least one pre-1962 year
+  (15, 151, 237 over 1954-1961, 249 and 901-906). They stay excluded by
+  default, because an aggregate’s polygon covers its members’ and the
+  support must partition each cell; `aggregates = "overlap_layer"` clips
+  them too and marks every row `support_role`, `"partition"` or
+  `"overlap"`. The partition is unchanged either way – measured polity
+  by polity and year by year on the real Belgium/Luxembourg geometries,
+  the maximum difference is 0 – because a cell’s inland water is
+  apportioned over the partition’s territory alone and every diagnostic
+  describing the partition is measured on it alone.
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  gains `role`, defaulting to `"partition"`, so no existing consumer can
+  pick up an overlapping row by accident. **No published value
+  changes**: the default is the status quo, no pin is regenerated, and
+  the published `polycell_support` has no aggregate rows to return.
+
 - **The six patchwork panel plots now say which package is missing
   instead of failing inside
   [`loadNamespace()`](https://rdrr.io/r/base/ns-load.html)
