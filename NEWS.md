@@ -1,5 +1,42 @@
 # whep (development version)
 
+* **New `population_source_reach()` reports which areas a population source
+  keyed on present-day ISO3 can reach, and area 151 is the one it cannot
+  (#787).** Both population sources WHEP reads — the `gdp-population` pin and
+  UN WPP 2024 — are keyed on a present-day ISO3 code, so neither can carry a
+  territory that no longer exists. This classifies each of the 297 reporting
+  periods in `polity_area_crosswalk` as `"direct"`, `"successor"` (the polities
+  database's `successor` relation reaches present-day codes) or
+  `"unreachable"`. Measured against UN WPP 2024, 283 are direct, 8 resolve
+  through successors, and exactly one reporting area outside the Rest-of-World
+  bucket is unreachable: `ANT-1961-2010`, area 151 Netherlands Antilles, which
+  carries commodity-balance food in every year from 1961 to 2010. Upstream
+  publishes no successor for it and models neither Sint Maarten nor the BES
+  islands as polities, so reconstructing it is an upstream identity gap rather
+  than a missing value. No published value changes: this reports coverage and
+  builds no denominator. It deliberately does **not** fill area 151 or any
+  other area — a successor sum over UN WPP falls 17.5% short of the pin's own
+  figure for the Yugoslav SFR, because WPP reports Kosovo separately and the
+  successor relation does not name it.
+* **`build_polycell_support()` can now emit aggregate polities as an explicit,
+  non-partitioning overlap layer (#803).** An aggregate -- `BLX-1850-1999`
+  Belgium-Luxembourg, `F249-1918-1990` Yemen, the six residual `"Other"`
+  regions -- is the only territory some FAOSTAT reporting buckets ever have:
+  bucket 15 carries data before 2000 where Belgium (255) and Luxembourg (256)
+  carry none. Excluding them left ten buckets with no territory in at least one
+  pre-1962 year (15, 151, 237 over 1954-1961, 249 and 901-906). They stay
+  excluded by default, because an aggregate's polygon covers its members' and
+  the support must partition each cell; `aggregates = "overlap_layer"` clips
+  them too and marks every row `support_role`, `"partition"` or `"overlap"`.
+  The partition is unchanged either way -- measured polity by polity and year
+  by year on the real Belgium/Luxembourg geometries, the maximum difference is
+  0 -- because a cell's inland water is apportioned over the partition's
+  territory alone and every diagnostic describing the partition is measured on
+  it alone. `read_polycell_support()` gains `role`, defaulting to
+  `"partition"`, so no existing consumer can pick up an overlapping row by
+  accident. **No published value changes**: the default is the status quo, no
+  pin is regenerated, and the published `polycell_support` has no aggregate
+  rows to return.
 * **`build_commodity_balances()` gained `trade_recovery`, which lets the CBS
   keep an import it has no row for (#762).** `.cbs_impute_trade()` left-joins
   the crosswalked FAOSTAT/FishStat trade onto the already-pivoted CBS, so it
