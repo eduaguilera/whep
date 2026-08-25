@@ -140,6 +140,27 @@ same answer is <code>reporting_polity_code</code>, materialised from this table'
 <code>legacy_polity_prefix</code> is not a substitute for one (#711).</p>
     </div>
     <div class="section level2">
+    <h2 id="a-bucket-resolves-here-only-because-it-is-also-an-area">A bucket resolves here only because it is also an area<a class="anchor" aria-label="anchor" href="#a-bucket-resolves-here-only-because-it-is-also-an-area"></a></h2>
+
+
+<p>There is one key column, <code>area_code</code>, and callers hand it <strong>two kinds of
+code</strong>: a raw FAOSTAT reporting area, and a <code>polity_area_code</code> aggregation
+bucket – which is what <code>reporting_polity_code</code> is resolved from on every
+summed row. Nothing in a row says which of the two it answers for, and that
+works only because the bucket key space is a <strong>subset</strong> of the area key
+space: every <code>polity_area_code</code> is also an <code>area_code</code> here, in all three
+Rest-of-World modes. A bucket code that were not a reporting area would
+match no row, so the fold would keep its <code>area</code> label through the member
+fallback and lose <code>reporting_polity_code</code> to <code>NA</code> without complaint. The
+subset property is asserted by the test suite rather than assumed.</p>
+<p>A row may legitimately answer in <strong>both</strong> spaces, which is why the two are
+not split. <code>(238, ETH-1952-1993)</code> is the case: as a bucket row it dates
+bucket 238, which sums FAOSTAT area 62 Ethiopia PDR for 1961-1992; as an
+area row it dates FAOSTAT area 238 itself for a historical source reported
+under its own year's borders, which is how 149 historical-trade rows resolve
+at 1961. Marking it for one space would move the other. See #742.</p>
+    </div>
+    <div class="section level2">
     <h2 id="confidence-is-the-pair-not-mapping-status-alone">Confidence is the pair, not <code>mapping_status</code> alone<a class="anchor" aria-label="anchor" href="#confidence-is-the-pair-not-mapping-status-alone"></a></h2>
 
 
