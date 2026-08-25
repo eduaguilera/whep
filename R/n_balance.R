@@ -839,7 +839,7 @@ build_nitrogen_balance <- function(
 # ---- fert_type vocabulary bridge (documented mapping, see file header) ----
 
 .nb_loss_fert_type <- function(fert_type) {
-  dplyr::case_match(
+  dplyr::recode_values(
     fert_type,
     "bnf" ~ "BNF",
     "recycling" ~ "Recycling",

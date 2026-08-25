@@ -21,7 +21,7 @@ Imports:
     cli,
     data.table,
     deSolve,
-    dplyr,
+    dplyr (>= 1.2.0),
     fs,
     FAOSTAT,
     httr,

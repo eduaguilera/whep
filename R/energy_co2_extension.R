@@ -423,10 +423,10 @@ build_energy_co2_extension <- function(
 # Tuvalu, both Oceania; the Netherlands Antilles is dissolved and produces no
 # meat), so this maps a latent mis-grouping, not a live one.
 .energy_gleam_continent <- function(continent) {
-  dplyr::case_match(
+  dplyr::recode_values(
     continent,
     c("North America", "South America") ~ "Americas",
-    .default = continent
+    default = continent
   )
 }
 
@@ -978,11 +978,11 @@ build_energy_co2_extension <- function(
 # the whole build would hide which is which.
 .energy_method_label <- function(method, ef_scope = "country") {
   label <- switch(method, gleam = "GLEAM_3.0_energy_meat")
-  dplyr::case_match(
+  dplyr::recode_values(
     ef_scope,
     "global" ~ paste0(label, "_global_mean"),
     "polity_region" ~ paste0(label, "_polity_region"),
     "historical_region" ~ paste0(label, "_historical_region"),
-    .default = label
+    default = label
   )
 }

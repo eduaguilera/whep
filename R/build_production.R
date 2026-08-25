@@ -2272,7 +2272,7 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::mutate(
-      unit = dplyr::case_match(
+      unit = dplyr::recode_values(
         unit,
         "t_LU" ~ "LU",
         "t_head" ~ "heads"
