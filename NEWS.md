@@ -1,5 +1,43 @@
 # whep (development version)
 
+* **The `polycell_support` pin is regenerated: the aggregate overlap layer is
+  published, and the inland-water and glacier layers are restored (#873,
+  #885).** `20260825T102349Z-1a0eb` replaces `20260818T105426Z-a0330`, and it
+  moves published land areas. Three things change together, because they are
+  one regeneration.
+
+  **Inland water and ice are measured again.** The pin published on
+  2026-08-18 was rebuilt without the optional `water` and `ice` layers, so
+  `inland_water_ha` and `ice_area_ha` were zero in all 482,605 rows and
+  `land_area_ha` equalled `polity_area_ha` exactly: every lake, river and
+  glacier inside a territory was booked as land. At 2015, land was 13.4613
+  Gha; it is now **12.9281 Gha**, with 303.21 Mha of inland water and 231.69
+  Mha of ice measured separately. The largest single movers are Greenland
+  (-178.6 Mha, almost all ice), Canada (-146.2 Mha, 122.6 Mha water and 23.6
+  Mha ice) and Russia (-64.8 Mha). Consumers that read `land_area_ha` move
+  with it: `read_luh2_landuse(area_basis = "polycell_land")`,
+  `build_polycell_land_uses()` and `build_carbon_balance()`. Most visibly,
+  `build_n_deposition()` splits deposition between land, inland water and ice
+  again instead of booking all of it to land.
+
+  **The aggregate overlap layer is published.** 16,182 rows over 12,438
+  polycells and the 19 live aggregate polities now carry
+  `support_role == "overlap"`, so `read_polycell_support(role = "overlap")`
+  resolves instead of aborting and the ten pre-1962 reporting buckets whose
+  only territory is an aggregate have territory again. The default
+  `role = "partition"` is unchanged, so no consumer picks the layer up
+  without asking: verified cell for cell at 1850, 1900, 1950, 1961, 2000,
+  2015 and 2025, where territory, land, water and ice all differ from a
+  partition-only build by 0.
+
+  **The polity table is resynced.** The pin is built against `whep::polities`
+  as it stands after the 2026-08-21 upstream sync, which the previous pin
+  predates: 702 partition polities against 685, 29 gained and 12 lost (mostly
+  period-boundary corrections such as `SEN-1886-1959` to `SEN-1886-1960`).
+  2015 territory moves by +1.7 Mha (+0.012%), and 2,613 of 411,397 shared
+  polity-cells move by more than 1 ha, concentrated in the colonial
+  federations `AEF-1910-1960` and `AOF-1895-1960`.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and
