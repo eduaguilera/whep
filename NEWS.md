@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`gleam_geographic_hierarchy` no longer flags Comoros as an OECD member,
+  cutting its energy-use CO2e by 40.6% (#574).** Cell G41 of GLEAM 3.0
+  Supplement S1 carries `OECD = 1` for Comoros, which is not an OECD member;
+  the other 38 flagged codes are exactly the 38 real Members named on the
+  OECD's own membership page, so the cell is an upstream data-entry slip rather
+  than a modelling grouping that borrows the name.
+  `data-raw/livestock_coefficients.R` now rebuilds the `oecd` column from that
+  published list and aborts if the sheet ever stops listing a Member, and
+  `test_datasets.R` pins the set equality -- `livestock_coefs` is one of the
+  datasets the `data-raw` freshness gate cannot rebuild, so this test is its
+  gate. `.energy_country_grouping()` reads `oecd` for two of GLEAM's three
+  schemes, so Comoros moves from `OECD` to `Least developed countries` under
+  `development3` and from `OECD` to `Africa` under `region5`; `detailed15` is
+  unaffected. Published values change for **one** area:
+  `build_energy_co2_extension()` over `get_primary_production()` gives Comoros
+  6.336e7 kg CO2e over 1850-2023 instead of 1.066e8 (the shipped figure was
+  68.3% too high), with per-kg live-weight intensities falling 128.6% (bovine),
+  50.4% (mutton/goat), 26.1% (pig) and 12.9% (poultry). No other area's rows
+  move; the global total falls by 0.00066%.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
