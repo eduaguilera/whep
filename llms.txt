@@ -554,6 +554,8 @@ long-format table (Task C6 final phase).
   : Read national population on WHEP area codes.
 - [`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md)
   : Read UN World Population Prospects population.
+- [`population_source_reach()`](https://eduaguilera.github.io/whep/reference/population_source_reach.md)
+  : Report which areas a present-day-ISO3 population source can reach.
 - [`read_habitual_cv()`](https://eduaguilera.github.io/whep/reference/read_habitual_cv.md)
   : Read FAOSTAT's coefficient of variation of habitual caloric
   consumption.
