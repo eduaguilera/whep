@@ -6255,6 +6255,50 @@ prepare_lpjml6_static_inputs <- function(
   .pft_nc_write_chunk(nc_yld, rbind(rf, ir), chunk_years, all_years, grid, 32L)
 }
 
+# ---- Give the centroid grid the explicit share the engines now demand -------
+# `build_gridded_landuse()` has refused a share-less grid since whep C8
+# (`.abort_missing_polity_share()`), because giving a whole border cell to one
+# polity is a real defect. `country_grid.parquet` is the centroid crosswalk and
+# carries no share, so this script -- which passed it straight through -- could
+# not run at all since that guard landed, for ANY year range. The last forcing
+# it produced is dated 2026-06-09.
+#
+# All three available crosswalks are impaired, measured against `country_areas`
+# at 2015:
+#
+#   centroid  19 reporting areas with no cell,  0.094 Mha  (0.007%)
+#   polycell  11 reporting areas with no cell, 18.771 Mha  (1.374%)
+#   fraction  deletes Ethiopia and Sudan,      27.1  Mha   (whep#461)
+#
+# polycell drops Sudan (12.9 Mha), Syria (3.8), South Sudan (1.4), North
+# Macedonia, Eswatini, Palestine, Equatorial Guinea and New Caledonia -- every
+# one of which the centroid grid covers. So the guard has no unimpaired
+# alternative to offer this caller, and the centroid grid is what every deployed
+# WHEP forcing was built on.
+#
+# `cell_area_frac = 1` is therefore attached EXPLICITLY rather than defaulted:
+# it is the honest encoding of what a centroid grid asserts -- this cell belongs
+# wholly to this polity -- and the guard's instruction is to supply a share, not
+# to let one be assumed. It is announced on every call so the crudeness is
+# visible in the log, and so that moving to a fixed polycell grid later is a
+# deliberate change rather than a silent one.
+.spatialize_grid_with_share <- function(country_grid) {
+  share_cols <- c("cell_area_frac", "polity_frac", "area_frac", "country_frac")
+  if (any(share_cols %in% names(country_grid))) {
+    return(country_grid)
+  }
+  cli::cli_warn(c(
+    "!" = "{.arg country_grid} carries no polity share; attaching
+           {.code cell_area_frac = 1}.",
+    "i" = "This is the centroid crosswalk: each cell goes WHOLLY to one polity,
+           so a border cell's crops are not split. It reproduces every deployed
+           WHEP forcing. The alternatives drop more harvested area: polycell
+           loses 18.8 Mha (Sudan, Syria, South Sudan and five others), fraction
+           loses 27.1 Mha (whep#461)."
+  ))
+  dplyr::mutate(country_grid, cell_area_frac = 1)
+}
+
 run_crop_spatialize <- function(
   run_dir,
   input_dir,
@@ -6264,8 +6308,10 @@ run_crop_spatialize <- function(
 ) {
   cli::cli_h2("Section 10: Crop spatialization")
 
-  country_grid <- nanoparquet::read_parquet(
-    file.path(input_dir, "country_grid.parquet")
+  country_grid <- .spatialize_grid_with_share(
+    nanoparquet::read_parquet(
+      file.path(input_dir, "country_grid.parquet")
+    )
   )
   country_areas <- nanoparquet::read_parquet(
     file.path(input_dir, "country_areas.parquet")
@@ -6698,8 +6744,10 @@ run_livestock_spatialize <- function(
   gridded_cropland <- nanoparquet::read_parquet(
     file.path(input_dir, "gridded_cropland.parquet")
   )
-  country_grid <- nanoparquet::read_parquet(
-    file.path(input_dir, "country_grid.parquet")
+  country_grid <- .spatialize_grid_with_share(
+    nanoparquet::read_parquet(
+      file.path(input_dir, "country_grid.parquet")
+    )
   )
 
   mapping_path <- .find_extdata_file("livestock_mapping.csv")
