@@ -424,3 +424,51 @@ testthat::test_that("urban_n_reference names its territory by polity code", {
   testthat::expect_equal(x$urban_n_gg[x$year == 1860], 6.97)
   testthat::expect_equal(x$urban_n_gg[x$year == 2022], 61.29)
 })
+
+# ---- the extdata CSVs must be well-formed CSV ---------------------------
+
+testthat::test_that("every balances CSV parses to a rectangle", {
+  # soc_turnover_params.csv shipped one description containing an unquoted
+  # comma. utils::read.csv() split it into a 7th field on a 6-column header,
+  # returning 48 rows with the description truncated at "dimensionless",
+  # while readr - which data-raw/ uses - returned 47 rows with it intact. The
+  # .rda was therefore right and the CSV it is built from was not, and the
+  # freshness gate could not see it because both sides ran the same reader.
+  dir <- system.file("extdata", "balances", package = "whep")
+  testthat::skip_if(dir == "")
+  for (f in list.files(dir, pattern = "[.]csv$", full.names = TRUE)) {
+    header <- utils::read.csv(f, nrows = 1, check.names = FALSE)
+    full <- utils::read.csv(f, check.names = FALSE)
+    testthat::expect_equal(
+      ncol(full),
+      ncol(header),
+      label = paste(basename(f), "column count")
+    )
+    # A ragged row shows up as an all-NA trailing column or as a row whose
+    # last field is NA where the file has text.
+    testthat::expect_false(
+      any(vapply(full, \(col) all(is.na(col)), logical(1))),
+      label = paste(basename(f), "has no all-NA column")
+    )
+  }
+})
+
+testthat::test_that("soc_turnover_params reads identically through two readers", {
+  f <- system.file(
+    "extdata",
+    "balances",
+    "soc_turnover_params.csv",
+    package = "whep"
+  )
+  testthat::skip_if(f == "")
+  testthat::skip_if_not_installed("readr")
+
+  base_r <- utils::read.csv(f, stringsAsFactors = FALSE)
+  tidy <- as.data.frame(readr::read_csv(f, show_col_types = FALSE))
+
+  testthat::expect_equal(nrow(base_r), nrow(tidy))
+  testthat::expect_equal(names(base_r), names(tidy))
+  testthat::expect_equal(base_r$description, tidy$description)
+  # And the shipped .rda must match both, not just one of them.
+  testthat::expect_equal(nrow(whep::soc_turnover_params), nrow(base_r))
+})
