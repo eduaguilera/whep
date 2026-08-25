@@ -431,24 +431,34 @@ cft_to_pft <- c(
 
 # ---- EarthStat Crop Specific Fertilizer mapping (17 crops) ---------------
 .earthstat_fertilizer_mapping <- function() {
+  # Codes are the ones `inst/extdata/earthstat_mapping.csv` gives for the SAME
+  # raster name, which is this script's own answer to the same question for the
+  # harvested-area layer. Seven of the seventeen disagreed with it (#889), and
+  # only two of the seven were detectable as bad codes: `cassava` 340 and
+  # `cotton` 274 are not in `items_prod` at all, but `oilpalm` 217, `potato`
+  # 328, `rapeseed` 223, `sugarcane` 780 and `sunflower` 222 are all perfectly
+  # good item codes naming the WRONG crop -- cashews, seed cotton, pistachios,
+  # jute and walnuts. So an existence check passes on five of them, and the
+  # guard in `tests/testthat/test_earthstat_fertilizer_mapping.R` compares codes
+  # against the CSV instead.
   tibble::tribble(
     ~earthstat_fert_name, ~item_prod_code,
     "barley",      44L,
-    "cassava",    340L,
-    "cotton",     274L,
+    "cassava",    125L,
+    "cotton",     328L,
     "groundnut",  242L,
     "maize",       56L,
     "millet",      79L,
-    "oilpalm",    217L,
-    "potato",     328L,
-    "rapeseed",   223L,
+    "oilpalm",    254L,
+    "potato",     116L,
+    "rapeseed",   270L,
     "rice",        27L,
     "rye",         71L,
     "sorghum",     83L,
     "soybean",    236L,
     "sugarbeet",  157L,
-    "sugarcane",  780L,
-    "sunflower",  222L,
+    "sugarcane",  156L,
+    "sunflower",  267L,
     "wheat",       15L
   )
 }
@@ -2279,15 +2289,15 @@ prepare_nitrogen_inputs <- function(
       return(NULL)
     }
 
-    crop_map <- tibble::tribble(
-      ~west_crop,    ~item_prod_code,
-      "barley",      44L, "cassava",    340L, "cotton",     274L,
-      "groundnut",  242L, "maize",       56L, "millet",      79L,
-      "oilpalm",    217L, "potato",     328L, "rapeseed",   223L,
-      "rice",        27L, "rye",         71L, "sorghum",     83L,
-      "soybean",    236L, "sugarbeet",  157L, "sugarcane",  780L,
-      "sunflower",  222L, "wheat",       15L
-    )
+    # Same 17 crops and the same codes as `.earthstat_fertilizer_mapping()`, so
+    # it is read from there rather than restated. It carried an independent copy
+    # of the tribble with the identical seven wrong codes (#889), which is how a
+    # fix to one of them would have left the other misattributing manure N:
+    # oil palm to cashews, potato to seed cotton, rapeseed to pistachios, sugar
+    # cane to jute, sunflower to walnuts, and cassava and cotton to codes that
+    # do not exist. One definition, one place to be wrong.
+    crop_map <- .earthstat_fertilizer_mapping()
+    names(crop_map)[names(crop_map) == "earthstat_fert_name"] <- "west_crop"
 
     .read_one_west <- function(i) {
       crop <- crop_map$west_crop[i]
