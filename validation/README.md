@@ -41,6 +41,7 @@ a hardcoded grid.
 | `gt_year_scoping.json` | Recorded per-unit divergence budget for that check. **Committed** — a ratchet, meant to be tightened as each filed defect is fixed. |
 | `compare_variable.R` | Variable-aware comparator: extracts WHEP's value, joins ground truth on the registry grain, judges (ratio or bound mode). |
 | `validate_all.R` | One-shot sweep: runs every variable's check and prints a combined scorecard. |
+| `citation_dois.R` | Asserts every DOI cited anywhere in the repo is **registered**. `R CMD check --as-cran` only sees `man/*.Rd`, and 34 of the repo's 71 DOIs appear only outside it (#900). Needs network. |
 | `gaez_potential.R` | Builds the per-country GAEZ potential cropping-intensity ceiling. **Downloads** GAEZ v4 multiple-cropping zones (rainfed `mcr` + irrigated `mci`) from the open FAO bucket → `cache/files/GAEZ/`. No local copy needed (`WHEP_GAEZ_DIR` overrides). |
 | `gt_occupation.json` | Pinned LCA occupation ground truth (Poore & Nemecek 2018), m²·yr/kg per crop. Committed. |
 | `cache/sources.json` | Registry of subnational datasets discovered so far (per country: source, URL, what it covers, basis). **Committed** — shared knowledge of where the data lives. |
