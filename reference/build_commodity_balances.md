@@ -21,6 +21,7 @@ build_commodity_balances(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
+  trade_recovery = c("none", "net_import"),
   .fixed_data = NULL
 )
 ```
@@ -67,6 +68,22 @@ build_commodity_balances(
   live-animal rows that the FAO sheet omits, and checks the supply-use
   identity. Both are the same dataset; `"wide"` is what the IO model and
   the extensions consume.
+
+- trade_recovery:
+
+  One of `"none"` (default) or `"net_import"`, selecting what happens to
+  a traded item the CBS has no row for. The trade record is joined onto
+  the CBS, so it can only fill a row that already exists; `"none"` keeps
+  that, and the import is dropped. `"net_import"` first creates the
+  missing rows from the trade record, restricted to tonnes-denominated
+  items (live-animal trade is in heads and arrives through
+  [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)),
+  to net importers, and to areas the CBS already covers in that year. It
+  **moves published values**; `NEWS.md` states by how much and whep#762
+  keeps the remaining decisions open.
+  [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
+  always uses `"none"`; ask for `format = "wide"` here to get the wide
+  table with recovery applied.
 
 - .fixed_data:
 

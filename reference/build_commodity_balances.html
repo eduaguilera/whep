@@ -70,6 +70,7 @@ destiny filling, and final balancing.</p></li>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  format <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"long"</span>, <span class="st">"wide"</span><span class="op">)</span>,</span>
+<span>  trade_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"net_import"</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -116,6 +117,20 @@ one of <code>area_code</code> or <code>polity_area_code</code>, one of <code>ite
 per element. <code>"wide"</code> pivots the elements into columns, adds the live-animal
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; <code>"wide"</code> is what the IO model and the extensions consume.</p></dd>
+
+
+<dt id="arg-trade-recovery">trade_recovery<a class="anchor" aria-label="anchor" href="#arg-trade-recovery"></a></dt>
+<dd><p>One of <code>"none"</code> (default) or <code>"net_import"</code>, selecting
+what happens to a traded item the CBS has no row for. The trade record is
+joined onto the CBS, so it can only fill a row that already exists;
+<code>"none"</code> keeps that, and the import is dropped. <code>"net_import"</code> first
+creates the missing rows from the trade record, restricted to
+tonnes-denominated items (live-animal trade is in heads and arrives
+through <code><a href="get_livestock_cbs.html">get_livestock_cbs()</a></code>), to net importers, and to areas the CBS
+already covers in that year. It <strong>moves published values</strong>; <code>NEWS.md</code>
+states by how much and whep#762 keeps the remaining decisions open.
+<code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> always uses <code>"none"</code>; ask for <code>format = "wide"</code> here to
+get the wide table with recovery applied.</p></dd>
 
 
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
