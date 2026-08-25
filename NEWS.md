@@ -1,5 +1,40 @@
 # whep (development version)
 
+* **Natural land's humification fraction is now carbon-weighted across the
+  natural PFTs instead of being the woody constant everywhere.** Five of the
+  fourteen natural PFTs are not woody -- three grasses, a flood-tolerant
+  graminoid and Sphagnum moss -- and they carry **28.1% of natural net
+  primary production at 2010**, so `residue_humification`'s `woody_residue`
+  coefficient of 0.325 was being applied to more than a quarter of a flux
+  that is not wood.
+
+  The weighting is by **carbon**, not by area: forest out-produces the
+  non-forest it would otherwise be weighted against, so an area share
+  understates the woody carbon share and would over-correct. The share is
+  computed per cell and per year from the run's own per-PFT production and
+  travels in the net-carbon layer as `woody_share`.
+
+  Measured on the LPJmL 6.1.1 `..._socn_diag` run, the carbon-weighted woody
+  share of natural production is **0.719 at 2010** (0.753 in 1901, 0.737 in
+  2023), so the humification fraction falls **0.325 to 0.266**. Since HSOC
+  holds `(1 - hf)/0.48 + hf/0.02` years of input, its natural residence time
+  falls from **17.7 to 14.8 years** and **natural-land equilibrium soil
+  carbon moves to 0.84x its previous value**. Grassland and cropland are
+  untouched. This is a science decision, not a mechanical fix: it changes a
+  published quantity and rests on which humification coefficient belongs to
+  which tissue.
+
+  `build_grass_natural_carbon_inputs(method_natural_hf = "woody")` reproduces
+  the previous behaviour exactly. A net-carbon layer with no `woody_share`
+  column -- a pin built before this change -- falls back to the woody
+  constant **with a warning** rather than guessing a share.
+
+  Sphagnum moss is grouped with the herbaceous PFTs because
+  `residue_humification` has no peat coefficient. Peat stabilises carbon far
+  more efficiently than grass, so the grouping errs toward a lower fraction;
+  moss is 0.73% of natural production, so it cannot matter either way. It is
+  flagged rather than filled with an invented value.
+
 * `build_carbon_balance()` no longer applies a cell's irrigation to its
   natural land. The RothC/HSOC moisture driver `water_minus_pet_mm` is a
   cell-level surplus that already includes irrigation, while the climate

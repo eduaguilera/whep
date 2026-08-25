@@ -44,6 +44,14 @@
 #' spontaneous-grass value for grassland and the woody-residue value for
 #' natural land (both from [residue_humification]).
 #'
+#' @param method_natural_hf How natural land's humification fraction is set.
+#'   `"woody_share"` (default) carbon-weights the [residue_humification]
+#'   woody and herbaceous coefficients by the share of each cell-year's
+#'   natural production that the woody PFTs made; `"woody"` applies the
+#'   woody coefficient everywhere, which was the previous behaviour. Five of
+#'   the fourteen natural PFTs are not woody and carry 28.1% of natural
+#'   production at 2010. Falls back to `"woody"`, with a warning, when the
+#'   net-carbon layer has no `woody_share` column.
 #' @param resolution `"grid"` (default, per cell and class) or `"polity"`
 #'   (aggregated to `area_code`, area-weighting the per-hectare densities).
 #' @param years Optional integer vector of calendar years to keep. `NULL`
@@ -83,17 +91,19 @@
 #' build_grass_natural_carbon_inputs(example = TRUE)
 build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
+  method_natural_hf = c("woody_share", "woody"),
   data = list(),
   years = NULL,
   run_dir = NULL,
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  method_natural_hf <- rlang::arg_match(method_natural_hf)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
   d <- .gn_resolve_inputs(data, years, run_dir)
-  natural <- .gn_natural_input(d)
+  natural <- .gn_natural_input(d, method_natural_hf)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
     .gn_finalise(resolution, d$land_use) |>
@@ -177,8 +187,10 @@ build_grass_natural_carbon_inputs <- function(
   .gn_check_natural_pfts(npp)
   natural <- npp |>
     dplyr::filter(.data$name_pft %in% .gn_natural_pfts()) |>
+    dplyr::mutate(woody = .data$name_pft %in% .gn_woody_natural_pfts()) |>
     dplyr::summarise(
       npp_c_mgc_ha_yr = sum(pmax(.data$value, 0)) * 0.01,
+      woody_share = .gn_woody_share(pmax(.data$value, 0), .data$woody),
       .by = c("lon", "lat", "year")
     ) |>
     dplyr::mutate(land_use = "natural")
@@ -190,14 +202,53 @@ build_grass_natural_carbon_inputs <- function(
       "lat",
       "year",
       "land_use",
-      "npp_c_mgc_ha_yr"
+      "npp_c_mgc_ha_yr",
+      dplyr::any_of("woody_share")
     )
+}
+
+# The nine natural PFTs that are woody. The remaining five of
+# `.gn_natural_pfts()` -- three grasses, a flood-tolerant graminoid and
+# Sphagnum moss -- are not, and they carry 28.1% of natural net primary
+# production at 2010, so a single woody humification coefficient is applied
+# to more than a quarter of a flux that is not wood.
+.gn_woody_natural_pfts <- function() {
+  c(
+    "tropical broadleaved evergreen tree",
+    "tropical broadleaved evergreen tree floodtolerant",
+    "tropical broadleaved raingreen tree",
+    "temperate needleleaved evergreen tree",
+    "temperate broadleaved evergreen tree",
+    "temperate broadleaved summergreen tree",
+    "boreal needleleaved evergreen tree",
+    "boreal broadleaved summergreen tree",
+    "boreal needleleaved summergreen tree"
+  )
+}
+
+# Woody share of a cell-year's natural production, by CARBON. Weighting by
+# area instead would understate it, because forest out-produces the
+# non-forest it would be weighted against. A cell with no production at all
+# gets 1, which reproduces the previous woody constant rather than inventing
+# a split for a stand that is not growing.
+.gn_woody_share <- function(value, woody) {
+  total <- sum(value)
+  if (total <= 0) {
+    return(1)
+  }
+  sum(value[woody]) / total
 }
 
 .gn_net_c_class <- function(net_c, class) {
   net_c |>
     dplyr::filter(.data$land_use == class) |>
-    dplyr::select("lon", "lat", "year", "npp_c_mgc_ha_yr")
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      "npp_c_mgc_ha_yr",
+      dplyr::any_of("woody_share")
+    )
 }
 
 # The natural-land PFT names (natural stand: trees plus the natural grasses and
@@ -280,14 +331,18 @@ build_grass_natural_carbon_inputs <- function(
 
 # Natural land is not harvested, so its input is the sum of the natural PFT
 # NPP densities (they coexist in one stand), converted to MgC/ha.
-.gn_natural_input <- function(d) {
-  hf <- .gn_humified(d$residue_humification, "woody_residue")
-  .gn_net_c_class(d$net_c, "natural") |>
+.gn_natural_input <- function(d, method_natural_hf = "woody_share") {
+  hf_woody <- .gn_humified(d$residue_humification, "woody_residue")
+  hf_herb <- .gn_humified(d$residue_humification, "weed")
+  rows <- .gn_net_c_class(d$net_c, "natural")
+  hf <- .gn_natural_hf(rows, method_natural_hf, hf_woody, hf_herb)
+  rows |>
     dplyr::rename(c_input_mgc_ha_yr = "npp_c_mgc_ha_yr") |>
+    dplyr::mutate(humified_fraction = hf) |>
+    dplyr::select(-dplyr::any_of("woody_share")) |>
     .gn_attach_polity(d$country_grid) |>
     dplyr::mutate(
       land_use = "natural",
-      humified_fraction = hf,
       # Not "..._minus_harvest": `harvestc` is read for the grassland branch
       # only, and natural land is never harvested, so nothing is subtracted
       # here. The old label claimed a subtraction that does not happen, which
@@ -297,6 +352,44 @@ build_grass_natural_carbon_inputs <- function(
     )
 }
 
+# The natural class's humification fraction.
+#
+# `"woody_share"` (default) carbon-weights the tabulated woody and
+# herbaceous coefficients by the share of natural production the run's woody
+# PFTs actually made, per cell and per year. HSOC's residence time is
+# (1 - hf) / 0.48 + hf / 0.02, so this one scalar is the largest single lever
+# on natural-land equilibrium carbon: 0.325 holds 17.7 years of input where
+# the herbaceous 0.1153 holds 7.6. Carbon-weighted it becomes 0.266 at 2010
+# (woody share 0.719), for 14.8 years and a 0.84x equilibrium.
+#
+# Sphagnum moss is grouped with the herbaceous PFTs because
+# [residue_humification] has no peat coefficient. Peat stabilises carbon far
+# more efficiently than grass, so that grouping errs low -- but moss is only
+# 0.73% of natural production, so it cannot matter either way. Flagged rather
+# than filled with an invented value.
+#
+# `"woody"` is the previous behaviour: the woody constant everywhere.
+#
+# A net-carbon layer with no `woody_share` column -- a pin built before this
+# existed -- falls back to the constant and says so. Guessing a share would
+# be worse than keeping a documented constant.
+.gn_natural_hf <- function(rows, method_natural_hf, hf_woody, hf_herb) {
+  if (identical(method_natural_hf, "woody")) {
+    return(hf_woody)
+  }
+  if (!rlang::has_name(rows, "woody_share")) {
+    cli::cli_warn(c(
+      "!" = "The natural carbon layer carries no {.field woody_share}, so",
+      " " = "the humification fraction stays at the woody constant",
+      " " = "{.val {hf_woody}}.",
+      "i" = "Regenerate {.val lpjml-grass-natural-net-c}, or supply",
+      " " = "{.code data$net_c} from a run directory, to carbon-weight it."
+    ))
+    return(hf_woody)
+  }
+  share <- dplyr::coalesce(rows$woody_share, 1)
+  share * hf_woody + (1 - share) * hf_herb
+}
 # -- Grassland carbon input ---------------------------------------------------
 
 # Grassland input: the stand-area-weighted mean of the rainfed and irrigated

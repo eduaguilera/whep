@@ -10,6 +10,7 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 \usage{
 build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
+  method_natural_hf = c("woody_share", "woody"),
   data = list(),
   years = NULL,
   run_dir = NULL,
@@ -19,6 +20,15 @@ build_grass_natural_carbon_inputs(
 \arguments{
 \item{resolution}{\code{"grid"} (default, per cell and class) or \code{"polity"}
 (aggregated to \code{area_code}, area-weighting the per-hectare densities).}
+
+\item{method_natural_hf}{How natural land's humification fraction is set.
+\code{"woody_share"} (default) carbon-weights the \link{residue_humification}
+woody and herbaceous coefficients by the share of each cell-year's
+natural production that the woody PFTs made; \code{"woody"} applies the
+woody coefficient everywhere, which was the previous behaviour. Five of
+the fourteen natural PFTs are not woody and carry 28.1\% of natural
+production at 2010. Falls back to \code{"woody"}, with a warning, when the
+net-carbon layer has no \code{woody_share} column.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},

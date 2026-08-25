@@ -127,9 +127,14 @@ testthat::test_that("natural C input sums the natural PFT bands", {
   testthat::expect_equal(cell_b$c_input_mgc_ha_yr, 9.0)
 })
 
-testthat::test_that("natural humified fraction is the woody value", {
+testthat::test_that("method 'woody' gives natural land the woody value", {
+  # This was the unconditional behaviour before the humification fraction
+  # was carbon-weighted across the natural PFTs. It is now what
+  # method_natural_hf = "woody" selects, and it must still be reachable
+  # exactly, so a user can reproduce a pre-change build.
   out <- whep::build_grass_natural_carbon_inputs(
     resolution = "grid",
+    method_natural_hf = "woody",
     data = .gn_fixture_data(excreta = FALSE)
   )
   woody <- whep::residue_humification$humified_fraction[
@@ -137,6 +142,24 @@ testthat::test_that("natural humified fraction is the woody value", {
   ]
   nat <- out[out$land_use == "natural", ]
   testthat::expect_true(all(nat$humified_fraction == woody))
+})
+
+testthat::test_that("the default carbon-weights natural humification", {
+  d <- .gn_fixture_data(excreta = FALSE)
+  seam <- whep:::.gn_net_c_from_lpjml(d, years = NULL)
+  d$net_c <- seam
+  out <- whep::build_grass_natural_carbon_inputs(resolution = "grid", data = d)
+  nat <- out[out$land_use == "natural", ]
+  coef <- \(x) {
+    whep::residue_humification$humified_fraction[
+      whep::residue_humification$input_type == x
+    ]
+  }
+
+  # Bounded by the two tabulated coefficients, and - unless the fixture
+  # happens to be all-woody - strictly below the woody one somewhere.
+  testthat::expect_true(all(nat$humified_fraction <= coef("woody_residue")))
+  testthat::expect_true(all(nat$humified_fraction >= coef("weed")))
 })
 
 testthat::test_that("grassland humified fraction carbon-weights npp and excreta", {
@@ -476,11 +499,20 @@ testthat::test_that("net_c seam reproduces the per-PFT path exactly", {
 
 testthat::test_that("the net_c seam holds only LPJmL quantities", {
   seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
+  # woody_share belongs here: it is the woody fraction of the run's own
+  # per-PFT production, so it is LPJmL-derived exactly as the density is.
+  # The humification COEFFICIENTS it is later blended with are not, and
+  # they stay outside the seam - which is the property this guards.
   testthat::expect_setequal(
     names(seam),
-    c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr")
+    c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr", "woody_share")
   )
   testthat::expect_setequal(unique(seam$land_use), c("grassland", "natural"))
+  # Only natural land has a woody split; grassland is herbaceous by
+  # definition and must not acquire one.
+  nat <- seam[seam$land_use == "natural", ]
+  testthat::expect_true(all(is.finite(nat$woody_share)))
+  testthat::expect_true(all(nat$woody_share >= 0 & nat$woody_share <= 1))
 })
 
 testthat::test_that("excreta still changes the result through the seam", {
@@ -633,4 +665,106 @@ testthat::test_that("all fourteen 6.x natural PFTs are listed", {
     ),
     \(nm) testthat::expect_true(nm %in% whep:::.gn_natural_pfts())
   )
+})
+
+# ---- natural humification is carbon-weighted, not a woody constant -----
+
+testthat::test_that("the woody PFT list is a strict subset of the natural one", {
+  woody <- whep:::.gn_woody_natural_pfts()
+  natural <- whep:::.gn_natural_pfts()
+
+  testthat::expect_length(woody, 9L)
+  testthat::expect_length(natural, 14L)
+  testthat::expect_true(all(woody %in% natural))
+  # The five that are not woody. Naming them here means a PFT quietly
+  # changing sides shows up as a test failure rather than as a shifted
+  # humification fraction.
+  testthat::expect_setequal(
+    setdiff(natural, woody),
+    c(
+      "Tropical C4 grass",
+      "Temperate C3 grass",
+      "Polar C3 grass",
+      "C3 graminoid flood tolerant",
+      "Sphagnum moss"
+    )
+  )
+})
+
+testthat::test_that(".gn_woody_share weights by carbon, not by count", {
+  # Three units of woody production against one of grass is 0.75 by carbon.
+  # By PFT COUNT the same cell would be 0.5, which is the error this guards.
+  testthat::expect_equal(
+    whep:::.gn_woody_share(c(3, 1), c(TRUE, FALSE)),
+    0.75
+  )
+  testthat::expect_equal(
+    whep:::.gn_woody_share(c(1, 1, 1, 9), c(TRUE, TRUE, TRUE, FALSE)),
+    0.25
+  )
+})
+
+testthat::test_that("a stand producing nothing keeps the woody constant", {
+  # Dividing by zero production would give NaN, and an NaN humification
+  # fraction propagates into a non-finite equilibrium that
+  # .cb_check_equilibrium() would then abort the whole build over.
+  testthat::expect_equal(
+    whep:::.gn_woody_share(c(0, 0), c(TRUE, FALSE)),
+    1
+  )
+  testthat::expect_equal(
+    whep:::.gn_natural_hf(
+      tibble::tibble(
+        woody_share = whep:::.gn_woody_share(c(0, 0), c(TRUE, FALSE))
+      ),
+      "woody_share",
+      0.325,
+      0.1153
+    ),
+    0.325
+  )
+})
+
+testthat::test_that(".gn_natural_hf interpolates between the two coefficients", {
+  rows <- tibble::tibble(woody_share = c(1, 0.5, 0))
+  hf <- whep:::.gn_natural_hf(rows, "woody_share", 0.325, 0.1153)
+
+  testthat::expect_equal(hf, c(0.325, 0.22015, 0.1153))
+  # Never outside the two tabulated coefficients, whatever the share.
+  wide <- tibble::tibble(woody_share = seq(0, 1, by = 0.05))
+  all_hf <- whep:::.gn_natural_hf(wide, "woody_share", 0.325, 0.1153)
+  testthat::expect_true(all(all_hf >= 0.1153 & all_hf <= 0.325))
+})
+
+testthat::test_that("method 'woody' reproduces the previous behaviour exactly", {
+  rows <- tibble::tibble(woody_share = c(1, 0.5, 0))
+  testthat::expect_equal(
+    whep:::.gn_natural_hf(rows, "woody", 0.325, 0.1153),
+    0.325
+  )
+})
+
+testthat::test_that("a layer without woody_share falls back loudly", {
+  # A pin built before woody_share existed is an ordinary state, not an
+  # error - but it must not silently look like a carbon-weighted run.
+  rows <- tibble::tibble(npp_c_mgc_ha_yr = 5)
+  testthat::expect_warning(
+    hf <- whep:::.gn_natural_hf(rows, "woody_share", 0.325, 0.1153),
+    "woody_share"
+  )
+  testthat::expect_equal(hf, 0.325)
+})
+
+testthat::test_that("build_grass_natural_carbon_inputs validates the method", {
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(method_natural_hf = "guess"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the natural output drops woody_share after using it", {
+  # woody_share is an input to the humification fraction, not part of the
+  # carbon-input contract build_carbon_inputs() consumes.
+  out <- whep::build_grass_natural_carbon_inputs(example = TRUE)
+  testthat::expect_false("woody_share" %in% names(out))
 })
