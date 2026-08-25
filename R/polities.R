@@ -58,7 +58,13 @@
 
   dependency <- .polity_crosswalk(include_unmapped = FALSE)[
     is.na(area_code) & !is.na(area_iso3c),
-    .(iso3c = area_iso3c, polity_code, polity_start_year, polity_end_year)
+    .(
+      iso3c = area_iso3c,
+      polity_code,
+      polity_start_year,
+      polity_end_year,
+      legacy_polity_prefix
+    )
   ]
   # One crosswalk row per polity period; take the most recent, which is how
   # `.current_area_lookup()` picks a code's current polity.
@@ -70,8 +76,38 @@
   )
   dependency <- unique(dependency, by = "iso3c")
 
-  out <- merge(dependency, sovereign, by = "polity_code", sort = FALSE)
-  out <- out[sovereign_iso3c != iso3c, .(iso3c, sovereign_iso3c)]
+  # A dependency whose OWN polity carries no reporting area has no sovereign to
+  # read off the merge, so fall back to the sovereign its crosswalk row already
+  # names in `legacy_polity_prefix`.
+  #
+  # Sint Maarten is why this exists. Until upstream published `SXM-2010-2025`,
+  # the SXM territory reached `NLD-1830-2025` by prefix fallback, and that
+  # polity carries area 150 -- so the merge found NLD by accident of the
+  # territory having no polity of its own. Once it got one, the merge found
+  # nothing, SXM left this bridge, and `.attribute_dependency_land()` could no
+  # longer relabel its LUH2 rows: 3,876 rows the pin carries would be dropped by
+  # `.read_land_areas()` as a territory with no FAOSTAT area code. Upstream
+  # getting MORE correct broke an inference that depended on it being wrong.
+  #
+  # The fallback is guarded to codes that are themselves a sovereign here, so a
+  # prefix naming no reporting area cannot invent a bridge that moves the loss
+  # instead of removing it.
+  out <- merge(
+    dependency,
+    sovereign,
+    by = "polity_code",
+    sort = FALSE,
+    all.x = TRUE
+  )
+  known_sovereign <- unique(sovereign$sovereign_iso3c)
+  out[
+    is.na(sovereign_iso3c) & legacy_polity_prefix %in% known_sovereign,
+    sovereign_iso3c := legacy_polity_prefix
+  ]
+  out <- out[
+    !is.na(sovereign_iso3c) & sovereign_iso3c != iso3c,
+    .(iso3c, sovereign_iso3c)
+  ]
   data.table::setorderv(out, "iso3c")
   out
 }

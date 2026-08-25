@@ -18,7 +18,17 @@
   because ANT's three successors all start in 2010, so the "nothing succeeds it"
   widening no longer applies. **No published series loses a row** — the numeric
   route is unaffected, and `add_polity_code()` still resolves area 151 at 2010 to
-  `ANT-1961-2010`. Refs #890, #384, #870.
+  `ANT-1961-2010`. Two further consequences needed code rather than a pin:
+  `.dependency_sovereign_iso3()` now falls back to the crosswalk's
+  `legacy_polity_prefix` when a dependency's own polity carries no reporting
+  area, because Sint Maarten used to reach NLD only by prefix fallback and
+  gaining its own polity would have dropped **3,876 rows** of `luh2-areas` land
+  from the Netherlands under `dependency_land = "sovereign"`; and
+  `population_source_reach()` now classifies area 151 as `successor` reaching
+  `BES, CUW, SXM`, leaving **no** unreachable reporting area outside bucket 999,
+  which makes #787 actionable — with the caveat that those are the 2010
+  partition and Aruba, modelled as continuous upstream, is not among them.
+  Refs #890, #384, #870, #787.
 
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot

@@ -92,7 +92,13 @@ testthat::test_that("iso3_codes must be a non-empty character vector", {
 # whep#787 becomes actionable. Change this test then, and read the note at the
 # top of `R/population_reach.R` first -- reachable is not the same as safe to
 # sum.
-testthat::test_that("area 151 is unreachable even with its successors in the vocabulary", {
+# UPSTREAM FIXED THE GAP, and this is the changed test the note above asked for.
+# The #890 snapshot resync published ANT's three successors, so area 151 is
+# reconstructable and whep#787 is actionable. Read the note at the top of
+# `R/population_reach.R` before acting on it: reachable is not safe to sum, and
+# this territory has its own version of the Kosovo shortfall recorded there --
+# see the Aruba assertion below.
+testthat::test_that("area 151 reads through its successors once upstream names them", {
   vocabulary <- union(
     .live_polity_iso3(),
     c("CUW", "SXM", "BES", "ABW", "XKX")
@@ -101,18 +107,36 @@ testthat::test_that("area 151 is unreachable even with its successors in the voc
   ant <- dplyr::filter(out, .data$polity_code == "ANT-1961-2010")
   testthat::expect_identical(nrow(ant), 1L)
   testthat::expect_identical(ant$area_code, 151L)
-  testthat::expect_identical(ant$reach, "unreachable")
-  testthat::expect_identical(ant$n_iso3, 0L)
-  testthat::expect_true(is.na(ant$iso3_reached))
+  testthat::expect_identical(ant$reach, "successor")
+  testthat::expect_identical(ant$n_iso3, 3L)
+  testthat::expect_identical(ant$iso3_reached, "BES, CUW, SXM")
+
+  # THE CAVEAT, pinned so a denominator built on this cannot claim more than the
+  # relation gives. Those three are the 2010 partition. Aruba left the
+  # Netherlands Antilles in 1986, and upstream models it as continuous --
+  # `ABW-1800-2025` carries no predecessor -- so it is not in the successor set
+  # and never will be by this walk. A successor sum therefore reaches the
+  # territory as upstream defines it, not FAOSTAT's area 151 as it stood before
+  # 1986. Same shape as the Yugoslav/Kosovo shortfall in the file note.
+  testthat::expect_false(grepl("ABW", ant$iso3_reached, fixed = TRUE))
+  # Base subsetting, not `dplyr::filter()`: `whep::polities` carries an `sfc`
+  # geometry column, which dplyr cannot row-slice.
+  abw_pred <- whep::polities$predecessor[
+    match("ABW-1800-2025", whep::polities$polity_code)
+  ]
+  testthat::expect_true(is.na(abw_pred) || !nzchar(abw_pred))
 })
 
-testthat::test_that("area 151 is the only unreachable reporting area outside bucket 999", {
+testthat::test_that("no reporting area outside bucket 999 is unreachable", {
+  # Area 151 was the last one. It was `unreachable` until the #890 resync, and
+  # the count is asserted at zero rather than as a set, so a NEW stranded area
+  # from any later vocabulary change is a failure here.
   out <- whep::population_source_reach(
     union(.live_polity_iso3(), c("CUW", "SXM", "BES", "ABW", "XKX"))
   )
   stranded <- out |>
     dplyr::filter(.data$reach == "unreachable", .data$area_code != 999L)
-  testthat::expect_identical(stranded$polity_code, "ANT-1961-2010")
+  testthat::expect_identical(nrow(stranded), 0L)
 })
 
 testthat::test_that("the other dissolved federations do read through successors", {

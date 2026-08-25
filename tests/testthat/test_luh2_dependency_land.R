@@ -39,6 +39,14 @@ test_that(".dependency_sovereign_iso3 names a sovereign for bucket-less ISO3s", 
   # Asserted by name rather than counted, so that a crosswalk refresh which
   # gives one of them its own bucket (option 3 in #407) shows up as a failure
   # here instead of silently changing what a land series contains.
+  #
+  # SXM reaches NLD by a different route than the other five since the #890
+  # resync. It now has its own polity, `SXM-2010-2025`, which carries no
+  # reporting area -- so there is no sovereign to read off the polity merge, and
+  # `.dependency_sovereign_iso3()` falls back to the `legacy_polity_prefix` the
+  # crosswalk row already names. Same answer, and this assertion is what proves
+  # the fallback restored it: without it SXM leaves the bridge and the 3,876
+  # SXM rows in `luh2-areas` are dropped as a territory with no area code.
   expect_equal(
     bridge[iso3c %in% c("JEY", "GGY", "IMN")]$sovereign_iso3c,
     rep("GBR", 3L)
