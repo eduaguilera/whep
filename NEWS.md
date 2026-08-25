@@ -1,5 +1,35 @@
 # whep (development version)
 
+* **The `spatialize-crop-patterns` pin was regenerated: barley is back, and
+  the gridded harvested-area round trip closes 6 points tighter (#877).**
+  `inst/extdata/earthstat_mapping.csv` is the crosswalk
+  `prepare_crop_patterns()` iterates -- one EarthStat harvested-area raster
+  per row -- and it shipped with 169 rows against the 172 crop directories
+  the EarthStat `HarvestedAreaYield175Crops` tree contains. The three
+  missing names were `barley`, `greencorn` and `hempseed`, all three of
+  which `cft_mapping.csv` already expected, so `crop_patterns` carried no
+  cell for them and `build_gridded_landuse()` dropped their entire world
+  total in every country and every year. The rows are added and the pin
+  rebuilt from the whole EarthStat tree (version
+  `20260825T092111Z-8690d`, 2,297,621 rows over 147 crops, up from
+  2,247,239 over 144); the regeneration reproduces the 144 crops already
+  in the deployed pin bit-for-bit, so the only change is the three crops
+  it adds.
+  **This moves published gridded values.** Spatializing with the `whep`
+  preset and re-aggregating the cells to their reporting areas, the world
+  harvested-area round trip goes from 0.9327 to 0.9898 at 1961 (+54.46
+  Mha, of which barley 53.70 Mha) and from 0.9474 to 0.9832 at 2015
+  (+48.96 Mha, barley 47.85 Mha); the share of areas round-tripping within
+  1% goes from 42.3% to 78.9% at 1961 and 34.9% to 72.3% at 2015. No other
+  crop's allocation moves by more than 6e-08 ha. Everything downstream of
+  `build_gridded_landuse()` inherits the change, including
+  `build_crop_land_extension()` and the gridded nitrogen balance. Hempseed
+  contributes cells but no area yet: the national table carries no
+  harvested area under item 336.
+  `Chillies and peppers, dry` (689) and `Leeks and other alliaceous
+  vegetables` (407) stay unallocated, and are meant to -- EarthStat
+  publishes no raster for either.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
