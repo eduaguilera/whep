@@ -6287,14 +6287,17 @@ prepare_lpjml6_static_inputs <- function(
   if (any(share_cols %in% names(country_grid))) {
     return(country_grid)
   }
-  cli::cli_warn(c(
-    "!" = "{.arg country_grid} carries no polity share; attaching
-           {.code cell_area_frac = 1}.",
-    "i" = "This is the centroid crosswalk: each cell goes WHOLLY to one polity,
-           so a border cell's crops are not split. It reproduces every deployed
-           WHEP forcing. The alternatives drop more harvested area: polycell
-           loses 18.8 Mha (Sudan, Syria, South Sudan and five others), fraction
-           loses 27.1 Mha (whep#461)."
+  # cli_alert_warning, not cli_warn: rlang defers a warning to the end of the
+  # top-level call, so in a multi-hour script cli_warn() would surface only
+  # after the forcing was already written -- the opposite of visible.
+  cli::cli_alert_warning(c(
+    "{.arg country_grid} carries no polity share; attaching
+     {.code cell_area_frac = 1}.",
+    " This is the centroid crosswalk: each cell goes WHOLLY to one polity, so a
+     border cell's crops are not split. It reproduces every deployed WHEP
+     forcing. The alternatives drop more harvested area: polycell loses
+     18.8 Mha (Sudan, Syria, South Sudan and five others), fraction loses
+     27.1 Mha (whep#461)."
   ))
   dplyr::mutate(country_grid, cell_area_frac = 1)
 }
