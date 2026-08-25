@@ -1,5 +1,31 @@
 # whep (development version)
 
+* **`biomass_coefs` now has one source, and the Spanish nitrogen chain
+  moves with it (#489).** The name resolved to two different tables: the
+  packaged `whep::biomass_coefs` (63 columns, rebuilt from
+  `inst/extdata/harmonization/biomass_coefs.csv`) and a `biomass_coefs` pin
+  frozen at `20250728T082553Z` (41 columns). They disagreed on 12 of their 36
+  shared columns, so `build_food_supply()` and `create_n_prov_destiny()` ran
+  on different nitrogen coefficients for the same commodity. The packaged
+  table is authoritative — it reproduces the upstream `Biomass_coefs.xlsx`
+  `Coefs` sheet cell-for-cell on all 63 columns, whereas the pin differs from
+  upstream in 126 cells — so the pin entry has been removed from
+  `whep_inputs` and `create_n_prov_destiny()`,
+  `validate_national_trade()` and the Josette typologies now read
+  `whep::biomass_coefs`.
+  Published values change. On the columns those callers use, 23 cells moved:
+  `Residue_kgN_kgDM` for the 17 wood and forest items rises from
+  0.00095 to 0.0030–0.0045 kg N per kg DM, and `Lysine` and `Methionine`
+  gain product dry-matter and nitrogen contents the pin had at roughly half
+  and at zero. Measured end to end on `create_n_prov_destiny()`
+  (1961–2023, all provinces): total nitrogen 410.78 to 415.42 Tg,
+  **+1.13%**, concentrated in `Firewood` (+4.35%), `Wood` (+216%),
+  `Lysine` (+281%) and `Methionine` (0 to 239,619 Mg N). By destiny,
+  `export` +6.48%, `population_other_uses` +19.41%, `livestock_mono`
+  +1.92%; by box, `semi_natural_agroecosystems` +5.80%, `Cropland`
+  +1.01%. No other function changed: nothing read the five below-ground
+  columns the pin carried and the packaged table does not.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,

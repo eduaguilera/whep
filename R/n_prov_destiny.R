@@ -44,7 +44,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     return(.example_create_n_prov_destiny())
   }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
-  biomass_coefs <- whep_read_file("biomass_coefs")
+  biomass_coefs <- whep::biomass_coefs
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
@@ -1749,7 +1749,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 .convert_to_items_n <- function(
   grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
-  biomass_coefs = whep_read_file("biomass_coefs")
+  biomass_coefs = whep::biomass_coefs
 ) {
   grafs_prod_item_combined |>
     dplyr::left_join(

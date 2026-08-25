@@ -28,7 +28,7 @@ validate_national_trade <- function(n_prov_destiny = NULL, example = FALSE) {
   }
 
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
-  biomass_coefs <- whep_read_file("biomass_coefs")
+  biomass_coefs <- whep::biomass_coefs
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
 
   # Items excluded: internal ecosystem flows (Grass, Crop residues groups)
@@ -161,7 +161,7 @@ validate_national_trade_raw <- function(
   }
 
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
-  biomass_coefs <- whep_read_file("biomass_coefs")
+  biomass_coefs <- whep::biomass_coefs
   excluded_items <- .default_excluded_trade_items(codes_coefs_items_full)
 
   prov_net <- .sum_provincial_net(
@@ -218,7 +218,7 @@ compute_trade_flows_raw <- function(n_nat_destiny = NULL, example = FALSE) {
   }
 
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
-  biomass_coefs <- whep_read_file("biomass_coefs")
+  biomass_coefs <- whep::biomass_coefs
   excluded_items <- .default_excluded_trade_items(codes_coefs_items_full)
 
   national_flows <- .sum_national_flows(
