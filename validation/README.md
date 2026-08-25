@@ -51,6 +51,8 @@ a hardcoded grid.
 | `lpjml_globalflux.R` | Checks a finished **LPJmL run's** global fluxes for spinup equilibration and against published observational estimates. See below. |
 | `lpjml_pins.R` | Guards the four **LPJmL-derived input pins** against their recorded contract, physical invariants and magnitudes, so a pin swap cannot pass silently. See below. |
 | `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
+| `lpjml_forcing_pins.R` | Guards the six **climate-forcing pins** (the NetCDF grids that feed *into* LPJmL) against their grid contract and physical impossibility bounds. Its sibling above excludes them by design; #824 is why they still need a check. See below. |
+| `gt_lpjml_forcing_pins.json` | Recorded state of those pins, including the **known** negative-radiation count of #824. **Committed** — compared bidirectionally, so a count that falls is as loud as one that rises. |
 
 ## Year-scoping equivalence (`year_scoping.R`)
 
@@ -169,6 +171,40 @@ Three tiers, and they mean different things when they fail:
 
 So a baseline failure is a prompt, not a verdict: find out what moved, then
 re-record with `--record` and say in the commit message why.
+
+### Climate-forcing pins — `lpjml_forcing_pins.R`
+
+```
+Rscript validation/lpjml_forcing_pins.R            # check
+Rscript validation/lpjml_forcing_pins.R --record   # rewrite the baseline
+```
+
+`lpjml_pins.R` above guards the four pins carrying LPJmL *output* and
+deliberately excludes the *forcing* pins, on the reasoning that forcing does not
+change with the model version. That is right for its magnitude tier and wrong
+for its invariant tier: forcing can still be **corrupt**. #824 is the proof —
+`lpjml-rsds-era5-2017-2023` ships 1,823,843 negative shortwave values because
+#536 fixed the script that builds it and nobody rebuilt the artifact. Nothing in
+the repo could see it: this script excluded the pin, and
+`test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+against its generating script.
+
+Six pins, three variables, and the bounds are impossibility limits: a
+downwelling radiative flux and a wind speed cannot be negative, and the ceilings
+(1500 W/m² for `rsds`, 1000 for `rlds`, 100 m/s for `wind`) sit far above the
+observed maxima of 468, 485 and 21.2. **The floor is inclusive**:
+`lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0 — night — so a
+positivity test would fail on a clean pin, and a clamp must land on 0 rather
+than nudge to epsilon.
+
+The recorded-state tier is what makes this usable while #824 is open: the
+violation is *recorded* rather than suppressed, so the script is green on the
+known-bad state, reports it as `KNOWN` on every run, and is loud about anything
+new. The comparison is **bidirectional** — a count that rises is a new
+corruption, and a count that falls means somebody rebuilt the pin, which is
+exactly the event #824 exists because nobody noticed. Both stop the check and
+demand a re-record, so the fix gets written down instead of quietly changing
+what consumers receive.
 
 **Still not covered:** how a pin change propagates into `build_carbon_balance()`
 output. That needs local raster paths which are unset in a fresh checkout —
