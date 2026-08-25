@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **A missing `water` or `ice` layer no longer zero-fills silently in
+  `build_polycell_support()` (#885).** Both arguments default to `NULL`, the
+  column is filled with zeros, and the producer's identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` still holds —
+  so every check passes while every lake, river and glacier inside a polity is
+  booked as land. The deployed pin `20260818T105426Z-a0330` was built that way,
+  confirmed by reading it: all **482,605** rows carry `inland_water_ha == 0` and
+  `ice_area_ha == 0`, and `land_area_ha` equals `polity_area_ha` in every one,
+  which puts 2015 land 536.0 Mha (+4.15%) above the pin built from all four
+  layers. `.pcs_add_water()` and `.pcs_add_ice()` now warn, on distinct condition
+  classes (`whep_polycell_absent_water`, `whep_polycell_absent_ice`), naming the
+  consequence rather than the absence. Zero-filling still happens — this changes
+  no value, only its visibility — and remains correct for a smoke build. Does not
+  fix the deployed pin, which needs regenerating with all four layers.
+  Refs #885, #802.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and
