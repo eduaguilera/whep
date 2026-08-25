@@ -1,8 +1,8 @@
 # Crown dependencies and overseas territories in LUH2 (#407).
 #
 # LUH2 reports land for JEY, GGY, IMN, ALA, BLM and SXM under their own ISO3.
-# The crosswalk knows all six and names each one's sovereign polity, but gives
-# them no FAOSTAT `area_code`, and `.current_area_lookup()` keeps only rows that
+# The crosswalk knows all six and can name each one's sovereign, but gives them
+# no FAOSTAT `area_code`, and `.current_area_lookup()` keeps only rows that
 # have one. So `.read_land_areas()` could not see them and dropped their land
 # under a warning that said they were "not found in polity_area_crosswalk" --
 # which was the wrong diagnosis: the polity mapping exists, the numeric
@@ -39,6 +39,15 @@ test_that(".dependency_sovereign_iso3 names a sovereign for bucket-less ISO3s", 
   # Asserted by name rather than counted, so that a crosswalk refresh which
   # gives one of them its own bucket (option 3 in #407) shows up as a failure
   # here instead of silently changing what a land series contains.
+  #
+  # IT DID FIRE, and this is what it caught. The 2026-08-25 whep-polities
+  # re-sync gave Sint Maarten its own polity, `SXM-2010-2025` -- not its own
+  # bucket, but enough to break the bridge, because the bridge found a
+  # sovereign by asking which reporting area SHARED the dependency's polity and
+  # nothing shares one that upstream minted for the dependency alone. SXM
+  # dropped out and its LUH2 land went from counted under `NLD` to counted
+  # nowhere. `.dependency_sovereign_iso3()` now falls back to
+  # `legacy_polity_prefix`, which names the sovereign either way.
   expect_equal(
     bridge[iso3c %in% c("JEY", "GGY", "IMN")]$sovereign_iso3c,
     rep("GBR", 3L)
@@ -46,6 +55,15 @@ test_that(".dependency_sovereign_iso3 names a sovereign for bucket-less ISO3s", 
   expect_equal(bridge[iso3c == "ALA"]$sovereign_iso3c, "FIN")
   expect_equal(bridge[iso3c == "BLM"]$sovereign_iso3c, "FRA")
   expect_equal(bridge[iso3c == "SXM"]$sovereign_iso3c, "NLD")
+
+  # SXM is resolved by the fallback and only by it, which is the precondition
+  # that made the fallback necessary: no reporting area carries its polity. If
+  # this stops holding the first route covers SXM again and the assertion above
+  # would pass whether or not the fallback still worked.
+  expect_false(
+    "SXM-2010-2025" %in%
+      whep:::.current_area_lookup(include_unmapped = FALSE)$polity_code
+  )
 
   # A self-map would silently do nothing, and a dependency that already had a
   # bucket would be double-counted by the ordinary bridge as well as this one.

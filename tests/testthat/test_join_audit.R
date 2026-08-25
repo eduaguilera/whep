@@ -133,7 +133,22 @@ test_that("the enumerated baseline can only shrink", {
   # destiny-share skeleton join did not go away, it stopped naming the `area`
   # label, so one row changed key rather than leaving. The count says nothing
   # about that; the third test does, and it now reads EMPTY.
-  expect_lte(sum(baseline$n), 65L)
+  #
+  # 66 is the dependency-sovereign fallback, and it is a rise that BUYS BACK a
+  # territory rather than spending one. `.dependency_sovereign_iso3()` found a
+  # crown dependency's sovereign by asking which reporting area SHARED its
+  # `polity_code`. That relation exists only while the dependency has no polity
+  # of its own, and the 2026-08-25 whep-polities re-sync gave Sint Maarten
+  # `SXM-2010-2025` -- an upstream improvement -- so nothing shared its polity,
+  # the join dropped it, and its LUH2 land went from counted under `NLD` to
+  # counted nowhere. The second join reads `legacy_polity_prefix` instead, the
+  # same ISO3-stem-to-bucket bridge `.read_fodder_euadb()` already uses, and it
+  # names the sovereign whether or not the dependency has its own polity. It
+  # cannot be year-keyed for the reason the class says: a present-day sovereign
+  # has no time dimension, and the dependency's own period is chosen before this
+  # join runs. It fires only where the first route found nothing, so it cannot
+  # move an answer that route still gives -- the two agree on all five it does.
+  expect_lte(sum(baseline$n), 66L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

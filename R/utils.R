@@ -74,6 +74,8 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    "prefix_iso3c",
+    "legacy_polity_prefix",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
