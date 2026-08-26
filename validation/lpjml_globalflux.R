@@ -41,6 +41,10 @@ suppressMessages(library(dplyr))
 # with the 18O constraint of 150-175 but well above satellite-optical
 # products at 120-140, a gap those authors attribute to underestimated
 # tropical productivity.
+# The UPPER_CASE constants below are deliberate for module-level constants, as
+# in the sibling validation scripts, so object_name_linter is silenced over the
+# block rather than per line (air moves an inline marker inside the call).
+# nolint start: object_name_linter.
 BENCHMARKS <- list(
   gpp_cos = list(
     label = "GPP, carbonyl sulfide (Lai 2024)",
@@ -63,9 +67,27 @@ BENCHMARKS <- list(
 # climate period, so the fast pools genuinely oscillate from year to year and
 # a tighter tolerance just labels every pool "drifting" regardless of the run,
 # which is a verdict that carries no information.
-EQUILIBRIUM_POOLS <- c("SoilC", "LitC", "VegC", "SoilN", "VegN")
+#
+# The two MINERAL nitrogen pools are here because they are the ones that fail.
+# On the 6.1.1 production run (spinup 300) every organic pool above passes at
+# 0.02-0.06%/yr while SoilNO3 drifts -0.146%/yr and SoilNH4 -0.126%/yr, so the
+# list as it stood returned five "equilibrated" verdicts for a run whose mineral
+# N is still draining after 300 spinup years -- exactly the masking this script's
+# header warns about (#437). They are also the largest N pool after SoilN:
+# SoilNO3 alone is 20.1 PgN in 2023, 24.6 years of global plant uptake.
+# A run that does not write them is unaffected; the loop skips absent columns.
+EQUILIBRIUM_POOLS <- c(
+  "SoilC",
+  "LitC",
+  "VegC",
+  "SoilN",
+  "VegN",
+  "SoilNH4",
+  "SoilNO3"
+)
 EQUILIBRIUM_DRIFT_TOL <- 1e-3
 EQUILIBRIUM_WINDOW <- 20L
+# nolint end
 
 main <- function() {
   args <- commandArgs(trailingOnly = TRUE)
@@ -175,6 +197,19 @@ report_equilibration <- function(flux, label) {
 
   # At nitrogen steady state, losses balance inputs. This ratio is the
   # standard diagnostic and is unitless, so it is comparable across runs.
+  #
+  # It is reported for the SPINUP ONLY, and that restriction is load-bearing:
+  # spinup holds inputs roughly fixed, so the ratio there measures the model.
+  # Over the transient the same run reads 1.103 (2004-2023) against 2.011 at
+  # the end of spinup, not because the imbalance resolved but because ninflux
+  # nearly triples (0.080 -> 0.215 PgN/yr) with rising deposition and
+  # fertiliser while the nitrate pool is still draining. A transient ratio near
+  # 1 is therefore not evidence of a balanced nitrogen cycle (#437).
+  #
+  # Deliberately printed without a verdict: no threshold between 5.9.7's 1.075
+  # and 6.1.1's 2.011 can be justified from the model without deciding how much
+  # imbalance is acceptable, which is a judgement for the maintainer. The pool
+  # drift table above is what adjudicates, on the tolerance it already has.
   if (all(c("nlosses", "ninflux") %in% names(recent))) {
     ratio <- sum(recent$nlosses) / sum(recent$ninflux)
     cat(sprintf(
@@ -183,6 +218,30 @@ report_equilibration <- function(flux, label) {
       ratio
     ))
   }
+  report_mineral_n(recent)
+}
+
+# Mineral N stated against two internal yardsticks rather than an observational
+# one: the plant uptake it could supply, and the organic soil N it sits beside.
+# Both come out of the same file, so neither imports an unverified literature
+# number, and both are scale-free enough to compare across runs. On the 6.1.1
+# production run's last 20 spinup years they read 35.9 years of uptake and
+# 12.8% of SoilN (24.6 years and 9.8% by 2023, the pool having drained 25%).
+report_mineral_n <- function(recent) {
+  if (!all(c("SoilNO3", "SoilNH4", "nuptake", "SoilN") %in% names(recent))) {
+    return(invisible(NULL))
+  }
+  mineral <- mean(recent$SoilNO3) + mean(recent$SoilNH4)
+  cat(sprintf(
+    paste0(
+      "  mineral N (SoilNO3 + SoilNH4): %.2f, of which %.1f%% nitrate\n",
+      "    = %.1f years of plant uptake, %.1f%% of organic SoilN\n"
+    ),
+    mineral,
+    100 * mean(recent$SoilNO3) / mineral,
+    mineral / mean(recent$nuptake),
+    100 * mineral / mean(recent$SoilN)
+  ))
 }
 
 report_benchmarks <- function(flux, window) {

@@ -176,14 +176,85 @@ assert_table_schema <- function(data, schema, arg = "data") {
   invisible(data)
 }
 
+#' Build a typed zero-row table from a declarative schema.
+#'
+#' @description
+#' Turn the same serializable schema [check_table_schema()] validates into
+#' the zero-row tibble it describes: the declared column names, in the
+#' declared order, each with the declared type and no rows. The result
+#' passes [check_table_schema()] by construction, because both functions
+#' resolve the schema through one parser, so a prototype and the validator
+#' that judges it cannot drift apart.
+#'
+#' This is the missing half of [ensure_columns()], which *needs* a zero-row
+#' prototype tibble and cannot be handed a schema. Declare the schema once
+#' as data — in a YAML file beside the artifact, say — then
+#' `empty_table_from_schema()` for the prototype, [ensure_columns()] to
+#' coerce a table onto it, and [assert_table_schema()] to prove the result.
+#'
+#' @section Types:
+#' `"logical"`, `"integer"`, `"double"`, `"character"`, `"Date"` and
+#' `"list"` produce a column of exactly that type. `"any"` declares that the
+#' schema does not constrain the type, so there is no type to build: the
+#' column is created as `logical()`, the type of a bare `NA` and the one any
+#' later cast widens from. Fields other than `name` and `type` (`min`,
+#' `allowed`, `key`, ...) constrain values, of which a zero-row table has
+#' none, so they only have to parse.
+#'
+#' A schema with `allow_empty = FALSE` has no valid empty table, and is
+#' rejected rather than returning one that fails its own validation.
+#'
+#' @inheritParams check_table_schema
+#'
+#' @return A zero-row tibble with one column per declared column, in
+#'   declared order. A schema declaring no columns yields a 0x0 tibble.
+#'
+#' @export
+#'
+#' @examples
+#' schema <- list(
+#'   columns = list(
+#'     list(name = "year", type = "integer", min = 1961, max = 2023),
+#'     list(name = "area_code", type = "integer"),
+#'     list(name = "source", type = "character"),
+#'     list(name = "value", type = "double", min = 0)
+#'   ),
+#'   key = c("year", "area_code")
+#' )
+#' prototype <- empty_table_from_schema(schema)
+#' prototype
+#'
+#' # It is a prototype: `ensure_columns()` coerces a partial table onto it.
+#' ensure_columns(tibble::tibble(year = 2020L, value = 1.5), prototype)
+#'
+#' # And it conforms to the schema it was built from.
+#' nrow(check_table_schema(prototype, schema))
+empty_table_from_schema <- function(schema) {
+  spec <- .parse_table_schema(schema)
+  if (!spec$allow_empty) {
+    .schema_abort(
+      c(
+        "{.arg schema} sets {.code allow_empty = FALSE}.",
+        "i" = "It has no valid empty table, so none is built."
+      ),
+      "whep_error_schema_no_empty"
+    )
+  }
+  spec$columns |>
+    purrr::map(.schema_empty_column) |>
+    purrr::set_names(purrr::map_chr(spec$columns, "name")) |>
+    tibble::as_tibble()
+}
+
 # --- Schema primitives ---
 #
 # `.parse_table_schema()` and `.schema_type_prototype()` are the shared
 # schema seam of the declarative-schema family (whep#372-#375): the typed
-# empty-table constructor (#374) and the standard table writer (#375) should
-# resolve a schema through them rather than re-reading the raw list, so all
-# three agree on the supported types, the field vocabulary and the column
-# order.
+# empty-table constructor (#374) resolves a schema through them rather than
+# re-reading the raw list, so the constructor and the validator agree on the
+# supported types, the field vocabulary and the column order. They stay
+# private on purpose: the parsed spec is an internal representation, and the
+# public surface a caller needs is `empty_table_from_schema()` itself.
 
 .schema_types <- c(
   "logical",
@@ -239,6 +310,13 @@ assert_table_schema <- function(data, schema, arg = "data") {
     list = list(),
     any = NULL
   )
+}
+
+.schema_empty_column <- function(column) {
+  if (column$type == "any") {
+    return(logical())
+  }
+  column$prototype
 }
 
 .schema_abort <- function(message, class, env = rlang::caller_env()) {

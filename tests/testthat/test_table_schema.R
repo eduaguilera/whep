@@ -343,3 +343,159 @@ test_that("assert_table_schema aborts on error diagnostics", {
     whep::assert_table_schema(data_fixture(), schema_fixture())
   )
 })
+
+test_that("the constructor preserves declared names, order and types", {
+  prototype <- whep::empty_table_from_schema(schema_fixture())
+
+  expect_s3_class(prototype, "tbl_df")
+  expect_equal(nrow(prototype), 0)
+  expect_named(prototype, c("year", "area_code", "source", "value"))
+  expect_identical(
+    purrr::map_chr(prototype, ~ class(.x)[[1]]),
+    c(
+      year = "integer",
+      area_code = "integer",
+      source = "character",
+      value = "numeric"
+    )
+  )
+})
+
+test_that("the constructor covers every supported type exactly", {
+  schema <- list(
+    columns = list(
+      list(name = "flag", type = "logical"),
+      list(name = "year", type = "integer"),
+      list(name = "value", type = "double"),
+      list(name = "source", type = "character"),
+      list(name = "built_at", type = "Date"),
+      list(name = "inputs", type = "list"),
+      list(name = "whatever", type = "any")
+    )
+  )
+  prototype <- whep::empty_table_from_schema(schema)
+
+  expect_equal(nrow(prototype), 0)
+  expect_true(vctrs::vec_is(prototype$flag, logical()))
+  expect_true(vctrs::vec_is(prototype$year, integer()))
+  expect_true(vctrs::vec_is(prototype$value, double()))
+  expect_true(vctrs::vec_is(prototype$source, character()))
+  expect_true(vctrs::vec_is(prototype$built_at, as.Date(character())))
+  expect_true(vctrs::vec_is(prototype$inputs, list()))
+  expect_true(vctrs::vec_is(prototype$whatever, logical()))
+  expect_identical(names(prototype), purrr::map_chr(schema$columns, "name"))
+})
+
+test_that("the constructed table passes its own schema validation", {
+  schemas <- list(
+    keyed = schema_fixture(),
+    strict = list(
+      columns = list(
+        list(name = "built_at", type = "Date"),
+        list(name = "inputs", type = "list")
+      ),
+      extra_columns = "forbid",
+      column_order = "strict"
+    ),
+    optional_and_required = list(
+      columns = list(
+        list(name = "area_code", type = "integer", allow_missing = FALSE),
+        list(name = "note", type = "character", required = FALSE),
+        list(name = "value", type = "double", min = 0, unique = TRUE)
+      ),
+      key = "area_code"
+    ),
+    zero_column = list(columns = list())
+  )
+
+  purrr::iwalk(schemas, function(schema, label) {
+    prototype <- whep::empty_table_from_schema(schema)
+    expect_equal(
+      nrow(whep::check_table_schema(prototype, schema)),
+      0,
+      label = label
+    )
+    expect_equal(nrow(prototype), 0, label = label)
+  })
+})
+
+test_that("a zero-column schema yields a 0x0 tibble", {
+  prototype <- whep::empty_table_from_schema(list(columns = list()))
+
+  expect_s3_class(prototype, "tbl_df")
+  expect_equal(dim(prototype), c(0L, 0L))
+})
+
+test_that("the constructor round-trips a serialized schema", {
+  skip_if_not_installed("yaml")
+  schema <- schema_fixture()
+
+  expect_identical(
+    whep::empty_table_from_schema(yaml::yaml.load(yaml::as.yaml(schema))),
+    whep::empty_table_from_schema(schema)
+  )
+})
+
+test_that("the constructor is a prototype ensure_columns() accepts", {
+  prototype <- whep::empty_table_from_schema(schema_fixture())
+  completed <- whep::ensure_columns(
+    tibble::tibble(year = 2020L, value = 1.5),
+    prototype
+  )
+
+  expect_named(completed, names(prototype))
+  expect_identical(
+    purrr::map_chr(completed, ~ class(.x)[[1]]),
+    purrr::map_chr(prototype, ~ class(.x)[[1]])
+  )
+})
+
+test_that("the constructor rejects malformed and unsupported schemas", {
+  malformed <- list(
+    not_a_list = "year",
+    named_columns = list(columns = list(year = list(type = "integer"))),
+    unsupported_type = list(columns = list(list(name = "x", type = "factor"))),
+    missing_type = list(columns = list(list(name = "x"))),
+    missing_name = list(columns = list(list(type = "integer"))),
+    unknown_field = list(
+      columns = list(list(name = "x", type = "integer", minimum = 0))
+    ),
+    bound_on_character = list(
+      columns = list(list(name = "x", type = "character", min = 0))
+    ),
+    duplicate_column = list(
+      columns = list(
+        list(name = "x", type = "integer"),
+        list(name = "x", type = "double")
+      )
+    ),
+    undeclared_key = list(
+      columns = list(list(name = "x", type = "integer")),
+      key = "y"
+    )
+  )
+
+  purrr::iwalk(malformed, function(schema, label) {
+    expect_error(
+      whep::empty_table_from_schema(schema),
+      class = "whep_error_schema_spec",
+      label = label
+    )
+  })
+})
+
+test_that("the constructor refuses a schema forbidding empty tables", {
+  schema <- list(
+    columns = list(list(name = "year", type = "integer")),
+    allow_empty = FALSE
+  )
+
+  expect_error(
+    whep::empty_table_from_schema(schema),
+    class = "whep_error_schema_no_empty"
+  )
+  expect_error(
+    whep::empty_table_from_schema(schema),
+    class = "whep_error_table_schema"
+  )
+})

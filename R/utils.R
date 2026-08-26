@@ -2078,6 +2078,15 @@ utils::globalVariables(
     # and filters its report by
     "row",
     "rule",
-    "severity"
+    "severity",
+    # row_evidence.R (#372) — columns of the row-evidence format the
+    # producer orders by and the conflict report groups on
+    "row_key",
+    "key_columns",
+    "source_id",
+    "source_version",
+    "recorded_at",
+    "field",
+    "n_values"
   )
 )
