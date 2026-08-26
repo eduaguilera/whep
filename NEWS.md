@@ -299,6 +299,20 @@
   186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
   rather than a mechanisation class are documented rather than repaired, since
   the correct class is not recoverable from anything the package ships.
+* **The `region_labour*` column shift in `regions_full` is fully documented
+  and pinned, and is one cell wider than first reported (#855).** Re-measuring
+  the two `region_labour_mech` cells found that at Northern Mariana Islands
+  (code 163) the neighbouring `region_labour_agg` is damaged in the same way:
+  it holds `"Micronesia"`, that row's own `region_UN_sub` value, rather than
+  one of its own nine aggregates, so repairing 163 means editing two cells.
+  Angola's `region_labour_agg` is intact. `polities_cats` inherits the Angola
+  `region_labour_mech` cell; it has no row for 163, which is not a polity. No
+  cell changes and no published value moves -- the affected columns still have
+  no consumer in the package. The classes stay unfilled: no public taxonomy
+  defines this mechanised/not-mechanised split, and although the other eight
+  `region_labour == "Middle Africa"` rows are all `no_mech` and the other
+  eight `region_UN_sub == "Micronesia"` rows are all `mech`, the column is not
+  a function of either grouping, so group agreement cannot settle it.
 
 * **New: `check_table_schema()` and `assert_table_schema()` validate a table
   against a serializable declarative schema (#373).** The schema is plain
