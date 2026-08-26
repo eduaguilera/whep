@@ -1471,10 +1471,17 @@ generate_ipcc_2019_tables <- function() {
     ),
 
     # Table 10.4: Cfi coefficients (MJ/day/kg^0.75).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3.
-    # Note: Cfi differs between lactating and non-lactating
-    # cattle; the 2019 Refinement does NOT change these from
-    # the 2006 values.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10,
+    # Table 10.4 (Updated) -- the coefficient table itself, not Eq 10.3
+    # which consumes it.
+    # Note: the 2019 Refinement is NOT a verbatim repeat of the 2006
+    # Table 10.4. It ADDS the goat row (Goats = 0.315); the 2006 table has
+    # no goat row at all, which is why goats must never inherit the sheep
+    # value 0.217 (see #249, and the sheep/goat Ca trap in Table 10.5).
+    # Two published rows are deliberately folded here and tracked in #601:
+    # intact bulls take 0.370, not the 0.322 of non-lactating cows, steers
+    # and juveniles; lambs under one year take 0.236, not the 0.217 of
+    # sheep older than one year.
     table_10_4 = tibble::tribble(
       ~category, ~subcategory, ~cfi_mj_day_kg075,
       "Cattle",  "Lactating cow",          0.386,
@@ -1564,7 +1571,9 @@ generate_ipcc_2006_tables <- function() {
 generate_ipcc_tier2_params <- function() {
   list(
     # Energy coefficients for Tier 2 GE calculation.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16, with
+    # cfi_mj_day_kg075 from Table 10.4 (Updated) and ca_pasture from
+    # Table 10.5 (Updated).
     # Note: Cfi now distinguishes dairy (lactating) vs
     # non-dairy (non-lactating/bulls).
     # Ca = activity coefficient (IPCC Eq 10.4).
