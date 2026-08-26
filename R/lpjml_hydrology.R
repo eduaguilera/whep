@@ -58,10 +58,16 @@
 #'
 #' @param var Logical variable name, one of `"drainage"`, `"transp"`,
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
-#'   `"discharge"`, `"swc"`, `"cft_nir"` (per-CFT net irrigation requirement)
-#'   or the per-CFT consumptive-water cubes `"cft_consump_water_b"` (blue) and
+#'   `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
+#'   `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
+#'   `"cft_nir"` (per-CFT net irrigation requirement) or the per-CFT
+#'   consumptive-water cubes `"cft_consump_water_b"` (blue) and
 #'   `"cft_consump_water_g"` (green). The per-CFT variables keep their `band`
 #'   dimension, and carry `band_name` when the file names its bands.
+#'
+#'   `"pet"` and the two soil temperatures exist because the SOC drivers take
+#'   both from CRU instead, mixing two models' quantities in one expression;
+#'   see the note at `.hydro_var_map()`. Nothing consumes them yet.
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
