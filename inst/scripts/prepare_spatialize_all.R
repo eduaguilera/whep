@@ -4649,9 +4649,10 @@ report_forcing_end_years <- function(climate_dir, used = NULL) {
 
 # Assembles the LPJmL monthly wind forcing from the two pinned artefacts that
 # download_climate() places under <l_files_dir>/wind: the ISIMIP 1901-2019
-# monthly base and the ERA5 monthly means. Neither is rebuildable from this
-# repo -- the base came from ISIMIP2a chunks via a script that was never
-# committed, and the ERA5 means take ~85 GB of streaming -- hence the pins.
+# monthly base and the ERA5 monthly means. Both are pinned for cost, not
+# because the code is lost: rebuilding the base streams ~34 GB of ISIMIP daily
+# files (inst/scripts/fetch_isimip_wind.sh) and the ERA5 means ~85 GB
+# (fetch_era5_wind.py).
 #
 # Wind is a *hard* LPJmL input: readclimate() aborts on a year outside the
 # file range rather than holding the last year constant, so a short wind file
