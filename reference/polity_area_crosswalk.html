@@ -177,6 +177,48 @@ never overrides the map where the map speaks: a prefix-derived period whose
 years overlap any span the map declares for that area is dropped at build
 time, so the two branches cannot disagree about a reported year.</p>
     </div>
+    <div class="section level2">
+    <h2 id="the-row-space-is-reporting-areas-not-polities">The row space is reporting areas, not polities<a class="anchor" aria-label="anchor" href="#the-row-space-is-reporting-areas-not-polities"></a></h2>
+
+
+<p>This table is <strong>not an index of <a href="polities.html">polities</a></strong>, and reading a missing
+<code>polity_code</code> as a coverage gap is the mistake #875 records. The builder
+starts from the reporting areas of <code>regions_full.csv</code> and asks which polity
+each one names; a polity therefore has a row <strong>only if some reporting area
+names it</strong>. 176 of the 735 live polities have none, because no FAOSTAT or
+FABIO area was ever reported under their territory – 121 national, 33
+colonial, 8 aggregate and the rest smaller units. The 559 that remain are
+exactly the distinct non-<code>NA</code> <code>polity_code</code> values here.</p>
+<p>Absence is structural rather than accidental, and the test suite asserts it:
+not one of the absent aggregate polities carries a <code>legacy_polity_prefix</code>
+any reporting area carries, so the row space has no slot to put them in.
+A polity absent from here is reached by the <strong>label</strong> route instead –
+<code><a href="resolve_polity_label.html">resolve_polity_label()</a></code> over <a href="polity_label_aliases.html">polity_label_aliases</a>, which maps the label a
+historical source writes straight to a polity and needs no area code. That
+is how five of the eight absent aggregates resolve –
+<code>GCT-1919-1956</code> Gold Coast and British Togoland, <code>MASG-1946-1963</code>,
+<code>SYL-1944-1953</code> (all scoped to the <code>fao1952</code> yearbook),
+<code>PAPNG-1920-1949</code> (<code>mitchell</code>) and <code>AOI-1936-1941</code> (any source) – all of
+them pre-FAOSTAT combined reporting units that never had an area code.
+Two more (<code>EGYSUD-1934-1956</code>, <code>CODRU-1922-1960</code>) are upstream
+composed-union identities held for footnote series that fold a colony into
+its metropole, and upstream has registered no label for them yet, so they
+are reachable from neither route by design rather than by omission.</p>
+<p>No absence here can NA an <code>area_code</code> on a polycell, either:
+<code><a href="build_polycell_support.html">build_polycell_support()</a></code> excludes <code>polity_type == "aggregate"</code> by type
+before any lookup runs, so an aggregate emits no polycell to carry one.</p>
+<p>The one absence that is a real gap is <code>F206-2011-2025</code>, Sudan and South
+Sudan combined, and <strong>it is a gap in the bucket vocabulary rather than in
+<code>area_code</code></strong>. FAOSTAT stops reporting area 206 in 2011 and does not
+resume, so upstream deliberately adds no map row for it; the post-2011
+combination is WHEP's own fold of areas 276 and 277 into
+<code>polity_area_code</code> 206. This table answers per reporting area and has no
+column in which to say "bucket 206 from 2012 answers as <code>F206-2011-2025</code>",
+which is why <code><a href="polity_bucket_coverage.html">polity_bucket_coverage()</a></code> still labels that bucket
+<code>SUD-1956-2011</code> / <code>"out_of_span"</code> for 2012 onward – a polity that ended in
+2011. Expressing it is #742 and labelling it is #860; neither is decided
+here.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
