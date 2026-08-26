@@ -92,6 +92,35 @@
   they disagree. This is the row-level counterpart of the dataset-level
   `record_provenance()`; no existing output or published value changes.
 
+* **Two of the five untraceable GLEAM tables now name the FAO table they were
+  meant to come from, and the other three record what was ruled out (#881).**
+  Documentation only: no data value changed and no published number changes.
+  #607 left five `gleam_*` tables marked "not traced". The document that was
+  missing is the supplementary workbook of the *2.0* model description
+  (`GLEAM_2.0_Supplement_S1.xlsx`, md5
+  `72fd2ea477dfe8b30cd3657b2baa4af1`): GLEAM 3.0 dropped the regional
+  herd-parameter and manure-management table families, which is why the
+  committed 3.0 workbook has no sheet for them. `gleam_animal_weights` is
+  published there, in the live-weight block of Tables 2.4-2.16, and
+  `gleam_mms_shares` in Tables 4.2-4.11. Neither matches the shipped values --
+  Western Europe dairy cows are 594 kg, not 650, and dairy bulls 773 kg, not
+  1000 -- and neither has been re-ingested here, because `gleam_animal_weights`
+  is the Tier 2 live weight and swapping it moves gross energy, hence Tier 2
+  enteric CH4, by -16.4% to +14.2% depending on the cohort (measured with
+  `estimate_energy_demand()`, one cohort at a time, everything but `weight`
+  held fixed). `gleam_milk_production` and `gleam_feed_categories` appear in no
+  GLEAM publication at all: milk yield and lactation length are country inputs
+  in both model descriptions, and GLEAM groups feed materials as
+  Roughages/Cereals/By-products/Concentrates, not the six-way split shipped
+  here. `gleam_livestock_categories` takes its cohort vocabulary from GLEAM
+  Table 2.1 but not its Dairy/Beef layout, and since
+  `calculate_cohorts_systems()` splits a herd `1 / n_cohorts`, that layout is
+  itself a result-affecting assumption. `regional_mms_distribution`, which is
+  live in the manure chain and was annotated "GLEAM 3.0 / FAO statistics", is
+  now marked unverified too. A guard test locks which `gleam_animal_weights`
+  regions actually resolve, so a rename cannot silently widen the
+  placeholders' reach.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
