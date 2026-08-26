@@ -14,6 +14,10 @@
   sources, so a `(year, area, item, unit)` cell contested by a genuine FAOSTAT
   row and a reconstructed fodder row now resolves to the FAOSTAT one; hectares
   and tonnages themselves are unchanged (see the PR for the measured diff).
+  `.deduplicate_doubles()` told the two copies of a double-product key apart by
+  asking whether `source` was `NA`, which only held while the yield table had no
+  source column at all; it now names the copy explicitly, so seed cotton, oil
+  palm fruit and flax keep their series.
 
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns

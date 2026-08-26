@@ -1714,6 +1714,27 @@ test_that(".calculate_raw_yields keeps a reconstructed fodder source (#937)", {
   )
 })
 
+test_that(".deduplicate_doubles keeps the original of a double key (#937)", {
+  # Both copies of a double-product key carry a source now that the yield table
+  # keeps one, so the copy to drop is named by `.double_combined`, not inferred
+  # from a missing source. Inferring it dropped item 328 (seed cotton), 254 (oil
+  # palm fruit) and 310 outright -- 9114 rows of a 2001-2023 build.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~t,
+    2019L, "Egypt", 59L, "Seed cotton", "328", "t_ha", 5e5,
+    2019L, "Egypt", 59L, "Seed cotton", "328", "t_ha", 5e5
+  ) |>
+    dplyr::mutate(
+      source = c("FAOSTAT_prod", "Estimated"),
+      .double_combined = c(FALSE, TRUE)
+    )
+
+  result <- whep:::.deduplicate_doubles(df)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$source, "FAOSTAT_prod")
+})
+
 test_that(".best_source_by_key ranks a key's competing sources (#937)", {
   # One key's hectares and tonnage can come from different sources; the better
   # ranked one wins, the same arbitration `.dedup_production()` applies.

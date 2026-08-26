@@ -1954,7 +1954,13 @@ build_primary_production <- function(
       source = "Estimated"
     )
 
-  dplyr::bind_rows(multi_stripped, combined)
+  # `.deduplicate_doubles()` has to tell the two copies of a key apart, and used
+  # to do it by asking whether `source` was `NA` -- which only worked while the
+  # yield table carried no source at all. Say which copy is which instead.
+  dplyr::bind_rows(
+    multi_stripped |> dplyr::mutate(.double_combined = FALSE),
+    combined |> dplyr::mutate(.double_combined = TRUE)
+  )
 }
 
 .deduplicate_doubles <- function(df) {
@@ -1971,7 +1977,9 @@ build_primary_production <- function(
         unit
       )
     ) |>
-    dplyr::filter(n == 1 | (n == 2 & is.na(source)))
+    # Where the primary item and its combined recomputation both landed on one
+    # key, the combined copy goes and the original stays.
+    dplyr::filter(n == 1 | (n == 2 & !.double_combined))
 }
 
 .fill_yields <- function(yield_all, items_prod, cbs_prod_raw) {
