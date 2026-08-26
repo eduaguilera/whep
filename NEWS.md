@@ -68,6 +68,129 @@
   no value, only its visibility — and remains correct for a smoke build. Does not
   fix the deployed pin, which needs regenerating with all four layers.
   Refs #885, #802.
+* **The three polity tables are re-synced to upstream `whep-polities` again,
+  and this time the re-sync closes an identity gap rather than moving one
+  (#890, #458).** `polity_area_crosswalk`, `polities` and
+  `polity_label_aliases` are committed build products of
+  `data-raw/table_mappings.R`, whose inputs live outside this repo, so they
+  drift between re-syncs and `test_data_raw_freshness.R` had begun failing on
+  exactly that. They are rebuilt here from `eduaguilera/whep-polities` at
+  `e10c7421` ("Merge pull request #597 from
+  eduaguilera/docs/state-inventory-dead-name"), that repository's `main`.
+
+  What moved. `polities` goes 779 → 781 rows: two additions, no removals, and
+  both are territories upstream previously modelled as no polity at all —
+  `SXM-2010-2025` Sint Maarten and `BES-2010-2025` Bonaire, Sint Eustatius and
+  Saba. With them `ANT-1961-2010` Netherlands Antilles finally publishes a
+  `successor` (`CUW-2010-2025; SXM-2010-2025; BES-2010-2025`) and a
+  `predecessor` (`ANT-1816-1961`); `CUW-2010-2025` gains its predecessor too.
+  Beyond that the 779 shared rows move in 5 `polygon_source` values, 2
+  `polygon_status` (`assigned` → `proxy`) and 6 `polygon_area_km2`, and in
+  nothing else — `last_ingest` does not change on a single shared row, so the
+  snapshot's new maximum of 2026-08-24 is carried by the two new rows alone.
+  The crosswalk goes 649 → 648 rows over the **same 267 areas** and one more
+  polity (560 → 561): Sint Maarten used to fall back to BOTH Dutch periods
+  (`NLD-1800-1830` and `NLD-1830-2025`) and now resolves to the single polity of
+  its own, which is why `prefix_fallback` goes 27 → 26 and the
+  `not_a_reporting_area` rows go 20 → 19 while still covering the same six
+  territories. `polity_label_aliases` goes 995 → 1,003: eight new `fao1952`
+  labels, plus two rules re-pointed off the joint Ruanda-Urundi entity onto its
+  constituents — `burundi | iia | 1922-1961` from `RWB-1922-1962` to
+  `BDI-1922-1962` "Burundi (within Ruanda-Urundi)", and `rwanda | mitchell |
+  1953-1960` to `RWA-1922-1962`.
+
+  **No published value moves, and no territorial identity moves either.** Over
+  the full `(area_code, year)` grid 1850–2023 (46,284 pairs), `polity_code`,
+  `polity_area_code`, `mapping_status` and `has_geometry` are unchanged for
+  **every single pair** — the previous re-sync moved 126 of them, this one
+  moves none. `polity_mapping_provenance()` over the crosswalk's own grid
+  reports the same 46,816 resolutions in the same five `mapping_source` classes
+  and the same four `authority` classes. A real `get_primary_production()`
+  returns the same 6,310,171 rows × 12 columns with **zero keys added and zero
+  removed**, and all twelve columns — `value` included, at 5.7635e12 summed —
+  agree row for row. One `area_code` still carries exactly one `area` label
+  (whep#563), on 0 violations.
+
+  Two behaviours do change, and both are the gap closing. Area 151 Netherlands
+  Antilles stops being unreachable: `population_source_reach()` now classifies
+  it `"successor"` reaching `BES, CUW, SXM`, and **no** reporting area outside
+  the Rest-of-World bucket is unreachable any more. And
+  `.dependency_sovereign_iso3()` briefly lost Sint Maarten — see the next entry.
+
+* **A crown dependency no longer loses its sovereign the moment upstream gives
+  it a polity of its own (#407).** `.dependency_sovereign_iso3()` is what lets
+  `dependency_land = "sovereign"` book Jersey's, Guernsey's, the Isle of Man's,
+  Åland's, Saint Barthélemy's and Sint Maarten's LUH2 land under the state that
+  reports for them, none of the six having a FAOSTAT `area_code`. It found the
+  sovereign by asking which reporting area **shared** the dependency's
+  `polity_code` — a relation that exists only while the dependency has no
+  polity of its own. The re-sync above gave Sint Maarten `SXM-2010-2025`, so
+  nothing shared its polity, the bridge silently went from six territories to
+  five, and Sint Maarten's land went from counted under `NLD` to counted
+  nowhere. It now falls back to `legacy_polity_prefix`, the same ISO3-stem-to-
+  bucket bridge `.read_fodder_euadb()` uses, which names the sovereign whether
+  or not the dependency has its own polity. The fallback fires only where the
+  polity route finds nothing, so it cannot move an answer that route still
+  gives: the two agree on all five it resolves, and the sixth is recovered.
+  Default behaviour is untouched — `dependency_land` still defaults to
+  `"drop"`.
+
+* **The `polycell_support` pin is regenerated: the aggregate overlap layer is
+  published, and the inland-water and glacier layers are restored (#873,
+  #885).** `20260825T102349Z-1a0eb` replaces `20260818T105426Z-a0330`, and it
+  moves published land areas. Three things change together, because they are
+  one regeneration.
+
+  **Inland water and ice are measured again.** The pin published on
+  2026-08-18 was rebuilt without the optional `water` and `ice` layers, so
+  `inland_water_ha` and `ice_area_ha` were zero in all 482,605 rows and
+  `land_area_ha` equalled `polity_area_ha` exactly: every lake, river and
+  glacier inside a territory was booked as land. At 2015, land was 13.4613
+  Gha; it is now **12.9281 Gha**, with 303.21 Mha of inland water and 231.69
+  Mha of ice measured separately. The largest single movers are Greenland
+  (-178.6 Mha, almost all ice), Canada (-146.2 Mha, 122.6 Mha water and 23.6
+  Mha ice) and Russia (-64.8 Mha). Consumers that read `land_area_ha` move
+  with it: `read_luh2_landuse(area_basis = "polycell_land")`,
+  `build_polycell_land_uses()` and `build_carbon_balance()`. Most visibly,
+  `build_n_deposition()` splits deposition between land, inland water and ice
+  again instead of booking all of it to land.
+
+  **The aggregate overlap layer is published.** 16,182 rows over 12,438
+  polycells and the 19 live aggregate polities now carry
+  `support_role == "overlap"`, so `read_polycell_support(role = "overlap")`
+  resolves instead of aborting and the ten pre-1962 reporting buckets whose
+  only territory is an aggregate have territory again. The default
+  `role = "partition"` is unchanged, so no consumer picks the layer up
+  without asking: verified cell for cell at 1850, 1900, 1950, 1961, 2000,
+  2015 and 2025, where territory, land, water and ice all differ from a
+  partition-only build by 0.
+
+  **The polity table is resynced.** The pin is built against `whep::polities`
+  as it stands after the 2026-08-21 upstream sync, which the previous pin
+  predates: 702 partition polities against 685, 29 gained and 12 lost (mostly
+  period-boundary corrections such as `SEN-1886-1959` to `SEN-1886-1960`).
+  2015 territory moves by +1.7 Mha (+0.012%), and 2,613 of 411,397 shared
+  polity-cells move by more than 1 ha, concentrated in the colonial
+  federations `AEF-1910-1960` and `AOF-1895-1960`.
+
+* **Seven of the seventeen EarthStat fertilizer crop codes named the wrong
+  crop, in two independent copies (#889).** `.earthstat_fertilizer_mapping()`
+  keys each crop-specific fertilizer raster to an `item_prod_code`. Compared
+  against `inst/extdata/earthstat_mapping.csv` — the same script's own answer for
+  the same raster on the harvested-area layer — seven disagreed, and only two
+  were detectable as bad codes: `cassava` 340 and `cotton` 274 are absent from
+  `items_prod`, while `oilpalm` 217, `potato` 328, `rapeseed` 223, `sugarcane`
+  780 and `sunflower` 222 are all real item codes naming **cashews, seed cotton,
+  pistachios, jute and walnuts**. A code that exists and names another crop joins
+  successfully to the wrong crop, so an existence check — the obvious guard —
+  passes on five of the seven. `.read_west_manure_local()` carried an independent
+  copy of the same tribble with the same seven errors, so the manure-N layer was
+  misattributed too and a fix to the fertilizer mapping alone would not have
+  reached it; it now reads the one shared mapping. The new guard compares codes
+  against the CSV, asserts existence for rasters the CSV does not carry, and
+  fails if any call site stops sharing the mapping. Regenerating
+  `crop_fertilizer_patterns` is still required for the fix to take effect (same
+  shape as #877). Refs #889, #876, #877, #888.
 
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
@@ -76,13 +199,16 @@
   territory that no longer exists. This classifies each of the 297 reporting
   periods in `polity_area_crosswalk` as `"direct"`, `"successor"` (the polities
   database's `successor` relation reaches present-day codes) or
-  `"unreachable"`. Measured against UN WPP 2024, 283 are direct, 8 resolve
-  through successors, and exactly one reporting area outside the Rest-of-World
-  bucket is unreachable: `ANT-1961-2010`, area 151 Netherlands Antilles, which
-  carries commodity-balance food in every year from 1961 to 2010. Upstream
-  publishes no successor for it and models neither Sint Maarten nor the BES
-  islands as polities, so reconstructing it is an upstream identity gap rather
-  than a missing value. No published value changes: this reports coverage and
+  `"unreachable"`. Measured against UN WPP 2024 when this landed, 283 were
+  direct, 8 resolved through successors, and exactly one reporting area outside
+  the Rest-of-World bucket was unreachable: `ANT-1961-2010`, area 151
+  Netherlands Antilles, which carries commodity-balance food in every year from
+  1961 to 2010. Upstream published no successor for it and modelled neither
+  Sint Maarten nor the BES islands as polities, so reconstructing it was an
+  upstream identity gap rather than a missing value — **and the polity re-sync
+  above closed that gap in this same release**, so area 151 now reads
+  `"successor"` and no reporting area outside the Rest-of-World bucket is
+  unreachable at all. No published value changes: this reports coverage and
   builds no denominator. It deliberately does **not** fill area 151 or any
   other area — a successor sum over UN WPP falls 17.5% short of the pin's own
   figure for the Yugoslav SFR, because WPP reports Kosovo separately and the
@@ -295,6 +421,62 @@
   package consumes `blue_consump_mm` / `green_consump_mm` /
   `aet_blue_mm` / `aet_green_mm` yet, so this makes a trap visible rather
   than correcting a live error.
+
+* **The `spatialize-crop-patterns` pin was regenerated: barley is back, and
+  the gridded harvested-area round trip closes 6 points tighter (#877).**
+  `inst/extdata/earthstat_mapping.csv` is the crosswalk
+  `prepare_crop_patterns()` iterates -- one EarthStat harvested-area raster
+  per row -- and it shipped with 169 rows against the 172 crop directories
+  the EarthStat `HarvestedAreaYield175Crops` tree contains. The three
+  missing names were `barley`, `greencorn` and `hempseed`, all three of
+  which `cft_mapping.csv` already expected, so `crop_patterns` carried no
+  cell for them and `build_gridded_landuse()` dropped their entire world
+  total in every country and every year. The rows are added and the pin
+  rebuilt from the whole EarthStat tree (version
+  `20260825T092111Z-8690d`, 2,297,621 rows over 147 crops, up from
+  2,247,239 over 144); the regeneration reproduces the 144 crops already
+  in the deployed pin bit-for-bit, so the only change is the three crops
+  it adds.
+  **This moves published gridded values.** Spatializing with the `whep`
+  preset and re-aggregating the cells to their reporting areas, the world
+  harvested-area round trip goes from 0.9327 to 0.9898 at 1961 (+54.46
+  Mha, of which barley 53.70 Mha) and from 0.9474 to 0.9832 at 2015
+  (+48.96 Mha, barley 47.85 Mha); the share of areas round-tripping within
+  1% goes from 42.3% to 78.9% at 1961 and 34.9% to 72.3% at 2015. No other
+  crop's allocation moves by more than 6e-08 ha. Everything downstream of
+  `build_gridded_landuse()` inherits the change, including
+  `build_crop_land_extension()` and the gridded nitrogen balance. Hempseed
+  contributes cells but no area yet: the national table carries no
+  harvested area under item 336.
+  `Chillies and peppers, dry` (689) and `Leeks and other alliaceous
+  vegetables` (407) stay unallocated, and are meant to -- EarthStat
+  publishes no raster for either.
+
+* **`biomass_coefs` now has one source, and the Spanish nitrogen chain
+  moves with it (#489).** The name resolved to two different tables: the
+  packaged `whep::biomass_coefs` (63 columns, rebuilt from
+  `inst/extdata/harmonization/biomass_coefs.csv`) and a `biomass_coefs` pin
+  frozen at `20250728T082553Z` (41 columns). They disagreed on 12 of their 36
+  shared columns, so `build_food_supply()` and `create_n_prov_destiny()` ran
+  on different nitrogen coefficients for the same commodity. The packaged
+  table is authoritative — it reproduces the upstream `Biomass_coefs.xlsx`
+  `Coefs` sheet cell-for-cell on all 63 columns, whereas the pin differs from
+  upstream in 126 cells — so the pin entry has been removed from
+  `whep_inputs` and `create_n_prov_destiny()`,
+  `validate_national_trade()` and the Josette typologies now read
+  `whep::biomass_coefs`.
+  Published values change. On the columns those callers use, 23 cells moved:
+  `Residue_kgN_kgDM` for the 17 wood and forest items rises from
+  0.00095 to 0.0030–0.0045 kg N per kg DM, and `Lysine` and `Methionine`
+  gain product dry-matter and nitrogen contents the pin had at roughly half
+  and at zero. Measured end to end on `create_n_prov_destiny()`
+  (1961–2023, all provinces): total nitrogen 410.78 to 415.42 Tg,
+  **+1.13%**, concentrated in `Firewood` (+4.35%), `Wood` (+216%),
+  `Lysine` (+281%) and `Methionine` (0 to 239,619 Mg N). By destiny,
+  `export` +6.48%, `population_other_uses` +19.41%, `livestock_mono`
+  +1.92%; by box, `semi_natural_agroecosystems` +5.80%, `Cropland`
+  +1.01%. No other function changed: nothing read the five below-ground
+  columns the pin carried and the packaged table does not.
 
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**

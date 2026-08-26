@@ -21,11 +21,11 @@ double-counts every boundary year). Inclusive at the open end, so 2025
 still belongs to \code{"RUS-2014-2025"}, because no later interval of that
 polity follows it and a uniformly exclusive read would leave the current
 year with no polity at all. \strong{Openness is absence of a successor, not a
-comparison against the last year in the table.} 257 live polities have no
-successor, 244 of them end in 2025, and no live polity ending in 2025
+comparison against the last year in the table.} 258 live polities have no
+successor, 246 of them end in 2025, and no live polity ending in 2025
 carries one, so the two readings agree on this vintage; the successor test
 is the one that keeps agreeing when the horizon moves. The distinction is
-not decoration: 254 of the 779 rows end in 2025 but only 251 are open,
+not decoration: 256 of the 781 rows end in 2025 but only 253 are open,
 because three are succeeded there (\code{BLZ-1800-2025}, \code{CAN-1948-2025} and
 \code{IRQ-1921-2025}, all \code{retired} or \code{superseded}), and opening those too
 would count the terminal year twice.
