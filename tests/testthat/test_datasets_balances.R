@@ -40,7 +40,10 @@ test_that("soil_cn_ratios Organic rows ship but are not selectable here", {
   organic <- whep::soil_cn_ratios |>
     dplyr::filter(.data$management == "Organic")
   testthat::expect_equal(nrow(organic), 2L)
-  testthat::expect_setequal(organic$cropland_class, c("Cropland", "NonCropland"))
+  testthat::expect_setequal(
+    organic$cropland_class,
+    c("Cropland", "NonCropland")
+  )
 
   # The only reader of this table filters to Conventional, so every row it
   # returns is Conventional and the Organic pair is unreachable.
