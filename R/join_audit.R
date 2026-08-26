@@ -505,6 +505,12 @@
     ".read_fodder_euadb", "distinct", "area_iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge, one row per ISO3; the fodder rows keep their own
      year.",
+    ".reporting_periods", "summarise", "area_code, polity_code", 1L,
+    "year_axis",
+    "`min(map_year_start)` and `max(map_year_end)` ARE the reduction over the
+     crosswalk's rows for one period: the output is that period's reporting
+     span, so keying on the year would return the year itself. The period is
+     already the year-scoped identity.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",
