@@ -38,7 +38,10 @@ parquet/csv file. Required semantic columns are \code{year},
 \code{polity_area_code}. Names such as \code{item_prod_name}, \code{item_cbs_name}, and
 \code{source} are used when present; WHEP item and area tables fill canonical
 names where possible. Observed historical rows are retained, and LUH2 proxy
-filling can use them as anchors. Default \code{NULL}.}
+filling can use them as anchors. \strong{Rice supplied here is assumed to be
+on a paddy (rough-rice) basis} and is multiplied by the paddy-to-milled
+extraction rate, because WHEP's rice item is milled equivalent throughout;
+pre-divide by that rate if the series is already milled. Default \code{NULL}.}
 
 \item{federation_land}{Character. How the pre-1962 LUH2 back-cast reaches an
 area whose territory is a dissolved federation. LUH2 land use is keyed on
