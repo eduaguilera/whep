@@ -319,8 +319,17 @@ build_commodity_balances <- function(
   attr(cbs_raw, ".years") <- output_years
 
   # Aggregate FAOSTAT + FishStat trade to CBS item level for imputation
-  fao_trade_agg <- .aggregate_fao_trade_to_cbs(inputs$fao_trade)
+  # Both aggregates are reduced to their mass rows first: this attribute is the
+  # tonnes-denominated trade the imputation reads, and the FAOSTAT record also
+  # carries live-animal head counts (whep#865).
+  fao_trade_agg <- .mass_only_trade(
+    .aggregate_fao_trade_to_cbs(inputs$fao_trade),
+    "faostat-trade-totals"
+  )
   fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
+  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
+    fishstat_agg <- .mass_only_trade(fishstat_agg, "fishstat-trade")
+  }
   if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
     # Keep only the columns common with fao_trade_agg
     common_cols <- c("year", "area_code", "item_cbs_code", "element", "value")
@@ -754,7 +763,24 @@ build_processing_coefs <- function(
 }
 
 # Aggregate fao_trade (which uses item_code_trade) to CBS item codes.
-# Returns a data.table with: year, area_code, item_cbs_code, element, value.
+# Returns a data.table with: year, area_code, item_cbs_code, element, unit,
+# value.
+#
+# `unit` is part of the key, not a passenger. The FAOSTAT trade record is not
+# uniformly denominated in mass: live animals are reported in `An` / `1000 An`
+# and bees in `No`, and `whep::cbs_trade_codes` maps those onto the 20
+# live-animal CBS items whose quantities are head counts. Summing across `unit`
+# put 135.3 M head and colonies of bees into the same tonnes-denominated
+# `value` column as 2.85 Gt of mass at 2010 -- between 4.3% and 11.6% of that
+# column's total in every year 1961-2023 (whep#865). Consumers that need
+# tonnes call `.mass_only_trade()`; nothing may read `value` without reading
+# `unit`.
+#
+# `1000 An` is rescaled to `An` here rather than in `.normalise_units()`, which
+# handles `1000 tonnes` but not this label, so the blast radius stays inside
+# this aggregation. Without it broiler, duck, turkey, rabbit and rodent trade
+# is a thousandfold low in its own unit, and item 1150 -- reported as
+# `1000 An` up to 2013 and `An` from 2014 -- carries a 1000x step mid-series.
 .aggregate_fao_trade_to_cbs <- function(fao_trade) {
   cbs_tc <- data.table::as.data.table(whep::cbs_trade_codes)
   items <- data.table::as.data.table(whep::items_full)[,
@@ -783,6 +809,58 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(item_cbs_code) & element %in% c("import", "export")]
   dt[,
+    value := data.table::fifelse(unit == "1000 An", value * 1000, value)
+  ]
+  dt[, unit := data.table::fifelse(unit == "1000 An", "An", unit)]
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area_code, item_cbs_code, element, unit)
+  ]
+}
+
+# The unit labels that denominate mass in WHEP's trade inputs. FAOSTAT trade
+# totals report `t`; FishStat arrives already normalised to `tonnes` by
+# `.normalise_units()`. Both are the same quantity, so both are kept and
+# collapsed onto one key below.
+.mass_trade_units <- function() {
+  c("t", "tonnes")
+}
+
+# Reduce a unit-keyed trade aggregate to its mass rows and drop `unit`, so the
+# result is the tonnes-denominated `(year, area_code, item_cbs_code, element,
+# value)` contract the CBS trade imputation consumes. Rows in any other unit
+# are head counts or colony counts, not mass; they are dropped with a warning
+# naming what went, because silently adding them to the tonnes column is
+# whep#865 and silently discarding them without saying so is how the mixup
+# stayed invisible for as long as it did.
+#
+# The re-aggregation is not cosmetic: `t` and `tonnes` can both be present, and
+# dropping `unit` without collapsing would leave two rows on a key that
+# `.abort_if_trade_key_duplicated()` requires to be unique.
+.mass_only_trade <- function(trade, source_label) {
+  dt <- data.table::as.data.table(trade)
+  if (!rlang::has_name(dt, "unit")) {
+    cli::cli_abort(c(
+      "{.arg trade} from {.val {source_label}} has no {.field unit} column.",
+      "i" = "A trade aggregate must carry the unit of the quantity it sums."
+    ))
+  }
+  non_mass <- dt[!unit %in% .mass_trade_units()]
+  if (nrow(non_mass) > 0L) {
+    units <- sort(unique(non_mass$unit))
+    items <- length(unique(non_mass$item_cbs_code))
+    cli::cli_warn(c(
+      "Dropped {nrow(non_mass)} {.val {source_label}} trade row{?s} \\
+       not denominated in mass.",
+      "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+      "i" = "{items} CBS item{cli::qty(items)}{?s}, totalling \\
+             {round(sum(non_mass$value, na.rm = TRUE))}.",
+      "i" = "Live-animal trade is in head counts; the CBS {.field value}
+             column is tonnes."
+    ))
+  }
+  out <- dt[unit %in% .mass_trade_units()]
+  out[,
     .(value = sum(value, na.rm = TRUE)),
     by = .(year, area_code, item_cbs_code, element)
   ]
@@ -2961,12 +3039,14 @@ build_processing_coefs <- function(
 # the created row balanceable rather than a fabrication:
 #
 # * **Live animals are excluded.** Their CBS quantities are head counts, not
-#   tonnes (`items_cbs$item_type`), and `.aggregate_fao_trade_to_cbs()` sums
-#   them into the same tonnes-denominated `value` column -- 66.7 M head of
-#   pigs, sheep, cattle and goats at 2010 alone. The wide CBS already gets its
-#   live-animal rows, in heads and from bilateral trade, via
-#   `get_livestock_cbs()`, so creating them here would both mix units and
-#   duplicate that key.
+#   tonnes (`items_cbs$item_type`). The unit mixing this used to guard against
+#   is now handled upstream -- `.mass_only_trade()` drops every non-mass row
+#   before this function sees the record (whep#865), and it is the wider guard
+#   of the two, because it also catches CBS 1171 ("Animals live nes", reported
+#   in `An` but typed `other`, so absent from `.live_animal_cbs_codes()`). The
+#   item-type exclusion stays for the second, independent reason: the wide CBS
+#   already gets its live-animal rows, in heads and from bilateral trade, via
+#   `get_livestock_cbs()`, so creating them here would duplicate that key.
 # * **Only net importers.** A created row has no production, so a net-exported
 #   one has nothing to export: the balancing cascade closes the identity by
 #   inventing production, and `check_supply_use_balance()` then passes on

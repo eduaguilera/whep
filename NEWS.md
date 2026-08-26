@@ -1,5 +1,32 @@
 # whep (development version)
 
+* **The CBS trade aggregation no longer sums head counts into its
+  tonnes-denominated `value` column (#865).**
+  `.aggregate_fao_trade_to_cbs()` crosswalked the FAOSTAT trade record onto CBS
+  items and summed `value` without looking at `unit`, which
+  `.read_fao_trade()` does carry. FAOSTAT reports live animals in `An` /
+  `1000 An` and bees in `No`, and `whep::cbs_trade_codes` maps those onto the
+  20 live-animal CBS items, so head and colony counts landed in the same column
+  as mass: 135.3 M of them against 2.85 Gt of tonnes at 2010, and between 4.3%
+  and 11.6% of that column's total in every year from 1961 to 2023 (the peak is
+  2015, where 269 M bees alone are 7.4% of it). `unit` is now part of the
+  aggregation key, and the new `.mass_only_trade()` reduces the record to its
+  mass rows — `t` from FAOSTAT trade, `tonnes` from FishStat — before the CBS
+  trade imputation reads it, warning with the unit, item count and total it
+  drops rather than discarding them silently. `1000 An` is also rescaled to
+  `An`, which `.normalise_units()` did not do: without it broiler, duck,
+  turkey, rabbit and rodent trade is a thousandfold low in its own unit, and
+  CBS item 1150 (`1000 An` up to 2013, `An` from 2014) carries a 1000x step
+  mid-series. **No published value changes**: verified at 2010 on the real
+  pins, the raw CBS, the long CBS (82,587 rows) and its `sum(value)`
+  (62,732,362,270) are identical before and after, because the CBS row set
+  carries no live-animal rows for the head counts to land on — the mixing was
+  latent. The `.live_animal_cbs_codes()` exclusion added for
+  `trade_recovery = "net_import"` stays, for its independent reason (it would
+  duplicate the `get_livestock_cbs()` key), but the unit filter is now the
+  wider of the two guards: it also catches CBS 1171 ("Animals live nes"),
+  reported in `An` but typed `other` and so absent from that list.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
