@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **New `empty_table_from_schema()` builds the typed zero-row table a
+  declarative schema describes (#374).** It is the constructor half of the
+  schema family added by `check_table_schema()` / `assert_table_schema()`:
+  given the same serializable schema, it returns a tibble with the declared
+  column names, in the declared order, each of the declared type, and no
+  rows. Both functions resolve the schema through one parser, so the
+  prototype passes the validator by construction; a schema with
+  `allow_empty = FALSE` is rejected instead of returning a table that would
+  fail its own validation, and an `"any"` column is built as `logical()`,
+  the type of a bare `NA`. This closes the gap that made `ensure_columns()`
+  unusable from a schema — it needs a prototype tibble and cannot be handed
+  a schema — so a schema stored as YAML beside an artifact can now drive
+  both completion and validation. No published value changes: nothing in the
+  pipeline calls it yet.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
