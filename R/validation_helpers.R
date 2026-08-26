@@ -32,3 +32,127 @@
   }
   joined
 }
+
+# Bridge FABIO's published region space onto WHEP's `polity_area_code`
+# buckets, so `inst/scripts/compare_fabio.R` compares like with like.
+#
+# FABIO's `regions.csv`/`io_codes.csv` `code` column IS a FAOSTAT-style area
+# code -- code 1 is Armenia, 999 is Rest of World -- not the sequential
+# 1..192 matrix row index the block layout suggests (whep#264). So the two
+# spaces look directly joinable, and 185 of the 192 codes are. What a raw
+# join gets wrong is the minority where the two *bucketings* disagree, and it
+# gets it wrong silently: an `inner_join()` drops a non-matching code without
+# a word while still printing "Matched N sectors".
+#
+# - FABIO enumerates 276 Sudan and 277 South Sudan; WHEP folds both into
+#   bucket 206 Sudan (former) (see `folded_reporting_areas()`). All three
+#   codes drop out, taking real tonnage with them.
+# - WHEP publishes every reporting Rest-of-World member under its own code
+#   (whep#459), while FABIO keeps them inside its single 999 row. Those WHEP
+#   codes drop out, and the two 999 rows -- which no longer cover the same
+#   territories -- match each other and are compared as if they did.
+# - FABIO carries composite historical regions (BLX, CSK, SCG, SUN, YUG)
+#   under codes of their own, which a modern WHEP year has no counterpart for.
+#
+# The bridge keys both sides in WHEP bucket space by ISO3 identity and pools
+# whatever FABIO does not enumerate into its Rest-of-World code. That is the
+# only assignment leaving BOTH sides' totals intact: every matrix row keeps a
+# key, so nothing leaves the comparison without being named.
+#
+# `fabio_regions` is FABIO's `regions.csv` (columns `code`, `iso3c`);
+# `whep_area_codes` are the `area_code` values the WHEP io-model labels carry;
+# `crosswalk` defaults to the run's polity crosswalk.
+#
+# Returns one row per (side, area_code):
+# - `side`: `"fabio"` or `"whep"`.
+# - `area_code`: that side's own code.
+# - `compare_area_code`: the shared key to group and join on.
+# - `bridge_kind`: `"direct"` (same code both sides), `"fabio_fold"` (several
+#   FABIO regions into one WHEP bucket), `"pooled_into_row"` (a WHEP code
+#   FABIO keeps inside Rest of World) or `"unmatched"` (a FABIO region with no
+#   WHEP counterpart at all -- the only kind that still leaves the join, and
+#   now named instead of vanishing). Every WHEP area always keeps a key.
+.fabio_area_bridge <- function(
+  fabio_regions,
+  whep_area_codes,
+  crosswalk = NULL
+) {
+  required <- c("code", "iso3c")
+  missing <- required[!rlang::has_name(fabio_regions, required)]
+  if (length(missing) > 0L) {
+    cli::cli_abort("{.arg fabio_regions} is missing {.field {missing}}.")
+  }
+  areas <- sort(unique(as.integer(whep_area_codes)))
+  if (length(areas) == 0L) {
+    cli::cli_abort("{.arg whep_area_codes} must name at least one area.")
+  }
+
+  row_code <- .fabio_row_code(fabio_regions)
+  keyed <- .fabio_bridge_fabio_side(fabio_regions, crosswalk)
+  pooled <- setdiff(areas, keyed$compare_area_code)
+  matched <- c(areas, if (length(pooled) > 0L) row_code)
+
+  whep_side <- tibble::tibble(
+    side = "whep",
+    area_code = areas,
+    compare_area_code = dplyr::if_else(areas %in% pooled, row_code, areas),
+    bridge_kind = dplyr::if_else(
+      areas %in% pooled,
+      "pooled_into_row",
+      "direct"
+    )
+  )
+
+  keyed |>
+    dplyr::mutate(
+      bridge_kind = dplyr::case_when(
+        !.data$compare_area_code %in% matched ~ "unmatched",
+        .data$compare_area_code != .data$area_code ~ "fabio_fold",
+        .default = "direct"
+      )
+    ) |>
+    dplyr::bind_rows(whep_side) |>
+    dplyr::arrange(.data$side, .data$area_code)
+}
+
+# FABIO's own Rest-of-World code, the pool every territory its region list
+# does not enumerate lands in. Identified by its published `iso3c` `"ROW"`
+# rather than by hardcoding 999, and required: without it there is nowhere to
+# put a WHEP area FABIO does not name, and pooling would invent a code.
+.fabio_row_code <- function(fabio_regions) {
+  row_code <- unique(as.integer(fabio_regions$code[
+    !is.na(fabio_regions$iso3c) & fabio_regions$iso3c == "ROW"
+  ]))
+  if (length(row_code) != 1L) {
+    cli::cli_abort(c(
+      "{.arg fabio_regions} must hold exactly one {.val ROW} region.",
+      "x" = "Found {length(row_code)}."
+    ))
+  }
+  row_code
+}
+
+# The FABIO half of `.fabio_area_bridge()`: resolve each FABIO region to the
+# WHEP bucket that carries its ISO3, falling back to its own code when WHEP
+# has no area for that ISO3 at all.
+.fabio_bridge_fabio_side <- function(fabio_regions, crosswalk) {
+  iso_bucket <- crosswalk %||% .polity_crosswalk()
+  iso_bucket <- tibble::as_tibble(iso_bucket) |>
+    dplyr::filter(!is.na(.data$area_iso3c), !is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      iso3c = .data$area_iso3c,
+      whep_bucket = as.integer(.data$polity_area_code)
+    )
+
+  tibble::as_tibble(fabio_regions) |>
+    dplyr::distinct(area_code = as.integer(.data$code), iso3c = .data$iso3c) |>
+    dplyr::left_join(iso_bucket, by = "iso3c", relationship = "many-to-one") |>
+    dplyr::transmute(
+      side = "fabio",
+      area_code = .data$area_code,
+      compare_area_code = dplyr::coalesce(
+        .data$whep_bucket,
+        .data$area_code
+      )
+    )
+}
