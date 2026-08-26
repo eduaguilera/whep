@@ -946,3 +946,21 @@ testthat::test_that("build_nitrogen_balance validates polity_validity", {
     "polity_validity"
   )
 })
+
+testthat::test_that("the fert_type bridge covers the whole input vocabulary", {
+  # Invariant, not a transcription of the mapping: every fert_type the wide
+  # balance schema guarantees must have a Title-case counterpart, or
+  # .nb_loss_rows() would join NA against data$n_balance_drivers and lose the
+  # driver columns. Pinned here because whep#850 rewrote the bridge off the
+  # deprecated dplyr::case_match().
+  vocabulary <- names(whep:::.nb_ensure_fert_cols(tibble::tibble()))
+  bridged <- whep:::.nb_loss_fert_type(vocabulary)
+
+  testthat::expect_false(anyNA(bridged))
+  testthat::expect_equal(length(unique(bridged)), length(vocabulary))
+  # Anything outside the vocabulary falls through to NA rather than to a wrong
+  # label: an unmatched value must stay visible.
+  testthat::expect_true(is.na(whep:::.nb_loss_fert_type("bogus")))
+  testthat::expect_true(is.na(whep:::.nb_loss_fert_type(NA_character_)))
+  testthat::expect_equal(whep:::.nb_loss_fert_type(character()), character())
+})

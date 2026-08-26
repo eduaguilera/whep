@@ -1183,3 +1183,65 @@ testthat::test_that("documented @format columns exist in the dataset", {
     as.character()
   testthat::expect_equal(mismatches, character(0))
 })
+
+
+# -- dataset provenance --------------------------------------------------------
+
+# #652: `lassaletta_grassland_share` shipped `@source` "Lassaletta et al.
+# nitrogen flow dataset. See pipeline documentation for full citation.", and no
+# such pipeline documentation exists. A citation that names no paper cannot be
+# checked by a reader, so it is worse than an explicit "unverified" note.
+testthat::test_that("no documented topic defers its citation to nowhere", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  offenders <- list.files(man_dir, pattern = "\\.Rd$", full.names = TRUE) |>
+    purrr::keep(\(rd) {
+      text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+      stringr::str_detect(text, "See pipeline documentation")
+    }) |>
+    basename()
+  testthat::expect_equal(offenders, character(0))
+})
+
+testthat::test_that("lassaletta_grassland_share cites its paper by DOI", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  rd <- file.path(man_dir, "lassaletta_grassland_share.Rd")
+  text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+  testthat::expect_true(
+    stringr::str_detect(text, stringr::fixed("10.1088/1748-9326/9/10/105011"))
+  )
+})
+
+# The invariants below are the fingerprint tying the shipped table to
+# Lassaletta et al. (2014): its 1961-2009 span, and Ireland and the
+# Netherlands as the two extreme countries the paper singles out by name.
+testthat::test_that("lassaletta_grassland_share matches its source's shape", {
+  share <- whep::lassaletta_grassland_share
+  testthat::expect_equal(sort(unique(share$year)), 1961:2009)
+  testthat::expect_true(all(table(share$Country) == 49L))
+  testthat::expect_true(all(share$grass_share >= 0 & share$grass_share <= 1))
+  extremes <- share |>
+    dplyr::slice_max(grass_share, n = 1, by = Country, with_ties = FALSE) |>
+    dplyr::slice_max(grass_share, n = 2, with_ties = FALSE) |>
+    dplyr::pull(Country)
+  testthat::expect_setequal(extremes, c("Ireland", "Netherlands"))
+})
+
+# The label set is not a partition: a historical entity and its successors
+# coexist for the whole span, which is why the consumer needs a dedup rule.
+testthat::test_that("Sudan and Sudan (former) are duplicate labels", {
+  share <- whep::lassaletta_grassland_share
+  sudan <- c("Sudan", "Sudan (former)", "South Sudan")
+  testthat::expect_true(all(sudan %in% share$Country))
+  wide <- share |>
+    dplyr::filter(Country %in% sudan[1:2]) |>
+    tidyr::pivot_wider(names_from = Country, values_from = grass_share)
+  testthat::expect_equal(wide$Sudan, wide$`Sudan (former)`)
+})
