@@ -19,8 +19,9 @@ A tibble with columns:
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-Table S.3.4.
+FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+workbook; no DOI is issued for it), Table S.3.4:
+\url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 }
 \usage{
 gleam_feed_conversion_ratios

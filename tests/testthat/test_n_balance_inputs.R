@@ -697,8 +697,9 @@ testthat::test_that("the crops layer the carbon path builds resolves (#788)", {
   # to the crosswalk's own item_cbs_code -- an invariant, not a hand-picked
   # expectation. Narrowed to the bridge's own condition class: a bare
   # expect_no_warning() also catches dplyr's lifecycle warnings, which fire
-  # from unrelated code and differ by dplyr version (dplyr 1.2.0 deprecates
-  # dplyr::case_match(), which .ni_manure_fert_type() still uses).
+  # from unrelated code and differ by dplyr version (the dplyr 1.2.0
+  # deprecation that first exposed this is gone -- whep#850 removed the last
+  # dplyr::case_match() call -- but the next one will arrive the same way).
   resolved <- testthat::expect_no_warning(
     whep:::.ni_crop_to_item_cbs(layer$crop),
     class = "whep_crop_key_name_deprecated"
@@ -714,8 +715,11 @@ testthat::test_that("the code key survives the full nitrogen assembly (#788)", {
   #
   # The assertion is narrowed twice over, for two different reasons:
   #  * NOT bare. A bare expect_no_warning() failed in CI on dplyr 1.2.0, which
-  #    deprecates dplyr::case_match() and so warns from .ni_manure_fert_type()
-  #    -- unrelated to the key under test, and invisible on an older dplyr.
+  #    deprecates dplyr::case_match() and so warned from
+  #    .ni_manure_fert_type() -- unrelated to the key under test, and invisible
+  #    on an older dplyr. That call is gone (whep#850) and
+  #    test_dplyr_deprecations.R now guards against its return, but the
+  #    narrowing stays: the next dplyr deprecation would land the same way.
   #  * By MESSAGE, not by condition class. build_n_inputs() reaches the
   #    resolver from inside dplyr::mutate(), which catches an inner warning and
   #    re-signals its own chained one ("There was 1 warning in
@@ -1437,5 +1441,31 @@ testthat::test_that("polity_validity is validated", {
       data = .nbi_full_data()
     ),
     "polity_validity"
+  )
+})
+
+testthat::test_that("the manure_type bridge maps its whole vocabulary", {
+  # The mapping is load-bearing: fert_type is what the loss cascade and the
+  # published balance group on. Pinned because whep#850 rewrote it off the
+  # deprecated dplyr::case_match().
+  vocabulary <- c("Excreta", "Solid", "Liquid")
+
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(vocabulary),
+    c("excreta", "manure_solid", "manure_liquid")
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(character()),
+    character()
+  )
+  # Nothing outside the vocabulary gets a silent NA: it aborts, naming the
+  # offending value.
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(c("Solid", "bogus")),
+    "bogus"
+  )
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(NA_character_),
+    "Unexpected"
   )
 })

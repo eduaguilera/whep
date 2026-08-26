@@ -727,6 +727,244 @@ testthat::test_that("dead and aggregate rows receive no data and no land", {
   testthat::expect_lt(result$polity_area_ha, 0.3 * result$cell_area_ha)
 })
 
+# whep#803 — the aggregate overlap layer ---------------------------------------
+#
+# An aggregate polity is a reporting bucket's own territory and its polygon
+# covers its members'. FAOSTAT keys its pre-2000 data on exactly those buckets:
+# 15 Belgium-Luxembourg has data where 255 Belgium and 256 Luxembourg have none,
+# and `BLX-1850-1999` is the only polity bucket 15 ever resolves to. Dropping
+# aggregates therefore drops the territory of the bucket that HAS the data,
+# while admitting one to the partition hands the same ground out twice.
+#
+# The fixture is that situation exactly: WES and EAS tile one cell between them,
+# AGG is their exact union, and everything below is measured on the same cell so
+# a double count cannot hide in a total.
+#
+# AGG carries the shared vertex at 10.25 that WES and EAS meet on, so its north
+# and south edges are the SAME two great circles theirs are. Written as a plain
+# rectangle it is a different curve -- see the FIXTURE GEOMETRY note at the top
+# of this file -- and its area differs from their sum by 2.4e-6 relative, which
+# is the bulge and not the producer. Sharing the vertex lets the assertions
+# below run at 1e-9 instead of hiding a real defect under a loose tolerance.
+pcs_aggregate_fixture <- function() {
+  union <- pcs_rect(10.0, 10.5, 45.05, 45.45)
+  union[[1L]] <- rbind(
+    c(10.0, 45.05),
+    c(10.25, 45.05),
+    c(10.5, 45.05),
+    c(10.5, 45.45),
+    c(10.25, 45.45),
+    c(10.0, 45.45),
+    c(10.0, 45.05)
+  )
+  pcs_polities(
+    tibble::tribble(
+      ~polity_code, ~start_year, ~end_year, ~polity_type,
+      "WES-2000-2020", 2000L, 2020L, "national",
+      "EAS-2000-2020", 2000L, 2020L, "national",
+      "AGG-2000-2020", 2000L, 2020L, "aggregate"
+    ),
+    list(
+      pcs_rect(10.0, 10.25, 45.05, 45.45),
+      pcs_rect(10.25, 10.5, 45.05, 45.45),
+      union
+    )
+  )
+}
+
+testthat::test_that("the aggregate layer is opt-in and marked on the row", {
+  testthat::skip_if_not_installed("sf")
+
+  geometries <- pcs_aggregate_fixture()
+
+  excluded <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries
+  )
+  included <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    aggregates = "overlap_layer"
+  )
+
+  # The default is unchanged: no aggregate, and the column says so on every row
+  # rather than leaving a consumer to infer it from the absence of one.
+  testthat::expect_setequal(
+    excluded$polity_code,
+    c("WES-2000-2020", "EAS-2000-2020")
+  )
+  testthat::expect_equal(unique(excluded$support_role), "partition")
+
+  testthat::expect_setequal(
+    included$polity_code,
+    c("WES-2000-2020", "EAS-2000-2020", "AGG-2000-2020")
+  )
+  testthat::expect_equal(
+    included$support_role[included$polity_code == "AGG-2000-2020"],
+    "overlap"
+  )
+  testthat::expect_true(all(
+    included$support_role[included$polity_code != "AGG-2000-2020"] ==
+      "partition"
+  ))
+})
+
+testthat::test_that("admitting an aggregate moves no partition value", {
+  testthat::skip_if_not_installed("sf")
+
+  # THE DOCSTRING INVARIANT, under the layer: aggregating polycells to a polity
+  # changes no absolute value and no quantity crosses a border it does not
+  # belong to. Measured against the build that has no layer at all, with water
+  # and the LUH2 validation layer both live, so the water apportionment and the
+  # unassigned reconciliation are both exercised rather than assumed.
+  geometries <- pcs_aggregate_fixture()
+  water <- tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2)
+  luh2 <- tibble::tibble(
+    lon = 10.25,
+    lat = 45.25,
+    terrestrial_ha = 0.9 * pcs_area_ha(pcs_cell(10.25, 45.25))
+  )
+
+  by_polity <- function(support) {
+    support |>
+      dplyr::filter(.data$support_role == "partition") |>
+      dplyr::summarise(
+        polity_area_ha = sum(.data$polity_area_ha),
+        land_area_ha = sum(.data$land_area_ha),
+        inland_water_ha = sum(.data$inland_water_ha),
+        ice_area_ha = sum(.data$ice_area_ha),
+        .by = c("polity_code", "year")
+      ) |>
+      dplyr::arrange(.data$polity_code, .data$year)
+  }
+
+  excluded <- whep::build_polycell_support(
+    years = 2005L:2015L,
+    geometries = geometries,
+    water = water,
+    data = list(luh2 = luh2)
+  )
+  included <- whep::build_polycell_support(
+    years = 2005L:2015L,
+    geometries = geometries,
+    water = water,
+    data = list(luh2 = luh2),
+    aggregates = "overlap_layer"
+  )
+
+  # Every area, every polity, every year: identical, not merely close.
+  testthat::expect_equal(by_polity(included), by_polity(excluded))
+
+  # And the diagnostics that describe the partition are the same table, so
+  # admitting the layer cannot make the polygons look like they over-claim.
+  testthat::expect_equal(
+    attr(included, "unassigned"),
+    attr(excluded, "unassigned")
+  )
+  testthat::expect_null(attr(excluded, "overlap"))
+  testthat::expect_null(attr(included, "overlap"))
+})
+
+testthat::test_that("an aggregate carries its members' territory, once", {
+  testthat::skip_if_not_installed("sf")
+
+  # The layer is only worth having if it answers the question the bucket asks:
+  # how much territory is in this cell. AGG is the exact union of WES and EAS,
+  # so its polycell must carry their sum -- in territory, in land and in the
+  # apportioned water -- and the water is the part that could silently go wrong,
+  # because it is the one quantity in this table that depends on which OTHER
+  # rows share the cell.
+  cell_ha <- pcs_area_ha(pcs_cell(10.25, 45.25))
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = pcs_aggregate_fixture(),
+    water = tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2),
+    aggregates = "overlap_layer"
+  )
+  members <- dplyr::filter(result, .data$support_role == "partition")
+  aggregate <- dplyr::filter(result, .data$support_role == "overlap")
+
+  testthat::expect_equal(nrow(aggregate), 1L)
+  testthat::expect_equal(
+    aggregate$polity_area_ha,
+    sum(members$polity_area_ha),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    aggregate$land_area_ha,
+    sum(members$land_area_ha),
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    aggregate$inland_water_ha,
+    sum(members$inland_water_ha),
+    tolerance = 1e-9
+  )
+  # S-A1 holds on the layer too: it is a polycell, not a summary row.
+  testthat::expect_equal(
+    aggregate$land_area_ha +
+      aggregate$inland_water_ha +
+      aggregate$ice_area_ha,
+    aggregate$polity_area_ha,
+    tolerance = 1e-9
+  )
+
+  # THE PARTITION IS STILL A PARTITION. The members share the cell exactly
+  # once; it is summing ACROSS the roles that double counts, which is why the
+  # role rides on the row and why `read_polycell_support()` returns one layer.
+  testthat::expect_equal(
+    sum(members$polity_area_ha),
+    pcs_area_ha(sf::st_geometry(pcs_aggregate_fixture())[[3L]]),
+    tolerance = 1e-9
+  )
+  testthat::expect_lt(sum(members$polity_area_ha), cell_ha)
+  testthat::expect_equal(
+    sum(result$polity_area_ha),
+    2 * sum(members$polity_area_ha),
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("the water denominator is the partition, not the layer", {
+  testthat::skip_if_not_installed("sf")
+
+  # THE NEAR MISS. A cell's inland water is apportioned pro rata over the
+  # territory sharing the cell. Take that denominator over every row present and
+  # the overlap layer -- which by construction covers the same ground again --
+  # HALVES what each member receives here, while every row still satisfies
+  # S-A1, the water still sums to something plausible and no polygon has
+  # changed. The two assertions below are what separate the two rules: the
+  # partition must still conserve the cell's whole water, and the members must
+  # receive exactly what they receive with no layer in the table at all.
+  water <- tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2)
+  geometries <- pcs_aggregate_fixture()
+
+  result <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    water = water,
+    aggregates = "overlap_layer"
+  )
+  alone <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    water = water
+  )
+  members <- dplyr::filter(result, .data$support_role == "partition")
+
+  testthat::expect_equal(
+    sum(members$inland_water_ha),
+    0.2 * members$cell_area_ha[[1L]],
+    tolerance = 1e-9
+  )
+  testthat::expect_equal(
+    sort(members$inland_water_ha),
+    sort(alone$inland_water_ha),
+    tolerance = 1e-12
+  )
+})
+
 # S-A1 / DA-3 — three separately addressable area categories -------------------
 
 testthat::test_that("polity area decomposes into land, inland water and ice", {
