@@ -868,6 +868,29 @@ test_that("gleam_animal_weights is a clean tibble", {
   )
 })
 
+test_that("gleam_animal_weights regions resolve as whep#881 measured", {
+  # The values in gleam_animal_weights are unsourced placeholders (see its
+  # @source): GLEAM's own live weights, in Supplement S1 Tables 2.4-2.16 of the
+  # 2.0 Model description, differ by -27% to +33%. Until they are re-ingested,
+  # this locks WHICH regions the placeholders reach, so a rename cannot
+  # silently widen or narrow their footprint without moving Tier 2 gross
+  # energy. `.gleam_region_of()` emits the labels of
+  # `gleam_geographic_hierarchy`, so a region absent from that vocabulary is a
+  # dead row whose territories fall back to the Global weights.
+  weight_regions <- setdiff(unique(whep::gleam_animal_weights$region), "Global")
+  gleam_regions <- unique(whep::gleam_geographic_hierarchy$gleam_region)
+
+  testthat::expect_setequal(
+    intersect(weight_regions, gleam_regions),
+    c("Western Europe", "North America", "Sub-Saharan Africa", "South Asia")
+  )
+  # Known dead row: GLEAM 3.0 calls this region "Central & South America".
+  testthat::expect_setequal(
+    setdiff(weight_regions, gleam_regions),
+    "Latin America"
+  )
+})
+
 test_that("gleam_milk_production is a clean tibble", {
   obj <- whep::gleam_milk_production
   assert_clean_tibble(
@@ -1033,6 +1056,14 @@ test_that("ipcc_2019 tables still hold the provenance whep#601 documents", {
     cfi$subcategory == "Non-lactating/Bulls" & cfi$cfi_mj_day_kg075 == 0.322
   ))
 
+  # 2019 Table 10.4 (Updated) adds a goat row the 2006 table lacks:
+  # Goats 0.315, Sheep (older than 1 year) 0.217. Goats inheriting the
+  # sheep value was #249; lock both, and that they stay distinct.
+  cfi_of <- function(cat) cfi$cfi_mj_day_kg075[cfi$category == cat]
+  testthat::expect_equal(cfi_of("Goats"), 0.315)
+  testthat::expect_equal(cfi_of("Sheep"), 0.217)
+  testthat::expect_false(isTRUE(all.equal(cfi_of("Goats"), cfi_of("Sheep"))))
+
   # Nex is stored per head per year while both editions publish a rate per
   # 1000 kg animal mass per day, so no stored value may be read as a rate.
   nex <- whep::ipcc_2019_n_excretion
@@ -1042,6 +1073,25 @@ test_that("ipcc_2019 tables still hold the provenance whep#601 documents", {
     ],
     105
   )
+})
+
+test_that("Tier 2 goat coefficients are the goat rows, not the sheep ones", {
+  # The sheep and goat coefficients sit one row apart in two IPCC tables
+  # and were copied across in both directions (#249, PR #267). Lock each
+  # against the published value.
+  # Cfi: 2019 Refinement Vol 4 Ch 10 Table 10.4 (Updated) -- Goats 0.315,
+  # Sheep (older than 1 year) 0.217.
+  # Ca: Table 10.5 (Updated) -- Lowland goats 0.019, Grazing flat pasture
+  # (sheep) 0.0107, Hill and mountain goats 0.024.
+  coefs <- whep::ipcc_tier2_energy_coefs
+  row_of <- function(cat) coefs[coefs$category == cat, ]
+  goats <- row_of("Goats")
+  sheep <- row_of("Sheep")
+
+  testthat::expect_equal(goats$cfi_mj_day_kg075, 0.315)
+  testthat::expect_equal(sheep$cfi_mj_day_kg075, 0.217)
+  testthat::expect_equal(goats$ca_pasture, 0.019)
+  testthat::expect_equal(sheep$ca_pasture, 0.0107)
 })
 
 test_that("IPCC 2006 datasets are clean tibbles", {

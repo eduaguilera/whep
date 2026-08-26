@@ -566,11 +566,12 @@ cft_to_pft <- c(
 }
 
 # ---- LUH2 single-variable reader (for livestock/pasture) -----------------
+# `time_idx` must already be resolved with `.luh2_time_idx()`: clamping here
+# would be invisible to the caller writing the year label (whep#256).
 .read_luh2_variable <- function(nc_path, varname, time_idx) {
   nc <- ncdf4::nc_open(nc_path)
   on.exit(ncdf4::nc_close(nc))
   lat <- ncdf4::ncvar_get(nc, "lat")
-  time_idx <- min(time_idx, nc$dim$time$len)
   vals <- ncdf4::ncvar_get(
     nc,
     varname,
@@ -586,10 +587,12 @@ cft_to_pft <- c(
 }
 
 # ---- LUH2 multi-variable reader (for cropland types) --------------------
-.luh2_time_len <- function(nc_path) {
-  nc <- ncdf4::nc_open(nc_path)
-  on.exit(ncdf4::nc_close(nc))
-  nc$dim$time$len
+# Calendar year -> 1-based LUH2 time index, clamped to the end of the record
+# with a warning. The logic lives in `whep:::.luh2_clamped_time_idx()` so it is
+# covered by the test suite and shared with `_gen_type_cropland.R`, which used
+# to compute the index bare and abort inside `ncvar_get()` (whep#256).
+.luh2_time_idx <- function(nc_path, yr) {
+  whep:::.luh2_clamped_time_idx(nc_path, yr)
 }
 
 .read_luh2_variables <- function(nc_path, var_names, time_idx) {
@@ -600,7 +603,6 @@ cft_to_pft <- c(
   n_lon <- length(lon)
   n_lat <- length(lat)
   lat_desc <- lat[1] > lat[length(lat)]
-  time_idx <- min(time_idx, nc$dim$time$len)
   purrr::map(var_names, \(vname) {
     vals <- ncdf4::ncvar_get(
       nc,
@@ -630,15 +632,7 @@ cft_to_pft <- c(
   # the LUH2 record (e.g. 2023+ in releases where FAOSTAT extends further
   # than LUH2), reuse the most recent LUH2 slice so the prep does not
   # abort. .read_luh2_variables is given the clamped index.
-  time_idx_raw <- yr - 850L + 1L
-  luh2_time_len <- .luh2_time_len(states_path)
-  time_idx <- min(time_idx_raw, luh2_time_len)
-  if (time_idx_raw > luh2_time_len) {
-    cli::cli_warn(c(
-      "LUH2 v2h covers up to year {850L + luh2_time_len - 1L}.",
-      "i" = "Year {yr} requested; reusing the {850L + luh2_time_len - 1L} slice."
-    ))
-  }
+  time_idx <- .luh2_time_idx(states_path, yr)
 
   crop_rasters <- .read_luh2_variables(states_path, crop_vars, time_idx)
   irrig_rasters <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
@@ -717,7 +711,7 @@ cft_to_pft <- c(
     if (yr %% 10 == 0) {
       cli::cli_alert("LUH2 country totals: year {yr}")
     }
-    time_idx <- yr - 850L + 1L
+    time_idx <- .luh2_time_idx(states_path, yr)
     crop_r <- .read_luh2_variables(states_path, crop_vars, time_idx)
     irrig_r <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
     purrr::map(crop_vars, \(cv) {
@@ -3719,7 +3713,7 @@ prepare_livestock_inputs <- function(
   )
   cli::cli_alert_info("LUH2 pasture workers: {n_workers}")
   per_year_pasture <- function(yr) {
-    time_idx <- yr - 850L + 1L
+    time_idx <- .luh2_time_idx(states_path, yr)
     pastr_r <- .read_luh2_variable(states_path, "pastr", time_idx)
     range_r <- .read_luh2_variable(states_path, "range", time_idx)
     pastr_ha <- terra::aggregate(
@@ -4666,9 +4660,10 @@ report_forcing_end_years <- function(climate_dir, used = NULL) {
 
 # Assembles the LPJmL monthly wind forcing from the two pinned artefacts that
 # download_climate() places under <l_files_dir>/wind: the ISIMIP 1901-2019
-# monthly base and the ERA5 monthly means. Neither is rebuildable from this
-# repo -- the base came from ISIMIP2a chunks via a script that was never
-# committed, and the ERA5 means take ~85 GB of streaming -- hence the pins.
+# monthly base and the ERA5 monthly means. Both are pinned for cost, not
+# because the code is lost: rebuilding the base streams ~34 GB of ISIMIP daily
+# files (inst/scripts/fetch_isimip_wind.sh) and the ERA5 means ~85 GB
+# (fetch_era5_wind.py).
 #
 # Wind is a *hard* LPJmL input: readclimate() aborts on a year outside the
 # file range rather than holding the last year constant, so a short wind file
