@@ -633,11 +633,10 @@ build_n_inputs <- function(
       i = "Expected one of {.val Excreta}, {.val Solid} or {.val Liquid}."
     ))
   }
-  dplyr::case_match(
-    manure_type,
-    "Excreta" ~ "excreta",
-    "Solid" ~ "manure_solid",
-    "Liquid" ~ "manure_liquid"
+  dplyr::case_when(
+    manure_type == "Excreta" ~ "excreta",
+    manure_type == "Solid" ~ "manure_solid",
+    manure_type == "Liquid" ~ "manure_liquid"
   )
 }
 

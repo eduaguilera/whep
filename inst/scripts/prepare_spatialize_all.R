@@ -417,6 +417,16 @@ cft_to_pft <- c(
 # layers (fodder grasses, alfalfa, clover, etc.) that have no direct
 # FAOSTAT QCL item. Downstream consumers usually filter with
 # `dplyr::filter(!is.na(item_prod_code))`.
+#
+# The crosswalk is the *only* thing `prepare_crop_patterns()` iterates, so a
+# crop absent from it gets no cell and `build_gridded_landuse()` drops its
+# whole world total, in every country and every year, with no error. That is
+# how barley -- the fourth-largest crop on Earth -- was missing until
+# whep#877: 169 rows against the 172 crop directories the EarthStat tree
+# ships. `tests/testthat/test_earthstat_mapping.R` is the guard; it asserts
+# the set of `cft_mapping.csv` crops with no row here is exactly the six
+# EarthStat publishes no raster for. Adding a row is inert until the
+# `spatialize-crop-patterns` pin is rebuilt from it.
 .read_earthstat_mapping <- function() {
   .find_extdata_file("earthstat_mapping.csv") |>
     readr::read_csv(

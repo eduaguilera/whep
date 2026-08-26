@@ -3563,3 +3563,86 @@ testthat::test_that("a water layer that matches almost nothing is called out", {
     "booked as DRY"
   )
 })
+
+# An ABSENT optional layer must not be silent (#885) ---------------------------
+#
+# `water` and `ice` default to NULL and the columns are zero-filled. The
+# producer's identity `polity_area_ha == land + inland_water + ice` still holds,
+# so nothing downstream can tell a zero-filled pin from a measured one -- which
+# is how the deployed pin `20260818T105426Z-a0330` came to book every lake,
+# river and glacier as land, 536.0 Mha (+4.15%) of 2015 land, under a
+# regeneration whose commit said "No published values move".
+
+testthat::test_that("an absent water layer warns instead of zero-filling silently", {
+  testthat::skip_if_not_installed("sf")
+  polities <- pcs_polities(
+    tibble::tibble(
+      polity_code = "PCSW-2000-2020",
+      start_year = 2000L,
+      end_year = 2020L
+    ),
+    list(pcs_inset(10.05, 10.45))
+  )
+  cnd <- testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = polities
+    ),
+    class = "whep_polycell_absent_water"
+  )
+  # The message has to name the consequence, not just the absence: a reader who
+  # sees "no water layer" and not "lakes are booked as land" does not act.
+  testthat::expect_match(conditionMessage(cnd), "identically zero")
+  # And the zero-fill still happens -- this is a warning, not a behaviour change.
+  testthat::expect_true(all(result$inland_water_ha == 0))
+})
+
+testthat::test_that("an absent ice layer warns on its own class", {
+  testthat::skip_if_not_installed("sf")
+  polities <- pcs_polities(
+    tibble::tibble(
+      polity_code = "PCSI-2000-2020",
+      start_year = 2000L,
+      end_year = 2020L
+    ),
+    list(pcs_inset(20.05, 20.45))
+  )
+  # Asserted separately from water so one firing cannot stand in for the other:
+  # the deployed pin lost BOTH layers, and a single class would let a future
+  # build lose only ice and still look covered.
+  testthat::expect_warning(
+    result <- whep::build_polycell_support(
+      years = 2015L,
+      geometries = polities
+    ),
+    class = "whep_polycell_absent_ice"
+  )
+  testthat::expect_true(all(result$ice_area_ha == 0))
+})
+
+testthat::test_that("a supplied water layer does not warn about absence", {
+  testthat::skip_if_not_installed("sf")
+  polities <- pcs_polities(
+    tibble::tibble(
+      polity_code = "PCSD-2000-2020",
+      start_year = 2000L,
+      end_year = 2020L
+    ),
+    list(pcs_inset(10.05, 10.45))
+  )
+  # The negative control. Without it the two tests above would pass against a
+  # warning that fires unconditionally, which would make the signal worthless.
+  water <- tibble::tibble(lon = 10.25, lat = 10.25, water_frac = 0.1)
+  cnd <- tryCatch(
+    {
+      whep::build_polycell_support(
+        years = 2015L,
+        geometries = polities,
+        water = water
+      )
+      NULL
+    },
+    whep_polycell_absent_water = function(w) w
+  )
+  testthat::expect_null(cnd)
+})
