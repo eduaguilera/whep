@@ -55,6 +55,7 @@ a hardcoded grid.
 | `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
 | `lpjml_forcing_pins.R` | Guards the six **climate-forcing pins** (the NetCDF grids that feed *into* LPJmL) against their grid contract and physical impossibility bounds. Its sibling above excludes them by design; #824 is why they still need a check. See below. |
 | `gt_lpjml_forcing_pins.json` | Recorded state of those pins, including the **known** negative-radiation count of #824. **Committed** — compared bidirectionally, so a count that falls is as loud as one that rises. |
+| `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. |
 
 ## Year-scoping equivalence (`year_scoping.R`)
 
