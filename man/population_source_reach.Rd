@@ -18,8 +18,9 @@ A tibble with one row per \code{area_code} and \code{polity_code} reporting
 period, sorted by area code then first reported year: \code{area_code},
 \code{polity_code}, \code{polity_name}, \code{map_year_start}, \code{map_year_end},
 \code{own_iso3} (the period's own ISO3), \code{reach} (\code{"direct"} / \code{"successor"} /
-\code{"unreachable"}), \code{n_iso3} and \code{iso3_reached} (the ISO3 codes standing in
-for the area, \code{NA} when unreachable).
+\code{"unreachable"}), \code{n_iso3}, \code{iso3_reached} (the ISO3 codes standing in
+for the area, \code{NA} when unreachable) and \code{extent_exceeds_iso3} (\code{TRUE}
+where those codes cover less ground than the period's territory).
 }
 \description{
 Every population source WHEP reads is keyed on a present-day ISO3 code: the
@@ -40,23 +41,28 @@ codes are returned in \code{iso3_reached}.
 this area.
 }
 
-Measured against UN WPP 2024's \code{Country/Area} vocabulary, eight reporting
-periods are not \code{"direct"}, and exactly one is \code{"unreachable"}:
-\code{ANT-1961-2010}, area 151 Netherlands Antilles (#787). The polities database
-publishes no \code{successor} for it, and its successor states are not modelled
-individually — Curaçao has its own polity but no predecessor, Sint Maarten
-sits inside the Netherlands, and the BES islands have no polity at all — so
-the reconstruction is a lookup for every other dissolved federation WHEP
-models and a hardcoded list for this one. That is an upstream identity gap,
-not a missing value.
+Measured against UN WPP 2024's 237 \code{Country/Area} ISO3 codes, 14 reporting
+periods are not \code{"direct"} and five are \code{"unreachable"} — \code{ATF}, \code{PCN},
+\code{SGS}, \code{NFK} and \code{CXR}, every one of them inside the Rest-of-World bucket
+999. \code{ANT-1961-2010}, area 151 Netherlands Antilles, was the last
+\code{"unreachable"} outside that bucket (#787); the 2026-08-25 upstream re-sync
+gave it \verb{CUW-2010-2025; SXM-2010-2025; BES-2010-2025}, so it now reads
+\code{"successor"} by lookup rather than by anything hardcoded here.
 
 \code{"successor"} says the ISO3 codes exist, \strong{not} that summing them is a safe
-denominator. In general it is not: WPP reports \code{XKX} (Kosovo) separately from
-\code{SRB} and the polities database names it among nobody's successors, so a
-successor sum for the Yugoslav SFR falls 17.5\% short of the \code{gdp-population}
-pin's own figure for the same aggregate. Use this to see what a source can
-cover, and read the note at the top of \code{R/population_reach.R} before turning
-any of it into a population.
+denominator. In general it is not: a successor sum for the Yugoslav SFR falls
+17.5\% short of the \code{gdp-population} pin's own figure for the same aggregate,
+of which Kosovo is 42\% and a level disagreement between the pin and WPP on
+that series is the rest. Use this to see what a source can cover, and read
+the note at the top of \code{R/population_reach.R} before turning any of it into a
+population.
+
+\code{extent_exceeds_iso3} marks the periods where the codes reported are
+\strong{narrower than the territory}, because the walk stopped on a polity that
+reuses one of its own parts' ISO3 — \code{SRB-2006-2008} "Serbia (including
+Kosovo)" carrying \code{SRB}, \code{SUD-1956-2011} carrying \code{SDN} (#863). It is
+orthogonal to \code{reach}: a \code{"direct"} period can be flagged, and that is the
+case worth knowing about, since nothing else about the row hints at it.
 
 Rows on \code{area_code} 999 describe the \strong{members} of the Rest-of-World fold
 bucket rather than the bucket itself, since each member is a crosswalk period
