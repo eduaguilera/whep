@@ -19,7 +19,7 @@
 #   file is derived from declares wind:units = "m s-1" and
 #   wind:standard_name = "wind_speed" (checked against every 1901-2016 chunk
 #   at https://files.isimip.org/ISIMIP2a/InputData/climate_co2/climate/HistObs/GSWP3-W5E5/,
-#   issue #371). inst/scripts/fetch_isimip_wind.sh rebuilds the series from
+#   see issue #371). the fetch_isimip_wind.sh script under inst/scripts rebuilds the series from
 #   those files and validation/lpjml_wind_provenance.R audits the pin against
 #   them; run_lpjml.R declares the same unit as input.wind.unit = "m/s".
 # - Local dev data dir is read from Sys.getenv("WHEP_WIND_DIR"); never
