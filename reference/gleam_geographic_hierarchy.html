@@ -7,7 +7,20 @@ carries the polity its iso3 resolves to in the present day, as
 regions_full does. All 204 rows now resolve: ATF, SGS and WLF used to keep
 NA for want of any WHEP polity, and upstream supplied one for each. A gap
 would still stay visible rather than being guessed at. The 204 GLEAM regions
-themselves are unchanged."><meta property="og:description" content="Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
+themselves are unchanged.
+oecd is the one column not carried through verbatim. Cell G41 of the
+published sheet flags Comoros as an OECD member; it is not one, so
+data-raw/livestock_coefficients.R rebuilds the whole column from the
+OECD's own list of its 38 Members (oecd.org, &quot;Members and partners&quot;, read
+2026-08-25; the URL is in the builder, which is not URL-checked, because the
+host answers R CMD check --as-cran with a 403) and
+aborts if the sheet ever stops listing a Member. Every other flagged code
+already matched that list, Colombia (2020) and Costa Rica (2021) included,
+and eu27 beside it is exactly the 27 real EU members, so the cell reads as
+a data-entry slip rather than a GLEAM grouping that borrows the name. The
+flag is load-bearing: build_energy_co2_extension() reads it for two of
+GLEAM's three country-grouping schemes, and as shipped it priced Comoros'
+meat at OECD energy intensity, up to 129 percent high (whep#574)."><meta property="og:description" content="Maps countries (ISO3) to GLEAM regions, FAOSTAT regions,
 and classification indicators.
 This is GLEAM's own registry of the countries that exist today, so
 polity_identity_conventions() types it &quot;present_day_polity&quot; and it
@@ -15,7 +28,20 @@ carries the polity its iso3 resolves to in the present day, as
 regions_full does. All 204 rows now resolve: ATF, SGS and WLF used to keep
 NA for want of any WHEP polity, and upstream supplied one for each. A gap
 would still stay visible rather than being guessed at. The 204 GLEAM regions
-themselves are unchanged."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+themselves are unchanged.
+oecd is the one column not carried through verbatim. Cell G41 of the
+published sheet flags Comoros as an OECD member; it is not one, so
+data-raw/livestock_coefficients.R rebuilds the whole column from the
+OECD's own list of its 38 Members (oecd.org, &quot;Members and partners&quot;, read
+2026-08-25; the URL is in the builder, which is not URL-checked, because the
+host answers R CMD check --as-cran with a 403) and
+aborts if the sheet ever stops listing a Member. Every other flagged code
+already matched that list, Colombia (2020) and Costa Rica (2021) included,
+and eu27 beside it is exactly the 27 real EU members, so the cell reads as
+a data-entry slip rather than a GLEAM grouping that borrows the name. The
+flag is load-bearing: build_energy_co2_extension() reads it for two of
+GLEAM's three country-grouping schemes, and as shipped it priced Comoros'
+meat at OECD energy intensity, up to 129 percent high (whep#574)."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -64,6 +90,19 @@ carries the polity its <code>iso3</code> resolves to in the present day, as
 <code>NA</code> for want of any WHEP polity, and upstream supplied one for each. A gap
 would still stay visible rather than being guessed at. The 204 GLEAM regions
 themselves are unchanged.</p>
+<p><code>oecd</code> is the one column not carried through verbatim. Cell G41 of the
+published sheet flags Comoros as an OECD member; it is not one, so
+<code>data-raw/livestock_coefficients.R</code> rebuilds the whole column from the
+OECD's own list of its 38 Members (oecd.org, "Members and partners", read
+2026-08-25; the URL is in the builder, which is not URL-checked, because the
+host answers <code>R CMD check --as-cran</code> with a 403) and
+aborts if the sheet ever stops listing a Member. Every other flagged code
+already matched that list, Colombia (2020) and Costa Rica (2021) included,
+and <code>eu27</code> beside it is exactly the 27 real EU members, so the cell reads as
+a data-entry slip rather than a GLEAM grouping that borrows the name. The
+flag is load-bearing: <code><a href="build_energy_co2_extension.html">build_energy_co2_extension()</a></code> reads it for two of
+GLEAM's three country-grouping schemes, and as shipped it priced Comoros'
+meat at OECD energy intensity, up to 129 percent high (whep#574).</p>
     </div>
 
     <div class="section level2">

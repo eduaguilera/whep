@@ -107,7 +107,17 @@ treated as 1 for backwards compatibility) and <code>cropland_ha</code> (<code>lo
 <code>lat</code>, <code>area_code</code>, <code>year</code>, <code>cropland_ha</code>, required: the gridded cropland
 area used as the simple room proxy, <code>cropland_ha * 0.170</code> t N/ha, the same
 EU-Nitrates fixed ceiling used by <code><a href="allocate_manure_to_land.html">allocate_manure_to_land()</a></code>'s
-<code>fixed_ceiling_kg_ha</code> default).</p></dd>
+<code>fixed_ceiling_kg_ha</code> default). Both frames' <code>area_code</code> must be the
+numeric WHEP area code, whole-numbered, as <code><a href="build_cell_polity.html">build_cell_polity()</a></code> emits
+it. Anything else – an ISO3 literal, an area name, a fractional value –
+aborts with class <code>whep_urban_area_code_unresolved</code>, naming the frame
+that carries it. It is not bridged: the two frames key the same transport
+partition, so one written in a different vocabulary from the other would
+silently strand a cell's load on a cell with no room instead of placing
+it, and an ISO3 resolves to a <code>polity_area_code</code> aggregation bucket that
+is not every territory's own code (<code>"SSD"</code> would become 206, Sudan
+(former)). Map to the code first, via <code><a href="add_area_code.html">add_area_code()</a></code> or
+<a href="regions_full.html">regions_full</a>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

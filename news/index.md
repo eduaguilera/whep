@@ -2,6 +2,47 @@
 
 ## whep (development version)
 
+- **[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
+  now requires the numeric WHEP `area_code` on the frames it is handed,
+  and checks it at the input boundary instead of after transport
+  ([\#597](https://github.com/eduaguilera/whep/issues/597)).** The
+  function builds the transport allocator’s `territory` key itself, as
+  `as.character(area_code)` of both `data$cell_polity` and
+  `data$cropland_ha`, and used to resolve that key back to a numeric
+  `area_code` only in `.urban_finalise()` — after
+  [`allocate_manure_transport()`](https://eduaguilera.github.io/whep/reference/allocate_manure_transport.md)
+  had already partitioned on the unresolved string, and through the
+  manure chain’s deprecated ISO3 bridge. Two things were wrong, and
+  neither is visible to a schema census or even to an `area_code`
+  census, because the output columns and the output codes are identical
+  either way and only the cell the nitrogen lands on moves. First, the
+  check ran after the partition it keys: two frames written in different
+  vocabularies for the same polity (`"ESP"` in one, `203` in the other)
+  produced `territory` keys that never met, so a source cell found no
+  reachable sink and its whole load stayed as residual on its own cell
+  even when that cell had no cropland at all — then was relabelled `203`
+  anyway, with no warning of any kind, because the ISO3 never reached a
+  resolver. Second, an ISO3 was accepted at all: it resolves to a
+  `polity_area_code` aggregation bucket that is not every territory’s
+  own code, so `"SSD"` became 206, Sudan (former). Both frames’
+  `area_code` must now be the numeric code, whole-numbered, as
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  emits it; an ISO3, an area name or a fractional value aborts with
+  class `whep_urban_area_code_unresolved`, naming the frame that carries
+  it, before any computation runs — rather than surfacing as a `dplyr`
+  mutate error about a `territory` field no caller ever supplied.
+  Callers keyed on ISO3 should map to the code first, with
+  [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
+  or `regions_full`. **No published value changes**: the
+  `spatialize-cell-polity-fraction` pin
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  reads is integer-keyed, and the boundary check is the exact identity
+  on all 178 grid area codes it carries (172 under
+  `area_key = "polity_area"`) and on every non-`NA` `regions_full$code`
+  — asserted over the whole vocabulary in the tests. Nothing in the
+  package, its scripts or its tests passed a non-numeric `area_code` to
+  this function.
+
 - **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have
   an impossibility check, and it records
   [\#824](https://github.com/eduaguilera/whep/issues/824) rather than
@@ -567,6 +608,31 @@
   +1.92%; by box, `semi_natural_agroecosystems` +5.80%, `Cropland`
   +1.01%. No other function changed: nothing read the five below-ground
   columns the pin carried and the packaged table does not.
+
+- **`gleam_geographic_hierarchy` no longer flags Comoros as an OECD
+  member, cutting its energy-use CO2e by 40.6%
+  ([\#574](https://github.com/eduaguilera/whep/issues/574)).** Cell G41
+  of GLEAM 3.0 Supplement S1 carries `OECD = 1` for Comoros, which is
+  not an OECD member; the other 38 flagged codes are exactly the 38 real
+  Members named on the OECD’s own membership page, so the cell is an
+  upstream data-entry slip rather than a modelling grouping that borrows
+  the name. `data-raw/livestock_coefficients.R` now rebuilds the `oecd`
+  column from that published list and aborts if the sheet ever stops
+  listing a Member, and `test_datasets.R` pins the set equality –
+  `livestock_coefs` is one of the datasets the `data-raw` freshness gate
+  cannot rebuild, so this test is its gate. `.energy_country_grouping()`
+  reads `oecd` for two of GLEAM’s three schemes, so Comoros moves from
+  `OECD` to `Least developed countries` under `development3` and from
+  `OECD` to `Africa` under `region5`; `detailed15` is unaffected.
+  Published values change for **one** area:
+  [`build_energy_co2_extension()`](https://eduaguilera.github.io/whep/reference/build_energy_co2_extension.md)
+  over
+  [`get_primary_production()`](https://eduaguilera.github.io/whep/reference/get_primary_production.md)
+  gives Comoros 6.336e7 kg CO2e over 1850-2023 instead of 1.066e8 (the
+  shipped figure was 68.3% too high), with per-kg live-weight
+  intensities falling 128.6% (bovine), 50.4% (mutton/goat), 26.1% (pig)
+  and 12.9% (poultry). No other area’s rows move; the global total falls
+  by 0.00066%.
 
 - **The six patchwork panel plots now say which package is missing
   instead of failing inside

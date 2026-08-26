@@ -56,7 +56,21 @@ build_urban_n(
   room proxy, `cropland_ha * 0.170` t N/ha, the same EU-Nitrates fixed
   ceiling used by
   [`allocate_manure_to_land()`](https://eduaguilera.github.io/whep/reference/allocate_manure_to_land.md)'s
-  `fixed_ceiling_kg_ha` default).
+  `fixed_ceiling_kg_ha` default). Both frames' `area_code` must be the
+  numeric WHEP area code, whole-numbered, as
+  [`build_cell_polity()`](https://eduaguilera.github.io/whep/reference/build_cell_polity.md)
+  emits it. Anything else – an ISO3 literal, an area name, a fractional
+  value – aborts with class `whep_urban_area_code_unresolved`, naming
+  the frame that carries it. It is not bridged: the two frames key the
+  same transport partition, so one written in a different vocabulary
+  from the other would silently strand a cell's load on a cell with no
+  room instead of placing it, and an ISO3 resolves to a
+  `polity_area_code` aggregation bucket that is not every territory's
+  own code (`"SSD"` would become 206, Sudan (former)). Map to the code
+  first, via
+  [`add_area_code()`](https://eduaguilera.github.io/whep/reference/add_area_code.md)
+  or
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md).
 
 - example:
 
