@@ -327,6 +327,9 @@ build_commodity_balances <- function(
     "faostat-trade-totals"
   )
   fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
+  # FishStat is all tonnes today, but it goes through the same gate so a future
+  # non-mass unit cannot slip in silently. The gate can empty it, hence the
+  # second check rather than an `else if`.
   if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
     fishstat_agg <- .mass_only_trade(fishstat_agg, "fishstat-trade")
   }
@@ -855,7 +858,7 @@ build_processing_coefs <- function(
       "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
       "i" = "{items} CBS item{cli::qty(items)}{?s}, totalling \\
              {round(sum(non_mass$value, na.rm = TRUE))}.",
-      "i" = "Live-animal trade is in head counts; the CBS {.field value}
+      "i" = "Live-animal trade is in head counts; the CBS {.field value} \\
              column is tonnes."
     ))
   }
