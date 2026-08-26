@@ -100,6 +100,27 @@ same answer is \code{reporting_polity_code}, materialised from this table's
 \code{legacy_polity_prefix} is not a substitute for one (#711).
 }
 
+\section{A bucket resolves here only because it is also an area}{
+
+There is one key column, \code{area_code}, and callers hand it \strong{two kinds of
+code}: a raw FAOSTAT reporting area, and a \code{polity_area_code} aggregation
+bucket -- which is what \code{reporting_polity_code} is resolved from on every
+summed row. Nothing in a row says which of the two it answers for, and that
+works only because the bucket key space is a \strong{subset} of the area key
+space: every \code{polity_area_code} is also an \code{area_code} here, in all three
+Rest-of-World modes. A bucket code that were not a reporting area would
+match no row, so the fold would keep its \code{area} label through the member
+fallback and lose \code{reporting_polity_code} to \code{NA} without complaint. The
+subset property is asserted by the test suite rather than assumed.
+
+A row may legitimately answer in \strong{both} spaces, which is why the two are
+not split. \verb{(238, ETH-1952-1993)} is the case: as a bucket row it dates
+bucket 238, which sums FAOSTAT area 62 Ethiopia PDR for 1961-1992; as an
+area row it dates FAOSTAT area 238 itself for a historical source reported
+under its own year's borders, which is how 149 historical-trade rows resolve
+at 1961. Marking it for one space would move the other. See #742.
+}
+
 \section{Confidence is the pair, not \code{mapping_status} alone}{
 
 \code{"matched"} covers outcomes of very different confidence -- a curated hit in
