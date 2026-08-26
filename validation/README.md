@@ -395,6 +395,19 @@ satellite-optical products give 120–140 PgC/yr, while carbonyl-sulfide ([Lai e
 al. 2024](https://doi.org/10.1038/s41586-024-08050-3), 157 ± 8.5) and ¹⁸O
 (150–175) are higher, with the gap concentrated in tropical rainforest.
 
+The equilibration table includes the two **mineral** nitrogen pools (`SoilNO3`,
+`SoilNH4`) because on the 6.1.1 production run they are the only pools that
+fail: every organic pool drifts 0.02–0.06 %/yr while nitrate drifts −0.146 %/yr
+after 300 spinup years (#437). Runs whose output list omits them are unaffected
+— absent columns are skipped. The `nlosses/ninflux` ratio below the table stays
+a printed number with no verdict on purpose: it reads 2.011 on 6.1.1 and 1.094
+on 5.9.7 at the end of their spinups, and no threshold between those two can be
+justified without deciding how much imbalance is acceptable. It is also reported
+for the **spinup only**, because over the transient the same run reads 1.103
+(2004–2023) while its nitrate pool is still draining — rising deposition and
+fertiliser nearly triple `ninflux`, so a transient ratio near 1 is not evidence
+of a balanced nitrogen cycle.
+
 ## Local bulk datasets (USA / NASS)
 
 Countries with a local bulk dataset are extracted **deterministically**, not by a
