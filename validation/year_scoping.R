@@ -22,6 +22,17 @@
 # PR 570: the trade and stock imputation reads neighbouring years, addressed
 # with the `.context_years()` margin rather than a fix.
 #
+# Issue 833: the first divergence this check found that goes BOTH ways. At 2010
+# the scoped wide CBS is missing 14 keys and carries 30 the full build does not
+# have, all of them processing-cascade outputs. Two unbounded year-axis fills
+# decide whether such an output exists: `.correct_processed()`'s `scaling_raw`
+# (no anchor in the window -> scaling 0 -> the output is deleted) and
+# `.interpolate_destiny_shares()`'s `dest_share` (no anchor in the window ->
+# the world average split -> a `processing` destiny the country never reported
+# -> `.cbs_second_processed_round()` manufactures the oil and cake rows). The
+# anchors are 7 to 49 years away, so no margin reaches them; see the
+# `.context_margin` comment in R/build_cache.R for the two open remedies.
+#
 # ## What counts as a failure (the tolerance decision)
 #
 # The target is EXACT equality, because the identity above is arithmetic, not

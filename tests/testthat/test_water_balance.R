@@ -644,8 +644,12 @@ testthat::test_that("an unknown or unnameable band aborts", {
   syn$inputs$cft_consump_water_b <- named
   syn$inputs$cft_consump_water_g <- named
 
+  # suppressWarnings: equal blue and green on a rainfed band also trips the
+  # #737 rainfed-blue detector, which fires before this abort.
   testthat::expect_error(
-    whep::build_water_balance(data = syn$inputs, bands = "rainfed sorghum"),
+    suppressWarnings(
+      whep::build_water_balance(data = syn$inputs, bands = "rainfed sorghum")
+    ),
     "not in this input"
   )
 
@@ -1171,4 +1175,133 @@ testthat::test_that("SOC drivers honour polity_validity as well", {
     "dropped"
   )
   testthat::expect_equal(nrow(empty), 0L)
+})
+
+# --- #737: the LPJmL 6.x green/blue defect makes cft_native wrong ------------
+# A rainfed CFT band receives no irrigation, so consumptive blue water on one
+# is proof that the run books infiltrating rain as blue (whep#710).
+
+.wb_cft_bands <- function(inputs, blue_grass, green_grass) {
+  cells <- dplyr::distinct(inputs$prec, lon, lat, year)
+  inputs$cft_consump_water_b <- dplyr::bind_rows(
+    dplyr::mutate(
+      cells,
+      band = 14L,
+      band_name = "rainfed grassland",
+      value = blue_grass
+    ),
+    dplyr::mutate(
+      cells,
+      band = 30L,
+      band_name = "irrigated grassland",
+      value = 400
+    )
+  )
+  inputs$cft_consump_water_g <- dplyr::bind_rows(
+    dplyr::mutate(
+      cells,
+      band = 14L,
+      band_name = "rainfed grassland",
+      value = green_grass
+    ),
+    dplyr::mutate(
+      cells,
+      band = 30L,
+      band_name = "irrigated grassland",
+      value = 100
+    )
+  )
+  inputs
+}
+
+testthat::test_that("blue water on a rainfed band warns (LPJmL 6.x defect)", {
+  syn <- .wb_synthetic_monthly()
+  # The measured 6.1.1 rainfed grassland split: green 134.2, blue 382.2 mm.
+  inputs <- .wb_cft_bands(syn$inputs, blue_grass = 382.2, green_grass = 134.2)
+  testthat::expect_warning(
+    wb <- whep::build_water_balance(data = inputs, example = FALSE),
+    "receive no irrigation"
+  )
+  # The split is still computed, so the numbers are unchanged: warn, not abort.
+  testthat::expect_true(all(stringr::str_detect(
+    wb$method_water,
+    "bg:cft_native"
+  )))
+})
+
+testthat::test_that("the rainfed-blue warning carries its condition class", {
+  syn <- .wb_synthetic_monthly()
+  inputs <- .wb_cft_bands(syn$inputs, blue_grass = 382.2, green_grass = 134.2)
+  # Asserted on the helper directly: dplyr::mutate() re-signals an inner
+  # warning with its own class, so a class filter through the pipeline would
+  # match nothing and pass vacuously.
+  testthat::expect_warning(
+    whep:::.wb_warn_rainfed_blue(
+      inputs$cft_consump_water_b,
+      inputs$cft_consump_water_g
+    ),
+    class = "whep_rainfed_blue_water"
+  )
+})
+
+testthat::test_that("a run with the fix does not warn", {
+  syn <- .wb_synthetic_monthly()
+  # The same cells from a run built with lbm364dl/LPJmL#3: rainfed grassland
+  # blue is 0.007 mm against 516.4 mm green.
+  inputs <- .wb_cft_bands(syn$inputs, blue_grass = 0.007, green_grass = 516.4)
+  testthat::expect_no_warning(
+    whep::build_water_balance(data = inputs, example = FALSE)
+  )
+  # The whole-run figure is the binding one: summed over every rainfed band and
+  # cell, that fixed run puts 1.99% of rainfed consumptive water in blue (soil
+  # water carried over from stands irrigated in an earlier year). That must
+  # stay silent, or the detector cries wolf on a correct run.
+  measured <- .wb_cft_bands(syn$inputs, blue_grass = 1.99, green_grass = 98.01)
+  testthat::expect_no_warning(
+    whep::build_water_balance(data = measured, example = FALSE)
+  )
+})
+
+testthat::test_that("irrig_share does not warn about the per-CFT cubes", {
+  syn <- .wb_synthetic_monthly()
+  inputs <- .wb_cft_bands(syn$inputs, blue_grass = 382.2, green_grass = 134.2)
+  # irrig_share never reads the cubes, so their partition cannot mislead it.
+  testthat::expect_no_warning(
+    whep::build_water_balance(
+      method = list(blue_green = "irrig_share"),
+      data = inputs,
+      example = FALSE
+    )
+  )
+})
+
+testthat::test_that("the detector needs band names and rainfed bands", {
+  syn <- .wb_synthetic_monthly()
+  inputs <- .wb_cft_bands(syn$inputs, blue_grass = 382.2, green_grass = 134.2)
+  cubes <- inputs[c("cft_consump_water_b", "cft_consump_water_g")]
+  # No band_name: nothing identifies a rainfed band, so no claim is made.
+  unnamed <- purrr::map(cubes, \(x) dplyr::select(x, -band_name))
+  testthat::expect_no_warning(
+    whep:::.wb_warn_rainfed_blue(unnamed[[1]], unnamed[[2]])
+  )
+  # Irrigated bands only: blue there is physical, not a defect.
+  irrigated <- purrr::map(
+    cubes,
+    \(x) dplyr::filter(x, band_name == "irrigated grassland")
+  )
+  testthat::expect_no_warning(
+    whep:::.wb_warn_rainfed_blue(irrigated[[1]], irrigated[[2]])
+  )
+  # All-zero rainfed rows: no share to compute, and no division by zero.
+  zeroed <- purrr::map(
+    cubes,
+    \(x) {
+      x |>
+        dplyr::filter(band_name == "rainfed grassland") |>
+        dplyr::mutate(value = 0)
+    }
+  )
+  testthat::expect_no_warning(
+    whep:::.wb_warn_rainfed_blue(zeroed[[1]], zeroed[[2]])
+  )
 })

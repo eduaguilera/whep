@@ -1212,6 +1212,101 @@ test_that(".dedup_production keeps highest-priority source", {
   expect_equal(ha_row$value, 20)
 })
 
+test_that(".dedup_production warns when a key repeats one source", {
+  # Shape of whep#633: FAOSTAT bucket 206 arrived as two rows, one per
+  # territory, under one `area_code`. They are addends, not competing
+  # measurements, and dedup keeps one -- silently, until whep#650.
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  expect_warning(
+    result <- whep:::.dedup_production(addends),
+    "same"
+  )
+  # Arbitration itself is unchanged: one row survives, nothing is summed.
+  expect_equal(nrow(result), 1L)
+
+  # The report names the key and the mass dedup discards.
+  collided <- whep:::.same_source_collisions(
+    data.table::as.data.table(addends),
+    c("year", "area_code", "item_prod_code", "unit")
+  )
+  expect_equal(nrow(collided), 1L)
+  expect_equal(collided$rows, 2L)
+  expect_equal(collided$dropped, 5e6)
+})
+
+test_that(".dedup_production is silent for competing sources", {
+  competing <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L, "t", 100, "imputed_yield",
+    2000L, "Spain", 203L, "Wheat", 15L, "t", 200, "FAOSTAT_prod"
+  )
+
+  expect_no_warning(whep:::.dedup_production(competing))
+  # Empty input must not warn either.
+  expect_no_warning(whep:::.dedup_production(competing[0L, ]))
+})
+
+test_that(".dedup_production does not flag an aggregate and its members", {
+  # FAOSTAT reports China both as aggregate 351 and as components 41/96/128/214
+  # (the double-count of whep's harmonization notes). Those are distinct
+  # `area_code`s, so they never collide on one dedup key and must not be
+  # reported as same-source duplicates -- and dedup must keep all five rows.
+  china <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 351L, "Wheat", 15L, "t", 100, "FAOSTAT_prod",
+    2000L, "China, mainland", 41L, "Wheat", 15L, "t", 90, "FAOSTAT_prod",
+    2000L, "China, Taiwan", 214L, "Wheat", 15L, "t", 5, "FAOSTAT_prod",
+    2000L, "China, Hong Kong", 96L, "Wheat", 15L, "t", 3, "FAOSTAT_prod",
+    2000L, "China, Macao", 128L, "Wheat", 15L, "t", 2, "FAOSTAT_prod"
+  )
+
+  expect_no_warning(result <- whep:::.dedup_production(china))
+  expect_equal(nrow(result), 5L)
+  expect_equal(sum(result$value), 200)
+})
+
+test_that("whep.warn_prod_dupes = FALSE silences the duplicate report", {
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  withr::with_options(
+    list(whep.warn_prod_dupes = FALSE),
+    expect_no_warning(whep:::.dedup_production(addends))
+  )
+})
+
+test_that(".show_prod_duplicates flags a repeated source", {
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  msgs <- testthat::capture_messages(
+    suppressWarnings(whep:::.show_prod_duplicates(addends))
+  )
+  expect_true(any(stringr::str_detect(msgs, "repeat a single")))
+})
+
 test_that(".show_prod_duplicates returns wide format of competing sources", {
   duped <- tibble::tribble(
     ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
@@ -1510,4 +1605,39 @@ test_that(".split_stock_share keys on the code, so a shared label cannot dilute"
   expect_equal(sum(result$value_comb), 160)
   # Whole numbers: a single-member group has share 1, never 1/n.
   expect_equal(result$value_comb, round(result$value_comb))
+})
+
+test_that(".assemble_production_raw renames the live-animal units", {
+  # The livestock branch turns the yield units into the head/LU counts the
+  # published table carries. Pinned because whep#850 rewrote the rename off
+  # the deprecated dplyr::case_match(): a wrong label here would put animal
+  # counts under a mass unit.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    # Duplicate key pair the summarise() averages: 4 and 6 -> 5.
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    4, 8, 2,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    6, 12, 2,
+    2010L, "Spain", 203L, "Eggs", "1062", "Hens", "1057", "t_head", "FAO",
+    3, 9, 3,
+    # A crop row the livestock filter must not pick up.
+    2010L, "Spain", 203L, "Wheat", "15", NA, NA, "t_ha", "FAO", 10, 20, 2
+  )
+
+  result <- suppressMessages(.assemble_production_raw(yield_all))
+  live <- result |>
+    dplyr::filter(unit %in% c("LU", "heads"))
+
+  expect_setequal(live$unit, c("LU", "heads"))
+  expect_equal(live$value[live$unit == "LU"], 5)
+  expect_equal(live$value[live$unit == "heads"], 3)
+  # Exactly one count row per (area, unit) pair present, and the rename is
+  # confined to that branch: the yield rows keep their own t_ units.
+  expect_equal(nrow(live), 2L)
+  expect_setequal(
+    result$unit,
+    c("ha", "tonnes", "t_ha", "t_LU", "t_head", "LU", "heads")
+  )
 })

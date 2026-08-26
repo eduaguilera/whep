@@ -342,3 +342,176 @@ testthat::test_that("no extractor aborts, naming the verified download", {
     "MD5-verified"
   )
 })
+
+# ---- The two 7z extraction back-ends (#451) ---------------------------------
+
+# fixtures/critical_n_mini.7z is a 495-byte stand-in for the 18.4 MB Zenodo
+# asset: the same top-level directory, the same "Output_files/Critical N
+# surpluses" subdirectory (spaces included, as in the real archive) and a 4x2
+# ESRI ASCII grid in place of each 720x360 one, so the extracted layout is what
+# .read_critical_n_file() reads through. Rebuild it with
+#   7z a -t7z -mx=9 critical_n_mini.7z <root_dir>
+# It is a real 7-Zip archive, so both back-ends have to be able to open it.
+critn_mini_archive <- function() {
+  testthat::test_path("fixtures", "critical_n_mini.7z")
+}
+
+critn_mini_files <- function(exdir) {
+  root <- file.path(exdir, whep:::.critn_archive_root())
+  c(
+    file.path(
+      root,
+      "Output_files",
+      "Critical N surpluses",
+      "nsur_crit_mi_all_ph.asc"
+    ),
+    file.path(root, "Input_files", "a_crop.asc"),
+    file.path(root, "Input_files", "a_gr_int.asc"),
+    file.path(root, "Input_files", "image_region28.asc")
+  )
+}
+
+testthat::test_that("the libarchive back-end unpacks a real 7z archive", {
+  testthat::skip_if_not_installed("archive")
+  dir <- withr::local_tempdir()
+  exdir <- file.path(dir, "extracted")
+  dir.create(exdir, recursive = TRUE)
+  whep:::.critn_extract_archive(critn_mini_archive(), exdir)
+  testthat::expect_true(all(file.exists(critn_mini_files(exdir))))
+})
+
+testthat::test_that("the 7-Zip binary back-end unpacks a real 7z archive", {
+  testthat::skip_if(
+    is.null(whep:::.critn_7z_binary()),
+    "no 7-Zip binary on PATH"
+  )
+  dir <- withr::local_tempdir()
+  exdir <- file.path(dir, "extracted")
+  dir.create(exdir, recursive = TRUE)
+  testthat::expect_true(whep:::.critn_extract_7z(critn_mini_archive(), exdir))
+  testthat::expect_true(all(file.exists(critn_mini_files(exdir))))
+})
+
+testthat::test_that("the 7-Zip back-end quotes an output path with spaces", {
+  testthat::skip_if(
+    is.null(whep:::.critn_7z_binary()),
+    "no 7-Zip binary on PATH"
+  )
+  # rappdirs cache paths can contain spaces (a user name is enough). An
+  # unquoted -o splits there and 7-Zip extracts nothing while still exiting 0,
+  # so the failure is silent.
+  dir <- withr::local_tempdir()
+  exdir <- file.path(dir, "a cache dir", "extracted")
+  dir.create(exdir, recursive = TRUE)
+  testthat::expect_true(whep:::.critn_extract_7z(critn_mini_archive(), exdir))
+  testthat::expect_true(all(file.exists(critn_mini_files(exdir))))
+})
+
+testthat::test_that("extraction prefers libarchive over the 7-Zip binary", {
+  dir <- withr::local_tempdir()
+  used <- character()
+  testthat::local_mocked_bindings(
+    is_installed = function(...) TRUE,
+    .package = "rlang"
+  )
+  testthat::local_mocked_bindings(
+    .critn_extract_archive = function(archive, exdir) {
+      used <<- c(used, "archive")
+      invisible(exdir)
+    },
+    .critn_extract_7z = function(...) testthat::fail("binary must not be used")
+  )
+  whep:::.critn_extract("a.7z", file.path(dir, "extracted"))
+  testthat::expect_equal(used, "archive")
+})
+
+testthat::test_that("extraction falls back to the 7-Zip binary", {
+  dir <- withr::local_tempdir()
+  exdir <- file.path(dir, "extracted")
+  seen <- list()
+  testthat::local_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang"
+  )
+  testthat::local_mocked_bindings(
+    .critn_extract_archive = function(...) {
+      testthat::fail("libarchive must not be used")
+    },
+    .critn_7z_binary = function() "/fake/7z",
+    .critn_extract_7z = function(archive, exdir, bin = NULL) {
+      seen <<- list(archive = archive, exdir = exdir, bin = bin)
+      TRUE
+    }
+  )
+  testthat::expect_equal(whep:::.critn_extract("a.7z", exdir), exdir)
+  testthat::expect_equal(seen$archive, "a.7z")
+  testthat::expect_equal(seen$exdir, exdir)
+  testthat::expect_equal(seen$bin, "/fake/7z")
+})
+
+testthat::test_that("a 7-Zip binary that fails aborts, it does not pass", {
+  dir <- withr::local_tempdir()
+  testthat::local_mocked_bindings(
+    is_installed = function(...) FALSE,
+    .package = "rlang"
+  )
+  testthat::local_mocked_bindings(
+    .critn_7z_binary = function() "/fake/7z",
+    .critn_extract_7z = function(...) FALSE
+  )
+  testthat::expect_error(
+    whep:::.critn_extract("a.7z", file.path(dir, "extracted")),
+    "No 7-Zip extractor available"
+  )
+})
+
+testthat::test_that("a checksum mismatch aborts instead of extracting", {
+  # A local file:// URL stands in for the Zenodo asset, so download.file() is
+  # really called with no network. Windows spells file URLs differently enough
+  # that this leg is only run elsewhere.
+  testthat::skip_on_os("windows")
+  dir <- withr::local_tempdir()
+  testthat::local_mocked_bindings(
+    .critn_archive_url = function() {
+      paste0("file://", normalizePath(critn_mini_archive()))
+    }
+  )
+  testthat::expect_error(
+    whep:::.critn_download(dir),
+    "does not match the published MD5"
+  )
+  # The download did happen; it is the verification that rejected it.
+  testthat::expect_true(file.exists(file.path(dir, "critical_n_archive.7z")))
+})
+
+testthat::test_that("an empty cache downloads, unpacks and then reads", {
+  testthat::skip_on_os("windows")
+  testthat::skip_if(
+    !rlang::is_installed("archive") && is.null(whep:::.critn_7z_binary()),
+    "no 7z extractor available"
+  )
+  dir <- withr::local_tempdir()
+  fixture <- critn_mini_archive()
+  testthat::local_mocked_bindings(
+    .critn_archive_url = function() paste0("file://", normalizePath(fixture)),
+    .critn_archive_md5 = function() unname(tools::md5sum(fixture))
+  )
+  # Real .critn_download() and real .critn_extract(): the whole first-run path
+  # minus the network.
+  testthat::expect_equal(whep:::.critn_cached_dir(dir), dir)
+  out <- whep::read_critical_n("critical_n_surplus", dir = dir)
+  # 4x2 grid with one NODATA cell.
+  testthat::expect_equal(nrow(out), 7L)
+  testthat::expect_equal(sort(out$value), c(10, 20, 40, 50, 60, 70, 80))
+  testthat::expect_true(
+    all(out$lon %in% c(-179.75, -179.25, -178.75, -178.25))
+  )
+  testthat::expect_true(all(out$lat %in% c(-89.25, -89.75)))
+  # land_use = "all" sums the arable and intensive-grassland source areas.
+  testthat::expect_equal(
+    out$source_area_ha,
+    out$value * 11,
+    tolerance = 1e-9
+  )
+  testthat::expect_true(all(out$image_region %in% 1:8))
+})

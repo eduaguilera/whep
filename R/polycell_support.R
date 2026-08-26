@@ -25,13 +25,22 @@
 #' @param years Optional integer vector of calendar years. `NULL` (default)
 #'   returns the interval-keyed grain; a vector expands to one row per
 #'   polycell-year and adds a `year` column.
+#' @param aggregates What to do with `polity_type == "aggregate"` rows, which
+#'   cannot join the partition because an aggregate's polygon covers its
+#'   members'. `"exclude"` (default) drops them, which is what every published
+#'   polycell table holds. `"overlap_layer"` clips them too and emits them
+#'   alongside the partition marked `support_role == "overlap"` -- see
+#'   *The aggregate overlap layer* below.
 #' @param geometries An `sf` table of polity geometries with at least
 #'   `polity_code`, `start_year` and `end_year`; defaults to
 #'   [get_polity_geometries()]. `start_year` is inclusive; `end_year` is
 #'   **exclusive at a succession** and **inclusive at the open end**, the
 #'   convention `polities` is documented under, and neither bound is ever
-#'   parsed out of `polity_code`. Optional `wiki_status`, `polity_type`,
-#'   `polygon_status` and `area_code` columns are honoured.
+#'   parsed out of `polity_code`. The intervals of one polity must partition
+#'   time: two that overlap are an error rather than a shape the producer
+#'   reconciles, and abort with class `whep_pcs_overlapping_interval`. Optional
+#'   `wiki_status`, `polity_type`, `polygon_status` and `area_code` columns are
+#'   honoured.
 #' @param water Optional per-cell `tibble` of inland water with `lon`, `lat`
 #'   and `water_frac`, a fraction of the **whole** cell, as
 #'   [read_glwd_water()] returns it.
@@ -52,8 +61,9 @@
 #'   `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 #'   `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 #'   `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-#'   `coverage_status`, `area_engine` and `luh2_vintage`, plus `year` when
-#'   `years` is supplied. `area_engine` is
+#'   `coverage_status`, `support_role`, `area_engine` and `luh2_vintage`, plus
+#'   `year` when `years` is supplied. `support_role` is `"partition"` on every
+#'   row unless `aggregates = "overlap_layer"` was asked for. `area_engine` is
 #'   `"s2"` except on the pieces the spherical engine cannot read back, which
 #'   are measured with `terra::expanse()` rather than dropped. Diagnostics ride
 #'   as attributes:
@@ -153,6 +163,58 @@
 #' carries a single time step. That is why the default grain is
 #' interval-keyed: no area column varies by year, so a per-year grain would
 #' repeat identical rows about 173 times.
+#'
+#' @section The aggregate overlap layer:
+#' An **aggregate** polity -- `BLX-1850-1999` Belgium-Luxembourg,
+#' `F249-1918-1990` Yemen, the six residual `"Other"` regions -- is a reporting
+#' bucket's territory, and its polygon covers its members'. It therefore cannot
+#' be a row of the partition: two rows claiming the same ground would hand the
+#' cell's land out twice, which is exactly what the rasterised cover this table
+#' replaced did, halving Belgium's 1961 cropland (whep#800).
+#'
+#' Dropping it outright is not free either. FAOSTAT keys its pre-2000 data on
+#' those buckets: Belgium (255) and Luxembourg (256) carry no data before 2000,
+#' bucket 15 does, and bucket 15's only territory is `BLX-1850-1999`. Measured
+#' against `polity_area_crosswalk` over 1850-1961, **ten** of the 460 polities
+#' the pre-1962 resolver reaches are aggregates and **ten** reporting buckets
+#' have no other territory in at least one year: 15, 151, 237 (1954-1961 only),
+#' 249 and 901-906.
+#'
+#' So both granularities are kept, and they are kept apart. With
+#' `aggregates = "overlap_layer"`:
+#'
+#' * every row carries `support_role`, `"partition"` or `"overlap"`;
+#' * `"partition"` rows are exactly what `"exclude"` emits -- same polities,
+#'   same territory, same land, water and ice, split into more intervals only
+#'   where an aggregate's validity adds a breakpoint to a cell;
+#' * the cell's inland water is apportioned over the **partition's** territory
+#'   in that cell, so an aggregate receives what its members receive and the
+#'   members' share is not diluted by the layer covering them;
+#' * every diagnostic that describes the partition -- `"overlap"`,
+#'   `"unassigned"`, `"water_unmatched"`, `"footprints"` -- is measured on the
+#'   partition alone, so admitting the layer cannot make the polygons look like
+#'   they over-claim the validation layer.
+#'
+#' The consumer contract is the other half: [read_polycell_support()] returns
+#' the **partition** unless asked otherwise, so no existing consumer can pick
+#' up an overlapping row by accident, and a consumer that wants a bucket's own
+#' territory asks for `role = "overlap"` (or `"all"`) and states that it is
+#' summing a layer that double-counts by construction. Never aggregate across
+#' the two roles.
+#'
+#' **The layer is not a partition of itself either**, and that is not a defect
+#' to be fixed by a tolerance: `ROW-1850-2025` Rest of World contains the six
+#' regional residuals it is the sum of. Built on the 19 live aggregates of
+#' `whep::polities` (779 rows, ingest 2026-08-13) it is 12,644 polycells, and
+#' at 2015 it puts more territory in a cell than the cell holds in 2,751 cells
+#' shared by `ROW` and `REUR`, 92 by `ROW` and `RAFR`, 8 by `ROW` and `ROCE`
+#' and 7 by `ROW` and `RLAM` -- plus 2 cells where `CODRU-1922-1960` and
+#' `EGYSUD-1934-1956` overlap in 1950, which is a polygon disagreement rather
+#' than nesting. So a consumer takes **one polity's** polycells out of the
+#' layer -- the one its bucket resolves to that year -- and never sums the
+#' layer as a whole. That is also why the `"overlap"` diagnostic keeps
+#' measuring the partition only: an over-full cell means something there, and
+#' in this layer it means nothing.
 #' @export
 #'
 #' @examples
@@ -167,15 +229,17 @@ build_polycell_support <- function(
   geometries = NULL,
   water = NULL,
   ice = NULL,
-  data = list()
+  data = list(),
+  aggregates = c("exclude", "overlap_layer")
 ) {
   rlang::check_installed("sf")
+  aggregates <- rlang::arg_match(aggregates)
   old_s2 <- sf::sf_use_s2()
   withr::defer(suppressMessages(sf::sf_use_s2(old_s2)))
   suppressMessages(sf::sf_use_s2(TRUE))
 
   geometries <- geometries %||% get_polity_geometries()
-  polities <- .pcs_prepare_polities(geometries)
+  polities <- .pcs_prepare_polities(geometries, aggregates)
   support <- polities |>
     .pcs_intersect_grid() |>
     .pcs_add_ice(.pcs_prepare_ice(ice)) |>
@@ -183,6 +247,7 @@ build_polycell_support <- function(
     .pcs_add_water(water) |>
     .pcs_finalize(.pcs_geometry_source(geometries), data)
 
+  .pcs_inform_overlap_layer(support)
   support |>
     .pcs_attach_diagnostics(polities, data, water) |>
     .pcs_expand(years)
@@ -306,10 +371,18 @@ expand_polycell_years <- function(support, years) {
 # aborts when it moves; re-measure with that and update both together.
 
 # Normalise the geometry source: keep the columns the producer reads, coerce to
-# WGS84 and drop dead and aggregate rows NA-explicitly. `%in%` is FALSE for NA,
-# so `!(x %in% dead)` KEEPS an NA row, unlike `dplyr::filter(x != dead)`, which
-# silently drops it. Exclusion needs positive evidence.
-.pcs_prepare_polities <- function(geometries) {
+# WGS84 and drop dead rows -- and, unless the caller asks for the overlap layer,
+# aggregate rows too -- NA-explicitly. `%in%` is FALSE for NA, so
+# `!(x %in% dead)` KEEPS an NA row, unlike `dplyr::filter(x != dead)`, which
+# silently drops it. Exclusion needs positive evidence, and that cuts both ways:
+# a row whose `polity_type` is NA is not evidence of an aggregate, so it stays
+# in the PARTITION under either setting rather than being swept into a layer
+# whose whole contract is that it double-counts.
+.pcs_prepare_polities <- function(
+  geometries,
+  aggregates = c("exclude", "overlap_layer")
+) {
+  aggregates <- rlang::arg_match(aggregates)
   if (!inherits(geometries, "sf")) {
     cli::cli_abort("{.arg geometries} must be an {.cls sf} table.")
   }
@@ -320,6 +393,7 @@ expand_polycell_years <- function(support, years) {
   )
   attrs <- sf::st_drop_geometry(geometries)
   usable <- .pcs_usable_geometry(sf::st_geometry(geometries))
+  is_aggregate <- .pcs_col(attrs, "polity_type", NA_character_) %in% "aggregate"
   out <- sf::st_sf(
     polity_code = as.character(attrs$polity_code),
     start_year = as.integer(attrs$start_year),
@@ -327,12 +401,13 @@ expand_polycell_years <- function(support, years) {
     polygon_status = .pcs_col(attrs, "polygon_status", NA_character_),
     area_code = .pcs_area_code(attrs),
     coverage_status = .pcs_coverage_status(usable$coverage_status, attrs),
+    support_role = dplyr::if_else(is_aggregate, "overlap", "partition"),
     geometry = usable$geom
   )
   # `.polity_is_live()` is the package's one reading of which rows are dead, so
   # the producer's filter and `.active_polities()`'s tie-break cannot drift.
   live <- .polity_is_live(.pcs_col(attrs, "wiki_status", NA_character_)) &
-    !(.pcs_col(attrs, "polity_type", NA_character_) %in% "aggregate")
+    (identical(aggregates, "overlap_layer") | !is_aggregate)
   out[live, ]
 }
 
@@ -372,7 +447,17 @@ expand_polycell_years <- function(support, years) {
 }
 
 # `area_code` is a label, resolved from the periodized crosswalk rather than
-# invented. It stays NA where the crosswalk has no entry for the polity.
+# invented. It stays NA where the crosswalk has no entry for the polity, which
+# is the ORDINARY case and not a defect: the crosswalk's row space is reporting
+# areas, so 168 of the 716 rows this producer prepares carry NA here because no
+# FAOSTAT or FABIO area was ever reported under their territory.
+#
+# AN AGGREGATE POLITY NEVER REACHES THE OUTPUT THROUGH THIS. `area_code` is
+# computed for every input row, but `.pcs_prepare_polities()` then keeps only
+# the rows that are live AND not `polity_type == "aggregate"`, so the eight live
+# aggregates absent from the crosswalk (whep#875) emit no polycell to carry an
+# NA. "Dead and aggregate rows receive no data and no land" in
+# `test_polycell_support.R` is the pin.
 .pcs_area_code <- function(attrs) {
   if (rlang::has_name(attrs, "area_code")) {
     return(as.integer(attrs$area_code))
@@ -470,6 +555,10 @@ expand_polycell_years <- function(support, years) {
   inter$area_code <- attrs$area_code
   inter$polygon_status <- attrs$polygon_status
   inter$coverage_status <- attrs$coverage_status
+  # Defaulted rather than read directly: a caller reaching this helper with a
+  # geometry table `.pcs_prepare_polities()` never touched has no role column,
+  # and the partition is what such a row is.
+  inter$support_role <- .pcs_col(attrs, "support_role", "partition")
   inter
 }
 
@@ -839,6 +928,8 @@ expand_polycell_years <- function(support, years) {
   ice_area_ha <- rep(0, nrow(polycells_sf))
   if (!is.null(ice_union)) {
     ice_area_ha <- .pcs_ice_areas(polycells_sf, ice_union)
+  } else if (nrow(polycells_sf) > 0L) {
+    .pcs_warn_layer_absent("ice", "ice_area_ha")
   }
   out <- tibble::as_tibble(sf::st_drop_geometry(polycells_sf))
   out$ice_area_ha <- ice_area_ha
@@ -971,6 +1062,7 @@ expand_polycell_years <- function(support, years) {
   }
   keys <- c("cell_id", "polity_code", "start_year", "end_year")
   .pcs_abort_repeated_key(pieces, keys)
+  .pcs_abort_interval_overlap(pieces)
   pieces |>
     dplyr::inner_join(
       .pcs_breakpoints(pieces),
@@ -1037,6 +1129,82 @@ expand_polycell_years <- function(support, years) {
            without a warning."
     ),
     class = "whep_pcs_repeated_key"
+  )
+}
+
+# A repeated key is only the subset of overlapping validity that a comparison
+# of whole keys happens to see: two intervals of one polity in one cell that
+# are not identical but do overlap, `[2000, 2015)` against `[2010, 2020)`, pass
+# it because `end_year` is part of the key. Measured on the example geometry
+# supplied twice at those two intervals, `build_polycell_support()` completed
+# with no abort and emitted `[2010, 2015)` TWICE for every one of the six
+# cells, double counting that polity's territory over the shared years. The
+# failure mode the guard exists for is overlapping validity, so this checks for
+# that directly.
+#
+# `end_year` is EXCLUSIVE at a succession, so touching intervals -- `[2000,
+# 2010)` then `[2010, 2020)`, the ordinary shape of two epochs of one polity in
+# one cell -- are not an overlap and must still split. The comparison is
+# therefore strict: only a `start_year` BELOW the previous `end_year` overlaps.
+# The inclusive open end cannot make a false positive, because an interval that
+# another interval of the same polity and cell starts on is a succession, not
+# an open end.
+#
+# Sorting by `start_year` makes the consecutive comparison complete rather than
+# merely cheap: if every interval starts at or after its predecessor's end then
+# the ends chain, `end_k <= start_(k+1) <= start_j`, so no non-consecutive pair
+# can overlap either.
+#
+# This ABORTS, like the repeated-key guard it extends. An overlap silently
+# doubles a polity's area over the shared years while every row stays
+# individually well formed, so the additivity and reaggregation checks
+# downstream all still pass; and whep#461's overlap WARNING was ignored long
+# enough for a bad artifact to be adopted, which is the evidence that a warning
+# is not enough here.
+.pcs_abort_interval_overlap <- function(pieces) {
+  # No `distinct()` first: `.pcs_abort_repeated_key()` runs ahead of this and
+  # aborts on a repeated key, so the keys here are already unique -- and a
+  # direct caller that skips it gets the repeat reported as the overlap it also
+  # is, rather than deduplicated away.
+  overlaps <- pieces |>
+    dplyr::select(
+      "cell_id",
+      "polity_code",
+      "start_year",
+      "end_year"
+    ) |>
+    dplyr::arrange(
+      .data$cell_id,
+      .data$polity_code,
+      .data$start_year,
+      .data$end_year
+    ) |>
+    dplyr::mutate(
+      previous_start = dplyr::lag(.data$start_year),
+      previous_end = dplyr::lag(.data$end_year),
+      .by = c("cell_id", "polity_code")
+    ) |>
+    dplyr::filter(.data$start_year < .data$previous_end)
+  if (nrow(overlaps) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- utils::head(overlaps, 3L)
+  labels <- stringr::str_glue(
+    "cell {shown$cell_id} / {shown$polity_code} ",
+    "[{shown$previous_start}, {shown$previous_end}) overlaps ",
+    "[{shown$start_year}, {shown$end_year})"
+  )
+  cli::cli_abort(
+    c(
+      "{nrow(overlaps)} pair{?s} of polycell intervals overlap in the
+       clipped pieces.",
+      x = "Showing up to three: {.val {labels}}.",
+      i = "{.fn build_polycell_support} needs the intervals of one polity in
+           one cell to partition time. {.field end_year} is exclusive at a
+           succession, so touching intervals are fine; an overlap emits the
+           shared years twice and doubles that polity's territory over them."
+    ),
+    class = "whep_pcs_overlapping_interval"
   )
 }
 
@@ -1138,12 +1306,16 @@ expand_polycell_years <- function(support, years) {
 # `land_area_ha` can never go negative and the disagreement stays visible.
 .pcs_add_water <- function(pieces, water) {
   if (is.null(water) || nrow(water) == 0L || nrow(pieces) == 0L) {
+    if (nrow(pieces) > 0L) {
+      .pcs_warn_layer_absent("water", "inland_water_ha")
+    }
     pieces$inland_water_ha <- rep(0, nrow(pieces))
     pieces$water_excess_ha <- rep(0, nrow(pieces))
     return(pieces)
   }
   .pcs_require_cols(water, c("lon", "lat", "water_frac"), "water")
   .pcs_warn_water_footprint(pieces, water)
+  pieces$support_role <- .pcs_col(pieces, "support_role", "partition")
   pieces |>
     dplyr::left_join(
       dplyr::distinct(water, .data$lon, .data$lat, .data$water_frac),
@@ -1153,7 +1325,7 @@ expand_polycell_years <- function(support, years) {
       water_pro_rata_ha = dplyr::coalesce(.data$water_frac, 0) *
         .data$cell_area_ha *
         .data$polity_area_ha /
-        sum(.data$polity_area_ha),
+        .pcs_water_denominator(.data$polity_area_ha, .data$support_role),
       .by = c("cell_id", "start_year")
     ) |>
     dplyr::mutate(
@@ -1172,6 +1344,29 @@ expand_polycell_years <- function(support, years) {
     dplyr::select(-"water_frac", -"water_pro_rata_ha")
 }
 
+# THE DENOMINATOR IS THE PARTITION, not every row sharing the cell. All of a
+# cell's inland water belongs to the polities that partition it, so the share
+# each receives must not depend on whether an aggregate covering some of them
+# is also in the table: adding the overlap layer to the denominator would
+# silently move water off every member it covers and onto the aggregate. With
+# the partition as the denominator, an aggregate's share is exactly the sum of
+# the shares of the members it covers -- it is the same rate applied to the same
+# territory -- and the members keep theirs unchanged. That is what makes the
+# layer additive against the partition rather than a second, disagreeing
+# measurement of the same cell.
+#
+# Where NO partition row reaches the cell the aggregate is all there is, so the
+# fallback is the rows in hand. This is not the aggregate case only: a table
+# with no `support_role` at all -- a direct caller of this helper -- lands here
+# too, and gets the pre-whep#803 rule back exactly.
+.pcs_water_denominator <- function(area, role = NULL) {
+  if (is.null(role)) {
+    return(sum(area))
+  }
+  partition <- sum(area[!(role %in% "overlap")])
+  if (partition > 0) partition else sum(area)
+}
+
 # A water layer that joins to almost nothing is indistinguishable, downstream,
 # from a world with almost no lakes: the join is a `left_join` and a missing row
 # legitimately means "this cell is dry", so every unmatched hectare of water
@@ -1188,6 +1383,38 @@ expand_polycell_years <- function(support, years) {
 # thousands; missing more than HALF the polycells means the grids do not share a
 # convention, which is a different kind of fact and the only one worth stopping
 # a build for.
+# An ABSENT optional layer is the failure #885 was: `water` and `ice` default to
+# NULL, the column is filled with zeros, and the producer's own identity
+# `polity_area_ha == land + inland_water + ice` still holds -- so every check
+# passes while every lake, river and glacier inside a polity is booked as land.
+# The deployed pin `20260818T105426Z-a0330` was built that way: all 482,605 rows
+# carry `inland_water_ha == 0` and `ice_area_ha == 0`, `land_area_ha` equals
+# `polity_area_ha` exactly in every one, and 2015 land came out 536.0 Mha
+# (+4.15%) above the pin built from all four layers. The regeneration that did it
+# reported "No published values move".
+#
+# Zero-filling stays legal -- a smoke build has no reason to clip a global water
+# raster -- but it can no longer be silent. `.pcs_warn_water_footprint()` below
+# already warns about the PARTIAL case in these exact terms ("their inland water
+# becomes land silently"); this is the total case, which returned before reaching
+# it.
+.pcs_warn_layer_absent <- function(arg, column) {
+  cli::cli_warn(
+    c(
+      "No {.arg {arg}} layer was supplied, so {.field {column}} is
+       identically zero.",
+      x = "Every lake, river and glacier inside a polity is therefore booked
+           as LAND, and the identity
+           {.code polity_area_ha == land_area_ha + inland_water_ha +
+           ice_area_ha} still holds, so no downstream check can see it.",
+      i = "This is correct for a smoke build and wrong for a published pin
+           (#885). Supply the layer, or state in the publishing commit that
+           {.field {column}} is zero by construction."
+    ),
+    class = paste0("whep_polycell_absent_", arg)
+  )
+}
+
 .pcs_warn_water_footprint <- function(pieces, water) {
   cells <- dplyr::distinct(pieces, .data$lon, .data$lat)
   matched <- nrow(dplyr::semi_join(
@@ -1320,9 +1547,43 @@ expand_polycell_years <- function(support, years) {
     "polygon_status",
     "split_method",
     "coverage_status",
+    "support_role",
     "area_engine",
     "luh2_vintage"
   )
+}
+
+# A table that no longer partitions its cells says so on the way out. The layer
+# is opt-in, so this cannot fire on a caller that did not ask for it, and it is
+# `cli_inform` rather than `cli_warn` because nothing has gone wrong -- what has
+# happened is that the table now answers two different questions and a reader
+# who sums it whole will get the wrong one.
+.pcs_inform_overlap_layer <- function(support) {
+  layer <- support$support_role %in% "overlap"
+  if (!any(layer)) {
+    return(invisible(NULL))
+  }
+  codes <- sort(unique(support$polity_code[layer]))
+  cli::cli_inform(c(
+    "i" = "{sum(layer)} polycell{?s} of {length(codes)} aggregate polit{?y/ies}
+           ride{?s/} alongside the partition, marked
+           {.code support_role == \"overlap\"}.",
+    "*" = "They cover their members' territory, and the residual
+           {.val Rest of World} covers the regional residuals, so this layer
+           partitions nothing: take one polity's polycells from it, never a
+           sum over it. Codes: {.val {codes}}."
+  ))
+}
+
+# The rows that PARTITION each cell: everything the overlap layer did not put
+# there. Read as a negation, so a table built before whep#803 -- no column at
+# all -- and a row whose role is NA are both partition rows, which is what they
+# are: the layer is opt-in, and nothing else in the table overlaps by design.
+.pcs_partition <- function(support) {
+  if (!rlang::has_name(support, "support_role")) {
+    return(support)
+  }
+  support[!(support$support_role %in% "overlap"), , drop = FALSE]
 }
 
 # -- The DA-13 transitional shim, removed at C9 -------------------------------
@@ -1358,11 +1619,18 @@ expand_polycell_years <- function(support, years) {
 # `arrange()` or `select()` and turn up in comparisons that have nothing to do
 # with it.
 .pcs_attach_diagnostics <- function(support, polities, data, water) {
+  # THE PARTITION IS WHAT THESE DESCRIBE. A cell holding more territory than it
+  # has, land the polities do not claim, the footprint against the crosswalks:
+  # each is a statement about the layer that partitions the cell. Measured over
+  # every row, the opt-in overlap layer would flood the first, cancel the second
+  # against itself and inflate the third, so admitting an aggregate would look
+  # like the polygons had gone wrong.
+  partition <- .pcs_partition(support)
   coverage <- .pcs_coverage(polities)
   if (any(coverage$coverage_status != "has_geometry")) {
     attr(support, "coverage") <- coverage
   }
-  overlap <- .pcs_overlap(support)
+  overlap <- .pcs_overlap(partition)
   if (nrow(overlap) > 0L) {
     attr(support, "overlap") <- overlap
     .pcs_warn_overlap(overlap)
@@ -1377,15 +1645,18 @@ expand_polycell_years <- function(support, years) {
     .pcs_warn_long_edges(long_edges)
   }
   if (!is.null(water)) {
-    attr(support, "water_unmatched") <- .pcs_water_unmatched(support, water)
+    attr(support, "water_unmatched") <- .pcs_water_unmatched(partition, water)
+    # Every row, both roles: the clamp is a fact about the row it happened on,
+    # and an aggregate whose apportioned water exceeds its own territory is
+    # exactly the disagreement this attribute exists to surface.
     attr(support, "water_excess") <- .pcs_water_excess(support)
   }
   if (!is.null(data$crosswalk) || !is.null(data$producer_crosswalk)) {
-    attr(support, "footprints") <- .pcs_footprints(support, data)
-    attr(support, "footprint_diff") <- .pcs_footprint_diff(support, data)
+    attr(support, "footprints") <- .pcs_footprints(partition, data)
+    attr(support, "footprint_diff") <- .pcs_footprint_diff(partition, data)
   }
   if (!is.null(data$luh2)) {
-    attr(support, "unassigned") <- .pcs_unassigned(support, data$luh2)
+    attr(support, "unassigned") <- .pcs_unassigned(partition, data$luh2)
   }
   support
 }
@@ -1580,7 +1851,8 @@ expand_polycell_years <- function(support, years) {
       "start_year",
       "end_year",
       "polygon_status",
-      "coverage_status"
+      "coverage_status",
+      "support_role"
     )
 }
 
@@ -1867,6 +2139,7 @@ expand_polycell_years <- function(support, years) {
     area_code = integer(),
     polygon_status = character(),
     coverage_status = character(),
+    support_role = character(),
     area_engine = character(),
     ice_area_ha = double()
   )

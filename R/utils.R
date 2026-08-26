@@ -74,6 +74,8 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    "prefix_iso3c",
+    "legacy_polity_prefix",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -2048,8 +2050,34 @@ utils::globalVariables(
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`
     "final_conversion_factor",
+    # n_prov_destiny.R — .processing_n_scaling()'s N-conserving scaling
+    # table and the helpers that consume it
+    "priced",
+    "processing_loss_n",
+    "remove_mass",
     # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
     # polity label with the label the fodder source itself carried
-    "source_area"
+    "source_area",
+    # parquet_integrity.R (#531) — Parquet footer column-chunk metadata and
+    # the derived byte range the layout check walks
+    "row_group",
+    "column",
+    "data_page_offset",
+    "dictionary_page_offset",
+    "total_compressed_size",
+    "chunk_start",
+    "chunk_end",
+    "prev_end",
+    "issue",
+    "detail",
+    # build_production.R (#650) — .same_source_collisions() NSE columns for the
+    # same-source duplicate report of .dedup_production()
+    ".keep_source",
+    "dropped",
+    # table_schema.R (#373) — diagnostic columns the schema validator sorts
+    # and filters its report by
+    "row",
+    "rule",
+    "severity"
   )
 )

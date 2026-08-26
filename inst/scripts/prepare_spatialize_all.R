@@ -417,6 +417,16 @@ cft_to_pft <- c(
 # layers (fodder grasses, alfalfa, clover, etc.) that have no direct
 # FAOSTAT QCL item. Downstream consumers usually filter with
 # `dplyr::filter(!is.na(item_prod_code))`.
+#
+# The crosswalk is the *only* thing `prepare_crop_patterns()` iterates, so a
+# crop absent from it gets no cell and `build_gridded_landuse()` drops its
+# whole world total, in every country and every year, with no error. That is
+# how barley -- the fourth-largest crop on Earth -- was missing until
+# whep#877: 169 rows against the 172 crop directories the EarthStat tree
+# ships. `tests/testthat/test_earthstat_mapping.R` is the guard; it asserts
+# the set of `cft_mapping.csv` crops with no row here is exactly the six
+# EarthStat publishes no raster for. Adding a row is inert until the
+# `spatialize-crop-patterns` pin is rebuilt from it.
 .read_earthstat_mapping <- function() {
   .find_extdata_file("earthstat_mapping.csv") |>
     readr::read_csv(
@@ -431,24 +441,34 @@ cft_to_pft <- c(
 
 # ---- EarthStat Crop Specific Fertilizer mapping (17 crops) ---------------
 .earthstat_fertilizer_mapping <- function() {
+  # Codes are the ones `inst/extdata/earthstat_mapping.csv` gives for the SAME
+  # raster name, which is this script's own answer to the same question for the
+  # harvested-area layer. Seven of the seventeen disagreed with it (#889), and
+  # only two of the seven were detectable as bad codes: `cassava` 340 and
+  # `cotton` 274 are not in `items_prod` at all, but `oilpalm` 217, `potato`
+  # 328, `rapeseed` 223, `sugarcane` 780 and `sunflower` 222 are all perfectly
+  # good item codes naming the WRONG crop -- cashews, seed cotton, pistachios,
+  # jute and walnuts. So an existence check passes on five of them, and the
+  # guard in `tests/testthat/test_earthstat_fertilizer_mapping.R` compares codes
+  # against the CSV instead.
   tibble::tribble(
     ~earthstat_fert_name, ~item_prod_code,
     "barley",      44L,
-    "cassava",    340L,
-    "cotton",     274L,
+    "cassava",    125L,
+    "cotton",     328L,
     "groundnut",  242L,
     "maize",       56L,
     "millet",      79L,
-    "oilpalm",    217L,
-    "potato",     328L,
-    "rapeseed",   223L,
+    "oilpalm",    254L,
+    "potato",     116L,
+    "rapeseed",   270L,
     "rice",        27L,
     "rye",         71L,
     "sorghum",     83L,
     "soybean",    236L,
     "sugarbeet",  157L,
-    "sugarcane",  780L,
-    "sunflower",  222L,
+    "sugarcane",  156L,
+    "sunflower",  267L,
     "wheat",       15L
   )
 }
@@ -987,22 +1007,22 @@ cft_to_pft <- c(
 
 # Resolve `whep::lassaletta_grassland_share`'s country labels to the grid's
 # `area_code`. THE TWO ROUTES ARE ALTERNATIVES, NOT A FALLBACK CHAIN, and they
-# disagree on 516 of 6,909 rows, so which one runs is the caller's choice:
+# disagree on 547 of 6,909 rows, so which one runs is the caller's choice:
 #
 #   "area_name"  joins the label onto `regions.csv`'s `area_name` (status quo).
 #   "alias_map"  decides it against `whep::polity_label_aliases` at the row's
 #                own year, then bridges polity -> iso3 -> area exactly as
 #                `.spatialize_label_area_code()` does for the other readers.
 #
-# Measured against real package data, `"alias_map"` resolves 6,682 rows where
-# `"area_name"` resolves 6,370: it gains 414 rows over 9 labels the name join
+# Measured against real package data, `"alias_map"` resolves 6,713 rows where
+# `"area_name"` resolves 6,370: it gains 445 rows over 10 labels the name join
 # simply spells differently (China, Cote d'Ivoire, DPRepublic of Korea, Cape
-# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, Occupied
-# Palestinian Territory) and loses 102 over 5 the name join keeps but the
-# resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR 18,
-# Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the grid
-# is a present-day rasterisation, which argues for the modern successors; the
-# polity migration argues for the territory that existed in the data year --
+# Verde, Swaziland, Sudan (former), Ethiopia PDR, Belgium-Luxemburg, FSU,
+# Occupied Palestinian Territory) and loses 102 over 5 the name join keeps but
+# the resolver dates outside their polity's life (South Sudan 49, Yugoslav SFR
+# 18, Czechoslovakia 16, Viet Nam 14, Botswana 5). Both are defensible -- the
+# grid is a present-day rasterisation, which argues for the modern successors;
+# the polity migration argues for the territory that existed in the data year --
 # so whep#576 leaves the choice open and the default stays where it was.
 .grass_share_area_code <- function(label, year, area_lookup, route) {
   if (identical(route, "alias_map")) {
@@ -2279,15 +2299,15 @@ prepare_nitrogen_inputs <- function(
       return(NULL)
     }
 
-    crop_map <- tibble::tribble(
-      ~west_crop,    ~item_prod_code,
-      "barley",      44L, "cassava",    340L, "cotton",     274L,
-      "groundnut",  242L, "maize",       56L, "millet",      79L,
-      "oilpalm",    217L, "potato",     328L, "rapeseed",   223L,
-      "rice",        27L, "rye",         71L, "sorghum",     83L,
-      "soybean",    236L, "sugarbeet",  157L, "sugarcane",  780L,
-      "sunflower",  222L, "wheat",       15L
-    )
+    # Same 17 crops and the same codes as `.earthstat_fertilizer_mapping()`, so
+    # it is read from there rather than restated. It carried an independent copy
+    # of the tribble with the identical seven wrong codes (#889), which is how a
+    # fix to one of them would have left the other misattributing manure N:
+    # oil palm to cashews, potato to seed cotton, rapeseed to pistachios, sugar
+    # cane to jute, sunflower to walnuts, and cassava and cotton to codes that
+    # do not exist. One definition, one place to be wrong.
+    crop_map <- .earthstat_fertilizer_mapping()
+    names(crop_map)[names(crop_map) == "earthstat_fert_name"] <- "west_crop"
 
     .read_one_west <- function(i) {
       crop <- crop_map$west_crop[i]

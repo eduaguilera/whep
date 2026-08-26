@@ -16,6 +16,9 @@
 #'   `sub_territory`, `stream`, `applied_n`, `applied_c` and `applied_vs`.
 #' @param gridded A named list describing the land surface for each polity:
 #'   * `crops`: a tibble keyed by `year`, `territory`, `sub_territory`, `crop`
+#'     (a code, `as.character(item_prod_code)`; this function treats it as an
+#'     opaque label but the downstream nitrogen balance resolves it through
+#'     [items_prod_full], so a name is deprecated there)
 #'     with the allocation weight (`manure_n_receptivity` for
 #'     `"area_x_receptivity"`, `crop_n_demand` for `"crop_n_demand"`) and the cap
 #'     basis (`crop_n_cap`, t N, for `"potential_uptake"`/`"realised_removal"`;
@@ -59,8 +62,8 @@
 #' )
 #' crops <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-#'   2020L, "203", NA, "barley", 6, 50,
-#'   2020L, "203", NA, "wheat", 4, 40
+#'   2020L, "203", NA, "44", 6, 50,
+#'   2020L, "203", NA, "15", 4, 40
 #' )
 #' allocate_manure_to_land(applied, list(crops = crops))
 allocate_manure_to_land <- function(
@@ -281,7 +284,12 @@ allocate_manure_to_land <- function(
       "{.val {opt$cap_method}} needs a precomputed {.field crop_n_cap} in {.field crops}."
     )
   }
-  dplyr::mutate(crops, cap_n = .data$crop_n_cap * opt$f_n_tolerance)
+  # A capacity can't be negative; the supplied crop_n_cap occasionally is,
+  # from the underlying growth model's own edge cases.
+  dplyr::mutate(
+    crops,
+    cap_n = pmax(.data$crop_n_cap * opt$f_n_tolerance, 0)
+  )
 }
 
 .prepare_grass_cap <- function(grass, opt) {
@@ -305,9 +313,11 @@ allocate_manure_to_land <- function(
         "{.val {opt$cap_method}} needs a precomputed {.field grass_n_cap} in {.field grass}."
       )
     }
+    # A capacity can't be negative; the supplied grass_n_cap occasionally is,
+    # from the underlying growth model's own edge cases.
     grass <- dplyr::mutate(
       grass,
-      grass_n_cap = .data$grass_n_cap * opt$f_n_tolerance
+      grass_n_cap = pmax(.data$grass_n_cap * opt$f_n_tolerance, 0)
     )
   }
   dplyr::select(grass, "year", "territory", "sub_territory", "grass_n_cap")
