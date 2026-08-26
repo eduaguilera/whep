@@ -1,5 +1,126 @@
 # whep (development version)
 
+* **The LUH2 v2h calendar-year → time-index resolution is now one shared,
+  tested helper, and clamping past the end of the record always warns
+  (#256).** Four places computed the index independently, with three different
+  policies for a year the LUH2 record does not reach: `.read_luh2_year()` in
+  `prepare_spatialize_all.R` clamped and warned; `.luh2_country_totals()` and
+  the gridded-pasture reader clamped **silently**, so the published
+  `gridded_pasture.parquet`, `gridded_cropland.parquet` and
+  `type_cropland.parquet` each carry a 2023 that is bit-identical to their 2022
+  with nothing in the log saying so; and `_gen_type_cropland.R` computed
+  `yr - 850 + 1` bare, aborting inside `ncdf4::ncvar_get()` with
+  `NetCDF: Index exceeds dimension bound` on any vintage shorter than its
+  `year_range` (the base v2h release stops at 2015, the pinned GCB2022 vintage
+  at 2022). All four now call `whep:::.luh2_clamped_time_idx()`, which warns
+  naming the year it is reusing, and aborts for years before 850 CE, where
+  there is no slice to reuse. **No published value changes**: index 1 = year
+  850 was already correct at every site (the states.nc time axis declares
+  "years since 850-01-01" with `time[1] == 0`), and the resolved index sequence
+  is identical for the full 1851–2023 pipeline span on the reference GCB2022
+  vintage. The 2023 land surfaces still repeat 2022 — that is the documented
+  intent, since FAOSTAT extends past LUH2 — it is merely audible now.
+
+* **The IPCC provenance of the Tier 2 sheep and goat coefficients is now
+  recorded, and the goat values are locked by tests (#249).** No published
+  value changes: `ipcc_2019_cfi` and `ipcc_tier2_energy_coefs` already hold
+  the goat rows of the 2019 Refinement (Vol 4, Ch 10, Table 10.4 (Updated)
+  Cfi = 0.315 and Table 10.5 (Updated) lowland-goat Ca = 0.019), verified
+  against the published PDFs of both editions. What was wrong was the
+  documentation: `data-raw/livestock_coefficients.R` asserted that the 2019
+  Refinement "does NOT change these from the 2006 values", when the 2006
+  Table 10.4 has no goat row at all — the belief that produced the original
+  copy of the sheep Cfi 0.217 onto goats, and again of the sheep Ca 0.0107 in
+  a later attempted fix. `@source` for `ipcc_tier2_energy_coefs` now names the
+  table each column comes from and states that the stored `ca_pasture` is the
+  lowland/flat-pasture default, not the published hill and mountain goat
+  coefficient (0.024). `test_datasets.R` locks all four sheep/goat cells.
+
+* **The offline cache fallback now finds a cached copy when the version was
+  not pinned to a concrete string (#245).** `whep_read_file()` and the
+  `read_raw_inputs` readers fall back to the local `pins` cache when the board
+  is unreachable, and located it by hashing the version URL. For
+  `version = "latest"` (and for a registry entry that freezes no version) the
+  version reaching that point is `NULL`, so the hashed URL was `.../alias//`,
+  which matches no directory the download ever wrote: every such request
+  aborted with "No local cached copy was found either" no matter how much was
+  cached. The concrete version is now recovered from the cache itself — each
+  cached directory's `data.txt` names its `created` timestamp and `pin_hash`,
+  and the directory is named after the hash of the resulting version URL, so
+  the attribution is exact — and the newest cached version wins. Measured on a
+  populated cache of 73 registry aliases, `version = "latest"` resolved 0
+  before and 70 after; frozen-version lookups resolved 70 both times, so no
+  previously working lookup changes. `.pins_cache_base()` also honours
+  `PINS_CACHE_DIR`, `PINS_USE_CACHE` and `R_CONFIG_ACTIVE` the way `pins`
+  itself does, instead of always assuming the `rappdirs` default. No published
+  value changes: the same pin contents are read, only reachable offline now.
+
+* **`get_primary_production(land_method = "historical_polity")` now warns when
+  the `historical-land-areas` pin was measured on a different `whep::polities`
+  snapshot (#905).** The pin is static per LUH2 vintage *and* polities
+  snapshot, and nothing rebuilds it when the snapshot is re-synced. The only
+  guard it carried was on year coverage, which cannot see the failure that
+  actually happens: a re-sync leaves every year and every reporting bucket in
+  place and changes the *territory* each row was measured inside. No total or
+  identity over the pin can detect that either — the land still adds up, on
+  redrawn borders. The check is therefore on the input the pin records rather
+  than on its numbers: the pin carries, per bucket-year, the `polity_code` it
+  was measured on, and that label is compared with what the resolver returns
+  today. Against the deployed pin `20260818T110621Z-08814` it names 7 polity
+  codes `whep::polities` no longer has (`CIV-1893-1900`, `GHA-1898-1956`,
+  `HUN-1918-1919`, `KEN-1902-1906`, `LAO-1893-1953`, `SEN-1886-1959`,
+  `TCD-1920-1960`) and 256 bucket-years over 8 buckets whose label has moved.
+  **No published value changes**: the default `land_method` is
+  `"present_day"`, which never reads this pin, and the warning changes no
+  number on the opt-in path. A rebuild of that path on the current snapshot
+  and the current `polycell_support` pin moves total pre-1962 agriland by
+  +0.003% but individual bucket-years by up to +82% (Tunisia 1850, 1.366 →
+  2.486 Mha), so regenerating the pin is still outstanding.
+
+* **New: row-level evidence, as data (#372).** `row_evidence()` records what
+  each row of a result rests on — the producing source's immutable
+  identifier, its version, a UTC timestamp and the producer's documented
+  per-row evidence fields — as a keyed sidecar table in the
+  `"whep-row-evidence/1"` format, whose contract is returned by
+  `row_evidence_schema()` and can be proved with `assert_table_schema()`.
+  It is a table rather than an attribute because `dplyr` joins, filters and
+  `summarise()` drop attributes silently, so attribute-borne evidence cannot
+  survive the composition it exists to document. `evidence_for()` re-aligns
+  evidence onto a table after a join and warns about rows that carry none,
+  `combine_row_evidence()` merges producers deterministically without
+  letting one overwrite another, and `evidence_conflicts()` reports where
+  they disagree. This is the row-level counterpart of the dataset-level
+  `record_provenance()`; no existing output or published value changes.
+
+* **Two of the five untraceable GLEAM tables now name the FAO table they were
+  meant to come from, and the other three record what was ruled out (#881).**
+  Documentation only: no data value changed and no published number changes.
+  #607 left five `gleam_*` tables marked "not traced". The document that was
+  missing is the supplementary workbook of the *2.0* model description
+  (`GLEAM_2.0_Supplement_S1.xlsx`, md5
+  `72fd2ea477dfe8b30cd3657b2baa4af1`): GLEAM 3.0 dropped the regional
+  herd-parameter and manure-management table families, which is why the
+  committed 3.0 workbook has no sheet for them. `gleam_animal_weights` is
+  published there, in the live-weight block of Tables 2.4-2.16, and
+  `gleam_mms_shares` in Tables 4.2-4.11. Neither matches the shipped values --
+  Western Europe dairy cows are 594 kg, not 650, and dairy bulls 773 kg, not
+  1000 -- and neither has been re-ingested here, because `gleam_animal_weights`
+  is the Tier 2 live weight and swapping it moves gross energy, hence Tier 2
+  enteric CH4, by -16.4% to +14.2% depending on the cohort (measured with
+  `estimate_energy_demand()`, one cohort at a time, everything but `weight`
+  held fixed). `gleam_milk_production` and `gleam_feed_categories` appear in no
+  GLEAM publication at all: milk yield and lactation length are country inputs
+  in both model descriptions, and GLEAM groups feed materials as
+  Roughages/Cereals/By-products/Concentrates, not the six-way split shipped
+  here. `gleam_livestock_categories` takes its cohort vocabulary from GLEAM
+  Table 2.1 but not its Dairy/Beef layout, and since
+  `calculate_cohorts_systems()` splits a herd `1 / n_cohorts`, that layout is
+  itself a result-affecting assumption. `regional_mms_distribution`, which is
+  live in the manure chain and was annotated "GLEAM 3.0 / FAO statistics", is
+  now marked unverified too. A guard test locks which `gleam_animal_weights`
+  regions actually resolve, so a rename cannot silently widen the
+  placeholders' reach.
+
 * **New `empty_table_from_schema()` builds the typed zero-row table a
   declarative schema describes (#374).** It is the constructor half of the
   schema family added by `check_table_schema()` / `assert_table_schema()`:
@@ -314,6 +435,20 @@
   186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
   rather than a mechanisation class are documented rather than repaired, since
   the correct class is not recoverable from anything the package ships.
+* **The `region_labour*` column shift in `regions_full` is fully documented
+  and pinned, and is one cell wider than first reported (#855).** Re-measuring
+  the two `region_labour_mech` cells found that at Northern Mariana Islands
+  (code 163) the neighbouring `region_labour_agg` is damaged in the same way:
+  it holds `"Micronesia"`, that row's own `region_UN_sub` value, rather than
+  one of its own nine aggregates, so repairing 163 means editing two cells.
+  Angola's `region_labour_agg` is intact. `polities_cats` inherits the Angola
+  `region_labour_mech` cell; it has no row for 163, which is not a polity. No
+  cell changes and no published value moves -- the affected columns still have
+  no consumer in the package. The classes stay unfilled: no public taxonomy
+  defines this mechanised/not-mechanised split, and although the other eight
+  `region_labour == "Middle Africa"` rows are all `no_mech` and the other
+  eight `region_UN_sub == "Micronesia"` rows are all `mech`, the column is not
+  a function of either grouping, so group agreement cannot settle it.
 
 * **New: `check_table_schema()` and `assert_table_schema()` validate a table
   against a serializable declarative schema (#373).** The schema is plain

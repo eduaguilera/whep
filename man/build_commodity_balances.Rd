@@ -53,8 +53,10 @@ joined onto the CBS, so it can only fill a row that already exists;
 creates the missing rows from the trade record, restricted to
 tonnes-denominated items (live-animal trade is in heads and arrives
 through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
-already covers in that year. It \strong{moves published values}; \code{NEWS.md}
-states by how much and whep#762 keeps the remaining decisions open.
+already covers in that year. Selecting it \strong{moves published values} —
+at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+areas on the nourishment axis. \code{NEWS.md} states the rest, and whep#762
+keeps the remaining decisions open.
 \code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
 get the wide table with recovery applied.}
 
