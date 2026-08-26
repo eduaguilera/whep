@@ -646,8 +646,10 @@
 #' - `region_IPCC`: IPCC regional grouping used in climate assessments.
 #' - `region_labour`: Labour-focused regional grouping.
 #' - `region_labour_agg`: Aggregated labour-focused regional grouping.
-#' - `region_labour_mech`: Labour mechanisation regional grouping.
-#' - `region_test`: Experimental/test regional grouping (may be incomplete).
+#' - `region_labour_mech`: Labour mechanisation regional grouping. Two cells
+#'   hold a sub-region name rather than a mechanisation class; see
+#'   [regions_full].
+#' @inheritSection regions_full Which regional groupings WHEP reads
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
 #' @note Derived from [regions_full] rather than vendored separately: the
@@ -752,8 +754,48 @@
 #' - `region_IPCC`: IPCC region.
 #' - `region_labour`: Labour-focused region.
 #' - `region_labour_agg`: Aggregated labour region.
-#' - `region_labour_mech`: Labour mechanisation region.
-#' - `region_test`: Experimental regional grouping.
+#' - `region_labour_mech`: Labour mechanisation region, `"mech"` or
+#'   `"no_mech"`. Two cells hold a sub-region name instead -- Angola (code 7)
+#'   `"Middle Africa"` and Northern Mariana Islands (163) `"Micronesia"`, each
+#'   its own `region_labour`-family value -- which looks like a column shift in
+#'   the source spreadsheet. Nothing here reads the column, so nothing computes
+#'   on them; which class each belongs in is not recoverable from anything
+#'   shipped with the package, so they are pinned in
+#'   `test_region_classifications.R` rather than guessed at.
+#' @section Which regional groupings WHEP reads:
+#' The grouping columns are not all inputs to this package. Six have a consumer
+#' in the tree, measured over `R/`, `data-raw/`, `tests/`, `vignettes/` and
+#' `inst/`: `region` (carried into [polity_area_crosswalk] at build time),
+#' `region_krausmann` (the residue recovery rate, and the IPCC excreta regions
+#' of `prepare_spatialize_all.R`), `region_HANPP` (the modern-variety adoption
+#' share), `region_UN_sub` (the residue feed-use fraction, since whep#405),
+#' `ADB_Region` ([build_primary_production] area keys) and `EU27` (the EU
+#' aggregate of the FABIO comparison). `region_code` carries no information
+#' `region` does not -- the two are a 1:1 relabelling -- so it needs no
+#' consumer of its own.
+#'
+#' The rest -- `Lassaletta`, `region_krausmann2`, `region_UN`, `region_ILO1`,
+#' `region_ILO2`, `region_ILO3`, `region_IEA`, `region_IPCC`, `region_labour`,
+#' `region_labour_agg`, `region_labour_mech` -- are published third-party
+#' taxonomies shipped for downstream analysis and read by nothing in the
+#' package. They are shipped as reference, and carry no promise of being
+#' re-validated against their upstream taxonomy on release, so a consumer should
+#' check the gap it inherits before keying anything by one (whep#386).
+#'
+#' The gap the present-day taxonomies share is dissolved states. Over the 202
+#' `cbs` reporters, `region_ILO1`, `region_ILO2`, `region_ILO3`, `region_IEA`
+#' and `region_IPCC` are each `NA` for exactly the four federations WHEP still
+#' books commodity balances for -- Czechoslovakia (51), Serbia and Montenegro
+#' (186), the USSR (228) and the Yugoslav SFR (248) -- and complete everywhere
+#' else; `region_UN` labels three of the four and leaves only Czechoslovakia
+#' `NA`. `ROW` (999) carries an explicit `"RoW"` value in all of them rather
+#' than `NA`. Grouping by one of these without deciding what to do with the
+#' federations silently drops the pre-succession record. `region_UN_sub`, which
+#' shares the gap and does have a consumer, is pinned against it in
+#' `test_region_classifications.R`.
+#'
+#' A `region_test` column with two values (`"Europe"`, `"Other"`) and no
+#' consumer was dropped in whep#386.
 #' @seealso [polities_cats] for the subset restricted to sovereign countries.
 #' @source Compiled from [FAOSTAT](https://www.fao.org/faostat/), UN M49,
 #'   ILO, IEA, and other international statistical sources.
