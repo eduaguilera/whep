@@ -175,6 +175,26 @@ test_that(".fabio_area_bridge loses no code a raw join drops (#264)", {
   ))
 })
 
+test_that(".fabio_area_bridge keys a folded WHEP area on its bucket", {
+  # A WHEP frame can carry reporting area 276 alongside the 206 bucket its rows
+  # are summed into. Keying 276 on itself would pool Sudan into Rest of World
+  # while FABIO's own 276 went to 206 -- the two halves of one fold ending up
+  # in different comparison cells. Found by running the real script (#264).
+  bridge <- whep:::.fabio_area_bridge(
+    .fabio_regions_fixture(),
+    whep_area_codes = c(1L, 206L, 276L, 999L),
+    crosswalk = .fabio_crosswalk_fixture()
+  )
+
+  folded <- dplyr::filter(bridge, side == "whep", area_code == 276L)
+  testthat::expect_equal(folded$compare_area_code, 206L)
+  testthat::expect_equal(folded$bridge_kind, "whep_fold")
+
+  # Both WHEP codes and both FABIO codes now meet on the one Sudan key.
+  sudan <- dplyr::filter(bridge, compare_area_code == 206L)
+  testthat::expect_setequal(sudan$area_code, c(206L, 276L, 277L))
+})
+
 test_that(".fabio_area_bridge names a FABIO region WHEP cannot match", {
   bridge <- whep:::.fabio_area_bridge(
     .fabio_regions_fixture(),

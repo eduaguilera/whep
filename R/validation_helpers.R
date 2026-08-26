@@ -69,7 +69,8 @@
 # - `compare_area_code`: the shared key to group and join on.
 # - `bridge_kind`: `"direct"` (same code both sides), `"fabio_fold"` (several
 #   FABIO regions into one WHEP bucket), `"pooled_into_row"` (a WHEP code
-#   FABIO keeps inside Rest of World) or `"unmatched"` (a FABIO region with no
+#   FABIO keeps inside Rest of World), `"whep_fold"` (a WHEP reporting area
+#   summed into another bucket) or `"unmatched"` (a FABIO region with no
 #   WHEP counterpart at all -- the only kind that still leaves the join, and
 #   now named instead of vanishing). Every WHEP area always keeps a key.
 .fabio_area_bridge <- function(
@@ -88,18 +89,25 @@
   }
 
   row_code <- .fabio_row_code(fabio_regions)
-  keyed <- .fabio_bridge_fabio_side(fabio_regions, crosswalk)
-  pooled <- setdiff(areas, keyed$compare_area_code)
-  matched <- c(areas, if (length(pooled) > 0L) row_code)
+  cw <- crosswalk %||% .polity_crosswalk()
+  keyed <- .fabio_bridge_fabio_side(fabio_regions, cw)
+
+  # Both sides resolve through the SAME crosswalk, or the two halves of a fold
+  # part company: a WHEP frame can still carry reporting area 276 alongside the
+  # bucket 206 it is summed into, and keying 276 on itself would pool Sudan
+  # into Rest of World while FABIO's own 276 went to 206.
+  bucket <- .fabio_bridge_whep_buckets(cw, areas)
+  pooled <- !bucket %in% keyed$compare_area_code
+  matched <- c(bucket, if (any(pooled)) row_code)
 
   whep_side <- tibble::tibble(
     side = "whep",
     area_code = areas,
-    compare_area_code = dplyr::if_else(areas %in% pooled, row_code, areas),
-    bridge_kind = dplyr::if_else(
-      areas %in% pooled,
-      "pooled_into_row",
-      "direct"
+    compare_area_code = dplyr::if_else(pooled, row_code, bucket),
+    bridge_kind = dplyr::case_when(
+      pooled ~ "pooled_into_row",
+      bucket != areas ~ "whep_fold",
+      .default = "direct"
     )
   )
 
@@ -136,8 +144,7 @@
 # WHEP bucket that carries its ISO3, falling back to its own code when WHEP
 # has no area for that ISO3 at all.
 .fabio_bridge_fabio_side <- function(fabio_regions, crosswalk) {
-  iso_bucket <- crosswalk %||% .polity_crosswalk()
-  iso_bucket <- tibble::as_tibble(iso_bucket) |>
+  iso_bucket <- tibble::as_tibble(crosswalk) |>
     dplyr::filter(!is.na(.data$area_iso3c), !is.na(.data$polity_area_code)) |>
     dplyr::distinct(
       iso3c = .data$area_iso3c,
@@ -155,4 +162,28 @@
         .data$area_code
       )
     )
+}
+
+# The bucket each WHEP area's rows are summed into, for `.fabio_area_bridge()`.
+# A frame can carry a reporting area and the bucket that folds it side by side
+# (206 Sudan (former) beside 276 Sudan), so an area's OWN code is not always
+# the key its values belong under. An area the crosswalk does not know keeps
+# its own code, which then either matches a FABIO region or gets pooled.
+.fabio_bridge_whep_buckets <- function(crosswalk, areas) {
+  lookup <- tibble::as_tibble(crosswalk) |>
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_area_code)) |>
+    dplyr::distinct(
+      area_code = as.integer(.data$area_code),
+      bucket = as.integer(.data$polity_area_code)
+    )
+  clashes <- lookup |>
+    dplyr::count(.data$area_code) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(clashes) > 0L) {
+    bad <- clashes$area_code
+    cli::cli_abort(
+      "{.arg crosswalk} folds area{?s} {.val {bad}} into more than one bucket."
+    )
+  }
+  dplyr::coalesce(lookup$bucket[match(areas, lookup$area_code)], areas)
 }
