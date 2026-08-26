@@ -105,10 +105,9 @@ territory). It contains the following columns:
 
 - `region_labour_agg`: Aggregated labour-focused regional grouping.
 
-- `region_labour_mech`: Labour mechanisation regional grouping.
-
-- `region_test`: Experimental/test regional grouping (may be
-  incomplete).
+- `region_labour_mech`: Labour mechanisation regional grouping. Two
+  cells hold a sub-region name rather than a mechanisation class; see
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md).
 
 ## Source
 
@@ -127,11 +126,51 @@ folded, both because they had no commodity balance sheet when the table
 was compiled: Bhutan under `RASI` and Comoros under `RAFR`, each with
 `cbs` `FALSE` and `fabio_code` `999`.
 
+## Which regional groupings WHEP reads
+
+The grouping columns are not all inputs to this package. Six have a
+consumer in the tree, measured over `R/`, `data-raw/`, `tests/`,
+`vignettes/` and `inst/`: `region` (carried into
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+at build time), `region_krausmann` (the residue recovery rate, and the
+IPCC excreta regions of `prepare_spatialize_all.R`), `region_HANPP` (the
+modern-variety adoption share), `region_UN_sub` (the residue feed-use
+fraction, since whep#405), `ADB_Region`
+([build_primary_production](https://eduaguilera.github.io/whep/reference/build_primary_production.md)
+area keys) and `EU27` (the EU aggregate of the FABIO comparison).
+`region_code` carries no information `region` does not – the two are a
+1:1 relabelling – so it needs no consumer of its own.
+
+The rest – `Lassaletta`, `region_krausmann2`, `region_UN`,
+`region_ILO1`, `region_ILO2`, `region_ILO3`, `region_IEA`,
+`region_IPCC`, `region_labour`, `region_labour_agg`,
+`region_labour_mech` – are published third-party taxonomies shipped for
+downstream analysis and read by nothing in the package. They are shipped
+as reference, and carry no promise of being re-validated against their
+upstream taxonomy on release, so a consumer should check the gap it
+inherits before keying anything by one (whep#386).
+
+The gap the present-day taxonomies share is dissolved states. Over the
+202 `cbs` reporters, `region_ILO1`, `region_ILO2`, `region_ILO3`,
+`region_IEA` and `region_IPCC` are each `NA` for exactly the four
+federations WHEP still books commodity balances for – Czechoslovakia
+(51), Serbia and Montenegro (186), the USSR (228) and the Yugoslav SFR
+(248) – and complete everywhere else; `region_UN` labels three of the
+four and leaves only Czechoslovakia `NA`. `ROW` (999) carries an
+explicit `"RoW"` value in all of them rather than `NA`. Grouping by one
+of these without deciding what to do with the federations silently drops
+the pre-succession record. `region_UN_sub`, which shares the gap and
+does have a consumer, is pinned against it in
+`test_region_classifications.R`.
+
+A `region_test` column with two values (`"Europe"`, `"Other"`) and no
+consumer was dropped in whep#386.
+
 ## Examples
 
 ``` r
 head(polities_cats)
-#> # A tibble: 6 × 39
+#> # A tibble: 6 × 38
 #>   legacy_polity_prefix polity_name       V1  code iso3c FAOSTAT_name EU27  name 
 #>   <chr>                <chr>          <dbl> <int> <chr> <chr>        <lgl> <chr>
 #> 1 AFG                  Afghanistan        2     2 AFG   Afghanistan  FALSE Afgh…
@@ -140,7 +179,7 @@ head(polities_cats)
 #> 4 AGO                  Angola             7     7 AGO   Angola       FALSE Ango…
 #> 5 ATG                  Antigua and B…     8     8 ATG   Antigua and… FALSE Anti…
 #> 6 ARG                  Argentina          9     9 ARG   Argentina    FALSE Arge…
-#> # ℹ 31 more variables: eia <chr>, iea <chr>, water_code <dbl>,
+#> # ℹ 30 more variables: eia <chr>, iea <chr>, water_code <dbl>,
 #> #   water_area <chr>, baci <dbl>, fish <dbl>, region_code <dbl>, cbs <lgl>,
 #> #   fabio_code <dbl>, ADB_Region <chr>, region <chr>, uISO3c <dbl>,
 #> #   Lassaletta <chr>, region_krausmann <chr>, region_HANPP <chr>,

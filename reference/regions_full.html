@@ -110,13 +110,54 @@ published values. See <a href="folded_reporting_areas.html">folded_reporting_are
 <li><p><code>region_IPCC</code>: IPCC region.</p></li>
 <li><p><code>region_labour</code>: Labour-focused region.</p></li>
 <li><p><code>region_labour_agg</code>: Aggregated labour region.</p></li>
-<li><p><code>region_labour_mech</code>: Labour mechanisation region.</p></li>
-<li><p><code>region_test</code>: Experimental regional grouping.</p></li>
+<li><p><code>region_labour_mech</code>: Labour mechanisation region, <code>"mech"</code> or
+<code>"no_mech"</code>. Two cells hold a sub-region name instead – Angola (code 7)
+<code>"Middle Africa"</code> and Northern Mariana Islands (163) <code>"Micronesia"</code>, each
+its own <code>region_labour</code>-family value – which looks like a column shift in
+the source spreadsheet. Nothing here reads the column, so nothing computes
+on them; which class each belongs in is not recoverable from anything
+shipped with the package, so they are pinned in
+<code>test_region_classifications.R</code> rather than guessed at.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
     <p>Compiled from <a href="https://www.fao.org/faostat/" class="external-link">FAOSTAT</a>, UN M49,
 ILO, IEA, and other international statistical sources.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="which-regional-groupings-whep-reads">Which regional groupings WHEP reads<a class="anchor" aria-label="anchor" href="#which-regional-groupings-whep-reads"></a></h2>
+
+
+<p>The grouping columns are not all inputs to this package. Six have a consumer
+in the tree, measured over <code>R/</code>, <code>data-raw/</code>, <code>tests/</code>, <code>vignettes/</code> and
+<code>inst/</code>: <code>region</code> (carried into <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> at build time),
+<code>region_krausmann</code> (the residue recovery rate, and the IPCC excreta regions
+of <code>prepare_spatialize_all.R</code>), <code>region_HANPP</code> (the modern-variety adoption
+share), <code>region_UN_sub</code> (the residue feed-use fraction, since whep#405),
+<code>ADB_Region</code> (<a href="build_primary_production.html">build_primary_production</a> area keys) and <code>EU27</code> (the EU
+aggregate of the FABIO comparison). <code>region_code</code> carries no information
+<code>region</code> does not – the two are a 1:1 relabelling – so it needs no
+consumer of its own.</p>
+<p>The rest – <code>Lassaletta</code>, <code>region_krausmann2</code>, <code>region_UN</code>, <code>region_ILO1</code>,
+<code>region_ILO2</code>, <code>region_ILO3</code>, <code>region_IEA</code>, <code>region_IPCC</code>, <code>region_labour</code>,
+<code>region_labour_agg</code>, <code>region_labour_mech</code> – are published third-party
+taxonomies shipped for downstream analysis and read by nothing in the
+package. They are shipped as reference, and carry no promise of being
+re-validated against their upstream taxonomy on release, so a consumer should
+check the gap it inherits before keying anything by one (whep#386).</p>
+<p>The gap the present-day taxonomies share is dissolved states. Over the 202
+<code>cbs</code> reporters, <code>region_ILO1</code>, <code>region_ILO2</code>, <code>region_ILO3</code>, <code>region_IEA</code>
+and <code>region_IPCC</code> are each <code>NA</code> for exactly the four federations WHEP still
+books commodity balances for – Czechoslovakia (51), Serbia and Montenegro
+(186), the USSR (228) and the Yugoslav SFR (248) – and complete everywhere
+else; <code>region_UN</code> labels three of the four and leaves only Czechoslovakia
+<code>NA</code>. <code>ROW</code> (999) carries an explicit <code>"RoW"</code> value in all of them rather
+than <code>NA</code>. Grouping by one of these without deciding what to do with the
+federations silently drops the pre-succession record. <code>region_UN_sub</code>, which
+shares the gap and does have a consumer, is pinned against it in
+<code>test_region_classifications.R</code>.</p>
+<p>A <code>region_test</code> column with two values (<code>"Europe"</code>, <code>"Other"</code>) and no
+consumer was dropped in whep#386.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -126,7 +167,7 @@ ILO, IEA, and other international statistical sources.</p>
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">regions_full</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 39</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 38</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   legacy_polity_prefix polity_name      V1  code iso3c FAOSTAT_name EU27  name  </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> ROW                  Rest of World    30    30 ATA   <span style="color: #BB0000;">NA</span>           FALSE Antar…</span>
@@ -135,7 +176,7 @@ ILO, IEA, and other international statistical sources.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> ROW                  Rest of World   245   254 OXY   <span style="color: #BB0000;">NA</span>           FALSE Other…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> ROW                  Rest of World   260   999 ROW   <span style="color: #BB0000;">NA</span>           FALSE RoW   </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> ROW                  Rest of World   244   252 UXY   <span style="color: #BB0000;">NA</span>           FALSE Unspe…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 31 more variables: eia &lt;chr&gt;, iea &lt;chr&gt;, water_code &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 30 more variables: eia &lt;chr&gt;, iea &lt;chr&gt;, water_code &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   water_area &lt;chr&gt;, baci &lt;dbl&gt;, fish &lt;dbl&gt;, region_code &lt;dbl&gt;, cbs &lt;lgl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   fabio_code &lt;dbl&gt;, ADB_Region &lt;chr&gt;, region &lt;chr&gt;, uISO3c &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   Lassaletta &lt;chr&gt;, region_krausmann &lt;chr&gt;, region_HANPP &lt;chr&gt;,</span></span>
