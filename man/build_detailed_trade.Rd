@@ -53,6 +53,22 @@ mapped to CBS item codes.
 Optionally extends the time series by joining with commodity balance
 sheet years and gap-filling country shares via linear interpolation.
 }
+\section{Time extension is uniform across groups}{
+
+With \code{extend_time = TRUE} the extension is driven by the \strong{year axis} of
+CBS only. Every \verb{(area, item, partner, element, unit)} group observed in
+any trade year is carried across the union of trade and CBS years, and
+\code{\link[=fill_linear]{fill_linear()}} interpolates inside a group's observed span and holds the
+first and last observed share constant outside it. Whether CBS actually
+reports that area/item/element in that year is \strong{not} consulted, so shares
+are also emitted for country-item-year cells CBS never reports. The
+FAOSTAT detailed trade matrix starts in 1986 while CBS starts in 1961, so
+the pre-1986 quarter of the CBS span is entirely constant back-cast from
+the 1986 partner mix. Scoping the extension to the CBS coverage a group
+actually has is a methodological choice, not a bug fix, and is tracked in
+issue #232.
+}
+
 \examples{
 build_detailed_trade(example = TRUE)
 }

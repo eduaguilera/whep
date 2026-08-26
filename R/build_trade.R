@@ -9,6 +9,20 @@
 #' Optionally extends the time series by joining with commodity balance
 #' sheet years and gap-filling country shares via linear interpolation.
 #'
+#' @section Time extension is uniform across groups:
+#' With `extend_time = TRUE` the extension is driven by the **year axis** of
+#' CBS only. Every `(area, item, partner, element, unit)` group observed in
+#' any trade year is carried across the union of trade and CBS years, and
+#' [fill_linear()] interpolates inside a group's observed span and holds the
+#' first and last observed share constant outside it. Whether CBS actually
+#' reports that area/item/element in that year is **not** consulted, so shares
+#' are also emitted for country-item-year cells CBS never reports. The
+#' FAOSTAT detailed trade matrix starts in 1986 while CBS starts in 1961, so
+#' the pre-1986 quarter of the CBS span is entirely constant back-cast from
+#' the 1986 partner mix. Scoping the extension to the CBS coverage a group
+#' actually has is a methodological choice, not a bug fix, and is tracked in
+#' issue #232.
+#'
 #' @param raw_trade A data.table or tibble of raw FAOSTAT bilateral
 #'   trade data. If `NULL` (default), the data is read from the
 #'   `"faostat-trade-bilateral"` pin.
@@ -310,7 +324,7 @@ build_detailed_trade <- function(
 .extend_dtm_time <- function(dt, cbs, min_share) {
   cli::cli_progress_step("Extending time series")
 
-  cbs_ie <- .extract_cbs_ie_for_dtm(cbs)
+  cbs_years <- .extract_cbs_years_for_dtm(cbs)
 
   # Drop small partners to reduce dataset size
   dt[country_share < min_share, value := NA_real_]
@@ -349,7 +363,7 @@ build_detailed_trade <- function(
   ]
 
   # Extend year range to cover CBS years, then re-complete
-  all_years <- sort(unique(c(dt$year, cbs_ie$year)))
+  all_years <- sort(unique(c(dt$year, cbs_years)))
   dt <- tidyr::complete(
     tibble::as_tibble(dt),
     year = all_years,
@@ -377,37 +391,32 @@ build_detailed_trade <- function(
   dt
 }
 
-# Extract unique (year, area_code, item_cbs_code, element) rows from CBS.
+# Years in which CBS reports an import or export flow for anything.
+#
+# The extension consumes the year axis and nothing else: it returns a plain
+# year vector rather than the (year, area, item, element) coverage tuples,
+# because the per-tuple coverage was never read. That made the code look as
+# though the extension were scoped to what CBS reports when it is not (#232);
+# the granularity is deliberately dropped here so the omission is visible, and
+# the documented consequence lives in build_detailed_trade()'s "Time extension
+# is uniform across groups" section.
+#
 # Accepts wide format (import/export as columns) or long format (element col).
-.extract_cbs_ie_for_dtm <- function(cbs) {
+.extract_cbs_years_for_dtm <- function(cbs) {
   cbs <- data.table::as.data.table(cbs)
   data.table::setnames(cbs, tolower)
   nms <- names(cbs)
 
   # Wide format: import / export are value columns
-  if ("import" %in% nms || "export" %in% nms) {
-    parts <- list()
-    if ("import" %in% nms) {
-      parts[["import"]] <- cbs[
-        !is.na(import),
-        .(year, area_code, item_cbs_code, element = "import")
-      ]
-    }
-    if ("export" %in% nms) {
-      parts[["export"]] <- cbs[
-        !is.na(export),
-        .(year, area_code, item_cbs_code, element = "export")
-      ]
-    }
-    return(unique(data.table::rbindlist(parts)))
+  flows <- intersect(c("import", "export"), nms)
+  if (length(flows) > 0) {
+    reported <- rowSums(!is.na(cbs[, ..flows])) > 0
+    return(sort(unique(cbs$year[reported])))
   }
 
   # Long format: element column present
   if ("element" %in% nms) {
-    return(unique(cbs[
-      element %in% c("import", "export"),
-      .(year, area_code, item_cbs_code, element)
-    ]))
+    return(sort(unique(cbs$year[cbs$element %in% c("import", "export")])))
   }
 
   cli::cli_abort(
