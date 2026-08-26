@@ -61,12 +61,18 @@ any trade year is carried across the union of trade and CBS years, and
 \code{\link[=fill_linear]{fill_linear()}} interpolates inside a group's observed span and holds the
 first and last observed share constant outside it. Whether CBS actually
 reports that area/item/element in that year is \strong{not} consulted, so shares
-are also emitted for country-item-year cells CBS never reports. The
-FAOSTAT detailed trade matrix starts in 1986 while CBS starts in 1961, so
-the pre-1986 quarter of the CBS span is entirely constant back-cast from
-the 1986 partner mix. Scoping the extension to the CBS coverage a group
-actually has is a methodological choice, not a bug fix, and is tracked in
-issue #232.
+are also emitted for country-item-year cells CBS never reports.
+
+The year axis this rests on is wide. The \code{"faostat-trade-bilateral"} pin
+covers 1986-2021, while \code{\link[=build_commodity_balances]{build_commodity_balances()}} defaults to 1850-2023,
+so 138 of the 174 extended years (79\%) lie outside the trade record
+entirely and carry the 1986 (or 2021) partner mix held constant. On the
+full pin that is 1.17 million groups spread over up to 174 years each,
+against 9.97 million observed rows, and half of the emitted
+\verb{(year, area, item, element)} cells are cells CBS never reports (measured:
+3.42 of 6.85 million). Scoping the extension to the CBS
+coverage a group actually has is a methodological choice, not a bug fix,
+and is tracked in issue #232.
 }
 
 \examples{
