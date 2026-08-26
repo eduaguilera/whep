@@ -2922,6 +2922,16 @@ build_primary_production <- function(
 
 # Successor ISO3 codes for every production area whose own bucket has no LUH2
 # land, as a long iso3c -> (area_code, area) table.
+#
+# NOT AFFECTED BY #863, measured. The walk under-reaches where it stops on a
+# polity that reuses one of its parts' ISO3 (`.successor_code_reuse()`), and
+# none of those ten polities is reached from here: only a bucket with no LUH2
+# row of its own enters the walk at all, which on the `luh2-areas` vocabulary is
+# seven buckets (15, 51, 151, 164, 186, 228, 248), and each already resolves to
+# a complete part set. Serbia is the reason 186 and 248 are safe rather than an
+# exception to it -- LUH2 publishes no Kosovo code in any spelling, so a hop
+# past `SRB-2006-2008` would add nothing to sum. Changing the stop rule would
+# move no published land value.
 .federation_land_bridge <- function(land_areas_dt) {
   empty <- data.table::data.table(
     iso3c = character(0),
