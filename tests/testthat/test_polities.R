@@ -1325,3 +1325,86 @@ testthat::test_that("the status switch always re-resolves", {
     "out_of_span"
   )
 })
+
+# ---- Where the stop rule under-reaches (whep#863) ---------------------------
+
+# The stop rule assumes a polity's `iso3_code` is COEXTENSIVE with its
+# territory. Upstream publishes ten partitions where it is not: the parent keeps
+# the ISO3 of one part, so the walk stops on the parent and never sees the other
+# parts. `SRB-2006-2008` "Serbia (including Kosovo)" is the case whep#863 is
+# named for; the largest by population is `SUD-1956-2011`, whose `SDN` excludes
+# South Sudan.
+#
+# ASSERTED AGAINST THE PUBLISHED RELATION, not against a list: the expectation
+# below is a census of the shipped snapshot, so a new partition of this shape
+# arriving upstream becomes a test failure rather than a silent under-reach.
+testthat::test_that(".successor_code_reuse censuses the lossy partitions", {
+  census <- whep:::.successor_code_reuse()
+  testthat::expect_setequal(
+    census$polity_code,
+    c(
+      "BCM-1916-1961",
+      "DEU-1920-1938",
+      "F248-1920-1991",
+      "F248-1947-1991",
+      "KOR-1945-1948",
+      "NLD-1800-1830",
+      "PAK-1949-1971",
+      "SGP-1946-1963",
+      "SRB-2006-2008",
+      "SUD-1956-2011"
+    )
+  )
+  serbia <- dplyr::filter(census, .data$polity_code == "SRB-2006-2008")
+  testthat::expect_identical(serbia$iso3_code, "SRB")
+  testthat::expect_identical(serbia$iso3_not_reached, "KOS")
+  sudan <- dplyr::filter(census, .data$polity_code == "SUD-1956-2011")
+  testthat::expect_identical(sudan$iso3_not_reached, "SSD")
+
+  # Every row must really be a partition whose parent reuses a part's code, and
+  # a temporal continuation (successors all carrying the parent's own ISO3) must
+  # NOT be one.
+  iso3 <- whep:::.polity_iso3_lookup()
+  edges <- whep:::.polity_successor_edges()
+  parts <- unname(iso3[edges[["SRB-2006-2008"]]])
+  testthat::expect_true(all(c("SRB", "KOS") %in% parts))
+  testthat::expect_false("SWE-1814-1905" %in% census$polity_code)
+})
+
+# THE LOSS IS SILENT AND IT IS NOT A MISSING EDGE. `SRB-2006-2008` publishes
+# both parts, and the walk still returns only `SRB` -- even when the vocabulary
+# carries `KOS` too. No warning, no `NA`, no abort: the caller gets a shorter
+# non-empty answer and cannot tell.
+testthat::test_that("the walk stops at Serbia-including-Kosovo either way", {
+  vocab <- c("SRB", "MNE", "KOS")
+  testthat::expect_identical(
+    whep:::.polity_successor_edges()[["SRB-2006-2008"]],
+    c("SRB-2008-2025", "KOS-2008-2025")
+  )
+  res <- whep:::.successor_iso3_map(c("SRB-2006-2008", "SCG-1992-2006"), vocab)
+  testthat::expect_identical(res[["SRB-2006-2008"]], "SRB")
+  testthat::expect_identical(res[["SCG-1992-2006"]], c("MNE", "SRB"))
+})
+
+# `.successor_stop_map()` is where the ISO3 codes come from, so a caller can ask
+# WHICH polities a branch stopped on and cross them against the census above.
+testthat::test_that(".successor_stop_map names the polities walked to", {
+  stops <- whep:::.successor_stop_map(
+    c("SCG-1992-2006", "BEL-1831-2025", "CEM-1800-2025"),
+    c("SRB", "MNE", "BEL")
+  )
+  testthat::expect_setequal(
+    stops[["SCG-1992-2006"]],
+    c("MNE-2006-2025", "SRB-2006-2008")
+  )
+  # A polity already in the vocabulary stops on itself.
+  testthat::expect_identical(stops[["BEL-1831-2025"]], "BEL-1831-2025")
+  testthat::expect_identical(stops[["CEM-1800-2025"]], character(0))
+
+  # and it must agree with the ISO3 map it backs
+  iso3 <- whep:::.polity_iso3_lookup()
+  testthat::expect_identical(
+    sort(unique(unname(iso3[stops[["SCG-1992-2006"]]]))),
+    whep:::.successor_iso3_map("SCG-1992-2006", c("SRB", "MNE", "BEL"))[[1]]
+  )
+})

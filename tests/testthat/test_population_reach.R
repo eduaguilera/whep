@@ -204,3 +204,41 @@ testthat::test_that("a successor edge outside the vocabulary stays unreachable",
   testthat::expect_identical(ant$reach, "unreachable")
   testthat::expect_identical(ant$n_iso3, 0L)
 })
+
+# REACHED IS NOT THE SAME EXTENT. `reach` says a code exists; it does not say
+# the code covers the same ground as the period. For ten polities upstream
+# publishes a partition in which the parent keeps one part's ISO3
+# (`.successor_code_reuse()`), so the walk stops on the parent and the answer is
+# a territory short -- and on the `"direct"` branch it looks certain.
+# `extent_exceeds_iso3` is the flag, and the two worst cases are area 206
+# Sudan (1956-2011), whose `SDN` excludes South Sudan, and area 272's 2006-2007
+# period, whose `SRB` excludes Kosovo (whep#863). Both read `"direct"`.
+testthat::test_that("the extent flag fires where the ISO3 is narrower", {
+  out <- whep::population_source_reach(
+    union(.live_polity_iso3(), c("CUW", "SXM", "BES", "XKX"))
+  )
+  flagged <- dplyr::filter(out, .data$extent_exceeds_iso3)
+  testthat::expect_true(
+    all(c("SUD-1956-2011", "SRB-2006-2008") %in% flagged$polity_code)
+  )
+  sudan <- dplyr::filter(out, .data$polity_code == "SUD-1956-2011")
+  testthat::expect_identical(sudan$area_code, 206L)
+  testthat::expect_identical(sudan$reach, "direct")
+  testthat::expect_true(sudan$extent_exceeds_iso3)
+
+  # Reached THROUGH such a stop counts too: area 186 Serbia and Montenegro
+  # resolves to MNE + SRB, and the SRB it lands on is the Kosovo-inclusive one.
+  scg <- dplyr::filter(out, .data$polity_code == "SCG-1992-2006")
+  testthat::expect_identical(scg$iso3_reached, "MNE, SRB")
+  testthat::expect_true(scg$extent_exceeds_iso3)
+
+  # Czechoslovakia partitions into two codes neither of which it reuses, so its
+  # successor sum really is the whole territory and the flag must stay FALSE.
+  czs <- dplyr::filter(out, .data$polity_code == "F51-1947-1993")
+  testthat::expect_identical(czs$iso3_reached, "CZE, SVK")
+  testthat::expect_false(czs$extent_exceeds_iso3)
+
+  # An unreachable period reaches nothing, so nothing can be short of it.
+  unreachable <- dplyr::filter(out, .data$reach == "unreachable")
+  testthat::expect_false(any(unreachable$extent_exceeds_iso3))
+})
