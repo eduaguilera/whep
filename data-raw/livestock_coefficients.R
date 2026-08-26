@@ -1785,13 +1785,19 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Regional MMS Distribution.
-    # UNVERIFIED (whep#881). Annotated "GLEAM 3.0 / FAO statistics
+    # UNVERIFIED (whep#881, whep#921). Annotated "GLEAM 3.0 / FAO statistics
     # (simplified)" but traceable to no table: the GLEAM 3.0 workbook carries
     # no MMS shares, and these are round to 5 percentage points. Unlike
-    # gleam_mms_shares this table IS live -- .resolve_mms_shares() feeds it to
-    # the Tier 2 manure CH4 and direct N2O engines. GLEAM 2.0 Supplement S1
-    # Tables 4.2-4.11 publish the real regional shares; re-ingesting them
-    # moves manure numbers, so it is a maintainer decision, not a cleanup.
+    # gleam_mms_shares this table IS live -- .resolve_mms_shares() weights the
+    # Tier 2 manure CH4 MCF and the Tier 1 manure direct-N2O EF3 with it
+    # (Tier 2 direct N2O never sees it: those rows carry no `region`).
+    # GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real regional
+    # shares, per production system and over the 10 GLEAM regions. Adopting
+    # them needs four crosswalk choices (species collapse, region collapse, a
+    # Global row GLEAM does not publish, and the richer MMS vocabulary), and
+    # whep#921 measured one illustrative crosswalk on FAOSTAT 2020 heads at
+    # Tier 1 direct N2O -11.1% and Tier 2 manure CH4 -26.9%. Maintainer
+    # decision, not a cleanup.
     regional_mms_distribution = tibble::tribble(
       ~region, ~species, ~mms_type, ~fraction,
       "North America", "Cattle",
