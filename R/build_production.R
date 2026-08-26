@@ -219,14 +219,32 @@ build_primary_production <- function(
     max(start_year - .yield_year_margin, 1850L):(end_year + .yield_year_margin)
   }
 
+  # The margin is not enough, and cannot be: the yield chain reaches along the
+  # whole year axis, in two ways that a window of any width still truncates
+  # (#834). `.fill_yields()` interpolates `yield_c` from the nearest year that
+  # has one -- 9 years away for Kazakhstan's duck eggs, nowhere at all for
+  # Italy's -- and `.add_global_yields()` divides a sum over every area by a sum
+  # over the (area, item) universe that `tidyr::complete()` built from the years
+  # in hand, so both the numerator and the denominator of the fallback yield move
+  # with the window. A row whose own `yield_c` is missing then lands on a
+  # different imputed value without disappearing: 20 shared rows at 2010, up to
+  # 79% apart, all of them `t_LU` / `t_head`.
+  #
+  # So the chain runs over the whole series and is trimmed back to `years`
+  # afterwards -- the remedy already applied to the fodder chain (#626) and the
+  # stock series (#666). Only a scoped modern window pays for it; the
+  # full-range build takes the historical branch and reads exactly what it read
+  # before, so its output is unchanged by construction.
+  yield_years <- if (needs_historical) years else NULL
+
   # 1. Read commodity balances (for gap-filling)
   cbs_prod_raw <- .read_cbs_production(years = years)
 
   # 2. Read and process FAOSTAT crop/livestock production
-  fao_crop_liv <- .read_fao_crop_liv(years = years)
+  fao_crop_liv <- .read_fao_crop_liv(years = yield_years)
 
   # 3. Fodder crops (year 2013 excluded — known bad data in old source)
-  fodder <- .build_fodder(fao_crop_liv, years = years)
+  fodder <- .build_fodder(fao_crop_liv, years = yield_years)
 
   # 4. Combine FAO + fodder (no tea correction — see .fix_production)
   fao_combined <- dplyr::bind_rows(fao_crop_liv, fodder)
@@ -234,20 +252,25 @@ build_primary_production <- function(
   # 5. Livestock stocks
   fao_liv_all <- .build_livestock_stocks(
     fao_combined,
-    years = years
+    years = yield_years
   )
 
-  # 5b. Livestock slaughter counts
-  fao_slaughter <- .build_livestock_slaughter(fao_combined)
+  # 5b. Livestock slaughter counts. Scoped to `years`: these are read counts,
+  # not derived ratios, and they already match the full-range build exactly.
+  fao_slaughter <- .build_livestock_slaughter(
+    dplyr::filter(fao_combined, year %in% .env$years)
+  )
 
   # 6. Primary dataset (crops + livestock, no game meat — see .fix_production)
   primary_raw <- .combine_primary_raw(fao_combined, fao_liv_all)
 
-  # 7. Yield calculation + gap-filling
+  # 7. Yield calculation + gap-filling, then back to the requested window so
+  # everything downstream sees exactly the table it saw before.
   yield_all <- .compute_yields(
     primary_raw,
     cbs_prod_raw
-  )
+  ) |>
+    dplyr::filter(year %in% .env$years)
 
   # 8. Assemble to final format (no dissolved-country filter — see .fix_production)
   primary_raw2 <- .assemble_production_raw(yield_all)

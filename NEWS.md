@@ -312,6 +312,28 @@
   path and touches no network — but a maintainer who *can* re-sync now finds
   out from `devtools::test()` rather than from a manual audit.
 
+* **A year-scoped `build_primary_production()` now returns exactly the
+  full-range build's rows and values for those years (#834, #666).** The yield
+  chain reaches along the whole year axis in two ways a window of any width
+  truncates: `.fill_yields()` interpolates a country's `yield_c` from the
+  nearest year that has one, and `.add_global_yields()` divides sums taken over
+  the `(area, item)` universe `tidyr::complete()` built from the years in hand.
+  A row whose own yield is missing therefore fell back on a *different* imputed
+  yield rather than disappearing, so the totals hid the error: at 2010, `t_LU`
+  and `t_head` agreed to 1.6e-04 / 2.8e-04 in aggregate while **20 individual
+  rows were up to 79% apart** — duck, pig and bee products in Singapore (200),
+  Cyprus (50), Romania (183), Portugal (174), Bolivia (19) and the United
+  Kingdom (229). The scoped build now runs that chain over the whole series and
+  trims afterwards, the remedy already used for the fodder chain and the stock
+  series. At 2010 **and at 1995**, the year where #666 measured this cluster
+  ~14x worse, every one of the eight units is now exact — 0 rows lost, 0 rows
+  gained, relative total difference 0, worst per-row difference 0 — which also
+  clears the three `t_LU` / `t_head` / `tonnes` keys #666 left missing. Full-range output is unchanged: a request that starts before 1962
+  takes the historical branch and reads exactly what it read before. A scoped
+  single-year production build costs about 1.7x what it did — 74.5 s to 128.6 s
+  back to back on the same machine, against ~200 s for the full range — and
+  returns 47,924 rows where it returned 47,915.
+
 * **The cell-polity crosswalk is a pin now, so no user regenerates it
   (#694, #461).** `cell_polity_fraction.parquet` was the only one of the ten
   artefacts `inst/scripts/prepare_spatialize_all.R` produces that was not
