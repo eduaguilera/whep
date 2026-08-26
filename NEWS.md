@@ -1,5 +1,60 @@
 # whep (development version)
 
+* **The LUH2 v2h calendar-year → time-index resolution is now one shared,
+  tested helper, and clamping past the end of the record always warns
+  (#256).** Four places computed the index independently, with three different
+  policies for a year the LUH2 record does not reach: `.read_luh2_year()` in
+  `prepare_spatialize_all.R` clamped and warned; `.luh2_country_totals()` and
+  the gridded-pasture reader clamped **silently**, so the published
+  `gridded_pasture.parquet`, `gridded_cropland.parquet` and
+  `type_cropland.parquet` each carry a 2023 that is bit-identical to their 2022
+  with nothing in the log saying so; and `_gen_type_cropland.R` computed
+  `yr - 850 + 1` bare, aborting inside `ncdf4::ncvar_get()` with
+  `NetCDF: Index exceeds dimension bound` on any vintage shorter than its
+  `year_range` (the base v2h release stops at 2015, the pinned GCB2022 vintage
+  at 2022). All four now call `whep:::.luh2_clamped_time_idx()`, which warns
+  naming the year it is reusing, and aborts for years before 850 CE, where
+  there is no slice to reuse. **No published value changes**: index 1 = year
+  850 was already correct at every site (the states.nc time axis declares
+  "years since 850-01-01" with `time[1] == 0`), and the resolved index sequence
+  is identical for the full 1851–2023 pipeline span on the reference GCB2022
+  vintage. The 2023 land surfaces still repeat 2022 — that is the documented
+  intent, since FAOSTAT extends past LUH2 — it is merely audible now.
+
+* **The IPCC provenance of the Tier 2 sheep and goat coefficients is now
+  recorded, and the goat values are locked by tests (#249).** No published
+  value changes: `ipcc_2019_cfi` and `ipcc_tier2_energy_coefs` already hold
+  the goat rows of the 2019 Refinement (Vol 4, Ch 10, Table 10.4 (Updated)
+  Cfi = 0.315 and Table 10.5 (Updated) lowland-goat Ca = 0.019), verified
+  against the published PDFs of both editions. What was wrong was the
+  documentation: `data-raw/livestock_coefficients.R` asserted that the 2019
+  Refinement "does NOT change these from the 2006 values", when the 2006
+  Table 10.4 has no goat row at all — the belief that produced the original
+  copy of the sheep Cfi 0.217 onto goats, and again of the sheep Ca 0.0107 in
+  a later attempted fix. `@source` for `ipcc_tier2_energy_coefs` now names the
+  table each column comes from and states that the stored `ca_pasture` is the
+  lowland/flat-pasture default, not the published hill and mountain goat
+  coefficient (0.024). `test_datasets.R` locks all four sheep/goat cells.
+
+* **The offline cache fallback now finds a cached copy when the version was
+  not pinned to a concrete string (#245).** `whep_read_file()` and the
+  `read_raw_inputs` readers fall back to the local `pins` cache when the board
+  is unreachable, and located it by hashing the version URL. For
+  `version = "latest"` (and for a registry entry that freezes no version) the
+  version reaching that point is `NULL`, so the hashed URL was `.../alias//`,
+  which matches no directory the download ever wrote: every such request
+  aborted with "No local cached copy was found either" no matter how much was
+  cached. The concrete version is now recovered from the cache itself — each
+  cached directory's `data.txt` names its `created` timestamp and `pin_hash`,
+  and the directory is named after the hash of the resulting version URL, so
+  the attribution is exact — and the newest cached version wins. Measured on a
+  populated cache of 73 registry aliases, `version = "latest"` resolved 0
+  before and 70 after; frozen-version lookups resolved 70 both times, so no
+  previously working lookup changes. `.pins_cache_base()` also honours
+  `PINS_CACHE_DIR`, `PINS_USE_CACHE` and `R_CONFIG_ACTIVE` the way `pins`
+  itself does, instead of always assuming the `rappdirs` default. No published
+  value changes: the same pin contents are read, only reachable offline now.
+
 * **`get_primary_production(land_method = "historical_polity")` now warns when
   the `historical-land-areas` pin was measured on a different `whep::polities`
   snapshot (#905).** The pin is static per LUH2 vintage *and* polities
