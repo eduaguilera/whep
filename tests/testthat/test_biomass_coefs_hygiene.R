@@ -143,3 +143,52 @@ testthat::test_that("the proximate sum against dry matter can only improve", {
   testthat::expect_lte(with_fibre, 75L)
   testthat::expect_lte(without_fibre, 32L)
 })
+
+testthat::test_that("no single constituent outweighs its own dry matter", {
+  # The strictest reading of the bound, and the one no definitional argument
+  # rescues: whatever basis the composition block is on, a single constituent
+  # cannot outweigh the dry matter it is part of. Six rows carry a
+  # carbohydrate value above their own Product_kgDM_kgFM (#752), so at least
+  # one of those two cells is wrong in each. Pinned by name: repairing one
+  # means editing this list, and a new offender fails loudly.
+  #
+  # White sugar is arithmetic rather than a typo -- Equiv copies a parent's
+  # composition rescaled per kg of dry matter (exact to 1e-13), so Brown
+  # sugar's 995 g/kg at DM 0.965 becomes 1025.9 g/kg at DM 0.995, which is
+  # more than a kilogram of carbohydrate in a kilogram of fresh matter.
+  offenders <- whep::biomass_coefs |>
+    dplyr::filter(
+      !is.na(.data$Carbohydrates_g_kgFM),
+      !is.na(.data$Product_kgDM_kgFM),
+      .data$Carbohydrates_g_kgFM > .data$Product_kgDM_kgFM * 1000
+    ) |>
+    dplyr::pull(.data$Name_biomass)
+  testthat::expect_setequal(
+    offenders,
+    c(
+      "Honey",
+      "White sugar",
+      "Brown sugar",
+      "Figs",
+      "Tigernuts",
+      "Vegetables, other"
+    )
+  )
+  # Fibre never breaks the bound and lipid breaks it exactly once: Butter,
+  # Ghee carries 830 g of fat per kg of fresh matter against 821.4 g/kg of dry
+  # matter. Same class of defect, different column, so it is pinned here too
+  # rather than left to the aggregate ratchet above.
+  fatty <- whep::biomass_coefs |>
+    dplyr::filter(
+      !is.na(.data$Product_kgDM_kgFM),
+      dplyr::coalesce(.data$Lipids_g_kgFM, 0) > .data$Product_kgDM_kgFM * 1000
+    ) |>
+    dplyr::pull(.data$Name_biomass)
+  testthat::expect_setequal(fatty, "Butter, Ghee")
+  fibrous <- whep::biomass_coefs |>
+    dplyr::filter(
+      !is.na(.data$Product_kgDM_kgFM),
+      dplyr::coalesce(.data$Fiber_g_kgFM, 0) > .data$Product_kgDM_kgFM * 1000
+    )
+  testthat::expect_equal(nrow(fibrous), 0L)
+})
