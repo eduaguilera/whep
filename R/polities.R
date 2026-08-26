@@ -2092,16 +2092,29 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
 # branch stops as soon as it lands inside it, so no successor is expanded past
 # the point where it becomes reachable.
 .successor_iso3_map <- function(polity_codes, available_iso3, max_depth = 12L) {
+  iso3 <- .polity_iso3_lookup()
+  purrr::map(
+    .successor_stop_map(polity_codes, available_iso3, max_depth),
+    \(nodes) sort(unique(unname(iso3[nodes])))
+  )
+}
+
+# The same walk, reporting the POLITIES it stopped on rather than their ISO3
+# codes. The ISO3 map above is one lookup away from this, and the stop nodes are
+# what a caller needs to ask whether a stop under-reaches -- see
+# `.successor_code_reuse()`, which the ISO3 codes alone cannot answer because
+# the parent and the part it stands for carry the same code.
+.successor_stop_map <- function(polity_codes, available_iso3, max_depth = 12L) {
   edges <- .polity_successor_edges()
   iso3 <- .polity_iso3_lookup()
   polity_codes <- unique(polity_codes[!is.na(polity_codes)])
   purrr::map(
     rlang::set_names(polity_codes),
-    \(code) .walk_successor_iso3(code, edges, iso3, available_iso3, max_depth)
+    \(code) .walk_successor_nodes(code, edges, iso3, available_iso3, max_depth)
   )
 }
 
-.walk_successor_iso3 <- function(
+.walk_successor_nodes <- function(
   polity_code,
   edges,
   iso3,
@@ -2117,7 +2130,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     seen <- c(seen, frontier)
     reached <- unname(iso3[frontier])
     resolved <- !is.na(reached) & reached %in% available_iso3
-    found <- c(found, reached[resolved])
+    found <- c(found, frontier[resolved])
     frontier <- unique(unlist(
       edges[frontier[!resolved]],
       use.names = FALSE
@@ -2125,6 +2138,55 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     depth <- depth + 1L
   }
   sort(unique(found))
+}
+
+# WHERE THE STOP RULE UNDER-REACHES, censused rather than remembered (#863).
+#
+# Stopping on the first available ISO3 assumes a polity's `iso3_code` is
+# COEXTENSIVE with its territory. For ten polities in the shipped snapshot it is
+# not: upstream publishes a PARTITION in which the parent keeps the ISO3 of one
+# of its parts, so the parent is reachable, the walk stops there, and the other
+# parts are never seen. `SRB-2006-2008` is "Serbia (including Kosovo)" carrying
+# `SRB`; `SUD-1956-2011` is Sudan-with-South-Sudan carrying `SDN`;
+# `PAK-1949-1971` is Pakistan-with-East-Pakistan carrying `PAK`.
+#
+# This is NOT a missing edge -- `SRB-2006-2008` publishes both `SRB-2008-2025`
+# and `KOS-2008-2025` -- and one more hop does not repair it either, because the
+# ISO3 sum then double-counts nothing but still misses any part whose code the
+# consumer's vocabulary lacks. So this REPORTS the shape and repairs nothing:
+# whether a walk should descend past such a node is a methodological choice with
+# different answers for land (a territorial union) and for a population
+# denominator (a partition of the source's own geography). See the note at the
+# top of `R/population_reach.R`.
+#
+# A temporal continuation is excluded by construction: a period succeeded only
+# by later periods of the same state has no part carrying a DIFFERENT code, so
+# nothing is out of reach.
+.successor_code_reuse <- function() {
+  edges <- .polity_successor_edges()
+  iso3 <- .polity_iso3_lookup()
+  own <- unname(iso3[names(edges)])
+  missed <- purrr::map2(
+    own,
+    edges,
+    \(code, parts) .iso3_parts_not_reached(code, unname(iso3[parts]))
+  )
+  keep <- lengths(missed) > 0L
+  tibble::tibble(
+    polity_code = names(edges)[keep],
+    iso3_code = own[keep],
+    iso3_not_reached = purrr::map_chr(missed[keep], paste, collapse = "; ")
+  )
+}
+
+# The parts' ISO3 codes a stop on `code` never reaches: empty unless the parent
+# reuses one part's code AND another part carries a different one.
+.iso3_parts_not_reached <- function(code, part_iso3) {
+  part_iso3 <- part_iso3[!is.na(part_iso3)]
+  if (is.na(code) || !(code %in% part_iso3)) {
+    return(character(0))
+  }
+  sort(setdiff(part_iso3, code))
 }
 
 .polity_successor_edges <- function() {

@@ -682,9 +682,13 @@ test_that("a stale historical-land pin aborts instead of shortening the series",
   # the short series would silently drop those years from the back-cast, which
   # is the failure this abort exists to prevent. Offline: the reader is mocked,
   # never called for real.
+  # `polity_code` is part of the pin's schema and is deliberately unlabelled
+  # here, so the snapshot-drift guard beside this one stays quiet and the year
+  # gap is the only thing under test.
   short <- tibble::tibble(
     year = 1850:1900,
     area_code = 238L,
+    polity_code = NA_character_,
     Cropland = 1,
     Pasture = 1,
     agriland = 2
@@ -705,6 +709,35 @@ test_that("a stale historical-land pin aborts instead of shortening the series",
       51L
     ),
     .read_input = function(...) short,
+    .package = "whep"
+  )
+})
+
+test_that("a pin built on another polities snapshot warns at the seam", {
+  # A year gap is not how the pin actually goes stale: a re-synced snapshot
+  # leaves every year and every bucket in place and changes the territory each
+  # row was measured on. The guard has to reach that through
+  # `.historical_land_wide()`, not only when called directly, and it must not
+  # swallow the series while doing it (whep#905). Offline: the reader is
+  # mocked and the check reads package data only.
+  stale <- tibble::tibble(
+    year = 1850:1851,
+    area_code = 238L,
+    polity_code = "ZZZ-1234-5678",
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+  testthat::with_mocked_bindings(
+    {
+      expect_warning(
+        out <- whep:::.historical_land_wide("historical_polity", 1850:1851),
+        "polities"
+      )
+      expect_equal(nrow(out), 2L)
+      expect_false("polity_code" %in% names(out))
+    },
+    .read_input = function(...) stale,
     .package = "whep"
   )
 })

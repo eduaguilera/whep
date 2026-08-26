@@ -149,6 +149,13 @@
     "GLEAM scheme scope per country, one vintage.",
     ".energy_join_dressing", "left_join", "iso3", 1L, "time_invariant",
     "GLEAM dressing fractions, one vintage.",
+    ".fabio_bridge_fabio_side", "left_join", "iso3c", 1L, "diagnostic",
+    "Resolves each FABIO published region to the WHEP bucket carrying its ISO3,
+     for `inst/scripts/compare_fabio.R` only (whep#264). ISO3 names the
+     territory rather than one of its periods, and FABIO's own region list has
+     no time dimension -- it is one published vintage of 192 codes. Nothing
+     downstream of it is published: the bridge exists to stop a comparison
+     silently matching two different Rest-of-World residuals.",
     ".fold_bucket_labels", "left_join", "bucket_polity_code, polity_code", 1L,
     "identity_lookup", "Polity type keyed on the polity code.",
     ".handed_over_polity_codes", "inner_join", "predecessor, polity_code", 1L,
@@ -421,6 +428,28 @@
     "diagnostic",
     "Ranks the carcass tonnage the GLEAM price scope cannot cover, for the
      unpriced-share warning.",
+    ".fabio_bridge_fabio_side", "distinct", "area_code, iso3c, <dynamic>", 1L,
+    "diagnostic",
+    "De-duplicates FABIO's published region list to one row per (code, ISO3)
+     before it is used as a comparison key (whep#264). The list is a single
+     vintage with no year to group by.",
+    ".fabio_bridge_fabio_side", "distinct",
+    "iso3c, whep_bucket, area_iso3c, <dynamic>", 1L, "diagnostic",
+    "The ISO3-to-bucket side of the same bridge. It deliberately collapses the
+     crosswalk's polity PERIODS, because the question is which bucket carries a
+     territory at all, not which period it reported in; a year here would
+     multiply one FABIO region into one row per period and abort the
+     `many-to-one` join that follows.",
+    ".fabio_bridge_whep_buckets", "distinct", "area_code, bucket, <dynamic>",
+    1L, "diagnostic",
+    "The WHEP half of the same bridge: which bucket an area's rows are summed
+     into. Year-free for the same reason the FABIO half is -- the fold is a
+     property of the area, not of a year -- and it is what stops reporting area
+     276 being keyed apart from the 206 bucket FABIO's own 276 resolves to.",
+    ".fabio_bridge_whep_buckets", "count", "area_code", 1L, "diagnostic",
+    "The guard on that lookup: aborts if one area folds into two buckets, which
+     would make the comparison key ambiguous. Counting the rows per area is
+     the check, so a year in the key would defeat it.",
     ".federation_land_bridge", "[", "area_code, area", 1L, "identity_lookup",
     "Expands each dissolved polity to its successor ISO3 codes off
      `.current_area_lookup()`, which has no year. The label is one per code

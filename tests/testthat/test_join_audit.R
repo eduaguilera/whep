@@ -148,7 +148,15 @@ test_that("the enumerated baseline can only shrink", {
   # has no time dimension, and the dependency's own period is chosen before this
   # join runs. It fires only where the first route found nothing, so it cannot
   # move an answer that route still gives -- the two agree on all five it does.
-  expect_lte(sum(baseline$n), 66L)
+  #
+  # 67 since whep#264: `.fabio_bridge_fabio_side()` resolves FABIO's published
+  # region list to WHEP buckets by ISO3. It is the first `diagnostic` row that
+  # buys a comparison rather than a value -- `inst/scripts/compare_fabio.R` was
+  # joining the two region spaces raw, which dropped Sudan entirely and matched
+  # two Rest-of-World residuals covering different territories against each
+  # other. One year-free identity join makes that comparison honest, and no
+  # published number passes through it.
+  expect_lte(sum(baseline$n), 67L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -217,8 +225,17 @@ test_that("every year-free territorial grouping is classified", {
   # 73 since whep#787: `.reporting_periods()` reduces the crosswalk's rows for
   # one (area_code, polity_code) period to that period's reporting span, so
   # `year` is the axis being reduced over, not a missing key.
+  #
+  # 77 since whep#264: four grouping keys, two on each side of the FABIO-to-WHEP
+  # region bridge, all `diagnostic` -- they build and guard a comparison key for
+  # `inst/scripts/compare_fabio.R` and no published number passes through them.
+  # Each side collapses polity PERIODS on purpose, because the question is which
+  # bucket carries a territory at all; a year in either key would multiply one
+  # FABIO region into one row per period and defeat the `many-to-one` join and
+  # the one-bucket-per-area guard that follow. The four are the price of not
+  # comparing two different Rest-of-World residuals against each other.
   full <- whep:::.territorial_grouping_baseline()
-  expect_lte(sum(full$n), 73L)
+  expect_lte(sum(full$n), 77L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

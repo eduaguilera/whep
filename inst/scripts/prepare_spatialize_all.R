@@ -566,11 +566,12 @@ cft_to_pft <- c(
 }
 
 # ---- LUH2 single-variable reader (for livestock/pasture) -----------------
+# `time_idx` must already be resolved with `.luh2_time_idx()`: clamping here
+# would be invisible to the caller writing the year label (whep#256).
 .read_luh2_variable <- function(nc_path, varname, time_idx) {
   nc <- ncdf4::nc_open(nc_path)
   on.exit(ncdf4::nc_close(nc))
   lat <- ncdf4::ncvar_get(nc, "lat")
-  time_idx <- min(time_idx, nc$dim$time$len)
   vals <- ncdf4::ncvar_get(
     nc,
     varname,
@@ -586,10 +587,12 @@ cft_to_pft <- c(
 }
 
 # ---- LUH2 multi-variable reader (for cropland types) --------------------
-.luh2_time_len <- function(nc_path) {
-  nc <- ncdf4::nc_open(nc_path)
-  on.exit(ncdf4::nc_close(nc))
-  nc$dim$time$len
+# Calendar year -> 1-based LUH2 time index, clamped to the end of the record
+# with a warning. The logic lives in `whep:::.luh2_clamped_time_idx()` so it is
+# covered by the test suite and shared with `_gen_type_cropland.R`, which used
+# to compute the index bare and abort inside `ncvar_get()` (whep#256).
+.luh2_time_idx <- function(nc_path, yr) {
+  whep:::.luh2_clamped_time_idx(nc_path, yr)
 }
 
 .read_luh2_variables <- function(nc_path, var_names, time_idx) {
@@ -600,7 +603,6 @@ cft_to_pft <- c(
   n_lon <- length(lon)
   n_lat <- length(lat)
   lat_desc <- lat[1] > lat[length(lat)]
-  time_idx <- min(time_idx, nc$dim$time$len)
   purrr::map(var_names, \(vname) {
     vals <- ncdf4::ncvar_get(
       nc,
@@ -630,15 +632,7 @@ cft_to_pft <- c(
   # the LUH2 record (e.g. 2023+ in releases where FAOSTAT extends further
   # than LUH2), reuse the most recent LUH2 slice so the prep does not
   # abort. .read_luh2_variables is given the clamped index.
-  time_idx_raw <- yr - 850L + 1L
-  luh2_time_len <- .luh2_time_len(states_path)
-  time_idx <- min(time_idx_raw, luh2_time_len)
-  if (time_idx_raw > luh2_time_len) {
-    cli::cli_warn(c(
-      "LUH2 v2h covers up to year {850L + luh2_time_len - 1L}.",
-      "i" = "Year {yr} requested; reusing the {850L + luh2_time_len - 1L} slice."
-    ))
-  }
+  time_idx <- .luh2_time_idx(states_path, yr)
 
   crop_rasters <- .read_luh2_variables(states_path, crop_vars, time_idx)
   irrig_rasters <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
@@ -717,7 +711,7 @@ cft_to_pft <- c(
     if (yr %% 10 == 0) {
       cli::cli_alert("LUH2 country totals: year {yr}")
     }
-    time_idx <- yr - 850L + 1L
+    time_idx <- .luh2_time_idx(states_path, yr)
     crop_r <- .read_luh2_variables(states_path, crop_vars, time_idx)
     irrig_r <- .read_luh2_variables(mgmt_path, irrig_vars, time_idx)
     purrr::map(crop_vars, \(cv) {
@@ -2130,6 +2124,97 @@ prepare_yield_inputs <- function(
 }
 
 
+# ---- HaNi atmospheric N deposition --------------------------------------
+#
+# HaNi (Tian et al. 2022, doi:10.5194/essd-14-4551-2022; PANGAEA dataset
+# 942069) stores each 5-arcmin cell as an extensive MASS, not a density: the
+# NetCDF declares `units = "g N"` with `long_name = "NHX-N deposition to land
+# within the grid cell"` (read off ndep_nhx.nc / ndep_noy.nc directly). Two
+# consequences, and the terra path this replaces got both wrong (whep#259):
+#
+#   1. aggregating to 0.5 degrees must SUM the 6x6 native block, because mass
+#      is additive. `terra::aggregate(fun = "mean")` left grams per native
+#      cell instead.
+#   2. turning that into kg N/ha needs the block's TRUE area, which shrinks
+#      with cos(lat). The old divisor 1e7 hard-coded 1000 g/kg times a fixed
+#      1e4 ha per native cell, i.e. it assumed every 5-arcmin cell was
+#      exactly 100 km2. On this sphere a 5-arcmin cell is 8586 ha at the
+#      equator and 4288 ha at 60 degrees, so the rate came out low
+#      everywhere: 14% at the equator, 29% at 40 degrees, 50% at 60 degrees,
+#      and 2014 NHx reconstructed 24.60 Tg against HaNi's own 34.77 Tg.
+#
+# It also dated the series one year late: terra names the NetCDF layers
+# `ndep_nhx_1 ...`, which the old code read as `1850 + n` and so as
+# 1851-2021, but the file's `time` axis is `0:170` on
+# `units = "years since 1850-01-01"`, i.e. 1850-2020.
+#
+# `whep::read_n_deposition()` already does the block sum and the year mapping,
+# and is covered by tests/testthat/test_n_deposition.R, so nothing is
+# reimplemented here; this only divides, on the same whole-cell convention
+# `build_n_deposition()` uses (`value_g / 1000 / cell_area_ha`). The rate
+# times the whole 0.5-degree cell area therefore returns the source mass
+# exactly, which is the invariant test_prepare_nitrogen.R asserts.
+#
+# The input is now the extracted NetCDF rather than the PANGAEA zip;
+# download_nitrogen.R already unpacks both archives, so a directory it filled
+# needs nothing further.
+
+# Whole-cell deposition rate (kg N/ha/yr) from the two HaNi species masses.
+.hani_deposition_rate <- function(nhx, noy) {
+  dplyr::full_join(
+    nhx,
+    noy,
+    by = c("lon", "lat", "year"),
+    suffix = c("_nhx", "_noy")
+  ) |>
+    dplyr::mutate(
+      cell_area_ha = cell_area_ha_by_lat(lat),
+      nhx = dplyr::coalesce(value_g_nhx, 0) / 1000 / cell_area_ha,
+      noy = dplyr::coalesce(value_g_noy, 0) / 1000 / cell_area_ha,
+      deposit_kg_n_ha = nhx + noy,
+      method_deposition = "hani",
+      lon = round(lon, 2),
+      lat = round(lat, 2)
+    ) |>
+    # HaNi is land-masked, and `read_n_deposition()` block-sums every cell of
+    # the globe, so the ocean arrives as an exact zero. Dropping it keeps the
+    # parquet at land cells, as the previous NA filter did.
+    dplyr::filter(deposit_kg_n_ha > 0) |>
+    dplyr::select(
+      lon,
+      lat,
+      year,
+      deposit_kg_n_ha,
+      nhx,
+      noy,
+      method_deposition
+    )
+}
+
+# Read both HaNi species from `<l_files_dir>/HaNi` onto WHEP's 0.5-degree
+# grid. Returns NULL when the extracted NetCDFs are absent, so the caller can
+# report the pipeline step as unavailable rather than abort.
+.extract_hani_deposition <- function(l_files_dir) {
+  hani_dir <- file.path(l_files_dir, "HaNi")
+  nc_files <- file.path(hani_dir, c("ndep_nhx.nc", "ndep_noy.nc"))
+  if (!all(file.exists(nc_files))) {
+    return(NULL)
+  }
+  cli::cli_alert(
+    "Reading HaNi N deposition and block-summing to 0.5 degrees..."
+  )
+  dep <- .hani_deposition_rate(
+    whep::read_n_deposition("nhx", hani_dir = hani_dir),
+    whep::read_n_deposition("noy", hani_dir = hani_dir)
+  )
+  n_cells <- dplyr::n_distinct(paste(dep$lon, dep$lat))
+  cli::cli_alert_success(
+    "HaNi deposition: {n_cells} cells, {min(dep$year)}-{max(dep$year)}"
+  )
+  dep
+}
+
+
 # ==== Section 7: Nitrogen inputs ==========================================
 #
 # N/P/K inputs from FAOSTAT + spatial distribution.
@@ -2614,21 +2699,26 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7i. N deposition ----
-  .prepare_n_deposition_local <- function(l_files_dir, regions, output_dir) {
+  # The cache gate keys on `method_deposition`, not on the NHx/NOy split
+  # alone: every parquet written before whep#259 carries the split but holds
+  # rates scaled by the fixed 1e4 ha per native cell, and column presence
+  # cannot tell the two vintages apart. Requiring the column re-extracts a
+  # stale cache instead of silently reusing it.
+  .prepare_n_deposition_local <- function(l_files_dir, output_dir) {
     dep_file <- file.path(output_dir, "n_deposition.parquet")
     if (file.exists(dep_file)) {
       dep <- nanoparquet::read_parquet(dep_file)
-      if (all(c("nhx", "noy") %in% names(dep))) {
+      if (all(c("nhx", "noy", "method_deposition") %in% names(dep))) {
         cli::cli_alert_info(
           "Reading pre-computed deposition with NHx/NOy split"
         )
         return(dep)
       }
       cli::cli_alert_info(
-        "Cached deposition lacks NHx/NOy split; re-extracting..."
+        "Cached deposition is pre-whep#259 or lacks the split; re-extracting"
       )
     }
-    dep <- .extract_hani_deposition(l_files_dir, regions)
+    dep <- .extract_hani_deposition(l_files_dir)
     if (!is.null(dep)) {
       .save_parquet(dep, output_dir, "n_deposition")
       return(dep)
@@ -2637,85 +2727,6 @@ prepare_nitrogen_inputs <- function(
       "N deposition data not available (run download_nitrogen.R)"
     )
     NULL
-  }
-
-  .extract_hani_deposition <- function(l_files_dir, regions) {
-    hani_dir <- file.path(l_files_dir, "HaNi")
-    if (!dir.exists(hani_dir)) {
-      return(NULL)
-    }
-    zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
-    if (length(zip_files) == 0) {
-      return(NULL)
-    }
-    cli::cli_alert(
-      "Extracting N deposition from HaNi rasters to 0.5-degree grid..."
-    )
-    if (!requireNamespace("terra", quietly = TRUE)) {
-      install.packages("terra", quiet = TRUE)
-    }
-
-    # 0.5-degree target grid matching WHEP
-    target <- terra::rast(
-      resolution = 0.5,
-      xmin = -180,
-      xmax = 180,
-      ymin = -90,
-      ymax = 90
-    )
-    agg_factor <- 6L # 5 arcmin -> 30 arcmin
-
-    .extract_one_hani <- function(zip_path) {
-      tmpd <- tempfile()
-      dir.create(tmpd)
-      on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
-      utils::unzip(zip_path, exdir = tmpd)
-      nc_files <- list.files(tmpd, pattern = "\\.nc$", full.names = TRUE)
-      if (length(nc_files) == 0) {
-        return(tibble::tibble())
-      }
-      r <- terra::rast(nc_files)
-      # Aggregate to 0.5° by averaging 5-arcmin cells
-      r_05 <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
-      vals <- terra::as.data.frame(r_05, xy = TRUE)
-      vals$file <- basename(zip_path)
-      tibble::as_tibble(vals)
-    }
-
-    dep_raw <- lapply(zip_files, .extract_one_hani) |> dplyr::bind_rows()
-
-    if (nrow(dep_raw) == 0) {
-      return(NULL)
-    }
-
-    dep <- dep_raw |>
-      tidyr::pivot_longer(
-        dplyr::starts_with("ndep_"),
-        names_to = "layer",
-        values_to = "value"
-      ) |>
-      dplyr::mutate(
-        parameter = gsub(".*ndep_(\\w+)\\.zip", "\\1", file),
-        layer_num = as.integer(gsub("ndep_.*_(\\d+).*", "\\1", layer)),
-        year = 1850L + layer_num,
-        value = value / 10000000
-      ) |>
-      dplyr::filter(!is.na(value), !is.na(year)) |>
-      dplyr::select(x, y, year, parameter, value) |>
-      tidyr::pivot_wider(names_from = parameter, values_from = value) |>
-      dplyr::mutate(
-        deposit_kg_n_ha = nhx + noy,
-        lon = round(x, 2),
-        lat = round(y, 2)
-      ) |>
-      dplyr::filter(!is.na(nhx) | !is.na(noy)) |>
-      dplyr::select(lon, lat, year, deposit_kg_n_ha, nhx, noy)
-
-    cli::cli_alert_success(
-      "HaNi deposition: {dplyr::n_distinct(paste(dep$lon, dep$lat))} cells, ",
-      "{min(dep$year)}–{max(dep$year)}"
-    )
-    dep
   }
 
   # ---- Execute nitrogen pipeline ----
@@ -2777,7 +2788,7 @@ prepare_nitrogen_inputs <- function(
     base_rates$coello_rates <- coello_rates
   }
 
-  n_deposition <- .prepare_n_deposition_local(l_files_dir, regions, output_dir)
+  n_deposition <- .prepare_n_deposition_local(l_files_dir, output_dir)
 
   # Distribute N among crops (full algorithm from prepare_nitrogen_inputs.R)
   n_crops <- NULL
@@ -3702,7 +3713,7 @@ prepare_livestock_inputs <- function(
   )
   cli::cli_alert_info("LUH2 pasture workers: {n_workers}")
   per_year_pasture <- function(yr) {
-    time_idx <- yr - 850L + 1L
+    time_idx <- .luh2_time_idx(states_path, yr)
     pastr_r <- .read_luh2_variable(states_path, "pastr", time_idx)
     range_r <- .read_luh2_variable(states_path, "range", time_idx)
     pastr_ha <- terra::aggregate(
@@ -4649,9 +4660,10 @@ report_forcing_end_years <- function(climate_dir, used = NULL) {
 
 # Assembles the LPJmL monthly wind forcing from the two pinned artefacts that
 # download_climate() places under <l_files_dir>/wind: the ISIMIP 1901-2019
-# monthly base and the ERA5 monthly means. Neither is rebuildable from this
-# repo -- the base came from ISIMIP2a chunks via a script that was never
-# committed, and the ERA5 means take ~85 GB of streaming -- hence the pins.
+# monthly base and the ERA5 monthly means. Both are pinned for cost, not
+# because the code is lost: rebuilding the base streams ~34 GB of ISIMIP daily
+# files (inst/scripts/fetch_isimip_wind.sh) and the ERA5 means ~85 GB
+# (fetch_era5_wind.py).
 #
 # Wind is a *hard* LPJmL input: readclimate() aborts on a year outside the
 # file range rather than holding the last year constant, so a short wind file
