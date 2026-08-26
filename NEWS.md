@@ -74,6 +74,25 @@
   polity-cells move by more than 1 ha, concentrated in the colonial
   federations `AEF-1910-1960` and `AOF-1895-1960`.
 
+* **Seven of the seventeen EarthStat fertilizer crop codes named the wrong
+  crop, in two independent copies (#889).** `.earthstat_fertilizer_mapping()`
+  keys each crop-specific fertilizer raster to an `item_prod_code`. Compared
+  against `inst/extdata/earthstat_mapping.csv` — the same script's own answer for
+  the same raster on the harvested-area layer — seven disagreed, and only two
+  were detectable as bad codes: `cassava` 340 and `cotton` 274 are absent from
+  `items_prod`, while `oilpalm` 217, `potato` 328, `rapeseed` 223, `sugarcane`
+  780 and `sunflower` 222 are all real item codes naming **cashews, seed cotton,
+  pistachios, jute and walnuts**. A code that exists and names another crop joins
+  successfully to the wrong crop, so an existence check — the obvious guard —
+  passes on five of the seven. `.read_west_manure_local()` carried an independent
+  copy of the same tribble with the same seven errors, so the manure-N layer was
+  misattributed too and a fix to the fertilizer mapping alone would not have
+  reached it; it now reads the one shared mapping. The new guard compares codes
+  against the CSV, asserts existence for rasters the CSV does not carry, and
+  fails if any call site stops sharing the mapping. Regenerating
+  `crop_fertilizer_patterns` is still required for the fix to take effect (same
+  shape as #877). Refs #889, #876, #877, #888.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and
