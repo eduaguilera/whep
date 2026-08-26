@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **`build_commodity_balances()` gains `trade_zero`, and every build now says
+  how much trade its CBS zeros discard (#866).** Tier 1 of the trade
+  imputation fills the CBS from the crosswalked FAOSTAT/FishStat record with
+  `dplyr::coalesce()`, which replaces only a missing value, so a CBS row
+  carrying `0` keeps the zero even when the trade record for the same
+  `(year, area_code, item_cbs_code)` carries a positive quantity. Measured at
+  2010 on the real pins: 4,493 import keys and 9.70 Mt, plus 3,771 export keys
+  and 10.27 Mt, over 179 areas and 91 items. Not one of those zeros is an
+  official FAO observation — 4,129 of the import conflicts carry FAO flag
+  `"I"` (imputed) from `faostat-fbs-new`, 328 the legacy `"S"` (standardized)
+  from `faostat-fbs-old`, and 36 come from WHEP's own mean of non-primary
+  sources; neither food-balance vintage carries a single flag `"A"` on a 2010
+  trade row. `trade_zero = "prefer_record"` takes the positive record instead
+  of the zero; it never overwrites a non-zero CBS value and a zero record
+  never overwrites anything, so it can only add trade. **The default
+  `"keep"` is the existing behaviour, so no published value changes** unless
+  the new setting is selected. Whether a derived zero should outrank an
+  observed flow is left open in #866: 5.88 Mt of the imports land on a row
+  with no production, where the balancing cascade has to invent some, and the
+  largest item (CBS 2657, "Beverages, Fermented") may be a trade column FAO
+  never populated or a flow FAO already counts in primary equivalent
+  elsewhere. Under either setting the conflict count and tonnage are now
+  reported, which under `"keep"` is the only trace the discarded trade leaves.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different
