@@ -38,12 +38,30 @@ SEARCH_DIRS <- c("R", "inst", "validation", "data-raw", "man") # nolint: object_
 
 # DOIs known not to be registered, with the issue that tracks each.
 #
-# An entry here is a FILED DEFECT, not an accepted one. The check reports a
-# declared entry as KNOWN and fails if one disappears, because a disappearance
-# means the citation was fixed and this list should shrink in the same commit.
+# An entry is one of two things, and the note must say which:
+#
+#   * A FILED DEFECT -- a citation the package still makes and should not. Not
+#     an accepted one: the check reports it as KNOWN and fails if it disappears,
+#     because a disappearance means the citation was fixed and this list should
+#     shrink in the same commit.
+#   * A DOCUMENTED NEGATIVE RESULT -- a DOI string the repo mentions precisely
+#     in order to record that it does NOT exist, so that the next reader does
+#     not spend the lookup again. The extractor cannot tell a mention from a
+#     citation (it reads text, not intent), so these must be declared too or the
+#     sweep reports the repo's own findings back as defects. Both current
+#     entries are of this kind: after #883 neither string is cited anywhere, and
+#     the only occurrences left are the prose in `R/livestock_coefs.R` and
+#     `data-raw/livestock_coefficients.R` saying they are unregistered. Here a
+#     "no longer appears" warning means the prose was reworded rather than a
+#     citation fixed -- still remove the entry in that same commit.
+#
+# Both were re-verified 2026-08-26 (handle API responseCode 100; doi.org 404).
 # nolint start: object_name_linter.
 KNOWN_UNREGISTERED <- c(
-  "10.1088/1748-9326/aad4d8" = "#893/#607, fabricated GLEAM citation; removed by #883"
+  # Removed by #883; now only named in prose as non-existent.
+  "10.1088/1748-9326/aad4d8" = "#893/#607, fabricated GLEAM citation",
+  # R/livestock_coefs.R records that this one does not resolve either.
+  "10.4060/cd8425en" = "#893, FAO-style DOI GLEAM 3.0 never got"
 )
 # nolint end
 
