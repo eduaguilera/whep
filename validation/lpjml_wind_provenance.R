@@ -60,7 +60,12 @@ WIND_PIN <- "lpjml-wind-isimip-1901-2019" # nolint: object_name_linter.
 # Segment 2 (2017-2019) is ISIMIP3a `sfcwind`, a DIFFERENT bias-adjustment
 # release (ISIMIP3BASD v2.5.0 against v2.4.1), and is not audited here: the 3a
 # chunk covering it also covers 2011-2016, so a chunk-to-year mapping would be
-# ambiguous. See fetch_isimip_wind.sh.
+# ambiguous. It was verified by hand at max |diff| = 0 against the pin (#371).
+#
+# The two releases are NOT interchangeable, so this script must keep judging
+# 1901-2016 against ISIMIP2a specifically: over 1901-1910 they differ by up to
+# 2.55 m/s per cell while their global means agree to 1e-4 m/s. The numbers and
+# what they mean for the run are in fetch_isimip_wind.sh.
 # nolint start: object_name_linter.
 ISIMIP2A <- list(
   title = paste(

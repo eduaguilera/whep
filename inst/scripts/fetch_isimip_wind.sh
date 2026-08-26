@@ -39,6 +39,30 @@
 # float32 round-off (ISIMIP3a stores the field bit-groomed), not a release
 # difference, so the joint needs no correction -- as issue #371 assumed.
 #
+# DO NOT "SIMPLIFY" THIS BY TAKING 1901-2016 FROM ISIMIP3a TOO.
+#
+# ISIMIP3a publishes sfcwind for 1901-2019, so fetching one dataset instead of
+# two looks like an obvious cleanup. It is not: it would change the forcing.
+# The 2016 agreement above holds only because 2016 is in W5E5's OBSERVATIONAL
+# era (ISIMIP3a is "combined with W5E5 v2.0" from 1979). In the bias-adjusted
+# era the two releases really do differ -- measured over 1901-1910:
+#
+#   unweighted global mean   2a 6.347690   3a 6.347587   m/s
+#   mean |2a - 3a|           0.0386 m/s
+#   p99  |2a - 3a|           0.620  m/s
+#   max  |2a - 3a|           2.552  m/s
+#
+# Note the shape: the GLOBAL MEAN is unchanged to 1e-4, so a global sanity
+# check sees nothing, while 1% of cell-months move by more than 0.62 m/s
+# (~10% of the mean speed). ISIMIP3BASD v2.5.0 redistributes wind spatially
+# while conserving the global mean, and LPJmL is forced per cell -- so gridded
+# output would move on a change no summary statistic would catch.
+#
+# Switching the base to ISIMIP3a is therefore a methodological decision for
+# the maintainer, not a tidy-up, and it must not happen as a side effect of
+# editing this script. The upside would be consistency with rsds/rlds, which
+# are pure ISIMIP3a.
+#
 # Segment 1 alone streams ~31 GB of daily global fields. Each chunk is reduced
 # to monthly means and the daily file deleted immediately, so peak disk stays
 # ~3 GB instead of ~34 GB.
