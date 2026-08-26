@@ -105,6 +105,23 @@
   rather than a mechanisation class are documented rather than repaired, since
   the correct class is not recoverable from anything the package ships.
 
+* **New: `check_table_schema()` and `assert_table_schema()` validate a table
+  against a serializable declarative schema (#373).** The schema is plain
+  data — an ordered list of column specifications carrying type, presence,
+  bounds, an allowed-value vocabulary, uniqueness and severity, plus a
+  table-level key, extra-column policy, column-order policy and empty-table
+  policy — so it round-trips through `yaml`/`jsonlite` and can be stored next
+  to the artifact it describes. Project vocabularies and scientific bounds
+  stay in the caller's schema; the validator hard-codes none of them.
+  `check_table_schema()` returns one deterministic diagnostic row per
+  violation (`row`, `column`, `rule`, `value`, `severity`, `detail`) and never
+  touches the input; `assert_table_schema()` is the build-time gate over the
+  same schema and returns its input unchanged. This complements
+  `ensure_columns()`, which *coerces* a table to a typed prototype: use
+  `ensure_columns()` to reach a schema and `check_table_schema()` to prove a
+  table is already there. No published value changes — both functions are new
+  and nothing in the pipeline calls them yet.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
