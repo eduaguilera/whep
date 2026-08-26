@@ -2559,3 +2559,18 @@ test_that(".mass_only_trade tolerates an empty record", {
   expect_equal(nrow(kept), 0L)
   expect_false("unit" %in% names(kept))
 })
+
+test_that(".mass_only_trade aborts on a frame with no unit", {
+  # A trade aggregate that lost its unit is exactly the shape of #865, so this
+  # is an abort and not a silent pass-through.
+  unitless <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2511, "import", 10
+  ) |>
+    data.table::as.data.table()
+
+  expect_error(
+    whep:::.mass_only_trade(unitless, "faostat-trade-totals"),
+    "has no"
+  )
+})
