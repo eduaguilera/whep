@@ -18,8 +18,16 @@ A tibble with columns:
 }
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10,
-Eq 10.3-10.16; Tables 10.4-10.5.
+IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16, with
+\code{cfi_mj_day_kg075} from Table 10.4 (Updated) and \code{ca_pasture} from
+Table 10.5 (Updated). Sheep and goats take their own rows in both
+tables and must not be conflated: Cfi is 0.217 for sheep older than
+one year and 0.315 for goats, and Ca is 0.0107 for sheep grazing flat
+pasture and 0.019 for lowland goats. Neither goat value exists in the
+2006 Guidelines, whose Table 10.4 has no goat row at all. \code{ca_pasture}
+takes the lowland/flat-pasture value as the global default; the
+published hill and mountain goat coefficient (0.024) is not stored and
+must be supplied per row by the caller.
 }
 \usage{
 ipcc_tier2_energy_coefs

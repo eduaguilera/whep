@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **The IPCC provenance of the Tier 2 sheep and goat coefficients is now
+  recorded, and the goat values are locked by tests (#249).** No published
+  value changes: `ipcc_2019_cfi` and `ipcc_tier2_energy_coefs` already hold
+  the goat rows of the 2019 Refinement (Vol 4, Ch 10, Table 10.4 (Updated)
+  Cfi = 0.315 and Table 10.5 (Updated) lowland-goat Ca = 0.019), verified
+  against the published PDFs of both editions. What was wrong was the
+  documentation: `data-raw/livestock_coefficients.R` asserted that the 2019
+  Refinement "does NOT change these from the 2006 values", when the 2006
+  Table 10.4 has no goat row at all — the belief that produced the original
+  copy of the sheep Cfi 0.217 onto goats, and again of the sheep Ca 0.0107 in
+  a later attempted fix. `@source` for `ipcc_tier2_energy_coefs` now names the
+  table each column comes from and states that the stored `ca_pasture` is the
+  lowland/flat-pasture default, not the published hill and mountain goat
+  coefficient (0.024). `test_datasets.R` locks all four sheep/goat cells.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
