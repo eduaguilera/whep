@@ -465,12 +465,14 @@ reference:
 
 - title: Data-frame utilities
   desc: >
-    Declare a table's schema once, as serializable data, then either
-    reach it or prove it. `ensure_columns()` coerces a table to a typed
-    prototype; `check_table_schema()` reports every violation of a
-    declarative schema without touching the table, and
+    Declare a table's schema once, as serializable data, then build it,
+    reach it or prove it. `empty_table_from_schema()` turns the schema into
+    the typed zero-row table it describes; `ensure_columns()` coerces a
+    table onto such a prototype; `check_table_schema()` reports every
+    violation of a declarative schema without touching the table, and
     `assert_table_schema()` is the build-time gate over the same schema.
   contents:
+  - empty_table_from_schema
   - ensure_columns
   - check_table_schema
   - assert_table_schema
