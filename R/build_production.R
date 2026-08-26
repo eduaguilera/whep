@@ -2792,6 +2792,12 @@ build_primary_production <- function(
 # 1850-1961, the whole back-cast span, so a gap means the pin is stale against
 # the polities snapshot and the caller should regenerate rather than get a
 # quietly shorter series.
+#
+# A year gap is not the only way the pin goes stale, and it is not the way that
+# actually happens: a re-synced polities snapshot leaves the years and the
+# buckets untouched and changes the TERRITORY each row was measured on.
+# `.warn_stale_hist_land()` checks the pin's own record of that territory
+# against the current snapshot, because no total over the pin can (whep#905).
 .historical_land_wide <- function(land_method, years) {
   if (land_method != "historical_polity") {
     return(NULL)
@@ -2815,6 +2821,7 @@ build_primary_production <- function(
              re-upload; it is static per LUH2 vintage and polities snapshot."
     ))
   }
+  .warn_stale_hist_land(land, back_cast)
   land |>
     dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
 }
