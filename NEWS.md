@@ -1,5 +1,30 @@
 # whep (development version)
 
+* **`population_source_reach()` gains an `extent_exceeds_iso3` column, marking
+  the reporting periods whose reported ISO3 codes cover LESS GROUND than the
+  territory they stand for (#863).** The successor walk stops a branch as soon
+  as it lands on an ISO3 the caller's vocabulary carries, which assumes a
+  polity's `iso3_code` is coextensive with its territory. For ten polities the
+  shipped snapshot publishes, it is not: upstream declares a partition in which
+  the parent keeps the ISO3 of one part, so the walk stops on the parent and
+  never sees the others. `SRB-2006-2008` is "Serbia (including Kosovo)" carrying
+  `SRB`; `SUD-1956-2011` is Sudan-with-South-Sudan carrying `SDN`;
+  `PAK-1949-1971` is Pakistan-with-East-Pakistan carrying `PAK`. Seven
+  reporting periods across five area codes (165, 186, 200, 206, 248) are
+  flagged, and four of them read `reach = "direct"`, where nothing else about
+  the row hinted at it. Nothing is repaired and no number moves: whether the
+  walk should descend past such a node is a methodological choice, and the two
+  consumers want different answers, so this reports the shape and leaves the
+  choice open. Measured on the same real data: `build_primary_production(
+  federation_land = "successor_union")` is unaffected either way, because only
+  a bucket with no LUH2 row of its own enters the walk (seven of them) and each
+  already resolves to a complete part set. Two statements this file's own
+  documentation used to make were also wrong and are corrected: the polities
+  database does publish `KOS-2008-2025` as a successor of `SRB-2006-2008`, and
+  Kosovo accounts for 42% of the Yugoslav SFR's 17.5% successor-sum shortfall,
+  not all of it — the other 10.1% is the `gdp-population` pin's Yugoslav level
+  disagreeing with UN WPP's own seven territories.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
