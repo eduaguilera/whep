@@ -172,6 +172,23 @@
   calculation, so #881 tracks sourcing it. Documentation only: no data value
   and no published number changes.
 
+* **The `ipcc_2019_*` livestock coefficient tables now document what edition
+  each of their values actually comes from (#601).** No stored value changed,
+  so no published number changes. Every one of the ten objects was checked
+  cell by cell against the published PDFs of both the 2019 Refinement and the
+  2006 Guidelines, Vol 4, Ch 10 (and Ch 11 Table 11.1 for the
+  pasture/range/paddock N2O factor). Only `ipcc_2019_bo` and `ipcc_2019_cfi`
+  hold 2019 Refinement values throughout; `ipcc_2019_ym` is split between the
+  two editions; the enteric, manure-CH4, MCF, nitrogen-excretion and direct-N2O
+  tables are 2006 values, values from no IPCC table at all, or a per-head
+  quantity the Refinement does not publish. The `@source` of each says which,
+  names the specific cells, and gives the published alternative. Whether to
+  revalue them, rename them or expose both editions is the open decision in
+  #601: measured on the 2020 Tier 1 livestock chain, moving the cattle enteric
+  table to the 2019 Refinement's Table 10.11 raises enteric CH4 from 109.4 to
+  121.8 Tg (+11.3%, and +67% for Africa alone), and moving EF3 to the 2019
+  Table 10.21 lowers direct manure N2O from 1.65 to 1.15 Tg (-30.6%).
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,

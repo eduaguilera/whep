@@ -939,6 +939,94 @@ test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
   }
 })
 
+# The `ipcc_2019_*` objects do not all hold 2019 Refinement values; whep#601
+# tracks the decision on whether to revalue them, rename them or expose both
+# editions. Until that is settled these expectations lock the values in place
+# and lock them to the provenance stated in `?ipcc_2019_enteric_ef_cattle` and
+# friends, so a revalue can only happen deliberately and with the numeric
+# consequence measured. Every reference value below was read off the published
+# PDFs (2019 Refinement Vol 4 Ch 10 Tables 10.10, 10.11, 10.16A, 10.21;
+# 2006 Guidelines Vol 4 Ch 10 same numbers; 2006 and 2019 Vol 4 Ch 11
+# Table 11.1).
+test_that("ipcc_2019 tables still hold the provenance whep#601 documents", {
+  cattle <- whep::ipcc_2019_enteric_ef_cattle
+  ef_of <- function(reg, cat) {
+    cattle$ef_kg_head_yr[cattle$region == reg & cattle$category == cat]
+  }
+  # 2006 Table 10.11, not the 2019 Refinement's 138/64 and 126/52.
+  testthat::expect_equal(ef_of("North America", "Dairy Cattle"), 128)
+  testthat::expect_equal(ef_of("North America", "Other Cattle"), 53)
+  testthat::expect_equal(ef_of("Western Europe", "Dairy Cattle"), 117)
+  testthat::expect_equal(ef_of("Western Europe", "Other Cattle"), 57)
+  # Every cell shared with the separate 2006 object is identical to it, bar
+  # the one Middle East dairy cell asserted below.
+  shared <- whep::ipcc_2006_enteric_ef |>
+    dplyr::filter(
+      region != "Global",
+      !(region == "Middle East" & category == "Dairy Cattle")
+    ) |>
+    dplyr::inner_join(
+      cattle,
+      by = c("region", "category"),
+      suffix = c("_06", "_19")
+    )
+  testthat::expect_equal(nrow(shared), 15L)
+  testthat::expect_equal(shared$ef_kg_head_yr_19, shared$ef_kg_head_yr_06)
+  # Cells that match neither edition: Oceania dairy is 100 in 2006 and 93 in
+  # 2019; Middle East dairy is 46 (grouped with Africa) and 76; Indian
+  # Subcontinent dairy is 58 and 73.
+  testthat::expect_equal(ef_of("Oceania", "Dairy Cattle"), 90)
+  testthat::expect_equal(ef_of("Middle East", "Dairy Cattle"), 63)
+  testthat::expect_equal(ef_of("Indian Subcontinent", "Dairy Cattle"), 68)
+  # The Global fallback row is in no IPCC table.
+  testthat::expect_equal(ef_of("Global", "Dairy Cattle"), 80)
+
+  # 2006 Table 10.10 developed-countries column; the 2019 Refinement splits
+  # sheep and goats 9 high / 5 low and moved buffalo to Table 10.11.
+  other <- whep::ipcc_2019_enteric_ef_other
+  oth_of <- function(cat) other$ef_kg_head_yr[other$category == cat]
+  testthat::expect_equal(oth_of("Buffalo"), 55)
+  testthat::expect_equal(oth_of("Sheep"), 8)
+  testthat::expect_equal(oth_of("Goats"), 5)
+
+  # EF3: neither edition gives these. Table 10.21 has 0 for daily spread,
+  # no-crust slurry and uncovered lagoon, and 0.02 for dry lot.
+  ef3 <- whep::ipcc_2019_n2o_ef_direct
+  ef3_of <- function(sys) ef3$ef_kg_n2o_n_per_kg_n[ef3$system == sys]
+  testthat::expect_equal(ef3_of("Daily Spread"), 0.01)
+  testthat::expect_equal(ef3_of("Dry Lot"), 0.005)
+  testthat::expect_equal(ef3_of("Uncovered Anaerobic Lagoon"), 0.001)
+  testthat::expect_equal(ef3_of("Liquid/Slurry - No Crust"), 0.002)
+  # Pasture/range/paddock is the 2006 Ch 11 EF3PRP,SO; 2019 gives 0.004.
+  testthat::expect_equal(ef3_of("Pasture/Range/Paddock"), 0.01)
+
+  # Table 10.16A publishes one swine Bo; breeding swine share the market
+  # swine value in both editions, so 0.27 is unsourced.
+  bo <- whep::ipcc_2019_bo
+  testthat::expect_equal(
+    bo$bo_m3_kg_vs[bo$category == "Swine - Breeding"],
+    0.27
+  )
+
+  # Table 10.4 publishes 0.370 for intact bulls in both editions; this
+  # object folds bulls into the 0.322 non-lactating row.
+  cfi <- whep::ipcc_2019_cfi
+  testthat::expect_false(any(cfi$cfi_mj_day_kg075 == 0.370))
+  testthat::expect_true(any(
+    cfi$subcategory == "Non-lactating/Bulls" & cfi$cfi_mj_day_kg075 == 0.322
+  ))
+
+  # Nex is stored per head per year while both editions publish a rate per
+  # 1000 kg animal mass per day, so no stored value may be read as a rate.
+  nex <- whep::ipcc_2019_n_excretion
+  testthat::expect_equal(
+    nex$nex_kg_n_head_yr[
+      nex$region == "North America" & nex$category == "Dairy Cattle"
+    ],
+    105
+  )
+})
+
 test_that("IPCC 2006 datasets are clean tibbles", {
   ipcc_2006 <- list(
     ipcc_2006_enteric_ef = c(
