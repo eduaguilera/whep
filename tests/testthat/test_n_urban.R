@@ -1,7 +1,8 @@
 # These fixtures carry numeric area codes (203 Spain, 68 France) where they
-# used to carry ISO3 literals. build_urban_n() routes them through
-# .manure_territory_to_area_code(), whose ISO3 form is a deprecated bridge
-# (#463); the resolved codes, and so every assertion below, are unchanged.
+# used to carry ISO3 literals. build_urban_n() requires the numeric WHEP area
+# code and refuses anything else (#597); when the literals were still bridged
+# through .manure_territory_to_area_code() (#463) they resolved to these same
+# codes, so every assertion below is unchanged.
 .example_cell_polity_urban <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code,
@@ -110,9 +111,9 @@ testthat::test_that("build_urban_n splits a border cell by polity_frac", {
 
   generated_n_t <- 1000 * 0.9410902351391244 / 1000
   testthat::expect_equal(sum(out$urban_n_t), generated_n_t, tolerance = 1e-9)
-  # The ISO3 the fixture keys cells by is resolved to the numeric WHEP area
-  # code on the way out (203 Spain, 68 France), because the output now carries
-  # the reporting polity that code resolves to.
+  # The numeric WHEP area code the fixture keys cells by (203 Spain, 68
+  # France) is what the output carries, because the reporting polity is
+  # resolved from it.
   testthat::expect_equal(
     out$urban_n_t[match(c(203L, 68L), out$area_code)],
     generated_n_t * c(0.7, 0.3),
@@ -258,13 +259,12 @@ testthat::test_that("build_urban_n example fixture is schema-complete", {
 #
 # The codes were opaque letters when C0 was first pinned, chosen so that
 # nothing could resolve them and no assertion could pass by looking one
-# up. `build_urban_n()` now routes area_code through
-# `.manure_territory_to_area_code()` (#463/#512), which aborts on an
-# unrecognised value, so the letters are replaced by the numeric codes the
-# rest of this file already uses (203 Spain, 68 France, 231 USA). Only the
-# LABELS change: every property, value and tolerance pinned below is
-# unchanged, and was measured to reproduce exactly under both vocabularies
-# before the substitution was made.
+# up. `build_urban_n()` now requires `area_code` to BE the numeric WHEP area
+# code (#463/#512, tightened in #597), so the letters are replaced by the
+# numeric codes the rest of this file already uses (203 Spain, 68 France,
+# 231 USA). Only the LABELS change: every property, value and tolerance
+# pinned below is unchanged, and was measured to reproduce exactly under both
+# vocabularies before the substitution was made.
 .urban_c0_cell_polity <- function() {
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~polity_frac,
@@ -453,59 +453,19 @@ testthat::test_that("build_urban_n honours drop and flag", {
   )
 })
 
-# ---- area_code is resolved at the input boundary (#597) ----------------
+# ---- area_code is required, and checked at the input boundary (#597) ----
 #
 # `build_urban_n()` builds the transport allocator's `territory` key itself,
 # from `data$cell_polity$area_code` and `data$cropland_ha$area_code`
-# (`.urban_source_cells()` / `.urban_sink_cells()`), and used to resolve it
-# back to a numeric `area_code` only AFTER transport, in `.urban_finalise()`.
-# That left the resolution and the partition it keys disagreeing, and neither
-# a column-set census nor an `area_code` census can see it: the output schema
-# and the output codes are identical either way, only the CELL the nitrogen
-# lands on moves.
+# (`.urban_source_cells()` / `.urban_sink_cells()`), and used to resolve that
+# key back to a numeric `area_code` only AFTER transport, in
+# `.urban_finalise()`, through the manure chain's ISO3 bridge. Two things were
+# wrong and neither is visible to a column-set census or an `area_code`
+# census, because the output schema and the output codes are identical either
+# way and only the CELL the nitrogen lands on moves: the check ran after the
+# partition it keys, and an ISO3 was accepted at all.
 
-testthat::test_that("build_urban_n transports across mixed area_code vocabularies", {
-  # Source cell has urban population and NO cropland room; its same-polity
-  # neighbour has ample room, so the whole load must transport there. Spain is
-  # written numerically in `cell_polity` and as an ISO3 in `cropland_ha` --
-  # one polity, two vocabularies. Resolved after transport, the two frames'
-  # `territory` keys never met, the allocator saw a source with no reachable
-  # sink, and the load stranded on a cell with zero cropland while still being
-  # relabelled 203 in the output.
-  urban_population <- tibble::tribble(
-    ~lon, ~lat, ~year, ~urban_pop,
-    -0.25, -0.25, 2000L, 100,
-    0.25, -0.25, 2000L, 0
-  )
-  cropland_ha <- tibble::tribble(
-    ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
-    -0.25, -0.25, "ESP", 2000L, 0,
-    0.25, -0.25, "ESP", 2000L, 1000
-  )
-  testthat::expect_warning(
-    out <- whep::build_urban_n(
-      data = list(
-        urban_population = urban_population,
-        cell_polity = .example_cell_polity_urban(),
-        cropland_ha = cropland_ha
-      )
-    ),
-    "deprecated"
-  )
-
-  # Whatever the vocabulary, the load is placed by room, not by spelling.
-  placed <- out[out$urban_n_t > 1e-12, , drop = FALSE]
-  testthat::expect_equal(placed$lon, 0.25)
-  pointblank::expect_col_vals_equal(out, "area_code", 203L)
-  # Mass conservation holds under either vocabulary: only placement moves.
-  testthat::expect_equal(
-    sum(out$urban_n_t),
-    100 * .urban_c0_rate_2000() / 1000,
-    tolerance = 1e-9
-  )
-})
-
-testthat::test_that("build_urban_n names the input frame with an unresolvable area_code", {
+testthat::test_that("build_urban_n refuses a non-numeric area_code, naming the frame", {
   urban_population <- tibble::tribble(
     ~lon, ~lat, ~year, ~urban_pop,
     -0.25, -0.25, 2000L, 100
@@ -514,44 +474,183 @@ testthat::test_that("build_urban_n names the input frame with an unresolvable ar
     ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
     -0.25, -0.25, 203L, 2000L, 1000
   )
-  # Resolved inside a `dplyr::mutate()` after transport, the abort reached the
-  # caller as a `dplyr` mutate error naming `territory`, a field no caller ever
-  # supplied. It must name the input that carries the bad code instead.
-  cnd <- testthat::expect_error(
+  build <- function(cell_polity, cropland) {
     whep::build_urban_n(
       data = list(
         urban_population = urban_population,
-        cell_polity = tibble::tribble(
-          ~lon, ~lat, ~area_code,
-          -0.25, -0.25, "NOTACODE"
-        ),
-        cropland_ha = cropland_ha
+        cell_polity = cell_polity,
+        cropland_ha = cropland
       )
+    )
+  }
+
+  # An ISO3 is refused rather than bridged: it resolves to a
+  # polity_area_code aggregation bucket, so "SSD" would silently become 206,
+  # Sudan (former). Resolved inside a `dplyr::mutate()` after transport, the
+  # old abort reached the caller as a `dplyr` mutate error naming
+  # `territory`, a field no caller ever supplies.
+  cnd <- testthat::expect_error(
+    build(
+      tibble::tribble(~lon, ~lat, ~area_code, -0.25, -0.25, "ESP"),
+      cropland_ha
     ),
     class = "whep_urban_area_code_unresolved"
   )
   testthat::expect_match(conditionMessage(cnd), "cell_polity")
+  testthat::expect_match(conditionMessage(cnd), "ESP")
 
   cnd <- testthat::expect_error(
-    whep::build_urban_n(
-      data = list(
-        urban_population = urban_population,
-        cell_polity = .example_cell_polity_urban(),
-        cropland_ha = dplyr::mutate(cropland_ha, area_code = "NOTACODE")
-      )
+    build(
+      .example_cell_polity_urban(),
+      dplyr::mutate(cropland_ha, area_code = "ESP")
     ),
     class = "whep_urban_area_code_unresolved"
   )
   testthat::expect_match(conditionMessage(cnd), "cropland_ha")
+
+  # A stringified code is still a string: the column must carry the code, not
+  # a spelling of it, or the two frames can disagree about the vocabulary
+  # while both look resolvable.
+  testthat::expect_error(
+    build(
+      tibble::tribble(~lon, ~lat, ~area_code, -0.25, -0.25, "203"),
+      cropland_ha
+    ),
+    class = "whep_urban_area_code_unresolved"
+  )
+  # And an area name never was resolvable, before or after.
+  testthat::expect_error(
+    build(
+      tibble::tribble(~lon, ~lat, ~area_code, -0.25, -0.25, "Spain"),
+      cropland_ha
+    ),
+    class = "whep_urban_area_code_unresolved"
+  )
 })
 
-testthat::test_that("the urban area_code resolution is the identity on numeric codes", {
+testthat::test_that("build_urban_n refuses a mixed-vocabulary pair instead of stranding its load", {
+  # THE ORDERING BUG, kept as a test with its expectation changed from "both
+  # resolve and share a territory" to "aborts". Spain is written numerically
+  # in `cell_polity` and as an ISO3 in `cropland_ha` -- one polity, two
+  # vocabularies. The source cell has urban population and NO cropland room;
+  # its same-polity neighbour has ample room, so the whole load must reach
+  # the neighbour. Checked only after transport, the two frames' `territory`
+  # keys never met, the allocator saw a source with no reachable sink, and
+  # the load stranded on the room-less cell (-0.25) while still being
+  # relabelled 203 in the output -- silently, with no warning at all, because
+  # the ISO3 never reached the resolver. It is now refused up front.
+  urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    -0.25, -0.25, 2000L, 100,
+    0.25, -0.25, 2000L, 0
+  )
+  cropland_iso3 <- tibble::tribble(
+    ~lon, ~lat, ~area_code, ~year, ~cropland_ha,
+    -0.25, -0.25, "ESP", 2000L, 0,
+    0.25, -0.25, "ESP", 2000L, 1000
+  )
+  testthat::expect_error(
+    whep::build_urban_n(
+      data = list(
+        urban_population = urban_population,
+        cell_polity = .example_cell_polity_urban(),
+        cropland_ha = cropland_iso3
+      )
+    ),
+    class = "whep_urban_area_code_unresolved"
+  )
+
+  # The same scenario in one vocabulary still places the load by room, on the
+  # neighbour, and conserves it: the refusal above is about the key, not
+  # about transport.
+  out <- whep::build_urban_n(
+    data = list(
+      urban_population = urban_population,
+      cell_polity = .example_cell_polity_urban(),
+      cropland_ha = dplyr::mutate(cropland_iso3, area_code = 203L)
+    )
+  )
+  placed <- out[out$urban_n_t > 1e-12, , drop = FALSE]
+  testthat::expect_equal(placed$lon, 0.25)
+  pointblank::expect_col_vals_equal(out, "area_code", 203L)
+  testthat::expect_equal(
+    sum(out$urban_n_t),
+    100 * .urban_c0_rate_2000() / 1000,
+    tolerance = 1e-9
+  )
+})
+
+testthat::test_that("build_urban_n accepts integer and double area_code alike", {
+  urban_population <- tibble::tribble(
+    ~lon, ~lat, ~year, ~urban_pop,
+    -0.25, -0.25, 2000L, 1e6
+  )
+  build <- function(code) {
+    whep::build_urban_n(
+      data = list(
+        urban_population = urban_population,
+        cell_polity = tibble::tibble(
+          lon = -0.25,
+          lat = -0.25,
+          area_code = code
+        ),
+        cropland_ha = tibble::tibble(
+          lon = -0.25,
+          lat = -0.25,
+          area_code = code,
+          year = 2000L,
+          cropland_ha = 1000
+        )
+      )
+    )
+  }
+  # `build_cell_polity()` is integer-keyed, but a caller assembling the frame
+  # by hand or through a join easily ends up with a double. Both must give
+  # the same answer, and both must come back as integer.
+  as_int <- build(203L)
+  as_dbl <- build(203)
+  testthat::expect_identical(as_int$area_code, 203L)
+  testthat::expect_identical(as_dbl$area_code, 203L)
+  testthat::expect_equal(as_int$urban_n_t, as_dbl$urban_n_t)
+})
+
+testthat::test_that("build_urban_n refuses a fractional area_code rather than truncating", {
+  # as.integer() would turn 203.7 into 203 and name Spain, so a share or a
+  # fraction landing in the code column has to fail, not be truncated into
+  # some other territory's code.
+  cnd <- testthat::expect_error(
+    whep::build_urban_n(
+      data = list(
+        urban_population = tibble::tribble(
+          ~lon, ~lat, ~year, ~urban_pop,
+          -0.25, -0.25, 2000L, 100
+        ),
+        cell_polity = tibble::tibble(
+          lon = -0.25,
+          lat = -0.25,
+          area_code = 203.7
+        ),
+        cropland_ha = tibble::tibble(
+          lon = -0.25,
+          lat = -0.25,
+          area_code = 203.7,
+          year = 2000L,
+          cropland_ha = 1000
+        )
+      )
+    ),
+    class = "whep_urban_area_code_unresolved"
+  )
+  testthat::expect_match(conditionMessage(cnd), "whole number")
+})
+
+testthat::test_that("the urban area_code check is the identity on the numeric vocabulary", {
   # The invariant that makes the published gridded run provably unaffected:
   # `build_cell_polity()` emits integer `area_code`s, and every code the
-  # shipped region table knows must survive the resolution unchanged. A bridge
-  # that folded a NUMERIC code onto another territory's bucket would move
-  # published nitrogen silently, so pin it on the whole vocabulary rather than
-  # on a handful of countries.
+  # shipped region table knows must survive the boundary check unchanged. A
+  # check that folded or truncated a NUMERIC code would move published
+  # nitrogen silently, so pin it on the whole vocabulary rather than on a
+  # handful of countries.
   codes <- sort(unique(stats::na.omit(as.integer(whep::regions_full$code))))
   testthat::expect_gt(length(codes), 200)
   resolved <- whep:::.urban_resolve_area_code(
