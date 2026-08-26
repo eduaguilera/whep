@@ -1,5 +1,41 @@
 # whep (development version)
 
+* **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have an
+  impossibility check, and it records #824 rather than suppressing it.**
+  `validation/lpjml_pins.R` guards the four pins carrying LPJmL *output* and
+  deliberately excludes the *forcing* pins, reasoning that forcing does not
+  change with the model version. True of its magnitude tier, false of its
+  invariant tier: forcing can still be corrupt.
+  `lpjml-rsds-era5-2017-2023` ships **1,823,843 negative shortwave values**
+  because #536 fixed the builder and nobody rebuilt the artifact, and nothing in
+  the repo could see it — that script excluded the pin, and
+  `test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+  against its generating script. A census of all six forcing pins shows the
+  defect is confined to that one: `rlds` and `wind` come off the same builder
+  and the same ERA5 tail and are clean, because shortwave is the only one of the
+  three that legitimately reaches exactly zero. The floor is therefore
+  **inclusive** — `lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0, so a
+  positivity test would fail on a clean pin. The recorded count is compared
+  **bidirectionally**: a rise is a new corruption, and a fall means the pin was
+  rebuilt, which is the event #824 exists because nobody noticed. Refs #824,
+  #536, #384.
+
+* **A missing `water` or `ice` layer no longer zero-fills silently in
+  `build_polycell_support()` (#885).** Both arguments default to `NULL`, the
+  column is filled with zeros, and the producer's identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` still holds —
+  so every check passes while every lake, river and glacier inside a polity is
+  booked as land. The deployed pin `20260818T105426Z-a0330` was built that way,
+  confirmed by reading it: all **482,605** rows carry `inland_water_ha == 0` and
+  `ice_area_ha == 0`, and `land_area_ha` equals `polity_area_ha` in every one,
+  which puts 2015 land 536.0 Mha (+4.15%) above the pin built from all four
+  layers. `.pcs_add_water()` and `.pcs_add_ice()` now warn, on distinct condition
+  classes (`whep_polycell_absent_water`, `whep_polycell_absent_ice`), naming the
+  consequence rather than the absence. Zero-filling still happens — this changes
+  no value, only its visibility — and remains correct for a smoke build. Does not
+  fix the deployed pin, which needs regenerating with all four layers.
+  Refs #885, #802.
+
 * **The `polycell_support` pin is regenerated: the aggregate overlap layer is
   published, and the inland-water and glacier layers are restored (#873,
   #885).** `20260825T102349Z-1a0eb` replaces `20260818T105426Z-a0330`, and it
@@ -127,6 +163,173 @@
   processing for rice, not food — and that is an allocation rule, not an
   identity. And 144 net-exported pairs / 28.9 Mt at 2010 stay uncreated,
   because balancing them would fabricate supply. Both are open in #762.
+* **`regions_full` and `polities_cats` no longer ship the `region_test`
+  column, and their remaining regional groupings now document which ones WHEP
+  reads (#386).** `region_test` held two values, `"Europe"` and `"Other"`, and
+  had no consumer anywhere in the package; it was a working column left in two
+  published tables. Both datasets drop from 39 columns to 38; no other cell
+  changes and no published value moves. The `regions_full` help page gains a
+  *Which regional groupings WHEP reads* section recording that six of the
+  remaining groupings have an in-tree consumer, that `region_code` is a 1:1
+  relabelling of `region`, and that the eleven unconsumed ones are shipped as
+  reference without a re-validation promise -- with the gap a consumer would
+  inherit stated explicitly: over the 202 `cbs` reporters the present-day
+  taxonomies are `NA` for exactly the four dissolved federations (codes 51,
+  186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
+  rather than a mechanisation class are documented rather than repaired, since
+  the correct class is not recoverable from anything the package ships.
+
+* **New: `check_table_schema()` and `assert_table_schema()` validate a table
+  against a serializable declarative schema (#373).** The schema is plain
+  data — an ordered list of column specifications carrying type, presence,
+  bounds, an allowed-value vocabulary, uniqueness and severity, plus a
+  table-level key, extra-column policy, column-order policy and empty-table
+  policy — so it round-trips through `yaml`/`jsonlite` and can be stored next
+  to the artifact it describes. Project vocabularies and scientific bounds
+  stay in the caller's schema; the validator hard-codes none of them.
+  `check_table_schema()` returns one deterministic diagnostic row per
+  violation (`row`, `column`, `rule`, `value`, `severity`, `detail`) and never
+  touches the input; `assert_table_schema()` is the build-time gate over the
+  same schema and returns its input unchanged. This complements
+  `ensure_columns()`, which *coerces* a table to a typed prototype: use
+  `ensure_columns()` to reach a schema and `check_table_schema()` to prove a
+  table is already there. No published value changes — both functions are new
+  and nothing in the pipeline calls them yet.
+
+* **New `write_table_checked()` writes a table atomically and verifies it
+  before it replaces anything (#375).** It creates the parent directory,
+  writes to a temporary file beside the target, reads that file back
+  (`assert_parquet_integrity()` plus a row and column-name check for Parquet,
+  a header and row-count re-read for CSV) and only then renames it into
+  place, so an interrupted, failed or corrupt write leaves the previous
+  artifact untouched instead of overwriting it with a partial file.
+  `overwrite = FALSE` refuses an existing target, and `sidecars` optionally
+  writes `<path>.schema.yaml` and `<path>.provenance.yaml`. It also closes a
+  silent failure mode: `nanoparquet::write_parquet()` given a path whose
+  parent directory does not exist returns `NULL` and writes nothing at all,
+  which `write_parquet_checked()` only reported as a confusing "Parquet file
+  not found". No published value changes: this is a new function, and no
+  existing call site was moved onto it.
+
+* **The package no longer calls `dplyr::case_match()`, which dplyr 1.2.0
+  deprecated (#850).** The five call sites — the `fert_type` bridge in the
+  nitrogen balance, the `manure_type` bridge in its inputs, the GLEAM
+  continent and method-label helpers in the energy CO2 extension, and the
+  live-animal unit rename in the production assembly — now use
+  `dplyr::case_when()`. This is deliberately not `recode_values()`, dplyr's
+  named successor: that function does not exist before dplyr 1.2.0, so using
+  it would force a `dplyr (>= 1.2.0)` bound in `DESCRIPTION` and break
+  installation for anyone on an older dplyr, while `case_when()` behaves
+  identically on both. No published value changes: every affected helper was
+  run over its whole input vocabulary plus `NA`, an unmatched value and an
+  empty input, under dplyr 1.1.4 and 1.2.1, and the output is identical in
+  all cases. What does change is that a build on dplyr >= 1.2.0 no longer
+  emits deprecation warnings from these paths.
+
+* **The GLEAM coefficient tables now cite the FAO workbook they were actually
+  read from, not an unregistered DOI (#607).** All fifteen GLEAM `@source`
+  tags in `R/livestock_coefs.R` credited "MacLeod et al. (2018) GLEAM 3.0
+  Supplement S1", four of them with an IOP-prefixed DOI that is not
+  registered at all (a 404 at doi.org, "Resource not found" in Crossref),
+  which is what produced the `--as-cran` "possibly invalid DOIs" NOTE.
+  MacLeod et al. (2018) is the *Animal* position paper on GLEAM
+  (`10.1017/S1751731117001847`), which publishes none of these tables. The
+  twelve tables parsed from `data-raw/GLEAM_3.0_Supplement_S1.xlsx` are now
+  cited as FAO (2022) GLEAM version 3.0 Supplement S1 by title and URL, the
+  committed workbook having been confirmed byte-identical to the one FAO
+  publishes; FAO issues no DOI for it. The other five -- `gleam_mms_shares`,
+  `gleam_animal_weights`, `gleam_milk_production`,
+  `gleam_livestock_categories` and `gleam_feed_categories` -- are hardcoded
+  in `data-raw/livestock_coefficients.R`, could not be traced to any GLEAM
+  document, and their documentation now says so instead of naming a source
+  they do not have; `gleam_animal_weights` feeds the Tier 2 energy
+  calculation, so #881 tracks sourcing it. Documentation only: no data value
+  and no published number changes.
+
+* **The `ipcc_2019_*` livestock coefficient tables now document what edition
+  each of their values actually comes from (#601).** No stored value changed,
+  so no published number changes. Every one of the ten objects was checked
+  cell by cell against the published PDFs of both the 2019 Refinement and the
+  2006 Guidelines, Vol 4, Ch 10 (and Ch 11 Table 11.1 for the
+  pasture/range/paddock N2O factor). Only `ipcc_2019_bo` and `ipcc_2019_cfi`
+  hold 2019 Refinement values throughout; `ipcc_2019_ym` is split between the
+  two editions; the enteric, manure-CH4, MCF, nitrogen-excretion and direct-N2O
+  tables are 2006 values, values from no IPCC table at all, or a per-head
+  quantity the Refinement does not publish. The `@source` of each says which,
+  names the specific cells, and gives the published alternative. Whether to
+  revalue them, rename them or expose both editions is the open decision in
+  #601: measured on the 2020 Tier 1 livestock chain, moving the cattle enteric
+  table to the 2019 Refinement's Table 10.11 raises enteric CH4 from 109.4 to
+  121.8 Tg (+11.3%, and +67% for Africa alone), and moving EF3 to the 2019
+  Table 10.21 lowers direct manure N2O from 1.65 to 1.15 Tg (-30.6%).
+
+* **User-supplied historical rice no longer arrives on two different mass
+  bases (#778).** `.read_historical_production()` is the single reader behind
+  the public `historical_data` argument of both `build_primary_production()`
+  and `build_commodity_balances()`, but only the production side treated the
+  rows as paddy: one 100 t paddy rice row reached item 2807 as 67 t through
+  `build_primary_production()` and as 100 t through
+  `build_commodity_balances()`, a 1.49x disagreement on a major staple.
+  Item 2807 is milled equivalent throughout WHEP, so the CBS ingest now keys
+  the paddy test on the row's `source` -- the item label cannot carry the basis
+  once `items_full` has relabelled every 2807 row "Rice and products" -- using
+  the same source list the production pipeline uses. Both paths therefore agree
+  by construction. **No published value changes:** `historical_data` defaults
+  to `NULL` and nothing in the repository passes rice through it, so this only
+  affects a user who supplies a historical rice series, whose pre-1961 CBS rice
+  is now milled equivalent (0.67x its previous level) rather than paddy. The
+  paddy assumption is now documented on both `historical_data` parameters;
+  pre-divide by the extraction rate if the series is already milled.
+
+* **`build_water_balance()` now warns when the per-CFT consumptive-water
+  inputs carry the LPJmL 6.x green/blue defect (#737).** The default
+  `blue_green = "cft_native"` method partitions evapotranspiration with the
+  `cft_consump_water_b` / `cft_consump_water_g` cubes. LPJmL 6.x before
+  `lbm364dl/LPJmL#3` books infiltrating rain as blue water, so those cubes
+  split it badly wrong: on the current 6.1.1 production run, rainfed
+  grassland comes out green 134.2 / blue 382.2 mm where the same cells of a
+  run built with the fix give 516.4 / 0.0. A rainfed crop band receives no
+  irrigation, so blue water on one is proof of the defect, and that is what
+  the check tests — measured over every rainfed band and cell of year 2005,
+  the blue share is 0.899 on the affected run against 0.0199 (6.1.1 with the
+  fix) and 0.0002 (5.9.7), so the warning fires above 0.10. It is detected
+  from the data rather than from a version number because a run directory
+  carries no version stamp. **No published value changes**: the split is
+  still computed and returned exactly as before, and
+  `blue_green = "irrig_share"` never reads these cubes. Nothing in the
+  package consumes `blue_consump_mm` / `green_consump_mm` /
+  `aet_blue_mm` / `aet_green_mm` yet, so this makes a trap visible rather
+  than correcting a live error.
+
+* **The `spatialize-crop-patterns` pin was regenerated: barley is back, and
+  the gridded harvested-area round trip closes 6 points tighter (#877).**
+  `inst/extdata/earthstat_mapping.csv` is the crosswalk
+  `prepare_crop_patterns()` iterates -- one EarthStat harvested-area raster
+  per row -- and it shipped with 169 rows against the 172 crop directories
+  the EarthStat `HarvestedAreaYield175Crops` tree contains. The three
+  missing names were `barley`, `greencorn` and `hempseed`, all three of
+  which `cft_mapping.csv` already expected, so `crop_patterns` carried no
+  cell for them and `build_gridded_landuse()` dropped their entire world
+  total in every country and every year. The rows are added and the pin
+  rebuilt from the whole EarthStat tree (version
+  `20260825T092111Z-8690d`, 2,297,621 rows over 147 crops, up from
+  2,247,239 over 144); the regeneration reproduces the 144 crops already
+  in the deployed pin bit-for-bit, so the only change is the three crops
+  it adds.
+  **This moves published gridded values.** Spatializing with the `whep`
+  preset and re-aggregating the cells to their reporting areas, the world
+  harvested-area round trip goes from 0.9327 to 0.9898 at 1961 (+54.46
+  Mha, of which barley 53.70 Mha) and from 0.9474 to 0.9832 at 2015
+  (+48.96 Mha, barley 47.85 Mha); the share of areas round-tripping within
+  1% goes from 42.3% to 78.9% at 1961 and 34.9% to 72.3% at 2015. No other
+  crop's allocation moves by more than 6e-08 ha. Everything downstream of
+  `build_gridded_landuse()` inherits the change, including
+  `build_crop_land_extension()` and the gridded nitrogen balance. Hempseed
+  contributes cells but no area yet: the national table carries no
+  harvested area under item 336.
+  `Chillies and peppers, dry` (689) and `Leeks and other alliaceous
+  vegetables` (407) stay unallocated, and are meant to -- EarthStat
+  publishes no raster for either.
 
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
@@ -728,6 +931,53 @@
   the input's N and only accounted N is removed, balancing to 2.1e-16 every
   year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
   sugar) should go is still open (whep#432).
+
+* **The N left over from a zero-N processed-item substitution (wine, olive
+  oil, sugar) now gets its own `processing_losses` destiny instead of
+  staying folded into the primary crop's own destinies.**
+  Previously, `removal_scale` only ever removed the N actually credited to
+  a named output, so a near-zero-N output (wine from grapes, oil from
+  olives) left most of the diverted mass sitting with the primary crop,
+  inflating that crop's own `export` residual. The full processed mass is
+  now always removed, the credited share still goes to the processed item,
+  and the remainder is booked as `destiny = "processing_losses"`,
+  `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
+  LMDI decomposition) tracks this destiny by name, so it falls into
+  whatever each of them already treats as surplus, the same way
+  `no_tracked_output` items already do. Concretely,
+  `.create_land_surplus_df()` computes cropland surplus as inputs minus
+  tracked outputs, so reported cropland N surplus rises by exactly the
+  amount removed from `export`. That is the methodological choice this
+  destiny embodies: the residue (grape pomace, olive cake, beet pulp) is
+  counted as surplus rather than as product, pending explicit by-product
+  items.
+
+  Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
+  re-derived national production as the sum of every `Origin == Box` row,
+  which now includes `processing_losses` too, reinflating the national
+  `export` residual by exactly the amount this fix removes provincially;
+  `processing_losses` is now excluded from that sum and re-added as its own
+  row. And `.combine_destinies()` gave every row in a multi-row
+  `(Year, Province_name, Item)` group a full `production_share = 1` when
+  their combined production was zero, instead of splitting evenly, so an
+  item processed away entirely for a year duplicated its consumption once
+  per remaining row (41 province-years, all Grapes in 1983, where fuller
+  removal now reaches exactly zero where partial removal rarely did).
+
+  **Published values move.** Over 1860-2023, the new `processing_losses`
+  destiny totals 1,899,115 Mg, averaging 2.97% of Cropland-origin flows and
+  rising from 2.53% in 1860 to 5.34% by 2020; olives (1,460,624 Mg), barley
+  (230,838 Mg) and grapes (139,855 Mg) account for essentially all of it.
+  `export` falls by the same order in both outputs: from 44,226,105 Mg to
+  42,400,855 Mg (-1.83 Mt) in `create_n_prov_destiny()`, and from
+  17,691,588 Mg to 15,897,066 Mg (-1.79 Mt) in `create_n_nat_destiny()`,
+  whose `export` is a net residual on a different basis. Reported cropland N
+  surplus rises by 1,899,115 Mg, exactly the amount the new destiny carries.
+  The remaining destinies move only by what the `.combine_destinies()` fix
+  stops double-counting: `livestock_rum` -35,742 Mg, `population_food`
+  -21,094 Mg, `livestock_mono` -12,812 Mg, `population_other_uses` -542 Mg.
+  `Cropland` and `semi_natural_agroecosystems` soil inputs are unchanged.
+  National totals close to +34,403 Mg (+0.0090% of total N).
 
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
