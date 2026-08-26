@@ -593,6 +593,7 @@ reference:
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_fodder_land_share
   - check_parquet_integrity
   - assert_parquet_integrity
   - write_parquet_checked

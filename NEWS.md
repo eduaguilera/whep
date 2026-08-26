@@ -161,6 +161,25 @@
   not all of it — the other 10.1% is the `gdp-population` pin's Yugoslav level
   disagreeing with UN WPP's own seven territories.
 
+* **`build_fao_arable_fallow_extension()` now warns where fodder crops take
+  more than half the arable land it distributes, and the new exported
+  `check_fodder_land_share()` reports the share per country-year (#356).** No
+  published value changes: the check is warn-only and nothing is rescaled,
+  dropped or reweighted. What it makes visible is that with the default
+  `fallow_weights = NULL` — the path `build_land_balance_footprint()` takes —
+  the reconciliation is a *pure proportional rescale* of each arable crop's
+  cropped physical area up to FAO Arable land, so every crop's share of the
+  published per-crop arable land footprint is exactly its share of the input
+  harvested area. Fodder harvested area is reconstructed rather than surveyed
+  (dry-matter-yield imputation, EU AgriDB splicing, linear filling), and it
+  carries 11.9% of the global arable land footprint pooled over 1850-2023 — in
+  1271 of 29 378 country-years more than half of it, and in 102 country-years
+  the fodder harvested area alone exceeds the country's entire FAO arable land
+  (Australia 1961-1994 up to 1.57x, Paraguay up to 2.23x, Ireland 1.78x,
+  Portugal 1.77x). Every hectare over-attributed to fodder is a hectare taken
+  off the ordinary crops in the same country-year. Supplying `fallow_weights`
+  from `gridded_fallow_weights()` makes the fallow split independent of it.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
