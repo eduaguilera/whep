@@ -15,9 +15,26 @@ A tibble with `system`, `ef_kg_n2o_n_per_kg_n`.
 
 ## Source
 
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21. Several rows match
-neither the 2019 Refinement nor the 2006 Guidelines (daily spread 0.010
-against 0 in both, dry lot 0.005 against 0.02); tracked in whep#601.
+Mixed, and not consistently the 2019 Refinement's Table 10.21. Verified
+against both editions of Vol 4, Ch 10, Table 10.21:
+
+- Matching both editions: liquid/slurry with crust 0.005, in-vessel
+  composting 0.006, poultry with and without litter 0.001.
+
+- Matching the 2006 Guidelines but not the 2019 Refinement: solid
+  storage 0.005 (2019: 0.010), static-pile composting 0.006 (2019:
+  0.010), passive-windrow composting 0.01 (2019: 0.005), anaerobic
+  digester 0 (2019: 0.0006).
+
+- Matching neither edition: daily spread 0.01 and liquid/slurry without
+  crust 0.002 and uncovered anaerobic lagoon 0.001 (all three are 0 in
+  both editions), dry lot 0.005 (0.02 in both), intensive-windrow
+  composting 0.006 (2019: 0.005; 2006: 0.1). Pasture/range/paddock is
+  not in Table 10.21 in either edition, which defers it to Ch 11. Its
+  stored 0.01 is the 2006 Ch 11 Table 11.1 EF3PRP,SO for sheep and other
+  animals; the 2019 Refinement's Table 11.1 (Updated) gives 0.004 for
+  cattle, poultry and pigs and 0.003 for sheep and other animals.
+  Tracked in whep#601.
 
 ## Examples
 

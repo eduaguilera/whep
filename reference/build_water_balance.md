@@ -54,7 +54,12 @@ build_water_balance(
   the budget residual usable only when the seepage file is absent) and
   `blue_green` (`"cft_native"` default, per-crop blue/green consumptive
   water, or `"irrig_share"`, the irrigation share of water input).
-  Members left out take their default.
+  Members left out take their default. `"cft_native"` warns when the
+  per-CFT cubes report consumptive blue water on a *rainfed* band, which
+  no irrigation can supply: that is the signature of an LPJmL 6.x run
+  without the green/blue fix, whose split is unusable (the numbers are
+  still returned, so the warning changes nothing; `"irrig_share"` does
+  not read those cubes).
 
 - resolution:
 

@@ -161,7 +161,13 @@ crop physiology literature, and IPCC Tier 1 coefficients.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Five runtime-dead below-ground fields were retired from this legacy table:
+    <p>This is the <strong>single</strong> source of biomass coefficients in the package. Until
+#489 a <code>biomass_coefs</code> pin frozen at <code>20250728T082553Z</code> was also readable
+through <code><a href="whep_read_file.html">whep_read_file()</a></code>; it was a narrowed 2025 export that disagreed
+with this table on 12 of their 36 shared columns, so the same commodity
+carried different nitrogen coefficients depending on which path read it.
+The pin has been retired and all callers now read this dataset.</p>
+<p>Five runtime-dead below-ground fields were retired from this legacy table:
 <code>BG_Biomass_kgDM_ha</code>, <code>Root_Shoot_ratio</code>, <code>Root_kgC_kgDM</code>,
 <code>Rhizodeposits_mass_kgC_kgDM</code>, and <code>Rhizodeposits_N_kgN_kgRootN</code>. Their
 related item-keyed fields in <code>bio_coefs</code> are, respectively,

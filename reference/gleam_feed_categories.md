@@ -14,7 +14,14 @@ A tibble with `feed_category`, `feed_type`, `description`.
 
 ## Source
 
-MacLeod et al. (2018) GLEAM 3.0.
+Not traced to a GLEAM document. These values are hardcoded in
+`generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+not read from the GLEAM 3.0 Supplement S1 workbook, and no table of that
+workbook contains them. The attribution to MacLeod et al. (2018) they
+carried was wrong: that is the *Animal* position paper on GLEAM
+([doi:10.1017/S1751731117001847](https://doi.org/10.1017/S1751731117001847)
+), which publishes no such table. Treat the values as unverified
+placeholders; tracked in whep#881.
 
 ## Examples
 

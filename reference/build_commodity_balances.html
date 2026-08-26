@@ -108,8 +108,11 @@ to add before the CBS historical extension. May be a data frame or a path
 to a parquet/csv file. CBS-shaped rows should provide <code>year</code>, <code>value</code>,
 one of <code>area_code</code> or <code>polity_area_code</code>, one of <code>item_cbs_code</code> or
 <code>item_prod_code</code>, and preferably <code>element</code>. Production-shaped rows without
-<code>element</code> are accepted as <code>production</code> when their unit is tonnes. Default
-<code>NULL</code>.</p></dd>
+<code>element</code> are accepted as <code>production</code> when their unit is tonnes.
+<strong>Rice supplied here is assumed to be on a paddy (rough-rice)
+basis</strong> and is multiplied by the paddy-to-milled extraction rate,
+matching <code><a href="build_primary_production.html">build_primary_production()</a></code>; pre-divide by that rate if the
+series is already milled. Default <code>NULL</code>.</p></dd>
 
 
 <dt id="arg-format">format<a class="anchor" aria-label="anchor" href="#arg-format"></a></dt>

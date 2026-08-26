@@ -319,6 +319,20 @@ in this layer it means nothing.</p>
 <span class="r-in"><span>    geometries <span class="op">=</span> <span class="fu"><a href="polycell_example_geometries.html">polycell_example_geometries</a></span><span class="op">(</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>No `ice` layer was supplied, so <span style="color: #00BB00;">ice_area_ha</span> is identically zero.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> Every lake, river and glacier inside a polity is therefore booked as LAND,</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   and the identity `polity_area_ha == land_area_ha + inland_water_ha +</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   ice_area_ha` still holds, so no downstream check can see it.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> This is correct for a smoke build and wrong for a published pin (#885).</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   Supply the layer, or state in the publishing commit that <span style="color: #00BB00;">ice_area_ha</span> is zero</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   by construction.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>No `water` layer was supplied, so <span style="color: #00BB00;">inland_water_ha</span> is identically zero.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #BB0000;">✖</span> Every lake, river and glacier inside a polity is therefore booked as LAND,</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   and the identity `polity_area_ha == land_area_ha + inland_water_ha +</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   ice_area_ha` still holds, so no downstream check can see it.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> This is correct for a smoke build and wrong for a published pin (#885).</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   Supply the layer, or state in the publishing commit that <span style="color: #00BB00;">inland_water_ha</span> is</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span>   zero by construction.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 22</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>

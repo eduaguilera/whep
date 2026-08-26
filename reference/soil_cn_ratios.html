@@ -64,7 +64,13 @@ class and management system.</p>
 
 <dt>management</dt>
 <dd><p>Management system: <code>"Conventional"</code> or
-<code>"Organic"</code>.</p></dd>
+<code>"Organic"</code>. <strong>Only the <code>"Conventional"</code> rows are
+selectable by this package.</strong> <code><a href="build_carbon_balance.html">build_carbon_balance()</a></code> has no
+management dimension – it is a global gridded balance – so an argument
+for this column could only be set world-wide, and "run the whole world as
+organic" is not a run anyone should perform. The <code>"Organic"</code> rows
+therefore ship as <em>reference values for downstream consumers</em>, not
+as inputs this package can be asked to use (issue 809).</p></dd>
 
 <dt>cn_ratio</dt>
 <dd><p>Soil organic-matter carbon-to-nitrogen ratio.</p></dd>

@@ -1,9 +1,7 @@
 # IPCC 2019 MCF for manure management.
 
-Table 10.17: methane conversion factors (percent) by manure management
-system and climate zone. The IPCC table resolves ten climate zones
-grouped under cool, temperate and warm; this table keeps the three
-groups, and uses `"All"` for the systems that take a single factor.
+Methane conversion factors (percent) by manure management system and
+climate zone, using `"All"` for the systems that take a single factor.
 
 ## Usage
 
@@ -17,7 +15,19 @@ A tibble with `system`, `climate_zone`, `mcf_percent`.
 
 ## Source
 
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
+Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17, whose
+cool/temperate/warm structure this table follows. The 2019 Refinement's
+Table 10.17 (Updated) is resolved by ten climate zones and by
+liquid-system retention time instead, and differs in level: it gives a
+single 0.47 percent for pasture/range/paddock against 1.0/1.5/2.0 here,
+and 1.0/2.0/2.5 for static-pile and passive-windrow composting against
+0.5/0.5/0.5 and 1.0/1.0/1.5 here. Some cells match neither edition: dry
+lot 1.5/2.5/4.0 (both editions give 1.0/1.5/2.0), intensive-windrow
+composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5) and pit storage under one
+month 3/3/5 (2006 gives 3/3/30). Where a 2006 row is resolved per degree
+Celsius the value taken is not always the mid-point of the class
+(uncovered anaerobic lagoon temperate 73 percent is the 14 degree
+column, not the 78 percent of 20 degrees); tracked in whep#601.
 
 ## Examples
 

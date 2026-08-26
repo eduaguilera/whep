@@ -193,6 +193,15 @@ physiology literature, and IPCC Tier 1 coefficients.
 
 ## Details
 
+This is the **single** source of biomass coefficients in the package.
+Until \#489 a `biomass_coefs` pin frozen at `20250728T082553Z` was also
+readable through
+[`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md);
+it was a narrowed 2025 export that disagreed with this table on 12 of
+their 36 shared columns, so the same commodity carried different
+nitrogen coefficients depending on which path read it. The pin has been
+retired and all callers now read this dataset.
+
 Five runtime-dead below-ground fields were retired from this legacy
 table: `BG_Biomass_kgDM_ha`, `Root_Shoot_ratio`, `Root_kgC_kgDM`,
 `Rhizodeposits_mass_kgC_kgDM`, and `Rhizodeposits_N_kgN_kgRootN`. Their

@@ -63,7 +63,11 @@ build_primary_production(
   `item_prod_name`, `item_cbs_name`, and `source` are used when present;
   WHEP item and area tables fill canonical names where possible.
   Observed historical rows are retained, and LUH2 proxy filling can use
-  them as anchors. Default `NULL`.
+  them as anchors. **Rice supplied here is assumed to be on a paddy
+  (rough-rice) basis** and is multiplied by the paddy-to-milled
+  extraction rate, because WHEP's rice item is milled equivalent
+  throughout; pre-divide by that rate if the series is already milled.
+  Default `NULL`.
 
 - federation_land:
 

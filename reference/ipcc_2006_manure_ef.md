@@ -14,7 +14,15 @@ A tibble with `region`, `category`, `ef_kg_head_yr`, `temp_zone`.
 
 ## Source
 
-IPCC 2006, Vol 4, Ch 10, Table 10.14.
+IPCC 2006, Vol 4, Ch 10, Table 10.14 for cattle, swine and buffalo and
+Table 10.15 for sheep, goats and poultry. Table 10.14 is resolved per
+degree Celsius, and the value taken for a `temp_zone` is not always the
+bound of that class, nor always present in the row: North American dairy
+cows 53 is the 12 degree column rather than the 48 of the cool class,
+Asian dairy cows 16 is the 18 degree column rather than the 31 of the
+warm class, Latin American dairy cows 1 is the cool value where the warm
+class gives 2, and Western European dairy cows 20 appears in no column
+of that row (its cool value is 21). Tracked in whep#601.
 
 ## Examples
 

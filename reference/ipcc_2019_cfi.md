@@ -15,7 +15,13 @@ A tibble with `category`, `subcategory`, `cfi_mj_day_kg075`.
 
 ## Source
 
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4 (Updated), which repeats
+the 2006 Guidelines values and adds the goat row (0.315). Two rows
+published in both editions are absent here, and the
+`"Non-lactating/Bulls"` row conflates them: intact bulls take 0.370, not
+the 0.322 of non-lactating cows, steers and juveniles, and lambs under
+one year take 0.236 rather than the 0.217 of mature sheep. Tracked in
+whep#601.
 
 ## Examples
 

@@ -1778,7 +1778,7 @@
       </dl></div><div class="section level2">
       <h2 id="data-frame-utilities">Data-frame utilities<a class="anchor" aria-label="anchor" href="#data-frame-utilities"></a></h2>
 
-      <div class="section-desc"><p>Complete tabular schemas without losing column types or silently discarding extra fields.</p></div>
+      <div class="section-desc"><p>Declare a table’s schema once, as serializable data, then either reach it or prove it. <code><a href="../reference/ensure_columns.html">ensure_columns()</a></code> coerces a table to a typed prototype; <code><a href="../reference/check_table_schema.html">check_table_schema()</a></code> reports every violation of a declarative schema without touching the table, and <code><a href="../reference/assert_table_schema.html">assert_table_schema()</a></code> is the build-time gate over the same schema.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -1791,6 +1791,20 @@
 
         </dt>
         <dd>Complete columns from a typed prototype.</dd>
+
+        <dt>
+
+          <code><a href="check_table_schema.html">check_table_schema()</a></code>
+
+        </dt>
+        <dd>Check a table against a declarative schema.</dd>
+
+        <dt>
+
+          <code><a href="assert_table_schema.html">assert_table_schema()</a></code>
+
+        </dt>
+        <dd>Assert that a table conforms to a declarative schema.</dd>
       </dl></div><div class="section level2">
       <h2 id="gap-filling-functions">Gap filling functions<a class="anchor" aria-label="anchor" href="#gap-filling-functions"></a></h2>
 
@@ -2372,6 +2386,13 @@
 
         </dt>
         <dd>Write a Parquet file and verify it before returning.</dd>
+
+        <dt>
+
+          <code><a href="write_table_checked.html">write_table_checked()</a></code>
+
+        </dt>
+        <dd>Write a table to disk safely and verifiably.</dd>
       </dl></div><div class="section level2">
 
       <h3 id="uncertainty-and-sensitivity">Uncertainty and sensitivity<a class="anchor" aria-label="anchor" href="#uncertainty-and-sensitivity"></a></h3>
@@ -2819,14 +2840,14 @@
           <code><a href="ipcc_2019_ym.html">ipcc_2019_ym</a></code>
 
         </dt>
-        <dd>IPCC 2019 Ym values (Table 10.13).</dd>
+        <dd>IPCC Ym values.</dd>
 
         <dt>
 
           <code><a href="ipcc_2019_bo.html">ipcc_2019_bo</a></code>
 
         </dt>
-        <dd>IPCC 2019 Bo values (Table 10.16).</dd>
+        <dd>IPCC 2019 Bo values (Table 10.16A).</dd>
 
         <dt>
 

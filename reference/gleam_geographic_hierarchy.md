@@ -64,8 +64,9 @@ A tibble with columns:
 
 ## Source
 
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1, Tables S.A1-S.A2.
-[doi:10.1088/1748-9326/aad4d8](https://doi.org/10.1088/1748-9326/aad4d8)
+FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO workbook; no DOI is
+issued for it), Tables S.A1-S.A2:
+<https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx>
 
 ## Examples
 

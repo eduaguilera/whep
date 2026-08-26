@@ -682,11 +682,22 @@ typologies, etc.
 
 ## Data-frame utilities
 
-Complete tabular schemas without losing column types or silently
-discarding extra fields.
+Declare a table’s schema once, as serializable data, then either reach
+it or prove it.
+[`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
+coerces a table to a typed prototype;
+[`check_table_schema()`](https://eduaguilera.github.io/whep/reference/check_table_schema.md)
+reports every violation of a declarative schema without touching the
+table, and
+[`assert_table_schema()`](https://eduaguilera.github.io/whep/reference/assert_table_schema.md)
+is the build-time gate over the same schema.
 
 - [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
   : Complete columns from a typed prototype.
+- [`check_table_schema()`](https://eduaguilera.github.io/whep/reference/check_table_schema.md)
+  : Check a table against a declarative schema.
+- [`assert_table_schema()`](https://eduaguilera.github.io/whep/reference/assert_table_schema.md)
+  : Assert that a table conforms to a declarative schema.
 
 ## Gap filling functions
 
@@ -900,6 +911,8 @@ and other data-quality diagnostics.
   : Assert that a Parquet file is structurally sound.
 - [`write_parquet_checked()`](https://eduaguilera.github.io/whep/reference/write_parquet_checked.md)
   : Write a Parquet file and verify it before returning.
+- [`write_table_checked()`](https://eduaguilera.github.io/whep/reference/write_table_checked.md)
+  : Write a table to disk safely and verifiably.
 
 ### Uncertainty and sensitivity
 
@@ -1055,9 +1068,9 @@ Emission factors and parameters from IPCC 2019, Vol 4, Ch 10.
 - [`ipcc_2019_n2o_ef_direct`](https://eduaguilera.github.io/whep/reference/ipcc_2019_n2o_ef_direct.md)
   : IPCC 2019 direct N2O emission factors.
 - [`ipcc_2019_ym`](https://eduaguilera.github.io/whep/reference/ipcc_2019_ym.md)
-  : IPCC 2019 Ym values (Table 10.13).
+  : IPCC Ym values.
 - [`ipcc_2019_bo`](https://eduaguilera.github.io/whep/reference/ipcc_2019_bo.md)
-  : IPCC 2019 Bo values (Table 10.16).
+  : IPCC 2019 Bo values (Table 10.16A).
 - [`ipcc_2019_cfi`](https://eduaguilera.github.io/whep/reference/ipcc_2019_cfi.md)
   : IPCC 2019 Cfi values (Table 10.4).
 

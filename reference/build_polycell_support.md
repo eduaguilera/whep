@@ -286,6 +286,20 @@ if (requireNamespace("sf", quietly = TRUE)) {
     geometries = polycell_example_geometries()
   )
 }
+#> Warning: No `ice` layer was supplied, so ice_area_ha is identically zero.
+#> ✖ Every lake, river and glacier inside a polity is therefore booked as LAND,
+#>   and the identity `polity_area_ha == land_area_ha + inland_water_ha +
+#>   ice_area_ha` still holds, so no downstream check can see it.
+#> ℹ This is correct for a smoke build and wrong for a published pin (#885).
+#>   Supply the layer, or state in the publishing commit that ice_area_ha is zero
+#>   by construction.
+#> Warning: No `water` layer was supplied, so inland_water_ha is identically zero.
+#> ✖ Every lake, river and glacier inside a polity is therefore booked as LAND,
+#>   and the identity `polity_area_ha == land_area_ha + inland_water_ha +
+#>   ice_area_ha` still holds, so no downstream check can see it.
+#> ℹ This is correct for a smoke build and wrong for a published pin (#885).
+#>   Supply the layer, or state in the publishing commit that inland_water_ha is
+#>   zero by construction.
 #> # A tibble: 6 × 22
 #>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year
 #>   <chr>                 <int> <dbl> <dbl> <chr>           <int> <int>      <int>

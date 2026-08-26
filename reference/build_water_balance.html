@@ -137,7 +137,11 @@ LPJmL native seepage, or <code>"residual"</code>, a seepage reconstruction from 
 budget residual usable only when the seepage file is absent) and
 <code>blue_green</code> (<code>"cft_native"</code> default, per-crop blue/green consumptive
 water, or <code>"irrig_share"</code>, the irrigation share of water input). Members
-left out take their default.</p></dd>
+left out take their default. <code>"cft_native"</code> warns when the per-CFT cubes
+report consumptive blue water on a <em>rainfed</em> band, which no irrigation can
+supply: that is the signature of an LPJmL 6.x run without the green/blue
+fix, whose split is unusable (the numbers are still returned, so the
+warning changes nothing; <code>"irrig_share"</code> does not read those cubes).</p></dd>
 
 
 <dt id="arg-resolution">resolution<a class="anchor" aria-label="anchor" href="#arg-resolution"></a></dt>

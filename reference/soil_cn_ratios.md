@@ -21,7 +21,15 @@ A tibble with columns:
 
 - management:
 
-  Management system: `"Conventional"` or `"Organic"`.
+  Management system: `"Conventional"` or `"Organic"`. **Only the
+  `"Conventional"` rows are selectable by this package.**
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md)
+  has no management dimension – it is a global gridded balance – so an
+  argument for this column could only be set world-wide, and "run the
+  whole world as organic" is not a run anyone should perform. The
+  `"Organic"` rows therefore ship as *reference values for downstream
+  consumers*, not as inputs this package can be asked to use (issue
+  809).
 
 - cn_ratio:
 

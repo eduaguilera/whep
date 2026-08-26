@@ -1,7 +1,7 @@
 # IPCC 2019 manure CH4 EF for non-cattle.
 
-Table 10.14: Tier 1 manure management CH4 emission factors for
-non-cattle species (kg CH4/head/yr).
+Tier 1 manure management CH4 emission factors for non-cattle species (kg
+CH4/head/yr).
 
 ## Usage
 
@@ -15,7 +15,13 @@ A tibble with `category`, `ef_kg_head_yr`.
 
 ## Source
 
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+2006 Guidelines, Vol 4, Ch 10, Tables 10.14 (buffalo, swine) and 10.15
+(sheep, goats, poultry, horses, mules and asses, camels), not the 2019
+Refinement, which publishes no per-head Tier 1 manure CH4 table. The
+temperature column each value is taken from varies by species (sheep
+0.19 and goats 0.13 are the developed-country cool column, while horses
+1.64, mules 0.90 and camels 1.92 are the developing-country temperate
+column); tracked in whep#601.
 
 ## Examples
 

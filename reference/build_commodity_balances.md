@@ -59,7 +59,12 @@ build_commodity_balances(
   of `area_code` or `polity_area_code`, one of `item_cbs_code` or
   `item_prod_code`, and preferably `element`. Production-shaped rows
   without `element` are accepted as `production` when their unit is
-  tonnes. Default `NULL`.
+  tonnes. **Rice supplied here is assumed to be on a paddy (rough-rice)
+  basis** and is multiplied by the paddy-to-milled extraction rate,
+  matching
+  [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md);
+  pre-divide by that rate if the series is already milled. Default
+  `NULL`.
 
 - format:
 
