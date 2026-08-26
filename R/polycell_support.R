@@ -501,6 +501,21 @@ expand_polycell_years <- function(support, years) {
 #   * the reporting code is not in `regions.csv`. Greenland, Western Sahara and
 #     30-odd dependencies have a FAOSTAT code but no WHEP reporting region, and
 #     999 is the only home the vocabulary gives them.
+#
+# The resolution is therefore inside `regions.csv`'s vocabulary and independent
+# of `options(whep.unfold_rest_of_world)`, which is the point: a grid is keyed
+# on the raw reporting code and any fold to the bucket space -- the switchable
+# Rest-of-World one or the 206 one whep#414 still owns -- is applied downstream
+# at `area_key`, where it stays recoverable. `.check_cell_polity_vintage()`
+# already refuses a grid carrying 206 for the same reason.
+#
+# It reads the SHIPPED table rather than `.polity_crosswalk()`, which is the
+# opposite of what `.cell_polity_bucket_lookup()` does, because the unfold
+# switch operates on the AREA side and destroys the residual aggregate's
+# identity on this one: with the switch at its default, `ROW-1850-2025` maps to
+# 62 reporting areas each carrying its own `polity_area_code`, so the fallback
+# has no 999 to fall back to and hands `ROW`'s 72.92 Mha of leftover territory
+# whichever member sorts first (area 24, the British Indian Ocean Territory).
 .polity_reporting_area_code <- function(polity_code) {
   lookup <- .polity_area_code_lookup()
   lookup$area_code[match(polity_code, lookup$polity_code)]

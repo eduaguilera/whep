@@ -3704,9 +3704,11 @@ testthat::test_that("an unknown polity resolves to NA, never to a guess", {
 testthat::test_that("every resolved label is a code some caller can join", {
   # The invariant, rather than a list of expectations: whatever the crosswalk
   # grows to, the producer may only emit codes the reporting vocabulary knows.
-  # The one exception is 206, which `regions.csv` retired but which pre-2011
-  # FAOSTAT reported Sudan under (whep#860).
+  # Exactly two escape it, both as a bucket rather than a reporting code and
+  # neither reaching the shipped support: 206, which `regions.csv` retired but
+  # which pre-2011 FAOSTAT reported Sudan under (whep#860), and 351, the
+  # FAOSTAT China aggregate that double-counts its own components (whep#384).
   codes <- whep:::.polity_area_code_lookup()$area_code
-  extra <- setdiff(unique(codes), whep:::.regions_csv_area_codes())
-  testthat::expect_equal(extra, 206L)
+  extra <- sort(setdiff(unique(codes), whep:::.regions_csv_area_codes()))
+  testthat::expect_equal(extra, c(206L, 351L))
 })

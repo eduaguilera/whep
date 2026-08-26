@@ -1497,10 +1497,11 @@ build_carbon_balance <- function(
   if (!rlang::has_name(support, "polity_code")) {
     return(support)
   }
+  support$area_code <- as.integer(support$area_code)
   resolved <- .polity_reporting_area_code(support$polity_code)
   moved <- !is.na(resolved) &
     !is.na(support$area_code) &
-    as.integer(support$area_code) != resolved
+    support$area_code != resolved
   support$area_code[!is.na(resolved)] <- resolved[!is.na(resolved)]
   if (any(moved)) {
     .carbon_inform_rekey(support[moved, , drop = FALSE], resolved[moved])
