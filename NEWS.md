@@ -189,6 +189,24 @@
   121.8 Tg (+11.3%, and +67% for Africa alone), and moving EF3 to the 2019
   Table 10.21 lowers direct manure N2O from 1.65 to 1.15 Tg (-30.6%).
 
+* **User-supplied historical rice no longer arrives on two different mass
+  bases (#778).** `.read_historical_production()` is the single reader behind
+  the public `historical_data` argument of both `build_primary_production()`
+  and `build_commodity_balances()`, but only the production side treated the
+  rows as paddy: one 100 t paddy rice row reached item 2807 as 67 t through
+  `build_primary_production()` and as 100 t through
+  `build_commodity_balances()`, a 1.49x disagreement on a major staple.
+  Item 2807 is milled equivalent throughout WHEP, so the CBS ingest now keys
+  the paddy test on the row's `source` -- the item label cannot carry the basis
+  once `items_full` has relabelled every 2807 row "Rice and products" -- using
+  the same source list the production pipeline uses. Both paths therefore agree
+  by construction. **No published value changes:** `historical_data` defaults
+  to `NULL` and nothing in the repository passes rice through it, so this only
+  affects a user who supplies a historical rice series, whose pre-1961 CBS rice
+  is now milled equivalent (0.67x its previous level) rather than paddy. The
+  paddy assumption is now documented on both `historical_data` parameters;
+  pre-divide by the extraction rate if the series is already milled.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,

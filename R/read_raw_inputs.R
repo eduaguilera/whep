@@ -292,7 +292,47 @@
   if (vintage == "faostat") c(paddy, "Rice and products") else paddy
 }
 
-.fix_item_codes <- function(dt, paddy_rice_names = .paddy_rice_names()) {
+# Sources that report rice on a PADDY (rough-rice) basis, and so need the
+# extraction rate applied to reach WHEP's milled-equivalent contract for item
+# 2807. FAOSTAT crop production is paddy, and so is everything WHEP derives
+# from it: the LUH2 back-cast, the linear fills and the yield imputations.
+#
+# User-supplied `historical_data` is assumed paddy too. That is an assumption,
+# not a fact about the row -- the argument carries no basis declaration -- but
+# it is the assumption `.fix_rice_milled_equiv()` has always made in the
+# production pipeline, and every national source WHEP validates against
+# publishes rice as paddy (`validation/SOURCES.md`, FAO Technical Conversion
+# Factors). #778: this predicate is the single definition, so the production
+# and CBS ingest paths cannot drift onto two mass bases again.
+.paddy_rice_sources <- function() {
+  c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland",
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland"
+  )
+}
+
+.rice_source_is_paddy <- function(source) {
+  src <- tidyr::replace_na(as.character(source), "")
+  src %in%
+    .paddy_rice_sources() |
+    stringr::str_starts(src, "imputed_yield") |
+    stringr::str_starts(src, "historical_")
+}
+
+# `paddy_by_source = TRUE` additionally treats a 2804/2807 row from a paddy
+# source as paddy whatever its item label says. It is for the historical ingest
+# boundary, where `items_full` has already overwritten the label with the
+# canonical "Rice and products" and only the source still carries the basis.
+.fix_item_codes <- function(
+  dt,
+  paddy_rice_names = .paddy_rice_names(),
+  paddy_by_source = FALSE
+) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -327,12 +367,21 @@
   }
 
   if ("value" %in% names(dt)) {
-    dt[
-      item_cbs_code %in%
-        c(2804L, 2807L) &
-        item_cbs %in% paddy_rice_names,
-      value := value * .rice_milled_extraction_rate()
-    ]
+    by_name <- if ("item_cbs" %in% names(dt)) {
+      dt[, item_cbs %in% paddy_rice_names]
+    } else {
+      FALSE
+    }
+    by_source <- if (paddy_by_source && "source" %in% names(dt)) {
+      .rice_source_is_paddy(dt$source)
+    } else {
+      FALSE
+    }
+    is_paddy <- dt[, item_cbs_code %in% c(2804L, 2807L)] &
+      (by_name | by_source)
+    if (any(is_paddy)) {
+      dt[which(is_paddy), value := value * .rice_milled_extraction_rate()]
+    }
   }
 
   dt[
