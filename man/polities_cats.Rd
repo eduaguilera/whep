@@ -58,9 +58,11 @@ primary production (HANPP) studies.
 \item \code{region_IPCC}: IPCC regional grouping used in climate assessments.
 \item \code{region_labour}: Labour-focused regional grouping.
 \item \code{region_labour_agg}: Aggregated labour-focused regional grouping.
-\item \code{region_labour_mech}: Labour mechanisation regional grouping. Two cells
-hold a sub-region name rather than a mechanisation class; see
-\link{regions_full}.
+\item \code{region_labour_mech}: Labour mechanisation regional grouping. Angola
+(code 7) holds the sub-region name \code{"Middle Africa"} rather than a
+mechanisation class, inherited from \link{regions_full}; the other damaged row
+there, Northern Mariana Islands (163), is not a polity, so this table has
+no row to inherit it into. See \link{regions_full} (whep#855).
 }
 }
 \source{

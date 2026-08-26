@@ -27,6 +27,10 @@ target_res <- 0.5
     rlang::set_names(c("lon", "lat", value_name))
 }
 
+# `time_idx` must already be resolved with `whep:::.luh2_clamped_time_idx()`,
+# exactly as prepare_spatialize_all.R's copy of this reader does: computing
+# `yr - 850 + 1` bare aborts inside `ncvar_get()` on any LUH2 vintage whose
+# record is shorter than `year_range` (whep#256).
 .read_luh2_variables <- function(nc_path, var_names, time_idx) {
   nc <- ncdf4::nc_open(nc_path)
   on.exit(ncdf4::nc_close(nc))
@@ -77,7 +81,7 @@ by_type <- purrr::map(year_range, \(yr) {
   if (yr %% 10 == 0) {
     cli::cli_alert("Year {yr}")
   }
-  time_idx <- yr - 850L + 1L
+  time_idx <- whep:::.luh2_clamped_time_idx(states_path, yr)
   crop_r <- .read_luh2_variables(states_path, crop_vars, time_idx)
   irrig_r <- .read_luh2_variables(
     mgmt_path,
