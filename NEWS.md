@@ -13,10 +13,13 @@
   `trade_recovery = "net_import"` recovery of #864 drops such keys explicitly
   instead of relying on its area-label join to hide them, and
   `.cbs_bind_recovered()` aborts if one reaches it. **No published value
-  changes**: measured over every CBS-relevant pin, the only off-window
-  area-years in any input are FishStat's Belgium 255 in 1976-1999 and its two
-  zero-tonne Ethiopia 238 rows in 1992, and none of them lands on a CBS row
-  today. The territory is not unrepresented either — the Belgium-Luxembourg
+  changes**: measured over every CBS-relevant pin, FishStat's Belgium 255 in
+  1976-1999 is the only off-window area-year in any input, and none of those
+  rows lands on a CBS row today. The check asks whether *any* reporting area
+  lands on the bucket that year rather than whether the year is inside the
+  bucket's own window, so the deliberate folds are not flagged: bucket 238 is
+  reported by area 62 (Ethiopia PDR) until 1992 and bucket 206 by areas 276/277
+  from 2012. The territory is not unrepresented either — the Belgium-Luxembourg
   balance sheet already reports 11.93 Mt of fish imports and 3.33 Mt of exports
   for those same 11 items and years, on every one of the 264 keys, so folding
   FishStat's Belgium rows into bucket 15 would recover 0 t under the current

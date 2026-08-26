@@ -3144,38 +3144,26 @@ build_processing_coefs <- function(
 # the vocabulary WHEP's CBS uses -- is a science decision (whep#884), not
 # something this step may take silently.
 .drop_off_window_trade <- function(trade) {
-  off <- .off_window_area_years(trade)
-  if (nrow(off) == 0L) {
+  keys <- .off_window_area_keys(trade)
+  if (nrow(keys) == 0L) {
     return(trade)
   }
-  keep <- trade[!.off_window_keys(trade), on = c("area_code", "year")]
+  keep <- trade[!keys[, .(area_code, year)], on = c("area_code", "year")]
   dropped <- nrow(trade) - nrow(keep)
   tonnes <- round(
     sum(trade$value, na.rm = TRUE) - sum(keep$value, na.rm = TRUE)
   )
-  areas <- paste(off$area_code, collapse = ", ")
+  areas <- sort(unique(keys$area_code))
+  area_list <- paste(areas, collapse = ", ")
   cli::cli_alert_info(
-    "Not recovering {dropped} trade row{?s} ({tonnes} t) in area{?s} {areas}: \\
-     the area vocabulary reports {cli::qty(nrow(off))}{?it/them} in other \\
-     years, so a created row would duplicate the territory (whep#884)."
+    "Not recovering {dropped} trade row{?s} ({tonnes} t) in \\
+     area{?s} {area_list}: no reporting area lands on \\
+     {cli::qty(length(areas))}{?it/them} in those years, so a created row \\
+     would duplicate the territory that does (whep#884)."
   )
   keep
 }
 
-# The `(area_code, year)` pairs to anti-join on, expanded from the summary
-# `.off_window_area_years()` returns.
-.off_window_keys <- function(trade) {
-  windows <- .area_reporting_windows()
-  observed <- unique(
-    data.table::as.data.table(trade)[,
-      .(area_code = as.integer(area_code), year = as.integer(year))
-    ]
-  )
-  merge(observed, windows, by = "area_code")[
-    year < window_start | year > window_end,
-    .(area_code, year)
-  ]
-}
 
 # One `(year, area_code, item_cbs_code, element)` per trade row, or the dcast
 # below silently sums two records into one created row. The bridge in
@@ -3246,7 +3234,7 @@ build_processing_coefs <- function(
   # Last line of defence, and the reason it is an abort: a recovered row for an
   # area-year the vocabulary does not report is a duplicated territory in the
   # published CBS, which no downstream check would flag as one (whep#884).
-  .abort_if_off_window_area_years(recovered, what = "CBS row")
+  .abort_if_off_window_areas(recovered, what = "CBS row")
   areas <- length(unique(recovered$area_code))
   items <- length(unique(recovered$item_cbs_code))
   cli::cli_alert_info(
