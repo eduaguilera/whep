@@ -38,6 +38,7 @@ a hardcoded grid.
 | `variables.R` | Variable registry (production, area, occupation, cycle_length, cropping_intensity, stability) + their WHEP-side extractors. |
 | `stability.R` | Time-series stability check (internal archetype): flags year-over-year discontinuities in WHEP's own series. No external data. |
 | `year_scoping.R` | Year-scoping equivalence check (internal archetype): a scoped `build_x(years = Y)` must equal the full-range build filtered to `Y`. See below. |
+| `memory_floor.R` | Resident-memory floor left by the production/CBS chain (internal archetype): splits what a fat process is holding into live objects, glibc blocks freed but not returned, and another allocator's pages. See below. |
 | `gt_year_scoping.json` | Recorded per-unit divergence budget for that check. **Committed** — a ratchet, meant to be tightened as each filed defect is fixed. |
 | `compare_variable.R` | Variable-aware comparator: extracts WHEP's value, joins ground truth on the registry grain, judges (ratio or bound mode). |
 | `validate_all.R` | One-shot sweep: runs every variable's check and prints a combined scorecard. |
@@ -52,6 +53,8 @@ a hardcoded grid.
 | `lpjml_globalflux.R` | Checks a finished **LPJmL run's** global fluxes for spinup equilibration and against published observational estimates. See below. |
 | `lpjml_pins.R` | Guards the four **LPJmL-derived input pins** against their recorded contract, physical invariants and magnitudes, so a pin swap cannot pass silently. See below. |
 | `gt_lpjml_pins.json` | Recorded magnitudes for those pins. **Committed** — it is the tripwire, and it is meant to fail when the pins change. |
+| `lpjml_forcing_pins.R` | Guards the six **climate-forcing pins** (the NetCDF grids that feed *into* LPJmL) against their grid contract and physical impossibility bounds. Its sibling above excludes them by design; #824 is why they still need a check. See below. |
+| `gt_lpjml_forcing_pins.json` | Recorded state of those pins, including the **known** negative-radiation count of #824. **Committed** — compared bidirectionally, so a count that falls is as loud as one that rises. |
 
 ## Year-scoping equivalence (`year_scoping.R`)
 
@@ -116,6 +119,86 @@ deliberately. 2010 is what ships recorded, and it is the *favourable* year, so
 build already exists — the sweep deliberately does not start a multi-minute
 build unasked. Force one with `VAL_SCOPING_LAYERS=production,wide_cbs`.
 
+## Resident-memory floor (`memory_floor.R`)
+
+A finished production/CBS build leaves the process far larger than its live
+data, and `gc()` does not bring it back — #777 measured 20.6 GB resident for
+1.42 GB live at 1901-2022 and read that as a leak. It is not one thing, and the
+three things it is have three different remedies:
+
+| component | what it is | how to see it | how to get rid of it |
+|---|---|---|---|
+| live | reachable objects: the build cache, the returned tables | `gc()`'s `used` column | `whep_clear_cache()`, or hold fewer tables |
+| glibc arena | blocks `free()`d but not returned to the OS | `mallinfo2()$fordblks` | `malloc_trim(0)` — 0.25 s here, no live object touched |
+| foreign allocator | pages held by an allocator that is not glibc; `arrow`'s default pool is **mimalloc** and keeps its segments after `bytes_allocated` returns to 0 | the pool's `max_memory` while `bytes_allocated` is 0 | `ARROW_DEFAULT_MEMORY_POOL=system` |
+
+Only the first is WHEP's. Reporting the three as one number is what makes an
+allocator floor look like a retention bug, which is the whole reason this
+script exists.
+
+`Rscript validation/memory_floor.R` re-derives the split at a configurable
+window (`VAL_MEM_YEAR_MIN`/`VAL_MEM_YEAR_MAX`, default `2005`-`2015`;
+`VAL_MEM_TRIM=0` skips the trim). It prints a `METRIC` line plus
+`CHECKPOINTS_JSON`, and builds the two-function `malloc_trim`/`mallinfo2` shim
+itself — with no compiler, or off glibc, those columns come back `NA` and the
+live-vs-resident pair still works.
+
+The script's own output at the default window, for reference:
+
+```
+03 after 3x gc(full)         resident   6.79 peak   9.05 live   1.46
+04 after malloc_trim(0)      resident   3.06 peak   9.05 live   1.46
+06 after malloc_trim(0)      resident   1.94 peak   9.05 live   0.33
+METRIC years=2005-2015 build_seconds=226 peak_gb=9.05 live_gb=1.46
+  floor_gb=5.34 reclaimable_gb=3.74 trim_seconds=0.250 arrow_max_gb=1.49
+  cache_gb=0.83 cache_slots=4 shim=TRUE
+```
+
+Three independent runs of the shipped configuration put `resident` after `gc`
+at 6.33, 6.79 and 7.10 GB and after the trim at 3.01, 3.06 and 3.08 GB, so the
+reclaimable share is not a one-off.
+
+The four rows below are one run each, at `2005-2015`,
+`get_primary_production()` then `get_wide_cbs()`:
+
+| configuration | build | peak | resident after `gc` | after `malloc_trim(0)` |
+|---|---|---|---|---|
+| as shipped | 241.9 s | 9.41 GB | 7.10 GB (live 1.45) | 3.01 GB |
+| `ARROW_DEFAULT_MEMORY_POOL=system` | 253.4 s | 8.79 GB | 7.98 GB | 2.50 GB |
+| `MALLOC_MMAP_THRESHOLD_=MALLOC_TRIM_THRESHOLD_=131072` | 356.3 s | 7.76 GB | 3.91 GB | 2.91 GB |
+| both | 301.2 s | 6.12 GB | 2.90 GB | 1.72 GB |
+
+The machine was running nine other agents throughout, so read the time column
+as indicative (the shipped configuration came in at 196.9, 226 and 241.9 s
+across three runs) and the memory columns as solid — those deltas are far
+larger than the spread.
+
+Three things follow that are easy to get backwards:
+
+- Pinning glibc's thresholds lowers the **peak**, because large blocks go to
+  `mmap` and come back on `free`. It pays for that in mmap churn.
+- A trim lowers the **resting** size for nothing, and does not touch the peak.
+- Putting arrow on the system allocator does not shrink the floor — it makes it
+  *reclaimable*, by moving the residue out of mimalloc and into the arena a
+  trim can return. Hence the higher `after gc` and lower `after trim`.
+
+Whether the floor is a floor under the **next** phase depends on the size class
+that phase allocates, and this is where #777 overreaches. Standing in a 4 GB
+phase 2 after the chain (resident 7.27 GB, 4.46 GB free inside the arena):
+256 x 16 MB blocks grow the process by only 1.22 GB, because 2.79 GB comes out
+of those free blocks; 8 x 0.5 GB blocks grow it by the full 3.50 GB, because
+glibc serves anything that large with a fresh `mmap` and cannot reuse the arena
+at all. So a tabular consumer mostly does not pay the floor, and a gridded one
+pays all of it. Trimming between the two phases held the overall peak at the
+chain's own 8.92 GB instead of letting phase 2 push it to 10.77 GB.
+
+The `MALLOC_*` variables have to be set in the shell that launches R: glibc
+reads them before `.Renviron` is ever parsed, so putting them there does
+nothing.
+
+`ARROW_DEFAULT_MEMORY_POOL` is the exception — arrow reads it when its C++
+library initialises, so `~/.Renviron` does work for that one.
+
 ## Validating an LPJmL run (different target)
 
 Everything above validates WHEP's *own* datasets against independent statistics.
@@ -171,6 +254,40 @@ Three tiers, and they mean different things when they fail:
 So a baseline failure is a prompt, not a verdict: find out what moved, then
 re-record with `--record` and say in the commit message why.
 
+### Climate-forcing pins — `lpjml_forcing_pins.R`
+
+```
+Rscript validation/lpjml_forcing_pins.R            # check
+Rscript validation/lpjml_forcing_pins.R --record   # rewrite the baseline
+```
+
+`lpjml_pins.R` above guards the four pins carrying LPJmL *output* and
+deliberately excludes the *forcing* pins, on the reasoning that forcing does not
+change with the model version. That is right for its magnitude tier and wrong
+for its invariant tier: forcing can still be **corrupt**. #824 is the proof —
+`lpjml-rsds-era5-2017-2023` ships 1,823,843 negative shortwave values because
+#536 fixed the script that builds it and nobody rebuilt the artifact. Nothing in
+the repo could see it: this script excluded the pin, and
+`test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+against its generating script.
+
+Six pins, three variables, and the bounds are impossibility limits: a
+downwelling radiative flux and a wind speed cannot be negative, and the ceilings
+(1500 W/m² for `rsds`, 1000 for `rlds`, 100 m/s for `wind`) sit far above the
+observed maxima of 468, 485 and 21.2. **The floor is inclusive**:
+`lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0 — night — so a
+positivity test would fail on a clean pin, and a clamp must land on 0 rather
+than nudge to epsilon.
+
+The recorded-state tier is what makes this usable while #824 is open: the
+violation is *recorded* rather than suppressed, so the script is green on the
+known-bad state, reports it as `KNOWN` on every run, and is loud about anything
+new. The comparison is **bidirectional** — a count that rises is a new
+corruption, and a count that falls means somebody rebuilt the pin, which is
+exactly the event #824 exists because nobody noticed. Both stop the check and
+demand a re-record, so the fix gets written down instead of quietly changing
+what consumers receive.
+
 **Still not covered:** how a pin change propagates into `build_carbon_balance()`
 output. That needs local raster paths which are unset in a fresh checkout —
 `WHEP_HWSD_DIR`, `WHEP_CRU_DIR`, `WHEP_LUH2_DIR`, `WHEP_POLITY_FRACTION_PATH`,
@@ -225,6 +342,7 @@ each tagged with an **archetype** that decides how it's checked:
 | cycle_length | parameter | crop | `mirca_season.csv` (months) | FAO calendars / GGCMI (not pinned yet) |
 | stability | internal | time series | WHEP series | none (self-consistency) |
 | year_scoping | internal | unit / quantity column | scoped build vs full-range build | none (arithmetic identity) |
+| memory_floor | internal | process | resident vs live after the production/CBS chain | none (allocator accounting) |
 
 A third comparator, **bound** (one-sided), is for ceilings like GAEZ *potential*:
 pass if WHEP's observed value stays at/below it. Occupation is split into two
@@ -241,7 +359,7 @@ across every variable). Per-variable: `validation/stability.R`,
 - **external** — WHEP value vs an authoritative figure (ratio within tolerance).
 - **parameter** — a coefficient/weight WHEP *uses* vs an authoritative coefficient.
 - **internal** — WHEP's own consistency, no external source (`stability.R`,
-  `year_scoping.R`).
+  `year_scoping.R`, `memory_floor.R`).
 
 All extractors run from packaged data + public pins (no LPJmL). The deterministic
 comparators are proven; ground truth is now mostly automated — GAEZ (the

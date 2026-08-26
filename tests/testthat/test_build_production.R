@@ -1606,3 +1606,38 @@ test_that(".split_stock_share keys on the code, so a shared label cannot dilute"
   # Whole numbers: a single-member group has share 1, never 1/n.
   expect_equal(result$value_comb, round(result$value_comb))
 })
+
+test_that(".assemble_production_raw renames the live-animal units", {
+  # The livestock branch turns the yield units into the head/LU counts the
+  # published table carries. Pinned because whep#850 rewrote the rename off
+  # the deprecated dplyr::case_match(): a wrong label here would put animal
+  # counts under a mass unit.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    # Duplicate key pair the summarise() averages: 4 and 6 -> 5.
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    4, 8, 2,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    6, 12, 2,
+    2010L, "Spain", 203L, "Eggs", "1062", "Hens", "1057", "t_head", "FAO",
+    3, 9, 3,
+    # A crop row the livestock filter must not pick up.
+    2010L, "Spain", 203L, "Wheat", "15", NA, NA, "t_ha", "FAO", 10, 20, 2
+  )
+
+  result <- suppressMessages(.assemble_production_raw(yield_all))
+  live <- result |>
+    dplyr::filter(unit %in% c("LU", "heads"))
+
+  expect_setequal(live$unit, c("LU", "heads"))
+  expect_equal(live$value[live$unit == "LU"], 5)
+  expect_equal(live$value[live$unit == "heads"], 3)
+  # Exactly one count row per (area, unit) pair present, and the rename is
+  # confined to that branch: the yield rows keep their own t_ units.
+  expect_equal(nrow(live), 2L)
+  expect_setequal(
+    result$unit,
+    c("ha", "tonnes", "t_ha", "t_LU", "t_head", "LU", "heads")
+  )
+})

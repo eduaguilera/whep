@@ -447,7 +447,17 @@ expand_polycell_years <- function(support, years) {
 }
 
 # `area_code` is a label, resolved from the periodized crosswalk rather than
-# invented. It stays NA where the crosswalk has no entry for the polity.
+# invented. It stays NA where the crosswalk has no entry for the polity, which
+# is the ORDINARY case and not a defect: the crosswalk's row space is reporting
+# areas, so 168 of the 716 rows this producer prepares carry NA here because no
+# FAOSTAT or FABIO area was ever reported under their territory.
+#
+# AN AGGREGATE POLITY NEVER REACHES THE OUTPUT THROUGH THIS. `area_code` is
+# computed for every input row, but `.pcs_prepare_polities()` then keeps only
+# the rows that are live AND not `polity_type == "aggregate"`, so the eight live
+# aggregates absent from the crosswalk (whep#875) emit no polycell to carry an
+# NA. "Dead and aggregate rows receive no data and no land" in
+# `test_polycell_support.R` is the pin.
 .pcs_area_code <- function(attrs) {
   if (rlang::has_name(attrs, "area_code")) {
     return(as.integer(attrs$area_code))
@@ -918,6 +928,8 @@ expand_polycell_years <- function(support, years) {
   ice_area_ha <- rep(0, nrow(polycells_sf))
   if (!is.null(ice_union)) {
     ice_area_ha <- .pcs_ice_areas(polycells_sf, ice_union)
+  } else if (nrow(polycells_sf) > 0L) {
+    .pcs_warn_layer_absent("ice", "ice_area_ha")
   }
   out <- tibble::as_tibble(sf::st_drop_geometry(polycells_sf))
   out$ice_area_ha <- ice_area_ha
@@ -1294,6 +1306,9 @@ expand_polycell_years <- function(support, years) {
 # `land_area_ha` can never go negative and the disagreement stays visible.
 .pcs_add_water <- function(pieces, water) {
   if (is.null(water) || nrow(water) == 0L || nrow(pieces) == 0L) {
+    if (nrow(pieces) > 0L) {
+      .pcs_warn_layer_absent("water", "inland_water_ha")
+    }
     pieces$inland_water_ha <- rep(0, nrow(pieces))
     pieces$water_excess_ha <- rep(0, nrow(pieces))
     return(pieces)
@@ -1368,6 +1383,38 @@ expand_polycell_years <- function(support, years) {
 # thousands; missing more than HALF the polycells means the grids do not share a
 # convention, which is a different kind of fact and the only one worth stopping
 # a build for.
+# An ABSENT optional layer is the failure #885 was: `water` and `ice` default to
+# NULL, the column is filled with zeros, and the producer's own identity
+# `polity_area_ha == land + inland_water + ice` still holds -- so every check
+# passes while every lake, river and glacier inside a polity is booked as land.
+# The deployed pin `20260818T105426Z-a0330` was built that way: all 482,605 rows
+# carry `inland_water_ha == 0` and `ice_area_ha == 0`, `land_area_ha` equals
+# `polity_area_ha` exactly in every one, and 2015 land came out 536.0 Mha
+# (+4.15%) above the pin built from all four layers. The regeneration that did it
+# reported "No published values move".
+#
+# Zero-filling stays legal -- a smoke build has no reason to clip a global water
+# raster -- but it can no longer be silent. `.pcs_warn_water_footprint()` below
+# already warns about the PARTIAL case in these exact terms ("their inland water
+# becomes land silently"); this is the total case, which returned before reaching
+# it.
+.pcs_warn_layer_absent <- function(arg, column) {
+  cli::cli_warn(
+    c(
+      "No {.arg {arg}} layer was supplied, so {.field {column}} is
+       identically zero.",
+      x = "Every lake, river and glacier inside a polity is therefore booked
+           as LAND, and the identity
+           {.code polity_area_ha == land_area_ha + inland_water_ha +
+           ice_area_ha} still holds, so no downstream check can see it.",
+      i = "This is correct for a smoke build and wrong for a published pin
+           (#885). Supply the layer, or state in the publishing commit that
+           {.field {column}} is zero by construction."
+    ),
+    class = paste0("whep_polycell_absent_", arg)
+  )
+}
+
 .pcs_warn_water_footprint <- function(pieces, water) {
   cells <- dplyr::distinct(pieces, .data$lon, .data$lat)
   matched <- nrow(dplyr::semi_join(
