@@ -198,8 +198,12 @@ test_that("every year-free territorial grouping is classified", {
   # interval with the previous one inside `(cell_id, polity_code)`, which is a
   # year-free territorial group by necessity -- the previous interval only
   # exists while the group holds the whole sequence.
+  #
+  # 73 since whep#787: `.reporting_periods()` reduces the crosswalk's rows for
+  # one (area_code, polity_code) period to that period's reporting span, so
+  # `year` is the axis being reduced over, not a missing key.
   full <- whep:::.territorial_grouping_baseline()
-  expect_lte(sum(full$n), 72L)
+  expect_lte(sum(full$n), 73L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

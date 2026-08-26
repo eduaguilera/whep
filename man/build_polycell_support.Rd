@@ -9,7 +9,8 @@ build_polycell_support(
   geometries = NULL,
   water = NULL,
   ice = NULL,
-  data = list()
+  data = list(),
+  aggregates = c("exclude", "overlap_layer")
 )
 }
 \arguments{
@@ -45,14 +46,22 @@ geometry describes (default 2015). The two crosswalks are read \strong{only} by
 the DA-12 footprint reconciliation: no crosswalk column is carried into
 the output, and no crosswalk row the intersection did not reproduce is
 appended to it.}
+
+\item{aggregates}{What to do with \code{polity_type == "aggregate"} rows, which
+cannot join the partition because an aggregate's polygon covers its
+members'. \code{"exclude"} (default) drops them, which is what every published
+polycell table holds. \code{"overlap_layer"} clips them too and emits them
+alongside the partition marked \code{support_role == "overlap"} -- see
+\emph{The aggregate overlap layer} below.}
 }
 \value{
 A \code{tibble} whose columns are a superset of \code{polycell_id}, \code{cell_id},
 \code{lon}, \code{lat}, \code{polity_code}, \code{area_code}, \code{start_year}, \code{end_year},
 \code{cell_area_ha}, \code{polity_area_ha}, \code{land_area_ha}, \code{inland_water_ha},
 \code{ice_area_ha}, \code{geometry_source}, \code{polygon_status}, \code{split_method},
-\code{coverage_status}, \code{area_engine} and \code{luh2_vintage}, plus \code{year} when
-\code{years} is supplied. \code{area_engine} is
+\code{coverage_status}, \code{support_role}, \code{area_engine} and \code{luh2_vintage}, plus
+\code{year} when \code{years} is supplied. \code{support_role} is \code{"partition"} on every
+row unless \code{aggregates = "overlap_layer"} was asked for. \code{area_engine} is
 \code{"s2"} except on the pieces the spherical engine cannot read back, which
 are measured with \code{terra::expanse()} rather than dropped. Diagnostics ride
 as attributes:
@@ -177,6 +186,61 @@ Polity geometry is likewise constant within an interval, and the GLWD file
 carries a single time step. That is why the default grain is
 interval-keyed: no area column varies by year, so a per-year grain would
 repeat identical rows about 173 times.
+}
+
+\section{The aggregate overlap layer}{
+
+An \strong{aggregate} polity -- \code{BLX-1850-1999} Belgium-Luxembourg,
+\code{F249-1918-1990} Yemen, the six residual \code{"Other"} regions -- is a reporting
+bucket's territory, and its polygon covers its members'. It therefore cannot
+be a row of the partition: two rows claiming the same ground would hand the
+cell's land out twice, which is exactly what the rasterised cover this table
+replaced did, halving Belgium's 1961 cropland (whep#800).
+
+Dropping it outright is not free either. FAOSTAT keys its pre-2000 data on
+those buckets: Belgium (255) and Luxembourg (256) carry no data before 2000,
+bucket 15 does, and bucket 15's only territory is \code{BLX-1850-1999}. Measured
+against \code{polity_area_crosswalk} over 1850-1961, \strong{ten} of the 460 polities
+the pre-1962 resolver reaches are aggregates and \strong{ten} reporting buckets
+have no other territory in at least one year: 15, 151, 237 (1954-1961 only),
+249 and 901-906.
+
+So both granularities are kept, and they are kept apart. With
+\code{aggregates = "overlap_layer"}:
+\itemize{
+\item every row carries \code{support_role}, \code{"partition"} or \code{"overlap"};
+\item \code{"partition"} rows are exactly what \code{"exclude"} emits -- same polities,
+same territory, same land, water and ice, split into more intervals only
+where an aggregate's validity adds a breakpoint to a cell;
+\item the cell's inland water is apportioned over the \strong{partition's} territory
+in that cell, so an aggregate receives what its members receive and the
+members' share is not diluted by the layer covering them;
+\item every diagnostic that describes the partition -- \code{"overlap"},
+\code{"unassigned"}, \code{"water_unmatched"}, \code{"footprints"} -- is measured on the
+partition alone, so admitting the layer cannot make the polygons look like
+they over-claim the validation layer.
+}
+
+The consumer contract is the other half: \code{\link[=read_polycell_support]{read_polycell_support()}} returns
+the \strong{partition} unless asked otherwise, so no existing consumer can pick
+up an overlapping row by accident, and a consumer that wants a bucket's own
+territory asks for \code{role = "overlap"} (or \code{"all"}) and states that it is
+summing a layer that double-counts by construction. Never aggregate across
+the two roles.
+
+\strong{The layer is not a partition of itself either}, and that is not a defect
+to be fixed by a tolerance: \code{ROW-1850-2025} Rest of World contains the six
+regional residuals it is the sum of. Built on the 19 live aggregates of
+\code{whep::polities} (779 rows, ingest 2026-08-13) it is 12,644 polycells, and
+at 2015 it puts more territory in a cell than the cell holds in 2,751 cells
+shared by \code{ROW} and \code{REUR}, 92 by \code{ROW} and \code{RAFR}, 8 by \code{ROW} and \code{ROCE}
+and 7 by \code{ROW} and \code{RLAM} -- plus 2 cells where \code{CODRU-1922-1960} and
+\code{EGYSUD-1934-1956} overlap in 1950, which is a polygon disagreement rather
+than nesting. So a consumer takes \strong{one polity's} polycells out of the
+layer -- the one its bucket resolves to that year -- and never sums the
+layer as a whole. That is also why the \code{"overlap"} diagnostic keeps
+measuring the partition only: an over-full cell means something there, and
+in this layer it means nothing.
 }
 
 \examples{
