@@ -77,6 +77,21 @@
   +0.003% but individual bucket-years by up to +82% (Tunisia 1850, 1.366 →
   2.486 Mha), so regenerating the pin is still outstanding.
 
+* **New: row-level evidence, as data (#372).** `row_evidence()` records what
+  each row of a result rests on — the producing source's immutable
+  identifier, its version, a UTC timestamp and the producer's documented
+  per-row evidence fields — as a keyed sidecar table in the
+  `"whep-row-evidence/1"` format, whose contract is returned by
+  `row_evidence_schema()` and can be proved with `assert_table_schema()`.
+  It is a table rather than an attribute because `dplyr` joins, filters and
+  `summarise()` drop attributes silently, so attribute-borne evidence cannot
+  survive the composition it exists to document. `evidence_for()` re-aligns
+  evidence onto a table after a join and warns about rows that carry none,
+  `combine_row_evidence()` merges producers deterministically without
+  letting one overwrite another, and `evidence_conflicts()` reports where
+  they disagree. This is the row-level counterpart of the dataset-level
+  `record_provenance()`; no existing output or published value changes.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
