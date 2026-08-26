@@ -928,3 +928,149 @@ row_promotion_status <- function(crosswalk = NULL) {
       )
     )
 }
+
+# -- Area-vintage mismatch (whep#884) ------------------------------------------
+
+# The years WHEP's own area vocabulary reports each `area_code`, taken from the
+# upstream FAOSTAT map the crosswalk carries. One row per area, widest window
+# across that area's polity periods, so an area whose polity changes mid-series
+# keeps one window rather than one per period.
+.area_reporting_windows <- function() {
+  empty <- data.table::data.table(
+    area_code = integer(0),
+    window_start = integer(0),
+    window_end = integer(0)
+  )
+  crosswalk <- .polity_crosswalk(include_unmapped = FALSE)
+  needed <- c("area_code", "map_year_start", "map_year_end")
+  if (!all(needed %in% names(crosswalk))) {
+    return(empty)
+  }
+  crosswalk[
+    !is.na(area_code) & !is.na(map_year_start) & !is.na(map_year_end),
+    .(
+      window_start = min(map_year_start),
+      window_end = max(map_year_end)
+    ),
+    by = .(area_code = as.integer(area_code))
+  ]
+}
+
+# `(area_code, year)` pairs a source reports OUTSIDE the years the area
+# vocabulary reports that area -- a vintage mismatch between the source's area
+# codes and WHEP's.
+#
+# The point of checking the REPORTED code rather than the bucket is that a fold
+# is not a mismatch: FAOSTAT reports areas 276/277 from 2012 and WHEP sums them
+# into bucket 206, whose own window ends 2011, so the bucket looks off-window in
+# every folded year while nothing is wrong -- `folded_reporting_areas()` is the
+# diagnostic for that. What this catches is the opposite shape: FishStat reports
+# Belgium as area 255 from 1976, while every FAOSTAT product reports that
+# territory as Belgium-Luxembourg (15) until 1999 and only splits 255/256 at
+# 2000. Those 459 rows (6,948.4 kt) can never join a CBS keyed 15, and creating
+# the 255 row instead would put two overlapping reporting areas on one
+# territory-year (whep#884).
+#
+# Measured over every CBS-relevant pin, the FAOSTAT products are clean and
+# FishStat carries exactly two off-window areas: 255 in 1976-1999, and 238
+# (Ethiopia, split from Eritrea at 1993) in 1992 with 2 rows and 0 t.
+.off_window_area_years <- function(dt) {
+  empty <- data.table::data.table(
+    area_code = integer(0),
+    window_start = integer(0),
+    window_end = integer(0),
+    year_min = integer(0),
+    year_max = integer(0),
+    years = integer(0),
+    rows = integer(0)
+  )
+  if (!all(c("area_code", "year") %in% names(dt)) || nrow(dt) == 0L) {
+    return(empty)
+  }
+  observed <- data.table::as.data.table(dt)[
+    !is.na(area_code) & !is.na(year),
+    .(rows = .N),
+    by = .(area_code = as.integer(area_code), year = as.integer(year))
+  ]
+  windows <- .area_reporting_windows()
+  if (nrow(windows) == 0L) {
+    return(empty)
+  }
+  off <- merge(observed, windows, by = "area_code")
+  off <- off[year < window_start | year > window_end]
+  if (nrow(off) == 0L) {
+    return(empty)
+  }
+  off[,
+    .(
+      year_min = min(year),
+      year_max = max(year),
+      years = data.table::uniqueN(year),
+      rows = sum(rows)
+    ),
+    by = .(area_code, window_start, window_end)
+  ][order(-rows)]
+}
+
+# Warn rather than inform, for the same reason `.warn_folded_areas()` does: the
+# rows are silently unjoinable downstream, and the mismatch is reportable at the
+# point the codes are read.
+.warn_off_window_area_years <- function(dt, source_label = NULL) {
+  if (!isTRUE(getOption("whep.warn_area_vintage", TRUE))) {
+    return(invisible(NULL))
+  }
+  off <- .off_window_area_years(dt)
+  if (nrow(off) == 0L) {
+    return(invisible(off))
+  }
+  where <- if (is.null(source_label)) "this source" else source_label
+  # One bullet per area, not a cli-truncated vector: naming them all IS the fix.
+  bullets <- stats::setNames(
+    sprintf(
+      "Area %d reports %d-%d, but %s has %d-%d (%d row%s)",
+      off$area_code,
+      off$window_start,
+      off$window_end,
+      where,
+      off$year_min,
+      off$year_max,
+      off$rows,
+      ifelse(off$rows == 1L, "", "s")
+    ),
+    rep("*", nrow(off))
+  )
+  n_off <- nrow(off)
+  cli::cli_warn(c(
+    "!" = "{n_off} reporting area{?s} in {where} carr{?ies/y} rows outside the
+           years WHEP's area vocabulary reports {cli::qty(n_off)}{?it/them}.",
+    bullets,
+    "i" = "The territory reports under a different {.field area_code} in those
+           years, so these rows cannot join a CBS keyed on it, and creating
+           that key would duplicate the territory (whep#884).",
+    "i" = "Silence with {.code options(whep.warn_area_vintage = FALSE)}."
+  ))
+  invisible(off)
+}
+
+# A row must never be CREATED for an area-year the vocabulary does not report:
+# that IS the duplicated territory, not a warning about one. Callers that create
+# CBS rows from a trade record drop these first, so reaching here means a
+# restriction was lifted without the filter (whep#884).
+.abort_if_off_window_area_years <- function(dt, what = "row") {
+  off <- .off_window_area_years(dt)
+  if (nrow(off) == 0L) {
+    return(invisible(dt))
+  }
+  areas <- paste(off$area_code, collapse = ", ")
+  n_rows <- sum(off$rows)
+  cli::cli_abort(
+    c(
+      "{n_rows} {what}{?s} would be created for {nrow(off)} area-year
+       {cli::qty(nrow(off))}bucket{?s} the area vocabulary does not report.",
+      "x" = "Area{?s} {areas}.",
+      "i" = "The territory already reports under another {.field area_code} in
+             those years, so the created rows would duplicate it (whep#884)."
+    ),
+    class = "whep_error_off_window_area_year"
+  )
+}

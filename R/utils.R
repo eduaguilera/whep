@@ -2087,6 +2087,13 @@ utils::globalVariables(
     "source_version",
     "recorded_at",
     "field",
-    "n_values"
+    "n_values",
+    # polity_folds.R / build_cbs.R (#884) — area-vintage columns of the
+    # reporting-window check that keeps a wrong-vintage area code from
+    # becoming a duplicated territory
+    "map_year_start",
+    "map_year_end",
+    "window_start",
+    "window_end"
   )
 )
