@@ -22,7 +22,7 @@
   polycells holding 285.42 Mha of land are re-keyed — 206 splits into 276
   (186.25 Mha) and 277 (62.84), and 999 releases 212 (18.57), 69 (8.39), 61
   (2.70), 154 (2.50), 153 (1.88), 209 (1.70) and 299 (0.61) — and the grid goes
-  from 195 to 204 distinct codes at 2015. Total land is unchanged to the
+  from 195 to 203 distinct codes at 2015 (201 to 210 over every interval). Total land is unchanged to the
   hectare and the per-cell land shares still sum to one, because the re-key
   only relabels and un-folds. A polity with no reporting region of its own
   (Greenland, Western Sahara, most dependencies) and a residual aggregate that
