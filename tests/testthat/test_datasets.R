@@ -868,6 +868,29 @@ test_that("gleam_animal_weights is a clean tibble", {
   )
 })
 
+test_that("gleam_animal_weights regions resolve as whep#881 measured", {
+  # The values in gleam_animal_weights are unsourced placeholders (see its
+  # @source): GLEAM's own live weights, in Supplement S1 Tables 2.4-2.16 of the
+  # 2.0 Model description, differ by -27% to +33%. Until they are re-ingested,
+  # this locks WHICH regions the placeholders reach, so a rename cannot
+  # silently widen or narrow their footprint without moving Tier 2 gross
+  # energy. `.gleam_region_of()` emits the labels of
+  # `gleam_geographic_hierarchy`, so a region absent from that vocabulary is a
+  # dead row whose territories fall back to the Global weights.
+  weight_regions <- setdiff(unique(whep::gleam_animal_weights$region), "Global")
+  gleam_regions <- unique(whep::gleam_geographic_hierarchy$gleam_region)
+
+  testthat::expect_setequal(
+    intersect(weight_regions, gleam_regions),
+    c("Western Europe", "North America", "Sub-Saharan Africa", "South Asia")
+  )
+  # Known dead row: GLEAM 3.0 calls this region "Central & South America".
+  testthat::expect_setequal(
+    setdiff(weight_regions, gleam_regions),
+    "Latin America"
+  )
+})
+
 test_that("gleam_milk_production is a clean tibble", {
   obj <- whep::gleam_milk_production
   assert_clean_tibble(

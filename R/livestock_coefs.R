@@ -391,13 +391,25 @@
 #'   \item{description}{Cohort description.}
 #' }
 #'
-#' @source Not traced to a GLEAM document. These values are hardcoded in
-#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-#'   that workbook contains them. The attribution to MacLeod et al. (2018)
-#'   they carried was wrong: that is the *Animal* position paper on GLEAM
-#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
-#'   Treat the values as unverified placeholders; tracked in whep#881.
+#' @source Partly traced (whep#881). The cohort vocabulary corresponds to
+#'   FAO. 2022. *Global Livestock Environmental Assessment Model, Model
+#'   Description, Version 3.0*. Rome, FAO, Table 2.1 "Summary of cohorts in
+#'   GLEAM", p. 10 (document code `cd8425en`, served from `www.fao.org/3/` and
+#'   `openknowledge.fao.org`), identical to Table 2.1
+#'   p. 9 of the Version 2.0 Revision 5 description
+#'   (<https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Model_description.pdf>).
+#'   The shipped table is **not** a transcription of it: GLEAM names cohorts
+#'   AF/RF/AM/RM/MF/MM (plus MFr/MMr/MFf/MMf for feedlots) within one herd,
+#'   whereas this table renames them, crosses them with a
+#'   Dairy/Beef/Meat/Other production system GLEAM's Table 2.1 does not have,
+#'   and supplies its own `description` strings. GLEAM publishes no table of
+#'   cohort shares; it derives herd structure from the replacement, fertility,
+#'   mortality and age-at-first-calving rates in Supplement S1 of the
+#'   Version 2.0 description. `calculate_cohorts_systems()` instead splits a
+#'   herd equally, `1 / n` per row of this table, so the row COUNT per
+#'   (species, production system) is a result-affecting, unsourced assumption:
+#'   Cattle Dairy 6 cohorts (16.7% each), Cattle Beef 5 (20% each). Treat the
+#'   layout and the implied equal split as unverified.
 #'
 #' @examples
 #' gleam_livestock_categories
@@ -411,13 +423,18 @@
 #' @format A tibble with `feed_category`, `feed_type`,
 #'   `description`.
 #'
-#' @source Not traced to a GLEAM document. These values are hardcoded in
-#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-#'   that workbook contains them. The attribution to MacLeod et al. (2018)
-#'   they carried was wrong: that is the *Animal* position paper on GLEAM
-#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
-#'   Treat the values as unverified placeholders; tracked in whep#881.
+#' @source Not traced to any GLEAM document (whep#881). Searched and ruled
+#'   out: the GLEAM 3.0 Supplement S1 workbook (no sheet holds it); FAO. 2022.
+#'   *Model Description, Version 3.0*, Table 3.1/3.3 (ruminants, 27 feed
+#'   materials grouped as Roughages / Cereals / By-products / Concentrates,
+#'   pp. 32-37) and Table 3.5 (monogastrics, 42 materials grouped as Swill and
+#'   scavenging / Locally-produced / Non-local, p. 45); and Tables 3.2, 3.3
+#'   and 3.14 of the Version 2.0 Revision 5 description. None of those
+#'   groupings is the six-way Grass / Crop residues / Concentrates / Fodder
+#'   crops / Processed feeds / Animal products split shipped here, and
+#'   "Animal products - Milk, fish meal" has no counterpart in GLEAM's
+#'   ruminant material list at all. Treat the classification as a WHEP-local
+#'   convenience taxonomy, not a GLEAM table. No function in `R/` reads it.
 #'
 #' @examples
 #' gleam_feed_categories
@@ -446,13 +463,24 @@
 #' @format A tibble with `region`, `species`, `system`, `mms`,
 #'   `share_percent`.
 #'
-#' @source Not traced to a GLEAM document. These values are hardcoded in
-#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-#'   that workbook contains them. The attribution to MacLeod et al. (2018)
-#'   they carried was wrong: that is the *Animal* position paper on GLEAM
-#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
-#'   Treat the values as unverified placeholders; tracked in whep#881.
+#' @source The shipped values are unsourced placeholders, but the real GLEAM
+#'   table has been located (whep#881): FAO. 2018. *Global Livestock
+#'   Environmental Assessment Model, Model description, Version 2.0,
+#'   Revision 5*. Rome, FAO, Supplement S1, Tables 4.2-4.11 (regional MMS
+#'   averages for dairy cattle, beef cattle, feedlot cattle, dairy and
+#'   non-dairy buffalo, small ruminants, backyard/intermediate/industrial pigs
+#'   and chickens), workbook
+#'   <https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx>
+#'   (md5 `72fd2ea477dfe8b30cd3657b2baa4af1`, retrieved 2026-08-26). The
+#'   Version 3.0 description and its Supplement S1 publish MMS *definitions*
+#'   (Tables 4.1-4.5) but no regional shares. The shipped values disagree
+#'   materially with Table 4.2/4.3: Western Europe dairy cattle is
+#'   liquid/slurry 42%, solid storage 30%, pasture 27%, daily spread 1% in
+#'   GLEAM against 60/30/10 here, and the Sub-Saharan Africa (90/10), Latin
+#'   America (95/5) and South Asia (60/30/10) rows omit the drylot share
+#'   GLEAM gives as 35%, 42% and 54% respectively. Not re-ingested here
+#'   because no function in `R/` reads this object -- the manure chain uses
+#'   `regional_mms_distribution`, which is separately unsourced.
 #'
 #' @examples
 #' gleam_mms_shares
@@ -466,13 +494,36 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `cohort`, `weight_kg`.
 #'
-#' @source Not traced to a GLEAM document. These values are hardcoded in
-#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-#'   that workbook contains them. The attribution to MacLeod et al. (2018)
-#'   they carried was wrong: that is the *Animal* position paper on GLEAM
-#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
-#'   Treat the values as unverified placeholders; tracked in whep#881.
+#' @source The shipped values are unsourced placeholders, but the real GLEAM
+#'   table has been located (whep#881): FAO. 2018. *Global Livestock
+#'   Environmental Assessment Model, Model description, Version 2.0,
+#'   Revision 5*. Rome, FAO, Supplement S1, "Live weights (kg)" block of
+#'   Tables 2.4 (dairy cattle), 2.5 (beef cattle), 2.6 (feedlot cattle),
+#'   2.7 (buffaloes), 2.10 (sheep), 2.11 (goats) and 2.14-2.16 (backyard,
+#'   intermediate and industrial pigs), workbook
+#'   <https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx>
+#'   (md5 `72fd2ea477dfe8b30cd3657b2baa4af1`, retrieved 2026-08-26). The
+#'   Version 3.0 description drops those regional herd-parameter tables, which
+#'   is why the committed GLEAM 3.0 Supplement S1 workbook has no sheet for
+#'   them.
+#'
+#'   The shipped values do **not** match that source and have not been
+#'   replaced here, because doing so is a science decision that moves
+#'   published numbers: `.join_weights()` in `R/livestock_energy.R` uses this
+#'   table as the Tier 2 live weight, and gross energy scales as
+#'   `weight^0.75` for maintenance and `weight` for activity. Measured per
+#'   cohort against the GLEAM values (system-averaged the way
+#'   `.join_weights()` averages them), gross energy -- hence Tier 2 enteric
+#'   CH4 -- would move by: Global cattle adult female 400 -> 457 kg, +6.9%;
+#'   Global cattle fattening 300 -> 399 kg, +14.2%; Western Europe cattle
+#'   adult male 1000 -> 732 kg, -16.4%; North America cattle adult female
+#'   615 -> 700 kg, +7.3%; Global sheep adult female 45 -> 53 kg, +7.2%.
+#'   GLEAM also publishes no live weight for the Replacement cohorts (its
+#'   herd module derives them), so a re-ingest cannot remove every assumption.
+#'   Separately, the `"Latin America"` rows are unreachable: `.gleam_region_of()`
+#'   emits GLEAM 3.0 region labels, in which that region is
+#'   `"Central & South America"`, so those rows silently take the Global
+#'   weights.
 #'
 #' @examples
 #' gleam_animal_weights
@@ -486,13 +537,20 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `milk_kg_head_yr`, `lactation_days`.
 #'
-#' @source Not traced to a GLEAM document. These values are hardcoded in
-#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-#'   that workbook contains them. The attribution to MacLeod et al. (2018)
-#'   they carried was wrong: that is the *Animal* position paper on GLEAM
-#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
-#'   Treat the values as unverified placeholders; tracked in whep#881.
+#' @source Not traced to any GLEAM document, and GLEAM appears to publish no
+#'   such table (whep#881). Searched and ruled out: the GLEAM 3.0 Supplement
+#'   S1 workbook; the herd-parameter tables of Supplement S1 of the
+#'   Version 2.0 Revision 5 description (Tables 2.4-2.21 give live weights and
+#'   replacement, fertility, mortality and age-at-first-calving rates, but no
+#'   milk yield and no lactation length); and both model descriptions, in
+#'   which `MILKyield` (Equation 9.1) and the lactation period are
+#'   country-level inputs taken from FAOSTAT and national data rather than
+#'   defaults -- Table 1.2 of the Version 2.0 description lists them under
+#'   national/sub-national resolution. GLEAM-i likewise asks the user for
+#'   "annual average milk yield per milking cow". Treat the values as
+#'   unverified placeholders. No function in `R/` reads this object: the Tier
+#'   2 lactation energy term takes `milk_yield_kg_day` from the caller, and
+#'   `.build_demand_energy()` derives it from the FAOSTAT `t_head` rows.
 #'
 #' @examples
 #' gleam_milk_production
@@ -977,7 +1035,17 @@
 #' @format A tibble with `region`, `species`, `mms_type`,
 #'   `fraction`.
 #'
-#' @source GLEAM 3.0 / FAO statistics.
+#' @source Unverified. The values are a hardcoded `tribble()` in
+#'   `generate_ipcc_tier2_params()` in `data-raw/livestock_coefficients.R`,
+#'   annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
+#'   to the nearest 5 percentage points and match no table of the committed
+#'   GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
+#'   `gleam_mms_shares` this object **is** result-affecting: it is the MMS
+#'   split `.resolve_mms_shares()` hands to the Tier 2 manure CH4 (MCF
+#'   weighting) and direct N2O (EF3) engines. The published GLEAM source is
+#'   Supplement S1, Tables 4.2-4.11 of FAO. 2018. *GLEAM Model description,
+#'   Version 2.0, Revision 5* (see `gleam_mms_shares`); re-ingesting it moves
+#'   manure numbers and is tracked separately. Treat as unverified until then.
 #'
 #' @examples
 #' regional_mms_distribution

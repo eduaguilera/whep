@@ -11,8 +11,24 @@
 #   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx
 #   FAO issues no DOI for it. It is NOT MacLeod et al. (2018), and the DOI
 #   10.1088/1748-9326/aad4d8 previously cited here is unregistered (whep#607).
-#   The tables built by generate_gleam_pdf_tables() below are hardcoded and
-#   traced to no GLEAM document at all -- see whep#881.
+#   The tables built by generate_gleam_pdf_tables() below are hardcoded, not
+#   read from that workbook. whep#881 traced them: see the @source blocks in
+#   R/livestock_coefs.R for the per-table verdict, and the note below.
+# - GLEAM 2.0: FAO (2018) GLEAM Model description, Version 2.0, Revision 5,
+#   July 2018, data reference year 2010.
+#   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Model_description.pdf
+#   Its own supplementary-tables workbook,
+#   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx
+#   (md5 72fd2ea477dfe8b30cd3657b2baa4af1, retrieved 2026-08-26), is the only
+#   GLEAM publication that carries REGIONAL HERD PARAMETERS and REGIONAL MMS
+#   SHARES: Tables 2.4-2.16 (live weights, replacement/fertility/mortality
+#   rates, age at first calving) and Tables 4.2-4.11 (MMS shares). Version 3.0
+#   dropped both table families, which is why the committed 3.0 workbook has
+#   no sheet for them. Nothing here reads the 2.0 workbook yet; re-ingesting
+#   it changes published numbers (whep#881) and is a maintainer decision.
+# - GLEAM 3.0 model description PDF (for the in-document tables, as opposed to
+#   the workbook): https://www.fao.org/3/cd8425en/cd8425en.pdf
+#   (md5 5c8d20e480174cad65ed9e1b80fc4d71, retrieved 2026-08-26).
 # - IPCC 2019: 2019 Refinement to the 2006 IPCC Guidelines
 #   Volume 4, Chapter 10: Emissions from Livestock and Manure Management
 #   https://www.ipcc-nggip.iges.or.jp/public/2019rf/vol4.html
@@ -1034,6 +1050,21 @@ add_present_day_polity <- function(hierarchy) {
 
 # GLEAM PDF Tables ----
 
+# Despite the section name none of these is read from a GLEAM PDF. whep#881
+# traced each one; the verdict and the numeric consequence live in the @source
+# blocks in R/livestock_coefs.R. In short:
+# - gleam_animal_weights: GLEAM 2.0 Supplement S1, live-weight block of
+#   Tables 2.4-2.16, publishes the real values and they differ. NOT replaced
+#   here: it is the Tier 2 live weight, so a re-ingest moves gross energy and
+#   enteric CH4 by -16% to +14% depending on cohort. Maintainer decision.
+# - gleam_mms_shares: GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real
+#   values and they differ. No consumer in R/, so not replaced.
+# - gleam_livestock_categories: the cohort vocabulary matches GLEAM Table 2.1,
+#   the Dairy/Beef layout and the equal 1/n cohort split it induces do not.
+# - gleam_milk_production, gleam_feed_categories: GLEAM publishes no such
+#   table. Still unverified placeholders; no consumer in R/.
+# Do not "fix" a value here without a citation to the table it comes from.
+
 generate_gleam_pdf_tables <- function() {
   list(
     gleam_livestock_categories = tibble::tribble(
@@ -1745,7 +1776,13 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Regional MMS Distribution.
-    # Source: GLEAM 3.0 / FAO statistics (simplified).
+    # UNVERIFIED (whep#881). Annotated "GLEAM 3.0 / FAO statistics
+    # (simplified)" but traceable to no table: the GLEAM 3.0 workbook carries
+    # no MMS shares, and these are round to 5 percentage points. Unlike
+    # gleam_mms_shares this table IS live -- .resolve_mms_shares() feeds it to
+    # the Tier 2 manure CH4 and direct N2O engines. GLEAM 2.0 Supplement S1
+    # Tables 4.2-4.11 publish the real regional shares; re-ingesting them
+    # moves manure numbers, so it is a maintainer decision, not a cleanup.
     regional_mms_distribution = tibble::tribble(
       ~region, ~species, ~mms_type, ~fraction,
       "North America", "Cattle",
