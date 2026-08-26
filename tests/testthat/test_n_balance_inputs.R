@@ -464,17 +464,28 @@ testthat::test_that("the manure engine resolution is never overwritten", {
   )
 })
 
-testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
+testthat::test_that("the urban area_code is never a silent NA", {
+  # The property this has always been about: no urban row leaves here with an
+  # NA area_code. It used to be enforced by bridging an ISO3 through
+  # .manure_territory_to_area_code() (#463), which resolved "ESP" to 203 with
+  # a deprecation warning. build_urban_n() now refuses a non-numeric
+  # area_code outright (#597): unlike the manure path it manufactures its own
+  # territory key from a column its docs call `area_code`, and an ISO3 would
+  # resolve to a polity_area_code aggregation bucket that is not every
+  # territory's own code. Same property, enforced at the input boundary.
   data <- .nbi_full_data()
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
+  testthat::expect_error(
+    whep:::.n_inputs_urban(data),
+    class = "whep_urban_area_code_unresolved"
+  )
 
-  # The iso3c form is a deprecated bridge (#463), so resolving it warns; what
-  # this test is about is that it still resolves rather than becoming NA.
-  testthat::expect_warning(out <- whep:::.n_inputs_urban(data), "deprecated")
-
-  testthat::expect_equal(out$area_code, 203L)
+  # The numeric vocabulary the driver actually supplies passes through with no
+  # NA, and no warning.
+  out <- testthat::expect_no_warning(whep:::.n_inputs_urban(.nbi_full_data()))
   testthat::expect_false(anyNA(out$area_code))
+  testthat::expect_true(is.integer(out$area_code))
 })
 
 testthat::test_that("polity resolution is the cell-summed aggregate of grid", {

@@ -1,5 +1,38 @@
 # whep (development version)
 
+* **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
+  it is handed, and checks it at the input boundary instead of after transport
+  (#597).** The function builds the transport allocator's `territory` key
+  itself, as `as.character(area_code)` of both `data$cell_polity` and
+  `data$cropland_ha`, and used to resolve that key back to a numeric
+  `area_code` only in `.urban_finalise()` — after
+  `allocate_manure_transport()` had already partitioned on the unresolved
+  string, and through the manure chain's deprecated ISO3 bridge. Two things
+  were wrong, and neither is visible to a schema census or even to an
+  `area_code` census, because the output columns and the output codes are
+  identical either way and only the cell the nitrogen lands on moves. First,
+  the check ran after the partition it keys: two frames written in different
+  vocabularies for the same polity (`"ESP"` in one, `203` in the other)
+  produced `territory` keys that never met, so a source cell found no
+  reachable sink and its whole load stayed as residual on its own cell even
+  when that cell had no cropland at all — then was relabelled `203` anyway,
+  with no warning of any kind, because the ISO3 never reached a resolver.
+  Second, an ISO3 was accepted at all: it resolves to a `polity_area_code`
+  aggregation bucket that is not every territory's own code, so `"SSD"` became
+  206, Sudan (former). Both frames' `area_code` must now be the numeric code,
+  whole-numbered, as `build_cell_polity()` emits it; an ISO3, an area name or
+  a fractional value aborts with class `whep_urban_area_code_unresolved`,
+  naming the frame that carries it, before any computation runs — rather than
+  surfacing as a `dplyr` mutate error about a `territory` field no caller ever
+  supplied. Callers keyed on ISO3 should map to the code first, with
+  `add_area_code()` or `regions_full`. **No published value changes**: the
+  `spatialize-cell-polity-fraction` pin `build_cell_polity()` reads is
+  integer-keyed, and the boundary check is the exact identity on all 178 grid
+  area codes it carries (172 under `area_key = "polity_area"`) and on every
+  non-`NA` `regions_full$code` — asserted over the whole vocabulary in the
+  tests. Nothing in the package, its scripts or its tests passed a
+  non-numeric `area_code` to this function.
+
 * **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have an
   impossibility check, and it records #824 rather than suppressing it.**
   `validation/lpjml_pins.R` guards the four pins carrying LPJmL *output* and
