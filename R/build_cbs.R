@@ -3307,10 +3307,20 @@ build_processing_coefs <- function(
     return(filled)
   }
   dplyr::if_else(
-    !is.na(filled) & filled == 0 & !is.na(trade_value) & trade_value > 0,
+    .is_trade_zero_conflict(filled, trade_value),
     trade_value,
     filled
   )
+}
+
+# A CBS value of exactly zero facing a positive trade record. `NA` on either
+# side is not a conflict: a missing CBS value is what `coalesce()` fills, and a
+# missing record has nothing to offer.
+.is_trade_zero_conflict <- function(cbs_value, trade_value) {
+  !is.na(cbs_value) &
+    cbs_value == 0 &
+    !is.na(trade_value) &
+    trade_value > 0
 }
 
 # Say out loud how much trade the kept zeros discard, whichever branch is
@@ -3325,8 +3335,8 @@ build_processing_coefs <- function(
   pairs <- conflicts$pairs
   tonnes <- round(conflicts$tonnes)
   cli::cli_alert_info(
-    "{pairs} CBS trade zero{cli::qty(pairs)}{?s} outrank a positive trade \\
-     record ({tonnes} tonnes)."
+    "CBS trade zeros against a positive trade record: \\
+     {pairs} key{?s}, {tonnes} tonnes."
   )
   invisible(wide)
 }
@@ -3334,14 +3344,8 @@ build_processing_coefs <- function(
 # One count over both elements. `NA` is not a conflict -- that is the case
 # `coalesce()` already fills.
 .count_trade_zero_conflicts <- function(wide) {
-  clash <- function(cbs_value, trade_value) {
-    !is.na(cbs_value) &
-      cbs_value == 0 &
-      !is.na(trade_value) &
-      trade_value > 0
-  }
-  hit_import <- clash(wide$import, wide$fao_trade_import)
-  hit_export <- clash(wide$export, wide$fao_trade_export)
+  hit_import <- .is_trade_zero_conflict(wide$import, wide$fao_trade_import)
+  hit_export <- .is_trade_zero_conflict(wide$export, wide$fao_trade_export)
   list(
     pairs = sum(hit_import) + sum(hit_export),
     tonnes = sum(wide$fao_trade_import[hit_import]) +
