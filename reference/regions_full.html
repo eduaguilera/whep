@@ -109,15 +109,26 @@ published values. See <a href="folded_reporting_areas.html">folded_reporting_are
 <li><p><code>region_IEA</code>: IEA region.</p></li>
 <li><p><code>region_IPCC</code>: IPCC region.</p></li>
 <li><p><code>region_labour</code>: Labour-focused region.</p></li>
-<li><p><code>region_labour_agg</code>: Aggregated labour region.</p></li>
+<li><p><code>region_labour_agg</code>: Aggregated labour region, one of <code>"SAA"</code>, <code>"LACA"</code>,
+<code>"Europe"</code>, <code>"AUS"</code>, <code>"SE-Asia"</code>, <code>"MENA"</code>, <code>"FSU"</code>, <code>"NAME"</code> or <code>"RoW"</code>.
+Northern Mariana Islands (code 163) instead holds <code>"Micronesia"</code>, its own
+<code>region_UN_sub</code> value.</p></li>
 <li><p><code>region_labour_mech</code>: Labour mechanisation region, <code>"mech"</code> or
 <code>"no_mech"</code>. Two cells hold a sub-region name instead – Angola (code 7)
 <code>"Middle Africa"</code> and Northern Mariana Islands (163) <code>"Micronesia"</code>, each
 its own <code>region_labour</code>-family value – which looks like a column shift in
-the source spreadsheet. Nothing here reads the column, so nothing computes
-on them; which class each belongs in is not recoverable from anything
-shipped with the package, so they are pinned in
-<code>test_region_classifications.R</code> rather than guessed at.</p></li>
+the source spreadsheet. At code 163 the shift is two columns wide, since
+<code>region_labour_agg</code> is damaged in the same row; Angola's
+<code>region_labour_agg</code> is intact. Nothing here reads either column, so
+nothing computes on the bad cells; which class each belongs in is not
+recoverable from anything shipped with the package, and no public
+taxonomy defines this mechanised/not-mechanised split, so they are pinned
+in <code>test_region_classifications.R</code> rather than guessed at (whep#855).
+Group agreement is suggestive but not deductive: the other eight
+<code>region_labour == "Middle Africa"</code> rows are all <code>"no_mech"</code> and the other
+eight <code>region_UN_sub == "Micronesia"</code> rows are all <code>"mech"</code>, yet the
+column is not a function of either grouping – <code>"Pacific"</code>, <code>"FSU"</code> and
+<code>"South America - South Cone"</code> each split across both classes.</p></li>
 </ul></div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>

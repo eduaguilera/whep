@@ -682,16 +682,20 @@ typologies, etc.
 
 ## Data-frame utilities
 
-Declare a table’s schema once, as serializable data, then either reach
-it or prove it.
+Declare a table’s schema once, as serializable data, then build it,
+reach it or prove it.
+[`empty_table_from_schema()`](https://eduaguilera.github.io/whep/reference/empty_table_from_schema.md)
+turns the schema into the typed zero-row table it describes;
 [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
-coerces a table to a typed prototype;
+coerces a table onto such a prototype;
 [`check_table_schema()`](https://eduaguilera.github.io/whep/reference/check_table_schema.md)
 reports every violation of a declarative schema without touching the
 table, and
 [`assert_table_schema()`](https://eduaguilera.github.io/whep/reference/assert_table_schema.md)
 is the build-time gate over the same schema.
 
+- [`empty_table_from_schema()`](https://eduaguilera.github.io/whep/reference/empty_table_from_schema.md)
+  : Build a typed zero-row table from a declarative schema.
 - [`ensure_columns()`](https://eduaguilera.github.io/whep/reference/ensure_columns.md)
   : Complete columns from a typed prototype.
 - [`check_table_schema()`](https://eduaguilera.github.io/whep/reference/check_table_schema.md)
@@ -937,6 +941,33 @@ number can be traced back to what produced it.
   : Attach a provenance record to a result.
 - [`get_provenance()`](https://eduaguilera.github.io/whep/reference/get_provenance.md)
   : Retrieve a result's provenance record.
+
+### Row-level evidence
+
+Record what each row of a result rests on — the producer, its source
+version and the row’s documented evidence fields — as a keyed sidecar
+table that survives the joins an attribute would not.
+[`row_evidence()`](https://eduaguilera.github.io/whep/reference/row_evidence.md)
+produces it,
+[`row_evidence_schema()`](https://eduaguilera.github.io/whep/reference/row_evidence_schema.md)
+is its contract,
+[`combine_row_evidence()`](https://eduaguilera.github.io/whep/reference/combine_row_evidence.md)
+merges producers without letting one overwrite another,
+[`evidence_conflicts()`](https://eduaguilera.github.io/whep/reference/evidence_conflicts.md)
+reports where they disagree, and
+[`evidence_for()`](https://eduaguilera.github.io/whep/reference/evidence_for.md)
+carries evidence through a join.
+
+- [`row_evidence()`](https://eduaguilera.github.io/whep/reference/row_evidence.md)
+  : Produce row-level evidence for a table.
+- [`row_evidence_schema()`](https://eduaguilera.github.io/whep/reference/row_evidence_schema.md)
+  : The declarative schema of a row-evidence table.
+- [`combine_row_evidence()`](https://eduaguilera.github.io/whep/reference/combine_row_evidence.md)
+  : Combine row evidence from several producers.
+- [`evidence_conflicts()`](https://eduaguilera.github.io/whep/reference/evidence_conflicts.md)
+  : Report where row evidence disagrees.
+- [`evidence_for()`](https://eduaguilera.github.io/whep/reference/evidence_for.md)
+  : Carry row evidence through a join or a filter.
 
 ### Scope and transparency
 

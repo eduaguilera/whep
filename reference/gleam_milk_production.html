@@ -54,14 +54,20 @@
     </div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
-    <p>Not traced to a GLEAM document. These values are hardcoded in
-<code>generate_gleam_pdf_tables()</code> in <code>data-raw/livestock_coefficients.R</code>,
-not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
-that workbook contains them. The attribution to MacLeod et al. (2018)
-they carried was wrong: that is the <em>Animal</em> position paper on GLEAM
-(<a href="https://doi.org/10.1017/S1751731117001847" class="external-link">doi:10.1017/S1751731117001847</a>
-), which publishes no such table.
-Treat the values as unverified placeholders; tracked in whep#881.</p>
+    <p>Not traced to any GLEAM document, and GLEAM appears to publish no
+such table (whep#881). Searched and ruled out: the GLEAM 3.0 Supplement
+S1 workbook; the herd-parameter tables of Supplement S1 of the
+Version 2.0 Revision 5 description (Tables 2.4-2.21 give live weights and
+replacement, fertility, mortality and age-at-first-calving rates, but no
+milk yield and no lactation length); and both model descriptions, in
+which <code>MILKyield</code> (Equation 9.1) and the lactation period are
+country-level inputs taken from FAOSTAT and national data rather than
+defaults – Table 1.2 of the Version 2.0 description lists them under
+national/sub-national resolution. GLEAM-i likewise asks the user for
+"annual average milk yield per milking cow". Treat the values as
+unverified placeholders. No function in <code>R/</code> reads this object: the Tier
+2 lactation energy term takes <code>milk_yield_kg_day</code> from the caller, and
+<code>.build_demand_energy()</code> derives it from the FAOSTAT <code>t_head</code> rows.</p>
     </div>
 
     <div class="section level2">

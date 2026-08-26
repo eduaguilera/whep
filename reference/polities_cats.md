@@ -105,9 +105,14 @@ territory). It contains the following columns:
 
 - `region_labour_agg`: Aggregated labour-focused regional grouping.
 
-- `region_labour_mech`: Labour mechanisation regional grouping. Two
-  cells hold a sub-region name rather than a mechanisation class; see
-  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md).
+- `region_labour_mech`: Labour mechanisation regional grouping. Angola
+  (code 7) holds the sub-region name `"Middle Africa"` rather than a
+  mechanisation class, inherited from
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md);
+  the other damaged row there, Northern Mariana Islands (163), is not a
+  polity, so this table has no row to inherit it into. See
+  [regions_full](https://eduaguilera.github.io/whep/reference/regions_full.md)
+  (whep#855).
 
 ## Source
 

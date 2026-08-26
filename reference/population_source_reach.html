@@ -15,22 +15,26 @@ codes are returned in iso3_reached.
 this area.
 
 
-Measured against UN WPP 2024's Country/Area vocabulary, eight reporting
-periods are not &quot;direct&quot;, and exactly one is &quot;unreachable&quot;:
-ANT-1961-2010, area 151 Netherlands Antilles (#787). The polities database
-publishes no successor for it, and its successor states are not modelled
-individually — Curaçao has its own polity but no predecessor, Sint Maarten
-sits inside the Netherlands, and the BES islands have no polity at all — so
-the reconstruction is a lookup for every other dissolved federation WHEP
-models and a hardcoded list for this one. That is an upstream identity gap,
-not a missing value.
+Measured against UN WPP 2024's 237 Country/Area ISO3 codes, 14 reporting
+periods are not &quot;direct&quot; and five are &quot;unreachable&quot; — ATF, PCN,
+SGS, NFK and CXR, every one of them inside the Rest-of-World bucket
+999. ANT-1961-2010, area 151 Netherlands Antilles, was the last
+&quot;unreachable&quot; outside that bucket (#787); the 2026-08-25 upstream re-sync
+gave it CUW-2010-2025; SXM-2010-2025; BES-2010-2025, so it now reads
+&quot;successor&quot; by lookup rather than by anything hardcoded here.
 &quot;successor&quot; says the ISO3 codes exist, not that summing them is a safe
-denominator. In general it is not: WPP reports XKX (Kosovo) separately from
-SRB and the polities database names it among nobody's successors, so a
-successor sum for the Yugoslav SFR falls 17.5% short of the gdp-population
-pin's own figure for the same aggregate. Use this to see what a source can
-cover, and read the note at the top of R/population_reach.R before turning
-any of it into a population.
+denominator. In general it is not: a successor sum for the Yugoslav SFR falls
+17.5% short of the gdp-population pin's own figure for the same aggregate,
+of which Kosovo is 42% and a level disagreement between the pin and WPP on
+that series is the rest. Use this to see what a source can cover, and read
+the note at the top of R/population_reach.R before turning any of it into a
+population.
+extent_exceeds_iso3 marks the periods where the codes reported are
+narrower than the territory, because the walk stopped on a polity that
+reuses one of its own parts' ISO3 — SRB-2006-2008 &quot;Serbia (including
+Kosovo)&quot; carrying SRB, SUD-1956-2011 carrying SDN (#863). It is
+orthogonal to reach: a &quot;direct&quot; period can be flagged, and that is the
+case worth knowing about, since nothing else about the row hints at it.
 Rows on area_code 999 describe the members of the Rest-of-World fold
 bucket rather than the bucket itself, since each member is a crosswalk period
 of its own."><meta property="og:description" content="Every population source WHEP reads is keyed on a present-day ISO3 code: the
@@ -49,22 +53,26 @@ codes are returned in iso3_reached.
 this area.
 
 
-Measured against UN WPP 2024's Country/Area vocabulary, eight reporting
-periods are not &quot;direct&quot;, and exactly one is &quot;unreachable&quot;:
-ANT-1961-2010, area 151 Netherlands Antilles (#787). The polities database
-publishes no successor for it, and its successor states are not modelled
-individually — Curaçao has its own polity but no predecessor, Sint Maarten
-sits inside the Netherlands, and the BES islands have no polity at all — so
-the reconstruction is a lookup for every other dissolved federation WHEP
-models and a hardcoded list for this one. That is an upstream identity gap,
-not a missing value.
+Measured against UN WPP 2024's 237 Country/Area ISO3 codes, 14 reporting
+periods are not &quot;direct&quot; and five are &quot;unreachable&quot; — ATF, PCN,
+SGS, NFK and CXR, every one of them inside the Rest-of-World bucket
+999. ANT-1961-2010, area 151 Netherlands Antilles, was the last
+&quot;unreachable&quot; outside that bucket (#787); the 2026-08-25 upstream re-sync
+gave it CUW-2010-2025; SXM-2010-2025; BES-2010-2025, so it now reads
+&quot;successor&quot; by lookup rather than by anything hardcoded here.
 &quot;successor&quot; says the ISO3 codes exist, not that summing them is a safe
-denominator. In general it is not: WPP reports XKX (Kosovo) separately from
-SRB and the polities database names it among nobody's successors, so a
-successor sum for the Yugoslav SFR falls 17.5% short of the gdp-population
-pin's own figure for the same aggregate. Use this to see what a source can
-cover, and read the note at the top of R/population_reach.R before turning
-any of it into a population.
+denominator. In general it is not: a successor sum for the Yugoslav SFR falls
+17.5% short of the gdp-population pin's own figure for the same aggregate,
+of which Kosovo is 42% and a level disagreement between the pin and WPP on
+that series is the rest. Use this to see what a source can cover, and read
+the note at the top of R/population_reach.R before turning any of it into a
+population.
+extent_exceeds_iso3 marks the periods where the codes reported are
+narrower than the territory, because the walk stopped on a polity that
+reuses one of its own parts' ISO3 — SRB-2006-2008 &quot;Serbia (including
+Kosovo)&quot; carrying SRB, SUD-1956-2011 carrying SDN (#863). It is
+orthogonal to reach: a &quot;direct&quot; period can be flagged, and that is the
+case worth knowing about, since nothing else about the row hints at it.
 Rows on area_code 999 describe the members of the Rest-of-World fold
 bucket rather than the bucket itself, since each member is a crosswalk period
 of its own."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
@@ -120,22 +128,26 @@ database publishes leads, transitively, to ISO3 codes that are. Those
 codes are returned in <code>iso3_reached</code>.</p></li>
 <li><p><code>"unreachable"</code> — neither. No arrangement of the source's rows supplies
 this area.</p></li>
-</ul><p>Measured against UN WPP 2024's <code>Country/Area</code> vocabulary, eight reporting
-periods are not <code>"direct"</code>, and exactly one is <code>"unreachable"</code>:
-<code>ANT-1961-2010</code>, area 151 Netherlands Antilles (#787). The polities database
-publishes no <code>successor</code> for it, and its successor states are not modelled
-individually — Curaçao has its own polity but no predecessor, Sint Maarten
-sits inside the Netherlands, and the BES islands have no polity at all — so
-the reconstruction is a lookup for every other dissolved federation WHEP
-models and a hardcoded list for this one. That is an upstream identity gap,
-not a missing value.</p>
+</ul><p>Measured against UN WPP 2024's 237 <code>Country/Area</code> ISO3 codes, 14 reporting
+periods are not <code>"direct"</code> and five are <code>"unreachable"</code> — <code>ATF</code>, <code>PCN</code>,
+<code>SGS</code>, <code>NFK</code> and <code>CXR</code>, every one of them inside the Rest-of-World bucket
+999. <code>ANT-1961-2010</code>, area 151 Netherlands Antilles, was the last
+<code>"unreachable"</code> outside that bucket (#787); the 2026-08-25 upstream re-sync
+gave it <code>CUW-2010-2025; SXM-2010-2025; BES-2010-2025</code>, so it now reads
+<code>"successor"</code> by lookup rather than by anything hardcoded here.</p>
 <p><code>"successor"</code> says the ISO3 codes exist, <strong>not</strong> that summing them is a safe
-denominator. In general it is not: WPP reports <code>XKX</code> (Kosovo) separately from
-<code>SRB</code> and the polities database names it among nobody's successors, so a
-successor sum for the Yugoslav SFR falls 17.5% short of the <code>gdp-population</code>
-pin's own figure for the same aggregate. Use this to see what a source can
-cover, and read the note at the top of <code>R/population_reach.R</code> before turning
-any of it into a population.</p>
+denominator. In general it is not: a successor sum for the Yugoslav SFR falls
+17.5% short of the <code>gdp-population</code> pin's own figure for the same aggregate,
+of which Kosovo is 42% and a level disagreement between the pin and WPP on
+that series is the rest. Use this to see what a source can cover, and read
+the note at the top of <code>R/population_reach.R</code> before turning any of it into a
+population.</p>
+<p><code>extent_exceeds_iso3</code> marks the periods where the codes reported are
+<strong>narrower than the territory</strong>, because the walk stopped on a polity that
+reuses one of its own parts' ISO3 — <code>SRB-2006-2008</code> "Serbia (including
+Kosovo)" carrying <code>SRB</code>, <code>SUD-1956-2011</code> carrying <code>SDN</code> (#863). It is
+orthogonal to <code>reach</code>: a <code>"direct"</code> period can be flagged, and that is the
+case worth knowing about, since nothing else about the row hints at it.</p>
 <p>Rows on <code>area_code</code> 999 describe the <strong>members</strong> of the Rest-of-World fold
 bucket rather than the bucket itself, since each member is a crosswalk period
 of its own.</p>
@@ -166,14 +178,15 @@ testing.</p></dd>
 period, sorted by area code then first reported year: <code>area_code</code>,
 <code>polity_code</code>, <code>polity_name</code>, <code>map_year_start</code>, <code>map_year_end</code>,
 <code>own_iso3</code> (the period's own ISO3), <code>reach</code> (<code>"direct"</code> / <code>"successor"</code> /
-<code>"unreachable"</code>), <code>n_iso3</code> and <code>iso3_reached</code> (the ISO3 codes standing in
-for the area, <code>NA</code> when unreachable).</p>
+<code>"unreachable"</code>), <code>n_iso3</code>, <code>iso3_reached</code> (the ISO3 codes standing in
+for the area, <code>NA</code> when unreachable) and <code>extent_exceeds_iso3</code> (<code>TRUE</code>
+where those codes cover less ground than the period's territory).</p>
     </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">population_source_reach</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"BEL"</span>, <span class="st">"LUX"</span>, <span class="st">"CZE"</span>, <span class="st">"SVK"</span>, <span class="st">"CUW"</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 297 × 9</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 297 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    area_code polity_code  polity_name own_iso3 map_year_start map_year_end reach</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>         1 ARM-1991-20… Armenia     ARM                <span style="text-decoration: underline;">1</span>992         <span style="text-decoration: underline;">2</span>024 unre…</span>
@@ -187,7 +200,8 @@ for the area, <code>NA</code> when unreachable).</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>         9 ARG-1902-20… Argentina   ARG                <span style="text-decoration: underline;">1</span>961         <span style="text-decoration: underline;">2</span>024 unre…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>        10 AUS-1901-20… Australia   AUS                <span style="text-decoration: underline;">1</span>961         <span style="text-decoration: underline;">2</span>024 unre…</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 287 more rows</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: n_iso3 &lt;int&gt;, iso3_reached &lt;chr&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 3 more variables: n_iso3 &lt;int&gt;, iso3_reached &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   extent_exceeds_iso3 &lt;lgl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

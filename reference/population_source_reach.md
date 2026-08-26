@@ -21,23 +21,30 @@ vocabulary in `iso3_codes` reaches it:
 - `"unreachable"` — neither. No arrangement of the source's rows
   supplies this area.
 
-Measured against UN WPP 2024's `Country/Area` vocabulary, eight
-reporting periods are not `"direct"`, and exactly one is
-`"unreachable"`: `ANT-1961-2010`, area 151 Netherlands Antilles (#787).
-The polities database publishes no `successor` for it, and its successor
-states are not modelled individually — Curaçao has its own polity but no
-predecessor, Sint Maarten sits inside the Netherlands, and the BES
-islands have no polity at all — so the reconstruction is a lookup for
-every other dissolved federation WHEP models and a hardcoded list for
-this one. That is an upstream identity gap, not a missing value.
+Measured against UN WPP 2024's 237 `Country/Area` ISO3 codes, 14
+reporting periods are not `"direct"` and five are `"unreachable"` —
+`ATF`, `PCN`, `SGS`, `NFK` and `CXR`, every one of them inside the
+Rest-of-World bucket 999. `ANT-1961-2010`, area 151 Netherlands
+Antilles, was the last `"unreachable"` outside that bucket (#787); the
+2026-08-25 upstream re-sync gave it
+`CUW-2010-2025; SXM-2010-2025; BES-2010-2025`, so it now reads
+`"successor"` by lookup rather than by anything hardcoded here.
 
 `"successor"` says the ISO3 codes exist, **not** that summing them is a
-safe denominator. In general it is not: WPP reports `XKX` (Kosovo)
-separately from `SRB` and the polities database names it among nobody's
-successors, so a successor sum for the Yugoslav SFR falls 17.5% short of
-the `gdp-population` pin's own figure for the same aggregate. Use this
-to see what a source can cover, and read the note at the top of
-`R/population_reach.R` before turning any of it into a population.
+safe denominator. In general it is not: a successor sum for the Yugoslav
+SFR falls 17.5% short of the `gdp-population` pin's own figure for the
+same aggregate, of which Kosovo is 42% and a level disagreement between
+the pin and WPP on that series is the rest. Use this to see what a
+source can cover, and read the note at the top of `R/population_reach.R`
+before turning any of it into a population.
+
+`extent_exceeds_iso3` marks the periods where the codes reported are
+**narrower than the territory**, because the walk stopped on a polity
+that reuses one of its own parts' ISO3 — `SRB-2006-2008` "Serbia
+(including Kosovo)" carrying `SRB`, `SUD-1956-2011` carrying `SDN`
+(#863). It is orthogonal to `reach`: a `"direct"` period can be flagged,
+and that is the case worth knowing about, since nothing else about the
+row hints at it.
 
 Rows on `area_code` 999 describe the **members** of the Rest-of-World
 fold bucket rather than the bucket itself, since each member is a
@@ -68,14 +75,15 @@ A tibble with one row per `area_code` and `polity_code` reporting
 period, sorted by area code then first reported year: `area_code`,
 `polity_code`, `polity_name`, `map_year_start`, `map_year_end`,
 `own_iso3` (the period's own ISO3), `reach` (`"direct"` / `"successor"`
-/ `"unreachable"`), `n_iso3` and `iso3_reached` (the ISO3 codes standing
-in for the area, `NA` when unreachable).
+/ `"unreachable"`), `n_iso3`, `iso3_reached` (the ISO3 codes standing in
+for the area, `NA` when unreachable) and `extent_exceeds_iso3` (`TRUE`
+where those codes cover less ground than the period's territory).
 
 ## Examples
 
 ``` r
 population_source_reach(c("BEL", "LUX", "CZE", "SVK", "CUW"))
-#> # A tibble: 297 × 9
+#> # A tibble: 297 × 10
 #>    area_code polity_code  polity_name own_iso3 map_year_start map_year_end reach
 #>        <int> <chr>        <chr>       <chr>             <int>        <int> <chr>
 #>  1         1 ARM-1991-20… Armenia     ARM                1992         2024 unre…
@@ -89,5 +97,6 @@ population_source_reach(c("BEL", "LUX", "CZE", "SVK", "CUW"))
 #>  9         9 ARG-1902-20… Argentina   ARG                1961         2024 unre…
 #> 10        10 AUS-1901-20… Australia   AUS                1961         2024 unre…
 #> # ℹ 287 more rows
-#> # ℹ 2 more variables: n_iso3 <int>, iso3_reached <chr>
+#> # ℹ 3 more variables: n_iso3 <int>, iso3_reached <chr>,
+#> #   extent_exceeds_iso3 <lgl>
 ```

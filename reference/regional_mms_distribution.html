@@ -57,7 +57,17 @@ and species.</p>
     </div>
     <div class="section level2">
     <h2 id="source">Source<a class="anchor" aria-label="anchor" href="#source"></a></h2>
-    <p>GLEAM 3.0 / FAO statistics.</p>
+    <p>Unverified. The values are a hardcoded <code>tribble()</code> in
+<code>generate_ipcc_tier2_tables()</code> in <code>data-raw/livestock_coefficients.R</code>,
+annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
+to the nearest 5 percentage points and match no table of the committed
+GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
+<code>gleam_mms_shares</code> this object <strong>is</strong> result-affecting: it is the MMS
+split <code>.resolve_mms_shares()</code> hands to the Tier 2 manure CH4 (MCF
+weighting) and direct N2O (EF3) engines. The published GLEAM source is
+Supplement S1, Tables 4.2-4.11 of FAO. 2018. <em>GLEAM Model description,
+Version 2.0, Revision 5</em> (see <code>gleam_mms_shares</code>); re-ingesting it moves
+manure numbers and is tracked separately. Treat as unverified until then.</p>
     </div>
 
     <div class="section level2">

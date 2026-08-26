@@ -83,9 +83,11 @@ build_commodity_balances(
   missing rows from the trade record, restricted to tonnes-denominated
   items (live-animal trade is in heads and arrives through
   [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)),
-  to net importers, and to areas the CBS already covers in that year. It
-  **moves published values**; `NEWS.md` states by how much and whep#762
-  keeps the remaining decisions open.
+  to net importers, and to areas the CBS already covers in that year.
+  Selecting it **moves published values** — at 2010 it adds 1,164 keys
+  and 53.7 Mt of imports, and reclassifies three areas on the
+  nourishment axis. `NEWS.md` states the rest, and whep#762 keeps the
+  remaining decisions open.
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   always uses `"none"`; ask for `format = "wide"` here to get the wide
   table with recovery applied.

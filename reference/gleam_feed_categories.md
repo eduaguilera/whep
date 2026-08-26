@@ -14,14 +14,18 @@ A tibble with `feed_category`, `feed_type`, `description`.
 
 ## Source
 
-Not traced to a GLEAM document. These values are hardcoded in
-`generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-not read from the GLEAM 3.0 Supplement S1 workbook, and no table of that
-workbook contains them. The attribution to MacLeod et al. (2018) they
-carried was wrong: that is the *Animal* position paper on GLEAM
-([doi:10.1017/S1751731117001847](https://doi.org/10.1017/S1751731117001847)
-), which publishes no such table. Treat the values as unverified
-placeholders; tracked in whep#881.
+Not traced to any GLEAM document (whep#881). Searched and ruled out: the
+GLEAM 3.0 Supplement S1 workbook (no sheet holds it); FAO. 2022. *Model
+Description, Version 3.0*, Table 3.1/3.3 (ruminants, 27 feed materials
+grouped as Roughages / Cereals / By-products / Concentrates, pp. 32-37)
+and Table 3.5 (monogastrics, 42 materials grouped as Swill and
+scavenging / Locally-produced / Non-local, p. 45); and Tables 3.2, 3.3
+and 3.14 of the Version 2.0 Revision 5 description. None of those
+groupings is the six-way Grass / Crop residues / Concentrates / Fodder
+crops / Processed feeds / Animal products split shipped here, and
+"Animal products - Milk, fish meal" has no counterpart in GLEAM's
+ruminant material list at all. Treat the classification as a WHEP-local
+convenience taxonomy, not a GLEAM table. No function in `R/` reads it.
 
 ## Examples
 

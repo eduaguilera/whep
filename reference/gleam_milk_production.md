@@ -15,14 +15,20 @@ A tibble with `region`, `species`, `system`, `milk_kg_head_yr`,
 
 ## Source
 
-Not traced to a GLEAM document. These values are hardcoded in
-`generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
-not read from the GLEAM 3.0 Supplement S1 workbook, and no table of that
-workbook contains them. The attribution to MacLeod et al. (2018) they
-carried was wrong: that is the *Animal* position paper on GLEAM
-([doi:10.1017/S1751731117001847](https://doi.org/10.1017/S1751731117001847)
-), which publishes no such table. Treat the values as unverified
-placeholders; tracked in whep#881.
+Not traced to any GLEAM document, and GLEAM appears to publish no such
+table (whep#881). Searched and ruled out: the GLEAM 3.0 Supplement S1
+workbook; the herd-parameter tables of Supplement S1 of the Version 2.0
+Revision 5 description (Tables 2.4-2.21 give live weights and
+replacement, fertility, mortality and age-at-first-calving rates, but no
+milk yield and no lactation length); and both model descriptions, in
+which `MILKyield` (Equation 9.1) and the lactation period are
+country-level inputs taken from FAOSTAT and national data rather than
+defaults – Table 1.2 of the Version 2.0 description lists them under
+national/sub-national resolution. GLEAM-i likewise asks the user for
+"annual average milk yield per milking cow". Treat the values as
+unverified placeholders. No function in `R/` reads this object: the Tier
+2 lactation energy term takes `milk_yield_kg_day` from the caller, and
+`.build_demand_energy()` derives it from the FAOSTAT `t_head` rows.
 
 ## Examples
 

@@ -111,17 +111,28 @@ minus the five trailing `0...36`–`0...40` artefact columns):
 
 - `region_labour`: Labour-focused region.
 
-- `region_labour_agg`: Aggregated labour region.
+- `region_labour_agg`: Aggregated labour region, one of `"SAA"`,
+  `"LACA"`, `"Europe"`, `"AUS"`, `"SE-Asia"`, `"MENA"`, `"FSU"`,
+  `"NAME"` or `"RoW"`. Northern Mariana Islands (code 163) instead holds
+  `"Micronesia"`, its own `region_UN_sub` value.
 
 - `region_labour_mech`: Labour mechanisation region, `"mech"` or
   `"no_mech"`. Two cells hold a sub-region name instead – Angola
   (code 7) `"Middle Africa"` and Northern Mariana Islands (163)
   `"Micronesia"`, each its own `region_labour`-family value – which
-  looks like a column shift in the source spreadsheet. Nothing here
-  reads the column, so nothing computes on them; which class each
+  looks like a column shift in the source spreadsheet. At code 163 the
+  shift is two columns wide, since `region_labour_agg` is damaged in the
+  same row; Angola's `region_labour_agg` is intact. Nothing here reads
+  either column, so nothing computes on the bad cells; which class each
   belongs in is not recoverable from anything shipped with the package,
+  and no public taxonomy defines this mechanised/not-mechanised split,
   so they are pinned in `test_region_classifications.R` rather than
-  guessed at.
+  guessed at (whep#855). Group agreement is suggestive but not
+  deductive: the other eight `region_labour == "Middle Africa"` rows are
+  all `"no_mech"` and the other eight `region_UN_sub == "Micronesia"`
+  rows are all `"mech"`, yet the column is not a function of either
+  grouping – `"Pacific"`, `"FSU"` and `"South America - South Cone"`
+  each split across both classes.
 
 ## Source
 

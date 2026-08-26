@@ -3,10 +3,11 @@
 Reads the GSWP3-W5E5 monthly windspeed forcing used to drive LPJmL
 (single consolidated NetCDF, already on WHEP's native 0.5-degree grid)
 and returns it in tidy long form. The file's `wind` variable carries no
-`units` attribute; per the GSWP3-W5E5 forcing convention its physical
-unit is assumed to be metres per second (m/s), and that assumption is
-encoded only in the output column name (`windspeed_ms`), not inferred
-from file metadata.
+`units` attribute, because the monthly aggregation dropped it; the unit
+is metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source
+the file is derived from, which declares `units = "m s-1"` and
+`standard_name = "wind_speed"`. That is why the output column is named
+`windspeed_ms`.
 
 ## Usage
 

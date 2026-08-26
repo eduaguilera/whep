@@ -1778,7 +1778,7 @@
       </dl></div><div class="section level2">
       <h2 id="data-frame-utilities">Data-frame utilities<a class="anchor" aria-label="anchor" href="#data-frame-utilities"></a></h2>
 
-      <div class="section-desc"><p>Declare a table’s schema once, as serializable data, then either reach it or prove it. <code><a href="../reference/ensure_columns.html">ensure_columns()</a></code> coerces a table to a typed prototype; <code><a href="../reference/check_table_schema.html">check_table_schema()</a></code> reports every violation of a declarative schema without touching the table, and <code><a href="../reference/assert_table_schema.html">assert_table_schema()</a></code> is the build-time gate over the same schema.</p></div>
+      <div class="section-desc"><p>Declare a table’s schema once, as serializable data, then build it, reach it or prove it. <code><a href="../reference/empty_table_from_schema.html">empty_table_from_schema()</a></code> turns the schema into the typed zero-row table it describes; <code><a href="../reference/ensure_columns.html">ensure_columns()</a></code> coerces a table onto such a prototype; <code><a href="../reference/check_table_schema.html">check_table_schema()</a></code> reports every violation of a declarative schema without touching the table, and <code><a href="../reference/assert_table_schema.html">assert_table_schema()</a></code> is the build-time gate over the same schema.</p></div>
 
       <dl></dl></div><div class="section level2">
 
@@ -1786,6 +1786,13 @@
 
 
       <dl><dt>
+
+          <code><a href="empty_table_from_schema.html">empty_table_from_schema()</a></code>
+
+        </dt>
+        <dd>Build a typed zero-row table from a declarative schema.</dd>
+
+        <dt>
 
           <code><a href="ensure_columns.html">ensure_columns()</a></code>
 
@@ -2453,6 +2460,50 @@
 
         </dt>
         <dd>Retrieve a result's provenance record.</dd>
+      </dl></div><div class="section level2">
+
+      <h3 id="row-level-evidence">Row-level evidence<a class="anchor" aria-label="anchor" href="#row-level-evidence"></a></h3>
+      <div class="section-desc"><p>Record what each row of a result rests on — the producer, its source version and the row’s documented evidence fields — as a keyed sidecar table that survives the joins an attribute would not. <code><a href="../reference/row_evidence.html">row_evidence()</a></code> produces it, <code><a href="../reference/row_evidence_schema.html">row_evidence_schema()</a></code> is its contract, <code><a href="../reference/combine_row_evidence.html">combine_row_evidence()</a></code> merges producers without letting one overwrite another, <code><a href="../reference/evidence_conflicts.html">evidence_conflicts()</a></code> reports where they disagree, and <code><a href="../reference/evidence_for.html">evidence_for()</a></code> carries evidence through a join.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="row_evidence.html">row_evidence()</a></code>
+
+        </dt>
+        <dd>Produce row-level evidence for a table.</dd>
+
+        <dt>
+
+          <code><a href="row_evidence_schema.html">row_evidence_schema()</a></code>
+
+        </dt>
+        <dd>The declarative schema of a row-evidence table.</dd>
+
+        <dt>
+
+          <code><a href="combine_row_evidence.html">combine_row_evidence()</a></code>
+
+        </dt>
+        <dd>Combine row evidence from several producers.</dd>
+
+        <dt>
+
+          <code><a href="evidence_conflicts.html">evidence_conflicts()</a></code>
+
+        </dt>
+        <dd>Report where row evidence disagrees.</dd>
+
+        <dt>
+
+          <code><a href="evidence_for.html">evidence_for()</a></code>
+
+        </dt>
+        <dd>Carry row evidence through a join or a filter.</dd>
       </dl></div><div class="section level2">
 
       <h3 id="scope-and-transparency">Scope and transparency<a class="anchor" aria-label="anchor" href="#scope-and-transparency"></a></h3>

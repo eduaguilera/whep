@@ -140,6 +140,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/climate_mcf.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/coello_synthetic_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/combine_cov.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/combine_row_evidence.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compare_footprint_methods.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/compute_footprint_balance.html</loc></url>
@@ -174,9 +175,12 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/decompose_weighted_ratio.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/disaggregate_ussr.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/drainage_ranges.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/empty_table_from_schema.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/ensure_columns.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_energy_demand.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/estimate_n_excretion.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/evidence_conflicts.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/evidence_for.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_polycell_years.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/expand_trade_sources.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/feed_characteristics.html</loc></url>
@@ -335,6 +339,8 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/regions_full.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/residue_humification.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/resolve_polity_label.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/row_evidence.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/row_evidence_schema.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/row_promotion_status.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_spatialize.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/run_typology_sensitivity.html</loc></url>
