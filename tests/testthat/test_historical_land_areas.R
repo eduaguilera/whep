@@ -234,3 +234,65 @@ test_that("an unknown boundary rule aborts", {
     class = "rlang_error"
   )
 })
+
+# A pin label is checked against the CURRENT `whep::polities`, not against a
+# hardcoded vocabulary, so these stay true across the next snapshot re-sync.
+# Everything they read is package data: no pin, no network (whep#905).
+.hist_land_pin_rows <- function(years = 1900L) {
+  suppressMessages(whep:::.polity_area_by_year(years)) |>
+    tibble::as_tibble() |>
+    dplyr::summarise(
+      polity_code = paste(sort(unique(polity_code)), collapse = "; "),
+      .by = c("year", "area_code")
+    ) |>
+    utils::head(4)
+}
+
+test_that("a pin measured on the current snapshot raises nothing", {
+  expect_silent(whep:::.warn_stale_hist_land(.hist_land_pin_rows(), 1900L))
+})
+
+test_that("a retired polity code in the pin is named", {
+  stale <- .hist_land_pin_rows()
+  stale$polity_code[1] <- "ZZZ-1234-5678"
+  expect_equal(
+    whep:::.hist_land_retired_codes(stale$polity_code),
+    "ZZZ-1234-5678"
+  )
+  expect_warning(
+    whep:::.warn_stale_hist_land(stale, 1900L),
+    "different"
+  )
+})
+
+test_that("a bucket-year resolving to another polity today is named", {
+  # The label is swapped for a code that IS live, so `retired` stays empty and
+  # the moved-label branch is the only thing that can fire.
+  stale <- .hist_land_pin_rows()
+  other <- setdiff(whep::polities$polity_code, stale$polity_code)[1]
+  stale$polity_code[1] <- other
+  expect_length(whep:::.hist_land_retired_codes(stale$polity_code), 0)
+  expect_equal(nrow(whep:::.hist_land_moved_labels(stale, 1900L)), 1)
+  expect_warning(
+    whep:::.warn_stale_hist_land(stale, 1900L),
+    "resolve to a different polity today"
+  )
+})
+
+test_that("an unlabelled row is not read as drift", {
+  # 87 rows of the shipped pin carry no label; they are unmeasurable buckets,
+  # not evidence of a snapshot change.
+  na_only <- .hist_land_pin_rows()
+  na_only$polity_code <- NA_character_
+  expect_silent(whep:::.warn_stale_hist_land(na_only, 1900L))
+})
+
+test_that("a pin with no polity_code column says so instead of passing", {
+  expect_warning(
+    whep:::.warn_stale_hist_land(
+      dplyr::select(.hist_land_pin_rows(), -"polity_code"),
+      1900L
+    ),
+    "carries no"
+  )
+})
