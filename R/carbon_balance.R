@@ -67,6 +67,13 @@
 #'   growth-stage canopy for cropland, sustained perennial cover for
 #'   grassland/natural), so any \code{soil_cover} column supplied on the raw
 #'   drivers is ignored); \code{clay} (per cell \code{clay_pct}); and an
+#'   \code{natural_cover} (per cell and year, with \code{natural_cover}, the
+#'   vegetated fraction of the natural stand, from
+#'   \code{\link{read_lpjml_natural_cover}}); when supplied it replaces
+#'   \code{\link{soc_soil_cover_curve}}'s constant for the NATURAL class only
+#'   -- managed grassland has no measured cover to use and stays on the curve
+#'   -- and when absent every class stays on the curve, which is the previous
+#'   behaviour; and an
 #'   optional \code{equilibrium_climate} (the pre-industrial climatological
 #'   normal, one representative monthly cycle per cell, used only for the
 #'   equilibrium spin-up modifier while the forward march uses the year-specific
@@ -180,6 +187,7 @@ build_carbon_balance <- function(
     land_use = land_use,
     climate = climate,
     clay = clay,
+    natural_cover = data$natural_cover,
     equilibrium_climate = data$equilibrium_climate
   )
 }
@@ -227,7 +235,13 @@ build_carbon_balance <- function(
       c_input_mgc_ha_yr = dplyr::coalesce(.data$c_input_mgc_ha_yr, 0),
       humified_fraction = dplyr::coalesce(.data$humified_fraction, 0)
     )
-  modifiers <- .cb_climate_modifier_table(d$climate, clay, model, base$land_use)
+  modifiers <- .cb_climate_modifier_table(
+    d$climate,
+    clay,
+    model,
+    base$land_use,
+    d$natural_cover
+  )
   base |>
     .cb_join_modifier(modifiers) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
@@ -283,7 +297,13 @@ build_carbon_balance <- function(
 # `.cb_year_climate_modifier()`. Models that do not consume `soil_cover` (ICBM,
 # AMG, Century) get an identical modifier across classes. Clay is joined in
 # because the RothC/HSOC modifier needs it.
-.cb_climate_modifier_table <- function(climate, clay, model, land_use_classes) {
+.cb_climate_modifier_table <- function(
+  climate,
+  clay,
+  model,
+  land_use_classes,
+  natural_cover = NULL
+) {
   keys <- c("lon", "lat", "area_code", "year")
   if (rlang::has_name(climate, "climate_modifier")) {
     return(dplyr::distinct(
@@ -303,7 +323,8 @@ build_carbon_balance <- function(
       clay,
       model,
       keys,
-      land_use_classes
+      land_use_classes,
+      natural_cover
     )
   })
   dplyr::bind_rows(parts)
@@ -323,11 +344,18 @@ build_carbon_balance <- function(
 }
 
 # The modifier for one chunk of the monthly climate table.
-.cb_chunk_modifier <- function(climate, clay, model, keys, land_use_classes) {
+.cb_chunk_modifier <- function(
+  climate,
+  clay,
+  model,
+  keys,
+  land_use_classes,
+  natural_cover = NULL
+) {
   prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes) |>
+    .cb_attach_soil_cover(land_use_classes, natural_cover) |>
     .cb_attach_class_water()
   group_keys <- c(keys, "land_use")
 
@@ -482,7 +510,11 @@ build_carbon_balance <- function(
 # a low bare-soil cover; grassland and natural carry a sustained perennial cover
 # year-round. A class absent from the curve table (e.g. urban) defaults to bare
 # soil (soil_cover 0), preserving the prior behaviour for those classes.
-.cb_attach_soil_cover <- function(climate, land_use_classes) {
+.cb_attach_soil_cover <- function(
+  climate,
+  land_use_classes,
+  natural_cover = NULL
+) {
   classes <- unique(land_use_classes)
   climate |>
     dplyr::select(-dplyr::any_of("soil_cover")) |>
@@ -497,7 +529,56 @@ build_carbon_balance <- function(
       by = c(".cover_key" = "land_use", "months_from_peak")
     ) |>
     dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
-    dplyr::select(-".cover_key")
+    dplyr::select(-".cover_key") |>
+    .cb_apply_natural_cover(natural_cover)
+}
+
+# Replace natural land's constant soil cover with the cover LPJmL grew.
+#
+# `soc_soil_cover_curve` gives natural land 0.85 in every month of every
+# cell, so the RothC plant-retainment term 0.6 + 0.4 * (1 - cover) is a fixed
+# 0.66 in the Sahel and in the Amazon alike. Measured against LPJmL foliar
+# projective cover, that constant is close on the MEAN (0.858 in 1901 rising
+# to 0.884 in 2023) and wrong in the DISTRIBUTION: the median natural cell is
+# fully covered at 1.000 and the 5th percentile is bare at ~0.00, so 0.85 sits
+# between two states that between them hold most of the land.
+#
+# The tail is what matters. In a near-bare cell the retainment factor goes
+# 0.66 -> 1.00, decomposition runs half again as fast and equilibrium carbon
+# falls about a third -- and those arid cells are exactly where the model is
+# furthest from observation (tropical grass 3.05x, temperate grass 2.55x,
+# against tundra at 1.88x). Global mean effect ~1.8%; per cell 0.66x to 1.10x.
+#
+# Managed grassland necessarily stays on the curve: `fpc.nc` carries the
+# natural stand only, so there is no measured cover for it to use.
+#
+# A NULL layer leaves every class on the curve, which is the previous
+# behaviour exactly.
+.cb_apply_natural_cover <- function(prepared, natural_cover) {
+  if (is.null(natural_cover) || nrow(natural_cover) == 0L) {
+    return(prepared)
+  }
+  .check_columns(
+    natural_cover,
+    c("lon", "lat", "year", "natural_cover"),
+    "data$natural_cover"
+  )
+  prepared |>
+    dplyr::left_join(
+      dplyr::distinct(
+        dplyr::select(natural_cover, "lon", "lat", "year", "natural_cover")
+      ),
+      by = c("lon", "lat", "year")
+    ) |>
+    dplyr::mutate(
+      soil_cover = dplyr::if_else(
+        stringr::str_to_lower(.data$land_use) == "natural" &
+          !is.na(.data$natural_cover),
+        .data$natural_cover,
+        .data$soil_cover
+      )
+    ) |>
+    dplyr::select(-"natural_cover")
 }
 
 # Put natural land back on its rainfed water balance.
@@ -1038,7 +1119,8 @@ build_carbon_balance <- function(
     eq_climate,
     d$clay,
     model,
-    first$land_use
+    first$land_use,
+    d$natural_cover
   )
   first |>
     dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code", "land_use")) |>
@@ -1061,13 +1143,14 @@ build_carbon_balance <- function(
   eq_climate,
   clay,
   model,
-  land_use_classes
+  land_use_classes,
+  natural_cover = NULL
 ) {
   cell_keys <- c("lon", "lat", "area_code", "land_use")
   eq_climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes) |>
+    .cb_attach_soil_cover(land_use_classes, natural_cover) |>
     dplyr::summarise(
       climate_modifier_eq = .cb_year_climate_modifier(
         model,

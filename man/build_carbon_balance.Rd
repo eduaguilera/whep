@@ -67,6 +67,13 @@ from the generic land-use curve \code{\link{soc_soil_cover_curve}} (a crop
 growth-stage canopy for cropland, sustained perennial cover for
 grassland/natural), so any \code{soil_cover} column supplied on the raw
 drivers is ignored); \code{clay} (per cell \code{clay_pct}); and an
+\code{natural_cover} (per cell and year, with \code{natural_cover}, the
+vegetated fraction of the natural stand, from
+\code{\link{read_lpjml_natural_cover}}); when supplied it replaces
+\code{\link{soc_soil_cover_curve}}'s constant for the NATURAL class only
+-- managed grassland has no measured cover to use and stays on the curve
+-- and when absent every class stays on the curve, which is the previous
+behaviour; and an
 optional \code{equilibrium_climate} (the pre-industrial climatological
 normal, one representative monthly cycle per cell, used only for the
 equilibrium spin-up modifier while the forward march uses the year-specific
