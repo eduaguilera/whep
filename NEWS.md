@@ -33,6 +33,42 @@
   tests. Nothing in the package, its scripts or its tests passed a
   non-numeric `area_code` to this function.
 
+* **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have an
+  impossibility check, and it records #824 rather than suppressing it.**
+  `validation/lpjml_pins.R` guards the four pins carrying LPJmL *output* and
+  deliberately excludes the *forcing* pins, reasoning that forcing does not
+  change with the model version. True of its magnitude tier, false of its
+  invariant tier: forcing can still be corrupt.
+  `lpjml-rsds-era5-2017-2023` ships **1,823,843 negative shortwave values**
+  because #536 fixed the builder and nobody rebuilt the artifact, and nothing in
+  the repo could see it — that script excluded the pin, and
+  `test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+  against its generating script. A census of all six forcing pins shows the
+  defect is confined to that one: `rlds` and `wind` come off the same builder
+  and the same ERA5 tail and are clean, because shortwave is the only one of the
+  three that legitimately reaches exactly zero. The floor is therefore
+  **inclusive** — `lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0, so a
+  positivity test would fail on a clean pin. The recorded count is compared
+  **bidirectionally**: a rise is a new corruption, and a fall means the pin was
+  rebuilt, which is the event #824 exists because nobody noticed. Refs #824,
+  #536, #384.
+
+* **A missing `water` or `ice` layer no longer zero-fills silently in
+  `build_polycell_support()` (#885).** Both arguments default to `NULL`, the
+  column is filled with zeros, and the producer's identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` still holds —
+  so every check passes while every lake, river and glacier inside a polity is
+  booked as land. The deployed pin `20260818T105426Z-a0330` was built that way,
+  confirmed by reading it: all **482,605** rows carry `inland_water_ha == 0` and
+  `ice_area_ha == 0`, and `land_area_ha` equals `polity_area_ha` in every one,
+  which puts 2015 land 536.0 Mha (+4.15%) above the pin built from all four
+  layers. `.pcs_add_water()` and `.pcs_add_ice()` now warn, on distinct condition
+  classes (`whep_polycell_absent_water`, `whep_polycell_absent_ice`), naming the
+  consequence rather than the absence. Zero-filling still happens — this changes
+  no value, only its visibility — and remains correct for a smoke build. Does not
+  fix the deployed pin, which needs regenerating with all four layers.
+  Refs #885, #802.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and
