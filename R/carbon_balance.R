@@ -1445,21 +1445,27 @@ build_carbon_balance <- function(
 
 # Collapse `polity_code` to the `area_code` the carbon path reports on.
 #
-# DA-23: the support keys on `polity_code` and `polity_area_crosswalk` is lossy
-# -- it folds Sudan and South Sudan onto 206 and leaves other polities with no
-# bucket at all. Both losses are made visible here rather than absorbed: rows
-# with no `area_code` are dropped with their land reported, and polycells that
-# share an `area_code` inside one cell are summed with the fold reported. The
-# sum is right for an EXTENT (bucket 206's territory really is Sudan plus South
-# Sudan) and would be wrong for a value, which is why it is done here, once, at
-# the boundary that owns it, and refused by `.normalize_carbon_support()`
-# everywhere else.
+# DA-23: the support keys on `polity_code` and the conversion to a reporting
+# code is lossy -- some polities have no reporting area at all, and two can
+# share one. Both losses are made visible here rather than absorbed: rows with
+# no `area_code` are dropped with their land reported, and polycells that share
+# an `area_code` inside one cell are summed with the fold reported. The sum is
+# right for an EXTENT and would be wrong for a value, which is why it is done
+# here, once, at the boundary that owns it, and refused by
+# `.normalize_carbon_support()` everywhere else.
+#
+# The code the fold runs on is re-resolved from `polity_code` first
+# (`.carbon_rekey_area_code()`), because the pinned support's own `area_code`
+# column holds matrix BUCKET codes -- 206 for Sudan plus South Sudan, 999 for
+# Syria and 42 other territories -- which is not the vocabulary this function's
+# consumers are keyed on (whep#907).
 .carbon_support_to_area_code <- function(support) {
   .check_columns(
     support,
     c("lon", "lat", "area_code", "cell_area_ha", "land_area_ha"),
     "country_grid"
   )
+  support <- .carbon_rekey_area_code(support)
   # The share denominator is the cell's WHOLE measured land, taken before any
   # row is dropped. Taking it after would renormalise the survivors over a
   # smaller cell, handing an unkeyable polity's hectares to its neighbour --
@@ -1474,6 +1480,45 @@ build_carbon_balance <- function(
     .carbon_drop_unkeyed() |>
     .carbon_fold_area_code() |>
     .carbon_attach_land_share(cell_land)
+}
+
+# Re-resolve `area_code` from `polity_code` so the support is keyed on the
+# REPORTING vocabulary its consumers use, not on the matrix bucket the pinned
+# column carries. This is a relabelling and an un-folding: no row is added or
+# dropped and no hectare moves, so `sum(land_area_ha)` is invariant.
+#
+# A support the caller built itself may not carry `polity_code` at all, and a
+# polity the crosswalk does not know resolves to NA; in both cases the incoming
+# code is left alone rather than being replaced by a guess. `.pcs_area_code()`
+# writes the same codes at the producer, so this is a no-op on a support
+# regenerated after whep#907 and the correction for every pin published before
+# it.
+.carbon_rekey_area_code <- function(support) {
+  if (!rlang::has_name(support, "polity_code")) {
+    return(support)
+  }
+  resolved <- .polity_reporting_area_code(support$polity_code)
+  moved <- !is.na(resolved) &
+    !is.na(support$area_code) &
+    as.integer(support$area_code) != resolved
+  support$area_code[!is.na(resolved)] <- resolved[!is.na(resolved)]
+  if (any(moved)) {
+    .carbon_inform_rekey(support[moved, , drop = FALSE], resolved[moved])
+  }
+  support
+}
+
+.carbon_inform_rekey <- function(moved, codes) {
+  land <- round(sum(moved$land_area_ha, na.rm = TRUE) / 1e6, 2)
+  n_codes <- dplyr::n_distinct(codes)
+  cli::cli_inform(c(
+    i = "Re-keyed {nrow(moved)} polycell{?s} ({land} Mha of land) from a matrix
+         bucket onto {cli::qty(n_codes)}{n_codes} reporting
+         {.field area_code}{?s}.",
+    i = "The support is read by {.field area_code}-keyed callers; the bucket
+         space folds Sudan with South Sudan and 43 territories into Rest of
+         World (whep#907)."
+  ))
 }
 
 # Rows the reporting vocabulary cannot express: no `area_code`, or no measured

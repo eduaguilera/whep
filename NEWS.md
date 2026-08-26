@@ -1,5 +1,35 @@
 # whep (development version)
 
+* **The polycell support's `area_code` now holds a reporting area code rather
+  than a matrix bucket, so `area_code`-keyed callers can join to it (#907).**
+  `build_polycell_support()` labelled each polycell with
+  `polity_area_crosswalk$polity_area_code` — the coarser key the matrix
+  workflows aggregate on, which folds Sudan with South Sudan onto 206 and 113
+  reporting areas into 999 (Rest of World) — and called the column `area_code`.
+  Every consumer of the polycell grid joins it to a table keyed on the
+  *reporting* `area_code`: `country_areas` in both spatialize engines, and the
+  national nutrient tables in the carbon and nitrogen paths. Measured on the
+  deployed pin at 2015, that mismatch left **7 reporting areas with no cell in
+  the grid at all, carrying 18.75 Mha of harvested area — 1.37% of the global
+  total**: Sudan (12.06 Mha), Syria (3.83), South Sudan (2.17), North Macedonia
+  (0.34), Eswatini (0.16), Palestine (0.11) and Equatorial Guinea (0.08). Their
+  whole national total was dropped, and the 423 Mha of grid land sitting under
+  206 and 999 could receive nothing. Both the producer (`.pcs_area_code()`) and
+  the carbon path's seam (`.carbon_support_to_area_code()`, which every carbon,
+  SOC, LUH2 land-use and spatialize consumer resolves its grid through) now
+  take the reporting `area_code` off the same crosswalk row, so a pin published
+  before this change is corrected on read. Values move: at 2015, 1,205
+  polycells holding 285.42 Mha of land are re-keyed — 206 splits into 276
+  (186.25 Mha) and 277 (62.84), and 999 releases 212 (18.57), 69 (8.39), 61
+  (2.70), 154 (2.50), 153 (1.88), 209 (1.70) and 299 (0.61) — and the grid goes
+  from 195 to 204 distinct codes at 2015. Total land is unchanged to the
+  hectare and the per-cell land shares still sum to one, because the re-key
+  only relabels and un-folds. A polity with no reporting region of its own
+  (Greenland, Western Sahara, most dependencies) and a residual aggregate that
+  answers for many (`ROW`, the historical Ethiopian polities) keep their bucket
+  code — that is the only home the reporting vocabulary gives them, and it is
+  never used as a fallback for a lookup that merely failed.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different
