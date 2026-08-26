@@ -163,3 +163,209 @@ testthat::test_that("no pin alias shadows a packaged dataset name", {
   testthat::expect_gt(length(aliases), 50L)
   testthat::expect_gt(length(datasets), 50L)
 })
+
+# Offline cache fallback ----------------------------------------------------
+
+# Builds a pins url-board cache on disk exactly as `pins::pin_download()`
+# leaves it: one directory per version, named after the hash of that version's
+# URL, holding the pinned files, the pin metadata (`data.txt`) and the
+# download bookkeeping (`download-cache.yaml`) naming the URLs they came from.
+.write_fake_pin_cache <- function(cache_root, pin_url, created, hash_prefix) {
+  version <- paste0(created, "-", hash_prefix)
+  version_url <- paste0(pin_url, version, "/")
+  dir <- fs::dir_create(
+    fs::path(cache_root, "url", rlang::hash(version_url))
+  )
+  file_name <- "pinned.parquet"
+  nanoparquet::write_parquet(
+    tibble::tibble(version = version, value = 1),
+    fs::path(dir, file_name)
+  )
+  yaml::write_yaml(
+    list(
+      file = file_name,
+      pin_hash = paste0(hash_prefix, strrep("0", 27L)),
+      type = "file",
+      created = created,
+      api_version = 1L
+    ),
+    fs::path(dir, "data.txt")
+  )
+  readr::write_lines(
+    c(
+      paste0("? ", version_url, "data.txt"),
+      ": expires: ~",
+      paste0("? ", version_url, file_name),
+      ": expires: ~"
+    ),
+    fs::path(dir, "download-cache.yaml")
+  )
+
+  dir
+}
+
+.local_pin_cache_root <- function(env = parent.frame()) {
+  cache_root <- withr::local_tempdir(.local_envir = env)
+  withr::local_envvar(
+    c(
+      PINS_CACHE_DIR = cache_root,
+      R_CONFIG_ACTIVE = NA,
+      PINS_USE_CACHE = NA
+    ),
+    .local_envir = env
+  )
+
+  cache_root
+}
+
+.pin_url_for <- function(file_alias) {
+  file_alias |>
+    .fetch_file_info(whep::whep_inputs) |>
+    purrr::pluck("board_url") |>
+    stringr::str_replace("_pins\\.yaml$", "") |>
+    paste0(file_alias, "/")
+}
+
+testthat::test_that(".pins_cache_base honours PINS_CACHE_DIR", {
+  # pins resolves its own cache through `PINS_CACHE_DIR`, so a base that
+  # ignores it looks in a directory the download never wrote to (#245).
+  cache_root <- withr::local_tempdir()
+  withr::local_envvar(
+    c(
+      PINS_CACHE_DIR = cache_root,
+      R_CONFIG_ACTIVE = NA,
+      PINS_USE_CACHE = NA
+    )
+  )
+
+  testthat::expect_equal(
+    fs::path(.pins_cache_base()),
+    fs::path(cache_root)
+  )
+})
+
+testthat::test_that(".find_cache_dir resolves a NULL version from cache", {
+  # #245: a request for the latest version, and a blank frozen version, both
+  # reach `.find_cache_dir()` as NULL. That NULL used to be pasted into the URL
+  # as nothing at all, hashing `.../alias//`, which never matches the directory
+  # the download actually wrote.
+  cache_root <- .local_pin_cache_root()
+  alias <- "commodity_balance_sheet"
+  pin_url <- .pin_url_for(alias)
+  .write_fake_pin_cache(cache_root, pin_url, "20240101T000000Z", "aaaaa")
+  newest <- .write_fake_pin_cache(
+    cache_root,
+    pin_url,
+    "20250101T000000Z",
+    "bbbbb"
+  )
+  file_info <- .fetch_file_info(alias, whep::whep_inputs)
+
+  result <- .find_cache_dir(file_info, alias, NULL)
+
+  # The newest cached version is what a `"latest"` request must resolve to.
+  testthat::expect_equal(fs::path(result), fs::path(newest))
+})
+
+testthat::test_that(".find_cache_dir still finds a concrete version", {
+  cache_root <- .local_pin_cache_root()
+  alias <- "commodity_balance_sheet"
+  pin_url <- .pin_url_for(alias)
+  wanted <- .write_fake_pin_cache(
+    cache_root,
+    pin_url,
+    "20240101T000000Z",
+    "aaaaa"
+  )
+  .write_fake_pin_cache(cache_root, pin_url, "20250101T000000Z", "bbbbb")
+  file_info <- .fetch_file_info(alias, whep::whep_inputs)
+
+  result <- .find_cache_dir(file_info, alias, "20240101T000000Z-aaaaa")
+
+  testthat::expect_equal(fs::path(result), fs::path(wanted))
+})
+
+testthat::test_that(".find_cache_dir returns NULL when nothing is cached", {
+  .local_pin_cache_root()
+  file_info <- .fetch_file_info(
+    "commodity_balance_sheet",
+    whep::whep_inputs
+  )
+
+  testthat::expect_null(
+    .find_cache_dir(file_info, "commodity_balance_sheet", NULL)
+  )
+  testthat::expect_null(
+    .find_cache_dir(
+      file_info,
+      "commodity_balance_sheet",
+      "99999999T999999Z-fake0"
+    )
+  )
+})
+
+testthat::test_that(".find_cache_dir ignores another pin's cache", {
+  cache_root <- .local_pin_cache_root()
+  .write_fake_pin_cache(
+    cache_root,
+    .pin_url_for("faostat-fertilizer-nutrients"),
+    "20250101T000000Z",
+    "bbbbb"
+  )
+  file_info <- .fetch_file_info(
+    "commodity_balance_sheet",
+    whep::whep_inputs
+  )
+
+  testthat::expect_null(
+    .find_cache_dir(file_info, "commodity_balance_sheet", NULL)
+  )
+})
+
+testthat::test_that("whep_read_file falls back to cache for 'latest'", {
+  cache_root <- .local_pin_cache_root()
+  alias <- "commodity_balance_sheet"
+  .write_fake_pin_cache(
+    cache_root,
+    .pin_url_for(alias),
+    "20250101T000000Z",
+    "bbbbb"
+  )
+  local_mocked_bindings(
+    .check_remote_reachable = function(...) {
+      cli::cli_abort("Remote host is not reachable.")
+    }
+  )
+
+  testthat::expect_warning(
+    result <- whep_read_file(alias, version = "latest"),
+    "Using cached local copy"
+  )
+
+  testthat::expect_s3_class(result, "tbl_df")
+  testthat::expect_equal(result$version, "20250101T000000Z-bbbbb")
+})
+
+testthat::test_that(".find_cache_dir survives an unreadable neighbour", {
+  # An interrupted download leaves a half-written `data.txt`. Scanning happens
+  # only once the remote is already unreachable, so one unparseable directory
+  # must not stop a good cached copy from being found.
+  cache_root <- .local_pin_cache_root()
+  alias <- "commodity_balance_sheet"
+  pin_url <- .pin_url_for(alias)
+  wanted <- .write_fake_pin_cache(
+    cache_root,
+    pin_url,
+    "20250101T000000Z",
+    "bbbbb"
+  )
+  broken <- fs::dir_create(fs::path(cache_root, "url", "broken0000"))
+  readr::write_lines("file:\n  - a: [", fs::path(broken, "data.txt"))
+  empty <- fs::dir_create(fs::path(cache_root, "url", "empty00000"))
+  file_info <- .fetch_file_info(alias, whep::whep_inputs)
+
+  result <- .find_cache_dir(file_info, alias, NULL)
+
+  testthat::expect_true(fs::dir_exists(empty))
+  testthat::expect_equal(fs::path(result), fs::path(wanted))
+})

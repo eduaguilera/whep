@@ -36,6 +36,25 @@
   lowland/flat-pasture default, not the published hill and mountain goat
   coefficient (0.024). `test_datasets.R` locks all four sheep/goat cells.
 
+* **The offline cache fallback now finds a cached copy when the version was
+  not pinned to a concrete string (#245).** `whep_read_file()` and the
+  `read_raw_inputs` readers fall back to the local `pins` cache when the board
+  is unreachable, and located it by hashing the version URL. For
+  `version = "latest"` (and for a registry entry that freezes no version) the
+  version reaching that point is `NULL`, so the hashed URL was `.../alias//`,
+  which matches no directory the download ever wrote: every such request
+  aborted with "No local cached copy was found either" no matter how much was
+  cached. The concrete version is now recovered from the cache itself — each
+  cached directory's `data.txt` names its `created` timestamp and `pin_hash`,
+  and the directory is named after the hash of the resulting version URL, so
+  the attribution is exact — and the newest cached version wins. Measured on a
+  populated cache of 73 registry aliases, `version = "latest"` resolved 0
+  before and 70 after; frozen-version lookups resolved 70 both times, so no
+  previously working lookup changes. `.pins_cache_base()` also honours
+  `PINS_CACHE_DIR`, `PINS_USE_CACHE` and `R_CONFIG_ACTIVE` the way `pins`
+  itself does, instead of always assuming the `rappdirs` default. No published
+  value changes: the same pin contents are read, only reachable offline now.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
