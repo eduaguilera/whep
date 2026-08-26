@@ -839,17 +839,16 @@ build_nitrogen_balance <- function(
 # ---- fert_type vocabulary bridge (documented mapping, see file header) ----
 
 .nb_loss_fert_type <- function(fert_type) {
-  dplyr::case_match(
-    fert_type,
-    "bnf" ~ "BNF",
-    "recycling" ~ "Recycling",
-    "manure_solid" ~ "Solid",
-    "manure_liquid" ~ "Liquid",
-    "excreta" ~ "Excreta_other",
-    "deposition" ~ "Deposition",
-    "urban" ~ "Urban",
-    "som_mineralization" ~ "SOM",
-    "synthetic" ~ "Synthetic"
+  dplyr::case_when(
+    fert_type == "bnf" ~ "BNF",
+    fert_type == "recycling" ~ "Recycling",
+    fert_type == "manure_solid" ~ "Solid",
+    fert_type == "manure_liquid" ~ "Liquid",
+    fert_type == "excreta" ~ "Excreta_other",
+    fert_type == "deposition" ~ "Deposition",
+    fert_type == "urban" ~ "Urban",
+    fert_type == "som_mineralization" ~ "SOM",
+    fert_type == "synthetic" ~ "Synthetic"
   )
 }
 

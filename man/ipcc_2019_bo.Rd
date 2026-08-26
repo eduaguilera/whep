@@ -3,12 +3,22 @@
 \docType{data}
 \name{ipcc_2019_bo}
 \alias{ipcc_2019_bo}
-\title{IPCC 2019 Bo values (Table 10.16).}
+\title{IPCC 2019 Bo values (Table 10.16A).}
 \format{
 A tibble with \code{category}, \code{bo_m3_kg_vs}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated) --
+Table 10.16 in that edition is the manure CH4 factors for deer and
+similar species. Every row matches its high-productivity column except
+\code{"Swine - Breeding"} 0.27: Table 10.16A publishes one swine Bo
+(0.48 North America, 0.45 other high-productivity regions, 0.29 low
+productivity) and the 2006 Annex 10A.2 derivation tables give breeding
+swine the same Bo as market swine, so 0.27 appears in neither edition;
+it coincides with the North American \emph{market swine volatile-solids
+rate} of 0.27 kg VS head-1 day-1 in 2006 Annex 10A.2. \code{"Other Cattle"}
+0.18 is the Western European non-dairy column (North America is 0.19,
+Eastern Europe and Oceania 0.17). Tracked in whep#601.
 }
 \usage{
 ipcc_2019_bo
