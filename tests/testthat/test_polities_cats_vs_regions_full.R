@@ -2,8 +2,8 @@
 
 # -- the two tables may differ only where a fold says so (issue #406) ----------
 
-# polities_cats and regions_full ship the same 39 columns, and all 198 of
-# polities_cats' area codes are among regions_full's 260: it is a row-filtered
+# polities_cats and regions_full ship the same 38 columns, and all 198 of
+# polities_cats' area codes are among regions_full's 272: it is a row-filtered
 # view of the same table. Both used to be read from their own vendored CSV, each
 # carrying its own copy of every column, so the copies drifted. Measured on
 # `main` before this test existed: over the 198 shared codes, 17 of 39 columns

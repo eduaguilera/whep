@@ -50,7 +50,7 @@ n_fix_ygpit_all,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%
 manure-west-et-al-2014,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T141153Z-82eff
 global-dams,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260430T152540Z-9c64c
 spatialize-country-areas,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T100949Z-0b306
-spatialize-crop-patterns,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T100957Z-06c05
+spatialize-crop-patterns,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260825T092111Z-8690d
 spatialize-gridded-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101008Z-ae830
 spatialize-country-grid,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101041Z-8ff94
 spatialize-type-cropland,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260625T101045Z-4f570
@@ -71,4 +71,4 @@ lpjml-rlds-era5-2017-2023,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQ
 lpjml-grass-natural-net-c,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122139Z-f04a5
 lpjml-soc-hydrology,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260805T122201Z-491da
 historical-land-areas,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260818T110621Z-08814
-polycell_support,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260818T105426Z-a0330
+polycell_support,https://saco.csic.es/public.php/dav/files/nrJ3JGPZyZeQMW8/Model%20inputs/world/_pins.yaml,20260825T102349Z-1a0eb

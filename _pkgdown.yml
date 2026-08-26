@@ -221,6 +221,7 @@ reference:
   - read_hyde_population
   - read_population
   - read_wpp_population
+  - population_source_reach
   - read_habitual_cv
   - build_urban_n
   - calculate_manner_nh3
@@ -464,10 +465,15 @@ reference:
 
 - title: Data-frame utilities
   desc: >
-    Complete tabular schemas without losing column types or silently
-    discarding extra fields.
+    Declare a table's schema once, as serializable data, then either
+    reach it or prove it. `ensure_columns()` coerces a table to a typed
+    prototype; `check_table_schema()` reports every violation of a
+    declarative schema without touching the table, and
+    `assert_table_schema()` is the build-time gate over the same schema.
   contents:
   - ensure_columns
+  - check_table_schema
+  - assert_table_schema
 
 - title: Gap filling functions
   desc: >
@@ -588,6 +594,7 @@ reference:
   - check_parquet_integrity
   - assert_parquet_integrity
   - write_parquet_checked
+  - write_table_checked
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality

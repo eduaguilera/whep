@@ -1276,6 +1276,15 @@ build_carbon_balance <- function(
 # The asymmetric C:N pair per cropland class (Conventional management). Keyed by
 # cropland_class so .cb_derive_son joins on the classified label, never on the
 # raw land-use string.
+#
+# CONVENTIONAL IS HARDCODED ON PURPOSE, not pending a parameter (issue 809).
+# `whep::soil_cn_ratios` also ships Organic rows, and nothing here can reach
+# them. That is the intended state: this balance has no management dimension --
+# it is global and gridded -- so an argument selecting management could only be
+# set world-wide, and running the whole world as organic is not a meaningful
+# request. The Organic rows are reference values for downstream consumers; see
+# the `management` entry of ?soil_cn_ratios. `test_datasets_balances.R` pins
+# both halves, so exposing management later has to be a deliberate edit.
 .cb_cn_lookup <- function() {
   whep::soil_cn_ratios |>
     dplyr::filter(.data$management == "Conventional") |>
