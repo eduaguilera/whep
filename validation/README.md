@@ -38,6 +38,7 @@ a hardcoded grid.
 | `variables.R` | Variable registry (production, area, occupation, cycle_length, cropping_intensity, stability) + their WHEP-side extractors. |
 | `stability.R` | Time-series stability check (internal archetype): flags year-over-year discontinuities in WHEP's own series. No external data. |
 | `year_scoping.R` | Year-scoping equivalence check (internal archetype): a scoped `build_x(years = Y)` must equal the full-range build filtered to `Y`. See below. |
+| `memory_floor.R` | Resident-memory floor left by the production/CBS chain (internal archetype): splits what a fat process is holding into live objects, glibc blocks freed but not returned, and another allocator's pages. See below. |
 | `gt_year_scoping.json` | Recorded per-unit divergence budget for that check. **Committed** — a ratchet, meant to be tightened as each filed defect is fixed. |
 | `compare_variable.R` | Variable-aware comparator: extracts WHEP's value, joins ground truth on the registry grain, judges (ratio or bound mode). |
 | `validate_all.R` | One-shot sweep: runs every variable's check and prints a combined scorecard. |
@@ -114,6 +115,86 @@ deliberately. 2010 is what ships recorded, and it is the *favourable* year, so
 `validate_all.R` reports both layers, but only *runs* a layer whose cached full
 build already exists — the sweep deliberately does not start a multi-minute
 build unasked. Force one with `VAL_SCOPING_LAYERS=production,wide_cbs`.
+
+## Resident-memory floor (`memory_floor.R`)
+
+A finished production/CBS build leaves the process far larger than its live
+data, and `gc()` does not bring it back — #777 measured 20.6 GB resident for
+1.42 GB live at 1901-2022 and read that as a leak. It is not one thing, and the
+three things it is have three different remedies:
+
+| component | what it is | how to see it | how to get rid of it |
+|---|---|---|---|
+| live | reachable objects: the build cache, the returned tables | `gc()`'s `used` column | `whep_clear_cache()`, or hold fewer tables |
+| glibc arena | blocks `free()`d but not returned to the OS | `mallinfo2()$fordblks` | `malloc_trim(0)` — 0.25 s here, no live object touched |
+| foreign allocator | pages held by an allocator that is not glibc; `arrow`'s default pool is **mimalloc** and keeps its segments after `bytes_allocated` returns to 0 | the pool's `max_memory` while `bytes_allocated` is 0 | `ARROW_DEFAULT_MEMORY_POOL=system` |
+
+Only the first is WHEP's. Reporting the three as one number is what makes an
+allocator floor look like a retention bug, which is the whole reason this
+script exists.
+
+`Rscript validation/memory_floor.R` re-derives the split at a configurable
+window (`VAL_MEM_YEAR_MIN`/`VAL_MEM_YEAR_MAX`, default `2005`-`2015`;
+`VAL_MEM_TRIM=0` skips the trim). It prints a `METRIC` line plus
+`CHECKPOINTS_JSON`, and builds the two-function `malloc_trim`/`mallinfo2` shim
+itself — with no compiler, or off glibc, those columns come back `NA` and the
+live-vs-resident pair still works.
+
+The script's own output at the default window, for reference:
+
+```
+03 after 3x gc(full)         resident   6.79 peak   9.05 live   1.46
+04 after malloc_trim(0)      resident   3.06 peak   9.05 live   1.46
+06 after malloc_trim(0)      resident   1.94 peak   9.05 live   0.33
+METRIC years=2005-2015 build_seconds=226 peak_gb=9.05 live_gb=1.46
+  floor_gb=5.34 reclaimable_gb=3.74 trim_seconds=0.250 arrow_max_gb=1.49
+  cache_gb=0.83 cache_slots=4 shim=TRUE
+```
+
+Three independent runs of the shipped configuration put `resident` after `gc`
+at 6.33, 6.79 and 7.10 GB and after the trim at 3.01, 3.06 and 3.08 GB, so the
+reclaimable share is not a one-off.
+
+The four rows below are one run each, at `2005-2015`,
+`get_primary_production()` then `get_wide_cbs()`:
+
+| configuration | build | peak | resident after `gc` | after `malloc_trim(0)` |
+|---|---|---|---|---|
+| as shipped | 241.9 s | 9.41 GB | 7.10 GB (live 1.45) | 3.01 GB |
+| `ARROW_DEFAULT_MEMORY_POOL=system` | 253.4 s | 8.79 GB | 7.98 GB | 2.50 GB |
+| `MALLOC_MMAP_THRESHOLD_=MALLOC_TRIM_THRESHOLD_=131072` | 356.3 s | 7.76 GB | 3.91 GB | 2.91 GB |
+| both | 301.2 s | 6.12 GB | 2.90 GB | 1.72 GB |
+
+The machine was running nine other agents throughout, so read the time column
+as indicative (the shipped configuration came in at 196.9, 226 and 241.9 s
+across three runs) and the memory columns as solid — those deltas are far
+larger than the spread.
+
+Three things follow that are easy to get backwards:
+
+- Pinning glibc's thresholds lowers the **peak**, because large blocks go to
+  `mmap` and come back on `free`. It pays for that in mmap churn.
+- A trim lowers the **resting** size for nothing, and does not touch the peak.
+- Putting arrow on the system allocator does not shrink the floor — it makes it
+  *reclaimable*, by moving the residue out of mimalloc and into the arena a
+  trim can return. Hence the higher `after gc` and lower `after trim`.
+
+Whether the floor is a floor under the **next** phase depends on the size class
+that phase allocates, and this is where #777 overreaches. Standing in a 4 GB
+phase 2 after the chain (resident 7.27 GB, 4.46 GB free inside the arena):
+256 x 16 MB blocks grow the process by only 1.22 GB, because 2.79 GB comes out
+of those free blocks; 8 x 0.5 GB blocks grow it by the full 3.50 GB, because
+glibc serves anything that large with a fresh `mmap` and cannot reuse the arena
+at all. So a tabular consumer mostly does not pay the floor, and a gridded one
+pays all of it. Trimming between the two phases held the overall peak at the
+chain's own 8.92 GB instead of letting phase 2 push it to 10.77 GB.
+
+The `MALLOC_*` variables have to be set in the shell that launches R: glibc
+reads them before `.Renviron` is ever parsed, so putting them there does
+nothing.
+
+`ARROW_DEFAULT_MEMORY_POOL` is the exception — arrow reads it when its C++
+library initialises, so `~/.Renviron` does work for that one.
 
 ## Validating an LPJmL run (different target)
 
@@ -224,6 +305,7 @@ each tagged with an **archetype** that decides how it's checked:
 | cycle_length | parameter | crop | `mirca_season.csv` (months) | FAO calendars / GGCMI (not pinned yet) |
 | stability | internal | time series | WHEP series | none (self-consistency) |
 | year_scoping | internal | unit / quantity column | scoped build vs full-range build | none (arithmetic identity) |
+| memory_floor | internal | process | resident vs live after the production/CBS chain | none (allocator accounting) |
 
 A third comparator, **bound** (one-sided), is for ceilings like GAEZ *potential*:
 pass if WHEP's observed value stays at/below it. Occupation is split into two
@@ -240,7 +322,7 @@ across every variable). Per-variable: `validation/stability.R`,
 - **external** — WHEP value vs an authoritative figure (ratio within tolerance).
 - **parameter** — a coefficient/weight WHEP *uses* vs an authoritative coefficient.
 - **internal** — WHEP's own consistency, no external source (`stability.R`,
-  `year_scoping.R`).
+  `year_scoping.R`, `memory_floor.R`).
 
 All extractors run from packaged data + public pins (no LPJmL). The deterministic
 comparators are proven; ground truth is now mostly automated — GAEZ (the

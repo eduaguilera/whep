@@ -30,6 +30,13 @@
 #' rows are kept for such an ISO3 and the function aborts if any is still
 #' ambiguous, instead of guessing as before.
 #'
+#' The bridge is year-insensitive by construction: `.current_area_lookup()` is
+#' one row per `area_code`, so an ISO3 resolves to the same FAOSTAT area for
+#' every year. That is what the caller wants -- `.proxy_polity_key()` stamps
+#' the reporting area and then resolves the polity year-by-year with
+#' `.add_polity_columns_dt()` -- but it means the stamped `area_code` must not
+#' be read as "the area that reported in that row's year".
+#'
 #' @noRd
 .iso3_to_fao_area_code <- function(df) {
   if (!data.table::is.data.table(df)) {
@@ -83,31 +90,6 @@
     )
   }
   bridge
-}
-
-#' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name
-#' @noRd
-.fao_to_iso3_area_code <- function(df) {
-  if (!data.table::is.data.table(df)) {
-    data.table::setDT(df)
-  }
-  dt <- df
-  bridge <- .current_area_lookup(include_unmapped = TRUE)[,
-    .(area_code_fao = area_code, iso3c = area_iso3c, area = area_name)
-  ]
-  bridge <- unique(bridge, by = "area_code_fao")
-
-  dt <- merge(
-    dt,
-    bridge,
-    by.x = "area_code",
-    by.y = "area_code_fao",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, area_code := NULL]
-  data.table::setnames(dt, "iso3c", "area_code")
-  dt
 }
 
 # -- Reading helpers -----------------------------------------------------------
