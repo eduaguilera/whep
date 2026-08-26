@@ -28,30 +28,52 @@
     )
 }
 
-testthat::test_that("Edible_portion is a fraction, and one row is not", {
-  # An edible portion above 1 means more edible matter than matter. The single
-  # offender is the label row ANIMAL PRODUCTS, which carries 4.0 -- and 3.0 kg
-  # of nitrogen per kg of fresh matter beside it. It is a header that leaked
-  # into the data, not a commodity.
+testthat::test_that("every Edible_portion is a fraction", {
+  # An edible portion above 1 means more edible matter than matter, so (0, 1]
+  # is the whole valid range. This used to carry one exception, the section
+  # header ANIMAL PRODUCTS at 4.0; that row is now dropped at ingestion
+  # (#752), so the invariant holds outright.
   bad <- whep::biomass_coefs |>
     dplyr::filter(!is.na(.data$Edible_portion)) |>
     dplyr::filter(.data$Edible_portion <= 0 | .data$Edible_portion > 1)
-  testthat::expect_equal(bad$Name_biomass, "ANIMAL PRODUCTS")
-  testthat::expect_equal(bad$Edible_portion, 4)
-  # The rest really are fractions, so the guard is not vacuous.
+  testthat::expect_equal(bad$Name_biomass, character(0))
+  # The column is populated, so the guard is not vacuous.
   ok <- whep::biomass_coefs |>
-    dplyr::filter(
-      !is.na(.data$Edible_portion),
-      .data$Name_biomass != "ANIMAL PRODUCTS"
-    )
-  testthat::expect_true(all(ok$Edible_portion > 0 & ok$Edible_portion <= 1))
+    dplyr::filter(!is.na(.data$Edible_portion))
   testthat::expect_gt(nrow(ok), 200L)
 })
 
+testthat::test_that("the spreadsheet section headers are not shipped", {
+  # Three all-caps rows of the upstream workbook are sheet furniture, not
+  # commodities. Two are entirely empty; ANIMAL PRODUCTS holds the VLOOKUP
+  # column-index vector the Coefs sheet addresses absolutely, which read as
+  # data is an Edible_portion of 4 and 3 kg N per kg of fresh matter. They
+  # cannot be removed upstream without breaking the workbook, so
+  # data-raw/harmonization_tables.R drops them (#752).
+  headers <- c(
+    "TRANSFORMED PRODUCTS",
+    "AGRO-INDUSTRY BYPRODUCTS",
+    "ANIMAL PRODUCTS"
+  )
+  testthat::expect_false(any(headers %in% whep::biomass_coefs$Name_biomass))
+  # They are still in the source CSV, so the filter is doing the work and the
+  # test is not passing because the rows never existed.
+  source_coefs <- readr::read_csv(
+    system.file(
+      "extdata",
+      "harmonization",
+      "biomass_coefs.csv",
+      package = "whep"
+    ),
+    show_col_types = FALSE
+  )
+  testthat::expect_true(all(headers %in% source_coefs$Name_biomass))
+})
+
 testthat::test_that("ANIMAL PRODUCTS is unreachable from any item code", {
-  # This is why the 4.0 has never moved a published number: no item_cbs_code
-  # bridges to it. If that ever changes, a row with 3 kg N per kg of food
-  # becomes live, so the unreachability is asserted rather than assumed.
+  # The header row never moved a published number even before it was dropped:
+  # no item_cbs_code bridges to it. Asserted, not assumed, because items_full
+  # is the only thing that could make such a row live again.
   reachable <- whep::items_full |>
     dplyr::filter(.data$Name_biomass == "ANIMAL PRODUCTS")
   testthat::expect_equal(nrow(reachable), 0L)
