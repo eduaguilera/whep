@@ -1,5 +1,40 @@
 # whep (development version)
 
+* **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have an
+  impossibility check, and it records #824 rather than suppressing it.**
+  `validation/lpjml_pins.R` guards the four pins carrying LPJmL *output* and
+  deliberately excludes the *forcing* pins, reasoning that forcing does not
+  change with the model version. True of its magnitude tier, false of its
+  invariant tier: forcing can still be corrupt.
+  `lpjml-rsds-era5-2017-2023` ships **1,823,843 negative shortwave values**
+  because #536 fixed the builder and nobody rebuilt the artifact, and nothing in
+  the repo could see it — that script excluded the pin, and
+  `test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+  against its generating script. A census of all six forcing pins shows the
+  defect is confined to that one: `rlds` and `wind` come off the same builder
+  and the same ERA5 tail and are clean, because shortwave is the only one of the
+  three that legitimately reaches exactly zero. The floor is therefore
+  **inclusive** — `lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0, so a
+  positivity test would fail on a clean pin. The recorded count is compared
+  **bidirectionally**: a rise is a new corruption, and a fall means the pin was
+  rebuilt, which is the event #824 exists because nobody noticed. Refs #824,
+  #536, #384.
+
+* **A missing `water` or `ice` layer no longer zero-fills silently in
+  `build_polycell_support()` (#885).** Both arguments default to `NULL`, the
+  column is filled with zeros, and the producer's identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` still holds —
+  so every check passes while every lake, river and glacier inside a polity is
+  booked as land. The deployed pin `20260818T105426Z-a0330` was built that way,
+  confirmed by reading it: all **482,605** rows carry `inland_water_ha == 0` and
+  `ice_area_ha == 0`, and `land_area_ha` equals `polity_area_ha` in every one,
+  which puts 2015 land 536.0 Mha (+4.15%) above the pin built from all four
+  layers. `.pcs_add_water()` and `.pcs_add_ice()` now warn, on distinct condition
+  classes (`whep_polycell_absent_water`, `whep_polycell_absent_ice`), naming the
+  consequence rather than the absence. Zero-filling still happens — this changes
+  no value, only its visibility — and remains correct for a smoke build. Does not
+  fix the deployed pin, which needs regenerating with all four layers.
+  Refs #885, #802.
 * **The three polity tables are re-synced to upstream `whep-polities` again,
   and this time the re-sync closes an identity gap rather than moving one
   (#890, #458).** `polity_area_crosswalk`, `polities` and
@@ -174,6 +209,128 @@
   186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
   rather than a mechanisation class are documented rather than repaired, since
   the correct class is not recoverable from anything the package ships.
+
+* **New: `check_table_schema()` and `assert_table_schema()` validate a table
+  against a serializable declarative schema (#373).** The schema is plain
+  data — an ordered list of column specifications carrying type, presence,
+  bounds, an allowed-value vocabulary, uniqueness and severity, plus a
+  table-level key, extra-column policy, column-order policy and empty-table
+  policy — so it round-trips through `yaml`/`jsonlite` and can be stored next
+  to the artifact it describes. Project vocabularies and scientific bounds
+  stay in the caller's schema; the validator hard-codes none of them.
+  `check_table_schema()` returns one deterministic diagnostic row per
+  violation (`row`, `column`, `rule`, `value`, `severity`, `detail`) and never
+  touches the input; `assert_table_schema()` is the build-time gate over the
+  same schema and returns its input unchanged. This complements
+  `ensure_columns()`, which *coerces* a table to a typed prototype: use
+  `ensure_columns()` to reach a schema and `check_table_schema()` to prove a
+  table is already there. No published value changes — both functions are new
+  and nothing in the pipeline calls them yet.
+
+* **New `write_table_checked()` writes a table atomically and verifies it
+  before it replaces anything (#375).** It creates the parent directory,
+  writes to a temporary file beside the target, reads that file back
+  (`assert_parquet_integrity()` plus a row and column-name check for Parquet,
+  a header and row-count re-read for CSV) and only then renames it into
+  place, so an interrupted, failed or corrupt write leaves the previous
+  artifact untouched instead of overwriting it with a partial file.
+  `overwrite = FALSE` refuses an existing target, and `sidecars` optionally
+  writes `<path>.schema.yaml` and `<path>.provenance.yaml`. It also closes a
+  silent failure mode: `nanoparquet::write_parquet()` given a path whose
+  parent directory does not exist returns `NULL` and writes nothing at all,
+  which `write_parquet_checked()` only reported as a confusing "Parquet file
+  not found". No published value changes: this is a new function, and no
+  existing call site was moved onto it.
+
+* **The package no longer calls `dplyr::case_match()`, which dplyr 1.2.0
+  deprecated (#850).** The five call sites — the `fert_type` bridge in the
+  nitrogen balance, the `manure_type` bridge in its inputs, the GLEAM
+  continent and method-label helpers in the energy CO2 extension, and the
+  live-animal unit rename in the production assembly — now use
+  `dplyr::case_when()`. This is deliberately not `recode_values()`, dplyr's
+  named successor: that function does not exist before dplyr 1.2.0, so using
+  it would force a `dplyr (>= 1.2.0)` bound in `DESCRIPTION` and break
+  installation for anyone on an older dplyr, while `case_when()` behaves
+  identically on both. No published value changes: every affected helper was
+  run over its whole input vocabulary plus `NA`, an unmatched value and an
+  empty input, under dplyr 1.1.4 and 1.2.1, and the output is identical in
+  all cases. What does change is that a build on dplyr >= 1.2.0 no longer
+  emits deprecation warnings from these paths.
+
+* **The GLEAM coefficient tables now cite the FAO workbook they were actually
+  read from, not an unregistered DOI (#607).** All fifteen GLEAM `@source`
+  tags in `R/livestock_coefs.R` credited "MacLeod et al. (2018) GLEAM 3.0
+  Supplement S1", four of them with an IOP-prefixed DOI that is not
+  registered at all (a 404 at doi.org, "Resource not found" in Crossref),
+  which is what produced the `--as-cran` "possibly invalid DOIs" NOTE.
+  MacLeod et al. (2018) is the *Animal* position paper on GLEAM
+  (`10.1017/S1751731117001847`), which publishes none of these tables. The
+  twelve tables parsed from `data-raw/GLEAM_3.0_Supplement_S1.xlsx` are now
+  cited as FAO (2022) GLEAM version 3.0 Supplement S1 by title and URL, the
+  committed workbook having been confirmed byte-identical to the one FAO
+  publishes; FAO issues no DOI for it. The other five -- `gleam_mms_shares`,
+  `gleam_animal_weights`, `gleam_milk_production`,
+  `gleam_livestock_categories` and `gleam_feed_categories` -- are hardcoded
+  in `data-raw/livestock_coefficients.R`, could not be traced to any GLEAM
+  document, and their documentation now says so instead of naming a source
+  they do not have; `gleam_animal_weights` feeds the Tier 2 energy
+  calculation, so #881 tracks sourcing it. Documentation only: no data value
+  and no published number changes.
+
+* **The `ipcc_2019_*` livestock coefficient tables now document what edition
+  each of their values actually comes from (#601).** No stored value changed,
+  so no published number changes. Every one of the ten objects was checked
+  cell by cell against the published PDFs of both the 2019 Refinement and the
+  2006 Guidelines, Vol 4, Ch 10 (and Ch 11 Table 11.1 for the
+  pasture/range/paddock N2O factor). Only `ipcc_2019_bo` and `ipcc_2019_cfi`
+  hold 2019 Refinement values throughout; `ipcc_2019_ym` is split between the
+  two editions; the enteric, manure-CH4, MCF, nitrogen-excretion and direct-N2O
+  tables are 2006 values, values from no IPCC table at all, or a per-head
+  quantity the Refinement does not publish. The `@source` of each says which,
+  names the specific cells, and gives the published alternative. Whether to
+  revalue them, rename them or expose both editions is the open decision in
+  #601: measured on the 2020 Tier 1 livestock chain, moving the cattle enteric
+  table to the 2019 Refinement's Table 10.11 raises enteric CH4 from 109.4 to
+  121.8 Tg (+11.3%, and +67% for Africa alone), and moving EF3 to the 2019
+  Table 10.21 lowers direct manure N2O from 1.65 to 1.15 Tg (-30.6%).
+
+* **User-supplied historical rice no longer arrives on two different mass
+  bases (#778).** `.read_historical_production()` is the single reader behind
+  the public `historical_data` argument of both `build_primary_production()`
+  and `build_commodity_balances()`, but only the production side treated the
+  rows as paddy: one 100 t paddy rice row reached item 2807 as 67 t through
+  `build_primary_production()` and as 100 t through
+  `build_commodity_balances()`, a 1.49x disagreement on a major staple.
+  Item 2807 is milled equivalent throughout WHEP, so the CBS ingest now keys
+  the paddy test on the row's `source` -- the item label cannot carry the basis
+  once `items_full` has relabelled every 2807 row "Rice and products" -- using
+  the same source list the production pipeline uses. Both paths therefore agree
+  by construction. **No published value changes:** `historical_data` defaults
+  to `NULL` and nothing in the repository passes rice through it, so this only
+  affects a user who supplies a historical rice series, whose pre-1961 CBS rice
+  is now milled equivalent (0.67x its previous level) rather than paddy. The
+  paddy assumption is now documented on both `historical_data` parameters;
+  pre-divide by the extraction rate if the series is already milled.
+
+* **`build_water_balance()` now warns when the per-CFT consumptive-water
+  inputs carry the LPJmL 6.x green/blue defect (#737).** The default
+  `blue_green = "cft_native"` method partitions evapotranspiration with the
+  `cft_consump_water_b` / `cft_consump_water_g` cubes. LPJmL 6.x before
+  `lbm364dl/LPJmL#3` books infiltrating rain as blue water, so those cubes
+  split it badly wrong: on the current 6.1.1 production run, rainfed
+  grassland comes out green 134.2 / blue 382.2 mm where the same cells of a
+  run built with the fix give 516.4 / 0.0. A rainfed crop band receives no
+  irrigation, so blue water on one is proof of the defect, and that is what
+  the check tests — measured over every rainfed band and cell of year 2005,
+  the blue share is 0.899 on the affected run against 0.0199 (6.1.1 with the
+  fix) and 0.0002 (5.9.7), so the warning fires above 0.10. It is detected
+  from the data rather than from a version number because a run directory
+  carries no version stamp. **No published value changes**: the split is
+  still computed and returned exactly as before, and
+  `blue_green = "irrig_share"` never reads these cubes. Nothing in the
+  package consumes `blue_consump_mm` / `green_consump_mm` /
+  `aet_blue_mm` / `aet_green_mm` yet, so this makes a trap visible rather
+  than correcting a live error.
 
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
