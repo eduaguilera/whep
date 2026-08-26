@@ -12,6 +12,7 @@ build_commodity_balances(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
+  trade_recovery = c("none", "net_import"),
   .fixed_data = NULL
 )
 }
@@ -41,6 +42,18 @@ one of \code{area_code} or \code{polity_area_code}, one of \code{item_cbs_code} 
 per element. \code{"wide"} pivots the elements into columns, adds the live-animal
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
+
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+what happens to a traded item the CBS has no row for. The trade record is
+joined onto the CBS, so it can only fill a row that already exists;
+\code{"none"} keeps that, and the import is dropped. \code{"net_import"} first
+creates the missing rows from the trade record, restricted to
+tonnes-denominated items (live-animal trade is in heads and arrives
+through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
+already covers in that year. It \strong{moves published values}; \code{NEWS.md}
+states by how much and whep#762 keeps the remaining decisions open.
+\code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
+get the wide table with recovery applied.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

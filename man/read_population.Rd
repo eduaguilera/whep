@@ -84,6 +84,17 @@ It is a gap-filler and not a replacement, because the two sources disagree
 where they overlap: across 12,309 shared country-years they differ by a
 median 0.64\%, a 95th percentile of 4.4\% and a maximum of 81\%. That is why
 \code{"pin"} remains the default.
+
+Neither source can reach an area whose territory no longer exists, because
+both are keyed on a present-day ISO3 code. \code{\link[=population_source_reach]{population_source_reach()}}
+reports which areas that leaves out and whether the polities database's
+\code{successor} relation could stand in for them. Against UN WPP 2024's
+vocabulary, exactly one reporting area outside the Rest-of-World bucket is
+unreachable by either route: area 151 Netherlands Antilles, \code{ANT-1961-2010},
+which carries commodity-balance food in every year from 1961 to 2010 and for
+which upstream publishes no successor at all (#787). Reachable is not the
+same as safe to sum — see that function and the note at the top of
+\code{R/population_reach.R}.
 }
 \section{Polity columns}{
 
