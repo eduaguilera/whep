@@ -2124,6 +2124,97 @@ prepare_yield_inputs <- function(
 }
 
 
+# ---- HaNi atmospheric N deposition --------------------------------------
+#
+# HaNi (Tian et al. 2022, doi:10.5194/essd-14-4551-2022; PANGAEA dataset
+# 942069) stores each 5-arcmin cell as an extensive MASS, not a density: the
+# NetCDF declares `units = "g N"` with `long_name = "NHX-N deposition to land
+# within the grid cell"` (read off ndep_nhx.nc / ndep_noy.nc directly). Two
+# consequences, and the terra path this replaces got both wrong (whep#259):
+#
+#   1. aggregating to 0.5 degrees must SUM the 6x6 native block, because mass
+#      is additive. `terra::aggregate(fun = "mean")` left grams per native
+#      cell instead.
+#   2. turning that into kg N/ha needs the block's TRUE area, which shrinks
+#      with cos(lat). The old divisor 1e7 hard-coded 1000 g/kg times a fixed
+#      1e4 ha per native cell, i.e. it assumed every 5-arcmin cell was
+#      exactly 100 km2. On this sphere a 5-arcmin cell is 8586 ha at the
+#      equator and 4288 ha at 60 degrees, so the rate came out low
+#      everywhere: 14% at the equator, 29% at 40 degrees, 50% at 60 degrees,
+#      and 2014 NHx reconstructed 24.60 Tg against HaNi's own 34.77 Tg.
+#
+# It also dated the series one year late: terra names the NetCDF layers
+# `ndep_nhx_1 ...`, which the old code read as `1850 + n` and so as
+# 1851-2021, but the file's `time` axis is `0:170` on
+# `units = "years since 1850-01-01"`, i.e. 1850-2020.
+#
+# `whep::read_n_deposition()` already does the block sum and the year mapping,
+# and is covered by tests/testthat/test_n_deposition.R, so nothing is
+# reimplemented here; this only divides, on the same whole-cell convention
+# `build_n_deposition()` uses (`value_g / 1000 / cell_area_ha`). The rate
+# times the whole 0.5-degree cell area therefore returns the source mass
+# exactly, which is the invariant test_prepare_nitrogen.R asserts.
+#
+# The input is now the extracted NetCDF rather than the PANGAEA zip;
+# download_nitrogen.R already unpacks both archives, so a directory it filled
+# needs nothing further.
+
+# Whole-cell deposition rate (kg N/ha/yr) from the two HaNi species masses.
+.hani_deposition_rate <- function(nhx, noy) {
+  dplyr::full_join(
+    nhx,
+    noy,
+    by = c("lon", "lat", "year"),
+    suffix = c("_nhx", "_noy")
+  ) |>
+    dplyr::mutate(
+      cell_area_ha = cell_area_ha_by_lat(lat),
+      nhx = dplyr::coalesce(value_g_nhx, 0) / 1000 / cell_area_ha,
+      noy = dplyr::coalesce(value_g_noy, 0) / 1000 / cell_area_ha,
+      deposit_kg_n_ha = nhx + noy,
+      method_deposition = "hani",
+      lon = round(lon, 2),
+      lat = round(lat, 2)
+    ) |>
+    # HaNi is land-masked, and `read_n_deposition()` block-sums every cell of
+    # the globe, so the ocean arrives as an exact zero. Dropping it keeps the
+    # parquet at land cells, as the previous NA filter did.
+    dplyr::filter(deposit_kg_n_ha > 0) |>
+    dplyr::select(
+      lon,
+      lat,
+      year,
+      deposit_kg_n_ha,
+      nhx,
+      noy,
+      method_deposition
+    )
+}
+
+# Read both HaNi species from `<l_files_dir>/HaNi` onto WHEP's 0.5-degree
+# grid. Returns NULL when the extracted NetCDFs are absent, so the caller can
+# report the pipeline step as unavailable rather than abort.
+.extract_hani_deposition <- function(l_files_dir) {
+  hani_dir <- file.path(l_files_dir, "HaNi")
+  nc_files <- file.path(hani_dir, c("ndep_nhx.nc", "ndep_noy.nc"))
+  if (!all(file.exists(nc_files))) {
+    return(NULL)
+  }
+  cli::cli_alert(
+    "Reading HaNi N deposition and block-summing to 0.5 degrees..."
+  )
+  dep <- .hani_deposition_rate(
+    whep::read_n_deposition("nhx", hani_dir = hani_dir),
+    whep::read_n_deposition("noy", hani_dir = hani_dir)
+  )
+  n_cells <- dplyr::n_distinct(paste(dep$lon, dep$lat))
+  cli::cli_alert_success(
+    "HaNi deposition: {n_cells} cells, {min(dep$year)}-{max(dep$year)}"
+  )
+  dep
+}
+
+
 # ==== Section 7: Nitrogen inputs ==========================================
 #
 # N/P/K inputs from FAOSTAT + spatial distribution.
@@ -2608,21 +2699,26 @@ prepare_nitrogen_inputs <- function(
   }
 
   # ---- 7i. N deposition ----
-  .prepare_n_deposition_local <- function(l_files_dir, regions, output_dir) {
+  # The cache gate keys on `method_deposition`, not on the NHx/NOy split
+  # alone: every parquet written before whep#259 carries the split but holds
+  # rates scaled by the fixed 1e4 ha per native cell, and column presence
+  # cannot tell the two vintages apart. Requiring the column re-extracts a
+  # stale cache instead of silently reusing it.
+  .prepare_n_deposition_local <- function(l_files_dir, output_dir) {
     dep_file <- file.path(output_dir, "n_deposition.parquet")
     if (file.exists(dep_file)) {
       dep <- nanoparquet::read_parquet(dep_file)
-      if (all(c("nhx", "noy") %in% names(dep))) {
+      if (all(c("nhx", "noy", "method_deposition") %in% names(dep))) {
         cli::cli_alert_info(
           "Reading pre-computed deposition with NHx/NOy split"
         )
         return(dep)
       }
       cli::cli_alert_info(
-        "Cached deposition lacks NHx/NOy split; re-extracting..."
+        "Cached deposition is pre-whep#259 or lacks the split; re-extracting"
       )
     }
-    dep <- .extract_hani_deposition(l_files_dir, regions)
+    dep <- .extract_hani_deposition(l_files_dir)
     if (!is.null(dep)) {
       .save_parquet(dep, output_dir, "n_deposition")
       return(dep)
@@ -2631,85 +2727,6 @@ prepare_nitrogen_inputs <- function(
       "N deposition data not available (run download_nitrogen.R)"
     )
     NULL
-  }
-
-  .extract_hani_deposition <- function(l_files_dir, regions) {
-    hani_dir <- file.path(l_files_dir, "HaNi")
-    if (!dir.exists(hani_dir)) {
-      return(NULL)
-    }
-    zip_files <- list.files(hani_dir, pattern = "\\.zip$", full.names = TRUE)
-    if (length(zip_files) == 0) {
-      return(NULL)
-    }
-    cli::cli_alert(
-      "Extracting N deposition from HaNi rasters to 0.5-degree grid..."
-    )
-    if (!requireNamespace("terra", quietly = TRUE)) {
-      install.packages("terra", quiet = TRUE)
-    }
-
-    # 0.5-degree target grid matching WHEP
-    target <- terra::rast(
-      resolution = 0.5,
-      xmin = -180,
-      xmax = 180,
-      ymin = -90,
-      ymax = 90
-    )
-    agg_factor <- 6L # 5 arcmin -> 30 arcmin
-
-    .extract_one_hani <- function(zip_path) {
-      tmpd <- tempfile()
-      dir.create(tmpd)
-      on.exit(unlink(tmpd, recursive = TRUE), add = TRUE)
-      utils::unzip(zip_path, exdir = tmpd)
-      nc_files <- list.files(tmpd, pattern = "\\.nc$", full.names = TRUE)
-      if (length(nc_files) == 0) {
-        return(tibble::tibble())
-      }
-      r <- terra::rast(nc_files)
-      # Aggregate to 0.5° by averaging 5-arcmin cells
-      r_05 <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
-      vals <- terra::as.data.frame(r_05, xy = TRUE)
-      vals$file <- basename(zip_path)
-      tibble::as_tibble(vals)
-    }
-
-    dep_raw <- lapply(zip_files, .extract_one_hani) |> dplyr::bind_rows()
-
-    if (nrow(dep_raw) == 0) {
-      return(NULL)
-    }
-
-    dep <- dep_raw |>
-      tidyr::pivot_longer(
-        dplyr::starts_with("ndep_"),
-        names_to = "layer",
-        values_to = "value"
-      ) |>
-      dplyr::mutate(
-        parameter = gsub(".*ndep_(\\w+)\\.zip", "\\1", file),
-        layer_num = as.integer(gsub("ndep_.*_(\\d+).*", "\\1", layer)),
-        year = 1850L + layer_num,
-        value = value / 10000000
-      ) |>
-      dplyr::filter(!is.na(value), !is.na(year)) |>
-      dplyr::select(x, y, year, parameter, value) |>
-      tidyr::pivot_wider(names_from = parameter, values_from = value) |>
-      dplyr::mutate(
-        deposit_kg_n_ha = nhx + noy,
-        lon = round(x, 2),
-        lat = round(y, 2)
-      ) |>
-      dplyr::filter(!is.na(nhx) | !is.na(noy)) |>
-      dplyr::select(lon, lat, year, deposit_kg_n_ha, nhx, noy)
-
-    cli::cli_alert_success(
-      "HaNi deposition: {dplyr::n_distinct(paste(dep$lon, dep$lat))} cells, ",
-      "{min(dep$year)}–{max(dep$year)}"
-    )
-    dep
   }
 
   # ---- Execute nitrogen pipeline ----
@@ -2771,7 +2788,7 @@ prepare_nitrogen_inputs <- function(
     base_rates$coello_rates <- coello_rates
   }
 
-  n_deposition <- .prepare_n_deposition_local(l_files_dir, regions, output_dir)
+  n_deposition <- .prepare_n_deposition_local(l_files_dir, output_dir)
 
   # Distribute N among crops (full algorithm from prepare_nitrogen_inputs.R)
   n_crops <- NULL
