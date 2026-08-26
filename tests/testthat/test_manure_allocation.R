@@ -181,6 +181,27 @@ test_that("fixed_ceiling cap uses crop area and the EU Nitrates rate", {
   expect_true(all(res$method_cap == "fixed_ceiling"))
 })
 
+test_that("a negative supplied grass_n_cap is floored at 0, not passed through", {
+  res <- whep::allocate_manure_to_land(
+    .toy_applied(),
+    .toy_gridded(grass_cap = -5)
+  )
+  graz <- res[res$land_use == "Grassland" & res$source_stream == "collected", ]
+  expect_true(all(graz$applied_n >= 0))
+})
+
+test_that("a negative supplied crop_n_cap is floored at 0, not passed through", {
+  crops <- .toy_crops()
+  crops$crop_n_cap <- c(-50, 200)
+  res <- whep::allocate_manure_to_land(
+    .toy_applied(),
+    list(crops = crops, grass = .toy_grass())
+  )
+  crop <- res[res$land_use == "Cropland", ]
+  expect_true(all(crop$applied_n >= 0))
+  expect_equal(crop$applied_n[crop$crop == "barley"], 0, tolerance = 1e-8)
+})
+
 test_that("crop_n_demand allocation uses the demand weight", {
   crops <- .toy_crops()
   crops$crop_n_demand <- c(1, 9) # reverse the receptivity ordering

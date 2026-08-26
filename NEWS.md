@@ -159,6 +159,21 @@
   processing for rice, not food — and that is an allocation rule, not an
   identity. And 144 net-exported pairs / 28.9 Mt at 2010 stay uncreated,
   because balancing them would fabricate supply. Both are open in #762.
+* **`regions_full` and `polities_cats` no longer ship the `region_test`
+  column, and their remaining regional groupings now document which ones WHEP
+  reads (#386).** `region_test` held two values, `"Europe"` and `"Other"`, and
+  had no consumer anywhere in the package; it was a working column left in two
+  published tables. Both datasets drop from 39 columns to 38; no other cell
+  changes and no published value moves. The `regions_full` help page gains a
+  *Which regional groupings WHEP reads* section recording that six of the
+  remaining groupings have an in-tree consumer, that `region_code` is a 1:1
+  relabelling of `region`, and that the eleven unconsumed ones are shipped as
+  reference without a re-validation promise -- with the gap a consumer would
+  inherit stated explicitly: over the 202 `cbs` reporters the present-day
+  taxonomies are `NA` for exactly the four dissolved federations (codes 51,
+  186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
+  rather than a mechanisation class are documented rather than repaired, since
+  the correct class is not recoverable from anything the package ships.
 
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
@@ -760,6 +775,53 @@
   the input's N and only accounted N is removed, balancing to 2.1e-16 every
   year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
   sugar) should go is still open (whep#432).
+
+* **The N left over from a zero-N processed-item substitution (wine, olive
+  oil, sugar) now gets its own `processing_losses` destiny instead of
+  staying folded into the primary crop's own destinies.**
+  Previously, `removal_scale` only ever removed the N actually credited to
+  a named output, so a near-zero-N output (wine from grapes, oil from
+  olives) left most of the diverted mass sitting with the primary crop,
+  inflating that crop's own `export` residual. The full processed mass is
+  now always removed, the credited share still goes to the processed item,
+  and the remainder is booked as `destiny = "processing_losses"`,
+  `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
+  LMDI decomposition) tracks this destiny by name, so it falls into
+  whatever each of them already treats as surplus, the same way
+  `no_tracked_output` items already do. Concretely,
+  `.create_land_surplus_df()` computes cropland surplus as inputs minus
+  tracked outputs, so reported cropland N surplus rises by exactly the
+  amount removed from `export`. That is the methodological choice this
+  destiny embodies: the residue (grape pomace, olive cake, beet pulp) is
+  counted as surplus rather than as product, pending explicit by-product
+  items.
+
+  Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
+  re-derived national production as the sum of every `Origin == Box` row,
+  which now includes `processing_losses` too, reinflating the national
+  `export` residual by exactly the amount this fix removes provincially;
+  `processing_losses` is now excluded from that sum and re-added as its own
+  row. And `.combine_destinies()` gave every row in a multi-row
+  `(Year, Province_name, Item)` group a full `production_share = 1` when
+  their combined production was zero, instead of splitting evenly, so an
+  item processed away entirely for a year duplicated its consumption once
+  per remaining row (41 province-years, all Grapes in 1983, where fuller
+  removal now reaches exactly zero where partial removal rarely did).
+
+  **Published values move.** Over 1860-2023, the new `processing_losses`
+  destiny totals 1,899,115 Mg, averaging 2.97% of Cropland-origin flows and
+  rising from 2.53% in 1860 to 5.34% by 2020; olives (1,460,624 Mg), barley
+  (230,838 Mg) and grapes (139,855 Mg) account for essentially all of it.
+  `export` falls by the same order in both outputs: from 44,226,105 Mg to
+  42,400,855 Mg (-1.83 Mt) in `create_n_prov_destiny()`, and from
+  17,691,588 Mg to 15,897,066 Mg (-1.79 Mt) in `create_n_nat_destiny()`,
+  whose `export` is a net residual on a different basis. Reported cropland N
+  surplus rises by 1,899,115 Mg, exactly the amount the new destiny carries.
+  The remaining destinies move only by what the `.combine_destinies()` fix
+  stops double-counting: `livestock_rum` -35,742 Mg, `population_food`
+  -21,094 Mg, `livestock_mono` -12,812 Mg, `population_other_uses` -542 Mg.
+  `Cropland` and `semi_natural_agroecosystems` soil inputs are unchanged.
+  National totals close to +34,403 Mg (+0.0090% of total N).
 
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
