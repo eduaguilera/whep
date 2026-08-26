@@ -78,21 +78,30 @@ testthat::test_that("iso3_codes must be a non-empty character vector", {
   )
 })
 
-# THE RATCHET (whep#787).
+# THE RATCHET (whep#787), AND WHAT TRIPPED IT.
 #
 # UN WPP 2024 has no `ANT` record in any year; it publishes the successor
 # territories instead (CUW 156.879k, SXM 33.794k, BES 20.558k in 2010). So the
 # only way a population source could supply area 151 is through the `successor`
-# relation -- and the polities database publishes none for `ANT-1961-2010`,
-# while Sint Maarten and the BES islands have no polity row at all. This test is
-# that disproof, kept checked so it cannot rot.
+# relation -- and when this file was written the polities database published
+# none for `ANT-1961-2010`, while Sint Maarten and the BES islands had no polity
+# row at all. These tests were that disproof, kept checked so it could not rot,
+# and written to FAIL the day upstream closed the gap.
 #
-# IT FAILS WHEN UPSTREAM FIXES THE GAP, which is the point: the day
-# whep-polities publishes ANT's successors, area 151 becomes reconstructable and
-# whep#787 becomes actionable. Change this test then, and read the note at the
-# top of `R/population_reach.R` first -- reachable is not the same as safe to
-# sum.
-testthat::test_that("area 151 is unreachable even with its successors in the vocabulary", {
+# IT FAILED, on the 2026-08-25 whep-polities re-sync, which publishes
+# `ANT-1961-2010 -> CUW-2010-2025; SXM-2010-2025; BES-2010-2025` and mints
+# `SXM-2010-2025` and `BES-2010-2025` as polities in their own right. That
+# answers the question whep#787/#870 asked -- whether `polities$successor`
+# already publishes the relation, because if it does, reconstructing area 151 is
+# a LOOKUP rather than a hardcoded list in this package. It does.
+#
+# So the claims below are the same two as before, read the other way round: the
+# reach classification is right, and the reconstruction comes from the published
+# column rather than from anything written here.
+#
+# REACHABLE IS STILL NOT THE SAME AS SAFE TO SUM: read the note at the top of
+# `R/population_reach.R` before turning any of this into a denominator.
+testthat::test_that("area 151 reads through the successors upstream publishes", {
   vocabulary <- union(
     .live_polity_iso3(),
     c("CUW", "SXM", "BES", "ABW", "XKX")
@@ -101,18 +110,32 @@ testthat::test_that("area 151 is unreachable even with its successors in the voc
   ant <- dplyr::filter(out, .data$polity_code == "ANT-1961-2010")
   testthat::expect_identical(nrow(ant), 1L)
   testthat::expect_identical(ant$area_code, 151L)
-  testthat::expect_identical(ant$reach, "unreachable")
-  testthat::expect_identical(ant$n_iso3, 0L)
-  testthat::expect_true(is.na(ant$iso3_reached))
+  testthat::expect_identical(ant$reach, "successor")
+  testthat::expect_identical(ant$n_iso3, 3L)
+  testthat::expect_identical(ant$iso3_reached, "BES, CUW, SXM")
+
+  # BY LOOKUP, NOT BY LIST. `.polity_successor_edges()` splits
+  # `polities$successor` and nothing else, so asserting the three codes against
+  # it pins that the answer above is read from the published relation. Writing
+  # the same three codes into the package would not satisfy this.
+  testthat::expect_setequal(
+    whep:::.polity_successor_edges()[["ANT-1961-2010"]],
+    c("CUW-2010-2025", "SXM-2010-2025", "BES-2010-2025")
+  )
 })
 
-testthat::test_that("area 151 is the only unreachable reporting area outside bucket 999", {
+testthat::test_that("no reporting area outside bucket 999 is stranded", {
   out <- whep::population_source_reach(
     union(.live_polity_iso3(), c("CUW", "SXM", "BES", "ABW", "XKX"))
   )
   stranded <- out |>
     dplyr::filter(.data$reach == "unreachable", .data$area_code != 999L)
-  testthat::expect_identical(stranded$polity_code, "ANT-1961-2010")
+  # Area 151 was the last one outside the Rest-of-World bucket, and closing it
+  # emptied the set. A code appearing here is a reporting territory no
+  # present-day-ISO3 population source can reach even through succession, which
+  # is the whole subject of whep#787; it is a thing to go and fix upstream, not
+  # a reason to widen the filter.
+  testthat::expect_identical(stranded$polity_code, character(0))
 })
 
 testthat::test_that("the other dissolved federations do read through successors", {
@@ -133,11 +156,15 @@ testthat::test_that("the other dissolved federations do read through successors"
   testthat::expect_true(all(federations$n_iso3 >= 2L))
 })
 
-# The ratchet above must fail for the right reason -- because upstream publishes
-# no edge, not because the walk cannot see one. Inject the edge whep-polities is
-# missing and the same call must report `"successor"`. Without this, the ratchet
-# would also pass if `.successor_iso3_map()` silently stopped working.
-testthat::test_that("the ratchet flips once the successor edge exists", {
+# The walk must be reading the edges it is given, not the shipped snapshot by
+# some other route. Substituting a NARROWER edge set than upstream now
+# publishes -- Curacao and Sint Maarten, no BES -- must produce exactly those
+# two, which the un-mocked test above cannot show because it agrees with the
+# snapshot. Written when upstream published no edge at all and this had to
+# inject one; kept because a controlled edge set is what makes the assertion
+# above mean "the relation drove this" rather than "some list happened to
+# match".
+testthat::test_that("the walk reports exactly the successor edges it is given", {
   edges <- whep:::.polity_successor_edges()
   edges[["ANT-1961-2010"]] <- c("CUW-2010-2025", "SXM-2010-2025")
   iso3 <- whep:::.polity_iso3_lookup()
@@ -156,9 +183,13 @@ testthat::test_that("the ratchet flips once the successor edge exists", {
 
 # The NEAR MISS. A successor edge that exists but leads nowhere the source
 # publishes must still read `"unreachable"`, not `"successor"` with an empty
-# code list. Sint Maarten is exactly that case today: the crosswalk gives it the
-# Netherlands' polity, so an edge drawn to `NLD-1830-2025` would resolve area
-# 151 to the Netherlands' 17 million people.
+# code list -- the difference between "no denominator" and a denominator built
+# from nothing. Sint Maarten stands in for it by being withheld from the
+# vocabulary: a source that simply does not carry `SXM` leaves the ANT edge
+# resolving to no population at all. Until the 2026-08-25 re-sync SXM had no
+# polity of its own and the crosswalk filed it under the Netherlands', so the
+# same edge drawn one step differently would have answered area 151 with the
+# Netherlands' 17 million people.
 testthat::test_that("a successor edge outside the vocabulary stays unreachable", {
   edges <- whep:::.polity_successor_edges()
   edges[["ANT-1961-2010"]] <- "SXM-2010-2025"

@@ -260,14 +260,25 @@ testthat::test_that("a row with no reporting area is labelled as one", {
   # `not_a_reporting_area` used to be documented and ship on ZERO rows: it sat
   # BELOW `matched` in the build's `case_when`, so it could only fire for a row
   # with neither an `area_code` nor a `polity_code`, and no such row exists.
-  # The 20 rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
+  # The rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
   # the Isle of Man and Sint Maarten, which `regions_full` carries without a
   # FAOSTAT code, plus the six regional aggregate polities -- all match a polity
   # and so shipped as `matched`, indistinguishable from a real area mapping.
+  #
+  # The count is one row per territory-and-polity-PERIOD, not per territory:
+  # Aland answers to three Finnish periods and Saint Barthelemy to three French
+  # ones, Guernsey, Jersey and the Isle of Man to two British ones each, and
+  # the six aggregates to one apiece. That is 18, and Sint Maarten brings the
+  # nineteenth. It used to bring two: until the 2026-08-25 whep-polities
+  # re-sync it had no polity of its own and fell back to BOTH Dutch periods
+  # (`NLD-1800-1830` and `NLD-1830-2025`), where it now resolves to the single
+  # `SXM-2010-2025` upstream minted for it. Six territories still, one row
+  # fewer, and the `area_iso3c` set below is unchanged -- which is how to tell
+  # this apart from a territory going missing.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   no_area <- cw[cw$mapping_status == "not_a_reporting_area", ]
 
-  testthat::expect_equal(nrow(no_area), 20L)
+  testthat::expect_equal(nrow(no_area), 19L)
   # The label means exactly one thing, in both directions.
   testthat::expect_equal(
     which(cw$mapping_status == "not_a_reporting_area"),

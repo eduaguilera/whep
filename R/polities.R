@@ -40,39 +40,101 @@
 }
 
 # Crown dependencies and overseas territories (JEY, GGY, IMN, ALA, BLM, SXM)
-# sit in the crosswalk with their sovereign's `polity_code` but with no
-# FAOSTAT `area_code`, so `.current_area_lookup()`'s `!is.na(area_code)` filter
-# cannot see them and any source keyed by ISO3 silently loses their rows.
-# This returns, for each such ISO3, the ISO3 of a territory that shares its
-# polity and does have an aggregation bucket, i.e. its sovereign.
+# sit in the crosswalk with a polity but with no FAOSTAT `area_code`, so
+# `.current_area_lookup()`'s `!is.na(area_code)` filter cannot see them and any
+# source keyed by ISO3 silently loses their rows. This returns, for each such
+# ISO3, the ISO3 of the reporting territory that answers for it: its sovereign.
+#
+# TWO ROUTES, AND THE SECOND IS NOT A NICETY. `.sovereign_by_polity()` asks
+# which reporting area SHARES the dependency's `polity_code`. That is the
+# tighter relation, but it holds only while the dependency has no polity of its
+# own -- and giving it one is an upstream IMPROVEMENT, not a regression. The
+# 2026-08-25 whep-polities re-sync did exactly that for Sint Maarten
+# (`SXM-2010-2025`, one of the three successors it also gave `ANT-1961-2010`),
+# so no reporting area shares its polity any more, the join dropped it, and its
+# LUH2 land went from counted under `NLD` to counted nowhere.
+#
+# `.sovereign_by_prefix()` reads `legacy_polity_prefix` instead, which the
+# crosswalk publishes on every row and which names the sovereign (FRA, GBR, FIN,
+# NLD) whether or not the dependency has a polity of its own. It fires ONLY
+# where the polity route found nothing, so it cannot move an answer that route
+# already gives: on this snapshot the two agree on all five the polity route
+# still resolves, and the fallback recovers the sixth. The prefix is an
+# ISO3-like stem and NOT a polity code (#711), which is why it is joined to
+# `area_iso3c` -- the same bridge `.read_fodder_euadb()` uses -- and never to
+# `polities`.
 .dependency_sovereign_iso3 <- function() {
-  sovereign <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(polity_code, sovereign_iso3c = area_iso3c, area_code)
+  buckets <- .current_area_lookup(include_unmapped = FALSE)[!is.na(area_iso3c)]
+  out <- merge(
+    .dependency_periods(),
+    .sovereign_by_polity(buckets),
+    by = "polity_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out <- merge(
+    out,
+    .sovereign_by_prefix(buckets),
+    by = "legacy_polity_prefix",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out[, sovereign_iso3c := data.table::fcoalesce(sovereign_iso3c, prefix_iso3c)]
+  # A self-map would silently do nothing, and a dependency neither route
+  # resolves has to stay out: `.attribute_dependency_land()` relabels rows to
+  # whatever this names, so an `NA` here would erase them rather than move them.
+  out <- out[
+    !is.na(sovereign_iso3c) & sovereign_iso3c != iso3c,
+    .(iso3c, sovereign_iso3c)
   ]
-  # Keep the resolution deterministic where one polity spans several buckets
-  # (ROW, and the Sudan/Ethiopia splits) by taking the lowest area code.
-  data.table::setorderv(sovereign, c("polity_code", "area_code"))
-  sovereign <- unique(sovereign, by = "polity_code")
-  sovereign[, area_code := NULL]
+  data.table::setorderv(out, "iso3c")
+  out
+}
 
-  dependency <- .polity_crosswalk(include_unmapped = FALSE)[
+# One row per bucket-less territory: the most recent polity period, which is how
+# `.current_area_lookup()` picks a code's current polity.
+.dependency_periods <- function() {
+  out <- .polity_crosswalk(include_unmapped = FALSE)[
     is.na(area_code) & !is.na(area_iso3c),
-    .(iso3c = area_iso3c, polity_code, polity_start_year, polity_end_year)
+    .(
+      iso3c = area_iso3c,
+      polity_code,
+      legacy_polity_prefix,
+      polity_start_year,
+      polity_end_year
+    )
   ]
-  # One crosswalk row per polity period; take the most recent, which is how
-  # `.current_area_lookup()` picks a code's current polity.
   data.table::setorderv(
-    dependency,
+    out,
     c("iso3c", "polity_end_year", "polity_start_year"),
     order = c(1L, -1L, -1L),
     na.last = TRUE
   )
-  dependency <- unique(dependency, by = "iso3c")
+  unique(out, by = "iso3c")
+}
 
-  out <- merge(dependency, sovereign, by = "polity_code", sort = FALSE)
-  out <- out[sovereign_iso3c != iso3c, .(iso3c, sovereign_iso3c)]
-  data.table::setorderv(out, "iso3c")
+# The reporting ISO3 that answers for each polity, one row per polity. Kept
+# deterministic where one polity spans several buckets (ROW, and the
+# Sudan/Ethiopia splits) by taking the lowest area code.
+.sovereign_by_polity <- function(buckets) {
+  out <- buckets[, .(polity_code, sovereign_iso3c = area_iso3c, area_code)]
+  data.table::setorderv(out, c("polity_code", "area_code"))
+  out <- unique(out, by = "polity_code")
+  out[, area_code := NULL]
+  out
+}
+
+# The same lookup keyed on the vendored ISO3-like stem rather than on the
+# polity, so a dependency that upstream has given its own polity can still name
+# the territory that reports for it.
+.sovereign_by_prefix <- function(buckets) {
+  out <- buckets[
+    !is.na(legacy_polity_prefix),
+    .(legacy_polity_prefix, prefix_iso3c = area_iso3c, area_code)
+  ]
+  data.table::setorderv(out, c("legacy_polity_prefix", "area_code"))
+  out <- unique(out, by = "legacy_polity_prefix")
+  out[, area_code := NULL]
   out
 }
 
@@ -1764,12 +1826,12 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. On the alias route `NULL` matches
-#'   unscoped aliases only -- 188 of 995 -- so a `NULL` source narrows that route
-#'   sharply; the identity routes then get their turn, subject to the guards
-#'   above.
+#'   unscoped aliases only -- 188 of 1,003 -- so a `NULL` source narrows that
+#'   route sharply; the identity routes then get their turn, subject to the
+#'   guards above.
 #' @param year Optional integer vector of years. Length 1, or the same length as
 #'   `label`. On the alias route `NULL` matches aliases with no year scope only,
-#'   which is the 14 of 995 published aliases carrying NEITHER bound. The name
+#'   which is the 14 of 1,003 published aliases carrying NEITHER bound. The name
 #'   and ISO3 routes can still answer without a year, but only for an identifier
 #'   exactly one polity has ever carried, so supplying a year remains much the
 #'   stronger question: it is what lets a label resolve to the right *period*
