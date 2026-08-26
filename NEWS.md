@@ -122,6 +122,21 @@
   table is already there. No published value changes — both functions are new
   and nothing in the pipeline calls them yet.
 
+* **New `write_table_checked()` writes a table atomically and verifies it
+  before it replaces anything (#375).** It creates the parent directory,
+  writes to a temporary file beside the target, reads that file back
+  (`assert_parquet_integrity()` plus a row and column-name check for Parquet,
+  a header and row-count re-read for CSV) and only then renames it into
+  place, so an interrupted, failed or corrupt write leaves the previous
+  artifact untouched instead of overwriting it with a partial file.
+  `overwrite = FALSE` refuses an existing target, and `sidecars` optionally
+  writes `<path>.schema.yaml` and `<path>.provenance.yaml`. It also closes a
+  silent failure mode: `nanoparquet::write_parquet()` given a path whose
+  parent directory does not exist returns `NULL` and writes nothing at all,
+  which `write_parquet_checked()` only reported as a confusing "Parquet file
+  not found". No published value changes: this is a new function, and no
+  existing call site was moved onto it.
+
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
   `plot_typology_indicators_panel()`, `plot_typology_periods_panel()`,
