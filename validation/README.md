@@ -56,6 +56,88 @@ a hardcoded grid.
 | `lpjml_forcing_pins.R` | Guards the six **climate-forcing pins** (the NetCDF grids that feed *into* LPJmL) against their grid contract and physical impossibility bounds. Its sibling above excludes them by design; #824 is why they still need a check. See below. |
 | `gt_lpjml_forcing_pins.json` | Recorded state of those pins, including the **known** negative-radiation count of #824. **Committed** — compared bidirectionally, so a count that falls is as loud as one that rises. |
 | `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. |
+| `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
+| `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
+
+## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
+
+PR #349 nets modelled CBS 3002 out of the FAO Arable land target, because FAO
+already counts temporary grassland inside arable land (#342). FAOSTAT also
+measures that quantity directly, as Land Use item **6633 "Temporary meadows and
+pastures"**, so the premise is checkable — but only if the comparison respects
+where FAO's numbers come from.
+
+**Most of 6633 is not an observation.** Over 2001–2023 the `faostat-landuse`
+pin carries 1100 rows flagged `A` (official value) against 4001 flagged `I`
+(imputed) — ~19% of the series is reported. 900 of the imputed rows are zeros,
+which is FAO's documented convention:
+
+> In case of a missing value replaced by FAO with a 0 because the phenomenon is
+> assumed negligible for the considered unit, the flag to use is "I" (imputed)
+> and NOT "N – not significant".
+>
+> — FAO, *Statistical Standard Series: Observation Status Code List, Version 4*,
+> endorsed by DCG-T on 10 July 2025, guidance for flag "I".
+
+Greece and Poland are imputed zeros for **every** year 2001–2023 while WHEP
+models 2.10 and 4.78 Mha of temporary grassland there. A comparison that scores
+those pairs is measuring FAO's gap-filling. So the judged set is official rows
+only, and the imputed and caveated classes are printed beside it. The same rule
+applies when several FAOSTAT reporting areas collapse into one WHEP polity: the
+polity-year counts as official only when every contributing raw row does, which
+is FAO's own composition rule for derived figures.
+
+**Measured state, 2001–2023, official rows only (416 country-years, 24
+polities):**
+
+| modelled concept | Σ model | Σ FAO 6633 | Σ ratio | median ratio |
+|---|---|---|---|---|
+| `cbs_3002` (what #349 nets) | 158 Mha | 276 Mha | **0.572** | 0.905 |
+| `green_on_3002` (whole green-fodder group, same country-years) | 403 Mha | 276 Mha | **1.459** | 1.48 |
+
+The aggregate shortfall is real and it is against *official* FAO figures —
+excluding the imputed rows does not rescue it, it slightly worsens it (pooling
+every class gives 0.609). But it is a **scope** difference, not a broken
+reconstruction, and the per-country table is what shows that:
+
+- **6633 == CBS 3002 to the digit** for Ireland, Sweden, the United Kingdom,
+  the Netherlands, Belgium, Luxembourg and Czechia (ratios 0.997–1.002).
+- **6633 is 3–40× CBS 3002** for Romania (0.024), Bulgaria (0.037), Germany
+  (0.130), Italy (0.214), Spain (0.265), Austria (0.392) and Denmark (0.555) —
+  and for every one of those the whole green-fodder group (CBS 3002 + 2000 +
+  2001 + 2002 + 2003) lands at 1.00–1.70 instead.
+
+So FAO books a different set of arable green fodder as "temporary meadows"
+depending on the reporting country, and **which concept #349 should net is a
+methodological decision, not a bug to be tuned away** (#354).
+
+Two further things the check prints every run:
+
+- **Coverage.** Modelled CBS 3002 exists for 26 EU polities and stops at
+  **2019** (FAOSTAT production item 996, its only source, ends there). #349
+  therefore nets nothing from 2020 on, and nothing outside the EU.
+- **Ireland is a FAO break, not a model error.** From 2007 modelled CBS 3002
+  equals 6633 exactly, every year. Before 2007 the model carries 748–786 kha
+  against FAO's 89–100 kha — and every FAO value there is flagged `I`,
+  back-filled at the post-2007 level. The discontinuity lives in FAOSTAT item
+  996, which WHEP passes through.
+
+```bash
+Rscript validation/temp_grassland_6633.R              # judge against baseline
+Rscript validation/temp_grassland_6633.R --record     # re-record
+Rscript validation/temp_grassland_6633.R --refresh    # rebuild the cache
+VAL_TG_PERTURB=1.2 Rscript validation/temp_grassland_6633.R   # must FAIL
+```
+
+`gt_temp_grassland_6633.json` is a recorded **measurement**, not a tolerance:
+the only slack is `1e-6` relative, for build-order floating point. `--record`
+after a deliberate change; a concept that was never recorded fails on its first
+run by design. `VAL_TG_PERTURB` scales the modelled side without touching the
+baseline, which is how the check was shown to fire rather than merely to pass.
+
+The production build (~130 s, ~4.5 GB peak for 2001–2023) is cached under the
+gitignored `.whep_cache/`, so only the first run is slow. `validate_all.R` runs
+this check only when that cache already exists, or when `VAL_TG_FORCE` is set.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 
