@@ -74,6 +74,8 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    "prefix_iso3c",
+    "legacy_polity_prefix",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -2048,6 +2050,11 @@ utils::globalVariables(
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`
     "final_conversion_factor",
+    # n_prov_destiny.R — .processing_n_scaling()'s N-conserving scaling
+    # table and the helpers that consume it
+    "priced",
+    "processing_loss_n",
+    "remove_mass",
     # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
     # polity label with the label the fodder source itself carried
     "source_area",
@@ -2066,6 +2073,11 @@ utils::globalVariables(
     # build_production.R (#650) — .same_source_collisions() NSE columns for the
     # same-source duplicate report of .dedup_production()
     ".keep_source",
-    "dropped"
+    "dropped",
+    # table_schema.R (#373) — diagnostic columns the schema validator sorts
+    # and filters its report by
+    "row",
+    "rule",
+    "severity"
   )
 )

@@ -127,6 +127,14 @@
     "single_year", "Both sides are one year's supply-use.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",
     "Keyed on the polity, which is the year-scoped identity itself.",
+    ".dependency_sovereign_iso3", "merge", "legacy_polity_prefix", 1L,
+    "identity_lookup",
+    "ISO3-like stem -> bucket bridge, the same one `.read_fodder_euadb()` uses,
+     and the fallback for a dependency upstream has given its own polity so
+     that no reporting area shares it (Sint Maarten from the 2026-08-25
+     re-sync). The stem is a present-day sovereign, which has no time
+     dimension to key on; the dependency's own period is already picked before
+     this join.",
     ".energy_co2e_by_group", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> ISO3 through the current-area lookup.",
     ".energy_co2e_by_group", "left_join", "iso3, grp", 1L, "time_invariant",
@@ -505,6 +513,12 @@
     ".read_fodder_euadb", "distinct", "area_iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge, one row per ISO3; the fodder rows keep their own
      year.",
+    ".reporting_periods", "summarise", "area_code, polity_code", 1L,
+    "year_axis",
+    "`min(map_year_start)` and `max(map_year_end)` ARE the reduction over the
+     crosswalk's rows for one period: the output is that period's reporting
+     span, so keying on the year would return the year itself. The period is
+     already the year-scoped identity.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",

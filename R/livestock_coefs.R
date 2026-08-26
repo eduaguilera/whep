@@ -4,6 +4,21 @@
 # objects stored in data/livestock_coefs.rda.
 
 # GLEAM Excel Supplement Tables ----
+#
+# Provenance of the twelve tables in this section: they are parsed from
+# data-raw/GLEAM_3.0_Supplement_S1.xlsx, which is byte-identical (149119
+# bytes, md5 207e3e928c176b2189e520bddcb0c5f6) to the workbook FAO
+# publishes at
+# https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx
+# Its own file metadata names "FAO of the UN" and is dated 2022-12-20; the
+# parent document, "Global Livestock Environmental Assessment Model,
+# Version 3.0 - Model description", is dated 2022-12-10 on
+# https://www.fao.org/gleam/resources/en/. Neither carries a DOI: Crossref
+# holds no GLEAM 3.0 model-description record and the FAO-style DOI
+# 10.4060/cd8425en does not resolve, so these tables are cited by title and
+# URL. The DOI they used to cite, 10.1088/1748-9326/aad4d8, is not
+# registered at all (doi.org 404, Crossref "Resource not found") -- it was
+# never a real reference. See whep#607.
 
 #' GLEAM crop residue parameters.
 #'
@@ -19,8 +34,9 @@
 #'   \item{intercept}{Intercept for residue yield calculation.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.1:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_crop_residue_params
@@ -68,8 +84,9 @@
 #'   \item{reporting_polity_name}{The name of that polity.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.A1-S.A2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_geographic_hierarchy
@@ -89,8 +106,9 @@
 #'   \item{feed_use_efficiency}{FUE value (0-1 fraction).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.2.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_composition
@@ -111,8 +129,9 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.3.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.3:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_digestibility
@@ -137,8 +156,9 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.4.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.4:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_conversion_ratios
@@ -161,8 +181,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.1 and S.6.2.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.1 and S.6.2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_field_operation_ef
@@ -185,8 +206,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.3 and S.6.4.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.3 and S.6.4:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_mechanization_levels
@@ -210,8 +232,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.5 and S.6.6.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.5 and S.6.6:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_processing_transport_ef
@@ -235,8 +258,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.7 and S.6.8.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.7 and S.6.8:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_crop_residue_nitrogen
@@ -257,8 +281,9 @@
 #'     (0 to 1).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.6.9.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.6.9:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_fracremove
@@ -312,8 +337,9 @@
 #'     kg of the \code{denominator}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.7.1 through S.7.7. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.7.1 through S.7.7:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_energy_use_ef
@@ -343,8 +369,9 @@
 #'   \item{dressing_percent}{Dressing percentage.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.9.1:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_dressing_percentages
@@ -364,7 +391,13 @@
 #'   \item{description}{Cohort description.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Model Description.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_livestock_categories
@@ -378,7 +411,13 @@
 #' @format A tibble with `feed_category`, `feed_type`,
 #'   `description`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_feed_categories
@@ -407,7 +446,13 @@
 #' @format A tibble with `region`, `species`, `system`, `mms`,
 #'   `share_percent`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_mms_shares
@@ -421,7 +466,13 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `cohort`, `weight_kg`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_animal_weights
@@ -435,7 +486,13 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `milk_kg_head_yr`, `lactation_days`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_milk_production
@@ -453,10 +510,23 @@
 #'
 #' @format A tibble with `region`, `category`, `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11. The stored
-#'   values are in fact the 2006 Guidelines defaults (128 and 53
-#'   kg CH4/head/yr for North American dairy and other cattle, where
-#'   the 2019 Refinement gives 138 and 64); tracked in whep#601.
+#' @source Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.11,
+#'   not the 2019 Refinement's Table 10.11 (Updated). Verified against both
+#'   published tables:
+#'   - 2006 values, differing from the 2019 Refinement: North America
+#'     128/53 (2019: 138/64), Western Europe 117/57 (126/52), Eastern Europe
+#'     99/58 (93/58), Latin America 72/56 (87/56), Asia 68/47 (78/54),
+#'     Africa 46/31 (76/52), Middle East other cattle 31 (60).
+#'   - Matching neither edition: Oceania dairy 90 (2006: 100;
+#'     2019: 93), Middle East dairy 63 (2006 groups Africa and the Middle
+#'     East at 46; 2019: 76), Indian Subcontinent 68/47 (2006: 58/27;
+#'     2019: 73/46).
+#'   - The `"Global"` fallback row (80/47) appears in no IPCC table in
+#'     either edition. **Assumed, unverified.**
+#'   The 2019 Refinement also moved buffalo into this table (78 Western
+#'   Europe, 68 Eastern Europe / Latin America / Asia, 81 Africa, 67 Middle
+#'   East, 85 Indian Subcontinent), which is not reflected here.
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_cattle
@@ -472,9 +542,16 @@
 #'
 #' @format A tibble with `category`, `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10. The stored
-#'   values are in fact the 2006 Guidelines defaults, from its
-#'   developed-countries column; tracked in whep#601.
+#' @source The 2006 Guidelines, Vol 4, Ch 10, Table 10.10,
+#'   developed-countries column (buffalo 55, sheep 8, goats 5, camels 46,
+#'   horses 18, mules and asses 10, swine 1.5), not the 2019 Refinement.
+#'   The Refinement's Table 10.10 (Updated) splits every ruminant and swine
+#'   factor by productivity system (sheep 9 high / 5 low, goats 9 / 5,
+#'   swine 1.5 / 1.0), leaves camels, horses and mules unchanged, and moves
+#'   buffalo out of this table into the regional Table 10.11. Poultry is
+#'   stored as `0`; both editions say "insufficient data for calculation",
+#'   so the zero is a project choice rather than a published factor.
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_enteric_ef_other
@@ -483,13 +560,23 @@
 #' IPCC 2019 manure CH4 EF for cattle.
 #'
 #' @description
-#' Table 10.14: Tier 1 manure management CH4 emission factors
-#' for cattle by region (kg CH4/head/yr).
+#' Tier 1 manure management CH4 emission factors for cattle by region
+#' (kg CH4/head/yr).
 #'
 #' @format A tibble with `region`, `category`,
 #'   `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+#' @source Not the 2019 Refinement. Its Table 10.14 (Updated) publishes
+#'   manure CH4 per kilogram of volatile solids (g CH4 kg VS-1), by
+#'   productivity class and ten climate zones; the Refinement contains no
+#'   per-head Tier 1 manure CH4 table at all (its only per-head CH4 tables
+#'   are the enteric Tables 10.10/10.11 and Table 10.15 for deer, reindeer,
+#'   rabbits, ostrich and fur-bearing animals). The per-head quantity stored
+#'   here is the form of the 2006 Guidelines Table 10.14, but the values do
+#'   not match it either (North American dairy cattle 27/42/60 for
+#'   cool/temperate/warm against 48/78/112 in 2006; Latin American dairy
+#'   cattle 47 against 2). **The provenance of these values is unknown and
+#'   unverified**; tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_manure_ch4_ef_cattle
@@ -498,12 +585,18 @@
 #' IPCC 2019 manure CH4 EF for non-cattle.
 #'
 #' @description
-#' Table 10.14: Tier 1 manure management CH4 emission factors
-#' for non-cattle species (kg CH4/head/yr).
+#' Tier 1 manure management CH4 emission factors for non-cattle species
+#' (kg CH4/head/yr).
 #'
 #' @format A tibble with `category`, `ef_kg_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+#' @source 2006 Guidelines, Vol 4, Ch 10, Tables 10.14 (buffalo, swine) and
+#'   10.15 (sheep, goats, poultry, horses, mules and asses, camels), not the
+#'   2019 Refinement, which publishes no per-head Tier 1 manure CH4 table.
+#'   The temperature column each value is taken from varies by species
+#'   (sheep 0.19 and goats 0.13 are the developed-country cool column, while
+#'   horses 1.64, mules 0.90 and camels 1.92 are the developing-country
+#'   temperate column); tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_manure_ch4_ef_other
@@ -512,15 +605,25 @@
 #' IPCC 2019 MCF for manure management.
 #'
 #' @description
-#' Table 10.17: methane conversion factors (percent) by manure
-#' management system and climate zone. The IPCC table resolves ten
-#' climate zones grouped under cool, temperate and warm; this table
-#' keeps the three groups, and uses `"All"` for the systems that take a
-#' single factor.
+#' Methane conversion factors (percent) by manure management system and
+#' climate zone, using `"All"` for the systems that take a single factor.
 #'
 #' @format A tibble with `system`, `climate_zone`, `mcf_percent`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
+#' @source Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
+#'   whose cool/temperate/warm structure this table follows. The 2019
+#'   Refinement's Table 10.17 (Updated) is resolved by ten climate zones and
+#'   by liquid-system retention time instead, and differs in level: it gives
+#'   a single 0.47 percent for pasture/range/paddock against 1.0/1.5/2.0
+#'   here, and 1.0/2.0/2.5 for static-pile and passive-windrow composting
+#'   against 0.5/0.5/0.5 and 1.0/1.0/1.5 here. Some cells match neither
+#'   edition: dry lot 1.5/2.5/4.0 (both editions give 1.0/1.5/2.0),
+#'   intensive-windrow composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5) and
+#'   pit storage under one month 3/3/5 (2006 gives 3/3/30). Where a 2006 row
+#'   is resolved per degree Celsius the value taken is not always the
+#'   mid-point of the class (uncovered anaerobic lagoon temperate 73 percent
+#'   is the 14 degree column, not the 78 percent of 20 degrees);
+#'   tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_mcf_manure
@@ -536,11 +639,18 @@
 #'
 #' @format A tibble with `region`, `category`, `nex_kg_n_head_yr`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19. That table
-#'   publishes the rate per 1000 kg animal mass per day (0.59 kg N for
-#'   North American dairy cattle); the annual per-head values stored
-#'   here (105 kg N for the same cell) do not follow from it by any
-#'   recorded conversion; tracked in whep#601.
+#' @source Unverified. IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19
+#'   (Updated) publishes the excretion *rate* per 1000 kg animal mass per
+#'   day, not an annual per-head amount, and the values stored here do not
+#'   follow from it. The Refinement does supply the missing conversion
+#'   factor: Table 10A.1 (New) gives the regional typical weight of dairy
+#'   cattle, so rate x weight x 365 is derivable and gives 140 kg N/head/yr
+#'   for North America (0.59 x 650 kg x 365 / 1000) against the 105 stored,
+#'   118 for Western Europe (100 stored), 84 for Eastern Europe (80), 128
+#'   for Oceania (80), 72 for Latin America (50), 62 for Asia (50), 42 for
+#'   Africa (40), 64 for the Middle East (40) and 68 for the Indian
+#'   Subcontinent (50). Other cattle would need the cohort population mix of
+#'   Table 10A.2 (New) to be weighted the same way. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_n_excretion
@@ -554,20 +664,32 @@
 #'
 #' @format A tibble with `system`, `ef_kg_n2o_n_per_kg_n`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21. Several rows
-#'   match neither the 2019 Refinement nor the 2006 Guidelines (daily
-#'   spread 0.010 against 0 in both, dry lot 0.005 against 0.02);
-#'   tracked in whep#601.
+#' @source Mixed, and not consistently the 2019 Refinement's Table 10.21.
+#'   Verified against both editions of Vol 4, Ch 10, Table 10.21:
+#'   - Matching both editions: liquid/slurry with crust 0.005, in-vessel
+#'     composting 0.006, poultry with and without litter 0.001.
+#'   - Matching the 2006 Guidelines but not the 2019 Refinement: solid
+#'     storage 0.005 (2019: 0.010), static-pile composting 0.006
+#'     (2019: 0.010), passive-windrow composting 0.01 (2019: 0.005),
+#'     anaerobic digester 0 (2019: 0.0006).
+#'   - Matching neither edition: daily spread 0.01 and liquid/slurry
+#'     without crust 0.002 and uncovered anaerobic lagoon 0.001 (all three
+#'     are 0 in both editions), dry lot 0.005 (0.02 in both),
+#'     intensive-windrow composting 0.006 (2019: 0.005; 2006: 0.1).
+#'   Pasture/range/paddock is not in Table 10.21 in either edition, which
+#'   defers it to Ch 11. Its stored 0.01 is the 2006 Ch 11 Table 11.1
+#'   EF3PRP,SO for sheep and other animals; the 2019 Refinement's Table 11.1
+#'   (Updated) gives 0.004 for cattle, poultry and pigs and 0.003 for sheep
+#'   and other animals. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_n2o_ef_direct
 "ipcc_2019_n2o_ef_direct"
 
-#' IPCC 2019 Ym values (Table 10.13).
+#' IPCC Ym values.
 #'
 #' @description
-#' Methane conversion rate (% GE) by species and feed
-#' situation. The 2019 Refinement differentiates:
+#' Methane conversion rate (% GE) by species and feed situation.
 #' - Cattle feedlot (>90% concentrate): 3.0%.
 #' - Sheep: a single 6.7%, irrespective of feed quality (no
 #'   body-weight split).
@@ -575,13 +697,29 @@
 #' @format A tibble with `category`, `feed_situation`,
 #'   `ym_percent`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13.
+#' @source Mixed across editions.
+#'   - Sheep 6.7% and goats 5.5% are the 2019 Refinement, Vol 4, Ch 10,
+#'     Table 10.13 (Updated).
+#'   - Cattle and buffalo 6.5% on pasture/range and mixed rations are the
+#'     2006 Guidelines Table 10.12, which gives 6.5% for every non-feedlot
+#'     cattle and buffalo class. The 2019 Refinement's Table 10.12 (Updated)
+#'     resolves cattle and buffalo Ym by production level and feed
+#'     digestibility instead: 5.7 / 6.0 / 6.3 / 6.5 for dairy cows by yield
+#'     class, 7.0 for >75 percent forage non-dairy, 6.3 for mixed rations,
+#'     4.0 for grain feedlots and 3.0 for steam-flaked-corn feedlots. The
+#'     stored feedlot 3.0% is therefore the 2006 ">=90 percent concentrate"
+#'     value, which in the 2019 Refinement applies only to the
+#'     steam-flaked-corn case.
+#'   - Camels 5.0% appears in no IPCC table. Both editions instead direct
+#'     compilers to reuse the other-cattle or buffalo Ym for camels, which
+#'     would be 6.5%. **Assumed, unverified.**
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_ym
 "ipcc_2019_ym"
 
-#' IPCC 2019 Bo values (Table 10.16).
+#' IPCC 2019 Bo values (Table 10.16A).
 #'
 #' @description
 #' Maximum CH4 producing capacity of manure
@@ -590,7 +728,17 @@
 #'
 #' @format A tibble with `category`, `bo_m3_kg_vs`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated) --
+#'   Table 10.16 in that edition is the manure CH4 factors for deer and
+#'   similar species. Every row matches its high-productivity column except
+#'   `"Swine - Breeding"` 0.27: Table 10.16A publishes one swine Bo
+#'   (0.48 North America, 0.45 other high-productivity regions, 0.29 low
+#'   productivity) and the 2006 Annex 10A.2 derivation tables give breeding
+#'   swine the same Bo as market swine, so 0.27 appears in neither edition;
+#'   it coincides with the North American *market swine volatile-solids
+#'   rate* of 0.27 kg VS head-1 day-1 in 2006 Annex 10A.2. `"Other Cattle"`
+#'   0.18 is the Western European non-dairy column (North America is 0.19,
+#'   Eastern Europe and Oceania 0.17). Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_bo
@@ -605,7 +753,13 @@
 #' @format A tibble with `category`, `subcategory`,
 #'   `cfi_mj_day_kg075`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4.
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.4 (Updated), which
+#'   repeats the 2006 Guidelines values and adds the goat row (0.315). Two
+#'   rows published in both editions are absent here, and the
+#'   `"Non-lactating/Bulls"` row conflates them: intact bulls take 0.370,
+#'   not the 0.322 of non-lactating cows, steers and juveniles, and lambs
+#'   under one year take 0.236 rather than the 0.217 of mature sheep.
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_cfi
@@ -617,12 +771,19 @@
 #'
 #' @description
 #' Table 10.11 (2006): Tier 1 regional EFs for enteric
-#' fermentation.
+#' fermentation, with the non-cattle species of Table 10.10 appended
+#' under a `"Global"` region.
 #'
 #' @format A tibble with `region`, `category`,
 #'   `ef_kg_head_yr`.
 #'
-#' @source IPCC 2006, Vol 4, Ch 10, Table 10.11.
+#' @source IPCC 2006, Vol 4, Ch 10, Table 10.11 for cattle and Table 10.10
+#'   (developed-countries column) for the non-cattle rows. Two departures
+#'   from the published table: Oceania dairy cattle is stored as 90 where
+#'   Table 10.11 gives 100, and the published table groups Africa **and**
+#'   the Middle East in one row (46 dairy / 31 other) which is repeated here
+#'   as two regions. The Indian Subcontinent row of Table 10.11
+#'   (58 dairy / 27 other) is absent. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2006_enteric_ef
@@ -636,7 +797,16 @@
 #' @format A tibble with `region`, `category`,
 #'   `ef_kg_head_yr`, `temp_zone`.
 #'
-#' @source IPCC 2006, Vol 4, Ch 10, Table 10.14.
+#' @source IPCC 2006, Vol 4, Ch 10, Table 10.14 for cattle, swine and
+#'   buffalo and Table 10.15 for sheep, goats and poultry. Table 10.14 is
+#'   resolved per degree Celsius, and the value taken for a `temp_zone` is
+#'   not always the bound of that class, nor always present in the row:
+#'   North American dairy cows 53 is the 12 degree column rather than the 48
+#'   of the cool class, Asian dairy cows 16 is the 18 degree column rather
+#'   than the 31 of the warm class, Latin American dairy cows 1 is the cool
+#'   value where the warm class gives 2, and Western European dairy cows 20
+#'   appears in no column of that row (its cool value is 21).
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2006_manure_ef

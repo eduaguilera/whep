@@ -3,7 +3,7 @@
 #' @description
 #' [polity_area_crosswalk] is not the upstream FAOSTAT-to-polity map. It is that
 #' map plus rows this package manufactures, and its `mapping_source` column says
-#' which. Measured on the shipped snapshot, of 649 crosswalk rows:
+#' which. Measured on the shipped snapshot, of 648 crosswalk rows:
 #'
 #' - `"upstream_map"` (245 rows): a row of `faostat_area_polity_map.csv` in
 #'   `eduaguilera/whep-polities`. Upstream's statement about the territory.
@@ -12,7 +12,7 @@
 #'   separate only because `.unfold_rest_of_world()` chooses between it and the
 #'   fold row (whep#717). The two together consume the map's 297 rows exactly
 #'   once.
-#' - `"prefix_outside_map"` (263) and `"prefix_fallback"` (27): WHEP's own
+#' - `"prefix_outside_map"` (263) and `"prefix_fallback"` (26): WHEP's own
 #'   ISO3-prefix match, built in `data-raw/table_mappings.R`. No upstream
 #'   authority. A prefix match can only ever produce an ISO3-family guess, so it
 #'   cannot express the statements the pre-1961 era actually needs -- Turkey

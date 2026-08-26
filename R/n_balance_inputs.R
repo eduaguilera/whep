@@ -633,11 +633,10 @@ build_n_inputs <- function(
       i = "Expected one of {.val Excreta}, {.val Solid} or {.val Liquid}."
     ))
   }
-  dplyr::case_match(
-    manure_type,
-    "Excreta" ~ "excreta",
-    "Solid" ~ "manure_solid",
-    "Liquid" ~ "manure_liquid"
+  dplyr::case_when(
+    manure_type == "Excreta" ~ "excreta",
+    manure_type == "Solid" ~ "manure_solid",
+    manure_type == "Liquid" ~ "manure_liquid"
   )
 }
 
@@ -799,10 +798,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() resolves its own territory key (a stringified
-      # area_code, or an ISO3) back to a numeric area_code, through the same
-      # checked resolver as the manure path, so nothing is left to resolve
-      # here and an ISO3 never becomes a silent NA.
+      # build_urban_n() requires the numeric WHEP area_code on both of the
+      # frames it is handed and checks that at its own input boundary (#597),
+      # so this column is already the code and nothing is left to resolve
+      # here. Unlike the manure path there is no ISO3 bridge to go wrong: an
+      # ISO3 aborts there rather than becoming an aggregation bucket here.
       area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,

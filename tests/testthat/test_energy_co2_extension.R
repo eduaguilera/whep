@@ -789,7 +789,39 @@ testthat::test_that("a dissolved entity is grouped as it was, not as now", {
   testthat::expect_equal(.energy_gleam_continent("North America"), "Americas")
   testthat::expect_equal(.energy_gleam_continent("South America"), "Americas")
   testthat::expect_equal(.energy_gleam_continent("Europe"), "Europe")
+  # Everything else, NA and the empty build included, comes back untouched:
+  # the translation must not turn an unclassifiable continent into a match.
+  testthat::expect_equal(.energy_gleam_continent(NA_character_), NA_character_)
+  testthat::expect_equal(.energy_gleam_continent("bogus"), "bogus")
+  testthat::expect_equal(.energy_gleam_continent(character()), character())
   testthat::expect_equal(at("ANT")$region5, at("CUB")$region5)
+})
+
+testthat::test_that("the method label names the scope that produced a row", {
+  # Pinned because whep#850 rewrote the label off the deprecated
+  # dplyr::case_match(): these strings are published in method_energy.
+  label <- "GLEAM_3.0_energy_meat"
+
+  testthat::expect_equal(
+    .energy_method_label(
+      "gleam",
+      c("global", "polity_region", "historical_region", "country")
+    ),
+    c(
+      paste0(label, "_global_mean"),
+      paste0(label, "_polity_region"),
+      paste0(label, "_historical_region"),
+      label
+    )
+  )
+  # The default scope, an unknown scope and NA all read as the plain country
+  # factor, which is what a row with no derived treatment carries.
+  testthat::expect_equal(.energy_method_label("gleam"), label)
+  testthat::expect_equal(.energy_method_label("gleam", NA_character_), label)
+  testthat::expect_equal(
+    .energy_method_label("gleam", character()),
+    character()
+  )
 })
 
 testthat::test_that("historical_region recovers the dissolved entities", {

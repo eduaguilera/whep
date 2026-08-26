@@ -143,3 +143,23 @@ testthat::test_that("whep_list_file_versions works for local example", {
   testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_true(nrow(result) >= 1)
 })
+
+# One name, one table -------------------------------------------------------
+
+testthat::test_that("no pin alias shadows a packaged dataset name", {
+  # #489: `biomass_coefs` was reachable two ways -- `whep::biomass_coefs`,
+  # built from `inst/extdata/harmonization/biomass_coefs.csv`, and a
+  # `whep_read_file("biomass_coefs")` pin frozen at 20250728T082553Z. The two
+  # disagreed on 12 of their 36 shared columns, so `build_food_supply()` and
+  # `create_n_prov_destiny()` ran on different nitrogen coefficients for the
+  # same commodity with nothing declaring which was authoritative. The defect
+  # is one name serving two tables, so the guard is on the name space, not on
+  # any single coefficient: no alias may shadow a packaged dataset.
+  aliases <- whep::whep_inputs$alias
+  datasets <- utils::data(package = "whep")$results[, "Item"]
+
+  testthat::expect_setequal(intersect(aliases, datasets), character(0))
+  # Not vacuous: both vocabularies are populated.
+  testthat::expect_gt(length(aliases), 50L)
+  testthat::expect_gt(length(datasets), 50L)
+})
