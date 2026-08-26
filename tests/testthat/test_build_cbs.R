@@ -198,6 +198,120 @@ test_that(".fix_item_codes never converts milled rice", {
   expect_equal(result$value, 100)
 })
 
+test_that("a paddy source converts even once the row is relabelled", {
+  # The complement of `.fix_item_codes leaves an already-labelled rice row
+  # alone` (#778). `.prepare_historical_cbs()` relabels every 2807 row "Rice
+  # and products", so the NAME cannot say what the basis is -- but the SOURCE
+  # can, and at that ingest boundary it is the only thing that can. Keyed on
+  # source, the row converts.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~source,               ~value,
+    2807L,          "Rice and products", "historical_mysource", 100
+  )
+
+  result <- whep:::.fix_item_codes(df, paddy_by_source = TRUE)
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(
+    result$value,
+    100 * whep:::.rice_milled_extraction_rate()
+  )
+})
+
+test_that("a milled-basis source is left alone when keying on source", {
+  # `.rice_source_is_paddy()` is a whitelist, so a CBS-derived source -- which
+  # is already milled equivalent -- must not be converted even with the
+  # source rule switched on.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~source,             ~value,
+    2807L,          "Rice and products", "FAOSTAT_FBS_Old",   100
+  )
+
+  result <- whep:::.fix_item_codes(df, paddy_by_source = TRUE)
+
+  expect_equal(result$value, 100)
+})
+
+test_that("one historical rice row yields one tonnage in both pipelines", {
+  # whep#778: `.read_historical_production` is the single reader behind the
+  # public `historical_data` argument of BOTH `build_primary_production()` and
+  # `build_commodity_balances()`. Item 2807 is milled equivalent throughout
+  # WHEP (validation/rice_mass_basis.R enforces it across FBS vintages), so
+  # the same input row must arrive at the same tonnage down either path.
+  # Before the fix the production path returned 67 t and the CBS path 100 t.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       "27",            "production", "tonnes", 100,    "mysource"
+  )
+
+  cbs <- whep:::.prepare_historical_cbs(hist, years = 1900L)
+  prod <- whep:::.prepare_historical_production(hist, years = 1900L) |>
+    whep:::.fix_rice_milled_equiv()
+
+  expect_equal(cbs$item_cbs_code, 2807L)
+  expect_equal(prod$item_cbs_code, 2807L)
+  expect_equal(cbs$value, prod$value)
+  expect_equal(cbs$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that("converting historical rice keeps the supply-use identity", {
+  # whep#778: the conversion must be uniform across elements, or it turns a
+  # balanced sheet into an unbalanced one. Scaling every element of a balanced
+  # rice row by the same rate leaves supply == use exactly, which is the
+  # invariant worth asserting rather than any single tonnage.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       2807L,          "production", "tonnes", 100,    "mysrc",
+    1900L, 100L,       2807L,          "import",     "tonnes", 20,     "mysrc",
+    1900L, 100L,       2807L,          "export",     "tonnes", 30,     "mysrc",
+    1900L, 100L,       2807L,          "food",       "tonnes", 70,     "mysrc",
+    1900L, 100L,       2807L,          "feed",       "tonnes", 20,     "mysrc"
+  )
+
+  wide <- whep:::.prepare_historical_cbs(hist, years = 1900L) |>
+    tidyr::pivot_wider(
+      id_cols = c("year", "area_code", "item_cbs_code"),
+      names_from = "element",
+      values_from = "value",
+      values_fill = 0
+    ) |>
+    whep::ensure_columns(tibble::tibble(
+      import = numeric(),
+      export = numeric(),
+      food = numeric(),
+      feed = numeric(),
+      seed = numeric(),
+      processing = numeric(),
+      other_uses = numeric(),
+      stock_withdrawal = numeric(),
+      stock_addition = numeric()
+    )) |>
+    dplyr::mutate(dplyr::across(
+      dplyr::everything(),
+      \(x) tidyr::replace_na(x, 0)
+    ))
+
+  rate <- whep:::.rice_milled_extraction_rate()
+  expect_equal(wide$production, 100 * rate)
+  expect_equal(wide$food, 70 * rate)
+
+  balance <- whep::check_supply_use_balance(wide)
+  expect_true(all(balance$balanced))
+})
+
+test_that("historical wheat is not rescaled by the rice rule", {
+  # Control: the conversion must be keyed on the item as well as the source.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       "15",            "production", "tonnes", 100,    "mysource"
+  )
+
+  cbs <- whep:::.prepare_historical_cbs(hist, years = 1900L)
+
+  expect_equal(cbs$item_cbs_code, 2511L)
+  expect_equal(cbs$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
