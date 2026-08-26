@@ -139,6 +139,61 @@ score_scoping <- function(layer) {
 }
 purrr::walk(names(scoping_caches), score_scoping)
 
+# 1c. temporary grassland vs FAO 6633 (external) -------------------------------
+# Modelled CBS 3002 against FAOSTAT RL item 6633, official (flag "A") rows only.
+# Like the scoping layers it needs a production build, so it runs only when its
+# cache already exists or VAL_TG_FORCE is set -- the sweep does not start a
+# multi-minute build unasked.
+tg_cache <- sprintf(
+  ".whep_cache/temp_grassland_ha_%s_%s.rds",
+  Sys.getenv("VAL_TG_YEAR_MIN", "2001"),
+  Sys.getenv("VAL_TG_YEAR_MAX", "2023")
+)
+if (!nzchar(Sys.getenv("VAL_TG_FORCE")) && !file.exists(tg_cache)) {
+  add(
+    "temp_grassland_6633",
+    "external",
+    NA,
+    NA,
+    NA,
+    sprintf("not run: no %s, and VAL_TG_FORCE unset", tg_cache)
+  )
+} else {
+  tg_out <- system2(
+    "Rscript",
+    "validation/temp_grassland_6633.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+  tg_metric <- grep("^METRIC", tg_out, value = TRUE)
+  if (length(tg_metric) != 1L) {
+    add(
+      "temp_grassland_6633",
+      "external",
+      NA,
+      NA,
+      NA,
+      "no METRIC line reported"
+    )
+  } else {
+    tg_num <- function(key) {
+      as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", tg_metric))
+    }
+    add(
+      "temp_grassland_6633",
+      "external",
+      tg_num("n_official_3002"),
+      tg_num("n_official_3002") - tg_num("n_failed"),
+      tg_num("n_failed"),
+      sprintf(
+        "CBS 3002 / FAO 6633 = %.2f, whole green-fodder group = %.2f",
+        tg_num("sum_ratio_3002"),
+        tg_num("sum_ratio_green_on_3002")
+      )
+    )
+  }
+}
+
 # 2. production (external, vs pinned subnational findings) ---------------------
 fin_files <- list.files(
   "validation/cache/findings",
