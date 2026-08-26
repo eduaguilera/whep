@@ -55,6 +55,28 @@
   itself does, instead of always assuming the `rappdirs` default. No published
   value changes: the same pin contents are read, only reachable offline now.
 
+* **`get_primary_production(land_method = "historical_polity")` now warns when
+  the `historical-land-areas` pin was measured on a different `whep::polities`
+  snapshot (#905).** The pin is static per LUH2 vintage *and* polities
+  snapshot, and nothing rebuilds it when the snapshot is re-synced. The only
+  guard it carried was on year coverage, which cannot see the failure that
+  actually happens: a re-sync leaves every year and every reporting bucket in
+  place and changes the *territory* each row was measured inside. No total or
+  identity over the pin can detect that either — the land still adds up, on
+  redrawn borders. The check is therefore on the input the pin records rather
+  than on its numbers: the pin carries, per bucket-year, the `polity_code` it
+  was measured on, and that label is compared with what the resolver returns
+  today. Against the deployed pin `20260818T110621Z-08814` it names 7 polity
+  codes `whep::polities` no longer has (`CIV-1893-1900`, `GHA-1898-1956`,
+  `HUN-1918-1919`, `KEN-1902-1906`, `LAO-1893-1953`, `SEN-1886-1959`,
+  `TCD-1920-1960`) and 256 bucket-years over 8 buckets whose label has moved.
+  **No published value changes**: the default `land_method` is
+  `"present_day"`, which never reads this pin, and the warning changes no
+  number on the opt-in path. A rebuild of that path on the current snapshot
+  and the current `polycell_support` pin moves total pre-1962 agriland by
+  +0.003% but individual bucket-years by up to +82% (Tunisia 1850, 1.366 →
+  2.486 Mha), so regenerating the pin is still outstanding.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
