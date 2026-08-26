@@ -1,5 +1,33 @@
 # whep (development version)
 
+* **`inst/scripts/prepare_spatialize_all.R` no longer divides the HaNi
+  N-deposition raster by a fixed `1e7`, and reads it through
+  `read_n_deposition()` instead of its own terra path (#259).** HaNi's NetCDF
+  declares `units = "g N"` and `long_name = "NHX-N deposition to land within
+  the grid cell"`: an extensive mass per 5-arcmin cell, not a density. The
+  retired code got both consequences wrong. It aggregated to 0.5 degrees with
+  `terra::aggregate(fun = "mean")`, which leaves grams per native cell rather
+  than the additive block mass, and then divided by `1e7` — 1000 g/kg times an
+  assumed 1e4 ha per native cell, i.e. every 5-arcmin cell taken as exactly
+  100 km². On the WGS-84 sphere used everywhere else in the script a 5-arcmin
+  cell is 8586 ha at the equator and 4288 ha at 60°, so `deposit_kg_n_ha` came
+  out low everywhere and progressively worse toward the poles. On real 2014
+  HaNi (NHx + NOy, source mass 63.006 Tg N), the old rates reconstructed
+  44.611 Tg — **29.2% of the deposited nitrogen lost** — against 63.006 Tg
+  (100.0000%) now. Per cell the rate rises by 16% in the Congo basin (0°N),
+  53% in the US Corn Belt (40°N), 90% in the Netherlands (52°N) and 178% in
+  northern Finland (65°N). The same delegation also corrects a one-year shift:
+  the old code derived the year from terra's layer names as `1851:2021`, while
+  the file's `time` axis is `0:170` on `units = "years since 1850-01-01"`, so
+  the series is `1850:2020`. This moves the `n_deposition.parquet` and the
+  `lpjml_inputs/nitrogen/` NHx and NOy forcing that the script writes; the
+  cache gate now keys on a `method_deposition` column so an existing parquet
+  from before this change is re-extracted rather than silently reused. It does
+  **not** move any published package value: `read_n_deposition()` and
+  `build_n_deposition()` in `R/` already block-summed the mass and divided by
+  the true `cell_area_ha`, and the nitrogen balance reads those, not the
+  script.
+
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key
