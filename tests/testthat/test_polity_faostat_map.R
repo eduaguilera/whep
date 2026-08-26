@@ -461,3 +461,78 @@ testthat::test_that("bucket 238 can still date Ethiopia before 1993", {
   # And the bucket every one of those rows is published under really is 238.
   testthat::expect_true(all(resolved$polity_area_code == 238L))
 })
+
+# The crosswalk is keyed on ONE column, `area_code`, and two different kinds of
+# code are handed to it (whep#742): a raw FAOSTAT reporting area, and a
+# `polity_area_code` aggregation bucket. The two tests below pin what makes
+# that safe today, because #742 proposes splitting the key space and both
+# halves have to survive the split.
+
+testthat::test_that("the bucket key space is inside the area key space", {
+  # UNWRITTEN INVARIANT THE WHOLE BUCKET PATH RESTS ON. `.bucket_area_labels()`
+  # resolves a fold's identity by handing `.add_polity_columns_dt()` the
+  # `polity_area_code`, and that lookup joins on `area_code`. So a bucket
+  # resolves at all only because every bucket code also happens to be a
+  # reporting area code in this same table. Nothing said so and nothing checked
+  # it: a bucket code that is not an area code matches no row, the fold's
+  # `reporting_polity_code` comes back NA for every year, and only the `area`
+  # label survives -- through the member fallback, which makes the loss look
+  # like a deliberate aggregate rather than a miss.
+  #
+  # Checked in all three Rest-of-World modes, because `.unfold_rest_of_world()`
+  # rewrites `polity_area_code` on the way out and so decides this set: 202
+  # buckets when the fold is applied, 263 under the published default that
+  # promotes members, 206 for the CBS-reporter subset. None has an orphan.
+  for (mode in whep:::.unfold_rest_of_world_modes()) {
+    withr::with_options(list(whep.unfold_rest_of_world = mode), {
+      cw <- suppressWarnings(whep:::.polity_crosswalk(include_unmapped = TRUE))
+      buckets <- sort(unique(stats::na.omit(cw$polity_area_code)))
+      areas <- unique(stats::na.omit(cw$area_code))
+      testthat::expect_gt(length(buckets), 0L)
+      testthat::expect_equal(setdiff(buckets, areas), integer(0))
+    })
+  }
+})
+
+testthat::test_that("area 238 dates Ethiopia before 1993 in its own right", {
+  # THE OTHER HALF OF `(238, ETH-1952-1993)`, and the reason whep#742 must not
+  # be implemented as filed. #742 reads that row as bucket-only -- "reporting
+  # area 238 does not exist before 1993" -- and prescribes marking it so, which
+  # takes it out of every raw-reporting-area lookup.
+  #
+  # It is a live AREA answer as well. `.resolve_hist_trade_polities()` is the
+  # one caller that resolves a genuine historical source under its own year's
+  # borders (`backcast_anchor = -Inf`, so no back-cast floor), and it reaches
+  # the crosswalk with the raw reporting area the ISO3 bridge picked for `ETH`,
+  # which whep#719 fixed to 238. On the shipped historical-trade pins that is
+  # 149 published rows, all at 1961, and 1961 falls inside `ETH-1952-1993` as a
+  # real period hit -- Ethiopia including Eritrea, which is the territory the
+  # 1961 value covers.
+  #
+  # Marking the row bucket-only sends those rows to `ETH-1993-2025` /
+  # `out_of_span`, and the failure is worse than a status change: the `area`
+  # label is attached from the BUCKET, which keeps the row, so one published
+  # row would read `area = "Ethiopia (1952-1993)"` beside
+  # `polity_code = "ETH-1993-2025"` -- the two-vocabulary split of whep#584.
+  resolved <- whep:::.resolve_hist_trade_polities(
+    data.table::data.table(iso3c = "ETH", year = 1961L, value = 1)
+  )
+
+  testthat::expect_equal(resolved$polity_code, "ETH-1952-1993")
+  testthat::expect_equal(resolved$area_code, 238L)
+  # The label and the code name the same entity. This is the assertion that
+  # fails on the near miss, where the bucket keeps the row and the area does
+  # not, and the two columns come apart inside a single row.
+  testthat::expect_equal(resolved$area, "Ethiopia (1952-1993)")
+
+  # Stated against the resolver directly too, so a refactor of the trade reader
+  # cannot quietly remove the coverage. `-Inf` is what makes this the area
+  # reading rather than the back-cast one: with the floor on, 1961 is the
+  # anchor and the same answer would come out of the anchor rule instead.
+  unfloored <- whep::add_polity_code(
+    tibble::tibble(area_code = 238L, year = 1961L),
+    backcast_anchor = -Inf
+  )
+  testthat::expect_equal(unfloored$polity_code, "ETH-1952-1993")
+  testthat::expect_equal(unfloored$mapping_status, "matched")
+})
