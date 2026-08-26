@@ -894,7 +894,95 @@ parse_geographic_hierarchy <- function(raw) {
       eu27 = as.integer(eu27),
       oecd = as.integer(oecd)
     ) |>
+    correct_gleam_oecd_flags() |>
     add_present_day_polity()
+}
+
+# The one cell of S.A1-S.A2 this file does not carry through (whep#574).
+#
+# Cell G41 of `Tab. S.A1-S.A2` holds `OECD = 1` for Comoros. The Comoros is not
+# an OECD member. The OECD's own membership page
+# <https://www.oecd.org/en/about/members-partners.html> (read 2026-08-25) names
+# the 38 Members, Australia through the United States, and Comoros appears on
+# none of its three lists -- not a Member, not an accession candidate, not a
+# Key Partner.
+#
+# That the column is meant as literal membership, not a GLEAM grouping that
+# merely borrows the name, is settled by the rest of the column: the other 38
+# flagged iso3 codes are EXACTLY the 38 real Members, Colombia (2020) and Costa
+# Rica (2021) included, and the `EU27` column beside it is exactly the 27 real
+# EU members. A modelling grouping would not reproduce the real membership
+# 38-for-38 and then add one Indian Ocean island.
+#
+# The mechanism looks like a single-cell spill, not the column shift of
+# whep#855: every other field on the Comoros row is right, the cell is a
+# hand-typed literal (no formula), and the row sits IMMEDIATELY BELOW Colombia
+# (G40 = 1), whose accession is one of the two the sheet was evidently updated
+# for. So the whole `oecd` column is corrected here, by set equality against the
+# published membership, rather than one cell being patched: `test_datasets.R`
+# pins the same equality, so a coefficient refresh that reintroduces the error
+# -- or a real accession -- fails the suite instead of passing silently.
+correct_gleam_oecd_flags <- function(hierarchy) {
+  members <- oecd_member_iso3()
+  missing <- setdiff(members, hierarchy$iso3)
+  if (length(missing) > 0) {
+    stop(
+      "GLEAM S.A1-S.A2 has no row for OECD member(s): ",
+      paste(missing, collapse = ", "),
+      ". The energy extension assumes every member is listed; ",
+      "see whep#574.",
+      call. = FALSE
+    )
+  }
+  dplyr::mutate(hierarchy, oecd = as.integer(iso3 %in% members))
+}
+
+# The 38 OECD Members, as ISO3, from the OECD's own membership list
+# <https://www.oecd.org/en/about/members-partners.html> (read 2026-08-25).
+# Kept as one exported-looking helper because `test_datasets.R` asserts the
+# shipped `oecd` column equals exactly this set; update it when a country
+# accedes, and the dataset follows on the next rebuild.
+oecd_member_iso3 <- function() {
+  c(
+    "AUS", # Australia
+    "AUT", # Austria
+    "BEL", # Belgium
+    "CAN", # Canada
+    "CHL", # Chile
+    "COL", # Colombia
+    "CRI", # Costa Rica
+    "CZE", # Czechia
+    "DNK", # Denmark
+    "EST", # Estonia
+    "FIN", # Finland
+    "FRA", # France
+    "DEU", # Germany
+    "GRC", # Greece
+    "HUN", # Hungary
+    "ISL", # Iceland
+    "IRL", # Ireland
+    "ISR", # Israel
+    "ITA", # Italy
+    "JPN", # Japan
+    "KOR", # Korea
+    "LVA", # Latvia
+    "LTU", # Lithuania
+    "LUX", # Luxembourg
+    "MEX", # Mexico
+    "NLD", # Netherlands
+    "NZL", # New Zealand
+    "NOR", # Norway
+    "POL", # Poland
+    "PRT", # Portugal
+    "SVK", # Slovak Republic
+    "SVN", # Slovenia
+    "ESP", # Spain
+    "SWE", # Sweden
+    "CHE", # Switzerland
+    "TUR", # Turkiye
+    "GBR", # United Kingdom
+    "USA" # United States
+  )
 }
 
 # The present-day polity of each country GLEAM lists (whep#688).

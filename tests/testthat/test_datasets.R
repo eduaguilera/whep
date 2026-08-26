@@ -685,6 +685,23 @@ test_that("gleam_geographic_hierarchy has correct types", {
   )
 })
 
+test_that("gleam_geographic_hierarchy oecd is exactly the 38 Members", {
+  # whep#574: the workbook flags Comoros as OECD, and the flag is not decorative
+  # -- `.energy_country_grouping()` reads it for two of the three GLEAM schemes,
+  # so it priced Comoros' meat at OECD energy intensity (up to +129%).
+  # `data-raw/livestock_coefficients.R` corrects the column against the OECD's
+  # own membership list; this is the gate on that, because `livestock_coefs` is
+  # one of the seven datasets `test_data_raw_freshness.R` cannot rebuild.
+  obj <- whep::gleam_geographic_hierarchy
+  expect_setequal(obj$iso3[obj$oecd == 1L], oecd_members_iso3())
+  expect_equal(sum(obj$oecd), 38L)
+  expect_equal(obj$oecd[obj$iso3 == "COM"], 0L)
+  # The EU27 column beside it is untouched and already correct, which is part of
+  # why the OECD cell reads as a data-entry slip rather than a GLEAM grouping
+  # that merely borrows the name.
+  expect_equal(sum(obj$eu27), 27L)
+})
+
 test_that("gleam_crop_residue_params is a clean tibble", {
   obj <- whep::gleam_crop_residue_params
   assert_clean_tibble(

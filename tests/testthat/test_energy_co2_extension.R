@@ -416,50 +416,14 @@ testthat::test_that("an area GLEAM omits can be neither OECD nor EU27", {
   # so an iso3 absent from it belongs to neither. Pinned because a coefficient
   # refresh that dropped a member would make the assumption false silently.
   hierarchy <- tibble::as_tibble(whep::gleam_geographic_hierarchy)
-  oecd_members <- c(
-    "AUS",
-    "AUT",
-    "BEL",
-    "CAN",
-    "CHL",
-    "COL",
-    "CRI",
-    "CZE",
-    "DNK",
-    "EST",
-    "FIN",
-    "FRA",
-    "DEU",
-    "GRC",
-    "HUN",
-    "ISL",
-    "IRL",
-    "ISR",
-    "ITA",
-    "JPN",
-    "KOR",
-    "LVA",
-    "LTU",
-    "LUX",
-    "MEX",
-    "NLD",
-    "NZL",
-    "NOR",
-    "POL",
-    "PRT",
-    "SVK",
-    "SVN",
-    "ESP",
-    "SWE",
-    "CHE",
-    "TUR",
-    "GBR",
-    "USA"
-  )
+  # One copy of the membership list, in helper_oecd_membership.R, shared with
+  # test_datasets.R -- which asserts SET EQUALITY, the direction this test never
+  # covered and the direction whep#574's Comoros flag broke.
+  oecd_members <- oecd_members_iso3()
   testthat::expect_length(setdiff(oecd_members, hierarchy$iso3), 0L)
-  testthat::expect_length(
-    setdiff(oecd_members, hierarchy$iso3[hierarchy$oecd == 1]),
-    0L
+  testthat::expect_setequal(
+    hierarchy$iso3[hierarchy$oecd == 1],
+    oecd_members
   )
   testthat::expect_equal(sum(hierarchy$eu27), 27L)
 
