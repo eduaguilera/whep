@@ -22,12 +22,28 @@
 #'   to a parquet/csv file. CBS-shaped rows should provide `year`, `value`,
 #'   one of `area_code` or `polity_area_code`, one of `item_cbs_code` or
 #'   `item_prod_code`, and preferably `element`. Production-shaped rows without
-#'   `element` are accepted as `production` when their unit is tonnes. Default
-#'   `NULL`.
+#'   `element` are accepted as `production` when their unit is tonnes.
+#'   **Rice supplied here is assumed to be on a paddy (rough-rice)
+#'   basis** and is multiplied by the paddy-to-milled extraction rate,
+#'   matching [build_primary_production()]; pre-divide by that rate if the
+#'   series is already milled. Default `NULL`.
 #' @param format One of `"long"` (default) or `"wide"`. `"long"` returns one row
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
 #'   the same dataset; `"wide"` is what the IO model and the extensions consume.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#'   what happens to a traded item the CBS has no row for. The trade record is
+#'   joined onto the CBS, so it can only fill a row that already exists;
+#'   `"none"` keeps that, and the import is dropped. `"net_import"` first
+#'   creates the missing rows from the trade record, restricted to
+#'   tonnes-denominated items (live-animal trade is in heads and arrives
+#'   through [get_livestock_cbs()]), to net importers, and to areas the CBS
+#'   already covers in that year. Selecting it **moves published values** —
+#'   at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+#'   areas on the nourishment axis. `NEWS.md` states the rest, and whep#762
+#'   keeps the remaining decisions open.
+#'   [get_wide_cbs()] always uses `"none"`; ask for `format = "wide"` here to
+#'   get the wide table with recovery applied.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -54,9 +70,11 @@ build_commodity_balances <- function(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
+  trade_recovery = c("none", "net_import"),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
+  trade_recovery <- rlang::arg_match(trade_recovery)
   if (example) {
     return(
       if (format == "wide") {
@@ -74,11 +92,16 @@ build_commodity_balances <- function(
   }
   if (is.null(.fixed_data)) {
     fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
-      .fix_cbs()
+      .fix_cbs(trade_recovery = trade_recovery)
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
         "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (trade_recovery != "none") {
+      cli::cli_warn(
+        "{.arg trade_recovery} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -339,12 +362,14 @@ build_commodity_balances <- function(
 #'
 #' @param df A tibble from `.read_cbs()`. Expects `.years`
 #'   attribute (set automatically by `.read_cbs()`).
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
+#'   [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
 #' @keywords internal
 #' @noRd
-.fix_cbs <- function(df) {
+.fix_cbs <- function(df, trade_recovery = "none") {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
   cbs_raw <- df
@@ -376,6 +401,14 @@ build_commodity_balances <- function(
     proc_result$processd_raw,
     src_lookup = src_lookup
   )
+
+  # 6b. Recover trade the CBS row set cannot see (opt-in, whep#762)
+  if (trade_recovery != "none") {
+    cli::cli_progress_step("Recovering trade-only rows")
+    recovered <- .cbs_trade_recovery_rows(cbs_raw3, fao_trade_cbs, years)
+    cbs_raw3 <- .cbs_bind_recovered(cbs_raw3, recovered)
+    src_lookup <- .add_recovered_sources(src_lookup, recovered)
+  }
 
   # 7. Impute trade and domestic supply
   cli::cli_progress_step("Imputing trade and domestic supply")
@@ -1166,7 +1199,12 @@ build_processing_coefs <- function(
     return(.empty_historical_cbs())
   }
 
-  dt <- .fix_item_codes(dt)
+  # #778: `items_full` above has just overwritten every 2807 label with the
+  # canonical "Rice and products", so the item name can no longer say whether
+  # the row is paddy or milled -- only the source can. Keyed on source, a
+  # historical rice row lands on the same milled-equivalent tonnage here as the
+  # same row does through `build_primary_production()`.
+  dt <- .fix_item_codes(dt, paddy_by_source = TRUE)
   key_cols <- c(
     "year",
     "area",
@@ -2905,6 +2943,206 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
+}
+
+# -- Recover trade the CBS row set cannot see ----------------------------------
+
+# `.cbs_impute_trade()` LEFT-joins the crosswalked FAOSTAT/FishStat trade onto
+# the pivoted CBS, so it can FILL an (area, item, year) the CBS already carries
+# but never CREATE one. The row set is whatever the balance sheets and
+# production already produced, so an area that imports an item its balance
+# sheet omits loses that import outright -- Singapore's 2010 basket is 72
+# tonnes-denominated items and 2.56 Mt of net imports short (whep#762).
+#
+# These helpers emit the missing `import`/`export` rows so the join has
+# something to land on. They run only under `trade_recovery = "net_import"`,
+# because they move published values, and they are deliberately narrower than
+# "every key the trade record carries". Each restriction below is what makes
+# the created row balanceable rather than a fabrication:
+#
+# * **Live animals are excluded.** Their CBS quantities are head counts, not
+#   tonnes (`items_cbs$item_type`), and `.aggregate_fao_trade_to_cbs()` sums
+#   them into the same tonnes-denominated `value` column -- 66.7 M head of
+#   pigs, sheep, cattle and goats at 2010 alone. The wide CBS already gets its
+#   live-animal rows, in heads and from bilateral trade, via
+#   `get_livestock_cbs()`, so creating them here would both mix units and
+#   duplicate that key.
+# * **Only net importers.** A created row has no production, so a net-exported
+#   one has nothing to export: the balancing cascade closes the identity by
+#   inventing production, and `check_supply_use_balance()` then passes on
+#   fabricated tonnage. 144 pairs / 28.9 Mt of exports at 2010 are left
+#   uncreated for that reason (whep#762 keeps the decision open).
+# * **Only (year, area) buckets the CBS already covers**, so the `area` label
+#   comes from the CBS rows themselves instead of a year-free lookup that
+#   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
+.cbs_trade_recovery_rows <- function(cbs, fao_trade_cbs, years) {
+  candidates <- .cbs_trade_only_candidates(cbs, fao_trade_cbs, years)
+
+  candidates |>
+    tidyr::pivot_longer(
+      c("import", "export"),
+      names_to = "element",
+      values_to = "value"
+    ) |>
+    dplyr::filter(.data$value > 0) |>
+    dplyr::mutate(source = "FAOSTAT_trade") |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      element,
+      area,
+      item_cbs,
+      value,
+      source
+    )
+}
+
+# The (year, area, item) keys the trade record carries and the CBS does not,
+# restricted as documented above and labelled from the CBS itself.
+.cbs_trade_only_candidates <- function(cbs, fao_trade_cbs, years) {
+  empty <- tibble::tibble(
+    year = numeric(),
+    area_code = integer(),
+    item_cbs_code = numeric(),
+    area = character(),
+    item_cbs = character(),
+    import = numeric(),
+    export = numeric()
+  )
+  if (is.null(fao_trade_cbs) || nrow(fao_trade_cbs) == 0L) {
+    return(empty)
+  }
+
+  trade <- data.table::as.data.table(fao_trade_cbs)
+  trade <- trade[
+    year %in%
+      years &
+      element %in% c("import", "export") &
+      !item_cbs_code %in% .live_animal_cbs_codes()
+  ]
+  covered <- unique(
+    data.table::as.data.table(cbs)[, .(year, area_code, item_cbs_code)]
+  )
+  trade <- trade[!covered, on = c("year", "area_code", "item_cbs_code")]
+  if (nrow(trade) == 0L) {
+    return(empty)
+  }
+
+  .abort_if_trade_key_duplicated(trade)
+  data.table::dcast(
+    trade,
+    year + area_code + item_cbs_code ~ element,
+    value.var = "value",
+    fill = 0
+  ) |>
+    tibble::as_tibble() |>
+    ensure_columns(
+      empty[, c("import", "export")],
+      defaults = list(import = 0, export = 0)
+    ) |>
+    dplyr::filter(.data$import > .data$export) |>
+    .label_recovered_rows(cbs)
+}
+
+# One `(year, area_code, item_cbs_code, element)` per trade row, or the dcast
+# below silently sums two records into one created row. The bridge in
+# `.aggregate_fao_trade_to_cbs()` already aggregates on exactly this key, so a
+# duplicate here means the key stopped being the key -- the shape of whep#164
+# and whep#240, and the reason this is an abort and not a warning.
+.abort_if_trade_key_duplicated <- function(trade) {
+  key <- c("year", "area_code", "item_cbs_code", "element")
+  duplicated_rows <- sum(duplicated(trade, by = key))
+  if (duplicated_rows > 0L) {
+    cli::cli_abort(c(
+      "Crosswalked trade is not unique per {.val {key}}.",
+      "x" = "{duplicated_rows} duplicate{?s} would be summed into one row.",
+      "i" = "Aggregate the trade record before recovering CBS rows."
+    ))
+  }
+  invisible(trade)
+}
+
+# The `area` label is a property of the (year, area_code) bucket, so it is read
+# from the CBS rows of that same bucket -- an inner join, which also enforces
+# the "areas the CBS already covers" restriction. The item label is year-free
+# and comes from the canonical lookup, so an item the CBS names nowhere (Meat
+# Meal, 2112) still gets one.
+.label_recovered_rows <- function(candidates, cbs) {
+  areas <- data.table::as.data.table(cbs)[,
+    .(year, area_code, area)
+  ] |>
+    unique() |>
+    tibble::as_tibble()
+  .abort_if_area_label_ambiguous(areas)
+
+  candidates |>
+    dplyr::inner_join(areas, by = c("year", "area_code")) |>
+    add_item_cbs_name(name_column = "item_cbs")
+}
+
+# One `area_code` must carry one `area` label in a given year (whep#563).
+.abort_if_area_label_ambiguous <- function(areas) {
+  ambiguous <- areas |>
+    dplyr::count(year, area_code) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(ambiguous) > 0L) {
+    cli::cli_abort(c(
+      "{nrow(ambiguous)} (year, area_code) bucket{?s} carr{?ies/y} more than \\
+       one {.field area} label.",
+      "i" = "Recovered rows would split the bucket."
+    ))
+  }
+  invisible(areas)
+}
+
+# CBS items denominated in head counts rather than tonnes.
+.live_animal_cbs_codes <- function(items_cbs = whep::items_cbs) {
+  items_cbs |>
+    dplyr::filter(
+      item_type %in% c("livestock", "livestock_meat", "livestock_draft")
+    ) |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+}
+
+.cbs_bind_recovered <- function(cbs, recovered) {
+  if (nrow(recovered) == 0L) {
+    cli::cli_alert_info("No trade-only CBS rows to recover.")
+    return(cbs)
+  }
+  areas <- length(unique(recovered$area_code))
+  items <- length(unique(recovered$item_cbs_code))
+  cli::cli_alert_info(
+    "Recovered {nrow(recovered)} trade-only CBS row{?s} \\
+     ({items} item{?s}, {areas} area{?s})."
+  )
+  data.table::rbindlist(
+    list(data.table::as.data.table(cbs), recovered),
+    use.names = TRUE
+  )
+}
+
+# The source lookup is frozen before the recovered rows exist, so their
+# provenance has to be appended or every recovered element ships `source = NA`.
+# Their keys are absent from the CBS by construction, so the lookup stays
+# unique on its key.
+.add_recovered_sources <- function(src_lookup, recovered) {
+  if (nrow(recovered) == 0L) {
+    return(src_lookup)
+  }
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  data.table::rbindlist(
+    list(
+      src_lookup,
+      data.table::as.data.table(recovered)[,
+        c(by_cols, "source"),
+        with = FALSE
+      ]
+    ),
+    use.names = TRUE
+  ) |>
+    unique(by = by_cols)
 }
 
 # -- Impute trade + domestic supply --------------------------------------------

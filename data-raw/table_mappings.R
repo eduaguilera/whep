@@ -595,6 +595,31 @@ shadowed_by_map <- prefix_candidates |>
 # reach: `ETH-1800-1889` through `ETH-1941-1952` are named by no map row, so
 # both areas keep all seven, which is what `.resolve_hist_trade_polities()`
 # needs.
+#
+# THE ROW THAT STAYS IS NOT A BUCKET-ONLY ROW, and #742 proposed to mark it as
+# one. That issue reads `(238, ETH-1952-1993)` as right for the bucket and
+# wrong for the area -- "reporting area 238 does not exist before 1993" -- and
+# asks for a `key_role` column so the raw-reporting-area lookup stops matching
+# it. Measured before designing anything, that is not what the row does. Area
+# 238 is exactly where `.iso3_area_code_bridge()` sends `ETH` (whep#719), and
+# `.resolve_hist_trade_polities()` resolves genuine historical sources under
+# their own year's borders with the back-cast floor off. On the shipped
+# historical-trade pins that lands 149 published rows on area 238 at 1961, a
+# real period hit inside 1952-1993 -- Ethiopia including Eritrea, which is the
+# territory the 1961 value covers. Taking the row out of the area lookup sends
+# all 149 to `ETH-1993-2025` / `out_of_span`, and because the `area` label is
+# attached from the BUCKET, which would keep the row, a single published row
+# would then read `area = "Ethiopia (1952-1993)"` beside
+# `polity_code = "ETH-1993-2025"` -- the two-vocabulary split of whep#584.
+#
+# So the row answers in both key spaces, no shipped row answers in only one,
+# and a `key_role` column would today be derivable as
+# `area_code %in% polity_area_code` and carry no information. The distinction
+# earns a published column when a bucket-only row first exists, which is what
+# whep#414 would need (bucket 206 wants `F206-2011-2025`, a polity upstream
+# publishes but its per-area map cannot name, because area 206 stops reporting
+# in 2011). test_polity_faostat_map.R pins both halves so the split cannot be
+# implemented on one of them.
 map_owners <- faostat_area_map |>
   dplyr::distinct(.data$polity_code, owner_area = .data$area_code) |>
   dplyr::left_join(
