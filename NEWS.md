@@ -1,5 +1,26 @@
 # whep (development version)
 
+* **The LUH2 v2h calendar-year → time-index resolution is now one shared,
+  tested helper, and clamping past the end of the record always warns
+  (#256).** Four places computed the index independently, with three different
+  policies for a year the LUH2 record does not reach: `.read_luh2_year()` in
+  `prepare_spatialize_all.R` clamped and warned; `.luh2_country_totals()` and
+  the gridded-pasture reader clamped **silently**, so the published
+  `gridded_pasture.parquet`, `gridded_cropland.parquet` and
+  `type_cropland.parquet` each carry a 2023 that is bit-identical to their 2022
+  with nothing in the log saying so; and `_gen_type_cropland.R` computed
+  `yr - 850 + 1` bare, aborting inside `ncdf4::ncvar_get()` with
+  `NetCDF: Index exceeds dimension bound` on any vintage shorter than its
+  `year_range` (the base v2h release stops at 2015, the pinned GCB2022 vintage
+  at 2022). All four now call `whep:::.luh2_clamped_time_idx()`, which warns
+  naming the year it is reusing, and aborts for years before 850 CE, where
+  there is no slice to reuse. **No published value changes**: index 1 = year
+  850 was already correct at every site (the states.nc time axis declares
+  "years since 850-01-01" with `time[1] == 0`), and the resolved index sequence
+  is identical for the full 1851–2023 pipeline span on the reference GCB2022
+  vintage. The 2023 land surfaces still repeat 2022 — that is the documented
+  intent, since FAOSTAT extends past LUH2 — it is merely audible now.
+
 * **The IPCC provenance of the Tier 2 sheep and goat coefficients is now
   recorded, and the goat values are locked by tests (#249).** No published
   value changes: `ipcc_2019_cfi` and `ipcc_tier2_energy_coefs` already hold
