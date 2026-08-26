@@ -89,6 +89,21 @@
   processing for rice, not food — and that is an allocation rule, not an
   identity. And 144 net-exported pairs / 28.9 Mt at 2010 stay uncreated,
   because balancing them would fabricate supply. Both are open in #762.
+* **`regions_full` and `polities_cats` no longer ship the `region_test`
+  column, and their remaining regional groupings now document which ones WHEP
+  reads (#386).** `region_test` held two values, `"Europe"` and `"Other"`, and
+  had no consumer anywhere in the package; it was a working column left in two
+  published tables. Both datasets drop from 39 columns to 38; no other cell
+  changes and no published value moves. The `regions_full` help page gains a
+  *Which regional groupings WHEP reads* section recording that six of the
+  remaining groupings have an in-tree consumer, that `region_code` is a 1:1
+  relabelling of `region`, and that the eleven unconsumed ones are shipped as
+  reference without a re-validation promise -- with the gap a consumer would
+  inherit stated explicitly: over the 202 `cbs` reporters the present-day
+  taxonomies are `NA` for exactly the four dissolved federations (codes 51,
+  186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
+  rather than a mechanisation class are documented rather than repaired, since
+  the correct class is not recoverable from anything the package ships.
 
 * **The six patchwork panel plots now say which package is missing
   instead of failing inside `loadNamespace()` (#431).**
