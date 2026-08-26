@@ -58,8 +58,9 @@ primary production (HANPP) studies.
 \item \code{region_IPCC}: IPCC regional grouping used in climate assessments.
 \item \code{region_labour}: Labour-focused regional grouping.
 \item \code{region_labour_agg}: Aggregated labour-focused regional grouping.
-\item \code{region_labour_mech}: Labour mechanisation regional grouping.
-\item \code{region_test}: Experimental/test regional grouping (may be incomplete).
+\item \code{region_labour_mech}: Labour mechanisation regional grouping. Two cells
+hold a sub-region name rather than a mechanisation class; see
+\link{regions_full}.
 }
 }
 \source{
@@ -83,6 +84,43 @@ aggregate. Two areas are folded, both because they had no commodity balance
 sheet when the table was compiled: Bhutan under \code{RASI} and Comoros under
 \code{RAFR}, each with \code{cbs} \code{FALSE} and \code{fabio_code} \code{999}.
 }
+\section{Which regional groupings WHEP reads}{
+
+The grouping columns are not all inputs to this package. Six have a consumer
+in the tree, measured over \verb{R/}, \verb{data-raw/}, \verb{tests/}, \verb{vignettes/} and
+\verb{inst/}: \code{region} (carried into \link{polity_area_crosswalk} at build time),
+\code{region_krausmann} (the residue recovery rate, and the IPCC excreta regions
+of \code{prepare_spatialize_all.R}), \code{region_HANPP} (the modern-variety adoption
+share), \code{region_UN_sub} (the residue feed-use fraction, since whep#405),
+\code{ADB_Region} (\link{build_primary_production} area keys) and \code{EU27} (the EU
+aggregate of the FABIO comparison). \code{region_code} carries no information
+\code{region} does not -- the two are a 1:1 relabelling -- so it needs no
+consumer of its own.
+
+The rest -- \code{Lassaletta}, \code{region_krausmann2}, \code{region_UN}, \code{region_ILO1},
+\code{region_ILO2}, \code{region_ILO3}, \code{region_IEA}, \code{region_IPCC}, \code{region_labour},
+\code{region_labour_agg}, \code{region_labour_mech} -- are published third-party
+taxonomies shipped for downstream analysis and read by nothing in the
+package. They are shipped as reference, and carry no promise of being
+re-validated against their upstream taxonomy on release, so a consumer should
+check the gap it inherits before keying anything by one (whep#386).
+
+The gap the present-day taxonomies share is dissolved states. Over the 202
+\code{cbs} reporters, \code{region_ILO1}, \code{region_ILO2}, \code{region_ILO3}, \code{region_IEA}
+and \code{region_IPCC} are each \code{NA} for exactly the four federations WHEP still
+books commodity balances for -- Czechoslovakia (51), Serbia and Montenegro
+(186), the USSR (228) and the Yugoslav SFR (248) -- and complete everywhere
+else; \code{region_UN} labels three of the four and leaves only Czechoslovakia
+\code{NA}. \code{ROW} (999) carries an explicit \code{"RoW"} value in all of them rather
+than \code{NA}. Grouping by one of these without deciding what to do with the
+federations silently drops the pre-succession record. \code{region_UN_sub}, which
+shares the gap and does have a consumer, is pinned against it in
+\code{test_region_classifications.R}.
+
+A \code{region_test} column with two values (\code{"Europe"}, \code{"Other"}) and no
+consumer was dropped in whep#386.
+}
+
 \examples{
 head(polities_cats)
 }

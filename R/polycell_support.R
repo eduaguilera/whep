@@ -447,7 +447,17 @@ expand_polycell_years <- function(support, years) {
 }
 
 # `area_code` is a label, resolved from the periodized crosswalk rather than
-# invented. It stays NA where the crosswalk has no entry for the polity.
+# invented. It stays NA where the crosswalk has no entry for the polity, which
+# is the ORDINARY case and not a defect: the crosswalk's row space is reporting
+# areas, so 168 of the 716 rows this producer prepares carry NA here because no
+# FAOSTAT or FABIO area was ever reported under their territory.
+#
+# AN AGGREGATE POLITY NEVER REACHES THE OUTPUT THROUGH THIS. `area_code` is
+# computed for every input row, but `.pcs_prepare_polities()` then keeps only
+# the rows that are live AND not `polity_type == "aggregate"`, so the eight live
+# aggregates absent from the crosswalk (whep#875) emit no polycell to carry an
+# NA. "Dead and aggregate rows receive no data and no land" in
+# `test_polycell_support.R` is the pin.
 .pcs_area_code <- function(attrs) {
   if (rlang::has_name(attrs, "area_code")) {
     return(as.integer(attrs$area_code))

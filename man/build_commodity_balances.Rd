@@ -35,8 +35,11 @@ to add before the CBS historical extension. May be a data frame or a path
 to a parquet/csv file. CBS-shaped rows should provide \code{year}, \code{value},
 one of \code{area_code} or \code{polity_area_code}, one of \code{item_cbs_code} or
 \code{item_prod_code}, and preferably \code{element}. Production-shaped rows without
-\code{element} are accepted as \code{production} when their unit is tonnes. Default
-\code{NULL}.}
+\code{element} are accepted as \code{production} when their unit is tonnes.
+\strong{Rice supplied here is assumed to be on a paddy (rough-rice)
+basis} and is multiplied by the paddy-to-milled extraction rate,
+matching \code{\link[=build_primary_production]{build_primary_production()}}; pre-divide by that rate if the
+series is already milled. Default \code{NULL}.}
 
 \item{format}{One of \code{"long"} (default) or \code{"wide"}. \code{"long"} returns one row
 per element. \code{"wide"} pivots the elements into columns, adds the live-animal

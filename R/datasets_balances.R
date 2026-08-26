@@ -111,7 +111,13 @@
 #'   \item{cropland_class}{Land class: \code{"Cropland"} or
 #'     \code{"NonCropland"}.}
 #'   \item{management}{Management system: \code{"Conventional"} or
-#'     \code{"Organic"}.}
+#'     \code{"Organic"}. \strong{Only the \code{"Conventional"} rows are
+#'     selectable by this package.} \code{build_carbon_balance()} has no
+#'     management dimension -- it is a global gridded balance -- so an argument
+#'     for this column could only be set world-wide, and "run the whole world as
+#'     organic" is not a run anyone should perform. The \code{"Organic"} rows
+#'     therefore ship as \emph{reference values for downstream consumers}, not
+#'     as inputs this package can be asked to use (issue 809).}
 #'   \item{cn_ratio}{Soil organic-matter carbon-to-nitrogen ratio.}
 #'   \item{cn_mineralization}{Carbon-to-nitrogen ratio applied when soil
 #'     organic carbon is mineralized (net carbon loss).}
