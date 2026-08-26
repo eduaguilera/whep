@@ -1,5 +1,127 @@
 # whep (development version)
 
+* **New `population_source_reach()` reports which areas a population source
+  keyed on present-day ISO3 can reach, and area 151 is the one it cannot
+  (#787).** Both population sources WHEP reads — the `gdp-population` pin and
+  UN WPP 2024 — are keyed on a present-day ISO3 code, so neither can carry a
+  territory that no longer exists. This classifies each of the 297 reporting
+  periods in `polity_area_crosswalk` as `"direct"`, `"successor"` (the polities
+  database's `successor` relation reaches present-day codes) or
+  `"unreachable"`. Measured against UN WPP 2024, 283 are direct, 8 resolve
+  through successors, and exactly one reporting area outside the Rest-of-World
+  bucket is unreachable: `ANT-1961-2010`, area 151 Netherlands Antilles, which
+  carries commodity-balance food in every year from 1961 to 2010. Upstream
+  publishes no successor for it and models neither Sint Maarten nor the BES
+  islands as polities, so reconstructing it is an upstream identity gap rather
+  than a missing value. No published value changes: this reports coverage and
+  builds no denominator. It deliberately does **not** fill area 151 or any
+  other area — a successor sum over UN WPP falls 17.5% short of the pin's own
+  figure for the Yugoslav SFR, because WPP reports Kosovo separately and the
+  successor relation does not name it.
+* **`build_polycell_support()` can now emit aggregate polities as an explicit,
+  non-partitioning overlap layer (#803).** An aggregate -- `BLX-1850-1999`
+  Belgium-Luxembourg, `F249-1918-1990` Yemen, the six residual `"Other"`
+  regions -- is the only territory some FAOSTAT reporting buckets ever have:
+  bucket 15 carries data before 2000 where Belgium (255) and Luxembourg (256)
+  carry none. Excluding them left ten buckets with no territory in at least one
+  pre-1962 year (15, 151, 237 over 1954-1961, 249 and 901-906). They stay
+  excluded by default, because an aggregate's polygon covers its members' and
+  the support must partition each cell; `aggregates = "overlap_layer"` clips
+  them too and marks every row `support_role`, `"partition"` or `"overlap"`.
+  The partition is unchanged either way -- measured polity by polity and year
+  by year on the real Belgium/Luxembourg geometries, the maximum difference is
+  0 -- because a cell's inland water is apportioned over the partition's
+  territory alone and every diagnostic describing the partition is measured on
+  it alone. `read_polycell_support()` gains `role`, defaulting to
+  `"partition"`, so no existing consumer can pick up an overlapping row by
+  accident. **No published value changes**: the default is the status quo, no
+  pin is regenerated, and the published `polycell_support` has no aggregate
+  rows to return.
+* **`build_commodity_balances()` gained `trade_recovery`, which lets the CBS
+  keep an import it has no row for (#762).** `.cbs_impute_trade()` left-joins
+  the crosswalked FAOSTAT/FishStat trade onto the already-pivoted CBS, so it
+  can fill an `(area, item, year)` the CBS already carries but never create
+  one. An area whose balance sheet omits an item it demonstrably imports loses
+  that import outright. Measured at 2010 on the real pins, 3,336 crosswalked
+  import records and 2,119 export records have no row to land on; among
+  tonnes-denominated items 1,197 `(area, item)` pairs are net imports the CBS
+  never sees. Singapore alone loses 72 items and 2.56 Mt of net imports.
+
+  `trade_recovery = "net_import"` creates those rows first, so the join lands.
+  It is restricted to what can be balanced without inventing anything:
+  tonnes-denominated items only (live-animal trade is counted in heads and
+  reaches the wide CBS through `get_livestock_cbs()`), net importers only (a
+  created row has no production, so a net-exported one would force the cascade
+  to invent some), and areas the CBS already covers in that year (so the
+  `area` label is read from the CBS bucket rather than a year-free lookup).
+  Recovered rows carry `source = "FAOSTAT_trade"`.
+
+  **The default is `"none"`, which is exactly today's behaviour**, and
+  `get_wide_cbs()` always uses it. Nothing published moves unless the argument
+  is passed.
+
+  **What moves when it is passed.** On a 2010 build (wide CBS, context window
+  2005-2015): 1,164 keys are added and none removed (17,685 to 18,849 rows),
+  1,138 of them created directly from the trade record and 26 more processed
+  products the cascade then derives from them; 200 areas before and after.
+  Over tonnes items, world imports rise 53.7 Mt (+3.4%), exports 12.3 Mt
+  (+0.8%), domestic supply 41.7 Mt (+0.2%), feed 36.7 Mt (+0.4%) and food
+  4.1 Mt (+0.09%); 34.6 Mt of the domestic supply is fodder (items 2000, 2001,
+  2002), which is missing from 97 areas' balance sheets and present in the
+  trade record for all of them. Every recovered import reaches the output
+  unchanged (0 of 1,138 keys differ). No pre-existing row's supply-use
+  residual worsens by more than 0.05 t. 205 created rows do end up with
+  production, 210 kt in total, and all of them are processed products (beer,
+  wine, oils, cakes, DDGS, sugar, butter) whose output the processing cascade
+  derives from the newly recovered inputs.
+
+  Downstream, on the nourishment axis at 2010: areas classified `Under` fall
+  from 33 to 31. Singapore goes from 30.5 to 65.7 g protein/cap/day
+  (`Under` to `Adequate`), Bahrain from 33.7 to 79.0 (`Under` to `Adequate`)
+  and Qatar from 81.0 to 127.7 (`Adequate` to `Over`). Equatorial Guinea
+  (11.4 to 18.3) and Puerto Rico (12.5, no trade record at all) stay `Under`:
+  those two are a genuine data absence, not a join artifact. Spain, the USA,
+  Niger, Kiribati and Saint Kitts and Nevis do not move at all.
+
+  **Two things are deliberately not settled here**, which is why the default
+  is unchanged. A created row has no destiny of its own, so the existing
+  fallback assigns its whole domestic supply to the item's default destiny —
+  processing for rice, not food — and that is an allocation rule, not an
+  identity. And 144 net-exported pairs / 28.9 Mt at 2010 stay uncreated,
+  because balancing them would fabricate supply. Both are open in #762.
+* **`regions_full` and `polities_cats` no longer ship the `region_test`
+  column, and their remaining regional groupings now document which ones WHEP
+  reads (#386).** `region_test` held two values, `"Europe"` and `"Other"`, and
+  had no consumer anywhere in the package; it was a working column left in two
+  published tables. Both datasets drop from 39 columns to 38; no other cell
+  changes and no published value moves. The `regions_full` help page gains a
+  *Which regional groupings WHEP reads* section recording that six of the
+  remaining groupings have an in-tree consumer, that `region_code` is a 1:1
+  relabelling of `region`, and that the eleven unconsumed ones are shipped as
+  reference without a re-validation promise -- with the gap a consumer would
+  inherit stated explicitly: over the 202 `cbs` reporters the present-day
+  taxonomies are `NA` for exactly the four dissolved federations (codes 51,
+  186, 228, 248). Two `region_labour_mech` cells that hold a sub-region name
+  rather than a mechanisation class are documented rather than repaired, since
+  the correct class is not recoverable from anything the package ships.
+
+* **New: `check_table_schema()` and `assert_table_schema()` validate a table
+  against a serializable declarative schema (#373).** The schema is plain
+  data — an ordered list of column specifications carrying type, presence,
+  bounds, an allowed-value vocabulary, uniqueness and severity, plus a
+  table-level key, extra-column policy, column-order policy and empty-table
+  policy — so it round-trips through `yaml`/`jsonlite` and can be stored next
+  to the artifact it describes. Project vocabularies and scientific bounds
+  stay in the caller's schema; the validator hard-codes none of them.
+  `check_table_schema()` returns one deterministic diagnostic row per
+  violation (`row`, `column`, `rule`, `value`, `severity`, `detail`) and never
+  touches the input; `assert_table_schema()` is the build-time gate over the
+  same schema and returns its input unchanged. This complements
+  `ensure_columns()`, which *coerces* a table to a typed prototype: use
+  `ensure_columns()` to reach a schema and `check_table_schema()` to prove a
+  table is already there. No published value changes — both functions are new
+  and nothing in the pipeline calls them yet.
+
 * **New `write_table_checked()` writes a table atomically and verifies it
   before it replaces anything (#375).** It creates the parent directory,
   writes to a temporary file beside the target, reads that file back
@@ -615,6 +737,53 @@
   the input's N and only accounted N is removed, balancing to 2.1e-16 every
   year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
   sugar) should go is still open (whep#432).
+
+* **The N left over from a zero-N processed-item substitution (wine, olive
+  oil, sugar) now gets its own `processing_losses` destiny instead of
+  staying folded into the primary crop's own destinies.**
+  Previously, `removal_scale` only ever removed the N actually credited to
+  a named output, so a near-zero-N output (wine from grapes, oil from
+  olives) left most of the diverted mass sitting with the primary crop,
+  inflating that crop's own `export` residual. The full processed mass is
+  now always removed, the credited share still goes to the processed item,
+  and the remainder is booked as `destiny = "processing_losses"`,
+  `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
+  LMDI decomposition) tracks this destiny by name, so it falls into
+  whatever each of them already treats as surplus, the same way
+  `no_tracked_output` items already do. Concretely,
+  `.create_land_surplus_df()` computes cropland surplus as inputs minus
+  tracked outputs, so reported cropland N surplus rises by exactly the
+  amount removed from `export`. That is the methodological choice this
+  destiny embodies: the residue (grape pomace, olive cake, beet pulp) is
+  counted as surplus rather than as product, pending explicit by-product
+  items.
+
+  Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
+  re-derived national production as the sum of every `Origin == Box` row,
+  which now includes `processing_losses` too, reinflating the national
+  `export` residual by exactly the amount this fix removes provincially;
+  `processing_losses` is now excluded from that sum and re-added as its own
+  row. And `.combine_destinies()` gave every row in a multi-row
+  `(Year, Province_name, Item)` group a full `production_share = 1` when
+  their combined production was zero, instead of splitting evenly, so an
+  item processed away entirely for a year duplicated its consumption once
+  per remaining row (41 province-years, all Grapes in 1983, where fuller
+  removal now reaches exactly zero where partial removal rarely did).
+
+  **Published values move.** Over 1860-2023, the new `processing_losses`
+  destiny totals 1,899,115 Mg, averaging 2.97% of Cropland-origin flows and
+  rising from 2.53% in 1860 to 5.34% by 2020; olives (1,460,624 Mg), barley
+  (230,838 Mg) and grapes (139,855 Mg) account for essentially all of it.
+  `export` falls by the same order in both outputs: from 44,226,105 Mg to
+  42,400,855 Mg (-1.83 Mt) in `create_n_prov_destiny()`, and from
+  17,691,588 Mg to 15,897,066 Mg (-1.79 Mt) in `create_n_nat_destiny()`,
+  whose `export` is a net residual on a different basis. Reported cropland N
+  surplus rises by 1,899,115 Mg, exactly the amount the new destiny carries.
+  The remaining destinies move only by what the `.combine_destinies()` fix
+  stops double-counting: `livestock_rum` -35,742 Mg, `population_food`
+  -21,094 Mg, `livestock_mono` -12,812 Mg, `population_other_uses` -542 Mg.
+  `Cropland` and `semi_natural_agroecosystems` soil inputs are unchanged.
+  National totals close to +34,403 Mg (+0.0090% of total N).
 
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`
