@@ -1674,3 +1674,62 @@ test_that(".assemble_production_raw renames the live-animal units", {
     c("ha", "tonnes", "t_ha", "t_LU", "t_head", "LU", "heads")
   )
 })
+
+
+# -- calculate_raw_yields source provenance ------------------------------------
+
+test_that(".calculate_raw_yields keeps a reconstructed fodder source (#937)", {
+  # Temporary grassland (production item 996, CBS 3002) is in neither FAOSTAT
+  # production pin: its hectares come from EU AgriDB and its tonnage from the
+  # EU AgriDB nitrogen yield or a dry-matter estimate. The yield dcast used to
+  # drop `source`, and `.impute_missing_values()` then re-derived it from the
+  # presence of a tonnage, so every such row read as `"FAOSTAT_prod"`.
+  primary_raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    2019L, "Spain", 203L, "Temporary grassland", "996", "ha", 287690,
+    2019L, "Spain", 203L, "Temporary grassland", "996", "t", 4e6,
+    2019L, "Spain", 203L, "Wheat", "15", "ha", 1e6,
+    2019L, "Spain", 203L, "Wheat", "15", "t", 5e6
+  ) |>
+    dplyr::mutate(
+      source = c("EuropeAgriDB", "EuropeAgriDB", "FAOSTAT_prod", "FAOSTAT_prod")
+    )
+
+  result <- whep:::.calculate_raw_yields(primary_raw, whep::items_prod_full)
+
+  expect_true("source" %in% names(result))
+  # `tidyr::complete()` at the end of the helper also emits an empty carcass
+  # row per key, so the rows carrying the hectares are the ones to read.
+  expect_equal(
+    result |>
+      dplyr::filter(item_prod_code == "996", unit == "t_ha", !is.na(fu)) |>
+      dplyr::pull(source),
+    "EuropeAgriDB"
+  )
+  expect_equal(
+    result |>
+      dplyr::filter(item_prod_code == "15", unit == "t_ha", !is.na(fu)) |>
+      dplyr::pull(source),
+    "FAOSTAT_prod"
+  )
+})
+
+test_that(".best_source_by_key ranks a key's competing sources (#937)", {
+  # One key's hectares and tonnage can come from different sources; the better
+  # ranked one wins, the same arbitration `.dedup_production()` applies.
+  crop_dt <- data.table::data.table(
+    year = 2019L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Temporary grassland",
+    item_prod_code = "996",
+    unit = c("ha", "t"),
+    value = c(287690, 4e6),
+    source = c("EuropeAgriDB", "DM_yield_estimate")
+  )
+
+  expect_equal(whep:::.best_source_by_key(crop_dt)$source, "EuropeAgriDB")
+
+  crop_dt[, source := NA_character_]
+  expect_equal(nrow(whep:::.best_source_by_key(crop_dt)), 0L)
+})

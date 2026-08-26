@@ -1,5 +1,20 @@
 # whep (development version)
 
+* **Reconstructed fodder rows no longer claim to be FAOSTAT (#937).**
+  `build_primary_production()`'s yield step pivoted units into columns and
+  dropped the `source` the fodder chain had already resolved, so
+  `.impute_missing_values()` re-derived provenance from the mere presence of a
+  tonnage and labelled every fodder row `"FAOSTAT_prod"`. That was a false
+  claim for temporary grassland in particular: CBS 3002 (production item 996)
+  appears in neither FAOSTAT production pin — its hectares come from the
+  `eu-agridb-fodder` pin and its tonnage from the EU AgriDB nitrogen yield or a
+  dry-matter estimate — yet all 494 rows of it in a 2001–2023 build read as
+  FAOSTAT. The source is now carried through, so those rows read
+  `"EuropeAgriDB"` or `"DM_yield_estimate"`. `source` is used to rank competing
+  sources, so a `(year, area, item, unit)` cell contested by a genuine FAOSTAT
+  row and a reconstructed fodder row now resolves to the FAOSTAT one; hectares
+  and tonnages themselves are unchanged (see the PR for the measured diff).
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different

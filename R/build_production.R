@@ -1724,6 +1724,21 @@ build_primary_production <- function(
   )
   crop_yield[, `:=`(yield_c = t / ha, unit = "t_ha")]
   data.table::setnames(crop_yield, "ha", "fu")
+  # The dcast pivots units into columns and carries no `source`, so the
+  # provenance `.combine_primary_raw()` had already resolved was dropped here
+  # and `.impute_missing_values()` re-derived it from the mere presence of a
+  # tonnage -- labelling every row with a `t` "FAOSTAT_prod". For reconstructed
+  # fodder that is a false claim: CBS 3002 (production item 996) is in neither
+  # FAOSTAT production pin, its hectares come from EU AgriDB and its tonnage
+  # from the EU AgriDB nitrogen yield or the dry-matter estimate, yet all 494
+  # rows read as FAOSTAT (whep#937). Carry the source instead of guessing it.
+  crop_yield <- merge(
+    crop_yield,
+    .best_source_by_key(crop_dt),
+    by = c("year", "area", "area_code", "item_prod", "item_prod_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
   crop_yield <- tibble::as_tibble(crop_yield)
 
   liv_yield <- primary_raw |>
@@ -1820,6 +1835,24 @@ build_primary_production <- function(
         unit
       )
     )
+}
+
+# Best-ranked source per production key, for the rows the yield dcast folds into
+# columns. One key's `t` and `ha` can come from different sources -- a fodder row
+# takes its hectares from EU AgriDB and its tonnage from the dry-matter estimate
+# -- so they are arbitrated with `.prod_source_rank()`, the same ranking
+# `.dedup_production()` and `.add_historical_yields()` use.
+.best_source_by_key <- function(crop_dt) {
+  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  src <- crop_dt[!is.na(source), c(key, "source"), with = FALSE]
+  if (nrow(src) == 0L) {
+    return(src)
+  }
+  src[, .src_rank := .prod_source_rank(source)]
+  data.table::setorderv(src, c(key, ".src_rank", "source"))
+  src <- src[src[, .I[1L], by = key]$V1]
+  src[, .src_rank := NULL]
+  src[]
 }
 
 .handle_double_products <- function(yield_raw, primary_double) {
