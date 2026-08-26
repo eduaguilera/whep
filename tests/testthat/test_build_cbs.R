@@ -2475,3 +2475,102 @@ test_that(".cbs_fill_destinies invents a crush off-anchor (whep#833)", {
   # this expectation must then be replaced by the empty one above.
   expect_equal(.destiny_axis_processing(2005:2015), 500)
 })
+
+
+# -- trade units (#865) --------------------------------------------------------
+
+# `.read_fao_trade()` carries `unit`, and the FAOSTAT trade record denominates
+# live animals in `An` / `1000 An` and bees in `No`, not in tonnes. This fixture
+# holds one row of each unit the real pin uses, on real crosswalk keys: trade
+# item 15 -> CBS 2511 (wheat, `t`), 1034 -> 1049 (pigs, `An`), 1057 -> 1053
+# (broilers, `1000 An`), 1181 -> 1181 (bees, `No`).
+.trade_unit_rows <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~unit, ~element, ~item_trade, ~item_code_trade, ~value,
+    2010, 200L, "t", "import", "Wheat", 15, 400617,
+    2010, 200L, "An", "import", "Swine / pigs", 1034, 290549,
+    2010, 200L, "1000 An", "import", "Chickens", 1057, 1500,
+    2010, 200L, "No", "import", "Bees", 1181, 4645
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".aggregate_fao_trade_to_cbs keeps the unit of what it sums", {
+  # The defect: the aggregation dropped `unit` and summed across it, so head
+  # counts landed in the same tonnes-denominated `value` column as mass. On the
+  # real pin that is 135.3 M head/number against 2.85 Gt at 2010 (#865).
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+
+  expect_true("unit" %in% names(result))
+  expect_setequal(result$unit, c("t", "An", "An", "No"))
+})
+
+test_that(".aggregate_fao_trade_to_cbs rescales 1000 An to An", {
+  # `.normalise_units()` rescales "1000 tonnes" but not "1000 An", so poultry
+  # trade arrived a thousandfold low in its own unit. Item 1150 even switches
+  # between the two labels across years on the real pin, which would put a
+  # 1000x step in one series.
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+  broilers <- result[result$item_cbs_code == 1053, ]
+
+  expect_equal(broilers$unit, "An")
+  expect_equal(broilers$value, 1500 * 1000)
+})
+
+test_that(".mass_only_trade keeps mass and drops the head counts", {
+  agg <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+
+  expect_warning(
+    kept <- whep:::.mass_only_trade(agg, "faostat-trade-totals"),
+    "not denominated in mass"
+  )
+  expect_false("unit" %in% names(kept))
+  expect_equal(kept$item_cbs_code, 2511)
+  expect_equal(sum(kept$value), 400617)
+})
+
+test_that(".mass_only_trade accepts either mass label and stays keyed", {
+  # FAOSTAT trade reports "t" and FishStat is normalised to "tonnes", so both
+  # are mass; collapsing them must not leave two rows on one key.
+  both <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~unit, ~value,
+    2010, 200L, 2511, "import", "t", 10,
+    2010, 200L, 2511, "import", "tonnes", 5
+  ) |>
+    data.table::as.data.table()
+
+  kept <- whep:::.mass_only_trade(both, "test")
+
+  expect_equal(nrow(kept), 1L)
+  expect_equal(kept$value, 15)
+})
+
+test_that(".mass_only_trade is silent when everything is mass", {
+  mass <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows()[unit == "t"])
+
+  expect_no_warning(kept <- whep:::.mass_only_trade(mass, "test"))
+  expect_equal(nrow(kept), 1L)
+})
+
+test_that(".mass_only_trade tolerates an empty record", {
+  empty <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows()[0L])
+
+  expect_no_warning(kept <- whep:::.mass_only_trade(empty, "test"))
+  expect_equal(nrow(kept), 0L)
+  expect_false("unit" %in% names(kept))
+})
+
+test_that(".mass_only_trade aborts on a frame with no unit", {
+  # A trade aggregate that lost its unit is exactly the shape of #865, so this
+  # is an abort and not a silent pass-through.
+  unitless <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2511, "import", 10
+  ) |>
+    data.table::as.data.table()
+
+  expect_error(
+    whep:::.mass_only_trade(unitless, "faostat-trade-totals"),
+    "has no"
+  )
+})
