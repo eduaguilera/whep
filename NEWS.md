@@ -235,6 +235,37 @@
   wider of the two guards: it also catches CBS 1171 ("Animals live nes"),
   reported in `An` but typed `other` and so absent from that list.
 
+* **New `read_fbs_population()`, and a third opt-in `population_source` for
+  `read_population()`, so a dissolved reporting area can have a denominator at
+  all (#862, #787).** Both population sources WHEP had are keyed on a
+  present-day ISO3 code — the `gdp-population` pin has an ISO3 column, UN WPP
+  publishes `Country/Area` rows carrying one — so neither can reach a territory
+  that no longer exists. Measured on the real inputs, the pin's `YUG` stops in
+  1991 and its `SRB`/`MNE` start in 2006, and UN WPP 2024 has no `SCG` record in
+  any year, so area 186 Serbia and Montenegro carries 110 Mt of
+  commodity-balance food over 1992–2005 with no population row of any kind; area
+  151 Netherlands Antilles is the same shape over 1961–2010. The two per-capita
+  consumers inner-join the denominator, so those area-years are absent from
+  `build_food_supply()` and `build_n_percapita()` rather than wrong in them.
+  `read_fbs_population()` reads item 2501 "Population", element 511, from the
+  `faostat-fbs-old` and `faostat-fbs-new` pins — the same two pins the food
+  numerator already comes from. It is keyed on the FAOSTAT area code rather than
+  an ISO3, and FAOSTAT keeps a dissolved reporting area alive for the years it
+  reported, so it covers area 186 for exactly 1992–2005 and area 151 for exactly
+  1961–2010. Bucketed onto `polity_area_code` the year-aware way it covers 195
+  areas over 1961–2023, and no bucket-year receives more than one FAOSTAT area,
+  so nothing is double counted; FAOSTAT's 42 regional and grouping aggregates
+  resolve to no polity and are dropped. **No published value changes**:
+  `read_population()` still defaults to `population_source = "pin"`, and the new
+  `"pin_wpp_fbs_fallback"` is anti-joined like the existing WPP fill, so it can
+  only add a denominator that was missing, never move one that was published.
+  It stays opt-in because the sources disagree on the value and not only on the
+  coverage — for area 186 in 2000 FAOSTAT gives 10,801,000, a UN WPP 2024
+  territorial sum for the same ground (`SRB + MNE + XKX`) gives 10,104,000, 6.5%
+  lower, and the `SRB + MNE` sum a successor walk can actually reach today gives
+  8,311,000, 23% lower, because WPP publishes Kosovo separately and it carries
+  no WHEP area code (#863). Which of the three a dissolved federation should be
+  given is a science decision the maintainer has not made.
 * **`build_urban_n()` now requires the numeric WHEP `area_code` on the frames
   it is handed, and checks it at the input boundary instead of after transport
   (#597).** The function builds the transport allocator's `territory` key

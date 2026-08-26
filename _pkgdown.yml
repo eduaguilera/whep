@@ -221,6 +221,7 @@ reference:
   - read_hyde_population
   - read_population
   - read_wpp_population
+  - read_fbs_population
   - population_source_reach
   - read_habitual_cv
   - build_urban_n

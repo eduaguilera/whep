@@ -7,7 +7,7 @@
 read_population(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback"),
+  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
   example = FALSE
 )
 }
@@ -17,12 +17,14 @@ read_population(
 
 \item{data}{Optional named list of pre-loaded inputs to avoid the pin read:
 \code{gdp_population} (the raw pin, with \code{Year}, \code{area_code} as ISO3, \code{pop} in
-thousands) and \code{wpp_population} (a \code{\link[=read_wpp_population]{read_wpp_population()}} output). Falls
-back to \code{\link[=whep_read_file]{whep_read_file()}} when absent.}
+thousands), \code{wpp_population} (a \code{\link[=read_wpp_population]{read_wpp_population()}} output) and
+\code{fbs_population} (a \code{\link[=read_fbs_population]{read_fbs_population()}} output). Falls back to
+\code{\link[=whep_read_file]{whep_read_file()}} when absent.}
 
-\item{population_source}{\code{"pin"} (default, the \code{gdp-population} pin alone) or
+\item{population_source}{\code{"pin"} (default, the \code{gdp-population} pin alone),
 \code{"pin_wpp_fallback"}, which additionally fills country-years the pin does
-not cover from UN WPP.}
+not cover from UN WPP, or \code{"pin_wpp_fbs_fallback"}, which then fills what
+neither reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
@@ -85,8 +87,25 @@ where they overlap: across 12,309 shared country-years they differ by a
 median 0.64\%, a 95th percentile of 4.4\% and a maximum of 81\%. That is why
 \code{"pin"} remains the default.
 
-Neither source can reach an area whose territory no longer exists, because
-both are keyed on a present-day ISO3 code. \code{\link[=population_source_reach]{population_source_reach()}}
+\code{population_source = "pin_wpp_fbs_fallback"} then fills what NEITHER of those
+reaches from \code{\link[=read_fbs_population]{read_fbs_population()}}, the FAOSTAT Food Balance Sheet
+population. That source is keyed on the FAOSTAT area code rather than a
+present-day ISO3, so it is the only one that reaches a dissolved reporting
+area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
+151 Netherlands Antilles over 1961-2010 (#787), the two largest holes in the
+denominator. It is anti-joined like the WPP fill, so it too cannot move a
+denominator that was already published.
+
+It is opt-in and not the default because the sources disagree on the value,
+not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+WPP 2024 territorial sum for the same ground (\code{SRB + MNE + XKX}) gives
+10,104,000, 6.5\% lower; and the \code{SRB + MNE} sum a successor walk can actually
+reach today gives 8,311,000, 23\% lower, because WPP publishes Kosovo
+separately and it carries no WHEP area code (#863). Which of the three a
+dissolved federation should be given is an open decision.
+
+Neither ISO3-keyed source can reach an area whose territory no longer exists,
+because both are keyed on a present-day ISO3 code. \code{\link[=population_source_reach]{population_source_reach()}}
 reports which areas that leaves out and whether the polities database's
 \code{successor} relation could stand in for them. Against UN WPP 2024's
 vocabulary, exactly one reporting area outside the Rest-of-World bucket is
