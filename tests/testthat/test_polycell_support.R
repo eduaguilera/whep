@@ -3646,3 +3646,67 @@ testthat::test_that("a supplied water layer does not warn about absence", {
   )
   testthat::expect_null(cnd)
 })
+
+# -- whep#907: the label is the reporting area_code, not the matrix bucket ----
+
+testthat::test_that("a polity's label is its reporting area, not its bucket", {
+  # `polity_area_crosswalk` carries both codes on the same row. The bucket
+  # merges Sudan with South Sudan onto 206 and folds Syria into 999, and both
+  # are codes a `country_areas`-keyed caller cannot join to.
+  codes <- whep:::.polity_reporting_area_code(c(
+    "SDN-2011-2025",
+    "SSD-2011-2025",
+    "SYR-1967-2025",
+    "MKD-1991-2025",
+    "SWZ-1894-2025"
+  ))
+  testthat::expect_equal(codes, c(276L, 277L, 212L, 154L, 209L))
+  buckets <- whep::polity_area_crosswalk |>
+    dplyr::filter(polity_code %in% c("SDN-2011-2025", "SYR-1967-2025")) |>
+    dplyr::pull(polity_area_code) |>
+    unique() |>
+    sort()
+  testthat::expect_equal(as.integer(buckets), c(206L, 999L))
+})
+
+testthat::test_that("a residual aggregate keeps the bucket it is defined by", {
+  # `ROW` answers for 62 reporting areas at once, so no single reporting code
+  # names it; the historical Ethiopian polities carry both 62 and 238. Neither
+  # may be handed one of its members' codes.
+  testthat::expect_equal(
+    whep:::.polity_reporting_area_code("ROW-1850-2025"),
+    999L
+  )
+  testthat::expect_equal(
+    whep:::.polity_reporting_area_code("ETH-1952-1993"),
+    238L
+  )
+})
+
+testthat::test_that("a polity with no reporting region keeps its bucket", {
+  # Greenland and Western Sahara have a FAOSTAT code but no `regions.csv` row,
+  # so 999 is the only home the reporting vocabulary gives them. Inventing 85
+  # or 205 here would put a code in the grid that joins to nothing.
+  live <- whep:::.regions_csv_area_codes()
+  testthat::expect_false(85L %in% live)
+  testthat::expect_equal(
+    whep:::.polity_reporting_area_code(c("GRL-1800-2025", "ESH-1975-2025")),
+    c(999L, 999L)
+  )
+})
+
+testthat::test_that("an unknown polity resolves to NA, never to a guess", {
+  testthat::expect_true(is.na(
+    whep:::.polity_reporting_area_code("ZZZ-1900-2000")
+  ))
+})
+
+testthat::test_that("every resolved label is a code some caller can join", {
+  # The invariant, rather than a list of expectations: whatever the crosswalk
+  # grows to, the producer may only emit codes the reporting vocabulary knows.
+  # The one exception is 206, which `regions.csv` retired but which pre-2011
+  # FAOSTAT reported Sudan under (whep#860).
+  codes <- whep:::.polity_area_code_lookup()$area_code
+  extra <- setdiff(unique(codes), whep:::.regions_csv_area_codes())
+  testthat::expect_equal(extra, 206L)
+})
