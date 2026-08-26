@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **`validation/lpjml_forcing_pins.R`: the climate-forcing pins now have an
+  impossibility check, and it records #824 rather than suppressing it.**
+  `validation/lpjml_pins.R` guards the four pins carrying LPJmL *output* and
+  deliberately excludes the *forcing* pins, reasoning that forcing does not
+  change with the model version. True of its magnitude tier, false of its
+  invariant tier: forcing can still be corrupt.
+  `lpjml-rsds-era5-2017-2023` ships **1,823,843 negative shortwave values**
+  because #536 fixed the builder and nobody rebuilt the artifact, and nothing in
+  the repo could see it — that script excluded the pin, and
+  `test_data_raw_freshness.R` gates `data/*.rda` against `data-raw/`, not a pin
+  against its generating script. A census of all six forcing pins shows the
+  defect is confined to that one: `rlds` and `wind` come off the same builder
+  and the same ERA5 tail and are clean, because shortwave is the only one of the
+  three that legitimately reaches exactly zero. The floor is therefore
+  **inclusive** — `lpjml-rsds-isimip-1901-2019` has a minimum of exactly 0, so a
+  positivity test would fail on a clean pin. The recorded count is compared
+  **bidirectionally**: a rise is a new corruption, and a fall means the pin was
+  rebuilt, which is the event #824 exists because nobody noticed. Refs #824,
+  #536, #384.
+
 * **New `population_source_reach()` reports which areas a population source
   keyed on present-day ISO3 can reach, and area 151 is the one it cannot
   (#787).** Both population sources WHEP reads — the `gdp-population` pin and
