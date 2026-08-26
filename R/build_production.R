@@ -2272,10 +2272,9 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::mutate(
-      unit = dplyr::case_match(
-        unit,
-        "t_LU" ~ "LU",
-        "t_head" ~ "heads"
+      unit = dplyr::case_when(
+        unit == "t_LU" ~ "LU",
+        unit == "t_head" ~ "heads"
       )
     ) |>
     dplyr::rename(item_prod_code = live_anim_code) |>

@@ -4,6 +4,21 @@
 # objects stored in data/livestock_coefs.rda.
 
 # GLEAM Excel Supplement Tables ----
+#
+# Provenance of the twelve tables in this section: they are parsed from
+# data-raw/GLEAM_3.0_Supplement_S1.xlsx, which is byte-identical (149119
+# bytes, md5 207e3e928c176b2189e520bddcb0c5f6) to the workbook FAO
+# publishes at
+# https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx
+# Its own file metadata names "FAO of the UN" and is dated 2022-12-20; the
+# parent document, "Global Livestock Environmental Assessment Model,
+# Version 3.0 - Model description", is dated 2022-12-10 on
+# https://www.fao.org/gleam/resources/en/. Neither carries a DOI: Crossref
+# holds no GLEAM 3.0 model-description record and the FAO-style DOI
+# 10.4060/cd8425en does not resolve, so these tables are cited by title and
+# URL. The DOI they used to cite, 10.1088/1748-9326/aad4d8, is not
+# registered at all (doi.org 404, Crossref "Resource not found") -- it was
+# never a real reference. See whep#607.
 
 #' GLEAM crop residue parameters.
 #'
@@ -19,8 +34,9 @@
 #'   \item{intercept}{Intercept for residue yield calculation.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.1:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_crop_residue_params
@@ -54,8 +70,9 @@
 #'   \item{reporting_polity_name}{The name of that polity.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.A1-S.A2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_geographic_hierarchy
@@ -75,8 +92,9 @@
 #'   \item{feed_use_efficiency}{FUE value (0-1 fraction).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.2.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_composition
@@ -97,8 +115,9 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.3.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.3:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_digestibility
@@ -123,8 +142,9 @@
 #'   \item{digestibility_pct}{Digestibility (percent).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.3.4.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.3.4:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_feed_conversion_ratios
@@ -147,8 +167,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.1 and S.6.2.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.1 and S.6.2:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_field_operation_ef
@@ -171,8 +192,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.3 and S.6.4.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.3 and S.6.4:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_mechanization_levels
@@ -196,8 +218,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.5 and S.6.6.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.5 and S.6.6:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_processing_transport_ef
@@ -221,8 +244,9 @@
 #'     \code{"monogastric"}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.6.7 and S.6.8.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.6.7 and S.6.8:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_crop_residue_nitrogen
@@ -243,8 +267,9 @@
 #'     (0 to 1).}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.6.9.
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.6.9:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_fracremove
@@ -298,8 +323,9 @@
 #'     kg of the \code{denominator}.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Tables S.7.1 through S.7.7. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Tables S.7.1 through S.7.7:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_energy_use_ef
@@ -329,8 +355,9 @@
 #'   \item{dressing_percent}{Dressing percentage.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-#'   Table S.9.1. \doi{10.1088/1748-9326/aad4d8}
+#' @source FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+#'   workbook; no DOI is issued for it), Table S.9.1:
+#'   \url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 #'
 #' @examples
 #' gleam_dressing_percentages
@@ -350,7 +377,13 @@
 #'   \item{description}{Cohort description.}
 #' }
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0 Model Description.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_livestock_categories
@@ -364,7 +397,13 @@
 #' @format A tibble with `feed_category`, `feed_type`,
 #'   `description`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_feed_categories
@@ -393,7 +432,13 @@
 #' @format A tibble with `region`, `species`, `system`, `mms`,
 #'   `share_percent`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_mms_shares
@@ -407,7 +452,13 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `cohort`, `weight_kg`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_animal_weights
@@ -421,7 +472,13 @@
 #' @format A tibble with `region`, `species`, `system`,
 #'   `milk_kg_head_yr`, `lactation_days`.
 #'
-#' @source MacLeod et al. (2018) GLEAM 3.0.
+#' @source Not traced to a GLEAM document. These values are hardcoded in
+#'   `generate_gleam_pdf_tables()` in `data-raw/livestock_coefficients.R`,
+#'   not read from the GLEAM 3.0 Supplement S1 workbook, and no table of
+#'   that workbook contains them. The attribution to MacLeod et al. (2018)
+#'   they carried was wrong: that is the *Animal* position paper on GLEAM
+#'   (\doi{10.1017/S1751731117001847}), which publishes no such table.
+#'   Treat the values as unverified placeholders; tracked in whep#881.
 #'
 #' @examples
 #' gleam_milk_production
