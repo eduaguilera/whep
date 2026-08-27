@@ -282,6 +282,45 @@ testthat::test_that("build_primary_prices falls back to production value", {
   testthat::expect_equal(wheat$price, 0.5)
 })
 
+testthat::test_that("build_primary_prices drops infinite production price", {
+  # Zero production tonnage with a non-zero production value used to divide
+  # out to Inf, which is non-NA and survived the `!is.na(price)` filter
+  # (whep#166): the trade path already guards this with `!is.infinite()`,
+  # the primary-production path did not.
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 0
+  )
+
+  trade_prices <- data.table::data.table(
+    year = integer(),
+    item_trade = character(),
+    item_code_trade = numeric(),
+    element = character(),
+    kdollars = numeric(),
+    tonnes = numeric(),
+    price = numeric()
+  )
+
+  vop <- data.table::data.table(
+    Item.Code = "15",
+    Area.Code = 2L,
+    Element = "Gross Production Value (constant 2014-2016 thousand US$)",
+    Unit = "1000 US$",
+    Year = 2020L,
+    Value = 2500
+  )
+
+  result <- build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+
+  testthat::expect_false(any(is.infinite(result$price)))
+  testthat::expect_true(all(is.na(result$price) | is.finite(result$price)))
+})
+
 testthat::test_that("build_primary_prices prefers export over production", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value,

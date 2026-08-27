@@ -2545,6 +2545,72 @@ test_that("agreeing labels leave the destiny-share skeleton unchanged", {
   )
 })
 
+# -- .cbs_safe_ratio division-by-zero guard (whep#166, whep#426) --------------
+
+test_that(".cbs_safe_ratio returns NA, not Inf, on a zero denominator", {
+  result <- whep:::.cbs_safe_ratio(
+    num = c(10, 0, 5, NA_real_, 4),
+    denom = c(0, 0, 2, 3, NA_real_)
+  )
+
+  expect_equal(result, c(NA_real_, NA_real_, 2.5, NA_real_, NA_real_))
+  expect_false(any(is.infinite(result)))
+  expect_false(any(is.nan(result)))
+})
+
+test_that(".fill_historical_destinies keeps a zero-supply share finite", {
+  # Reproduces whep#426 at function scope: domestic_supply == 0 with a
+  # non-zero destiny numerator used to divide out to Inf, and 0 * Inf (the
+  # `.apply_filled_shares()` coalesce-back) reintroduced NaN as data, both of
+  # which survive `!is.na()` filters.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "production", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "import", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "export", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "food", 10,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "seed", 5
+  )
+
+  primary_area <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    area_ha = double()
+  )
+  gdp_pop <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = character(),
+    pop = double()
+  )
+  land_wide <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    Cropland = double(),
+    Pasture = double(),
+    agriland = double()
+  )
+  items <- whep::items_full
+
+  result <- whep:::.fill_historical_destinies(
+    df,
+    primary_area,
+    gdp_pop,
+    land_wide,
+    items
+  )
+
+  numeric_cols <- result[vapply(result, is.numeric, logical(1L))]
+  expect_true(all(vapply(
+    numeric_cols,
+    \(x) all(is.finite(x) | is.na(x)),
+    TRUE
+  )))
+})
+
 # -- .read_historical_trade row order ------------------------------------------
 
 # The pre-1961 trade source. Its two pins are read through arrow's
