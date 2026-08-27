@@ -121,11 +121,15 @@ ILO, IEA, and other international statistical sources.</p>
     <h2 id="note">Note<a class="anchor" aria-label="anchor" href="#note"></a></h2>
     <p>Derived from <a href="regions_full.html">regions_full</a> rather than vendored separately: the
 198-code membership is read from <code>harmonization/polities_cats.csv</code> and every
-column value comes from <code>regions_full</code>, so the two tables cannot disagree
-except where this one deliberately folds an area into a rest-of-world
-aggregate. Two areas are folded, both because they had no commodity balance
-sheet when the table was compiled: Bhutan under <code>RASI</code> and Comoros under
-<code>RAFR</code>, each with <code>cbs</code> <code>FALSE</code> and <code>fabio_code</code> <code>999</code>.</p>
+column value comes from <code>regions_full</code>, so the two tables cannot disagree.
+The vendored table used to file Bhutan under <code>RASI</code> and Comoros under
+<code>RAFR</code> with <code>cbs</code> <code>FALSE</code> and <code>fabio_code</code> <code>999</code>, on the grounds that
+neither had a commodity balance sheet when it was compiled; that override
+was dropped in whep#395, because the <code>faostat-cbs-new</code> pin now carries 175
+rows for Bhutan and 237 for Comoros, and because it left both areas'
+<code>polity_area_code</code> and <code>reporting_polity_code</code> naming the country
+individually while three label columns said rest-of-region. Areas WHEP does
+fold, such as Andorra (<code>REUR</code>), carry <code>polity_area_code</code> 999 too.</p>
     </div>
     <div class="section level2">
     <h2 id="which-regional-groupings-whep-reads">Which regional groupings WHEP reads<a class="anchor" aria-label="anchor" href="#which-regional-groupings-whep-reads"></a></h2>

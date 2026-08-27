@@ -177,6 +177,39 @@
   reporting vocabulary gives them, and it is never used as a fallback
   for a lookup that merely failed.
 
+- **`polities_cats` no longer folds Bhutan and Comoros into
+  rest-of-region aggregates, so it agrees with `regions_full` in every
+  shared cell
+  ([\#395](https://github.com/eduaguilera/whep/issues/395)).** The two
+  shipped tables disagreed on four columns for area 18 (Bhutan) and 45
+  (Comoros): `polities_cats` filed them as `RASI` “Asia Other” and
+  `RAFR` “Africa Other” with `cbs` `FALSE` and `fabio_code` `999`, while
+  `regions_full` models both individually. The fold’s stated reason –
+  neither country had a commodity balance sheet when the table was
+  compiled – is refuted by the pin WHEP reads: `faostat-cbs-new` carries
+  175 rows for Bhutan (2019-2023, 12 items) and 237 for Comoros
+  (2010-2023, 10 items). The fold was also never coherently applied,
+  since both rows kept `polity_area_code` 18 and 45 and
+  `reporting_polity_code` `BTN-1800-2025` / `COM-1975-2025`, unlike the
+  four areas `polities_cats` really does fold (American Samoa, Andorra,
+  Saint Pierre and Miquelon, Anguilla), which carry
+  `polity_area_code` 999. Eight cells of `polities_cats` change; no
+  published value changes, because no package code reads `polities_cats`
+  – it is documentation and a registry entry, and `regions_full`, which
+  the pipeline does read, is unchanged. Separately measured and left
+  alone: `regions_full$fabio_code` is not a copy of FABIO’s published
+  region list in either direction. FABIO v1.1 (`io_codes.csv`, Zenodo
+  record 2577067) publishes 191 areas plus `RoW`; eight `regions_full`
+  areas carry a non-999 `fabio_code` FABIO folds into `RoW` (18, 45,
+  127, 145, 148, 196, 219, 227) and four carry 999 for areas FABIO
+  models (153, 154, 209, 212, which is
+  [\#556](https://github.com/eduaguilera/whep/issues/556)). WHEP’s
+  country set is its own choice
+  ([\#459](https://github.com/eduaguilera/whep/issues/459)), so that
+  census belongs to
+  [\#556](https://github.com/eduaguilera/whep/issues/556) and is not
+  decided here.
+
 - **The LUH2 v2h calendar-year → time-index resolution is now one
   shared, tested helper, and clamping past the end of the record always
   warns ([\#256](https://github.com/eduaguilera/whep/issues/256)).**
