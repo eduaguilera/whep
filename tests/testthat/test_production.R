@@ -122,6 +122,30 @@ testthat::test_that("get_primary_residues aggregates residues on codes", {
   testthat::expect_false(any(out$value == 999))
 })
 
+testthat::test_that("get_primary_residues ignores NA rows within a group", {
+  # whep#167: `prod_ygpit_mg` carries real NAs in the source pin (2,898 of
+  # 475,688 rows measured on the current pin). Without `na.rm = TRUE`, one NA
+  # sibling turns the whole `(year, area_code, item_cbs_code_crop,
+  # item_cbs_code_residue)` sum into NA, and `filter(value > 0)` then silently
+  # drops the group -- erasing the real, non-NA rows summed into it, not just
+  # the missing one.
+  local_mocked_bindings(whep_read_file = function(name, ...) {
+    tibble::tribble(
+      ~Area,   ~Product_residue, ~Item_cbs, ~Prod_ygpit_Mg,
+      "Spain", "Residue",        "Straw",   100,
+      "Spain", "Residue",        "Straw",   NA_real_
+    ) |>
+      dplyr::mutate(Year = 2000L, Item_cbs_crop = "Wheat and products")
+  })
+
+  out <- whep::get_primary_residues()
+
+  spain <- out |> dplyr::filter(area_code == 203L)
+  # The valid 100-tonne row must survive; only the NA sibling is ignored.
+  testthat::expect_equal(nrow(spain), 1)
+  testthat::expect_equal(spain$value, 100)
+})
+
 testthat::test_that("get_primary_residues keeps unresolved areas visible", {
   local_mocked_bindings(whep_read_file = function(name, ...) {
     residues_pin_fixture()
