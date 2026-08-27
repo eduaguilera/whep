@@ -1152,6 +1152,28 @@ test_that(".read_land_areas gives a bucket one area label", {
 })
 
 
+# -- correct_tea_final ----------------------------------------------------------
+
+test_that(".correct_tea_final leaves NA item_prod rows unchanged", {
+  # #169: an unmapped item_prod_code leaves item_prod NA. The `==`
+  # comparison used to make that row's condition NA, and if_else(NA, ...)
+  # blanks `value` to NA instead of leaving the row untouched.
+  df <- tibble::tribble(
+    ~year, ~item_prod, ~unit, ~value,
+    2000L, NA_character_, "tonnes", 100,
+    2000L, "Tea leaves", "tonnes", 200
+  )
+
+  result <- whep:::.correct_tea_final(df)
+
+  testthat::expect_equal(result$value[is.na(result$item_prod)], 100)
+  testthat::expect_equal(
+    result$value[!is.na(result$item_prod) & result$item_prod == "Tea leaves"],
+    200 / 4.37
+  )
+})
+
+
 # -- rice unit convention ------------------------------------------------------
 
 test_that(".fix_rice_milled_equiv converts paddy production only", {
@@ -1211,6 +1233,24 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
     result$value[result$item_prod_code == "15"],
     50
   )
+})
+
+test_that(".fix_rice_milled_equiv leaves NA item_cbs_code rows unchanged", {
+  # #169: an unmapped item_prod_code leaves item_cbs_code NA. The `==`
+  # comparison used to make that row's condition NA, and if_else(NA, ...)
+  # blanks `value` to NA instead of leaving the row untouched.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 41L, NA_character_, "27",
+    NA_character_, NA_integer_, NA, NA,
+    "tonnes", 100, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.fix_rice_milled_equiv(df)
+
+  testthat::expect_equal(result$value, 100)
 })
 
 
