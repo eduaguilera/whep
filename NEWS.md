@@ -1,5 +1,60 @@
 # whep (development version)
 
+* **`biomass_coefs` no longer ships the three spreadsheet section headers of
+  the upstream workbook (#752).** `TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY
+  BYPRODUCTS` were entirely empty rows. `ANIMAL PRODUCTS` was worse: its only
+  seven populated cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the
+  `Coefs` sheet's VLOOKUPs address by absolute position — which read as data
+  claimed an `Edible_portion` of 4.0 and 3 kg of nitrogen per kg of fresh
+  matter, i.e. 18.75 kg of protein per kg. They are now dropped in
+  `data-raw/harmonization_tables.R`, so `whep::biomass_coefs` has 418 rows
+  rather than 421 and `Edible_portion` satisfies `(0, 1]` outright.
+  **No published value changes**: the two empty rows carried no coefficient at
+  all, and no `item_cbs_code` in `items_full` bridged to `ANIMAL PRODUCTS`
+  (asserted in `test_biomass_coefs_hygiene.R`), which `build_food_supply()`
+  already filtered defensively. The remaining part of #752 — 75 rows whose
+  proximate constituents exceed their own dry matter — is untouched and stays
+  a coefficient question for the data owner.
+
+* **`get_faostat_data()` now resolves `ISO3_CODE` from
+  [polity_area_crosswalk] instead of FAOSTAT's vendored `FAOcountryProfile`
+  name table, and the hand-maintained fix block is gone (#541).** The profile
+  table is stale relative to the labels FAOSTAT publishes today, so eight of
+  the 211 FAOSTAT area names in `regions_full$FAOSTAT_name` came out with
+  `ISO3_CODE = NA`: three current reporters — `Eswatini` (SWZ),
+  `North Macedonia` (MKD) and `China, Taiwan Province of` (TWN) — and four
+  former areas that appear in the historical series — `Belgium-Luxembourg`
+  (BLX), `Ethiopia PDR` (ETH), `Sudan (former)` (SDN) and `USSR` (SUN). All
+  seven now resolve; the `China` aggregate (area 351) still resolves to `NA`
+  by design (#158, #313). Coverage over those labels goes from 203/211 to
+  210/211, with zero disagreements on the codes both routes resolved. No
+  published WHEP value changes: `get_faostat_data()` has no caller in `R/`,
+  `data-raw/` or the vignettes, and every pipeline ISO3 bridge already went
+  through the crosswalk. A user who grouped its output by `ISO3_CODE`,
+  however, was silently dropping Eswatini, North Macedonia and Taiwan.
+  The codes are maintained upstream in whep-polities rather than in whep, so
+  the one place the two routes disagreed — `US Minor Is.`, which the FAOSTAT
+  profile gave the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
+
+* **Reconstructed fodder rows no longer claim to be FAOSTAT (#937).**
+  `build_primary_production()`'s yield step pivoted units into columns and
+  dropped the `source` the fodder chain had already resolved, so
+  `.impute_missing_values()` re-derived provenance from the mere presence of a
+  tonnage and labelled every fodder row `"FAOSTAT_prod"`. That was a false
+  claim for temporary grassland in particular: CBS 3002 (production item 996)
+  appears in neither FAOSTAT production pin — its hectares come from the
+  `eu-agridb-fodder` pin and its tonnage from the EU AgriDB nitrogen yield or a
+  dry-matter estimate — yet all 494 rows of it in a 2001–2023 build read as
+  FAOSTAT. The source is now carried through, so those rows read
+  `"EuropeAgriDB"` or `"DM_yield_estimate"`. `source` is used to rank competing
+  sources, so a `(year, area, item, unit)` cell contested by a genuine FAOSTAT
+  row and a reconstructed fodder row now resolves to the FAOSTAT one; hectares
+  and tonnages themselves are unchanged (see the PR for the measured diff).
+  `.deduplicate_doubles()` told the two copies of a double-product key apart by
+  asking whether `source` was `NA`, which only held while the yield table had no
+  source column at all; it now names the copy explicitly, so seed cotton, oil
+  palm fruit and flax keep their series.
+
 * **A source that keys a territory to an area code WHEP's vocabulary does not
   report in that year now says so, and can never have a CBS row created for it
   (#884).** FishStat splits Belgium out as area 255 from 1976, while every

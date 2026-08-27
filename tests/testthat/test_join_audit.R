@@ -242,6 +242,13 @@ test_that("every year-free territorial grouping is classified", {
   # FABIO region into one row per period and defeat the `many-to-one` join and
   # the one-bucket-per-area guard that follow. The four are the price of not
   # comparing two different Rest-of-World residuals against each other.
+  #
+  # 78 since whep#541: `.fao_area_iso3_lookup()` now dedups
+  # `polity_area_crosswalk` to one row per FAOSTAT area name instead of reading
+  # FAOSTAT's vendored country profile. It was already a year-free group before
+  # the swap (`summarise(.by = fao_area_name)`); it only enters the registry now
+  # because the key gained the crosswalk's `area_name` and `area_iso3c` and so
+  # became visibly territorial.
   full <- whep:::.territorial_grouping_baseline()
   #
   # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
@@ -250,7 +257,7 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 79L)
+  expect_lte(sum(full$n), 80L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

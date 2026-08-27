@@ -1940,11 +1940,10 @@ utils::globalVariables(
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
     "method_n_exceedance",
-    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
-    "ISO3_CODE",
+    # scrape_faostat.R — FAOSTAT area name/ISO3 lookup NSE columns, now read
+    # off `polity_area_crosswalk` rather than FAOSTAT's country profile (#541)
     "fao_area_name",
     "iso3_code",
-    "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
     # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
@@ -2088,6 +2087,10 @@ utils::globalVariables(
     "recorded_at",
     "field",
     "n_values",
+    # build_production.R (#937) — flag marking the recomputed copy of a
+    # double-product key, which `.deduplicate_doubles()` used to identify by
+    # the absence of a `source`
+    ".double_combined",
     # polity_folds.R / build_cbs.R (#884) — area-vintage columns of the
     # reporting-window check that keeps a wrong-vintage area code from
     # becoming a duplicated territory
