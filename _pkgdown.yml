@@ -221,6 +221,8 @@ reference:
   - read_hyde_population
   - read_population
   - read_wpp_population
+  - read_fbs_population
+  - population_source_reach
   - read_habitual_cv
   - build_urban_n
   - calculate_manner_nh3
@@ -464,10 +466,17 @@ reference:
 
 - title: Data-frame utilities
   desc: >
-    Complete tabular schemas without losing column types or silently
-    discarding extra fields.
+    Declare a table's schema once, as serializable data, then build it,
+    reach it or prove it. `empty_table_from_schema()` turns the schema into
+    the typed zero-row table it describes; `ensure_columns()` coerces a
+    table onto such a prototype; `check_table_schema()` reports every
+    violation of a declarative schema without touching the table, and
+    `assert_table_schema()` is the build-time gate over the same schema.
   contents:
+  - empty_table_from_schema
   - ensure_columns
+  - check_table_schema
+  - assert_table_schema
 
 - title: Gap filling functions
   desc: >
@@ -585,6 +594,11 @@ reference:
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_fodder_land_share
+  - check_parquet_integrity
+  - assert_parquet_integrity
+  - write_parquet_checked
+  - write_table_checked
 - subtitle: Uncertainty and sensitivity
   desc: >
     Propagate input uncertainty through a footprint, combine data-quality
@@ -601,6 +615,21 @@ reference:
   - record_provenance
   - attach_provenance
   - get_provenance
+- subtitle: Row-level evidence
+  desc: >
+    Record what each row of a result rests on — the producer, its source
+    version and the row's documented evidence fields — as a keyed sidecar
+    table that survives the joins an attribute would not.
+    `row_evidence()` produces it, `row_evidence_schema()` is its
+    contract, `combine_row_evidence()` merges producers without letting
+    one overwrite another, `evidence_conflicts()` reports where they
+    disagree, and `evidence_for()` carries evidence through a join.
+  contents:
+  - row_evidence
+  - row_evidence_schema
+  - combine_row_evidence
+  - evidence_conflicts
+  - evidence_for
 - subtitle: Scope and transparency
   desc: >
     Attach a machine-readable goal-and-scope record (method, boundary,

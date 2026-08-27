@@ -40,39 +40,101 @@
 }
 
 # Crown dependencies and overseas territories (JEY, GGY, IMN, ALA, BLM, SXM)
-# sit in the crosswalk with their sovereign's `polity_code` but with no
-# FAOSTAT `area_code`, so `.current_area_lookup()`'s `!is.na(area_code)` filter
-# cannot see them and any source keyed by ISO3 silently loses their rows.
-# This returns, for each such ISO3, the ISO3 of a territory that shares its
-# polity and does have an aggregation bucket, i.e. its sovereign.
+# sit in the crosswalk with a polity but with no FAOSTAT `area_code`, so
+# `.current_area_lookup()`'s `!is.na(area_code)` filter cannot see them and any
+# source keyed by ISO3 silently loses their rows. This returns, for each such
+# ISO3, the ISO3 of the reporting territory that answers for it: its sovereign.
+#
+# TWO ROUTES, AND THE SECOND IS NOT A NICETY. `.sovereign_by_polity()` asks
+# which reporting area SHARES the dependency's `polity_code`. That is the
+# tighter relation, but it holds only while the dependency has no polity of its
+# own -- and giving it one is an upstream IMPROVEMENT, not a regression. The
+# 2026-08-25 whep-polities re-sync did exactly that for Sint Maarten
+# (`SXM-2010-2025`, one of the three successors it also gave `ANT-1961-2010`),
+# so no reporting area shares its polity any more, the join dropped it, and its
+# LUH2 land went from counted under `NLD` to counted nowhere.
+#
+# `.sovereign_by_prefix()` reads `legacy_polity_prefix` instead, which the
+# crosswalk publishes on every row and which names the sovereign (FRA, GBR, FIN,
+# NLD) whether or not the dependency has a polity of its own. It fires ONLY
+# where the polity route found nothing, so it cannot move an answer that route
+# already gives: on this snapshot the two agree on all five the polity route
+# still resolves, and the fallback recovers the sixth. The prefix is an
+# ISO3-like stem and NOT a polity code (#711), which is why it is joined to
+# `area_iso3c` -- the same bridge `.read_fodder_euadb()` uses -- and never to
+# `polities`.
 .dependency_sovereign_iso3 <- function() {
-  sovereign <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(polity_code, sovereign_iso3c = area_iso3c, area_code)
+  buckets <- .current_area_lookup(include_unmapped = FALSE)[!is.na(area_iso3c)]
+  out <- merge(
+    .dependency_periods(),
+    .sovereign_by_polity(buckets),
+    by = "polity_code",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out <- merge(
+    out,
+    .sovereign_by_prefix(buckets),
+    by = "legacy_polity_prefix",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  out[, sovereign_iso3c := data.table::fcoalesce(sovereign_iso3c, prefix_iso3c)]
+  # A self-map would silently do nothing, and a dependency neither route
+  # resolves has to stay out: `.attribute_dependency_land()` relabels rows to
+  # whatever this names, so an `NA` here would erase them rather than move them.
+  out <- out[
+    !is.na(sovereign_iso3c) & sovereign_iso3c != iso3c,
+    .(iso3c, sovereign_iso3c)
   ]
-  # Keep the resolution deterministic where one polity spans several buckets
-  # (ROW, and the Sudan/Ethiopia splits) by taking the lowest area code.
-  data.table::setorderv(sovereign, c("polity_code", "area_code"))
-  sovereign <- unique(sovereign, by = "polity_code")
-  sovereign[, area_code := NULL]
+  data.table::setorderv(out, "iso3c")
+  out
+}
 
-  dependency <- .polity_crosswalk(include_unmapped = FALSE)[
+# One row per bucket-less territory: the most recent polity period, which is how
+# `.current_area_lookup()` picks a code's current polity.
+.dependency_periods <- function() {
+  out <- .polity_crosswalk(include_unmapped = FALSE)[
     is.na(area_code) & !is.na(area_iso3c),
-    .(iso3c = area_iso3c, polity_code, polity_start_year, polity_end_year)
+    .(
+      iso3c = area_iso3c,
+      polity_code,
+      legacy_polity_prefix,
+      polity_start_year,
+      polity_end_year
+    )
   ]
-  # One crosswalk row per polity period; take the most recent, which is how
-  # `.current_area_lookup()` picks a code's current polity.
   data.table::setorderv(
-    dependency,
+    out,
     c("iso3c", "polity_end_year", "polity_start_year"),
     order = c(1L, -1L, -1L),
     na.last = TRUE
   )
-  dependency <- unique(dependency, by = "iso3c")
+  unique(out, by = "iso3c")
+}
 
-  out <- merge(dependency, sovereign, by = "polity_code", sort = FALSE)
-  out <- out[sovereign_iso3c != iso3c, .(iso3c, sovereign_iso3c)]
-  data.table::setorderv(out, "iso3c")
+# The reporting ISO3 that answers for each polity, one row per polity. Kept
+# deterministic where one polity spans several buckets (ROW, and the
+# Sudan/Ethiopia splits) by taking the lowest area code.
+.sovereign_by_polity <- function(buckets) {
+  out <- buckets[, .(polity_code, sovereign_iso3c = area_iso3c, area_code)]
+  data.table::setorderv(out, c("polity_code", "area_code"))
+  out <- unique(out, by = "polity_code")
+  out[, area_code := NULL]
+  out
+}
+
+# The same lookup keyed on the vendored ISO3-like stem rather than on the
+# polity, so a dependency that upstream has given its own polity can still name
+# the territory that reports for it.
+.sovereign_by_prefix <- function(buckets) {
+  out <- buckets[
+    !is.na(legacy_polity_prefix),
+    .(legacy_polity_prefix, prefix_iso3c = area_iso3c, area_code)
+  ]
+  data.table::setorderv(out, c("legacy_polity_prefix", "area_code"))
+  out <- unique(out, by = "legacy_polity_prefix")
+  out[, area_code := NULL]
   out
 }
 
@@ -1764,12 +1826,12 @@ get_polity_geometries <- function(polity_codes = NULL) {
 #' @param label Character vector of source labels.
 #' @param source Optional source slug (e.g. `"lassaletta-grassland-share"`).
 #'   Length 1, or the same length as `label`. On the alias route `NULL` matches
-#'   unscoped aliases only -- 180 of 903 -- so a `NULL` source narrows that route
-#'   sharply; the identity routes then get their turn, subject to the guards
-#'   above.
+#'   unscoped aliases only -- 188 of 1,003 -- so a `NULL` source narrows that
+#'   route sharply; the identity routes then get their turn, subject to the
+#'   guards above.
 #' @param year Optional integer vector of years. Length 1, or the same length as
 #'   `label`. On the alias route `NULL` matches aliases with no year scope only,
-#'   which is the 15 of 903 published aliases carrying NEITHER bound. The name
+#'   which is the 14 of 1,003 published aliases carrying NEITHER bound. The name
 #'   and ISO3 routes can still answer without a year, but only for an identifier
 #'   exactly one polity has ever carried, so supplying a year remains much the
 #'   stronger question: it is what lets a label resolve to the right *period*
@@ -2030,16 +2092,29 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
 # branch stops as soon as it lands inside it, so no successor is expanded past
 # the point where it becomes reachable.
 .successor_iso3_map <- function(polity_codes, available_iso3, max_depth = 12L) {
+  iso3 <- .polity_iso3_lookup()
+  purrr::map(
+    .successor_stop_map(polity_codes, available_iso3, max_depth),
+    \(nodes) sort(unique(unname(iso3[nodes])))
+  )
+}
+
+# The same walk, reporting the POLITIES it stopped on rather than their ISO3
+# codes. The ISO3 map above is one lookup away from this, and the stop nodes are
+# what a caller needs to ask whether a stop under-reaches -- see
+# `.successor_code_reuse()`, which the ISO3 codes alone cannot answer because
+# the parent and the part it stands for carry the same code.
+.successor_stop_map <- function(polity_codes, available_iso3, max_depth = 12L) {
   edges <- .polity_successor_edges()
   iso3 <- .polity_iso3_lookup()
   polity_codes <- unique(polity_codes[!is.na(polity_codes)])
   purrr::map(
     rlang::set_names(polity_codes),
-    \(code) .walk_successor_iso3(code, edges, iso3, available_iso3, max_depth)
+    \(code) .walk_successor_nodes(code, edges, iso3, available_iso3, max_depth)
   )
 }
 
-.walk_successor_iso3 <- function(
+.walk_successor_nodes <- function(
   polity_code,
   edges,
   iso3,
@@ -2055,7 +2130,7 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     seen <- c(seen, frontier)
     reached <- unname(iso3[frontier])
     resolved <- !is.na(reached) & reached %in% available_iso3
-    found <- c(found, reached[resolved])
+    found <- c(found, frontier[resolved])
     frontier <- unique(unlist(
       edges[frontier[!resolved]],
       use.names = FALSE
@@ -2063,6 +2138,55 @@ resolve_polity_label <- function(label, source = NULL, year = NULL) {
     depth <- depth + 1L
   }
   sort(unique(found))
+}
+
+# WHERE THE STOP RULE UNDER-REACHES, censused rather than remembered (#863).
+#
+# Stopping on the first available ISO3 assumes a polity's `iso3_code` is
+# COEXTENSIVE with its territory. For ten polities in the shipped snapshot it is
+# not: upstream publishes a PARTITION in which the parent keeps the ISO3 of one
+# of its parts, so the parent is reachable, the walk stops there, and the other
+# parts are never seen. `SRB-2006-2008` is "Serbia (including Kosovo)" carrying
+# `SRB`; `SUD-1956-2011` is Sudan-with-South-Sudan carrying `SDN`;
+# `PAK-1949-1971` is Pakistan-with-East-Pakistan carrying `PAK`.
+#
+# This is NOT a missing edge -- `SRB-2006-2008` publishes both `SRB-2008-2025`
+# and `KOS-2008-2025` -- and one more hop does not repair it either, because the
+# ISO3 sum then double-counts nothing but still misses any part whose code the
+# consumer's vocabulary lacks. So this REPORTS the shape and repairs nothing:
+# whether a walk should descend past such a node is a methodological choice with
+# different answers for land (a territorial union) and for a population
+# denominator (a partition of the source's own geography). See the note at the
+# top of `R/population_reach.R`.
+#
+# A temporal continuation is excluded by construction: a period succeeded only
+# by later periods of the same state has no part carrying a DIFFERENT code, so
+# nothing is out of reach.
+.successor_code_reuse <- function() {
+  edges <- .polity_successor_edges()
+  iso3 <- .polity_iso3_lookup()
+  own <- unname(iso3[names(edges)])
+  missed <- purrr::map2(
+    own,
+    edges,
+    \(code, parts) .iso3_parts_not_reached(code, unname(iso3[parts]))
+  )
+  keep <- lengths(missed) > 0L
+  tibble::tibble(
+    polity_code = names(edges)[keep],
+    iso3_code = own[keep],
+    iso3_not_reached = purrr::map_chr(missed[keep], paste, collapse = "; ")
+  )
+}
+
+# The parts' ISO3 codes a stop on `code` never reaches: empty unless the parent
+# reuses one part's code AND another part carries a different one.
+.iso3_parts_not_reached <- function(code, part_iso3) {
+  part_iso3 <- part_iso3[!is.na(part_iso3)]
+  if (is.na(code) || !(code %in% part_iso3)) {
+    return(character(0))
+  }
+  sort(setdiff(part_iso3, code))
 }
 
 .polity_successor_edges <- function() {

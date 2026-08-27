@@ -133,7 +133,38 @@ test_that("the enumerated baseline can only shrink", {
   # destiny-share skeleton join did not go away, it stopped naming the `area`
   # label, so one row changed key rather than leaving. The count says nothing
   # about that; the third test does, and it now reads EMPTY.
-  expect_lte(sum(baseline$n), 65L)
+  #
+  # 66 is the dependency-sovereign fallback, and it is a rise that BUYS BACK a
+  # territory rather than spending one. `.dependency_sovereign_iso3()` found a
+  # crown dependency's sovereign by asking which reporting area SHARED its
+  # `polity_code`. That relation exists only while the dependency has no polity
+  # of its own, and the 2026-08-25 whep-polities re-sync gave Sint Maarten
+  # `SXM-2010-2025` -- an upstream improvement -- so nothing shared its polity,
+  # the join dropped it, and its LUH2 land went from counted under `NLD` to
+  # counted nowhere. The second join reads `legacy_polity_prefix` instead, the
+  # same ISO3-stem-to-bucket bridge `.read_fodder_euadb()` already uses, and it
+  # names the sovereign whether or not the dependency has its own polity. It
+  # cannot be year-keyed for the reason the class says: a present-day sovereign
+  # has no time dimension, and the dependency's own period is chosen before this
+  # join runs. It fires only where the first route found nothing, so it cannot
+  # move an answer that route still gives -- the two agree on all five it does.
+  #
+  # 67 since whep#264: `.fabio_bridge_fabio_side()` resolves FABIO's published
+  # region list to WHEP buckets by ISO3. It is the first `diagnostic` row that
+  # buys a comparison rather than a value -- `inst/scripts/compare_fabio.R` was
+  # joining the two region spaces raw, which dropped Sudan entirely and matched
+  # two Rest-of-World residuals covering different territories against each
+  # other. One year-free identity join makes that comparison honest, and no
+  # published number passes through it.
+  #
+  # 69 since whep#884: `.off_window_area_keys()` and `.reported_bucket_years()`
+  # each attach an area's own reporting window before testing a year against
+  # it. Both are the instrument that catches a year-blind AREA CODE -- FishStat
+  # keys Belgium 255 from 1976, sixteen years before the vocabulary reports that
+  # code -- and neither can be year-keyed, because the window is what the year
+  # is being compared with. Both rises are the shape `.resolve_all_area_years`
+  # already records above.
+  expect_lte(sum(baseline$n), 69L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -189,12 +220,44 @@ test_that("every year-free territorial grouping is classified", {
   )
   expect_equal(counts$n_found, counts$n_baseline)
 
-  # 71 is the count on the commit that introduced this gate, measured the same
+  # 71 was the count on the commit that introduced this gate, measured the same
   # way the join cap is: `sum(.territorial_groupings() |> filter(!has_year) |>
   # count(owner, group_fn, key) |> pull(n))`. Lower it when a group gains a
   # year; raise it only with the reason written into the row.
+  #
+  # 72 since whep#758: `.pcs_abort_interval_overlap()` compares each polycell
+  # interval with the previous one inside `(cell_id, polity_code)`, which is a
+  # year-free territorial group by necessity -- the previous interval only
+  # exists while the group holds the whole sequence.
+  #
+  # 73 since whep#787: `.reporting_periods()` reduces the crosswalk's rows for
+  # one (area_code, polity_code) period to that period's reporting span, so
+  # `year` is the axis being reduced over, not a missing key.
+  #
+  # 77 since whep#264: four grouping keys, two on each side of the FABIO-to-WHEP
+  # region bridge, all `diagnostic` -- they build and guard a comparison key for
+  # `inst/scripts/compare_fabio.R` and no published number passes through them.
+  # Each side collapses polity PERIODS on purpose, because the question is which
+  # bucket carries a territory at all; a year in either key would multiply one
+  # FABIO region into one row per period and defeat the `many-to-one` join and
+  # the one-bucket-per-area guard that follow. The four are the price of not
+  # comparing two different Rest-of-World residuals against each other.
+  #
+  # 78 since whep#541: `.fao_area_iso3_lookup()` now dedups
+  # `polity_area_crosswalk` to one row per FAOSTAT area name instead of reading
+  # FAOSTAT's vendored country profile. It was already a year-free group before
+  # the swap (`summarise(.by = fao_area_name)`); it only enters the registry now
+  # because the key gained the crosswalk's `area_name` and `area_iso3c` and so
+  # became visibly territorial.
   full <- whep:::.territorial_grouping_baseline()
-  expect_lte(sum(full$n), 71L)
+  #
+  # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
+  # periods to one window per area and `.off_window_area_years()` reduces an
+  # area's off-window rows to the span they cover. Both are `year_axis` -- the
+  # year is the thing being reduced over, so putting it in the key returns the
+  # year itself, which is the same reason `.area_first_reported_year` is on
+  # this ledger.
+  expect_lte(sum(full$n), 81L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

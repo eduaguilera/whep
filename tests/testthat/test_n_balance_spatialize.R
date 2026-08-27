@@ -76,12 +76,101 @@
 
 # build_cell_polity --------------------------------------------------------
 
-testthat::test_that("build_cell_polity aborts with no path or env var", {
+# The crosswalk is a pin since whep#694, so the DEFAULT route is the pin and
+# the env var is only an override. The pin is never fetched here: it is mocked,
+# so this stays offline (the fetch would also make the suite depend on a host
+# being up, whep#490).
+.nbs_pin_payload <- function() {
+  tibble::tribble(
+    ~lon,  ~lat, ~area_code, ~polity_frac,
+    0.25, 50.25,       114L,          1.0
+  )
+}
+
+testthat::test_that("build_cell_polity reads the pin by default", {
   withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  asked <- NULL
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      asked <<- file_alias
+      .nbs_pin_payload()
+    },
+    .package = "whep"
+  )
+
+  result <- whep::build_cell_polity()
+
+  testthat::expect_equal(asked, "spatialize-cell-polity-fraction")
+  testthat::expect_equal(result$area_code, 114L)
+  testthat::expect_true(all(result$cell_area_ha > 0))
+})
+
+testthat::test_that("the pin alias is the one frozen in whep_inputs", {
+  # A pin the registry does not carry would resolve to no version at all, and
+  # `whep_read_file()` would fail at the board rather than here.
+  testthat::expect_true(
+    whep:::.cell_polity_pin() %in% whep::whep_inputs$alias
+  )
+})
+
+testthat::test_that("an env var override wins over the pin", {
+  path <- withr::local_tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~polity_frac,
+      1.25, 40.25,       203L,          1.0
+    ),
+    path
+  )
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = path)
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      testthat::fail("the pin must not be read when the override is set")
+    },
+    .package = "whep"
+  )
+
+  testthat::expect_equal(whep::build_cell_polity()$area_code, 203L)
+})
+
+testthat::test_that("a missing override path aborts, and says so", {
+  testthat::expect_error(
+    whep::build_cell_polity(polity_fraction_path = "/nowhere/absent.parquet"),
+    "not found"
+  )
+})
+
+testthat::test_that("an unreachable pin names both routes", {
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) cli::cli_abort("board is down"),
+    .package = "whep"
+  )
+
   testthat::expect_error(
     whep::build_cell_polity(),
     "WHEP_POLITY_FRACTION_PATH"
   )
+})
+
+testthat::test_that("the example fixture runs offline and is well formed", {
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      testthat::fail("example = TRUE must not read the pin")
+    },
+    .package = "whep"
+  )
+
+  result <- whep::build_cell_polity(example = TRUE)
+
+  pointblank::expect_col_exists(
+    result,
+    c("lon", "lat", "area_code", "polity_frac", "cell_area_ha")
+  )
+  sums <- result |>
+    dplyr::summarise(total = sum(polity_frac), .by = c(lon, lat))
+  pointblank::expect_col_vals_equal(sums, columns = "total", value = 1)
 })
 
 testthat::test_that("build_cell_polity adds cell_area_ha from latitude", {
@@ -219,11 +308,35 @@ testthat::test_that("area_key = polity_area emits no off-bucket code", {
 }
 
 testthat::test_that("build_cell_polity refuses a retired-vocabulary grid", {
+  # Since the default is a pin, the override is the route that can go stale --
+  # which is what this check is for now.
   testthat::expect_error(
     whep::build_cell_polity(
       polity_fraction_path = .nbs_retired_grid_path()
     ),
     class = "whep_stale_cell_polity_grid"
+  )
+})
+
+testthat::test_that("a retired-vocabulary PIN payload is refused too", {
+  # `version =` can ask the board for an older version, so the check cannot be
+  # scoped to the override route only. The message has to name the pin rather
+  # than a path.
+  withr::local_envvar(WHEP_POLITY_FRACTION_PATH = "")
+  testthat::local_mocked_bindings(
+    whep_read_file = function(...) {
+      nanoparquet::read_parquet(.nbs_retired_grid_path())
+    },
+    .package = "whep"
+  )
+
+  err <- testthat::expect_error(
+    whep::build_cell_polity(),
+    class = "whep_stale_cell_polity_grid"
+  )
+  testthat::expect_match(
+    conditionMessage(err),
+    "spatialize-cell-polity-fraction"
   )
 })
 

@@ -685,6 +685,23 @@ test_that("gleam_geographic_hierarchy has correct types", {
   )
 })
 
+test_that("gleam_geographic_hierarchy oecd is exactly the 38 Members", {
+  # whep#574: the workbook flags Comoros as OECD, and the flag is not decorative
+  # -- `.energy_country_grouping()` reads it for two of the three GLEAM schemes,
+  # so it priced Comoros' meat at OECD energy intensity (up to +129%).
+  # `data-raw/livestock_coefficients.R` corrects the column against the OECD's
+  # own membership list; this is the gate on that, because `livestock_coefs` is
+  # one of the seven datasets `test_data_raw_freshness.R` cannot rebuild.
+  obj <- whep::gleam_geographic_hierarchy
+  expect_setequal(obj$iso3[obj$oecd == 1L], oecd_members_iso3())
+  expect_equal(sum(obj$oecd), 38L)
+  expect_equal(obj$oecd[obj$iso3 == "COM"], 0L)
+  # The EU27 column beside it is untouched and already correct, which is part of
+  # why the OECD cell reads as a data-entry slip rather than a GLEAM grouping
+  # that merely borrows the name.
+  expect_equal(sum(obj$eu27), 27L)
+})
+
 test_that("gleam_crop_residue_params is a clean tibble", {
   obj <- whep::gleam_crop_residue_params
   assert_clean_tibble(
@@ -836,6 +853,74 @@ test_that("gleam_mms_shares is a clean tibble", {
   )
 })
 
+test_that("regional_mms_distribution keeps its whep#921 values", {
+  # This table is an unsourced placeholder (see its @source) and it is LIVE:
+  # `.resolve_mms_shares()` weights the Tier 2 manure CH4 methane conversion
+  # factor and the Tier 1 manure direct-N2O EF3 with it. GLEAM 2.0 Supplement
+  # S1 Tables 4.2-4.11 publish real regional shares that disagree materially,
+  # so revaluing this table is a maintainer decision (whep#921), never a
+  # drive-by edit. What is locked here is the two effective factors the table
+  # actually feeds, per (region, species), so any revalue has to come through
+  # a deliberate update of these expectations with its numbers stated.
+  #
+  # The Poultry EF3 of 0.005 is the `dplyr::coalesce()` default, not a table
+  # value: `mms_type` "Poultry Manure" and "Anaerobic Lagoon" match no row of
+  # `ipcc_2019_n2o_ef_direct`, whose labels are "Poultry Manure - High Rise" /
+  # "- Deep Litter" and "Uncovered Anaerobic Lagoon" (all 0.001).
+  mms <- whep::regional_mms_distribution
+  temperate_mcf <- whep::climate_mcf |>
+    dplyr::filter(.data$climate_zone == "Temperate") |>
+    dplyr::select("mms_type", "mcf_percent")
+  ef3 <- whep::ipcc_2019_n2o_ef_direct |>
+    dplyr::rename(mms_type = "system", ef3 = "ef_kg_n2o_n_per_kg_n")
+
+  effective <- mms |>
+    dplyr::left_join(temperate_mcf, by = "mms_type") |>
+    dplyr::left_join(ef3, by = "mms_type") |>
+    dplyr::mutate(
+      mcf_percent = dplyr::coalesce(.data$mcf_percent, 2),
+      ef3 = dplyr::coalesce(.data$ef3, 0.005)
+    ) |>
+    dplyr::summarise(
+      share_total = sum(.data$fraction),
+      weighted_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+      weighted_ef3 = sum(.data$fraction * .data$ef3),
+      .by = c("region", "species")
+    ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  expected <- tibble::tribble(
+    ~region,           ~species,          ~weighted_mcf, ~weighted_ef3,
+    "Global",          "Buffalo",         0.01450,       0.00950,
+    "Global",          "Camels",          0.01500,       0.01000,
+    "Global",          "Cattle",          0.07225,       0.00730,
+    "Latin America",   "Cattle",          0.03450,       0.00885,
+    "North America",   "Cattle",          0.15600,       0.00530,
+    "Western Europe",  "Cattle",          0.14300,       0.00495,
+    "Global",          "Goats",           0.01500,       0.01000,
+    "Global",          "Horses",          0.02000,       0.00900,
+    "Global",          "Mules and Asses", 0.01500,       0.01000,
+    "Global",          "Poultry",         0.02000,       0.00500,
+    "Global",          "Sheep",           0.01500,       0.01000,
+    "Global",          "Swine",           0.19150,       0.00400,
+    "North America",   "Swine",           0.32600,       0.00290
+  ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  testthat::expect_equal(nrow(mms), 33L)
+  # Every (region, species) group sums to one, which is what keeps the
+  # renormalisation in `.mms_global_shares()` inert and the split mass-
+  # conserving.
+  testthat::expect_equal(
+    effective$share_total,
+    rep(1, nrow(effective))
+  )
+  testthat::expect_equal(effective$region, expected$region)
+  testthat::expect_equal(effective$species, expected$species)
+  testthat::expect_equal(effective$weighted_mcf, expected$weighted_mcf)
+  testthat::expect_equal(effective$weighted_ef3, expected$weighted_ef3)
+})
+
 test_that("gleam_animal_weights is a clean tibble", {
   obj <- whep::gleam_animal_weights
   assert_clean_tibble(
@@ -848,6 +933,29 @@ test_that("gleam_animal_weights is a clean tibble", {
     obj,
     "gleam_animal_weights",
     "weight_kg"
+  )
+})
+
+test_that("gleam_animal_weights regions resolve as whep#881 measured", {
+  # The values in gleam_animal_weights are unsourced placeholders (see its
+  # @source): GLEAM's own live weights, in Supplement S1 Tables 2.4-2.16 of the
+  # 2.0 Model description, differ by -27% to +33%. Until they are re-ingested,
+  # this locks WHICH regions the placeholders reach, so a rename cannot
+  # silently widen or narrow their footprint without moving Tier 2 gross
+  # energy. `.gleam_region_of()` emits the labels of
+  # `gleam_geographic_hierarchy`, so a region absent from that vocabulary is a
+  # dead row whose territories fall back to the Global weights.
+  weight_regions <- setdiff(unique(whep::gleam_animal_weights$region), "Global")
+  gleam_regions <- unique(whep::gleam_geographic_hierarchy$gleam_region)
+
+  testthat::expect_setequal(
+    intersect(weight_regions, gleam_regions),
+    c("Western Europe", "North America", "Sub-Saharan Africa", "South Asia")
+  )
+  # Known dead row: GLEAM 3.0 calls this region "Central & South America".
+  testthat::expect_setequal(
+    setdiff(weight_regions, gleam_regions),
+    "Latin America"
   )
 })
 
@@ -937,6 +1045,121 @@ test_that("Bo values match IPCC 2019 Table 10.16a (high-productivity)", {
     # #253: broilers and layers share the high-productivity tier.
     testthat::expect_gt(bo("Poultry - Broilers"), 0.24, label = nm)
   }
+})
+
+# The `ipcc_2019_*` objects do not all hold 2019 Refinement values; whep#601
+# tracks the decision on whether to revalue them, rename them or expose both
+# editions. Until that is settled these expectations lock the values in place
+# and lock them to the provenance stated in `?ipcc_2019_enteric_ef_cattle` and
+# friends, so a revalue can only happen deliberately and with the numeric
+# consequence measured. Every reference value below was read off the published
+# PDFs (2019 Refinement Vol 4 Ch 10 Tables 10.10, 10.11, 10.16A, 10.21;
+# 2006 Guidelines Vol 4 Ch 10 same numbers; 2006 and 2019 Vol 4 Ch 11
+# Table 11.1).
+test_that("ipcc_2019 tables still hold the provenance whep#601 documents", {
+  cattle <- whep::ipcc_2019_enteric_ef_cattle
+  ef_of <- function(reg, cat) {
+    cattle$ef_kg_head_yr[cattle$region == reg & cattle$category == cat]
+  }
+  # 2006 Table 10.11, not the 2019 Refinement's 138/64 and 126/52.
+  testthat::expect_equal(ef_of("North America", "Dairy Cattle"), 128)
+  testthat::expect_equal(ef_of("North America", "Other Cattle"), 53)
+  testthat::expect_equal(ef_of("Western Europe", "Dairy Cattle"), 117)
+  testthat::expect_equal(ef_of("Western Europe", "Other Cattle"), 57)
+  # Every cell shared with the separate 2006 object is identical to it, bar
+  # the one Middle East dairy cell asserted below.
+  shared <- whep::ipcc_2006_enteric_ef |>
+    dplyr::filter(
+      region != "Global",
+      !(region == "Middle East" & category == "Dairy Cattle")
+    ) |>
+    dplyr::inner_join(
+      cattle,
+      by = c("region", "category"),
+      suffix = c("_06", "_19")
+    )
+  testthat::expect_equal(nrow(shared), 15L)
+  testthat::expect_equal(shared$ef_kg_head_yr_19, shared$ef_kg_head_yr_06)
+  # Cells that match neither edition: Oceania dairy is 100 in 2006 and 93 in
+  # 2019; Middle East dairy is 46 (grouped with Africa) and 76; Indian
+  # Subcontinent dairy is 58 and 73.
+  testthat::expect_equal(ef_of("Oceania", "Dairy Cattle"), 90)
+  testthat::expect_equal(ef_of("Middle East", "Dairy Cattle"), 63)
+  testthat::expect_equal(ef_of("Indian Subcontinent", "Dairy Cattle"), 68)
+  # The Global fallback row is in no IPCC table.
+  testthat::expect_equal(ef_of("Global", "Dairy Cattle"), 80)
+
+  # 2006 Table 10.10 developed-countries column; the 2019 Refinement splits
+  # sheep and goats 9 high / 5 low and moved buffalo to Table 10.11.
+  other <- whep::ipcc_2019_enteric_ef_other
+  oth_of <- function(cat) other$ef_kg_head_yr[other$category == cat]
+  testthat::expect_equal(oth_of("Buffalo"), 55)
+  testthat::expect_equal(oth_of("Sheep"), 8)
+  testthat::expect_equal(oth_of("Goats"), 5)
+
+  # EF3: neither edition gives these. Table 10.21 has 0 for daily spread,
+  # no-crust slurry and uncovered lagoon, and 0.02 for dry lot.
+  ef3 <- whep::ipcc_2019_n2o_ef_direct
+  ef3_of <- function(sys) ef3$ef_kg_n2o_n_per_kg_n[ef3$system == sys]
+  testthat::expect_equal(ef3_of("Daily Spread"), 0.01)
+  testthat::expect_equal(ef3_of("Dry Lot"), 0.005)
+  testthat::expect_equal(ef3_of("Uncovered Anaerobic Lagoon"), 0.001)
+  testthat::expect_equal(ef3_of("Liquid/Slurry - No Crust"), 0.002)
+  # Pasture/range/paddock is the 2006 Ch 11 EF3PRP,SO; 2019 gives 0.004.
+  testthat::expect_equal(ef3_of("Pasture/Range/Paddock"), 0.01)
+
+  # Table 10.16A publishes one swine Bo; breeding swine share the market
+  # swine value in both editions, so 0.27 is unsourced.
+  bo <- whep::ipcc_2019_bo
+  testthat::expect_equal(
+    bo$bo_m3_kg_vs[bo$category == "Swine - Breeding"],
+    0.27
+  )
+
+  # Table 10.4 publishes 0.370 for intact bulls in both editions; this
+  # object folds bulls into the 0.322 non-lactating row.
+  cfi <- whep::ipcc_2019_cfi
+  testthat::expect_false(any(cfi$cfi_mj_day_kg075 == 0.370))
+  testthat::expect_true(any(
+    cfi$subcategory == "Non-lactating/Bulls" & cfi$cfi_mj_day_kg075 == 0.322
+  ))
+
+  # 2019 Table 10.4 (Updated) adds a goat row the 2006 table lacks:
+  # Goats 0.315, Sheep (older than 1 year) 0.217. Goats inheriting the
+  # sheep value was #249; lock both, and that they stay distinct.
+  cfi_of <- function(cat) cfi$cfi_mj_day_kg075[cfi$category == cat]
+  testthat::expect_equal(cfi_of("Goats"), 0.315)
+  testthat::expect_equal(cfi_of("Sheep"), 0.217)
+  testthat::expect_false(isTRUE(all.equal(cfi_of("Goats"), cfi_of("Sheep"))))
+
+  # Nex is stored per head per year while both editions publish a rate per
+  # 1000 kg animal mass per day, so no stored value may be read as a rate.
+  nex <- whep::ipcc_2019_n_excretion
+  testthat::expect_equal(
+    nex$nex_kg_n_head_yr[
+      nex$region == "North America" & nex$category == "Dairy Cattle"
+    ],
+    105
+  )
+})
+
+test_that("Tier 2 goat coefficients are the goat rows, not the sheep ones", {
+  # The sheep and goat coefficients sit one row apart in two IPCC tables
+  # and were copied across in both directions (#249, PR #267). Lock each
+  # against the published value.
+  # Cfi: 2019 Refinement Vol 4 Ch 10 Table 10.4 (Updated) -- Goats 0.315,
+  # Sheep (older than 1 year) 0.217.
+  # Ca: Table 10.5 (Updated) -- Lowland goats 0.019, Grazing flat pasture
+  # (sheep) 0.0107, Hill and mountain goats 0.024.
+  coefs <- whep::ipcc_tier2_energy_coefs
+  row_of <- function(cat) coefs[coefs$category == cat, ]
+  goats <- row_of("Goats")
+  sheep <- row_of("Sheep")
+
+  testthat::expect_equal(goats$cfi_mj_day_kg075, 0.315)
+  testthat::expect_equal(sheep$cfi_mj_day_kg075, 0.217)
+  testthat::expect_equal(goats$ca_pasture, 0.019)
+  testthat::expect_equal(sheep$ca_pasture, 0.0107)
 })
 
 test_that("IPCC 2006 datasets are clean tibbles", {
@@ -1182,4 +1405,66 @@ testthat::test_that("documented @format columns exist in the dataset", {
     unlist() |>
     as.character()
   testthat::expect_equal(mismatches, character(0))
+})
+
+
+# -- dataset provenance --------------------------------------------------------
+
+# #652: `lassaletta_grassland_share` shipped `@source` "Lassaletta et al.
+# nitrogen flow dataset. See pipeline documentation for full citation.", and no
+# such pipeline documentation exists. A citation that names no paper cannot be
+# checked by a reader, so it is worse than an explicit "unverified" note.
+testthat::test_that("no documented topic defers its citation to nowhere", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  offenders <- list.files(man_dir, pattern = "\\.Rd$", full.names = TRUE) |>
+    purrr::keep(\(rd) {
+      text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+      stringr::str_detect(text, "See pipeline documentation")
+    }) |>
+    basename()
+  testthat::expect_equal(offenders, character(0))
+})
+
+testthat::test_that("lassaletta_grassland_share cites its paper by DOI", {
+  man_dir <- testthat::test_path("..", "..", "man")
+  testthat::skip_if_not(
+    dir.exists(man_dir),
+    "man/ is only there when testing from the package source"
+  )
+  rd <- file.path(man_dir, "lassaletta_grassland_share.Rd")
+  text <- paste(readLines(rd, warn = FALSE), collapse = " ")
+  testthat::expect_true(
+    stringr::str_detect(text, stringr::fixed("10.1088/1748-9326/9/10/105011"))
+  )
+})
+
+# The invariants below are the fingerprint tying the shipped table to
+# Lassaletta et al. (2014): its 1961-2009 span, and Ireland and the
+# Netherlands as the two extreme countries the paper singles out by name.
+testthat::test_that("lassaletta_grassland_share matches its source's shape", {
+  share <- whep::lassaletta_grassland_share
+  testthat::expect_equal(sort(unique(share$year)), 1961:2009)
+  testthat::expect_true(all(table(share$Country) == 49L))
+  testthat::expect_true(all(share$grass_share >= 0 & share$grass_share <= 1))
+  extremes <- share |>
+    dplyr::slice_max(grass_share, n = 1, by = Country, with_ties = FALSE) |>
+    dplyr::slice_max(grass_share, n = 2, with_ties = FALSE) |>
+    dplyr::pull(Country)
+  testthat::expect_setequal(extremes, c("Ireland", "Netherlands"))
+})
+
+# The label set is not a partition: a historical entity and its successors
+# coexist for the whole span, which is why the consumer needs a dedup rule.
+testthat::test_that("Sudan and Sudan (former) are duplicate labels", {
+  share <- whep::lassaletta_grassland_share
+  sudan <- c("Sudan", "Sudan (former)", "South Sudan")
+  testthat::expect_true(all(sudan %in% share$Country))
+  wide <- share |>
+    dplyr::filter(Country %in% sudan[1:2]) |>
+    tidyr::pivot_wider(names_from = Country, values_from = grass_share)
+  testthat::expect_equal(wide$Sudan, wide$`Sudan (former)`)
 })

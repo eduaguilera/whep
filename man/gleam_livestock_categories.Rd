@@ -14,7 +14,25 @@ A tibble with columns:
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Model Description.
+Partly traced (whep#881). The cohort vocabulary corresponds to
+FAO. 2022. \emph{Global Livestock Environmental Assessment Model, Model
+Description, Version 3.0}. Rome, FAO, Table 2.1 "Summary of cohorts in
+GLEAM", p. 10 (document code \code{cd8425en}, served from \verb{www.fao.org/3/} and
+\code{openknowledge.fao.org}), identical to Table 2.1
+p. 9 of the Version 2.0 Revision 5 description
+(\url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Model_description.pdf}).
+The shipped table is \strong{not} a transcription of it: GLEAM names cohorts
+AF/RF/AM/RM/MF/MM (plus MFr/MMr/MFf/MMf for feedlots) within one herd,
+whereas this table renames them, crosses them with a
+Dairy/Beef/Meat/Other production system GLEAM's Table 2.1 does not have,
+and supplies its own \code{description} strings. GLEAM publishes no table of
+cohort shares; it derives herd structure from the replacement, fertility,
+mortality and age-at-first-calving rates in Supplement S1 of the
+Version 2.0 description. \code{calculate_cohorts_systems()} instead splits a
+herd equally, \code{1 / n} per row of this table, so the row COUNT per
+(species, production system) is a result-affecting, unsourced assumption:
+Cattle Dairy 6 cohorts (16.7\% each), Cattle Beef 5 (20\% each). Treat the
+layout and the implied equal split as unverified.
 }
 \usage{
 gleam_livestock_categories

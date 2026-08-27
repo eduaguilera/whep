@@ -1114,24 +1114,7 @@ calculate_lmdi <- function(
     })
   }
 
-  result <- dplyr::bind_rows(factor_rows, target_row)
-
-  period_target_df <- tibble::tibble(
-    period = period_id,
-    t0 = t0,
-    t_t = t_final,
-    target_initial = y0_total,
-    target_final = y_final_total,
-    total_change = total_change
-  )
-
-  if (length(analysis_cols) > 0) {
-    purrr::walk(analysis_cols, function(nm) {
-      period_target_df[[nm]] <<- analysis_values[[nm]]
-    })
-  }
-
-  list(result = result, target = period_target_df)
+  dplyr::bind_rows(factor_rows, target_row)
 }
 
 .lmdi_detect_group_vars <- function(identity, verbose) {
@@ -1165,7 +1148,6 @@ calculate_lmdi <- function(
   tolerance_add <- 1e-6
   tolerance_mult <- 1e-6
   results_all <- list()
-  period_targets_all <- list()
 
   for (idx in seq_len(nrow(analysis_groups))) {
     subset_info <- .lmdi_get_analysis_subset(
@@ -1197,11 +1179,7 @@ calculate_lmdi <- function(
       next
     }
 
-    analysis_result <- dplyr::bind_rows(purrr::map(period_results, "result"))
-    analysis_period_targets <- dplyr::bind_rows(purrr::map(
-      period_results,
-      "target"
-    ))
+    analysis_result <- dplyr::bind_rows(period_results)
     .lmdi_closure_check(
       analysis_result,
       analysis_cols,
@@ -1209,12 +1187,9 @@ calculate_lmdi <- function(
       tolerance_mult
     )
     results_all[[length(results_all) + 1]] <- analysis_result
-    period_targets_all[[
-      length(period_targets_all) + 1
-    ]] <- analysis_period_targets
   }
 
-  list(results = results_all, period_targets = period_targets_all)
+  list(results = results_all)
 }
 
 .lmdi_get_analysis_subset <- function(

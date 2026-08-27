@@ -127,6 +127,14 @@
     "single_year", "Both sides are one year's supply-use.",
     ".dependency_sovereign_iso3", "merge", "polity_code", 1L, "identity_lookup",
     "Keyed on the polity, which is the year-scoped identity itself.",
+    ".dependency_sovereign_iso3", "merge", "legacy_polity_prefix", 1L,
+    "identity_lookup",
+    "ISO3-like stem -> bucket bridge, the same one `.read_fodder_euadb()` uses,
+     and the fallback for a dependency upstream has given its own polity so
+     that no reporting area shares it (Sint Maarten from the 2026-08-25
+     re-sync). The stem is a present-day sovereign, which has no time
+     dimension to key on; the dependency's own period is already picked before
+     this join.",
     ".energy_co2e_by_group", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> ISO3 through the current-area lookup.",
     ".energy_co2e_by_group", "left_join", "iso3, grp", 1L, "time_invariant",
@@ -141,6 +149,13 @@
     "GLEAM scheme scope per country, one vintage.",
     ".energy_join_dressing", "left_join", "iso3", 1L, "time_invariant",
     "GLEAM dressing fractions, one vintage.",
+    ".fabio_bridge_fabio_side", "left_join", "iso3c", 1L, "diagnostic",
+    "Resolves each FABIO published region to the WHEP bucket carrying its ISO3,
+     for `inst/scripts/compare_fabio.R` only (whep#264). ISO3 names the
+     territory rather than one of its periods, and FABIO's own region list has
+     no time dimension -- it is one published vintage of 192 codes. Nothing
+     downstream of it is published: the bridge exists to stop a comparison
+     silently matching two different Rest-of-World residuals.",
     ".fold_bucket_labels", "left_join", "bucket_polity_code, polity_code", 1L,
     "identity_lookup", "Polity type keyed on the polity code.",
     ".handed_over_polity_codes", "inner_join", "predecessor, polity_code", 1L,
@@ -213,12 +228,21 @@
      LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
      national readers share ONE bridge: this row used to be that function's,
      and the move is why the count did not rise with the pasture reader.",
+    ".off_window_area_keys", "merge", "area_code", 1L, "time_invariant",
+    "Attaches each area's own reporting window, one row per area by
+     construction, and the year bound is the predicate immediately after it.
+     Keying it on the year would ask the window to contain the year the window
+     is being used to test (whep#884).",
     ".reconcile_fao_arable_fallow", "merge", "area_code", 1L, "single_year",
     "Inside the per-year fallow attribution loop.",
     ".reconcile_fao_arable_fallow", "merge", "area_code, item_cbs_code", 1L,
     "single_year", "Inside the per-year fallow attribution loop.",
     ".redistribute_countries_dt", "[", "area_code", 2L, "single_year",
     "Per-country subsets inside one year's redistribution.",
+    ".reported_bucket_years", "merge", "area_code", 1L, "time_invariant",
+    "The same window attach, on the grid of areas whose bucket membership is
+     then resolved year-aware by `.add_polity_columns_dt()`. The window is a
+     property of the area, not of one of its years (whep#884).",
     ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
     "The first year the upstream FAOSTAT map reports each area at all: one
      number per area by construction, and the year bound the predicate right
@@ -321,6 +345,11 @@
      first-reported year per area, the bound that makes
      `polity_bucket_coverage()` year-aware. Keying on the year would return the
      year itself.",
+    ".area_reporting_windows", "[", "area_code, <dynamic>", 1L, "year_axis",
+    "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
+     crosswalk's periods: one reporting window per area. Keying on the year
+     would return the year itself (whep#884), exactly as for
+     `.area_first_reported_year` above.",
     ".areas_gleam_cannot_group", "distinct",
     "area_code, area_name, area_iso3c, polity_area_code, continent", 1L,
     "diagnostic",
@@ -413,6 +442,37 @@
     "diagnostic",
     "Ranks the carcass tonnage the GLEAM price scope cannot cover, for the
      unpriced-share warning.",
+    ".fabio_bridge_fabio_side", "distinct", "area_code, iso3c, <dynamic>", 1L,
+    "diagnostic",
+    "De-duplicates FABIO's published region list to one row per (code, ISO3)
+     before it is used as a comparison key (whep#264). The list is a single
+     vintage with no year to group by.",
+    ".fabio_bridge_fabio_side", "distinct",
+    "iso3c, whep_bucket, area_iso3c, <dynamic>", 1L, "diagnostic",
+    "The ISO3-to-bucket side of the same bridge. It deliberately collapses the
+     crosswalk's polity PERIODS, because the question is which bucket carries a
+     territory at all, not which period it reported in; a year here would
+     multiply one FABIO region into one row per period and abort the
+     `many-to-one` join that follows.",
+    ".fabio_bridge_whep_buckets", "distinct", "area_code, bucket, <dynamic>",
+    1L, "diagnostic",
+    "The WHEP half of the same bridge: which bucket an area's rows are summed
+     into. Year-free for the same reason the FABIO half is -- the fold is a
+     property of the area, not of a year -- and it is what stops reporting area
+     276 being keyed apart from the 206 bucket FABIO's own 276 resolves to.",
+    ".fabio_bridge_whep_buckets", "count", "area_code", 1L, "diagnostic",
+    "The guard on that lookup: aborts if one area folds into two buckets, which
+     would make the comparison key ambiguous. Counting the rows per area is
+     the check, so a year in the key would defeat it.",
+    ".fao_area_iso3_lookup", "distinct",
+    "fao_area_name, iso3_code, area_name, area_iso3c", 1L, "identity_lookup",
+    "The FAOSTAT area name -> ISO3 lookup `get_faostat_data()` resolves
+     `ISO3_CODE` through (whep#541). It is the identity re-keying itself: one
+     row per FAOSTAT area name, off a crosswalk whose `area_iso3c` is a
+     property of the area and not of a year. Collapsing the crosswalk's polity
+     periods is the point -- an area has one ISO3 code across all of them, and
+     a year in the key would return one row per period for the same name and
+     make the `match()` below pick whichever came first.",
     ".federation_land_bridge", "[", "area_code, area", 1L, "identity_lookup",
     "Expands each dissolved polity to its successor ISO3 codes off
      `.current_area_lookup()`, which has no year. The label is one per code
@@ -467,11 +527,31 @@
      that follows it DOES carry `year`.",
     ".nd_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same guard again, for the deposition support.",
-    ".pcs_area_code", "distinct", "polity_code", 1L, "identity_lookup",
-    "polity_code -> polity_area_code, one row per polity, for the polycell
-     support's area key.",
-    ".pcs_area_code", "distinct", "polity_code, polity_area_code", 1L,
-    "identity_lookup", "The inner dedup of the same crosswalk pair.",
+    ".off_window_area_years", "[", "area_code, window_start, window_end", 1L,
+    "year_axis",
+    "Reduces an area's off-window rows to the span they cover, so `year` is
+     what the group is summarising, not a key it is missing. The window
+     columns ride along as attributes of the area (whep#884).",
+    ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
+    "year_axis",
+    "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
+     one cell IS the reduction over the year axis: the group has to hold the
+     whole interval sequence for the previous interval to exist. Keying on a
+     year would compare each interval with itself.",
+    ".polity_area_code_lookup", "distinct",
+    "polity_code, area_code, polity_area_code", 1L, "identity_lookup",
+    "Reduces `polity_area_crosswalk` to its distinct code triples. A
+     `polity_code` carries its own validity span (`SUD-1956-2011`), so the
+     year is already inside the key and adding one would return the year
+     itself (whep#907).",
+    ".polity_area_code_lookup", "mutate", "polity_code", 1L, "identity_lookup",
+    "Counts the reporting areas a polity maps to, which decides whether it has
+     a reporting code of its own or must keep the bucket. A property of the
+     polity, not of any year.",
+    ".polity_area_code_lookup", "distinct", "polity_code", 1L,
+    "identity_lookup",
+    "The final one-row-per-polity dedup that makes the lookup a function of
+     `polity_code`.",
     ".pcs_footprint_diff", "distinct", "lon, lat, area_code", 1L, "diagnostic",
     "The cell footprint of each crosswalk source, compared to report where they
      disagree. It moves no value.",
@@ -499,6 +579,12 @@
     ".read_fodder_euadb", "distinct", "area_iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge, one row per ISO3; the fodder rows keep their own
      year.",
+    ".reporting_periods", "summarise", "area_code, polity_code", 1L,
+    "year_axis",
+    "`min(map_year_start)` and `max(map_year_end)` ARE the reduction over the
+     crosswalk's rows for one period: the output is that period's reporting
+     span, so keying on the year would return the year itself. The period is
+     already the year-scoped identity.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",

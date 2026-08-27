@@ -120,6 +120,13 @@ agricultural products and residues. Used to convert fresh-matter production
 quantities into biomass flows, nutrient budgets, and energy content.
 }
 \details{
+This is the \strong{single} source of biomass coefficients in the package. Until
+#489 a \code{biomass_coefs} pin frozen at \verb{20250728T082553Z} was also readable
+through \code{whep_read_file()}; it was a narrowed 2025 export that disagreed
+with this table on 12 of their 36 shared columns, so the same commodity
+carried different nitrogen coefficients depending on which path read it.
+The pin has been retired and all callers now read this dataset.
+
 Five runtime-dead below-ground fields were retired from this legacy table:
 \code{BG_Biomass_kgDM_ha}, \code{Root_Shoot_ratio}, \code{Root_kgC_kgDM},
 \code{Rhizodeposits_mass_kgC_kgDM}, and \code{Rhizodeposits_N_kgN_kgRootN}. Their
@@ -132,6 +139,11 @@ are available, with the corresponding \code{bio_coefs} fields as fallbacks.
 \code{root_c_kgdm} and \code{rhizodeposit_n_kgn_krootn} are direct calculation inputs.
 \code{rhizodeposit_mass_c_kgdm} is an integrity and documentation component that
 is already included in \code{root_c_kgdm}, rather than a separate runtime input.
+
+Three all-caps rows of the source spreadsheet are section headers rather
+than commodities and are dropped at ingestion (#752): \verb{TRANSFORMED PRODUCTS} and \verb{AGRO-INDUSTRY BYPRODUCTS} are empty, and \verb{ANIMAL PRODUCTS}
+holds the VLOOKUP column-index vector the upstream \code{Coefs} sheet addresses
+by absolute position, which read as data claims an \code{Edible_portion} of 4.
 }
 \examples{
 head(biomass_coefs)

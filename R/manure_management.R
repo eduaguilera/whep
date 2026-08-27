@@ -185,32 +185,25 @@ split_manure_management <- function(excretion, options = list()) {
 # through the same GLEAM-region lookup whep#465 built for the emission-factor
 # tables, rather than through a second crosswalk.
 #
-# The ISO3 leg is the one that resolves ordinary countries, so the area code
-# is carried WITH its ISO3. MEASURED on the 2020 national manure chain: given
-# `area_code` alone .gleam_region_of() resolves 2 of the 195 territories (the
-# two its dissolved-federation override table happens to list); with the ISO3
-# attached it resolves all 195.
-#
 # `territory` is a stringified `area_code` (see estimate_n_excretion()) but an
 # ISO3 literal is still accepted there, so a non-numeric territory is tried as
 # an ISO3. Anything that is neither resolves to NA and takes the Global rows,
 # which is why the region is resolved here and not required upstream.
+#
+# The area code needs no ISO3 attached to it: since whep#678 the shared
+# resolver derives the ISO3 from `area_code` itself.
 .mms_region_of <- function(territory) {
   .add_ipcc_region(.mms_region_keys(territory))$region
 }
 
 .mms_region_keys <- function(territory) {
   code <- suppressWarnings(as.integer(territory))
-  lookup <- .current_area_lookup(include_unmapped = TRUE)
   tibble::tibble(
     area_code = code,
-    iso3 = dplyr::coalesce(
-      as.character(lookup$area_iso3c)[match(code, lookup$area_code)],
-      dplyr::if_else(
-        is.na(code),
-        toupper(as.character(territory)),
-        NA_character_
-      )
+    iso3 = dplyr::if_else(
+      is.na(code),
+      toupper(as.character(territory)),
+      NA_character_
     )
   )
 }
