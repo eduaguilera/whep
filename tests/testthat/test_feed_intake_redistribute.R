@@ -340,6 +340,79 @@ test_that(".aggregate_demand_to_category sums codes and keeps method", {
   expect_equal(horses$method_demand, "krausmann_per_head")
 })
 
+test_that(".aggregate_demand_to_category warns on an uncrosswalked code", {
+  totals <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~live_anim_code,
+    ~demand_dm_t,
+    ~method_demand,
+    2000L,
+    79L,
+    1049L,
+    100, # Pigs (in the crosswalk)
+    "bouwman_fcr",
+    2000L,
+    79L,
+    999999L,
+    40, # not in the crosswalk
+    "bouwman_fcr"
+  )
+  expect_warning(
+    out <- whep:::.aggregate_demand_to_category(
+      totals,
+      whep:::.livestock_crosswalk()
+    ),
+    "not in the crosswalk"
+  )
+  # The uncrosswalked code's demand is dropped, not silently carried through.
+  expect_equal(sum(out$demand_dm_t), 100)
+})
+
+test_that(".tag_legacy_method warns on an uncrosswalked code", {
+  totals <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~live_anim_code,
+    ~demand_dm_t,
+    2000L,
+    79L,
+    1049L,
+    100,
+    2000L,
+    79L,
+    999999L,
+    40
+  )
+  expect_warning(
+    out <- whep:::.tag_legacy_method(totals, whep:::.livestock_crosswalk()),
+    "not in the crosswalk"
+  )
+  expect_equal(sum(out$demand_dm_t), 100)
+})
+
+test_that(".demand_code_shares warns on an uncrosswalked code", {
+  codes <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~live_anim_code,
+    ~demand_dm_t,
+    2000L,
+    79L,
+    1049L,
+    100,
+    2000L,
+    79L,
+    999999L,
+    40
+  )
+  expect_warning(
+    out <- whep:::.demand_code_shares(codes, whep:::.livestock_crosswalk()),
+    "not in the crosswalk"
+  )
+  expect_false(999999L %in% out$live_anim_code)
+})
+
 test_that(".build_demand_energy yields biologically plausible ruminant DM", {
   production <- tibble::tribble(
     ~year,
@@ -605,6 +678,30 @@ test_that(".build_feed_avail_national tags CBS feed with quality + scale", {
   # avail = feed * 0.9 * product_kgdm_kgfm, so DM is below the fresh-matter feed.
   cake <- out[out$item_cbs_code == 2591L, ]
   expect_lt(cake$avail_dm_t, 1000)
+})
+
+test_that(".build_feed_avail_national warns on unclassified CBS feed mass", {
+  cbs <- tibble::tribble(
+    ~year,
+    ~area_code,
+    ~item_cbs_code,
+    ~feed,
+    1970L,
+    1L,
+    2591L,
+    1000, # groundnut cake -> high_quality, classified fine
+    1970L,
+    1L,
+    999999L,
+    250 # not in feed_taxonomy / items_full -> silently dropped pre-fix
+  )
+  expect_warning(
+    out <- whep:::.build_feed_avail_national(cbs),
+    "could not be classified"
+  )
+  # The unclassified item never reaches the returned availability.
+  expect_false(999999L %in% out$item_cbs_code)
+  expect_true(2591L %in% out$item_cbs_code)
 })
 
 test_that(".run_redistribute_national meets grass, caps concentrates", {
