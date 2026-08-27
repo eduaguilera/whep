@@ -1865,6 +1865,33 @@ test_that(".format_cbs_output returns long format with source column", {
 })
 
 
+test_that(".format_cbs_output keeps processing_primary (whep#143)", {
+  # domestic_supply is built upstream to include processing_primary as one
+  # of its summed destinies (.reestimate_domestic_supply(),
+  # .apply_filled_shares()), so dropping the element here breaks
+  # sum(uses) == domestic_supply for the pp_items whose entire domestic
+  # supply is destined for processing (e.g. Seed cotton).
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element,
+    ~value, ~source,
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "production",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "processing_primary",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "domestic_supply",
+    5000, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.format_cbs_output(cbs)
+
+  expect_true("processing_primary" %in% result$element)
+  pp_value <- result |>
+    dplyr::filter(element == "processing_primary") |>
+    dplyr::pull(value)
+  expect_equal(pp_value, 5000)
+})
+
+
 # -- .wide_cbs_to_long ---------------------------------------------------------
 
 test_that(".wide_cbs_to_long handles long format input", {
