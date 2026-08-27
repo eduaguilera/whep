@@ -139,6 +139,11 @@ are available, with the corresponding \code{bio_coefs} fields as fallbacks.
 \code{root_c_kgdm} and \code{rhizodeposit_n_kgn_krootn} are direct calculation inputs.
 \code{rhizodeposit_mass_c_kgdm} is an integrity and documentation component that
 is already included in \code{root_c_kgdm}, rather than a separate runtime input.
+
+Three all-caps rows of the source spreadsheet are section headers rather
+than commodities and are dropped at ingestion (#752): \verb{TRANSFORMED PRODUCTS} and \verb{AGRO-INDUSTRY BYPRODUCTS} are empty, and \verb{ANIMAL PRODUCTS}
+holds the VLOOKUP column-index vector the upstream \code{Coefs} sheet addresses
+by absolute position, which read as data claims an \code{Edible_portion} of 4.
 }
 \examples{
 head(biomass_coefs)
