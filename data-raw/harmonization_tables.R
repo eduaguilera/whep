@@ -189,9 +189,24 @@ liv_lu_coefs <- file.path(harmonization_dir, "liv_lu_coefs.csv") |>
 crops_eurostat <- file.path(harmonization_dir, "crops_eurostat.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na)
 
+# Three all-caps rows in the upstream Biomass_coefs.xlsx are section headers of
+# the spreadsheet, not commodities (#752). TRANSFORMED PRODUCTS and
+# AGRO-INDUSTRY BYPRODUCTS are entirely empty. ANIMAL PRODUCTS is worse: its
+# only seven populated cells hold 2, 4, 3, 5, 6, 7, 8 -- the column-index
+# vector the Coefs sheet's VLOOKUPs address absolutely, so read as data it
+# claims an Edible_portion of 4 and 3 kg of nitrogen per kg of fresh matter.
+# It cannot be cleaned upstream without breaking the workbook, so it is
+# dropped here instead, once, rather than at each consumer.
+biomass_coefs_headers <- c(
+  "TRANSFORMED PRODUCTS",
+  "AGRO-INDUSTRY BYPRODUCTS",
+  "ANIMAL PRODUCTS"
+)
+
 biomass_coefs <- file.path(harmonization_dir, "biomass_coefs.csv") |>
   readr::read_csv(show_col_types = FALSE, na = excel_na) |>
-  dplyr::select(!dplyr::starts_with("..."))
+  dplyr::select(!dplyr::starts_with("...")) |>
+  dplyr::filter(!.data$Name_biomass %in% biomass_coefs_headers)
 
 # Derived: items_prod_full ----------------------------------------------------
 
