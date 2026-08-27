@@ -629,8 +629,8 @@ ln -s CLAUDE.md AGENTS.md
 `AGENTS.md` already exists as one. A symlink cannot drift, which the last set
 of copies did.
 
-This is enforced, not merely asked for: `.github/workflows/agent-instructions.yaml`
-fails the build if any known agent-instruction filename is present and is
+This is enforced, not merely asked for:
+`.github/workflows/agent-instructions.yaml` fails the build if any known agent-instruction filename is present and is
 neither a symlink to `CLAUDE.md` nor byte-identical to it. If your tool looks
 for a name that workflow does not list, add the name to its `candidates` list
 and symlink it — do not start a second source of truth.
