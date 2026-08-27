@@ -10,7 +10,7 @@ A tibble with \code{region}, \code{species}, \code{mms_type},
 }
 \source{
 Unverified. The values are a hardcoded \code{tribble()} in
-\code{generate_ipcc_tier2_tables()} in \code{data-raw/livestock_coefficients.R},
+\code{generate_ipcc_tier2_params()} in \code{data-raw/livestock_coefficients.R},
 annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
 to the nearest 5 percentage points and match no table of the committed
 GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
