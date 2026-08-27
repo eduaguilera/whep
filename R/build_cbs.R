@@ -2398,11 +2398,12 @@ build_processing_coefs <- function(
     .finalise_historical(items)
 }
 
-# A zero (or NA) denominator turns `num / denom` into Inf or NaN, both of
-# which are non-NA and survive `!is.na()` filters downstream (whep#166,
-# whep#426 measured 926 NaN / 6 Inf / 80 shares > 1 from exactly this
-# division). Treat an undefined ratio as NA so it gets filled like any other
-# gap instead of being carried forward as non-finite data.
+# A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
+# are non-NA and survive is.na() filters downstream (whep#166). On a
+# 1950-1965 build, whep#426 measured 926 NaN values, 6 Inf values, and 80
+# destiny shares above one, all from exactly this division. Treat an
+# undefined ratio as NA so it gets filled like any other gap instead of being
+# carried forward as non-finite data.
 .cbs_safe_ratio <- function(num, denom) {
   dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
 }
