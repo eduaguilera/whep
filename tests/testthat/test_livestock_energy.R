@@ -363,3 +363,37 @@ testthat::test_that("the helper column does not leak into the output", {
   )
   testthat::expect_false(rlang::has_name(result, "cw_effective"))
 })
+
+# NA temperature_c ---------------------------------------------------------
+
+testthat::test_that("NA temperature_c is imputed, not dropped (#216)", {
+  data <- dairy_tier2_fixture() |>
+    dplyr::mutate(temperature_c = NA_real_)
+
+  testthat::expect_warning(estimate_energy_demand(data), "temperature_c")
+  result <- suppressWarnings(estimate_energy_demand(data))
+
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_gt(result$gross_energy, 0)
+  testthat::expect_true(grepl("temp_assumed_15C", result$method_energy))
+})
+
+testthat::test_that("a mix of NA and real temperature_c keeps every row", {
+  data <- dplyr::bind_rows(
+    dairy_tier2_fixture() |> dplyr::mutate(temperature_c = NA_real_),
+    dairy_tier2_fixture() |> dplyr::mutate(temperature_c = 10)
+  )
+
+  testthat::expect_warning(estimate_energy_demand(data), "temperature_c")
+  result <- suppressWarnings(estimate_energy_demand(data))
+
+  testthat::expect_equal(nrow(result), 2L)
+})
+
+testthat::test_that("non-NA temperature_c never warns", {
+  testthat::expect_no_warning(
+    dairy_tier2_fixture() |>
+      dplyr::mutate(temperature_c = 10) |>
+      estimate_energy_demand()
+  )
+})
