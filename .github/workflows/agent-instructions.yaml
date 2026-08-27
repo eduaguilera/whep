@@ -6,10 +6,15 @@
 # rule that replaced them was a convention, and a convention is exactly what
 # drifted the first time. This makes it mechanical.
 #
-# An agent-instruction file may be:
-#   * a symlink to CLAUDE.md (preferred — drift is impossible), or
-#   * byte-identical to CLAUDE.md.
-# Anything else fails, naming the file.
+# An agent-instruction file must be BYTE-IDENTICAL to CLAUDE.md.
+#
+# Symlinks are deliberately NOT used: Git for Windows only materialises them
+# when core.symlinks is true, which needs Developer Mode or admin rights. With
+# it false — the historical default — the file is checked out as plain text
+# containing the target path, so a tool reading AGENTS.md would get the nine
+# bytes "CLAUDE.md" instead of the rules. That failure is silent, and a
+# Linux-only CI job would never see it. A copy plus this check works on every
+# platform and cannot drift past review.
 name: agent-instructions
 
 on:
@@ -47,19 +52,14 @@ jobs:
           for f in $candidates; do
             [ -e "$f" ] || [ -L "$f" ] || continue
             if [ -L "$f" ]; then
-              target=$(readlink "$f")
-              if [ "$target" = "$canonical" ] || [ "$target" = "./$canonical" ]; then
-                echo "ok (symlink)   $f -> $target"
-                continue
-              fi
-              echo "::error file=$f::symlink points at '$target', expected '$canonical'"
+              echo "::error file=$f::is a symlink. Symlinks do not survive a Git for Windows checkout without core.symlinks; use a byte-identical copy instead (cp $canonical $f)."
               fail=1
               continue
             fi
             if cmp -s "$f" "$canonical"; then
               echo "ok (identical) $f"
             else
-              echo "::error file=$f::differs from $canonical. Make it a symlink to $canonical, or delete it. Do not maintain a second copy of the rules — the last set of copies drifted and had to be deleted."
+              echo "::error file=$f::differs from $canonical. Run 'cp $canonical $f' and commit. Do not maintain a second set of rules — the last copies drifted and had to be deleted."
               diff -u "$canonical" "$f" | head -40 || true
               fail=1
             fi

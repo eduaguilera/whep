@@ -619,19 +619,26 @@ The repo used to carry per-tool copies of these rules
 one still forbade `data.table`, which the package now Imports — so they were
 deleted.
 
-Do not reintroduce a copy. If a tool needs its own entry point, add a
-**symlink** to this file:
+`CLAUDE.md` is the source of truth. If a tool needs a different filename,
+give it a **byte-identical copy** and keep it in step:
 
 ```bash
-ln -s CLAUDE.md AGENTS.md
+cp CLAUDE.md AGENTS.md   # after editing CLAUDE.md
 ```
 
-`AGENTS.md` already exists as one. A symlink cannot drift, which the last set
-of copies did.
+`AGENTS.md` already exists as one. Add new names to `.Rbuildignore` too, or
+`R CMD check --as-cran` reports a non-standard file at top level.
+
+**Not a symlink.** Git for Windows only materialises symlinks when
+`core.symlinks` is true, which needs Developer Mode or admin rights; with it
+false the file is checked out as plain text containing the target path, so a
+tool would read the nine bytes `CLAUDE.md` instead of these rules — silently,
+and invisibly to a Linux-only CI job.
 
 This is enforced, not merely asked for:
 `.github/workflows/agent-instructions.yaml` fails the build if any known
-agent-instruction filename is present and is neither a symlink to
-`CLAUDE.md` nor byte-identical to it. If your tool looks
+agent-instruction filename is present and is not byte-identical to
+`CLAUDE.md`. If your tool wants a name it does not list, add the name to its
+`candidates` list — do not start a second source of truth. If your tool looks
 for a name that workflow does not list, add the name to its `candidates` list
 and symlink it — do not start a second source of truth.
