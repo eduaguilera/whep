@@ -329,20 +329,44 @@ get_processing_coefs <- function(years = NULL, example = FALSE) {
 }
 
 # Pivot long-format CBS to wide and split stock_variation into
-# stock_addition (positive) and stock_withdrawal (negative).
+# stock_addition (positive) and stock_withdrawal (negative). Guards two
+# element-vocabulary failure modes (#219): a `(year, area_code,
+# item_cbs_code, element)` key that repeats would otherwise silently become
+# a list-column under pivot_wider(), and an input with no `stock_variation`
+# row at all would otherwise crash the mutate() below with "object
+# 'stock_variation' not found".
 .pivot_cbs_wide <- function(cbs_long) {
-  cbs_long |>
+  selected <- cbs_long |>
     dplyr::select(
       year,
       area_code,
       item_cbs_code,
       element,
       value
-    ) |>
+    )
+
+  dup_keys <- selected |>
+    dplyr::count(year, area_code, item_cbs_code, element) |>
+    dplyr::filter(n > 1)
+
+  if (nrow(dup_keys) > 0) {
+    cli::cli_abort(c(
+      "{.fn .pivot_cbs_wide} found {nrow(dup_keys)} duplicate
+       {.val year}/{.val area_code}/{.val item_cbs_code}/{.val element}
+       key{?s} in {.arg cbs_long}.",
+      "i" = "Each combination must have exactly one {.arg value}."
+    ))
+  }
+
+  selected |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value,
       values_fill = 0
+    ) |>
+    ensure_columns(
+      tibble::tibble(stock_variation = double()),
+      defaults = list(stock_variation = 0)
     ) |>
     dplyr::mutate(
       stock_addition = dplyr::if_else(
