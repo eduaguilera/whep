@@ -840,6 +840,159 @@ test_that("build_commodity_balances validates trade_recovery", {
 })
 
 
+# -- trade zeros vs a positive trade record (#866) -----------------------------
+
+# One area, four items, one year. Every branch of the tier-1 fill is here: a
+# CBS zero against a positive record, a CBS zero against a zero record, a
+# missing CBS value (the case `coalesce()` already handled), and a non-zero CBS
+# value that disagrees with the record and must never be overwritten.
+.zero_trade_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2010, "Lebanon", 121L, "Beverages, Fermented", 2657, "import", 0, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Beverages, Fermented", 2657, "production", 5000, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Barley and products", 2513, "import", 0, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Barley and products", 2513, "production", 100, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Wheat and products", 2511, "production", 700, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Maize and products", 2514, "import", 200, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Maize and products", 2514, "production", 300, "FAOSTAT_prod"
+  )
+}
+
+.zero_trade_record <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 121L, 2657, "import", 366892,
+    2010, 121L, 2513, "import", 0,
+    2010, 121L, 2511, "import", 400,
+    2010, 121L, 2514, "import", 9999
+  )
+}
+
+.zero_trade_import_of <- function(result, code) {
+  result |>
+    dplyr::filter(item_cbs_code == code, element == "import") |>
+    dplyr::pull(value)
+}
+
+test_that("a positive trade record outranks a CBS zero by default", {
+  # The decision taken on #866: a CBS zero here is never an observation --
+  # measured at 2010 every one carries FAO flag "I" (imputed) or the legacy
+  # "S" (standardized), and neither food-balance vintage carries a single
+  # official "A" on a trade row -- so the measured flow wins.
+  result <- whep:::.cbs_impute_trade(
+    .zero_trade_cbs(),
+    .zero_trade_record()
+  )
+  import_of <- function(code) .zero_trade_import_of(result, code)
+
+  # 366,892 t of a real trade record that used to be discarded.
+  expect_equal(import_of(2657), 366892)
+  # A zero record cannot overwrite a zero CBS value, so nothing is invented.
+  expect_equal(import_of(2513), 0)
+  # The case `coalesce()` already handled: no CBS row at all, so the record
+  # fills it.
+  expect_equal(import_of(2511), 400)
+  # A non-zero CBS value always wins, whatever the record says.
+  expect_equal(import_of(2514), 200)
+})
+
+test_that("trade_zero = 'keep' still reproduces the pre-#866 build", {
+  # The old behaviour is a selectable alternative, not a removed one: it is
+  # what reproduces a build made before the default changed, and what a
+  # sensitivity run needs.
+  result <- whep:::.cbs_impute_trade(
+    .zero_trade_cbs(),
+    .zero_trade_record(),
+    trade_zero = "keep"
+  )
+  import_of <- function(code) .zero_trade_import_of(result, code)
+
+  expect_equal(import_of(2657), 0)
+  expect_equal(import_of(2513), 0)
+  expect_equal(import_of(2511), 400)
+  expect_equal(import_of(2514), 200)
+})
+
+test_that("the default of the whole cascade prefers the record", {
+  # `.cbs_impute_trade()` is private; this pins the default a caller of the
+  # exported build actually gets, through `.fix_cbs()`.
+  raw <- .zero_trade_cbs()
+  attr(raw, ".years") <- 2010
+  attr(raw, ".fao_trade") <- .zero_trade_record()
+
+  expect_equal(
+    .zero_trade_import_of(whep:::.fix_cbs(raw), 2657),
+    366892
+  )
+  # `sum()` rather than a bare comparison: the final balance drops a row whose
+  # value is zero, so under `"keep"` the key is not merely zero, it is gone.
+  expect_equal(
+    sum(.zero_trade_import_of(whep:::.fix_cbs(raw, trade_zero = "keep"), 2657)),
+    0
+  )
+})
+
+test_that("preferring the record leaves the supply-use identity closed", {
+  # The invariant, not a hand-picked total: whatever the branch does to
+  # imports, `production + import - export - stock_variation` must still equal
+  # domestic supply on every row. This is where the cost of the choice shows
+  # up -- the extra import has to land in a destiny.
+  purrr::walk(whep:::.cbs_trade_zero_choices(), function(choice) {
+    wide <- whep:::.cbs_impute_trade(
+      .zero_trade_cbs(),
+      .zero_trade_record(),
+      trade_zero = choice
+    ) |>
+      dplyr::select(year, area_code, item_cbs_code, element, value) |>
+      tidyr::pivot_wider(names_from = element, values_from = value)
+
+    expect_equal(
+      wide$production + wide$import - wide$export - wide$stock_variation,
+      wide$domestic_supply
+    )
+  })
+})
+
+test_that("every build says how much trade the zeros disputed", {
+  # Reported under either setting: it is what the default recovered, and under
+  # `"keep"` it is the only trace the discarded trade leaves -- the row stays,
+  # at zero, indistinguishable from an area that genuinely imports nothing.
+  expect_message(
+    whep:::.cbs_impute_trade(.zero_trade_cbs(), .zero_trade_record()),
+    "366892 tonnes"
+  )
+  # Nothing to say when no zero conflicts with a record.
+  expect_no_message(
+    whep:::.cbs_impute_trade(
+      dplyr::filter(.zero_trade_cbs(), item_cbs_code != 2657),
+      dplyr::filter(.zero_trade_record(), item_cbs_code != 2657)
+    )
+  )
+})
+
+test_that("the tier-1 fill counts both elements and validates its choice", {
+  # Exports are the mirror case and the riskier half: a created export on a
+  # row with no production forces the balancing cascade to invent some.
+  expect_equal(
+    whep:::.fill_tier1_trade(c(0, NA, 5, 0), c(10, 10, 10, 0), "keep"),
+    c(0, 10, 5, 0)
+  )
+  expect_equal(
+    whep:::.fill_tier1_trade(c(0, NA, 5, 0), c(10, 10, 10, 0), "prefer_record"),
+    c(10, 10, 5, 0)
+  )
+  expect_error(
+    whep:::.cbs_impute_trade(.zero_trade_cbs(), trade_zero = "always"),
+    class = "rlang_error"
+  )
+  expect_error(
+    build_commodity_balances(example = TRUE, trade_zero = "always"),
+    class = "rlang_error"
+  )
+})
+
+
 # -- .select_best_source -------------------------------------------------------
 
 test_that(".select_best_source prioritises FAOSTAT_prod source", {
