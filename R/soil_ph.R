@@ -222,15 +222,27 @@ read_hwsd_topsoil_soc <- function(
 # required only by the "measured" method, so a "reference" run is not
 # refused over a column it never reads.
 .hwsd_soc_columns <- function(bulk_density = "measured") {
-  base <- c("mu_global", "share", "t_oc", "t_ref_bulk_density", "t_gravel")
+  base <- c(
+    "mu_global",
+    "share",
+    "t_oc",
+    "t_ref_bulk_density",
+    "t_gravel",
+    "topsoil_depth_cm"
+  )
   if (bulk_density == "measured") c(base, "t_bulk_density") else base
 }
 
-# Per-map-unit 0-30 cm carbon stock (MgC/ha), share-weighted over the map
+# Per-map-unit topsoil carbon stock (MgC/ha), share-weighted over the map
 # unit's soil components. HWSD 1.2's topsoil is 0-30 cm, so the stock is
 #   t_oc / 100 * bulk [kg/m3] * 0.3 [m] * (1 - gravel)   kg C / m2
 # which, with bulk in g/cm3 and 1 kg/m2 = 10 Mg/ha, collapses to
-#   t_oc * bulk * 30 * (1 - gravel)                      Mg C / ha
+#   t_oc * bulk * depth * (1 - gravel)                   Mg C / ha
+#
+# The depth is READ FROM THE FILE (`topsoil_depth_cm`), not assumed: HWSD
+# v1.2's topsoil is 0-30 cm and HWSD2's D1 is 0-20 cm, and both producers
+# write this same artifact. Hardcoding 30 would overstate an HWSD2 extract
+# by half (whep#851).
 # (Hiederer & Koechy 2011). A component with no carbon or no density reports
 # nothing rather than zero, so it is dropped from its map unit's mean
 # instead of dragging it down.
@@ -246,7 +258,10 @@ read_hwsd_topsoil_soc <- function(
     ) |>
     dplyr::filter(!is.na(.data$t_oc), !is.na(.data$bulk)) |>
     dplyr::mutate(
-      soc_obs_mgc_ha = .data$t_oc * .data$bulk * 30 * (1 - .data$gravel)
+      soc_obs_mgc_ha = .data$t_oc *
+        .data$bulk *
+        .data$topsoil_depth_cm *
+        (1 - .data$gravel)
     ) |>
     dplyr::summarise(
       soc_obs_mgc_ha = stats::weighted.mean(

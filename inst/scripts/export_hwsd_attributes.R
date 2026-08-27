@@ -32,6 +32,11 @@
 # superset of it.
 #
 # Reference:
+# t_sand and t_silt are exported so this producer emits the same texture
+# columns as download_hwsd.R. Century's texture terms need silt (fTxtr and Es
+# are both functions of clay + silt) and shipped a placeholder 45% because
+# silt was reachable only on the other path (whep#345).
+#
 #   FAO/IIASA/ISRIC/ISSCAS/JRC (2012) "Harmonized World Soil Database
 #   version 1.2" -- attribute database field list, T_USDA_TEX_CLASS,
 #   T_PH_H2O and T_CLAY (Topsoil Clay Fraction, % wt.).
@@ -53,12 +58,22 @@ db <- DBI::dbConnect(RSQLite::SQLite(), sqlite_path)
 hwsd_attr <- DBI::dbGetQuery(
   db,
   "SELECT mu_global, t_usda_tex_class AS t_usda_tex, share, t_clay, t_ph_h2o,
-          t_oc, t_bulk_density, t_ref_bulk_density, t_gravel
+          t_sand, t_silt, t_oc, t_bulk_density, t_ref_bulk_density,
+          t_gravel
    FROM hwsd_data"
 )
 DBI::dbDisconnect(db)
 
 hwsd_attr <- tibble::as_tibble(hwsd_attr)
+
+# Stamp the provenance INTO the artifact. Two scripts write this filename --
+# this one from HWSD v1.2, whose topsoil is 0-30 cm, and
+# inst/scripts/download/download_hwsd.R from HWSD2, whose D1 layer is
+# 0-20 cm. Same path, same name, different depth, and until now nothing in
+# the file said which had run. Every HWSD reader silently got whichever was
+# last (whep#851).
+hwsd_attr$source <- "hwsd_v1.2"
+hwsd_attr$topsoil_depth_cm <- 30
 
 readr::write_csv(hwsd_attr, file.path(hwsd_dir, "hwsd_data.csv"))
 cli::cli_alert_success("hwsd_data.csv: {nrow(hwsd_attr)} rows")

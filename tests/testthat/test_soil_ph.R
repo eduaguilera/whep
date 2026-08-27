@@ -441,12 +441,18 @@ testthat::test_that("read_soil_ph reads real local HWSD data (smoke)", {
 # component with no carbon at all.
 .hwsd_soc_fixture <- function() {
   tibble::tribble(
-    ~mu_global, ~share, ~t_oc, ~t_bulk_density, ~t_ref_bulk_density, ~t_gravel,
-    1L,         75,     1.0,   1.30,            1.40,                10,
-    1L,         25,     2.0,   1.20,            1.40,                0,
-    2L,         100,    30.0,  0.25,            1.30,                0,
-    3L,         50,     1.5,   1.50,            1.50,                0,
-    3L,         50,     NA,    1.50,            1.50,                0
+    ~mu_global,
+    ~share,
+    ~t_oc,
+    ~t_bulk_density,
+    ~t_ref_bulk_density,
+    ~t_gravel,
+    ~topsoil_depth_cm,
+    1L, 75, 1.0, 1.30, 1.40, 10, 30,
+    1L, 25, 2.0, 1.20, 1.40, 0, 30,
+    2L, 100, 30.0, 0.25, 1.30, 0, 30,
+    3L, 50, 1.5, 1.50, 1.50, 0, 30,
+    3L, 50, NA, 1.50, 1.50, 0, 30
   )
 }
 
@@ -560,5 +566,57 @@ testthat::test_that("read_hwsd_topsoil_soc example is self-contained", {
     columns = "soc_obs_mgc_ha",
     left = 1,
     right = 600
+  )
+})
+
+# ---- the topsoil depth comes from the artifact, not from a constant ----
+
+testthat::test_that("the SOC reader requires the depth stamp", {
+  # Two scripts write hwsd_data.csv: download_hwsd.R from HWSD2 (D1 =
+  # 0-20 cm) and export_hwsd_attributes.R from HWSD v1.2 (0-30 cm). Nothing
+  # else distinguishes them, so a reader that multiplies by a hardcoded 30
+  # would overstate an HWSD2 extract by half (whep#851).
+  testthat::expect_true(
+    "topsoil_depth_cm" %in% whep:::.hwsd_soc_columns("measured")
+  )
+  testthat::expect_true(
+    "topsoil_depth_cm" %in% whep:::.hwsd_soc_columns("reference")
+  )
+})
+
+testthat::test_that("the stock scales with the stamped depth", {
+  base <- tibble::tribble(
+    ~mu_global, ~share, ~t_oc, ~t_bulk_density, ~t_ref_bulk_density,
+    ~t_gravel, ~topsoil_depth_cm,
+    1L, 100, 1.5, 1.4, 1.4, 0, 30
+  )
+  shallow <- dplyr::mutate(base, topsoil_depth_cm = 20)
+
+  deep_soc <- whep:::.derive_map_unit_soc(base, "measured")$soc_obs_mgc_ha
+  shallow_soc <- whep:::.derive_map_unit_soc(
+    shallow,
+    "measured"
+  )$soc_obs_mgc_ha
+
+  testthat::expect_equal(deep_soc, 1.5 * 1.4 * 30)
+  testthat::expect_equal(shallow_soc, 1.5 * 1.4 * 20)
+  # Exactly two thirds - the depth is genuinely load-bearing, not decorative.
+  testthat::expect_equal(shallow_soc / deep_soc, 2 / 3)
+})
+
+testthat::test_that("an extract with no depth stamp is named, not guessed", {
+  dir <- withr::local_tempdir()
+  attr <- tibble::tribble(
+    ~mu_global, ~share, ~t_oc, ~t_bulk_density, ~t_ref_bulk_density, ~t_gravel,
+    1L, 100, 1.5, 1.4, 1.4, 0
+  )
+  readr::write_csv(attr, file.path(dir, "hwsd_data.csv"))
+
+  testthat::expect_error(
+    whep:::.read_hwsd_attributes_local(
+      dir,
+      required = whep:::.hwsd_soc_columns("measured")
+    ),
+    "topsoil_depth_cm"
   )
 })
