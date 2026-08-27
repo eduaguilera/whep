@@ -218,6 +218,33 @@ testthat::test_that("build_primary_prices uses export trade prices", {
   testthat::expect_equal(wheat$price, 0.5)
 })
 
+testthat::test_that("build_primary_prices returns one row per year/item", {
+  # Regression test for issue #229: .compute_primary_prices used to merge
+  # a `prod_bridge` lookup (item_prod, item_cbs_code from items_prod_full)
+  # whose added columns were never used downstream. If that lookup were
+  # ever non-unique on item_prod_code, the merge would silently fan out
+  # duplicate (year, item_prod_code) rows. Assert the invariant directly,
+  # independent of whether items_prod_full happens to be unique today.
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 5000,
+    2020L, 9, "15", "tonnes", 3000,
+    2020L, 2, "1807", "tonnes", 1000
+  )
+
+  trade_prices <- .fake_trade_prices()
+
+  result <- build_primary_prices(
+    primary_prod = primary_prod,
+    trade_prices = trade_prices
+  )
+
+  key_counts <- result |>
+    dplyr::count(year, item_prod_code)
+
+  testthat::expect_true(all(key_counts$n == 1))
+})
+
 testthat::test_that("build_primary_prices falls back to production value", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value,
