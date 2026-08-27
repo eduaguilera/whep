@@ -238,6 +238,40 @@ testthat::test_that("compute_footprint reports conservation when asked", {
   )
 })
 
+testthat::test_that("over-tracing is reported honestly, not clamped to 0%", {
+  # Inconsistent single-sector system (final demand exceeds output, the
+  # same kind of imbalance `build_io_model()` can leave behind), traced
+  # with `conserve_extensions = FALSE` so the over-trace isn't rescaled
+  # away before it reaches the report.
+  z_mat <- matrix(0)
+  x_vec <- c(50)
+  y_mat <- matrix(100)
+  extensions <- c(50)
+  labels <- tibble::tibble(area_code = 1L, item_cbs_code = 1L)
+
+  msgs <- testthat::capture_messages(
+    whep::compute_footprint(
+      z_mat = z_mat,
+      x_vec = x_vec,
+      y_mat = y_mat,
+      extensions = extensions,
+      labels = labels,
+      conserve_extensions = FALSE,
+      report_conservation = TRUE
+    )
+  )
+  headline <- msgs[grepl("Conservation:", msgs)]
+
+  testthat::expect_length(headline, 1)
+  # The headline itself must state the over-trace, not clamp it to 0%.
+  testthat::expect_match(
+    headline,
+    "exceeds direct extension by\\s*100%",
+    perl = TRUE
+  )
+  testthat::expect_no_match(headline, "Conservation:\\s*0%")
+})
+
 # .qc_supply_use_balance ----------------------------------------------
 
 .cbs_gross_imbalance_fixture <- function() {
