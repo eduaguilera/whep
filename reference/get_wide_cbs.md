@@ -68,6 +68,11 @@ For use:
 
 - `processing`: Used to obtain other subproducts.
 
+- `processing_primary`: Used to obtain other subproducts, for the
+  handful of primary items (palm fruit, hops, seed cotton, coconuts,
+  hemp, kapok fruit, linum) whose entire domestic supply is destined for
+  processing. Zero for every other item.
+
 - `other_uses`: Any other use not included above.
 
 - `stock_addition`: Biomass placed into storage (non-negative). Positive

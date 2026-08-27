@@ -123,10 +123,12 @@ compute_footprint(
 - report_conservation:
 
   If `TRUE`, emit a message after computing the footprint reporting the
-  conservation gap (the share of the direct extension that is not
-  embodied in final demand), via
-  [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md).
-  Off by default so the gap is opt-in but never silent when requested.
+  conservation gap: the signed global discrepancy between direct
+  extension and embodied footprint, via
+  [`check_footprint_conservation()`](https://eduaguilera.github.io/whep/reference/check_footprint_conservation.md)
+  – the share not embodied in final demand when negative, or the share
+  over-traced when positive. Off by default so the gap is opt-in but
+  never silent when requested.
 
 ## Value
 

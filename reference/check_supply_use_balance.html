@@ -3,11 +3,17 @@
 wide commodity balance sheet, the fundamental accounting
 identity behind the input-output model. Supply is
 production + import + stock_withdrawal; use is
-export + food + feed + seed + processing + other_uses + stock_addition."><meta property="og:description" content="Verify that total supply equals total use for every row of a
+export + food + feed + seed + processing + processing_primary + other_uses + stock_addition. processing_primary is treated as
+0 when the column is absent, since it is only nonzero for the
+handful of primary items whose entire domestic supply is destined
+for processing (see get_wide_cbs())."><meta property="og:description" content="Verify that total supply equals total use for every row of a
 wide commodity balance sheet, the fundamental accounting
 identity behind the input-output model. Supply is
 production + import + stock_withdrawal; use is
-export + food + feed + seed + processing + other_uses + stock_addition."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+export + food + feed + seed + processing + processing_primary + other_uses + stock_addition. processing_primary is treated as
+0 when the column is absent, since it is only nonzero for the
+handful of primary items whose entire domestic supply is destined
+for processing (see get_wide_cbs())."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -51,7 +57,10 @@ export + food + feed + seed + processing + other_uses + stock_addition."><meta p
 wide commodity balance sheet, the fundamental accounting
 identity behind the input-output model. Supply is
 <code>production + import + stock_withdrawal</code>; use is
-<code>export + food + feed + seed + processing + other_uses + stock_addition</code>.</p>
+<code>export + food + feed + seed + processing + processing_primary + other_uses + stock_addition</code>. <code>processing_primary</code> is treated as
+<code>0</code> when the column is absent, since it is only nonzero for the
+handful of primary items whose entire domestic supply is destined
+for processing (see <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>).</p>
     </div>
 
     <div class="section level2">

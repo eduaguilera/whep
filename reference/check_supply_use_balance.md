@@ -4,7 +4,11 @@ Verify that total supply equals total use for every row of a wide
 commodity balance sheet, the fundamental accounting identity behind the
 input-output model. Supply is `production + import + stock_withdrawal`;
 use is
-`export + food + feed + seed + processing + other_uses + stock_addition`.
+`export + food + feed + seed + processing + processing_primary + other_uses + stock_addition`.
+`processing_primary` is treated as `0` when the column is absent, since
+it is only nonzero for the handful of primary items whose entire
+domestic supply is destined for processing (see
+[`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)).
 
 ## Usage
 

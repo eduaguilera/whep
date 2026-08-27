@@ -212,10 +212,12 @@ than the source extension.</p></dd>
 
 <dt id="arg-report-conservation">report_conservation<a class="anchor" aria-label="anchor" href="#arg-report-conservation"></a></dt>
 <dd><p>If <code>TRUE</code>, emit a message after
-computing the footprint reporting the conservation gap (the
-share of the direct extension that is not embodied in final
-demand), via <code><a href="check_footprint_conservation.html">check_footprint_conservation()</a></code>. Off by default
-so the gap is opt-in but never silent when requested.</p></dd>
+computing the footprint reporting the conservation gap: the
+signed global discrepancy between direct extension and
+embodied footprint, via <code><a href="check_footprint_conservation.html">check_footprint_conservation()</a></code> –
+the share not embodied in final demand when negative, or the
+share over-traced when positive. Off by default so the gap is
+opt-in but never silent when requested.</p></dd>
 
 </dl></div>
     <div class="section level2">
