@@ -740,3 +740,46 @@ testthat::test_that(".balance_total_trade rescales larger side", {
     c(50, 100)
   )
 })
+
+# .match_btd_item_codes / .clean_bilateral_trade -------------------------------
+
+testthat::test_that(".match_btd_item_codes resolves CBS item names", {
+  items <- whep::items_cbs |>
+    dplyr::slice_head(n = 3)
+
+  testthat::expect_equal(
+    .match_btd_item_codes(items$item_cbs_name),
+    items$item_cbs_code
+  )
+})
+
+testthat::test_that(".match_btd_item_codes warns on unmatched items", {
+  known_name <- whep::items_cbs$item_cbs_name[[1]]
+  known_code <- whep::items_cbs$item_cbs_code[[1]]
+  # "Wheat" is a raw FAOSTAT trade name; the CBS name is "Wheat and products".
+  item <- c(known_name, "Wheat", "Wheat", "Maize (corn)")
+
+  testthat::expect_warning(
+    codes <- .match_btd_item_codes(item),
+    "3 rows will be dropped"
+  )
+  testthat::expect_equal(codes, c(known_code, NA, NA, NA))
+})
+
+testthat::test_that(".clean_bilateral_trade resolves every pin item", {
+  # The `bilateral_trade` pin ships pre-harmonized CBS item names, so the
+  # name match must resolve every row. A refreshed pin carrying raw FAOSTAT
+  # trade names ("Wheat" instead of "Wheat and products") would trip this.
+  btd <- tibble::tribble(
+    ~Year, ~area_code, ~area_code_p, ~Element,  ~item,                 ~Unit,    ~Value,
+    2010,  68,         203,          "Export",  "Wheat and products",  "tonnes", 5,
+    2010,  203,        68,           "Import",  "Barley and products", "tonnes", 7,
+    2010,  68,         203,          "Export",  "Sheep",               "Head",   3
+  )
+
+  result <- testthat::expect_no_warning(.clean_bilateral_trade(btd))
+
+  testthat::expect_false(any(is.na(result$item_cbs_code)))
+  testthat::expect_equal(sort(result$unit), c("heads", "tonnes", "tonnes"))
+  testthat::expect_equal(nrow(result), 3)
+})
