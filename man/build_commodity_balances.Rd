@@ -61,21 +61,22 @@ keeps the remaining decisions open.
 \code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
 get the wide table with recovery applied.}
 
-\item{trade_zero}{One of \code{"keep"} (default) or \code{"prefer_record"}, selecting
-what happens when the CBS carries a \strong{zero} import or export and the
-trade record for the same \verb{(year, area_code, item_cbs_code)} carries a
-positive quantity. The trade record is filled in with
-\code{\link[dplyr:coalesce]{dplyr::coalesce()}}, which replaces only a missing value, so \code{"keep"}
-lets the zero stand and the trade is discarded. \code{"prefer_record"} takes
-the positive trade quantity instead; a non-zero CBS value is never
-overwritten and a zero trade record never overwrites anything, so it can
-only add trade. Selecting it \strong{moves published values} — at 2010 it
-raises 4,493 import keys by 9.70 Mt and 3,771 export keys by 10.27 Mt,
-over 179 areas. Which is right is a source-precedence question and not
-settled here; whep#866 holds the measurement, including the 5.88 Mt of
-imports that land on a row with no production, where the balancing
-cascade has to invent some. The conflict count is reported by every build
-under either setting.}
+\item{trade_zero}{One of \code{"prefer_record"} (default) or \code{"keep"},
+selecting what happens when the CBS carries a \strong{zero} import or export
+and the trade record for the same \verb{(year, area_code, item_cbs_code)}
+carries a positive quantity. The trade record is filled in with
+\code{\link[dplyr:coalesce]{dplyr::coalesce()}}, which replaces only a missing value, so the zero
+used to stand and the trade was discarded. \code{"prefer_record"} takes the
+positive trade quantity instead, because such a zero is not an
+observation: measured at 2010, every one of them carries FAO flag \code{"I"}
+(imputed) or the legacy \code{"S"} (standardized), and neither food-balance
+vintage carries a single official \code{"A"} on a trade row. A non-zero CBS
+value is never overwritten and a zero trade record never overwrites
+anything, so the fill can only add trade. \code{"keep"} restores the
+pre-whep#866 behaviour. \strong{The default moves published values} — at 2010
+it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
+10.27 Mt, moving 26,538 published rows over 180 areas; see \code{NEWS.md}.
+The conflict count is reported by every build under either setting.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When
