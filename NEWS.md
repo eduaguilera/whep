@@ -81,6 +81,32 @@
   `coalesce()` fill policy. Which vocabulary the two sources should share stays
   an open harmonization decision in #884.
 
+* **The `historical-land-areas` pin is regenerated on the current polities
+  snapshot (#934).** The pin is static per LUH2 vintage *and* polities
+  snapshot, and the deployed `20260818T110621Z-08814` predated the #906
+  re-sync: PR #914's guard named 7 polity codes `whep::polities` no longer has
+  (`CIV-1893-1900`, `GHA-1898-1956`, `HUN-1918-1919`, `KEN-1902-1906`,
+  `LAO-1893-1953`, `SEN-1886-1959`, `TCD-1920-1960`) and 256 bucket-years over
+  8 buckets whose territory label had moved. The replacement
+  `20260826T154952Z-48539` was built by `data-raw/historical_land_areas.R`
+  over 1850-1961 (25.8 min) against LUH2 `UofMD-landState-LUH2-GCB2022`,
+  `polycell_support` `20260825T102349Z-1a0eb` and the 781-row snapshot; the
+  guard names nothing on it and still fires on the old version.
+  **Published values change on the opt-in `land_method = "historical_polity"`
+  path only** (the default `"present_day"` never reads this pin). Summed over
+  all 18,083 bucket-years the two pins share, agriland moves +0.087%
+  (264,828 -> 265,059 Mha of bucket-years); 510 bucket-years over 50 buckets
+  move at all, and 104 bucket-years that the old pin could not measure are now
+  measurable (Cabo Verde and Suriname 1850-1884, Chile 1850-1882, Côte
+  d'Ivoire 1900). Individual bucket-years move much more than the total:
+  Estonia 1918-19 +98.5%, Poland 1919 +92.8%, Latvia 1918-19 +87.6% and
+  Tunisia 1875-80 +84%, all because the polycell support they are measured
+  against was itself rebuilt (`20260825T102349Z-1a0eb`, 721 polities against
+  685). Largest whole-bucket shifts are Tunisia +9.08%, Kenya -1.21%, Poland
+  +0.97% and Ethiopia +0.65%. The `.example_historical_land_areas()` fixture
+  is refreshed to match, moving three of its ten rows (its
+  `agriland` stays the sum of the rounded parts, as its test asserts).
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different
