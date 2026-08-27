@@ -97,17 +97,28 @@
 #'   footprint diagnostics below are where that disagreement is now reported.
 #'
 #'   **Identity is `polity_code`, and only `polity_code`.** `area_code` rides
-#'   along as a label and is not a key: `polity_area_crosswalk` folds 505
-#'   polity codes into 201 reporting buckets, 113 of which hold more than one
-#'   polity and one of which (206) holds Sudan and South Sudan at the same
-#'   time. A table whose whole purpose is correct territorial attribution
-#'   cannot be keyed on a bucket that merges two countries, so this one is
-#'   not, and no `reporting_polity_code` or `polity_area_code` is derived
-#'   here. A consumer joining to a reporting-vocabulary output converts at its
-#'   own boundary, and **that conversion is where the lossy fold happens** --
-#'   deliberately visible at the consumer rather than hidden in the support.
+#'   along as a label and is not a key: a polity can have no reporting area at
+#'   all, and two polities can share one. A table whose whole purpose is
+#'   correct territorial attribution cannot be keyed on a code that merges two
+#'   countries, so this one is not, and no `reporting_polity_code` or
+#'   `polity_area_code` is derived here. A consumer joining to a
+#'   reporting-vocabulary output converts at its own boundary, and **that
+#'   conversion is where the lossy fold happens** -- deliberately visible at
+#'   the consumer rather than hidden in the support.
 #'   [build_n_deposition()] refuses an unconverted support instead of
 #'   converting one silently.
+#'
+#'   The label is the **reporting** `area_code`, the code space `country_areas`
+#'   and the national nutrient tables are keyed on -- not the coarser
+#'   `polity_area_code` bucket the matrix workflows aggregate on. Writing the
+#'   bucket here, which this producer did until whep#907, put 206 (Sudan plus
+#'   South Sudan) and 999 (Rest of World, absorbing Syria, North Macedonia,
+#'   Eswatini, Palestine, Equatorial Guinea and French Guiana among 43
+#'   territories) in a column named `area_code`, and every `area_code`-keyed
+#'   consumer dropped those areas' whole national total. A polity with no
+#'   reporting region of its own -- Greenland, Western Sahara, most
+#'   dependencies -- still carries its bucket, because that is the only home
+#'   the reporting vocabulary gives it.
 #'
 #' @section Land definitions in play:
 #' Four definitions of "land" are live in this pipeline and they disagree by
@@ -462,13 +473,74 @@ expand_polycell_years <- function(support, years) {
   if (rlang::has_name(attrs, "area_code")) {
     return(as.integer(attrs$area_code))
   }
-  lookup <- whep::polity_area_crosswalk |>
-    dplyr::distinct(.data$polity_code, .data$polity_area_code) |>
-    dplyr::filter(!is.na(.data$polity_area_code)) |>
-    dplyr::distinct(.data$polity_code, .keep_all = TRUE)
-  as.integer(
-    lookup$polity_area_code[match(attrs$polity_code, lookup$polity_code)]
-  )
+  .polity_reporting_area_code(attrs$polity_code)
+}
+
+# The REPORTING `area_code` a polity answers under -- the one code space
+# `country_areas`, the national fertilizer tables and every other national
+# input are keyed on. Resolved once here so the producer and the carbon seam
+# (`.carbon_support_to_area_code()`) cannot disagree.
+#
+# `polity_area_crosswalk` carries both codes on the same row and this used to
+# take the wrong one. `polity_area_code` is the coarser matrix bucket: it folds
+# 113 reporting areas into 999 and Sudan plus South Sudan into 206, so a column
+# named `area_code` that holds it cannot serve an `area_code`-keyed caller.
+# Measured on the deployed pin at 2015 (whep#907), the bucket space left 7
+# reporting areas with no cell at all -- Sudan, South Sudan, Syria, North
+# Macedonia, Eswatini, Palestine and Equatorial Guinea, 18.75 Mha of harvested
+# area, 1.37% of the global total -- while every one of them has a row in
+# `regions.csv` and a polity with a geometry.
+#
+# The bucket is kept in exactly two cases, and never as a fallback for a lookup
+# that merely failed:
+#
+#   * the polity maps to MORE THAN ONE reporting area, which makes it a
+#     residual aggregate -- `ROW` absorbs 62 of them by design and the
+#     historical Ethiopian polities carry both `62` and `238` -- so no single
+#     reporting code names it;
+#   * the reporting code is not in `regions.csv`. Greenland, Western Sahara and
+#     30-odd dependencies have a FAOSTAT code but no WHEP reporting region, and
+#     999 is the only home the vocabulary gives them.
+#
+# The resolution is therefore inside `regions.csv`'s vocabulary and independent
+# of `options(whep.unfold_rest_of_world)`, which is the point: a grid is keyed
+# on the raw reporting code and any fold to the bucket space -- the switchable
+# Rest-of-World one or the 206 one whep#414 still owns -- is applied downstream
+# at `area_key`, where it stays recoverable. `.check_cell_polity_vintage()`
+# already refuses a grid carrying 206 for the same reason.
+#
+# It reads the SHIPPED table rather than `.polity_crosswalk()`, which is the
+# opposite of what `.cell_polity_bucket_lookup()` does, because the unfold
+# switch operates on the AREA side and destroys the residual aggregate's
+# identity on this one: with the switch at its default, `ROW-1850-2025` maps to
+# 62 reporting areas each carrying its own `polity_area_code`, so the fallback
+# has no 999 to fall back to and hands `ROW`'s 72.92 Mha of leftover territory
+# whichever member sorts first (area 24, the British Indian Ocean Territory).
+.polity_reporting_area_code <- function(polity_code) {
+  lookup <- .polity_area_code_lookup()
+  lookup$area_code[match(polity_code, lookup$polity_code)]
+}
+
+.polity_area_code_lookup <- function() {
+  live <- .regions_csv_area_codes()
+  whep::polity_area_crosswalk |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(
+      .data$polity_code,
+      .data$area_code,
+      .data$polity_area_code
+    ) |>
+    dplyr::mutate(n_areas = dplyr::n(), .by = "polity_code") |>
+    dplyr::mutate(
+      area_code = dplyr::if_else(
+        .data$n_areas == 1L & as.integer(.data$area_code) %in% live,
+        as.integer(.data$area_code),
+        as.integer(.data$polity_area_code)
+      )
+    ) |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(.data$polity_code, .keep_all = TRUE) |>
+    dplyr::select("polity_code", "area_code")
 }
 
 .pcs_col <- function(df, nm, default) {
