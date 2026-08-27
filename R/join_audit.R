@@ -450,6 +450,15 @@
     "The guard on that lookup: aborts if one area folds into two buckets, which
      would make the comparison key ambiguous. Counting the rows per area is
      the check, so a year in the key would defeat it.",
+    ".fao_area_iso3_lookup", "distinct",
+    "fao_area_name, iso3_code, area_name, area_iso3c", 1L, "identity_lookup",
+    "The FAOSTAT area name -> ISO3 lookup `get_faostat_data()` resolves
+     `ISO3_CODE` through (whep#541). It is the identity re-keying itself: one
+     row per FAOSTAT area name, off a crosswalk whose `area_iso3c` is a
+     property of the area and not of a year. Collapsing the crosswalk's polity
+     periods is the point -- an area has one ISO3 code across all of them, and
+     a year in the key would return one row per period for the same name and
+     make the `match()` below pick whichever came first.",
     ".federation_land_bridge", "[", "area_code, area", 1L, "identity_lookup",
     "Expands each dissolved polity to its successor ISO3 codes off
      `.current_area_lookup()`, which has no year. The label is one per code
