@@ -334,3 +334,46 @@ testthat::test_that("sampled centres land on WHEP's canonical half-degree grid",
   testthat::expect_identical(water$lon, canonical)
   testthat::expect_identical(water$lat, floor(water$lat / 0.5) * 0.5 + 0.25)
 })
+
+# whep#908. The pin is a build artefact of `whep::polities`, and the two have
+# drifted apart three times (whep#890, whep#905, whep#908) -- each found by a
+# consumer tripping over a missing territory, never by a check. This is the
+# check. It is deliberately a WARNING and not an abort: a stale pin is usable,
+# and aborting would break every reader on a refresh nobody has run yet.
+testthat::test_that("reading a pin behind the vocabulary names the missing polities", {
+  support <- tibble::tibble(
+    polycell_id = 1:2,
+    polity_code = c("AAA-1900-2000", "BBB-1900-2000"),
+    cell_id = 1:2,
+    start_year = c(1900L, 1900L),
+    end_year = c(2000L, 2000L)
+  )
+  prepared <- tibble::tibble(
+    polity_code = c("AAA-1900-2000", "BBB-1900-2000", "ZZZ-2010-2025")
+  )
+  testthat::with_mocked_bindings(
+    testthat::expect_warning(
+      whep:::.warn_polycell_vintage(support),
+      "ZZZ-2010-2025"
+    ),
+    .pcs_prepare_polities = function(...) prepared,
+    .package = "whep"
+  )
+
+  # ...and stays silent when the pin covers the vocabulary. Without this half
+  # the guard could warn unconditionally and still pass the assertion above.
+  testthat::with_mocked_bindings(
+    testthat::expect_silent(whep:::.warn_polycell_vintage(support)),
+    .pcs_prepare_polities = function(...) prepared[1:2, ],
+    .package = "whep"
+  )
+
+  # A pin carrying MORE than the vocabulary is not a staleness: a retired polity
+  # keeps its cells until the next regeneration, and warning about that would
+  # cry wolf on every upstream retirement.
+  testthat::with_mocked_bindings(
+    testthat::expect_silent(whep:::.warn_polycell_vintage(support)),
+    .pcs_prepare_polities = function(...) prepared[1, ],
+    .package = "whep"
+  )
+})
