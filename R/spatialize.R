@@ -638,8 +638,14 @@ build_gridded_landuse <- function(
   if (is.null(multicropping)) {
     capacity_dt[, `:=`(mc_rainfed = 1, mc_irrigated = 1)]
   } else {
+    # Left join: a cropland cell missing from the multicropping layer must
+    # stay in capacity_dt (not be dropped), defaulting to a multicropping
+    # factor of 1 rather than falling through to the Inf/unconstrained
+    # default further down (#223).
     mc_dt <- data.table::as.data.table(multicropping)
-    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat), nomatch = 0L]
+    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat)]
+    capacity_dt[is.na(mc_rainfed), mc_rainfed := 1]
+    capacity_dt[is.na(mc_irrigated), mc_irrigated := 1]
   }
   capacity_dt[, `:=`(
     rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
