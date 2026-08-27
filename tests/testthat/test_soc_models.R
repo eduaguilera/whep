@@ -479,3 +479,67 @@ test_that("HSOC relaxes from an initial stock toward its equilibrium", {
     tolerance = 1e-6
   )
 })
+
+# ---- Century silt is measured, not a signature default -----------------
+
+testthat::test_that(".century_silt falls back EXACTLY to the table", {
+  # Any drift here silently moves every existing Century result, so the
+  # fallback has to be the tabulated value itself, not a copy of it.
+  tabulated <- whep:::.soc_param("century", "defaults", "silt_pct")
+  testthat::expect_identical(whep:::.century_silt(NA), tabulated)
+  testthat::expect_identical(whep:::.century_silt(NA_real_), tabulated)
+  testthat::expect_identical(whep:::.century_silt(28.2), 28.2)
+})
+
+testthat::test_that("a Century run with no silt reproduces the old value", {
+  # 7.296 yr per unit input at clay 25, cm 1 was the shipped behaviour.
+  combos <- tibble::tibble(
+    c_input_mgc_ha_yr = 2,
+    humified_fraction = 0.13,
+    climate_modifier = 1,
+    clay_pct = 25
+  )
+  # No silt_pct column at all: must not warn, must not move.
+  testthat::expect_no_warning(
+    eq <- whep:::.cb_closed_form_equilibrium("century", combos)
+  )
+  testthat::expect_equal(eq, 2 * 7.296, tolerance = 1e-4)
+})
+
+testthat::test_that("silt is as load-bearing as clay in Century", {
+  # Both texture terms are functions of clay PLUS silt, so a silt change
+  # must move the equilibrium. HWSD's global mean is 28.2% against the
+  # shipped placeholder of 45%.
+  ref <- whep:::.cb_century_equilibrium(2, 1, 25, 45)
+  real <- whep:::.cb_century_equilibrium(2, 1, 25, 28.2)
+  testthat::expect_lt(real, ref)
+  testthat::expect_equal(real / ref, 0.891, tolerance = 1e-2)
+
+  # Monotone: more silt, more protection, larger equilibrium.
+  silts <- c(5, 20, 35, 50, 70)
+  eqs <- vapply(
+    silts,
+    \(x) whep:::.cb_century_equilibrium(2, 1, 25, x),
+    numeric(1)
+  )
+  testthat::expect_true(all(diff(eqs) > 0))
+})
+
+testthat::test_that("calculate_soc_century honours silt_pct", {
+  testthat::skip_if_not_installed("deSolve")
+  a <- whep::calculate_soc_century(50, 2, 5, clay_pct = 25)
+  b <- whep::calculate_soc_century(50, 2, 5, clay_pct = 25, silt_pct = 28.2)
+  testthat::expect_false(
+    isTRUE(all.equal(dplyr::last(a$soc_total), dplyr::last(b$soc_total)))
+  )
+  # And the default reproduces the tabulated silt exactly.
+  tabulated <- whep:::.soc_param("century", "defaults", "silt_pct")
+  c_ <- whep::calculate_soc_century(
+    50,
+    2,
+    5,
+    clay_pct = 25,
+    silt_pct = tabulated
+  )
+  testthat::expect_equal(a$soc_total, c_$soc_total)
+})

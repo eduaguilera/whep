@@ -234,6 +234,14 @@ calculate_soc_amg <- function(
 #' @param clay_pct Soil clay content (percent).
 #' @param climate_modifier Annual climate rate modifier (dimensionless),
 #'   scaling every pool decomposition rate.
+#' @param silt_pct Soil silt content (percent). \code{NA}, the default, falls
+#'   back to \link{soc_turnover_params}' \code{century,defaults,silt_pct},
+#'   which is SoilR's function-signature default of 45 rather than a
+#'   measurement. Both of Century's texture terms are functions of clay PLUS
+#'   silt -- the active-pool multiplier
+#'   \code{fTxtr = 1 - 0.75 * (clay + silt)} and its respired fraction
+#'   \code{Es = 0.85 - 0.68 * (clay + silt)} -- so silt is as load-bearing as
+#'   clay. HWSD's share-weighted global mean is 28.2%, not 45%.
 #' @return A tibble with one row per year: \code{year}, \code{str},
 #'   \code{met}, \code{act}, \code{slw}, \code{pas} and \code{soc_total}.
 #' @source Parton, W. J. et al. (1987).
@@ -252,10 +260,11 @@ calculate_soc_century <- function(
   c_input_mgc_ha_yr,
   years,
   clay_pct = NA,
-  climate_modifier = 1
+  climate_modifier = 1,
+  silt_pct = NA
 ) {
   rlang::check_installed("deSolve")
-  params <- .century_params(clay_pct, climate_modifier)
+  params <- .century_params(clay_pct, climate_modifier, silt_pct)
   state <- .century_init(initial_soc_mgc_ha)
   .century_solve(state, params, c_input_mgc_ha_yr, years)
 }
@@ -618,10 +627,22 @@ calculate_soc_lpjml <- function(
 
 # -- Century helpers ----------------------------------------------------------
 
-.century_params <- function(clay_pct, xi) {
+# Measured silt when supplied, otherwise the tabulated default.
+#
+# That default is 45, SoilR CenturyModel's function-signature value, not a
+# soil property (whep#345). WHEP already overrides SoilR's companion
+# `clay = 0.2` with real per-cell HWSD clay, so leaving silt on the
+# placeholder made one of the two texture terms measured and the other
+# assumed. HWSD's share-weighted global mean silt is 28.2%.
+.century_silt <- function(silt_pct) {
+  tabulated <- .soc_param("century", "defaults", "silt_pct")
+  dplyr::if_else(is.na(silt_pct), tabulated, as.numeric(silt_pct))
+}
+
+.century_params <- function(clay_pct, xi, silt_pct = NA) {
   ls <- .soc_param("century", "defaults", "lignin_fraction")
   ln <- .soc_param("century", "defaults", "lignin_n_ratio")
-  silt_pct <- .soc_param("century", "defaults", "silt_pct")
+  silt_pct <- .century_silt(silt_pct)
   texture <- .century_texture(clay_pct, silt_pct, ls, ln)
   c(
     .century_rates(ls, texture$f_txtr, xi),

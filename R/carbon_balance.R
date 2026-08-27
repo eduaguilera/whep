@@ -765,7 +765,17 @@ build_carbon_balance <- function(
     icbm = .cb_icbm_equilibrium(input, cm),
     lpjml = .cb_lpjml_equilibrium(input, cm),
     amg = .cb_amg_equilibrium(input, cm),
-    century = .cb_century_equilibrium(input, cm, combos$clay_pct),
+    century = .cb_century_equilibrium(
+      input,
+      cm,
+      combos$clay_pct,
+      # Present only when the caller supplied a silt layer; NA falls back to
+      # the tabulated placeholder inside .century_silt(). `has_name()` rather
+      # than `$`: on a tibble a missing column WARNS rather than returning
+      # NULL, so `%||%` would fire "Unknown or uninitialised column" on every
+      # Century build that has no silt.
+      if (rlang::has_name(combos, "silt_pct")) combos$silt_pct else NA
+    ),
     rothc = .cb_rothc_equilibrium(
       input,
       cm,
@@ -832,8 +842,13 @@ build_carbon_balance <- function(
 # pools solve the 3-way transfer loop (act <-> slw <-> pas) analytically. This
 # is the true t -> infinity steady state -- it differs from the previous
 # 5000-year `deSolve` value where the very slow passive pool had not converged.
-.cb_century_equilibrium <- function(input, climate_modifier, clay_pct) {
-  p <- .cb_century_coefs(climate_modifier, clay_pct)
+.cb_century_equilibrium <- function(
+  input,
+  climate_modifier,
+  clay_pct,
+  silt_pct = NA
+) {
+  p <- .cb_century_coefs(climate_modifier, clay_pct, silt_pct)
   out_str <- p$fs * input
   out_met <- p$fm * input
   denom <- 1 -
@@ -859,10 +874,14 @@ build_carbon_balance <- function(
 # modifier and clay (mirrors .century_params/.century_texture/.century_rates/
 # .century_transfers). fm/fs (metabolic/structural input split) depend only on
 # the constant lignin:N ratio, so they are scalars.
-.cb_century_coefs <- function(climate_modifier, clay_pct) {
+.cb_century_coefs <- function(
+  climate_modifier,
+  clay_pct,
+  silt_pct = NA
+) {
   ls <- .soc_param("century", "defaults", "lignin_fraction")
   ln <- .soc_param("century", "defaults", "lignin_n_ratio")
-  silt <- .soc_param("century", "defaults", "silt_pct")
+  silt <- .century_silt(silt_pct)
   weeks <- .soc_param("century", "all", "weeks_per_year")
   base <- .soc_rates_named("century", "base_rate_weekly")
   txtr <- pmin(pmax(pmin(clay_pct, 100), 0) / 100 + silt / 100, 1)
