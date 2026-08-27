@@ -146,3 +146,31 @@ testthat::test_that("uncertainty rejects unknown options and non-functions", {
     "must be a function"
   )
 })
+
+.probs_run <- function(probs) {
+  whep::propagate_fp_uncertainty(
+    .linear_run_fn(),
+    extensions = c(60, 40),
+    cov = 0.2,
+    options = list(n = 5, seed = 1, probs = probs)
+  )
+}
+
+testthat::test_that("malformed probs abort before any draw is computed", {
+  # A wrong length used to surface only as an NA q_high, after all n runs.
+  testthat::expect_error(.probs_run(c(0.05, 0.95)), "three numbers")
+  testthat::expect_error(.probs_run(c(0.025, NA, 0.975)), "three numbers")
+  testthat::expect_error(.probs_run("a"), "three numbers")
+  testthat::expect_error(.probs_run(c(-0.1, 0.5, 0.975)), "within")
+  testthat::expect_error(.probs_run(c(0.025, 0.5, 1.5)), "within")
+  # Descending probs used to yield q_low > q_high silently.
+  testthat::expect_error(.probs_run(c(0.975, 0.5, 0.025)), "ascending")
+})
+
+testthat::test_that("valid custom probs are honoured", {
+  res <- .probs_run(c(0.05, 0.5, 0.95))
+
+  testthat::expect_false(is.na(res$q_high))
+  testthat::expect_true(res$q_low <= res$q_med)
+  testthat::expect_true(res$q_med <= res$q_high)
+})
