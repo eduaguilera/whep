@@ -1054,6 +1054,70 @@ test_that(".combine_destinies splits evenly, not duplicates, when production is 
   expect_equal(out$food, c(25, 25))
 })
 
+test_that(".combine_destinies conserves each item's demand over any row shape", {
+  # Invariant, not a hand-picked expectation: whatever the number of
+  # (Box, Irrig_cat) rows and whatever the production pattern, the shares an
+  # item's food/feed/other_uses are split by must sum to exactly 1, so the
+  # item's total demand must come out unchanged. Covers all-zero groups with
+  # 2 and 3 rows, a mixed group where only some rows are zero, a
+  # single-row group, and a consumption-only item with no production row at
+  # all.
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
+    2000, "A", "AllZeroTwo", "Cropland", "irrig", 0, "Product",
+    2000, "A", "AllZeroTwo", "Cropland", "rainfed", 0, "Product",
+    2000, "A", "AllZeroThree", "Cropland", "irrig", 0, "Product",
+    2000, "A", "AllZeroThree", "Cropland", "rainfed", 0, "Product",
+    2000, "A", "AllZeroThree", "semi_natural", NA, 0, "Product",
+    2000, "A", "Mixed", "Cropland", "irrig", 0, "Product",
+    2000, "A", "Mixed", "Cropland", "rainfed", 80, "Product",
+    2000, "A", "SingleRow", "Cropland", "rainfed", 0, "Product",
+    2001, "A", "AllZeroTwo", "Cropland", "irrig", 0, "Product",
+    2001, "A", "AllZeroTwo", "Cropland", "rainfed", 0, "Product"
+  )
+
+  feed <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~feed, ~food_pets,
+    2000, "A", "AllZeroTwo", 10, 1,
+    2000, "A", "AllZeroThree", 3, 0,
+    2000, "A", "Mixed", 7, 0,
+    2000, "A", "SingleRow", 5, 0,
+    2000, "A", "ImportOnly", 4, 0,
+    2001, "A", "AllZeroTwo", 6, 0
+  )
+
+  food_other <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~food, ~other_uses,
+    2000, "A", "AllZeroTwo", 50, 20,
+    2000, "A", "AllZeroThree", 30, 9,
+    2000, "A", "Mixed", 40, 4,
+    2000, "A", "SingleRow", 11, 2,
+    2000, "A", "ImportOnly", 8, 1,
+    2001, "A", "AllZeroTwo", 12, 3
+  )
+
+  demand_in <- feed |>
+    dplyr::full_join(
+      food_other,
+      by = c("Year", "Province_name", "Item")
+    ) |>
+    dplyr::summarise(
+      demand = sum(food + other_uses + feed + food_pets),
+      .by = c(Year, Province_name, Item)
+    )
+
+  demand_out <- .combine_destinies(prod, feed, food_other) |>
+    dplyr::summarise(
+      demand = sum(food + other_uses + feed),
+      .by = c(Year, Province_name, Item)
+    )
+
+  expect_equal(
+    dplyr::arrange(demand_out, Year, Item),
+    dplyr::arrange(demand_in, Year, Item)
+  )
+})
+
 
 # .convert_to_items_n ----------------------------------------------------------
 
@@ -1630,4 +1694,68 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   expect_true("population_food" %in% destinies)
   # All MgN should be positive (filtered)
   expect_true(all(out$MgN > 0))
+})
+
+
+test_that(".calculate_consumption_shares keeps Box in its key columns", {
+  data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 30, 0, 0, 40,
+    2000, "A", "Beet pulp", "Livestock", NA, 20, 0, 0, 60
+  )
+
+  out <- .calculate_consumption_shares(data)
+
+  # Box is part of the row identity, so it must survive into the output that
+  # gets joined back onto the production frame (issue #242).
+  expect_true(rlang::has_name(out, "Box"))
+  expect_equal(nrow(out), 2)
+  expect_equal(sort(out$Box), c("Agro-industry", "Livestock"))
+})
+
+test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
+  # Same Item under two Boxes with the same Irrig_cat: the consumption-share
+  # join must stay 1:1. Keying it on (Year, Province_name, Item, Irrig_cat)
+  # only would duplicate every allocated flow (issue #242).
+  trade_data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 0, 0, 40, 30, 0, 10,
+    2000, "A", "Beet pulp", "Livestock", NA, 0, 0, 60, 20, 0, 40
+  )
+
+  codes <- tibble::tribble(
+    ~item, ~group, ~Name_biomass,
+    "Beet pulp", "Agro-industry", "Beet pulp"
+  )
+
+  soil <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Beet pulp", NA, "Livestock", 0, 0, 0, 0, 0
+  )
+
+  feed_shares <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
+    2000, "A", "Beet pulp", 1, 0
+  )
+
+  out <- .finalize_prod_destiny(trade_data, codes, soil, feed_shares)
+
+  # Demand is 40 + 60 MgN and nothing is exported, so every MgN allocated must
+  # add up to the demand exactly once.
+  expect_equal(sum(out$MgN), 100)
+
+  # One row per (key, Origin, Destiny) combination -- no duplicated flows.
+  expect_equal(
+    nrow(out),
+    nrow(dplyr::distinct(
+      out,
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Irrig_cat,
+      Origin,
+      Destiny
+    ))
+  )
 })

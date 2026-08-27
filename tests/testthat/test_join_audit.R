@@ -156,7 +156,15 @@ test_that("the enumerated baseline can only shrink", {
   # two Rest-of-World residuals covering different territories against each
   # other. One year-free identity join makes that comparison honest, and no
   # published number passes through it.
-  expect_lte(sum(baseline$n), 67L)
+  #
+  # 69 since whep#884: `.off_window_area_keys()` and `.reported_bucket_years()`
+  # each attach an area's own reporting window before testing a year against
+  # it. Both are the instrument that catches a year-blind AREA CODE -- FishStat
+  # keys Belgium 255 from 1976, sixteen years before the vocabulary reports that
+  # code -- and neither can be year-keyed, because the window is what the year
+  # is being compared with. Both rises are the shape `.resolve_all_area_years`
+  # already records above.
+  expect_lte(sum(baseline$n), 69L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -234,8 +242,22 @@ test_that("every year-free territorial grouping is classified", {
   # FABIO region into one row per period and defeat the `many-to-one` join and
   # the one-bucket-per-area guard that follow. The four are the price of not
   # comparing two different Rest-of-World residuals against each other.
+  #
+  # 78 since whep#541: `.fao_area_iso3_lookup()` now dedups
+  # `polity_area_crosswalk` to one row per FAOSTAT area name instead of reading
+  # FAOSTAT's vendored country profile. It was already a year-free group before
+  # the swap (`summarise(.by = fao_area_name)`); it only enters the registry now
+  # because the key gained the crosswalk's `area_name` and `area_iso3c` and so
+  # became visibly territorial.
   full <- whep:::.territorial_grouping_baseline()
-  expect_lte(sum(full$n), 77L)
+  #
+  # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
+  # periods to one window per area and `.off_window_area_years()` reduces an
+  # area's off-window rows to the span they cover. Both are `year_axis` -- the
+  # year is the thing being reduced over, so putting it in the key returns the
+  # year itself, which is the same reason `.area_first_reported_year` is on
+  # this ledger.
+  expect_lte(sum(full$n), 80L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
