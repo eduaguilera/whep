@@ -80,11 +80,15 @@ groupings used in the literature and international databases.
 \note{
 Derived from \link{regions_full} rather than vendored separately: the
 198-code membership is read from \code{harmonization/polities_cats.csv} and every
-column value comes from \code{regions_full}, so the two tables cannot disagree
-except where this one deliberately folds an area into a rest-of-world
-aggregate. Two areas are folded, both because they had no commodity balance
-sheet when the table was compiled: Bhutan under \code{RASI} and Comoros under
-\code{RAFR}, each with \code{cbs} \code{FALSE} and \code{fabio_code} \code{999}.
+column value comes from \code{regions_full}, so the two tables cannot disagree.
+The vendored table used to file Bhutan under \code{RASI} and Comoros under
+\code{RAFR} with \code{cbs} \code{FALSE} and \code{fabio_code} \code{999}, on the grounds that
+neither had a commodity balance sheet when it was compiled; that override
+was dropped in whep#395, because the \code{faostat-cbs-new} pin now carries 175
+rows for Bhutan and 237 for Comoros, and because it left both areas'
+\code{polity_area_code} and \code{reporting_polity_code} naming the country
+individually while three label columns said rest-of-region. Areas WHEP does
+fold, such as Andorra (\code{REUR}), carry \code{polity_area_code} 999 too.
 }
 \section{Which regional groupings WHEP reads}{
 
