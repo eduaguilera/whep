@@ -1695,3 +1695,67 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   # All MgN should be positive (filtered)
   expect_true(all(out$MgN > 0))
 })
+
+
+test_that(".calculate_consumption_shares keeps Box in its key columns", {
+  data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 30, 0, 0, 40,
+    2000, "A", "Beet pulp", "Livestock", NA, 20, 0, 0, 60
+  )
+
+  out <- .calculate_consumption_shares(data)
+
+  # Box is part of the row identity, so it must survive into the output that
+  # gets joined back onto the production frame (issue #242).
+  expect_true(rlang::has_name(out, "Box"))
+  expect_equal(nrow(out), 2)
+  expect_equal(sort(out$Box), c("Agro-industry", "Livestock"))
+})
+
+test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
+  # Same Item under two Boxes with the same Irrig_cat: the consumption-share
+  # join must stay 1:1. Keying it on (Year, Province_name, Item, Irrig_cat)
+  # only would duplicate every allocated flow (issue #242).
+  trade_data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 0, 0, 40, 30, 0, 10,
+    2000, "A", "Beet pulp", "Livestock", NA, 0, 0, 60, 20, 0, 40
+  )
+
+  codes <- tibble::tribble(
+    ~item, ~group, ~Name_biomass,
+    "Beet pulp", "Agro-industry", "Beet pulp"
+  )
+
+  soil <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Beet pulp", NA, "Livestock", 0, 0, 0, 0, 0
+  )
+
+  feed_shares <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
+    2000, "A", "Beet pulp", 1, 0
+  )
+
+  out <- .finalize_prod_destiny(trade_data, codes, soil, feed_shares)
+
+  # Demand is 40 + 60 MgN and nothing is exported, so every MgN allocated must
+  # add up to the demand exactly once.
+  expect_equal(sum(out$MgN), 100)
+
+  # One row per (key, Origin, Destiny) combination -- no duplicated flows.
+  expect_equal(
+    nrow(out),
+    nrow(dplyr::distinct(
+      out,
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Irrig_cat,
+      Origin,
+      Destiny
+    ))
+  )
+})
