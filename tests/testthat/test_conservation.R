@@ -205,6 +205,34 @@ testthat::test_that("supply-use balance requires the accounting columns", {
   )
 })
 
+testthat::test_that("supply-use balance counts processing_primary (whep#143)", {
+  # Seed cotton-like row: the entire domestic supply is destined for
+  # processing via `processing_primary`, not `processing`. Before whep#143
+  # was fixed, `processing_primary` was invisible to the balance formula,
+  # so this row was wrongly flagged as unbalanced (use = 0, supply = 5000).
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code,
+    ~production, ~import, ~stock_withdrawal,
+    ~export, ~food, ~feed, ~seed, ~processing, ~processing_primary,
+    ~other_uses, ~stock_addition,
+    2000L, 203L, 2559L, 5000, 0, 0, 0, 0, 0, 0, 0, 5000, 0, 0
+  )
+
+  report <- whep::check_supply_use_balance(cbs)
+
+  testthat::expect_true(report$balanced)
+  testthat::expect_equal(report$supply, 5000)
+  testthat::expect_equal(report$use, 5000)
+})
+
+testthat::test_that("supply-use balance treats missing processing_primary as 0", {
+  # .cbs_balance_fixture() carries no processing_primary column at all --
+  # older CBS-shaped tibbles (and get_livestock_cbs() before whep#143's
+  # fix) must keep working without it.
+  report <- whep::check_supply_use_balance(.cbs_balance_fixture())
+  testthat::expect_equal(nrow(report), 2L)
+})
+
 # report_conservation flag --------------------------------------------
 
 testthat::test_that("compute_footprint reports conservation when asked", {

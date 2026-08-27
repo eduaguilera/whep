@@ -39,6 +39,10 @@
 #'    - `export`: Released as export for other countries.
 #'    - `seed`: Intended for new production.
 #'    - `processing`: Used to obtain other subproducts.
+#'    - `processing_primary`: Used to obtain other subproducts, for the
+#'      handful of primary items (palm fruit, hops, seed cotton,
+#'      coconuts, hemp, kapok fruit, linum) whose entire domestic supply
+#'      is destined for processing. Zero for every other item.
 #'    - `other_uses`: Any other use not included above.
 #'    - `stock_addition`: Biomass placed into storage
 #'      (non-negative). Positive when stocks increase.
@@ -124,6 +128,7 @@ get_livestock_cbs <- function(primary_prod) {
       feed = 0,
       seed = 0,
       processing = domestic_supply,
+      processing_primary = 0,
       other_uses = 0,
       stock_withdrawal = 0,
       stock_addition = 0
@@ -139,6 +144,7 @@ get_livestock_cbs <- function(primary_prod) {
       feed,
       seed,
       processing,
+      processing_primary,
       other_uses,
       stock_withdrawal,
       stock_addition,
