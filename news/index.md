@@ -229,6 +229,32 @@
   consumes those per-crop numbers yet, and that their blue/green split
   is unusable on an LPJmL 6.x run without the green/blue fix.
 
+- **`regional_mms_distribution` is now traced to the source that would
+  replace it, its live reach is stated correctly, and its values are
+  locked ([\#921](https://github.com/eduaguilera/whep/issues/921)).** No
+  published value changes: nothing was revalued. The manure management
+  shares this table ships are an unsourced placeholder, round to five
+  percentage points, matching no table of the GLEAM 3.0 workbook — and
+  they are live, so their reach is now documented exactly: through
+  `.resolve_mms_shares()` they weight the Tier 2 manure CH4 methane
+  conversion factor and the Tier **1** manure direct-N2O emission
+  factor. They do **not** reach Tier 2 direct N2O, whose rows carry no
+  `region` column and therefore take the pasture EF3 for every stream —
+  the previous `@source` said they did. The real shares are published in
+  Supplement S1, Tables 4.2-4.11 of FAO. 2018. *GLEAM Model description,
+  Version 2.0, Revision 5* (workbook md5
+  `72fd2ea477dfe8b30cd3657b2baa4af1`, re-downloaded from FAO and
+  verified). Adopting them takes four crosswalk decisions (collapsing
+  GLEAM’s per-production-system tables onto `species_gen`, its 10
+  regions onto the IPCC labels, deriving a `Global` row GLEAM does not
+  publish, and mapping its richer MMS vocabulary onto `mms_type`), so it
+  is left to the maintainer; one illustrative crosswalk, measured on
+  FAOSTAT 2020 head counts, moves Tier 1 manure direct N2O by -11.1%
+  (Buffalo -57%, Poultry +22%), Tier 1 manure CO2e by -4.2% and Tier 2
+  manure CH4 by -26.9%. A new test locks the two effective factors the
+  table feeds per (region, species), so a future revalue has to be
+  deliberate.
+
 - **The LUH2 v2h calendar-year → time-index resolution is now one
   shared, tested helper, and clamping past the end of the record always
   warns ([\#256](https://github.com/eduaguilera/whep/issues/256)).**
