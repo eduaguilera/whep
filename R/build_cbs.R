@@ -169,6 +169,12 @@ build_commodity_balances <- function(
 .format_cbs_output <- function(df) {
   df <- tibble::as_tibble(df)
 
+  # `processing_primary` is a genuine destiny -- `domestic_supply` is built
+  # from it upstream (.reestimate_domestic_supply(), .apply_filled_shares(),
+  # .fill_historical_destinies()), so dropping it here left the published
+  # `sum(uses) == domestic_supply` identity broken for the pp_items whose
+  # entire production is destined for processing (palm fruit, hops, seed
+  # cotton, coconuts, hemp, kapok fruit, linum). whep#143.
   cbs_elements <- c(
     "domestic_supply",
     "production",
@@ -179,7 +185,8 @@ build_commodity_balances <- function(
     "feed",
     "seed",
     "other_uses",
-    "processing"
+    "processing",
+    "processing_primary"
   )
 
   has_flag <- "fao_flag" %in% names(df)

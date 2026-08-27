@@ -240,9 +240,6 @@ build_cbs_prices <- function(
   }
 
   items_prod <- data.table::as.data.table(whep::items_prod_full)
-  prod_bridge <- unique(
-    items_prod[, .(item_prod_code, item_prod, item_cbs_code)]
-  )
 
   # Global production totals by item
   prod_totals <- primary_prod[
@@ -250,12 +247,6 @@ build_cbs_prices <- function(
     .(value = sum(value, na.rm = TRUE)),
     by = c("year", "item_prod_code")
   ]
-  prod_totals <- merge(
-    prod_totals,
-    prod_bridge,
-    by = "item_prod_code",
-    all.x = TRUE
-  )
 
   # Export trade prices
   export_prices <- trade_prices[element == "export"]
