@@ -169,6 +169,12 @@ build_commodity_balances <- function(
 .format_cbs_output <- function(df) {
   df <- tibble::as_tibble(df)
 
+  # `processing_primary` is a genuine destiny -- `domestic_supply` is built
+  # from it upstream (.reestimate_domestic_supply(), .apply_filled_shares(),
+  # .fill_historical_destinies()), so dropping it here left the published
+  # `sum(uses) == domestic_supply` identity broken for the pp_items whose
+  # entire production is destined for processing (palm fruit, hops, seed
+  # cotton, coconuts, hemp, kapok fruit, linum). whep#143.
   cbs_elements <- c(
     "domestic_supply",
     "production",
@@ -179,7 +185,8 @@ build_commodity_balances <- function(
     "feed",
     "seed",
     "other_uses",
-    "processing"
+    "processing",
+    "processing_primary"
   )
 
   has_flag <- "fao_flag" %in% names(df)
@@ -616,7 +623,7 @@ build_processing_coefs <- function(
       cbs,
       by = c("area_code", "year", "item_cbs", "element")
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   cbs |>
     .processed_raw(cb_processing_glo) |>
@@ -2378,21 +2385,34 @@ build_processing_coefs <- function(
           NA_real_
         )
       ),
-      food_share = food / domestic_supply,
-      feed_share = feed / domestic_supply,
-      other_uses_share = other_uses / domestic_supply,
-      processing_share = processing / domestic_supply,
-      processing_primary_share = processing_primary / domestic_supply
+      food_share = .cbs_safe_ratio(food, domestic_supply),
+      feed_share = .cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = .cbs_safe_ratio(other_uses, domestic_supply),
+      processing_share = .cbs_safe_ratio(processing, domestic_supply),
+      processing_primary_share = .cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
     ) |>
     dplyr::left_join(
       primary_area,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
     ) |>
-    dplyr::mutate(seed_rate = seed / area_ha) |>
+    dplyr::mutate(seed_rate = .cbs_safe_ratio(seed, area_ha)) |>
     .fill_share_columns() |>
     .apply_filled_shares() |>
     .fill_with_proxies(gdp_pop, land_wide) |>
     .finalise_historical(items)
+}
+
+# A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
+# are non-NA and survive is.na() filters downstream (whep#166). On a
+# 1950-1965 build, whep#426 measured 926 NaN values, 6 Inf values, and 80
+# destiny shares above one, all from exactly this division. Treat an
+# undefined ratio as NA so it gets filled like any other gap instead of being
+# carried forward as non-finite data.
+.cbs_safe_ratio <- function(num, denom) {
+  dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
 }
 
 .fill_share_columns <- function(df) {
@@ -4005,7 +4025,7 @@ build_processing_coefs <- function(
       by = c("year", "item_cbs")
     ) |>
     dplyr::mutate(
-      export_share = export_val / gross_avail
+      export_share = .cbs_safe_ratio(export_val, gross_avail)
     ) |>
     dplyr::select(year, item_cbs, export_share)
 
@@ -4109,7 +4129,7 @@ build_processing_coefs <- function(
         "element"
       )
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   proc_coefs_raw <- proc_base |>
     dplyr::rename(value_proc_raw = value_proc) |>
