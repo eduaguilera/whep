@@ -37,8 +37,35 @@ a review on them while leaving 1 and 2 unexamined.
   `assert_footprint_invariants()`, `check_series_jumps()`, plus pointblank
   column expectations in tests. An invariant catches the bug you did not
   imagine; an equality test on three rows does not.
+- **An invariant that holds by construction cannot detect a missing input.**
+  A pin shipped with **zero** inland water and ice — 533 Mha of lakes and
+  glaciers booked as land — while `territory == land + water + ice` still
+  held, because zero satisfies it. The layers were optional arguments that
+  zero-filled silently. Assert that an input was *supplied* (row count,
+  a provenance column), not merely that the totals reconcile. The same shape
+  has appeared in a balance check with no unit dimension (head counts balanced
+  against head counts), a global mean unchanged while every cell moved, and
+  two Rest-of-World buckets matching by code while covering different
+  countries.
 - Report outcomes faithfully. If a check fails, say so and paste the output.
   If you skipped a step, say which.
+
+### Before you start an issue, check it is still real
+
+Issues go stale. A sweep of 86 pre-August issues found **12** that were already
+fixed, superseded or factually wrong on `main` — and one issue was
+independently re-derived by **four** separate investigations, none of which
+found it because none searched. Both failures are cheap to avoid:
+
+1. **Search first.** `gh issue list --state all --search "<key terms>"`. If
+   another issue covers the same defect, work that one.
+2. **Re-measure the premise on current `main`** before planning anything. Do
+   not copy a figure out of an issue body — an audit-era number may predate a
+   dozen merges. If the premise does not hold, say so with evidence and stop;
+   that is a complete and valuable outcome, not a failed task.
+3. **"Already fixed" is not always "close it".** Several fixes landed as side
+   effects of unrelated work, with no test. A regression guard for a fix that
+   nothing pins is worth writing.
 
 ### Classify every change: mechanical or science decision
 
@@ -96,8 +123,18 @@ what needs a domain expert. Label **every** issue extensively:
 - **Priority**: a `priority:*` label.
 
 Apply the full set when opening an issue; backfill missing labels when you
-touch an old one. PRs do not need the labels duplicated when they close an
-already-labelled issue.
+touch an old one.
+
+**A missing axis or an understated priority makes a real defect invisible.**
+The 2026-08-27 sweep found ~15 issues with no triage axis at all, and one that
+sat at `priority:low` for months while describing a coefficient table that is
+live in the Tier 2 emissions path — it was then rediscovered four times by
+work that could not see it. Priority is not a guess at effort; it is what
+decides whether anyone looks. If an issue describes something that moves a
+published number today, it is not `priority:low`, however small the diff.
+
+PRs do not need the labels duplicated when they close an already-labelled
+issue.
 
 #### Contributor-facing labels
 
@@ -427,16 +464,37 @@ air format .
 # 2. Document
 devtools::document()
 
-# 3. Check
+# 3. Check — WITH TESTS. Do not pass `--no-tests`; see below.
 rcmdcheck::rcmdcheck(
   build_args = "--no-build-vignettes",
-  args = c("--no-tests", "--ignore-vignettes"),
+  args = c("--no-manual", "--as-cran", "--ignore-vignettes"),
   error_on = "error"
 )
 
 # 4. Test
 devtools::test()
 ```
+
+### There are three verification surfaces and they disagree
+
+A green `devtools::test()` does **not** mean a green CI. Three layouts exist:
+
+1. **Source checkout** — what `devtools::test()` runs. `.Rprofile` calls
+   `devtools::load_all()`, which pre-attaches every package data object, and
+   `inst/` is present.
+2. **`R CMD INSTALL .`** — installs `inst/` **wholesale**, ignoring
+   `.Rbuildignore`.
+3. **Built tarball** — what `R CMD check`, r-universe and CRAN run.
+   `.Rbuildignore` applies, so `^inst/scripts$`, `^validation$` and `data-raw`
+   are simply **absent**.
+
+Only (3) is what CI runs, and each surface has shipped a real failure the
+others could not see: a data fingerprint that hashed 55 of 100 objects because
+`load_all()` had already attached them; a test that "passed" under `INSTALL`
+while its script was `.Rbuildignore`d out of the tarball; an assertion that
+failed only because CI resolves a newer dplyr. If a change touches
+`utils::data()`, package data, a lazy-loaded object or anything under `inst/`,
+verify on the tarball before claiming it is green.
 
 ```bash
 # 5. Verify pkgdown — every man/*.Rd must be in _pkgdown.yml
@@ -448,8 +506,13 @@ comm -23 \
 
 Commits are conventional-commit style with a subsystem scope
 (`fix(cbs): key source selection on area_code, not periodized name`), branches
-are `fix/…`, `feat/…`, `perf/…` or `<user>/<topic>`, and the PR body references
-the issue it closes.
+are `fix/…`, `feat/…`, `perf/…` or `<user>/<topic>`.
+
+**Write `Closes #N` (or `Refs #N`) in the PR body, always.** A backlog sweep
+found issues that had been fixed weeks earlier by PRs that never named them —
+they stayed open, and later work re-derived them from scratch. If a PR only
+partly addresses an issue, say `Refs #N` and state in the body which part
+survives, so the issue can be rescoped rather than closed by accident.
 
 ## Data pipeline
 
