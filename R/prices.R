@@ -240,9 +240,6 @@ build_cbs_prices <- function(
   }
 
   items_prod <- data.table::as.data.table(whep::items_prod_full)
-  prod_bridge <- unique(
-    items_prod[, .(item_prod_code, item_prod, item_cbs_code)]
-  )
 
   # Global production totals by item
   prod_totals <- primary_prod[
@@ -250,12 +247,6 @@ build_cbs_prices <- function(
     .(value = sum(value, na.rm = TRUE)),
     by = c("year", "item_prod_code")
   ]
-  prod_totals <- merge(
-    prod_totals,
-    prod_bridge,
-    by = "item_prod_code",
-    all.x = TRUE
-  )
 
   # Export trade prices
   export_prices <- trade_prices[element == "export"]
@@ -294,7 +285,17 @@ build_cbs_prices <- function(
       by = c("year", "item_prod_code"),
       all.x = TRUE
     )
-    dt[, price_prod := kdollars_prod / value]
+    # `value == 0` (or NA) makes the ratio Inf/NaN, which is non-NA and
+    # would survive the `!is.na(price)` filter below and corrupt neighbouring
+    # `fill_linear()` years (whep#166). Guard it the same way the trade path
+    # already filters `!is.infinite()` at `.compute_trade_prices()`.
+    dt[,
+      price_prod := data.table::fifelse(
+        is.na(value) | value == 0,
+        NA_real_,
+        kdollars_prod / value
+      )
+    ]
   } else {
     dt[, price_prod := NA_real_]
   }

@@ -196,16 +196,9 @@
     regs_codes,
     fcr
   )
-  animal_type <- .feed_animal_type_lookup(animals_codes)
 
   dplyr::bind_rows(demand_fcr, demand_head) |>
-    dplyr::filter(!is.na(.data$area_code), !is.na(.data$feed_type)) |>
-    dplyr::mutate(
-      demand_tot = sum(.data$demand_aft, na.rm = TRUE) / 1000,
-      demand_share = .data$demand_aft / (.data$demand_tot * 1000),
-      .by = c("year", "area_code", "feed_type")
-    ) |>
-    dplyr::left_join(animal_type, by = "live_anim_code")
+    dplyr::filter(!is.na(.data$area_code), !is.na(.data$feed_type))
 }
 
 .build_feed_demand_fcr <- function(
@@ -446,15 +439,6 @@
     return(df)
   }
   dplyr::mutate(df, region_weight = 1)
-}
-
-.feed_animal_type_lookup <- function(animals_codes) {
-  tibble::as_tibble(animals_codes) |>
-    dplyr::transmute(
-      live_anim_code = as.integer(.data$item_cbs_code),
-      graniv_grazers = .data$Graniv_grazers
-    ) |>
-    dplyr::distinct(.data$live_anim_code, .keep_all = TRUE)
 }
 
 .empty_bouwman_fcr <- function() {

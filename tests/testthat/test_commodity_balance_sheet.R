@@ -83,6 +83,30 @@ testthat::test_that(".pivot_cbs_wide splits stock variation by balance sign", {
   testthat::expect_equal(result$stock_withdrawal, c(0, 20))
 })
 
+testthat::test_that(".pivot_cbs_wide fills stock_variation as 0 when absent (#219)", {
+  cbs_long <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+      2010L, 1L, 100L, "production", 50,
+      2010L, 1L, 100L, "import", 5
+    )
+
+  result <- .pivot_cbs_wide(cbs_long)
+
+  testthat::expect_equal(result$stock_addition, 0)
+  testthat::expect_equal(result$stock_withdrawal, 0)
+})
+
+testthat::test_that(".pivot_cbs_wide aborts on a duplicate element key (#219)", {
+  cbs_long <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+      2010L, 1L, 100L, "production", 50,
+      2010L, 1L, 100L, "production", 20,
+      2010L, 1L, 100L, "stock_variation", 5
+    )
+
+  testthat::expect_error(.pivot_cbs_wide(cbs_long))
+})
+
 testthat::test_that("processing coefficients are internally consistent", {
   coefs <- .make_coefs_fixture()
 
