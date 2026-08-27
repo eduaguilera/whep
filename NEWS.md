@@ -19,7 +19,44 @@
   A non-zero CBS value is never overwritten and a zero trade record never
   overwrites anything, so the fill can only add trade.
 
-  **Published values move.** BLASTNUM
+  **Published values move.** Measured on the real pins, one build per
+  year with everything else held fixed:
+
+  | year | published cells | changed | new keys | dropped keys | areas | items |
+  | --- | --: | --: | --: | --: | --: | --: |
+  | 1990 | 76,543 | 17,020 (22.2%) | 13,728 | 48 | 153 | 105 |
+  | 2010 | 104,229 | 26,538 (25.5%) | 21,642 | 66 | 180 | 108 |
+  | 2020 | 109,709 | 31,924 (29.1%) | 26,246 | 128 | 176 | 107 |
+
+  Most of the movement is keys that appear at all: a zero import is dropped by
+  the final balance, so filling it makes the row exist. Element totals, in Mt
+  and as a share of the element:
+
+  | element | 1990 | 2010 | 2020 |
+  | --- | --: | --: | --: |
+  | import | +4.41 (+0.61%) | +9.70 (+0.61%) | +3.98 (+0.19%) |
+  | export | +8.66 (+1.22%) | +10.57 (+0.72%) | +5.14 (+0.27%) |
+  | food | +0.85 (+0.03%) | +3.67 (+0.08%) | +2.19 (+0.04%) |
+  | production | +0.30 (+0.00%) | +1.54 (+0.01%) | +2.66 (+0.01%) |
+  | stock_variation | −4.87 (−1.48%) | −3.77 (−0.78%) | −1.37 (−0.26%) |
+
+  The tonnage concentrates in two items in every year: CBS 2657 "Beverages,
+  Fermented" (5.75 Mt of added imports at 2010) and CBS 2764 "Marine Fish,
+  Other" (2.31 Mt at 2010, 2.38 Mt at 2020), the two whose FBS trade column is
+  effectively unpopulated. Denmark, Norway, Lebanon and the USA lead the areas.
+  Production and stock variation move because a filled export on a row with no
+  production has to be covered by the balancing cascade; that is a real cost of
+  the choice and it is why `"keep"` remains available.
+
+  **The supply-use identity is unaffected.** `check_supply_use_balance()` on
+  the wide CBS at 2010 returns a total absolute imbalance of 370.65 Mt under
+  both settings — identical, not merely close. The count of rows flagged at the
+  1e-6 absolute tolerance rises (2,073 of 17,694 to 3,550 of 20,512) purely
+  because there are 2,818 more rows and 197 previously exact rows now carry
+  floating-point residue: every newly flagged row's imbalance is under 0.5 t,
+  and the worst row in the dataset is 1.11e8 in both builds. The 370.65 Mt of
+  pre-existing imbalance is unchanged by this and is not what this entry is
+  about.
 
 * **`biomass_coefs` no longer ships the three spreadsheet section headers of
   the upstream workbook (#752).** `TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY
