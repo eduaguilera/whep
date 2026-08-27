@@ -16,6 +16,26 @@
   proximate constituents exceed their own dry matter — is untouched and stays
   a coefficient question for the data owner.
 
+* **`get_faostat_data()` now resolves `ISO3_CODE` from
+  [polity_area_crosswalk] instead of FAOSTAT's vendored `FAOcountryProfile`
+  name table, and the hand-maintained fix block is gone (#541).** The profile
+  table is stale relative to the labels FAOSTAT publishes today, so eight of
+  the 211 FAOSTAT area names in `regions_full$FAOSTAT_name` came out with
+  `ISO3_CODE = NA`: three current reporters — `Eswatini` (SWZ),
+  `North Macedonia` (MKD) and `China, Taiwan Province of` (TWN) — and four
+  former areas that appear in the historical series — `Belgium-Luxembourg`
+  (BLX), `Ethiopia PDR` (ETH), `Sudan (former)` (SDN) and `USSR` (SUN). All
+  seven now resolve; the `China` aggregate (area 351) still resolves to `NA`
+  by design (#158, #313). Coverage over those labels goes from 203/211 to
+  210/211, with zero disagreements on the codes both routes resolved. No
+  published WHEP value changes: `get_faostat_data()` has no caller in `R/`,
+  `data-raw/` or the vignettes, and every pipeline ISO3 bridge already went
+  through the crosswalk. A user who grouped its output by `ISO3_CODE`,
+  however, was silently dropping Eswatini, North Macedonia and Taiwan.
+  The codes are maintained upstream in whep-polities rather than in whep, so
+  the one place the two routes disagreed — `US Minor Is.`, which the FAOSTAT
+  profile gave the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different
