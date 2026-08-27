@@ -25,9 +25,9 @@ a review on them while leaving 1 and 2 unexamined.
 
 - **Bug fix**: a test that fails before the fix and passes after it. Write it
   first, watch it fail, then fix.
-- **Changed numbers**: state the before/after magnitude (in the PR body, and
-  in `NEWS.md` when it is user-visible). "No published value changes" is also
-  a claim that must be checked, not assumed.
+- **Changed numbers**: state the before/after magnitude in the PR body.
+  "No published value changes" is also a claim that must be checked, not
+  assumed.
 - **New code path**: a test that reaches it — including the branch that
   aborts or warns, not just the happy path.
 - **Anything reading external data**: an offline fixture, so the test suite
@@ -303,14 +303,26 @@ Three distinct mechanisms, and picking the wrong one is a design error:
   record 15556812) and the critical-nitrogen archive (`read_critical_n()`,
   Zenodo record 6395016).
 
-### NEWS.md
+### NEWS.md — do not edit it per PR
 
-`NEWS.md` carries user-visible behaviour changes under
-`# whep (development version)`, in prose, naming what changed and what it does
-to published values (including "no published value changes"). Roughly a fifth
-of merges need an entry: add one whenever behaviour, an exported signature, or
-a number a user could have relied on changes. Pure refactors, tests, and CI
-work do not need one.
+**Do not add a `NEWS.md` entry in a PR.** Every PR touching the same
+"development version" heading conflicts with every other one, and with many
+PRs in flight that is a steady stream of hand-resolved merges whose only
+content is which bullet goes above which. Nothing is learned from resolving
+them and the failure mode is real: a mis-resolution silently drops a bullet.
+
+`NEWS.md` is assembled **at release time** from the conventional-commit
+history, which is why the commit subject and body matter. Put the user-visible
+consequence there and in the PR body:
+
+- the subject says what changed, scoped (`fix(cbs): …`);
+- the body states the before/after magnitude, or says plainly that no
+  published value moves.
+
+That is the same information the old per-PR entries carried, recorded where it
+cannot conflict and where `git log` can find it. If a change is large enough
+that a user needs prose beyond a commit message, write it in the PR body and
+flag it for the release notes there.
 
 ### File naming
 
@@ -605,5 +617,20 @@ arrive both unchecked and unexcluded.
 The repo used to carry per-tool copies of these rules
 (`.github/copilot-instructions.md`, `.agent/rules/whep.md`). They drifted —
 one still forbade `data.table`, which the package now Imports — so they were
-deleted. Do not reintroduce a copy: if a tool needs its own entry point, make
-that file a pointer to this one.
+deleted.
+
+Do not reintroduce a copy. If a tool needs its own entry point, add a
+**symlink** to this file:
+
+```bash
+ln -s CLAUDE.md AGENTS.md
+```
+
+`AGENTS.md` already exists as one. A symlink cannot drift, which the last set
+of copies did.
+
+This is enforced, not merely asked for: `.github/workflows/agent-instructions.yaml`
+fails the build if any known agent-instruction filename is present and is
+neither a symlink to `CLAUDE.md` nor byte-identical to it. If your tool looks
+for a name that workflow does not list, add the name to its `candidates` list
+and symlink it — do not start a second source of truth.

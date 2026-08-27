@@ -1,0 +1,68 @@
+# Enforces CLAUDE.md's "this is the only agent instruction file" rule.
+#
+# The repo previously carried per-tool copies of the contributor rules
+# (.github/copilot-instructions.md, .agent/rules/whep.md). They drifted — one
+# still forbade data.table, which the package Imports — and were deleted. The
+# rule that replaced them was a convention, and a convention is exactly what
+# drifted the first time. This makes it mechanical.
+#
+# An agent-instruction file may be:
+#   * a symlink to CLAUDE.md (preferred — drift is impossible), or
+#   * byte-identical to CLAUDE.md.
+# Anything else fails, naming the file.
+name: agent-instructions
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  in-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every agent instruction file must track CLAUDE.md
+        run: |
+          set -euo pipefail
+          canonical=CLAUDE.md
+          test -f "$canonical" || { echo "::error::$canonical is missing"; exit 1; }
+
+          # Names the common agent tools look for. Add to this list rather
+          # than adding a second source of truth.
+          candidates="
+          AGENTS.md
+          GEMINI.md
+          .cursorrules
+          .cursor/rules/whep.md
+          .github/copilot-instructions.md
+          .agent/rules/whep.md
+          .windsurfrules
+          "
+
+          fail=0
+          for f in $candidates; do
+            [ -e "$f" ] || [ -L "$f" ] || continue
+            if [ -L "$f" ]; then
+              target=$(readlink "$f")
+              if [ "$target" = "$canonical" ] || [ "$target" = "./$canonical" ]; then
+                echo "ok (symlink)   $f -> $target"
+                continue
+              fi
+              echo "::error file=$f::symlink points at '$target', expected '$canonical'"
+              fail=1
+              continue
+            fi
+            if cmp -s "$f" "$canonical"; then
+              echo "ok (identical) $f"
+            else
+              echo "::error file=$f::differs from $canonical. Make it a symlink to $canonical, or delete it. Do not maintain a second copy of the rules — the last set of copies drifted and had to be deleted."
+              diff -u "$canonical" "$f" | head -40 || true
+              fail=1
+            fi
+          done
+
+          exit $fail
