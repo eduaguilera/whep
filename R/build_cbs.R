@@ -3058,6 +3058,14 @@ build_processing_coefs <- function(
 # * **Only (year, area) buckets the CBS already covers**, so the `area` label
 #   comes from the CBS rows themselves instead of a year-free lookup that
 #   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
+# * **Only area-years the area vocabulary reports.** FishStat keys Belgium 255
+#   from 1976, while every FAOSTAT product keys that territory 15
+#   (Belgium-Luxembourg) until 1999 and splits 255/256 only at 2000. Creating
+#   the 255 row would put two overlapping reporting areas on one territory-year
+#   rather than fill a gap, so those 459 rows / 6,948.4 kt stay uncreated
+#   (whep#884). This restriction is stated here rather than left implicit in
+#   the label join above, because the label join is exactly what a widening of
+#   the "areas the CBS already covers" rule (whep#867) would replace.
 .cbs_trade_recovery_rows <- function(cbs, fao_trade_cbs, years) {
   candidates <- .cbs_trade_only_candidates(cbs, fao_trade_cbs, years)
 
@@ -3108,6 +3116,7 @@ build_processing_coefs <- function(
     data.table::as.data.table(cbs)[, .(year, area_code, item_cbs_code)]
   )
   trade <- trade[!covered, on = c("year", "area_code", "item_cbs_code")]
+  trade <- .drop_off_window_trade(trade)
   if (nrow(trade) == 0L) {
     return(empty)
   }
@@ -3127,6 +3136,34 @@ build_processing_coefs <- function(
     dplyr::filter(.data$import > .data$export) |>
     .label_recovered_rows(cbs)
 }
+
+# Trade rows whose `(area_code, year)` the area vocabulary does not report
+# cannot become CBS rows: the territory already reports under another code in
+# those years, so a created row duplicates it instead of filling a gap. Dropped
+# with the tonnage named, because the alternative -- harmonising the source onto
+# the vocabulary WHEP's CBS uses -- is a science decision (whep#884), not
+# something this step may take silently.
+.drop_off_window_trade <- function(trade) {
+  keys <- .off_window_area_keys(trade)
+  if (nrow(keys) == 0L) {
+    return(trade)
+  }
+  keep <- trade[!keys[, .(area_code, year)], on = c("area_code", "year")]
+  dropped <- nrow(trade) - nrow(keep)
+  tonnes <- round(
+    sum(trade$value, na.rm = TRUE) - sum(keep$value, na.rm = TRUE)
+  )
+  areas <- sort(unique(keys$area_code))
+  area_list <- paste(areas, collapse = ", ")
+  cli::cli_alert_info(
+    "Not recovering {dropped} trade row{?s} ({tonnes} t) in \\
+     area{?s} {area_list}: no reporting area lands on \\
+     {cli::qty(length(areas))}{?it/them} in those years, so a created row \\
+     would duplicate the territory that does (whep#884)."
+  )
+  keep
+}
+
 
 # One `(year, area_code, item_cbs_code, element)` per trade row, or the dcast
 # below silently sums two records into one created row. The bridge in
@@ -3194,6 +3231,10 @@ build_processing_coefs <- function(
     cli::cli_alert_info("No trade-only CBS rows to recover.")
     return(cbs)
   }
+  # Last line of defence, and the reason it is an abort: a recovered row for an
+  # area-year the vocabulary does not report is a duplicated territory in the
+  # published CBS, which no downstream check would flag as one (whep#884).
+  .abort_if_off_window_areas(recovered, what = "CBS row")
   areas <- length(unique(recovered$area_code))
   items <- length(unique(recovered$item_cbs_code))
   cli::cli_alert_info(

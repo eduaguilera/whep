@@ -1305,3 +1305,68 @@ testthat::test_that("the detector needs band names and rainfed bands", {
     whep:::.wb_warn_rainfed_blue(zeroed[[1]], zeroed[[2]])
   )
 })
+
+# The cell water budget is not per-CFT: `bands` restricts only which crop's
+# consumptive water and net irrigation requirement are reported, which is what
+# @param bands promises ("this leaves the water budget itself (AET, runoff,
+# drainage) untouched"). aet_blue_mm / aet_green_mm are budget terms, so asking
+# for one crop's water must not repartition the whole cell's AET (#916).
+testthat::test_that("bands does not repartition the cell-level AET split", {
+  syn <- .wb_synthetic_monthly()
+  cells <- dplyr::distinct(syn$inputs$prec, lon, lat, year)
+  syn$inputs$cft_consump_water_g <- dplyr::bind_rows(
+    dplyr::mutate(cells, band = 3L, band_name = "irrigated maize", value = 180),
+    dplyr::mutate(
+      cells,
+      band = 14L,
+      band_name = "rainfed grassland",
+      value = 100
+    )
+  )
+  syn$inputs$cft_consump_water_b <- dplyr::bind_rows(
+    dplyr::mutate(cells, band = 3L, band_name = "irrigated maize", value = 60),
+    dplyr::mutate(
+      cells,
+      band = 14L,
+      band_name = "rainfed grassland",
+      value = 20
+    )
+  )
+
+  all_bands <- suppressWarnings(whep::build_water_balance(data = syn$inputs))
+  grass <- suppressWarnings(whep::build_water_balance(
+    data = syn$inputs,
+    bands = "rainfed grassland"
+  ))
+
+  # bands did take effect: the reported consumptive water is grassland's alone.
+  testthat::expect_equal(
+    grass$green_consump_mm,
+    rep(100, nrow(grass)),
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(
+    grass$blue_consump_mm,
+    rep(20, nrow(grass)),
+    tolerance = 1e-8
+  )
+
+  # ... but the cell's own AET and its blue/green split are band-independent.
+  testthat::expect_equal(grass$aet_mm, all_bands$aet_mm, tolerance = 1e-8)
+  testthat::expect_equal(
+    grass$aet_blue_mm,
+    all_bands$aet_blue_mm,
+    tolerance = 1e-8
+  )
+  testthat::expect_equal(
+    grass$aet_green_mm,
+    all_bands$aet_green_mm,
+    tolerance = 1e-8
+  )
+  # The all-band share is the whole cell's: 80 / (80 + 280).
+  testthat::expect_equal(
+    all_bands$aet_blue_mm,
+    all_bands$aet_mm * (80 / 360),
+    tolerance = 1e-8
+  )
+})

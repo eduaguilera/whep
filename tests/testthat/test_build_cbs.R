@@ -2574,3 +2574,56 @@ test_that(".mass_only_trade aborts on a frame with no unit", {
     "has no"
   )
 })
+
+
+# -- trade recovery must not duplicate a territory (#884) ----------------------
+
+# Belgium's shape: FishStat keys the territory 255 from 1976, while every
+# FAOSTAT product keys it 15 (Belgium-Luxembourg) until 1999. The CBS here
+# covers area 255 in 1990 on purpose -- that is what makes the restriction
+# falsifiable, because the area-label join alone would otherwise drop the row
+# and the test would pass for the wrong reason. It is also the state #867's
+# proposal to create absent area-years would produce.
+.belgium_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    1990, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod",
+    2010, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod"
+  )
+}
+
+.belgium_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    1990, 255L, 2761, "import", 265281,
+    2010, 255L, 2761, "import", 300000
+  )
+}
+
+test_that("trade recovery creates no row for an off-window area-year", {
+  # 1990: FishStat says 255, the CBS vocabulary says 15, so a created 255 row
+  # would sit beside the Belgium-Luxembourg row covering the same territory in
+  # the same year -- a duplicated territory, not a filled gap (whep#884).
+  result <- whep:::.cbs_trade_recovery_rows(
+    .belgium_cbs(),
+    .belgium_trade(),
+    years = c(1990, 2010)
+  )
+
+  expect_equal(result$year, 2010)
+  expect_false(1990 %in% result$year)
+})
+
+test_that("binding an off-window recovered row aborts", {
+  # The filter above is the policy; this is the guard that makes lifting it
+  # impossible to do silently.
+  recovered <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~area, ~item_cbs, ~value, ~source,
+    1990, 255L, 2761, "import", "Belgium", "Freshwater Fish", 265281, "FAOSTAT_trade"
+  )
+
+  expect_error(
+    whep:::.cbs_bind_recovered(.belgium_cbs(), recovered),
+    class = "whep_error_off_window_area_year"
+  )
+})
