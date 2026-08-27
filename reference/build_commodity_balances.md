@@ -22,6 +22,7 @@ build_commodity_balances(
   historical_data = NULL,
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
+  trade_zero = .cbs_trade_zero_choices(),
   .fixed_data = NULL
 )
 ```
@@ -91,6 +92,26 @@ build_commodity_balances(
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md)
   always uses `"none"`; ask for `format = "wide"` here to get the wide
   table with recovery applied.
+
+- trade_zero:
+
+  One of `"prefer_record"` (default) or `"keep"`, selecting what happens
+  when the CBS carries a **zero** import or export and the trade record
+  for the same `(year, area_code, item_cbs_code)` carries a positive
+  quantity. The trade record is filled in with
+  [`dplyr::coalesce()`](https://dplyr.tidyverse.org/reference/coalesce.html),
+  which replaces only a missing value, so the zero used to stand and the
+  trade was discarded. `"prefer_record"` takes the positive trade
+  quantity instead, because such a zero is not an observation: measured
+  at 2010, every one of them carries FAO flag `"I"` (imputed) or the
+  legacy `"S"` (standardized), and neither food-balance vintage carries
+  a single official `"A"` on a trade row. A non-zero CBS value is never
+  overwritten and a zero trade record never overwrites anything, so the
+  fill can only add trade. `"keep"` restores the pre-whep#866 behaviour.
+  **The default moves published values** — at 2010 it raises 4,493
+  import keys by 9.70 Mt and 3,771 export keys by 10.27 Mt, moving
+  26,538 published rows over 180 areas; see `NEWS.md`. The conflict
+  count is reported by every build under either setting.
 
 - .fixed_data:
 

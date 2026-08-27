@@ -39,7 +39,66 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="development version" id="whep-development-version">whep (development version)<a class="anchor" aria-label="anchor" href="#whep-development-version"></a></h2>
-<ul><li><p><strong><code>biomass_coefs</code> no longer ships the three spreadsheet section headers of the upstream workbook (<a href="https://github.com/eduaguilera/whep/issues/752" class="external-link">#752</a>).</strong> <code>TRANSFORMED PRODUCTS</code> and <code>AGRO-INDUSTRY BYPRODUCTS</code> were entirely empty rows. <code>ANIMAL PRODUCTS</code> was worse: its only seven populated cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the <code>Coefs</code> sheet’s VLOOKUPs address by absolute position — which read as data claimed an <code>Edible_portion</code> of 4.0 and 3 kg of nitrogen per kg of fresh matter, i.e. 18.75 kg of protein per kg. They are now dropped in <code>data-raw/harmonization_tables.R</code>, so <code><a href="../reference/biomass_coefs.html">whep::biomass_coefs</a></code> has 418 rows rather than 421 and <code>Edible_portion</code> satisfies <code>(0, 1]</code> outright. <strong>No published value changes</strong>: the two empty rows carried no coefficient at all, and no <code>item_cbs_code</code> in <code>items_full</code> bridged to <code>ANIMAL PRODUCTS</code> (asserted in <code>test_biomass_coefs_hygiene.R</code>), which <code><a href="../reference/build_food_supply.html">build_food_supply()</a></code> already filtered defensively. The remaining part of <a href="https://github.com/eduaguilera/whep/issues/752" class="external-link">#752</a> — 75 rows whose proximate constituents exceed their own dry matter — is untouched and stays a coefficient question for the data owner.</p></li>
+<ul><li>
+<p><strong>A positive trade record now outranks a CBS zero, and <code><a href="../reference/build_commodity_balances.html">build_commodity_balances()</a></code> gains <code>trade_zero</code> to select the old behaviour (<a href="https://github.com/eduaguilera/whep/issues/866" class="external-link">#866</a>).</strong> Tier 1 of the trade imputation fills the CBS from the crosswalked FAOSTAT/FishStat record with <code><a href="https://dplyr.tidyverse.org/reference/coalesce.html" class="external-link">dplyr::coalesce()</a></code>, which replaces only a missing value, so a CBS row carrying <code>0</code> used to keep the zero even when the record for the same <code>(year, area_code, item_cbs_code)</code> carried a positive quantity. <strong>Such a zero is not an observation.</strong> Measured at 2010 on the real pins, of the 4,493 import conflicts 4,129 come from <code>faostat-fbs-new</code> carrying FAO flag <code>"I"</code> (imputed), 328 from <code>faostat-fbs-old</code> carrying the legacy <code>"S"</code> (standardized) and 36 from WHEP’s own mean of non-primary sources; neither food-balance vintage carries a single official <code>"A"</code> on an import or export row in 2010. FAO’s <em>Statistical Standard Series: Observation Status Code List, Version 4</em> (endorsed by DCG-T on 10 July 2025) states that a missing value FAO replaces with a 0 because the phenomenon is assumed negligible is flagged <code>"I"</code>, not <code>"N – not significant"</code>. The default is now <code>trade_zero = "prefer_record"</code>; <code>"keep"</code> reproduces the previous build. A non-zero CBS value is never overwritten and a zero trade record never overwrites anything, so the fill can only add trade.</p>
+<p><strong>Published values move.</strong> Measured on the real pins, one build per year with everything else held fixed:</p>
+<table style="width:100%;" class="table"><colgroup><col width="14%"><col width="14%"><col width="14%"><col width="14%"><col width="14%"><col width="14%"><col width="14%"></colgroup><thead><tr><th>year</th>
+<th align="right">published cells</th>
+<th align="right">changed</th>
+<th align="right">new keys</th>
+<th align="right">dropped keys</th>
+<th align="right">areas</th>
+<th align="right">items</th>
+</tr></thead><tbody><tr><td>1990</td>
+<td align="right">76,543</td>
+<td align="right">17,020 (22.2%)</td>
+<td align="right">13,728</td>
+<td align="right">48</td>
+<td align="right">153</td>
+<td align="right">105</td>
+</tr><tr><td>2010</td>
+<td align="right">104,229</td>
+<td align="right">26,538 (25.5%)</td>
+<td align="right">21,642</td>
+<td align="right">66</td>
+<td align="right">180</td>
+<td align="right">108</td>
+</tr><tr><td>2020</td>
+<td align="right">109,709</td>
+<td align="right">31,924 (29.1%)</td>
+<td align="right">26,246</td>
+<td align="right">128</td>
+<td align="right">176</td>
+<td align="right">107</td>
+</tr></tbody></table><p>Most of the movement is keys that appear at all: a zero import is dropped by the final balance, so filling it makes the row exist. Element totals, in Mt and as a share of the element:</p>
+<table class="table"><thead><tr><th>element</th>
+<th align="right">1990</th>
+<th align="right">2010</th>
+<th align="right">2020</th>
+</tr></thead><tbody><tr><td>import</td>
+<td align="right">+4.41 (+0.61%)</td>
+<td align="right">+9.70 (+0.61%)</td>
+<td align="right">+3.98 (+0.19%)</td>
+</tr><tr><td>export</td>
+<td align="right">+8.66 (+1.22%)</td>
+<td align="right">+10.57 (+0.72%)</td>
+<td align="right">+5.14 (+0.27%)</td>
+</tr><tr><td>food</td>
+<td align="right">+0.85 (+0.03%)</td>
+<td align="right">+3.67 (+0.08%)</td>
+<td align="right">+2.19 (+0.04%)</td>
+</tr><tr><td>production</td>
+<td align="right">+0.30 (+0.00%)</td>
+<td align="right">+1.54 (+0.01%)</td>
+<td align="right">+2.66 (+0.01%)</td>
+</tr><tr><td>stock_variation</td>
+<td align="right">−4.87 (−1.48%)</td>
+<td align="right">−3.77 (−0.78%)</td>
+<td align="right">−1.37 (−0.26%)</td>
+</tr></tbody></table><p>The tonnage concentrates in two items in every year: CBS 2657 “Beverages, Fermented” (5.75 Mt of added imports at 2010) and CBS 2764 “Marine Fish, Other” (2.31 Mt at 2010, 2.38 Mt at 2020), the two whose FBS trade column is effectively unpopulated. Denmark, Norway, Lebanon and the USA lead the areas. Production and stock variation move because a filled export on a row with no production has to be covered by the balancing cascade; that is a real cost of the choice and it is why <code>"keep"</code> remains available.</p>
+<p><strong>The supply-use identity is unaffected.</strong> <code><a href="../reference/check_supply_use_balance.html">check_supply_use_balance()</a></code> on the wide CBS at 2010 returns a total absolute imbalance of 370.65 Mt under both settings — identical, not merely close. The count of rows flagged at the 1e-6 absolute tolerance rises (2,073 of 17,694 to 3,550 of 20,512) purely because there are 2,818 more rows and 197 previously exact rows now carry floating-point residue: every newly flagged row’s imbalance is under 0.5 t, and the worst row in the dataset is 1.11e8 in both builds. The 370.65 Mt of pre-existing imbalance is unchanged by this and is not what this entry is about.</p>
+</li>
+<li><p><strong><code>biomass_coefs</code> no longer ships the three spreadsheet section headers of the upstream workbook (<a href="https://github.com/eduaguilera/whep/issues/752" class="external-link">#752</a>).</strong> <code>TRANSFORMED PRODUCTS</code> and <code>AGRO-INDUSTRY BYPRODUCTS</code> were entirely empty rows. <code>ANIMAL PRODUCTS</code> was worse: its only seven populated cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the <code>Coefs</code> sheet’s VLOOKUPs address by absolute position — which read as data claimed an <code>Edible_portion</code> of 4.0 and 3 kg of nitrogen per kg of fresh matter, i.e. 18.75 kg of protein per kg. They are now dropped in <code>data-raw/harmonization_tables.R</code>, so <code><a href="../reference/biomass_coefs.html">whep::biomass_coefs</a></code> has 418 rows rather than 421 and <code>Edible_portion</code> satisfies <code>(0, 1]</code> outright. <strong>No published value changes</strong>: the two empty rows carried no coefficient at all, and no <code>item_cbs_code</code> in <code>items_full</code> bridged to <code>ANIMAL PRODUCTS</code> (asserted in <code>test_biomass_coefs_hygiene.R</code>), which <code><a href="../reference/build_food_supply.html">build_food_supply()</a></code> already filtered defensively. The remaining part of <a href="https://github.com/eduaguilera/whep/issues/752" class="external-link">#752</a> — 75 rows whose proximate constituents exceed their own dry matter — is untouched and stays a coefficient question for the data owner.</p></li>
 <li><p><strong><code><a href="../reference/get_faostat_data.html">get_faostat_data()</a></code> now resolves <code>ISO3_CODE</code> from [polity_area_crosswalk] instead of FAOSTAT’s vendored <code>FAOcountryProfile</code> name table, and the hand-maintained fix block is gone (<a href="https://github.com/eduaguilera/whep/issues/541" class="external-link">#541</a>).</strong> The profile table is stale relative to the labels FAOSTAT publishes today, so eight of the 211 FAOSTAT area names in <code>regions_full$FAOSTAT_name</code> came out with <code>ISO3_CODE = NA</code>: three current reporters — <code>Eswatini</code> (SWZ), <code>North Macedonia</code> (MKD) and <code>China, Taiwan Province of</code> (TWN) — and four former areas that appear in the historical series — <code>Belgium-Luxembourg</code> (BLX), <code>Ethiopia PDR</code> (ETH), <code>Sudan (former)</code> (SDN) and <code>USSR</code> (SUN). All seven now resolve; the <code>China</code> aggregate (area 351) still resolves to <code>NA</code> by design (<a href="https://github.com/eduaguilera/whep/issues/158" class="external-link">#158</a>, <a href="https://github.com/eduaguilera/whep/issues/313" class="external-link">#313</a>). Coverage over those labels goes from 203/211 to 210/211, with zero disagreements on the codes both routes resolved. No published WHEP value changes: <code><a href="../reference/get_faostat_data.html">get_faostat_data()</a></code> has no caller in <code>R/</code>, <code>data-raw/</code> or the vignettes, and every pipeline ISO3 bridge already went through the crosswalk. A user who grouped its output by <code>ISO3_CODE</code>, however, was silently dropping Eswatini, North Macedonia and Taiwan. The codes are maintained upstream in whep-polities rather than in whep, so the one place the two routes disagreed — <code>US Minor Is.</code>, which the FAOSTAT profile gave the non-ISO <code>PUS</code> — now takes the ISO 3166-1 <code>UMI</code>.</p></li>
 <li><p><strong>Reconstructed fodder rows no longer claim to be FAOSTAT (<a href="https://github.com/eduaguilera/whep/issues/937" class="external-link">#937</a>).</strong> <code><a href="../reference/build_primary_production.html">build_primary_production()</a></code>’s yield step pivoted units into columns and dropped the <code>source</code> the fodder chain had already resolved, so <code>.impute_missing_values()</code> re-derived provenance from the mere presence of a tonnage and labelled every fodder row <code>"FAOSTAT_prod"</code>. That was a false claim for temporary grassland in particular: CBS 3002 (production item 996) appears in neither FAOSTAT production pin — its hectares come from the <code>eu-agridb-fodder</code> pin and its tonnage from the EU AgriDB nitrogen yield or a dry-matter estimate — yet all 494 rows of it in a 2001–2023 build read as FAOSTAT. The source is now carried through, so those rows read <code>"EuropeAgriDB"</code> or <code>"DM_yield_estimate"</code>. <code>source</code> is used to rank competing sources, so a <code>(year, area, item, unit)</code> cell contested by a genuine FAOSTAT row and a reconstructed fodder row now resolves to the FAOSTAT one; hectares and tonnages themselves are unchanged (see the PR for the measured diff). <code>.deduplicate_doubles()</code> told the two copies of a double-product key apart by asking whether <code>source</code> was <code>NA</code>, which only held while the yield table had no source column at all; it now names the copy explicitly, so seed cotton, oil palm fruit and flax keep their series.</p></li>
 <li>

@@ -71,6 +71,7 @@ destiny filling, and final balancing.</p></li>
 <span>  historical_data <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  format <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"long"</span>, <span class="st">"wide"</span><span class="op">)</span>,</span>
 <span>  trade_recovery <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"net_import"</span><span class="op">)</span>,</span>
+<span>  trade_zero <span class="op">=</span> <span class="fu">.cbs_trade_zero_choices</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  .fixed_data <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -136,6 +137,25 @@ areas on the nourishment axis. <code>NEWS.md</code> states the rest, and whep#76
 keeps the remaining decisions open.
 <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code> always uses <code>"none"</code>; ask for <code>format = "wide"</code> here to
 get the wide table with recovery applied.</p></dd>
+
+
+<dt id="arg-trade-zero">trade_zero<a class="anchor" aria-label="anchor" href="#arg-trade-zero"></a></dt>
+<dd><p>One of <code>"prefer_record"</code> (default) or <code>"keep"</code>,
+selecting what happens when the CBS carries a <strong>zero</strong> import or export
+and the trade record for the same <code>(year, area_code, item_cbs_code)</code>
+carries a positive quantity. The trade record is filled in with
+<code><a href="https://dplyr.tidyverse.org/reference/coalesce.html" class="external-link">dplyr::coalesce()</a></code>, which replaces only a missing value, so the zero
+used to stand and the trade was discarded. <code>"prefer_record"</code> takes the
+positive trade quantity instead, because such a zero is not an
+observation: measured at 2010, every one of them carries FAO flag <code>"I"</code>
+(imputed) or the legacy <code>"S"</code> (standardized), and neither food-balance
+vintage carries a single official <code>"A"</code> on a trade row. A non-zero CBS
+value is never overwritten and a zero trade record never overwrites
+anything, so the fill can only add trade. <code>"keep"</code> restores the
+pre-whep#866 behaviour. <strong>The default moves published values</strong> — at 2010
+it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
+10.27 Mt, moving 26,538 published rows over 180 areas; see <code>NEWS.md</code>.
+The conflict count is reported by every build under either setting.</p></dd>
 
 
 <dt id="arg--fixed-data">.fixed_data<a class="anchor" aria-label="anchor" href="#arg--fixed-data"></a></dt>
