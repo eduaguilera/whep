@@ -1249,17 +1249,28 @@ create_n_nat_destiny <- function(example = FALSE) {
         dplyr::select(
           Name_biomass,
           Product_kgDM_kgFM,
-          Product_kgN_kgDM
+          Product_kgN_kgDM,
+          N_kgN_kgFM
         ) |>
         dplyr::distinct(),
       by = c("biomass_match" = "Name_biomass")
     ) |>
-    dplyr::mutate(n_per_fm = Product_kgDM_kgFM * Product_kgN_kgDM) |>
+    dplyr::mutate(
+      # Same coefficient priority as .convert_fm_dm_n() and
+      # .convert_to_items_n(): a directly tabulated N_kgN_kgFM wins over the
+      # Product_kgN_kgDM * Product_kgDM_kgFM derivation when both exist. Must
+      # stay in sync with .convert_fm_dm_n() -- see this function's roxygen.
+      n_per_fm = dplyr::coalesce(
+        N_kgN_kgFM,
+        Product_kgDM_kgFM * Product_kgN_kgDM
+      )
+    ) |>
     dplyr::select(
       -item_biomass,
       -biomass_match,
       -Product_kgDM_kgFM,
-      -Product_kgN_kgDM
+      -Product_kgN_kgDM,
+      -N_kgN_kgFM
     )
 }
 
@@ -1526,7 +1537,8 @@ create_n_nat_destiny <- function(example = FALSE) {
           Product_kgDM_kgFM,
           Product_kgN_kgDM,
           Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
+          Residue_kgN_kgDM,
+          N_kgN_kgFM
         ),
       by = c("Biomass_match" = "Name_biomass")
     ) |>
@@ -1542,25 +1554,17 @@ create_n_nat_destiny <- function(example = FALSE) {
         Residue_kgN_kgDM,
         Product_kgN_kgDM
       ),
-      conversion_dm = dplyr::if_else(
-        prod_type %in%
-          c(
-            "Residue",
-            "Grass"
-          ),
-        Residue_kgDM_kgFM,
-        Product_kgDM_kgFM
-      ),
-      conversion_n_dm = dplyr::if_else(
-        prod_type %in%
-          c(
-            "Residue",
-            "Grass"
-          ),
-        Residue_kgN_kgDM,
-        Product_kgN_kgDM
-      ),
-      production_n = production_fm * conversion_dm * conversion_n_dm
+      # A directly tabulated N_kgN_kgFM wins over the Product_kgN_kgDM *
+      # Product_kgDM_kgFM derivation when both exist (same priority
+      # build_food_supply() documents; must stay in sync with
+      # .add_product_n_per_fm(), which replicates this choice). No
+      # fresh-matter-direct equivalent exists for Residue/Grass rows.
+      production_n = dplyr::case_when(
+        prod_type %in% c("Residue", "Grass") ~
+          production_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
+        .default = production_fm *
+          dplyr::coalesce(N_kgN_kgFM, Product_kgDM_kgFM * Product_kgN_kgDM)
+      )
     ) |>
     dplyr::select(-Name_biomass) |>
     dplyr::select(
@@ -1901,16 +1905,28 @@ create_n_nat_destiny <- function(example = FALSE) {
           Product_kgDM_kgFM,
           Product_kgN_kgDM,
           Residue_kgDM_kgFM,
-          Residue_kgN_kgDM
+          Residue_kgN_kgDM,
+          N_kgN_kgFM
         ),
       by = "Name_biomass"
     ) |>
     dplyr::mutate(
+      # N_kgN_kgFM is a directly tabulated fresh-matter nitrogen density and
+      # is preferred over the Product_kgN_kgDM * Product_kgDM_kgFM route
+      # derived from separate dry-matter coefficients, matching the priority
+      # build_food_supply() documents ("N_kgN_kgFM where available, otherwise
+      # Product_kgN_kgDM * Product_kgDM_kgFM"). The two do not always agree --
+      # for cow milk the Product route reads ~30% high -- and this function
+      # used to always take the Product route regardless.
       n_value = dplyr::case_when(
         prod_type %in% c("Residue", "Grass") ~
           value_fm * Residue_kgDM_kgFM * Residue_kgN_kgDM,
         prod_type == "Product" ~
-          value_fm * Product_kgDM_kgFM * Product_kgN_kgDM,
+          value_fm *
+          dplyr::coalesce(
+            N_kgN_kgFM,
+            Product_kgDM_kgFM * Product_kgN_kgDM
+          ),
         TRUE ~ NA_real_
       )
     ) |>

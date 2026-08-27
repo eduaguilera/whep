@@ -25,22 +25,23 @@ create_grafs_plot_df <- function(example = FALSE) {
   prov_destiny_df <- .combine_prov_nat_destiny()
   n_balance <- whep_read_file("n_balance_ygpit_all")
 
-  df_land <- .create_land_df()
+  df_land <- .create_land_df(prov_destiny_df)
   df_flow <- .create_n_flow_df(prov_destiny_df)
   df_import <- .create_n_import_df(prov_destiny_df)
   df_lu <- .create_livestock_lu_df()
   df_population <- .create_population_df()
-  df_n_input <- .create_n_input_df(n_balance)
+  df_n_input <- .create_n_input_df(n_balance, prov_destiny_df)
   df_land_surplus <- .create_land_surplus_df(prov_destiny_df)
   df_livestock <- .create_livestock_df(prov_destiny_df)
   df_lv_r_m <- .create_feed_df(prov_destiny_df)
   df_crop_losses <- .create_crop_losses_df(prov_destiny_df)
+  df_processing_losses <- .create_processing_losses_df(prov_destiny_df)
   df_animal_losses <- .create_animal_losses_df(prov_destiny_df)
   df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
   df_milk <- .create_milk_df(prov_destiny_df)
   df_livestock_total <- .create_livestock_total_df(prov_destiny_df)
 
-  df_crplndtot <- .create_cropland_total_df(df_flow)
+  df_crplndtot <- .create_cropland_total_df(df_flow, df_processing_losses)
 
   df_all_flows <- dplyr::bind_rows(
     df_flow,
@@ -50,15 +51,21 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_livestock_export,
     df_lv_r_m,
     df_crop_losses,
+    df_processing_losses,
     df_animal_losses
   )
   df_livestock_surplus <- .create_livestock_surplus_df(df_all_flows)
+  df_wastewater_surplus <- .create_wastewater_surplus_df(
+    df_all_flows,
+    prov_destiny_df
+  )
 
   df_combined <- .combine_and_finalize_df(
     crop_livestock_flows = df_flow,
     df_livestock = dplyr::bind_rows(df_livestock, df_milk, df_livestock_export),
     df_lv_r_m = df_lv_r_m,
     df_crop_losses = df_crop_losses,
+    df_processing_losses = df_processing_losses,
     df_animal_losses = df_animal_losses,
     df_livestock_total = df_livestock_total,
     df_livestock_surplus = df_livestock_surplus,
@@ -72,7 +79,8 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_lu = df_lu,
     df_n_input = df_n_input,
     df_population = df_population,
-    df_crplndtot = df_crplndtot
+    df_crplndtot = df_crplndtot,
+    df_wastewater_surplus = df_wastewater_surplus
   ))
 }
 
@@ -114,22 +122,29 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::bind_rows(nat_destiny_df)
 }
 
-.create_cropland_total_df <- function(df_flow) {
+.create_cropland_total_df <- function(df_flow, df_processing_losses) {
   cropland_labels <- c(
     "{CROP_EXPORT}",
     "{CROPS_TO_POP}",
-    "{CROPS_TO_LIVESTOCK}"
+    "{CROPS_TO_LIVESTOCK}",
+    "{CRP_PROCLOSS}"
   )
 
-  df_prov <- df_flow |>
-    dplyr::filter(province != "Spain", label %in% cropland_labels) |>
-    dplyr::mutate(data = suppressWarnings(as.numeric(data))) |>
+  # Processing losses leave the cropland system just like exports, food and
+  # feed do, so the cropland throughput total must count them too -- df_flow
+  # alone does not carry {CRP_PROCLOSS}.
+  df_source <- dplyr::bind_rows(df_flow, df_processing_losses) |>
+    dplyr::filter(label %in% cropland_labels) |>
+    dplyr::mutate(data = suppressWarnings(as.numeric(data)))
+
+  df_prov <- df_source |>
+    dplyr::filter(province != "Spain") |>
     dplyr::group_by(province, year) |>
     dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(label = "{CRPLNDTOTN}", align = "R")
 
-  df_spain <- df_flow |>
-    dplyr::filter(province == "Spain", label %in% cropland_labels) |>
+  df_spain <- df_source |>
+    dplyr::filter(province == "Spain") |>
     dplyr::group_by(year) |>
     dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(province = "Spain", label = "{CRPLNDTOTN}", align = "R")
@@ -197,6 +212,8 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{GRASS_SURPLUS}",
     "{LIVGASLOSS}",
     "{WASTEWATER}",
+    "{ORGOT}",
+    "{CRP_PROCLOSS}",
     "{CRPLNDTOTN}",
     "{GREHN}",
     "{FORN}",
@@ -229,11 +246,6 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{FORN}",
     "{HAGRASS}",
     "{HACULT}",
-    "{PERiN}",
-    "{PERrN}",
-    "{NPEiN}",
-    "{NPErN}",
-    "{GREHN}",
     "{GREHMha}",
     "{POPULATIONM}",
     "{PERiMha}",
@@ -364,7 +376,8 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{IMPORT_ANIMALCR}",
     "{IMANOTR}",
     "{IMANOTM}",
-    "{IMANOT}"
+    "{IMANOT}",
+    "{ORGOT}"
   )
 
   dplyr::bind_rows(
@@ -475,7 +488,7 @@ create_grafs_plot_df <- function(example = FALSE) {
         Origin == "Synthetic" &
           Destiny == "semi_natural_agroecosystems" ~
           "{SYF_GRASS}",
-        Origin == "People" ~ "{WASTEWATER}",
+        Origin == "People" & Destiny == "Cropland" ~ "{ORGOT}",
         TRUE ~ NA_character_
       )
     ) |>
@@ -630,11 +643,14 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' and non-permanent), horticulture, and forest area, both as N and area (ha),
 #' separated into irrigated and rainfed.
 #'
+#' @param prov_destiny_df A tibble of N flows with columns `Origin`, `Item`,
+#'   `Irrig_cat`, `Province_name`, `Year`, and `MgN`.
+#'
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
 #' @noRd
-.create_land_df <- function() {
+.create_land_df <- function(prov_destiny_df) {
   n_balance <- whep_read_file("n_balance_ygpit_all")
   crop_lookup <- whep_read_file("grafs_crop_categories")
 
@@ -644,7 +660,7 @@ create_grafs_plot_df <- function(example = FALSE) {
 
   forest_land <- c("Forest_low", "Forest_high", "Dehesa")
 
-  n_balance |>
+  df_area <- n_balance |>
     dplyr::filter(LandUse %in% c("Cropland", forest_land)) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
@@ -675,24 +691,6 @@ create_grafs_plot_df <- function(example = FALSE) {
       ),
       PERiMha = PERiha / 1e6,
       PERrMha = PERrha / 1e6,
-      PERiN = .sum_land_n(
-        Prod_MgN,
-        UsedResidue_MgN,
-        GrazedWeeds_MgN,
-        .is_crop(
-          LandUse,
-          Name_biomass,
-          permanent_biomass,
-          Irrig_cat,
-          "Irrigated"
-        )
-      ),
-      PERrN = .sum_land_n(
-        Prod_MgN,
-        UsedResidue_MgN,
-        GrazedWeeds_MgN,
-        .is_crop(LandUse, Name_biomass, permanent_biomass, Irrig_cat, "Rainfed")
-      ),
       HORiha = .sum_land_area(
         Area_ygpit_ha,
         .is_crop(
@@ -761,30 +759,6 @@ create_grafs_plot_df <- function(example = FALSE) {
       ),
       NPEiMha = NPEiha / 1e6,
       NPErMha = NPErha / 1e6,
-      NPEiN = .sum_land_n(
-        Prod_MgN,
-        UsedResidue_MgN,
-        GrazedWeeds_MgN,
-        .is_crop(
-          LandUse,
-          Name_biomass,
-          non_permanent_biomass,
-          Irrig_cat,
-          "Irrigated"
-        )
-      ),
-      NPErN = .sum_land_n(
-        Prod_MgN,
-        UsedResidue_MgN,
-        GrazedWeeds_MgN,
-        .is_crop(
-          LandUse,
-          Name_biomass,
-          non_permanent_biomass,
-          Irrig_cat,
-          "Rainfed"
-        )
-      ),
       .groups = "drop"
     ) |>
     tidyr::pivot_longer(
@@ -799,12 +773,379 @@ create_grafs_plot_df <- function(example = FALSE) {
       align = "R"
     ) |>
     dplyr::select(province, year, label, data, align)
+
+  df_crop_type_n <- .create_crop_type_n_df(
+    prov_destiny_df,
+    crop_lookup,
+    n_balance
+  )
+
+  dplyr::bind_rows(df_area, df_crop_type_n)
 }
 
 .biomass_of_type <- function(crop_lookup, type) {
   crop_lookup |>
     dplyr::filter(crop_type == type) |>
     dplyr::pull(Name_biomass)
+}
+
+#' Create permanent/non-permanent crop N production dataset, from destiny data.
+#'
+#' @description
+#' Computes `{PERiN}`, `{PERrN}`, `{NPEiN}`, and `{NPErN}` directly from
+#' `prov_destiny_df` (the same destiny-tracking dataset used for
+#' `{CRPLNDTOTN}` and the surplus calculations), rather than from the
+#' separate `n_balance_ygpit_all` production dataset, for consistency between
+#' the crop-type breakdown and the rest of the cropland figures.
+#'
+#' @param prov_destiny_df A tibble of N flows with columns `Origin`, `Item`,
+#'   `Irrig_cat`, `Province_name`, `Year`, and `MgN`.
+#' @param crop_lookup A tibble mapping `Name_biomass` to `crop_type`
+#'   (`grafs_crop_categories`).
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @noRd
+.create_crop_type_n_df <- function(prov_destiny_df, crop_lookup, n_balance) {
+  item_lookup <- whep_read_file("codes_coefs_items_full") |>
+    dplyr::select(Item = item, Name_biomass)
+
+  permanent_biomass <- .biomass_of_type(crop_lookup, "permanent")
+  # Horticulture has no line of its own in the diagram (only 5 crop-type
+  # categories are shown); its N is folded into non-permanent here since
+  # horticulture crops are themselves annual/seasonal, so {CRPLNDTOTN} (which
+  # is destiny-based and doesn't distinguish horticulture at all) still
+  # reconciles exactly with the sum of the 5 displayed categories.
+  non_permanent_biomass <- c(
+    .biomass_of_type(crop_lookup, "non_permanent"),
+    .biomass_of_type(crop_lookup, "horticulture")
+  )
+
+  # n_balance_ygpit_all only has provincial rows (confirmed: no "Spain" row
+  # at all), so any share computed straight from it silently produces
+  # nothing for the national totals. Synthesize a national row by summing
+  # the provinces, so shares are available at both levels.
+  n_balance_full <- .add_national_n_balance(n_balance)
+
+  # Straw, Other crop residues, Brans and Firewood are allocated separately
+  # below via .compute_residue_shares() (borrowing n_balance's per-crop
+  # residue shape); excluded from the processing-share remap too, or they'd
+  # be double-counted once reallocated across PERiN/PERrN/NPEiN/NPErN.
+  residue_items <- c("Straw", "Other crop residues", "Brans", "Firewood")
+
+  # Every processed item's real parent-crop breakdown, from
+  # get_processing_coefs()'s actual processed volumes -- this is the
+  # data-driven replacement for a hand-maintained processed-item -> parent-
+  # crop table. An item with one contributing crop gets share = 1, the same
+  # result a static 1:1 mapping would give; a genuine multi-source item
+  # (Beverages, Fermented: sugar beet 75%, grapes 18%, sugar cane, apples and
+  # eight more) is split proportionally instead of guessed at or dropped. An
+  # item get_processing_coefs() has no rows for at all (e.g. "Oilcrops,
+  # Other") stays unclassified below -- there is no data to resolve it with
+  # either way.
+  processing_shares <- .processing_item_shares(item_lookup, residue_items)
+
+  cropland_raw <- prov_destiny_df |>
+    dplyr::filter(Origin == "Cropland") |>
+    dplyr::left_join(item_lookup, by = "Item") |>
+    dplyr::mutate(
+      is_primary_crop = Name_biomass %in%
+        c(permanent_biomass, non_permanent_biomass)
+    )
+
+  # A primary crop's own Name_biomass already resolves to a tracked crop
+  # type, so it passes through unchanged.
+  primary_rows <- cropland_raw |>
+    dplyr::filter(is_primary_crop) |>
+    dplyr::mutate(is_byproduct = FALSE) |>
+    dplyr::select(-is_primary_crop)
+
+  # Everything else fans out: one row per contributing parent crop, N
+  # pre-multiplied by that crop's processing share, then routed through the
+  # same byproduct/irrigation-split path below as a single-parent byproduct
+  # would take. An item processing_shares has no data for (not a
+  # ProcessedItem in get_processing_coefs(), or none of its parents resolve
+  # to a Name_biomass) is dropped by the inner_join here exactly as it would
+  # have been by never matching a crop-type category later -- same numeric
+  # result either way, just earlier.
+  processed_rows <- cropland_raw |>
+    dplyr::filter(!is_primary_crop) |>
+    dplyr::select(-Name_biomass, -is_primary_crop) |>
+    dplyr::inner_join(processing_shares, by = "Item") |>
+    dplyr::mutate(MgN = MgN * share, is_byproduct = TRUE) |>
+    dplyr::select(-share)
+
+  cropland_flows_raw <- dplyr::bind_rows(primary_rows, processed_rows)
+
+  # Byproduct rows carry Irrig_cat = NA (confirmed empirically -- they don't
+  # inherit the parent crop's irrigation status), so they'd never match
+  # Irrig_cat == "Irrigated"/"Rainfed" below even after the Name_biomass
+  # remap above. Split each byproduct's N between Irrigated/Rainfed using
+  # that specific parent crop's own production split from n_balance,
+  # falling back to a 50/50 split where no matching n_balance data exists.
+  irrigation_shares <- .compute_crop_irrigation_shares(n_balance_full)
+
+  byproduct_rows <- cropland_flows_raw |>
+    dplyr::filter(is_byproduct) |>
+    dplyr::select(-Irrig_cat) |>
+    dplyr::cross_join(tibble::tibble(Irrig_cat = c("Irrigated", "Rainfed"))) |>
+    dplyr::left_join(
+      irrigation_shares,
+      by = c("Province_name", "Year", "Name_biomass", "Irrig_cat")
+    ) |>
+    dplyr::mutate(
+      share = dplyr::coalesce(share, 0.5),
+      MgN = MgN * share
+    ) |>
+    dplyr::select(-share)
+
+  cropland_flows <- dplyr::bind_rows(
+    cropland_flows_raw |> dplyr::filter(!is_byproduct),
+    byproduct_rows
+  )
+
+  .sum_crop_type_n <- function(biomass_set, irrig) {
+    cropland_flows |>
+      dplyr::filter(Name_biomass %in% biomass_set, Irrig_cat == irrig) |>
+      dplyr::group_by(Province_name, Year) |>
+      dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop")
+  }
+
+  # Straw, other crop residues, and brans have no single parent crop (their
+  # `proc`/`comm_code` are NA in codes_coefs_items_full), so their N can't be
+  # remapped directly (residue_items, defined above, is also excluded from
+  # the processing-share remap for the same reason). n_balance_ygpit_all
+  # already attributes residue N to its parent crop's own row (via
+  # UsedResidue_MgN), so borrow its per province/year *shares* across crop
+  # types to split this otherwise unresolvable total, while keeping the
+  # total magnitude anchored to prov_destiny_df for consistency with
+  # {CRPLNDTOTN}.
+
+  # Exclude greenhouse-tagged residue rows: those are already captured by
+  # .create_n_input_df()'s broader {GREHN} sum (any Item with
+  # Irrig_cat == "Greenhouse"), so including them here would double-count
+  # them once reallocated across PERiN/PERrN/NPEiN/NPErN below.
+  residue_total <- prov_destiny_df |>
+    dplyr::filter(
+      Origin == "Cropland",
+      Item %in% residue_items,
+      !(Irrig_cat %in% "Greenhouse")
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(residue_mgn = sum(MgN, na.rm = TRUE), .groups = "drop")
+
+  # {GREHN} itself is computed separately in .create_n_input_df(); the
+  # shares from .compute_residue_shares() already exclude greenhouse
+  # entirely (not just from the output), so no further filtering is needed
+  # here to avoid double-counting it.
+  residue_alloc <- .compute_residue_shares(n_balance_full, crop_lookup) |>
+    dplyr::left_join(residue_total, by = c("Province_name", "Year")) |>
+    dplyr::mutate(data = dplyr::coalesce(residue_mgn, 0) * share) |>
+    dplyr::select(Province_name, Year, var = crop_group, data)
+
+  dplyr::bind_rows(
+    .sum_crop_type_n(permanent_biomass, "Irrigated") |>
+      dplyr::mutate(var = "PERiN"),
+    .sum_crop_type_n(permanent_biomass, "Rainfed") |>
+      dplyr::mutate(var = "PERrN"),
+    .sum_crop_type_n(non_permanent_biomass, "Irrigated") |>
+      dplyr::mutate(var = "NPEiN"),
+    .sum_crop_type_n(non_permanent_biomass, "Rainfed") |>
+      dplyr::mutate(var = "NPErN"),
+    residue_alloc
+  ) |>
+    dplyr::group_by(Province_name, Year, var) |>
+    dplyr::summarise(data = sum(data, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      label = paste0("{", var, "}"),
+      province = Province_name,
+      year = Year,
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+}
+
+#' Add a synthesized national ("Spain") row to n_balance_ygpit_all.
+#'
+#' @description
+#' n_balance_ygpit_all only has provincial rows (no national aggregate), so
+#' any per-province/year share computed directly from it silently produces
+#' nothing at the "Spain" level. This sums the provinces per
+#' (Year, LandUse, Name_biomass, Irrig_cat) to synthesize a matching
+#' national row.
+#'
+#' @param n_balance A tibble of the provincial N balance.
+#'
+#' @return
+#' `n_balance` with an added set of `Province_name == "Spain"` rows.
+#'
+#' @noRd
+.add_national_n_balance <- function(n_balance) {
+  national <- n_balance |>
+    dplyr::group_by(Year, LandUse, Name_biomass, Irrig_cat) |>
+    dplyr::summarise(
+      Prod_MgN = sum(Prod_MgN, na.rm = TRUE),
+      UsedResidue_MgN = sum(UsedResidue_MgN, na.rm = TRUE),
+      GrazedWeeds_MgN = sum(GrazedWeeds_MgN, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(Province_name = "Spain")
+
+  dplyr::bind_rows(n_balance, national)
+}
+
+#' Compute each processed item's real parent-crop shares, from processing
+#' coefficients.
+#'
+#' @description
+#' Data-driven replacement for a hand-maintained processed-item -> parent-
+#' crop table: `get_processing_coefs()` already records, per year, how much
+#' of each primary item Spain actually processed into each output item
+#' (`value_to_process`). Summed across the full span and normalized per
+#' output item, this gives every processed item's real long-run mix of
+#' contributing crops -- an item with one contributing crop gets `share = 1`
+#' (the same result a static 1:1 mapping would give); a genuine multi-source
+#' item (`"Beverages, Fermented"`: sugar beet, grapes, sugar cane, apples and
+#' eight more) is split proportionally across all of them instead of being
+#' guessed at or dropped.
+#'
+#' @param item_lookup A tibble with columns `Item` and `Name_biomass`
+#'   (`codes_coefs_items_full`).
+#' @param exclude_items Character vector of output item names to drop before
+#'   computing shares (the residue items `.create_crop_type_n_df()` allocates
+#'   separately via `.compute_residue_shares()` instead, to avoid
+#'   double-counting them).
+#'
+#' @return
+#' A tibble with columns `Item` (the processed/output item), `Name_biomass`
+#' (the contributing parent crop's biomass name) and `share` (that parent's
+#' fraction of the item's total processed volume, summing to 1 per `Item`).
+#'
+#' @noRd
+.processing_item_shares <- function(item_lookup, exclude_items) {
+  get_processing_coefs(years = 1961:2023) |>
+    dplyr::filter(area_code == .spain_area_code) |>
+    add_item_cbs_name(
+      code_column = "item_cbs_code_to_process",
+      name_column = "Item"
+    ) |>
+    add_item_cbs_name(
+      code_column = "item_cbs_code_processed",
+      name_column = "ProcessedItem"
+    ) |>
+    dplyr::filter(!(ProcessedItem %in% exclude_items)) |>
+    dplyr::summarise(
+      total_value = sum(value_to_process, na.rm = TRUE),
+      .by = c(ProcessedItem, Item)
+    ) |>
+    dplyr::left_join(item_lookup, by = "Item") |>
+    # A parent item with no Name_biomass of its own can't contribute to any
+    # crop-type category; drop it before renormalizing so the remaining
+    # parents' shares still sum to 1 rather than falling short.
+    dplyr::filter(!is.na(Name_biomass)) |>
+    dplyr::mutate(
+      share = total_value / sum(total_value),
+      .by = ProcessedItem
+    ) |>
+    dplyr::select(Item = ProcessedItem, Name_biomass, share)
+}
+
+#' Compute per province/year/crop production shares between irrigation
+#' statuses, from n_balance.
+#'
+#' @description
+#' Used to split a byproduct's N (which carries `Irrig_cat = NA` -- it
+#' doesn't inherit the parent crop's irrigation status) between Irrigated
+#' and Rainfed, using that specific parent crop's own production split.
+#'
+#' @param n_balance_full A tibble of the provincial N balance, including the
+#'   synthesized national row from `.add_national_n_balance()`.
+#'
+#' @return
+#' A tibble with columns `Province_name`, `Year`, `Name_biomass`,
+#' `Irrig_cat`, and `share`.
+#'
+#' @noRd
+.compute_crop_irrigation_shares <- function(n_balance_full) {
+  n_balance_full |>
+    dplyr::filter(
+      LandUse == "Cropland",
+      Irrig_cat %in% c("Irrigated", "Rainfed")
+    ) |>
+    dplyr::group_by(Province_name, Year, Name_biomass, Irrig_cat) |>
+    dplyr::summarise(prod = sum(Prod_MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::group_by(Province_name, Year, Name_biomass) |>
+    dplyr::mutate(
+      total = sum(prod),
+      share = dplyr::if_else(total > 0, prod / total, 0.5)
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(Province_name, Year, Name_biomass, Irrig_cat, share)
+}
+
+#' Compute per province/year crop-type shares of residue N from n_balance.
+#'
+#' @description
+#' Used to split destiny-dataset residue items with no single parent crop
+#' (Straw, Other crop residues, Brans, Firewood) proportionally across the
+#' four tracked crop-type/irrigation categories (permanent/non_permanent x
+#' irrigated/rainfed), borrowing n_balance's per-crop `UsedResidue_MgN`
+#' shape without importing its absolute values. Greenhouse rows are
+#' excluded entirely (not just from the output, but from the denominator
+#' used to normalize shares) since the destiny-side total this gets applied
+#' to is itself already greenhouse-free (see `.create_crop_type_n_df()`) --
+#' including greenhouse in the denominator here would make these four
+#' shares sum to less than 1, silently discarding whatever fraction would
+#' have gone to greenhouse.
+#'
+#' @param n_balance A tibble of the provincial N balance.
+#' @param crop_lookup A tibble mapping `Name_biomass` to `crop_type`
+#'   (`grafs_crop_categories`).
+#'
+#' @return
+#' A tibble with columns `Province_name`, `Year`, `crop_group`, and `share`.
+#'
+#' @noRd
+.compute_residue_shares <- function(n_balance, crop_lookup) {
+  permanent_biomass <- .biomass_of_type(crop_lookup, "permanent")
+  # Horticulture folded into non-permanent -- see .create_crop_type_n_df().
+  non_permanent_biomass <- c(
+    .biomass_of_type(crop_lookup, "non_permanent"),
+    .biomass_of_type(crop_lookup, "horticulture")
+  )
+
+  n_balance |>
+    dplyr::filter(
+      LandUse == "Cropland",
+      Irrig_cat %in% c("Irrigated", "Rainfed")
+    ) |>
+    dplyr::mutate(
+      crop_group = dplyr::case_when(
+        Name_biomass %in% permanent_biomass & Irrig_cat == "Irrigated" ~
+          "PERiN",
+        Name_biomass %in% permanent_biomass & Irrig_cat == "Rainfed" ~
+          "PERrN",
+        Name_biomass %in% non_permanent_biomass & Irrig_cat == "Irrigated" ~
+          "NPEiN",
+        Name_biomass %in% non_permanent_biomass & Irrig_cat == "Rainfed" ~
+          "NPErN",
+        TRUE ~ NA_character_
+      )
+    ) |>
+    dplyr::filter(!is.na(crop_group)) |>
+    dplyr::group_by(Province_name, Year, crop_group) |>
+    dplyr::summarise(
+      residue = sum(UsedResidue_MgN, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::mutate(
+      total = sum(residue),
+      share = dplyr::if_else(total > 0, residue / total, 0)
+    ) |>
+    dplyr::ungroup() |>
+    dplyr::select(Province_name, Year, crop_group, share)
 }
 
 .is_crop <- function(land_use, biomass, biomass_set, irrig_cat, irrig) {
@@ -826,12 +1167,14 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' area, combined with the crops/forest dataset.
 #'
 #' @param n_balance A tibble of the provincial N balance.
+#' @param prov_destiny_df A tibble of N flows with columns `Origin`,
+#'   `Irrig_cat`, `Province_name`, `Year`, and `MgN`.
 #'
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
 #' @noRd
-.create_n_input_df <- function(n_balance) {
+.create_n_input_df <- function(n_balance, prov_destiny_df) {
   grass_land <- c(
     "Dehesa",
     "Forest_high",
@@ -840,17 +1183,11 @@ create_grafs_plot_df <- function(example = FALSE) {
     "Pasture_Shrubland"
   )
 
-  n_balance |>
+  df_area <- n_balance |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
       `{GREHha}` = sum(Area_ygpit_ha[Irrig_cat == "Greenhouse"], na.rm = TRUE),
       `{GREHMha}` = `{GREHha}` / 1e6,
-      `{GREHN}` = sum(
-        Prod_MgN[Irrig_cat == "Greenhouse"] +
-          UsedResidue_MgN[Irrig_cat == "Greenhouse"] +
-          GrazedWeeds_MgN[Irrig_cat == "Greenhouse"],
-        na.rm = TRUE
-      ),
       `{HAGRASS}` = sum(Area_ygpit_ha[LandUse %in% grass_land], na.rm = TRUE),
       `{GRASSMha}` = `{HAGRASS}` / 1e6,
       `{HACULT}` = sum(Area_ygpit_ha[LandUse == "Cropland"], na.rm = TRUE),
@@ -864,6 +1201,16 @@ create_grafs_plot_df <- function(example = FALSE) {
     ) |>
     dplyr::select(province = Province_name, year = Year, label, data) |>
     dplyr::mutate(align = "L")
+
+  df_grehn <- prov_destiny_df |>
+    dplyr::filter(Origin == "Cropland", Irrig_cat == "Greenhouse") |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(label = "{GREHN}") |>
+    dplyr::select(province = Province_name, year = Year, label, data) |>
+    dplyr::mutate(align = "L")
+
+  dplyr::bind_rows(df_area, df_grehn)
 }
 
 #' Create land nitrogen surplus dataset (cropland and semi-natural systems).
@@ -1171,6 +1518,41 @@ create_grafs_plot_df <- function(example = FALSE) {
     )
 }
 
+#' Create crop processing losses dataset.
+#'
+#' @description
+#' Nitrogen from cropland production that processing substitution could not
+#' credit to a named processed output ([create_n_prov_destiny()]'s
+#' `"processing_losses"` destiny -- grape pomace, olive cake, beet pulp and
+#' similar agro-industry residues).
+#'
+#' @param prov_destiny_df A tibble of production and destiny N flows.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @noRd
+.create_processing_losses_df <- function(prov_destiny_df) {
+  prov_destiny_df |>
+    dplyr::filter(
+      Origin == "Cropland",
+      Destiny == "processing_losses"
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(
+      data = sum(MgN, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      label = "{CRP_PROCLOSS}",
+      align = "L"
+    ) |>
+    dplyr::rename(
+      province = Province_name,
+      year = Year
+    )
+}
+
 #' Create animal losses dataset.
 #'
 #' @description
@@ -1331,6 +1713,49 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::select(province, year, label, data, align)
 }
 
+# {WASTEWATER} is a residual, not a destiny lookup: what the population
+# consumes ({CROPS_TO_POP} + {CROP_POPIMPORT} + {LIVESTOCK_TO_HUMAN} +
+# {IMPHMANA}) minus the People-origin N that actually returns to land as soil
+# input ({ORGOT}'s Cropland flow, plus the semi_natural_agroecosystems one,
+# which carries no label of its own). Almost all People-origin N in the real
+# data targets Cropland, so `returned` is ~{ORGOT}; the grass share is
+# included for the (currently negligible) rows that target grassland instead.
+.create_wastewater_surplus_df <- function(df_all_flows, prov_destiny_df) {
+  input_labels <- c(
+    "{CROPS_TO_POP}",
+    "{CROP_POPIMPORT}",
+    "{LIVESTOCK_TO_HUMAN}",
+    "{IMPHMANA}"
+  )
+
+  df_inputs <- df_all_flows |>
+    dplyr::filter(label %in% input_labels) |>
+    dplyr::group_by(province, year) |>
+    dplyr::summarise(
+      input = sum(as.numeric(data), na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  df_returned <- prov_destiny_df |>
+    dplyr::filter(
+      Origin == "People",
+      Destiny %in% c("Cropland", "semi_natural_agroecosystems")
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(returned = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::rename(province = Province_name, year = Year)
+
+  dplyr::full_join(df_inputs, df_returned, by = c("province", "year")) |>
+    dplyr::mutate(
+      input = dplyr::coalesce(input, 0),
+      returned = dplyr::coalesce(returned, 0),
+      data = input - returned,
+      label = "{WASTEWATER}",
+      align = "R"
+    ) |>
+    dplyr::select(province, year, label, data, align)
+}
+
 #' Create population dataset.
 #'
 #' @description
@@ -1368,6 +1793,7 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' @param df_livestock A tibble of livestock N data.
 #' @param df_lv_r_m A tibble of livestock feed data.
 #' @param df_crop_losses A tibble of crop N losses.
+#' @param df_processing_losses A tibble of crop processing N losses.
 #' @param df_animal_losses A tibble of animal N losses.
 #' @param df_livestock_total A tibble of total livestock N.
 #' @param df_livestock_surplus A tibble of livestock surplus N.
@@ -1382,6 +1808,7 @@ create_grafs_plot_df <- function(example = FALSE) {
   df_livestock,
   df_lv_r_m,
   df_crop_losses,
+  df_processing_losses,
   df_animal_losses,
   df_livestock_total,
   df_livestock_surplus,
@@ -1392,6 +1819,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     .select_flow_cols(df_livestock),
     .select_flow_cols(df_lv_r_m),
     .select_flow_cols(df_crop_losses),
+    .select_flow_cols(df_processing_losses),
     .select_flow_cols(df_animal_losses),
     .select_flow_cols(df_livestock_total),
     .select_flow_cols(df_livestock_surplus),

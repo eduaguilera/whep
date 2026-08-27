@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **`create_n_prov_destiny()`/`create_n_nat_destiny()` prefer the tabulated
+  fresh-matter nitrogen density over the dry-matter-derived one when both
+  exist.** `.convert_to_items_n()` always computed an item's nitrogen content
+  as `Product_kgDM_kgFM * Product_kgN_kgDM`, even when `biomass_coefs` also
+  carried a directly tabulated `N_kgN_kgFM` for the same item -- the two do
+  not always agree (cow milk: 4.28% implied protein via the Product route
+  against 3.30% via `N_kgN_kgFM`, close to the ~3.2-3.4% textbook value), and
+  `build_food_supply()` already documents `N_kgN_kgFM` as preferred "where
+  available, otherwise `Product_kgN_kgDM * Product_kgDM_kgFM`" -- this
+  function did not follow that priority. It now coalesces `N_kgN_kgFM` first,
+  falling back to the Product-derived value only when `N_kgN_kgFM` is
+  missing, for every `food`/`feed`/`other_uses` row keyed `prod_type ==
+  "Product"` (`Residue`/`Grass` rows are unaffected -- no fresh-matter-direct
+  nitrogen coefficient exists for them).
+
+  **Published values move down**: Spain's national `population_food`-implied
+  protein supply (`create_n_nat_destiny()`, `destiny == "population_food"`)
+  drops from ~150 to ~142 g/cap/day in 2020 (~135 to ~127 in 2010), a ~5-6%
+  reduction concentrated in animal-product-heavy years. This narrows, but
+  does not close, a larger ~40-50% gap against FAOSTAT's published Spain
+  protein supply (~105 g/cap/day); the remainder is deliberately not
+  addressed here -- whether `food` (as opposed to `feed`/`other_uses`) should
+  also apply `Edible_portion` is a separate, unresolved science decision.
+
 * **`build_primary_production()` is now `identical()` to itself across
   sessions (#747).** The four commodity-balance extracts it carries as its
   `.cb_extracts` attribute (`fbs_new`, `fbs_old`, `cbs_crops`, `cbs_animals`)
