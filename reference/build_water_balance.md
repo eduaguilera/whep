@@ -109,9 +109,21 @@ build_water_balance(
   the file itself carries, so an unknown name aborts rather than
   silently returning the whole-cell total; the band index is never used,
   because which crop a given index denotes is a property of how the run
-  was configured. Only the consumptive-water and `cft_nir` terms are
-  per-CFT, so this leaves the water budget itself (AET, runoff,
-  drainage) untouched.
+  was configured. Only `blue_consump_mm`, `green_consump_mm` and
+  `cft_nir_mm` are per-CFT, so this leaves the water budget itself
+  untouched: `aet_mm`, `runoff_mm`, `drainage_mm`,
+  `soil_water_change_mm` and the blue/green AET split (`aet_blue_mm`,
+  `aet_green_mm`) are whole-cell quantities and take the same values
+  whatever `bands` asks for. The split in particular is computed from
+  the all-band consumptive totals, never the selected ones, because the
+  fraction of a cell's evapotranspiration that came from irrigation
+  cannot depend on which crop the caller asked about.
+
+  `bands` is also the only route to per-crop water today: read the
+  per-CFT cubes once into `data`, then call once per band. Nothing in
+  WHEP consumes the per-crop numbers yet, and on an LPJmL 6.x run
+  without the green/blue fix their blue/green split is unusable (see
+  `method`), so treat a per-band blue-water series as provisional.
 
 - example:
 
