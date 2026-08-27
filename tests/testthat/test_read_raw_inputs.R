@@ -158,10 +158,28 @@ test_that("the live Sudan bucket sums instead of splitting in two", {
   post <- out[out$year == 2015L, ]
   expect_equal(nrow(post), 1L)
   expect_equal(post$value, 125)
-  # And the label no longer flips mid-series: the same bucket is the same
-  # territory in 2005 and 2015, which is what a join key has to be.
-  expect_equal(length(unique(out$area)), 1L)
+  # ONE LABEL PER BUCKET-YEAR, which is the property whep#563 needs: the label
+  # is attached after the sum, keyed on `(bucket, year)`, so it cannot re-split
+  # a group. Asserted per year rather than across the series, because a bucket's
+  # label legitimately changes when the polity its code resolves to changes --
+  # 43 buckets do, `ETH-1952-1993` -> `ETH-1993-2025` among them, and bucket 206
+  # joined them when whep#860 gave it `F206-2011-2025` from 2012. Requiring one
+  # label across the whole series would forbid that, and it is not what makes
+  # the sum safe.
+  labels_per_bucket_year <- tapply(
+    out$area,
+    paste(out$area_code, out$year),
+    function(x) length(unique(x))
+  )
+  expect_true(all(labels_per_bucket_year == 1L))
   expect_equal(sum(out$value), sum(raw$value))
+
+  # And the change of label is at the secession, not anywhere else.
+  expect_equal(out$area[out$year == 2005L], "Sudan (1956-2011)")
+  expect_equal(
+    out$area[out$year == 2015L],
+    "Sudan and South Sudan (combined reporting)"
+  )
 })
 
 test_that("the aggregator labels a bucket from the bucket's own code", {
@@ -189,7 +207,7 @@ test_that("the aggregator labels a bucket from the bucket's own code", {
   expect_equal(
     out$area,
     whep::polity_area_crosswalk$polity_name[
-      whep::polity_area_crosswalk$polity_code == "SUD-1956-2011"
+      whep::polity_area_crosswalk$polity_code == "F206-2011-2025"
     ][[1]]
   )
 })
