@@ -219,6 +219,46 @@
   FABIO models (153, 154, 209, 212, which is #556). WHEP's country set is its
   own choice (#459), so that census belongs to #556 and is not decided here.
 
+* **`build_water_balance(bands = )` no longer repartitions the whole cell's
+  evapotranspiration (#916).** `bands` is documented to restrict only the
+  per-CFT terms and to leave the water budget untouched, but the default
+  `blue_green = "cft_native"` split was computed from the *selected* bands'
+  consumptive water and then applied to whole-cell `aet_mm`, so asking for one
+  crop changed the cell's blue/green AET. On the package's own synthetic
+  fixture, requesting `bands = "rainfed grassland"` moved `aet_blue_mm` from
+  160 to 120 mm/yr (-25%) and `aet_green_mm` from 560 to 600 mm/yr. The split
+  now always uses the all-band totals, while `blue_consump_mm`,
+  `green_consump_mm` and `cft_nir_mm` stay band-restricted as documented. No
+  published values change: nothing in WHEP passes `bands`, so every current
+  caller takes the `bands = NULL` path, where the two totals are identical.
+  The `bands` documentation now also states that it is the only route to
+  per-crop water today, that nothing consumes those per-crop numbers yet, and
+  that their blue/green split is unusable on an LPJmL 6.x run without the
+  green/blue fix.
+
+* **`regional_mms_distribution` is now traced to the source that would
+  replace it, its live reach is stated correctly, and its values are locked
+  (#921).** No published value changes: nothing was revalued. The manure
+  management shares this table ships are an unsourced placeholder, round to
+  five percentage points, matching no table of the GLEAM 3.0 workbook — and
+  they are live, so their reach is now documented exactly: through
+  `.resolve_mms_shares()` they weight the Tier 2 manure CH4 methane
+  conversion factor and the Tier **1** manure direct-N2O emission factor.
+  They do **not** reach Tier 2 direct N2O, whose rows carry no `region`
+  column and therefore take the pasture EF3 for every stream — the previous
+  `@source` said they did. The real shares are published in Supplement S1,
+  Tables 4.2-4.11 of FAO. 2018. *GLEAM Model description, Version 2.0,
+  Revision 5* (workbook md5 `72fd2ea477dfe8b30cd3657b2baa4af1`, re-downloaded
+  from FAO and verified). Adopting them takes four crosswalk decisions
+  (collapsing GLEAM's per-production-system tables onto `species_gen`, its 10
+  regions onto the IPCC labels, deriving a `Global` row GLEAM does not
+  publish, and mapping its richer MMS vocabulary onto `mms_type`), so it is
+  left to the maintainer; one illustrative crosswalk, measured on FAOSTAT
+  2020 head counts, moves Tier 1 manure direct N2O by -11.1% (Buffalo -57%,
+  Poultry +22%), Tier 1 manure CO2e by -4.2% and Tier 2 manure CH4 by
+  -26.9%. A new test locks the two effective factors the table feeds per
+  (region, species), so a future revalue has to be deliberate.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different

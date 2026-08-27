@@ -853,6 +853,74 @@ test_that("gleam_mms_shares is a clean tibble", {
   )
 })
 
+test_that("regional_mms_distribution keeps its whep#921 values", {
+  # This table is an unsourced placeholder (see its @source) and it is LIVE:
+  # `.resolve_mms_shares()` weights the Tier 2 manure CH4 methane conversion
+  # factor and the Tier 1 manure direct-N2O EF3 with it. GLEAM 2.0 Supplement
+  # S1 Tables 4.2-4.11 publish real regional shares that disagree materially,
+  # so revaluing this table is a maintainer decision (whep#921), never a
+  # drive-by edit. What is locked here is the two effective factors the table
+  # actually feeds, per (region, species), so any revalue has to come through
+  # a deliberate update of these expectations with its numbers stated.
+  #
+  # The Poultry EF3 of 0.005 is the `dplyr::coalesce()` default, not a table
+  # value: `mms_type` "Poultry Manure" and "Anaerobic Lagoon" match no row of
+  # `ipcc_2019_n2o_ef_direct`, whose labels are "Poultry Manure - High Rise" /
+  # "- Deep Litter" and "Uncovered Anaerobic Lagoon" (all 0.001).
+  mms <- whep::regional_mms_distribution
+  temperate_mcf <- whep::climate_mcf |>
+    dplyr::filter(.data$climate_zone == "Temperate") |>
+    dplyr::select("mms_type", "mcf_percent")
+  ef3 <- whep::ipcc_2019_n2o_ef_direct |>
+    dplyr::rename(mms_type = "system", ef3 = "ef_kg_n2o_n_per_kg_n")
+
+  effective <- mms |>
+    dplyr::left_join(temperate_mcf, by = "mms_type") |>
+    dplyr::left_join(ef3, by = "mms_type") |>
+    dplyr::mutate(
+      mcf_percent = dplyr::coalesce(.data$mcf_percent, 2),
+      ef3 = dplyr::coalesce(.data$ef3, 0.005)
+    ) |>
+    dplyr::summarise(
+      share_total = sum(.data$fraction),
+      weighted_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+      weighted_ef3 = sum(.data$fraction * .data$ef3),
+      .by = c("region", "species")
+    ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  expected <- tibble::tribble(
+    ~region,           ~species,          ~weighted_mcf, ~weighted_ef3,
+    "Global",          "Buffalo",         0.01450,       0.00950,
+    "Global",          "Camels",          0.01500,       0.01000,
+    "Global",          "Cattle",          0.07225,       0.00730,
+    "Latin America",   "Cattle",          0.03450,       0.00885,
+    "North America",   "Cattle",          0.15600,       0.00530,
+    "Western Europe",  "Cattle",          0.14300,       0.00495,
+    "Global",          "Goats",           0.01500,       0.01000,
+    "Global",          "Horses",          0.02000,       0.00900,
+    "Global",          "Mules and Asses", 0.01500,       0.01000,
+    "Global",          "Poultry",         0.02000,       0.00500,
+    "Global",          "Sheep",           0.01500,       0.01000,
+    "Global",          "Swine",           0.19150,       0.00400,
+    "North America",   "Swine",           0.32600,       0.00290
+  ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  testthat::expect_equal(nrow(mms), 33L)
+  # Every (region, species) group sums to one, which is what keeps the
+  # renormalisation in `.mms_global_shares()` inert and the split mass-
+  # conserving.
+  testthat::expect_equal(
+    effective$share_total,
+    rep(1, nrow(effective))
+  )
+  testthat::expect_equal(effective$region, expected$region)
+  testthat::expect_equal(effective$species, expected$species)
+  testthat::expect_equal(effective$weighted_mcf, expected$weighted_mcf)
+  testthat::expect_equal(effective$weighted_ef3, expected$weighted_ef3)
+})
+
 test_that("gleam_animal_weights is a clean tibble", {
   obj <- whep::gleam_animal_weights
   assert_clean_tibble(

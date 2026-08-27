@@ -14,12 +14,29 @@ Unverified. The values are a hardcoded \code{tribble()} in
 annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
 to the nearest 5 percentage points and match no table of the committed
 GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
-\code{gleam_mms_shares} this object \strong{is} result-affecting: it is the MMS
-split \code{.resolve_mms_shares()} hands to the Tier 2 manure CH4 (MCF
-weighting) and direct N2O (EF3) engines. The published GLEAM source is
-Supplement S1, Tables 4.2-4.11 of FAO. 2018. \emph{GLEAM Model description,
-Version 2.0, Revision 5} (see \code{gleam_mms_shares}); re-ingesting it moves
-manure numbers and is tracked separately. Treat as unverified until then.
+\code{gleam_mms_shares} this object \strong{is} result-affecting, through
+\code{.resolve_mms_shares()}: it weights the Tier 2 manure CH4 methane
+conversion factor (\code{climate_mcf}) and the Tier \strong{1} manure direct-N2O
+emission factor (\code{ipcc_2019_n2o_ef_direct}). It does not reach Tier 2
+direct N2O, whose rows carry no \code{region} column and so take the pasture
+EF3 for every stream (measured, whep#921).
+
+The real shares are published in Supplement S1, Tables 4.2-4.11 of
+FAO. 2018. \emph{GLEAM Model description, Version 2.0, Revision 5} (workbook
+md5 \verb{72fd2ea477dfe8b30cd3657b2baa4af1}, re-downloaded from FAO and
+verified 2026-08-26; see \code{gleam_mms_shares}), per production system
+(dairy / beef / feedlot cattle, dairy / non-dairy buffalo, small
+ruminants, backyard / intermediate / industrial pigs, chickens) over the
+10 GLEAM regions. Adopting them takes four choices that each move
+numbers: collapsing the per-system tables onto \code{species_gen}, collapsing
+GLEAM's regions onto the IPCC labels \code{.add_ipcc_region()} emits, deriving
+the \code{Global} row GLEAM does not publish, and mapping GLEAM's richer MMS
+vocabulary (Drylot, Pit storage, Burned for fuel, Uncovered anaerobic
+lagoon) onto \code{mms_type}. Under one illustrative crosswalk (equal weights
+throughout) on FAOSTAT 2020 head counts, whep#921 measured Tier 1 manure
+direct N2O -11.1\% (Buffalo -57\%, Poultry +22\%), Tier 1 manure CO2e
+-4.2\% and Tier 2 manure CH4 -26.9\%. Treat as unverified until a
+crosswalk is chosen.
 }
 \usage{
 regional_mms_distribution

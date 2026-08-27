@@ -2097,6 +2097,11 @@ utils::globalVariables(
     "map_year_start",
     "map_year_end",
     "window_start",
-    "window_end"
+    "window_end",
+    # water_balance.R (#916) — the all-band (whole-cell) consumptive-water
+    # totals the blue/green AET split uses, kept apart from the
+    # `bands`-restricted pair the output reports
+    "consump_blue_all_mm",
+    "consump_green_all_mm"
   )
 )
