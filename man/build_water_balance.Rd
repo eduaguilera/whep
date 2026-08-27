@@ -63,9 +63,21 @@ grazing footprint the grassland water alone. \code{NULL} (default) sums every
 band, the whole-cell total. Bands are matched on the \code{band_name} the file
 itself carries, so an unknown name aborts rather than silently returning
 the whole-cell total; the band index is never used, because which crop a
-given index denotes is a property of how the run was configured. Only the
-consumptive-water and \code{cft_nir} terms are per-CFT, so this leaves the
-water budget itself (AET, runoff, drainage) untouched.}
+given index denotes is a property of how the run was configured. Only
+\code{blue_consump_mm}, \code{green_consump_mm} and \code{cft_nir_mm} are per-CFT, so
+this leaves the water budget itself untouched: \code{aet_mm}, \code{runoff_mm},
+\code{drainage_mm}, \code{soil_water_change_mm} and the blue/green AET split
+(\code{aet_blue_mm}, \code{aet_green_mm}) are whole-cell quantities and take the same
+values whatever \code{bands} asks for. The split in particular is computed from
+the all-band consumptive totals, never the selected ones, because the
+fraction of a cell's evapotranspiration that came from irrigation cannot
+depend on which crop the caller asked about.
+
+\code{bands} is also the only route to per-crop water today: read the per-CFT
+cubes once into \code{data}, then call once per band. Nothing in WHEP consumes
+the per-crop numbers yet, and on an LPJmL 6.x run without the green/blue
+fix their blue/green split is unusable (see \code{method}), so treat a per-band
+blue-water series as provisional.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}

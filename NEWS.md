@@ -161,6 +161,23 @@
   FABIO models (153, 154, 209, 212, which is #556). WHEP's country set is its
   own choice (#459), so that census belongs to #556 and is not decided here.
 
+* **`build_water_balance(bands = )` no longer repartitions the whole cell's
+  evapotranspiration (#916).** `bands` is documented to restrict only the
+  per-CFT terms and to leave the water budget untouched, but the default
+  `blue_green = "cft_native"` split was computed from the *selected* bands'
+  consumptive water and then applied to whole-cell `aet_mm`, so asking for one
+  crop changed the cell's blue/green AET. On the package's own synthetic
+  fixture, requesting `bands = "rainfed grassland"` moved `aet_blue_mm` from
+  160 to 120 mm/yr (-25%) and `aet_green_mm` from 560 to 600 mm/yr. The split
+  now always uses the all-band totals, while `blue_consump_mm`,
+  `green_consump_mm` and `cft_nir_mm` stay band-restricted as documented. No
+  published values change: nothing in WHEP passes `bands`, so every current
+  caller takes the `bands = NULL` path, where the two totals are identical.
+  The `bands` documentation now also states that it is the only route to
+  per-crop water today, that nothing consumes those per-crop numbers yet, and
+  that their blue/green split is unusable on an LPJmL 6.x run without the
+  green/blue fix.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different
