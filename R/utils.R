@@ -2090,6 +2090,13 @@ utils::globalVariables(
     # build_production.R (#937) — flag marking the recomputed copy of a
     # double-product key, which `.deduplicate_doubles()` used to identify by
     # the absence of a `source`
-    ".double_combined"
+    ".double_combined",
+    # polity_folds.R / build_cbs.R (#884) — area-vintage columns of the
+    # reporting-window check that keeps a wrong-vintage area code from
+    # becoming a duplicated territory
+    "map_year_start",
+    "map_year_end",
+    "window_start",
+    "window_end"
   )
 )

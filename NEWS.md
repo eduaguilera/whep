@@ -55,6 +55,32 @@
   source column at all; it now names the copy explicitly, so seed cotton, oil
   palm fruit and flax keep their series.
 
+* **A source that keys a territory to an area code WHEP's vocabulary does not
+  report in that year now says so, and can never have a CBS row created for it
+  (#884).** FishStat splits Belgium out as area 255 from 1976, while every
+  FAOSTAT product — the balance sheets and `faostat-trade-totals` alike — keys
+  that territory 15 (Belgium-Luxembourg) until 1999 and splits 255/256 only at
+  2000. Those 459 FishStat rows (6,948.4 kt over 1976-1999) can never join a
+  CBS keyed 15, and creating the 255 row instead would put two overlapping
+  reporting areas on one territory-year rather than fill a gap. Reading any
+  input now warns when it reports an area outside that area's own reporting
+  window (`options(whep.warn_area_vintage = FALSE)` silences it), the
+  `trade_recovery = "net_import"` recovery of #864 drops such keys explicitly
+  instead of relying on its area-label join to hide them, and
+  `.cbs_bind_recovered()` aborts if one reaches it. **No published value
+  changes**: measured over every CBS-relevant pin, FishStat's Belgium 255 in
+  1976-1999 is the only off-window area-year in any input, and none of those
+  rows lands on a CBS row today. The check asks whether *any* reporting area
+  lands on the bucket that year rather than whether the year is inside the
+  bucket's own window, so the deliberate folds are not flagged: bucket 238 is
+  reported by area 62 (Ethiopia PDR) until 1992 and bucket 206 by areas 276/277
+  from 2012. The territory is not unrepresented either — the Belgium-Luxembourg
+  balance sheet already reports 11.93 Mt of fish imports and 3.33 Mt of exports
+  for those same 11 items and years, on every one of the 264 keys, so folding
+  FishStat's Belgium rows into bucket 15 would recover 0 t under the current
+  `coalesce()` fill policy. Which vocabulary the two sources should share stays
+  an open harmonization decision in #884.
+
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns
   (#256).** Four places computed the index independently, with three different

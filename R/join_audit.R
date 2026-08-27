@@ -228,12 +228,21 @@
      LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
      national readers share ONE bridge: this row used to be that function's,
      and the move is why the count did not rise with the pasture reader.",
+    ".off_window_area_keys", "merge", "area_code", 1L, "time_invariant",
+    "Attaches each area's own reporting window, one row per area by
+     construction, and the year bound is the predicate immediately after it.
+     Keying it on the year would ask the window to contain the year the window
+     is being used to test (whep#884).",
     ".reconcile_fao_arable_fallow", "merge", "area_code", 1L, "single_year",
     "Inside the per-year fallow attribution loop.",
     ".reconcile_fao_arable_fallow", "merge", "area_code, item_cbs_code", 1L,
     "single_year", "Inside the per-year fallow attribution loop.",
     ".redistribute_countries_dt", "[", "area_code", 2L, "single_year",
     "Per-country subsets inside one year's redistribution.",
+    ".reported_bucket_years", "merge", "area_code", 1L, "time_invariant",
+    "The same window attach, on the grid of areas whose bucket membership is
+     then resolved year-aware by `.add_polity_columns_dt()`. The window is a
+     property of the area, not of one of its years (whep#884).",
     ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
     "The first year the upstream FAOSTAT map reports each area at all: one
      number per area by construction, and the year bound the predicate right
@@ -336,6 +345,11 @@
      first-reported year per area, the bound that makes
      `polity_bucket_coverage()` year-aware. Keying on the year would return the
      year itself.",
+    ".area_reporting_windows", "[", "area_code, <dynamic>", 1L, "year_axis",
+    "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
+     crosswalk's periods: one reporting window per area. Keying on the year
+     would return the year itself (whep#884), exactly as for
+     `.area_first_reported_year` above.",
     ".areas_gleam_cannot_group", "distinct",
     "area_code, area_name, area_iso3c, polity_area_code, continent", 1L,
     "diagnostic",
@@ -513,6 +527,11 @@
      that follows it DOES carry `year`.",
     ".nd_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same guard again, for the deposition support.",
+    ".off_window_area_years", "[", "area_code, window_start, window_end", 1L,
+    "year_axis",
+    "Reduces an area's off-window rows to the span they cover, so `year` is
+     what the group is summarising, not a key it is missing. The window
+     columns ride along as attributes of the area (whep#884).",
     ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
     "year_axis",
     "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
