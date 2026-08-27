@@ -26,7 +26,10 @@
 #'   `polity_area_code`. Names such as `item_prod_name`, `item_cbs_name`, and
 #'   `source` are used when present; WHEP item and area tables fill canonical
 #'   names where possible. Observed historical rows are retained, and LUH2 proxy
-#'   filling can use them as anchors. Default `NULL`.
+#'   filling can use them as anchors. **Rice supplied here is assumed to be
+#'   on a paddy (rough-rice) basis** and is multiplied by the paddy-to-milled
+#'   extraction rate, because WHEP's rice item is milled equivalent throughout;
+#'   pre-divide by that rate if the series is already milled. Default `NULL`.
 #' @param federation_land Character. How the pre-1962 LUH2 back-cast reaches an
 #'   area whose territory is a dissolved federation. LUH2 land use is keyed on
 #'   present-day ISO3, so 15 Belgium-Luxembourg, 51 Czechoslovakia, 228 USSR and
@@ -896,7 +899,7 @@ build_primary_production <- function(
     dplyr::summarise(
       ha = sum(ha, na.rm = TRUE),
       dm = sum(dm, na.rm = TRUE),
-      .by = c(year, area, area_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(yield_dm = dm * 4 / ha)
 }
@@ -916,12 +919,27 @@ build_primary_production <- function(
     dplyr::select(item_prod_code, Product_kgDM_kgFM) |>
     dplyr::filter(!is.na(Product_kgDM_kgFM))
 
+  # The area label is a property of the `(year, area_code)` bucket, never a join
+  # or grouping key: keying on it split one country's series into one series per
+  # historical label, so Egypt (59) got three full-area copies of every fodder
+  # item in 1961 (#655). Everything below is keyed on `area_code`; the label is
+  # attached once, at the end.
+  source_labels <- .fodder_source_labels(i_fodder, fodder_euadb)
+
   fodder_all <- i_fodder |>
     dplyr::filter(year != 2013) |>
     dplyr::mutate(
       value = dplyr::if_else(value == 0, NA_real_, value)
     ) |>
-    dplyr::right_join(
+    dplyr::select(-dplyr::any_of("area")) |>
+    # `inner_join`, not `right_join`: the 7705 `dm_yield` keys with no fodder
+    # record added rows carrying nothing but a `yield_dm`, and the old
+    # `!is.na(area)` drop in `.fill_fodder_gaps()` removed every one of them --
+    # swapping the join type on `main` leaves that build byte-identical. Once
+    # that drop keys on `area_code`, which those rows do have, they would
+    # instead reach the cross join and hand it 12 years (2013-2024) no fodder
+    # source covers, so the join type has to say what the label filter used to.
+    dplyr::inner_join(
       dm_yield |> dplyr::select(year, area_code, yield_dm),
       by = c("year", "area_code")
     ) |>
@@ -935,6 +953,7 @@ build_primary_production <- function(
     .fill_fodder_gaps(dm_yield, items_prod, biomass)
 
   fodder_all |>
+    .attach_fodder_area(source_labels) |>
     dplyr::select(
       year,
       area,
@@ -953,31 +972,54 @@ build_primary_production <- function(
     )
 }
 
+# The label each source gave the bucket, one row per `(year, area_code)` so it
+# cannot fan a row out. Only a fallback: it is used where the bucket's own code
+# resolves to no polity in that year, exactly as `.bucket_area_labels()` falls
+# back to a member's name.
+.fodder_source_labels <- function(i_fodder, fodder_euadb) {
+  dplyr::bind_rows(
+    i_fodder |> tibble::as_tibble() |> dplyr::select(year, area_code, area),
+    fodder_euadb |> tibble::as_tibble() |> dplyr::select(year, area_code, area)
+  ) |>
+    dplyr::filter(!is.na(area), !is.na(area_code)) |>
+    dplyr::distinct(year, area_code, area) |>
+    dplyr::slice_head(n = 1, by = c(year, area_code)) |>
+    dplyr::rename(source_area = area)
+}
+
+# Attach the area label, at the end, from the row's own `(year, area_code)`. The
+# crosswalk is the same rule `.aggregate_to_polities()` labels a bucket by, so a
+# fodder row reads with the same label as the FAOSTAT crop row it is bound to --
+# 745 of 5769 `(year, area_code)` pairs disagreed while the label travelled as a
+# join key (#655).
+.attach_fodder_area <- function(fodder, source_labels) {
+  resolved <- .add_polity_columns_dt(
+    data.table::data.table(
+      year = as.integer(fodder$year),
+      area_code = fodder$area_code
+    ),
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+
+  fodder |>
+    dplyr::mutate(area = resolved$polity_name) |>
+    dplyr::left_join(source_labels, by = c("year", "area_code")) |>
+    dplyr::mutate(area = dplyr::coalesce(area, source_area)) |>
+    dplyr::select(-"source_area")
+}
+
 .merge_euadb_fodder <- function(
   fodder,
   fodder_euadb,
   items_prod
 ) {
-  # `.read_fodder_euadb()` labels rows with the plain `polity_name`, but
-  # `fodder` carries periodized names, so a name-keyed join fragments rows.
-  # Rekey EU AgriDB onto the FAO name for the same (year, area_code) so the
-  # joins below match on a consistent (year, area_code, area) key.
-  fao_area <- fodder |>
-    dplyr::filter(!is.na(area)) |>
-    dplyr::distinct(year, area_code, area) |>
-    dplyr::rename(fao_area = area)
-
-  fodder_euadb <- fodder_euadb |>
-    dplyr::left_join(fao_area, by = c("year", "area_code")) |>
-    dplyr::mutate(area = dplyr::coalesce(fao_area, area)) |>
-    dplyr::select(-fao_area)
-
   euadb_area <- fodder_euadb |>
     dplyr::filter(Unit == "Mha") |>
     dplyr::mutate(ha_euadb = value * 1e6) |>
     dplyr::select(
       year,
-      area,
       area_code,
       Name_Eurostat,
       ha_euadb
@@ -991,14 +1033,13 @@ build_primary_production <- function(
   euadb_yield <- fodder_euadb |>
     dplyr::filter(Label == "Yield") |>
     dplyr::mutate(kgnha_euadb = value) |>
-    dplyr::select(year, area, Name_Eurostat, kgnha_euadb)
+    dplyr::select(year, area_code, Name_Eurostat, kgnha_euadb)
 
   fodder |>
     dplyr::full_join(
       euadb_area,
       by = c(
         "year",
-        "area",
         "area_code",
         "item_prod",
         "item_prod_code"
@@ -1006,11 +1047,11 @@ build_primary_production <- function(
     ) |>
     dplyr::left_join(
       euadb_yield,
-      by = c("year", "area", "Name_Eurostat")
+      by = c("year", "area_code", "Name_Eurostat")
     ) |>
     dplyr::mutate(
       ha_tot = sum(ha, na.rm = TRUE),
-      .by = c(year, area, area_code)
+      .by = c(year, area_code)
     ) |>
     dplyr::mutate(
       sum_ha = sum(ha, na.rm = TRUE),
@@ -1019,7 +1060,7 @@ build_primary_production <- function(
         NA_real_,
         dplyr::if_else(sum_ha == 0, 1, ha / sum_ha)
       ),
-      .by = c(year, area, area_code, Name_Eurostat)
+      .by = c(year, area_code, Name_Eurostat)
     )
 }
 
@@ -1030,7 +1071,6 @@ build_primary_production <- function(
   biomass
 ) {
   grp_cols <- c(
-    "area",
     "area_code",
     "item_prod",
     "item_prod_code",
@@ -1038,7 +1078,9 @@ build_primary_production <- function(
   )
 
   dt <- data.table::as.data.table(fodder)
-  dt <- dt[!is.na(area)]
+  # EU AgriDB rows that resolve to no WHEP area (`.warn_unmapped_adb_regions()`
+  # names them) have nothing to be keyed on, so they are dropped here.
+  dt <- dt[!is.na(area_code)]
   dt <- dt[,
     .(
       t = .sum_if_any(t),
@@ -1085,7 +1127,6 @@ build_primary_production <- function(
   dt <- dt[,
     .(
       year,
-      area,
       area_code,
       item_prod,
       item_prod_code,
@@ -1683,6 +1724,21 @@ build_primary_production <- function(
   )
   crop_yield[, `:=`(yield_c = t / ha, unit = "t_ha")]
   data.table::setnames(crop_yield, "ha", "fu")
+  # The dcast pivots units into columns and carries no `source`, so the
+  # provenance `.combine_primary_raw()` had already resolved was dropped here
+  # and `.impute_missing_values()` re-derived it from the mere presence of a
+  # tonnage -- labelling every row with a `t` "FAOSTAT_prod". For reconstructed
+  # fodder that is a false claim: CBS 3002 (production item 996) is in neither
+  # FAOSTAT production pin, its hectares come from EU AgriDB and its tonnage
+  # from the EU AgriDB nitrogen yield or the dry-matter estimate, yet all 494
+  # rows read as FAOSTAT (whep#937). Carry the source instead of guessing it.
+  crop_yield <- merge(
+    crop_yield,
+    .best_source_by_key(crop_dt),
+    by = c("year", "area", "area_code", "item_prod", "item_prod_code"),
+    all.x = TRUE,
+    sort = FALSE
+  )
   crop_yield <- tibble::as_tibble(crop_yield)
 
   liv_yield <- primary_raw |>
@@ -1779,6 +1835,24 @@ build_primary_production <- function(
         unit
       )
     )
+}
+
+# Best-ranked source per production key, for the rows the yield dcast folds into
+# columns. One key's `t` and `ha` can come from different sources -- a fodder row
+# takes its hectares from EU AgriDB and its tonnage from the dry-matter estimate
+# -- so they are arbitrated with `.prod_source_rank()`, the same ranking
+# `.dedup_production()` and `.add_historical_yields()` use.
+.best_source_by_key <- function(crop_dt) {
+  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  src <- crop_dt[!is.na(source), c(key, "source"), with = FALSE]
+  if (nrow(src) == 0L) {
+    return(src)
+  }
+  src[, .src_rank := .prod_source_rank(source)]
+  data.table::setorderv(src, c(key, ".src_rank", "source"))
+  src <- src[src[, .I[1L], by = key]$V1]
+  src[, .src_rank := NULL]
+  src[]
 }
 
 .handle_double_products <- function(yield_raw, primary_double) {
@@ -1880,7 +1954,13 @@ build_primary_production <- function(
       source = "Estimated"
     )
 
-  dplyr::bind_rows(multi_stripped, combined)
+  # `.deduplicate_doubles()` has to tell the two copies of a key apart, and used
+  # to do it by asking whether `source` was `NA` -- which only worked while the
+  # yield table carried no source at all. Say which copy is which instead.
+  dplyr::bind_rows(
+    multi_stripped |> dplyr::mutate(.double_combined = FALSE),
+    combined |> dplyr::mutate(.double_combined = TRUE)
+  )
 }
 
 .deduplicate_doubles <- function(df) {
@@ -1897,7 +1977,9 @@ build_primary_production <- function(
         unit
       )
     ) |>
-    dplyr::filter(n == 1 | (n == 2 & is.na(source)))
+    # Where the primary item and its combined recomputation both landed on one
+    # key, the combined copy goes and the original stays.
+    dplyr::filter(n == 1 | (n == 2 & !.double_combined))
 }
 
 .fill_yields <- function(yield_all, items_prod, cbs_prod_raw) {
@@ -2234,10 +2316,9 @@ build_primary_production <- function(
       )
     ) |>
     dplyr::mutate(
-      unit = dplyr::case_match(
-        unit,
-        "t_LU" ~ "LU",
-        "t_head" ~ "heads"
+      unit = dplyr::case_when(
+        unit == "t_LU" ~ "LU",
+        unit == "t_head" ~ "heads"
       )
     ) |>
     dplyr::rename(item_prod_code = live_anim_code) |>
@@ -2633,32 +2714,12 @@ build_primary_production <- function(
   force(df)
   cli::cli_progress_step("Converting rice to milled equivalent")
   rice_units <- c("tonnes", "t_ha")
-  paddy_sources <- c(
-    "FAOSTAT_prod",
-    "fill_linear",
-    "fill_linear_historical",
-    "LUH2_cropland",
-    "LUH2_agriland",
-    "historical_LUH2_cropland",
-    "historical_LUH2_agriland"
-  )
 
   df |>
     dplyr::mutate(
-      rice_source_is_paddy = .data$source %in%
-        paddy_sources |
-        stringr::str_starts(
-          tidyr::replace_na(.data$source, ""),
-          "imputed_yield"
-        ) |
-        stringr::str_starts(
-          tidyr::replace_na(.data$source, ""),
-          "historical_"
-        ),
-      rice_source_is_paddy = tidyr::replace_na(
-        .data$rice_source_is_paddy,
-        FALSE
-      ),
+      # #778: one definition of "this source reports paddy", shared with the
+      # CBS historical ingest so both pipelines cannot drift apart.
+      rice_source_is_paddy = .rice_source_is_paddy(.data$source),
       value = dplyr::if_else(
         as.character(.data$item_prod_code) == "27" &
           .data$item_cbs_code == 2807L &
@@ -2772,6 +2833,12 @@ build_primary_production <- function(
 # 1850-1961, the whole back-cast span, so a gap means the pin is stale against
 # the polities snapshot and the caller should regenerate rather than get a
 # quietly shorter series.
+#
+# A year gap is not the only way the pin goes stale, and it is not the way that
+# actually happens: a re-synced polities snapshot leaves the years and the
+# buckets untouched and changes the TERRITORY each row was measured on.
+# `.warn_stale_hist_land()` checks the pin's own record of that territory
+# against the current snapshot, because no total over the pin can (whep#905).
 .historical_land_wide <- function(land_method, years) {
   if (land_method != "historical_polity") {
     return(NULL)
@@ -2795,6 +2862,7 @@ build_primary_production <- function(
              re-upload; it is static per LUH2 vintage and polities snapshot."
     ))
   }
+  .warn_stale_hist_land(land, back_cast)
   land |>
     dplyr::select("year", "area_code", "Cropland", "Pasture", "agriland")
 }
@@ -2895,6 +2963,16 @@ build_primary_production <- function(
 
 # Successor ISO3 codes for every production area whose own bucket has no LUH2
 # land, as a long iso3c -> (area_code, area) table.
+#
+# NOT AFFECTED BY #863, measured. The walk under-reaches where it stops on a
+# polity that reuses one of its parts' ISO3 (`.successor_code_reuse()`), and
+# none of those ten polities is reached from here: only a bucket with no LUH2
+# row of its own enters the walk at all, which on the `luh2-areas` vocabulary is
+# seven buckets (15, 51, 151, 164, 186, 228, 248), and each already resolves to
+# a complete part set. Serbia is the reason 186 and 248 are safe rather than an
+# exception to it -- LUH2 publishes no Kosovo code in any spelling, so a hop
+# past `SRB-2006-2008` would add nothing to sum. Changing the stop rule would
+# move no published land value.
 .federation_land_bridge <- function(land_areas_dt) {
   empty <- data.table::data.table(
     iso3c = character(0),
@@ -3468,10 +3546,94 @@ build_primary_production <- function(
   )]
   by_cols <- c("year", "area_code", "item_prod_code", "unit")
   data.table::setorderv(dt, c(by_cols, ".src_rank"))
+  .warn_same_source_dupes(dt, by_cols)
   dt <- dt[dt[, .I[1L], by = by_cols]$V1]
   data.table::setorderv(dt, ".orig_row")
   dt[, c(".src_rank", ".orig_row") := NULL]
   tibble::as_tibble(dt)
+}
+
+# `.dedup_production()` exists to arbitrate between competing SOURCES: two
+# datasets reporting the same quantity for one key, of which the better-ranked
+# one wins. Two rows carrying the SAME `source` are not that case -- nothing
+# competes -- so they are either an exact duplicate or, as in whep#633, two
+# territories that should have been summed upstream. Keeping one then discards
+# real mass, and the only way to notice was to diff a full build against the
+# raw pin (whep#650). This reports it; the arbitration itself is unchanged,
+# because summing here would double-count a FAOSTAT aggregate that legitimately
+# arrives alongside its own components. Expects `dt` already ordered by
+# `c(by_cols, ".src_rank")`, so the first row of each key is the survivor.
+.warn_same_source_dupes <- function(dt, by_cols) {
+  if (!isTRUE(getOption("whep.warn_prod_dupes", TRUE))) {
+    return(invisible(NULL))
+  }
+  collided <- .same_source_collisions(dt, by_cols)
+  if (nrow(collided) == 0L) {
+    return(invisible(collided))
+  }
+  by_unit <- collided[,
+    .(dropped = sum(dropped, na.rm = TRUE)),
+    by = "unit"
+  ]
+  data.table::setorderv(by_unit, "dropped", order = -1L)
+  bullets <- stats::setNames(
+    paste(scales::comma(by_unit$dropped), by_unit$unit, "discarded"),
+    rep("*", nrow(by_unit))
+  )
+  examples <- utils::head(collided, 3L)
+  cli::cli_warn(c(
+    "!" = "{nrow(collided)} production key{?s} carr{cli::qty(nrow(collided))}
+           {?ies/y} more than one row from the {.emph same} {.field source};
+           only one is kept.",
+    "i" = "Same-source rows are not competing measurements, so this is a
+           duplicate or an addend that was not summed upstream (whep#633),
+           not source arbitration.",
+    bullets,
+    "i" = "First example{?s}: {.val {examples$label}}.",
+    "i" = "Silence with {.code options(whep.warn_prod_dupes = FALSE)}."
+  ))
+  invisible(collided)
+}
+
+# One row per key that keeps a source with duplicate rows, carrying the value
+# that dedup drops (group total minus the surviving first row).
+.same_source_collisions <- function(dt, by_cols) {
+  needed <- c(by_cols, "source", "value")
+  if (!all(needed %in% names(dt)) || nrow(dt) == 0L) {
+    return(data.table::data.table(unit = character(), dropped = numeric()))
+  }
+  # Subset to duplicated keys first. The build hands this 6.3M rows of which
+  # normally none is duplicated, and grouping that whole table by key costs
+  # more than the dedup it reports on.
+  is_dup <- duplicated(dt, by = by_cols) |
+    duplicated(dt, by = by_cols, fromLast = TRUE)
+  if (!any(is_dup)) {
+    return(data.table::data.table(unit = character(), dropped = numeric()))
+  }
+  dup <- dt[is_dup, c(by_cols, "source", "value"), with = FALSE]
+  dup[, .keep_source := source[1L], by = by_cols]
+  collided <- dup[
+    source == .keep_source,
+    .(rows = .N, dropped = sum(value, na.rm = TRUE) - value[1L]),
+    by = by_cols
+  ][rows > 1L]
+  if (nrow(collided) == 0L) {
+    return(collided)
+  }
+  collided[,
+    label := paste0(
+      "year ",
+      year,
+      ", area ",
+      area_code,
+      ", item ",
+      item_prod_code,
+      " (",
+      rows,
+      " rows)"
+    )
+  ]
+  collided[]
 }
 
 .show_prod_duplicates <- function(df) {
@@ -3493,6 +3655,19 @@ build_primary_production <- function(
   cli::cli_alert_info(
     "{n_keys} key{?s} with competing sources found."
   )
+  # A key repeating one source is not a competition (whep#650), and
+  # `pivot_wider()` below then puts a list in that source's cell instead of a
+  # number. Name it, so the shape is explained rather than merely warned about.
+  same_src <- dupes |>
+    dplyr::count(dplyr::across(dplyr::all_of(c(key_cols, "source")))) |>
+    dplyr::filter(n > 1L)
+  if (nrow(same_src) > 0L) {
+    cli::cli_alert_warning(
+      "{nrow(same_src)} of them repeat a single {.field source}, so that
+       cell holds a list of values rather than one number: same-source rows
+       are duplicates or unsummed addends, not competitors."
+    )
+  }
 
   dupes |>
     dplyr::select(

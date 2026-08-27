@@ -157,6 +157,34 @@ test_that("the legacy polity prefix is not a polity code, and says so", {
   })
 })
 
+test_that("the crosswalk's legacy stem is not named for an identity", {
+  # whep#711, the mirror of #687 in the opposite column. The crosswalk vendors
+  # the same ISO3-like stems (`"ARM"`, `"ROCE"`, `"REUR"`) from
+  # regions_full.csv, and shipped them under `reporting_polity_code` -- the
+  # package's published name for "the polity itself" (R/polity_columns_doc.R),
+  # which ~70 outputs materialise as a real periodized code. Not one of the
+  # crosswalk's values was a `polities` code, so a reader following the
+  # documentation to that column got nothing.
+  #
+  # The register cannot cover this: it enumerates YEAR-LESS objects and the
+  # crosswalk carries a year, so the guard has to be written here.
+  cw <- whep::polity_area_crosswalk
+
+  expect_false("reporting_polity_code" %in% names(cw))
+  expect_false("reporting_polity_name" %in% names(cw))
+  expect_true("legacy_polity_prefix" %in% names(cw))
+  expect_true("legacy_polity_name" %in% names(cw))
+
+  stems <- stats::na.omit(cw$legacy_polity_prefix)
+  expect_gt(length(stems), 0L)
+  expect_equal(sum(stems %in% whep::polities$polity_code), 0L)
+
+  # The row's real identity is still there, under the name that means it.
+  codes <- stats::na.omit(cw$polity_code)
+  expect_gt(length(codes), 0L)
+  expect_true(all(codes %in% whep::polities$polity_code))
+})
+
 # The register's `resolver` column, re-executed. There are two present-day
 # routes and the register names which one each object takes: the numeric
 # `area_code` route through the crosswalk, and the label route for an object

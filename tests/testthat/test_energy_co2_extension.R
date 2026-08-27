@@ -95,6 +95,39 @@ testthat::test_that("a group is split across its sectors by slaughtered heads", 
   testthat::expect_equal(cattle / buffalo, 30)
 })
 
+# Spain (203) alongside the USA (231), in two years, so every meat group recurs
+# on both sides of the group -> sector fan-out. Both areas are classified by
+# GLEAM, so neither is reported as unpriced meat.
+.energy_multi_area_fixture <- function() {
+  both <- .energy_prod_fixture() |>
+    dplyr::bind_rows(dplyr::mutate(.energy_prod_fixture(), area_code = 203L))
+  dplyr::bind_rows(both, dplyr::mutate(both, year = 2001L))
+}
+
+testthat::test_that("the sector fan-out is not reported as unexpected", {
+  # The join is many-to-many by design, so only the extension's own warnings
+  # (unpriced meat, missing slaughter shares) should ever reach a caller.
+  testthat::expect_no_warning(
+    result <- whep::build_energy_co2_extension(
+      data = list(primary_prod = .energy_multi_area_fixture())
+    ),
+    class = "dplyr_warning_join_relationship_many_to_many"
+  )
+
+  # The fan-out spreads each group without duplicating an output key...
+  testthat::expect_equal(
+    nrow(dplyr::distinct(result, year, area_code, item_cbs_code)),
+    nrow(result)
+  )
+  # ...and it leaves each country-year exactly where it was on its own.
+  single <- whep::build_energy_co2_extension(
+    data = list(primary_prod = .energy_prod_fixture())
+  )
+  usa_2000 <- dplyr::filter(result, year == 2000L, area_code == 231L)
+  testthat::expect_equal(nrow(usa_2000), nrow(single))
+  testthat::expect_equal(sum(usa_2000$impact_u), sum(single$impact_u))
+})
+
 testthat::test_that("areas GLEAM cannot classify are named, not dropped mutely", {
   # `gleam_geographic_hierarchy` is the country universe of the whole extension,
   # so an area with no row there gets no grouping, hence no `ef_total`, and the
@@ -383,50 +416,14 @@ testthat::test_that("an area GLEAM omits can be neither OECD nor EU27", {
   # so an iso3 absent from it belongs to neither. Pinned because a coefficient
   # refresh that dropped a member would make the assumption false silently.
   hierarchy <- tibble::as_tibble(whep::gleam_geographic_hierarchy)
-  oecd_members <- c(
-    "AUS",
-    "AUT",
-    "BEL",
-    "CAN",
-    "CHL",
-    "COL",
-    "CRI",
-    "CZE",
-    "DNK",
-    "EST",
-    "FIN",
-    "FRA",
-    "DEU",
-    "GRC",
-    "HUN",
-    "ISL",
-    "IRL",
-    "ISR",
-    "ITA",
-    "JPN",
-    "KOR",
-    "LVA",
-    "LTU",
-    "LUX",
-    "MEX",
-    "NLD",
-    "NZL",
-    "NOR",
-    "POL",
-    "PRT",
-    "SVK",
-    "SVN",
-    "ESP",
-    "SWE",
-    "CHE",
-    "TUR",
-    "GBR",
-    "USA"
-  )
+  # One copy of the membership list, in helper_oecd_membership.R, shared with
+  # test_datasets.R -- which asserts SET EQUALITY, the direction this test never
+  # covered and the direction whep#574's Comoros flag broke.
+  oecd_members <- oecd_members_iso3()
   testthat::expect_length(setdiff(oecd_members, hierarchy$iso3), 0L)
-  testthat::expect_length(
-    setdiff(oecd_members, hierarchy$iso3[hierarchy$oecd == 1]),
-    0L
+  testthat::expect_setequal(
+    hierarchy$iso3[hierarchy$oecd == 1],
+    oecd_members
   )
   testthat::expect_equal(sum(hierarchy$eu27), 27L)
 
@@ -792,7 +789,39 @@ testthat::test_that("a dissolved entity is grouped as it was, not as now", {
   testthat::expect_equal(.energy_gleam_continent("North America"), "Americas")
   testthat::expect_equal(.energy_gleam_continent("South America"), "Americas")
   testthat::expect_equal(.energy_gleam_continent("Europe"), "Europe")
+  # Everything else, NA and the empty build included, comes back untouched:
+  # the translation must not turn an unclassifiable continent into a match.
+  testthat::expect_equal(.energy_gleam_continent(NA_character_), NA_character_)
+  testthat::expect_equal(.energy_gleam_continent("bogus"), "bogus")
+  testthat::expect_equal(.energy_gleam_continent(character()), character())
   testthat::expect_equal(at("ANT")$region5, at("CUB")$region5)
+})
+
+testthat::test_that("the method label names the scope that produced a row", {
+  # Pinned because whep#850 rewrote the label off the deprecated
+  # dplyr::case_match(): these strings are published in method_energy.
+  label <- "GLEAM_3.0_energy_meat"
+
+  testthat::expect_equal(
+    .energy_method_label(
+      "gleam",
+      c("global", "polity_region", "historical_region", "country")
+    ),
+    c(
+      paste0(label, "_global_mean"),
+      paste0(label, "_polity_region"),
+      paste0(label, "_historical_region"),
+      label
+    )
+  )
+  # The default scope, an unknown scope and NA all read as the plain country
+  # factor, which is what a row with no derived treatment carries.
+  testthat::expect_equal(.energy_method_label("gleam"), label)
+  testthat::expect_equal(.energy_method_label("gleam", NA_character_), label)
+  testthat::expect_equal(
+    .energy_method_label("gleam", character()),
+    character()
+  )
 })
 
 testthat::test_that("historical_region recovers the dissolved entities", {

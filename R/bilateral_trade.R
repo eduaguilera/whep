@@ -221,11 +221,45 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   btd$to_code <- as.integer(to)
   btd$year <- as.integer(btd$year)
 
-  items <- .get_cbs_items("item", "item_cbs_code")
-  btd$item_cbs_code <- items$item_cbs_code[match(btd$item, items$item)]
+  btd$item_cbs_code <- .match_btd_item_codes(btd$item)
 
   btd <- .prefer_flow_direction(btd, "Export")
   btd[c("year", "from_code", "to_code", "item_cbs_code", "unit", "value")]
+}
+
+# Resolve the bilateral trade pin's `item` strings to CBS item codes.
+# The pin ships pre-harmonized CBS item names: verified against the 20250714
+# pin, all 146 distinct item-unit combinations (135 item names, 10,344,152
+# rows, 94.85 Gt) resolve to a code, and `whep::items_cbs` is 1:1 between its
+# 170 names and 170 codes, so the name match is both exact and unambiguous
+# here. Unlike `build_trade.R`, this path must NOT go through
+# `whep::cbs_trade_codes`: that crosswalk is keyed on raw FAOSTAT trade names
+# (`item_trade`), a different vocabulary. Anything the match cannot resolve
+# keeps `NA` and is silently dropped later by the CBS inner join, so warn
+# rather than letting a refreshed pin lose rows without a trace.
+.match_btd_item_codes <- function(item) {
+  items <- .get_cbs_items("item", "item_cbs_code")
+  codes <- items$item_cbs_code[match(item, items$item)]
+  unmatched <- unique(item[is.na(codes)])
+
+  if (length(unmatched) > 0) {
+    n_rows <- sum(is.na(codes))
+    cli::cli_warn(c(
+      paste(
+        "{length(unmatched)} bilateral trade item name{?s} did not match",
+        "any {.field item_cbs_name}: {n_rows} row{?s} will be dropped."
+      ),
+      i = "Unmatched: {.val {unmatched}}.",
+      i = paste(
+        "The {.val bilateral_trade} pin is expected to carry CBS item",
+        "names. If it now carries raw FAOSTAT trade names, route them",
+        "through {.code whep::cbs_trade_codes} as {.file R/build_trade.R}",
+        "does."
+      )
+    ))
+  }
+
+  codes
 }
 
 # Keep all rows with preferred direction (Import, Export)

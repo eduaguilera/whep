@@ -9,7 +9,20 @@ A tibble with \code{region}, \code{species}, \code{system},
 \code{milk_kg_head_yr}, \code{lactation_days}.
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0.
+Not traced to any GLEAM document, and GLEAM appears to publish no
+such table (whep#881). Searched and ruled out: the GLEAM 3.0 Supplement
+S1 workbook; the herd-parameter tables of Supplement S1 of the
+Version 2.0 Revision 5 description (Tables 2.4-2.21 give live weights and
+replacement, fertility, mortality and age-at-first-calving rates, but no
+milk yield and no lactation length); and both model descriptions, in
+which \code{MILKyield} (Equation 9.1) and the lactation period are
+country-level inputs taken from FAOSTAT and national data rather than
+defaults -- Table 1.2 of the Version 2.0 description lists them under
+national/sub-national resolution. GLEAM-i likewise asks the user for
+"annual average milk yield per milking cow". Treat the values as
+unverified placeholders. No function in \verb{R/} reads this object: the Tier
+2 lactation energy term takes \code{milk_yield_kg_day} from the caller, and
+\code{.build_demand_energy()} derives it from the FAOSTAT \code{t_head} rows.
 }
 \usage{
 gleam_milk_production

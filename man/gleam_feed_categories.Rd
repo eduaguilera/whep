@@ -9,7 +9,18 @@ A tibble with \code{feed_category}, \code{feed_type},
 \code{description}.
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0.
+Not traced to any GLEAM document (whep#881). Searched and ruled
+out: the GLEAM 3.0 Supplement S1 workbook (no sheet holds it); FAO. 2022.
+\emph{Model Description, Version 3.0}, Table 3.1/3.3 (ruminants, 27 feed
+materials grouped as Roughages / Cereals / By-products / Concentrates,
+pp. 32-37) and Table 3.5 (monogastrics, 42 materials grouped as Swill and
+scavenging / Locally-produced / Non-local, p. 45); and Tables 3.2, 3.3
+and 3.14 of the Version 2.0 Revision 5 description. None of those
+groupings is the six-way Grass / Crop residues / Concentrates / Fodder
+crops / Processed feeds / Animal products split shipped here, and
+"Animal products - Milk, fish meal" has no counterpart in GLEAM's
+ruminant material list at all. Treat the classification as a WHEP-local
+convenience taxonomy, not a GLEAM table. No function in \verb{R/} reads it.
 }
 \usage{
 gleam_feed_categories

@@ -583,6 +583,85 @@ testthat::test_that("extend_time errors on invalid CBS format", {
   )
 })
 
+# CBS coverage granularity (#232) ----------------------------------------------
+
+testthat::test_that(".extract_cbs_years_for_dtm returns reported years", {
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2511, NA, 500,
+    2021L, 2, 2511, NA, NA
+  )
+
+  # 2021 reports neither flow, so it is not a CBS trade year.
+  testthat::expect_equal(
+    whep:::.extract_cbs_years_for_dtm(wide),
+    c(2019L, 2020L)
+  )
+
+  long <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2019L, 2, 2511, "import", 1000,
+    2020L, 2, 2511, "production", 700
+  )
+
+  # Only import/export rows count, so 2020 (production only) drops out.
+  testthat::expect_equal(
+    whep:::.extract_cbs_years_for_dtm(long),
+    2019L
+  )
+})
+
+testthat::test_that(".extract_cbs_years_for_dtm tolerates one flow only", {
+  import_only <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import,
+    1961L, 2, 2511, 1,
+    1962L, 2, 2511, NA
+  )
+
+  testthat::expect_equal(
+    whep:::.extract_cbs_years_for_dtm(import_only),
+    1961L
+  )
+})
+
+testthat::test_that("extend_time ignores per-area CBS coverage", {
+  # Reporter 2 is reported by CBS in both years; reporter 7 only in 2019.
+  # The extension is driven by the CBS *year axis* alone, so reporter 7 also
+  # gets a 2020 share even though CBS never reports it that year. This pins
+  # the documented uniform-extension behaviour: a change that scopes the
+  # extension to each group's own CBS coverage (#232) must fail here, because
+  # that is a methodological decision and not a silent refactor.
+  raw <- data.table::data.table(
+    `Reporter Country Code` = c(2L, 7L),
+    `Partner Country Code` = c(9L, 9L),
+    `Item Code` = c(15L, 15L),
+    Element = c("Import Quantity", "Import Quantity"),
+    Year = c(2019L, 2019L),
+    Unit = c("tonnes", "tonnes"),
+    Value = c(100, 100)
+  )
+
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+    2019L, 2, 2511, 1000, NA,
+    2020L, 2, 2511, 1200, NA,
+    2019L, 7, 2511, 800, NA
+  )
+
+  result <- build_detailed_trade(
+    raw_trade = raw,
+    cbs = cbs,
+    extend_time = TRUE
+  )
+
+  uncovered <- result |>
+    dplyr::filter(year == 2020, area_code == 7)
+
+  testthat::expect_equal(nrow(uncovered), 1L)
+  testthat::expect_equal(uncovered$country_share, 1)
+})
+
 # Integration tests ------------------------------------------------------------
 
 testthat::test_that("build_detailed_trade example returns expected structure", {

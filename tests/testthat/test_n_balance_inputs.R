@@ -98,7 +98,10 @@
       2010L,
       "10",
       "0.25_50.25",
-      "barley",
+      # The canonical crop key: as.character(item_prod_code). 44 is Barley,
+      # whose item_cbs_code is 2513 -- the same answer the deprecated
+      # name key "barley" gives, so this fixture change moves no number.
+      "44",
       6,
       200
     ),
@@ -461,17 +464,28 @@ testthat::test_that("the manure engine resolution is never overwritten", {
   )
 })
 
-testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
+testthat::test_that("the urban area_code is never a silent NA", {
+  # The property this has always been about: no urban row leaves here with an
+  # NA area_code. It used to be enforced by bridging an ISO3 through
+  # .manure_territory_to_area_code() (#463), which resolved "ESP" to 203 with
+  # a deprecation warning. build_urban_n() now refuses a non-numeric
+  # area_code outright (#597): unlike the manure path it manufactures its own
+  # territory key from a column its docs call `area_code`, and an ISO3 would
+  # resolve to a polity_area_code aggregation bucket that is not every
+  # territory's own code. Same property, enforced at the input boundary.
   data <- .nbi_full_data()
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
+  testthat::expect_error(
+    whep:::.n_inputs_urban(data),
+    class = "whep_urban_area_code_unresolved"
+  )
 
-  # The iso3c form is a deprecated bridge (#463), so resolving it warns; what
-  # this test is about is that it still resolves rather than becoming NA.
-  testthat::expect_warning(out <- whep:::.n_inputs_urban(data), "deprecated")
-
-  testthat::expect_equal(out$area_code, 203L)
+  # The numeric vocabulary the driver actually supplies passes through with no
+  # NA, and no warning.
+  out <- testthat::expect_no_warning(whep:::.n_inputs_urban(.nbi_full_data()))
   testthat::expect_false(anyNA(out$area_code))
+  testthat::expect_true(is.integer(out$area_code))
 })
 
 testthat::test_that("polity resolution is the cell-summed aggregate of grid", {
@@ -658,9 +672,9 @@ testthat::test_that("an unmapped Cropland crop name aborts rather than NA", {
   )
 })
 
-testthat::test_that("a valid lowercase Cropland crop resolves without NA", {
-  # The default fixture crop is "barley"; its manure rows must carry a real
-  # item_cbs_code, never NA_integer_.
+testthat::test_that("a code-keyed Cropland crop resolves without NA", {
+  # The default fixture crop is "44" (Barley's item_prod_code); its manure rows
+  # must carry a real item_cbs_code, never NA_integer_.
   out <- whep::build_n_inputs(data = .nbi_full_data())
   cropland_manure <- out[
     out$fert_type %in%
@@ -669,6 +683,138 @@ testthat::test_that("a valid lowercase Cropland crop resolves without NA", {
   ]
   testthat::expect_true(nrow(cropland_manure) > 0)
   testthat::expect_true(all(!is.na(cropland_manure$item_cbs_code)))
+})
+
+testthat::test_that("the crops layer the carbon path builds resolves (#788)", {
+  # THE regression this file did not have: every nitrogen test injected its own
+  # gridded fixture, so none ever fed the nitrogen path the layer the carbon
+  # path actually produces. .sci_manure_crop_layer() keys `crop` by
+  # as.character(item_prod_code); the nitrogen side used to resolve it by NAME
+  # only and aborted on all of it (9298 rows / 1.383e9 ha for real 2010 data).
+  production <- tibble::tribble(
+    ~area_code, ~year, ~item_prod_code, ~item_cbs_code, ~live_anim_code,
+    ~unit, ~value,
+    10L, 2010L, "15", 2511L, NA_integer_, "ha", 100,
+    10L, 2010L, "44", 2513L, NA_integer_, "ha", 50,
+    10L, 2010L, "56", 2514L, NA_integer_, "ha", 25,
+    # Grass and livestock rows the layer must exclude.
+    10L, 2010L, "3000", 3000L, NA_integer_, "ha", 400,
+    10L, 2010L, "867", 2731L, 866L, "ha", 10
+  )
+  layer <- whep:::.sci_manure_crop_layer(production)
+  testthat::expect_setequal(layer$crop, c("15", "44", "56"))
+
+  # Resolves with no abort and without taking the deprecated name bridge, and
+  # to the crosswalk's own item_cbs_code -- an invariant, not a hand-picked
+  # expectation. Narrowed to the bridge's own condition class: a bare
+  # expect_no_warning() also catches dplyr's lifecycle warnings, which fire
+  # from unrelated code and differ by dplyr version (the dplyr 1.2.0
+  # deprecation that first exposed this is gone -- whep#850 removed the last
+  # dplyr::case_match() call -- but the next one will arrive the same way).
+  resolved <- testthat::expect_no_warning(
+    whep:::.ni_crop_to_item_cbs(layer$crop),
+    class = "whep_crop_key_name_deprecated"
+  )
+  expected <- whep:::.ni_item_cbs_from_prod(layer$crop)
+  testthat::expect_equal(resolved, expected)
+  testthat::expect_false(anyNA(resolved))
+})
+
+testthat::test_that("the code key survives the full nitrogen assembly (#788)", {
+  # End to end through build_n_inputs(), with the crops layer keyed the way
+  # .sci_manure_crop_layer() keys it, and without taking the name bridge.
+  #
+  # The assertion is narrowed twice over, for two different reasons:
+  #  * NOT bare. A bare expect_no_warning() failed in CI on dplyr 1.2.0, which
+  #    deprecates dplyr::case_match() and so warned from
+  #    .ni_manure_fert_type() -- unrelated to the key under test, and invisible
+  #    on an older dplyr. That call is gone (whep#850) and
+  #    test_dplyr_deprecations.R now guards against its return, but the
+  #    narrowing stays: the next dplyr deprecation would land the same way.
+  #  * By MESSAGE, not by condition class. build_n_inputs() reaches the
+  #    resolver from inside dplyr::mutate(), which catches an inner warning and
+  #    re-signals its own chained one ("There was 1 warning in
+  #    `dplyr::mutate()`"). The chained warning keeps the original TEXT but not
+  #    its class, so a class filter here matches nothing and would pass
+  #    vacuously. The class assertion lives on the direct call above instead.
+  gridded <- .nbi_gridded()
+  gridded$crops$crop <- "15"
+  data <- .nbi_full_data()
+  data$gridded <- gridded
+
+  out <- testthat::expect_no_warning(
+    whep::build_n_inputs(data = data),
+    message = "Resolving the manure"
+  )
+  cropland_manure <- out[
+    out$fert_type %in%
+      c("manure_solid", "manure_liquid") &
+      !is.na(out$item_cbs_code) &
+      out$item_cbs_code != 3000L,
+  ]
+  testthat::expect_true(nrow(cropland_manure) > 0)
+  # 15 is Wheat -> item_cbs_code 2511.
+  testthat::expect_setequal(cropland_manure$item_cbs_code, 2511L)
+})
+
+testthat::test_that("a name-keyed crop still resolves but warns as deprecated", {
+  # The condition class is asserted where it survives: on a direct call, with
+  # no dplyr::mutate() in between to re-signal the warning and drop its class.
+  testthat::expect_warning(
+    whep:::.ni_crop_to_item_cbs("barley"),
+    class = "whep_crop_key_name_deprecated"
+  )
+
+  gridded <- .nbi_gridded()
+  gridded$crops$crop <- "barley"
+  data <- .nbi_full_data()
+  data$gridded <- gridded
+
+  # End to end, the assertion is on the bridge's own wording rather than the
+  # bare word "deprecated", which dplyr's lifecycle warnings carry too -- a
+  # loose match could pass for the wrong reason.
+  testthat::expect_warning(
+    out <- whep::build_n_inputs(data = data),
+    "Resolving the manure"
+  )
+  cropland_manure <- out[
+    out$fert_type %in%
+      c("manure_solid", "manure_liquid") &
+      !is.na(out$item_cbs_code) &
+      out$item_cbs_code != 3000L,
+  ]
+  testthat::expect_true(nrow(cropland_manure) > 0)
+  # The name bridge must land on the same item_cbs_code the code key gives.
+  testthat::expect_setequal(cropland_manure$item_cbs_code, 2513L)
+})
+
+testthat::test_that("trying codes before names can never steal a match", {
+  # The resolution order is only safe while no item_prod NAME equals a
+  # DIFFERENT item_prod_code. `Fallow` is the crosswalk's one name/code
+  # collision and both its rows are the same item, so the order is unambiguous;
+  # this guard fails if a future crosswalk edit breaks that.
+  pairs <- whep::items_prod_full |>
+    dplyr::transmute(
+      code = as.character(.data$item_prod_code),
+      name_lower = stringr::str_to_lower(.data$item_prod)
+    ) |>
+    dplyr::filter(!is.na(.data$code), !is.na(.data$name_lower))
+  clashing <- pairs |>
+    dplyr::filter(.data$name_lower %in% pairs$code) |>
+    dplyr::filter(.data$name_lower != stringr::str_to_lower(.data$code))
+  testthat::expect_equal(nrow(clashing), 0L)
+})
+
+testthat::test_that("item_prod_code is a unique key onto item_cbs_code", {
+  # The reason the code key is canonical: it is 1:1, and the name key is not.
+  by_code <- whep::items_prod_full |>
+    dplyr::transmute(
+      code = as.character(.data$item_prod_code),
+      item_cbs_code = whep:::.as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(!is.na(.data$code), !is.na(.data$item_cbs_code)) |>
+    dplyr::distinct()
+  testthat::expect_false(any(duplicated(by_code$code)))
 })
 
 testthat::test_that("unattributed Cropland manure is not mislabeled as grass", {
@@ -1203,4 +1349,134 @@ testthat::test_that("C3b: a cell whose polities disagree on the rate aborts", {
   out <- whep:::.ni_deposition_in_scope(empty_cell, "land")
   testthat::expect_identical(out$scope_frac, 0)
   testthat::expect_false(anyNA(out$scope_frac))
+})
+
+# polity_validity threading (whep#727) ----------------------------------------
+
+# Records the `polity_validity` each mocked builder was handed, then delegates
+# to the real function so the assembly still runs end to end. The original
+# closure is captured BEFORE the mock is installed, so calling it here does not
+# re-enter the mock.
+.nbi_validity_recorder <- function(seen, name, fn) {
+  # Forced HERE, not at the first call: `fn` is passed as `whep::the_builder`,
+  # and a promise forced after local_mocked_bindings() has run would resolve to
+  # the mock itself and recurse until the C stack overflows.
+  force(fn)
+  force(name)
+  function(...) {
+    args <- list(...)
+    seen[[name]] <- args$polity_validity
+    do.call(fn, args)
+  }
+}
+
+testthat::test_that("polity_validity reaches all four gridded builders", {
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    build_ag_land_support = .nbi_validity_recorder(
+      seen,
+      "ag_land_support",
+      whep::build_ag_land_support
+    ),
+    build_n_deposition = .nbi_validity_recorder(
+      seen,
+      "deposition",
+      whep::build_n_deposition
+    ),
+    build_urban_n = .nbi_validity_recorder(
+      seen,
+      "urban",
+      whep::build_urban_n
+    ),
+    spatialize_country_n_to_crops = .nbi_validity_recorder(
+      seen,
+      "spatialize",
+      whep::spatialize_country_n_to_crops
+    )
+  )
+  data <- .nbi_full_data()
+  # Derived rather than injected, so build_ag_land_support() is really called.
+  data$ag_land_support <- NULL
+  data$grassland_ha <- .nbi_grassland_ha()
+  out <- whep::build_n_inputs(data = data, polity_validity = "flag")
+
+  testthat::expect_equal(seen$ag_land_support, "flag")
+  testthat::expect_equal(seen$deposition, "flag")
+  testthat::expect_equal(seen$urban, "flag")
+  testthat::expect_equal(seen$spatialize, "flag")
+  testthat::expect_true(nrow(out) > 0L)
+})
+
+testthat::test_that("the polity_crop synthetic path forwards it too", {
+  # The grid branch of the synthetic term is covered above; the polity_crop
+  # branch is a second call site and gets its own check.
+  seen <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    spatialize_country_n_to_crops = .nbi_validity_recorder(
+      seen,
+      "spatialize",
+      whep::spatialize_country_n_to_crops
+    )
+  )
+  data <- .nbi_full_data()
+  data$cell_polity <- NULL
+  data$urban_population <- NULL
+  whep::build_n_inputs(
+    resolution = "polity",
+    data = data,
+    polity_validity = "drop"
+  )
+  testthat::expect_equal(seen$spatialize, "drop")
+})
+
+testthat::test_that("polity_validity = flag adds the per-row flag column", {
+  out <- whep::build_n_inputs(data = .nbi_full_data(), polity_validity = "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+  testthat::expect_type(out$reporting_polity_out_of_span, "logical")
+  testthat::expect_false(anyNA(out$reporting_polity_out_of_span))
+  kept <- whep::build_n_inputs(data = .nbi_full_data())
+  testthat::expect_false(
+    "reporting_polity_out_of_span" %in% names(kept)
+  )
+})
+
+testthat::test_that("the example fixture honours polity_validity", {
+  out <- whep::build_n_inputs(example = TRUE, polity_validity = "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+})
+
+testthat::test_that("polity_validity is validated", {
+  testthat::expect_error(
+    whep::build_n_inputs(
+      polity_validity = "discard",
+      data = .nbi_full_data()
+    ),
+    "polity_validity"
+  )
+})
+
+testthat::test_that("the manure_type bridge maps its whole vocabulary", {
+  # The mapping is load-bearing: fert_type is what the loss cascade and the
+  # published balance group on. Pinned because whep#850 rewrote it off the
+  # deprecated dplyr::case_match().
+  vocabulary <- c("Excreta", "Solid", "Liquid")
+
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(vocabulary),
+    c("excreta", "manure_solid", "manure_liquid")
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(character()),
+    character()
+  )
+  # Nothing outside the vocabulary gets a silent NA: it aborts, naming the
+  # offending value.
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(c("Solid", "bogus")),
+    "bogus"
+  )
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(NA_character_),
+    "Unexpected"
+  )
 })

@@ -34,7 +34,17 @@ treated as 1 for backwards compatibility) and \code{cropland_ha} (\code{lon},
 \code{lat}, \code{area_code}, \code{year}, \code{cropland_ha}, required: the gridded cropland
 area used as the simple room proxy, \code{cropland_ha * 0.170} t N/ha, the same
 EU-Nitrates fixed ceiling used by \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}}'s
-\code{fixed_ceiling_kg_ha} default).}
+\code{fixed_ceiling_kg_ha} default). Both frames' \code{area_code} must be the
+numeric WHEP area code, whole-numbered, as \code{\link[=build_cell_polity]{build_cell_polity()}} emits
+it. Anything else -- an ISO3 literal, an area name, a fractional value --
+aborts with class \code{whep_urban_area_code_unresolved}, naming the frame
+that carries it. It is not bridged: the two frames key the same transport
+partition, so one written in a different vocabulary from the other would
+silently strand a cell's load on a cell with no room instead of placing
+it, and an ISO3 resolves to a \code{polity_area_code} aggregation bucket that
+is not every territory's own code (\code{"SSD"} would become 206, Sudan
+(former)). Map to the code first, via \code{\link[=add_area_code]{add_area_code()}} or
+\link{regions_full}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}

@@ -1280,3 +1280,73 @@ testthat::test_that("build_carbon_balance honours drop and flag", {
     kept
   )
 })
+
+# -- whep#907: the carbon support is keyed on the reporting vocabulary --------
+
+# One border cell shared by Sudan and South Sudan plus a Syrian cell -- the two
+# folds the deployed pin's bucket-keyed `area_code` column performs. The codes
+# are the pin's own: 206 for both Sudanese polities, 999 for Syria.
+.c907_bucket_support <- function() {
+  tibble::tribble(
+    ~lon,
+    ~lat,
+    ~polity_code,
+    ~area_code,
+    ~cell_area_ha,
+    ~land_area_ha,
+    ~start_year,
+    ~end_year,
+    27.25, 9.75, "SDN-2011-2025", 206L, 100000, 60000, 2011L, 2025L,
+    27.25, 9.75, "SSD-2011-2025", 206L, 100000, 20000, 2011L, 2025L,
+    38.25, 35.25, "SYR-1967-2025", 999L, 100000, 80000, 1967L, 2025L
+  )
+}
+
+testthat::test_that("C7/907: the support is keyed on reporting area codes", {
+  # Before the fix the two Sudanese polities folded onto bucket 206 and Syria
+  # arrived as 999 (Rest of World), so `country_areas` -- keyed on 276, 277 and
+  # 212 -- joined to nothing for all three.
+  out <- suppressMessages(
+    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L)
+  )
+  testthat::expect_setequal(out$area_code, c(276L, 277L, 212L))
+  testthat::expect_false(any(out$area_code %in% c(206L, 999L)))
+  border <- dplyr::filter(out, lon == 27.25)
+  testthat::expect_equal(nrow(border), 2L)
+  testthat::expect_equal(
+    sort(border$land_area_ha),
+    c(20000, 60000)
+  )
+})
+
+testthat::test_that("C7/907: re-keying conserves land and the cell shares", {
+  # The re-key is a relabelling: it may not create, destroy or move a hectare,
+  # and the land shares of a cell must still sum to exactly one.
+  support <- .c907_bucket_support()
+  out <- suppressMessages(
+    whep:::.carbon_cell_support(support, year = 2015L)
+  )
+  testthat::expect_equal(sum(out$land_area_ha), sum(support$land_area_ha))
+  totals <- out |>
+    dplyr::summarise(total = sum(cell_area_frac), .by = c(lon, lat)) |>
+    dplyr::pull(total)
+  testthat::expect_equal(totals, rep(1, length(totals)))
+})
+
+testthat::test_that("C7/907: the re-key reports itself", {
+  testthat::expect_message(
+    whep:::.carbon_cell_support(.c907_bucket_support(), year = 2015L),
+    "Re-keyed 3 polycells"
+  )
+})
+
+testthat::test_that("C7/907: a support without polity_code is left alone", {
+  # A caller-built support carries no `polity_code` to re-resolve from, so its
+  # own codes stand rather than being replaced by a guess.
+  support <- dplyr::select(.c907_bucket_support(), -"polity_code")
+  testthat::expect_warning(
+    out <- whep:::.carbon_cell_support(support, year = 2015L),
+    "fold more than one"
+  )
+  testthat::expect_setequal(out$area_code, c(206L, 999L))
+})

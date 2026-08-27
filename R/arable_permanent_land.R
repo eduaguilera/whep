@@ -56,8 +56,10 @@
 #'   remote data. Defaults to `FALSE`.
 #'
 #' @return A tibble with one row per `(area_code, year)`:
-#' - `area_code`: integer FAOSTAT area code (harmonised via
-#'   [polity_area_crosswalk]; the FAOSTAT "China" aggregate 351 is dropped).
+#' - `area_code`: integer FAOSTAT area code, harmonised onto the
+#'   `polity_area_code` bucket the rest of the pipeline aggregates on, at the
+#'   fold state `options(whep.unfold_rest_of_world)` selects (the FAOSTAT
+#'   "China" aggregate 351 is dropped). See [polity_area_crosswalk].
 #' - `year`: integer.
 #' - `arable_ha`, `permanent_ha`, `cropland_ha`: physical land area in hectares.
 #' - `source`: provenance, `"fao"` (>= 1961) or `"luh2"` (pre-1961 backcast).
@@ -180,7 +182,14 @@ get_arable_permanent_land <- function(
   # territories line up (Ethiopia PDR 62 -> 238, Sudan 276/South Sudan 277 ->
   # 206, ...). FAOSTAT aggregates with no ISO3 (notably "China" 351, which
   # overlaps 41/96/128/214) have no crosswalk row and are dropped.
-  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
+  #
+  # Read through `.polity_crosswalk()`, the one place `.unfold_rest_of_world()`
+  # is applied (`R/polities.R`), so this bridge shares the fold state the rest
+  # of the pipeline resolves through. The shipped `polity_area_crosswalk` still
+  # puts the 61 Rest-of-World members promoted by whep#628 -- Syria 212,
+  # Greenland 85, Bermuda 17, ... -- in bucket 999, and summing their land there
+  # hides it from a production side keyed on their own code (whep#716).
+  bridge <- .polity_crosswalk()[
     !is.na(area_iso3c),
     .(
       area_code_fao = as.integer(area_code),
@@ -270,8 +279,13 @@ get_arable_permanent_land <- function(
 # ISO3 -> area_code, deduplicated to one row per ISO3. Extracted so the LUH2
 # national readers share one bridge instead of each growing their own: it is the
 # only place the iso3c identity join lives.
+#
+# Read through `.polity_crosswalk()` for the same reason as
+# `.fao_rl_to_polity()` above: on the shipped object the promoted Rest-of-World
+# members still carry bucket 999, so the back-cast leg would key them
+# differently from the FAO leg it is spliced onto (whep#716).
 .luh2_bridge_iso3c <- function(dt) {
-  bridge <- data.table::as.data.table(whep::polity_area_crosswalk)[
+  bridge <- .polity_crosswalk()[
     !is.na(area_iso3c),
     .(iso3c = area_iso3c, area_code = as.integer(polity_area_code))
   ]
@@ -643,9 +657,149 @@ build_fao_arable_fallow_extension <- function(
   out[, method_land := "fao_arable_fallow"]
   out <- out[impact_u > 0]
   data.table::setorder(out, year, area_code, item_cbs_code)
-  tibble::as_tibble(out)
+  out <- tibble::as_tibble(out)
+  .warn_fodder_land_share(out, items_prod_full)
+  out
 }
 # nolint end
+
+#' Check how much arable land the fallow split attributes to fodder crops.
+#'
+#' @description
+#' Report, per `(year, area_code)`, the share of the reconciled arable land
+#' extension that lands on the FAOSTAT fodder items (commodity-balance items of
+#' `Cat_1 == "Fodder_green"` that are not grass, i.e. `2000`-`2003`).
+#'
+#' With `fallow_weights = NULL` — the default, and the path the land-balance
+#' footprint ([build_land_balance_footprint()]) takes —
+#' [build_fao_arable_fallow_extension()] rescales every arable crop's cropped
+#' physical area proportionally up to FAO Arable land. Each crop's share of the
+#' output is therefore exactly its share of the input harvested area, so an
+#' inflated fodder harvested area is passed straight through into the published
+#' per-crop arable land footprint, taking land away from the ordinary crops
+#' (whep#356). Fodder harvested area is reconstructed rather than surveyed
+#' (dry-matter yield imputation, EU AgriDB splicing, linear filling), so it is
+#' the term most likely to be wrong, and in some country-years it alone exceeds
+#' the country's whole FAO arable land.
+#'
+#' This is a diagnostic, not a correction: nothing is rescaled or dropped. It
+#' flags where the attribution is implausible so the fodder reconstruction can
+#' be inspected, or agro-climatic `fallow_weights` (see
+#' [gridded_fallow_weights()]) supplied instead.
+#'
+#' @param extension Tibble of the arable/permanent land extension with columns
+#'   `year`, `area_code`, `item_cbs_code` and `impact_u`, as returned by
+#'   [build_fao_arable_fallow_extension()].
+#' @param threshold Share of arable land above which a `(year, area_code)` is
+#'   flagged (default `0.5`). Fodder is real land use, so a moderate share is
+#'   expected; half a country's arable land is not.
+#' @param items_prod_full Crosswalk used to classify `item_cbs_code` as
+#'   perennial via `Herb_Woody`. Defaults to [items_prod_full].
+#'
+#' @return A tibble with one row per `(year, area_code)` that has at least one
+#'   arable row in `extension`, ordered by descending `fodder_share`:
+#'   - `year`, `area_code`: the country-year.
+#'   - `fodder_ha`: arable land attributed to fodder items.
+#'   - `arable_ha`: total arable (non-perennial) land attributed.
+#'   - `fodder_share`: `fodder_ha / arable_ha` (`NA` when `arable_ha` is zero).
+#'   - `flagged`: `TRUE` when `fodder_share > threshold`.
+#'
+#' @export
+#'
+#' @examples
+#' extension <- tibble::tribble(
+#'   ~year, ~area_code, ~item_cbs_code, ~impact_u,
+#'   2000L, 10L, 2003L, 700, # fodder mix
+#'   2000L, 10L, 2511L, 300 # wheat
+#' )
+#' check_fodder_land_share(extension)
+check_fodder_land_share <- function(
+  extension,
+  threshold = 0.5,
+  items_prod_full = whep::items_prod_full
+) {
+  .check_required_cols(
+    extension,
+    c("year", "area_code", "item_cbs_code", "impact_u"),
+    "extension"
+  )
+  if (
+    !rlang::is_scalar_double(threshold) && !rlang::is_scalar_integer(threshold)
+  ) {
+    cli::cli_abort("{.arg threshold} must be a single number.")
+  }
+  perennial_codes <- .item_cbs_perennial(items_prod_full)
+  fodder_codes <- .item_cbs_fodder()
+
+  extension |>
+    dplyr::mutate(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      item_cbs_code = as.integer(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(!.data$item_cbs_code %in% perennial_codes) |>
+    dplyr::summarise(
+      fodder_ha = sum(
+        .data$impact_u[.data$item_cbs_code %in% fodder_codes],
+        na.rm = TRUE
+      ),
+      arable_ha = sum(.data$impact_u, na.rm = TRUE),
+      .by = c(year, area_code)
+    ) |>
+    dplyr::mutate(
+      fodder_share = dplyr::if_else(
+        .data$arable_ha > 0,
+        .data$fodder_ha / .data$arable_ha,
+        NA_real_
+      ),
+      flagged = !is.na(.data$fodder_share) & .data$fodder_share > threshold
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$fodder_share))
+}
+
+# Integer item_cbs_code values of the FAOSTAT fodder items that the crop land
+# extension treats as ordinary arable crops. Temporary grassland (3002) is
+# `Cat_1 == "Fodder_green"` too but is grass, reported by the grassland
+# extension and netted out of the arable target, so it is excluded here.
+.item_cbs_fodder <- function() {
+  whep::items_full |>
+    dplyr::filter(
+      .data$Cat_1 == "Fodder_green",
+      .data$group != "Grass"
+    ) |>
+    dplyr::pull(.data$item_cbs_code) |>
+    unique() |>
+    as.integer()
+}
+
+# One aggregated warning for the country-years where fodder crops take an
+# implausible share of the arable land the fallow split distributes. Warn-only:
+# the numbers are unchanged, but the skew is no longer silent (whep#356).
+.warn_fodder_land_share <- function(out, items_prod_full) {
+  report <- check_fodder_land_share(out, items_prod_full = items_prod_full)
+  flagged <- report[report$flagged, ]
+  if (nrow(flagged) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- flagged |>
+    dplyr::summarise(
+      share = max(.data$fodder_share),
+      .by = area_code
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$share)) |>
+    utils::head(5)
+  areas <- worst$area_code
+  shares <- paste0(round(100 * worst$share, 1), "%")
+  cli::cli_warn(c(
+    "!" = "Fodder crops take over half the arable land in
+      {nrow(flagged)} country-year{?s} of the fallow-inclusive extension.",
+    "*" = "Worst {.field area_code}: {.val {areas}} (up to {.val {shares}}).",
+    "i" = "Fodder harvested area is reconstructed, not surveyed; see
+      {.fun check_fodder_land_share} and whep#356. Supplying
+      {.arg fallow_weights} from {.fun gridded_fallow_weights} makes the
+      fallow split independent of it."
+  ))
+}
 
 # Integer item_cbs_code values that are perennial (Woody), resolved by majority
 # where an item_cbs maps to item_prod of mixed Herb_Woody class.

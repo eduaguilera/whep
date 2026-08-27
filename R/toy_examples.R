@@ -1552,8 +1552,8 @@
     ~year, ~area_code, ~polity_code, ~Cropland, ~Pasture, ~agriland,
     1961L, 255L, "BEL-1831-2025", 1.0152, 0.7175, 1.7327,
     1961L, 51L, "F51-1947-1993", 5.3510, 1.8063, 7.1573,
-    1900L, 203L, "ESP-1800-2025", 16.1666, 8.2026, 24.3692,
-    1961L, 228L, "F228-1945-1991", 237.8785, 331.6635, 569.5420,
+    1900L, 203L, "ESP-1800-2025", 16.1664, 8.2025, 24.3689,
+    1961L, 228L, "F228-1945-1991", 237.9367, 331.9592, 569.8959,
     1850L, 238L, "ETH-1800-1889", 1.5174, 1.8841, 3.4015,
     1900L, 238L, "ETH-1897-1902", 6.0023, 13.5575, 19.5598,
     1951L, 238L, "ETH-1941-1952", 9.4543, 22.9532, 32.4075,
@@ -1626,4 +1626,23 @@
       reporting_polity_has_geometry = TRUE
     ) |>
     dplyr::select(dplyr::all_of(.plu_output_cols()))
+}
+
+# Three adjacent cells of the real cell-polity crosswalk (the
+# spatialize-cell-polity-fraction pin), chosen so the fixture shows all three
+# shapes a cell can take: whole (Ghana 81), split between two polities
+# (81 / Togo 217) and between three (Burkina Faso 233 / 81 / 217). The
+# fractions are written as their subcell counts over 36 because that is what
+# the producer measures, and so each cell still sums to exactly 1.
+.example_cell_polity <- function() {
+  tibble::tribble(
+    ~lon,   ~lat, ~area_code, ~polity_frac,
+    -0.25, 10.25,        81L,            1,
+    -0.25, 10.75,        81L,        33 / 36,
+    -0.25, 10.75,       217L,         3 / 36,
+    -0.25, 11.25,       233L,        28 / 36,
+    -0.25, 11.25,        81L,         7 / 36,
+    -0.25, 11.25,       217L,         1 / 36
+  ) |>
+    dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
 }

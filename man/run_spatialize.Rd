@@ -123,14 +123,20 @@ column, so a whole border cell goes to a single polity. \code{"fraction"} is
 fractional coverage; the engines already read its \code{polity_frac} as
 \code{cell_area_frac}, so no engine change is involved.
 
-They are alternatives, never a fallback, and \code{"centroid"} remains the
-default because the two are not interchangeable as deployed. The
-fractional parquet was rasterized through an older \code{iso3c -> area_code}
-lookup: it keys Ethiopia \code{62} and Sudan \code{206} where the centroid grid and
-today's \code{regions.csv} use \code{238} and \code{276}, so substituting it drops both
-countries entirely (whep#461). It also cannot rescue a polity smaller than
-a cell, because its producer restricts it to the cells the centroid grid
-already has. Whichever is selected, \code{build_gridded_landuse()} and
+They are alternatives, never a fallback. The fractional parquet used to
+carry a different area vocabulary from the centroid grid — it keyed
+Ethiopia \code{62} and Sudan \code{206} where today's \code{regions.csv} uses \code{238} and
+\code{276}, so substituting it dropped both countries entirely (whep#461).
+Regenerating it closed that gap: the two grids now carry the same 178 area
+codes, it is published as the \code{spatialize-cell-polity-fraction} pin so no
+user has to rebuild it, and \code{\link[=build_cell_polity]{build_cell_polity()}} refuses a copy still
+holding a retired code instead of deleting the countries silently
+(whep#694). It still cannot
+rescue a polity smaller than a cell, because its producer restricts it to
+the cells the centroid grid already has, and it drops 4 of those cells,
+whose only land is a sliver covering the 0.5-degree cell centre but no
+1/12-degree subcell centre. Whichever is selected,
+\code{build_gridded_landuse()} and
 \code{build_gridded_livestock()} now warn once per call naming every reporting
 area the chosen grid has no cell for and the national total at stake.
 }

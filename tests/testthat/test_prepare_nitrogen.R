@@ -8,8 +8,58 @@
 .source_prepare_spatialize()
 
 
+# One up-front census of the sourcing, so the file states its own precondition
+# instead of leaving it implicit in 22 per-test guards: where the script ships,
+# sourcing must succeed and define every helper the file uses; where it does
+# not, this skips once with the reason named. `.need_spatialize_helper()` then
+# carries that same reason into each test below (#402).
+test_that("sourcing the script defines the helpers the tests need", {
+  if (!nzchar(.prepare_spatialize_path())) {
+    .skip_no_prepare_spatialize()
+  }
+  # ncdf4 is Suggests and the script attaches it at top level, so where it is
+  # absent the script legitimately cannot load.
+  skip_if_not_installed("ncdf4")
+  expect_true(.source_prepare_spatialize())
+  needed <- c(
+    ".smil_global_yearly",
+    ".smil_synth_pre_1961",
+    ".faostat_manure_shares_const",
+    ".livestock_manure_split",
+    ".fill_n_inputs_to_target_year",
+    ".aggregate_nitrogen_pft",
+    ".spatialize_label_area_code",
+    ".crops_manure_label_year",
+    ".grass_share_area_code",
+    ".dedup_grass_share",
+    ".hani_deposition_rate",
+    ".extract_hani_deposition"
+  )
+  # The script is sourced into `topenv()`, which this frame's enclosing chain
+  # reaches -- so `exists()` needs that env named, not `vapply()`'s own frame.
+  here <- environment()
+  found <- vapply(
+    needed,
+    function(nm) exists(nm, envir = here, mode = "function"),
+    logical(1)
+  )
+  expect_equal(needed[!found], character(0))
+})
+
+
+test_that("the guard fails on a helper the script does not define", {
+  # The failure branch of `.need_spatialize_helper()`: with the script present
+  # and loadable, a missing helper is a defect, not a reason to skip.
+  if (!nzchar(.prepare_spatialize_path())) {
+    .skip_no_prepare_spatialize()
+  }
+  skip_if_not_installed("ncdf4")
+  expect_failure(.need_spatialize_helper(".not_a_prepare_spatialize_helper"))
+})
+
+
 test_that(".smil_global_yearly interpolates linearly between anchors", {
-  skip_if_not(exists(".smil_global_yearly", mode = "function"))
+  .need_spatialize_helper(".smil_global_yearly")
   out <- .smil_global_yearly(first_year = 1950L, last_year = 1965L)
   expect_true(all(out$year >= 1950L & out$year <= 1965L))
   expect_equal(nrow(out), 16L)
@@ -29,7 +79,7 @@ test_that(".smil_global_yearly interpolates linearly between anchors", {
 
 
 test_that(".smil_synth_pre_1961 backcasts country synth using shares", {
-  skip_if_not(exists(".smil_synth_pre_1961", mode = "function"))
+  .need_spatialize_helper(".smil_synth_pre_1961")
   synth_faostat <- tibble::tribble(
     ~area_code, ~area_name, ~year, ~mg_n,
     1L,         "A",        1961L, 60000,
@@ -59,7 +109,7 @@ test_that(".smil_synth_pre_1961 backcasts country synth using shares", {
 
 
 test_that(".faostat_manure_shares_const averages shares over 1961-65", {
-  skip_if_not(exists(".faostat_manure_shares_const", mode = "function"))
+  .need_spatialize_helper(".faostat_manure_shares_const")
   manure_long <- tibble::tribble(
     ~area_code, ~area_name, ~year, ~element,   ~mg_n,
     1L,         "A",        1961L, "excreted", 1000,
@@ -80,7 +130,7 @@ test_that(".faostat_manure_shares_const averages shares over 1961-65", {
 
 
 test_that(".livestock_manure_split applies per-country shares", {
-  skip_if_not(exists(".livestock_manure_split", mode = "function"))
+  .need_spatialize_helper(".livestock_manure_split")
   excreted <- tibble::tribble(
     ~year, ~area_code, ~area_name, ~mg_n_excreted,
     1851L, 1L,         "A",        1000,
@@ -105,7 +155,7 @@ test_that(".livestock_manure_split applies per-country shares", {
 
 
 test_that(".fill_n_inputs_to_target_year carry-forwards beyond last obs", {
-  skip_if_not(exists(".fill_n_inputs_to_target_year", mode = "function"))
+  .need_spatialize_helper(".fill_n_inputs_to_target_year")
   n_in <- tibble::tribble(
     ~year, ~area_code, ~area_name, ~crop_name, ~land_use, ~fert_type, ~area_ha, ~mg_n, ~kg_n_ha,
     2019L, 1L,         "A",        "wheat",    "Cropland", "Synthetic", 1000,    150,   150,
@@ -123,7 +173,7 @@ test_that(".fill_n_inputs_to_target_year carry-forwards beyond last obs", {
 
 
 test_that(".fill_n_inputs_to_target_year leaves pre-first-obs as NA", {
-  skip_if_not(exists(".fill_n_inputs_to_target_year", mode = "function"))
+  .need_spatialize_helper(".fill_n_inputs_to_target_year")
   n_in <- tibble::tribble(
     ~year, ~area_code, ~area_name, ~crop_name, ~land_use, ~fert_type, ~area_ha, ~mg_n, ~kg_n_ha,
     1920L, 1L,         "A",        "wheat",    "Cropland", "Synthetic", 1000,    50,    50,
@@ -136,7 +186,7 @@ test_that(".fill_n_inputs_to_target_year leaves pre-first-obs as NA", {
 
 
 test_that(".aggregate_nitrogen_pft area-weights N rates by crop area", {
-  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  .need_spatialize_helper(".aggregate_nitrogen_pft")
   # Two crops share PFT band 1 in the same cell: a 100-ha crop at 200 kgN/ha and
   # a 1-ha crop at 10 kgN/ha. An unweighted mean gives 105; the area-weighted
   # mean must stay close to the dominant crop's rate.
@@ -153,7 +203,7 @@ test_that(".aggregate_nitrogen_pft area-weights N rates by crop area", {
 })
 
 test_that(".aggregate_nitrogen_pft conserves total applied N mass", {
-  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  .need_spatialize_helper(".aggregate_nitrogen_pft")
   ng <- tibble::tribble(
     ~year, ~pft, ~fert_type, ~row, ~col, ~kg_n_ha, ~rainfed_ha, ~irrigated_ha,
     2000L, 1L, "Synthetic", 5L, 7L, 200, 80, 20,
@@ -167,7 +217,7 @@ test_that(".aggregate_nitrogen_pft conserves total applied N mass", {
 })
 
 test_that(".aggregate_nitrogen_pft drops zero-area bands and NaN", {
-  skip_if_not(exists(".aggregate_nitrogen_pft", mode = "function"))
+  .need_spatialize_helper(".aggregate_nitrogen_pft")
   ng <- tibble::tribble(
     ~year, ~pft, ~fert_type, ~row, ~col, ~kg_n_ha, ~rainfed_ha, ~irrigated_ha,
     2000L, 1L, "Synthetic", 5L, 7L, 200, 0, 0
@@ -209,7 +259,7 @@ test_that(".aggregate_nitrogen_pft drops zero-area bands and NaN", {
 
 
 test_that(".spatialize_label_area_code reproduces the retired recode list", {
-  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  .need_spatialize_helper(".spatialize_label_area_code")
   regions <- .spatialize_area_lookup()
   recode_list <- .retired_mueller_recode()
   present <- recode_list$legacy %in% whep::mueller_synthetic_n$iso3c
@@ -233,7 +283,7 @@ test_that(".spatialize_label_area_code reproduces the retired recode list", {
 
 
 test_that("mueller synthetic rates are unchanged by dropping the list", {
-  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  .need_spatialize_helper(".spatialize_label_area_code")
   regions <- .spatialize_area_lookup()
   mueller <- whep::mueller_synthetic_n
   recode_list <- .retired_mueller_recode()
@@ -256,7 +306,7 @@ test_that("mueller synthetic rates are unchanged by dropping the list", {
 
 
 test_that(".spatialize_label_area_code stays in the grid's area space", {
-  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  .need_spatialize_helper(".spatialize_label_area_code")
   regions <- .spatialize_area_lookup()
   got <- .spatialize_label_area_code(
     c("SDN", "ETH"),
@@ -275,7 +325,7 @@ test_that(".spatialize_label_area_code stays in the grid's area space", {
 
 
 test_that(".spatialize_label_area_code honours the alias year scope", {
-  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  .need_spatialize_helper(".spatialize_label_area_code")
   regions <- .spatialize_area_lookup()
   # The published alias is `SRM -> SCG-1992-2006`. Outside that window nothing
   # claims the label, so the honest answer is NA rather than a nearest guess.
@@ -291,7 +341,7 @@ test_that(".spatialize_label_area_code honours the alias year scope", {
 
 
 test_that(".spatialize_label_area_code returns NA for unknown labels", {
-  skip_if_not(exists(".spatialize_label_area_code", mode = "function"))
+  .need_spatialize_helper(".spatialize_label_area_code")
   regions <- .spatialize_area_lookup()
   got <- .spatialize_label_area_code(
     c("ZZZ", "not a country"),
@@ -323,7 +373,7 @@ test_that(".spatialize_label_area_code returns NA for unknown labels", {
 
 
 test_that("crops_manure_n names countries in a post-2011 ISO vocabulary", {
-  skip_if_not(exists(".crops_manure_label_year", mode = "function"))
+  .need_spatialize_helper(".crops_manure_label_year")
   iso <- unique(whep::crops_manure_n$ISO)
   # It separates the successors...
   expect_true(all(c("SRB", "MNE", "SSD", "CZE", "SVK", "COD", "TLS") %in% iso))
@@ -336,7 +386,7 @@ test_that("crops_manure_n names countries in a post-2011 ISO vocabulary", {
 
 
 test_that("the manure alias route reproduces the retired iso3c join", {
-  skip_if_not(exists(".crops_manure_label_year", mode = "function"))
+  .need_spatialize_helper(".crops_manure_label_year")
   regions <- .regions_full_for_spatialize()
   labels <- sort(unique(whep::crops_manure_n$ISO))
   # The retired join: straight onto regions.csv's iso3c.
@@ -360,7 +410,7 @@ test_that("the manure alias route reproduces the retired iso3c join", {
 
 
 test_that("the manure label year is not load-bearing from 2011 on", {
-  skip_if_not(exists(".crops_manure_label_year", mode = "function"))
+  .need_spatialize_helper(".crops_manure_label_year")
   regions <- .regions_full_for_spatialize()
   labels <- sort(unique(whep::crops_manure_n$ISO))
   years <- 2011L:2023L
@@ -387,7 +437,7 @@ test_that("the manure label year is not load-bearing from 2011 on", {
 
 
 test_that("reading the manure labels in 2000 would move three countries", {
-  skip_if_not(exists(".crops_manure_label_year", mode = "function"))
+  .need_spatialize_helper(".crops_manure_label_year")
   regions <- .regions_full_for_spatialize()
   labels <- c("SRB", "MNE", "SSD")
   at_2000 <- .spatialize_label_area_code(
@@ -414,7 +464,7 @@ test_that("reading the manure labels in 2000 would move three countries", {
 
 
 test_that("the grassland default route reproduces the name join", {
-  skip_if_not(exists(".grass_share_area_code", mode = "function"))
+  .need_spatialize_helper(".grass_share_area_code")
   regions <- .regions_full_for_spatialize()
   lass <- whep::lassaletta_grassland_share
   before <- regions$area_code[match(lass$Country, regions$area_name)]
@@ -432,7 +482,7 @@ test_that("the grassland default route reproduces the name join", {
 
 
 test_that("the grassland alias route gains and loses the labels #576 named", {
-  skip_if_not(exists(".grass_share_area_code", mode = "function"))
+  .need_spatialize_helper(".grass_share_area_code")
   regions <- .regions_full_for_spatialize()
   lass <- whep::lassaletta_grassland_share
   before <- regions$area_code[match(lass$Country, regions$area_name)]
@@ -442,7 +492,12 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
     area_lookup = regions,
     route = "alias_map"
   )
-  expect_equal(sum(!is.na(after)), 6682L)
+  expect_equal(sum(!is.na(after)), 6713L)
+  # "FSU" joined the list in the #835 upstream re-sync. Its alias row is
+  # unchanged (`FSU` -> `F228-1945-1991`, 1961-1991); what changed is that
+  # upstream filled that polity's `iso3_code` with `SUN`, so the
+  # polity -> iso3 -> area bridge that `.spatialize_label_area_code()` uses now
+  # completes where it used to dead-end on `NA`.
   expect_setequal(
     unique(lass$Country[is.na(before) & !is.na(after)]),
     c(
@@ -454,6 +509,7 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
       "Sudan (former)",
       "Ethiopia PDR",
       "Belgium-Luxemburg",
+      "FSU",
       "Occupied Palestinian Territory"
     )
   )
@@ -467,13 +523,13 @@ test_that("the grassland alias route gains and loses the labels #576 named", {
       "Botswana"
     )
   )
-  expect_equal(sum(is.na(before) & !is.na(after)), 414L)
+  expect_equal(sum(is.na(before) & !is.na(after)), 445L)
   expect_equal(sum(!is.na(before) & is.na(after)), 102L)
 })
 
 
 test_that(".dedup_grass_share collapses only the alias route's Sudan pair", {
-  skip_if_not(exists(".dedup_grass_share", mode = "function"))
+  .need_spatialize_helper(".dedup_grass_share")
   regions <- .regions_full_for_spatialize()
   resolved <- function(route) {
     whep::lassaletta_grassland_share |>
@@ -516,7 +572,7 @@ test_that(".dedup_grass_share collapses only the alias route's Sudan pair", {
 
 
 test_that(".dedup_grass_share aborts when two labels disagree", {
-  skip_if_not(exists(".dedup_grass_share", mode = "function"))
+  .need_spatialize_helper(".dedup_grass_share")
   clash <- tibble::tribble(
     ~year, ~area_code, ~grass_share,
     1961L, 276L,       0.00,
@@ -529,4 +585,119 @@ test_that(".dedup_grass_share aborts when two labels disagree", {
     1961L, 276L,       0.05
   )
   expect_equal(nrow(.dedup_grass_share(agree)), 1L)
+})
+
+
+# ---- HaNi N deposition (whep#259) ---------------------------------------
+#
+# HaNi's NetCDF declares `units = "g N"`, `long_name = "NHX-N deposition to
+# land within the grid cell"` -- an extensive mass per 5-arcmin cell, so the
+# conversion to kg N/ha is exactly `value_g / 1000 / cell_area_ha` and the
+# mass must survive the round trip. The bug these tests lock out divided by a
+# fixed 1e7 (1000 g/kg times an assumed 1e4 ha per native cell), which is
+# latitude-blind: it gave two cells carrying the same grams the same rate, and
+# lost 29% of HaNi's 2014 mass globally.
+
+.hani_mass_fixture <- function() {
+  # Same 1e9 g N in every cell, at latitudes whose true 0.5-degree areas
+  # differ by a factor of three, so a latitude-blind divisor is detectable.
+  tibble::tribble(
+    ~lon,  ~lat,  ~year, ~value_g,
+    10.25,  0.25, 2014L, 1e9,
+    10.25, 40.25, 2014L, 1e9,
+    10.25, 70.25, 2014L, 1e9
+  )
+}
+
+
+test_that(".hani_deposition_rate conserves the HaNi source mass", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  nhx <- .hani_mass_fixture()
+  noy <- dplyr::mutate(.hani_mass_fixture(), value_g = 4e8)
+  out <- .hani_deposition_rate(nhx, noy)
+  expect_equal(nrow(out), 3L)
+  # rate x whole-cell area x 1000 g/kg == the two species' summed grams.
+  recovered <- out$deposit_kg_n_ha * cell_area_ha_by_lat(out$lat) * 1000
+  expect_equal(recovered, rep(1.4e9, 3L))
+  # Per species too, so a mix-up between the two cannot hide in the total.
+  expect_equal(
+    out$nhx * cell_area_ha_by_lat(out$lat) * 1000,
+    rep(1e9, 3L)
+  )
+  expect_equal(out$deposit_kg_n_ha, out$nhx + out$noy)
+  expect_equal(unique(out$method_deposition), "hani")
+})
+
+
+test_that(".hani_deposition_rate scales the rate with the cell area", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  out <- .hani_deposition_rate(
+    .hani_mass_fixture(),
+    dplyr::mutate(.hani_mass_fixture(), value_g = 0)
+  )
+  # The whole point: equal grams at unequal latitudes are unequal rates. A
+  # fixed divisor makes these three identical.
+  expect_gt(dplyr::n_distinct(round(out$deposit_kg_n_ha, 6)), 1L)
+  # And the ordering is forced: the poleward cell is smaller, so its rate is
+  # higher, in the exact ratio of the two cell areas.
+  areas <- cell_area_ha_by_lat(out$lat)
+  expect_equal(
+    out$deposit_kg_n_ha[out$lat == 70.25] /
+      out$deposit_kg_n_ha[out$lat == 0.25],
+    areas[out$lat == 0.25] / areas[out$lat == 70.25]
+  )
+})
+
+
+test_that(".hani_deposition_rate drops the land-masked ocean", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  zeros <- dplyr::mutate(.hani_mass_fixture(), value_g = 0)
+  expect_equal(nrow(.hani_deposition_rate(zeros, zeros)), 0L)
+  # A cell present in one species only still keeps its own mass.
+  one <- .hani_deposition_rate(
+    .hani_mass_fixture()[1, ],
+    .hani_mass_fixture()[2, ]
+  )
+  expect_equal(nrow(one), 2L)
+  expect_equal(sum(one$noy == 0), 1L)
+})
+
+
+test_that(".extract_hani_deposition returns NULL with no NetCDFs", {
+  .need_spatialize_helper(".extract_hani_deposition")
+  dir <- withr::local_tempdir()
+  expect_null(.extract_hani_deposition(dir))
+  dir.create(file.path(dir, "HaNi"))
+  expect_null(.extract_hani_deposition(dir))
+  # One of the two present is not enough: a half-extracted archive must not
+  # look like a usable directory.
+  file.create(file.path(dir, "HaNi", "ndep_nhx.nc"))
+  expect_null(.extract_hani_deposition(dir))
+})
+
+
+test_that(".extract_hani_deposition reads both species offline", {
+  .need_spatialize_helper(".extract_hani_deposition")
+  dir <- withr::local_tempdir()
+  dir.create(file.path(dir, "HaNi"))
+  file.create(file.path(dir, "HaNi", c("ndep_nhx.nc", "ndep_noy.nc")))
+  seen <- character()
+  testthat::local_mocked_bindings(
+    read_n_deposition = function(species, hani_dir = NULL, ...) {
+      seen <<- c(seen, species)
+      expect_equal(hani_dir, file.path(dir, "HaNi"))
+      dplyr::mutate(
+        .hani_mass_fixture(),
+        value_g = if (species == "nhx") value_g else value_g / 2
+      )
+    },
+    .package = "whep"
+  )
+  out <- .extract_hani_deposition(dir)
+  expect_setequal(seen, c("nhx", "noy"))
+  expect_equal(nrow(out), 3L)
+  expect_equal(
+    out$deposit_kg_n_ha * cell_area_ha_by_lat(out$lat) * 1000,
+    rep(1.5e9, 3L)
+  )
 })

@@ -55,21 +55,41 @@ test_that("resolution is year-aware, so a label reaches the right period", {
 })
 
 test_that("a source-scoped alias never applies to another source", {
-  # The IIA aliases for "burundi" route 1922-1961 to Ruanda-Urundi, because that
-  # is the entity IIA reported under the label; FAOSTAT means the modern state.
-  # Reading the IIA rule while processing FAOSTAT would misattribute the data.
+  # The IIA aliases for "burundi" route 1919-1921 to the Belgian occupation of
+  # Ruanda-Urundi, because that is the entity IIA reported under the label;
+  # FAOSTAT means the modern state. Reading the IIA rule while processing
+  # FAOSTAT would misattribute the data.
+  #
+  # The 1922-1961 alias used to be the example here and no longer contradicts
+  # anything: the 2026-08-25 whep-polities re-sync re-pointed it from
+  # `RWB-1922-1962`, the joint territory, to `BDI-1922-1962`, "Burundi (within
+  # Ruanda-Urundi)" -- a deliberate upstream refinement, and the same one it
+  # made for `rwanda | mitchell` (`RWB-1922-1962` -> `RWA-1922-1962`). It is a
+  # more precise answer, and it agrees with the name route, so it can no longer
+  # show that the scoping does anything. `RWB-1919-1922` still can.
+  expect_equal(
+    resolve_polity_label("burundi", source = "iia", year = 1920L),
+    "RWB-1919-1922"
+  )
   expect_equal(
     resolve_polity_label("burundi", source = "iia", year = 1930L),
-    "RWB-1922-1962"
+    "BDI-1922-1962"
   )
   expect_equal(
     resolve_polity_label("burundi", source = "faostat", year = 2000L),
     "BDI-1962-2025"
   )
   # With no source given, only unscoped aliases apply. Every "burundi" alias is
-  # source-scoped, so the name route gets its turn -- and refuses, because the
-  # rules that speak about 1930 name the RWB family while the name names BDI.
-  expect_true(is.na(resolve_polity_label("burundi", year = 1930L)))
+  # source-scoped, so the name route gets its turn. It reaches BOTH BDI periods
+  # -- `.norm_polity_label()` normalises "Burundi (within Ruanda-Urundi)" to
+  # "burundi" as well -- and neither contains 1920, so there is no answer. THAT
+  # IS THE POINT: had the IIA rule leaked across sources this would read
+  # `RWB-1919-1922`. For 1930 the name route reaches `BDI-1922-1962` by year and
+  # the IIA rule that speaks about 1930 now names the same family, so the
+  # agreement check lets it through; before the re-sync that rule named RWB,
+  # disagreed with the name, and sent the label back to NA.
+  expect_true(is.na(resolve_polity_label("burundi", year = 1920L)))
+  expect_equal(resolve_polity_label("burundi", year = 1930L), "BDI-1922-1962")
 })
 
 test_that("a missing year bound is unbounded on that side, not unscoped", {
@@ -314,4 +334,97 @@ test_that("the published alias map keeps the contract this package reads", {
   expect_false(any(is.na(aliases$polity_code)))
   # Every alias must name a real WHEP polity code, prefix included.
   expect_true(all(grepl("^[A-Z0-9-]+-[0-9]{4}-[0-9]{4}$", aliases$polity_code)))
+
+  # #768: the roxygen states as an INVARIANT, not as a snapshot count, that
+  # every code this function can return is one `get_polity_geometries()` can
+  # return a row for. `data-raw/table_mappings.R` aborts the build when an alias
+  # names a polity the shipped table lacks, because both artifacts come from one
+  # upstream revision; this is that guard read from the shipped data, so the
+  # documented claim cannot quietly stop being true.
+  expect_equal(
+    setdiff(aliases$polity_code, whep::polities$polity_code),
+    character(0)
+  )
+})
+
+test_that("a still-open period covers the open-period sentinel year", {
+  # #712: the year filter read `end_year` STRICTLY exclusively, so every polity
+  # whose interval ends at the open-period sentinel stopped covering its own
+  # terminal year and the label route answered NA for essentially every country
+  # that exists -- 1 of the 204 `gleam_geographic_hierarchy` ISO3 codes resolved
+  # at 2025 against 204 at 2024 -- while `add_polity_code()`, which goes through
+  # `.polity_join_end_year()`, resolved them normally. The convention is
+  # exclusive at a succession, INCLUSIVE AT AN OPEN END (#577).
+  #
+  # The sentinel is read from the snapshot rather than written down: it has moved
+  # twice in this epic (#530, #551), and a literal would stop testing anything.
+  sentinel <- max(whep::polities$end_year, na.rm = TRUE)
+  expect_equal(
+    resolve_polity_label("ESP", year = sentinel),
+    paste0("ESP-1800-", sentinel)
+  )
+  expect_equal(
+    resolve_polity_label("Netherlands", year = sentinel),
+    paste0("NLD-1830-", sentinel)
+  )
+
+  # The coverage claim itself, as an invariant rather than a hand-picked row: the
+  # sentinel year must resolve as many present-day countries as the year before
+  # it. Nothing succeeds those polities, so no country can drop out.
+  iso3 <- unique(whep::gleam_geographic_hierarchy$iso3)
+  expect_equal(
+    sum(!is.na(resolve_polity_label(iso3, year = sentinel))),
+    sum(!is.na(resolve_polity_label(iso3, year = sentinel - 1L)))
+  )
+
+  # Past the sentinel there is nothing to cover: the widening adds ONE year, it
+  # does not make an open period unbounded.
+  expect_true(is.na(resolve_polity_label("ESP", year = sentinel + 1L)))
+})
+
+test_that("a period nothing succeeds covers its own last year", {
+  # The same rule away from the sentinel, and the example is read off the
+  # snapshot rather than named, because the last one stopped being an example.
+  # `ANT-1961-2010` was it: the Netherlands Antilles, dissolved in 2010 with no
+  # successor recorded. The 2026-08-25 whep-polities re-sync published its three
+  # successors, so it is succeeded now, the widening correctly stops applying to
+  # it, and `resolve_polity_label("ANT", 2010)` is `NA` -- a right answer to a
+  # question this test was no longer asking. Openness is what the rule turns on,
+  # so the periods it applies to are derived from `successor` itself.
+  sentinel <- max(whep::polities$end_year, na.rm = TRUE)
+  unsucceeded <- intersect(
+    whep:::.open_polity_codes(),
+    whep::polities$polity_code[whep::polities$end_year < sentinel]
+  )
+  expect_gt(length(unsucceeded), 0L)
+
+  # `AOI-1936-1941` is Italian East Africa, dissolved in 1941, and upstream
+  # records no successor for it. If THIS assertion is what fails, upstream gave
+  # it one: pick another code out of `unsucceeded` whose ISO3 names it alone,
+  # rather than deleting the two below.
+  expect_true("AOI-1936-1941" %in% unsucceeded)
+  expect_equal(resolve_polity_label("AOI", year = 1941L), "AOI-1936-1941")
+  expect_true(is.na(resolve_polity_label("AOI", year = 1942L)))
+})
+
+test_that("a succession year still resolves to exactly one polity", {
+  # THE FAILURE MODE THE WIDENING MUST NOT INTRODUCE (#720): widen every open
+  # period unconditionally and a boundary year gets two candidates, because a
+  # terminated aggregate records no successor and is therefore "open" by the
+  # successor test. Measured on the shipped snapshot, three collide --
+  # `EGYSUD-1934-1956` beside `EGY-1925-1967` at 1956, `CODRU-1922-1960` beside
+  # `COD-1960-2025` at 1960, `MASG-1946-1963` beside `MYS-1963-1965` at 1963 --
+  # and the ambiguity guard would answer NA for a year that used to resolve.
+  # `.polity_year_candidates()` consults the widened bound only when nothing
+  # claims the year outright, so declared containment keeps winning.
+  expect_equal(resolve_polity_label("EGY", year = 1956L), "EGY-1925-1967")
+  expect_equal(resolve_polity_label("COD", year = 1960L), "COD-1960-2025")
+  expect_equal(resolve_polity_label("MYS", year = 1963L), "MYS-1963-1965")
+
+  # And the plain succession boundaries: the year belongs to the SUCCESSOR, which
+  # is the half of the convention the exclusive reading buys.
+  expect_equal(resolve_polity_label("SDN", year = 2011L), "SDN-2011-2025")
+  expect_equal(resolve_polity_label("PAN", year = 1979L), "PAN-1979-2025")
+  expect_equal(resolve_polity_label("EGY", year = 1967L), "EGY-1967-1979")
+  expect_equal(resolve_polity_label("MYS", year = 1965L), "MYS-1965-2025")
 })

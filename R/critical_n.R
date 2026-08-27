@@ -290,9 +290,12 @@ read_critical_n <- function(
   cli::cli_alert_info(
     "Downloading the critical-nitrogen archive (18.4 MB) from Zenodo..."
   )
+  # Held in a local: cli reads `{.critn_archive_url()}` as a style, not a
+  # substitution, and aborts inside its own error message.
+  url <- .critn_archive_url()
   ok <- tryCatch(
     utils::download.file(
-      .critn_archive_url(),
+      url,
       path,
       mode = "wb",
       quiet = TRUE
@@ -307,7 +310,7 @@ read_critical_n <- function(
       } else {
         "The downloaded file does not match the published MD5."
       },
-      i = "Download {.url {.critn_archive_url()}} by hand, extract it, and
+      i = "Download {.url {url}} by hand, extract it, and
            point {.envvar WHEP_CRITICAL_N_DIR} at the result."
     ))
   }
@@ -327,20 +330,11 @@ read_critical_n <- function(
 .critn_extract <- function(archive, exdir) {
   dir.create(exdir, recursive = TRUE, showWarnings = FALSE)
   if (rlang::is_installed("archive")) {
-    archive::archive_extract(archive, dir = exdir)
-    return(invisible(exdir))
+    return(.critn_extract_archive(archive, exdir))
   }
   bin <- .critn_7z_binary()
-  if (!is.null(bin)) {
-    status <- system2(
-      bin,
-      c("x", "-y", shQuote(archive), paste0("-o", exdir)),
-      stdout = FALSE,
-      stderr = FALSE
-    )
-    if (identical(as.integer(status), 0L)) {
-      return(invisible(exdir))
-    }
+  if (!is.null(bin) && .critn_extract_7z(archive, exdir, bin)) {
+    return(invisible(exdir))
   }
   cli::cli_abort(c(
     "No 7-Zip extractor available for the critical-nitrogen archive.",
@@ -349,6 +343,27 @@ read_critical_n <- function(
          install the {.pkg archive} R package (needs system libarchive), or
          set {.envvar WHEP_CRITICAL_N_DIR} to an archive extracted elsewhere."
   ))
+}
+
+# The libarchive back-end. Split out so a test can drive it directly instead
+# of having to arrange for `archive` to be the extractor .critn_extract()
+# happens to pick.
+.critn_extract_archive <- function(archive, exdir) {
+  archive::archive_extract(archive, dir = exdir)
+  invisible(exdir)
+}
+
+# The 7-Zip binary back-end; TRUE when the binary reported success. Both paths
+# are quoted: an unquoted `-o` output path splits at the first space, and 7-Zip
+# then reads the tail as a member filter, extracts nothing and still exits 0.
+.critn_extract_7z <- function(archive, exdir, bin = .critn_7z_binary()) {
+  status <- system2(
+    bin,
+    c("x", "-y", shQuote(archive), paste0("-o", shQuote(exdir))),
+    stdout = FALSE,
+    stderr = FALSE
+  )
+  identical(as.integer(status), 0L)
 }
 
 .critn_7z_binary <- function() {

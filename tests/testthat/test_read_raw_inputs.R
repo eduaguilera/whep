@@ -273,3 +273,121 @@ test_that("an ISO3 still ambiguous after the rule aborts instead of guessing", {
     class = "whep_ambiguous_iso3_area"
   )
 })
+
+# -- .extract_cb row order -----------------------------------------------------
+
+# The four CB extracts travel as the `.cb_extracts` attribute of
+# `build_primary_production()`, so their row order is part of a published
+# object. `.read_input()` reads the parquet through arrow's multi-threaded
+# scanner, which hands back the same rows in a session-dependent order, and
+# nothing downstream pinned one -- so the build was not `identical()` to itself
+# across sessions (whep#747). Feeding the same rows in two orders reproduces
+# that here without touching a pin or the network.
+.cb_order_fixture <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2000L, 100,
+    203L,         "Testland", 2511,         "Wheat and products", "Food",       "tonnes", 2000L, 40,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2000L, 70,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2001L, 80,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2001L, 110
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".extract_cb row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_cb("faostat-fbs-old") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# -- .extract_fao row order ----------------------------------------------------
+
+# The same defect one stage earlier, and the stage the CBS build consumes
+# directly: `.read_fao_trade()` and the `faostat-cbs-new` extract stop at
+# `.extract_fao()`, so `.extract_cb()`'s sort never reaches them. Measured on
+# the real pins at 1950-1965, `.read_fao_trade()` came back in a different row
+# order in every one of three sessions (339,220 rows, same rows and same
+# values), because the `by=` aggregation in `.aggregate_to_polities()` emits
+# groups in order of first appearance and arrow's multi-threaded scanner
+# decides what appears first (whep#420).
+test_that(".extract_fao row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_fao("faostat-trade-totals") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# Issue whep#833. `.correct_processed()` calibrates a processing output by
+# dividing the observed production of that output by the production its parent's
+# `processing` implies, and then carries the one ratio it finds across the
+# whole year axis. Where it finds none, `scaling` collapses to 0 for every item
+# that is neither `Required` in `cb_processing` nor a `no_data_product`, and
+# the output is deleted by the `value != 0` filters downstream. So the SPAN of
+# the frame decides whether the row exists, which is how a year-scoped build
+# loses 14 keys the full-range build has (Italy's Ricebran Oil at 2010 is
+# calibrated off a single 1961 observation, 49 years away).
+.processed_axis_fixture <- function(years) {
+  key <- tibble::tibble(
+    area = "Testland",
+    area_code = 999L,
+    item_cbs = "Ricebran Oil",
+    element = "production"
+  )
+  list(
+    processed = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(value_proc = 200),
+    cbs = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(item_cbs_code = 2581L, value = 100) |>
+      dplyr::filter(year == 2000L)
+  )
+}
+
+.processed_axis_value <- function(years) {
+  fixture <- .processed_axis_fixture(years)
+  whep:::.correct_processed(fixture$processed, fixture$cbs) |>
+    tibble::as_tibble() |>
+    dplyr::filter(year == 2010L) |>
+    dplyr::pull(value_final)
+}
+
+test_that(".correct_processed carries one anchor across the year axis", {
+  expect_equal(.processed_axis_value(2000:2010), 100)
+})
+
+test_that(".correct_processed deletes the output off-anchor (whep#833)", {
+  # The defect, pinned so it is reproducible without a pipeline build: the same
+  # 2010 output is worth 100 t on an axis holding the 2000 anchor and 0 t on
+  # one that does not. Fixing #833 makes these two agree, and this expectation
+  # must then be replaced by an equality against the full-axis answer.
+  expect_equal(.processed_axis_value(2005:2010), 0)
+})

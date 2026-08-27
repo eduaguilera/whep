@@ -56,6 +56,17 @@
 #' therefore outside the agricultural balance. Grassland is represented by CBS
 #' 3000; no intensive/extensive class is inferred.
 #'
+#' @details
+#' `polity_validity` is forwarded to every builder this function calls that
+#' offers it -- [build_ag_land_support()], [build_n_deposition()],
+#' [build_urban_n()] and [spatialize_country_n_to_crops()] -- and then applied
+#' to the assembled output, so one choice governs the whole assembly instead of
+#' each builder deciding on its own key space (whep#727). Under `"drop"` the
+#' support table loses those rows too, so a non-item input (deposition, urban,
+#' SOM mineralization) whose own rows were supplied directly and therefore not
+#' dropped can find no cropland support left to allocate over; that aborts in
+#' the mass check rather than silently losing nitrogen.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   keeps every year the assembled inputs cover.
 #' @param synthetic_method Synthetic-N crop allocation method, `"coello"` or
@@ -63,6 +74,7 @@
 #'   `data$synthetic_method %||% "coello"` for backwards compatibility.
 #' @param resolution `"grid"` (default, per cell/crop/year/fert_type) or
 #'   `"polity"` (summed to `area_code`/`item_cbs_code`/`year`/`fert_type`).
+#' @inheritParams build_water_balance
 #' @param data Named list of pre-loaded, caller-supplied upstream inputs.
 #'   Each of the following is required for its corresponding `fert_type` to
 #'   be emitted (a missing one silently skips that source rather than
@@ -142,7 +154,8 @@
 #'   is `NA` for every other `fert_type`. `method_deposition_scope` records
 #'   which of the polycell's territory the `"deposition"` term was credited
 #'   with (`"territory"` or `"land"`) and is `NA` for every other `fert_type`.
-#'   Both grains also carry the polity columns below.
+#'   Both grains also carry the polity columns below, plus
+#'   `reporting_polity_out_of_span` when `polity_validity = "flag"`.
 #' @inheritSection whep_polity_columns Polity columns
 #' @export
 #' @examples
@@ -151,12 +164,14 @@ build_n_inputs <- function(
   years = NULL,
   resolution = c("grid", "polity"),
   synthetic_method = NULL,
+  polity_validity = c("keep", "flag", "drop"),
   data = list(),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
-    return(.example_n_inputs())
+    return(.resolve_polity_validity(.example_n_inputs(), polity_validity))
   }
   if (!is.null(synthetic_method)) {
     data$synthetic_method <- rlang::arg_match(
@@ -165,6 +180,7 @@ build_n_inputs <- function(
     )
   }
   data$.n_input_resolution <- resolution
+  data$.polity_validity <- polity_validity
   data$resolution <- .ni_manure_resolution(data, resolution)
   data$ag_land_support <- .ni_resolve_land_support(data, years)
   assembled <- dplyr::bind_rows(
@@ -181,7 +197,7 @@ build_n_inputs <- function(
     .ni_filter_years(years) |>
     .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution) |>
-    .add_reporting_polity_columns()
+    .resolve_polity_validity(polity_validity)
 }
 
 # ---- Private helpers: schema + resolution ------------------------------
@@ -241,6 +257,15 @@ build_n_inputs <- function(
   if (resolution == "grid") "subnational" else "national"
 }
 
+# The assembly-wide polity_validity choice, stashed on `data` by
+# build_n_inputs() (and by build_nitrogen_balance(), which resolves the land
+# support before it calls build_n_inputs()) so the source helpers can forward it
+# without a second argument each. "keep" is the package-wide default, so an
+# unset value means the historical behaviour.
+.ni_polity_validity <- function(data) {
+  data$.polity_validity %||% "keep"
+}
+
 # Materialise the agricultural land support ONCE, before assembly, so the
 # deposition term and the unattributed-input allocation share one table instead
 # of each rebuilding it. A caller-supplied table always wins; otherwise it is
@@ -255,6 +280,7 @@ build_n_inputs <- function(
   build_ag_land_support(
     years = years,
     grassland = data$grassland_source %||% "gridded_pasture",
+    polity_validity = .ni_polity_validity(data),
     data = list(
       cell_polity = data$cell_polity,
       type_cropland = data$type_cropland,
@@ -498,10 +524,10 @@ build_n_inputs <- function(
 # sentinel: a Cropland residual (e.g. an over_apply_local remainder) and a
 # transport landing (pooled across crop and grass capacity with no crop)
 # alike. The is.na(crop) branch is checked before the crosswalk default so a
-# missing crop never reaches .ni_crop_name_to_item_cbs(). A real crop name
-# resolves via the item_prod crosswalk.
+# missing crop never reaches .ni_crop_to_item_cbs(). A real crop resolves via
+# the item_prod crosswalk.
 .ni_manure_item_cbs <- function(crop, land_use) {
-  resolved <- .ni_crop_name_to_item_cbs(crop)
+  resolved <- .ni_crop_to_item_cbs(crop)
   dplyr::case_when(
     land_use == "Grassland" ~ 3000L,
     is.na(crop) ~ NA_integer_,
@@ -509,36 +535,94 @@ build_n_inputs <- function(
   )
 }
 
-# Cropland `crop` names are free-form lowercase strings from the manure
-# engine; resolve each to item_cbs_code via the case-folded item_prod
-# crosswalk. A non-NA crop name that matches nothing is a genuine mapping gap
-# (a renamed or free-form crop the crosswalk does not know), so abort naming it
-# rather than emit an NA item_cbs_code indistinguishable from the deliberately
-# non-crop-specific deposition/urban/SOM rows, mirroring
+# Resolve the manure engine's Cropland `crop` key to an item_cbs_code.
+#
+# The canonical key is `as.character(item_prod_code)` -- a code, per CLAUDE.md's
+# "join on codes, never on names": item_prod_code -> item_cbs_code is 1:1 across
+# all 310 crosswalk rows, whereas item_prod is not (`Fallow` names two codes)
+# and three codes carry no name at all. `.sci_manure_crop_layer()`
+# (R/soil_carbon_inputs.R), the only in-package producer of a real gridded crops
+# layer, emits codes; before this contract was fixed the nitrogen side resolved
+# the same column by name only, so the carbon path's layer aborted here -- every
+# one of its 9298 rows for 2010, all 171 crops, 1.383e9 ha (#788).
+#
+# A crop name is still accepted as a deprecated compatibility bridge, for layers
+# hand-built against the old contract, and warns with the condition class
+# "whep_crop_key_name_deprecated" -- tests assert on that class rather than on
+# the word "deprecated", which dplyr's own lifecycle warnings also carry. Ordering is unambiguous: no
+# item_prod name equals a DIFFERENT item_prod_code in the crosswalk (`Fallow` is
+# the only name/code collision and both rows are the same item), so trying codes
+# first can never steal a name's match.
+#
+# A non-NA crop that matches neither is a genuine mapping gap, so abort naming
+# it rather than emit an NA item_cbs_code indistinguishable from the
+# deliberately non-crop-specific deposition/urban/SOM rows, mirroring
 # .manure_territory_to_area_code()'s treatment of unresolvable territories. An
 # NA crop never reaches this abort: .ni_manure_item_cbs() assigns either the
 # grass code or the no-specific-item sentinel from land_use.
-.ni_crop_name_to_item_cbs <- function(crop) {
+.ni_crop_to_item_cbs <- function(crop) {
+  resolved <- .ni_crop_code_lookup(crop)
+  by_name <- is.na(resolved) & !is.na(crop)
+  if (any(by_name)) {
+    from_name <- .ni_crop_name_lookup(crop[by_name])
+    resolved[by_name] <- from_name
+    bridged <- unique(crop[by_name][!is.na(from_name)])
+    if (length(bridged) > 0) {
+      cli::cli_warn(
+        c(
+          "Resolving the manure {.field crop} key from a crop name is
+         deprecated.",
+          i = "Bridged by name: {.val {bridged}}. Pass
+             {.code as.character(item_prod_code)} instead, the key the carbon
+             balance's own crops layer already uses.",
+          i = "A name is not a unique key: {.val Fallow} names two
+             {.field item_prod_code}s and three codes carry no name."
+        ),
+        class = "whep_crop_key_name_deprecated"
+      )
+    }
+  }
+  unresolved <- unique(crop[is.na(resolved) & !is.na(crop)])
+  if (length(unresolved) > 0) {
+    cli::cli_abort(c(
+      "Could not resolve manure {.field crop} to an {.field item_cbs_code}.",
+      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected
+           {.code as.character(item_prod_code)} from
+           {.code whep::items_prod_full} (a crop name is accepted but
+           deprecated)."
+    ))
+  }
+  resolved
+}
+
+# item_prod_code -> item_cbs_code, keyed on the stringified code. Rows whose
+# item_cbs_code is NA are dropped from the lookup so they fall through to the
+# name bridge and then the abort, rather than resolving to a silent NA.
+.ni_crop_code_lookup <- function(crop) {
+  lookup <- whep::items_prod_full |>
+    dplyr::transmute(
+      crop = as.character(.data$item_prod_code),
+      item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
+    ) |>
+    dplyr::filter(!is.na(.data$crop), !is.na(.data$item_cbs_code)) |>
+    dplyr::distinct(.data$crop, .keep_all = TRUE)
+  tibble::tibble(crop = as.character(crop)) |>
+    dplyr::left_join(lookup, by = "crop", na_matches = "never") |>
+    dplyr::pull("item_cbs_code")
+}
+
+# Case-folded item_prod name -> item_cbs_code, the deprecated bridge.
+.ni_crop_name_lookup <- function(crop) {
   lookup <- whep::items_prod_full |>
     dplyr::transmute(
       crop_lower = stringr::str_to_lower(.data$item_prod),
       item_cbs_code = .as_integer_quiet(.data$item_cbs_code)
     ) |>
+    dplyr::filter(!is.na(.data$crop_lower), !is.na(.data$item_cbs_code)) |>
     dplyr::distinct(.data$crop_lower, .keep_all = TRUE)
-  resolved <- tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
-    dplyr::left_join(lookup, by = "crop_lower", na_matches = "never")
-  unresolved <- unique(
-    crop[!is.na(resolved$crop_lower) & is.na(resolved$item_cbs_code)]
-  )
-  if (length(unresolved) > 0) {
-    cli::cli_abort(c(
-      "Could not resolve manure {.field crop} to an {.field item_cbs_code}.",
-      i = "Unrecognised value{?s}: {.val {unresolved}}. Expected a crop name
-           matching {.field item_prod} in {.code whep::items_prod_full}
-           (matched case-insensitively)."
-    ))
-  }
-  resolved$item_cbs_code
+  tibble::tibble(crop_lower = stringr::str_to_lower(crop)) |>
+    dplyr::left_join(lookup, by = "crop_lower", na_matches = "never") |>
+    dplyr::pull("item_cbs_code")
 }
 
 .ni_manure_fert_type <- function(manure_type) {
@@ -549,11 +633,10 @@ build_n_inputs <- function(
       i = "Expected one of {.val Excreta}, {.val Solid} or {.val Liquid}."
     ))
   }
-  dplyr::case_match(
-    manure_type,
-    "Excreta" ~ "excreta",
-    "Solid" ~ "manure_solid",
-    "Liquid" ~ "manure_liquid"
+  dplyr::case_when(
+    manure_type == "Excreta" ~ "excreta",
+    manure_type == "Solid" ~ "manure_solid",
+    manure_type == "Liquid" ~ "manure_liquid"
   )
 }
 
@@ -566,6 +649,7 @@ build_n_inputs <- function(
   scope <- .ni_deposition_scope(data)
   support <- .ni_land_support(data)
   deposition <- build_n_deposition(
+    polity_validity = .ni_polity_validity(data),
     data = list(nhx = data$nhx, noy = data$noy, cell_polity = data$cell_polity)
   ) |>
     .ni_deposition_in_scope(scope)
@@ -704,6 +788,7 @@ build_n_inputs <- function(
     return(.ni_empty())
   }
   build_urban_n(
+    polity_validity = .ni_polity_validity(data),
     data = list(
       urban_population = data$urban_population,
       cell_polity = data$cell_polity,
@@ -713,10 +798,11 @@ build_n_inputs <- function(
     dplyr::transmute(
       lon = .data$lon,
       lat = .data$lat,
-      # build_urban_n() resolves its own territory key (a stringified
-      # area_code, or an ISO3) back to a numeric area_code, through the same
-      # checked resolver as the manure path, so nothing is left to resolve
-      # here and an ISO3 never becomes a silent NA.
+      # build_urban_n() requires the numeric WHEP area_code on both of the
+      # frames it is handed and checks that at its own input boundary (#597),
+      # so this column is already the code and nothing is left to resolve
+      # here. Unlike the manure path there is no ISO3 bridge to go wrong: an
+      # ISO3 aborts there rather than becoming an aggregation bucket here.
       area_code = .data$area_code,
       item_cbs_code = NA_integer_,
       year = .data$year,
@@ -851,7 +937,10 @@ build_n_inputs <- function(
   if (!isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
     cli::cli_abort(c(
       "Could not allocate all non-item nitrogen over agricultural support.",
-      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N."
+      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N.",
+      i = "{.code polity_validity = \"drop\"} removes support rows whose
+           polity did not exist in that year; a non-item input supplied
+           directly still carries them."
     ))
   }
   dplyr::bind_rows(
@@ -874,7 +963,7 @@ build_n_inputs <- function(
     data$coello_rates
   )
   spatialized <- if (is.null(data$cell_polity)) {
-    .ni_synthetic_polity(country_totals, crop_shares)
+    .ni_synthetic_polity(country_totals, crop_shares, data)
   } else {
     .ni_synthetic_grid(country_totals, crop_shares, data)
   }
@@ -894,12 +983,13 @@ build_n_inputs <- function(
   dplyr::left_join(spatialized, lookup, by = c("year", "area_code"))
 }
 
-.ni_synthetic_polity <- function(country_totals, crop_shares) {
+.ni_synthetic_polity <- function(country_totals, crop_shares, data) {
   spatialize_country_n_to_crops(
     country_totals,
     crop_shares,
     cell_polity = NULL,
-    resolution = "polity_crop"
+    resolution = "polity_crop",
+    polity_validity = .ni_polity_validity(data)
   ) |>
     dplyr::transmute(
       lon = NA_real_,
@@ -918,6 +1008,7 @@ build_n_inputs <- function(
     crop_shares,
     cell_polity = data$cell_polity,
     resolution = "grid",
+    polity_validity = .ni_polity_validity(data),
     data = list(
       crop_patterns = data$crop_patterns,
       type_cropland = data$type_cropland

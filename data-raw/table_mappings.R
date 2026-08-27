@@ -357,14 +357,16 @@ reporting_areas <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    # NOT a polity code, and the published crosswalk column keeps the name it
-    # has always had so this rename is not two schema breaks at once: it is the
-    # vendored ISO3-LIKE STEM (`legacy_polity_prefix` since #687), used a few
-    # lines below only as a candidate PREFIX for polity inference. Every real
-    # answer this script emits is `polity_code`, resolved from the upstream map.
-    # Renaming the crosswalk's own column is whep#711.
-    reporting_polity_code = .data$legacy_polity_prefix,
-    reporting_polity_name = .data$polity_name,
+    # NOT a polity code and NOT a polity name. This is the vendored ISO3-LIKE
+    # STEM from regions_full.csv (`legacy_polity_prefix` since #687) and the
+    # legacy label that ships beside it, used a few lines below only as a
+    # candidate PREFIX for polity inference. Every real answer this script
+    # emits is `polity_code`/`polity_name`, resolved from the upstream map.
+    # Until whep#711 the pair was published as `reporting_polity_code` and
+    # `reporting_polity_name` -- the package's own names for a real periodized
+    # polity -- so the crosswalk answered the identity question with a stem.
+    legacy_polity_prefix = .data$legacy_polity_prefix,
+    legacy_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),
     region = .data$region
@@ -377,8 +379,8 @@ reporting_areas <- regions_for_crosswalk |>
       NA_character_
     ),
     reporting_prefix = dplyr::if_else(
-      .data$reporting_polity_code %in% known_polity_prefixes,
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix %in% known_polity_prefixes,
+      .data$legacy_polity_prefix,
       NA_character_
     ),
     fabio_row_prefix = dplyr::if_else(
@@ -392,7 +394,7 @@ reporting_areas <- regions_for_crosswalk |>
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix,
       .data$area_iso3c
     ),
     area_in_map = .data$area_code %in% faostat_area_map$area_code
@@ -593,6 +595,31 @@ shadowed_by_map <- prefix_candidates |>
 # reach: `ETH-1800-1889` through `ETH-1941-1952` are named by no map row, so
 # both areas keep all seven, which is what `.resolve_hist_trade_polities()`
 # needs.
+#
+# THE ROW THAT STAYS IS NOT A BUCKET-ONLY ROW, and #742 proposed to mark it as
+# one. That issue reads `(238, ETH-1952-1993)` as right for the bucket and
+# wrong for the area -- "reporting area 238 does not exist before 1993" -- and
+# asks for a `key_role` column so the raw-reporting-area lookup stops matching
+# it. Measured before designing anything, that is not what the row does. Area
+# 238 is exactly where `.iso3_area_code_bridge()` sends `ETH` (whep#719), and
+# `.resolve_hist_trade_polities()` resolves genuine historical sources under
+# their own year's borders with the back-cast floor off. On the shipped
+# historical-trade pins that lands 149 published rows on area 238 at 1961, a
+# real period hit inside 1952-1993 -- Ethiopia including Eritrea, which is the
+# territory the 1961 value covers. Taking the row out of the area lookup sends
+# all 149 to `ETH-1993-2025` / `out_of_span`, and because the `area` label is
+# attached from the BUCKET, which would keep the row, a single published row
+# would then read `area = "Ethiopia (1952-1993)"` beside
+# `polity_code = "ETH-1993-2025"` -- the two-vocabulary split of whep#584.
+#
+# So the row answers in both key spaces, no shipped row answers in only one,
+# and a `key_role` column would today be derivable as
+# `area_code %in% polity_area_code` and carry no information. The distinction
+# earns a published column when a bucket-only row first exists, which is what
+# whep#414 would need (bucket 206 wants `F206-2011-2025`, a polity upstream
+# publishes but its per-area map cannot name, because area 206 stops reporting
+# in 2011). test_polity_faostat_map.R pins both halves so the split cannot be
+# implemented on one of them.
 map_owners <- faostat_area_map |>
   dplyr::distinct(.data$polity_code, owner_area = .data$area_code) |>
   dplyr::left_join(
@@ -685,8 +712,8 @@ polity_area_crosswalk <- dplyr::bind_rows(
     area_code,
     area_name,
     area_iso3c,
-    reporting_polity_code,
-    reporting_polity_name,
+    legacy_polity_prefix,
+    legacy_polity_name,
     cbs,
     fabio_code,
     region,

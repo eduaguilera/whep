@@ -10,6 +10,16 @@ A tibble with one row per area-code/polity-period mapping. Key columns:
 \item \code{area_code}: Numeric FAOSTAT/FABIO reporting area code.
 \item \code{area_name}: Reporting area name.
 \item \code{area_iso3c}: Reporting-area ISO3-like code where available.
+\item \code{legacy_polity_prefix}, \code{legacy_polity_name}: The ISO3-like stem (\code{"ARM"},
+\code{"ROCE"}, \code{"REUR"}) and legacy label this package vendors from
+\code{regions_full.csv}, kept for older callers and used at build time only as a
+\emph{candidate prefix} for polity inference. \strong{Neither is an identity}: not one
+stem is a \link{polities} \code{polity_code}, so a join to \link{polities} on it comes back
+empty. Read \code{polity_code} for the polity this row resolves to. Until #711
+the pair shipped as \code{reporting_polity_code}/\code{reporting_polity_name}, the
+package's own names for a real periodized polity (see
+\link{whep_polity_columns}), which is exactly the trap #687 removed from
+\link{regions_full}.
 \item \code{polity_area_code}: Numeric area code retained for WHEP matrix workflows.
 \item \code{polity_code}, \code{polity_name}: Matched WHEP polity, or \code{NA} for
 statistical composites that are not real polities.
@@ -64,7 +74,7 @@ FAOSTAT/FABIO-derived WHEP data to periodized WHEP \code{polity_code} values.
 This is a \strong{contract}, asserted by the test suite over the full reporting
 era, not an accident of the current snapshot: every \verb{(area_code, year)} that
 resolves at all resolves to exactly \strong{one} \code{polity_code}, over 17,184
-resolving pairs and 257 polities. A join that
+resolving pairs and 306 polities. A join that
 carries both columns is therefore already polity-correct, whether or not it
 names a polity, and the territorial identity is recoverable from the numeric
 code rather than lost by it.
@@ -83,8 +93,32 @@ one member, or its members agree, \verb{(polity_area_code, year)} recovers the
 polity too. Over 1961-2025 exactly one bucket does not: \strong{206}, which holds
 Sudan (former) 206, Sudan 276 and South Sudan 277 and answers with three
 polities in all 65 reported years. See #414. To say which territory a row
-belongs to, read \code{reporting_polity_code}, or resolve through
-\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket.
+belongs to, read this table's own \code{polity_code}, or resolve through
+\code{\link[=add_polity_code]{add_polity_code()}}; do not infer it from the bucket. In a WHEP \emph{output} the
+same answer is \code{reporting_polity_code}, materialised from this table's
+\code{polity_code}. This table carries no column of that name, and
+\code{legacy_polity_prefix} is not a substitute for one (#711).
+}
+
+\section{A bucket resolves here only because it is also an area}{
+
+There is one key column, \code{area_code}, and callers hand it \strong{two kinds of
+code}: a raw FAOSTAT reporting area, and a \code{polity_area_code} aggregation
+bucket -- which is what \code{reporting_polity_code} is resolved from on every
+summed row. Nothing in a row says which of the two it answers for, and that
+works only because the bucket key space is a \strong{subset} of the area key
+space: every \code{polity_area_code} is also an \code{area_code} here, in all three
+Rest-of-World modes. A bucket code that were not a reporting area would
+match no row, so the fold would keep its \code{area} label through the member
+fallback and lose \code{reporting_polity_code} to \code{NA} without complaint. The
+subset property is asserted by the test suite rather than assumed.
+
+A row may legitimately answer in \strong{both} spaces, which is why the two are
+not split. \verb{(238, ETH-1952-1993)} is the case: as a bucket row it dates
+bucket 238, which sums FAOSTAT area 62 Ethiopia PDR for 1961-1992; as an
+area row it dates FAOSTAT area 238 itself for a historical source reported
+under its own year's borders, which is how 149 historical-trade rows resolve
+at 1961. Marking it for one space would move the other. See #742.
 }
 
 \section{Confidence is the pair, not \code{mapping_status} alone}{
@@ -104,6 +138,50 @@ decided is \code{"prefix_outside_map"} or \code{"prefix_fallback"}. Prefix infer
 never overrides the map where the map speaks: a prefix-derived period whose
 years overlap any span the map declares for that area is dropped at build
 time, so the two branches cannot disagree about a reported year.
+}
+
+\section{The row space is reporting areas, not polities}{
+
+This table is \strong{not an index of \link{polities}}, and reading a missing
+\code{polity_code} as a coverage gap is the mistake #875 records. The builder
+starts from the reporting areas of \code{regions_full.csv} and asks which polity
+each one names; a polity therefore has a row \strong{only if some reporting area
+names it}. 176 of the 735 live polities have none, because no FAOSTAT or
+FABIO area was ever reported under their territory -- 121 national, 33
+colonial, 8 aggregate and the rest smaller units. The 559 that remain are
+exactly the distinct non-\code{NA} \code{polity_code} values here.
+
+Absence is structural rather than accidental, and the test suite asserts it:
+not one of the absent aggregate polities carries a \code{legacy_polity_prefix}
+any reporting area carries, so the row space has no slot to put them in.
+A polity absent from here is reached by the \strong{label} route instead --
+\code{\link[=resolve_polity_label]{resolve_polity_label()}} over \link{polity_label_aliases}, which maps the label a
+historical source writes straight to a polity and needs no area code. That
+is how five of the eight absent aggregates resolve --
+\code{GCT-1919-1956} Gold Coast and British Togoland, \code{MASG-1946-1963},
+\code{SYL-1944-1953} (all scoped to the \code{fao1952} yearbook),
+\code{PAPNG-1920-1949} (\code{mitchell}) and \code{AOI-1936-1941} (any source) -- all of
+them pre-FAOSTAT combined reporting units that never had an area code.
+Two more (\code{EGYSUD-1934-1956}, \code{CODRU-1922-1960}) are upstream
+composed-union identities held for footnote series that fold a colony into
+its metropole, and upstream has registered no label for them yet, so they
+are reachable from neither route by design rather than by omission.
+
+No absence here can NA an \code{area_code} on a polycell, either:
+\code{\link[=build_polycell_support]{build_polycell_support()}} excludes \code{polity_type == "aggregate"} by type
+before any lookup runs, so an aggregate emits no polycell to carry one.
+
+The one absence that is a real gap is \code{F206-2011-2025}, Sudan and South
+Sudan combined, and \strong{it is a gap in the bucket vocabulary rather than in
+\code{area_code}}. FAOSTAT stops reporting area 206 in 2011 and does not
+resume, so upstream deliberately adds no map row for it; the post-2011
+combination is WHEP's own fold of areas 276 and 277 into
+\code{polity_area_code} 206. This table answers per reporting area and has no
+column in which to say "bucket 206 from 2012 answers as \code{F206-2011-2025}",
+which is why \code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} still labels that bucket
+\code{SUD-1956-2011} / \code{"out_of_span"} for 2012 onward -- a polity that ended in
+2011. Expressing it is #742 and labelling it is #860; neither is decided
+here.
 }
 
 \keyword{datasets}

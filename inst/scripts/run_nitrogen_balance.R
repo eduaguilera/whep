@@ -183,38 +183,6 @@ nbd_stage <- function(label, expr, heavy = FALSE) {
     )
 }
 
-# The gridded crops layer build_livestock_nutrient_flows() spreads manure over.
-#
-# .sci_manure_crop_layer() builds exactly this for the carbon balance, but sets
-# crop = as.character(item_prod_code) -- a code. The nitrogen side resolves the
-# same column by NAME: .ni_manure_item_cbs() -> .ni_crop_name_to_item_cbs()
-# matches it case-insensitively against item_prod in whep::items_prod_full and
-# aborts otherwise. So the carbon path's layer cannot be handed to the nitrogen
-# path even though both call it "the gridded crops layer". Reuse the carbon
-# layer and translate the one column, so the hectares stay identical and only
-# the key differs.
-.nbd_manure_crop_layer <- function(primary_prod) {
-  names_by_code <- whep::items_prod_full |>
-    dplyr::transmute(
-      crop = as.character(.data$item_prod_code),
-      item_prod = .data$item_prod
-    ) |>
-    dplyr::distinct(.data$crop, .keep_all = TRUE)
-  layer <- whep:::.sci_manure_crop_layer(primary_prod) |>
-    dplyr::left_join(names_by_code, by = "crop")
-  unresolved <- unique(layer$crop[is.na(layer$item_prod)])
-  if (length(unresolved) > 0) {
-    cli::cli_warn(
-      "{length(unresolved)} manure crop code{?s} have no item_prod name and are
-       dropped: {.val {utils::head(unresolved, 5)}}."
-    )
-  }
-  layer |>
-    dplyr::filter(!is.na(.data$item_prod)) |>
-    dplyr::mutate(crop = .data$item_prod) |>
-    dplyr::select(-"item_prod")
-}
-
 # Drop fertiliser for polities that have no cropland to spread it on.
 #
 # spatialize_country_n_to_crops() aborts rather than lose that nitrogen
@@ -452,7 +420,7 @@ if (nrow(blockers) > 0L) {
         # same crops layer build_soil_carbon_inputs() gives it, so the manure
         # reaching the nitrogen balance sits on the same hectares as the manure
         # reaching the carbon balance.
-        gridded = list(crops = .nbd_manure_crop_layer(primary_prod)),
+        gridded = list(crops = whep:::.sci_manure_crop_layer(primary_prod)),
         # The default allocation cap, "potential_uptake", needs a precomputed
         # crop_n_cap that this crops layer does not carry. build_soil_carbon_
         # inputs() hits the same wall and answers it with "fixed_ceiling", so

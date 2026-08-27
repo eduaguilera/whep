@@ -74,6 +74,8 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    "prefix_iso3c",
+    "legacy_polity_prefix",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -1938,11 +1940,10 @@ utils::globalVariables(
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
     "method_n_exceedance",
-    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
-    "ISO3_CODE",
+    # scrape_faostat.R — FAOSTAT area name/ISO3 lookup NSE columns, now read
+    # off `polity_area_crosswalk` rather than FAOSTAT's country profile (#541)
     "fao_area_name",
     "iso3_code",
-    "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
     # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
@@ -2047,6 +2048,60 @@ utils::globalVariables(
     # n_prov_destiny.R (#449) — .spain_processing_coefs() reads
     # get_processing_coefs() instead of the frozen pin, so it selects on the
     # builder's conversion-factor column rather than the pin's `cf`
-    "final_conversion_factor"
+    "final_conversion_factor",
+    # n_prov_destiny.R — .processing_n_scaling()'s N-conserving scaling
+    # table and the helpers that consume it
+    "priced",
+    "processing_loss_n",
+    "remove_mass",
+    # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
+    # polity label with the label the fodder source itself carried
+    "source_area",
+    # parquet_integrity.R (#531) — Parquet footer column-chunk metadata and
+    # the derived byte range the layout check walks
+    "row_group",
+    "column",
+    "data_page_offset",
+    "dictionary_page_offset",
+    "total_compressed_size",
+    "chunk_start",
+    "chunk_end",
+    "prev_end",
+    "issue",
+    "detail",
+    # build_production.R (#650) — .same_source_collisions() NSE columns for the
+    # same-source duplicate report of .dedup_production()
+    ".keep_source",
+    "dropped",
+    # table_schema.R (#373) — diagnostic columns the schema validator sorts
+    # and filters its report by
+    "row",
+    "rule",
+    "severity",
+    # row_evidence.R (#372) — columns of the row-evidence format the
+    # producer orders by and the conflict report groups on
+    "row_key",
+    "key_columns",
+    "source_id",
+    "source_version",
+    "recorded_at",
+    "field",
+    "n_values",
+    # build_production.R (#937) — flag marking the recomputed copy of a
+    # double-product key, which `.deduplicate_doubles()` used to identify by
+    # the absence of a `source`
+    ".double_combined",
+    # polity_folds.R / build_cbs.R (#884) — area-vintage columns of the
+    # reporting-window check that keeps a wrong-vintage area code from
+    # becoming a duplicated territory
+    "map_year_start",
+    "map_year_end",
+    "window_start",
+    "window_end",
+    # water_balance.R (#916) — the all-band (whole-cell) consumptive-water
+    # totals the blue/green AET split uses, kept apart from the
+    # `bands`-restricted pair the output reports
+    "consump_blue_all_mm",
+    "consump_green_all_mm"
   )
 )

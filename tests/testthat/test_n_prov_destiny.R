@@ -43,6 +43,26 @@ test_that(".merge_items_biomass returns NA for unmatched biomass", {
 })
 
 
+# .assemble_n_nat_destiny -------------------------------------------------------
+
+test_that(".assemble_n_nat_destiny keeps processing losses out of export", {
+  prov_raw <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "population_food", 10,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "export", 5,
+    2000, "A", "Grapes", "rainfed", "Cropland", "Cropland", "processing_losses", 20
+  )
+
+  out <- .assemble_n_nat_destiny(prov_raw)
+
+  # The provincial export amount must survive unchanged: processing losses
+  # must not fold back into the national production/export residual.
+  expect_equal(out$mg_n[out$destiny == "export"], 5)
+  expect_equal(out$mg_n[out$destiny == "processing_losses"], 20)
+  expect_equal(sum(out$mg_n), 35)
+})
+
+
 # .summarise_crops_residues ----------------------------------------------------
 
 test_that(".summarise_crops_residues groups and sums correctly", {
@@ -139,6 +159,16 @@ test_that(".combine_production_boxes binds crop and livestock data", {
 
 # .add_grass_wood --------------------------------------------------------------
 
+# A distinctive (non-0.2) coefficient, so a test passing only proves the
+# lookup is actually used rather than coincidentally matching a hardcoded
+# fallback.
+.test_grass_biomass_coefs <- function() {
+  tibble::tribble(
+    ~Name_biomass, ~Residue_kgDM_kgFM,
+    "Grass", 0.25
+  )
+}
+
 test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
   input <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm,
@@ -147,16 +177,17 @@ test_that(".add_grass_wood reclassifies grass items and converts DM to FM", {
     2000, "A", "Wheat", "Wheat", "Cropland", "Cropland", "irrig", "Product", 100
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   # Fallow grass stays as Fallow item
   fallow <- out |> dplyr::filter(Item == "Fallow")
   expect_equal(fallow$production_fm, 10)
   expect_equal(fallow$Name_biomass, "Fallow")
 
-  # Non-fallow grass becomes Grassland, DM → FM (/ 0.2)
+  # Non-fallow grass becomes Grassland, DM → FM using biomass_coefs' own
+  # Grass coefficient rather than a hardcoded one.
   grassland <- out |> dplyr::filter(Item == "Grassland")
-  expect_equal(grassland$production_fm, 20 / 0.2)
+  expect_equal(grassland$production_fm, 20 / 0.25)
   expect_equal(grassland$Name_biomass, "Grass")
 
   # Regular product unchanged
@@ -171,7 +202,7 @@ test_that(".add_grass_wood reclassifies firewood from semi-natural residues", {
     2000, "A", "Conifers", "Conifers", "semi_natural_agroecosystems", "Forest_low", NA, "Residue", 30
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   expect_true(all(out$Item == "Firewood"))
   expect_true(all(out$Name_biomass == "Firewood"))
@@ -184,7 +215,7 @@ test_that(".add_grass_wood filters out NA production", {
     2000, "A", "Barley", "Barley", "Cropland", "Cropland", "irrig", "Product", 50
   )
 
-  out <- .add_grass_wood(input)
+  out <- .add_grass_wood(input, .test_grass_biomass_coefs())
 
   expect_equal(nrow(out), 1)
   expect_equal(out$Item, "Barley")
@@ -532,9 +563,9 @@ test_that(".forwardfill_population does nothing when data already ends at last_y
 
 test_that(".calculate_processed_amounts splits and expands production", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100,
-    2000, "A", "beef_bm", "Beef", "Livestock", "Product", 50
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "grape_bm", "Grapes", "Cropland", "rainfed", "Product", 100,
+    2000, "A", "beef_bm", "Beef", "Livestock", NA, "Product", 50
   )
 
   processing_shares <- tibble::tribble(
@@ -572,10 +603,10 @@ test_that(".calculate_processed_amounts splits and expands production", {
   expect_true(all(out$processed_items$prod_type == "Product"))
 })
 
-test_that(".calculate_processed_amounts conserves N when outputs are N-poor", {
+test_that(".calculate_processed_amounts tracks unaccounted N as processing losses when outputs are N-poor", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "grape_bm", "Grapes", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "grape_bm", "Grapes", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -594,24 +625,31 @@ test_that(".calculate_processed_amounts conserves N when outputs are N-poor", {
     .test_processing_coefs()
   )
 
+  # The full processed mass leaves the primary item, however little of its N
+  # the named outputs can account for.
+  expect_equal(out$non_processed$production_fm, 100 - 40)
+
+  n_removed <- 40 * .test_n_per_fm("Grapes")
   n_added <- sum(
     out$processed_items$production_fm *
       vapply(out$processed_items$Item, .test_n_per_fm, numeric(1))
   )
-  removed_fm <- 100 - out$non_processed$production_fm
-  n_removed <- removed_fm * .test_n_per_fm("Grapes")
+  n_loss <- sum(out$processing_losses$MgN)
 
-  expect_equal(n_removed, n_added)
-  # Grapes keep the N the named outputs cannot account for, rather than
-  # losing it: only 17.5% of the diverted mass is actually accounted for.
-  expect_equal(removed_fm, 40 * (n_added / (40 * .test_n_per_fm("Grapes"))))
-  expect_lt(removed_fm, 40)
+  # Wine and juice are nearly N-free, so most of the diverted N is untracked
+  # and shows up as its own processing_losses destiny instead of vanishing.
+  expect_equal(n_removed, n_added + n_loss)
+  expect_lt(n_added, n_removed)
+  expect_gt(n_loss, 0)
+  expect_equal(out$processing_losses$Item, "Grapes")
+  expect_equal(out$processing_losses$Destiny, "processing_losses")
+  expect_equal(out$processing_losses$Box, "Cropland")
 })
 
 test_that(".calculate_processed_amounts never creates N when outputs are N-rich", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -652,8 +690,8 @@ test_that(".calculate_processed_amounts never creates N when outputs are N-rich"
 
 test_that(".calculate_processed_amounts drops substitutions it cannot price in N", {
   prod <- tibble::tribble(
-    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~prod_type, ~production_fm,
-    2000, "A", "unknown_bm", "Mystery crop", "Cropland", "Product", 100
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "unknown_bm", "Mystery crop", "Cropland", "rainfed", "Product", 100
   )
   processing_shares <- tibble::tribble(
     ~Year, ~Item, ~share_processing,
@@ -676,10 +714,11 @@ test_that(".calculate_processed_amounts drops substitutions it cannot price in N
 
   expect_equal(out$non_processed$production_fm, 100)
   expect_equal(sum(out$processed_items$production_fm), 0)
+  expect_equal(nrow(out$processing_losses), 0)
 })
 
 test_that(".processing_n_scaling leaves an exactly balanced substitution alone", {
-  # Outputs carry precisely the input's N: both scales must be 1.
+  # Outputs carry precisely the input's N: no loss, outputs unscaled.
   candidate <- tibble::tribble(
     ~Year, ~Province_name, ~Name_biomass, ~Item, ~processed_fm,
     2000, "A", "grape_bm", "Grapes", 100
@@ -692,7 +731,7 @@ test_that(".processing_n_scaling leaves an exactly balanced substitution alone",
   out <- .processing_n_scaling(candidate, outputs, .test_processing_coefs())
 
   expect_equal(out$output_scale, 1)
-  expect_equal(out$removal_scale, 1)
+  expect_equal(out$processing_loss_n, 0)
 })
 
 
@@ -987,6 +1026,96 @@ test_that(".combine_destinies adds food_pets to food", {
 
   # food should include food_pets
   expect_equal(out$food, (10 + 5) * 1)
+})
+
+test_that(".combine_destinies splits evenly, not duplicates, when production is zero across multiple rows", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
+    2000, "A", "Grapes", "Cropland", "irrig", 0, "Product",
+    2000, "A", "Grapes", "Cropland", "rainfed", 0, "Product"
+  )
+
+  feed <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~feed, ~food_pets,
+    2000, "A", "Grapes", 0, 0
+  )
+
+  food_other <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~food, ~other_uses,
+    2000, "A", "Grapes", 50, 20
+  )
+
+  out <- .combine_destinies(prod, feed, food_other)
+
+  # Each row must get an even share, not the full demand duplicated once per
+  # row: total food/other_uses must stay 50/20, not 100/40.
+  expect_equal(sum(out$food), 50)
+  expect_equal(sum(out$other_uses), 20)
+  expect_equal(out$food, c(25, 25))
+})
+
+test_that(".combine_destinies conserves each item's demand over any row shape", {
+  # Invariant, not a hand-picked expectation: whatever the number of
+  # (Box, Irrig_cat) rows and whatever the production pattern, the shares an
+  # item's food/feed/other_uses are split by must sum to exactly 1, so the
+  # item's total demand must come out unchanged. Covers all-zero groups with
+  # 2 and 3 rows, a mixed group where only some rows are zero, a
+  # single-row group, and a consumption-only item with no production row at
+  # all.
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~prod_type,
+    2000, "A", "AllZeroTwo", "Cropland", "irrig", 0, "Product",
+    2000, "A", "AllZeroTwo", "Cropland", "rainfed", 0, "Product",
+    2000, "A", "AllZeroThree", "Cropland", "irrig", 0, "Product",
+    2000, "A", "AllZeroThree", "Cropland", "rainfed", 0, "Product",
+    2000, "A", "AllZeroThree", "semi_natural", NA, 0, "Product",
+    2000, "A", "Mixed", "Cropland", "irrig", 0, "Product",
+    2000, "A", "Mixed", "Cropland", "rainfed", 80, "Product",
+    2000, "A", "SingleRow", "Cropland", "rainfed", 0, "Product",
+    2001, "A", "AllZeroTwo", "Cropland", "irrig", 0, "Product",
+    2001, "A", "AllZeroTwo", "Cropland", "rainfed", 0, "Product"
+  )
+
+  feed <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~feed, ~food_pets,
+    2000, "A", "AllZeroTwo", 10, 1,
+    2000, "A", "AllZeroThree", 3, 0,
+    2000, "A", "Mixed", 7, 0,
+    2000, "A", "SingleRow", 5, 0,
+    2000, "A", "ImportOnly", 4, 0,
+    2001, "A", "AllZeroTwo", 6, 0
+  )
+
+  food_other <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~food, ~other_uses,
+    2000, "A", "AllZeroTwo", 50, 20,
+    2000, "A", "AllZeroThree", 30, 9,
+    2000, "A", "Mixed", 40, 4,
+    2000, "A", "SingleRow", 11, 2,
+    2000, "A", "ImportOnly", 8, 1,
+    2001, "A", "AllZeroTwo", 12, 3
+  )
+
+  demand_in <- feed |>
+    dplyr::full_join(
+      food_other,
+      by = c("Year", "Province_name", "Item")
+    ) |>
+    dplyr::summarise(
+      demand = sum(food + other_uses + feed + food_pets),
+      .by = c(Year, Province_name, Item)
+    )
+
+  demand_out <- .combine_destinies(prod, feed, food_other) |>
+    dplyr::summarise(
+      demand = sum(food + other_uses + feed),
+      .by = c(Year, Province_name, Item)
+    )
+
+  expect_equal(
+    dplyr::arrange(demand_out, Year, Item),
+    dplyr::arrange(demand_in, Year, Item)
+  )
 })
 
 
@@ -1565,4 +1694,68 @@ test_that(".finalize_prod_destiny combines local, import, export flows", {
   expect_true("population_food" %in% destinies)
   # All MgN should be positive (filtered)
   expect_true(all(out$MgN > 0))
+})
+
+
+test_that(".calculate_consumption_shares keeps Box in its key columns", {
+  data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 30, 0, 0, 40,
+    2000, "A", "Beet pulp", "Livestock", NA, 20, 0, 0, 60
+  )
+
+  out <- .calculate_consumption_shares(data)
+
+  # Box is part of the row identity, so it must survive into the output that
+  # gets joined back onto the production frame (issue #242).
+  expect_true(rlang::has_name(out, "Box"))
+  expect_equal(nrow(out), 2)
+  expect_equal(sort(out$Box), c("Agro-industry", "Livestock"))
+})
+
+test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
+  # Same Item under two Boxes with the same Irrig_cat: the consumption-share
+  # join must stay 1:1. Keying it on (Year, Province_name, Item, Irrig_cat)
+  # only would duplicate every allocated flow (issue #242).
+  trade_data <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~food, ~other_uses, ~feed, ~production_n, ~export, ~import,
+    2000, "A", "Beet pulp", "Agro-industry", NA, 0, 0, 40, 30, 0, 10,
+    2000, "A", "Beet pulp", "Livestock", NA, 0, 0, 60, 20, 0, 40
+  )
+
+  codes <- tibble::tribble(
+    ~item, ~group, ~Name_biomass,
+    "Beet pulp", "Agro-industry", "Beet pulp"
+  )
+
+  soil <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Irrig_cat, ~Box, ~deposition, ~fixation, ~synthetic, ~manure, ~urban,
+    2000, "A", "Beet pulp", NA, "Livestock", 0, 0, 0, 0, 0
+  )
+
+  feed_shares <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~share_rum, ~share_mono,
+    2000, "A", "Beet pulp", 1, 0
+  )
+
+  out <- .finalize_prod_destiny(trade_data, codes, soil, feed_shares)
+
+  # Demand is 40 + 60 MgN and nothing is exported, so every MgN allocated must
+  # add up to the demand exactly once.
+  expect_equal(sum(out$MgN), 100)
+
+  # One row per (key, Origin, Destiny) combination -- no duplicated flows.
+  expect_equal(
+    nrow(out),
+    nrow(dplyr::distinct(
+      out,
+      Year,
+      Province_name,
+      Item,
+      Box,
+      Irrig_cat,
+      Origin,
+      Destiny
+    ))
+  )
 })
