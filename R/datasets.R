@@ -669,11 +669,15 @@
 #'   ILO, IEA, and other international statistical sources.
 #' @note Derived from [regions_full] rather than vendored separately: the
 #'   198-code membership is read from `harmonization/polities_cats.csv` and every
-#'   column value comes from `regions_full`, so the two tables cannot disagree
-#'   except where this one deliberately folds an area into a rest-of-world
-#'   aggregate. Two areas are folded, both because they had no commodity balance
-#'   sheet when the table was compiled: Bhutan under `RASI` and Comoros under
-#'   `RAFR`, each with `cbs` `FALSE` and `fabio_code` `999`.
+#'   column value comes from `regions_full`, so the two tables cannot disagree.
+#'   The vendored table used to file Bhutan under `RASI` and Comoros under
+#'   `RAFR` with `cbs` `FALSE` and `fabio_code` `999`, on the grounds that
+#'   neither had a commodity balance sheet when it was compiled; that override
+#'   was dropped in whep#395, because the `faostat-cbs-new` pin now carries 175
+#'   rows for Bhutan and 237 for Comoros, and because it left both areas'
+#'   `polity_area_code` and `reporting_polity_code` naming the country
+#'   individually while three label columns said rest-of-region. Areas WHEP does
+#'   fold, such as Andorra (`REUR`), carry `polity_area_code` 999 too.
 #'
 #' @examples
 #' head(polities_cats)
