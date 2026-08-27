@@ -429,6 +429,10 @@
   # that covers only part of it (whep#414).
   .warn_partial_bucket_polities(dt)
   .warn_folded_areas(dt, source_label)
+  # The opposite shape to a fold: an area-year the source reports and WHEP's
+  # area vocabulary does not, so the rows land on a bucket no other input keys
+  # and are silently unjoinable downstream (whep#884).
+  .warn_off_window_area_years(dt, source_label)
   # `polity_name` is deliberately NOT a grouping key. It is a property of the
   # member row, so keying on it splits a bucket whose members resolve to
   # different polities -- the bucket stops summing without a single value

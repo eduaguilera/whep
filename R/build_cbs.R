@@ -44,21 +44,22 @@
 #'   keeps the remaining decisions open.
 #'   [get_wide_cbs()] always uses `"none"`; ask for `format = "wide"` here to
 #'   get the wide table with recovery applied.
-#' @param trade_zero One of `"keep"` (default) or `"prefer_record"`, selecting
-#'   what happens when the CBS carries a **zero** import or export and the
-#'   trade record for the same `(year, area_code, item_cbs_code)` carries a
-#'   positive quantity. The trade record is filled in with
-#'   [dplyr::coalesce()], which replaces only a missing value, so `"keep"`
-#'   lets the zero stand and the trade is discarded. `"prefer_record"` takes
-#'   the positive trade quantity instead; a non-zero CBS value is never
-#'   overwritten and a zero trade record never overwrites anything, so it can
-#'   only add trade. Selecting it **moves published values** — at 2010 it
-#'   raises 4,493 import keys by 9.70 Mt and 3,771 export keys by 10.27 Mt,
-#'   over 179 areas. Which is right is a source-precedence question and not
-#'   settled here; whep#866 holds the measurement, including the 5.88 Mt of
-#'   imports that land on a row with no production, where the balancing
-#'   cascade has to invent some. The conflict count is reported by every build
-#'   under either setting.
+#' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
+#'   selecting what happens when the CBS carries a **zero** import or export
+#'   and the trade record for the same `(year, area_code, item_cbs_code)`
+#'   carries a positive quantity. The trade record is filled in with
+#'   [dplyr::coalesce()], which replaces only a missing value, so the zero
+#'   used to stand and the trade was discarded. `"prefer_record"` takes the
+#'   positive trade quantity instead, because such a zero is not an
+#'   observation: measured at 2010, every one of them carries FAO flag `"I"`
+#'   (imputed) or the legacy `"S"` (standardized), and neither food-balance
+#'   vintage carries a single official `"A"` on a trade row. A non-zero CBS
+#'   value is never overwritten and a zero trade record never overwrites
+#'   anything, so the fill can only add trade. `"keep"` restores the
+#'   pre-whep#866 behaviour. **The default moves published values** — at 2010
+#'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
+#'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
+#'   The conflict count is reported by every build under either setting.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -121,7 +122,7 @@ build_commodity_balances <- function(
         "{.arg trade_recovery} is ignored when {.arg .fixed_data} is supplied."
       )
     }
-    if (trade_zero != "keep") {
+    if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
       )
@@ -396,7 +397,7 @@ build_commodity_balances <- function(
 #'
 #' @param df A tibble from `.read_cbs()`. Expects `.years`
 #'   attribute (set automatically by `.read_cbs()`).
-#' @param trade_zero One of `"keep"` (default) or `"prefer_record"`. See
+#' @param trade_zero One of `"prefer_record"` (default) or `"keep"`. See
 #'   [build_commodity_balances()].
 #' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
 #'   [build_commodity_balances()].
@@ -405,7 +406,11 @@ build_commodity_balances <- function(
 #'
 #' @keywords internal
 #' @noRd
-.fix_cbs <- function(df, trade_recovery = "none", trade_zero = "keep") {
+.fix_cbs <- function(
+  df,
+  trade_recovery = "none",
+  trade_zero = "prefer_record"
+) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
   cbs_raw <- df
@@ -3083,6 +3088,14 @@ build_processing_coefs <- function(
 # * **Only (year, area) buckets the CBS already covers**, so the `area` label
 #   comes from the CBS rows themselves instead of a year-free lookup that
 #   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
+# * **Only area-years the area vocabulary reports.** FishStat keys Belgium 255
+#   from 1976, while every FAOSTAT product keys that territory 15
+#   (Belgium-Luxembourg) until 1999 and splits 255/256 only at 2000. Creating
+#   the 255 row would put two overlapping reporting areas on one territory-year
+#   rather than fill a gap, so those 459 rows / 6,948.4 kt stay uncreated
+#   (whep#884). This restriction is stated here rather than left implicit in
+#   the label join above, because the label join is exactly what a widening of
+#   the "areas the CBS already covers" rule (whep#867) would replace.
 .cbs_trade_recovery_rows <- function(cbs, fao_trade_cbs, years) {
   candidates <- .cbs_trade_only_candidates(cbs, fao_trade_cbs, years)
 
@@ -3133,6 +3146,7 @@ build_processing_coefs <- function(
     data.table::as.data.table(cbs)[, .(year, area_code, item_cbs_code)]
   )
   trade <- trade[!covered, on = c("year", "area_code", "item_cbs_code")]
+  trade <- .drop_off_window_trade(trade)
   if (nrow(trade) == 0L) {
     return(empty)
   }
@@ -3152,6 +3166,34 @@ build_processing_coefs <- function(
     dplyr::filter(.data$import > .data$export) |>
     .label_recovered_rows(cbs)
 }
+
+# Trade rows whose `(area_code, year)` the area vocabulary does not report
+# cannot become CBS rows: the territory already reports under another code in
+# those years, so a created row duplicates it instead of filling a gap. Dropped
+# with the tonnage named, because the alternative -- harmonising the source onto
+# the vocabulary WHEP's CBS uses -- is a science decision (whep#884), not
+# something this step may take silently.
+.drop_off_window_trade <- function(trade) {
+  keys <- .off_window_area_keys(trade)
+  if (nrow(keys) == 0L) {
+    return(trade)
+  }
+  keep <- trade[!keys[, .(area_code, year)], on = c("area_code", "year")]
+  dropped <- nrow(trade) - nrow(keep)
+  tonnes <- round(
+    sum(trade$value, na.rm = TRUE) - sum(keep$value, na.rm = TRUE)
+  )
+  areas <- sort(unique(keys$area_code))
+  area_list <- paste(areas, collapse = ", ")
+  cli::cli_alert_info(
+    "Not recovering {dropped} trade row{?s} ({tonnes} t) in \\
+     area{?s} {area_list}: no reporting area lands on \\
+     {cli::qty(length(areas))}{?it/them} in those years, so a created row \\
+     would duplicate the territory that does (whep#884)."
+  )
+  keep
+}
+
 
 # One `(year, area_code, item_cbs_code, element)` per trade row, or the dcast
 # below silently sums two records into one created row. The bridge in
@@ -3219,6 +3261,10 @@ build_processing_coefs <- function(
     cli::cli_alert_info("No trade-only CBS rows to recover.")
     return(cbs)
   }
+  # Last line of defence, and the reason it is an abort: a recovered row for an
+  # area-year the vocabulary does not report is a duplicated territory in the
+  # published CBS, which no downstream check would flag as one (whep#884).
+  .abort_if_off_window_areas(recovered, what = "CBS row")
   areas <- length(unique(recovered$area_code))
   items <- length(unique(recovered$item_cbs_code))
   cli::cli_alert_info(
@@ -3256,22 +3302,24 @@ build_processing_coefs <- function(
 # -- Tier-1 trade fill: what a CBS zero does to a positive trade record --------
 
 # The two answers to "the CBS says zero and the trade record says a positive
-# number". `"keep"` is what the build has always done and is the default, so
-# selecting nothing moves no published value.
+# number", most-trusted first. `"prefer_record"` is the default: a zero is
+# often not an observation, and a measured positive flow outranks one that is
+# not. `"keep"` is the pre-whep#866 behaviour and stays selectable.
 .cbs_trade_zero_choices <- function() {
-  c("keep", "prefer_record")
+  c("prefer_record", "keep")
 }
 
 # Tier 1 of the trade imputation. `dplyr::coalesce()` replaces only `NA`, so a
 # CBS row carrying `0` keeps the zero even when the crosswalked trade record
 # for the same `(year, area_code, item_cbs_code)` carries a positive quantity
-# (whep#866). Whether that is right is a source-precedence question, so it is
-# an argument rather than a fix:
+# (whep#866). `"prefer_record"`, the default, takes the record instead:
 #
-# * `"keep"` -- the balance sheet outranks the trade record, zero included.
 # * `"prefer_record"` -- a positive trade record outranks a CBS zero. A
 #   non-zero CBS value is never overwritten, and a zero trade record never
 #   overwrites anything, so this only ever adds trade.
+# * `"keep"` -- the pre-whep#866 behaviour: the balance sheet outranks the
+#   trade record, zero included. Kept selectable for sensitivity work and to
+#   reproduce a build made before the default changed.
 #
 # What the flags say about those zeros, measured at 2010 on the real pins: not
 # one of them is an official observation. 4,129 of the 4,493 import conflicts
@@ -3290,17 +3338,20 @@ build_processing_coefs <- function(
 #     -- FAO, Statistical Standard Series: Observation Status Code List,
 #        Version 4, endorsed by DCG-T on 10 July 2025, guidance for flag "I".
 #
-# The reason this stays a decision rather than becoming a fix is the other
-# side of it: 2,654 of the import conflicts (5.88 Mt) sit on a row with no
-# production, and 1,885 export conflicts (5.85 Mt) do too, so preferring the
-# record there makes the balancing cascade invent production -- the same
-# hazard that restricts `.cbs_trade_recovery_rows()` to net importers. And for
-# the largest item, CBS 2657 "Beverages, Fermented", the food balance sheet
-# reports 0.63 Mt of imports worldwide against 5.75 Mt in the trade record for
-# the conflicting areas alone, which is either a trade column FAO never
-# populated at that item or a flow FAO standardized into a primary equivalent
-# it already counts elsewhere. Those two readings differ in whether preferring
-# the record recovers trade or double-counts it.
+# That is why the default trusts the measured flow. It is not free, and the
+# cost is booked where the balance closes rather than hidden: 2,654 of the
+# import conflicts (5.88 Mt) sit on a row with no production, and 1,885 export
+# conflicts (5.85 Mt) do too, so the cascade covers those with imputed
+# production and stock withdrawals -- at 2010, +1.54 Mt of production and
+# -3.77 Mt of stock variation. `check_supply_use_balance()` still passes on
+# every row, because the identity is what the cascade closes.
+#
+# One item carries most of the tonnage and is worth naming: CBS 2657
+# "Beverages, Fermented" is 5.75 Mt of the import total, and the food balance
+# sheet reports 0.63 Mt of imports worldwide against it while production is
+# 23.5 Mt -- a trade column FAO effectively never populated. If it ever turns
+# out that FAO standardizes that flow into a primary equivalent counted
+# elsewhere, this item is where the double count would sit (whep#866).
 .fill_tier1_trade <- function(cbs_value, trade_value, trade_zero) {
   filled <- dplyr::coalesce(cbs_value, trade_value)
   if (trade_zero == "keep") {
@@ -3359,7 +3410,7 @@ build_processing_coefs <- function(
   cbs_raw3,
   fao_trade_cbs = NULL,
   src_lookup = NULL,
-  trade_zero = "keep"
+  trade_zero = "prefer_record"
 ) {
   trade_zero <- rlang::arg_match(trade_zero, .cbs_trade_zero_choices())
   # Save source provenance before pivot cycle

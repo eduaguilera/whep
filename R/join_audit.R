@@ -228,12 +228,21 @@
      LUH2 rows being bridged. Extracted from `.read_luh2_cft` so the LUH2
      national readers share ONE bridge: this row used to be that function's,
      and the move is why the count did not rise with the pasture reader.",
+    ".off_window_area_keys", "merge", "area_code", 1L, "time_invariant",
+    "Attaches each area's own reporting window, one row per area by
+     construction, and the year bound is the predicate immediately after it.
+     Keying it on the year would ask the window to contain the year the window
+     is being used to test (whep#884).",
     ".reconcile_fao_arable_fallow", "merge", "area_code", 1L, "single_year",
     "Inside the per-year fallow attribution loop.",
     ".reconcile_fao_arable_fallow", "merge", "area_code, item_cbs_code", 1L,
     "single_year", "Inside the per-year fallow attribution loop.",
     ".redistribute_countries_dt", "[", "area_code", 2L, "single_year",
     "Per-country subsets inside one year's redistribution.",
+    ".reported_bucket_years", "merge", "area_code", 1L, "time_invariant",
+    "The same window attach, on the grid of areas whose bucket membership is
+     then resolved year-aware by `.add_polity_columns_dt()`. The window is a
+     property of the area, not of one of its years (whep#884).",
     ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
     "The first year the upstream FAOSTAT map reports each area at all: one
      number per area by construction, and the year bound the predicate right
@@ -336,6 +345,11 @@
      first-reported year per area, the bound that makes
      `polity_bucket_coverage()` year-aware. Keying on the year would return the
      year itself.",
+    ".area_reporting_windows", "[", "area_code, <dynamic>", 1L, "year_axis",
+    "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
+     crosswalk's periods: one reporting window per area. Keying on the year
+     would return the year itself (whep#884), exactly as for
+     `.area_first_reported_year` above.",
     ".areas_gleam_cannot_group", "distinct",
     "area_code, area_name, area_iso3c, polity_area_code, continent", 1L,
     "diagnostic",
@@ -450,6 +464,15 @@
     "The guard on that lookup: aborts if one area folds into two buckets, which
      would make the comparison key ambiguous. Counting the rows per area is
      the check, so a year in the key would defeat it.",
+    ".fao_area_iso3_lookup", "distinct",
+    "fao_area_name, iso3_code, area_name, area_iso3c", 1L, "identity_lookup",
+    "The FAOSTAT area name -> ISO3 lookup `get_faostat_data()` resolves
+     `ISO3_CODE` through (whep#541). It is the identity re-keying itself: one
+     row per FAOSTAT area name, off a crosswalk whose `area_iso3c` is a
+     property of the area and not of a year. Collapsing the crosswalk's polity
+     periods is the point -- an area has one ISO3 code across all of them, and
+     a year in the key would return one row per period for the same name and
+     make the `match()` below pick whichever came first.",
     ".federation_land_bridge", "[", "area_code, area", 1L, "identity_lookup",
     "Expands each dissolved polity to its successor ISO3 codes off
      `.current_area_lookup()`, which has no year. The label is one per code
@@ -504,17 +527,31 @@
      that follows it DOES carry `year`.",
     ".nd_check_area_key", "count", "lon, lat, area_code", 1L, "diagnostic",
     "The same guard again, for the deposition support.",
+    ".off_window_area_years", "[", "area_code, window_start, window_end", 1L,
+    "year_axis",
+    "Reduces an area's off-window rows to the span they cover, so `year` is
+     what the group is summarising, not a key it is missing. The window
+     columns ride along as attributes of the area (whep#884).",
     ".pcs_abort_interval_overlap", "mutate", "cell_id, polity_code", 1L,
     "year_axis",
     "`lag(start_year)` / `lag(end_year)` over the intervals of one polity in
      one cell IS the reduction over the year axis: the group has to hold the
      whole interval sequence for the previous interval to exist. Keying on a
      year would compare each interval with itself.",
-    ".pcs_area_code", "distinct", "polity_code", 1L, "identity_lookup",
-    "polity_code -> polity_area_code, one row per polity, for the polycell
-     support's area key.",
-    ".pcs_area_code", "distinct", "polity_code, polity_area_code", 1L,
-    "identity_lookup", "The inner dedup of the same crosswalk pair.",
+    ".polity_area_code_lookup", "distinct",
+    "polity_code, area_code, polity_area_code", 1L, "identity_lookup",
+    "Reduces `polity_area_crosswalk` to its distinct code triples. A
+     `polity_code` carries its own validity span (`SUD-1956-2011`), so the
+     year is already inside the key and adding one would return the year
+     itself (whep#907).",
+    ".polity_area_code_lookup", "mutate", "polity_code", 1L, "identity_lookup",
+    "Counts the reporting areas a polity maps to, which decides whether it has
+     a reporting code of its own or must keep the bucket. A property of the
+     polity, not of any year.",
+    ".polity_area_code_lookup", "distinct", "polity_code", 1L,
+    "identity_lookup",
+    "The final one-row-per-polity dedup that makes the lookup a function of
+     `polity_code`.",
     ".pcs_footprint_diff", "distinct", "lon, lat, area_code", 1L, "diagnostic",
     "The cell footprint of each crosswalk source, compared to report where they
      disagree. It moves no value.",

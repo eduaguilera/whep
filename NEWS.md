@@ -1,28 +1,186 @@
 # whep (development version)
 
-* **`build_commodity_balances()` gains `trade_zero`, and every build now says
-  how much trade its CBS zeros discard (#866).** Tier 1 of the trade
-  imputation fills the CBS from the crosswalked FAOSTAT/FishStat record with
-  `dplyr::coalesce()`, which replaces only a missing value, so a CBS row
-  carrying `0` keeps the zero even when the trade record for the same
-  `(year, area_code, item_cbs_code)` carries a positive quantity. Measured at
-  2010 on the real pins: 4,493 import keys and 9.70 Mt, plus 3,771 export keys
-  and 10.27 Mt, over 179 areas and 91 items. Not one of those zeros is an
-  official FAO observation — 4,129 of the import conflicts carry FAO flag
-  `"I"` (imputed) from `faostat-fbs-new`, 328 the legacy `"S"` (standardized)
-  from `faostat-fbs-old`, and 36 come from WHEP's own mean of non-primary
-  sources; neither food-balance vintage carries a single flag `"A"` on a 2010
-  trade row. `trade_zero = "prefer_record"` takes the positive record instead
-  of the zero; it never overwrites a non-zero CBS value and a zero record
-  never overwrites anything, so it can only add trade. **The default
-  `"keep"` is the existing behaviour, so no published value changes** unless
-  the new setting is selected. Whether a derived zero should outrank an
-  observed flow is left open in #866: 5.88 Mt of the imports land on a row
-  with no production, where the balancing cascade has to invent some, and the
-  largest item (CBS 2657, "Beverages, Fermented") may be a trade column FAO
-  never populated or a flow FAO already counts in primary equivalent
-  elsewhere. Under either setting the conflict count and tonnage are now
-  reported, which under `"keep"` is the only trace the discarded trade leaves.
+* **A positive trade record now outranks a CBS zero, and
+  `build_commodity_balances()` gains `trade_zero` to select the old behaviour
+  (#866).** Tier 1 of the trade imputation fills the CBS from the crosswalked
+  FAOSTAT/FishStat record with `dplyr::coalesce()`, which replaces only a
+  missing value, so a CBS row carrying `0` used to keep the zero even when the
+  record for the same `(year, area_code, item_cbs_code)` carried a positive
+  quantity. **Such a zero is not an observation.** Measured at 2010 on the real
+  pins, of the 4,493 import conflicts 4,129 come from `faostat-fbs-new`
+  carrying FAO flag `"I"` (imputed), 328 from `faostat-fbs-old` carrying the
+  legacy `"S"` (standardized) and 36 from WHEP's own mean of non-primary
+  sources; neither food-balance vintage carries a single official `"A"` on an
+  import or export row in 2010. FAO's *Statistical Standard Series: Observation
+  Status Code List, Version 4* (endorsed by DCG-T on 10 July 2025) states that
+  a missing value FAO replaces with a 0 because the phenomenon is assumed
+  negligible is flagged `"I"`, not `"N – not significant"`. The default is now
+  `trade_zero = "prefer_record"`; `"keep"` reproduces the previous build.
+  A non-zero CBS value is never overwritten and a zero trade record never
+  overwrites anything, so the fill can only add trade.
+
+  **Published values move.** BLASTNUM
+
+* **`biomass_coefs` no longer ships the three spreadsheet section headers of
+  the upstream workbook (#752).** `TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY
+  BYPRODUCTS` were entirely empty rows. `ANIMAL PRODUCTS` was worse: its only
+  seven populated cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the
+  `Coefs` sheet's VLOOKUPs address by absolute position — which read as data
+  claimed an `Edible_portion` of 4.0 and 3 kg of nitrogen per kg of fresh
+  matter, i.e. 18.75 kg of protein per kg. They are now dropped in
+  `data-raw/harmonization_tables.R`, so `whep::biomass_coefs` has 418 rows
+  rather than 421 and `Edible_portion` satisfies `(0, 1]` outright.
+  **No published value changes**: the two empty rows carried no coefficient at
+  all, and no `item_cbs_code` in `items_full` bridged to `ANIMAL PRODUCTS`
+  (asserted in `test_biomass_coefs_hygiene.R`), which `build_food_supply()`
+  already filtered defensively. The remaining part of #752 — 75 rows whose
+  proximate constituents exceed their own dry matter — is untouched and stays
+  a coefficient question for the data owner.
+
+* **`get_faostat_data()` now resolves `ISO3_CODE` from
+  [polity_area_crosswalk] instead of FAOSTAT's vendored `FAOcountryProfile`
+  name table, and the hand-maintained fix block is gone (#541).** The profile
+  table is stale relative to the labels FAOSTAT publishes today, so eight of
+  the 211 FAOSTAT area names in `regions_full$FAOSTAT_name` came out with
+  `ISO3_CODE = NA`: three current reporters — `Eswatini` (SWZ),
+  `North Macedonia` (MKD) and `China, Taiwan Province of` (TWN) — and four
+  former areas that appear in the historical series — `Belgium-Luxembourg`
+  (BLX), `Ethiopia PDR` (ETH), `Sudan (former)` (SDN) and `USSR` (SUN). All
+  seven now resolve; the `China` aggregate (area 351) still resolves to `NA`
+  by design (#158, #313). Coverage over those labels goes from 203/211 to
+  210/211, with zero disagreements on the codes both routes resolved. No
+  published WHEP value changes: `get_faostat_data()` has no caller in `R/`,
+  `data-raw/` or the vignettes, and every pipeline ISO3 bridge already went
+  through the crosswalk. A user who grouped its output by `ISO3_CODE`,
+  however, was silently dropping Eswatini, North Macedonia and Taiwan.
+  The codes are maintained upstream in whep-polities rather than in whep, so
+  the one place the two routes disagreed — `US Minor Is.`, which the FAOSTAT
+  profile gave the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
+
+* **Reconstructed fodder rows no longer claim to be FAOSTAT (#937).**
+  `build_primary_production()`'s yield step pivoted units into columns and
+  dropped the `source` the fodder chain had already resolved, so
+  `.impute_missing_values()` re-derived provenance from the mere presence of a
+  tonnage and labelled every fodder row `"FAOSTAT_prod"`. That was a false
+  claim for temporary grassland in particular: CBS 3002 (production item 996)
+  appears in neither FAOSTAT production pin — its hectares come from the
+  `eu-agridb-fodder` pin and its tonnage from the EU AgriDB nitrogen yield or a
+  dry-matter estimate — yet all 494 rows of it in a 2001–2023 build read as
+  FAOSTAT. The source is now carried through, so those rows read
+  `"EuropeAgriDB"` or `"DM_yield_estimate"`. `source` is used to rank competing
+  sources, so a `(year, area, item, unit)` cell contested by a genuine FAOSTAT
+  row and a reconstructed fodder row now resolves to the FAOSTAT one; hectares
+  and tonnages themselves are unchanged (see the PR for the measured diff).
+  `.deduplicate_doubles()` told the two copies of a double-product key apart by
+  asking whether `source` was `NA`, which only held while the yield table had no
+  source column at all; it now names the copy explicitly, so seed cotton, oil
+  palm fruit and flax keep their series.
+
+* **A source that keys a territory to an area code WHEP's vocabulary does not
+  report in that year now says so, and can never have a CBS row created for it
+  (#884).** FishStat splits Belgium out as area 255 from 1976, while every
+  FAOSTAT product — the balance sheets and `faostat-trade-totals` alike — keys
+  that territory 15 (Belgium-Luxembourg) until 1999 and splits 255/256 only at
+  2000. Those 459 FishStat rows (6,948.4 kt over 1976-1999) can never join a
+  CBS keyed 15, and creating the 255 row instead would put two overlapping
+  reporting areas on one territory-year rather than fill a gap. Reading any
+  input now warns when it reports an area outside that area's own reporting
+  window (`options(whep.warn_area_vintage = FALSE)` silences it), the
+  `trade_recovery = "net_import"` recovery of #864 drops such keys explicitly
+  instead of relying on its area-label join to hide them, and
+  `.cbs_bind_recovered()` aborts if one reaches it. **No published value
+  changes**: measured over every CBS-relevant pin, FishStat's Belgium 255 in
+  1976-1999 is the only off-window area-year in any input, and none of those
+  rows lands on a CBS row today. The check asks whether *any* reporting area
+  lands on the bucket that year rather than whether the year is inside the
+  bucket's own window, so the deliberate folds are not flagged: bucket 238 is
+  reported by area 62 (Ethiopia PDR) until 1992 and bucket 206 by areas 276/277
+  from 2012. The territory is not unrepresented either — the Belgium-Luxembourg
+  balance sheet already reports 11.93 Mt of fish imports and 3.33 Mt of exports
+  for those same 11 items and years, on every one of the 264 keys, so folding
+  FishStat's Belgium rows into bucket 15 would recover 0 t under the current
+  `coalesce()` fill policy. Which vocabulary the two sources should share stays
+  an open harmonization decision in #884.
+
+* **The `historical-land-areas` pin is regenerated on the current polities
+  snapshot (#934).** The pin is static per LUH2 vintage *and* polities
+  snapshot, and the deployed `20260818T110621Z-08814` predated the #906
+  re-sync: PR #914's guard named 7 polity codes `whep::polities` no longer has
+  (`CIV-1893-1900`, `GHA-1898-1956`, `HUN-1918-1919`, `KEN-1902-1906`,
+  `LAO-1893-1953`, `SEN-1886-1959`, `TCD-1920-1960`) and 256 bucket-years over
+  8 buckets whose territory label had moved. The replacement
+  `20260826T154952Z-48539` was built by `data-raw/historical_land_areas.R`
+  over 1850-1961 (25.8 min) against LUH2 `UofMD-landState-LUH2-GCB2022`,
+  `polycell_support` `20260825T102349Z-1a0eb` and the 781-row snapshot; the
+  guard names nothing on it and still fires on the old version.
+  **Published values change on the opt-in `land_method = "historical_polity"`
+  path only** (the default `"present_day"` never reads this pin). Summed over
+  all 18,083 bucket-years the two pins share, agriland moves +0.087%
+  (264,828 -> 265,059 Mha of bucket-years); 510 bucket-years over 50 buckets
+  move at all, and 104 bucket-years that the old pin could not measure are now
+  measurable (Cabo Verde and Suriname 1850-1884, Chile 1850-1882, Côte
+  d'Ivoire 1900). Individual bucket-years move much more than the total:
+  Estonia 1918-19 +98.5%, Poland 1919 +92.8%, Latvia 1918-19 +87.6% and
+  Tunisia 1875-80 +84%, all because the polycell support they are measured
+  against was itself rebuilt (`20260825T102349Z-1a0eb`, 721 polities against
+  685). Largest whole-bucket shifts are Tunisia +9.08%, Kenya -1.21%, Poland
+  +0.97% and Ethiopia +0.65%. The `.example_historical_land_areas()` fixture
+  is refreshed to match, moving three of its ten rows (its
+  `agriland` stays the sum of the rounded parts, as its test asserts).
+
+* **The polycell support's `area_code` now holds a reporting area code rather
+  than a matrix bucket, so `area_code`-keyed callers can join to it (#907).**
+  `build_polycell_support()` labelled each polycell with
+  `polity_area_crosswalk$polity_area_code` — the coarser key the matrix
+  workflows aggregate on, which folds Sudan with South Sudan onto 206 and 113
+  reporting areas into 999 (Rest of World) — and called the column `area_code`.
+  Every consumer of the polycell grid joins it to a table keyed on the
+  *reporting* `area_code`: `country_areas` in both spatialize engines, and the
+  national nutrient tables in the carbon and nitrogen paths. Measured on the
+  deployed pin at 2015, that mismatch left **7 reporting areas with no cell in
+  the grid at all, carrying 18.75 Mha of harvested area — 1.37% of the global
+  total**: Sudan (12.06 Mha), Syria (3.83), South Sudan (2.17), North Macedonia
+  (0.34), Eswatini (0.16), Palestine (0.11) and Equatorial Guinea (0.08). Their
+  whole national total was dropped, and the 423 Mha of grid land sitting under
+  206 and 999 could receive nothing. Both the producer (`.pcs_area_code()`) and
+  the carbon path's seam (`.carbon_support_to_area_code()`, which every carbon,
+  SOC, LUH2 land-use and spatialize consumer resolves its grid through) now
+  take the reporting `area_code` off the same crosswalk row, so a pin published
+  before this change is corrected on read. Values move: at 2015, 1,205
+  polycells holding 285.42 Mha of land are re-keyed — 206 splits into 276
+  (186.25 Mha) and 277 (62.84), and 999 releases 212 (18.57), 69 (8.39), 61
+  (2.70), 154 (2.50), 153 (1.88), 209 (1.70) and 299 (0.61) — and the grid goes
+  from 195 to 203 distinct codes at 2015 (201 to 210 over every interval). Total land is unchanged to the
+  hectare and the per-cell land shares still sum to one, because the re-key
+  only relabels and un-folds. A polity with no reporting region of its own
+  (Greenland, Western Sahara, most dependencies) and a residual aggregate that
+  answers for many (`ROW`, the historical Ethiopian polities) keep their bucket
+  code — that is the only home the reporting vocabulary gives them, and it is
+  never used as a fallback for a lookup that merely failed.
+
+* **`polities_cats` no longer folds Bhutan and Comoros into rest-of-region
+  aggregates, so it agrees with `regions_full` in every shared cell (#395).**
+  The two shipped tables disagreed on four columns for area 18 (Bhutan) and 45
+  (Comoros): `polities_cats` filed them as `RASI` "Asia Other" and `RAFR`
+  "Africa Other" with `cbs` `FALSE` and `fabio_code` `999`, while
+  `regions_full` models both individually. The fold's stated reason -- neither
+  country had a commodity balance sheet when the table was compiled -- is
+  refuted by the pin WHEP reads: `faostat-cbs-new` carries 175 rows for Bhutan
+  (2019-2023, 12 items) and 237 for Comoros (2010-2023, 10 items). The fold was
+  also never coherently applied, since both rows kept `polity_area_code` 18 and
+  45 and `reporting_polity_code` `BTN-1800-2025` / `COM-1975-2025`, unlike the
+  four areas `polities_cats` really does fold (American Samoa, Andorra, Saint
+  Pierre and Miquelon, Anguilla), which carry `polity_area_code` 999. Eight
+  cells of `polities_cats` change; no published value changes, because no
+  package code reads `polities_cats` -- it is documentation and a registry
+  entry, and `regions_full`, which the pipeline does read, is unchanged.
+  Separately measured and left alone: `regions_full$fabio_code` is not a copy
+  of FABIO's published region list in either direction. FABIO v1.1
+  (`io_codes.csv`, Zenodo record 2577067) publishes 191 areas plus `RoW`;
+  eight `regions_full` areas carry a non-999 `fabio_code` FABIO folds into
+  `RoW` (18, 45, 127, 145, 148, 196, 219, 227) and four carry 999 for areas
+  FABIO models (153, 154, 209, 212, which is #556). WHEP's country set is its
+  own choice (#459), so that census belongs to #556 and is not decided here.
 
 * **The LUH2 v2h calendar-year → time-index resolution is now one shared,
   tested helper, and clamping past the end of the record always warns

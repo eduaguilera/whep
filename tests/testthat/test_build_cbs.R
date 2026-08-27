@@ -869,20 +869,27 @@ test_that("build_commodity_balances validates trade_recovery", {
   )
 }
 
-test_that("a CBS zero keeps outranking a positive trade record by default", {
+.zero_trade_import_of <- function(result, code) {
+  result |>
+    dplyr::filter(item_cbs_code == code, element == "import") |>
+    dplyr::pull(value)
+}
+
+test_that("a positive trade record outranks a CBS zero by default", {
+  # The decision taken on #866: a CBS zero here is never an observation --
+  # measured at 2010 every one carries FAO flag "I" (imputed) or the legacy
+  # "S" (standardized), and neither food-balance vintage carries a single
+  # official "A" on a trade row -- so the measured flow wins.
   result <- whep:::.cbs_impute_trade(
     .zero_trade_cbs(),
     .zero_trade_record()
   )
-  import_of <- function(code) {
-    result |>
-      dplyr::filter(item_cbs_code == code, element == "import") |>
-      dplyr::pull(value)
-  }
+  import_of <- function(code) .zero_trade_import_of(result, code)
 
-  # The measured defect (#866): 366,892 t of a real trade record discarded
-  # because the balance sheet carries a zero.
-  expect_equal(import_of(2657), 0)
+  # 366,892 t of a real trade record that used to be discarded.
+  expect_equal(import_of(2657), 366892)
+  # A zero record cannot overwrite a zero CBS value, so nothing is invented.
+  expect_equal(import_of(2513), 0)
   # The case `coalesce()` already handled: no CBS row at all, so the record
   # fills it.
   expect_equal(import_of(2511), 400)
@@ -890,24 +897,40 @@ test_that("a CBS zero keeps outranking a positive trade record by default", {
   expect_equal(import_of(2514), 200)
 })
 
-test_that("trade_zero = 'prefer_record' only ever adds trade", {
+test_that("trade_zero = 'keep' still reproduces the pre-#866 build", {
+  # The old behaviour is a selectable alternative, not a removed one: it is
+  # what reproduces a build made before the default changed, and what a
+  # sensitivity run needs.
   result <- whep:::.cbs_impute_trade(
     .zero_trade_cbs(),
     .zero_trade_record(),
-    trade_zero = "prefer_record"
+    trade_zero = "keep"
   )
-  import_of <- function(code) {
-    result |>
-      dplyr::filter(item_cbs_code == code, element == "import") |>
-      dplyr::pull(value)
-  }
+  import_of <- function(code) .zero_trade_import_of(result, code)
 
-  expect_equal(import_of(2657), 366892)
-  # A zero record cannot overwrite a zero CBS value, so nothing is invented.
+  expect_equal(import_of(2657), 0)
   expect_equal(import_of(2513), 0)
-  # Neither branch touches a filled row or a non-zero CBS value.
   expect_equal(import_of(2511), 400)
   expect_equal(import_of(2514), 200)
+})
+
+test_that("the default of the whole cascade prefers the record", {
+  # `.cbs_impute_trade()` is private; this pins the default a caller of the
+  # exported build actually gets, through `.fix_cbs()`.
+  raw <- .zero_trade_cbs()
+  attr(raw, ".years") <- 2010
+  attr(raw, ".fao_trade") <- .zero_trade_record()
+
+  expect_equal(
+    .zero_trade_import_of(whep:::.fix_cbs(raw), 2657),
+    366892
+  )
+  # `sum()` rather than a bare comparison: the final balance drops a row whose
+  # value is zero, so under `"keep"` the key is not merely zero, it is gone.
+  expect_equal(
+    sum(.zero_trade_import_of(whep:::.fix_cbs(raw, trade_zero = "keep"), 2657)),
+    0
+  )
 })
 
 test_that("preferring the record leaves the supply-use identity closed", {
@@ -931,8 +954,9 @@ test_that("preferring the record leaves the supply-use identity closed", {
   })
 })
 
-test_that("every build says how much trade the kept zeros discard", {
-  # Under `"keep"` the discarded trade leaves no other trace: the row stays,
+test_that("every build says how much trade the zeros disputed", {
+  # Reported under either setting: it is what the default recovered, and under
+  # `"keep"` it is the only trace the discarded trade leaves -- the row stays,
   # at zero, indistinguishable from an area that genuinely imports nothing.
   expect_message(
     whep:::.cbs_impute_trade(.zero_trade_cbs(), .zero_trade_record()),
@@ -2701,5 +2725,58 @@ test_that(".mass_only_trade aborts on a frame with no unit", {
   expect_error(
     whep:::.mass_only_trade(unitless, "faostat-trade-totals"),
     "has no"
+  )
+})
+
+
+# -- trade recovery must not duplicate a territory (#884) ----------------------
+
+# Belgium's shape: FishStat keys the territory 255 from 1976, while every
+# FAOSTAT product keys it 15 (Belgium-Luxembourg) until 1999. The CBS here
+# covers area 255 in 1990 on purpose -- that is what makes the restriction
+# falsifiable, because the area-label join alone would otherwise drop the row
+# and the test would pass for the wrong reason. It is also the state #867's
+# proposal to create absent area-years would produce.
+.belgium_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    1990, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod",
+    2010, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod"
+  )
+}
+
+.belgium_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    1990, 255L, 2761, "import", 265281,
+    2010, 255L, 2761, "import", 300000
+  )
+}
+
+test_that("trade recovery creates no row for an off-window area-year", {
+  # 1990: FishStat says 255, the CBS vocabulary says 15, so a created 255 row
+  # would sit beside the Belgium-Luxembourg row covering the same territory in
+  # the same year -- a duplicated territory, not a filled gap (whep#884).
+  result <- whep:::.cbs_trade_recovery_rows(
+    .belgium_cbs(),
+    .belgium_trade(),
+    years = c(1990, 2010)
+  )
+
+  expect_equal(result$year, 2010)
+  expect_false(1990 %in% result$year)
+})
+
+test_that("binding an off-window recovered row aborts", {
+  # The filter above is the policy; this is the guard that makes lifting it
+  # impossible to do silently.
+  recovered <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~area, ~item_cbs, ~value, ~source,
+    1990, 255L, 2761, "import", "Belgium", "Freshwater Fish", 265281, "FAOSTAT_trade"
+  )
+
+  expect_error(
+    whep:::.cbs_bind_recovered(.belgium_cbs(), recovered),
+    class = "whep_error_off_window_area_year"
   )
 })
