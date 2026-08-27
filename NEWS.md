@@ -1,5 +1,21 @@
 # whep (development version)
 
+* **`biomass_coefs` no longer ships the three spreadsheet section headers of
+  the upstream workbook (#752).** `TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY
+  BYPRODUCTS` were entirely empty rows. `ANIMAL PRODUCTS` was worse: its only
+  seven populated cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the
+  `Coefs` sheet's VLOOKUPs address by absolute position — which read as data
+  claimed an `Edible_portion` of 4.0 and 3 kg of nitrogen per kg of fresh
+  matter, i.e. 18.75 kg of protein per kg. They are now dropped in
+  `data-raw/harmonization_tables.R`, so `whep::biomass_coefs` has 418 rows
+  rather than 421 and `Edible_portion` satisfies `(0, 1]` outright.
+  **No published value changes**: the two empty rows carried no coefficient at
+  all, and no `item_cbs_code` in `items_full` bridged to `ANIMAL PRODUCTS`
+  (asserted in `test_biomass_coefs_hygiene.R`), which `build_food_supply()`
+  already filtered defensively. The remaining part of #752 — 75 rows whose
+  proximate constituents exceed their own dry matter — is untouched and stays
+  a coefficient question for the data owner.
+
 * **`get_faostat_data()` now resolves `ISO3_CODE` from
   [polity_area_crosswalk] instead of FAOSTAT's vendored `FAOcountryProfile`
   name table, and the hand-maintained fix block is gone (#541).** The profile
