@@ -39,8 +39,23 @@ It is a gap-filler and not a replacement, because the two sources disagree
 where they overlap: across 12,309 shared country-years they differ by a
 median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
 &quot;pin&quot; remains the default.
-Neither source can reach an area whose territory no longer exists, because
-both are keyed on a present-day ISO3 code. population_source_reach()
+population_source = &quot;pin_wpp_fbs_fallback&quot; then fills what NEITHER of those
+reaches from read_fbs_population(), the FAOSTAT Food Balance Sheet
+population. That source is keyed on the FAOSTAT area code rather than a
+present-day ISO3, so it is the only one that reaches a dissolved reporting
+area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
+151 Netherlands Antilles over 1961-2010 (#787), the two largest holes in the
+denominator. It is anti-joined like the WPP fill, so it too cannot move a
+denominator that was already published.
+It is opt-in and not the default because the sources disagree on the value,
+not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+WPP 2024 territorial sum for the same ground (SRB + MNE + XKX) gives
+10,104,000, 6.5% lower; and the SRB + MNE sum a successor walk can actually
+reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
+separately and it carries no WHEP area code (#863). Which of the three a
+dissolved federation should be given is an open decision.
+Neither ISO3-keyed source can reach an area whose territory no longer exists,
+because both are keyed on a present-day ISO3 code. population_source_reach()
 reports which areas that leaves out and whether the polities database's
 successor relation could stand in for them. Against UN WPP 2024's
 vocabulary, exactly one reporting area outside the Rest-of-World bucket is
@@ -88,8 +103,23 @@ It is a gap-filler and not a replacement, because the two sources disagree
 where they overlap: across 12,309 shared country-years they differ by a
 median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
 &quot;pin&quot; remains the default.
-Neither source can reach an area whose territory no longer exists, because
-both are keyed on a present-day ISO3 code. population_source_reach()
+population_source = &quot;pin_wpp_fbs_fallback&quot; then fills what NEITHER of those
+reaches from read_fbs_population(), the FAOSTAT Food Balance Sheet
+population. That source is keyed on the FAOSTAT area code rather than a
+present-day ISO3, so it is the only one that reaches a dissolved reporting
+area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
+151 Netherlands Antilles over 1961-2010 (#787), the two largest holes in the
+denominator. It is anti-joined like the WPP fill, so it too cannot move a
+denominator that was already published.
+It is opt-in and not the default because the sources disagree on the value,
+not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+WPP 2024 territorial sum for the same ground (SRB + MNE + XKX) gives
+10,104,000, 6.5% lower; and the SRB + MNE sum a successor walk can actually
+reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
+separately and it carries no WHEP area code (#863). Which of the three a
+dissolved federation should be given is an open decision.
+Neither ISO3-keyed source can reach an area whose territory no longer exists,
+because both are keyed on a present-day ISO3 code. population_source_reach()
 reports which areas that leaves out and whether the polities database's
 successor relation could stand in for them. Against UN WPP 2024's
 vocabulary, exactly one reporting area outside the Rest-of-World bucket is
@@ -177,8 +207,23 @@ country-years inside the pin's own year span. Filled rows are stamped
 where they overlap: across 12,309 shared country-years they differ by a
 median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
 <code>"pin"</code> remains the default.</p>
-<p>Neither source can reach an area whose territory no longer exists, because
-both are keyed on a present-day ISO3 code. <code><a href="population_source_reach.html">population_source_reach()</a></code>
+<p><code>population_source = "pin_wpp_fbs_fallback"</code> then fills what NEITHER of those
+reaches from <code><a href="read_fbs_population.html">read_fbs_population()</a></code>, the FAOSTAT Food Balance Sheet
+population. That source is keyed on the FAOSTAT area code rather than a
+present-day ISO3, so it is the only one that reaches a dissolved reporting
+area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
+151 Netherlands Antilles over 1961-2010 (#787), the two largest holes in the
+denominator. It is anti-joined like the WPP fill, so it too cannot move a
+denominator that was already published.</p>
+<p>It is opt-in and not the default because the sources disagree on the value,
+not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+WPP 2024 territorial sum for the same ground (<code>SRB + MNE + XKX</code>) gives
+10,104,000, 6.5% lower; and the <code>SRB + MNE</code> sum a successor walk can actually
+reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
+separately and it carries no WHEP area code (#863). Which of the three a
+dissolved federation should be given is an open decision.</p>
+<p>Neither ISO3-keyed source can reach an area whose territory no longer exists,
+because both are keyed on a present-day ISO3 code. <code><a href="population_source_reach.html">population_source_reach()</a></code>
 reports which areas that leaves out and whether the polities database's
 <code>successor</code> relation could stand in for them. Against UN WPP 2024's
 vocabulary, exactly one reporting area outside the Rest-of-World bucket is
@@ -194,7 +239,7 @@ same as safe to sum — see that function and the note at the top of
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">read_population</span><span class="op">(</span></span>
 <span>  years <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  population_source <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"pin"</span>, <span class="st">"pin_wpp_fallback"</span><span class="op">)</span>,</span>
+<span>  population_source <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"pin"</span>, <span class="st">"pin_wpp_fallback"</span>, <span class="st">"pin_wpp_fbs_fallback"</span><span class="op">)</span>,</span>
 <span>  example <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -211,14 +256,16 @@ same as safe to sum — see that function and the note at the top of
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>Optional named list of pre-loaded inputs to avoid the pin read:
 <code>gdp_population</code> (the raw pin, with <code>Year</code>, <code>area_code</code> as ISO3, <code>pop</code> in
-thousands) and <code>wpp_population</code> (a <code><a href="read_wpp_population.html">read_wpp_population()</a></code> output). Falls
-back to <code><a href="whep_read_file.html">whep_read_file()</a></code> when absent.</p></dd>
+thousands), <code>wpp_population</code> (a <code><a href="read_wpp_population.html">read_wpp_population()</a></code> output) and
+<code>fbs_population</code> (a <code><a href="read_fbs_population.html">read_fbs_population()</a></code> output). Falls back to
+<code><a href="whep_read_file.html">whep_read_file()</a></code> when absent.</p></dd>
 
 
 <dt id="arg-population-source">population_source<a class="anchor" aria-label="anchor" href="#arg-population-source"></a></dt>
-<dd><p><code>"pin"</code> (default, the <code>gdp-population</code> pin alone) or
+<dd><p><code>"pin"</code> (default, the <code>gdp-population</code> pin alone),
 <code>"pin_wpp_fallback"</code>, which additionally fills country-years the pin does
-not cover from UN WPP.</p></dd>
+not cover from UN WPP, or <code>"pin_wpp_fbs_fallback"</code>, which then fills what
+neither reaches from <code><a href="read_fbs_population.html">read_fbs_population()</a></code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>

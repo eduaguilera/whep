@@ -131,6 +131,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/cb_processing.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/cbs_trade_codes.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/cft_mapping.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/check_fodder_land_share.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_footprint_conservation.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_parquet_integrity.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/check_series_jumps.html</loc></url>
@@ -317,6 +318,7 @@
 <url><loc>https://eduaguilera.github.io/whep/reference/propagate_fp_uncertainty.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_critical_n.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_cru_climate.html</loc></url>
+<url><loc>https://eduaguilera.github.io/whep/reference/read_fbs_population.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glaciated_areas.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_glwd_water.html</loc></url>
 <url><loc>https://eduaguilera.github.io/whep/reference/read_habitual_cv.html</loc></url>

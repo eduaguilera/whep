@@ -34,7 +34,12 @@ get_faostat_data(activity_data, ..., example = FALSE)
 
 `tibble` of FAOSTAT for `activity_data` with columns `area`, `item`,
 `element`, `year`, `value`, `unit` and `ISO3_CODE`; default is for all
-years and countries.
+years and countries. `ISO3_CODE` is resolved from the `area_iso3c`
+column of
+[polity_area_crosswalk](https://eduaguilera.github.io/whep/reference/polity_area_crosswalk.md)
+and is `NA` for FAOSTAT's regional and multi-territory aggregates,
+including the `"China"` aggregate (area 351), which by design has no
+ISO3 code of its own.
 
 ## Examples
 

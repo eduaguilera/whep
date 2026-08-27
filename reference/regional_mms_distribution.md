@@ -15,7 +15,7 @@ A tibble with `region`, `species`, `mms_type`, `fraction`.
 ## Source
 
 Unverified. The values are a hardcoded `tribble()` in
-`generate_ipcc_tier2_tables()` in `data-raw/livestock_coefficients.R`,
+`generate_ipcc_tier2_params()` in `data-raw/livestock_coefficients.R`,
 annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are
 round to the nearest 5 percentage points and match no table of the
 committed GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares.

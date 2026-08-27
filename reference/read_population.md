@@ -54,8 +54,28 @@ disagree where they overlap: across 12,309 shared country-years they
 differ by a median 0.64%, a 95th percentile of 4.4% and a maximum of
 81%. That is why `"pin"` remains the default.
 
-Neither source can reach an area whose territory no longer exists,
-because both are keyed on a present-day ISO3 code.
+`population_source = "pin_wpp_fbs_fallback"` then fills what NEITHER of
+those reaches from
+[`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md),
+the FAOSTAT Food Balance Sheet population. That source is keyed on the
+FAOSTAT area code rather than a present-day ISO3, so it is the only one
+that reaches a dissolved reporting area: it closes area 186 Serbia and
+Montenegro over 1992-2005 (#862) and area 151 Netherlands Antilles over
+1961-2010 (#787), the two largest holes in the denominator. It is
+anti-joined like the WPP fill, so it too cannot move a denominator that
+was already published.
+
+It is opt-in and not the default because the sources disagree on the
+value, not just on the coverage. For area 186 in 2000 FAOSTAT gives
+10,801,000; a UN WPP 2024 territorial sum for the same ground
+(`SRB + MNE + XKX`) gives 10,104,000, 6.5% lower; and the `SRB + MNE`
+sum a successor walk can actually reach today gives 8,311,000, 23%
+lower, because WPP publishes Kosovo separately and it carries no WHEP
+area code (#863). Which of the three a dissolved federation should be
+given is an open decision.
+
+Neither ISO3-keyed source can reach an area whose territory no longer
+exists, because both are keyed on a present-day ISO3 code.
 [`population_source_reach()`](https://eduaguilera.github.io/whep/reference/population_source_reach.md)
 reports which areas that leaves out and whether the polities database's
 `successor` relation could stand in for them. Against UN WPP 2024's
@@ -72,7 +92,7 @@ the note at the top of `R/population_reach.R`.
 read_population(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback"),
+  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
   example = FALSE
 )
 ```
@@ -88,17 +108,21 @@ read_population(
 
   Optional named list of pre-loaded inputs to avoid the pin read:
   `gdp_population` (the raw pin, with `Year`, `area_code` as ISO3, `pop`
-  in thousands) and `wpp_population` (a
+  in thousands), `wpp_population` (a
   [`read_wpp_population()`](https://eduaguilera.github.io/whep/reference/read_wpp_population.md)
+  output) and `fbs_population` (a
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md)
   output). Falls back to
   [`whep_read_file()`](https://eduaguilera.github.io/whep/reference/whep_read_file.md)
   when absent.
 
 - population_source:
 
-  `"pin"` (default, the `gdp-population` pin alone) or
+  `"pin"` (default, the `gdp-population` pin alone),
   `"pin_wpp_fallback"`, which additionally fills country-years the pin
-  does not cover from UN WPP.
+  does not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then
+  fills what neither reaches from
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md).
 
 - example:
 

@@ -141,18 +141,28 @@ reproduce and carried `polity_frac` alongside, ended with C9; the
 footprint diagnostics below are where that disagreement is now reported.
 
 **Identity is `polity_code`, and only `polity_code`.** `area_code` rides
-along as a label and is not a key: `polity_area_crosswalk` folds 505
-polity codes into 201 reporting buckets, 113 of which hold more than one
-polity and one of which (206) holds Sudan and South Sudan at the same
-time. A table whose whole purpose is correct territorial attribution
-cannot be keyed on a bucket that merges two countries, so this one is
-not, and no `reporting_polity_code` or `polity_area_code` is derived
-here. A consumer joining to a reporting-vocabulary output converts at
-its own boundary, and **that conversion is where the lossy fold
-happens** – deliberately visible at the consumer rather than hidden in
-the support.
+along as a label and is not a key: a polity can have no reporting area
+at all, and two polities can share one. A table whose whole purpose is
+correct territorial attribution cannot be keyed on a code that merges
+two countries, so this one is not, and no `reporting_polity_code` or
+`polity_area_code` is derived here. A consumer joining to a
+reporting-vocabulary output converts at its own boundary, and **that
+conversion is where the lossy fold happens** – deliberately visible at
+the consumer rather than hidden in the support.
 [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
 refuses an unconverted support instead of converting one silently.
+
+The label is the **reporting** `area_code`, the code space
+`country_areas` and the national nutrient tables are keyed on – not the
+coarser `polity_area_code` bucket the matrix workflows aggregate on.
+Writing the bucket here, which this producer did until whep#907, put 206
+(Sudan plus South Sudan) and 999 (Rest of World, absorbing Syria, North
+Macedonia, Eswatini, Palestine, Equatorial Guinea and French Guiana
+among 43 territories) in a column named `area_code`, and every
+`area_code`-keyed consumer dropped those areas' whole national total. A
+polity with no reporting region of its own – Greenland, Western Sahara,
+most dependencies – still carries its bucket, because that is the only
+home the reporting vocabulary gives it.
 
 ## Land definitions in play
 

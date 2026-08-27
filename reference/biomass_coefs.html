@@ -179,6 +179,10 @@ are available, with the corresponding <code>bio_coefs</code> fields as fallbacks
 <code>root_c_kgdm</code> and <code>rhizodeposit_n_kgn_krootn</code> are direct calculation inputs.
 <code>rhizodeposit_mass_c_kgdm</code> is an integrity and documentation component that
 is already included in <code>root_c_kgdm</code>, rather than a separate runtime input.</p>
+<p>Three all-caps rows of the source spreadsheet are section headers rather
+than commodities and are dropped at ingestion (#752): <code>TRANSFORMED PRODUCTS</code> and <code>AGRO-INDUSTRY BYPRODUCTS</code> are empty, and <code>ANIMAL PRODUCTS</code>
+holds the VLOOKUP column-index vector the upstream <code>Coefs</code> sheet addresses
+by absolute position, which read as data claims an <code>Edible_portion</code> of 4.</p>
     </div>
 
     <div class="section level2">

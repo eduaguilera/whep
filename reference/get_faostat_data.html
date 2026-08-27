@@ -77,7 +77,10 @@ documentation. Default <code>FALSE</code>.</p></dd>
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p><code>tibble</code> of FAOSTAT for <code>activity_data</code> with columns <code>area</code>,
 <code>item</code>, <code>element</code>, <code>year</code>, <code>value</code>, <code>unit</code> and <code>ISO3_CODE</code>; default is
-for all years and countries.</p>
+for all years and countries. <code>ISO3_CODE</code> is resolved from the <code>area_iso3c</code>
+column of <a href="polity_area_crosswalk.html">polity_area_crosswalk</a> and is <code>NA</code> for FAOSTAT's regional and
+multi-territory aggregates, including the <code>"China"</code> aggregate (area 351),
+which by design has no ISO3 code of its own.</p>
     </div>
 
     <div class="section level2">

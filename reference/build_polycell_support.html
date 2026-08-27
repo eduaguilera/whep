@@ -200,17 +200,27 @@ padded the table with the crosswalk rows the intersection did not
 reproduce and carried <code>polity_frac</code> alongside, ended with C9; the
 footprint diagnostics below are where that disagreement is now reported.</p>
 <p><strong>Identity is <code>polity_code</code>, and only <code>polity_code</code>.</strong> <code>area_code</code> rides
-along as a label and is not a key: <code>polity_area_crosswalk</code> folds 505
-polity codes into 201 reporting buckets, 113 of which hold more than one
-polity and one of which (206) holds Sudan and South Sudan at the same
-time. A table whose whole purpose is correct territorial attribution
-cannot be keyed on a bucket that merges two countries, so this one is
-not, and no <code>reporting_polity_code</code> or <code>polity_area_code</code> is derived
-here. A consumer joining to a reporting-vocabulary output converts at its
-own boundary, and <strong>that conversion is where the lossy fold happens</strong> –
-deliberately visible at the consumer rather than hidden in the support.
+along as a label and is not a key: a polity can have no reporting area at
+all, and two polities can share one. A table whose whole purpose is
+correct territorial attribution cannot be keyed on a code that merges two
+countries, so this one is not, and no <code>reporting_polity_code</code> or
+<code>polity_area_code</code> is derived here. A consumer joining to a
+reporting-vocabulary output converts at its own boundary, and <strong>that
+conversion is where the lossy fold happens</strong> – deliberately visible at
+the consumer rather than hidden in the support.
 <code><a href="build_n_deposition.html">build_n_deposition()</a></code> refuses an unconverted support instead of
 converting one silently.</p>
+<p>The label is the <strong>reporting</strong> <code>area_code</code>, the code space <code>country_areas</code>
+and the national nutrient tables are keyed on – not the coarser
+<code>polity_area_code</code> bucket the matrix workflows aggregate on. Writing the
+bucket here, which this producer did until whep#907, put 206 (Sudan plus
+South Sudan) and 999 (Rest of World, absorbing Syria, North Macedonia,
+Eswatini, Palestine, Equatorial Guinea and French Guiana among 43
+territories) in a column named <code>area_code</code>, and every <code>area_code</code>-keyed
+consumer dropped those areas' whole national total. A polity with no
+reporting region of its own – Greenland, Western Sahara, most
+dependencies – still carries its bucket, because that is the only home
+the reporting vocabulary gives it.</p>
     </div>
     <div class="section level2">
     <h2 id="land-definitions-in-play">Land definitions in play<a class="anchor" aria-label="anchor" href="#land-definitions-in-play"></a></h2>

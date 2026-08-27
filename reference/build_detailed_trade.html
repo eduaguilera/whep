@@ -111,6 +111,28 @@ without downloading remote data. Default <code>FALSE</code>.</p></dd>
 <li><p><code>value</code>: Trade quantity.</p></li>
 <li><p><code>country_share</code>: Share of total trade for this partner.</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="time-extension-is-uniform-across-groups">Time extension is uniform across groups<a class="anchor" aria-label="anchor" href="#time-extension-is-uniform-across-groups"></a></h2>
+
+
+<p>With <code>extend_time = TRUE</code> the extension is driven by the <strong>year axis</strong> of
+CBS only. Every <code>(area, item, partner, element, unit)</code> group observed in
+any trade year is carried across the union of trade and CBS years, and
+<code><a href="fill_linear.html">fill_linear()</a></code> interpolates inside a group's observed span and holds the
+first and last observed share constant outside it. Whether CBS actually
+reports that area/item/element in that year is <strong>not</strong> consulted, so shares
+are also emitted for country-item-year cells CBS never reports.</p>
+<p>The year axis this rests on is wide. The <code>"faostat-trade-bilateral"</code> pin
+covers 1986-2021, while <code><a href="build_commodity_balances.html">build_commodity_balances()</a></code> defaults to 1850-2023,
+so 138 of the 174 extended years (79%) lie outside the trade record
+entirely and carry the 1986 (or 2021) partner mix held constant. On the
+full pin that is 1.17 million groups spread over up to 174 years each,
+against 9.97 million observed rows, and half of the emitted
+<code>(year, area, item, element)</code> cells are cells CBS never reports (measured:
+3.42 of 6.85 million). Scoping the extension to the CBS
+coverage a group actually has is a methodological choice, not a bug fix,
+and is tracked in issue #232.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

@@ -2,6 +2,181 @@
 
 ## whep (development version)
 
+- **`biomass_coefs` no longer ships the three spreadsheet section
+  headers of the upstream workbook
+  ([\#752](https://github.com/eduaguilera/whep/issues/752)).**
+  `TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY BYPRODUCTS` were entirely
+  empty rows. `ANIMAL PRODUCTS` was worse: its only seven populated
+  cells hold 2, 4, 3, 5, 6, 7, 8 — the column-index vector the `Coefs`
+  sheet’s VLOOKUPs address by absolute position — which read as data
+  claimed an `Edible_portion` of 4.0 and 3 kg of nitrogen per kg of
+  fresh matter, i.e. 18.75 kg of protein per kg. They are now dropped in
+  `data-raw/harmonization_tables.R`, so
+  [`whep::biomass_coefs`](https://eduaguilera.github.io/whep/reference/biomass_coefs.md)
+  has 418 rows rather than 421 and `Edible_portion` satisfies `(0, 1]`
+  outright. **No published value changes**: the two empty rows carried
+  no coefficient at all, and no `item_cbs_code` in `items_full` bridged
+  to `ANIMAL PRODUCTS` (asserted in `test_biomass_coefs_hygiene.R`),
+  which
+  [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  already filtered defensively. The remaining part of
+  [\#752](https://github.com/eduaguilera/whep/issues/752) — 75 rows
+  whose proximate constituents exceed their own dry matter — is
+  untouched and stays a coefficient question for the data owner.
+
+- **[`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
+  now resolves `ISO3_CODE` from \[polity_area_crosswalk\] instead of
+  FAOSTAT’s vendored `FAOcountryProfile` name table, and the
+  hand-maintained fix block is gone
+  ([\#541](https://github.com/eduaguilera/whep/issues/541)).** The
+  profile table is stale relative to the labels FAOSTAT publishes today,
+  so eight of the 211 FAOSTAT area names in `regions_full$FAOSTAT_name`
+  came out with `ISO3_CODE = NA`: three current reporters — `Eswatini`
+  (SWZ), `North Macedonia` (MKD) and `China, Taiwan Province of` (TWN) —
+  and four former areas that appear in the historical series —
+  `Belgium-Luxembourg` (BLX), `Ethiopia PDR` (ETH), `Sudan (former)`
+  (SDN) and `USSR` (SUN). All seven now resolve; the `China` aggregate
+  (area 351) still resolves to `NA` by design
+  ([\#158](https://github.com/eduaguilera/whep/issues/158),
+  [\#313](https://github.com/eduaguilera/whep/issues/313)). Coverage
+  over those labels goes from 203/211 to 210/211, with zero
+  disagreements on the codes both routes resolved. No published WHEP
+  value changes:
+  [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
+  has no caller in `R/`, `data-raw/` or the vignettes, and every
+  pipeline ISO3 bridge already went through the crosswalk. A user who
+  grouped its output by `ISO3_CODE`, however, was silently dropping
+  Eswatini, North Macedonia and Taiwan. The codes are maintained
+  upstream in whep-polities rather than in whep, so the one place the
+  two routes disagreed — `US Minor Is.`, which the FAOSTAT profile gave
+  the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
+
+- **Reconstructed fodder rows no longer claim to be FAOSTAT
+  ([\#937](https://github.com/eduaguilera/whep/issues/937)).**
+  [`build_primary_production()`](https://eduaguilera.github.io/whep/reference/build_primary_production.md)’s
+  yield step pivoted units into columns and dropped the `source` the
+  fodder chain had already resolved, so `.impute_missing_values()`
+  re-derived provenance from the mere presence of a tonnage and labelled
+  every fodder row `"FAOSTAT_prod"`. That was a false claim for
+  temporary grassland in particular: CBS 3002 (production item 996)
+  appears in neither FAOSTAT production pin — its hectares come from the
+  `eu-agridb-fodder` pin and its tonnage from the EU AgriDB nitrogen
+  yield or a dry-matter estimate — yet all 494 rows of it in a 2001–2023
+  build read as FAOSTAT. The source is now carried through, so those
+  rows read `"EuropeAgriDB"` or `"DM_yield_estimate"`. `source` is used
+  to rank competing sources, so a `(year, area, item, unit)` cell
+  contested by a genuine FAOSTAT row and a reconstructed fodder row now
+  resolves to the FAOSTAT one; hectares and tonnages themselves are
+  unchanged (see the PR for the measured diff). `.deduplicate_doubles()`
+  told the two copies of a double-product key apart by asking whether
+  `source` was `NA`, which only held while the yield table had no source
+  column at all; it now names the copy explicitly, so seed cotton, oil
+  palm fruit and flax keep their series.
+
+- **A source that keys a territory to an area code WHEP’s vocabulary
+  does not report in that year now says so, and can never have a CBS row
+  created for it
+  ([\#884](https://github.com/eduaguilera/whep/issues/884)).** FishStat
+  splits Belgium out as area 255 from 1976, while every FAOSTAT product
+  — the balance sheets and `faostat-trade-totals` alike — keys that
+  territory 15 (Belgium-Luxembourg) until 1999 and splits 255/256 only
+  at
+
+  2000. Those 459 FishStat rows (6,948.4 kt over 1976-1999) can never
+        join a CBS keyed 15, and creating the 255 row instead would put
+        two overlapping reporting areas on one territory-year rather
+        than fill a gap. Reading any input now warns when it reports an
+        area outside that area’s own reporting window
+        (`options(whep.warn_area_vintage = FALSE)` silences it), the
+        `trade_recovery = "net_import"` recovery of
+        [\#864](https://github.com/eduaguilera/whep/issues/864) drops
+        such keys explicitly instead of relying on its area-label join
+        to hide them, and `.cbs_bind_recovered()` aborts if one reaches
+        it. **No published value changes**: measured over every
+        CBS-relevant pin, FishStat’s Belgium 255 in 1976-1999 is the
+        only off-window area-year in any input, and none of those rows
+        lands on a CBS row today. The check asks whether *any* reporting
+        area lands on the bucket that year rather than whether the year
+        is inside the bucket’s own window, so the deliberate folds are
+        not flagged: bucket 238 is reported by area 62 (Ethiopia PDR)
+        until 1992 and bucket 206 by areas 276/277 from 2012. The
+        territory is not unrepresented either — the Belgium-Luxembourg
+        balance sheet already reports 11.93 Mt of fish imports and 3.33
+        Mt of exports for those same 11 items and years, on every one of
+        the 264 keys, so folding FishStat’s Belgium rows into bucket 15
+        would recover 0 t under the current `coalesce()` fill policy.
+        Which vocabulary the two sources should share stays an open
+        harmonization decision in
+        [\#884](https://github.com/eduaguilera/whep/issues/884).
+
+- **The `historical-land-areas` pin is regenerated on the current
+  polities snapshot
+  ([\#934](https://github.com/eduaguilera/whep/issues/934)).** The pin
+  is static per LUH2 vintage *and* polities snapshot, and the deployed
+  `20260818T110621Z-08814` predated the
+  [\#906](https://github.com/eduaguilera/whep/issues/906) re-sync: PR
+  [\#914](https://github.com/eduaguilera/whep/issues/914)’s guard named
+  7 polity codes
+  [`whep::polities`](https://eduaguilera.github.io/whep/reference/polities.md)
+  no longer has (`CIV-1893-1900`, `GHA-1898-1956`, `HUN-1918-1919`,
+  `KEN-1902-1906`, `LAO-1893-1953`, `SEN-1886-1959`, `TCD-1920-1960`)
+  and 256 bucket-years over 8 buckets whose territory label had moved.
+  The replacement `20260826T154952Z-48539` was built by
+  `data-raw/historical_land_areas.R` over 1850-1961 (25.8 min) against
+  LUH2 `UofMD-landState-LUH2-GCB2022`, `polycell_support`
+  `20260825T102349Z-1a0eb` and the 781-row snapshot; the guard names
+  nothing on it and still fires on the old version. **Published values
+  change on the opt-in `land_method = "historical_polity"` path only**
+  (the default `"present_day"` never reads this pin). Summed over all
+  18,083 bucket-years the two pins share, agriland moves +0.087%
+  (264,828 -\> 265,059 Mha of bucket-years); 510 bucket-years over 50
+  buckets move at all, and 104 bucket-years that the old pin could not
+  measure are now measurable (Cabo Verde and Suriname 1850-1884, Chile
+  1850-1882, Côte d’Ivoire 1900). Individual bucket-years move much more
+  than the total: Estonia 1918-19 +98.5%, Poland 1919 +92.8%, Latvia
+  1918-19 +87.6% and Tunisia 1875-80 +84%, all because the polycell
+  support they are measured against was itself rebuilt
+  (`20260825T102349Z-1a0eb`, 721 polities against 685). Largest
+  whole-bucket shifts are Tunisia +9.08%, Kenya -1.21%, Poland +0.97%
+  and Ethiopia +0.65%. The `.example_historical_land_areas()` fixture is
+  refreshed to match, moving three of its ten rows (its `agriland` stays
+  the sum of the rounded parts, as its test asserts).
+
+- **The polycell support’s `area_code` now holds a reporting area code
+  rather than a matrix bucket, so `area_code`-keyed callers can join to
+  it ([\#907](https://github.com/eduaguilera/whep/issues/907)).**
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  labelled each polycell with `polity_area_crosswalk$polity_area_code` —
+  the coarser key the matrix workflows aggregate on, which folds Sudan
+  with South Sudan onto 206 and 113 reporting areas into 999 (Rest of
+  World) — and called the column `area_code`. Every consumer of the
+  polycell grid joins it to a table keyed on the *reporting*
+  `area_code`: `country_areas` in both spatialize engines, and the
+  national nutrient tables in the carbon and nitrogen paths. Measured on
+  the deployed pin at 2015, that mismatch left **7 reporting areas with
+  no cell in the grid at all, carrying 18.75 Mha of harvested area —
+  1.37% of the global total**: Sudan (12.06 Mha), Syria (3.83), South
+  Sudan (2.17), North Macedonia (0.34), Eswatini (0.16), Palestine
+  (0.11) and Equatorial Guinea (0.08). Their whole national total was
+  dropped, and the 423 Mha of grid land sitting under 206 and 999 could
+  receive nothing. Both the producer (`.pcs_area_code()`) and the carbon
+  path’s seam (`.carbon_support_to_area_code()`, which every carbon,
+  SOC, LUH2 land-use and spatialize consumer resolves its grid through)
+  now take the reporting `area_code` off the same crosswalk row, so a
+  pin published before this change is corrected on read. Values move: at
+  2015, 1,205 polycells holding 285.42 Mha of land are re-keyed — 206
+  splits into 276 (186.25 Mha) and 277 (62.84), and 999 releases 212
+  (18.57), 69 (8.39), 61 (2.70), 154 (2.50), 153 (1.88), 209 (1.70) and
+  299 (0.61) — and the grid goes from 195 to 203 distinct codes at 2015
+  (201 to 210 over every interval). Total land is unchanged to the
+  hectare and the per-cell land shares still sum to one, because the
+  re-key only relabels and un-folds. A polity with no reporting region
+  of its own (Greenland, Western Sahara, most dependencies) and a
+  residual aggregate that answers for many (`ROW`, the historical
+  Ethiopian polities) keep their bucket code — that is the only home the
+  reporting vocabulary gives them, and it is never used as a fallback
+  for a lookup that merely failed.
+
 - **The LUH2 v2h calendar-year → time-index resolution is now one
   shared, tested helper, and clamping past the end of the record always
   warns ([\#256](https://github.com/eduaguilera/whep/issues/256)).**
@@ -204,6 +379,145 @@
   accounts for 42% of the Yugoslav SFR’s 17.5% successor-sum shortfall,
   not all of it — the other 10.1% is the `gdp-population` pin’s Yugoslav
   level disagreeing with UN WPP’s own seven territories.
+
+- **[`build_fao_arable_fallow_extension()`](https://eduaguilera.github.io/whep/reference/build_fao_arable_fallow_extension.md)
+  now warns where fodder crops take more than half the arable land it
+  distributes, and the new exported
+  [`check_fodder_land_share()`](https://eduaguilera.github.io/whep/reference/check_fodder_land_share.md)
+  reports the share per country-year
+  ([\#356](https://github.com/eduaguilera/whep/issues/356)).** No
+  published value changes: the check is warn-only and nothing is
+  rescaled, dropped or reweighted. What it makes visible is that with
+  the default `fallow_weights = NULL` — the path
+  [`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
+  takes — the reconciliation is a *pure proportional rescale* of each
+  arable crop’s cropped physical area up to FAO Arable land, so every
+  crop’s share of the published per-crop arable land footprint is
+  exactly its share of the input harvested area. Fodder harvested area
+  is reconstructed rather than surveyed (dry-matter-yield imputation, EU
+  AgriDB splicing, linear filling), and it carries 11.9% of the global
+  arable land footprint pooled over 1850-2023 — in 1271 of 29 378
+  country-years more than half of it, and in 102 country-years the
+  fodder harvested area alone exceeds the country’s entire FAO arable
+  land (Australia 1961-1994 up to 1.57x, Paraguay up to 2.23x, Ireland
+  1.78x, Portugal 1.77x). Every hectare over-attributed to fodder is a
+  hectare taken off the ordinary crops in the same country-year.
+  Supplying `fallow_weights` from
+  [`gridded_fallow_weights()`](https://eduaguilera.github.io/whep/reference/gridded_fallow_weights.md)
+  makes the fallow split independent of it.
+
+- **`inst/scripts/prepare_spatialize_all.R` no longer divides the HaNi
+  N-deposition raster by a fixed `1e7`, and reads it through
+  [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
+  instead of its own terra path
+  ([\#259](https://github.com/eduaguilera/whep/issues/259)).** HaNi’s
+  NetCDF declares `units = "g N"` and
+  `long_name = "NHX-N deposition to land within the grid cell"`: an
+  extensive mass per 5-arcmin cell, not a density. The retired code got
+  both consequences wrong. It aggregated to 0.5 degrees with
+  `terra::aggregate(fun = "mean")`, which leaves grams per native cell
+  rather than the additive block mass, and then divided by `1e7` — 1000
+  g/kg times an assumed 1e4 ha per native cell, i.e. every 5-arcmin cell
+  taken as exactly 100 km². On the WGS-84 sphere used everywhere else in
+  the script a 5-arcmin cell is 8586 ha at the equator and 4288 ha at
+  60°, so `deposit_kg_n_ha` came out low everywhere and progressively
+  worse toward the poles. On real 2014 HaNi (NHx + NOy, source mass
+  63.006 Tg N), the old rates reconstructed 44.611 Tg — **29.2% of the
+  deposited nitrogen lost** — against 63.006 Tg (100.0000%) now. Per
+  cell the rate rises by 16% in the Congo basin (0°N), 53% in the US
+  Corn Belt (40°N), 90% in the Netherlands (52°N) and 178% in northern
+  Finland (65°N). The same delegation also corrects a one-year shift:
+  the old code derived the year from terra’s layer names as `1851:2021`,
+  while the file’s `time` axis is `0:170` on
+  `units = "years since 1850-01-01"`, so the series is `1850:2020`. This
+  moves the `n_deposition.parquet` and the `lpjml_inputs/nitrogen/` NHx
+  and NOy forcing that the script writes; the cache gate now keys on a
+  `method_deposition` column so an existing parquet from before this
+  change is re-extracted rather than silently reused. It does **not**
+  move any published package value:
+  [`read_n_deposition()`](https://eduaguilera.github.io/whep/reference/read_n_deposition.md)
+  and
+  [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md)
+  in `R/` already block-summed the mass and divided by the true
+  `cell_area_ha`, and the nitrogen balance reads those, not the script.
+
+- **The CBS trade aggregation no longer sums head counts into its
+  tonnes-denominated `value` column
+  ([\#865](https://github.com/eduaguilera/whep/issues/865)).**
+  `.aggregate_fao_trade_to_cbs()` crosswalked the FAOSTAT trade record
+  onto CBS items and summed `value` without looking at `unit`, which
+  `.read_fao_trade()` does carry. FAOSTAT reports live animals in `An` /
+  `1000 An` and bees in `No`, and
+  [`whep::cbs_trade_codes`](https://eduaguilera.github.io/whep/reference/cbs_trade_codes.md)
+  maps those onto the 20 live-animal CBS items, so head and colony
+  counts landed in the same column as mass: 135.3 M of them against 2.85
+  Gt of tonnes at 2010, and between 4.3% and 11.6% of that column’s
+  total in every year from 1961 to 2023 (the peak is 2015, where 269 M
+  bees alone are 7.4% of it). `unit` is now part of the aggregation key,
+  and the new `.mass_only_trade()` reduces the record to its mass rows —
+  `t` from FAOSTAT trade, `tonnes` from FishStat — before the CBS trade
+  imputation reads it, warning with the unit, item count and total it
+  drops rather than discarding them silently. `1000 An` is also rescaled
+  to `An`, which `.normalise_units()` did not do: without it broiler,
+  duck, turkey, rabbit and rodent trade is a thousandfold low in its own
+  unit, and CBS item 1150 (`1000 An` up to 2013, `An` from 2014) carries
+  a 1000x step mid-series. **No published value changes**: verified at
+  2010 on the real pins, the raw CBS, the long CBS (82,587 rows) and its
+  `sum(value)` (62,732,362,270) are identical before and after, because
+  the CBS row set carries no live-animal rows for the head counts to
+  land on — the mixing was latent. The `.live_animal_cbs_codes()`
+  exclusion added for `trade_recovery = "net_import"` stays, for its
+  independent reason (it would duplicate the
+  [`get_livestock_cbs()`](https://eduaguilera.github.io/whep/reference/get_livestock_cbs.md)
+  key), but the unit filter is now the wider of the two guards: it also
+  catches CBS 1171 (“Animals live nes”), reported in `An` but typed
+  `other` and so absent from that list.
+
+- **New
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md),
+  and a third opt-in `population_source` for
+  [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md),
+  so a dissolved reporting area can have a denominator at all
+  ([\#862](https://github.com/eduaguilera/whep/issues/862),
+  [\#787](https://github.com/eduaguilera/whep/issues/787)).** Both
+  population sources WHEP had are keyed on a present-day ISO3 code — the
+  `gdp-population` pin has an ISO3 column, UN WPP publishes
+  `Country/Area` rows carrying one — so neither can reach a territory
+  that no longer exists. Measured on the real inputs, the pin’s `YUG`
+  stops in 1991 and its `SRB`/`MNE` start in 2006, and UN WPP 2024 has
+  no `SCG` record in any year, so area 186 Serbia and Montenegro carries
+  110 Mt of commodity-balance food over 1992–2005 with no population row
+  of any kind; area 151 Netherlands Antilles is the same shape over
+  1961–2010. The two per-capita consumers inner-join the denominator, so
+  those area-years are absent from
+  [`build_food_supply()`](https://eduaguilera.github.io/whep/reference/build_food_supply.md)
+  and
+  [`build_n_percapita()`](https://eduaguilera.github.io/whep/reference/build_n_percapita.md)
+  rather than wrong in them.
+  [`read_fbs_population()`](https://eduaguilera.github.io/whep/reference/read_fbs_population.md)
+  reads item 2501 “Population”, element 511, from the `faostat-fbs-old`
+  and `faostat-fbs-new` pins — the same two pins the food numerator
+  already comes from. It is keyed on the FAOSTAT area code rather than
+  an ISO3, and FAOSTAT keeps a dissolved reporting area alive for the
+  years it reported, so it covers area 186 for exactly 1992–2005 and
+  area 151 for exactly 1961–2010. Bucketed onto `polity_area_code` the
+  year-aware way it covers 195 areas over 1961–2023, and no bucket-year
+  receives more than one FAOSTAT area, so nothing is double counted;
+  FAOSTAT’s 42 regional and grouping aggregates resolve to no polity and
+  are dropped. **No published value changes**:
+  [`read_population()`](https://eduaguilera.github.io/whep/reference/read_population.md)
+  still defaults to `population_source = "pin"`, and the new
+  `"pin_wpp_fbs_fallback"` is anti-joined like the existing WPP fill, so
+  it can only add a denominator that was missing, never move one that
+  was published. It stays opt-in because the sources disagree on the
+  value and not only on the coverage — for area 186 in 2000 FAOSTAT
+  gives 10,801,000, a UN WPP 2024 territorial sum for the same ground
+  (`SRB + MNE + XKX`) gives 10,104,000, 6.5% lower, and the `SRB + MNE`
+  sum a successor walk can actually reach today gives 8,311,000, 23%
+  lower, because WPP publishes Kosovo separately and it carries no WHEP
+  area code ([\#863](https://github.com/eduaguilera/whep/issues/863)).
+  Which of the three a dissolved federation should be given is a science
+  decision the maintainer has not made.
 
 - **[`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
   now requires the numeric WHEP `area_code` on the frames it is handed,

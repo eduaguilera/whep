@@ -217,6 +217,13 @@ calculation inputs. `rhizodeposit_mass_c_kgdm` is an integrity and
 documentation component that is already included in `root_c_kgdm`,
 rather than a separate runtime input.
 
+Three all-caps rows of the source spreadsheet are section headers rather
+than commodities and are dropped at ingestion (#752):
+`TRANSFORMED PRODUCTS` and `AGRO-INDUSTRY BYPRODUCTS` are empty, and
+`ANIMAL PRODUCTS` holds the VLOOKUP column-index vector the upstream
+`Coefs` sheet addresses by absolute position, which read as data claims
+an `Edible_portion` of 4.
+
 ## Examples
 
 ``` r
