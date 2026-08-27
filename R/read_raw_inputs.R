@@ -103,13 +103,18 @@
   year_col <- .detect_year_col(dt)
 
   # Fast path for contiguous ranges (common case in build pipelines).
-  y_min <- min(years, na.rm = TRUE)
-  y_max <- max(years, na.rm = TRUE)
-  if (length(years) == (y_max - y_min + 1L)) {
+  # Dedupe first: duplicated years must not inflate the length past the
+  # distinct-year count, or a request like c(2000, 2000, 2002) (length 3,
+  # range 2000-2002 also length 3) wrongly takes this branch and returns the
+  # unrequested 2001 too (whep#157).
+  years_unique <- unique(years)
+  y_min <- min(years_unique, na.rm = TRUE)
+  y_max <- max(years_unique, na.rm = TRUE)
+  if (length(years_unique) == (y_max - y_min + 1L)) {
     return(dt[dt[[year_col]] >= y_min & dt[[year_col]] <= y_max])
   }
 
-  dt[dt[[year_col]] %in% years]
+  dt[dt[[year_col]] %in% years_unique]
 }
 
 .detect_year_col <- function(df) {
@@ -469,7 +474,12 @@
     "other_uses"
   )
 
+  # `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+  # (a row-group-level range filter, cheap to push down); apply the exact
+  # requested set afterwards so non-contiguous or partial requests do not
+  # silently carry the in-between years through (whep#157).
   dt <- .read_input(pin_alias, years = years, year_col = "Year")
+  dt <- .filter_years(dt, years = years)
   data.table::setnames(
     dt,
     c(
