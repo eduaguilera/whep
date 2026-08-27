@@ -143,14 +143,21 @@ build_grass_natural_carbon_inputs <- function(
     .filter_years_if_present(years)
 }
 
-# ESTABLISHED 2026-08-18 (whep#807): the shipped pin was built from the 46-band
-# LPJmL 6.1.1 run but with the eleven-name list, so it is MISSING the three
-# natural PFTs added below. Proven by reading the pin and the run side by side at
-# 2010: the pin is identical to the eleven-band sum over all 58,795 natural cells
-# (max absolute difference 0) and differs from the fourteen-band sum by 0.48
-# MgC/ha on average, up to 16.25. So the pin path returns numbers ~7% lower than
-# the run path until the pin is regenerated, which is deferred to the next LPJmL
-# run so all four LPJmL-derived pins are refreshed from one model version.
+# RESOLVED 2026-08-25. This note previously said the shipped pin was an
+# eleven-band sum missing three natural PFTs, and that the pin path therefore
+# returned numbers ~7% below the run path (whep#807, established 2026-08-18).
+# That was true of the pin as it stood then and is no longer true: the four
+# LPJmL-derived pins were regenerated together from the 6.1.1 socn_diag run,
+# and `lpjml-grass-natural-net-c` rose +7.12% at 2010 as the fix reached pin
+# users (see NEWS).
+#
+# Re-measured 2026-08-25 against the run: the pin equals the FOURTEEN-band
+# natural sum with a maximum absolute difference of 0 across 56,008 matched
+# cells at 2010. Pin and run paths now agree exactly.
+#
+# Left in place rather than deleted because the stale version of this comment
+# was itself cited as evidence that the pin is still eleven-band, so a reader
+# arriving from that claim needs to find the correction here.
 .gn_net_c_alias <- function() {
   "lpjml-grass-natural-net-c"
 }
