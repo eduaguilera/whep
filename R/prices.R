@@ -294,7 +294,17 @@ build_cbs_prices <- function(
       by = c("year", "item_prod_code"),
       all.x = TRUE
     )
-    dt[, price_prod := kdollars_prod / value]
+    # `value == 0` (or NA) makes the ratio Inf/NaN, which is non-NA and
+    # would survive the `!is.na(price)` filter below and corrupt neighbouring
+    # `fill_linear()` years (whep#166). Guard it the same way the trade path
+    # already filters `!is.infinite()` at `.compute_trade_prices()`.
+    dt[,
+      price_prod := data.table::fifelse(
+        is.na(value) | value == 0,
+        NA_real_,
+        kdollars_prod / value
+      )
+    ]
   } else {
     dt[, price_prod := NA_real_]
   }
