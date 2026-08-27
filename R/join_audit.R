@@ -538,11 +538,20 @@
      one cell IS the reduction over the year axis: the group has to hold the
      whole interval sequence for the previous interval to exist. Keying on a
      year would compare each interval with itself.",
-    ".pcs_area_code", "distinct", "polity_code", 1L, "identity_lookup",
-    "polity_code -> polity_area_code, one row per polity, for the polycell
-     support's area key.",
-    ".pcs_area_code", "distinct", "polity_code, polity_area_code", 1L,
-    "identity_lookup", "The inner dedup of the same crosswalk pair.",
+    ".polity_area_code_lookup", "distinct",
+    "polity_code, area_code, polity_area_code", 1L, "identity_lookup",
+    "Reduces `polity_area_crosswalk` to its distinct code triples. A
+     `polity_code` carries its own validity span (`SUD-1956-2011`), so the
+     year is already inside the key and adding one would return the year
+     itself (whep#907).",
+    ".polity_area_code_lookup", "mutate", "polity_code", 1L, "identity_lookup",
+    "Counts the reporting areas a polity maps to, which decides whether it has
+     a reporting code of its own or must keep the bucket. A property of the
+     polity, not of any year.",
+    ".polity_area_code_lookup", "distinct", "polity_code", 1L,
+    "identity_lookup",
+    "The final one-row-per-polity dedup that makes the lookup a function of
+     `polity_code`.",
     ".pcs_footprint_diff", "distinct", "lon, lat, area_code", 1L, "diagnostic",
     "The cell footprint of each crosswalk source, compared to report where they
      disagree. It moves no value.",

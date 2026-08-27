@@ -257,7 +257,7 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 80L)
+  expect_lte(sum(full$n), 81L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
