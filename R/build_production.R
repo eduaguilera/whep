@@ -2690,7 +2690,8 @@ build_primary_production <- function(
   df |>
     dplyr::mutate(
       value = dplyr::if_else(
-        item_prod == "Tea leaves" &
+        !is.na(item_prod) &
+          item_prod == "Tea leaves" &
           year > 1990 &
           unit %in% tea_units,
         value / 4.37,
@@ -2721,7 +2722,8 @@ build_primary_production <- function(
       # CBS historical ingest so both pipelines cannot drift apart.
       rice_source_is_paddy = .rice_source_is_paddy(.data$source),
       value = dplyr::if_else(
-        as.character(.data$item_prod_code) == "27" &
+        !is.na(.data$item_cbs_code) &
+          as.character(.data$item_prod_code) == "27" &
           .data$item_cbs_code == 2807L &
           .data$unit %in% rice_units &
           .data$rice_source_is_paddy,
