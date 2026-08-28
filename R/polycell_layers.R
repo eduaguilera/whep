@@ -416,7 +416,7 @@ read_polycell_support <- function(
   # learned to skip. Measured: regenerating against an up-to-date vocabulary
   # recovers 2 polities and leaves exactly these 14.
   can_have_cells <- prepared$polity_code[
-    !(prepared$polity_code %in% .polycell_polities_without_polygon())
+    !(prepared$polity_code %in% .polities_without_polygon())
   ]
   missing <- setdiff(unique(can_have_cells), unique(support$polity_code))
   if (length(missing) == 0L) {
@@ -596,7 +596,7 @@ read_polycell_support <- function(
 
 # Live polities with no polygon, read from the vocabulary rather than listed, so
 # it shrinks by itself as upstream draws them (whep-polities#155, #3).
-.polycell_polities_without_polygon <- function() {
+.polities_without_polygon <- function() {
   pol <- sf::st_drop_geometry(whep::polities)
   keep <- is.na(pol$has_geometry) |
     !pol$has_geometry |
