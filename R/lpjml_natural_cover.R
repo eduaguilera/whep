@@ -78,6 +78,11 @@ read_lpjml_natural_cover <- function(
   }
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")
+  # Captured before the tibble: inside it, `length(lon)` would resolve to the
+  # lon COLUMN already defined, not the axis, expanding the grid to 55 million
+  # rows.
+  nlon <- length(lon)
+  nlat <- length(lat)
   var <- setdiff(
     names(nc$var),
     c("lon_bnds", "lat_bnds", "time_bnds", "NamePFT")
@@ -90,11 +95,11 @@ read_lpjml_natural_cover <- function(
       nc,
       var,
       start = c(1, 1, 1, i),
-      count = c(length(lon), length(lat), length(bands), 1)
+      count = c(nlon, nlat, length(bands), 1)
     )
     tibble::tibble(
-      lon = rep(lon, times = length(lat)),
-      lat = rep(lat, each = length(lon)),
+      lon = rep(lon, times = nlat),
+      lat = rep(lat, each = nlon),
       year = first_year + i - 1L,
       natural_stand_frac = as.vector(a[,, 1L]),
       natural_cover = as.vector(

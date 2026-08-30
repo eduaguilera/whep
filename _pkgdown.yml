@@ -91,6 +91,7 @@ reference:
     soil-organic-carbon dynamics.
   contents:
   - read_lpjml_hydrology
+  - read_lpjml_litterfall
   - read_lpjml_natural_cover
   - read_lpjml_npp
   - read_cru_climate

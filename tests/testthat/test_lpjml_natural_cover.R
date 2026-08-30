@@ -155,3 +155,68 @@ testthat::test_that("a cover layer missing its columns is named", {
     "natural_cover"
   )
 })
+
+# ---- the grid must not expand on a real read -------------------------------
+
+# This reader had the same latent defect as the litterfall one: inside
+# `tibble()`, `each = length(lon)` resolved to the lon COLUMN rather than the
+# axis, so a 720x277 read tried to build 55 million rows. Every existing test
+# here injects a tibble and so never touched the NetCDF path that has the bug.
+.write_fpc_nc <- function(path, nlon, nlat, nband, nyear) {
+  lon <- ncdf4::ncdim_def("lon", "degrees_east", seq_len(nlon) - 0.25)
+  lat <- ncdf4::ncdim_def("lat", "degrees_north", seq_len(nlat) - 0.25)
+  pft <- ncdf4::ncdim_def("pft", "", seq_len(nband))
+  nch <- ncdf4::ncdim_def("nchar", "", seq_len(8))
+  tm <- ncdf4::ncdim_def("time", "years", seq_len(nyear), unlim = TRUE)
+  v <- ncdf4::ncvar_def("FPC", "-", list(lon, lat, pft, tm), -9999)
+  nm <- ncdf4::ncvar_def("NamePFT", "", list(nch, pft), prec = "char")
+  nc <- ncdf4::nc_create(path, list(v, nm))
+  on.exit(ncdf4::nc_close(nc))
+  # Band 1 is the stand fraction; the rest are PFT covers summing under 1.
+  a <- array(0.2, c(nlon, nlat, nband, nyear))
+  a[,, 1, ] <- 0.5
+  ncdf4::ncvar_put(nc, v, a)
+  ncdf4::ncvar_put(nc, nm, c("stand", paste0("pft", seq_len(nband - 1))))
+}
+
+testthat::test_that("a real fpc read returns nlon * nlat rows per year", {
+  testthat::skip_if_not_installed("ncdf4")
+  dir <- withr::local_tempdir()
+  .write_fpc_nc(
+    file.path(dir, "fpc.nc"),
+    nlon = 5,
+    nlat = 3,
+    nband = 4,
+    nyear = 2
+  )
+
+  x <- whep::read_lpjml_natural_cover(
+    run_dir = dir,
+    years = 1901L,
+    first_year = 1901L
+  )
+  testthat::expect_identical(nrow(x), 15L)
+  testthat::expect_identical(sort(unique(x$lat)), c(0.75, 1.75, 2.75))
+  # Band 1 is the stand fraction, never part of the cover.
+  testthat::expect_true(all(x$natural_stand_frac == 0.5))
+  # Three PFT bands at 0.2 each; float32 storage costs the last digits.
+  testthat::expect_equal(unique(x$natural_cover), 0.6, tolerance = 1e-6)
+
+  both <- whep::read_lpjml_natural_cover(run_dir = dir, first_year = 1901L)
+  testthat::expect_identical(nrow(both), 30L)
+})
+
+testthat::test_that("coexisting PFTs cannot push cover above 1", {
+  testthat::skip_if_not_installed("ncdf4")
+  dir <- withr::local_tempdir()
+  # Eight PFT bands at 0.2 sum to 1.6 before the cap.
+  .write_fpc_nc(
+    file.path(dir, "fpc.nc"),
+    nlon = 2,
+    nlat = 2,
+    nband = 9,
+    nyear = 1
+  )
+  x <- whep::read_lpjml_natural_cover(run_dir = dir, first_year = 1901L)
+  testthat::expect_true(all(x$natural_cover == 1))
+})

@@ -1,5 +1,32 @@
 # whep (development version)
 
+* **New `read_lpjml_litterfall()` reads carbon returned to the soil as litter,
+  split by the stand that shed it** (`nv`, `agr`, `mgrass`, `luc`, `total`).
+  Litterfall is what physically enters the soil; net primary production is
+  not, because it also contains the increment that stays in living biomass.
+  Measured on the 1750-2023 run at 2010, natural litterfall is **0.84 times
+  natural NPP at the median cell and 0.68 in aggregate**, the shortfall being
+  biomass accumulation, fire, and the land-use conversion pulse. No published
+  value changes yet: nothing consumes the reader until the natural carbon
+  input is switched over.
+
+  Two things the reader has to absorb, both verified against the run rather
+  than assumed. `litfallc_agr.nc` holds a variable named `ALITFALLC_agr` where
+  its three siblings hold their own filename, so the data variable is resolved
+  by elimination rather than by name. And the four class files are whole-*cell*
+  densities while `pft_npp` is per-*stand*, so a per-stand input requires
+  dividing by `natural_stand_frac`; mixing the conventions understates a
+  partly-natural cell by exactly its natural fraction.
+
+* **`read_lpjml_natural_cover()` now works on a real run.** Inside `tibble()`,
+  `each = length(lon)` resolved to the lon *column* already bound rather than
+  the axis, so a 720x277x274 read tried to build 55 million rows per year and
+  aborted. Every test injected a tibble and so never reached the NetCDF path.
+  Both readers now carry a regression test that writes a small real NetCDF with
+  unequal `lon` and `lat` extents, where a wrong recycling changes the row
+  count. Measured cover on the 1750-2023 run at 2010: mean 0.869, median
+  1.000, 5th percentile 0.000.
+
 * **Natural land's humification fraction is now carbon-weighted across the
   natural PFTs instead of being the woody constant everywhere.** Five of the
   fourteen natural PFTs are not woody -- three grasses, a flood-tolerant
