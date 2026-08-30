@@ -1,5 +1,30 @@
 # whep (development version)
 
+* **`build_grass_natural_carbon_inputs()` gains `method_natural_c`, selecting
+  whether natural land's carbon input is primary production or litterfall.**
+  `"npp"` stays the default and nothing changes for existing callers.
+  `"litterfall"` uses `litfallc_nv`, what LPJmL actually returns to the soil:
+  production also carries the increment retained in living biomass, plus what
+  fire and land conversion remove, none of which enter the soil. Measured on
+  the 1750-2023 run at 2010, litterfall is **0.844 times production at the
+  median natural cell** (0.917 on near-pure natural cells, where no conversion
+  pulse is being subtracted), so the choice moves natural equilibrium carbon
+  by roughly that factor.
+
+  The default is `"npp"` only because the published
+  `lpjml-grass-natural-net-c` pin predates the outputs `"litterfall"` needs;
+  it is not a judgement that production is the better soil input. Asking for
+  litterfall when the layer has none **aborts**, naming the pin to regenerate,
+  rather than falling back to production and silently substituting one method
+  for another. The chosen method is recorded in `method_c_input`.
+
+  `litfallc_nv` is a whole-cell density and `pft_npp` is per-stand, so the
+  layer divides by `natural_stand_frac` from `fpc.nc` before the two sit in
+  one table. That division is self-limiting on this run -- the largest
+  per-stand value is 44.5 MgC/ha/yr, at stand fraction 0.74 rather than at a
+  small one -- so no floor is imposed. Managed grassland is untouched:
+  `litfallc_nv` covers the natural stand only.
+
 * **Every LPJmL reader now takes the run's start year from the file instead
   of assuming 1901.** All seven entry points defaulted to
   `first_year = 1901L` and the builders passed nothing, so reading the

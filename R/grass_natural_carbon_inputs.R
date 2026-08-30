@@ -44,6 +44,15 @@
 #' spontaneous-grass value for grassland and the woody-residue value for
 #' natural land (both from [residue_humification]).
 #'
+#' @param method_natural_c Which LPJmL quantity is natural land's carbon
+#'   input. `"npp"` (default) is the natural PFTs' whole primary production;
+#'   `"litterfall"` is `litfallc_nv`, what the model actually returns to the
+#'   soil, excluding the increment retained in living biomass and what fire
+#'   and land conversion remove. Litterfall is the physically correct soil
+#'   input and runs 0.917 times production on near-pure natural cells at 2010
+#'   (0.844 across all cells carrying natural vegetation), but it needs a run
+#'   from 2026-08-27 or later, so the default stays `"npp"` while the
+#'   published pin predates those outputs. Recorded in `method_c_input`.
 #' @param method_natural_hf How natural land's humification fraction is set.
 #'   `"woody_share"` (default) carbon-weights the [residue_humification]
 #'   woody and herbaceous coefficients by the share of each cell-year's
@@ -92,6 +101,7 @@
 build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   method_natural_hf = c("woody_share", "woody"),
+  method_natural_c = c("npp", "litterfall"),
   data = list(),
   years = NULL,
   run_dir = NULL,
@@ -99,11 +109,12 @@ build_grass_natural_carbon_inputs <- function(
 ) {
   resolution <- rlang::arg_match(resolution)
   method_natural_hf <- rlang::arg_match(method_natural_hf)
+  method_natural_c <- rlang::arg_match(method_natural_c)
   if (isTRUE(example)) {
     return(.example_grass_natural_carbon_inputs())
   }
   d <- .gn_resolve_inputs(data, years, run_dir)
-  natural <- .gn_natural_input(d, method_natural_hf)
+  natural <- .gn_natural_input(d, method_natural_hf, method_natural_c)
   grassland <- .gn_grassland_input(d)
   dplyr::bind_rows(natural, grassland) |>
     .gn_finalise(resolution, d$land_use) |>
@@ -200,7 +211,8 @@ build_grass_natural_carbon_inputs <- function(
       woody_share = .gn_woody_share(pmax(.data$value, 0), .data$woody),
       .by = c("lon", "lat", "year")
     ) |>
-    dplyr::mutate(land_use = "natural")
+    dplyr::mutate(land_use = "natural") |>
+    .gn_attach_litterfall(data, years, run_dir)
   grassland <- .gn_grassland_net(npp, harvestc, stand_frac) |>
     dplyr::mutate(land_use = "grassland")
   dplyr::bind_rows(natural, grassland) |>
@@ -210,8 +222,53 @@ build_grass_natural_carbon_inputs <- function(
       "year",
       "land_use",
       "npp_c_mgc_ha_yr",
+      dplyr::any_of("litterfall_c_mgc_ha_yr"),
       dplyr::any_of("woody_share")
     )
+}
+
+# Per-STAND natural litterfall, attached when the run carries it.
+#
+# litfallc_nv is a whole-CELL density and pft_npp is per-stand, so the two
+# only sit in one table after dividing by the natural stand fraction. That
+# division is self-limiting on the 1750-2023 run -- the largest per-stand
+# value is 44.5 MgC/ha/yr and it falls at stand fraction 0.74, not at a small
+# one -- so no floor is imposed.
+#
+# Runs before 2026-08-27 wrote neither litfallc_nv nor fpc, so the column is
+# simply absent there and `method_natural_c = "litterfall"` says so rather
+# than quietly using production instead.
+.gn_attach_litterfall <- function(natural, data, years, run_dir) {
+  litterfall <- data$litterfall_nv
+  cover <- data$natural_cover
+  if (is.null(litterfall) || is.null(cover)) {
+    if (!.gn_has_litterfall_outputs(run_dir)) {
+      return(natural)
+    }
+    litterfall <- litterfall %||%
+      read_lpjml_litterfall("nv", years = years, run_dir = run_dir)
+    cover <- cover %||%
+      read_lpjml_natural_cover(years = years, run_dir = run_dir)
+  }
+  litterfall |>
+    dplyr::inner_join(cover, by = c("lon", "lat", "year")) |>
+    dplyr::filter(.data$natural_stand_frac > 0) |>
+    dplyr::mutate(
+      litterfall_c_mgc_ha_yr = .data$litterfall_c_mgc_ha_yr /
+        .data$natural_stand_frac
+    ) |>
+    dplyr::select("lon", "lat", "year", "litterfall_c_mgc_ha_yr") |>
+    dplyr::right_join(natural, by = c("lon", "lat", "year"))
+}
+
+# Both files, or neither: the per-cell to per-stand conversion needs the
+# stand fraction, so litterfall without fpc is not usable.
+.gn_has_litterfall_outputs <- function(run_dir) {
+  dir <- tryCatch(.resolve_run_dir(run_dir), error = function(e) NULL)
+  if (is.null(dir)) {
+    return(FALSE)
+  }
+  all(file.exists(file.path(dir, c("litfallc_nv.nc", "fpc.nc"))))
 }
 
 # The nine natural PFTs that are woody. The remaining five of
@@ -254,6 +311,7 @@ build_grass_natural_carbon_inputs <- function(
       "lat",
       "year",
       "npp_c_mgc_ha_yr",
+      dplyr::any_of("litterfall_c_mgc_ha_yr"),
       dplyr::any_of("woody_share")
     )
 }
@@ -338,13 +396,23 @@ build_grass_natural_carbon_inputs <- function(
 
 # Natural land is not harvested, so its input is the sum of the natural PFT
 # NPP densities (they coexist in one stand), converted to MgC/ha.
-.gn_natural_input <- function(d, method_natural_hf = "woody_share") {
+.gn_natural_input <- function(
+  d,
+  method_natural_hf = "woody_share",
+  method_natural_c = "npp"
+) {
   hf_woody <- .gn_humified(d$residue_humification, "woody_residue")
   hf_herb <- .gn_humified(d$residue_humification, "weed")
   rows <- .gn_net_c_class(d$net_c, "natural")
   hf <- .gn_natural_hf(rows, method_natural_hf, hf_woody, hf_herb)
+  column <- .gn_natural_c_column(rows, method_natural_c)
   rows |>
-    dplyr::rename(c_input_mgc_ha_yr = "npp_c_mgc_ha_yr") |>
+    dplyr::rename(c_input_mgc_ha_yr = dplyr::all_of(column)) |>
+    dplyr::select(
+      -dplyr::any_of(
+        setdiff(c("npp_c_mgc_ha_yr", "litterfall_c_mgc_ha_yr"), column)
+      )
+    ) |>
     dplyr::mutate(humified_fraction = hf) |>
     dplyr::select(-dplyr::any_of("woody_share")) |>
     .gn_attach_polity(d$country_grid) |>
@@ -355,10 +423,37 @@ build_grass_natural_carbon_inputs <- function(
       # here. The old label claimed a subtraction that does not happen, which
       # obscured that this class receives the whole of its PFTs' primary
       # production -- the term that sets its equilibrium (whep#799).
-      method_c_input = "lpjml_npp"
+      method_c_input = paste0("lpjml_", method_natural_c)
     )
 }
 
+# Which column carries natural land's carbon input.
+#
+# `"npp"` is the whole of the natural PFTs' primary production.
+# `"litterfall"` is what LPJmL actually returns to the soil, which is the
+# physically right quantity: production also contains the increment that stays
+# in living biomass, plus what fire and land conversion remove. Measured at
+# 2010, litterfall is 0.917 times production on near-pure natural cells and
+# 0.844 across all cells carrying natural vegetation, so the choice moves
+# natural equilibrium carbon by that factor.
+#
+# Asking for litterfall when the layer has none aborts. Falling back to
+# production would be a silent method substitution, and the two differ by far
+# more than a rounding.
+.gn_natural_c_column <- function(rows, method_natural_c) {
+  if (identical(method_natural_c, "npp")) {
+    return("npp_c_mgc_ha_yr")
+  }
+  if (!rlang::has_name(rows, "litterfall_c_mgc_ha_yr")) {
+    cli::cli_abort(c(
+      "The natural carbon layer carries no {.field litterfall_c_mgc_ha_yr}.",
+      i = "Only runs from 2026-08-27 write {.val litfallc_nv} and {.val fpc}.",
+      i = "Regenerate {.val lpjml-grass-natural-net-c} from such a run, pass",
+      i = "{.arg run_dir}, or use {.code method_natural_c = 'npp'}."
+    ))
+  }
+  "litterfall_c_mgc_ha_yr"
+}
 # The natural class's humification fraction.
 #
 # `"woody_share"` (default) carbon-weights the tabulated woody and

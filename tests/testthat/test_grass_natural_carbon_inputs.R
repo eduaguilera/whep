@@ -768,3 +768,137 @@ testthat::test_that("the natural output drops woody_share after using it", {
   out <- whep::build_grass_natural_carbon_inputs(example = TRUE)
   testthat::expect_false("woody_share" %in% names(out))
 })
+
+# -- method_natural_c: production or litterfall -------------------------------
+
+.gn_net_c_both <- function() {
+  # Both quantities side by side, as a pin regenerated from a 2026-08-27 run
+  # carries them. Natural litterfall sits below natural production because the
+  # stand also grows, burns and is converted.
+  tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~litterfall_c_mgc_ha_yr,
+    ~woody_share,
+    0.25, 0.25, 2000L, "grassland", 2, NA, NA,
+    0.25, 0.25, 2000L, "natural", 5, 4, 0.72
+  )
+}
+
+testthat::test_that("the default keeps natural land on production", {
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- .gn_net_c_both()
+  out <- whep::build_grass_natural_carbon_inputs(data = d) |>
+    dplyr::filter(land_use == "natural")
+  testthat::expect_equal(out$c_input_mgc_ha_yr, 5)
+  testthat::expect_identical(unique(out$method_c_input), "lpjml_npp")
+  # The unused quantity must not survive into the output as a stray column.
+  testthat::expect_false("litterfall_c_mgc_ha_yr" %in% names(out))
+  testthat::expect_false("npp_c_mgc_ha_yr" %in% names(out))
+})
+
+testthat::test_that("method_natural_c = litterfall switches the input", {
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- .gn_net_c_both()
+  out <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_natural_c = "litterfall"
+  ) |>
+    dplyr::filter(land_use == "natural")
+  testthat::expect_equal(out$c_input_mgc_ha_yr, 4)
+  testthat::expect_identical(unique(out$method_c_input), "lpjml_litterfall")
+
+  # Grassland is untouched: litfallc_nv covers the natural stand only.
+  grass <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_natural_c = "litterfall"
+  ) |>
+    dplyr::filter(land_use == "grassland")
+  base <- whep::build_grass_natural_carbon_inputs(data = d) |>
+    dplyr::filter(land_use == "grassland")
+  testthat::expect_equal(grass$c_input_mgc_ha_yr, base$c_input_mgc_ha_yr)
+})
+
+testthat::test_that("litterfall on a layer without it aborts, never falls back", {
+  # A silent fall back to production would substitute one method for another
+  # and move natural equilibrium carbon by ~0.92x with nothing recording it.
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "natural", 5
+  )
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(
+      data = d,
+      method_natural_c = "litterfall"
+    ),
+    "litterfall_c_mgc_ha_yr"
+  )
+})
+
+testthat::test_that("an unknown method is refused", {
+  testthat::expect_error(
+    whep::build_grass_natural_carbon_inputs(method_natural_c = "residues"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("litterfall is converted from per-cell to per-stand", {
+  # litfallc_nv is a whole-cell density; pft_npp is per-stand. Half-natural
+  # cell shedding 2 MgC/ha of cell area experiences 4 on its own stand.
+  natural <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "natural", 9
+  )
+  out <- whep:::.gn_attach_litterfall(
+    natural,
+    list(
+      litterfall_nv = tibble::tribble(
+        ~lon, ~lat, ~year, ~litterfall_c_mgc_ha_yr,
+        0.25, 0.25, 2000L, 2
+      ),
+      natural_cover = tibble::tribble(
+        ~lon, ~lat, ~year, ~natural_stand_frac, ~natural_cover,
+        0.25, 0.25, 2000L, 0.5, 0.9
+      )
+    ),
+    years = 2000L,
+    run_dir = NULL
+  )
+  testthat::expect_equal(out$litterfall_c_mgc_ha_yr, 4)
+  # The production column and the row itself survive the join.
+  testthat::expect_equal(out$npp_c_mgc_ha_yr, 9)
+  testthat::expect_identical(nrow(out), 1L)
+})
+
+testthat::test_that("a cell with no natural stand gets no per-stand value", {
+  # Dividing by zero would manufacture an infinite carbon input.
+  natural <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "natural", 9
+  )
+  out <- whep:::.gn_attach_litterfall(
+    natural,
+    list(
+      litterfall_nv = tibble::tribble(
+        ~lon, ~lat, ~year, ~litterfall_c_mgc_ha_yr,
+        0.25, 0.25, 2000L, 0
+      ),
+      natural_cover = tibble::tribble(
+        ~lon, ~lat, ~year, ~natural_stand_frac, ~natural_cover,
+        0.25, 0.25, 2000L, 0, 0
+      )
+    ),
+    years = 2000L,
+    run_dir = NULL
+  )
+  testthat::expect_identical(nrow(out), 1L)
+  testthat::expect_true(is.na(out$litterfall_c_mgc_ha_yr))
+})

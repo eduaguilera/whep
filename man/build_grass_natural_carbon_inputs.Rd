@@ -11,6 +11,7 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   method_natural_hf = c("woody_share", "woody"),
+  method_natural_c = c("npp", "litterfall"),
   data = list(),
   years = NULL,
   run_dir = NULL,
@@ -29,6 +30,16 @@ woody coefficient everywhere, which was the previous behaviour. Five of
 the fourteen natural PFTs are not woody and carry 28.1\% of natural
 production at 2010. Falls back to \code{"woody"}, with a warning, when the
 net-carbon layer has no \code{woody_share} column.}
+
+\item{method_natural_c}{Which LPJmL quantity is natural land's carbon
+input. \code{"npp"} (default) is the natural PFTs' whole primary production;
+\code{"litterfall"} is \code{litfallc_nv}, what the model actually returns to the
+soil, excluding the increment retained in living biomass and what fire
+and land conversion remove. Litterfall is the physically correct soil
+input and runs 0.917 times production on near-pure natural cells at 2010
+(0.844 across all cells carrying natural vegetation), but it needs a run
+from 2026-08-27 or later, so the default stays \code{"npp"} while the
+published pin predates those outputs. Recorded in \code{method_c_input}.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},
