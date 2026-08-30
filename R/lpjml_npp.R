@@ -41,6 +41,7 @@
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param first_year First calendar year of the run's annual time axis.
+#'   `NULL` (default) reads it from the file's own `time` axis.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `npft`,
 #'   `name_pft`, `value`) used in place of reading NetCDF, for testing.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
@@ -54,7 +55,7 @@ read_lpjml_npp <- function(
   var = c("npp", "harvestc"),
   years = NULL,
   run_dir = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   data = NULL,
   example = FALSE
 ) {
@@ -92,6 +93,7 @@ read_lpjml_npp <- function(
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
   names_pft <- .lpjml_npp_names(nc)
+  first_year <- .lpjml_resolve_first_year(nc, first_year, spec$file)
   keep <- .lpjml_npp_keep_years(nc, first_year, years)
   if (length(keep) == 0L) {
     return(tibble::tibble(

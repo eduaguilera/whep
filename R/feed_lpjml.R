@@ -72,7 +72,7 @@ build_grass_availability <- function(
 build_grass_availability_lpjml <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   shares = grass_access_shares(),
   example = FALSE,
   availability = NULL,
@@ -215,7 +215,7 @@ aggregate_grass_to_polity <- function(
 read_lpjml_grass_productivity <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   example = FALSE,
   productivity = NULL,
   productivity_path = NULL

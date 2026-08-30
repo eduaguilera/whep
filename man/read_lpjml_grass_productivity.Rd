@@ -7,7 +7,7 @@
 read_lpjml_grass_productivity(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   example = FALSE,
   productivity = NULL,
   productivity_path = NULL

@@ -32,7 +32,8 @@
 #'   uses `WHEP_LPJML_RUN_DIR`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   (default) keeps every year the file covers.
-#' @param first_year Calendar year of the file's first time step.
+#' @param first_year Calendar year of the file's first time step. `NULL`
+#'   (default) reads it from the file's own `time` axis.
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `year`, `natural_stand_frac` and
@@ -46,7 +47,7 @@
 read_lpjml_natural_cover <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -70,6 +71,7 @@ read_lpjml_natural_cover <- function(
 # a cover fraction. Coexisting PFTs can push the sum marginally above 1, so it
 # is capped.
 .fpc_natural_cover <- function(nc, years, first_year) {
+  first_year <- .lpjml_resolve_first_year(nc, first_year, "fpc.nc")
   bands <- as.character(ncdf4::ncvar_get(nc, "NamePFT"))
   if (length(bands) < 2L) {
     cli::cli_abort(

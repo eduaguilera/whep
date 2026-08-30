@@ -10,7 +10,7 @@ read_lpjml_hydrology(
     "cft_consump_water_b", "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   monthly = TRUE,
   agg = c("sum", "mean"),
   data = NULL,
@@ -40,7 +40,8 @@ have aborts, naming the coverage it does have: LPJmL runs ending in
 different years sit side by side in one folder, so the coverage is a
 property of \code{run_dir}, never an assumption of this reader.}
 
-\item{first_year}{First calendar year of the run's monthly time axis. The
+\item{first_year}{First calendar year of the run's monthly time axis.
+\code{NULL} (default) reads it from each file's own \code{time} axis. The
 last year is not an argument — it is read from the file's own time
 dimension.}
 

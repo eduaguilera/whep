@@ -8,7 +8,7 @@ read_lpjml_npp(
   var = c("npp", "harvestc"),
   years = NULL,
   run_dir = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   data = NULL,
   example = FALSE
 )
@@ -23,7 +23,8 @@ every year present in the file.}
 \item{run_dir}{Path to the LPJmL run output directory. Defaults to
 \code{Sys.getenv("WHEP_LPJML_RUN_DIR")}.}
 
-\item{first_year}{First calendar year of the run's annual time axis.}
+\item{first_year}{First calendar year of the run's annual time axis.
+\code{NULL} (default) reads it from the file's own \code{time} axis.}
 
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{npft},
 \code{name_pft}, \code{value}) used in place of reading NetCDF, for testing.}

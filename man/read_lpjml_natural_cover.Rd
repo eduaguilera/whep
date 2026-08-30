@@ -12,7 +12,7 @@ Development}, 11, 1343-1375. \doi{10.5194/gmd-11-1343-2018}.
 read_lpjml_natural_cover(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   example = FALSE
 )
 }
@@ -23,7 +23,8 @@ uses \code{WHEP_LPJML_RUN_DIR}.}
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the file covers.}
 
-\item{first_year}{Calendar year of the file's first time step.}
+\item{first_year}{Calendar year of the file's first time step. \code{NULL}
+(default) reads it from the file's own \code{time} axis.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a run.
 Defaults to \code{FALSE}.}

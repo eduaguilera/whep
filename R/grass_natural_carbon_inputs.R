@@ -619,7 +619,7 @@ build_grass_natural_carbon_inputs <- function(
 .gn_read_stand_frac <- function(
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L
+  first_year = NULL
 ) {
   rlang::check_installed("ncdf4")
   run_dir <- .resolve_run_dir(run_dir)
@@ -629,6 +629,7 @@ build_grass_natural_carbon_inputs <- function(
   }
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
+  first_year <- .lpjml_resolve_first_year(nc, first_year, "cftfrac.nc")
   keep <- .gn_stand_frac_keep_years(nc, first_year, years)
   parts <- purrr::map(keep, function(ti) {
     .gn_stand_frac_slice(nc, first_year, ti)

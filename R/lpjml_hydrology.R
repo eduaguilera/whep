@@ -1,8 +1,10 @@
 # Generalized LPJmL hydrology NetCDF reader.
 #
 # CONFIRMED LPJmL FACTS (run inspected; do not re-guess):
-# - Gridded NetCDF lon[720] x lat[277] x time, 0.5 deg, monthly, firstyear
-#   1901.
+# - Gridded NetCDF lon[720] x lat[277] x time, 0.5 deg, monthly. The FIRST
+#   year is read from each file's own time axis ("days since YYYY-M-D",
+#   noleap) and never assumed: it was assumed to be 1901 until 2026-08-30,
+#   which silently relabels every year of the 1750-2023 run by 151.
 # - The LAST year is a property of the run, not of this reader, so it is read
 #   from the file's own time dimension and never assumed. WHEP's runs end in
 #   different years and sit side by side in one LPJmL_runs/ folder: the
@@ -75,7 +77,8 @@
 #'   have aborts, naming the coverage it does have: LPJmL runs ending in
 #'   different years sit side by side in one folder, so the coverage is a
 #'   property of `run_dir`, never an assumption of this reader.
-#' @param first_year First calendar year of the run's monthly time axis. The
+#' @param first_year First calendar year of the run's monthly time axis.
+#'   `NULL` (default) reads it from each file's own `time` axis. The
 #'   last year is not an argument — it is read from the file's own time
 #'   dimension.
 #' @param monthly If `TRUE`, return one row per cell-month; if `FALSE`,
@@ -120,7 +123,7 @@ read_lpjml_hydrology <- function(
   ),
   run_dir = NULL,
   years = NULL,
-  first_year = 1901L,
+  first_year = NULL,
   monthly = TRUE,
   agg = c("sum", "mean"),
   data = NULL,
@@ -256,6 +259,42 @@ read_lpjml_hydrology <- function(
   resolved
 }
 
+# The calendar year of a file's first time step, taken from the file itself.
+#
+# Every LPJmL output stamps its time axis as "days since YYYY-M-D" on a noleap
+# calendar, so a run's start year is a property of the artifact and never has
+# to be assumed. It used to be assumed, and the assumption was 1901 -- which
+# silently relabels every year of the 1750-2023 run by 151, with no error and
+# no visible symptom downstream. Returns NULL when the units carry no
+# reference date, so the caller can say so rather than guess.
+.lpjml_first_year <- function(nc) {
+  units <- nc$dim$time$units %||% ""
+  ref <- stringr::str_match(units, "since\\s+(\\d{3,4})-")[, 2]
+  vals <- nc$dim$time$vals
+  if (is.na(ref) || length(vals) == 0L || !is.finite(vals[1])) {
+    return(NULL)
+  }
+  as.integer(ref) + as.integer(floor(vals[1] / 365))
+}
+
+# An explicit `first_year` always wins; otherwise the file is asked. A file
+# that cannot answer aborts rather than falling back to a year that happens
+# to be right for one run and wrong by 151 for another.
+.lpjml_resolve_first_year <- function(nc, first_year, what = "this file") {
+  if (!is.null(first_year)) {
+    return(as.integer(first_year))
+  }
+  derived <- .lpjml_first_year(nc)
+  if (is.null(derived)) {
+    cli::cli_abort(c(
+      "Cannot tell which year {what} starts in.",
+      i = "Its {.field time} axis carries no {.val since YYYY-} reference.",
+      i = "Pass {.arg first_year} explicitly."
+    ))
+  }
+  derived
+}
+
 # Read one logical hydrology variable into a long tibble. The synthetic "aet"
 # sums its three actual-evapotranspiration components per cell-month. `years`
 # (when supplied) is forwarded so only the covering NetCDF time slice is read
@@ -320,6 +359,7 @@ read_lpjml_hydrology <- function(
   nc <- ncdf4::nc_open(path)
   on.exit(ncdf4::nc_close(nc))
   netcdf_var <- .hydro_resolve_var(nc, netcdf_var, path)
+  first_year <- .lpjml_resolve_first_year(nc, first_year, basename(path))
   .hydro_check_coverage(nc, first_year, years, path, steps_per_year)
   lon <- ncdf4::ncvar_get(nc, "lon")
   lat <- ncdf4::ncvar_get(nc, "lat")

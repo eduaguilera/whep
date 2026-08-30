@@ -526,3 +526,53 @@ testthat::test_that("aet sums its three components, and checks coverage", {
     "outside the run's coverage"
   )
 })
+
+# ---- deriving the run's first year from the file's own time axis ------------
+
+testthat::test_that(".lpjml_first_year decodes the LPJmL time stamp", {
+  mk <- function(units, vals) {
+    list(dim = list(time = list(units = units, vals = vals)))
+  }
+  # Annual output: mid-year offsets on a noleap calendar.
+  testthat::expect_identical(
+    whep:::.lpjml_first_year(mk("days since 1750-1-1 0:0:0", c(182, 547))),
+    1750L
+  )
+  testthat::expect_identical(
+    whep:::.lpjml_first_year(mk("days since 1901-1-1 0:0:0", 182)),
+    1901L
+  )
+  # Monthly output starts 15 days in, still the reference year.
+  testthat::expect_identical(
+    whep:::.lpjml_first_year(mk("days since 1750-1-1 0:0:0", c(15, 45))),
+    1750L
+  )
+  # No reference date, and no usable values: unanswerable, so NULL.
+  testthat::expect_null(whep:::.lpjml_first_year(mk("years", 1)))
+  testthat::expect_null(
+    whep:::.lpjml_first_year(mk("days since 1750-1-1", numeric(0)))
+  )
+})
+
+testthat::test_that(".lpjml_resolve_first_year prefers the caller", {
+  mk <- function(units, vals) {
+    list(dim = list(time = list(units = units, vals = vals)))
+  }
+  nc <- mk("days since 1750-1-1 0:0:0", 182)
+  # An explicit value wins even when the file disagrees, so an odd file stays
+  # readable.
+  testthat::expect_identical(
+    whep:::.lpjml_resolve_first_year(nc, 1901L),
+    1901L
+  )
+  testthat::expect_identical(
+    whep:::.lpjml_resolve_first_year(nc, NULL),
+    1750L
+  )
+  # Unanswerable and unspecified must abort rather than fall back to a year
+  # that is right for one run and wrong by 151 for another.
+  testthat::expect_error(
+    whep:::.lpjml_resolve_first_year(mk("years", 1), NULL, "mprec.nc"),
+    "Cannot tell which year"
+  )
+})

@@ -102,10 +102,27 @@ testthat::test_that("a year outside the file's coverage is refused", {
 # sees the columns already bound, so `each = length(lon)` reads the lon COLUMN
 # rather than the axis and the grid expands by a factor of nlon. It only
 # appears on a genuine multi-cell read, so the test writes one.
-.write_litfall_nc <- function(path, nlon, nlat, nyear, var = "litfallc_nv") {
+.write_litfall_nc <- function(
+  path,
+  nlon,
+  nlat,
+  nyear,
+  var = "litfallc_nv",
+  since = NULL
+) {
   lon <- ncdf4::ncdim_def("lon", "degrees_east", seq_len(nlon) - 0.25)
   lat <- ncdf4::ncdim_def("lat", "degrees_north", seq_len(nlat) - 0.25)
-  tm <- ncdf4::ncdim_def("time", "years", seq_len(nyear), unlim = TRUE)
+  tm <- if (is.null(since)) {
+    ncdf4::ncdim_def("time", "years", seq_len(nyear), unlim = TRUE)
+  } else {
+    # How LPJmL really stamps it: mid-year offsets on a noleap calendar.
+    ncdf4::ncdim_def(
+      "time",
+      paste0("days since ", since, "-1-1 0:0:0"),
+      182 + 365 * (seq_len(nyear) - 1),
+      unlim = TRUE
+    )
+  }
   v <- ncdf4::ncvar_def(var, "gC/m2/yr", list(lon, lat, tm), -9999)
   nc <- ncdf4::nc_create(path, list(v))
   on.exit(ncdf4::nc_close(nc))
@@ -174,4 +191,61 @@ testthat::test_that("the crop file's odd variable name reads like the rest", {
   x <- whep::read_lpjml_litterfall("agr", run_dir = dir, first_year = 1901L)
   testthat::expect_identical(nrow(x), 6L)
   testthat::expect_true(all(x$class == "agr"))
+})
+
+# ---- the start year comes from the file, not from a default ----------------
+
+testthat::test_that("a 1750 run reads back as 1750, not as 1901", {
+  testthat::skip_if_not_installed("ncdf4")
+  # The whole point. Every reader defaulted to first_year = 1901L, so the
+  # 1750-2023 run would have had all 274 of its years relabelled by +151 with
+  # no error and no downstream symptom.
+  dir <- withr::local_tempdir()
+  .write_litfall_nc(
+    file.path(dir, "litfallc_nv.nc"),
+    nlon = 2,
+    nlat = 2,
+    nyear = 3,
+    since = 1750
+  )
+  x <- whep::read_lpjml_litterfall("nv", run_dir = dir)
+  testthat::expect_identical(sort(unique(x$year)), c(1750L, 1751L, 1752L))
+
+  # And selecting by calendar year selects the right slice.
+  y <- whep::read_lpjml_litterfall("nv", run_dir = dir, years = 1751L)
+  testthat::expect_identical(unique(y$year), 1751L)
+
+  # An explicit argument still overrides the file.
+  z <- whep::read_lpjml_litterfall("nv", run_dir = dir, first_year = 1901L)
+  testthat::expect_identical(sort(unique(z$year)), c(1901L, 1902L, 1903L))
+})
+
+testthat::test_that("a 1901 run still reads back as 1901", {
+  testthat::skip_if_not_installed("ncdf4")
+  dir <- withr::local_tempdir()
+  .write_litfall_nc(
+    file.path(dir, "litfallc_nv.nc"),
+    nlon = 2,
+    nlat = 2,
+    nyear = 2,
+    since = 1901
+  )
+  x <- whep::read_lpjml_litterfall("nv", run_dir = dir)
+  testthat::expect_identical(sort(unique(x$year)), c(1901L, 1902L))
+})
+
+testthat::test_that("a file that cannot say its year is refused, not guessed", {
+  testthat::skip_if_not_installed("ncdf4")
+  dir <- withr::local_tempdir()
+  # units "years", no "since YYYY-" reference.
+  .write_litfall_nc(
+    file.path(dir, "litfallc_nv.nc"),
+    nlon = 2,
+    nlat = 2,
+    nyear = 1
+  )
+  testthat::expect_error(
+    whep::read_lpjml_litterfall("nv", run_dir = dir),
+    "Cannot tell which year"
+  )
 })

@@ -1,5 +1,25 @@
 # whep (development version)
 
+* **Every LPJmL reader now takes the run's start year from the file instead
+  of assuming 1901.** All seven entry points defaulted to
+  `first_year = 1901L` and the builders passed nothing, so reading the
+  1750-2023 run would have stamped 1750 data as 1901 -- silently, with no
+  error, and no symptom in any downstream artifact, which would still have
+  loaded with a valid schema. A pin regenerated from that run would have
+  carried a 151-year offset into the soil-carbon march, the nitrogen balance
+  and the footprints.
+
+  LPJmL stamps every output's time axis as `"days since YYYY-M-D"` on a
+  noleap calendar, so the year never had to be assumed. `first_year` now
+  defaults to `NULL`, meaning read it from the file; an explicit value still
+  wins, and a file whose axis carries no reference date aborts rather than
+  falling back to a year that is right for one run and wrong by 151 for
+  another. Affects `read_lpjml_hydrology()`, `read_lpjml_npp()`,
+  `read_lpjml_litterfall()`, `read_lpjml_natural_cover()`,
+  `read_lpjml_grass_productivity()` and
+  `build_grass_availability_lpjml()`. No published value changes: every
+  shipped pin came from a run starting in 1901, where the assumption held.
+
 * **New `read_lpjml_litterfall()` reads carbon returned to the soil as litter,
   split by the stand that shed it** (`nv`, `agr`, `mgrass`, `luc`, `total`).
   Litterfall is what physically enters the soil; net primary production is
