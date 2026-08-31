@@ -410,7 +410,7 @@
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
     dt <- dt[,
-      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
+      .(value = sum(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
       by = by_cols
     ]
   } else {
@@ -418,6 +418,20 @@
   }
 
   .apply_bucket_area_labels(dt, labels)
+}
+
+# A bucket that folds several reporting areas (whep#414) is a *sum*, and the
+# FAOSTAT flag is a per-row provenance code (`A` official, `E` estimated,
+# `I` imputed, ...), not an additive quantity. Keeping whichever member's flag
+# happened to sort first (whep#581) asserted a provenance the summed value
+# does not have. There is no FAO-endorsed precedence over the flag vocabulary
+# to fall back on instead, so this keeps the flag when every folded member
+# agrees and reports the disagreement honestly as `NA` otherwise, rather than
+# inventing a "worst flag wins" ranking. Single-member groups are unaffected:
+# they keep their own flag exactly as before.
+.fold_fao_flag <- function(fao_flag) {
+  distinct_flags <- unique(fao_flag[!is.na(fao_flag)])
+  if (length(distinct_flags) == 1L) distinct_flags else NA_character_
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
