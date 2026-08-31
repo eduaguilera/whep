@@ -82,22 +82,20 @@ test_that("legacy below-ground fields stay retired from biomass_coefs", {
   )
 })
 
-test_that("only the known row has an out-of-range Edible_portion", {
+test_that("no row has an out-of-range Edible_portion", {
   # Edible_portion is a fraction of fresh matter, so (0, 1] is the whole valid
-  # range. Exactly one row breaks it: "ANIMAL PRODUCTS" at 4.0. That row is NOT
+  # range. One row used to break it: "ANIMAL PRODUCTS" at 4.0. That row is NOT
   # a data defect to clean upstream -- in afsetools' Biomass_coefs.xlsx it is
   # the VLOOKUP column-index vector the Coefs sheet depends on by absolute
-  # address, so editing it there breaks the workbook (#752). It is harmless
-  # only because nothing maps to it; this test pins both halves of that, so a
-  # new bad row or a new route to this one fails loudly.
+  # address, so editing it there breaks the workbook (#752). It is dropped at
+  # ingestion instead, so the packaged table now satisfies the bound outright.
   coefs <- whep::biomass_coefs
   out_of_range <- coefs[
     !is.na(coefs$Edible_portion) &
       (coefs$Edible_portion <= 0 | coefs$Edible_portion > 1),
   ]
 
-  testthat::expect_identical(out_of_range$Name_biomass, "ANIMAL PRODUCTS")
-  testthat::expect_identical(out_of_range$Edible_portion, 4)
+  testthat::expect_identical(nrow(out_of_range), 0L)
   testthat::expect_false(
     "ANIMAL PRODUCTS" %in% whep::items_full$Name_biomass
   )

@@ -64,20 +64,46 @@ compared <- supply |>
   )
 
 weighted <- function(x, w) sum(x * w, na.rm = TRUE) / sum(w[!is.na(x)])
+
+# Hoisted out of the `cli` strings below: `air format` cannot reflow inside a
+# string, and `line_length_linter` is off in the CI set, so a long line there is
+# caught by nothing (#483).
+med_energy <- stats::median(compared$ratio_energy, na.rm = TRUE)
+med_protein <- stats::median(compared$ratio_protein, na.rm = TRUE)
+world_whep <- round(weighted(
+  compared$energy_kcal_cap_day,
+  compared$population
+))
+world_fbs <- round(weighted(
+  compared[["Food supply (kcal/capita/day)"]],
+  compared$population
+))
 cli::cli_inform(c(
   "matched countries: {nrow(compared)}",
-  "*" = "energy  ratio median {round(stats::median(compared$ratio_energy, na.rm = TRUE), 2)}",
-  "*" = "protein ratio median {round(stats::median(compared$ratio_protein, na.rm = TRUE), 2)}",
-  "*" = "world (pop-weighted) WHEP {round(weighted(compared$energy_kcal_cap_day, compared$population))} kcal
-         vs FBS {round(weighted(compared[['Food supply (kcal/capita/day)']], compared$population))} kcal"
+  "*" = "energy  ratio median {round(med_energy, 2)}",
+  "*" = "protein ratio median {round(med_protein, 2)}",
+  "*" = "world (pop-weighted) WHEP {world_whep} kcal vs FBS {world_fbs} kcal"
 ))
 
 # The axis is expected to run high while #361 is open: Edible_N_kgFM is empty
 # for all 421 biomass_coefs rows, so build_food_supply() falls back to
 # whole-commodity nitrogen and counts inedible mass as food.
-if (stats::median(compared$ratio_energy, na.rm = TRUE) > 1.1) {
+#
+# GATED ON EITHER RATIO, AND PROTEIN IS THE ONE THAT MATTERS (#483). The
+# classification printed above comes from `normalize_nourishment(supply)`, which
+# defaults to `protein_g_cap_day`. Protein is the SJOS-N axis and energy the
+# secondary cross-check (`R/nourishment.R`, `R/food_supply.R`). This guard used
+# to test `ratio_energy` alone. Today both exceed 1.1, so it fired either way;
+# a run where protein drifted above the threshold while energy stayed below it
+# would have printed `Over` counts for an axis that is off, silently. Naming
+# which ratio tripped keeps the two distinguishable rather than merging them.
+high <- c(energy = med_energy, protein = med_protein) > 1.1
+if (any(high, na.rm = TRUE)) {
+  tripped <- names(high)[which(high)]
   cli::cli_warn(c(
-    "!" = "Energy supply runs above FAOSTAT FBS.",
+    "!" = "{.val {tripped}} supply runs above FAOSTAT FBS.",
+    i = "energy {round(med_energy, 2)}, protein {round(med_protein, 2)};
+         threshold 1.1.",
     i = "Expected while #361 is open (empty {.field Edible_*} coefficients)."
   ))
 }
@@ -146,7 +172,7 @@ net <- abs(sum(by_item$residual_t))
 
 cli::cli_inform(c(
   "items compared: {nrow(by_item)}; outside +-10%: {off_10}",
-  "*" = "net ratio {round(net_ratio, 4)} -- the number a Grand-Total check sees",
+  "*" = "net ratio {round(net_ratio, 4)} -- what a Grand-Total check sees",
   "*" = "gross item error {round(gross / 1e6, 2)} Mt against a net of
          {round(net / 1e6, 2)} Mt: cancellation factor
          {round(gross / max(net, 1), 1)}x"
@@ -184,7 +210,10 @@ cli::cli_inform("Country ratio spread, the eight largest-residual items:")
 print(country_spread)
 
 cat(sprintf(
-  "METRIC items_compared=%d items_off_10pct=%d net_ratio=%.4f cancellation=%.1f\n",
+  paste(
+    "METRIC items_compared=%d items_off_10pct=%d",
+    "net_ratio=%.4f cancellation=%.1f\n"
+  ),
   nrow(by_item),
   off_10,
   net_ratio,

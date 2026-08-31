@@ -34,6 +34,15 @@
 # neither `.pop_report_unmapped()` (which measures its drops against WORLD
 # population, 0.07%) nor `.pop_report_folded()` can see which uncovered area
 # actually reports food.
+#
+# A THIRD SOURCE, opt-in. Both the pin and UN WPP are keyed on a present-day
+# ISO3, so neither can reach a territory that no longer exists -- see
+# `R/population_reach.R`. `R/fbs_population.R` reads the FAOSTAT Food Balance
+# Sheet population instead, which is keyed on the FAOSTAT area code and so does
+# reach one; `.pop_fill_from_fbs()` below is where
+# `population_source = "pin_wpp_fbs_fallback"` uses it. It stays opt-in because
+# the three sources disagree on the VALUE for such a territory, not only on
+# whether they have one (#862, #863).
 
 #' Read national population on WHEP area codes.
 #'
@@ -84,15 +93,45 @@
 #' median 0.64%, a 95th percentile of 4.4% and a maximum of 81%. That is why
 #' `"pin"` remains the default.
 #'
+#' `population_source = "pin_wpp_fbs_fallback"` then fills what NEITHER of those
+#' reaches from [read_fbs_population()], the FAOSTAT Food Balance Sheet
+#' population. That source is keyed on the FAOSTAT area code rather than a
+#' present-day ISO3, so it is the only one that reaches a dissolved reporting
+#' area: it closes area 186 Serbia and Montenegro over 1992-2005 (#862) and area
+#' 151 Netherlands Antilles over 1961-2010 (#787), the two largest holes in the
+#' denominator. It is anti-joined like the WPP fill, so it too cannot move a
+#' denominator that was already published.
+#'
+#' It is opt-in and not the default because the sources disagree on the value,
+#' not just on the coverage. For area 186 in 2000 FAOSTAT gives 10,801,000; a UN
+#' WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`) gives
+#' 10,104,000, 6.5% lower; and the `SRB + MNE` sum a successor walk can actually
+#' reach today gives 8,311,000, 23% lower, because WPP publishes Kosovo
+#' separately and it carries no WHEP area code (#863). Which of the three a
+#' dissolved federation should be given is an open decision.
+#'
+#' Neither ISO3-keyed source can reach an area whose territory no longer exists,
+#' because both are keyed on a present-day ISO3 code. [population_source_reach()]
+#' reports which areas that leaves out and whether the polities database's
+#' `successor` relation could stand in for them. Against UN WPP 2024's
+#' vocabulary, exactly one reporting area outside the Rest-of-World bucket is
+#' unreachable by either route: area 151 Netherlands Antilles, `ANT-1961-2010`,
+#' which carries commodity-balance food in every year from 1961 to 2010 and for
+#' which upstream publishes no successor at all (#787). Reachable is not the
+#' same as safe to sum — see that function and the note at the top of
+#' `R/population_reach.R`.
+#'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   (default) keeps every year the pin covers.
 #' @param data Optional named list of pre-loaded inputs to avoid the pin read:
 #'   `gdp_population` (the raw pin, with `Year`, `area_code` as ISO3, `pop` in
-#'   thousands) and `wpp_population` (a [read_wpp_population()] output). Falls
-#'   back to [whep_read_file()] when absent.
-#' @param population_source `"pin"` (default, the `gdp-population` pin alone) or
+#'   thousands), `wpp_population` (a [read_wpp_population()] output) and
+#'   `fbs_population` (a [read_fbs_population()] output). Falls back to
+#'   [whep_read_file()] when absent.
+#' @param population_source `"pin"` (default, the `gdp-population` pin alone),
 #'   `"pin_wpp_fallback"`, which additionally fills country-years the pin does
-#'   not cover from UN WPP.
+#'   not cover from UN WPP, or `"pin_wpp_fbs_fallback"`, which then fills what
+#'   neither reaches from [read_fbs_population()].
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -113,7 +152,7 @@
 read_population <- function(
   years = NULL,
   data = list(),
-  population_source = c("pin", "pin_wpp_fallback"),
+  population_source = c("pin", "pin_wpp_fallback", "pin_wpp_fbs_fallback"),
   example = FALSE
 ) {
   if (isTRUE(example)) {
@@ -133,6 +172,7 @@ read_population <- function(
       .by = c("year", "area_code")
     ) |>
     .pop_fill_from_wpp(population_source, data$wpp_population, years) |>
+    .pop_fill_from_fbs(population_source, data$fbs_population, years) |>
     dplyr::arrange(.data$year, .data$area_code) |>
     .add_reporting_polity_columns()
 }
@@ -213,6 +253,47 @@ read_population <- function(
     fill <- dplyr::filter(fill, .data$year %in% years)
   }
   dplyr::bind_rows(pinned, fill)
+}
+
+# `pin_wpp_fbs_fallback`: after the WPP fill, fill what is STILL missing from
+# the FAOSTAT Food Balance Sheets. This is the only source that is not keyed on
+# a present-day ISO3, so it is the only one that can reach a dissolved
+# reporting area: area 186 Serbia and Montenegro (1992-2005, 110 Mt of food,
+# #862) and area 151 Netherlands Antilles (1961-2010, #787) are exactly the two
+# holes `population_source_reach()` reports and exactly what this closes. Like
+# the WPP fill it is anti-joined, so it can only add a denominator that was
+# missing, never move one that was published.
+#
+# It is NOT interchangeable with the other two, and the disagreement is a
+# vintage one rather than noise: FAOSTAT gives area 186 10,801,000 in 2000,
+# while a UN WPP 2024 territorial sum for the same ground (`SRB + MNE + XKX`)
+# gives 10,104,000 -- 6.5% apart -- and the `SRB + MNE` sum the successor walk
+# can actually reach today gives 8,311,000, 23% apart (#863). Which of those a
+# dissolved federation should get is an open decision, which is why this is
+# opt-in and `"pin"` remains the default.
+.pop_fill_from_fbs <- function(filled, population_source, fbs, years) {
+  if (population_source != "pin_wpp_fbs_fallback") {
+    return(filled)
+  }
+  fbs <- fbs %||% read_fbs_population(years = years)
+  .check_columns(
+    fbs,
+    c("year", "area_code", "population"),
+    "data$fbs_population"
+  )
+  fill <- fbs |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::transmute(
+      year = as.integer(.data$year),
+      area_code = as.integer(.data$area_code),
+      population = as.numeric(.data$population),
+      source_pop = "FAOSTAT FBS"
+    ) |>
+    dplyr::anti_join(filled, by = c("year", "area_code"))
+  if (!is.null(years)) {
+    fill <- dplyr::filter(fill, .data$year %in% years)
+  }
+  dplyr::bind_rows(filled, fill)
 }
 
 # Name the ISO3 codes that carry population but no numeric area_code. These are

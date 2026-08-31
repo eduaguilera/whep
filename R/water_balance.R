@@ -51,7 +51,11 @@
 #'   budget residual usable only when the seepage file is absent) and
 #'   `blue_green` (`"cft_native"` default, per-crop blue/green consumptive
 #'   water, or `"irrig_share"`, the irrigation share of water input). Members
-#'   left out take their default.
+#'   left out take their default. `"cft_native"` warns when the per-CFT cubes
+#'   report consumptive blue water on a *rainfed* band, which no irrigation can
+#'   supply: that is the signature of an LPJmL 6.x run without the green/blue
+#'   fix, whose split is unusable (the numbers are still returned, so the
+#'   warning changes nothing; `"irrig_share"` does not read those cubes).
 #' @param resolution `"grid"` (per cell, default) or `"polity"` (aggregated to
 #'   `year` and `area_code`).
 #' @param bands Optional character vector of LPJmL crop-functional-type band
@@ -61,9 +65,21 @@
 #'   band, the whole-cell total. Bands are matched on the `band_name` the file
 #'   itself carries, so an unknown name aborts rather than silently returning
 #'   the whole-cell total; the band index is never used, because which crop a
-#'   given index denotes is a property of how the run was configured. Only the
-#'   consumptive-water and `cft_nir` terms are per-CFT, so this leaves the
-#'   water budget itself (AET, runoff, drainage) untouched.
+#'   given index denotes is a property of how the run was configured. Only
+#'   `blue_consump_mm`, `green_consump_mm` and `cft_nir_mm` are per-CFT, so
+#'   this leaves the water budget itself untouched: `aet_mm`, `runoff_mm`,
+#'   `drainage_mm`, `soil_water_change_mm` and the blue/green AET split
+#'   (`aet_blue_mm`, `aet_green_mm`) are whole-cell quantities and take the same
+#'   values whatever `bands` asks for. The split in particular is computed from
+#'   the all-band consumptive totals, never the selected ones, because the
+#'   fraction of a cell's evapotranspiration that came from irrigation cannot
+#'   depend on which crop the caller asked about.
+#'
+#'   `bands` is also the only route to per-crop water today: read the per-CFT
+#'   cubes once into `data`, then call once per band. Nothing in WHEP consumes
+#'   the per-crop numbers yet, and on an LPJmL 6.x run without the green/blue
+#'   fix their blue/green split is unusable (see `method`), so treat a per-band
+#'   blue-water series as provisional.
 #' @param polity_validity What to do with a row whose `(area_code, year)`
 #'   resolves to a polity that did not exist in that year (the cell-polity
 #'   crosswalk has no year dimension, so an early-20th-century cell is labelled
@@ -304,7 +320,76 @@ get_soc_climate_drivers <- function(
     dplyr::inner_join,
     by = c("lon", "lat", "year")
   )
-  .wb_attach_cft_consump(wide, data, bands)
+  .wb_attach_cft_consump(wide, data, bands, method)
+}
+
+# Warn when the per-CFT consumptive-water cubes carry the LPJmL 6.x green/blue
+# defect, which makes the cft_native split wrong (#710, #737): 6.x merged the
+# green and blue infiltration routines into one call that keeps the irrigation
+# branch's constant green influx fraction of 0, so infiltrating rain is booked
+# as blue and the green fraction of soil water decays even on stands that are
+# never irrigated. Fixed upstream in lbm364dl/LPJmL#3.
+#
+# Detected from the data, not from a version stamp: a run directory carries
+# none, and runs from both model versions can sit side by side. A rainfed CFT
+# band receives no irrigation, so its consumptive blue water must be ~0.
+#
+# Measured on year 2005 of three completed global runs, exactly as this helper
+# computes it -- sum(blue) / (sum(blue) + sum(green)) over every rainfed band
+# and cell of read_lpjml_hydrology()'s output, with no cftfrac weighting:
+#   6.1.1 run without the fix (global_1901-2023_spinup_300_..._lpjml611) 0.899
+#   6.1.1 run with the fix    (the same run, ..._socn_diag)              0.0199
+#   5.9.7 run                 (global_1901-2023_spinup_200_our_inputs)   0.0002
+# A correct run is not exactly zero -- a cell's soil water can carry over from
+# a stand irrigated in an earlier year, and it is the "rainfed others" and rice
+# bands that carry nearly all of the residue -- so `tol` sits between the two
+# clusters at their geometric middle: 5x above the largest correct value and 9x
+# below the defect. Weighting each band by cftfrac widens the gap (0.780 /
+# 0.0029 / 0.0000), so the unweighted form used here is the conservative one.
+# The check reads the inputs as supplied, before `bands` narrows them, so it
+# sees every rainfed band even when the caller asked for one crop.
+.wb_warn_rainfed_blue <- function(blue, green, tol = 0.10) {
+  rainfed <- purrr::map(list(blue = blue, green = green), .wb_rainfed_rows)
+  if (any(purrr::map_lgl(rainfed, is.null))) {
+    return(invisible(NULL))
+  }
+  totals <- purrr::map_dbl(rainfed, \(x) sum(x$value, na.rm = TRUE))
+  if (sum(totals) <= 0) {
+    return(invisible(NULL))
+  }
+  share <- totals[["blue"]] / sum(totals)
+  if (share <= tol) {
+    return(invisible(NULL))
+  }
+  pct <- round(100 * share, 1)
+  bands <- sort(unique(rainfed$blue$band_name))
+  cli::cli_warn(
+    c(
+      "Rainfed CFT bands carry {.val {pct}}% of their consumptive water as
+       blue, which is impossible: they receive no irrigation.",
+      i = "These inputs come from an LPJmL 6.x run without the green/blue fix
+           (lbm364dl/LPJmL#3), which books infiltrating rain as blue water.",
+      i = "{.code blue_green = \"cft_native\"} is therefore wrong here. Use a
+           run built with the fix, or
+           {.code method = list(blue_green = \"irrig_share\")}, which does not
+           read these cubes.",
+      i = "Rainfed band{cli::qty(length(bands))}{?s} seen: {.val {bands}}."
+    ),
+    class = "whep_rainfed_blue_water"
+  )
+}
+
+# The rainfed rows of a per-CFT input, or NULL when the input is absent, carries
+# no band names, or names no rainfed band. Selection is on `band_name` (LPJmL
+# names its bands "rainfed <crop>" / "irrigated <crop>"), never on band index,
+# for the reason .wb_filter_bands() gives: the index is a property of how the
+# run was configured.
+.wb_rainfed_rows <- function(raw) {
+  if (is.null(raw) || !rlang::has_name(raw, "band_name")) {
+    return(NULL)
+  }
+  rows <- dplyr::filter(raw, stringr::str_starts(.data$band_name, "rainfed"))
+  if (nrow(rows) == 0L) NULL else rows
 }
 
 # Attach cell-level blue/green consumptive water and net irrigation requirement
@@ -313,17 +398,53 @@ get_soc_climate_drivers <- function(
 # when the corresponding per-CFT input is not supplied; the all-NA blue/green
 # consumptive columns make the cft_native split fall back (see .wb_blue_green()).
 # `bands` restricts which CFT bands are summed (see .wb_filter_bands()).
-.wb_attach_cft_consump <- function(wide, data, bands = NULL) {
+#
+# Two blue/green pairs come out of here, and they are not interchangeable
+# (#916). The `consump_*_mm` pair is band-restricted and is what the output
+# reports: "the water of the crops you asked for". The `consump_*_all_mm` pair
+# always totals every band and is the whole cell's, which is what the AET split
+# must use -- aet_blue_mm / aet_green_mm are cell budget terms, so the fraction
+# of the cell's AET that came from irrigation cannot depend on which crop the
+# caller asked about. With `bands = NULL` the two pairs are the same column, so
+# nothing is read or joined twice on the default path.
+.wb_attach_cft_consump <- function(wide, data, bands = NULL, method = NULL) {
+  if (identical(method$blue_green, "cft_native")) {
+    .wb_warn_rainfed_blue(data$cft_consump_water_b, data$cft_consump_water_g)
+  }
   band_inputs <- list(
     consump_blue_mm = data$cft_consump_water_b,
     consump_green_mm = data$cft_consump_water_g,
     cft_nir_mm = data$cft_nir
   )
-  purrr::reduce2(
+  out <- purrr::reduce2(
     purrr::map(band_inputs, .wb_filter_bands, bands = bands),
     names(band_inputs),
     .wb_join_cell_band,
     .init = wide
+  )
+  .wb_attach_cell_consump(out, data, bands)
+}
+
+# Attach the all-band (whole-cell) blue/green consumptive totals the AET split
+# uses. When no bands were selected these equal the reported columns, so they
+# are copied rather than re-summed.
+.wb_attach_cell_consump <- function(out, data, bands) {
+  if (is.null(bands)) {
+    return(dplyr::mutate(
+      out,
+      consump_blue_all_mm = consump_blue_mm,
+      consump_green_all_mm = consump_green_mm
+    ))
+  }
+  cell_inputs <- list(
+    consump_blue_all_mm = data$cft_consump_water_b,
+    consump_green_all_mm = data$cft_consump_water_g
+  )
+  purrr::reduce2(
+    cell_inputs,
+    names(cell_inputs),
+    .wb_join_cell_band,
+    .init = out
   )
 }
 
@@ -510,11 +631,14 @@ get_soc_climate_drivers <- function(
 }
 
 # Blue/green split from the per-CFT consumptive-water totals: the blue share is
-# blue / (blue + green), applied to total AET. The native consumptive-water mm
-# are exposed directly as blue_consump_mm and green_consump_mm.
+# blue / (blue + green), applied to total AET. The share uses the ALL-band
+# totals, because aet_mm is the whole cell's and a `bands`-restricted share
+# would make the cell's blue AET depend on which crop was requested (#916).
+# The band-restricted native consumptive-water mm are exposed directly as
+# blue_consump_mm and green_consump_mm.
 .wb_blue_green_cft <- function(terms) {
-  total <- terms$consump_blue_mm + terms$consump_green_mm
-  blue_share <- dplyr::if_else(total > 0, terms$consump_blue_mm / total, 0)
+  total <- terms$consump_blue_all_mm + terms$consump_green_all_mm
+  blue_share <- dplyr::if_else(total > 0, terms$consump_blue_all_mm / total, 0)
   dplyr::mutate(
     terms,
     aet_blue_mm = aet_mm * blue_share,

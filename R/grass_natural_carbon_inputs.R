@@ -197,6 +197,11 @@ build_grass_natural_carbon_inputs <- function(
 # harvested); grassland takes the stand-area-weighted mean of the rainfed and
 # irrigated net (NPP - harvest) densities.
 .gn_net_c_from_lpjml <- function(data, years, run_dir = NULL) {
+  # Whether this call is actually reading a run. A caller that injected npp
+  # is not, so the litterfall layer must be injected too rather than fetched
+  # from whatever WHEP_LPJML_RUN_DIR happens to point at -- which would make
+  # an injected-data path, and every test using one, read a real NetCDF.
+  read_run <- is.null(data$npp)
   npp <- data$npp %||% read_lpjml_npp("npp", years = years, run_dir = run_dir)
   harvestc <- data$harvestc %||%
     read_lpjml_npp("harvestc", years = years, run_dir = run_dir)
@@ -212,7 +217,7 @@ build_grass_natural_carbon_inputs <- function(
       .by = c("lon", "lat", "year")
     ) |>
     dplyr::mutate(land_use = "natural") |>
-    .gn_attach_litterfall(data, years, run_dir)
+    .gn_attach_litterfall(data, years, run_dir, read_run)
   grassland <- .gn_grassland_net(npp, harvestc, stand_frac) |>
     dplyr::mutate(land_use = "grassland")
   dplyr::bind_rows(natural, grassland) |>
@@ -238,11 +243,17 @@ build_grass_natural_carbon_inputs <- function(
 # Runs before 2026-08-27 wrote neither litfallc_nv nor fpc, so the column is
 # simply absent there and `method_natural_c = "litterfall"` says so rather
 # than quietly using production instead.
-.gn_attach_litterfall <- function(natural, data, years, run_dir) {
+.gn_attach_litterfall <- function(
+  natural,
+  data,
+  years,
+  run_dir,
+  read_run = TRUE
+) {
   litterfall <- data$litterfall_nv
   cover <- data$natural_cover
   if (is.null(litterfall) || is.null(cover)) {
-    if (!.gn_has_litterfall_outputs(run_dir)) {
+    if (!read_run || !.gn_has_litterfall_outputs(run_dir)) {
       return(natural)
     }
     litterfall <- litterfall %||%

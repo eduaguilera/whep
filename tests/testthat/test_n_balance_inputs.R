@@ -464,17 +464,28 @@ testthat::test_that("the manure engine resolution is never overwritten", {
   )
 })
 
-testthat::test_that("urban ISO3 area codes resolve instead of becoming NA", {
+testthat::test_that("the urban area_code is never a silent NA", {
+  # The property this has always been about: no urban row leaves here with an
+  # NA area_code. It used to be enforced by bridging an ISO3 through
+  # .manure_territory_to_area_code() (#463), which resolved "ESP" to 203 with
+  # a deprecation warning. build_urban_n() now refuses a non-numeric
+  # area_code outright (#597): unlike the manure path it manufactures its own
+  # territory key from a column its docs call `area_code`, and an ISO3 would
+  # resolve to a polity_area_code aggregation bucket that is not every
+  # territory's own code. Same property, enforced at the input boundary.
   data <- .nbi_full_data()
   data$cell_polity$area_code <- "ESP"
   data$cropland_ha$area_code <- "ESP"
+  testthat::expect_error(
+    whep:::.n_inputs_urban(data),
+    class = "whep_urban_area_code_unresolved"
+  )
 
-  # The iso3c form is a deprecated bridge (#463), so resolving it warns; what
-  # this test is about is that it still resolves rather than becoming NA.
-  testthat::expect_warning(out <- whep:::.n_inputs_urban(data), "deprecated")
-
-  testthat::expect_equal(out$area_code, 203L)
+  # The numeric vocabulary the driver actually supplies passes through with no
+  # NA, and no warning.
+  out <- testthat::expect_no_warning(whep:::.n_inputs_urban(.nbi_full_data()))
   testthat::expect_false(anyNA(out$area_code))
+  testthat::expect_true(is.integer(out$area_code))
 })
 
 testthat::test_that("polity resolution is the cell-summed aggregate of grid", {
@@ -697,8 +708,9 @@ testthat::test_that("the crops layer the carbon path builds resolves (#788)", {
   # to the crosswalk's own item_cbs_code -- an invariant, not a hand-picked
   # expectation. Narrowed to the bridge's own condition class: a bare
   # expect_no_warning() also catches dplyr's lifecycle warnings, which fire
-  # from unrelated code and differ by dplyr version (dplyr 1.2.0 deprecates
-  # dplyr::case_match(), which .ni_manure_fert_type() still uses).
+  # from unrelated code and differ by dplyr version (the dplyr 1.2.0
+  # deprecation that first exposed this is gone -- whep#850 removed the last
+  # dplyr::case_match() call -- but the next one will arrive the same way).
   resolved <- testthat::expect_no_warning(
     whep:::.ni_crop_to_item_cbs(layer$crop),
     class = "whep_crop_key_name_deprecated"
@@ -714,8 +726,11 @@ testthat::test_that("the code key survives the full nitrogen assembly (#788)", {
   #
   # The assertion is narrowed twice over, for two different reasons:
   #  * NOT bare. A bare expect_no_warning() failed in CI on dplyr 1.2.0, which
-  #    deprecates dplyr::case_match() and so warns from .ni_manure_fert_type()
-  #    -- unrelated to the key under test, and invisible on an older dplyr.
+  #    deprecates dplyr::case_match() and so warned from
+  #    .ni_manure_fert_type() -- unrelated to the key under test, and invisible
+  #    on an older dplyr. That call is gone (whep#850) and
+  #    test_dplyr_deprecations.R now guards against its return, but the
+  #    narrowing stays: the next dplyr deprecation would land the same way.
   #  * By MESSAGE, not by condition class. build_n_inputs() reaches the
   #    resolver from inside dplyr::mutate(), which catches an inner warning and
   #    re-signals its own chained one ("There was 1 warning in
@@ -1437,5 +1452,31 @@ testthat::test_that("polity_validity is validated", {
       data = .nbi_full_data()
     ),
     "polity_validity"
+  )
+})
+
+testthat::test_that("the manure_type bridge maps its whole vocabulary", {
+  # The mapping is load-bearing: fert_type is what the loss cascade and the
+  # published balance group on. Pinned because whep#850 rewrote it off the
+  # deprecated dplyr::case_match().
+  vocabulary <- c("Excreta", "Solid", "Liquid")
+
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(vocabulary),
+    c("excreta", "manure_solid", "manure_liquid")
+  )
+  testthat::expect_equal(
+    whep:::.ni_manure_fert_type(character()),
+    character()
+  )
+  # Nothing outside the vocabulary gets a silent NA: it aborts, naming the
+  # offending value.
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(c("Solid", "bogus")),
+    "bogus"
+  )
+  testthat::expect_error(
+    whep:::.ni_manure_fert_type(NA_character_),
+    "Unexpected"
   )
 })

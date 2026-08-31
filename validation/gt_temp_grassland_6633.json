@@ -1,0 +1,29 @@
+{
+  "recorded_at": "2026-08-26T16:26:51+0200",
+  "window": {
+    "year_min": 2001,
+    "year_max": 2023
+  },
+  "note": "Measured state of modelled temporary grassland against FAOSTAT RL 6633, official (flag A) rows only. Not a tolerance: every number is a measurement to be re-recorded when the reconstruction changes, and the gap between the two concepts is the open decision in issue #354.",
+  "cbs_3002": {
+    "n_pairs": 416,
+    "model_Mha": 157.98632666699999,
+    "fao_Mha": 276.42849050000001,
+    "sum_ratio": 0.5715269304594347,
+    "median_ratio": 0.90540353282605501
+  },
+  "green_fodder": {
+    "n_pairs": 673,
+    "model_Mha": 607.35678331388726,
+    "fao_Mha": 461.58164629999999,
+    "sum_ratio": 1.3158165801920605,
+    "median_ratio": 1.2118611045723591
+  },
+  "green_on_3002": {
+    "n_pairs": 416,
+    "model_Mha": 403.29889064773192,
+    "fao_Mha": 276.42849050000001,
+    "sum_ratio": 1.4589628222411173,
+    "median_ratio": 1.4816780041109812
+  }
+}

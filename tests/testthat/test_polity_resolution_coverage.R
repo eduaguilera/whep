@@ -100,3 +100,89 @@ testthat::test_that("two buckets carry one polity name per year, no more", {
 
   testthat::expect_equal(split_buckets, c(206L, 238L))
 })
+
+# WHAT A MISSING `polity_code` MEANS, AND WHAT IT DOES NOT (whep#875).
+#
+# `polity_area_crosswalk` is keyed on reporting areas, not on polities: the
+# builder starts from `regions_full.csv` and asks which polity each area names,
+# so a polity gets a row only if some area names it. Reading an absent polity as
+# a coverage gap is what #875 did, and the two tests below pin the reason it is
+# not one. They are tripwires: a re-sync that makes either fail is telling the
+# maintainer that an absence stopped being structural.
+
+.live_polity_attrs <- function() {
+  attrs <- tibble::as_tibble(sf::st_drop_geometry(whep::polities))
+  attrs[whep:::.polity_is_live(attrs$wiki_status), , drop = FALSE]
+}
+
+.absent_from_crosswalk <- function() {
+  live <- .live_polity_attrs()
+  absent <- live[
+    !live$polity_code %in% whep::polity_area_crosswalk$polity_code,
+  ]
+  dplyr::mutate(
+    absent,
+    polity_prefix = sub("-[0-9]{4}-[0-9]{4}$", "", .data$polity_code)
+  )
+}
+
+testthat::test_that("an absent polity is one no reporting area names", {
+  testthat::skip_if_not_installed("sf")
+
+  absent <- .absent_from_crosswalk()
+
+  # Non-vacuity, and the scale of the thing: absence is ordinary. 176 of the
+  # 735 live polities have no row, only 8 of them aggregates, so the 8 are a
+  # slice of a normal phenomenon rather than a class of their own.
+  testthat::expect_gt(nrow(absent), 100L)
+  testthat::expect_equal(sum(absent$polity_type == "aggregate"), 8L)
+
+  # The invariant that makes absence structural: no absent AGGREGATE carries a
+  # prefix that any reporting area carries, so the row space has no slot to put
+  # it in. Were one to appear, the crosswalk really would be omitting a polity
+  # some area names, and that would be the bug #875 assumed.
+  prefixes <- unique(whep::polity_area_crosswalk$legacy_polity_prefix)
+  aggregates <- absent[absent$polity_type == "aggregate", ]
+  testthat::expect_equal(
+    intersect(aggregates$polity_prefix, prefixes),
+    character(0)
+  )
+})
+
+testthat::test_that("absent aggregates are label-reachable but for three", {
+  testthat::skip_if_not_installed("sf")
+
+  absent <- .absent_from_crosswalk()
+  aggregates <- absent[absent$polity_type == "aggregate", ]
+  reachable <- aggregates$polity_code %in%
+    whep::polity_label_aliases$polity_code
+
+  # Five resolve by the LABEL route instead of by an area code, which is the
+  # route a pre-FAOSTAT combined reporting unit is supposed to take: it never
+  # had an area code to be absent from.
+  testthat::expect_setequal(
+    aggregates$polity_code[reachable],
+    c(
+      "AOI-1936-1941",
+      "GCT-1919-1956",
+      "MASG-1946-1963",
+      "PAPNG-1920-1949",
+      "SYL-1944-1953"
+    )
+  )
+
+  # Three are reachable from neither route, and they are not one defect:
+  #   EGYSUD-1934-1956, CODRU-1922-1960  upstream composed-union identities for
+  #     footnote series that fold a colony into its metropole. Upstream has
+  #     registered no label for either, so nothing in this package can reach
+  #     them and nothing here can fix that.
+  #   F206-2011-2025  a real gap, but in the BUCKET vocabulary. FAOSTAT stops
+  #     reporting area 206 in 2011, so upstream adds no map row; the post-2011
+  #     combination is WHEP's own fold of 276 and 277 into `polity_area_code`
+  #     206, and this table has no column in which to say so. Expressing it is
+  #     whep#742, labelling it whep#860.
+  testthat::expect_setequal(
+    aggregates$polity_code[!reachable],
+    c("CODRU-1922-1960", "EGYSUD-1934-1956", "F206-2011-2025")
+  )
+})

@@ -70,10 +70,12 @@
 #'   demand columns would otherwise make positive-only paths larger
 #'   than the source extension.
 #' @param report_conservation If `TRUE`, emit a message after
-#'   computing the footprint reporting the conservation gap (the
-#'   share of the direct extension that is not embodied in final
-#'   demand), via [check_footprint_conservation()]. Off by default
-#'   so the gap is opt-in but never silent when requested.
+#'   computing the footprint reporting the conservation gap: the
+#'   signed global discrepancy between direct extension and
+#'   embodied footprint, via [check_footprint_conservation()] --
+#'   the share not embodied in final demand when negative, or the
+#'   share over-traced when positive. Off by default so the gap is
+#'   opt-in but never silent when requested.
 #'
 #' @return A tibble with footprint results containing:
 #'   - `origin_area`: Country where the pressure occurs.
@@ -227,10 +229,19 @@ compute_footprint <- function(
   ) |>
     summarise_conservation()
   rel <- summary$global_rel_discrepancy
-  not_embodied <- if (length(rel) == 0 || is.na(rel)) 0 else -min(rel, 0)
+  rel <- if (length(rel) == 0 || is.na(rel)) 0 else rel
+  pct <- round(100 * abs(rel), 1)
+  gap <- if (rel < 0) {
+    paste0(pct, "% of direct extension is not embodied in final demand")
+  } else {
+    paste0(
+      "embodied pressure exceeds direct extension by ",
+      pct,
+      "% (over-traced)"
+    )
+  }
   cli::cli_inform(c(
-    "i" = "Conservation: {round(100 * not_embodied, 1)}% of direct extension
-      is not embodied in final demand.",
+    "i" = "Conservation: {gap}.",
     "i" = "Sectors: {summary$n_under_traced} under-traced,
       {summary$n_dropped} dropped, {summary$n_over_traced} over-traced."
   ))

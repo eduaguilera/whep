@@ -47,6 +47,10 @@ For use:
 \item \code{export}: Released as export for other countries.
 \item \code{seed}: Intended for new production.
 \item \code{processing}: Used to obtain other subproducts.
+\item \code{processing_primary}: Used to obtain other subproducts, for the
+handful of primary items (palm fruit, hops, seed cotton,
+coconuts, hemp, kapok fruit, linum) whose entire domestic supply
+is destined for processing. Zero for every other item.
 \item \code{other_uses}: Any other use not included above.
 \item \code{stock_addition}: Biomass placed into storage
 (non-negative). Positive when stocks increase.

@@ -324,10 +324,26 @@ read_luh2_terrestrial <- function(vintage = c("GCB2022", "v2h"), dir = NULL) {
 #' parquet named by `Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH")` so a development
 #' build can be used before it is published.
 #'
+#' A support table may carry a second, **non-partitioning** layer: the
+#' aggregate polities of [build_polycell_support()]`(aggregates =
+#' "overlap_layer")`, whose polygons cover their members' and therefore claim
+#' ground twice. This returns the partition alone unless asked otherwise, so a
+#' consumer that never heard of the layer cannot pick a row of it up by
+#' accident.
+#'
 #' @param path Optional path to a local parquet, overriding the environment
 #'   variable and the pin.
 #' @param version Pin version, passed to [whep_read_file()]. `NULL` takes the
 #'   version frozen in [whep_inputs].
+#' @param role Which layer to return. `"partition"` (default) is the rows that
+#'   partition each cell -- every row of a table built with the default
+#'   `aggregates = "exclude"`, and every row of any table published before
+#'   whep#803. `"overlap"` is the aggregate layer alone, for a consumer that
+#'   needs the territory of a reporting bucket whose only polity is an
+#'   aggregate; it aborts rather than returning nothing when the table carries
+#'   no such layer. `"all"` returns both and is only correct where the two are
+#'   kept apart afterwards -- summing across them double-counts every member an
+#'   aggregate covers.
 #'
 #' @return A `tibble` in the [build_polycell_support()] grain.
 #' @export
@@ -337,15 +353,21 @@ read_luh2_terrestrial <- function(vintage = c("GCB2022", "v2h"), dir = NULL) {
 #' if (nzchar(Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH"))) {
 #'   read_polycell_support()
 #' }
-read_polycell_support <- function(path = NULL, version = NULL) {
+read_polycell_support <- function(
+  path = NULL,
+  version = NULL,
+  role = c("partition", "overlap", "all")
+) {
+  role <- rlang::arg_match(role)
   path <- path %||% Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH", "")
   if (nzchar(path)) {
     if (!file.exists(path)) {
       cli::cli_abort("Polycell support table not found at {.file {path}}.")
     }
-    return(tibble::as_tibble(nanoparquet::read_parquet(path)))
+    support <- tibble::as_tibble(nanoparquet::read_parquet(path))
+    return(.polycell_support_role(support, role))
   }
-  tryCatch(
+  support <- tryCatch(
     whep_read_file("polycell_support", version = version),
     error = function(e) {
       cli::cli_abort(
@@ -360,6 +382,42 @@ read_polycell_support <- function(path = NULL, version = NULL) {
       )
     }
   )
+  .polycell_support_role(support, role)
+}
+
+# The default is the PARTITION, and that is the whole consumer-side contract of
+# whep#803. The producer may now emit aggregate polities, whose polygons cover
+# their members', and every consumer that reads this table sums hectares over
+# it. Defaulting to everything would turn admitting an aggregate
+# into a silent double count of every member it covers, in a caller that never
+# asked for one.
+#
+# A table with no `support_role` column is not a failure: it is every polycell
+# published before whep#803, and every row of it partitions. It answers
+# `"partition"` and `"all"` identically and truthfully. What it cannot answer is
+# `"overlap"`, and that ABORTS rather than returning zero rows -- a consumer
+# asking for a bucket's territory and silently receiving none would report the
+# bucket as having no land, which is the very failure whep#803 exists to fix.
+.polycell_support_role <- function(support, role) {
+  if (identical(role, "all")) {
+    return(support)
+  }
+  roles <- support[["support_role"]] %||% rep("partition", nrow(support))
+  if (identical(role, "partition")) {
+    return(support[!(roles %in% "overlap"), , drop = FALSE])
+  }
+  if (!any(roles %in% "overlap")) {
+    cli::cli_abort(
+      c(
+        "This polycell support carries no {.val overlap} layer.",
+        i = "Rebuild it with {.code build_polycell_support(aggregates =
+           \"overlap_layer\")}, which clips the aggregate polities too, or read
+           it with {.code role = \"partition\"}."
+      ),
+      class = "whep_polycell_no_overlap_layer"
+    )
+  }
+  support[roles %in% "overlap", , drop = FALSE]
 }
 
 # -- Path resolution ----------------------------------------------------------

@@ -462,3 +462,113 @@ build_historical_land_areas <- function(
   ))
   invisible(NULL)
 }
+
+# Say when the PUBLISHED series was measured on a polity vocabulary the current
+# `whep::polities` no longer agrees with (whep#905).
+#
+# The pin is static per LUH2 vintage AND polities snapshot, and nothing
+# rebuilds it when the snapshot is re-synced. The only guard
+# `.historical_land_wide()` carried was on year coverage, which cannot see the
+# failure that actually happens: the buckets and the years are unchanged, every
+# row still carries a number, and each one is measured inside the borders of a
+# polity period that has since been redrawn or retired. No identity or total
+# over the pin can detect that either -- the land still adds up, on the wrong
+# territory. That is the same shape as whep#885, where a missing water layer
+# was zero-filled and the producer's own
+# `polity_area_ha == land + water + ice` still held.
+#
+# So the check is on the INPUT the pin was built from rather than on its
+# totals. The pin records, per bucket-year, the `polity_code` it was measured
+# on, and that label must be what `.polity_area_by_year()` resolves for the
+# same bucket-year today. Two things are reported and they fail differently:
+#
+#   * a code the pin names that `whep::polities` has dropped outright -- the
+#     unambiguous proof of a snapshot change;
+#   * a bucket-year whose label has moved -- a redrawn period boundary, which
+#     is where the land actually shifts, because a different period is a
+#     different polygon.
+#
+# It WARNS rather than aborts. A stale label is a mislabelling, not a missing
+# number: the series is still a land reconstruction, and aborting would make
+# `land_method = "historical_polity"` unusable for everyone until a
+# tens-of-minutes rebuild had been re-uploaded, which no caller can do.
+# Aborting, matching the year-gap guard beside it, is the alternative.
+#
+# Bucket-years the pin does NOT carry are deliberately not reported: the pin
+# legitimately omits a bucket whose polity has no polycell, so counting those
+# as drift would fire on every run. The check therefore has no false positives
+# and one blind spot -- a bucket that is new in the snapshot and absent from
+# the pin is invisible here.
+.warn_stale_hist_land <- function(land, years) {
+  if (!rlang::has_name(land, "polity_code")) {
+    cli::cli_warn(c(
+      "!" = "The {.val historical-land-areas} pin carries no
+        {.field polity_code} column, so it cannot be checked against
+        {.code whep::polities}.",
+      "i" = "Regenerate it with {.file data-raw/historical_land_areas.R}; the
+        column has been part of the schema since whep#800."
+    ))
+    return(invisible(NULL))
+  }
+  labelled <- land |>
+    dplyr::filter(!is.na(.data$polity_code)) |>
+    dplyr::select("year", "area_code", "polity_code")
+  .inform_hist_land_drift(
+    .hist_land_retired_codes(labelled$polity_code),
+    .hist_land_moved_labels(labelled, years)
+  )
+}
+
+# Polity codes the pin names that the current snapshot has dropped. Split on
+# "; " because `.label_land_polities()` collapses a bucket holding more than
+# one polity in a year into one semicolon-separated label.
+.hist_land_retired_codes <- function(labels) {
+  named <- unique(unlist(stringr::str_split(labels, "; ")))
+  sort(setdiff(named, whep::polities$polity_code))
+}
+
+# Bucket-years whose label is not what the resolver returns today. The
+# resolver's own census is suppressed: it reports on the request made here, not
+# on the pin, so repeating it would read as a diagnostic of the drift.
+.hist_land_moved_labels <- function(labelled, years) {
+  today <- suppressMessages(.polity_area_by_year(years)) |>
+    tibble::as_tibble() |>
+    dplyr::summarise(
+      expected = paste(sort(unique(.data$polity_code)), collapse = "; "),
+      .by = c("year", "area_code")
+    )
+  labelled |>
+    dplyr::inner_join(today, by = c("year", "area_code")) |>
+    dplyr::filter(.data$polity_code != .data$expected)
+}
+
+.inform_hist_land_drift <- function(retired, moved) {
+  if (length(retired) == 0L && nrow(moved) == 0L) {
+    return(invisible(NULL))
+  }
+  examples <- utils::head(
+    paste0(
+      moved$area_code,
+      "@",
+      moved$year,
+      ": ",
+      moved$polity_code,
+      " -> ",
+      moved$expected
+    ),
+    3
+  )
+  cli::cli_warn(c(
+    "!" = "The {.val historical-land-areas} pin was measured on a different
+      {.code whep::polities} snapshot: it names {length(retired)} polity
+      code{?s} the snapshot no longer has, and {nrow(moved)} bucket-year{?s}
+      resolve to a different polity today.",
+    "*" = "Retired: {.val {utils::head(retired, 5)}}.",
+    "*" = "Moved: {.val {examples}}.",
+    "i" = "Those bucket-years are measured inside a period's polygon that has
+      since been redrawn, so their land is attributed to the wrong territory.
+      Regenerate the pin with {.file data-raw/historical_land_areas.R} against
+      the current snapshot and re-upload."
+  ))
+  invisible(NULL)
+}

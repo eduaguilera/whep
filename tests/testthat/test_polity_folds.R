@@ -1081,3 +1081,126 @@ testthat::test_that("a fallback label does not borrow the member's polity", {
     as.data.frame(whep:::.add_reporting_polity_columns(stripped))
   )
 })
+
+
+# -- area-vintage mismatch (#884) ----------------------------------------------
+
+test_that(".area_reporting_windows says when each area code reports", {
+  windows <- whep:::.area_reporting_windows()
+
+  expect_true(all(
+    c("area_code", "window_start", "window_end") %in% names(windows)
+  ))
+  expect_equal(anyDuplicated(windows$area_code), 0L)
+  # Belgium-Luxembourg (15) is the FAOSTAT vocabulary until 1999; Belgium (255)
+  # and Luxembourg (256) only start at 2000. That is the mismatch #884 is about.
+  belux <- windows[windows$area_code == 15L, ]
+  belgium <- windows[windows$area_code == 255L, ]
+  expect_equal(belux$window_end, 1999L)
+  expect_equal(belgium$window_start, 2000L)
+})
+
+test_that(".off_window_area_years flags a source's wrong-vintage area-years", {
+  # FishStat's shape: Belgium keyed 255 in 1976-1999, when the territory
+  # reports as 15. Area 15 in the same years is on-window and must not flag.
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1976L, 1,
+    255L, 1990L, 1,
+    15L, 1990L, 1,
+    255L, 2000L, 1
+  )
+
+  off <- whep:::.off_window_area_years(dt)
+
+  expect_equal(off$area_code, 255L)
+  expect_equal(off$rows, 2L)
+  expect_equal(off$year_min, 1976L)
+  expect_equal(off$year_max, 1990L)
+})
+
+test_that(".off_window_area_years does not flag a deliberate fold", {
+  # FAOSTAT reports Sudan (276) and South Sudan (277) from 2012 and WHEP sums
+  # them into bucket 206, whose own window ends 2011, so both the members and
+  # the bucket look off-window while nothing is wrong.
+  members <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    276L, 2015L, 1,
+    277L, 2015L, 1
+  )
+  # The same fold seen from the other side, which is the shape a table that has
+  # already been through `.aggregate_to_polities()` has: bucket 238 in 1990,
+  # reported by area 62 (Ethiopia PDR) and folded onto 238. The crosswalked
+  # trade record the CBS recovery reads is exactly this, and a check on the
+  # bucket's own window declines 29 real trade rows at 1990.
+  bucket <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    206L, 2015L, 1,
+    238L, 1990L, 1
+  )
+
+  expect_equal(nrow(whep:::.off_window_area_years(members)), 0L)
+  expect_equal(nrow(whep:::.off_window_area_years(bucket)), 0L)
+})
+
+test_that(".reported_bucket_years follows a fold across its handover", {
+  # Bucket 238 is reported in 1990 by area 62 and in 2000 by area 238 itself.
+  reported <- whep:::.reported_bucket_years(c(1990L, 2000L))
+
+  expect_true(all(
+    c(1990L, 2000L) %in% reported$year[reported$area_code == 238L]
+  ))
+  # Nothing reports bucket 255 before 2000, which is the whole of #884.
+  expect_false(1990L %in% reported$year[reported$area_code == 255L])
+  expect_true(2000L %in% reported$year[reported$area_code == 255L])
+})
+
+test_that(".off_window_area_years tolerates empty and column-less input", {
+  empty <- tibble::tibble(area_code = integer(), year = integer())
+
+  expect_equal(nrow(whep:::.off_window_area_years(empty)), 0L)
+  expect_equal(nrow(whep:::.off_window_area_years(tibble::tibble(x = 1))), 0L)
+})
+
+test_that(".warn_off_window_area_years names the area and can be silenced", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1990L, 1
+  )
+
+  expect_warning(
+    whep:::.warn_off_window_area_years(dt, "fishstat-trade"),
+    "255"
+  )
+  withr::local_options(whep.warn_area_vintage = FALSE)
+  expect_no_warning(
+    whep:::.warn_off_window_area_years(dt, "fishstat-trade")
+  )
+})
+
+test_that(".warn_off_window_area_years is silent on an on-window source", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    15L, 1990L, 1,
+    255L, 2010L, 1
+  )
+
+  expect_no_warning(whep:::.warn_off_window_area_years(dt, "faostat-fbs-old"))
+})
+
+test_that(".abort_if_off_window_areas aborts on a created area-year", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1990L, 1
+  )
+
+  expect_error(
+    whep:::.abort_if_off_window_areas(dt),
+    class = "whep_error_off_window_area_year"
+  )
+  expect_no_error(
+    whep:::.abort_if_off_window_areas(
+      tibble::tribble(~area_code, ~year, ~value, 15L, 1990L, 1)
+    )
+  )
+})

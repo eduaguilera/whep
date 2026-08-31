@@ -24,10 +24,9 @@ A tibble with \code{lon}, \code{lat}, \code{year}, \code{month}, \code{windspeed
 Reads the GSWP3-W5E5 monthly windspeed forcing used to drive LPJmL
 (single consolidated NetCDF, already on WHEP's native 0.5-degree grid) and
 returns it in tidy long form. The file's \code{wind} variable carries no
-\code{units} attribute; per the GSWP3-W5E5 forcing convention its physical
-unit is assumed to be metres per second (m/s), and that assumption is
-encoded only in the output column name (\code{windspeed_ms}), not inferred
-from file metadata.
+\code{units} attribute, because the monthly aggregation dropped it; the unit is
+metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
+is derived from, which declares \code{units = "m s-1"} and \code{standard_name = "wind_speed"}. That is why the output column is named \code{windspeed_ms}.
 }
 \examples{
 read_lpjml_wind(example = TRUE)

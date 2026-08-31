@@ -31,7 +31,9 @@ test_that("sourcing the script defines the helpers the tests need", {
     ".spatialize_label_area_code",
     ".crops_manure_label_year",
     ".grass_share_area_code",
-    ".dedup_grass_share"
+    ".dedup_grass_share",
+    ".hani_deposition_rate",
+    ".extract_hani_deposition"
   )
   # The script is sourced into `topenv()`, which this frame's enclosing chain
   # reaches -- so `exists()` needs that env named, not `vapply()`'s own frame.
@@ -583,4 +585,119 @@ test_that(".dedup_grass_share aborts when two labels disagree", {
     1961L, 276L,       0.05
   )
   expect_equal(nrow(.dedup_grass_share(agree)), 1L)
+})
+
+
+# ---- HaNi N deposition (whep#259) ---------------------------------------
+#
+# HaNi's NetCDF declares `units = "g N"`, `long_name = "NHX-N deposition to
+# land within the grid cell"` -- an extensive mass per 5-arcmin cell, so the
+# conversion to kg N/ha is exactly `value_g / 1000 / cell_area_ha` and the
+# mass must survive the round trip. The bug these tests lock out divided by a
+# fixed 1e7 (1000 g/kg times an assumed 1e4 ha per native cell), which is
+# latitude-blind: it gave two cells carrying the same grams the same rate, and
+# lost 29% of HaNi's 2014 mass globally.
+
+.hani_mass_fixture <- function() {
+  # Same 1e9 g N in every cell, at latitudes whose true 0.5-degree areas
+  # differ by a factor of three, so a latitude-blind divisor is detectable.
+  tibble::tribble(
+    ~lon,  ~lat,  ~year, ~value_g,
+    10.25,  0.25, 2014L, 1e9,
+    10.25, 40.25, 2014L, 1e9,
+    10.25, 70.25, 2014L, 1e9
+  )
+}
+
+
+test_that(".hani_deposition_rate conserves the HaNi source mass", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  nhx <- .hani_mass_fixture()
+  noy <- dplyr::mutate(.hani_mass_fixture(), value_g = 4e8)
+  out <- .hani_deposition_rate(nhx, noy)
+  expect_equal(nrow(out), 3L)
+  # rate x whole-cell area x 1000 g/kg == the two species' summed grams.
+  recovered <- out$deposit_kg_n_ha * cell_area_ha_by_lat(out$lat) * 1000
+  expect_equal(recovered, rep(1.4e9, 3L))
+  # Per species too, so a mix-up between the two cannot hide in the total.
+  expect_equal(
+    out$nhx * cell_area_ha_by_lat(out$lat) * 1000,
+    rep(1e9, 3L)
+  )
+  expect_equal(out$deposit_kg_n_ha, out$nhx + out$noy)
+  expect_equal(unique(out$method_deposition), "hani")
+})
+
+
+test_that(".hani_deposition_rate scales the rate with the cell area", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  out <- .hani_deposition_rate(
+    .hani_mass_fixture(),
+    dplyr::mutate(.hani_mass_fixture(), value_g = 0)
+  )
+  # The whole point: equal grams at unequal latitudes are unequal rates. A
+  # fixed divisor makes these three identical.
+  expect_gt(dplyr::n_distinct(round(out$deposit_kg_n_ha, 6)), 1L)
+  # And the ordering is forced: the poleward cell is smaller, so its rate is
+  # higher, in the exact ratio of the two cell areas.
+  areas <- cell_area_ha_by_lat(out$lat)
+  expect_equal(
+    out$deposit_kg_n_ha[out$lat == 70.25] /
+      out$deposit_kg_n_ha[out$lat == 0.25],
+    areas[out$lat == 0.25] / areas[out$lat == 70.25]
+  )
+})
+
+
+test_that(".hani_deposition_rate drops the land-masked ocean", {
+  .need_spatialize_helper(".hani_deposition_rate")
+  zeros <- dplyr::mutate(.hani_mass_fixture(), value_g = 0)
+  expect_equal(nrow(.hani_deposition_rate(zeros, zeros)), 0L)
+  # A cell present in one species only still keeps its own mass.
+  one <- .hani_deposition_rate(
+    .hani_mass_fixture()[1, ],
+    .hani_mass_fixture()[2, ]
+  )
+  expect_equal(nrow(one), 2L)
+  expect_equal(sum(one$noy == 0), 1L)
+})
+
+
+test_that(".extract_hani_deposition returns NULL with no NetCDFs", {
+  .need_spatialize_helper(".extract_hani_deposition")
+  dir <- withr::local_tempdir()
+  expect_null(.extract_hani_deposition(dir))
+  dir.create(file.path(dir, "HaNi"))
+  expect_null(.extract_hani_deposition(dir))
+  # One of the two present is not enough: a half-extracted archive must not
+  # look like a usable directory.
+  file.create(file.path(dir, "HaNi", "ndep_nhx.nc"))
+  expect_null(.extract_hani_deposition(dir))
+})
+
+
+test_that(".extract_hani_deposition reads both species offline", {
+  .need_spatialize_helper(".extract_hani_deposition")
+  dir <- withr::local_tempdir()
+  dir.create(file.path(dir, "HaNi"))
+  file.create(file.path(dir, "HaNi", c("ndep_nhx.nc", "ndep_noy.nc")))
+  seen <- character()
+  testthat::local_mocked_bindings(
+    read_n_deposition = function(species, hani_dir = NULL, ...) {
+      seen <<- c(seen, species)
+      expect_equal(hani_dir, file.path(dir, "HaNi"))
+      dplyr::mutate(
+        .hani_mass_fixture(),
+        value_g = if (species == "nhx") value_g else value_g / 2
+      )
+    },
+    .package = "whep"
+  )
+  out <- .extract_hani_deposition(dir)
+  expect_setequal(seen, c("nhx", "noy"))
+  expect_equal(nrow(out), 3L)
+  expect_equal(
+    out$deposit_kg_n_ha * cell_area_ha_by_lat(out$lat) * 1000,
+    rep(1.5e9, 3L)
+  )
 })

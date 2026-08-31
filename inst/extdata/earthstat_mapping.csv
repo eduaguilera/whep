@@ -66,14 +66,14 @@
 "grassnes",,,"no_fao_crop_name",TRUE
 "greenbean",414,"Other beans, green",,TRUE
 "greenbroadbean",181,"Broad beans and horse beans, dry",,TRUE
-"greencorn",,,"unmapped",TRUE
+"greencorn",446,"Green corn (maize)",,TRUE
 "greenonion",402,"Onions and shallots, green",,TRUE
 "greenpea",417,"Peas, green",,TRUE
 "groundnut",242,"Groundnuts, excluding shelled",,TRUE
 "gums",,,"unmapped",FALSE
 "hazelnut",225,"Hazelnuts, in shell",,TRUE
 "hemp",777,"True hemp, raw or retted",,TRUE
-"hempseed",,,"unmapped",TRUE
+"hempseed",336,"Hempseed",,TRUE
 "hop",677,"Hop cones",,TRUE
 "jute",780,"Jute, raw or retted",,TRUE
 "jutelikefiber",780,"Jute, raw or retted",,TRUE

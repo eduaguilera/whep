@@ -982,3 +982,46 @@ test_that("an off-vintage local tree warns instead of passing silently", {
     whep:::.luh2_read_states_nc(ref$path, years = ref$year, origin = "local")
   )
 })
+
+# ---- LUH2 time-index resolution (whep#256) ---------------------------------
+
+test_that(".luh2_clamped_time_idx maps calendar years to 1-based indices", {
+  # Reference GCB2022 vintage: 1173 steps, 850..2022. Index 1 is year 850,
+  # which the states.nc time axis confirms ("years since 850-01-01", time[1]=0).
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1173L)
+  testthat::expect_equal(whep:::.luh2_clamped_time_idx("x.nc", 850L), 1L)
+  testthat::expect_equal(whep:::.luh2_clamped_time_idx("x.nc", 1850L), 1001L)
+  testthat::expect_equal(whep:::.luh2_clamped_time_idx("x.nc", 2022L), 1173L)
+})
+
+test_that(".luh2_clamped_time_idx clamps past the record and says so", {
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1173L)
+  testthat::expect_warning(
+    idx <- whep:::.luh2_clamped_time_idx("x.nc", 2023L),
+    "reusing the 2022 slice"
+  )
+  testthat::expect_equal(idx, 1173L)
+  # The base v2h release stops at 2015, so the same call clamps 7 years there.
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1166L)
+  testthat::expect_warning(
+    idx <- whep:::.luh2_clamped_time_idx("x.nc", 2022L),
+    "reusing the 2015 slice"
+  )
+  testthat::expect_equal(idx, 1166L)
+})
+
+test_that(".luh2_clamped_time_idx aborts before the record starts", {
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1173L)
+  # No slice exists to reuse below 850 CE, so clamping would invent data.
+  testthat::expect_error(
+    whep:::.luh2_clamped_time_idx("x.nc", 849L),
+    "precedes the LUH2 v2h record"
+  )
+})
+
+test_that("a year inside the record resolves without warning", {
+  testthat::local_mocked_bindings(.luh2_time_len_nc = function(nc_path) 1173L)
+  testthat::expect_no_warning(
+    whep:::.luh2_clamped_time_idx("x.nc", 2022L)
+  )
+})

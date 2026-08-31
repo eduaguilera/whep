@@ -217,3 +217,41 @@ testthat::test_that("a weighted region lookup averages the regions it mixes", {
   testthat::expect_gt(nrow(mixed), 0L)
   testthat::expect_equal(mixed, expected)
 })
+
+# whep#222 --------------------------------------------------------------------
+#
+# `.build_feed_demand` used to compute `demand_tot` / `demand_share` and join
+# in `graniv_grazers` from `.feed_animal_type_lookup`, none of which the sole
+# caller (`.build_feed_demand_codes`) reads -- it immediately summarises down
+# to `demand_aft`. Guard the contract: those columns stay gone, and the
+# columns that remain carry the same values as before the columns existed.
+
+testthat::test_that(".build_feed_demand drops the dead columns", {
+  regs <- tibble::tibble(area_code = 41L, region_bouwman = "East Asia")
+  fcr <- whep:::.build_bouwman_fcr(whep::conv_bouwman, 1995L)
+  primary <- tibble::tibble(
+    year = 1995L,
+    area_code = 41L,
+    item_prod_code = 947,
+    unit = "tonnes",
+    value = 1200
+  )
+
+  out <- whep:::.build_feed_demand(
+    primary,
+    whep::items_prod_full,
+    whep::animals_codes,
+    whep::conv_krausmann,
+    regs,
+    fcr
+  )
+
+  testthat::expect_false(any(
+    c("demand_tot", "demand_share", "graniv_grazers") %in% names(out)
+  ))
+  testthat::expect_true(all(
+    c("year", "area_code", "live_anim_code", "feed_type", "demand_aft") %in%
+      names(out)
+  ))
+  testthat::expect_gt(sum(out$demand_aft, na.rm = TRUE), 0)
+})

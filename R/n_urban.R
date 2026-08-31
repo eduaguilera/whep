@@ -50,7 +50,17 @@
 #'   `lat`, `area_code`, `year`, `cropland_ha`, required: the gridded cropland
 #'   area used as the simple room proxy, `cropland_ha * 0.170` t N/ha, the same
 #'   EU-Nitrates fixed ceiling used by [allocate_manure_to_land()]'s
-#'   `fixed_ceiling_kg_ha` default).
+#'   `fixed_ceiling_kg_ha` default). Both frames' `area_code` must be the
+#'   numeric WHEP area code, whole-numbered, as [build_cell_polity()] emits
+#'   it. Anything else -- an ISO3 literal, an area name, a fractional value --
+#'   aborts with class `whep_urban_area_code_unresolved`, naming the frame
+#'   that carries it. It is not bridged: the two frames key the same transport
+#'   partition, so one written in a different vocabulary from the other would
+#'   silently strand a cell's load on a cell with no room instead of placing
+#'   it, and an ISO3 resolves to a `polity_area_code` aggregation bucket that
+#'   is not every territory's own code (`"SSD"` would become 206, Sudan
+#'   (former)). Map to the code first, via [add_area_code()] or
+#'   [regions_full].
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `year`, `urban_n_t` and
@@ -72,13 +82,15 @@ build_urban_n <- function(
   }
   urban_pop <- data$urban_population %||% read_hyde_population(years = years)
   urban_pop <- .urban_filter_years(urban_pop, years)
-  polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code")
+  polity <- .wb_require_input(data$cell_polity, "cell_polity", "area_code") |>
+    .urban_resolve_area_code("cell_polity")
   cropland <- .wb_require_input(
     data$cropland_ha,
     "cropland_ha",
     c("area_code", "year", "cropland_ha")
   ) |>
-    .urban_filter_years(years)
+    .urban_filter_years(years) |>
+    .urban_resolve_area_code("cropland_ha")
   generated <- .urban_n_generated(urban_pop, polity)
   source_cells <- .urban_source_cells(generated)
   sink_cells <- .urban_sink_cells(cropland)
@@ -88,6 +100,80 @@ build_urban_n <- function(
 }
 
 # ---- Private helpers --------------------------------------------------
+
+# Require an input frame's `area_code` to BE the numeric WHEP area code, and
+# fix its type once, at the input boundary, before it is stringified into the
+# transport allocator's `territory` key by .urban_source_cells() /
+# .urban_sink_cells().
+#
+# Two separate defects live here, and only the first is about ordering.
+#
+# 1. Resolving after transport (the shape #487 introduced and #597 reported)
+#    left the resolution and the partition it keys disagreeing. Neither a
+#    column-set census nor an area_code census can see it, because the output
+#    schema and the output codes are identical either way and only the cell
+#    the nitrogen lands on moves: two frames written in different
+#    vocabularies for the SAME polity ("ESP" in cropland_ha, 203 in
+#    cell_polity) produced `territory` keys that never met in
+#    allocate_manure_transport(), so the source found no reachable sink and
+#    its whole load stranded on its own room-less cell -- then was relabelled
+#    onto area_code 203 anyway, silently, with no warning of any kind because
+#    the ISO3 never reached a resolver at all.
+#
+# 2. Accepting an ISO3 is wrong for THIS function. The other four callers of
+#    .manure_territory_to_area_code() receive `territory` from
+#    build_livestock_nutrient_flows(), i.e. in another frame's vocabulary, so
+#    a bridge is meaningful there. build_urban_n() manufactures the key
+#    itself out of a column its own docs call `area_code`, so a bridge only
+#    buys a chance of silently answering with a polity_area_code aggregation
+#    bucket that is not the territory's own ("SSD" -> 206, Sudan (former)).
+#    The column is refused instead: no bridge, no warn-and-continue, no
+#    silent coercion of a label.
+#
+# The gridded pin build_cell_polity() emits is integer-keyed, so this is the
+# identity on real input (asserted over the whole regions_full vocabulary in
+# test_n_urban.R) and published values do not move.
+.urban_resolve_area_code <- function(x, input) {
+  codes <- x$area_code
+  arg <- paste0("data$", input)
+  if (!is.numeric(codes)) {
+    shown <- utils::head(unique(stats::na.omit(as.character(codes))), 3)
+    cli::cli_abort(
+      c(
+        "{.field area_code} in {.arg {arg}} must be the numeric WHEP area
+         code.",
+        x = "It is {.cls {class(codes)}}, e.g. {.val {shown}}.",
+        i = "Pass the code itself, never an {.field iso3c} or a name:
+             {.fun build_cell_polity} emits it and {.code whep::regions_full}
+             maps an {.field iso3c} onto it. An {.field iso3c} would resolve
+             to {.field polity_area_code}, an aggregation bucket that is not
+             every territory's own code."
+      ),
+      class = "whep_urban_area_code_unresolved"
+    )
+  }
+  .urban_check_whole_codes(codes, arg)
+  dplyr::mutate(x, area_code = as.integer(codes))
+}
+
+# A numeric `area_code` that is not a whole number is a real key error -- a
+# share or a fraction landing in the code column -- and as.integer() would
+# truncate it into a DIFFERENT territory's code rather than fail.
+.urban_check_whole_codes <- function(codes, arg) {
+  bad <- unique(codes[!is.na(codes) & codes != trunc(codes)])
+  if (length(bad) == 0) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(
+    c(
+      "{.field area_code} in {.arg {arg}} must be a whole number.",
+      x = "{cli::qty(length(bad))}Fractional value{?s}:
+           {.val {utils::head(bad, 3)}}.",
+      i = "Truncating would silently name a different territory."
+    ),
+    class = "whep_urban_area_code_unresolved"
+  )
+}
 
 .urban_filter_years <- function(x, years) {
   if (is.null(years)) {
@@ -174,12 +260,11 @@ build_urban_n <- function(
     dplyr::mutate(
       lon = coords$lon,
       lat = coords$lat,
-      # `territory` is the character key the transport allocator works in (a
-      # stringified area_code, or an ISO3 when the caller's cell_polity used
-      # one). Resolve it back to the numeric WHEP area code every other builder
-      # emits, so the reporting polity can be resolved from it; the resolver
-      # aborts on an unrecognised value rather than emitting a silent NA.
-      area_code = .manure_territory_to_area_code(.data$territory)
+      # `territory` is the character key the transport allocator works in. It
+      # is `as.character()` of the numeric area_code .urban_resolve_area_code()
+      # already produced at the input boundary, so recovering it is a plain
+      # parse and cannot fold, bridge or fail (#597).
+      area_code = as.integer(.data$territory)
     ) |>
     dplyr::summarise(
       urban_n_t = sum(.data$applied_n),

@@ -118,7 +118,10 @@ get_primary_residues <- function(example = FALSE) {
       code_column = "item_cbs_code_residue"
     ) |>
     dplyr::summarise(
-      value = sum(prod_ygpit_mg),
+      # whep#167: a single NA `prod_ygpit_mg` sibling otherwise poisons the
+      # whole group sum to NA, which `filter(value > 0)` below then silently
+      # drops -- erasing real, non-NA residue rows along with the missing one.
+      value = sum(prod_ygpit_mg, na.rm = TRUE),
       .by = c(year, area_code, item_cbs_code_crop, item_cbs_code_residue)
     ) |>
     dplyr::filter(value > 0) |>

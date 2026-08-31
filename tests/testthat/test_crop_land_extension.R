@@ -1083,3 +1083,124 @@ test_that("build_fao_arable_fallow_extension warns and clamps when CBS 3002 exce
   # arable target clamped at 0, so no ordinary crop area survives
   expect_equal(nrow(res), 0L)
 })
+
+# --- fodder share of the fallow-inclusive arable extension (whep#356) ---------
+
+# Same shape as .fao_fallow_items(), plus the fodder commodity-balance items the
+# fallow split treats as ordinary arable crops.
+.fao_fodder_items <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~Herb_Woody,
+    2000L, "Herbaceous", # fodder cereal and grasses
+    2003L, "Herbaceous", # fodder mix
+    2511L, "Herbaceous", # wheat
+    2560L, "Woody" # perennial
+  )
+}
+
+test_that("check_fodder_land_share reports the fodder share of arable land", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700, # fodder mix
+    2020L, 10L, 2511L, 300, # wheat
+    2020L, 10L, 2560L, 500, # perennial: outside the arable denominator
+    2020L, 20L, 2000L, 100, # fodder cereal and grasses
+    2020L, 20L, 2511L, 900
+  )
+  res <- whep::check_fodder_land_share(
+    extension,
+    items_prod_full = .fao_fodder_items()
+  )
+  expect_setequal(
+    names(res),
+    c("year", "area_code", "fodder_ha", "arable_ha", "fodder_share", "flagged")
+  )
+  au <- res[res$area_code == 10L, ]
+  expect_equal(au$fodder_ha, 700)
+  expect_equal(au$arable_ha, 1000) # perennial 2560 excluded
+  expect_equal(au$fodder_share, 0.7)
+  expect_true(au$flagged)
+  ok <- res[res$area_code == 20L, ]
+  expect_equal(ok$fodder_share, 0.1)
+  expect_false(ok$flagged)
+})
+
+test_that("check_fodder_land_share honours threshold and perennial-only years", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700,
+    2020L, 10L, 2511L, 300,
+    2020L, 30L, 2560L, 400 # perennial only: no arable land to attribute
+  )
+  lenient <- whep::check_fodder_land_share(
+    extension,
+    threshold = 0.9,
+    items_prod_full = .fao_fodder_items()
+  )
+  expect_false(any(lenient$flagged))
+  # a country-year with no arable row has no arable attribution to check
+  expect_equal(nrow(lenient[lenient$area_code == 30L, ]), 0L)
+})
+
+test_that("check_fodder_land_share rejects a missing column and a bad threshold", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700
+  )
+  expect_error(
+    whep::check_fodder_land_share(dplyr::select(extension, -"impact_u")),
+    "impact_u"
+  )
+  expect_error(
+    whep::check_fodder_land_share(extension, threshold = c(0.1, 0.2)),
+    "single number"
+  )
+})
+
+test_that("build_fao_arable_fallow_extension warns when fodder dominates", {
+  # Australia's shape: fodder harvested area alone exceeds FAO arable land, so
+  # the proportional split hands fodder most of the arable land footprint.
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    1975L, 10L, 2003L, 2100, # fodder mix (reconstructed, implausible)
+    1975L, 10L, 2511L, 400 # wheat
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    10L, 1975L, 1357, 0
+  )
+  expect_warning(
+    res <- whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      temporary_grassland = .no_temp_grassland(),
+      items_prod_full = .fao_fodder_items()
+    ),
+    "Fodder crops take over half the arable land"
+  )
+  # warn-only: the arable total still reconciles to FAO arable land exactly
+  expect_equal(sum(res$impact_u), 1357)
+  # and the share is passed straight through from the base
+  fodder <- res$impact_u[res$item_cbs_code == 2003L]
+  expect_equal(fodder / sum(res$impact_u), 2100 / 2500)
+})
+
+test_that("build_fao_arable_fallow_extension is quiet when fodder is minor", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    1975L, 10L, 2003L, 100,
+    1975L, 10L, 2511L, 900
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    10L, 1975L, 1200, 0
+  )
+  expect_no_warning(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      temporary_grassland = .no_temp_grassland(),
+      items_prod_full = .fao_fodder_items()
+    )
+  )
+})

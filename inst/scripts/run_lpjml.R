@@ -137,8 +137,9 @@ run_lpjml <- function(
   # means for 2017-2019, and ERA5 for 2020-2023. The two ISIMIP rounds agree
   # at the 2016 overlap (unweighted global mean 6.3289 vs 6.32887 m/s), and
   # the ERA5 tail is bias-corrected per cell and calendar month against
-  # 2017-2019, so neither joint introduces a step. See
-  # prepare_lpjml_wind.R::extend_lpjml_wind() and fetch_era5_wind.py.
+  # 2017-2019, so neither joint introduces a step. The two ISIMIP segments are
+  # rebuilt by fetch_isimip_wind.sh, the ERA5 tail by fetch_era5_wind.py, and
+  # the splice is extend_lpjml_wind() in prepare_spatialize_all.R.
   wind_name <- "climate/wind_gswp3-w5e5_era5_1901_2023_monthly.nc"
   co2_name <- "climate/historical_CO2_annual_1765_2025.txt"
   # LPJmL 6.x removed the `cloudiness` radiation option and the `cloud` input,

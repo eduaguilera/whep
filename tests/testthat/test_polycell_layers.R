@@ -243,6 +243,81 @@ testthat::test_that("read_polycell_support prefers a local parquet", {
   )
 })
 
+# whep#803 — the reader is the consumer-side half of the overlap contract ------
+
+testthat::test_that("the reader returns the partition unless asked", {
+  testthat::skip_if_not_installed("sf")
+
+  # A support table may carry aggregate polities, whose polygons cover their
+  # members'. Every consumer of this table sums hectares over it, so the
+  # DEFAULT decides whether admitting an aggregate upstream is a new capability
+  # or a silent double count in a caller that never asked for one.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "support.parquet")
+  support <- tibble::tribble(
+    ~polycell_id, ~polity_code, ~polity_area_ha, ~support_role,
+    "WES@1", "WES-2000-2020", 100, "partition",
+    "EAS@1", "EAS-2000-2020", 150, "partition",
+    "AGG@1", "AGG-2000-2020", 250, "overlap"
+  )
+  nanoparquet::write_parquet(support, path)
+
+  testthat::expect_equal(
+    whep::read_polycell_support(path = path)$polycell_id,
+    c("WES@1", "EAS@1")
+  )
+  testthat::expect_equal(
+    whep::read_polycell_support(path = path, role = "overlap")$polycell_id,
+    "AGG@1"
+  )
+  testthat::expect_equal(
+    nrow(whep::read_polycell_support(path = path, role = "all")),
+    3L
+  )
+  # Summing the partition is the cell's territory once; summing everything
+  # counts the members twice, which is what the default exists to prevent.
+  testthat::expect_equal(
+    sum(whep::read_polycell_support(path = path)$polity_area_ha),
+    250
+  )
+})
+
+testthat::test_that("a support with no role column is all partition", {
+  testthat::skip_if_not_installed("sf")
+
+  # Every polycell published before whep#803 has no `support_role` column, and
+  # every row of it partitions its cell. It must answer "partition" with all of
+  # itself rather than with nothing -- and it must ABORT on "overlap" rather
+  # than hand back zero rows, because a consumer asking for a reporting
+  # bucket's territory and silently receiving none reports the bucket as having
+  # no land, which is the failure whep#803 exists to fix.
+  dir <- withr::local_tempdir()
+  path <- file.path(dir, "legacy.parquet")
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      polycell_id = c("WES@1", "EAS@1"),
+      polity_area_ha = c(100, 150)
+    ),
+    path
+  )
+
+  testthat::expect_equal(
+    nrow(whep::read_polycell_support(path = path)),
+    2L
+  )
+  testthat::expect_equal(
+    nrow(whep::read_polycell_support(path = path, role = "all")),
+    2L
+  )
+  testthat::expect_error(
+    whep::read_polycell_support(path = path, role = "overlap"),
+    class = "whep_polycell_no_overlap_layer"
+  )
+  testthat::expect_error(
+    whep::read_polycell_support(path = path, role = "nonsense")
+  )
+})
+
 testthat::test_that("sampled centres land on WHEP's canonical half-degree grid", {
   skip_if_not_installed("terra")
   # `terra::xyFromCell()` walks out from the raster origin and accumulates float

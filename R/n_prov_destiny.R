@@ -32,6 +32,7 @@
 #'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'
@@ -44,7 +45,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     return(.example_create_n_prov_destiny())
   }
   codes_coefs_items_full <- whep_read_file("codes_coefs_items_full")
-  biomass_coefs <- whep_read_file("biomass_coefs")
+  biomass_coefs <- whep::biomass_coefs
   pie_full_destinies_fm <- whep_read_file("pie_full_destinies_fm")
   livestock_prod_ygps <- whep_read_file("stock_prod_ygps")
   crop_area_npp_no_fallow <- whep_read_file("crop_area_npp_ygpitr_no_fallow")
@@ -110,7 +111,7 @@ create_n_prov_destiny <- function(example = FALSE) {
     .calculate_food_and_other_uses(pie_full_destinies_fm)
 
   grafs_prod_item_trade <- processed$non_processed |>
-    .add_grass_wood() |>
+    .add_grass_wood(biomass_coefs) |>
     .prepare_prod_data(
       processed$processed_items,
       codes_coefs_items_full
@@ -125,6 +126,7 @@ create_n_prov_destiny <- function(example = FALSE) {
       add_feed_output$feed_share_rum_mono
     ) |>
     .add_n_soil_inputs(n_soil_inputs) |>
+    dplyr::bind_rows(processed$processing_losses) |>
     dplyr::select(
       year = Year,
       province_name = Province_name,
@@ -164,6 +166,7 @@ create_n_prov_destiny <- function(example = FALSE) {
 #'   `box` values, not origins; their nitrogen enters as Outside.
 #'   - `destiny`: The destiny category of N: population_food,
 #'   population_other_uses, livestock_mono, livestock_rum (feed), export,
+#'   processing_losses (N not credited to a processed output),
 #'   Cropland and semi_natural_agroecosystems (for N soil inputs).
 #'   - `mg_n`: Nitrogen amount in megagrams (Mg).
 #'   - `province_name`: Set to "Spain" for all national-level rows.
@@ -176,7 +179,22 @@ create_n_nat_destiny <- function(example = FALSE) {
   if (example) {
     return(.example_create_n_nat_destiny())
   }
-  prov <- create_n_prov_destiny() |>
+  .assemble_n_nat_destiny(create_n_prov_destiny())
+}
+
+#' @title Aggregate provincial N destiny flows to the national level ---------
+#' @description The transformation behind `create_n_nat_destiny()`, taking
+#' the provincial flows as an argument so it can be tested without a live
+#' `create_n_prov_destiny()` build.
+#'
+#' @param prov_raw Output of `create_n_prov_destiny()`, lower_snake_case
+#' columns.
+#'
+#' @return See `create_n_nat_destiny()`.
+#' @keywords internal
+#' @noRd
+.assemble_n_nat_destiny <- function(prov_raw) {
+  prov <- prov_raw |>
     dplyr::rename(
       Year = year,
       Province_name = province_name,
@@ -195,8 +213,11 @@ create_n_nat_destiny <- function(example = FALSE) {
     dplyr::slice_max(weight, n = 1, with_ties = FALSE) |>
     dplyr::ungroup()
 
+  # processing_losses is N the primary item's destinies never see: it must
+  # stay out of the production/export residual below, or it re-inflates
+  # national export exactly as it used to inflate provincial export.
   nat_production_detail <- prov |>
-    dplyr::filter(Origin == Box) |>
+    dplyr::filter(Origin == Box, Destiny != "processing_losses") |>
     dplyr::group_by(Year, Item, Box, Irrig_cat) |>
     dplyr::summarise(production = sum(MgN, na.rm = TRUE), .groups = "drop")
 
@@ -228,7 +249,8 @@ create_n_nat_destiny <- function(example = FALSE) {
       names_from = Destiny,
       values_from = consumption,
       values_fill = 0
-    )
+    ) |>
+    .ensure_destiny_cols()
 
   nat_total_consumption <- nat_consumption |>
     dplyr::group_by(Year, Item) |>
@@ -410,7 +432,19 @@ create_n_nat_destiny <- function(example = FALSE) {
       MgN
     )
 
-  dplyr::bind_rows(nat_local_detail, nat_soil_inputs, exports, imports) |>
+  nat_processing_losses <- prov |>
+    dplyr::filter(Destiny == "processing_losses") |>
+    dplyr::group_by(Year, Item, Irrig_cat, Box, Origin, Destiny) |>
+    dplyr::summarise(MgN = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(Province_name = "Spain")
+
+  dplyr::bind_rows(
+    nat_local_detail,
+    nat_soil_inputs,
+    exports,
+    imports,
+    nat_processing_losses
+  ) |>
     dplyr::arrange(Year, Item, Origin, Destiny) |>
     dplyr::rename(
       year = Year,
@@ -694,11 +728,19 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @description Replace production_fm with GrazedWeeds_MgDM (for Fallow).
 #'
 #' @param grafs_prod_combined_no_seeds Dataframe of production without seeds.
+#' @param biomass_coefs Output of `whep_read_file("biomass_coefs")`, used to
+#' convert grazed grass from DM to FM with the same `Residue_kgDM_kgFM`
+#' coefficient `.convert_fm_dm_n()` later converts it back with, instead of
+#' a second, independent hardcoded copy of that number.
 #'
 #' @return A dataframe with added grass and wood production.
 #' @keywords internal
 #' @noRd
-.add_grass_wood <- function(grafs_prod_combined_no_seeds) {
+.add_grass_wood <- function(grafs_prod_combined_no_seeds, biomass_coefs) {
+  grass_dm_to_fm <- biomass_coefs |>
+    dplyr::filter(Name_biomass == "Grass") |>
+    dplyr::pull(Residue_kgDM_kgFM)
+
   grafs_prod_added <- grafs_prod_combined_no_seeds |>
     dplyr::mutate(
       Item = dplyr::case_when(
@@ -721,11 +763,10 @@ create_n_nat_destiny <- function(example = FALSE) {
         TRUE ~ Name_biomass
       )
     ) |>
-    # 20% DM to FM for Grass
     dplyr::mutate(
       production_fm = dplyr::if_else(
         prod_type == "Grass" & Item == "Grassland" & !is.na(production_fm),
-        production_fm / 0.2,
+        production_fm / grass_dm_to_fm,
         production_fm
       )
     ) |>
@@ -1007,8 +1048,9 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' rows are considered for processing; other boxes pass through unchanged.
 #'
 #' The substitution is N-conserving by construction: the N removed from the
-#' primary item is exactly the N credited to its processed outputs. See
-#' `.processing_n_scaling()` for why that needs enforcing and what it costs.
+#' primary item is exactly the N credited to its processed outputs plus the N
+#' booked as `"processing_losses"`. See `.processing_n_scaling()` for why that
+#' needs enforcing and what it costs.
 #'
 #' @param prod_combined_boxes Dataframe with production_fm by province.
 #' @param processing_shares Output of `.calculate_processing_shares()`.
@@ -1016,7 +1058,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param coefs Named list with `items` (`codes_coefs_items_full`) and
 #' `biomass` (`biomass_coefs`), used to price each item's N per tonne FM.
 #'
-#' @return A list with 'non_processed' and 'processed_items' dataframes.
+#' @return A list with 'non_processed', 'processed_items' and
+#' 'processing_losses' dataframes.
 #' @keywords internal
 #' @noRd
 .calculate_processed_amounts <- function(
@@ -1041,7 +1084,8 @@ create_n_nat_destiny <- function(example = FALSE) {
 
   list(
     non_processed = .subtract_processed_mass(candidate, scaling),
-    processed_items = .scale_processed_items(outputs, scaling)
+    processed_items = .scale_processed_items(outputs, scaling),
+    processing_losses = .compute_processing_losses(candidate, scaling)
   )
 }
 
@@ -1110,17 +1154,15 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' - `output_scale` caps the processed outputs at the N actually available in
 #'   the input, scaling all of an input's outputs equally so their relative
 #'   mix is untouched.
-#' - `removal_scale` removes from the primary item only the N that the named
-#'   outputs actually account for.
+#' - `processing_loss_n` is the N removed from the primary item that the
+#'   named outputs do not account for.
 #'
-#' The second factor is the conservative half. When the outputs are N-poor,
-#' the unaccounted N stays with the primary item rather than disappearing.
-#' Physically that residue is by-product (grape pomace, olive cake, beet
-#' pulp) or an agro-industry loss, and modelling it as unprocessed primary
-#' crop is an approximation: it keeps the mass balance honest but attributes
-#' the residual to the primary item's destinies. Routing it to explicit
-#' by-product items is the open methodological question, tracked separately —
-#' it needs a decision from the model owners, not a default chosen here.
+#' The whole of the primary item's processed mass leaves its own accounting;
+#' the share of its N not credited to a named output is not discarded, it is
+#' tracked separately as a `"processing_losses"` destiny by
+#' `.compute_processing_losses()` (grape pomace, olive cake, beet pulp and
+#' similar agro-industry residues), so the balance stays exact without
+#' attributing that N to the primary item's own destinies.
 #'
 #' @param candidate Production rows with processed_fm, as built by
 #' `.calculate_processed_amounts()`.
@@ -1128,7 +1170,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 #' @param coefs Named list with `items` and `biomass` coefficient tables.
 #'
 #' @return A dataframe with Year, Province_name, Name_biomass, Item,
-#' output_scale and removal_scale.
+#' output_scale, remove_mass and processing_loss_n.
 #' @keywords internal
 #' @noRd
 .processing_n_scaling <- function(candidate, outputs, coefs) {
@@ -1161,13 +1203,21 @@ create_n_nat_destiny <- function(example = FALSE) {
       n_out = dplyr::coalesce(n_out, 0),
       # A missing input coefficient makes the input's N unknown, so any output
       # N would be created from nothing: drop the substitution for that item
-      # rather than guess a coefficient.
-      ratio = dplyr::if_else(!is.na(n_in) & n_in > 0, n_out / n_in, 0),
+      # rather than guess a coefficient — neither remove its mass nor track a
+      # processing loss for it.
+      priced = !is.na(n_in) & n_in > 0,
+      ratio = dplyr::if_else(priced, n_out / n_in, 0),
       output_scale = pmin(1, dplyr::if_else(ratio > 0, 1 / ratio, 0)),
-      removal_scale = pmin(1, ratio)
+      remove_mass = dplyr::if_else(priced, 1, 0),
+      processing_loss_n = dplyr::if_else(priced, pmax(n_in - n_out, 0), 0)
     ) |>
     .warn_unpriced_processing() |>
-    dplyr::select(dplyr::all_of(key), output_scale, removal_scale)
+    dplyr::select(
+      dplyr::all_of(key),
+      output_scale,
+      remove_mass,
+      processing_loss_n
+    )
 }
 
 #' @title N content per tonne of fresh matter, product basis -------------------
@@ -1270,10 +1320,13 @@ create_n_nat_destiny <- function(example = FALSE) {
   scaling
 }
 
-#' @title Remove the accounted processed mass from the primary item -----------
-#' @description Subtracts `removal_scale * processed_fm` from each production
-#' row, so only the mass whose N is credited to a processed output leaves the
-#' primary item.
+#' @title Remove the processed mass from the primary item ---------------------
+#' @description Subtracts the full `processed_fm` from each production row
+#' whose input could be priced in N (`remove_mass == 1`). The N it carries is
+#' reassigned by `.scale_processed_items()` (to the named outputs) and
+#' `.compute_processing_losses()` (to the `"processing_losses"` destiny), so
+#' none of it stays with the primary item. An unpriced substitution is
+#' dropped entirely instead: its mass stays untouched.
 #'
 #' @param candidate Production rows with processed_fm.
 #' @param scaling Output of `.processing_n_scaling()`.
@@ -1284,14 +1337,76 @@ create_n_nat_destiny <- function(example = FALSE) {
 .subtract_processed_mass <- function(candidate, scaling) {
   candidate |>
     dplyr::left_join(
-      scaling |> dplyr::select(-output_scale),
+      scaling |>
+        dplyr::select(
+          Year,
+          Province_name,
+          Name_biomass,
+          Item,
+          remove_mass
+        ),
       by = c("Year", "Province_name", "Name_biomass", "Item")
     ) |>
     dplyr::mutate(
       production_fm = production_fm -
-        processed_fm * dplyr::coalesce(removal_scale, 0)
+        processed_fm * dplyr::coalesce(remove_mass, 0)
     ) |>
-    dplyr::select(-share_processing, -processed_fm, -removal_scale)
+    dplyr::select(-share_processing, -processed_fm, -remove_mass)
+}
+
+#' @title Track the N lost to processing as its own destiny --------------------
+#' @description The share of a primary item's N not credited to a named
+#' processed output (`processing_loss_n`, from `.processing_n_scaling()`) is
+#' allocated back across that item's Irrig_cat rows in proportion to their
+#' share of processed_fm, and tagged with `destiny = "processing_losses"`
+#' instead of being left inside the primary item's own destinies. Downstream
+#' surplus calculations only recognise a fixed set of tracked output
+#' destinies, so this falls into surplus automatically: in particular
+#' `.create_land_surplus_df()` computes cropland surplus as inputs minus
+#' tracked outputs, so every Mg booked here raises reported cropland N
+#' surplus by the same amount it removes from `export`. That is the
+#' methodological choice this destiny embodies — the residue (grape pomace,
+#' olive cake, beet pulp) is counted as surplus rather than as product,
+#' pending explicit by-product items.
+#'
+#' @param candidate Production rows with processed_fm, as built by
+#' `.calculate_processed_amounts()`.
+#' @param scaling Output of `.processing_n_scaling()`.
+#'
+#' @return A dataframe with Year, Province_name, Item, Irrig_cat, Box, Origin,
+#' Destiny and MgN, matching the shape of `.add_exports()`.
+#' @keywords internal
+#' @noRd
+.compute_processing_losses <- function(candidate, scaling) {
+  key <- c("Year", "Province_name", "Name_biomass", "Item")
+
+  candidate |>
+    dplyr::filter(processed_fm > 0) |>
+    dplyr::inner_join(
+      scaling |>
+        dplyr::filter(processing_loss_n > 0) |>
+        dplyr::select(dplyr::all_of(key), processing_loss_n),
+      by = key
+    ) |>
+    dplyr::mutate(
+      share = processed_fm / sum(processed_fm, na.rm = TRUE),
+      .by = dplyr::all_of(key)
+    ) |>
+    dplyr::transmute(
+      Year,
+      Province_name,
+      Item,
+      Irrig_cat,
+      Box = "Cropland",
+      Origin = "Cropland",
+      Destiny = "processing_losses",
+      MgN = processing_loss_n * share
+    ) |>
+    dplyr::summarise(
+      MgN = sum(MgN, na.rm = TRUE),
+      .by = c(Year, Province_name, Item, Irrig_cat, Box, Origin, Destiny)
+    ) |>
+    dplyr::filter(MgN > 0)
 }
 
 #' @title Apply the N cap to the processed item quantities ---------------------
@@ -1307,7 +1422,14 @@ create_n_nat_destiny <- function(example = FALSE) {
 .scale_processed_items <- function(outputs, scaling) {
   outputs |>
     dplyr::left_join(
-      scaling |> dplyr::select(-removal_scale),
+      scaling |>
+        dplyr::select(
+          Year,
+          Province_name,
+          Name_biomass,
+          Item,
+          output_scale
+        ),
       by = c(
         "Year",
         "Province_name",
@@ -1715,18 +1837,21 @@ create_n_nat_destiny <- function(example = FALSE) {
   # split within Cropland AND items that span multiple boxes (e.g. Cropland +
   # semi_natural). Without this, the non-Cropland rows would each receive the
   # full consumption value, causing overcounting that grows with production.
-  # When production_total = 0 (pure import items), there is only one row so
-  # production_share = 1 is correct.
+  # When production_total = 0, split evenly across the group's rows instead
+  # of assigning each of them a full share: with more than one row (e.g. an
+  # item processed away entirely that year, in both irrig_cat rows), giving
+  # every row production_share = 1 would duplicate consumption once per row.
   grafs_prod_item_combined <- grafs_prod_item_combined |>
     dplyr::mutate(
       production_share = dplyr::if_else(
         production_total > 0,
         production_n / production_total,
-        1
+        1 / dplyr::n()
       ),
       food = food * production_share,
       feed = feed * production_share,
-      other_uses = other_uses * production_share
+      other_uses = other_uses * production_share,
+      .by = c(Year, Province_name, Item)
     ) |>
     dplyr::select(-production_total, -production_share)
 
@@ -1749,7 +1874,7 @@ create_n_nat_destiny <- function(example = FALSE) {
 .convert_to_items_n <- function(
   grafs_prod_item_combined,
   codes_coefs_items_full = whep_read_file("codes_coefs_items_full"),
-  biomass_coefs = whep_read_file("biomass_coefs")
+  biomass_coefs = whep::biomass_coefs
 ) {
   grafs_prod_item_combined |>
     dplyr::left_join(

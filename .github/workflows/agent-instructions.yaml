@@ -1,0 +1,68 @@
+# Enforces CLAUDE.md's "this is the only agent instruction file" rule.
+#
+# The repo previously carried per-tool copies of the contributor rules
+# (.github/copilot-instructions.md, .agent/rules/whep.md). They drifted — one
+# still forbade data.table, which the package Imports — and were deleted. The
+# rule that replaced them was a convention, and a convention is exactly what
+# drifted the first time. This makes it mechanical.
+#
+# An agent-instruction file must be BYTE-IDENTICAL to CLAUDE.md.
+#
+# Symlinks are deliberately NOT used: Git for Windows only materialises them
+# when core.symlinks is true, which needs Developer Mode or admin rights. With
+# it false — the historical default — the file is checked out as plain text
+# containing the target path, so a tool reading AGENTS.md would get the nine
+# bytes "CLAUDE.md" instead of the rules. That failure is silent, and a
+# Linux-only CI job would never see it. A copy plus this check works on every
+# platform and cannot drift past review.
+name: agent-instructions
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  in-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every agent instruction file must track CLAUDE.md
+        run: |
+          set -euo pipefail
+          canonical=CLAUDE.md
+          test -f "$canonical" || { echo "::error::$canonical is missing"; exit 1; }
+
+          # Names the common agent tools look for. Add to this list rather
+          # than adding a second source of truth.
+          candidates="
+          AGENTS.md
+          GEMINI.md
+          .cursorrules
+          .cursor/rules/whep.md
+          .github/copilot-instructions.md
+          .agent/rules/whep.md
+          .windsurfrules
+          "
+
+          fail=0
+          for f in $candidates; do
+            [ -e "$f" ] || [ -L "$f" ] || continue
+            if [ -L "$f" ]; then
+              echo "::error file=$f::is a symlink. Symlinks do not survive a Git for Windows checkout without core.symlinks; use a byte-identical copy instead (cp $canonical $f)."
+              fail=1
+              continue
+            fi
+            if cmp -s "$f" "$canonical"; then
+              echo "ok (identical) $f"
+            else
+              echo "::error file=$f::differs from $canonical. Run 'cp $canonical $f' and commit. Do not maintain a second set of rules — the last copies drifted and had to be deleted."
+              diff -u "$canonical" "$f" | head -40 || true
+              fail=1
+            fi
+          done
+
+          exit $fail

@@ -515,6 +515,34 @@ read_luh2_landuse <- function(
   nc$dim$time$len
 }
 
+# Resolve a calendar year to a 1-based LUH2 v2h time index, clamping past the
+# end of the record. LUH2 v2h time index 1 is year 850 CE (the axis declares
+# "years since 850-01-01" with time[1] == 0), so `year - 850 + 1` is exact for
+# every vintage; only the record LENGTH differs (1166 steps to 2015 for the base
+# v2h release, 1173 to 2022 for GCB2022). WHEP's spatialization runs to 2023
+# because FAOSTAT extends further than LUH2, so the last slice is reused for the
+# overhang -- deliberately, but audibly: an unwarned clamp writes a year label
+# the data does not belong to. Years before 850 have no slice to reuse and abort
+# instead of inventing one. See whep#256.
+.luh2_clamped_time_idx <- function(nc_path, year) {
+  time_len <- .luh2_time_len_nc(nc_path)
+  time_idx <- as.integer(year) - 850L + 1L
+  if (time_idx < 1L) {
+    cli::cli_abort(
+      "Year {year} precedes the LUH2 v2h record, which starts at {850L}."
+    )
+  }
+  if (time_idx > time_len) {
+    last_year <- 850L + time_len - 1L
+    cli::cli_warn(c(
+      "LUH2 v2h covers up to year {last_year}.",
+      i = "Year {year} requested; reusing the {last_year} slice."
+    ))
+    return(time_len)
+  }
+  time_idx
+}
+
 # -- Zenodo states cache ------------------------------------------------------
 
 # Path to the reference states.nc, downloading it into the WHEP cache on first

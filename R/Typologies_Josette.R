@@ -124,7 +124,7 @@ create_typologies_of_josette <- function(
     NPP_ygpit = whep_read_file("npp_ygpit"),
     grafs_prod_destiny_git = .grafs_prod_destiny_legacy(),
     PIE_FullDestinies_FM = whep_read_file("pie_full_destinies_fm"),
-    biomass_coefs = whep_read_file("biomass_coefs"),
+    biomass_coefs = whep::biomass_coefs,
     sf_provinces_spain = .read_spain_provinces(shapefile_path),
     # N soil inputs are computed by the package rather than read from a
     # precomputed file, so they follow the current n_balance pin (including

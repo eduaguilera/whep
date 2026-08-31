@@ -70,10 +70,12 @@ demand columns would otherwise make positive-only paths larger
 than the source extension.}
 
 \item{report_conservation}{If \code{TRUE}, emit a message after
-computing the footprint reporting the conservation gap (the
-share of the direct extension that is not embodied in final
-demand), via \code{\link[=check_footprint_conservation]{check_footprint_conservation()}}. Off by default
-so the gap is opt-in but never silent when requested.}
+computing the footprint reporting the conservation gap: the
+signed global discrepancy between direct extension and
+embodied footprint, via \code{\link[=check_footprint_conservation]{check_footprint_conservation()}} --
+the share not embodied in final demand when negative, or the
+share over-traced when positive. Off by default so the gap is
+opt-in but never silent when requested.}
 }
 \value{
 A tibble with footprint results containing:

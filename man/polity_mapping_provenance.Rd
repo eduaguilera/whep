@@ -36,7 +36,7 @@ rows of \code{table} that pair carries (always 1 when \code{table} is \code{NULL
 \description{
 \link{polity_area_crosswalk} is not the upstream FAOSTAT-to-polity map. It is that
 map plus rows this package manufactures, and its \code{mapping_source} column says
-which. Measured on the shipped snapshot, of 649 crosswalk rows:
+which. Measured on the shipped snapshot, of 648 crosswalk rows:
 \itemize{
 \item \code{"upstream_map"} (245 rows): a row of \code{faostat_area_polity_map.csv} in
 \code{eduaguilera/whep-polities}. Upstream's statement about the territory.
@@ -45,7 +45,7 @@ Rest-of-World fold used to shadow. Equally upstream's statement, and kept
 separate only because \code{.unfold_rest_of_world()} chooses between it and the
 fold row (whep#717). The two together consume the map's 297 rows exactly
 once.
-\item \code{"prefix_outside_map"} (263) and \code{"prefix_fallback"} (27): WHEP's own
+\item \code{"prefix_outside_map"} (263) and \code{"prefix_fallback"} (26): WHEP's own
 ISO3-prefix match, built in \code{data-raw/table_mappings.R}. No upstream
 authority. A prefix match can only ever produce an ISO3-family guess, so it
 cannot express the statements the pre-1961 era actually needs -- Turkey

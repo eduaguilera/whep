@@ -816,3 +816,81 @@ test_that("calculate_lmdi warns on inconsistent data", {
     "Multiplicative contributions differ"
   )
 })
+
+
+# Internal result plumbing -----------------------------------------------------
+
+#' Build the internal arguments `.lmdi_process_all_groups()` expects.
+lmdi_internal_args <- function(data) {
+  identity <- "emissions:activity*intensity"
+  prepared <- whep:::.lmdi_prepare_data(
+    data,
+    identity,
+    "emissions",
+    year,
+    1,
+    FALSE
+  )
+  list(
+    data = prepared,
+    periods = whep:::.lmdi_setup_periods(prepared, year, NULL, NULL),
+    identity_info = list(
+      identity = identity,
+      target_var = "emissions",
+      factors = c("activity", "intensity"),
+      factor_labels = c("activity", "intensity"),
+      target_label_final = "emissions"
+    )
+  )
+}
+
+test_that("lmdi period results carry no unsurfaced side output", {
+  args <- lmdi_internal_args(lmdi_varying_fixture())
+
+  period_result <- whep:::.lmdi_calc_period(
+    args$data,
+    args$periods,
+    1,
+    year,
+    NULL,
+    args$identity_info,
+    list(cols = character(0), values = NULL)
+  )
+  expect_true(tibble::is_tibble(period_result))
+
+  all_results <- whep:::.lmdi_process_all_groups(
+    args$data,
+    args$periods,
+    year,
+    NULL,
+    args$identity_info,
+    character(0)
+  )
+  expect_named(all_results, "results")
+})
+
+test_that("calculate_lmdi total output keeps every per-period target field", {
+  data <- lmdi_varying_fixture()
+
+  result <- calculate_lmdi(
+    data,
+    identity = "emissions:activity*intensity",
+    time_var = year,
+    output_format = "total",
+    verbose = FALSE
+  )
+
+  expected <- tibble::tibble(
+    period = paste(data$year[-nrow(data)], data$year[-1], sep = "-"),
+    target_initial = data$emissions[-nrow(data)],
+    target_final = data$emissions[-1]
+  ) |>
+    dplyr::mutate(total_change = target_final - target_initial)
+
+  expect_equal(
+    result |>
+      dplyr::filter(component_type == "target") |>
+      dplyr::select(period, target_initial, target_final, total_change),
+    expected
+  )
+})

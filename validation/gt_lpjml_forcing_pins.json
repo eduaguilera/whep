@@ -1,0 +1,68 @@
+{
+  "note": "Recorded state of the climate-forcing pins. `below` is the count of values under the impossibility floor: nonzero entries are KNOWN, FILED defects, not accepted behaviour. The comparison is bidirectional -- a count that falls means the pin was rebuilt and must be re-recorded, with the issue closed in the same commit.",
+  "known_defects": {
+    "lpjml-rsds-era5-2017-2023": "#824 (builder fixed in #536, pin not rebuilt)"
+  },
+  "pins": {
+    "lpjml-rsds-era5-2017-2023": {
+      "variable": "rsds",
+      "dims": "1440x721x84",
+      "below": 1823843,
+      "above": 0,
+      "bad_steps": 24,
+      "n_missing": 0,
+      "minimum": -3.968253804487e-05,
+      "maximum": 468.413635253906
+    },
+    "lpjml-rlds-era5-2017-2023": {
+      "variable": "rlds",
+      "dims": "1440x721x84",
+      "below": 0,
+      "above": 0,
+      "bad_steps": 0,
+      "n_missing": 0,
+      "minimum": 57.316333770752,
+      "maximum": 484.000335693359
+    },
+    "lpjml-wind-era5-2017-2023": {
+      "variable": "wind",
+      "dims": "1440x721x84",
+      "below": 0,
+      "above": 0,
+      "bad_steps": 0,
+      "n_missing": 0,
+      "minimum": 0.09814211726189,
+      "maximum": 19.300857543945
+    },
+    "lpjml-rsds-isimip-1901-2019": {
+      "variable": "rsds",
+      "dims": "720x360x1428",
+      "below": 0,
+      "above": 0,
+      "bad_steps": 0,
+      "n_missing": 0,
+      "minimum": 0,
+      "maximum": 475.035064697266
+    },
+    "lpjml-rlds-isimip-1901-2019": {
+      "variable": "rlds",
+      "dims": "720x360x1428",
+      "below": 0,
+      "above": 0,
+      "bad_steps": 0,
+      "n_missing": 0,
+      "minimum": 48.246612548828,
+      "maximum": 485.193572998047
+    },
+    "lpjml-wind-isimip-1901-2019": {
+      "variable": "wind",
+      "dims": "720x360x1428",
+      "below": 0,
+      "above": 0,
+      "bad_steps": 0,
+      "n_missing": 0,
+      "minimum": 0.2986936271191,
+      "maximum": 21.187044143677
+    }
+  }
+}

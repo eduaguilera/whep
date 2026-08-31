@@ -18,6 +18,18 @@
 # systematic off-by-one shift in item_code from c066 onwards and should not
 # be used for the comm_code → item_cbs_code mapping).
 #
+# Region codes
+# ------------
+# io_codes.csv$area_code is a FAOSTAT-style area code (1 = Armenia, 999 = Rest
+# of World), NOT the sequential 1..192 index the block layout might suggest —
+# only the row *order* is sequential. It is therefore in the same numbering as
+# WHEP's `area_code`, but not in the same *bucketing*: FABIO enumerates 276
+# Sudan and 277 South Sudan where WHEP folds both into 206, and WHEP publishes
+# every reporting Rest-of-World member under its own code where FABIO keeps
+# them inside its single 999 row. Joining the two raw silently drops those
+# codes and compares two different Rest-of-World residuals against each other,
+# so both sides are keyed through `whep:::.fabio_area_bridge()` first (#264).
+#
 # Usage
 # -----
 #   1. Set YEAR below.
@@ -55,6 +67,7 @@ fabio_file <- function(name) {
 
 X <- readRDS(fabio_file("X.rds"))
 IO_CODES_PATH <- fabio_file("io_codes.csv")
+REGIONS_PATH <- fabio_file("regions.csv")
 
 # Optional: per-year Z and Y matrices. Set to NULL to skip those sections.
 # These are typically large — start with just X.
@@ -312,6 +325,16 @@ FABIO_Y_PATH <- NULL # e.g. fabio_file(paste0(YEAR, "_Y.rds"))
   invisible(audit)
 }
 
+# Attach the shared area key from `whep:::.fabio_area_bridge()`. Every row
+# keeps a key, so an area only leaves the comparison via a `bridge_kind` this
+# script has already reported.
+.attach_area_bridge <- function(labels, bridge, which_side) {
+  keys <- bridge |>
+    filter(.data$side == which_side) |>
+    select("area_code", "compare_area_code", "bridge_kind")
+  left_join(labels, keys, by = "area_code")
+}
+
 .aggregate_compare_vector <- function(values, labels, value_name) {
   stopifnot(length(values) == nrow(labels))
   if (!"compare_include" %in% names(labels)) {
@@ -323,12 +346,14 @@ FABIO_Y_PATH <- NULL # e.g. fabio_file(paste0(YEAR, "_Y.rds"))
     summarise(
       value = sum(.data$value, na.rm = TRUE),
       fabio_item_name = dplyr::first(.data$fabio_item_name),
-      .by = c(area_code, fabio_item_code)
+      .by = c(compare_area_code, fabio_item_code)
     ) |>
     rename(!!value_name := "value")
 }
 
-# Join two vectors by (area_code, fabio_item_code), after WHEP rollups.
+# Join two vectors by (compare_area_code, fabio_item_code), after the WHEP
+# item rollups and the area bridge. The key is in WHEP bucket space, so it is
+# renamed back to `area_code` for `add_area_name()` downstream.
 # Returns: area_code, fabio_item_code, fabio_item_name, ref, our, and errors.
 .compare_vectors <- function(ref_vec, ref_labels, our_vec, our_labels) {
   ref_df <- .aggregate_compare_vector(ref_vec, ref_labels, "ref")
@@ -337,9 +362,10 @@ FABIO_Y_PATH <- NULL # e.g. fabio_file(paste0(YEAR, "_Y.rds"))
   inner_join(
     ref_df,
     our_df,
-    by = c("area_code", "fabio_item_code"),
+    by = c("compare_area_code", "fabio_item_code"),
     suffix = c("", "_our")
   ) |>
+    rename(area_code = "compare_area_code") |>
     mutate(
       abs_err = our - ref,
       rel_err = abs_err / pmax(abs(ref), 1)
@@ -483,6 +509,20 @@ stopifnot(exists("io"))
 our <- .slice_year(io, YEAR)
 bridge <- .build_whep_fabio_bridge()
 our$labels <- .map_whep_labels_to_fabio(our$labels, bridge, fabio_items)
+
+# Key both sides' areas onto one space before anything is joined (#264).
+fabio_regions <- read.csv(
+  REGIONS_PATH,
+  stringsAsFactors = FALSE,
+  encoding = "latin1"
+)
+area_bridge <- whep:::.fabio_area_bridge(
+  fabio_regions,
+  whep_area_codes = our$labels$area_code
+)
+fabio_labels <- .attach_area_bridge(fabio_labels, area_bridge, "fabio")
+our$labels <- .attach_area_bridge(our$labels, area_bridge, "whep")
+
 primary_double_systems <- .build_primary_double_systems(fabio_items)
 fabio_labels_pd <- .mark_primary_double_boundary_items(
   fabio_labels,
@@ -499,6 +539,26 @@ message(sprintf("  %d WHEP sectors", length(our$X)))
 # --------------------------------------------------------------------------- #
 
 message("\n=== Coverage ===")
+
+# Area bridge: say what the two region spaces disagree about, and how much
+# FABIO output the disagreement carries, before any of it is joined away.
+area_report <- area_bridge |>
+  filter(.data$bridge_kind != "direct") |>
+  add_area_name()
+if (nrow(area_report) > 0) {
+  message(sprintf(
+    "  %d area code(s) where the FABIO and WHEP region spaces disagree:",
+    nrow(area_report)
+  ))
+  print(area_report, n = Inf, width = Inf)
+}
+
+unmatched_x <- sum(fabio_x[fabio_labels$bridge_kind == "unmatched"])
+message(sprintf(
+  "  FABIO X in unmatched regions: %.3e (%.4f%% of FABIO total)",
+  unmatched_x,
+  100 * unmatched_x / sum(fabio_x)
+))
 
 rollups <- our$labels |>
   distinct(

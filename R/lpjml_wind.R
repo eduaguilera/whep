@@ -13,9 +13,15 @@
 # - time size 1392, units "days since 1970-1-1", standard Gregorian
 #   calendar, 1901-2016 monthly (116*12 = 1392); convert with
 #   as.Date(time_vals, origin = "1970-01-01") then extract year/month.
-# - The wind variable carries no "units" attribute in the file; per the
-#   GSWP3-W5E5 forcing convention this is assumed to be m/s (documented on
-#   read_lpjml_wind(), not invented as a units string in the file).
+# - The wind variable carries no "units" attribute in this file, because the
+#   monthly means were written by terra, which dropped it. The unit is m/s,
+#   and that is now VERIFIED rather than assumed: the ISIMIP2a source the
+#   file is derived from declares wind:units = "m s-1" and
+#   wind:standard_name = "wind_speed" (checked against every 1901-2016 chunk
+#   at https://files.isimip.org/ISIMIP2a/InputData/climate_co2/climate/HistObs/GSWP3-W5E5/,
+#   see issue #371). the fetch_isimip_wind.sh script under inst/scripts rebuilds the series from
+#   those files and validation/lpjml_wind_provenance.R audits the pin against
+#   them; run_lpjml.R declares the same unit as input.wind.unit = "m/s".
 # - Local dev data dir is read from Sys.getenv("WHEP_WIND_DIR"); never
 #   hardcode an absolute path in committed code.
 
@@ -25,10 +31,10 @@
 #' Reads the GSWP3-W5E5 monthly windspeed forcing used to drive LPJmL
 #' (single consolidated NetCDF, already on WHEP's native 0.5-degree grid) and
 #' returns it in tidy long form. The file's `wind` variable carries no
-#' `units` attribute; per the GSWP3-W5E5 forcing convention its physical
-#' unit is assumed to be metres per second (m/s), and that assumption is
-#' encoded only in the output column name (`windspeed_ms`), not inferred
-#' from file metadata.
+#' `units` attribute, because the monthly aggregation dropped it; the unit is
+#' metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
+#' is derived from, which declares `units = "m s-1"` and `standard_name =
+#' "wind_speed"`. That is why the output column is named `windspeed_ms`.
 #'
 #' @param years Optional integer vector of calendar years to keep. `NULL`
 #'   reads every year present in the file (1901-2016).

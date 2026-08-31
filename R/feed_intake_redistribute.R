@@ -437,8 +437,10 @@ build_feed_demand <- function(
       live_anim_code = as.integer(live_anim_code),
       demand_source
     )
+  totals <- totals |>
+    dplyr::mutate(live_anim_code = as.integer(live_anim_code))
+  .warn_uncrosswalked_codes(totals, src$live_anim_code, "legacy tagging")
   totals |>
-    dplyr::mutate(live_anim_code = as.integer(live_anim_code)) |>
     dplyr::inner_join(src, by = "live_anim_code") |>
     dplyr::transmute(
       year,
@@ -447,6 +449,27 @@ build_feed_demand <- function(
       demand_dm_t,
       method_demand = .demand_method_label(demand_source, "fcr")
     )
+}
+
+# Surface demand an `inner_join` on `live_anim_code` would silently drop: a
+# live animal in production but absent from `livestock_category_crosswalk.csv`.
+# The crosswalk currently covers every `animals_codes` entry, so this is
+# unreachable today -- but a future new animal code would otherwise vanish
+# with no trace, unlike `.warn_dropped_mix` a few steps downstream.
+.warn_uncrosswalked_codes <- function(totals, known_codes, context) {
+  unknown <- setdiff(unique(totals$live_anim_code), known_codes)
+  if (length(unknown) == 0) {
+    return(invisible(NULL))
+  }
+  dropped <- totals[totals$live_anim_code %in% unknown, , drop = FALSE]
+  dropped_dm <- round(sum(dropped$demand_dm_t, na.rm = TRUE))
+  n <- length(unknown)
+  cli::cli_warn(c(
+    "{n} live_anim_code{?s} not in the crosswalk at {context}:
+     {.val {unknown}}.",
+    i = "{dropped_dm} t DM of demand is dropped."
+  ))
+  invisible(NULL)
 }
 
 # Package datasets the demand engine needs, grouped so the signature stays
@@ -591,8 +614,14 @@ build_feed_demand <- function(
       live_anim_code = as.integer(live_anim_code),
       livestock_category
     )
+  totals <- totals |>
+    dplyr::mutate(live_anim_code = as.integer(live_anim_code))
+  .warn_uncrosswalked_codes(
+    totals,
+    cat_map$live_anim_code,
+    "category aggregation"
+  )
   totals |>
-    dplyr::mutate(live_anim_code = as.integer(live_anim_code)) |>
     dplyr::inner_join(cat_map, by = "live_anim_code") |>
     dplyr::summarise(
       demand_dm_t = sum(demand_dm_t, na.rm = TRUE),
@@ -629,8 +658,10 @@ build_feed_demand <- function(
       live_anim_code = as.integer(live_anim_code),
       livestock_category
     )
+  codes <- codes |>
+    dplyr::mutate(live_anim_code = as.integer(live_anim_code))
+  .warn_uncrosswalked_codes(codes, cat_map$live_anim_code, "reverse split")
   codes |>
-    dplyr::mutate(live_anim_code = as.integer(live_anim_code)) |>
     dplyr::inner_join(cat_map, by = "live_anim_code") |>
     dplyr::mutate(
       code_share = .safe_share(demand_dm_t),
@@ -975,11 +1006,14 @@ build_feed_demand <- function(
     dplyr::select(item_cbs_code, feed_group, feed_quality) |>
     dplyr::distinct(item_cbs_code, .keep_all = TRUE)
 
-  cbs |>
+  joined <- cbs |>
     dplyr::filter(!is.na(.data$feed), .data$feed != 0) |>
     dplyr::left_join(items, by = "item_cbs_code") |>
     dplyr::left_join(biomass, by = "Name_biomass") |>
     dplyr::left_join(tax, by = "item_cbs_code") |>
+    dplyr::mutate(avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm)
+  .warn_unclassified_feed(joined)
+  joined |>
     dplyr::transmute(
       year,
       territory = as.character(area_code),
@@ -987,7 +1021,7 @@ build_feed_demand <- function(
       item_cbs_code,
       feed_group,
       feed_quality,
-      avail_dm_t = .data$feed * 0.9 * product_kgdm_kgfm,
+      avail_dm_t,
       feed_scale = "national"
     ) |>
     dplyr::filter(
@@ -996,6 +1030,33 @@ build_feed_demand <- function(
       !is.na(feed_quality),
       feed_quality != "non_feed"
     )
+}
+
+# Surface CBS feed mass this join cannot classify: an item_cbs_code with a
+# non-zero `feed` element that is absent from `feed_taxonomy` (`feed_quality`
+# stays NA) or has no matching `biomass_coefs` density (`avail_dm_t` stays
+# NA). Either drops real feed supply from availability with no trace, unlike
+# the demand-side steps (`.warn_dropped_mix`, `.warn_uncelled_demand`,
+# `.warn_unsplit_intake`). Items tagged "non_feed" by the taxonomy are an
+# intentional exclusion, not a classification gap, so they are not warned on.
+.warn_unclassified_feed <- function(joined) {
+  unclassified <- joined[
+    is.na(joined$feed_quality) | is.na(joined$avail_dm_t),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(unclassified) == 0) {
+    return(invisible(NULL))
+  }
+  items <- unique(unclassified$item_cbs_code)
+  dropped <- round(sum(unclassified$feed, na.rm = TRUE))
+  cli::cli_warn(c(
+    "{length(items)} CBS feed item{?s} could not be classified for national
+     availability: {.val {items}}.",
+    i = "{dropped} t of CBS feed mass is dropped (missing from
+      {.field feed_taxonomy} or {.field biomass_coefs})."
+  ))
+  invisible(NULL)
 }
 
 # ---- Provincial grain (sub_territory = cell) --------------------------------

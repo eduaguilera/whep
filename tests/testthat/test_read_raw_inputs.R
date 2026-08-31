@@ -347,6 +347,58 @@ test_that(".extract_fao row order does not depend on the read order", {
   expect_identical(forward, reversed)
 })
 
+# -- exact-set year filtering (whep#157) ----------------------------------------
+
+# `.filter_years()`'s contiguous-range fast path compared `length(years)`
+# against the range width without deduping first, so a duplicated request
+# like c(2000, 2000, 2002) (length 3, range width 3) wrongly took the fast
+# path and returned the unrequested in-between year 2001 too.
+test_that(".filter_years returns the exact set, not a min/max range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2000, 2000, 2002))
+
+  expect_equal(sort(result$year), c(2000, 2002))
+})
+
+test_that(".filter_years still uses the contiguous fast path for a range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2001, 2003, 2002))
+
+  expect_equal(sort(result$year), 2001:2003)
+})
+
+# `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+# (a row-group range filter); `.extract_fao()` used to never apply the exact
+# set afterwards, so a non-contiguous request like c(1961, 2000) silently came
+# back with all 40 years in between -- both a correctness bug (unrequested
+# years reach every downstream aggregation) and a memory hazard (pulling a
+# full range instead of two years can blow up RAM on a real pin).
+test_that(".extract_fao returns exactly the requested years", {
+  fixture <- data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = 2511L,
+    Item = "Wheat and products",
+    Element = "Production",
+    Unit = "tonnes",
+    Year = 1961:2000,
+    Value = 100
+  )
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_fao("faostat-cbs-new", years = c(1961, 2000))
+
+  expect_equal(sort(unique(out$year)), c(1961, 2000))
+  expect_equal(nrow(out), 2L)
+})
+
 # Issue whep#833. `.correct_processed()` calibrates a processing output by
 # dividing the observed production of that output by the production its parent's
 # `processing` implies, and then carries the one ratio it finds across the

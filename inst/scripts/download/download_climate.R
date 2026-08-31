@@ -42,10 +42,11 @@ CRU_TS_RELEASE <- list(
 # most of the size goes.
 CRU_TS_VARIABLES <- c("tmp", "pre", "cld", "wet", "pet")
 
-# The two monthly wind artefacts, pinned because neither can be rebuilt from
-# this repo: the 1901-2019 base was assembled from ISIMIP2a chunks by a script
-# that was never committed, and reproducing the ERA5 means needs ~85 GB of
-# streaming. Section 9d assembles the 1901-2023 forcing from these.
+# The two monthly wind artefacts, pinned for cost rather than because the code
+# is lost: the 1901-2019 ISIMIP base streams ~34 GB of daily files
+# (inst/scripts/fetch_isimip_wind.sh rebuilds it) and the ERA5 means need ~85
+# GB (fetch_era5_wind.py). Section 9d assembles the 1901-2023 forcing from
+# these; the fetch scripts are the audited fallback behind the pins.
 WIND_PINS <- c(
   base = "lpjml-wind-isimip-1901-2019",
   era5 = "lpjml-wind-era5-2017-2023"
@@ -271,7 +272,8 @@ download_climate <- function(dest_dir, timeout = 7200) {
 
 # ---- Wind --------------------------------------------------------------
 
-# The raw ISIMIP3a daily sfcwind chunks are no longer downloaded here: the
-# monthly means derived from them are pinned instead (WIND_PINS), which
-# avoids a ~2.5 GB download plus an aggregation step per chunk. Fetching
-# those pins is .download_wind_pins() above.
+# The raw ISIMIP daily wind chunks are not downloaded here: the monthly means
+# derived from them are pinned instead (WIND_PINS), which avoids ~34 GB of
+# streaming plus an aggregation step per chunk. Fetching those pins is
+# .download_wind_pins() above; rebuilding them from ISIMIP is
+# inst/scripts/fetch_isimip_wind.sh.

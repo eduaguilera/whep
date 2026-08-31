@@ -20,7 +20,10 @@ documentation. Default \code{FALSE}.}
 \value{
 \code{tibble} of FAOSTAT for \code{activity_data} with columns \code{area},
 \code{item}, \code{element}, \code{year}, \code{value}, \code{unit} and \code{ISO3_CODE}; default is
-for all years and countries.
+for all years and countries. \code{ISO3_CODE} is resolved from the \code{area_iso3c}
+column of \link{polity_area_crosswalk} and is \code{NA} for FAOSTAT's regional and
+multi-territory aggregates, including the \code{"China"} aggregate (area 351),
+which by design has no ISO3 code of its own.
 }
 \description{
 Important: Dynamically allows for the introduction of subsets as \code{"..."}.

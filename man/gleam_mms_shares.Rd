@@ -9,7 +9,24 @@ A tibble with \code{region}, \code{species}, \code{system}, \code{mms},
 \code{share_percent}.
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0.
+The shipped values are unsourced placeholders, but the real GLEAM
+table has been located (whep#881): FAO. 2018. \emph{Global Livestock
+Environmental Assessment Model, Model description, Version 2.0,
+Revision 5}. Rome, FAO, Supplement S1, Tables 4.2-4.11 (regional MMS
+averages for dairy cattle, beef cattle, feedlot cattle, dairy and
+non-dairy buffalo, small ruminants, backyard/intermediate/industrial pigs
+and chickens), workbook
+\url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx}
+(md5 \verb{72fd2ea477dfe8b30cd3657b2baa4af1}, retrieved 2026-08-26). The
+Version 3.0 description and its Supplement S1 publish MMS \emph{definitions}
+(Tables 4.1-4.5) but no regional shares. The shipped values disagree
+materially with Table 4.2/4.3: Western Europe dairy cattle is
+liquid/slurry 42\%, solid storage 30\%, pasture 27\%, daily spread 1\% in
+GLEAM against 60/30/10 here, and the Sub-Saharan Africa (90/10), Latin
+America (95/5) and South Asia (60/30/10) rows omit the drylot share
+GLEAM gives as 35\%, 42\% and 54\% respectively. Not re-ingested here
+because no function in \verb{R/} reads this object -- the manure chain uses
+\code{regional_mms_distribution}, which is separately unsourced.
 }
 \usage{
 gleam_mms_shares

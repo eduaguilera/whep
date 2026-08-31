@@ -144,3 +144,14 @@ test_that("source registry is well-formed and uses the reliability vocabulary", 
     reg$reliability %in% c("verified", "derived", "consensus", "placeholder")
   ))
 })
+
+# #652: the grassland-share row cited a filename and flagged the product
+# "unverified"; it is Lassaletta et al. (2014) ERL 9:105011 supplementary S1.
+test_that("the grassland-share source row names a paper, not a file", {
+  reg <- whep:::.manure_to_soil_sources()
+  row <- reg |> dplyr::filter(source_id == "lassaletta_grassland")
+  expect_equal(nrow(row), 1L)
+  expect_match(row$identifier, "^doi:10\\.1088/1748-9326/9/10/105011$")
+  expect_match(row$citation, "Lassaletta et al. 2014", fixed = TRUE)
+  expect_false(row$reliability == "placeholder")
+})

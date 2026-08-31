@@ -61,9 +61,26 @@ published values. See \link{folded_reporting_areas} and issue 556.
 \item \code{region_IEA}: IEA region.
 \item \code{region_IPCC}: IPCC region.
 \item \code{region_labour}: Labour-focused region.
-\item \code{region_labour_agg}: Aggregated labour region.
-\item \code{region_labour_mech}: Labour mechanisation region.
-\item \code{region_test}: Experimental regional grouping.
+\item \code{region_labour_agg}: Aggregated labour region, one of \code{"SAA"}, \code{"LACA"},
+\code{"Europe"}, \code{"AUS"}, \code{"SE-Asia"}, \code{"MENA"}, \code{"FSU"}, \code{"NAME"} or \code{"RoW"}.
+Northern Mariana Islands (code 163) instead holds \code{"Micronesia"}, its own
+\code{region_UN_sub} value.
+\item \code{region_labour_mech}: Labour mechanisation region, \code{"mech"} or
+\code{"no_mech"}. Two cells hold a sub-region name instead -- Angola (code 7)
+\code{"Middle Africa"} and Northern Mariana Islands (163) \code{"Micronesia"}, each
+its own \code{region_labour}-family value -- which looks like a column shift in
+the source spreadsheet. At code 163 the shift is two columns wide, since
+\code{region_labour_agg} is damaged in the same row; Angola's
+\code{region_labour_agg} is intact. Nothing here reads either column, so
+nothing computes on the bad cells; which class each belongs in is not
+recoverable from anything shipped with the package, and no public
+taxonomy defines this mechanised/not-mechanised split, so they are pinned
+in \code{test_region_classifications.R} rather than guessed at (whep#855).
+Group agreement is suggestive but not deductive: the other eight
+\code{region_labour == "Middle Africa"} rows are all \code{"no_mech"} and the other
+eight \code{region_UN_sub == "Micronesia"} rows are all \code{"mech"}, yet the
+column is not a function of either grouping -- \code{"Pacific"}, \code{"FSU"} and
+\code{"South America - South Cone"} each split across both classes.
 }
 }
 \source{
@@ -78,6 +95,43 @@ Extended reference table covering all polities and aggregate regions,
 including countries, territories, and statistical composites that appear
 in international databases but may lack standard ISO codes.
 }
+\section{Which regional groupings WHEP reads}{
+
+The grouping columns are not all inputs to this package. Six have a consumer
+in the tree, measured over \verb{R/}, \verb{data-raw/}, \verb{tests/}, \verb{vignettes/} and
+\verb{inst/}: \code{region} (carried into \link{polity_area_crosswalk} at build time),
+\code{region_krausmann} (the residue recovery rate, and the IPCC excreta regions
+of \code{prepare_spatialize_all.R}), \code{region_HANPP} (the modern-variety adoption
+share), \code{region_UN_sub} (the residue feed-use fraction, since whep#405),
+\code{ADB_Region} (\link{build_primary_production} area keys) and \code{EU27} (the EU
+aggregate of the FABIO comparison). \code{region_code} carries no information
+\code{region} does not -- the two are a 1:1 relabelling -- so it needs no
+consumer of its own.
+
+The rest -- \code{Lassaletta}, \code{region_krausmann2}, \code{region_UN}, \code{region_ILO1},
+\code{region_ILO2}, \code{region_ILO3}, \code{region_IEA}, \code{region_IPCC}, \code{region_labour},
+\code{region_labour_agg}, \code{region_labour_mech} -- are published third-party
+taxonomies shipped for downstream analysis and read by nothing in the
+package. They are shipped as reference, and carry no promise of being
+re-validated against their upstream taxonomy on release, so a consumer should
+check the gap it inherits before keying anything by one (whep#386).
+
+The gap the present-day taxonomies share is dissolved states. Over the 202
+\code{cbs} reporters, \code{region_ILO1}, \code{region_ILO2}, \code{region_ILO3}, \code{region_IEA}
+and \code{region_IPCC} are each \code{NA} for exactly the four federations WHEP still
+books commodity balances for -- Czechoslovakia (51), Serbia and Montenegro
+(186), the USSR (228) and the Yugoslav SFR (248) -- and complete everywhere
+else; \code{region_UN} labels three of the four and leaves only Czechoslovakia
+\code{NA}. \code{ROW} (999) carries an explicit \code{"RoW"} value in all of them rather
+than \code{NA}. Grouping by one of these without deciding what to do with the
+federations silently drops the pre-succession record. \code{region_UN_sub}, which
+shares the gap and does have a consumer, is pinned against it in
+\code{test_region_classifications.R}.
+
+A \code{region_test} column with two values (\code{"Europe"}, \code{"Other"}) and no
+consumer was dropped in whep#386.
+}
+
 \examples{
 head(regions_full)
 }
