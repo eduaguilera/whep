@@ -6,6 +6,14 @@ Important: Dynamically allows for the introduction of subsets as
 Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 it's fine.
 
+Data is downloaded straight from FAOSTAT's public bulk download service
+(`https://bulks-faostat.fao.org`), with no third-party client library
+and no API key: the dataset catalog resolves `activity_data` to its "All
+Data Normalized" zip, which is downloaded and read directly (#45).
+FAOSTAT's separate query API at `faostatservices.fao.org` now requires
+an authorization header WHEP does not have; the bulk download service is
+unaffected and needs none.
+
 ## Usage
 
 ``` r
@@ -21,8 +29,8 @@ get_faostat_data(activity_data, ..., example = FALSE)
 
 - ...:
 
-  can be whichever column name from `get_faostat_bulk`, particularly
-  `year`, `area` or `ISO3_CODE`.
+  can be whichever column name from the resulting bulk data,
+  particularly `year`, `area` or `ISO3_CODE`.
 
 - example:
 
