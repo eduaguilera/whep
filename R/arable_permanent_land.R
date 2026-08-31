@@ -855,7 +855,14 @@ check_fodder_land_share <- function(
 # table with no CBS 3002 rows to opt out of netting.
 .temporary_grassland_ha <- function(temporary_grassland) {
   if (is.null(temporary_grassland)) {
+    # The LUH2 source is pinned explicitly here: it is the grassland
+    # extension's own default, but that default disagrees with the
+    # whole-territory land-use ledger, which anchors grassland on the
+    # FAOSTAT pasture statistic instead (whep#759). Spelling it out here
+    # means a future default change upstream cannot silently move this
+    # netting.
     temporary_grassland <- build_grassland_land_extension(
+      source = "luh2",
       grassland_metric = "occupation"
     )
   }
