@@ -47,7 +47,7 @@ test_that(".cache_get says when it is serving a cached value", {
   )
 })
 
-test_that(".cache_get caches a NULL result by recomputing it", {
+test_that(".cache_get caches a NULL result instead of recomputing it", {
   local_isolated_build_cache()
 
   counter <- new.env(parent = emptyenv())
@@ -58,10 +58,13 @@ test_that(".cache_get caches a NULL result by recomputing it", {
   }
 
   expect_null(whep:::.cache_get("coverage_probe", build()))
-  expect_null(whep:::.cache_get("coverage_probe", build()))
-  # The hit test is `!is.null(...)`, so a NULL payload is indistinguishable
-  # from an empty slot and is rebuilt every time.
-  expect_equal(counter$n, 2L)
+  expect_message(
+    expect_null(whep:::.cache_get("coverage_probe", build())),
+    "Using cached coverage_probe"
+  )
+  # A NULL payload is a real cache hit, not an empty slot (whep#172): the
+  # expensive build must not run a second time.
+  expect_equal(counter$n, 1L)
 })
 
 test_that("whep_clear_cache empties the cache and returns NULL invisibly", {
