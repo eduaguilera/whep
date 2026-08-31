@@ -64,6 +64,7 @@ Suggests:
     RSQLite,
     s2,
     sf,
+    spelling,
     terra,
     testthat (>= 3.0.0),
     zip
