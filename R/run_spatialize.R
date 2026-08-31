@@ -34,7 +34,7 @@
 #'   - `cft_target`: one of `"whep"` (default for
 #'     `preset = "whep"`) or `"lpjml"` (default for
 #'     `preset = "lpjml"`). Selects which column of
-#'     `cft_mapping.csv` drives CFT aggregation: `cft_name`
+#'     [cft_mapping] drives CFT aggregation: `cft_name`
 #'     (granular 33-class WHEP taxonomy) or `cft_lpjml`
 #'     (12 LPJmL crop CFTs + single `others` bucket).
 #'   - `area_key`: one of `"grid"` (default) or `"polity_area"`,
@@ -570,13 +570,7 @@ run_spatialize <- function(
 }
 
 .read_packaged_cft_mapping <- function() {
-  path <- system.file("extdata", "cft_mapping.csv", package = "whep")
-  if (!nzchar(path)) {
-    cli::cli_abort(
-      "{.file cft_mapping.csv} not found in installed package."
-    )
-  }
-  cft_mapping <- readr::read_csv(path, show_col_types = FALSE)
+  cft_mapping <- whep::cft_mapping
   .assert_unique_cft_mapping(cft_mapping)
   cft_mapping
 }

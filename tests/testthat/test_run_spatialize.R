@@ -596,3 +596,11 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   testthat::expect_true(2L %in% out$area_code)
   testthat::expect_equal(sum(out$heads), 12000)
 })
+
+testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping package data", {
+  read_packaged_cft_mapping <- getFromNamespace(
+    ".read_packaged_cft_mapping",
+    "whep"
+  )
+  testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
+})
