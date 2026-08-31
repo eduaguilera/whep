@@ -1527,6 +1527,62 @@
   contains, so the next refresh is traceable to a dated FAO release rather
   than to whoever last downloaded a file by hand.
 
+* **`run_crop_spatialize()` and `run_livestock_spatialize()` work again.**
+  `build_gridded_landuse()` has refused a grid with no polity share since C8,
+  and both read `country_grid.parquet` -- the centroid crosswalk, which has no
+  share column -- and passed it straight to the engines. So from 2026-08-07 the
+  script aborted on its first chunk for any year range, and the last forcing it
+  produced is dated 2026-06-09. `.spatialize_grid_with_share()` now attaches
+  `cell_area_frac = 1` explicitly, with a warning naming what a centroid grid
+  asserts and what each alternative costs. A grid that already carries a share
+  passes through untouched, so `run_spatialize()`'s polycell and fraction paths
+  are unchanged.
+
+  Measured against `country_areas` at 2015, reporting areas the grid holds no
+  cell for: centroid 19 areas and 0.094 Mha of harvested area (0.007%);
+  polycell 11 areas and 18.771 Mha (1.374%). Polycell carries more area codes
+  (189 against 178) yet drops Sudan (12.9 Mha), Syria (3.8), South Sudan (1.4),
+  North Macedonia, Eswatini, Palestine, Equatorial Guinea and New Caledonia,
+  all of which the centroid grid covers -- the same `iso3c -> area_code`
+  vintage problem already recorded for the `fraction` grid. **Follow-up:** the
+  polycell support's area-code vocabulary needs those eight areas before it can
+  be the grid this caller uses.
+
+  No published value changes: this restores the allocation every deployed
+  forcing was built on rather than substituting a different one.
+
+* **`prepare_spatialize_all()` can now build LPJmL land-use forcing for years
+  before the production series starts, so a pre-industrial transient is
+  possible.** The forcing file began in 1851 not because of any limit in the
+  data but because that is `year_range`'s default:
+  `build_primary_production()` reconstructs FAOSTAT back to 1850 and no
+  further, and `run_crop_spatialize()` takes its output year axis from
+  `country_areas`. Asking for an earlier start therefore produced a *shorter*
+  file rather than an error -- and LPJmL's `readdata()` silently clamps any
+  year below a file's first year, so a 1750 run would have held land use at
+  1851 for a century and completed cleanly.
+
+  A new `.backcast_crop_areas()` holds each country's crop mix at the earliest
+  year the production series covers, and scales it by LUH2's own growth for
+  that crop's LUH2 type in that country. LUH2 `states.nc` covers 850 onward,
+  so any start year from 850 is now reachable. Scaling per LUH2 type rather
+  than by one cropland total lets annuals, N-fixers and perennials diverge as
+  LUH2 says they did; what is frozen is the split *within* a type, which
+  `crop_patterns` already holds constant across every year. Irrigation is not
+  scaled, because it is allocated downstream from LUH2's own per-year
+  irrigated fractions, so the added years carry real LUH2 irrigation.
+  Back-extended harvested area is 273 Mha at 1750 and 323 Mha at 1800,
+  against 410 Mha at the 1851 base.
+
+  Gridded pasture was separately capped at 1851 by
+  `intersect(unique(livestock_country$year), year_range)`, although pasture
+  *area* is read straight from LUH2 and never depended on the livestock
+  series; it now follows `year_range`. `grassland_lsuha`, which genuinely does
+  need head counts, still starts at 1851.
+
+  No published value changes: `year_range` still defaults to `1851:2023`, so
+  an unchanged call produces the same files as before.
+
 * **`build_grass_natural_carbon_inputs()` now sums all fourteen natural plant
   functional types LPJmL 6.x writes, not the eleven LPJmL 5.x had, raising
   natural-land soil carbon input by ~7%.** The natural-land carbon input selects
