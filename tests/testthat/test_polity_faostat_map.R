@@ -32,7 +32,8 @@ testthat::test_that("mapping_source accounts for every crosswalk row", {
       "fabio_row_promoted",
       "prefix_outside_map",
       "fabio_row_fold",
-      "prefix_fallback"
+      "prefix_fallback",
+      "whep_bucket_aggregate"
     )
   )
   # The map is the authority for the FAOSTAT era, so it must resolve the bulk of
@@ -231,14 +232,18 @@ testthat::test_that("mapping_status and mapping_source are read as a pair", {
       "fabio_row_promoted",
       "prefix_outside_map",
       "prefix_fallback",
-      "fabio_row_fold"
+      "fabio_row_fold",
+      "whep_bucket_aggregate"
     )
   )
 
   pair <- table(cw$mapping_status, cw$mapping_source)
   testthat::expect_equal(pair["matched", "upstream_map"], 233L)
   testthat::expect_equal(pair["matched", "fabio_row_promoted"], 50L)
-  testthat::expect_equal(pair["matched", "prefix_outside_map"], 246L)
+  # 248 since the #835 upstream re-sync, up from 246: upstream added
+  # `CPV-1800-1886` and `SUR-1800-1886`, and the prefix rule picks both up
+  # because neither area is named by an upstream map row for those years.
+  testthat::expect_equal(pair["matched", "prefix_outside_map"], 248L)
   testthat::expect_equal(pair["matched", "prefix_fallback"], 6L)
   # Unchanged at 62: the fold row of every Rest-of-World member survives in the
   # shipped table, which is what lets `whep.unfold_rest_of_world = "none"`
@@ -257,14 +262,25 @@ testthat::test_that("a row with no reporting area is labelled as one", {
   # `not_a_reporting_area` used to be documented and ship on ZERO rows: it sat
   # BELOW `matched` in the build's `case_when`, so it could only fire for a row
   # with neither an `area_code` nor a `polity_code`, and no such row exists.
-  # The 20 rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
+  # The rows it was written for -- Aland, Saint Barthelemy, Guernsey, Jersey,
   # the Isle of Man and Sint Maarten, which `regions_full` carries without a
   # FAOSTAT code, plus the six regional aggregate polities -- all match a polity
   # and so shipped as `matched`, indistinguishable from a real area mapping.
+  #
+  # The count is one row per territory-and-polity-PERIOD, not per territory:
+  # Aland answers to three Finnish periods and Saint Barthelemy to three French
+  # ones, Guernsey, Jersey and the Isle of Man to two British ones each, and
+  # the six aggregates to one apiece. That is 18, and Sint Maarten brings the
+  # nineteenth. It used to bring two: until the 2026-08-25 whep-polities
+  # re-sync it had no polity of its own and fell back to BOTH Dutch periods
+  # (`NLD-1800-1830` and `NLD-1830-2025`), where it now resolves to the single
+  # `SXM-2010-2025` upstream minted for it. Six territories still, one row
+  # fewer, and the `area_iso3c` set below is unchanged -- which is how to tell
+  # this apart from a territory going missing.
   cw <- as.data.frame(whep::polity_area_crosswalk)
   no_area <- cw[cw$mapping_status == "not_a_reporting_area", ]
 
-  testthat::expect_equal(nrow(no_area), 20L)
+  testthat::expect_equal(nrow(no_area), 19L)
   # The label means exactly one thing, in both directions.
   testthat::expect_equal(
     which(cw$mapping_status == "not_a_reporting_area"),
@@ -457,4 +473,191 @@ testthat::test_that("bucket 238 can still date Ethiopia before 1993", {
   )
   # And the bucket every one of those rows is published under really is 238.
   testthat::expect_true(all(resolved$polity_area_code == 238L))
+})
+
+# The crosswalk is keyed on ONE column, `area_code`, and two different kinds of
+# code are handed to it (whep#742): a raw FAOSTAT reporting area, and a
+# `polity_area_code` aggregation bucket. The two tests below pin what makes
+# that safe today, because #742 proposes splitting the key space and both
+# halves have to survive the split.
+
+testthat::test_that("the bucket key space is inside the area key space", {
+  # UNWRITTEN INVARIANT THE WHOLE BUCKET PATH RESTS ON. `.bucket_area_labels()`
+  # resolves a fold's identity by handing `.add_polity_columns_dt()` the
+  # `polity_area_code`, and that lookup joins on `area_code`. So a bucket
+  # resolves at all only because every bucket code also happens to be a
+  # reporting area code in this same table. Nothing said so and nothing checked
+  # it: a bucket code that is not an area code matches no row, the fold's
+  # `reporting_polity_code` comes back NA for every year, and only the `area`
+  # label survives -- through the member fallback, which makes the loss look
+  # like a deliberate aggregate rather than a miss.
+  #
+  # Checked in all three Rest-of-World modes, because `.unfold_rest_of_world()`
+  # rewrites `polity_area_code` on the way out and so decides this set: 202
+  # buckets when the fold is applied, 263 under the published default that
+  # promotes members, 206 for the CBS-reporter subset. None has an orphan.
+  for (mode in whep:::.unfold_rest_of_world_modes()) {
+    withr::with_options(list(whep.unfold_rest_of_world = mode), {
+      cw <- suppressWarnings(whep:::.polity_crosswalk(include_unmapped = TRUE))
+      buckets <- sort(unique(stats::na.omit(cw$polity_area_code)))
+      areas <- unique(stats::na.omit(cw$area_code))
+      testthat::expect_gt(length(buckets), 0L)
+      testthat::expect_equal(setdiff(buckets, areas), integer(0))
+    })
+  }
+})
+
+testthat::test_that("area 238 dates Ethiopia before 1993 in its own right", {
+  # THE OTHER HALF OF `(238, ETH-1952-1993)`, and the reason whep#742 must not
+  # be implemented as filed. #742 reads that row as bucket-only -- "reporting
+  # area 238 does not exist before 1993" -- and prescribes marking it so, which
+  # takes it out of every raw-reporting-area lookup.
+  #
+  # It is a live AREA answer as well. `.resolve_hist_trade_polities()` is the
+  # one caller that resolves a genuine historical source under its own year's
+  # borders (`backcast_anchor = -Inf`, so no back-cast floor), and it reaches
+  # the crosswalk with the raw reporting area the ISO3 bridge picked for `ETH`,
+  # which whep#719 fixed to 238. On the shipped historical-trade pins that is
+  # 149 published rows, all at 1961, and 1961 falls inside `ETH-1952-1993` as a
+  # real period hit -- Ethiopia including Eritrea, which is the territory the
+  # 1961 value covers.
+  #
+  # Marking the row bucket-only sends those rows to `ETH-1993-2025` /
+  # `out_of_span`, and the failure is worse than a status change: the `area`
+  # label is attached from the BUCKET, which keeps the row, so one published
+  # row would read `area = "Ethiopia (1952-1993)"` beside
+  # `polity_code = "ETH-1993-2025"` -- the two-vocabulary split of whep#584.
+  resolved <- whep:::.resolve_hist_trade_polities(
+    data.table::data.table(iso3c = "ETH", year = 1961L, value = 1)
+  )
+
+  testthat::expect_equal(resolved$polity_code, "ETH-1952-1993")
+  testthat::expect_equal(resolved$area_code, 238L)
+  # The label and the code name the same entity. This is the assertion that
+  # fails on the near miss, where the bucket keeps the row and the area does
+  # not, and the two columns come apart inside a single row.
+  testthat::expect_equal(resolved$area, "Ethiopia (1952-1993)")
+
+  # Stated against the resolver directly too, so a refactor of the trade reader
+  # cannot quietly remove the coverage. `-Inf` is what makes this the area
+  # reading rather than the back-cast one: with the floor on, 1961 is the
+  # anchor and the same answer would come out of the anchor rule instead.
+  unfloored <- whep::add_polity_code(
+    tibble::tibble(area_code = 238L, year = 1961L),
+    backcast_anchor = -Inf
+  )
+  testthat::expect_equal(unfloored$polity_code, "ETH-1952-1993")
+  testthat::expect_equal(unfloored$mapping_status, "matched")
+})
+
+# The bucket-aggregate row (whep#860) -----------------------------------------
+#
+# Every other crosswalk row answers for a REPORTING AREA, which is all the
+# upstream map is about. Bucket 206 is the one place that is not enough:
+# FAOSTAT reports area 206 "Sudan (former)" through 2011 and areas 276 Sudan /
+# 277 South Sudan for 2012-2024, WHEP sums the two successors back into bucket
+# 206, and the bucket had nothing later than `SUD-1956-2011` to answer with --
+# a polity that ended at the secession, reported `out_of_span` on every
+# post-2011 row (whep#414). Upstream now publishes `F206-2011-2025`, so the
+# bucket has a truthful label and the crosswalk carries it.
+#
+# These are the guards for the two ways of getting it wrong: not labelling the
+# bucket at all, and labelling ALL of its years -- including 2011, which really
+# is `SUD-1956-2011` because area 206 was still reporting alone.
+
+testthat::test_that("the bucket-aggregate row is derived, not hand-typed", {
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  bucket_rows <- cw[cw$mapping_source == "whep_bucket_aggregate", ]
+
+  testthat::expect_equal(nrow(bucket_rows), 1L)
+  testthat::expect_equal(bucket_rows$area_code, 206L)
+  testthat::expect_equal(bucket_rows$polity_area_code, 206L)
+  testthat::expect_equal(bucket_rows$polity_code, "F206-2011-2025")
+  testthat::expect_equal(bucket_rows$applies_from_year, 2012L)
+  testthat::expect_equal(bucket_rows$mapping_status, "matched")
+
+  # It names a LIVE AGGREGATE polity upstream publishes, never one invented
+  # here, and the `F<area>` stem is what makes it attributable: upstream uses it
+  # for the entities that mean what a FAOSTAT reporting code covers
+  # (`F237-1954-1975` Vietnam, `F249-1918-1990` Yemen).
+  testthat::expect_equal(bucket_rows$polity_type, "aggregate")
+  testthat::expect_true(bucket_rows$has_geometry)
+  polities <- as.data.frame(whep::polities)
+  upstream <- polities[polities$polity_code == bucket_rows$polity_code, ]
+  testthat::expect_equal(nrow(upstream), 1L)
+  testthat::expect_false(upstream$wiki_status %in% c("retired", "superseded"))
+  testthat::expect_equal(
+    paste0("F", bucket_rows$area_code),
+    sub("-.*", "", bucket_rows$polity_code)
+  )
+
+  # It carries NO upstream map columns, because upstream said nothing about it:
+  # a map row for area 206 after 2011 would be false.
+  testthat::expect_true(is.na(bucket_rows$map_year_start))
+  testthat::expect_true(is.na(bucket_rows$map_year_end))
+  testthat::expect_true(is.na(bucket_rows$map_match_route))
+
+  # `applies_from_year` marks bucket rows and nothing else.
+  other <- cw$mapping_source != "whep_bucket_aggregate"
+  testthat::expect_true(all(is.na(cw$applies_from_year[other])))
+})
+
+testthat::test_that("bucket 206 changes identity at 2012 and not before", {
+  # THE BOUNDARY, asserted from both sides. 2011 is area 206 reporting alone,
+  # which upstream's own map assigns to `SUD-1956-2011`; 2012 is the first year
+  # areas 276 and 277 report and the bucket becomes a two-territory sum.
+  #
+  # This fails on BOTH failure modes. Drop the row and every year from 2012 goes
+  # back to `SUD-1956-2011` / `out_of_span`. Let the row claim its polity's own
+  # 2011 start -- by removing `applies_from_year`, the near miss -- and 2011
+  # flips to `F206-2011-2025`, decided by a `polity_start_year DESC` tie-break
+  # that fires on nothing else in the crosswalk.
+  resolved <- whep::add_polity_code(
+    tibble::tibble(
+      area_code = 206L,
+      year = c(1961L, 2010L, 2011L, 2012L, 2015L, 2024L, 2025L)
+    )
+  )
+
+  testthat::expect_equal(
+    resolved$polity_code,
+    c(rep("SUD-1956-2011", 3L), rep("F206-2011-2025", 4L))
+  )
+  testthat::expect_equal(
+    resolved$mapping_status,
+    c(rep("manual", 3L), rep("matched", 4L))
+  )
+  # No post-2011 row is a nearest-period stand-in any more, which is the whole
+  # cost whep#414 measured.
+  testthat::expect_false(any(resolved$mapping_status == "out_of_span"))
+
+  # The MEMBERS are untouched: they keep their own polities and their own
+  # bucket, so nothing about the fold itself moved.
+  members <- whep::add_polity_code(
+    tibble::tibble(area_code = c(276L, 277L), year = 2015L)
+  )
+  testthat::expect_equal(
+    members$polity_code,
+    c("SDN-2011-2025", "SSD-2011-2025")
+  )
+  testthat::expect_equal(members$polity_area_code, c(206L, 206L))
+})
+
+testthat::test_that("one bucket key still resolves to one area label", {
+  # whep#563: `area` is a join key, and a bucket under two labels in one year
+  # stops summing. The bucket row takes `area_name` from area 206's OWN row so
+  # it cannot differ -- inventing a name here is how a bucket acquires a second
+  # label.
+  cw <- as.data.frame(whep::polity_area_crosswalk)
+  area_206 <- cw[cw$area_code %in% 206L, ]
+
+  testthat::expect_equal(unique(area_206$area_name), "Sudan (former)")
+  testthat::expect_equal(unique(area_206$area_iso3c), "SDN")
+  testthat::expect_equal(unique(area_206$fabio_code), 206L)
+
+  # And no crosswalk area carries two names, which is the invariant rather than
+  # the instance.
+  named <- cw[!is.na(cw$area_code) & !is.na(cw$area_name), ]
+  per_area <- tapply(named$area_name, named$area_code, dplyr::n_distinct)
+  testthat::expect_equal(unique(as.integer(per_area)), 1L)
 })

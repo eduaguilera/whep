@@ -74,6 +74,8 @@ utils::globalVariables(
     "source_prod",
     # polities.R + build_production.R (dependency-to-sovereign attribution)
     "sovereign_iso3c",
+    "prefix_iso3c",
+    "legacy_polity_prefix",
     # crop_npp.R (potential NPP + residues/roots/components)
     "temp_c",
     "temp_grassland_ha",
@@ -402,6 +404,8 @@ utils::globalVariables(
     "Area_ygpit_ha",
     "AreaCode",
     "arrowColor",
+    "backfill_years",
+    "forwardfill_years",
     "balanced_export",
     "balanced_import",
     "balance",
@@ -516,6 +520,27 @@ utils::globalVariables(
     "Food_MgN",
     "food_pets",
     "food_share",
+    "area_ha",
+    "baseline_fci",
+    "ext_mg",
+    "int_mg",
+    "intens_mg",
+    "lv_in",
+    "lv_out",
+    "mean_val",
+    "soil_in",
+    "soil_out",
+    "surplus_mg",
+    "prev_fci",
+    "change_pct",
+    "finn_index",
+    "from_comp",
+    "mean_fci",
+    "period",
+    "period_label",
+    "q25",
+    "q75",
+    "from_code",
     "from_polity_area_code",
     "from_polity_code",
     "fu",
@@ -667,6 +692,7 @@ utils::globalVariables(
     "Name_biomass",
     "Name_biomass_primary",
     "Name_Eurostat",
+    "national_production_fm",
     "National_area",
     "net_bal1",
     "net_bal2",
@@ -693,6 +719,7 @@ utils::globalVariables(
     "OtherUses_MgFM",
     "OtherUses_MgN",
     "output",
+    "outputs",
     "Palm_kernels",
     "Palmkernel_Oil",
     "Pasture",
@@ -730,7 +757,19 @@ utils::globalVariables(
     "processeditem",
     "Processeditem",
     "ProcessedItem",
+    "processed_fm",
+    "biomass_match",
+    "from_item",
+    "item_biomass",
+    "n_in",
+    "n_missing",
+    "n_out",
+    "n_per_fm",
+    "output_scale",
+    "removal_scale",
     "ProcessedItem_amount",
+    "Processed_amount_total",
+    "Processed_used",
     "processing",
     "processing_primary",
     "processing_used",
@@ -805,6 +844,7 @@ utils::globalVariables(
     "SemiNatural_feed_share",
     "sex",
     "share",
+    "share_processing",
     "share_mono",
     "share_rum",
     "Solid",
@@ -845,6 +885,8 @@ utils::globalVariables(
     "Timeline_End",
     "Timeline_Freq",
     "Timeline_Start",
+    "to_comp",
+    "to_code",
     "to_polity_area_code",
     "to_polity_code",
     "tonnes",
@@ -1574,9 +1616,12 @@ utils::globalVariables(
     "Total_all",
     "Typology_base",
     "area_ygpit_ha",
+    "area_ha_0",
+    "area_ha_1",
     "bnf",
     "box_destiny",
     "circularity",
+    "contribution_mgn",
     "conversion_n_dm",
     "crop_N",
     "crop_input",
@@ -1623,16 +1668,79 @@ utils::globalVariables(
     "solid",
     "specialization",
     "specialization_index",
+    "area_effect",
+    "intensity_effect",
+    "surplus",
+    "surplus_mg_0",
+    "surplus_mg_1",
     "synthetic_share",
     "total_GgN",
     "total_input_mg",
     "total_inputs",
+    "transition",
     "value_MgN",
+    "weight",
+    "x",
     "xend",
     "y",
     "yend",
     "ymax",
     "ymin",
+    # validate_national_trade.R and plot_national_trade_validation
+    "Residue_kgDM_kgFM",
+    "Residue_kgN_kgDM",
+    "value_n",
+    "net_prov",
+    "net_fao",
+    "diff_net",
+    "dm_coef",
+    "n_coef",
+    "category",
+    "flow",
+    # decomposition_analysis.R
+    "herd_lu",
+    "excr_h",
+    "loss_frac",
+    "lu_head",
+    "stock_number",
+    "cumulative_mgn",
+    "herd_total",
+    "excr_pc",
+    "excr_total",
+    "total_area",
+    "output_mg",
+    "item_total",
+    "input_mg",
+    "compartment",
+    "mechanism",
+    "factor_label",
+    "component_type",
+    "additive",
+    "t0",
+    "applied",
+    "loss",
+    "excr_n",
+    "prev_sign",
+    "share",
+    "destiny_grp",
+    "allocated",
+    "intake_mgn",
+    "s",
+    "w_mean",
+    "s_mean",
+    "covariance",
+    "local_feed",
+    "total_feed",
+    "self_sufficiency",
+    "manure_n",
+    "total_n",
+    "recycling_ratio",
+    "dimension",
+    "stack_side",
+    "stack_total",
+    "period_years",
+    "contribution_per_yr_mgn",
+    "rolling_mgn",
     # input_output_plots.R (per-ha normalization + accumulation term)
     "Input_Total",
     "Use_Total",
@@ -1683,7 +1791,6 @@ utils::globalVariables(
     "target_permanent",
     "tolerance",
     # n_prov_destiny.R / n_soil_inputs_nue.R (alice data-layer NSE columns)
-    "intake_mgn",
     "intake_MgFM",
     "demand_total",
     "Excreta_old",
@@ -1691,13 +1798,11 @@ utils::globalVariables(
     "GrazedFodder_MgDM",
     "N_excr_MgN",
     "Total_ha",
-    "value_n",
     # .split_local_consumption() local/import allocation
     "local_food",
     "local_food_raw",
     "local_other_uses",
     "local_other_raw",
-    "local_feed",
     "local_feed_raw",
     "local_total",
     "total_local_alloc",
@@ -1720,6 +1825,34 @@ utils::globalVariables(
     "share_other",
     "total_gap",
     "total_production",
+    # soil_carbon_inputs.R (.sci_sum_components — data.table NSE temp cols)
+    ".residue",
+    ".root",
+    ".weed",
+    ".manure",
+    "weed_c_mg",
+    # typologies_sensitivity.R (.compute_agreement threshold sensitivity)
+    "Typology_base_base",
+    "Typology_base_new",
+    "agreement_pct",
+    # typologies_spain_plot.R (create_typo_ts_plot legend layout)
+    "sq_xmin",
+    "sq_xmax",
+    "sq_ymin",
+    "sq_ymax",
+    "label_x",
+    "label_y",
+    # intensification_specialization_plot.R (period-wide pivoted columns +
+    # per-province system productivity)
+    "1865-1870",
+    "2015-2020",
+    "delta_external",
+    "delta_productivity",
+    "system_MgN",
+    "system_N",
+    "system_productivity",
+    "agri_area_ha",
+    "n_productivity",
     # polycell_support.R. The producer itself is written entirely in `.data$`
     # form, so it needs no declarations; these two are the polycell keys the
     # compartment helpers in spatialize_compartments.R already name, and they
@@ -1807,11 +1940,10 @@ utils::globalVariables(
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
     "method_n_exceedance",
-    # scrape_faostat.R — FAOSTAT country profile name/ISO3 lookup NSE columns
-    "ISO3_CODE",
+    # scrape_faostat.R — FAOSTAT area name/ISO3 lookup NSE columns, now read
+    # off `polity_area_crosswalk` rather than FAOSTAT's country profile (#541)
     "fao_area_name",
     "iso3_code",
-    "profile_row",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
     # build_production.R — dissolved-federation LUH2 land bridge (whep#408)
@@ -1912,6 +2044,67 @@ utils::globalVariables(
     # build_production.R (#548) — .zero_proxy_land_areas() NSE columns for the
     # zero-land bucket of the back-cast warning
     "zero_proxy",
-    "all_zero"
+    "all_zero",
+    # n_prov_destiny.R (#449) — .spain_processing_coefs() reads
+    # get_processing_coefs() instead of the frozen pin, so it selects on the
+    # builder's conversion-factor column rather than the pin's `cf`
+    "final_conversion_factor",
+    # n_prov_destiny.R — .processing_n_scaling()'s N-conserving scaling
+    # table and the helpers that consume it
+    "priced",
+    "processing_loss_n",
+    "remove_mass",
+    # build_production.R (#655) — .attach_fodder_area() coalesces the resolved
+    # polity label with the label the fodder source itself carried
+    "source_area",
+    # parquet_integrity.R (#531) — Parquet footer column-chunk metadata and
+    # the derived byte range the layout check walks
+    "row_group",
+    "column",
+    "data_page_offset",
+    "dictionary_page_offset",
+    "total_compressed_size",
+    "chunk_start",
+    "chunk_end",
+    "prev_end",
+    "issue",
+    "detail",
+    # build_production.R (#650) — .same_source_collisions() NSE columns for the
+    # same-source duplicate report of .dedup_production()
+    ".keep_source",
+    "dropped",
+    # table_schema.R (#373) — diagnostic columns the schema validator sorts
+    # and filters its report by
+    "row",
+    "rule",
+    "severity",
+    # row_evidence.R (#372) — columns of the row-evidence format the
+    # producer orders by and the conflict report groups on
+    "row_key",
+    "key_columns",
+    "source_id",
+    "source_version",
+    "recorded_at",
+    "field",
+    "n_values",
+    # build_production.R (#937) — flag marking the recomputed copy of a
+    # double-product key, which `.deduplicate_doubles()` used to identify by
+    # the absence of a `source`
+    ".double_combined",
+    # polity_folds.R / build_cbs.R (#884) — area-vintage columns of the
+    # reporting-window check that keeps a wrong-vintage area code from
+    # becoming a duplicated territory
+    "map_year_start",
+    "map_year_end",
+    "window_start",
+    "window_end",
+    # water_balance.R (#916) — the all-band (whole-cell) consumptive-water
+    # totals the blue/green AET split uses, kept apart from the
+    # `bands`-restricted pair the output reports
+    "consump_blue_all_mm",
+    "consump_green_all_mm",
+    # commodity_balance_sheet.R (#168) — the live-animal slaughter total
+    # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
+    "slaughtered"
   )
 )

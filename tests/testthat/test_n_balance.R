@@ -898,3 +898,69 @@ testthat::test_that("C3b: the land scope reaches the balance and moves it", {
     sum(.nb_run()$n_input_full_t)
   )
 })
+
+# polity_validity threading (whep#727) ----------------------------------------
+
+testthat::test_that("build_nitrogen_balance forwards polity_validity down", {
+  seen <- new.env(parent = emptyenv())
+  real_n_inputs <- whep::build_n_inputs
+  testthat::local_mocked_bindings(
+    build_n_inputs = function(...) {
+      args <- list(...)
+      seen$n_inputs <- args$polity_validity
+      do.call(real_n_inputs, args)
+    }
+  )
+  out <- whep::build_nitrogen_balance(
+    methods = list(
+      nh3 = "ipcc",
+      n2o = "ipcc2019",
+      leaching = "ipcc_fracleach"
+    ),
+    polity_validity = "flag",
+    data = .nb_data_with_drivers()
+  )
+  testthat::expect_equal(seen$n_inputs, "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+  testthat::expect_type(out$reporting_polity_out_of_span, "logical")
+})
+
+testthat::test_that("the balance keeps every row by default", {
+  out <- .nb_run()
+  testthat::expect_false(
+    "reporting_polity_out_of_span" %in% names(out)
+  )
+})
+
+testthat::test_that("the balance example honours polity_validity", {
+  out <- whep::build_nitrogen_balance(example = TRUE, polity_validity = "flag")
+  pointblank::expect_col_exists(out, "reporting_polity_out_of_span")
+})
+
+testthat::test_that("build_nitrogen_balance validates polity_validity", {
+  testthat::expect_error(
+    whep::build_nitrogen_balance(
+      polity_validity = "discard",
+      data = list()
+    ),
+    "polity_validity"
+  )
+})
+
+testthat::test_that("the fert_type bridge covers the whole input vocabulary", {
+  # Invariant, not a transcription of the mapping: every fert_type the wide
+  # balance schema guarantees must have a Title-case counterpart, or
+  # .nb_loss_rows() would join NA against data$n_balance_drivers and lose the
+  # driver columns. Pinned here because whep#850 rewrote the bridge off the
+  # deprecated dplyr::case_match().
+  vocabulary <- names(whep:::.nb_ensure_fert_cols(tibble::tibble()))
+  bridged <- whep:::.nb_loss_fert_type(vocabulary)
+
+  testthat::expect_false(anyNA(bridged))
+  testthat::expect_equal(length(unique(bridged)), length(vocabulary))
+  # Anything outside the vocabulary falls through to NA rather than to a wrong
+  # label: an unmatched value must stay visible.
+  testthat::expect_true(is.na(whep:::.nb_loss_fert_type("bogus")))
+  testthat::expect_true(is.na(whep:::.nb_loss_fert_type(NA_character_)))
+  testthat::expect_equal(whep:::.nb_loss_fert_type(character()), character())
+})

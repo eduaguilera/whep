@@ -30,6 +30,13 @@
 #' rows are kept for such an ISO3 and the function aborts if any is still
 #' ambiguous, instead of guessing as before.
 #'
+#' The bridge is year-insensitive by construction: `.current_area_lookup()` is
+#' one row per `area_code`, so an ISO3 resolves to the same FAOSTAT area for
+#' every year. That is what the caller wants -- `.proxy_polity_key()` stamps
+#' the reporting area and then resolves the polity year-by-year with
+#' `.add_polity_columns_dt()` -- but it means the stamped `area_code` must not
+#' be read as "the area that reported in that row's year".
+#'
 #' @noRd
 .iso3_to_fao_area_code <- function(df) {
   if (!data.table::is.data.table(df)) {
@@ -85,31 +92,6 @@
   bridge
 }
 
-#' Convert FAOSTAT numeric area_code to ISO3 area_code and add area name
-#' @noRd
-.fao_to_iso3_area_code <- function(df) {
-  if (!data.table::is.data.table(df)) {
-    data.table::setDT(df)
-  }
-  dt <- df
-  bridge <- .current_area_lookup(include_unmapped = TRUE)[,
-    .(area_code_fao = area_code, iso3c = area_iso3c, area = area_name)
-  ]
-  bridge <- unique(bridge, by = "area_code_fao")
-
-  dt <- merge(
-    dt,
-    bridge,
-    by.x = "area_code",
-    by.y = "area_code_fao",
-    all.x = TRUE,
-    sort = FALSE
-  )
-  dt[, area_code := NULL]
-  data.table::setnames(dt, "iso3c", "area_code")
-  dt
-}
-
 # -- Reading helpers -----------------------------------------------------------
 
 .filter_years <- function(df, years) {
@@ -121,13 +103,18 @@
   year_col <- .detect_year_col(dt)
 
   # Fast path for contiguous ranges (common case in build pipelines).
-  y_min <- min(years, na.rm = TRUE)
-  y_max <- max(years, na.rm = TRUE)
-  if (length(years) == (y_max - y_min + 1L)) {
+  # Dedupe first: duplicated years must not inflate the length past the
+  # distinct-year count, or a request like c(2000, 2000, 2002) (length 3,
+  # range 2000-2002 also length 3) wrongly takes this branch and returns the
+  # unrequested 2001 too (whep#157).
+  years_unique <- unique(years)
+  y_min <- min(years_unique, na.rm = TRUE)
+  y_max <- max(years_unique, na.rm = TRUE)
+  if (length(years_unique) == (y_max - y_min + 1L)) {
     return(dt[dt[[year_col]] >= y_min & dt[[year_col]] <= y_max])
   }
 
-  dt[dt[[year_col]] %in% years]
+  dt[dt[[year_col]] %in% years_unique]
 }
 
 .detect_year_col <- function(df) {
@@ -245,6 +232,12 @@
     "Processing" = "processing",
     "Production" = "production"
   )
+  # The 2026-06-15 Commodity Balances (non-food) release added a "Processed"
+  # element (5023) for rubber, wool and silk. It is absent here, so those rows
+  # are filtered out by .extract_fao() before .get_fiber_tobacco() ever sees
+  # them -- even though cbs_trade_codes maps all three onto CBS items. Adding
+  # it would introduce a processing flow those items do not currently carry,
+  # which moves published values; that is #811, not this change.
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -304,7 +297,47 @@
   if (vintage == "faostat") c(paddy, "Rice and products") else paddy
 }
 
-.fix_item_codes <- function(dt, paddy_rice_names = .paddy_rice_names()) {
+# Sources that report rice on a PADDY (rough-rice) basis, and so need the
+# extraction rate applied to reach WHEP's milled-equivalent contract for item
+# 2807. FAOSTAT crop production is paddy, and so is everything WHEP derives
+# from it: the LUH2 back-cast, the linear fills and the yield imputations.
+#
+# User-supplied `historical_data` is assumed paddy too. That is an assumption,
+# not a fact about the row -- the argument carries no basis declaration -- but
+# it is the assumption `.fix_rice_milled_equiv()` has always made in the
+# production pipeline, and every national source WHEP validates against
+# publishes rice as paddy (`validation/SOURCES.md`, FAO Technical Conversion
+# Factors). #778: this predicate is the single definition, so the production
+# and CBS ingest paths cannot drift onto two mass bases again.
+.paddy_rice_sources <- function() {
+  c(
+    "FAOSTAT_prod",
+    "fill_linear",
+    "fill_linear_historical",
+    "LUH2_cropland",
+    "LUH2_agriland",
+    "historical_LUH2_cropland",
+    "historical_LUH2_agriland"
+  )
+}
+
+.rice_source_is_paddy <- function(source) {
+  src <- tidyr::replace_na(as.character(source), "")
+  src %in%
+    .paddy_rice_sources() |
+    stringr::str_starts(src, "imputed_yield") |
+    stringr::str_starts(src, "historical_")
+}
+
+# `paddy_by_source = TRUE` additionally treats a 2804/2807 row from a paddy
+# source as paddy whatever its item label says. It is for the historical ingest
+# boundary, where `items_full` has already overwritten the label with the
+# canonical "Rice and products" and only the source still carries the basis.
+.fix_item_codes <- function(
+  dt,
+  paddy_rice_names = .paddy_rice_names(),
+  paddy_by_source = FALSE
+) {
   if (!data.table::is.data.table(dt)) {
     data.table::setDT(dt)
   }
@@ -339,12 +372,21 @@
   }
 
   if ("value" %in% names(dt)) {
-    dt[
-      item_cbs_code %in%
-        c(2804L, 2807L) &
-        item_cbs %in% paddy_rice_names,
-      value := value * .rice_milled_extraction_rate()
-    ]
+    by_name <- if ("item_cbs" %in% names(dt)) {
+      dt[, item_cbs %in% paddy_rice_names]
+    } else {
+      FALSE
+    }
+    by_source <- if (paddy_by_source && "source" %in% names(dt)) {
+      .rice_source_is_paddy(dt$source)
+    } else {
+      FALSE
+    }
+    is_paddy <- dt[, item_cbs_code %in% c(2804L, 2807L)] &
+      (by_name | by_source)
+    if (any(is_paddy)) {
+      dt[which(is_paddy), value := value * .rice_milled_extraction_rate()]
+    }
   }
 
   dt[
@@ -392,6 +434,10 @@
   # that covers only part of it (whep#414).
   .warn_partial_bucket_polities(dt)
   .warn_folded_areas(dt, source_label)
+  # The opposite shape to a fold: an area-year the source reports and WHEP's
+  # area vocabulary does not, so the rows land on a bucket no other input keys
+  # and are silently unjoinable downstream (whep#884).
+  .warn_off_window_area_years(dt, source_label)
   # `polity_name` is deliberately NOT a grouping key. It is a property of the
   # member row, so keying on it splits a bucket whose members resolve to
   # different polities -- the bucket stops summing without a single value
@@ -404,7 +450,7 @@
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
     dt <- dt[,
-      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
+      .(value = sum(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
       by = by_cols
     ]
   } else {
@@ -412,6 +458,20 @@
   }
 
   .apply_bucket_area_labels(dt, labels)
+}
+
+# A bucket that folds several reporting areas (whep#414) is a *sum*, and the
+# FAOSTAT flag is a per-row provenance code (`A` official, `E` estimated,
+# `I` imputed, ...), not an additive quantity. Keeping whichever member's flag
+# happened to sort first (whep#581) asserted a provenance the summed value
+# does not have. There is no FAO-endorsed precedence over the flag vocabulary
+# to fall back on instead, so this keeps the flag when every folded member
+# agrees and reports the disagreement honestly as `NA` otherwise, rather than
+# inventing a "worst flag wins" ranking. Single-member groups are unaffected:
+# they keep their own flag exactly as before.
+.fold_fao_flag <- function(fao_flag) {
+  distinct_flags <- unique(fao_flag[!is.na(fao_flag)])
+  if (length(distinct_flags) == 1L) distinct_flags else NA_character_
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
@@ -428,7 +488,12 @@
     "other_uses"
   )
 
+  # `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+  # (a row-group-level range filter, cheap to push down); apply the exact
+  # requested set afterwards so non-contiguous or partial requests do not
+  # silently carry the in-between years through (whep#157).
   dt <- .read_input(pin_alias, years = years, year_col = "Year")
+  dt <- .filter_years(dt, years = years)
   data.table::setnames(
     dt,
     c(
@@ -477,13 +542,54 @@
     cols <- c(cols, "fao_flag")
   }
   dt <- dt[, cols, with = FALSE]
-  .aggregate_to_polities(dt, item_cbs, item_cbs_code, source_label = pin_alias)
+  out <- .aggregate_to_polities(
+    dt,
+    item_cbs,
+    item_cbs_code,
+    source_label = pin_alias
+  )
+  # Pin the row order, for the same reason `.extract_cb()` below does and one
+  # stage earlier, so the two callers that stop here get it too: the CBS build
+  # reads `faostat-cbs-new` and `faostat-trade-totals` through this function
+  # and never reaches `.extract_cb()`. `.read_input()` reads the parquet
+  # through arrow's multi-threaded scanner, whose row order varies between
+  # sessions, and the `by=` aggregation above emits groups in order of first
+  # appearance -- so it hands that variation straight on. Measured on the real
+  # pins at 1950-1965, `.read_fao_trade()` came back in a different order in
+  # every one of three sessions (339,220 rows, same rows, same values,
+  # whep#420). The key is the aggregation key, so the order is total.
+  data.table::setorderv(
+    out,
+    intersect(
+      c("year", "area_code", "item_cbs_code", "item_cbs", "element", "unit"),
+      names(out)
+    )
+  )
+  out
 }
 
 .extract_cb <- function(pin_alias, years = NULL) {
   dt <- .extract_fao(pin_alias, years = years)
   items <- .items_cbs_bridge()
-  merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  out <- merge(dt, items, by = c("item_cbs", "item_cbs_code"), sort = FALSE)
+  # Pin the row order. Nothing above this line pins one: `.read_input()` reads
+  # the parquet through arrow's multi-threaded scanner, whose row order varies
+  # between sessions, and neither the `by=` aggregation in
+  # `.aggregate_to_polities()` nor `merge(sort = FALSE)` restores one. These
+  # four tables travel as the `.cb_extracts` attribute of
+  # `build_primary_production()`, so an unpinned order made that published
+  # object not `identical()` to itself across sessions -- same rows, same
+  # values, different order -- and broke the `identical()` reproducibility
+  # control that a change is judged with (whep#747). The key below is unique
+  # (it is the aggregation key), so the order is total.
+  data.table::setorderv(
+    out,
+    intersect(
+      c("year", "area_code", "item_cbs_code", "item_cbs", "element", "unit"),
+      names(out)
+    )
+  )
+  out
 }
 
 # -- Processing helpers (from comdat_global) -----------------------------------
@@ -561,6 +667,19 @@
   dt[, scaling_raw := value / value_proc]
   dt[scaling_raw == 0, scaling_raw := NA_real_]
 
+  # This fill is unbounded along the year axis, and it decides whether a
+  # processing output EXISTS, not only what it is worth: with no anchor in the
+  # frame at all, `scaling_raw` stays NA and the `scaling` below collapses to 0
+  # for every item that is neither `Required` nor a `no_data_product`, so the
+  # pathway emits a zero that the `value != 0` filters downstream delete.
+  #
+  # That makes the frame's year span load-bearing, which is half of whep#833:
+  # a year-scoped build hands this function a truncated axis and loses outputs
+  # a full-range build keeps. Measured at 2010, the 14 keys the scoped build
+  # lost sit 7 to 49 years from their nearest anchor -- Italy's Ricebran Oil is
+  # calibrated at 2010 off a single 1961 observation carried forward 49 years.
+  # A wider `.context_years()` margin therefore cannot fix it; see the margin
+  # comment in R/build_cache.R.
   dt <- fill_linear(
     dt,
     scaling_raw,

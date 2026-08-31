@@ -20,6 +20,7 @@
 ^typology_kgha_agricultural\.jpg$
 ^\.claude$
 ^CLAUDE\.md$
+^AGENTS\.md$
 ^autoresearch$
 ^LPJmL_inputs$
 ^WHEP_LFILES_DIR$

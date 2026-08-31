@@ -6,23 +6,31 @@
 \usage{
 build_cell_polity(
   polity_fraction_path = NULL,
-  area_key = c("grid", "polity_area")
+  area_key = c("grid", "polity_area"),
+  version = NULL,
+  example = FALSE
 )
 }
 \arguments{
-\item{polity_fraction_path}{Path to the cell-polity fraction parquet.
-Defaults to \code{Sys.getenv("WHEP_POLITY_FRACTION_PATH")}.}
+\item{polity_fraction_path}{Optional path to a local parquet, overriding
+\code{Sys.getenv("WHEP_POLITY_FRACTION_PATH")} and the pin.}
 
 \item{area_key}{Which area code the output is keyed on: \code{"grid"} (default,
-the parquet's own reporting-area codes) or \code{"polity_area"} (the
+the table's own reporting-area codes) or \code{"polity_area"} (the
 \link{polity_area_crosswalk} bucket national tables are aggregated on).}
+
+\item{version}{Pin version, passed to \code{\link[=whep_read_file]{whep_read_file()}}. \code{NULL} takes the
+version frozen in \link{whep_inputs}.}
+
+\item{example}{If \code{TRUE}, return a small fixture instead of reading the pin,
+so the example runs offline.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{polity_frac} and
 \code{cell_area_ha}.
 }
 \description{
-Reads the cached cell-polity fraction parquet (\code{lon}, \code{lat}, \code{area_code},
+Reads the cell-polity fraction table (\code{lon}, \code{lat}, \code{area_code},
 \code{polity_frac}) and adds \code{cell_area_ha}, computed from latitude with the
 same 0.5-degree cell-area formula used across the package (see
 \code{\link[=build_grass_availability_lpjml]{build_grass_availability_lpjml()}}). This assembles the
@@ -66,9 +74,33 @@ identity needs the cell x polity x validity-interval unit tracked by epic
 whep#458, not a column added here.
 }
 
-\examples{
-# Requires WHEP_POLITY_FRACTION_PATH to be set; not run without it.
-if (nzchar(Sys.getenv("WHEP_POLITY_FRACTION_PATH"))) {
-  build_cell_polity()
+\section{Where the table comes from}{
+
+WHEP produces this crosswalk itself, in section 1b of
+\code{inst/scripts/prepare_spatialize_all.R}, from Natural Earth polygons and
+\code{inst/extdata/regions.csv}. It is therefore published as the
+\code{spatialize-cell-polity-fraction} pin alongside the nine other artefacts of
+that script, and the pin is what this function reads by default: no user has
+to run the producer, or hold the Natural Earth shapefile, to get the table
+WHEP's own runs use. \code{WHEP_POLITY_FRACTION_PATH} and \code{polity_fraction_path}
+are \strong{overrides} for a local development build, in the shape
+\code{\link[=read_polycell_support]{read_polycell_support()}} already uses.
 }
+
+\section{Vintage of the area vocabulary}{
+
+The table's \code{area_code} values must all exist in the \code{regions.csv} the
+installed package carries, because that is the table its producer
+rasterizes through. A copy built through an older vintage keyed Ethiopia
+\code{62} and Sudan (former) \code{206} where today's lookup uses \code{238} and \code{276}, so
+adopting it deleted both countries from every consumer (whep#694). Such a
+table is \strong{refused} with class \code{whep_stale_cell_polity_grid} rather than
+read, and the message names the producer re-run that rebuilds it. The check
+guards the override, which is the only route that can now go stale, but it
+runs on the pin too so that pinning an older \code{version} cannot reintroduce
+the deletion either.
+}
+
+\examples{
+build_cell_polity(example = TRUE)
 }

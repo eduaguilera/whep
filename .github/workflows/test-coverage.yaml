@@ -17,9 +17,10 @@ concurrency:
 jobs:
   test-coverage:
     runs-on: ubuntu-latest
-    # Backstop against a hung test; set above a healthy run (which is a few
-    # minutes here) with headroom for a cold dependency install.
-    timeout-minutes: 30
+    # Backstop against a hung test; set above a healthy run (a few minutes
+    # here) with headroom for a cold dependency install on a slow mirror, which
+    # is what exhausted the old 30-minute budget.
+    timeout-minutes: 45
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 

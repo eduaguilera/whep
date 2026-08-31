@@ -145,6 +145,145 @@ test_that(".merge_euadb_fodder merges EU rows by code, not fragmenting", {
 })
 
 
+test_that(".merge_euadb_fodder keys the EU yield on area_code, not the label", {
+  # Two areas can carry the same label -- the yield join used to be keyed on it,
+  # so each area's row picked up both areas' yields and fanned out (#655). The
+  # label rides along in the fixture only to show the old key had it available.
+  fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~t, ~t_dm, ~ha,
+    2010L, "Foo", 100L, "Grass", "3001", 5, 4, 10,
+    2010L, "Foo", 101L, "Grass", "3001", 7, 6, 20
+  )
+  fodder_euadb <- tibble::tribble(
+    ~year, ~area, ~area_code, ~Name_Eurostat, ~Label, ~Unit, ~value,
+    2010L, "Foo", 100L, "GrassEuro", "Area", "Mha", 5,
+    2010L, "Foo", 100L, "GrassEuro", "Yield", "kgN/ha", 200,
+    2010L, "Foo", 101L, "GrassEuro", "Area", "Mha", 6,
+    2010L, "Foo", 101L, "GrassEuro", "Yield", "kgN/ha", 300
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_Eurostat,
+    "Grass", "3001", "GrassEuro"
+  )
+
+  result <- whep:::.merge_euadb_fodder(fodder, fodder_euadb, items_prod)
+
+  expect_equal(nrow(result), 2L)
+  expect_equal(
+    result$kgnha_euadb[result$area_code == 100L],
+    200
+  )
+  expect_equal(
+    result$kgnha_euadb[result$area_code == 101L],
+    300
+  )
+})
+
+
+test_that(".combine_fodder keeps one row per area_code and item (#655)", {
+  # FAO labels are periodized, so one `area_code` carries several labels over a
+  # series. While the label was a grouping key, `.fill_fodder_gaps()`'s cross
+  # join gave every label the full year span, and the country ended up with one
+  # full-area copy of each item per label -- Egypt (59) had three in 1961.
+  i_fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    1961L, "Egypt (1925-1967)", 59L, "Clover", "640", 100,
+    1962L, "Egypt", 59L, "Clover", "640", 120
+  )
+  fodder_euadb <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    Name_Eurostat = character(),
+    Label = character(),
+    Unit = character(),
+    value = numeric()
+  )
+  dm_yield <- tibble::tribble(
+    ~year, ~area_code, ~yield_dm,
+    1961L, 59L, 4,
+    1962L, 59L, 4
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_biomass, ~Name_Eurostat,
+    "Clover", "640", "Clover biomass", NA_character_
+  )
+  biomass <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+    "Clover biomass", 0.2, 0.03
+  )
+
+  result <- whep:::.combine_fodder(
+    i_fodder,
+    fodder_euadb,
+    dm_yield,
+    items_prod,
+    biomass
+  )
+
+  dups <- result |>
+    dplyr::count(year, area_code, item_prod_code, unit) |>
+    dplyr::filter(n > 1L)
+  expect_equal(nrow(dups), 0L)
+  # one label per (year, area_code), taken from the polity crosswalk for that
+  # year -- the same rule `.aggregate_to_polities()` labels a bucket by
+  expect_equal(
+    nrow(dplyr::distinct(result, year, area_code, area)),
+    2L
+  )
+  expect_false(any(is.na(result$area)))
+})
+
+
+test_that(".combine_fodder ignores dm_yield years no fodder source covers", {
+  # `dm_yield` spans every FAOSTAT year, the fodder sources do not: 7705 of its
+  # keys carry no fodder record. They used to arrive as `NA`-label rows and be
+  # dropped by `.fill_fodder_gaps()`'s `!is.na(area)`; now that the drop keys on
+  # `area_code`, which they do have, the join type is what keeps them out -- and
+  # they must stay out, or the cross join fabricates a fodder series for a year
+  # no source covers.
+  i_fodder <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~value,
+    1961L, "Egypt (1925-1967)", 59L, "Clover", "640", 100
+  )
+  fodder_euadb <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    Name_Eurostat = character(),
+    Label = character(),
+    Unit = character(),
+    value = numeric()
+  )
+  dm_yield <- tibble::tribble(
+    ~year, ~area_code, ~yield_dm,
+    1961L, 59L, 4,
+    # a year, and an area, the fodder sources say nothing about
+    2020L, 59L, 4,
+    1961L, 100L, 4
+  )
+  items_prod <- tibble::tribble(
+    ~item_prod, ~item_prod_code, ~Name_biomass, ~Name_Eurostat,
+    "Clover", "640", "Clover biomass", NA_character_
+  )
+  biomass <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
+    "Clover biomass", 0.2, 0.03
+  )
+
+  result <- whep:::.combine_fodder(
+    i_fodder,
+    fodder_euadb,
+    dm_yield,
+    items_prod,
+    biomass
+  )
+
+  expect_equal(sort(unique(result$year)), 1961)
+  expect_equal(unique(result$area_code), 59L)
+})
+
+
 # -- EU AgriDB region crosswalk ------------------------------------------------
 
 # `.read_fodder_euadb()` resolves the source's `Region` through
@@ -543,9 +682,13 @@ test_that("a stale historical-land pin aborts instead of shortening the series",
   # the short series would silently drop those years from the back-cast, which
   # is the failure this abort exists to prevent. Offline: the reader is mocked,
   # never called for real.
+  # `polity_code` is part of the pin's schema and is deliberately unlabelled
+  # here, so the snapshot-drift guard beside this one stays quiet and the year
+  # gap is the only thing under test.
   short <- tibble::tibble(
     year = 1850:1900,
     area_code = 238L,
+    polity_code = NA_character_,
     Cropland = 1,
     Pasture = 1,
     agriland = 2
@@ -566,6 +709,35 @@ test_that("a stale historical-land pin aborts instead of shortening the series",
       51L
     ),
     .read_input = function(...) short,
+    .package = "whep"
+  )
+})
+
+test_that("a pin built on another polities snapshot warns at the seam", {
+  # A year gap is not how the pin actually goes stale: a re-synced snapshot
+  # leaves every year and every bucket in place and changes the territory each
+  # row was measured on. The guard has to reach that through
+  # `.historical_land_wide()`, not only when called directly, and it must not
+  # swallow the series while doing it (whep#905). Offline: the reader is
+  # mocked and the check reads package data only.
+  stale <- tibble::tibble(
+    year = 1850:1851,
+    area_code = 238L,
+    polity_code = "ZZZ-1234-5678",
+    Cropland = 1,
+    Pasture = 1,
+    agriland = 2
+  )
+  testthat::with_mocked_bindings(
+    {
+      expect_warning(
+        out <- whep:::.historical_land_wide("historical_polity", 1850:1851),
+        "polities"
+      )
+      expect_equal(nrow(out), 2L)
+      expect_false("polity_code" %in% names(out))
+    },
+    .read_input = function(...) stale,
     .package = "whep"
   )
 })
@@ -980,6 +1152,28 @@ test_that(".read_land_areas gives a bucket one area label", {
 })
 
 
+# -- correct_tea_final ----------------------------------------------------------
+
+test_that(".correct_tea_final leaves NA item_prod rows unchanged", {
+  # #169: an unmapped item_prod_code leaves item_prod as NA. The equality
+  # comparison then made that row's condition NA, and a conditional with an
+  # NA condition blanks value to NA instead of leaving the row untouched.
+  df <- tibble::tribble(
+    ~year, ~item_prod, ~unit, ~value,
+    2000L, NA_character_, "tonnes", 100,
+    2000L, "Tea leaves", "tonnes", 200
+  )
+
+  result <- whep:::.correct_tea_final(df)
+
+  testthat::expect_equal(result$value[is.na(result$item_prod)], 100)
+  testthat::expect_equal(
+    result$value[!is.na(result$item_prod) & result$item_prod == "Tea leaves"],
+    200 / 4.37
+  )
+})
+
+
 # -- rice unit convention ------------------------------------------------------
 
 test_that(".fix_rice_milled_equiv converts paddy production only", {
@@ -1041,6 +1235,24 @@ test_that(".fix_rice_milled_equiv converts paddy production only", {
   )
 })
 
+test_that(".fix_rice_milled_equiv leaves NA item_cbs_code rows unchanged", {
+  # #169: an unmapped item_prod_code leaves item_cbs_code as NA. The equality
+  # comparison then made that row's condition NA, and a conditional with an
+  # NA condition blanks value to NA instead of leaving the row untouched.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~item_cbs, ~item_cbs_code, ~live_anim, ~live_anim_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 41L, NA_character_, "27",
+    NA_character_, NA_integer_, NA, NA,
+    "tonnes", 100, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.fix_rice_milled_equiv(df)
+
+  testthat::expect_equal(result$value, 100)
+})
+
 
 # -- deduplication --------------------------------------------------------------
 
@@ -1071,6 +1283,101 @@ test_that(".dedup_production keeps highest-priority source", {
     dplyr::filter(unit == "ha")
   expect_equal(ha_row$source, "EuropeAgriDB")
   expect_equal(ha_row$value, 20)
+})
+
+test_that(".dedup_production warns when a key repeats one source", {
+  # Shape of whep#633: FAOSTAT bucket 206 arrived as two rows, one per
+  # territory, under one `area_code`. They are addends, not competing
+  # measurements, and dedup keeps one -- silently, until whep#650.
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  expect_warning(
+    result <- whep:::.dedup_production(addends),
+    "same"
+  )
+  # Arbitration itself is unchanged: one row survives, nothing is summed.
+  expect_equal(nrow(result), 1L)
+
+  # The report names the key and the mass dedup discards.
+  collided <- whep:::.same_source_collisions(
+    data.table::as.data.table(addends),
+    c("year", "area_code", "item_prod_code", "unit")
+  )
+  expect_equal(nrow(collided), 1L)
+  expect_equal(collided$rows, 2L)
+  expect_equal(collided$dropped, 5e6)
+})
+
+test_that(".dedup_production is silent for competing sources", {
+  competing <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Spain", 203L, "Wheat", 15L, "t", 100, "imputed_yield",
+    2000L, "Spain", 203L, "Wheat", 15L, "t", 200, "FAOSTAT_prod"
+  )
+
+  expect_no_warning(whep:::.dedup_production(competing))
+  # Empty input must not warn either.
+  expect_no_warning(whep:::.dedup_production(competing[0L, ]))
+})
+
+test_that(".dedup_production does not flag an aggregate and its members", {
+  # FAOSTAT reports China both as aggregate 351 and as components 41/96/128/214
+  # (the double-count of whep's harmonization notes). Those are distinct
+  # `area_code`s, so they never collide on one dedup key and must not be
+  # reported as same-source duplicates -- and dedup must keep all five rows.
+  china <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "China", 351L, "Wheat", 15L, "t", 100, "FAOSTAT_prod",
+    2000L, "China, mainland", 41L, "Wheat", 15L, "t", 90, "FAOSTAT_prod",
+    2000L, "China, Taiwan", 214L, "Wheat", 15L, "t", 5, "FAOSTAT_prod",
+    2000L, "China, Hong Kong", 96L, "Wheat", 15L, "t", 3, "FAOSTAT_prod",
+    2000L, "China, Macao", 128L, "Wheat", 15L, "t", 2, "FAOSTAT_prod"
+  )
+
+  expect_no_warning(result <- whep:::.dedup_production(china))
+  expect_equal(nrow(result), 5L)
+  expect_equal(sum(result$value), 200)
+})
+
+test_that("whep.warn_prod_dupes = FALSE silences the duplicate report", {
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  withr::with_options(
+    list(whep.warn_prod_dupes = FALSE),
+    expect_no_warning(whep:::.dedup_production(addends))
+  )
+})
+
+test_that(".show_prod_duplicates flags a repeated source", {
+  addends <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code,
+    ~unit, ~value, ~source,
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 20e6, "LUH2_grassland",
+    2000L, "Sudan (former)", 206L, "Grassland", 3001L,
+    "ha", 5e6, "LUH2_grassland"
+  )
+
+  msgs <- testthat::capture_messages(
+    suppressWarnings(whep:::.show_prod_duplicates(addends))
+  )
+  expect_true(any(stringr::str_detect(msgs, "repeat a single")))
 })
 
 test_that(".show_prod_duplicates returns wide format of competing sources", {
@@ -1371,4 +1678,119 @@ test_that(".split_stock_share keys on the code, so a shared label cannot dilute"
   expect_equal(sum(result$value_comb), 160)
   # Whole numbers: a single-member group has share 1, never 1/n.
   expect_equal(result$value_comb, round(result$value_comb))
+})
+
+test_that(".assemble_production_raw renames the live-animal units", {
+  # The livestock branch turns the yield units into the head/LU counts the
+  # published table carries. Pinned because whep#850 rewrote the rename off
+  # the deprecated dplyr::case_match(): a wrong label here would put animal
+  # counts under a mass unit.
+  yield_all <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~live_anim,
+    ~live_anim_code, ~unit, ~source, ~fu2, ~t2, ~yield,
+    # Duplicate key pair the summarise() averages: 4 and 6 -> 5.
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    4, 8, 2,
+    2010L, "Spain", 203L, "Milk", "951", "Cattle", "866", "t_LU", "FAO",
+    6, 12, 2,
+    2010L, "Spain", 203L, "Eggs", "1062", "Hens", "1057", "t_head", "FAO",
+    3, 9, 3,
+    # A crop row the livestock filter must not pick up.
+    2010L, "Spain", 203L, "Wheat", "15", NA, NA, "t_ha", "FAO", 10, 20, 2
+  )
+
+  result <- suppressMessages(.assemble_production_raw(yield_all))
+  live <- result |>
+    dplyr::filter(unit %in% c("LU", "heads"))
+
+  expect_setequal(live$unit, c("LU", "heads"))
+  expect_equal(live$value[live$unit == "LU"], 5)
+  expect_equal(live$value[live$unit == "heads"], 3)
+  # Exactly one count row per (area, unit) pair present, and the rename is
+  # confined to that branch: the yield rows keep their own t_ units.
+  expect_equal(nrow(live), 2L)
+  expect_setequal(
+    result$unit,
+    c("ha", "tonnes", "t_ha", "t_LU", "t_head", "LU", "heads")
+  )
+})
+
+
+# -- calculate_raw_yields source provenance ------------------------------------
+
+test_that(".calculate_raw_yields keeps a reconstructed fodder source (#937)", {
+  # Temporary grassland (production item 996, CBS 3002) is in neither FAOSTAT
+  # production pin: its hectares come from EU AgriDB and its tonnage from the
+  # EU AgriDB nitrogen yield or a dry-matter estimate. The yield dcast used to
+  # drop `source`, and `.impute_missing_values()` then re-derived it from the
+  # presence of a tonnage, so every such row read as `"FAOSTAT_prod"`.
+  primary_raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value,
+    2019L, "Spain", 203L, "Temporary grassland", "996", "ha", 287690,
+    2019L, "Spain", 203L, "Temporary grassland", "996", "t", 4e6,
+    2019L, "Spain", 203L, "Wheat", "15", "ha", 1e6,
+    2019L, "Spain", 203L, "Wheat", "15", "t", 5e6
+  ) |>
+    dplyr::mutate(
+      source = c("EuropeAgriDB", "EuropeAgriDB", "FAOSTAT_prod", "FAOSTAT_prod")
+    )
+
+  result <- whep:::.calculate_raw_yields(primary_raw, whep::items_prod_full)
+
+  expect_true("source" %in% names(result))
+  # `tidyr::complete()` at the end of the helper also emits an empty carcass
+  # row per key, so the rows carrying the hectares are the ones to read.
+  expect_equal(
+    result |>
+      dplyr::filter(item_prod_code == "996", unit == "t_ha", !is.na(fu)) |>
+      dplyr::pull(source),
+    "EuropeAgriDB"
+  )
+  expect_equal(
+    result |>
+      dplyr::filter(item_prod_code == "15", unit == "t_ha", !is.na(fu)) |>
+      dplyr::pull(source),
+    "FAOSTAT_prod"
+  )
+})
+
+test_that(".deduplicate_doubles keeps the original of a double key (#937)", {
+  # Both copies of a double-product key carry a source now that the yield table
+  # keeps one, so the copy to drop is named by `.double_combined`, not inferred
+  # from a missing source. Inferring it dropped item 328 (seed cotton), 254 (oil
+  # palm fruit) and 310 outright -- 9114 rows of a 2001-2023 build.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_prod, ~item_prod_code, ~unit, ~t,
+    2019L, "Egypt", 59L, "Seed cotton", "328", "t_ha", 5e5,
+    2019L, "Egypt", 59L, "Seed cotton", "328", "t_ha", 5e5
+  ) |>
+    dplyr::mutate(
+      source = c("FAOSTAT_prod", "Estimated"),
+      .double_combined = c(FALSE, TRUE)
+    )
+
+  result <- whep:::.deduplicate_doubles(df)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$source, "FAOSTAT_prod")
+})
+
+test_that(".best_source_by_key ranks a key's competing sources (#937)", {
+  # One key's hectares and tonnage can come from different sources; the better
+  # ranked one wins, the same arbitration `.dedup_production()` applies.
+  crop_dt <- data.table::data.table(
+    year = 2019L,
+    area = "Spain",
+    area_code = 203L,
+    item_prod = "Temporary grassland",
+    item_prod_code = "996",
+    unit = c("ha", "t"),
+    value = c(287690, 4e6),
+    source = c("EuropeAgriDB", "DM_yield_estimate")
+  )
+
+  expect_equal(whep:::.best_source_by_key(crop_dt)$source, "EuropeAgriDB")
+
+  crop_dt[, source := NA_character_]
+  expect_equal(nrow(whep:::.best_source_by_key(crop_dt)), 0L)
 })

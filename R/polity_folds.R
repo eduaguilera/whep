@@ -111,21 +111,32 @@ polity_bucket_coverage <- function(years = NULL) {
   ) |>
     tibble::as_tibble() |>
     dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::left_join(.area_first_reported_year(), by = "area_code")
+    dplyr::left_join(.area_reported_year_bounds(), by = "area_code")
 }
 
-# The first year the upstream FAOSTAT map reports each area at all.
+# The years the upstream FAOSTAT map reports each area at all, both ends.
 #
 # The resolver bounds a period BELOW by `polity_start_year`, not by the map's
 # reporting years, so it answers "which polity would area 276 be in 2011?" with
 # `SDN-2011-2025` even though FAOSTAT does not report area 276 before 2012.
 # That is right for the resolver -- a row that exists must resolve -- and wrong
 # for this diagnostic, which asks which areas a bucket actually sums.
-.area_first_reported_year <- function() {
+#
+# BOTH BOUNDS COME FROM THE MAP NOW, and the upper one used to arrive by
+# accident. Area 206 stops reporting in 2011, and what dropped it from bucket
+# 206's member set for 2012 onward was `mapping_status == "out_of_span"` --
+# true only while the bucket had nothing later than `SUD-1956-2011` to resolve
+# to. whep#860 gives it `F206-2011-2025` from 2012, which resolves `matched`,
+# so the area re-entered its own bucket's member set and the fold read as three
+# polities (its own aggregate label plus the two successors) instead of two.
+# The documented rule was always "the upstream map must report the area that
+# year"; only half of it was implemented.
+.area_reported_year_bounds <- function() {
   crosswalk <- .polity_crosswalk(include_unmapped = FALSE)
   empty <- tibble::tibble(
     area_code = integer(0),
-    first_reported_year = integer(0)
+    first_reported_year = integer(0),
+    last_reported_year = integer(0)
   )
   if (!rlang::has_name(crosswalk, "map_year_start")) {
     return(empty)
@@ -134,6 +145,7 @@ polity_bucket_coverage <- function(years = NULL) {
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$map_year_start)) |>
     dplyr::summarise(
       first_reported_year = min(.data$map_year_start),
+      last_reported_year = max(.data$map_year_end),
       .by = "area_code"
     )
 }
@@ -145,11 +157,13 @@ polity_bucket_coverage <- function(years = NULL) {
 # Sudan areas for 1990 returns SUD-1956-2011 (the one FAOSTAT actually reports)
 # plus SDN-2011-2025 and SSD-2011-2025 as stand-ins, and counting those made the
 # bucket look like a three-way fold in a year where only one area reports at
-# all. Two bounds are needed because the resolver applies neither for this
-# purpose: `out_of_span` drops a stand-in above a period, and the upstream map's
-# first reported year drops one below it -- area 276 resolves to SDN-2011-2025
-# from 2011 because that polity starts then, while FAOSTAT begins reporting the
-# area in 2012.
+# all. Three bounds are needed because the resolver applies none of them for
+# this purpose: `out_of_span` drops a stand-in on a period that never resolves,
+# and the upstream map's reporting years drop one below and one above it -- area
+# 276 resolves to SDN-2011-2025 from 2011 because that polity starts then, while
+# FAOSTAT begins reporting the area in 2012, and area 206 resolves to
+# F206-2011-2025 from 2012 as the BUCKET's label while FAOSTAT stopped reporting
+# the AREA in 2011.
 #
 # Measured on the FAOSTAT production pin, the reporting spans do not overlap:
 # area 206 carries 13,759 rows over 1961-2011, area 276 carries 3,467 over
@@ -159,7 +173,9 @@ polity_bucket_coverage <- function(years = NULL) {
     dplyr::filter(
       is.na(.data$mapping_status) | .data$mapping_status != "out_of_span",
       is.na(.data$first_reported_year) |
-        .data$year >= .data$first_reported_year
+        .data$year >= .data$first_reported_year,
+      is.na(.data$last_reported_year) |
+        .data$year <= .data$last_reported_year
     )
 }
 
@@ -927,4 +943,199 @@ row_promotion_status <- function(crosswalk = NULL) {
         as.integer(.data$polity_area_code)
       )
     )
+}
+
+# -- Area-vintage mismatch (whep#884) ------------------------------------------
+
+# The years WHEP's own area vocabulary reports each `area_code`, taken from the
+# upstream FAOSTAT map the crosswalk carries. One row per area, widest window
+# across that area's polity periods, so an area whose polity changes mid-series
+# keeps one window rather than one per period.
+.area_reporting_windows <- function() {
+  empty <- data.table::data.table(
+    area_code = integer(0),
+    window_start = integer(0),
+    window_end = integer(0)
+  )
+  crosswalk <- .polity_crosswalk(include_unmapped = FALSE)
+  needed <- c("area_code", "map_year_start", "map_year_end")
+  if (!all(needed %in% names(crosswalk))) {
+    return(empty)
+  }
+  crosswalk[
+    !is.na(area_code) & !is.na(map_year_start) & !is.na(map_year_end),
+    .(
+      window_start = min(map_year_start),
+      window_end = max(map_year_end)
+    ),
+    by = .(area_code = as.integer(area_code))
+  ]
+}
+
+# `(area_code, year)` pairs a source keys to an area that reports NO territory
+# in that year -- a vintage mismatch between the source's area codes and WHEP's.
+#
+# A fold is not a mismatch, and that is the whole difficulty. FAOSTAT reports
+# areas 276/277 from 2012 and WHEP sums them into bucket 206, whose own window
+# ends 2011; it reports 62 (Ethiopia PDR) until 1992 and sums it into bucket 238,
+# whose window starts 1993. Both look off-window on the bucket's own window while
+# nothing is wrong, so the test is not "is the year inside this area's window"
+# but "does ANY reporting area land on this bucket that year" -- which is false
+# only when the bucket carries a territory nothing reports under that code then.
+# `folded_reporting_areas()` is the report for the folds themselves.
+#
+# The shape this catches is the opposite one: FishStat reports Belgium as area
+# 255 from 1976, while every FAOSTAT product reports that territory as
+# Belgium-Luxembourg (15) until 1999 and only splits 255/256 at 2000. Nothing
+# reports bucket 255 before 2000, so those 459 rows (6,948.4 kt) can never join
+# a CBS keyed 15, and creating the 255 row instead would put two overlapping
+# reporting areas on one territory-year (whep#884).
+#
+# Measured over every CBS-relevant pin, FishStat's pre-2000 Belgium is the only
+# off-window area-year in any of them.
+#
+# `(polity_area_code, year)` pairs some reporting area actually reports, i.e.
+# the buckets that carry a territory that year. Built from the areas whose own
+# reporting window contains the year, resolved through the same year-aware
+# helper the builds use, so a fold counts as reported in the years its members
+# report -- bucket 238 is reported in 1961-1992 by area 62 and in 1993-2024 by
+# area 238 itself.
+.reported_bucket_years <- function(years) {
+  windows <- .area_reporting_windows()
+  grid <- data.table::CJ(
+    area_code = windows$area_code,
+    year = as.integer(years)
+  )
+  grid <- merge(grid, windows, by = "area_code")
+  grid <- grid[year >= window_start & year <= window_end]
+  resolved <- .add_polity_columns_dt(
+    grid,
+    code_col = "area_code",
+    year_col = "year",
+    include_unmapped = FALSE
+  )
+  unique(resolved[
+    !is.na(polity_area_code),
+    .(area_code = as.integer(polity_area_code), year = as.integer(year))
+  ])
+}
+
+.off_window_area_keys <- function(dt) {
+  empty <- data.table::data.table(
+    area_code = integer(0),
+    year = integer(0),
+    rows = integer(0),
+    window_start = integer(0),
+    window_end = integer(0)
+  )
+  if (!all(c("area_code", "year") %in% names(dt)) || nrow(dt) == 0L) {
+    return(empty)
+  }
+  observed <- data.table::as.data.table(dt)[
+    !is.na(area_code) & !is.na(year),
+    .(rows = .N),
+    by = .(area_code = as.integer(area_code), year = as.integer(year))
+  ]
+  windows <- .area_reporting_windows()
+  if (nrow(windows) == 0L) {
+    return(empty)
+  }
+  off <- merge(observed, windows, by = "area_code")
+  off <- off[year < window_start | year > window_end]
+  if (nrow(off) == 0L) {
+    return(empty)
+  }
+  # Cheap because it is asked only about the years a candidate row is in.
+  off[
+    !.reported_bucket_years(sort(unique(off$year))),
+    on = c("area_code", "year")
+  ]
+}
+
+# One row per off-window area, for a message.
+.off_window_area_years <- function(dt) {
+  off <- .off_window_area_keys(dt)
+  if (nrow(off) == 0L) {
+    return(off[, .(
+      area_code,
+      window_start,
+      window_end,
+      year_min = year,
+      year_max = year,
+      years = rows,
+      rows
+    )])
+  }
+  off[,
+    .(
+      year_min = min(year),
+      year_max = max(year),
+      years = data.table::uniqueN(year),
+      rows = sum(rows)
+    ),
+    by = .(area_code, window_start, window_end)
+  ][order(-rows)]
+}
+
+# Warn rather than inform, for the same reason `.warn_folded_areas()` does: the
+# rows are silently unjoinable downstream, and the mismatch is reportable at the
+# point the codes are read.
+.warn_off_window_area_years <- function(dt, source_label = NULL) {
+  if (!isTRUE(getOption("whep.warn_area_vintage", TRUE))) {
+    return(invisible(NULL))
+  }
+  off <- .off_window_area_years(dt)
+  if (nrow(off) == 0L) {
+    return(invisible(off))
+  }
+  where <- if (is.null(source_label)) "this source" else source_label
+  # One bullet per area, not a cli-truncated vector: naming them all IS the fix.
+  bullets <- stats::setNames(
+    sprintf(
+      "Area %d reports %d-%d, but %s has %d-%d (%d row%s)",
+      off$area_code,
+      off$window_start,
+      off$window_end,
+      where,
+      off$year_min,
+      off$year_max,
+      off$rows,
+      ifelse(off$rows == 1L, "", "s")
+    ),
+    rep("*", nrow(off))
+  )
+  n_off <- nrow(off)
+  cli::cli_warn(c(
+    "!" = "{n_off} reporting area{?s} in {where} carr{?ies/y} rows outside the
+           years WHEP's area vocabulary reports {cli::qty(n_off)}{?it/them}.",
+    bullets,
+    "i" = "The territory reports under a different {.field area_code} in those
+           years, so these rows cannot join a CBS keyed on it, and creating
+           that key would duplicate the territory (whep#884).",
+    "i" = "Silence with {.code options(whep.warn_area_vintage = FALSE)}."
+  ))
+  invisible(off)
+}
+
+# A row must never be CREATED for an area-year the vocabulary does not report:
+# that IS the duplicated territory, not a warning about one. Callers that create
+# CBS rows from a trade record drop these first, so reaching here means a
+# restriction was lifted without the filter (whep#884).
+.abort_if_off_window_areas <- function(dt, what = "row") {
+  off <- .off_window_area_years(dt)
+  if (nrow(off) == 0L) {
+    return(invisible(dt))
+  }
+  areas <- paste(off$area_code, collapse = ", ")
+  n_rows <- sum(off$rows)
+  cli::cli_abort(
+    c(
+      "{n_rows} {what}{?s} would be created for {nrow(off)} area-year
+       {cli::qty(nrow(off))}bucket{?s} the area vocabulary does not report.",
+      "x" = "Area{?s} {areas}.",
+      "i" = "The territory already reports under another {.field area_code} in
+             those years, so the created rows would duplicate it (whep#884)."
+    ),
+    class = "whep_error_off_window_area_year"
+  )
 }

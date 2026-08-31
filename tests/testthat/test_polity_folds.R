@@ -4,15 +4,17 @@
 # FAOSTAT areas 276 Sudan and 277 South Sudan into bucket 206, so from 2012 a
 # bucket-206 value covers both territories (whep#414). Measured on real FAOSTAT
 # production for 2015, bucket 206 carries Sudan 54,040,755 t and South Sudan
-# 14,876,146 t -- South Sudan is 21.6% of the bucket -- and the reporting
-# columns label it `SUD-1956-2011`, a polity that had ended by then.
+# 14,876,146 t -- South Sudan is 21.6% of the bucket.
 #
-# The label is right about the TERRITORY and wrong about the PERIOD:
-# `SUD-1956-2011`'s published successors are exactly `SDN-2011-2025` and
-# `SSD-2011-2025`, the two the bucket folds, so its extent is the sum. These
-# tests pin that distinction, that the fold is reported for the 14 years it
-# happens rather than all 65, and that a fold whose bucket polity IS an
-# aggregate is not flagged at all.
+# The bucket used to be labelled `SUD-1956-2011`, right about the TERRITORY and
+# wrong about the PERIOD, because no LIVE polity meant "Sudan and South Sudan".
+# One does now: upstream publishes `F206-2011-2025` "Sudan and South Sudan
+# (combined reporting)", and whep#860 wires it onto the bucket from 2012 -- the
+# first year the bucket really is a two-territory sum, area 206 having reported
+# alone through 2011. So these tests pin that the fold is reported for the 13
+# years it happens rather than all 65, that its label is now an aggregate
+# covering exactly what the bucket sums, and that a fold whose bucket polity IS
+# an aggregate is not flagged.
 
 # A crosswalk fixture exercising all four outcomes in one pass. `polity_type`
 # aggregate on bucket 900's own label makes that fold honest; bucket 950 has no
@@ -50,7 +52,7 @@
   )
 }
 
-test_that("bucket 206 carries its members' ended predecessor", {
+test_that("bucket 206 carries the aggregate that means both territories", {
   # Post-2011 years only: PR #480 changes how the three Sudan areas resolve
   # BEFORE 2011, and this assertion must survive that. From 2012 the bucket
   # folds both successors whatever #480 does to the earlier years.
@@ -58,12 +60,16 @@ test_that("bucket 206 carries its members' ended predecessor", {
   sudan <- coverage[coverage$polity_area_code == 206L, ]
 
   expect_equal(nrow(sudan), 3L)
-  # NOT `"partial"`: the label is `SUD-1956-2011`, whose published successors
-  # are exactly the two polities the bucket folds, so its territory IS the sum.
-  # What is wrong is the period -- that polity had ended (whep#414).
-  expect_true(all(sudan$coverage == "predecessor"))
-  expect_equal(unique(sudan$bucket_polity_code), "SUD-1956-2011")
-  expect_true(all(sudan$bucket_mapping_status == "out_of_span"))
+  # `"aggregate"`, not `"predecessor"`: the label is `F206-2011-2025`, whose
+  # name and polygon already mean the union of the two polities the bucket
+  # folds, and which is LIVE in these years, so the period is right as well as
+  # the extent (whep#860). It used to be `SUD-1956-2011` / `"out_of_span"`.
+  expect_true(all(sudan$coverage == "aggregate"))
+  expect_equal(unique(sudan$bucket_polity_code), "F206-2011-2025")
+  expect_true(all(sudan$bucket_mapping_status == "matched"))
+  # The MEMBERS are the two successors and nothing else. The bucket's own
+  # aggregate resolves `matched` now, so only the map's reporting years keep
+  # area 206 -- which stops in 2011 -- out of its own bucket's member set.
   expect_equal(
     unique(sudan$member_polity_codes),
     "SDN-2011-2025, SSD-2011-2025"
@@ -80,22 +86,45 @@ test_that("no bucket is labelled with a polity covering less than it sums", {
   coverage <- polity_bucket_coverage()
 
   expect_equal(nrow(coverage[coverage$coverage == "partial", ]), 0L)
+  expect_equal(nrow(coverage[coverage$coverage == "predecessor", ]), 0L)
   expect_equal(unique(coverage$polity_area_code), 206L)
-  expect_equal(unique(coverage$coverage), "predecessor")
+  expect_equal(unique(coverage$coverage), "aggregate")
 })
 
 test_that("a stand-in outside an area's reporting years is not a member", {
-  # The fold is 2012-2025, not 1961-2025. FAOSTAT reports area 206 through 2011
-  # and areas 276/277 from 2012, never in the same year, so before 2012 bucket
-  # 206 sums exactly one territory. The year-aware resolver answers for every
-  # (area_code, year) pair regardless, standing in with the nearest period, and
-  # counting those stand-ins reported a three-way fold in all 65 years.
+  # The fold is 2012-2024, not 1961-2025. FAOSTAT reports area 206 through 2011
+  # and areas 276/277 for 2012-2024, never in the same year, so before 2012
+  # bucket 206 sums exactly one territory and after 2024 it sums none. The
+  # year-aware resolver answers for every (area_code, year) pair regardless,
+  # standing in with the nearest period, and counting those stand-ins reported a
+  # three-way fold in all 65 years.
   coverage <- polity_bucket_coverage()
 
-  expect_equal(nrow(coverage), 14L)
+  expect_equal(nrow(coverage), 13L)
   expect_equal(min(coverage$year), 2012L)
+  expect_equal(max(coverage$year), 2024L)
   expect_false(any(coverage$year <= 2011L))
   expect_equal(unique(coverage$member_area_codes), "276, 277")
+})
+
+test_that("the bucket's own label is not counted among its members", {
+  # The upper reporting bound is load-bearing exactly here. Area 206 resolves
+  # `F206-2011-2025` from 2012 -- as the BUCKET's label, not as a reporting area
+  # -- and before whep#860 it was `out_of_span`, which is what used to drop it
+  # from the member set. Without the map's last reported year the bucket would
+  # report itself as one of the three territories it sums.
+  resolved <- whep:::.resolve_all_area_years(2015L)
+  sudan <- resolved[resolved$polity_area_code == 206L, ]
+
+  expect_setequal(sudan$area_code, c(206L, 276L, 277L))
+  expect_equal(
+    sudan$polity_code[sudan$area_code == 206L],
+    "F206-2011-2025"
+  )
+  expect_equal(sudan$last_reported_year[sudan$area_code == 206L], 2011L)
+
+  members <- whep:::.in_span_members(sudan)
+  expect_setequal(members$area_code, c(276L, 277L))
 })
 
 test_that("an aggregate-labelled fold is not flagged, an unlabelled one is", {
@@ -161,7 +190,7 @@ test_that("the fold warning fires only for a partially covered bucket", {
   expect_no_warning(whep:::.warn_partial_bucket_polities(partial))
 })
 
-test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
+test_that(".aggregate_to_polities folds Sudan into bucket 206 silently", {
   # The real shape, with real 2015 sorghum tonnages: two reporting areas landing
   # on one bucket code, which every downstream key (`key_cols` in build_cbs.R
   # deliberately excludes the area name) then sums into a single value.
@@ -175,32 +204,39 @@ test_that(".aggregate_to_polities warns when it folds Sudan into bucket 206", {
     value = c(2744000, 661356)
   )
 
+  # TWO WARNINGS USED TO FIRE HERE AND ONE DOES NOW, which is the point of
+  # whep#860 rather than a silencing of it. The fold itself is still reported --
+  # two reporting areas landing on a bucket that is not their own code is a fact
+  # about the data, and `folded_reporting_areas()` names it. What has gone is
+  # the coverage warning, which says a bucket sums more territory than its label
+  # covers: bucket 206's label is now `F206-2011-2025`, an aggregate whose
+  # extent IS the sum. That mechanism is still exercised on a fixture in "the
+  # fold warning fires only for a partially covered bucket".
   expect_warning(
     folded <- whep:::.aggregate_to_polities(
       data.table::copy(sudan),
       item_prod_code,
       item_prod
     ),
-    "Bucket 206"
+    "attributed to a polity that did not report them"
+  )
+  expect_no_warning(
+    withr::with_options(
+      list(whep.warn_folded_areas = FALSE),
+      whep:::.warn_partial_bucket_polities(
+        data.table::data.table(polity_area_code = 206L, year = 2015L)
+      )
+    )
   )
 
   # The bucket SUMS. Until whep#563 this came back as two rows under one code,
   # 2,744,000 and 661,356, because the aggregator also grouped by the member's
-  # `polity_name` -- so the fold the warning describes was not actually being
-  # performed, and every consumer keyed on `(area_code, year, item, element)`
-  # saw a duplicated key.
+  # `polity_name` -- so the fold was not actually being performed, and every
+  # consumer keyed on `(area_code, year, item, element)` saw a duplicated key.
   expect_equal(nrow(folded), 1L)
   expect_equal(folded$area_code, 206L)
   expect_equal(folded$value, 3405356)
-
-  withr::local_options(whep.warn_polity_folds = FALSE)
-  expect_no_warning(
-    whep:::.aggregate_to_polities(
-      data.table::copy(sudan),
-      item_prod_code,
-      item_prod
-    )
-  )
+  expect_equal(folded$reporting_polity_code, "F206-2011-2025")
 })
 
 # The FABIO Rest-of-World fold, pinned at the level that actually decides where
@@ -378,7 +414,13 @@ testthat::test_that("206 is the only bucket folding live territories", {
     dplyr::filter(.data$n_polities > 1L)
 
   testthat::expect_equal(unique(folds$polity_area_code), 206L)
-  testthat::expect_equal(max(folds$n_polities), 2L)
+  # THREE since whep#860, and the shape is deliberate: bucket 206 now carries
+  # its own aggregate `F206-2011-2025` alongside the two members it sums, which
+  # report separately from 2012. An aggregate live at the same time as its
+  # members is normal -- `BLX-1850-1999` coexists with `BEL` and `LUX` for 149
+  # years -- but bucket 206 is the first BUCKET KEY holding all three at once,
+  # which is why this is asserted rather than left at "more than one".
+  testthat::expect_equal(unique(folds$n_polities), 3L)
   testthat::expect_equal(min(folds$year), 2011L)
 
   # Everything still ON the bucket answers as the bucket: the members upstream
@@ -987,7 +1029,7 @@ testthat::test_that(".aggregate_to_polities() emits the reporting identity", {
   bucket <- out[out$area_code == 206L, ]
   testthat::expect_equal(nrow(bucket), 1L)
   testthat::expect_equal(bucket$value, 3)
-  testthat::expect_equal(bucket$reporting_polity_code, "SUD-1956-2011")
+  testthat::expect_equal(bucket$reporting_polity_code, "F206-2011-2025")
   testthat::expect_equal(
     out$reporting_polity_code[out$area_code == 40L],
     "CHL-1902-2025"
@@ -1079,5 +1121,128 @@ testthat::test_that("a fallback label does not borrow the member's polity", {
   testthat::expect_equal(
     as.data.frame(whep:::.add_reporting_polity_columns(out)),
     as.data.frame(whep:::.add_reporting_polity_columns(stripped))
+  )
+})
+
+
+# -- area-vintage mismatch (#884) ----------------------------------------------
+
+test_that(".area_reporting_windows says when each area code reports", {
+  windows <- whep:::.area_reporting_windows()
+
+  expect_true(all(
+    c("area_code", "window_start", "window_end") %in% names(windows)
+  ))
+  expect_equal(anyDuplicated(windows$area_code), 0L)
+  # Belgium-Luxembourg (15) is the FAOSTAT vocabulary until 1999; Belgium (255)
+  # and Luxembourg (256) only start at 2000. That is the mismatch #884 is about.
+  belux <- windows[windows$area_code == 15L, ]
+  belgium <- windows[windows$area_code == 255L, ]
+  expect_equal(belux$window_end, 1999L)
+  expect_equal(belgium$window_start, 2000L)
+})
+
+test_that(".off_window_area_years flags a source's wrong-vintage area-years", {
+  # FishStat's shape: Belgium keyed 255 in 1976-1999, when the territory
+  # reports as 15. Area 15 in the same years is on-window and must not flag.
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1976L, 1,
+    255L, 1990L, 1,
+    15L, 1990L, 1,
+    255L, 2000L, 1
+  )
+
+  off <- whep:::.off_window_area_years(dt)
+
+  expect_equal(off$area_code, 255L)
+  expect_equal(off$rows, 2L)
+  expect_equal(off$year_min, 1976L)
+  expect_equal(off$year_max, 1990L)
+})
+
+test_that(".off_window_area_years does not flag a deliberate fold", {
+  # FAOSTAT reports Sudan (276) and South Sudan (277) from 2012 and WHEP sums
+  # them into bucket 206, whose own window ends 2011, so both the members and
+  # the bucket look off-window while nothing is wrong.
+  members <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    276L, 2015L, 1,
+    277L, 2015L, 1
+  )
+  # The same fold seen from the other side, which is the shape a table that has
+  # already been through `.aggregate_to_polities()` has: bucket 238 in 1990,
+  # reported by area 62 (Ethiopia PDR) and folded onto 238. The crosswalked
+  # trade record the CBS recovery reads is exactly this, and a check on the
+  # bucket's own window declines 29 real trade rows at 1990.
+  bucket <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    206L, 2015L, 1,
+    238L, 1990L, 1
+  )
+
+  expect_equal(nrow(whep:::.off_window_area_years(members)), 0L)
+  expect_equal(nrow(whep:::.off_window_area_years(bucket)), 0L)
+})
+
+test_that(".reported_bucket_years follows a fold across its handover", {
+  # Bucket 238 is reported in 1990 by area 62 and in 2000 by area 238 itself.
+  reported <- whep:::.reported_bucket_years(c(1990L, 2000L))
+
+  expect_true(all(
+    c(1990L, 2000L) %in% reported$year[reported$area_code == 238L]
+  ))
+  # Nothing reports bucket 255 before 2000, which is the whole of #884.
+  expect_false(1990L %in% reported$year[reported$area_code == 255L])
+  expect_true(2000L %in% reported$year[reported$area_code == 255L])
+})
+
+test_that(".off_window_area_years tolerates empty and column-less input", {
+  empty <- tibble::tibble(area_code = integer(), year = integer())
+
+  expect_equal(nrow(whep:::.off_window_area_years(empty)), 0L)
+  expect_equal(nrow(whep:::.off_window_area_years(tibble::tibble(x = 1))), 0L)
+})
+
+test_that(".warn_off_window_area_years names the area and can be silenced", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1990L, 1
+  )
+
+  expect_warning(
+    whep:::.warn_off_window_area_years(dt, "fishstat-trade"),
+    "255"
+  )
+  withr::local_options(whep.warn_area_vintage = FALSE)
+  expect_no_warning(
+    whep:::.warn_off_window_area_years(dt, "fishstat-trade")
+  )
+})
+
+test_that(".warn_off_window_area_years is silent on an on-window source", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    15L, 1990L, 1,
+    255L, 2010L, 1
+  )
+
+  expect_no_warning(whep:::.warn_off_window_area_years(dt, "faostat-fbs-old"))
+})
+
+test_that(".abort_if_off_window_areas aborts on a created area-year", {
+  dt <- tibble::tribble(
+    ~area_code, ~year, ~value,
+    255L, 1990L, 1
+  )
+
+  expect_error(
+    whep:::.abort_if_off_window_areas(dt),
+    class = "whep_error_off_window_area_year"
+  )
+  expect_no_error(
+    whep:::.abort_if_off_window_areas(
+      tibble::tribble(~area_code, ~year, ~value, 15L, 1990L, 1)
+    )
   )
 })

@@ -25,6 +25,39 @@ test_that("soil_cn_ratios covers all class-management combinations", {
   )
 })
 
+test_that("soil_cn_ratios Organic rows ship but are not selectable here", {
+  # Issue 809. Both halves are pinned deliberately, because documenting an
+  # intention in prose does not stop the next person changing it by accident:
+  #
+  #   1. the Organic rows DO ship -- retiring them would be a data change
+  #   2. and nothing in this package selects them -- build_carbon_balance() has
+  #      no management dimension, so an argument for it could only be set
+  #      world-wide, and running the whole world as organic is not a meaningful
+  #      request. They are reference values for downstream consumers.
+  #
+  # If management is ever exposed, this test fails and has to be edited on
+  # purpose -- which is the point.
+  organic <- whep::soil_cn_ratios |>
+    dplyr::filter(.data$management == "Organic")
+  testthat::expect_equal(nrow(organic), 2L)
+  testthat::expect_setequal(
+    organic$cropland_class,
+    c("Cropland", "NonCropland")
+  )
+
+  # The only reader of this table filters to Conventional, so every row it
+  # returns is Conventional and the Organic pair is unreachable.
+  lookup <- whep:::.cb_cn_lookup()
+  testthat::expect_equal(nrow(lookup), 2L)
+  testthat::expect_setequal(lookup$cropland_class, c("Cropland", "NonCropland"))
+  conventional <- whep::soil_cn_ratios |>
+    dplyr::filter(.data$management == "Conventional")
+  testthat::expect_equal(
+    lookup$cn_mineralization[order(lookup$cropland_class)],
+    conventional$cn_mineralization[order(conventional$cropland_class)]
+  )
+})
+
 test_that("soc_turnover_params has the HSOC fresh and humus rates", {
   fresh <- whep::soc_turnover_params |>
     dplyr::filter(

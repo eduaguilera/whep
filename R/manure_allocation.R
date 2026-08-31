@@ -16,6 +16,9 @@
 #'   `sub_territory`, `stream`, `applied_n`, `applied_c` and `applied_vs`.
 #' @param gridded A named list describing the land surface for each polity:
 #'   * `crops`: a tibble keyed by `year`, `territory`, `sub_territory`, `crop`
+#'     (a code, `as.character(item_prod_code)`; this function treats it as an
+#'     opaque label but the downstream nitrogen balance resolves it through
+#'     [items_prod_full], so a name is deprecated there)
 #'     with the allocation weight (`manure_n_receptivity` for
 #'     `"area_x_receptivity"`, `crop_n_demand` for `"crop_n_demand"`) and the cap
 #'     basis (`crop_n_cap`, t N, for `"potential_uptake"`/`"realised_removal"`;
@@ -59,8 +62,8 @@
 #' )
 #' crops <- tibble::tribble(
 #'   ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-#'   2020L, "203", NA, "barley", 6, 50,
-#'   2020L, "203", NA, "wheat", 4, 40
+#'   2020L, "203", NA, "44", 6, 50,
+#'   2020L, "203", NA, "15", 4, 40
 #' )
 #' allocate_manure_to_land(applied, list(crops = crops))
 allocate_manure_to_land <- function(
@@ -71,6 +74,7 @@ allocate_manure_to_land <- function(
   opt <- .allocate_options(options)
   .check_applied_cols(applied)
   .check_streams(applied)
+  .check_applied_finite(applied)
   streams <- .aggregate_applied_streams(applied)
   type_shares <- .manure_type_shares(applied)
   crops <- .prepare_crop_layer(gridded[["crops"]], opt)
@@ -139,6 +143,31 @@ allocate_manure_to_land <- function(
     valid <- c("collected", "grazing")
     cli::cli_abort(
       "Unexpected {.field stream} value(s): {.val {bad}}. Expected {.val {valid}}."
+    )
+  }
+  invisible(NULL)
+}
+
+# .aggregate_applied_streams() and .manure_type_shares() both sum applied_n /
+# applied_c / applied_vs without na.rm (whep#226). On the internal driver
+# path (build_livestock_nutrient_flows()) that sum is never NA: measured on
+# real 1970 and 2010 national runs, zero of the ~462k applied_management_
+# losses() rows carry an NA in any of the three columns, at any of the two
+# aggregation sites downstream. But allocate_manure_to_land() is exported, so
+# an external caller can hand it a tibble with a genuine NA. Adding na.rm
+# there would be the wrong fix either way: a whole-NA group would silently
+# become a fabricated 0 instead of staying missing, exactly the trap #972
+# documents. Aborting here catches the bad input before it can poison an
+# aggregated total (or, worse, silently zero one), the same choice
+# apply_management_losses() already makes for its own loss fractions.
+.check_applied_finite <- function(applied) {
+  cols <- c("applied_n", "applied_c", "applied_vs")
+  bad <- purrr::map_lgl(cols, ~ any(!is.finite(applied[[.x]])))
+  if (any(bad)) {
+    cli::cli_abort(
+      "{.arg applied} has non-finite value{?s} in column{?s}:
+       {.val {cols[bad]}}.",
+      class = "whep_manure_applied_non_finite"
     )
   }
   invisible(NULL)
@@ -281,7 +310,12 @@ allocate_manure_to_land <- function(
       "{.val {opt$cap_method}} needs a precomputed {.field crop_n_cap} in {.field crops}."
     )
   }
-  dplyr::mutate(crops, cap_n = .data$crop_n_cap * opt$f_n_tolerance)
+  # A capacity can't be negative; the supplied crop_n_cap occasionally is,
+  # from the underlying growth model's own edge cases.
+  dplyr::mutate(
+    crops,
+    cap_n = pmax(.data$crop_n_cap * opt$f_n_tolerance, 0)
+  )
 }
 
 .prepare_grass_cap <- function(grass, opt) {
@@ -305,9 +339,11 @@ allocate_manure_to_land <- function(
         "{.val {opt$cap_method}} needs a precomputed {.field grass_n_cap} in {.field grass}."
       )
     }
+    # A capacity can't be negative; the supplied grass_n_cap occasionally is,
+    # from the underlying growth model's own edge cases.
     grass <- dplyr::mutate(
       grass,
-      grass_n_cap = .data$grass_n_cap * opt$f_n_tolerance
+      grass_n_cap = pmax(.data$grass_n_cap * opt$f_n_tolerance, 0)
     )
   }
   dplyr::select(grass, "year", "territory", "sub_territory", "grass_n_cap")

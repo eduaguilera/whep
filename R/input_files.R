@@ -110,7 +110,13 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .read_file <- function(paths, extension) {
-  path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
+  # `extension` (e.g. "tar.gz") is a literal suffix, not a pattern: its "."
+  # would otherwise match any character as a regex, so a path ending in
+  # "tarXgz" (any X) would wrongly count as a "tar.gz" match (whep#172).
+  path <- purrr::detect(
+    paths,
+    ~ stringr::str_ends(.x, stringr::fixed(extension))
+  )
 
   # Only for formats this function knows how to read: an unrecognised
   # `extension` must still fall through to the "unknown file type" error. "nc"
@@ -226,23 +232,96 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .find_cache_dir <- function(file_info, file_alias, version) {
-  base_url <- file_info |>
+  pin_url <- file_info |>
     purrr::pluck("board_url") |>
-    stringr::str_replace("_pins\\.yaml$", "")
+    stringr::str_replace("_pins\\.yaml$", "") |>
+    paste0(file_alias, "/")
 
-  version_url <- paste0(base_url, file_alias, "/", version, "/")
-  cache_hash <- rlang::hash(version_url)
+  # `version` arrives as NULL whenever the caller asked for `"latest"` or the
+  # registry froze no version, and pasting NULL into the URL hashed
+  # `.../alias//`, which never matches the directory the download wrote (#245).
+  # The board that would resolve "latest" to a concrete version is exactly what
+  # is unreachable on this path, so resolve it from the cache instead.
+  version <- version %||% .latest_cached_version(pin_url)
+
+  if (is.null(version)) {
+    return(NULL)
+  }
+
   cache_path <- fs::path(
     .pins_cache_base(),
     "url",
-    cache_hash
+    rlang::hash(paste0(pin_url, version, "/"))
   )
 
   if (fs::dir_exists(cache_path)) cache_path else NULL
 }
 
+# Newest cached version of `pin_url`, or NULL if none is cached. pins version
+# strings start with a UTC timestamp, so they sort chronologically.
+.latest_cached_version <- function(pin_url) {
+  cache_root <- fs::path(.pins_cache_base(), "url")
+
+  if (!fs::dir_exists(cache_root)) {
+    return(NULL)
+  }
+
+  versions <- cache_root |>
+    fs::dir_ls(type = "directory") |>
+    purrr::map_chr(.cached_version_of, pin_url = pin_url) |>
+    purrr::discard(is.na)
+
+  if (length(versions) == 0L) NULL else max(versions)
+}
+
+# The version one cache directory holds, or NA if it is not a version of
+# `pin_url`. `data.txt` is the pin metadata pins downloads before the data
+# itself, and a pins version is `<created>-<first 5 of pin_hash>`. Re-hashing
+# the resulting URL and comparing it with the directory name is what attributes
+# the directory to this pin, so an unrelated pin can never be mistaken for one.
+.cached_version_of <- function(cache_dir, pin_url) {
+  meta_path <- fs::path(cache_dir, "data.txt")
+
+  if (!fs::file_exists(meta_path)) {
+    return(NA_character_)
+  }
+
+  # An interrupted download can leave a truncated `data.txt` behind, and this
+  # runs while the remote is already unreachable: an unparseable neighbour must
+  # not turn "cache found" into a crash.
+  meta <- tryCatch(
+    yaml::read_yaml(meta_path, eval.expr = FALSE),
+    error = function(e) NULL
+  )
+
+  if (!all(rlang::has_name(meta, c("created", "pin_hash")))) {
+    return(NA_character_)
+  }
+
+  version <- paste0(
+    meta$created,
+    "-",
+    stringr::str_sub(meta$pin_hash, 1L, 5L)
+  )
+  version_hash <- rlang::hash(paste0(pin_url, version, "/"))
+
+  if (fs::path_file(cache_dir) == version_hash) version else NA_character_
+}
+
+# Must resolve to the same directory `pins` writes to, which honours these
+# environment variables (see `pins:::board_cache_path()`).
 .pins_cache_base <- function() {
-  rappdirs::user_cache_dir("pins")
+  if (.has_env_vars(c("R_CONFIG_ACTIVE", "PINS_USE_CACHE"))) {
+    fs::path(tempdir(), "pins")
+  } else if (.has_env_vars("PINS_CACHE_DIR")) {
+    Sys.getenv("PINS_CACHE_DIR")
+  } else {
+    rappdirs::user_cache_dir("pins")
+  }
+}
+
+.has_env_vars <- function(var_names) {
+  any(nzchar(Sys.getenv(var_names)))
 }
 
 .choose_version <- function(frozen_version, user_version) {

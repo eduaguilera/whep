@@ -198,6 +198,120 @@ test_that(".fix_item_codes never converts milled rice", {
   expect_equal(result$value, 100)
 })
 
+test_that("a paddy source converts even once the row is relabelled", {
+  # The complement of `.fix_item_codes leaves an already-labelled rice row
+  # alone` (#778). `.prepare_historical_cbs()` relabels every 2807 row "Rice
+  # and products", so the NAME cannot say what the basis is -- but the SOURCE
+  # can, and at that ingest boundary it is the only thing that can. Keyed on
+  # source, the row converts.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~source,               ~value,
+    2807L,          "Rice and products", "historical_mysource", 100
+  )
+
+  result <- whep:::.fix_item_codes(df, paddy_by_source = TRUE)
+
+  expect_equal(result$item_cbs_code, 2807L)
+  expect_equal(
+    result$value,
+    100 * whep:::.rice_milled_extraction_rate()
+  )
+})
+
+test_that("a milled-basis source is left alone when keying on source", {
+  # `.rice_source_is_paddy()` is a whitelist, so a CBS-derived source -- which
+  # is already milled equivalent -- must not be converted even with the
+  # source rule switched on.
+  df <- tibble::tribble(
+    ~item_cbs_code, ~item_cbs,           ~source,             ~value,
+    2807L,          "Rice and products", "FAOSTAT_FBS_Old",   100
+  )
+
+  result <- whep:::.fix_item_codes(df, paddy_by_source = TRUE)
+
+  expect_equal(result$value, 100)
+})
+
+test_that("one historical rice row yields one tonnage in both pipelines", {
+  # whep#778: `.read_historical_production` is the single reader behind the
+  # public `historical_data` argument of BOTH `build_primary_production()` and
+  # `build_commodity_balances()`. Item 2807 is milled equivalent throughout
+  # WHEP (validation/rice_mass_basis.R enforces it across FBS vintages), so
+  # the same input row must arrive at the same tonnage down either path.
+  # Before the fix the production path returned 67 t and the CBS path 100 t.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       "27",            "production", "tonnes", 100,    "mysource"
+  )
+
+  cbs <- whep:::.prepare_historical_cbs(hist, years = 1900L)
+  prod <- whep:::.prepare_historical_production(hist, years = 1900L) |>
+    whep:::.fix_rice_milled_equiv()
+
+  expect_equal(cbs$item_cbs_code, 2807L)
+  expect_equal(prod$item_cbs_code, 2807L)
+  expect_equal(cbs$value, prod$value)
+  expect_equal(cbs$value, 100 * whep:::.rice_milled_extraction_rate())
+})
+
+test_that("converting historical rice keeps the supply-use identity", {
+  # whep#778: the conversion must be uniform across elements, or it turns a
+  # balanced sheet into an unbalanced one. Scaling every element of a balanced
+  # rice row by the same rate leaves supply == use exactly, which is the
+  # invariant worth asserting rather than any single tonnage.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       2807L,          "production", "tonnes", 100,    "mysrc",
+    1900L, 100L,       2807L,          "import",     "tonnes", 20,     "mysrc",
+    1900L, 100L,       2807L,          "export",     "tonnes", 30,     "mysrc",
+    1900L, 100L,       2807L,          "food",       "tonnes", 70,     "mysrc",
+    1900L, 100L,       2807L,          "feed",       "tonnes", 20,     "mysrc"
+  )
+
+  wide <- whep:::.prepare_historical_cbs(hist, years = 1900L) |>
+    tidyr::pivot_wider(
+      id_cols = c("year", "area_code", "item_cbs_code"),
+      names_from = "element",
+      values_from = "value",
+      values_fill = 0
+    ) |>
+    whep::ensure_columns(tibble::tibble(
+      import = numeric(),
+      export = numeric(),
+      food = numeric(),
+      feed = numeric(),
+      seed = numeric(),
+      processing = numeric(),
+      other_uses = numeric(),
+      stock_withdrawal = numeric(),
+      stock_addition = numeric()
+    )) |>
+    dplyr::mutate(dplyr::across(
+      dplyr::everything(),
+      \(x) tidyr::replace_na(x, 0)
+    ))
+
+  rate <- whep:::.rice_milled_extraction_rate()
+  expect_equal(wide$production, 100 * rate)
+  expect_equal(wide$food, 70 * rate)
+
+  balance <- whep::check_supply_use_balance(wide)
+  expect_true(all(balance$balanced))
+})
+
+test_that("historical wheat is not rescaled by the rice rule", {
+  # Control: the conversion must be keyed on the item as well as the source.
+  hist <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~element,     ~unit,    ~value, ~source,
+    1900L, 100L,       "15",            "production", "tonnes", 100,    "mysource"
+  )
+
+  cbs <- whep:::.prepare_historical_cbs(hist, years = 1900L)
+
+  expect_equal(cbs$item_cbs_code, 2511L)
+  expect_equal(cbs$value, 100)
+})
+
 test_that(".fix_item_codes remaps groundnuts 2820 -> 2552", {
   df <- tibble::tribble(
     ~item_cbs_code, ~item_cbs, ~value,
@@ -427,6 +541,455 @@ test_that(".cbs_impute_trade balances a net-exported item with no production", {
   expect_equal(value_of("domestic_supply"), 0)
   expect_equal(value_of("production"), 30)
   expect_equal(value_of("stock_variation"), 0)
+})
+
+
+# -- trade recovery (#762) -----------------------------------------------------
+
+# Singapore wheat production in two years, and a trade record that reaches
+# further than that row set does. Every exclusion the recovery makes is
+# represented here, so a single fixture can pin all of them. The CBS covers
+# 2009 as well as 2010 on purpose: without it, the year window would be
+# unfalsifiable, because the area-label join would drop the 2009 row anyway.
+.recovery_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2009, "Singapore", 200L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod"
+  )
+}
+
+.recovery_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2511, "import", 400617,
+    2010, 200L, 2807, "import", 620863,
+    2010, 200L, 2807, "export", 91318,
+    2010, 200L, 2656, "import", 100,
+    2010, 200L, 2656, "export", 5000,
+    2010, 200L, 2602, "import", 5000,
+    2010, 200L, 2602, "export", 5000,
+    2010, 200L, 1049, "import", 290549,
+    2010, 13L, 2807, "import", 1000,
+    2009, 200L, 2531, "import", 700
+  )
+}
+
+test_that(".cbs_trade_recovery_rows creates the row the trade join cannot", {
+  # The defect: `.cbs_impute_trade()` LEFT-joins trade onto the CBS, so an
+  # import whose (year, area, item) has no CBS row is dropped outright. Rice
+  # is exactly that shape for Singapore, and it is the largest single item in
+  # the 2010 measurement in #762.
+  result <- whep:::.cbs_trade_recovery_rows(
+    .recovery_cbs(),
+    .recovery_trade(),
+    years = 2010
+  )
+
+  expect_equal(
+    dplyr::arrange(result, element)$element,
+    c("export", "import")
+  )
+  expect_equal(unique(result$item_cbs_code), 2807)
+  expect_equal(sum(result$value), 620863 + 91318)
+  # Provenance, so no consumer reads a recovered row as a balance-sheet one.
+  expect_equal(unique(result$source), "FAOSTAT_trade")
+})
+
+test_that(".cbs_trade_recovery_rows leaves every excluded key alone", {
+  result <- whep:::.cbs_trade_recovery_rows(
+    .recovery_cbs(),
+    .recovery_trade(),
+    years = 2010
+  )
+
+  # Wheat: the CBS already carries the key, so the existing left join fills it.
+  expect_false(2511 %in% result$item_cbs_code)
+  # Beer: a net exporter. A created row has no production, so balancing would
+  # invent some to cover the export (#762 keeps that decision open).
+  expect_false(2656 %in% result$item_cbs_code)
+  # Onions: import and export are equal, so the row would carry no supply at
+  # all. The boundary is strict: a created row exists to hold a net import.
+  expect_false(2602 %in% result$item_cbs_code)
+  # Pigs: `items_cbs$item_type` says live animals are counted in heads, and
+  # `get_livestock_cbs()` already supplies that key in the wide CBS.
+  expect_false(1049 %in% result$item_cbs_code)
+  # Bahrain: no CBS row in 2010, so the bucket has no `area` label to read.
+  expect_false(13L %in% result$area_code)
+  # 2009 is outside the requested window, though the CBS does cover it.
+  expect_false(2009 %in% result$year)
+})
+
+test_that(".cbs_trade_recovery_rows labels rows from the right vocabulary", {
+  # The `area` label is a property of the (year, area_code) bucket and is read
+  # from the CBS itself; a year-free lookup would relabel a merged bucket
+  # (whep#563). The item label is year-free, so it comes from `items_cbs` and
+  # works for an item the CBS names nowhere -- Meat Meal is in 107 areas'
+  # trade records and in no CBS row at all.
+  trade <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2112, "import", 5000
+  )
+
+  result <- whep:::.cbs_trade_recovery_rows(
+    .recovery_cbs(),
+    trade,
+    years = 2010
+  )
+
+  expect_equal(result$area, "Singapore")
+  expect_equal(result$item_cbs, "Meat Meal")
+})
+
+test_that(".cbs_trade_recovery_rows tolerates an empty trade record", {
+  empty <- .recovery_trade()[0, ]
+
+  expect_equal(
+    nrow(whep:::.cbs_trade_recovery_rows(.recovery_cbs(), NULL, 2010)),
+    0L
+  )
+  expect_equal(
+    nrow(whep:::.cbs_trade_recovery_rows(.recovery_cbs(), empty, 2010)),
+    0L
+  )
+  # Non-empty, but every row excluded.
+  expect_equal(
+    nrow(whep:::.cbs_trade_recovery_rows(
+      .recovery_cbs(),
+      dplyr::filter(.recovery_trade(), item_cbs_code == 2511),
+      2010
+    )),
+    0L
+  )
+})
+
+test_that(".cbs_trade_recovery_rows aborts on a fanned-out trade key", {
+  # A trade record with two rows on one (year, area, item, element) would be
+  # summed into a single created row by the reshape, which is how a crosswalk
+  # fan-out turns into a double count (whep#164, whep#240). It must abort
+  # rather than reshape.
+  fanned <- dplyr::bind_rows(
+    .recovery_trade(),
+    tibble::tibble(
+      year = 2010,
+      area_code = 200L,
+      item_cbs_code = 2807,
+      element = "import",
+      value = 1
+    )
+  )
+
+  expect_error(
+    whep:::.cbs_trade_recovery_rows(.recovery_cbs(), fanned, 2010),
+    "not unique"
+  )
+})
+
+test_that(".cbs_trade_recovery_rows aborts on a split area label", {
+  # One `area_code` must carry one `area` label (whep#563). If the CBS itself
+  # disagrees, the inner join would emit the created row twice, once per label.
+  split_cbs <- dplyr::bind_rows(
+    .recovery_cbs(),
+    dplyr::mutate(.recovery_cbs(), area = "Singapore (former)")
+  )
+
+  expect_error(
+    whep:::.cbs_trade_recovery_rows(split_cbs, .recovery_trade(), 2010),
+    "more than one"
+  )
+})
+
+test_that("a recovered row balances and invents no production", {
+  # End to end through the imputation the recovered rows feed. The created row
+  # must close the balance identity on its own terms: its whole net import is
+  # domestic supply, nothing is produced, and the stock is untouched. The
+  # destiny split of that supply happens later, in `.cbs_fill_destinies()`.
+  recovered <- whep:::.cbs_trade_recovery_rows(
+    .recovery_cbs(),
+    .recovery_trade(),
+    years = 2010
+  )
+  bound <- whep:::.cbs_bind_recovered(.recovery_cbs(), recovered)
+
+  result <- whep:::.cbs_impute_trade(bound)
+  rice <- dplyr::filter(result, item_cbs_code == 2807)
+  value_of <- function(x) dplyr::pull(dplyr::filter(rice, element == x), value)
+
+  expect_false(any(is.na(result$value)))
+  expect_equal(value_of("domestic_supply"), 620863 - 91318)
+  # Nothing produced, and nothing taken from stock: the identity closes on the
+  # trade record alone. A net-exported row is what would force the cascade to
+  # invent one of these, which is why the recovery does not create those.
+  expect_equal(value_of("production"), 0)
+  expect_equal(value_of("stock_variation"), 0)
+  expect_equal(
+    value_of("production") +
+      value_of("import") -
+      value_of("export") -
+      value_of("stock_variation"),
+    value_of("domestic_supply")
+  )
+})
+
+test_that("binding recovered rows adds keys and changes no existing one", {
+  # Row-and-key accounting, not just tonnage: the recovery may only ADD keys.
+  # A created key that already existed would double the item in the wide CBS.
+  cbs <- .recovery_cbs()
+  recovered <- whep:::.cbs_trade_recovery_rows(cbs, .recovery_trade(), 2010)
+  bound <- tibble::as_tibble(whep:::.cbs_bind_recovered(cbs, recovered))
+
+  key <- c("year", "area_code", "item_cbs_code", "element")
+  expect_equal(nrow(bound), nrow(cbs) + nrow(recovered))
+  expect_equal(
+    nrow(dplyr::distinct(bound, dplyr::pick(dplyr::all_of(key)))),
+    nrow(bound)
+  )
+  expect_equal(
+    as.data.frame(dplyr::semi_join(bound, cbs, by = key)),
+    as.data.frame(cbs),
+    ignore_attr = TRUE
+  )
+})
+
+test_that("recovered sources reach the frozen source lookup", {
+  # `src_lookup` is extracted before the rows exist, so without this the
+  # recovered rows -- and every element derived from them -- ship source NA.
+  cbs <- .recovery_cbs()
+  recovered <- whep:::.cbs_trade_recovery_rows(cbs, .recovery_trade(), 2010)
+  src <- whep:::.extract_source_lookup(data.table::as.data.table(cbs))
+
+  result <- tibble::as_tibble(whep:::.add_recovered_sources(src, recovered))
+
+  key <- c("year", "area_code", "item_cbs_code", "element")
+  expect_equal(nrow(result), nrow(src) + nrow(recovered))
+  expect_equal(sum(duplicated(result[, key])), 0L)
+  expect_equal(
+    sort(unique(result$source)),
+    c("FAOSTAT_prod", "FAOSTAT_trade")
+  )
+  expect_equal(whep:::.add_recovered_sources(src, recovered[0, ]), src)
+})
+
+test_that(".fix_cbs wires trade recovery through the whole cascade", {
+  # The only end-to-end coverage of `.fix_cbs()`, and the only place the
+  # recovery's wiring is visible: its placement, the source lookup it has to
+  # extend (frozen one step earlier, so without that every recovered element
+  # ships `source = NA`), and what the destiny cascade does with the created
+  # supply. No pin and no network -- the whole chain runs on this tribble.
+  raw <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2010, "Singapore", 200L, "Wheat and products", 2511, "production", 1000, "FAOSTAT_prod",
+    2010, "Singapore", 200L, "Wheat and products", 2511, "food", 800, "FAOSTAT_prod"
+  )
+  attr(raw, ".years") <- 2010L
+  attr(raw, ".fao_trade") <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2807, "import", 620863,
+    2010, 200L, 2807, "export", 91318
+  )
+
+  off <- whep:::.fix_cbs(raw)
+  on <- whep:::.fix_cbs(raw, trade_recovery = "net_import")
+
+  # The defect: the trade join can only fill, so rice never reaches the CBS.
+  expect_false(2807 %in% off$item_cbs_code)
+  rice <- dplyr::filter(on, item_cbs_code == 2807)
+  value_of <- function(x) dplyr::pull(dplyr::filter(rice, element == x), value)
+  expect_equal(value_of("import"), 620863)
+  expect_equal(value_of("export"), 91318)
+  expect_equal(value_of("domestic_supply"), 620863 - 91318)
+  # Provenance survives the frozen source lookup.
+  expect_equal(
+    dplyr::filter(rice, element %in% c("import", "export"))$source,
+    c("FAOSTAT_trade", "FAOSTAT_trade")
+  )
+  # The wheat rows the CBS already had are untouched.
+  expect_equal(
+    dplyr::filter(on, item_cbs_code == 2511),
+    dplyr::filter(off, item_cbs_code == 2511)
+  )
+  # WHAT THE CASCADE DOES WITH THE CREATED SUPPLY, pinned because it is an
+  # allocation rule and not an identity: with no destiny of its own the row
+  # falls to the item's default destiny, which for rice is processing, not
+  # food. This is the open decision in #762 -- pinned so that changing it is
+  # a visible change, not a silent one.
+  expect_equal(value_of("processing"), 620863 - 91318)
+})
+
+test_that("build_commodity_balances validates trade_recovery", {
+  expect_error(
+    build_commodity_balances(example = TRUE, trade_recovery = "everything"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      trade_recovery = "net_import"
+    ),
+    "ignored"
+  )
+})
+
+
+# -- trade zeros vs a positive trade record (#866) -----------------------------
+
+# One area, four items, one year. Every branch of the tier-1 fill is here: a
+# CBS zero against a positive record, a CBS zero against a zero record, a
+# missing CBS value (the case `coalesce()` already handled), and a non-zero CBS
+# value that disagrees with the record and must never be overwritten.
+.zero_trade_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    2010, "Lebanon", 121L, "Beverages, Fermented", 2657, "import", 0, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Beverages, Fermented", 2657, "production", 5000, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Barley and products", 2513, "import", 0, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Barley and products", 2513, "production", 100, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Wheat and products", 2511, "production", 700, "FAOSTAT_prod",
+    2010, "Lebanon", 121L, "Maize and products", 2514, "import", 200, "FAOSTAT_FBS_New",
+    2010, "Lebanon", 121L, "Maize and products", 2514, "production", 300, "FAOSTAT_prod"
+  )
+}
+
+.zero_trade_record <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 121L, 2657, "import", 366892,
+    2010, 121L, 2513, "import", 0,
+    2010, 121L, 2511, "import", 400,
+    2010, 121L, 2514, "import", 9999
+  )
+}
+
+.zero_trade_import_of <- function(result, code) {
+  result |>
+    dplyr::filter(item_cbs_code == code, element == "import") |>
+    dplyr::pull(value)
+}
+
+test_that("a positive trade record outranks a CBS zero by default", {
+  # The decision taken on #866: a CBS zero here is never an observation --
+  # measured at 2010 every one carries FAO flag "I" (imputed) or the legacy
+  # "S" (standardized), and neither food-balance vintage carries a single
+  # official "A" on a trade row -- so the measured flow wins.
+  result <- whep:::.cbs_impute_trade(
+    .zero_trade_cbs(),
+    .zero_trade_record()
+  )
+  import_of <- function(code) .zero_trade_import_of(result, code)
+
+  # 366,892 t of a real trade record that used to be discarded.
+  expect_equal(import_of(2657), 366892)
+  # A zero record cannot overwrite a zero CBS value, so nothing is invented.
+  expect_equal(import_of(2513), 0)
+  # The case `coalesce()` already handled: no CBS row at all, so the record
+  # fills it.
+  expect_equal(import_of(2511), 400)
+  # A non-zero CBS value always wins, whatever the record says.
+  expect_equal(import_of(2514), 200)
+})
+
+test_that("trade_zero = 'keep' still reproduces the pre-#866 build", {
+  # The old behaviour is a selectable alternative, not a removed one: it is
+  # what reproduces a build made before the default changed, and what a
+  # sensitivity run needs.
+  result <- whep:::.cbs_impute_trade(
+    .zero_trade_cbs(),
+    .zero_trade_record(),
+    trade_zero = "keep"
+  )
+  import_of <- function(code) .zero_trade_import_of(result, code)
+
+  expect_equal(import_of(2657), 0)
+  expect_equal(import_of(2513), 0)
+  expect_equal(import_of(2511), 400)
+  expect_equal(import_of(2514), 200)
+})
+
+test_that("the default of the whole cascade prefers the record", {
+  # `.cbs_impute_trade()` is private; this pins the default a caller of the
+  # exported build actually gets, through `.fix_cbs()`.
+  raw <- .zero_trade_cbs()
+  attr(raw, ".years") <- 2010
+  attr(raw, ".fao_trade") <- .zero_trade_record()
+
+  expect_equal(
+    .zero_trade_import_of(whep:::.fix_cbs(raw), 2657),
+    366892
+  )
+  # `sum()` rather than a bare comparison: the final balance drops a row whose
+  # value is zero, so under `"keep"` the key is not merely zero, it is gone.
+  expect_equal(
+    sum(.zero_trade_import_of(whep:::.fix_cbs(raw, trade_zero = "keep"), 2657)),
+    0
+  )
+})
+
+test_that("preferring the record leaves the supply-use identity closed", {
+  # The invariant, not a hand-picked total: whatever the branch does to
+  # imports, `production + import - export - stock_variation` must still equal
+  # domestic supply on every row. This is where the cost of the choice shows
+  # up -- the extra import has to land in a destiny.
+  purrr::walk(whep:::.cbs_trade_zero_choices(), function(choice) {
+    wide <- whep:::.cbs_impute_trade(
+      .zero_trade_cbs(),
+      .zero_trade_record(),
+      trade_zero = choice
+    ) |>
+      dplyr::select(year, area_code, item_cbs_code, element, value) |>
+      tidyr::pivot_wider(names_from = element, values_from = value)
+
+    expect_equal(
+      wide$production + wide$import - wide$export - wide$stock_variation,
+      wide$domestic_supply
+    )
+  })
+})
+
+test_that("every build says how much trade the zeros disputed", {
+  # Reported under either setting: it is what the default recovered, and under
+  # `"keep"` it is the only trace the discarded trade leaves -- the row stays,
+  # at zero, indistinguishable from an area that genuinely imports nothing.
+  expect_message(
+    whep:::.cbs_impute_trade(.zero_trade_cbs(), .zero_trade_record()),
+    "366892 tonnes"
+  )
+  # Nothing to say when no zero conflicts with a record.
+  expect_no_message(
+    whep:::.cbs_impute_trade(
+      dplyr::filter(.zero_trade_cbs(), item_cbs_code != 2657),
+      dplyr::filter(.zero_trade_record(), item_cbs_code != 2657)
+    )
+  )
+})
+
+test_that("the tier-1 fill counts both elements and validates its choice", {
+  # Exports are the mirror case and the riskier half: a created export on a
+  # row with no production forces the balancing cascade to invent some.
+  expect_equal(
+    whep:::.fill_tier1_trade(c(0, NA, 5, 0), c(10, 10, 10, 0), "keep"),
+    c(0, 10, 5, 0)
+  )
+  expect_equal(
+    whep:::.fill_tier1_trade(c(0, NA, 5, 0), c(10, 10, 10, 0), "prefer_record"),
+    c(10, 10, 5, 0)
+  )
+  expect_error(
+    whep:::.cbs_impute_trade(.zero_trade_cbs(), trade_zero = "always"),
+    class = "rlang_error"
+  )
+  expect_error(
+    build_commodity_balances(example = TRUE, trade_zero = "always"),
+    class = "rlang_error"
+  )
 })
 
 
@@ -904,6 +1467,27 @@ test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
   expect_true(stringr::str_starts(result$source, "historical_"))
 })
 
+test_that(".prepare_historical_cbs names the 'Missing' bullet with an
+  {.field x} cross, not a bare unnamed line", {
+  # `"x" <- "Missing: ..."` inside the `c()` call passed to cli_abort() was
+  # an assignment, not a named c() element, so the bullet lost its
+  # cross-mark formatting (whep#172).
+  cnd <- rlang::catch_cnd(
+    whep:::.prepare_historical_cbs(
+      data.frame(area_code = 1L),
+      years = 1900:1901
+    )
+  )
+
+  # The cross-mark bullet renders as unicode "✖" or ASCII "x" depending on
+  # `cli.unicode`; either way it must be its own bulleted line, not appended
+  # bare onto the message with no marker at all.
+  expect_true(stringr::str_detect(
+    rlang::cnd_message(cnd),
+    "(✖|x) Missing: year and value\\."
+  ))
+})
+
 test_that(".cbs_extend_historical preserves observed historical sources", {
   cbs_raw0 <- tibble::tibble(
     year = c(1950L, 1961L),
@@ -1302,6 +1886,33 @@ test_that(".format_cbs_output returns long format with source column", {
 })
 
 
+test_that(".format_cbs_output keeps processing_primary (whep#143)", {
+  # domestic_supply is built upstream to include processing_primary as one
+  # of its summed destinies (.reestimate_domestic_supply(),
+  # .apply_filled_shares()), so dropping the element here breaks
+  # sum(uses) == domestic_supply for the pp_items whose entire domestic
+  # supply is destined for processing (e.g. Seed cotton).
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element,
+    ~value, ~source,
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "production",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "processing_primary",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "domestic_supply",
+    5000, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.format_cbs_output(cbs)
+
+  expect_true("processing_primary" %in% result$element)
+  pp_value <- result |>
+    dplyr::filter(element == "processing_primary") |>
+    dplyr::pull(value)
+  expect_equal(pp_value, 5000)
+})
+
+
 # -- .wide_cbs_to_long ---------------------------------------------------------
 
 test_that(".wide_cbs_to_long handles long format input", {
@@ -1475,6 +2086,78 @@ test_that(".resolve_hist_trade_polities leaves unknown iso3 labels unresolved", 
 
   expect_true(is.na(resolved$polity_code[1]))
   expect_false(is.na(resolved$polity_code[2]))
+})
+
+test_that("an ISO3 naming two areas resolves to the canonical one", {
+  # Issue whep#719, the same defect as whep#586 and whep#718. The ISO3 bridge
+  # used to be built here by taking the first row of each ISO3, and the area
+  # lookup orders by `area_code`, so `ETH` entered as the LOWEST code: 62, the
+  # "Ethiopia PDR" entity dissolved in 1993, rather than 238, plain
+  # "Ethiopia". Two things followed. The label came out "Ethiopia PDR" on an
+  # `area_code` whose own name is "Ethiopia", in every year including 2015;
+  # and because the polity resolution is year-aware on the code it is handed,
+  # a 2015 row resolved to `ETH-1952-1993` -- a polity that had ended 22
+  # years earlier.
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("ETH", "ETH"),
+    year = c(1980L, 2015L),
+    value = 1
+  ))
+
+  expect_equal(resolved$area_code, c(238L, 238L))
+  expect_equal(resolved$polity_code, c("ETH-1952-1993", "ETH-1993-2025"))
+  expect_false(any(resolved$area == "Ethiopia PDR"))
+})
+
+test_that("hist trade gives one area label per area_code and year", {
+  # The invariant behind whep#719, over EVERY ISO3 the crosswalk knows rather
+  # than the two that were measured. `area_code` here is the aggregation
+  # bucket, so the label has to be a property of the bucket -- the rule
+  # `.aggregate_to_polities()` and `.read_crop_residues()` already follow.
+  # Carrying it in from the member row instead gave bucket 206 two labels in
+  # the same year, "Sudan (former)" from SDN and "South Sudan" from SSD, which
+  # is the vocabulary split that dropped 702,166 rows in whep#382.
+  lookup <- whep:::.current_area_lookup(include_unmapped = FALSE)
+  iso3 <- sort(unique(stats::na.omit(lookup$area_iso3c)))
+  resolved <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    expand.grid(
+      iso3c = iso3,
+      year = c(1900L, 1950L, 1980L, 2015L),
+      stringsAsFactors = FALSE
+    ),
+    value = 1
+  ))
+  resolved <- resolved[!is.na(resolved$area_code), ]
+
+  labels_per_key <- resolved |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = c("area_code", "year")
+    ) |>
+    dplyr::filter(.data$n_labels > 1L)
+
+  expect_equal(labels_per_key$area_code, integer(0))
+})
+
+test_that("hist trade still returns the area column with nothing to label", {
+  # The label now arrives by an update join on the resolved bucket, so the
+  # branch where NO row resolves has to keep emitting `area` rather than drop
+  # the column the caller's `keep` set names.
+  none <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = c("BEL-LUX", "ZZZ"),
+    year = c(1900L, 1900L),
+    value = 1
+  ))
+  empty <- whep:::.resolve_hist_trade_polities(data.table::data.table(
+    iso3c = character(0),
+    year = integer(0),
+    value = numeric(0)
+  ))
+
+  expect_true(all(is.na(none$area)))
+  expect_true("area" %in% names(none))
+  expect_true("area" %in% names(empty))
+  expect_equal(nrow(empty), 0L)
 })
 
 test_that(".read_gdp_pop renames only the year column", {
@@ -1786,4 +2469,428 @@ test_that("the historical extension keeps one area label per code", {
 
   expect_equal(per_code$n_labels, 1L)
   expect_equal(unique(result$area), "Algeria (1919-1962)")
+})
+
+# -- Destiny-share interpolation (whep#691) ------------------------------------
+
+# One code, two labels: the balance side carries the current FAOSTAT name and
+# the destiny side the periodized one. Every real caller hands
+# `.interpolate_destiny_shares()` two filters of ONE frame, so today the labels
+# agree by construction -- but that is the caller's invariant, not this
+# function's, and an unmatched key here is a dropped row, not an error.
+.two_label_destiny_frames <- function() {
+  balance <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 100,
+    2001L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 200,
+    2002L, "Algeria", 4L, "Wheat", 2511L, "domestic_supply", 300
+  ) |>
+    dplyr::mutate(elem_cat = "balance", source = "FAOSTAT_FBS_New")
+
+  destiny <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "food", 60,
+    2000L, "Algeria (1919-1962)", 4L, "Wheat", 2511L, "feed", 40
+  ) |>
+    dplyr::mutate(
+      elem_cat = "destiny",
+      source = "FAOSTAT_FBS_New",
+      dest_share = value / 100
+    )
+
+  list(balance = balance, destiny = destiny)
+}
+
+test_that("a second area label does not drop a destiny-share skeleton", {
+  # Before whep#691 the skeleton join keyed on `area` as well as `area_code`,
+  # so the two labels were two territories: no target year matched, the
+  # skeleton collapsed to the single observed year and 2001-2002 lost their
+  # shares entirely.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_setequal(unique(result$year), 2000:2002)
+  expect_equal(
+    result |>
+      dplyr::filter(.data$element == "food") |>
+      dplyr::arrange(.data$year) |>
+      dplyr::pull(.data$dest_share),
+    c(0.6, 0.6, 0.6)
+  )
+})
+
+test_that("the destiny-share skeleton keeps one area label per code", {
+  # The invariant a value comparison cannot see (whep#563): the label is
+  # re-attached from the code once, so a disagreeing input label cannot leave
+  # two territories behind.
+  frames <- .two_label_destiny_frames()
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  per_code <- result |>
+    dplyr::summarise(
+      n_labels = dplyr::n_distinct(.data$area),
+      .by = "area_code"
+    )
+
+  expect_equal(per_code$n_labels, 1L)
+})
+
+test_that("agreeing labels leave the destiny-share skeleton unchanged", {
+  # What the real build hands it: one label per code on both sides. Dropping
+  # the label from the key must move nothing here.
+  frames <- .two_label_destiny_frames()
+  frames$destiny$area <- "Algeria"
+
+  result <- whep:::.interpolate_destiny_shares(
+    frames$balance,
+    frames$destiny
+  )
+
+  expect_equal(nrow(result), 6L)
+  expect_equal(unique(result$area), "Algeria")
+  expect_equal(
+    result |>
+      dplyr::filter(.data$year == 2002L) |>
+      dplyr::arrange(.data$element) |>
+      dplyr::pull(.data$dest_share),
+    c(0.4, 0.6)
+  )
+})
+
+# -- .cbs_safe_ratio division-by-zero guard (whep#166, whep#426) --------------
+
+test_that(".cbs_safe_ratio returns NA, not Inf, on a zero denominator", {
+  result <- whep:::.cbs_safe_ratio(
+    num = c(10, 0, 5, NA_real_, 4),
+    denom = c(0, 0, 2, 3, NA_real_)
+  )
+
+  expect_equal(result, c(NA_real_, NA_real_, 2.5, NA_real_, NA_real_))
+  expect_false(any(is.infinite(result)))
+  expect_false(any(is.nan(result)))
+})
+
+test_that(".fill_historical_destinies keeps a zero-supply share finite", {
+  # Reproduces whep#426 at function scope: domestic_supply == 0 with a
+  # non-zero destiny numerator used to divide out to Inf, and 0 * Inf (the
+  # `.apply_filled_shares()` coalesce-back) reintroduced NaN as data, both of
+  # which survive `!is.na()` filters.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "production", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "import", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "export", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "food", 10,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "seed", 5
+  )
+
+  primary_area <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    area_ha = double()
+  )
+  gdp_pop <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = character(),
+    pop = double()
+  )
+  land_wide <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    Cropland = double(),
+    Pasture = double(),
+    agriland = double()
+  )
+  items <- whep::items_full
+
+  result <- whep:::.fill_historical_destinies(
+    df,
+    primary_area,
+    gdp_pop,
+    land_wide,
+    items
+  )
+
+  numeric_cols <- result[vapply(result, is.numeric, logical(1L))]
+  expect_true(all(vapply(
+    numeric_cols,
+    \(x) all(is.finite(x) | is.na(x)),
+    TRUE
+  )))
+})
+
+# -- .read_historical_trade row order ------------------------------------------
+
+# The pre-1961 trade source. Its two pins are read through arrow's
+# multi-threaded scanner and the aggregation at the end of
+# `.read_historical_trade()` emits groups in order of first appearance, so the
+# table came back in a session-dependent order: 2 distinct orders over 7
+# sessions on the real pins at 1950-1965, always the same 45,871 rows with the
+# same values (whep#420). Feeding the same rows in two orders reproduces that
+# here with no pin and no network.
+.hist_trade_fixture <- function() {
+  tibble::tribble(
+    ~iso3, ~year, ~item_code, ~measurement, ~value,
+    "ESP", 1950L, 15,         "1000 MT",    10,
+    "ESP", 1950L, 16,         "1000 MT",    4,
+    "FRA", 1950L, 15,         "1000 MT",    7,
+    "FRA", 1951L, 15,         "1000 MT",    8,
+    "ESP", 1951L, 15,         "1000 MT",    11
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".read_historical_trade row order does not depend on the read", {
+  fixture <- .hist_trade_fixture()
+
+  read_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.read_historical_trade() |>
+      as.data.frame()
+  }
+
+  forward <- read_in_order(fixture)
+  reversed <- read_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# Issue whep#833, the other half. `.cbs_fill_destinies()` splits domestic
+# supply with the area's own observed split, carried across the year axis, and
+# falls back to the world average split for a key that has no split anywhere
+# in the frame. On a truncated axis a key whose only observation lies outside the
+# window takes the fallback instead of its own answer, which hands it a
+# `processing` destiny it never reported -- and `.cbs_second_processed_round()`
+# turns that into oil and cake rows the full-range build does not have.
+.destiny_axis_fixture <- function(years) {
+  destinies <- c("food", "feed", "seed", "other_uses", "processing")
+  anchor <- tidyr::expand_grid(year = years, element = destinies) |>
+    dplyr::mutate(
+      area = "Anchorland",
+      area_code = 991L,
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      value = dplyr::if_else(year == 1995L & element == "food", 1000, 0),
+      source = "FBS"
+    )
+  # A second area with a stable half-food, half-crush split, so the world
+  # average the fallback reads is not the anchor area's own.
+  world <- tidyr::expand_grid(year = years, element = destinies) |>
+    dplyr::mutate(
+      area = "Worldland",
+      area_code = 992L,
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      value = dplyr::if_else(element %in% c("food", "processing"), 500, 0),
+      source = "FBS"
+    )
+  supply <- tidyr::expand_grid(
+    year = years,
+    tibble::tribble(
+      ~area, ~area_code,
+      "Anchorland", 991L,
+      "Worldland", 992L
+    )
+  ) |>
+    dplyr::mutate(
+      item_cbs = "Coconuts - Incl Copra",
+      item_cbs_code = 2560L,
+      element = "domestic_supply",
+      value = 1000,
+      source = "FBS"
+    )
+  dplyr::bind_rows(anchor, world, supply)
+}
+
+.destiny_axis_processing <- function(years) {
+  whep:::.cbs_fill_destinies(.destiny_axis_fixture(years)) |>
+    tibble::as_tibble() |>
+    dplyr::filter(
+      area_code == 991L,
+      year == 2010L,
+      element == "processing"
+    ) |>
+    dplyr::pull(value)
+}
+
+test_that(".cbs_fill_destinies carries one observed split across the axis", {
+  expect_length(.destiny_axis_processing(1990:2015), 0L)
+})
+
+test_that(".cbs_fill_destinies invents a crush off-anchor (whep#833)", {
+  # The defect, pinned offline: the same area and year gets no `processing` at
+  # all on an axis holding its 1995 split, and half its domestic supply crushed
+  # on one that does not. Fixing #833 makes both branches emit nothing, and
+  # this expectation must then be replaced by the empty one above.
+  expect_equal(.destiny_axis_processing(2005:2015), 500)
+})
+
+
+# -- trade units (#865) --------------------------------------------------------
+
+# `.read_fao_trade()` carries `unit`, and the FAOSTAT trade record denominates
+# live animals in `An` / `1000 An` and bees in `No`, not in tonnes. This fixture
+# holds one row of each unit the real pin uses, on real crosswalk keys: trade
+# item 15 -> CBS 2511 (wheat, `t`), 1034 -> 1049 (pigs, `An`), 1057 -> 1053
+# (broilers, `1000 An`), 1181 -> 1181 (bees, `No`).
+.trade_unit_rows <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~unit, ~element, ~item_trade, ~item_code_trade, ~value,
+    2010, 200L, "t", "import", "Wheat", 15, 400617,
+    2010, 200L, "An", "import", "Swine / pigs", 1034, 290549,
+    2010, 200L, "1000 An", "import", "Chickens", 1057, 1500,
+    2010, 200L, "No", "import", "Bees", 1181, 4645
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".aggregate_fao_trade_to_cbs keeps the unit of what it sums", {
+  # The defect: the aggregation dropped `unit` and summed across it, so head
+  # counts landed in the same tonnes-denominated `value` column as mass. On the
+  # real pin that is 135.3 M head/number against 2.85 Gt at 2010 (#865).
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+
+  expect_true("unit" %in% names(result))
+  expect_setequal(result$unit, c("t", "An", "An", "No"))
+})
+
+test_that(".aggregate_fao_trade_to_cbs rescales 1000 An to An", {
+  # `.normalise_units()` rescales "1000 tonnes" but not "1000 An", so poultry
+  # trade arrived a thousandfold low in its own unit. Item 1150 even switches
+  # between the two labels across years on the real pin, which would put a
+  # 1000x step in one series.
+  result <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+  broilers <- result[result$item_cbs_code == 1053, ]
+
+  expect_equal(broilers$unit, "An")
+  expect_equal(broilers$value, 1500 * 1000)
+})
+
+test_that(".mass_only_trade keeps mass and drops the head counts", {
+  agg <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows())
+
+  expect_warning(
+    kept <- whep:::.mass_only_trade(agg, "faostat-trade-totals"),
+    "not denominated in mass"
+  )
+  expect_false("unit" %in% names(kept))
+  expect_equal(kept$item_cbs_code, 2511)
+  expect_equal(sum(kept$value), 400617)
+})
+
+test_that(".mass_only_trade accepts either mass label and stays keyed", {
+  # FAOSTAT trade reports "t" and FishStat is normalised to "tonnes", so both
+  # are mass; collapsing them must not leave two rows on one key.
+  both <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~unit, ~value,
+    2010, 200L, 2511, "import", "t", 10,
+    2010, 200L, 2511, "import", "tonnes", 5
+  ) |>
+    data.table::as.data.table()
+
+  kept <- whep:::.mass_only_trade(both, "test")
+
+  expect_equal(nrow(kept), 1L)
+  expect_equal(kept$value, 15)
+})
+
+test_that(".mass_only_trade is silent when everything is mass", {
+  mass <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows()[unit == "t"])
+
+  expect_no_warning(kept <- whep:::.mass_only_trade(mass, "test"))
+  expect_equal(nrow(kept), 1L)
+})
+
+test_that(".mass_only_trade tolerates an empty record", {
+  empty <- whep:::.aggregate_fao_trade_to_cbs(.trade_unit_rows()[0L])
+
+  expect_no_warning(kept <- whep:::.mass_only_trade(empty, "test"))
+  expect_equal(nrow(kept), 0L)
+  expect_false("unit" %in% names(kept))
+})
+
+test_that(".mass_only_trade aborts on a frame with no unit", {
+  # A trade aggregate that lost its unit is exactly the shape of #865, so this
+  # is an abort and not a silent pass-through.
+  unitless <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    2010, 200L, 2511, "import", 10
+  ) |>
+    data.table::as.data.table()
+
+  expect_error(
+    whep:::.mass_only_trade(unitless, "faostat-trade-totals"),
+    "has no"
+  )
+})
+
+
+# -- trade recovery must not duplicate a territory (#884) ----------------------
+
+# Belgium's shape: FishStat keys the territory 255 from 1976, while every
+# FAOSTAT product keys it 15 (Belgium-Luxembourg) until 1999. The CBS here
+# covers area 255 in 1990 on purpose -- that is what makes the restriction
+# falsifiable, because the area-label join alone would otherwise drop the row
+# and the test would pass for the wrong reason. It is also the state #867's
+# proposal to create absent area-years would produce.
+.belgium_cbs <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source,
+    1990, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod",
+    2010, "Belgium", 255L, "Wheat and products", 2511, "production", 0, "FAOSTAT_prod"
+  )
+}
+
+.belgium_trade <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+    1990, 255L, 2761, "import", 265281,
+    2010, 255L, 2761, "import", 300000
+  )
+}
+
+test_that("trade recovery creates no row for an off-window area-year", {
+  # 1990: FishStat says 255, the CBS vocabulary says 15, so a created 255 row
+  # would sit beside the Belgium-Luxembourg row covering the same territory in
+  # the same year -- a duplicated territory, not a filled gap (whep#884).
+  result <- whep:::.cbs_trade_recovery_rows(
+    .belgium_cbs(),
+    .belgium_trade(),
+    years = c(1990, 2010)
+  )
+
+  expect_equal(result$year, 2010)
+  expect_false(1990 %in% result$year)
+})
+
+test_that("binding an off-window recovered row aborts", {
+  # The filter above is the policy; this is the guard that makes lifting it
+  # impossible to do silently.
+  recovered <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~area, ~item_cbs, ~value, ~source,
+    1990, 255L, 2761, "import", "Belgium", "Freshwater Fish", 265281, "FAOSTAT_trade"
+  )
+
+  expect_error(
+    whep:::.cbs_bind_recovered(.belgium_cbs(), recovered),
+    class = "whep_error_off_window_area_year"
+  )
 })

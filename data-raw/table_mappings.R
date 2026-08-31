@@ -357,14 +357,16 @@ reporting_areas <- regions_for_crosswalk |>
       .data$polity_name
     ),
     area_iso3c = .data$iso3c,
-    # NOT a polity code, and the published crosswalk column keeps the name it
-    # has always had so this rename is not two schema breaks at once: it is the
-    # vendored ISO3-LIKE STEM (`legacy_polity_prefix` since #687), used a few
-    # lines below only as a candidate PREFIX for polity inference. Every real
-    # answer this script emits is `polity_code`, resolved from the upstream map.
-    # Renaming the crosswalk's own column is whep#711.
-    reporting_polity_code = .data$legacy_polity_prefix,
-    reporting_polity_name = .data$polity_name,
+    # NOT a polity code and NOT a polity name. This is the vendored ISO3-LIKE
+    # STEM from regions_full.csv (`legacy_polity_prefix` since #687) and the
+    # legacy label that ships beside it, used a few lines below only as a
+    # candidate PREFIX for polity inference. Every real answer this script
+    # emits is `polity_code`/`polity_name`, resolved from the upstream map.
+    # Until whep#711 the pair was published as `reporting_polity_code` and
+    # `reporting_polity_name` -- the package's own names for a real periodized
+    # polity -- so the crosswalk answered the identity question with a stem.
+    legacy_polity_prefix = .data$legacy_polity_prefix,
+    legacy_polity_name = .data$polity_name,
     cbs = .data$cbs,
     fabio_code = as.integer(.data$fabio_code),
     region = .data$region
@@ -377,8 +379,8 @@ reporting_areas <- regions_for_crosswalk |>
       NA_character_
     ),
     reporting_prefix = dplyr::if_else(
-      .data$reporting_polity_code %in% known_polity_prefixes,
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix %in% known_polity_prefixes,
+      .data$legacy_polity_prefix,
       NA_character_
     ),
     fabio_row_prefix = dplyr::if_else(
@@ -392,7 +394,7 @@ reporting_areas <- regions_for_crosswalk |>
       .data$area_iso3c_prefix,
       .data$reporting_prefix,
       # Keep these last so unmatched reporting buckets remain visible.
-      .data$reporting_polity_code,
+      .data$legacy_polity_prefix,
       .data$area_iso3c
     ),
     area_in_map = .data$area_code %in% faostat_area_map$area_code
@@ -593,6 +595,31 @@ shadowed_by_map <- prefix_candidates |>
 # reach: `ETH-1800-1889` through `ETH-1941-1952` are named by no map row, so
 # both areas keep all seven, which is what `.resolve_hist_trade_polities()`
 # needs.
+#
+# THE ROW THAT STAYS IS NOT A BUCKET-ONLY ROW, and #742 proposed to mark it as
+# one. That issue reads `(238, ETH-1952-1993)` as right for the bucket and
+# wrong for the area -- "reporting area 238 does not exist before 1993" -- and
+# asks for a `key_role` column so the raw-reporting-area lookup stops matching
+# it. Measured before designing anything, that is not what the row does. Area
+# 238 is exactly where `.iso3_area_code_bridge()` sends `ETH` (whep#719), and
+# `.resolve_hist_trade_polities()` resolves genuine historical sources under
+# their own year's borders with the back-cast floor off. On the shipped
+# historical-trade pins that lands 149 published rows on area 238 at 1961, a
+# real period hit inside 1952-1993 -- Ethiopia including Eritrea, which is the
+# territory the 1961 value covers. Taking the row out of the area lookup sends
+# all 149 to `ETH-1993-2025` / `out_of_span`, and because the `area` label is
+# attached from the BUCKET, which would keep the row, a single published row
+# would then read `area = "Ethiopia (1952-1993)"` beside
+# `polity_code = "ETH-1993-2025"` -- the two-vocabulary split of whep#584.
+#
+# So the row answers in both key spaces, no shipped row answers in only one,
+# and a `key_role` column would today be derivable as
+# `area_code %in% polity_area_code` and carry no information. The distinction
+# earns a published column when a bucket-only row first exists, which is what
+# whep#414 would need (bucket 206 wants `F206-2011-2025`, a polity upstream
+# publishes but its per-area map cannot name, because area 206 stops reporting
+# in 2011). test_polity_faostat_map.R pins both halves so the split cannot be
+# implemented on one of them.
 map_owners <- faostat_area_map |>
   dplyr::distinct(.data$polity_code, owner_area = .data$area_code) |>
   dplyr::left_join(
@@ -624,11 +651,239 @@ outside_map_areas <- prefix_candidates |>
   dplyr::anti_join(owned_elsewhere, by = c("area_code", "polity_code")) |>
   dplyr::mutate(mapping_source = "prefix_outside_map")
 
-polity_area_crosswalk <- dplyr::bind_rows(
+# A BUCKET THAT SUMS TWO TERRITORIES NEEDS A POLITY THAT MEANS BOTH, and the
+# per-area map cannot name one.
+#
+# `polity_area_code` is an aggregation bucket. Every branch above answers per
+# REPORTING AREA, which is the only thing upstream's map is about, and that is
+# enough while a bucket has one reporting member per year. FAOSTAT bucket 206 is
+# the one place it is not: FAOSTAT reports area 206 "Sudan (former)" through
+# 2011 and areas 276 Sudan / 277 South Sudan from 2012, WHEP sums the two
+# successors back into bucket 206, and from 2012 the bucket's value covers both
+# territories while its own code resolves to `SUD-1956-2011` -- a polity that
+# ended at the secession, reported `out_of_span` (whep#414, whep#860).
+#
+# Upstream has since minted the entity that means the sum:
+# `F206-2011-2025` "Sudan and South Sudan (combined reporting)", `aggregate`,
+# with a constructed 2,505,813 km2 polygon, following the same `F<area>` naming
+# it uses for `F237-1954-1975` (Vietnam) and `F249-1918-1990` (Yemen). It has no
+# map row and correctly so: as a statement about the reporting AREA 206 it would
+# be false, because that area stops reporting in 2011. It is a statement about
+# the BUCKET, so this package makes it, which is whep#860's third question.
+#
+# DERIVED, NOT TYPED. The rule is measured off the two upstream tables:
+#
+#   1. a bucket-year is a genuine multi-territory sum when the map names MORE
+#      THAN ONE polity across the areas reporting into that bucket that year;
+#   2. it is dishonestly labelled when the bucket's own code resolves to no
+#      `aggregate` polity in that year;
+#   3. it is answerable when a LIVE `aggregate` polity named `F<bucket>` covers
+#      those years.
+#
+# All three are checked below, so a row appears only while upstream keeps
+# publishing the polity, and buckets 1-2 apply to are reported whether or not
+# rule 3 finds an answer. Measured on this revision the rules select exactly one
+# bucket. Rule 1 alone selects two -- 206 for 2012-2024 and FABIO's
+# Rest-of-World 999 for 1850-2024 -- and rule 2 drops 999, whose own code
+# already resolves to the aggregate `ROW-1850-2025`.
+#
+# THE SHAPE IS UNUSUAL AND DELIBERATE: this aggregate is live at the same time
+# as its own members, because areas 276 and 277 report separately from 2012
+# while the bucket keeps summing them. That is not a defect to design around --
+# `BLX-1850-1999` coexists with `BEL`/`LUX` for 149 years -- and the owner's
+# rule is that a source having data for the combined polygon is what makes the
+# combined polygon a polity. It does mean bucket 206 is the first bucket whose
+# own aggregate polity shares its key space with its members' polities, which is
+# why `test_polity_folds.R` now pins three live polities on that bucket key
+# rather than two.
+bucket_members <- reporting_areas |>
+  dplyr::filter(!is.na(.data$area_code)) |>
+  dplyr::transmute(
+    .data$area_code,
+    bucket = dplyr::coalesce(.data$fabio_code, .data$area_code)
+  )
+
+# One row per (bucket, year, polity) the upstream map reports into the bucket.
+# Spans are inclusive on both ends, as checked further up.
+bucket_reported_years <- faostat_area_map |>
+  dplyr::inner_join(bucket_members, by = "area_code") |>
+  dplyr::mutate(
+    year = purrr::map2(.data$map_year_start, .data$map_year_end, seq.int)
+  ) |>
+  tidyr::unnest("year")
+
+multi_polity_bucket_years <- bucket_reported_years |>
+  dplyr::summarise(
+    n_polities = dplyr::n_distinct(.data$polity_code),
+    .by = c("bucket", "year")
+  ) |>
+  dplyr::filter(.data$n_polities > 1L)
+
+# Rule 2: what the bucket's OWN code resolves to in that year, read off the
+# area-keyed rows built above on the same convention the resolver uses --
+# `polity_end_year` exclusive, extended to the inclusive `map_year_end`. The
+# resolver's other widening, one year at the open end of an unsucceeded period,
+# is deliberately NOT applied: it would need the succession relation here, and
+# the only thing it could change is the terminal year of an aggregate that rule
+# 3 must ALSO find an `F<bucket>` polity for. `ROW-1850-2025` is the one live
+# case and there is no `F999`, so the two readings select the same bucket-years.
+bucket_own_label_years <- dplyr::bind_rows(
   mapped_areas,
   row_promoted_areas,
   prefix_areas,
   outside_map_areas
+) |>
+  dplyr::filter(!is.na(.data$area_code), !is.na(.data$polity_code)) |>
+  dplyr::semi_join(
+    dplyr::distinct(multi_polity_bucket_years, bucket = .data$bucket),
+    by = c("area_code" = "bucket")
+  ) |>
+  dplyr::transmute(
+    bucket = .data$area_code,
+    .data$polity_type,
+    from_year = .data$polity_start_year,
+    to_year = pmax(
+      .data$polity_end_year - 1L,
+      dplyr::coalesce(.data$map_year_end, .data$polity_end_year - 1L)
+    )
+  ) |>
+  # `seq.int()` counts DOWN when its bounds cross, which would turn an empty
+  # period into a reversed range rather than into nothing.
+  dplyr::filter(.data$to_year >= .data$from_year) |>
+  dplyr::mutate(
+    year = purrr::map2(.data$from_year, .data$to_year, seq.int)
+  ) |>
+  tidyr::unnest("year")
+
+unlabelled_bucket_years <- multi_polity_bucket_years |>
+  dplyr::anti_join(
+    bucket_own_label_years |>
+      dplyr::filter(.data$polity_type == "aggregate") |>
+      dplyr::distinct(.data$bucket, .data$year),
+    by = c("bucket", "year")
+  )
+
+# Rule 3: upstream's `F<area>` convention names the polity that means what a
+# FAOSTAT reporting code covers, which is what makes this attributable rather
+# than hand-typed. Only `aggregate` polities qualify, and only live ones, since
+# `live_polity_attrs` is already filtered.
+faostat_named_aggregates <- live_polity_attrs |>
+  dplyr::filter(.data$polity_type == "aggregate") |>
+  dplyr::mutate(
+    bucket = as.integer(
+      stringr::str_match(.data$polity_code, "^F([0-9]+)-")[, 2]
+    )
+  ) |>
+  dplyr::filter(!is.na(.data$bucket)) |>
+  dplyr::select(
+    "bucket",
+    "polity_code",
+    "polity_start_year",
+    "polity_end_year"
+  )
+
+bucket_aggregate_candidates <- unlabelled_bucket_years |>
+  dplyr::inner_join(
+    faostat_named_aggregates,
+    by = "bucket",
+    relationship = "many-to-many"
+  ) |>
+  dplyr::filter(
+    .data$year >= .data$polity_start_year,
+    .data$year < .data$polity_end_year
+  )
+
+# One row per (bucket, polity), carrying the first year the row answers for.
+# `applies_from_year` is what stops the row claiming a year the bucket is NOT a
+# multi-member sum: `F206-2011-2025` begins in 2011, the year `SUD-1956-2011`
+# ends, but bucket 206 at 2011 is still area 206 alone and upstream's own map
+# decides it. Without the floor the resolver would see two candidates for 2011
+# and pick by `polity_start_year DESC` -- a tie-break that fires on NOTHING in
+# the shipped crosswalk today (measured: zero `(area, year)` pairs match two
+# rows, in all three Rest-of-World modes), so letting this row be the first to
+# depend on it would be deciding a published label by row-order convention.
+bucket_aggregate_rows <- bucket_aggregate_candidates |>
+  dplyr::summarise(
+    applies_from_year = min(.data$year),
+    .by = c("bucket", "polity_code")
+  ) |>
+  dplyr::inner_join(
+    live_polity_attrs |> dplyr::select(!"polity_prefix"),
+    by = "polity_code"
+  ) |>
+  dplyr::inner_join(
+    reporting_areas |>
+      dplyr::select(
+        "area_code",
+        "area_name",
+        "area_iso3c",
+        "legacy_polity_prefix",
+        "legacy_polity_name",
+        "cbs",
+        "fabio_code",
+        "region"
+      ),
+    by = c("bucket" = "area_code")
+  ) |>
+  dplyr::transmute(
+    area_code = .data$bucket,
+    # TAKEN FROM THE BUCKET'S OWN AREA ROW, never invented: `area_name` is the
+    # label `.add_land_bucket_label()` gives the bucket, and a second value for
+    # one `area_code` re-splits the sum the bucket exists to produce (whep#563).
+    .data$area_name,
+    .data$area_iso3c,
+    .data$legacy_polity_prefix,
+    .data$legacy_polity_name,
+    .data$cbs,
+    .data$fabio_code,
+    .data$region,
+    .data$polity_code,
+    .data$polity_name,
+    .data$polity_start_year,
+    .data$polity_end_year,
+    .data$polity_type,
+    .data$iso3_code,
+    .data$cow_code,
+    .data$continent,
+    .data$wiki_status,
+    .data$polygon_status,
+    .data$has_geometry,
+    .data$applies_from_year,
+    mapping_source = "whep_bucket_aggregate"
+  )
+
+# THE BUCKETS RULES 1-2 SELECT BUT RULE 3 CANNOT ANSWER are the standing ask,
+# exactly like `unnamed_row_areas` below: the list should only ever shrink, and
+# it shrinks by upstream minting the polity, not by this script inventing one.
+unanswered_buckets <- setdiff(
+  unique(unlabelled_bucket_years$bucket),
+  bucket_aggregate_rows$area_code
+)
+if (length(unanswered_buckets) > 0L) {
+  cli::cli_inform(c(
+    "!" = "{length(unanswered_buckets)} reporting bucket{?s} sum{?s/} more than
+           one territory in some year and {?is/are} labelled by no aggregate
+           polity.",
+    "i" = "Buckets: {.val {unanswered_buckets}}. Upstream would name each one
+           {.val {paste0('F', unanswered_buckets, '-<start>-<end>')}}."
+  ))
+}
+if (nrow(bucket_aggregate_rows) > 0L) {
+  cli::cli_inform(c(
+    "Bucket-aggregate rows added for {nrow(bucket_aggregate_rows)}
+     bucket{?s}:",
+    "i" = "{paste0(bucket_aggregate_rows$area_code, ' -> ',
+           bucket_aggregate_rows$polity_code, ' from ',
+           bucket_aggregate_rows$applies_from_year, collapse = ', ')}."
+  ))
+}
+
+polity_area_crosswalk <- dplyr::bind_rows(
+  mapped_areas,
+  row_promoted_areas,
+  prefix_areas,
+  outside_map_areas,
+  bucket_aggregate_rows
 ) |>
   dplyr::mutate(
     polity_area_code = dplyr::if_else(
@@ -660,6 +915,8 @@ polity_area_crosswalk <- dplyr::bind_rows(
     ),
     mapping_note = dplyr::case_when(
       !is.na(.data$manual_note) ~ .data$manual_note,
+      .data$mapping_source == "whep_bucket_aggregate" ~
+        "WHEP's own row for the aggregation bucket, not for the reporting area: from `applies_from_year` the bucket sums several reporting areas and this aggregate polity is what their union means. Upstream's per-area map cannot state it because the bucket's own area stopped reporting.",
       # Tested on `mapping_source`, not on `fabio_code == 999`, because both
       # answers for a Rest-of-World member now carry that code and only one of
       # them is the fold.
@@ -667,12 +924,12 @@ polity_area_crosswalk <- dplyr::bind_rows(
         "fabio_row_promoted" ~ "Upstream names this polity for the area; it applies when the area is promoted out of the FABIO Rest of World bucket.",
       !is.na(.data$fabio_code) &
         .data$fabio_code == 999L &
-        .data$area_code !=
-          999L ~ "FABIO collapses this source area into the Rest of World reporting polity.",
-      .data$mapping_status ==
-        "not_a_reporting_area" ~ "No FAOSTAT/FABIO reporting area exists for this territory, so nothing can be joined to this row; it records which polity the territory belongs to.",
-      .data$mapping_status ==
-        "unmapped" ~ "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
+        .data$area_code != 999L ~
+        "FABIO collapses this source area into the Rest of World reporting polity.",
+      .data$mapping_status == "not_a_reporting_area" ~
+        "No FAOSTAT/FABIO reporting area exists for this territory, so nothing can be joined to this row; it records which polity the territory belongs to.",
+      .data$mapping_status == "unmapped" ~
+        "No real WHEP polity is available yet; treat this as a statistical reporting area without a polygon.",
       .data$mapping_status == "manual" ~ paste0(
         "Upstream FAOSTAT area map decided this period by hand, route ",
         .data$map_match_route,
@@ -685,8 +942,8 @@ polity_area_crosswalk <- dplyr::bind_rows(
     area_code,
     area_name,
     area_iso3c,
-    reporting_polity_code,
-    reporting_polity_name,
+    legacy_polity_prefix,
+    legacy_polity_name,
     cbs,
     fabio_code,
     region,
@@ -706,6 +963,7 @@ polity_area_crosswalk <- dplyr::bind_rows(
     map_year_start,
     map_year_end,
     map_match_route,
+    applies_from_year,
     mapping_status,
     mapping_note
   ) |>

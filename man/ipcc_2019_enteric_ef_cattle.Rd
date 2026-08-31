@@ -8,10 +8,25 @@
 A tibble with \code{region}, \code{category}, \code{ef_kg_head_yr}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11. The stored
-values are in fact the 2006 Guidelines defaults (128 and 53
-kg CH4/head/yr for North American dairy and other cattle, where
-the 2019 Refinement gives 138 and 64); tracked in whep#601.
+Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.11,
+not the 2019 Refinement's Table 10.11 (Updated). Verified against both
+published tables:
+\itemize{
+\item 2006 values, differing from the 2019 Refinement: North America
+128/53 (2019: 138/64), Western Europe 117/57 (126/52), Eastern Europe
+99/58 (93/58), Latin America 72/56 (87/56), Asia 68/47 (78/54),
+Africa 46/31 (76/52), Middle East other cattle 31 (60).
+\item Matching neither edition: Oceania dairy 90 (2006: 100;
+2019: 93), Middle East dairy 63 (2006 groups Africa and the Middle
+East at 46; 2019: 76), Indian Subcontinent 68/47 (2006: 58/27;
+2019: 73/46).
+\item The \code{"Global"} fallback row (80/47) appears in no IPCC table in
+either edition. \strong{Assumed, unverified.}
+The 2019 Refinement also moved buffalo into this table (78 Western
+Europe, 68 Eastern Europe / Latin America / Asia, 81 Africa, 67 Middle
+East, 85 Indian Subcontinent), which is not reflected here.
+Tracked in whep#601.
+}
 }
 \usage{
 ipcc_2019_enteric_ef_cattle

@@ -240,6 +240,7 @@ compare_outputs <- function(
 
   cli::cli_text("Matched rows: {nrow(merged)}")
 
+  n_differ_total <- 0L
   for (vc in val_cols_present) {
     w_col <- paste0(vc, "_whep")
     g_col <- paste0(vc, "_global")
@@ -254,6 +255,7 @@ compare_outputs <- function(
     n_exact <- sum(w == g, na.rm = TRUE)
     n_close <- sum(rel_diff <= rel_tol, na.rm = TRUE)
     n_differ <- sum(rel_diff > rel_tol, na.rm = TRUE)
+    n_differ_total <- n_differ_total + n_differ
     n_na_whep <- sum(is.na(w) & !is.na(g))
     n_na_glob <- sum(!is.na(w) & is.na(g))
     max_rel <- if (n_differ > 0) {
@@ -288,7 +290,7 @@ compare_outputs <- function(
   if (
     nrow(only_in_whep) == 0 &&
       nrow(only_in_global) == 0 &&
-      n_differ == 0
+      n_differ_total == 0
   ) {
     cli::cli_alert_success("{label}: IDENTICAL (within tolerance)")
   } else {

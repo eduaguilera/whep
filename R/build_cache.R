@@ -31,13 +31,19 @@ whep_clear_cache <- function() {
 # Retrieve a cached value or compute and store it.
 # key: character name for the cache slot
 # expr: expression to evaluate if not cached (must be a call, not a symbol)
+#
+# The hit test is `exists()`, not `!is.null(.build_cache[[key]])`: assigning
+# NULL into an environment removes the binding rather than storing it
+# (`?assign`), so a NULL result was indistinguishable from an empty slot and
+# was recomputed on every call (whep#172). `exists(inherits = FALSE)` and
+# `get0()` see the binding regardless of what it holds.
 .cache_get <- function(key, expr) {
-  if (!is.null(.build_cache[[key]])) {
+  if (exists(key, envir = .build_cache, inherits = FALSE)) {
     cli::cli_alert_info("Using cached {key}.")
-    return(.build_cache[[key]])
+    return(get0(key, envir = .build_cache, inherits = FALSE))
   }
   result <- expr
-  .build_cache[[key]] <- result
+  assign(key, result, envir = .build_cache)
   result
 }
 
@@ -84,6 +90,21 @@ whep_clear_cache <- function() {
 #
 # The pre-1961 back-cast needs no guard here: .read_production() already widens
 # its own reads (see R/build_production.R) and trims afterwards.
+#
+# The margin is NOT a general remedy for the year axis, and whep#833 is where
+# that stops being a detail. Two fills inside `.fix_cbs()` decide whether a
+# processing output exists at all -- `.correct_processed()`'s `scaling_raw` and
+# `.interpolate_destiny_shares()`'s `dest_share` -- and both carry a single
+# anchor across the whole series. Measured at 2010, the anchors the full-range
+# build uses for the 44 keys the two builds disagree on sit 7 to 49 years away:
+# a margin of 10 still leaves 16 of them broken, 20 leaves 6, and only ~50
+# closes them all. So the choice is between building the CBS over the full span
+# (exact, and it costs the scoped build its saving: 254 s against 35 s for the
+# `.fix_cbs()` chain measured at 2010) and bounding how far those fills may
+# carry (cheap, but it moves full-range published values too). Both remedies
+# are open in whep#833, and the recorded budget in
+# validation/gt_year_scoping.json holds the measured divergence until one of
+# them is taken.
 .context_margin <- 5L
 
 # The first year the series covers, matching the `start_year` default of

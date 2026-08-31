@@ -221,11 +221,45 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   btd$to_code <- as.integer(to)
   btd$year <- as.integer(btd$year)
 
-  items <- .get_cbs_items("item", "item_cbs_code")
-  btd$item_cbs_code <- items$item_cbs_code[match(btd$item, items$item)]
+  btd$item_cbs_code <- .match_btd_item_codes(btd$item)
 
   btd <- .prefer_flow_direction(btd, "Export")
   btd[c("year", "from_code", "to_code", "item_cbs_code", "unit", "value")]
+}
+
+# Resolve the bilateral trade pin's `item` strings to CBS item codes.
+# The pin ships pre-harmonized CBS item names: verified against the 20250714
+# pin, all 146 distinct item-unit combinations (135 item names, 10,344,152
+# rows, 94.85 Gt) resolve to a code, and `whep::items_cbs` is 1:1 between its
+# 170 names and 170 codes, so the name match is both exact and unambiguous
+# here. Unlike `build_trade.R`, this path must NOT go through
+# `whep::cbs_trade_codes`: that crosswalk is keyed on raw FAOSTAT trade names
+# (`item_trade`), a different vocabulary. Anything the match cannot resolve
+# keeps `NA` and is silently dropped later by the CBS inner join, so warn
+# rather than letting a refreshed pin lose rows without a trace.
+.match_btd_item_codes <- function(item) {
+  items <- .get_cbs_items("item", "item_cbs_code")
+  codes <- items$item_cbs_code[match(item, items$item)]
+  unmatched <- unique(item[is.na(codes)])
+
+  if (length(unmatched) > 0) {
+    n_rows <- sum(is.na(codes))
+    cli::cli_warn(c(
+      paste(
+        "{length(unmatched)} bilateral trade item name{?s} did not match",
+        "any {.field item_cbs_name}: {n_rows} row{?s} will be dropped."
+      ),
+      i = "Unmatched: {.val {unmatched}}.",
+      i = paste(
+        "The {.val bilateral_trade} pin is expected to carry CBS item",
+        "names. If it now carries raw FAOSTAT trade names, route them",
+        "through {.code whep::cbs_trade_codes} as {.file R/build_trade.R}",
+        "does."
+      )
+    ))
+  }
+
+  codes
 }
 
 # Keep all rows with preferred direction (Import, Export)
@@ -332,13 +366,45 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 
   btd |>
     dplyr::filter(unit %in% c("tonnes", "heads")) |>
-    dplyr::select(-unit) |>
+    .mass_only_bilateral_trade() |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
     ) |>
     dplyr::inner_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
+}
+
+# Reduce bilateral trade to its mass (tonnes) rows and drop `unit`, matching
+# the documented `get_bilateral_trade()` contract: `m["A", "B"]` is trade in
+# tonnes. Without this, `.build_trade_matrix()` sums `value` over
+# `(from_code, to_code)` with no unit dimension at all, so a head-count row
+# (live animals) is added straight into the tonnes column -- the same
+# collapse PR #925 fixed for `.aggregate_fao_trade_to_cbs()` in build_cbs.R,
+# on the same day, in a different file (whep#962). Measured on the real pin:
+# 11 dual-unit items, 1.08 billion head summed into 71.0 Mt across 25.2% of
+# the matrix's cells. IPF renormalises row/column totals afterwards, so the
+# level comes out right and only the partner allocation is silently wrong --
+# which is why this stayed invisible. Dropped rows are warned about, not
+# silently discarded.
+.mass_only_bilateral_trade <- function(btd) {
+  non_mass <- btd |> dplyr::filter(unit != "tonnes")
+  if (nrow(non_mass) > 0) {
+    units <- sort(unique(non_mass$unit))
+    items <- length(unique(non_mass$item_cbs_code))
+    cli::cli_warn(c(
+      "Dropped {nrow(non_mass)} bilateral trade row{?s} not \\
+       denominated in mass.",
+      "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+      "i" = "{items} CBS item{cli::qty(items)}{?s} affected, totalling \\
+             {round(sum(non_mass$value, na.rm = TRUE))}.",
+      "i" = "Live-animal trade is in head counts; the bilateral trade \\
+             matrix is denominated in tonnes."
+    ))
+  }
+  btd |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::select(-unit)
 }
 
 .get_nested_cbs <- function(cbs, codes) {

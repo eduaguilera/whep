@@ -4,9 +4,31 @@
 # methodologies.
 #
 # Sources:
-# - GLEAM 3.0: MacLeod et al. (2018)
-#   https://doi.org/10.1088/1748-9326/aad4d8
-#   Supplement S1: GLEAM_3.0_Supplement_S1.xlsx
+# - GLEAM 3.0: FAO (2022) Global Livestock Environmental Assessment Model,
+#   Version 3.0. Supplement S1 (the supplementary-tables workbook), read from
+#   data-raw/GLEAM_3.0_Supplement_S1.xlsx, which is byte-identical (149119
+#   bytes, md5 207e3e928c176b2189e520bddcb0c5f6) to
+#   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx
+#   FAO issues no DOI for it. It is NOT MacLeod et al. (2018), and the DOI
+#   10.1088/1748-9326/aad4d8 previously cited here is unregistered (whep#607).
+#   The tables built by generate_gleam_pdf_tables() below are hardcoded, not
+#   read from that workbook. whep#881 traced them: see the @source blocks in
+#   R/livestock_coefs.R for the per-table verdict, and the note below.
+# - GLEAM 2.0: FAO (2018) GLEAM Model description, Version 2.0, Revision 5,
+#   July 2018, data reference year 2010.
+#   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Model_description.pdf
+#   Its own supplementary-tables workbook,
+#   https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx
+#   (md5 72fd2ea477dfe8b30cd3657b2baa4af1, retrieved 2026-08-26), is the only
+#   GLEAM publication that carries REGIONAL HERD PARAMETERS and REGIONAL MMS
+#   SHARES: Tables 2.4-2.16 (live weights, replacement/fertility/mortality
+#   rates, age at first calving) and Tables 4.2-4.11 (MMS shares). Version 3.0
+#   dropped both table families, which is why the committed 3.0 workbook has
+#   no sheet for them. Nothing here reads the 2.0 workbook yet; re-ingesting
+#   it changes published numbers (whep#881) and is a maintainer decision.
+# - GLEAM 3.0 model description PDF (for the in-document tables, as opposed to
+#   the workbook): https://www.fao.org/3/cd8425en/cd8425en.pdf
+#   (md5 5c8d20e480174cad65ed9e1b80fc4d71, retrieved 2026-08-26).
 # - IPCC 2019: 2019 Refinement to the 2006 IPCC Guidelines
 #   Volume 4, Chapter 10: Emissions from Livestock and Manure Management
 #   https://www.ipcc-nggip.iges.or.jp/public/2019rf/vol4.html
@@ -279,11 +301,12 @@ parse_feed_digestibility <- function(raw) {
     dplyr::mutate(
       # Assign feed category based on position
       feed_category = dplyr::case_when(
-        as.numeric(number) <= 15 ~ dplyr::case_when(
-          as.numeric(number) <= 6 ~ "Roughages",
-          as.numeric(number) <= 15 ~ "Roughages",
-          .default = NA_character_
-        ),
+        as.numeric(number) <= 15 ~
+          dplyr::case_when(
+            as.numeric(number) <= 6 ~ "Roughages",
+            as.numeric(number) <= 15 ~ "Roughages",
+            .default = NA_character_
+          ),
         .default = NA_character_
       )
     ) |>
@@ -887,7 +910,95 @@ parse_geographic_hierarchy <- function(raw) {
       eu27 = as.integer(eu27),
       oecd = as.integer(oecd)
     ) |>
+    correct_gleam_oecd_flags() |>
     add_present_day_polity()
+}
+
+# The one cell of S.A1-S.A2 this file does not carry through (whep#574).
+#
+# Cell G41 of `Tab. S.A1-S.A2` holds `OECD = 1` for Comoros. The Comoros is not
+# an OECD member. The OECD's own membership page
+# <https://www.oecd.org/en/about/members-partners.html> (read 2026-08-25) names
+# the 38 Members, Australia through the United States, and Comoros appears on
+# none of its three lists -- not a Member, not an accession candidate, not a
+# Key Partner.
+#
+# That the column is meant as literal membership, not a GLEAM grouping that
+# merely borrows the name, is settled by the rest of the column: the other 38
+# flagged iso3 codes are EXACTLY the 38 real Members, Colombia (2020) and Costa
+# Rica (2021) included, and the `EU27` column beside it is exactly the 27 real
+# EU members. A modelling grouping would not reproduce the real membership
+# 38-for-38 and then add one Indian Ocean island.
+#
+# The mechanism looks like a single-cell spill, not the column shift of
+# whep#855: every other field on the Comoros row is right, the cell is a
+# hand-typed literal (no formula), and the row sits IMMEDIATELY BELOW Colombia
+# (G40 = 1), whose accession is one of the two the sheet was evidently updated
+# for. So the whole `oecd` column is corrected here, by set equality against the
+# published membership, rather than one cell being patched: `test_datasets.R`
+# pins the same equality, so a coefficient refresh that reintroduces the error
+# -- or a real accession -- fails the suite instead of passing silently.
+correct_gleam_oecd_flags <- function(hierarchy) {
+  members <- oecd_member_iso3()
+  missing <- setdiff(members, hierarchy$iso3)
+  if (length(missing) > 0) {
+    stop(
+      "GLEAM S.A1-S.A2 has no row for OECD member(s): ",
+      paste(missing, collapse = ", "),
+      ". The energy extension assumes every member is listed; ",
+      "see whep#574.",
+      call. = FALSE
+    )
+  }
+  dplyr::mutate(hierarchy, oecd = as.integer(iso3 %in% members))
+}
+
+# The 38 OECD Members, as ISO3, from the OECD's own membership list
+# <https://www.oecd.org/en/about/members-partners.html> (read 2026-08-25).
+# Kept as one exported-looking helper because `test_datasets.R` asserts the
+# shipped `oecd` column equals exactly this set; update it when a country
+# accedes, and the dataset follows on the next rebuild.
+oecd_member_iso3 <- function() {
+  c(
+    "AUS", # Australia
+    "AUT", # Austria
+    "BEL", # Belgium
+    "CAN", # Canada
+    "CHL", # Chile
+    "COL", # Colombia
+    "CRI", # Costa Rica
+    "CZE", # Czechia
+    "DNK", # Denmark
+    "EST", # Estonia
+    "FIN", # Finland
+    "FRA", # France
+    "DEU", # Germany
+    "GRC", # Greece
+    "HUN", # Hungary
+    "ISL", # Iceland
+    "IRL", # Ireland
+    "ISR", # Israel
+    "ITA", # Italy
+    "JPN", # Japan
+    "KOR", # Korea
+    "LVA", # Latvia
+    "LTU", # Lithuania
+    "LUX", # Luxembourg
+    "MEX", # Mexico
+    "NLD", # Netherlands
+    "NZL", # New Zealand
+    "NOR", # Norway
+    "POL", # Poland
+    "PRT", # Portugal
+    "SVK", # Slovak Republic
+    "SVN", # Slovenia
+    "ESP", # Spain
+    "SWE", # Sweden
+    "CHE", # Switzerland
+    "TUR", # Turkiye
+    "GBR", # United Kingdom
+    "USA" # United States
+  )
 }
 
 # The present-day polity of each country GLEAM lists (whep#688).
@@ -938,6 +1049,21 @@ add_present_day_polity <- function(hierarchy) {
 }
 
 # GLEAM PDF Tables ----
+
+# Despite the section name none of these is read from a GLEAM PDF. whep#881
+# traced each one; the verdict and the numeric consequence live in the @source
+# blocks in R/livestock_coefs.R. In short:
+# - gleam_animal_weights: GLEAM 2.0 Supplement S1, live-weight block of
+#   Tables 2.4-2.16, publishes the real values and they differ. NOT replaced
+#   here: it is the Tier 2 live weight, so a re-ingest moves gross energy and
+#   enteric CH4 by -16% to +14% depending on cohort. Maintainer decision.
+# - gleam_mms_shares: GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real
+#   values and they differ. No consumer in R/, so not replaced.
+# - gleam_livestock_categories: the cohort vocabulary matches GLEAM Table 2.1,
+#   the Dairy/Beef layout and the equal 1/n cohort split it induces do not.
+# - gleam_milk_production, gleam_feed_categories: GLEAM publishes no such
+#   table. Still unverified placeholders; no consumer in R/.
+# Do not "fix" a value here without a citation to the table it comes from.
 
 generate_gleam_pdf_tables <- function() {
   list(
@@ -1376,10 +1502,17 @@ generate_ipcc_2019_tables <- function() {
     ),
 
     # Table 10.4: Cfi coefficients (MJ/day/kg^0.75).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3.
-    # Note: Cfi differs between lactating and non-lactating
-    # cattle; the 2019 Refinement does NOT change these from
-    # the 2006 values.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10,
+    # Table 10.4 (Updated) -- the coefficient table itself, not Eq 10.3
+    # which consumes it.
+    # Note: the 2019 Refinement is NOT a verbatim repeat of the 2006
+    # Table 10.4. It ADDS the goat row (Goats = 0.315); the 2006 table has
+    # no goat row at all, which is why goats must never inherit the sheep
+    # value 0.217 (see #249, and the sheep/goat Ca trap in Table 10.5).
+    # Two published rows are deliberately folded here and tracked in #601:
+    # intact bulls take 0.370, not the 0.322 of non-lactating cows, steers
+    # and juveniles; lambs under one year take 0.236, not the 0.217 of
+    # sheep older than one year.
     table_10_4 = tibble::tribble(
       ~category, ~subcategory, ~cfi_mj_day_kg075,
       "Cattle",  "Lactating cow",          0.386,
@@ -1469,7 +1602,9 @@ generate_ipcc_2006_tables <- function() {
 generate_ipcc_tier2_params <- function() {
   list(
     # Energy coefficients for Tier 2 GE calculation.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16.
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Eq 10.3-10.16, with
+    # cfi_mj_day_kg075 from Table 10.4 (Updated) and ca_pasture from
+    # Table 10.5 (Updated).
     # Note: Cfi now distinguishes dairy (lactating) vs
     # non-dairy (non-lactating/bulls).
     # Ca = activity coefficient (IPCC Eq 10.4).
@@ -1650,7 +1785,19 @@ generate_ipcc_tier2_params <- function() {
     ),
 
     # Regional MMS Distribution.
-    # Source: GLEAM 3.0 / FAO statistics (simplified).
+    # UNVERIFIED (whep#881, whep#921). Annotated "GLEAM 3.0 / FAO statistics
+    # (simplified)" but traceable to no table: the GLEAM 3.0 workbook carries
+    # no MMS shares, and these are round to 5 percentage points. Unlike
+    # gleam_mms_shares this table IS live -- .resolve_mms_shares() weights the
+    # Tier 2 manure CH4 MCF and the Tier 1 manure direct-N2O EF3 with it
+    # (Tier 2 direct N2O never sees it: those rows carry no `region`).
+    # GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real regional
+    # shares, per production system and over the 10 GLEAM regions. Adopting
+    # them needs four crosswalk choices (species collapse, region collapse, a
+    # Global row GLEAM does not publish, and the richer MMS vocabulary), and
+    # whep#921 measured one illustrative crosswalk on FAOSTAT 2020 heads at
+    # Tier 1 direct N2O -11.1% and Tier 2 manure CH4 -26.9%. Maintainer
+    # decision, not a cleanup.
     regional_mms_distribution = tibble::tribble(
       ~region, ~species, ~mms_type, ~fraction,
       "North America", "Cattle",
