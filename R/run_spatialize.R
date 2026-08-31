@@ -576,7 +576,9 @@ run_spatialize <- function(
       "{.file cft_mapping.csv} not found in installed package."
     )
   }
-  readr::read_csv(path, show_col_types = FALSE)
+  cft_mapping <- readr::read_csv(path, show_col_types = FALSE)
+  .assert_unique_cft_mapping(cft_mapping)
+  cft_mapping
 }
 
 .load_livestock_inputs <- function(input_dir, config = list()) {
@@ -793,6 +795,7 @@ run_spatialize <- function(
         "cft_mapping is missing the {.field {agg_col}} column."
       )
     }
+    .assert_unique_cft_mapping(cft_mapping)
     group_cols <- unique(c(
       .compartment_id_cols(result_crops),
       "lon",

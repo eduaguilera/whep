@@ -193,6 +193,40 @@
   pmax(territorial, reported)
 }
 
+# The first year a crosswalk row answers for, which is the polity's own start
+# unless the row itself declares a later one.
+#
+# `applies_from_year` is `NA` on every row that answers for a REPORTING AREA,
+# and the lower bound stays the territorial start there deliberately: a row
+# that exists must resolve, so area 276 answers `SDN-2011-2025` from 2011 even
+# though upstream begins reporting it in 2012. Narrowing every row to its
+# `map_year_start` instead would send every pre-1961 period of a mapped area to
+# the nearest-period fallback, which is what `.resolve_hist_trade_polities()`
+# relies on NOT happening.
+#
+# A BUCKET-AGGREGATE ROW IS THE EXCEPTION, and it has to be. `F206-2011-2025`
+# begins in 2011 because that is when `SUD-1956-2011` ends, but bucket 206 at
+# 2011 is still FAOSTAT area 206 reporting alone and upstream's map decides that
+# year; the bucket only becomes a two-territory sum in 2012, when areas 276 and
+# 277 take over. Without this floor both rows match 2011, and the pick would
+# fall to the `polity_start_year DESC` ordering below -- which fires on nothing
+# in the shipped crosswalk (measured: zero `(area_code, year)` pairs match two
+# rows, in all three Rest-of-World modes), so depending on it would decide a
+# published label by a convention nothing has ever exercised.
+.polity_join_start_year <- function(polity_start_year, applies_from_year) {
+  territorial <- data.table::fifelse(
+    is.na(polity_start_year),
+    -Inf,
+    as.numeric(polity_start_year)
+  )
+  declared <- data.table::fifelse(
+    is.na(applies_from_year),
+    -Inf,
+    as.numeric(applies_from_year)
+  )
+  pmax(territorial, declared)
+}
+
 # Which polity codes upstream declares nothing succeeds. Read from `polities`
 # rather than the crosswalk because succession is a fact about the polity, and
 # the crosswalk does not carry the relation.
@@ -476,9 +510,13 @@
     lookup <- .polity_crosswalk(include_unmapped = include_unmapped)
     lookup <- lookup[!is.na(area_code)]
     # A caller-supplied or mocked crosswalk need not carry the upstream map's
-    # reporting years; without them the territorial span is the only bound.
+    # reporting years, nor the bucket-aggregate floor; without them the
+    # territorial span is the only bound.
     if (!rlang::has_name(lookup, "map_year_end")) {
       lookup[, "map_year_end" := NA_integer_]
+    }
+    if (!rlang::has_name(lookup, "applies_from_year")) {
+      lookup[, "applies_from_year" := NA_integer_]
     }
     lookup <- lookup[,
       c(
@@ -489,11 +527,7 @@
         "lookup_polity_type"
       ) := .(
         area_code,
-        data.table::fifelse(
-          is.na(polity_start_year),
-          -Inf,
-          as.numeric(polity_start_year)
-        ),
+        .polity_join_start_year(polity_start_year, get("applies_from_year")),
         .polity_join_end_year(
           polity_end_year,
           get("map_year_end"),
@@ -808,10 +842,13 @@ add_polity_code <- function(
 #' - `"polity_not_started"`: no mapped period covered even the anchored year and
 #'   the stand-in taken begins after it.
 #' - `"polity_ended"`: the polity had ended, so the value covers a territory
-#'   that entity no longer describes. This is the harder case, and the one
-#'   whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
-#'   bucket 206, whose label `SUD-1956-2011` ended at the secession, and no live
-#'   polity means "Sudan and South Sudan".
+#'   that entity no longer describes. This is the harder case: FAOSTAT area 51
+#'   "Czechoslovakia" resolves to `F51-1947-1993` whatever year it is asked
+#'   for, because nothing later is mapped to that area. Bucket 206 used to be
+#'   the headline instance -- areas 276 Sudan and 277 South Sudan fold into it
+#'   and its label `SUD-1956-2011` had ended at the secession (whep#414) -- and
+#'   is no longer one: upstream minted `F206-2011-2025`, live over exactly the
+#'   years the bucket sums both, and whep#860 wired it on.
 #'
 #' `gap_kind` is not derivable from the returned columns, which is why it is
 #' returned rather than left to the caller. `"backcast_anchor"` is not visible
@@ -853,14 +890,14 @@ add_polity_code <- function(
 #'   more than one territory, and whether their label covers the sum.
 #' @export
 #' @examples
-#' # FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
-#' # after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's
-#' # 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is
-#' # the polity live at the anchor, 102 years later.
+#' # FAOSTAT area 51 "Czechoslovakia" is the live case: `F51-1947-1993` ended in
+#' # 1993 and nothing later is mapped to the area, so a post-1993 row is a
+#' # stand-in. Area 238's 1850 row is the back-cast case: `ETH-1952-1993` labels
+#' # it because that is the polity live at the anchor, 102 years later.
 #' polity_coverage_gaps(
 #'   tibble::tibble(
-#'     area_code = c(206L, 206L, 238L),
-#'     year = c(2005L, 2015L, 1850L),
+#'     area_code = c(51L, 51L, 238L),
+#'     year = c(1990L, 2015L, 1850L),
 #'     value = 1
 #'   )
 #' )
@@ -1549,14 +1586,23 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # The same detection over the spans `add_polity_code()` ACTUALLY JOINS ON, which
 # are not the spans the crosswalk declares.
 #
-# `.area_year_polity_conflicts()` reads `polity_end_year` as written. The
-# resolver reads it through `.polity_join_end_year()`, which widens an OPEN
-# period by one year (exclusive at a succession, inclusive at an open end,
-# #577) and to the inclusive `map_year_end` where the upstream map declares a
-# reported year past the territorial span. 263 of the shipped crosswalk's
-# area-polity rows are widened that way today -- 264 before #683 closed
-# `ANG-1905-1975`, whose successor upstream records only in the inverse
+# `.area_year_polity_conflicts()` reads `polity_start_year`/`polity_end_year` as
+# written. The resolver reads the end through `.polity_join_end_year()`, which
+# widens an OPEN period by one year (exclusive at a succession, inclusive at an
+# open end, #577) and to the inclusive `map_year_end` where the upstream map
+# declares a reported year past the territorial span. 263 of the shipped
+# crosswalk's area-polity rows are widened that way today -- 264 before #683
+# closed `ANG-1905-1975`, whose successor upstream records only in the inverse
 # direction.
+#
+# AND IT READS THE START THROUGH `.polity_join_start_year()`, which NARROWS a
+# bucket-aggregate row to the first year the bucket really is a multi-member
+# sum. Reading the declared start here instead reports a phantom conflict at
+# exactly one pair -- area 206 at 2011, `SUD-1956-2011` widened to its last
+# reported year against `F206-2011-2025` starting at its polity's own 2011 --
+# for a year the resolver has only ever one candidate for (#860). A detector
+# that does not apply the same bounds as the thing it audits is measuring a
+# different function.
 #
 # So the declared-period check can be clean while the resolution is still
 # ambiguous: give an area an open period ending 2025 and a successor starting
@@ -1578,16 +1624,18 @@ get_polity_geometries <- function(polity_codes = NULL) {
   if (!rlang::has_name(cw, "map_year_end")) {
     cw$map_year_end <- NA_integer_
   }
+  if (!rlang::has_name(cw, "applies_from_year")) {
+    cw$applies_from_year <- NA_integer_
+  }
   cw <- cw[!is.na(cw$area_code) & !is.na(cw$polity_code), ]
   span_end <- .polity_join_end_year(
     cw$polity_end_year,
     cw$map_year_end,
     cw$polity_code %in% .open_polity_codes()
   )
-  span_start <- ifelse(
-    is.na(cw$polity_start_year),
-    -Inf,
-    as.numeric(cw$polity_start_year)
+  span_start <- .polity_join_start_year(
+    cw$polity_start_year,
+    cw$applies_from_year
   )
   # Clamp to the window rather than filtering, so a period that merely starts
   # before it still competes for the years inside it.
@@ -1606,7 +1654,9 @@ get_polity_geometries <- function(polity_codes = NULL) {
 # `area_code` values can share one, and then the bucket answers with as many
 # polities as its members resolve to. Measured over the reporting era this is
 # bucket 206 alone (Sudan (former) 206, Sudan 276 and South Sudan 277 share
-# it), which is #414 and not decided here.
+# it), which is #414. The bucket's OWN answer is truthful since #860 --
+# `F206-2011-2025` from 2012, an aggregate meaning both -- but the members still
+# resolve to their own polities, so the bucket key still does not RECOVER one.
 #
 # Driven through `add_polity_code()` rather than through the spans, because
 # what a consumer keying on the bucket gets is the resolution, including the
