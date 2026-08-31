@@ -340,16 +340,17 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
-    ".area_first_reported_year", "summarise", "area_code", 1L, "year_axis",
-    "`min(map_year_start)` IS the reduction over the crosswalk's periods: one
-     first-reported year per area, the bound that makes
-     `polity_bucket_coverage()` year-aware. Keying on the year would return the
-     year itself.",
+    ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
+    "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
+     crosswalk's periods: one reported-year window per area, the bound that
+     makes `polity_bucket_coverage()` year-aware. Keying on the year would
+     return the year itself. It carried only the lower bound until whep#860 gave
+     bucket 206 a label that resolves `matched` after its area stops reporting.",
     ".area_reporting_windows", "[", "area_code, <dynamic>", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reporting window per area. Keying on the year
      would return the year itself (whep#884), exactly as for
-     `.area_first_reported_year` above.",
+     `.area_reported_year_bounds` above.",
     ".areas_gleam_cannot_group", "distinct",
     "area_code, area_name, area_iso3c, polity_area_code, continent", 1L,
     "diagnostic",

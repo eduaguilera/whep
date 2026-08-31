@@ -38,7 +38,7 @@ landuse engine.
 \item \code{cft_target}: one of \code{"whep"} (default for
 \code{preset = "whep"}) or \code{"lpjml"} (default for
 \code{preset = "lpjml"}). Selects which column of
-\code{cft_mapping.csv} drives CFT aggregation: \code{cft_name}
+\link{cft_mapping} drives CFT aggregation: \code{cft_name}
 (granular 33-class WHEP taxonomy) or \code{cft_lpjml}
 (12 LPJmL crop CFTs + single \code{others} bucket).
 \item \code{area_key}: one of \code{"grid"} (default) or \code{"polity_area"},

@@ -12,6 +12,27 @@ testthat::test_that(".find_cache_dir returns NULL for uncached version", {
   testthat::expect_null(result)
 })
 
+testthat::test_that(".read_file matches the extension literally, not as a
+  regex (a '.' does not stand in for any character)", {
+  tmpdir <- withr::local_tempdir()
+
+  # A decoy that would match the *regex* "tar.gz" (the "." standing in for
+  # "X"), but is not actually a tar.gz file at all.
+  decoy <- file.path(tmpdir, "decoy_tarXgz")
+  writeLines("not a tarball", decoy)
+
+  # The real tar.gz, containing one known file.
+  member_dir <- withr::local_tempdir()
+  member_file <- file.path(member_dir, "member.txt")
+  writeLines("hello", member_file)
+  archive <- file.path(tmpdir, "archive.tar.gz")
+  utils::tar(archive, files = member_file, compression = "gzip")
+
+  result <- .read_file(c(decoy, archive), "tar.gz")
+
+  testthat::expect_true(any(fs::path_file(result) == "member.txt"))
+})
+
 testthat::test_that("whep_read_file produces valid tibble", {
   testthat::expect_message(
     result <- whep_read_file("read_example"),

@@ -103,6 +103,20 @@ expand_trade_sources <- function(trade_sources) {
 }
 
 .expand_trade_years <- function(trade_sources) {
+  # A non-positive Timeline_Freq makes `seq()` fail deep inside
+  # tidyr::expand() with a cryptic "invalid '(to - from)/by'" that names
+  # neither the source nor the column at fault (whep#172). No row in the
+  # shipped trade_sources.csv currently has one (Timeline_Freq is always a
+  # positive divisor there), but a future data-entry typo should fail loud
+  # and clear instead.
+  bad_freq <- trade_sources$Timeline_Freq <= 0
+  if (any(bad_freq)) {
+    cli::cli_abort(
+      "{.field Timeline_Freq} must be positive for {.val
+      {trade_sources$Name[bad_freq]}}."
+    )
+  }
+
   trade_sources <- dplyr::mutate(trade_sources, No = dplyr::row_number())
 
   trade_sources |>

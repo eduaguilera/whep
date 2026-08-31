@@ -4,6 +4,16 @@
 # Original copyright 2023, Posit, PBC
 # Licensed under the Apache License, Version 2.0
 
+# Upstream pins-r treated only status 200 exactly as a successful download
+# (`status_code(req) <= 200`), so a server answering 201 (Created) or 206
+# (Partial Content) — both real 2xx successes, e.g. a range-resumed
+# download — fell through to the failure branch and raised
+# `httr::stop_for_status()` on a request that had actually succeeded
+# (whep#172).
+.pins_is_success_status <- function(status) {
+  status >= 200L & status < 300L
+}
+
 .pins_http_download <- function(
   url,
   path_dir,
@@ -50,7 +60,7 @@
       "Downloading '{path_file}' failed; falling back to cached version"
     )
     cache$path
-  } else if (httr::status_code(req) <= 200) {
+  } else if (.pins_is_success_status(httr::status_code(req))) {
     rlang::signal("", "pins_cache_downloaded")
     if (fs::file_exists(path)) {
       fs::file_chmod(path, "u+w")

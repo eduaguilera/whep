@@ -74,6 +74,7 @@ allocate_manure_to_land <- function(
   opt <- .allocate_options(options)
   .check_applied_cols(applied)
   .check_streams(applied)
+  .check_applied_finite(applied)
   streams <- .aggregate_applied_streams(applied)
   type_shares <- .manure_type_shares(applied)
   crops <- .prepare_crop_layer(gridded[["crops"]], opt)
@@ -142,6 +143,31 @@ allocate_manure_to_land <- function(
     valid <- c("collected", "grazing")
     cli::cli_abort(
       "Unexpected {.field stream} value(s): {.val {bad}}. Expected {.val {valid}}."
+    )
+  }
+  invisible(NULL)
+}
+
+# .aggregate_applied_streams() and .manure_type_shares() both sum applied_n /
+# applied_c / applied_vs without na.rm (whep#226). On the internal driver
+# path (build_livestock_nutrient_flows()) that sum is never NA: measured on
+# real 1970 and 2010 national runs, zero of the ~462k applied_management_
+# losses() rows carry an NA in any of the three columns, at any of the two
+# aggregation sites downstream. But allocate_manure_to_land() is exported, so
+# an external caller can hand it a tibble with a genuine NA. Adding na.rm
+# there would be the wrong fix either way: a whole-NA group would silently
+# become a fabricated 0 instead of staying missing, exactly the trap #972
+# documents. Aborting here catches the bad input before it can poison an
+# aggregated total (or, worse, silently zero one), the same choice
+# apply_management_losses() already makes for its own loss fractions.
+.check_applied_finite <- function(applied) {
+  cols <- c("applied_n", "applied_c", "applied_vs")
+  bad <- purrr::map_lgl(cols, ~ any(!is.finite(applied[[.x]])))
+  if (any(bad)) {
+    cli::cli_abort(
+      "{.arg applied} has non-finite value{?s} in column{?s}:
+       {.val {cols[bad]}}.",
+      class = "whep_manure_applied_non_finite"
     )
   }
   invisible(NULL)

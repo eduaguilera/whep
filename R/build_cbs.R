@@ -650,39 +650,19 @@ build_processing_coefs <- function(
     .format_proc_output()
 }
 
+# build_commodity_balances() has been long-format (one `element` column)
+# for a while now, so this only ever adds the item_cbs name. It used to also
+# convert a legacy wide CBS (one column per element) back to long, but that
+# branch referenced a `stock_retrieval` column that no longer exists in the
+# wide CBS shape (`.pivot_wider_cbs()` in commodity_balance_sheet.R splits
+# `stock_variation` into `stock_addition`/`stock_withdrawal` instead), was
+# unreachable from every call site, and had no test — so it was dead and
+# broken at the same time. Removed rather than fixed (whep#172); reintroduce
+# it against the current wide schema if a caller needs it again.
 .wide_cbs_to_long <- function(df) {
   items <- whep::items_full
 
-  # CBS output is now long format — just add item_cbs name
-  if ("element" %in% names(df)) {
-    return(
-      df |>
-        dplyr::left_join(
-          items |> dplyr::select(item_cbs_code, item_cbs),
-          by = "item_cbs_code"
-        )
-    )
-  }
-
-  # Legacy wide format support
-  src_cols <- grep("^source", names(df), value = TRUE)
-  polity_cols <- c(
-    "polity_area_code",
-    "reporting_polity_code",
-    "reporting_polity_name",
-    "reporting_polity_has_geometry"
-  )
   df |>
-    dplyr::select(-dplyr::any_of(c(src_cols, polity_cols))) |>
-    dplyr::mutate(
-      stock_variation = -stock_retrieval,
-      .keep = "unused"
-    ) |>
-    tidyr::pivot_longer(
-      cols = -c(year, area_code, item_cbs_code),
-      names_to = "element",
-      values_to = "value"
-    ) |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs_code, item_cbs),
       by = "item_cbs_code"
@@ -1159,7 +1139,7 @@ build_processing_coefs <- function(
         "{.arg historical_data} is missing required CBS columns.",
         "x" = "Required columns: {.field year}, {.field value}, one of {.field area_code} or {.field polity_area_code}, and one of {.field item_cbs_code} or {.field item_prod_code}.",
         if (length(missing) > 0L) {
-          "x" <- "Missing: {.field {missing}}."
+          c("x" = "Missing: {.field {missing}}.")
         }
       )
     )

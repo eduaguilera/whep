@@ -31,13 +31,19 @@ whep_clear_cache <- function() {
 # Retrieve a cached value or compute and store it.
 # key: character name for the cache slot
 # expr: expression to evaluate if not cached (must be a call, not a symbol)
+#
+# The hit test is `exists()`, not `!is.null(.build_cache[[key]])`: assigning
+# NULL into an environment removes the binding rather than storing it
+# (`?assign`), so a NULL result was indistinguishable from an empty slot and
+# was recomputed on every call (whep#172). `exists(inherits = FALSE)` and
+# `get0()` see the binding regardless of what it holds.
 .cache_get <- function(key, expr) {
-  if (!is.null(.build_cache[[key]])) {
+  if (exists(key, envir = .build_cache, inherits = FALSE)) {
     cli::cli_alert_info("Using cached {key}.")
-    return(.build_cache[[key]])
+    return(get0(key, envir = .build_cache, inherits = FALSE))
   }
   result <- expr
-  .build_cache[[key]] <- result
+  assign(key, result, envir = .build_cache)
   result
 }
 
