@@ -1,5 +1,28 @@
 # whep (development version)
 
+* **`read_lpjml_hydrology()` gains `"cft_airrig_month"`, and refuses it on the
+  run that currently ships it.** That cube is the first LPJmL output that is
+  both monthly and per-crop, which is what whep#916 needs: applied irrigation
+  was previously available either monthly with no crop dimension (`irrig`) or
+  per crop with no month (`cft_nir`), so the water a crop received could not be
+  placed on that crop at the time it received it.
+
+  As written on 2026-08-27 the output is **wrong**: every crop's applied
+  irrigation is accumulated into a single band, `irrigated others`, in every
+  month of every year tested (Jan 1990, Jul 1990, Jul 2010, Jul 2023 - always
+  exactly 1 band of 32). It is provably a defect and not a property of the
+  forcing: `cft_nir` from the same run splits across **14 of 32** bands, and
+  `cftfrac` gives **13 irrigated bands** real area, so the crops exist and are
+  irrigated. The single band also carries **3.3 times** the crop-less `mirrig`
+  total for the same month, which is what summing every crop into one slot
+  looks like.
+
+  Reading it therefore **aborts**, naming the defect. It does not warn: the
+  split is the entire quantity, so a footprint or a soil-moisture term built
+  on this would charge every crop's water to one crop with nothing downstream
+  able to detect it. Summing over bands is not a workaround for the same
+  reason. whep#916 stays open until the run is redone.
+
 * **New `read_lpjml_crop_cover()` puts cropland's soil-cover season where the
   crops actually are, instead of at the warmest month.**
   `soc_soil_cover_curve` already gives cropland a season, but

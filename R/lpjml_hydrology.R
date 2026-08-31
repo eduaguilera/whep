@@ -62,7 +62,8 @@
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
 #'   `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
 #'   `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
-#'   `"cft_nir"` (per-CFT net irrigation requirement) or the per-CFT
+#'   `"cft_nir"` (per-CFT net irrigation requirement), `"cft_airrig_month"`
+#'   (per-CFT APPLIED irrigation by month) or the per-CFT
 #'   consumptive-water cubes `"cft_consump_water_b"` (blue) and
 #'   `"cft_consump_water_g"` (green). The per-CFT variables keep their `band`
 #'   dimension, and carry `band_name` when the file names its bands.
@@ -118,6 +119,7 @@ read_lpjml_hydrology <- function(
     "soiltemp1",
     "soiltemp2",
     "cft_nir",
+    "cft_airrig_month",
     "cft_consump_water_b",
     "cft_consump_water_g"
   ),
@@ -137,6 +139,7 @@ read_lpjml_hydrology <- function(
   long <- data %||%
     .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
   long <- .hydro_name_band(long, var)
+  .hydro_check_band_spread(long, var)
   long <- .filter_years_if_present(long, years)
   if (monthly) long else .aggregate_hydro_annual(long, var, agg)
 }
@@ -161,6 +164,16 @@ read_lpjml_hydrology <- function(
 # consumes them yet, and the pinned driver path cannot until the pin carries
 # them. Wiring them in is a science decision and is deliberately separate.
 # Logical name -> (file, in-file variable, time steps per year) for each LPJmL
+# `cft_airrig_month` is the only cube that is BOTH monthly and per-CFT, and it
+# is why whep#916 was filed. Before it, applied irrigation was available either
+# monthly with no crop dimension (`irrig`, from mirrig.nc) or per crop with no
+# month (`cft_airrig`, `cft_nir`), so the water a crop received could not be
+# placed on that crop at the time it received it -- which a per-crop water
+# footprint needs, and which the soil-moisture term needs to charge irrigation
+# to the months the crop was actually in the ground. First written 2026-08-27;
+# its in-file variable is `irrig`, the same name mirrig.nc uses for the
+# crop-less monthly cube.
+#
 # hydrology output. `steps_per_year` is 12 for the monthly outputs and 1 for the
 # annual per-CFT consumptive-water cubes (see the header facts).
 .hydro_var_map <- function() {
@@ -179,6 +192,7 @@ read_lpjml_hydrology <- function(
     "pet", "pet.nc", "PET", 12L,
     "soiltemp1", "soiltemp1.nc", "soiltemp1", 12L,
     "soiltemp2", "soiltemp2.nc", "soiltemp2", 12L,
+    "cft_airrig_month", "cft_airrig_month.nc", "irrig", 12L,
     "cft_nir", "cft_nir.nc", "nir", 1L,
     "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
     "cft_consump_water_g", "cft_consump_water_g.nc", "consump_water_g", 1L
@@ -188,7 +202,12 @@ read_lpjml_hydrology <- function(
 # The logical variables whose third dimension is a per-CFT band rather than a
 # soil layer.
 .hydro_band_vars <- function() {
-  c("cft_nir", "cft_consump_water_b", "cft_consump_water_g")
+  c(
+    "cft_nir",
+    "cft_airrig_month",
+    "cft_consump_water_b",
+    "cft_consump_water_g"
+  )
 }
 
 # Time steps per year for a logical variable; 12 (monthly) unless mapped
@@ -293,6 +312,39 @@ read_lpjml_hydrology <- function(
     ))
   }
   derived
+}
+
+# Refuse a per-CFT cube whose values all sit on ONE band.
+#
+# `cft_airrig_month` as written on 2026-08-27 does exactly that: every crop's
+# applied irrigation is accumulated into band 29, `irrigated others`, in every
+# month of every year. It is provably wrong rather than merely surprising --
+# `cft_nir` from the same run splits across 14 of 32 bands and `cftfrac` gives
+# 13 irrigated bands real area, so the crops exist and are irrigated -- and the
+# single band carries 3.3 times the crop-less `mirrig` total for the same
+# month, which is what summing every crop into one slot looks like.
+#
+# This aborts rather than warns because the whole point of a per-CFT cube is
+# the split: a footprint or a moisture term built on it would charge every
+# crop's water to one crop, and nothing downstream could detect that.
+.hydro_check_band_spread <- function(long, var) {
+  if (!var %in% .hydro_band_vars() || !rlang::has_name(long, "band")) {
+    return(invisible(long))
+  }
+  live <- long[is.finite(long$value) & long$value > 0, ]
+  bands <- unique(live$band)
+  if (length(bands) != 1L || length(unique(long$band)) < 2L) {
+    return(invisible(long))
+  }
+  name <- unique(live$band_name %||% NA_character_)[[1]]
+  cli::cli_abort(c(
+    "{.val {var}} puts every value on a single band, {.val {name}}.",
+    x = "A per-crop cube whose water is all on one crop is not per-crop.",
+    i = "Known defect in the 2026-08-27 run: compare {.val cft_nir}, which
+         splits across 14 of 32 bands on the same run.",
+    i = "Do not work around this by summing over bands; the split is the
+         quantity. The run has to be redone (whep#916)."
+  ))
 }
 
 # Read one logical hydrology variable into a long tibble. The synthetic "aet"

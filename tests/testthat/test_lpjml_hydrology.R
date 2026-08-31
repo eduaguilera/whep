@@ -576,3 +576,53 @@ testthat::test_that(".lpjml_resolve_first_year prefers the caller", {
     "Cannot tell which year"
   )
 })
+
+# ---- a per-CFT cube whose water is all on one band is refused --------------
+
+testthat::test_that("a single-band per-CFT cube aborts", {
+  # cft_airrig_month as written on 2026-08-27 puts every crop's applied
+  # irrigation on band 29. Summing over bands would hide it; charging one crop
+  # for every crop's water would not be detectable downstream.
+  broken <- tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~band, ~band_name, ~value,
+    0.25, 0.25, 2010L, 7L, 29L, "irrigated others", 12.0,
+    0.25, 0.25, 2010L, 7L, 2L, "irrigated rice", 0,
+    0.25, 0.25, 2010L, 7L, 3L, "irrigated maize", 0
+  )
+  testthat::expect_error(
+    whep:::.hydro_check_band_spread(broken, "cft_airrig_month"),
+    "single band"
+  )
+  testthat::expect_error(
+    whep:::.hydro_check_band_spread(broken, "cft_airrig_month"),
+    "cft_nir"
+  )
+})
+
+testthat::test_that("a properly split per-CFT cube passes", {
+  ok <- tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~band, ~band_name, ~value,
+    0.25, 0.25, 2010L, 7L, 29L, "irrigated others", 12.0,
+    0.25, 0.25, 2010L, 7L, 2L, "irrigated rice", 40.0,
+    0.25, 0.25, 2010L, 7L, 3L, "irrigated maize", 0
+  )
+  testthat::expect_no_error(
+    whep:::.hydro_check_band_spread(ok, "cft_airrig_month")
+  )
+})
+
+testthat::test_that("the guard leaves non-band variables alone", {
+  # A crop-less monthly cube has one value per cell-month and no band at all.
+  plain <- tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~value,
+    0.25, 0.25, 2010L, 7L, 12.0
+  )
+  testthat::expect_no_error(whep:::.hydro_check_band_spread(plain, "irrig"))
+  # And a single-band cube of a variable that is not per-CFT is not its
+  # business either.
+  one <- tibble::tribble(
+    ~lon, ~lat, ~year, ~month, ~band, ~value,
+    0.25, 0.25, 2010L, 7L, 1L, 12.0
+  )
+  testthat::expect_no_error(whep:::.hydro_check_band_spread(one, "swc"))
+})
