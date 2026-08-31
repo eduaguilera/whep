@@ -23,7 +23,6 @@ Imports:
     deSolve,
     dplyr,
     fs,
-    FAOSTAT,
     httr,
     Matrix,
     methods,
