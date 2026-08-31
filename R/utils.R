@@ -2102,6 +2102,9 @@ utils::globalVariables(
     # totals the blue/green AET split uses, kept apart from the
     # `bands`-restricted pair the output reports
     "consump_blue_all_mm",
-    "consump_green_all_mm"
+    "consump_green_all_mm",
+    # commodity_balance_sheet.R (#168) — the live-animal slaughter total
+    # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
+    "slaughtered"
   )
 )

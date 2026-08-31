@@ -570,7 +570,9 @@ run_spatialize <- function(
 }
 
 .read_packaged_cft_mapping <- function() {
-  whep::cft_mapping
+  cft_mapping <- whep::cft_mapping
+  .assert_unique_cft_mapping(cft_mapping)
+  cft_mapping
 }
 
 .load_livestock_inputs <- function(input_dir, config = list()) {
@@ -787,6 +789,7 @@ run_spatialize <- function(
         "cft_mapping is missing the {.field {agg_col}} column."
       )
     }
+    .assert_unique_cft_mapping(cft_mapping)
     group_cols <- unique(c(
       .compartment_id_cols(result_crops),
       "lon",

@@ -85,6 +85,19 @@ testthat::test_that(".pins_update_cache writes and returns value", {
   testthat::expect_equal(cache$my_key$etag, "test")
 })
 
+testthat::test_that(".pins_is_success_status accepts the whole 2xx range", {
+  # Upstream pins-r only accepted status 200 exactly; 201 (Created) and 206
+  # (Partial Content) are real successes that must not be treated as
+  # download failures (whep#172).
+  testthat::expect_true(.pins_is_success_status(200L))
+  testthat::expect_true(.pins_is_success_status(201L))
+  testthat::expect_true(.pins_is_success_status(206L))
+  testthat::expect_false(.pins_is_success_status(199L))
+  testthat::expect_false(.pins_is_success_status(300L))
+  testthat::expect_false(.pins_is_success_status(304L))
+  testthat::expect_false(.pins_is_success_status(404L))
+})
+
 testthat::test_that(".pins_show_progress returns FALSE in non-interactive", {
   testthat::local_mocked_bindings(
     interactive = function() FALSE,

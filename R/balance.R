@@ -143,8 +143,13 @@ balance_io_flows <- function(
     m <- .ras_scale_rows(m, ifelse(rs > 0, target_rows / rs, 1), sparse)
     cs <- Matrix::colSums(m)
     m <- .ras_scale_cols(m, ifelse(cs > 0, target_cols / cs, 1), sparse, nr)
+    # Checking every 5th iteration keeps the per-iteration cost down on the
+    # large IO matrix, but skipping the check on `max_iter` itself when
+    # `max_iter` is not a multiple of 5 meant a matrix that had genuinely
+    # converged by the last iteration was never recognised as such, and
+    # `balance_ras()` warned "did not converge" regardless (whep#172).
     if (
-      i %% 5L == 0L &&
+      (i %% 5L == 0L || i == max_iter) &&
         max(abs(Matrix::rowSums(m) - target_rows)) < tol * err_scale &&
         max(abs(Matrix::colSums(m) - target_cols)) < tol * err_scale
     ) {
@@ -169,7 +174,10 @@ balance_io_flows <- function(
   if (!is.matrix(x) && !methods::is(x, "Matrix")) {
     cli::cli_abort("{.arg x} must be a matrix.")
   }
-  if (any(x < 0, na.rm = TRUE)) {
+  if (anyNA(x)) {
+    cli::cli_abort("{.arg x} must not contain missing values.")
+  }
+  if (any(x < 0)) {
     cli::cli_abort(
       "{.arg x} must be non-negative (use GRAS for signed matrices)."
     )

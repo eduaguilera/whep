@@ -23,6 +23,29 @@ testthat::test_that("balance_ras validates inputs", {
   )
 })
 
+testthat::test_that("balance_ras rejects NA cells instead of silently
+  propagating NaN", {
+  m <- matrix(c(5, NA, 0, 5), nrow = 2)
+  testthat::expect_error(
+    whep::balance_ras(m, c(5, 5), c(5, 5)),
+    "missing values"
+  )
+})
+
+testthat::test_that("balance_ras detects convergence on the last iteration
+  even when max_iter is not a multiple of 5", {
+  # already exactly at the target margins: converges on iteration 1
+  m <- matrix(c(5, 0, 0, 5), nrow = 2)
+  testthat::expect_no_warning(
+    whep::balance_ras(
+      m,
+      target_rows = c(5, 5),
+      target_cols = c(5, 5),
+      max_iter = 3L
+    )
+  )
+})
+
 testthat::test_that("balance_ras warns when it cannot converge", {
   # a structural zero row with a positive target can never be filled
   m <- matrix(c(0, 0, 1, 1), nrow = 2)
