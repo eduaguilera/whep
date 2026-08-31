@@ -785,22 +785,6 @@
   )
 }
 
-.example_get_faostat_data <- function() {
-  tibble::tribble(
-    ~area, ~item, ~element, ~year, ~value, ~unit, ~ISO3_CODE,
-    "Portugal", "Asses", "stocks", 2010L, 1500, "An", "PRT",
-    "Portugal", "Cattle, dairy", "stocks", 2010L, 245000, "An", "PRT",
-    "Portugal", "Cattle, non-dairy", "stocks", 2010L, 1180000, "An", "PRT",
-    "Portugal", "Chickens, broilers", "stocks", 2010L, 27000, "1000 An", "PRT",
-    "Portugal", "Goats", "stocks", 2010L, 412000, "An", "PRT",
-    "Portugal", "Horses", "stocks", 2010L, 22000, "An", "PRT",
-    "Portugal", "Mules and hinnies", "stocks", 2010L, 3200, "An", "PRT",
-    "Portugal", "Sheep", "stocks", 2010L, 2230000, "An", "PRT",
-    "Portugal", "Swine, breeding", "stocks", 2010L, 340000, "An", "PRT",
-    "Portugal", "Swine, market", "stocks", 2010L, 1980000, "An", "PRT"
-  )
-}
-
 .example_create_grafs_plot_df <- function() {
   tibble::tribble(
     ~province, ~year, ~label, ~data, ~align, ~arrowColor,
