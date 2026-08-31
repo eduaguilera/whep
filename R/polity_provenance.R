@@ -3,16 +3,16 @@
 #' @description
 #' [polity_area_crosswalk] is not the upstream FAOSTAT-to-polity map. It is that
 #' map plus rows this package manufactures, and its `mapping_source` column says
-#' which. Measured on the shipped snapshot, of 631 crosswalk rows:
+#' which. Measured on the shipped snapshot, of 648 crosswalk rows:
 #'
 #' - `"upstream_map"` (245 rows): a row of `faostat_area_polity_map.csv` in
 #'   `eduaguilera/whep-polities`. Upstream's statement about the territory.
-#' - `"fabio_row_promoted"` (36): the same file, for the 31 areas the FABIO
+#' - `"fabio_row_promoted"` (52): the same file, for the 47 areas the FABIO
 #'   Rest-of-World fold used to shadow. Equally upstream's statement, and kept
 #'   separate only because `.unfold_rest_of_world()` chooses between it and the
-#'   fold row (whep#717). The two together consume the map's 281 rows exactly
+#'   fold row (whep#717). The two together consume the map's 297 rows exactly
 #'   once.
-#' - `"prefix_outside_map"` (261) and `"prefix_fallback"` (27): WHEP's own
+#' - `"prefix_outside_map"` (263) and `"prefix_fallback"` (26): WHEP's own
 #'   ISO3-prefix match, built in `data-raw/table_mappings.R`. No upstream
 #'   authority. A prefix match can only ever produce an ISO3-family guess, so it
 #'   cannot express the statements the pre-1961 era actually needs -- Turkey
@@ -22,12 +22,18 @@
 #'   WHEP's to decide, but the territory still has no upstream row of its own.
 #'   In the default mode only the 31 members upstream names nowhere resolve
 #'   through one; see [row_promotion_status()].
+#' - `"whep_bucket_aggregate"` (1): WHEP's own row for an aggregation bucket
+#'   rather than for a reporting area, naming the upstream aggregate polity that
+#'   means the union of the areas the bucket sums. Bucket 206 from 2012 is the
+#'   only one, on `F206-2011-2025` "Sudan and South Sudan (combined reporting)"
+#'   (whep#860). The polity is upstream's; the statement that it answers for the
+#'   bucket is WHEP's, because the bucket is WHEP's.
 #'
 #' Counting crosswalk rows overstates the exposure, because most manufactured
 #' rows are never picked. This reports the provenance of the **resolution**: for
 #' each `(area_code, year)`, the class of the crosswalk row that
 #' [add_polity_code()] actually selected, which is what a published value rests
-#' on. Measured over the crosswalk's own 1850-2025 grid, 256 of the 261
+#' on. Measured over the crosswalk's own 1850-2025 grid, 259 of the 263
 #' `"prefix_outside_map"` rows are the resolution of no `(area_code, year)` at
 #' all: the back-cast anchor floors every lookup at `backcast_anchor`, so the
 #' pre-1961 era resolves through whatever answers the anchor year rather than
@@ -44,7 +50,9 @@
 #' - `"upstream"`: `"upstream_map"` or `"fabio_row_promoted"`.
 #' - `"whep_prefix"`: `"prefix_outside_map"` or `"prefix_fallback"` -- a WHEP
 #'   guess, and the population whep#740 asks to delete rather than replace.
-#' - `"whep_bucket"`: `"fabio_row_fold"` -- WHEP's own documented bucket.
+#' - `"whep_bucket"`: `"fabio_row_fold"` or `"whep_bucket_aggregate"` -- WHEP's
+#'   own documented buckets. Both say the bucket is WHEP's to name; only the
+#'   second names it with a polity upstream publishes.
 #' - `"unresolved"`: the area resolves to no polity, so nothing was said.
 #'
 #' An unrecognised `mapping_source` aborts rather than being folded into one of
@@ -201,12 +209,13 @@ polity_mapping_provenance <- function(
 # `mapping_source` aborts instead of landing in whichever bucket looks nearest.
 .mapping_source_authority <- function() {
   tibble::tribble(
-    ~mapping_source,      ~authority,
-    "upstream_map",       "upstream",
-    "fabio_row_promoted", "upstream",
-    "prefix_outside_map", "whep_prefix",
-    "prefix_fallback",    "whep_prefix",
-    "fabio_row_fold",     "whep_bucket"
+    ~mapping_source,         ~authority,
+    "upstream_map",          "upstream",
+    "fabio_row_promoted",    "upstream",
+    "prefix_outside_map",    "whep_prefix",
+    "prefix_fallback",       "whep_prefix",
+    "fabio_row_fold",        "whep_bucket",
+    "whep_bucket_aggregate", "whep_bucket"
   )
 }
 

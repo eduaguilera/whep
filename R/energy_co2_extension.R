@@ -423,9 +423,8 @@ build_energy_co2_extension <- function(
 # Tuvalu, both Oceania; the Netherlands Antilles is dissolved and produces no
 # meat), so this maps a latent mis-grouping, not a live one.
 .energy_gleam_continent <- function(continent) {
-  dplyr::case_match(
-    continent,
-    c("North America", "South America") ~ "Americas",
+  dplyr::case_when(
+    continent %in% c("North America", "South America") ~ "Americas",
     .default = continent
   )
 }
@@ -883,7 +882,15 @@ build_energy_co2_extension <- function(
 .energy_allocate_to_sectors <- function(co2e, primary_prod) {
   heads <- .energy_slaughter_heads(primary_prod)
   allocated <- co2e |>
-    dplyr::inner_join(.energy_sector_map(), by = "grp") |>
+    # The fan-out is the point of this join: one meat group feeds several
+    # live-animal sectors. `co2e` is one row per (year, area_code, grp) and the
+    # map is one row per (grp, item_cbs_code), so each group recurs on both
+    # sides -- many-to-many by design, not a duplicated key (whep#647).
+    dplyr::inner_join(
+      .energy_sector_map(),
+      by = "grp",
+      relationship = "many-to-many"
+    ) |>
     dplyr::left_join(
       heads,
       by = c("year", "area_code", "grp", "item_cbs_code")
@@ -970,11 +977,10 @@ build_energy_co2_extension <- function(
 # the whole build would hide which is which.
 .energy_method_label <- function(method, ef_scope = "country") {
   label <- switch(method, gleam = "GLEAM_3.0_energy_meat")
-  dplyr::case_match(
-    ef_scope,
-    "global" ~ paste0(label, "_global_mean"),
-    "polity_region" ~ paste0(label, "_polity_region"),
-    "historical_region" ~ paste0(label, "_historical_region"),
+  dplyr::case_when(
+    ef_scope == "global" ~ paste0(label, "_global_mean"),
+    ef_scope == "polity_region" ~ paste0(label, "_polity_region"),
+    ef_scope == "historical_region" ~ paste0(label, "_historical_region"),
     .default = label
   )
 }

@@ -27,7 +27,7 @@ Imports:
     httr,
     Matrix,
     methods,
-    nanoparquet,
+    nanoparquet (>= 0.5.0),
     pins,
     purrr (>= 1.0.0),
     rappdirs,
@@ -65,6 +65,7 @@ Suggests:
     RSQLite,
     s2,
     sf,
+    spelling,
     terra,
     testthat (>= 3.0.0),
     zip

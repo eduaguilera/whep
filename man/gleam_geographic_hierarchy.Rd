@@ -20,8 +20,9 @@ present day, \code{NA} where WHEP has no polity for the territory.}
 }
 }
 \source{
-MacLeod et al. (2018) GLEAM 3.0 Supplement S1,
-Tables S.A1-S.A2. \doi{10.1088/1748-9326/aad4d8}
+FAO (2022) GLEAM version 3.0, Supplement S1 (an FAO
+workbook; no DOI is issued for it), Tables S.A1-S.A2:
+\url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_3.0_Supplement_S1.xlsx}
 }
 \usage{
 gleam_geographic_hierarchy
@@ -37,6 +38,20 @@ carries the polity its \code{iso3} resolves to in the present day, as
 \code{NA} for want of any WHEP polity, and upstream supplied one for each. A gap
 would still stay visible rather than being guessed at. The 204 GLEAM regions
 themselves are unchanged.
+
+\code{oecd} is the one column not carried through verbatim. Cell G41 of the
+published sheet flags Comoros as an OECD member; it is not one, so
+\code{data-raw/livestock_coefficients.R} rebuilds the whole column from the
+OECD's own list of its 38 Members (oecd.org, "Members and partners", read
+2026-08-25; the URL is in the builder, which is not URL-checked, because the
+host answers \verb{R CMD check --as-cran} with a 403) and
+aborts if the sheet ever stops listing a Member. Every other flagged code
+already matched that list, Colombia (2020) and Costa Rica (2021) included,
+and \code{eu27} beside it is exactly the 27 real EU members, so the cell reads as
+a data-entry slip rather than a GLEAM grouping that borrows the name. The
+flag is load-bearing: \code{\link[=build_energy_co2_extension]{build_energy_co2_extension()}} reads it for two of
+GLEAM's three country-grouping schemes, and as shipped it priced Comoros'
+meat at OECD energy intensity, up to 129 percent high (whep#574).
 }
 \examples{
 gleam_geographic_hierarchy

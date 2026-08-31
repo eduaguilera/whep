@@ -243,9 +243,6 @@ build_gridded_landuse <- function(
       luh2_type
     ) |>
       dplyr::distinct()
-    # nolint: object_usage_linter
-    type_count <- dplyr::n_distinct(type_lookup$luh2_type)
-    # message printed once per build_gridded_landuse call; caller logs progress
   }
 
   years <- sort(unique(country_areas$year))
@@ -638,8 +635,14 @@ build_gridded_landuse <- function(
   if (is.null(multicropping)) {
     capacity_dt[, `:=`(mc_rainfed = 1, mc_irrigated = 1)]
   } else {
+    # Left join: a cropland cell missing from the multicropping layer must
+    # stay in capacity_dt (not be dropped), defaulting to a multicropping
+    # factor of 1 rather than falling through to the Inf/unconstrained
+    # default further down (#223).
     mc_dt <- data.table::as.data.table(multicropping)
-    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat), nomatch = 0L]
+    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat)]
+    capacity_dt[is.na(mc_rainfed), mc_rainfed := 1]
+    capacity_dt[is.na(mc_irrigated), mc_irrigated := 1]
   }
   capacity_dt[, `:=`(
     rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
@@ -1045,6 +1048,7 @@ build_gridded_landuse <- function(
 #' Aggregate crop-level results to CFT level.
 #' @noRd
 .aggregate_to_cft <- function(data, cft_mapping) {
+  .assert_unique_cft_mapping(cft_mapping)
   group_cols <- unique(c(
     .compartment_id_cols(data),
     "lon",
@@ -1062,6 +1066,29 @@ build_gridded_landuse <- function(
       irrigated_ha = sum(irrigated_ha, na.rm = TRUE),
       .by = dplyr::all_of(group_cols)
     )
+}
+
+#' Guard a CFT mapping table against fan-out on its join key.
+#'
+#' `item_prod_code` is the key every `cft_mapping` join uses (here and in
+#' `.write_landuse_outputs()` in `R/run_spatialize.R`). A second row for the
+#' same code would duplicate every matching crop-cell row and double-count
+#' its hectares in the CFT total (#224), so abort loudly instead of silently
+#' `distinct()`-ing the table -- a repeated code is a data defect to fix at
+#' the source, not one to paper over.
+#' @noRd
+.assert_unique_cft_mapping <- function(cft_mapping) {
+  dupes <- unique(
+    cft_mapping$item_prod_code[duplicated(cft_mapping$item_prod_code)]
+  )
+  if (length(dupes) > 0L) {
+    cli::cli_abort(c(
+      "{.arg cft_mapping} must have one row per \\
+       {.field item_prod_code}.",
+      i = "Duplicated code{?s}: {.val {dupes}}."
+    ))
+  }
+  invisible(cft_mapping)
 }
 
 # `.normalize_to_cropland()` and `.get_area_code_from_grid()` were removed in

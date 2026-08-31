@@ -12,6 +12,8 @@ build_commodity_balances(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
+  trade_recovery = c("none", "net_import"),
+  trade_zero = .cbs_trade_zero_choices(),
   .fixed_data = NULL
 )
 }
@@ -34,13 +36,47 @@ to add before the CBS historical extension. May be a data frame or a path
 to a parquet/csv file. CBS-shaped rows should provide \code{year}, \code{value},
 one of \code{area_code} or \code{polity_area_code}, one of \code{item_cbs_code} or
 \code{item_prod_code}, and preferably \code{element}. Production-shaped rows without
-\code{element} are accepted as \code{production} when their unit is tonnes. Default
-\code{NULL}.}
+\code{element} are accepted as \code{production} when their unit is tonnes.
+\strong{Rice supplied here is assumed to be on a paddy (rough-rice)
+basis} and is multiplied by the paddy-to-milled extraction rate,
+matching \code{\link[=build_primary_production]{build_primary_production()}}; pre-divide by that rate if the
+series is already milled. Default \code{NULL}.}
 
 \item{format}{One of \code{"long"} (default) or \code{"wide"}. \code{"long"} returns one row
 per element. \code{"wide"} pivots the elements into columns, adds the live-animal
 rows that the FAO sheet omits, and checks the supply-use identity. Both are
 the same dataset; \code{"wide"} is what the IO model and the extensions consume.}
+
+\item{trade_recovery}{One of \code{"none"} (default) or \code{"net_import"}, selecting
+what happens to a traded item the CBS has no row for. The trade record is
+joined onto the CBS, so it can only fill a row that already exists;
+\code{"none"} keeps that, and the import is dropped. \code{"net_import"} first
+creates the missing rows from the trade record, restricted to
+tonnes-denominated items (live-animal trade is in heads and arrives
+through \code{\link[=get_livestock_cbs]{get_livestock_cbs()}}), to net importers, and to areas the CBS
+already covers in that year. Selecting it \strong{moves published values} —
+at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+areas on the nourishment axis. \code{NEWS.md} states the rest, and whep#762
+keeps the remaining decisions open.
+\code{\link[=get_wide_cbs]{get_wide_cbs()}} always uses \code{"none"}; ask for \code{format = "wide"} here to
+get the wide table with recovery applied.}
+
+\item{trade_zero}{One of \code{"prefer_record"} (default) or \code{"keep"},
+selecting what happens when the CBS carries a \strong{zero} import or export
+and the trade record for the same \verb{(year, area_code, item_cbs_code)}
+carries a positive quantity. The trade record is filled in with
+\code{\link[dplyr:coalesce]{dplyr::coalesce()}}, which replaces only a missing value, so the zero
+used to stand and the trade was discarded. \code{"prefer_record"} takes the
+positive trade quantity instead, because such a zero is not an
+observation: measured at 2010, every one of them carries FAO flag \code{"I"}
+(imputed) or the legacy \code{"S"} (standardized), and neither food-balance
+vintage carries a single official \code{"A"} on a trade row. A non-zero CBS
+value is never overwritten and a zero trade record never overwrites
+anything, so the fill can only add trade. \code{"keep"} restores the
+pre-whep#866 behaviour. \strong{The default moves published values} — at 2010
+it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
+10.27 Mt, moving 26,538 published rows over 180 areas; see \code{NEWS.md}.
+The conflict count is reported by every build under either setting.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

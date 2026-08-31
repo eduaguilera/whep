@@ -239,10 +239,28 @@ test_that("the live Sudan bucket sums instead of splitting in two", {
   post <- out[out$year == 2015L, ]
   expect_equal(nrow(post), 1L)
   expect_equal(post$value, 125)
-  # And the label no longer flips mid-series: the same bucket is the same
-  # territory in 2005 and 2015, which is what a join key has to be.
-  expect_equal(length(unique(out$area)), 1L)
+  # ONE LABEL PER BUCKET-YEAR, which is the property whep#563 needs: the label
+  # is attached after the sum, keyed on `(bucket, year)`, so it cannot re-split
+  # a group. Asserted per year rather than across the series, because a bucket's
+  # label legitimately changes when the polity its code resolves to changes --
+  # 43 buckets do, `ETH-1952-1993` -> `ETH-1993-2025` among them, and bucket 206
+  # joined them when whep#860 gave it `F206-2011-2025` from 2012. Requiring one
+  # label across the whole series would forbid that, and it is not what makes
+  # the sum safe.
+  labels_per_bucket_year <- tapply(
+    out$area,
+    paste(out$area_code, out$year),
+    function(x) length(unique(x))
+  )
+  expect_true(all(labels_per_bucket_year == 1L))
   expect_equal(sum(out$value), sum(raw$value))
+
+  # And the change of label is at the secession, not anywhere else.
+  expect_equal(out$area[out$year == 2005L], "Sudan (1956-2011)")
+  expect_equal(
+    out$area[out$year == 2015L],
+    "Sudan and South Sudan (combined reporting)"
+  )
 })
 
 test_that("the aggregator labels a bucket from the bucket's own code", {
@@ -270,7 +288,7 @@ test_that("the aggregator labels a bucket from the bucket's own code", {
   expect_equal(
     out$area,
     whep::polity_area_crosswalk$polity_name[
-      whep::polity_area_crosswalk$polity_code == "SUD-1956-2011"
+      whep::polity_area_crosswalk$polity_code == "F206-2011-2025"
     ][[1]]
   )
 })
@@ -353,4 +371,174 @@ test_that("an ISO3 still ambiguous after the rule aborts instead of guessing", {
     whep:::.iso3_area_code_bridge(),
     class = "whep_ambiguous_iso3_area"
   )
+})
+
+# -- .extract_cb row order -----------------------------------------------------
+
+# The four CB extracts travel as the `.cb_extracts` attribute of
+# `build_primary_production()`, so their row order is part of a published
+# object. `.read_input()` reads the parquet through arrow's multi-threaded
+# scanner, which hands back the same rows in a session-dependent order, and
+# nothing downstream pinned one -- so the build was not `identical()` to itself
+# across sessions (whep#747). Feeding the same rows in two orders reproduces
+# that here without touching a pin or the network.
+.cb_order_fixture <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Area,      ~`Item Code`, ~Item,                ~Element,     ~Unit,    ~Year, ~Value,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2000L, 100,
+    203L,         "Testland", 2511,         "Wheat and products", "Food",       "tonnes", 2000L, 40,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2000L, 70,
+    203L,         "Testland", 2514,         "Maize and products", "Production", "tonnes", 2001L, 80,
+    203L,         "Testland", 2511,         "Wheat and products", "Production", "tonnes", 2001L, 110
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".extract_cb row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_cb("faostat-fbs-old") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# -- .extract_fao row order ----------------------------------------------------
+
+# The same defect one stage earlier, and the stage the CBS build consumes
+# directly: `.read_fao_trade()` and the `faostat-cbs-new` extract stop at
+# `.extract_fao()`, so `.extract_cb()`'s sort never reaches them. Measured on
+# the real pins at 1950-1965, `.read_fao_trade()` came back in a different row
+# order in every one of three sessions (339,220 rows, same rows and same
+# values), because the `by=` aggregation in `.aggregate_to_polities()` emits
+# groups in order of first appearance and arrow's multi-threaded scanner
+# decides what appears first (whep#420).
+test_that(".extract_fao row order does not depend on the read order", {
+  fixture <- .cb_order_fixture()
+  .local_aggregator_crosswalk()
+
+  extract_in_order <- function(rows) {
+    testthat::local_mocked_bindings(
+      .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+        data.table::copy(rows)
+      }
+    )
+    whep:::.extract_fao("faostat-trade-totals") |>
+      as.data.frame()
+  }
+
+  forward <- extract_in_order(fixture)
+  reversed <- extract_in_order(fixture[rev(seq_len(nrow(fixture)))])
+
+  expect_gt(nrow(forward), 1L)
+  expect_identical(forward, reversed)
+})
+
+# -- exact-set year filtering (whep#157) ----------------------------------------
+
+# `.filter_years()`'s contiguous-range fast path compared `length(years)`
+# against the range width without deduping first, so a duplicated request
+# like c(2000, 2000, 2002) (length 3, range width 3) wrongly took the fast
+# path and returned the unrequested in-between year 2001 too.
+test_that(".filter_years returns the exact set, not a min/max range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2000, 2000, 2002))
+
+  expect_equal(sort(result$year), c(2000, 2002))
+})
+
+test_that(".filter_years still uses the contiguous fast path for a range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2001, 2003, 2002))
+
+  expect_equal(sort(result$year), 2001:2003)
+})
+
+# `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+# (a row-group range filter); `.extract_fao()` used to never apply the exact
+# set afterwards, so a non-contiguous request like c(1961, 2000) silently came
+# back with all 40 years in between -- both a correctness bug (unrequested
+# years reach every downstream aggregation) and a memory hazard (pulling a
+# full range instead of two years can blow up RAM on a real pin).
+test_that(".extract_fao returns exactly the requested years", {
+  fixture <- data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = 2511L,
+    Item = "Wheat and products",
+    Element = "Production",
+    Unit = "tonnes",
+    Year = 1961:2000,
+    Value = 100
+  )
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_fao("faostat-cbs-new", years = c(1961, 2000))
+
+  expect_equal(sort(unique(out$year)), c(1961, 2000))
+  expect_equal(nrow(out), 2L)
+})
+
+# Issue whep#833. `.correct_processed()` calibrates a processing output by
+# dividing the observed production of that output by the production its parent's
+# `processing` implies, and then carries the one ratio it finds across the
+# whole year axis. Where it finds none, `scaling` collapses to 0 for every item
+# that is neither `Required` in `cb_processing` nor a `no_data_product`, and
+# the output is deleted by the `value != 0` filters downstream. So the SPAN of
+# the frame decides whether the row exists, which is how a year-scoped build
+# loses 14 keys the full-range build has (Italy's Ricebran Oil at 2010 is
+# calibrated off a single 1961 observation, 49 years away).
+.processed_axis_fixture <- function(years) {
+  key <- tibble::tibble(
+    area = "Testland",
+    area_code = 999L,
+    item_cbs = "Ricebran Oil",
+    element = "production"
+  )
+  list(
+    processed = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(value_proc = 200),
+    cbs = tidyr::expand_grid(year = years, key) |>
+      dplyr::mutate(item_cbs_code = 2581L, value = 100) |>
+      dplyr::filter(year == 2000L)
+  )
+}
+
+.processed_axis_value <- function(years) {
+  fixture <- .processed_axis_fixture(years)
+  whep:::.correct_processed(fixture$processed, fixture$cbs) |>
+    tibble::as_tibble() |>
+    dplyr::filter(year == 2010L) |>
+    dplyr::pull(value_final)
+}
+
+test_that(".correct_processed carries one anchor across the year axis", {
+  expect_equal(.processed_axis_value(2000:2010), 100)
+})
+
+test_that(".correct_processed deletes the output off-anchor (whep#833)", {
+  # The defect, pinned so it is reproducible without a pipeline build: the same
+  # 2010 output is worth 100 t on an axis holding the 2000 anchor and 0 t on
+  # one that does not. Fixing #833 makes these two agree, and this expectation
+  # must then be replaced by an equality against the full-axis answer.
+  expect_equal(.processed_axis_value(2005:2010), 0)
 })

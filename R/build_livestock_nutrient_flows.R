@@ -22,7 +22,12 @@
 #'   matching pipeline function's `options`.
 #' @param gridded The land-surface layer (`crops` and optional `grass` tibbles)
 #'   passed to [allocate_manure_to_land()]; required for the default
-#'   `"potential_uptake"` cap. `NULL` is treated as an empty list.
+#'   `"potential_uptake"` cap. `NULL` is treated as an empty list. The `crop`
+#'   column of `crops` is a *code*: `as.character(item_prod_code)` from
+#'   [items_prod_full]. That is the one contract, honoured by both consumers of
+#'   this function's `applied` stream (the carbon balance and the nitrogen
+#'   balance); a crop name is still resolved by the nitrogen path but is
+#'   deprecated and warns.
 #'
 #' @return A named list with `applied` (manure applied per
 #'   `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
@@ -40,8 +45,8 @@
 #' gridded <- list(
 #'   crops = tibble::tribble(
 #'     ~year, ~territory, ~sub_territory, ~crop, ~manure_n_receptivity, ~crop_n_cap,
-#'     2020L, "203", NA, "barley", 6, 200,
-#'     2020L, "203", NA, "wheat", 4, 200
+#'     2020L, "203", NA, "44", 6, 200,
+#'     2020L, "203", NA, "15", 4, 200
 #'   )
 #' )
 #' build_livestock_nutrient_flows(intake, gridded = gridded)
@@ -101,6 +106,16 @@ build_livestock_nutrient_flows <- function(
   stats::setNames(lapply(stages, function(s) methods[[s]] %||% list()), stages)
 }
 
+# No na.rm here (whep#226): `losses` is always the internally-computed
+# apply_management_losses() result, never caller-supplied, and none of these
+# columns can carry an NA on that path -- apply_management_losses() already
+# aborts if a loss fraction or EF3 is missing, and every upstream sum feeding
+# n_stream (estimate_n_excretion()) already uses na.rm = TRUE, so a sparse
+# input becomes 0 there, not NA, before it ever reaches this helper. Measured
+# on real 1970 and 2010 national runs: 0 of ~462k rows and 0 of ~29k groups
+# carry an NA in any of these 7 columns. na.rm would only matter for a whole-
+# NA group, and per whep#972 that would silently fabricate a 0 for a case
+# that cannot occur here.
 .summarise_losses <- function(losses) {
   cols <- c(
     "n_volatilized",

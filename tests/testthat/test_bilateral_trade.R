@@ -740,3 +740,108 @@ testthat::test_that(".balance_total_trade rescales larger side", {
     c(50, 100)
   )
 })
+
+# .mass_only_bilateral_trade / .nest_by_year_item_code -------------------------
+
+testthat::test_that(".mass_only_bilateral_trade drops non-tonnes rows with a warning", {
+  btd <- tibble::tribble(
+      ~item_cbs_code, ~unit,    ~value,
+      1,              "tonnes", 100,
+      1,              "heads",  5000000,
+      2,              "tonnes", 40,
+    )
+
+  testthat::expect_warning(
+    result <- .mass_only_bilateral_trade(btd),
+    "not denominated in mass"
+  )
+
+  testthat::expect_false("unit" %in% names(result))
+  testthat::expect_equal(nrow(result), 2)
+  testthat::expect_equal(sum(result$value), 140)
+})
+
+testthat::test_that(".mass_only_bilateral_trade keeps quiet if all tonnes", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value,
+    1,              "tonnes", 100,
+    2,              "tonnes", 40,
+  )
+
+  result <- testthat::expect_no_warning(.mass_only_bilateral_trade(btd))
+
+  testthat::expect_equal(sum(result$value), 140)
+})
+
+testthat::test_that(
+  paste(
+    ".nest_by_year_item_code does not sum head counts into the tonnes",
+    "column (whep#962)"
+  ),
+  {
+    # Regression for whep#962: .build_trade_matrix() sums `value` with no
+    # unit dimension, so a head-denominated row used to be added straight
+    # into the tonnes-denominated bilateral trade matrix.
+    btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit, ~value,
+      2010,  1,              10L,        20L,      "tonnes", 100,
+      2010,  1,              10L,        20L,      "heads",  5000000,
+    )
+    cbs <- tibble::tribble(
+      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+      2010,  1,              10L,        100,     0,
+      2010,  1,              20L,        0,       100,
+    )
+    codes <- factor(c(10L, 20L))
+
+    testthat::expect_warning(
+      result <- .nest_by_year_item_code(btd, cbs, codes),
+      "not denominated in mass"
+    )
+
+    testthat::expect_equal(sum(result$bilateral_trade[[1]]$value), 100)
+  }
+)
+
+# .match_btd_item_codes / .clean_bilateral_trade -------------------------------
+
+testthat::test_that(".match_btd_item_codes resolves CBS item names", {
+  items <- whep::items_cbs |>
+    dplyr::slice_head(n = 3)
+
+  testthat::expect_equal(
+    .match_btd_item_codes(items$item_cbs_name),
+    items$item_cbs_code
+  )
+})
+
+testthat::test_that(".match_btd_item_codes warns on unmatched items", {
+  known_name <- whep::items_cbs$item_cbs_name[[1]]
+  known_code <- whep::items_cbs$item_cbs_code[[1]]
+  # "Wheat" is a raw FAOSTAT trade name; the CBS name is "Wheat and products".
+  item <- c(known_name, "Wheat", "Wheat", "Maize (corn)")
+
+  testthat::expect_warning(
+    codes <- .match_btd_item_codes(item),
+    "3 rows will be dropped"
+  )
+  testthat::expect_equal(codes, c(known_code, NA, NA, NA))
+})
+
+testthat::test_that(".clean_bilateral_trade resolves every pin item", {
+  # The `bilateral_trade` pin ships pre-harmonized CBS item names, so the
+  # name match must resolve every row. A refreshed pin carrying raw FAOSTAT
+  # trade names ("Wheat" instead of "Wheat and products") would trip this.
+  btd <- tibble::tribble(
+    ~Year, ~area_code, ~area_code_p, ~Element,  ~item,                 ~Unit,    ~Value,
+    2010,  68,         203,          "Export",  "Wheat and products",  "tonnes", 5,
+    2010,  203,        68,           "Import",  "Barley and products", "tonnes", 7,
+    2010,  68,         203,          "Export",  "Sheep",               "Head",   3
+  )
+
+  result <- testthat::expect_no_warning(.clean_bilateral_trade(btd))
+
+  testthat::expect_false(any(is.na(result$item_cbs_code)))
+  testthat::expect_equal(sort(result$unit), c("heads", "tonnes", "tonnes"))
+  testthat::expect_equal(nrow(result), 3)
+})

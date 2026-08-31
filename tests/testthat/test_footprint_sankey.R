@@ -111,6 +111,25 @@ testthat::test_that("plot_footprint_sankey hard-limits embedded nodes", {
   testthat::expect_match(html, "input.max = String(hard)", fixed = TRUE)
 })
 
+testthat::test_that(".sankey_group_small_nodes keeps a real 'Other' node", {
+  # A genuine category literally named "Other" (e.g. "Meat, Other" in
+  # FAO-style nomenclatures) must compete for the top-N slots on its own
+  # value, not be forced into the synthetic small-node bucket just because
+  # its label collides with the bucket's display label.
+  paths <- tibble::tribble(
+    ~stage_1, ~value,
+    "Other", 100,
+    "A", 5,
+    "B", 3
+  )
+
+  result <- whep:::.sankey_group_small_nodes(paths, "stage_1", 1, "Other")
+
+  testthat::expect_equal(nrow(result), 1)
+  testthat::expect_equal(result$stage_1, "Other")
+  testthat::expect_equal(result$value, 108)
+})
+
 testthat::test_that("plot_footprint_sankey rejects invalid NA options", {
   testthat::skip_if_not_installed("htmltools")
   testthat::skip_if_not_installed("jsonlite")

@@ -446,3 +446,86 @@ testthat::test_that("an unknown population_source is rejected", {
     "arg_match|must be one of|wpp"
   )
 })
+
+# ---- population_source: the FAOSTAT FBS fallback (#862) ---------------------
+
+# A read_fbs_population() output. Real `faostat-fbs-old` values for area 186
+# Serbia and Montenegro, which neither the pin nor UN WPP can reach, plus Spain
+# at a DIFFERENT value from the pin so the precedence is testable.
+.popf_fbs <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~population, ~source_pop,
+    2000L, 186L,       10801000,    "FAOSTAT FBS old",
+    2010L, 203L,       46840470,    "FAOSTAT FBS new",
+    2010L, 151L,       201000,      "FAOSTAT FBS old"
+  )
+}
+
+testthat::test_that("the FBS fill is not reached unless it is asked for", {
+  # Nothing published may move by default. An injected FBS table carrying
+  # areas the pin lacks proves neither of the two other sources reaches it.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = .popf_raw(),
+        wpp_population = .popf_wpp(),
+        fbs_population = .popf_fbs()
+      ),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  testthat::expect_false(any(out$area_code %in% c(186L, 151L)))
+})
+
+testthat::test_that("the FBS fill closes the dissolved-federation areas", {
+  # #862 and #787: area 186 Serbia and Montenegro and area 151 Netherlands
+  # Antilles carry commodity-balance food and have no denominator, because both
+  # other sources are keyed on a present-day ISO3 that no longer names them.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = .popf_raw(),
+        wpp_population = .popf_wpp(),
+        fbs_population = .popf_fbs()
+      ),
+      population_source = "pin_wpp_fbs_fallback"
+    )
+  )
+  filled <- dplyr::filter(out, .data$area_code %in% c(186L, 151L))
+  testthat::expect_setequal(filled$area_code, c(186L, 151L))
+  testthat::expect_equal(unique(filled$source_pop), "FAOSTAT FBS")
+  testthat::expect_equal(
+    dplyr::filter(filled, .data$area_code == 186L)$population,
+    10801000
+  )
+})
+
+testthat::test_that("the FBS fill never overwrites a pin or WPP row", {
+  # Spain is in the pin and in the FBS table at different values, and Bhutan is
+  # in WPP and could be in neither. Turning the fill on must be incapable of
+  # moving a denominator that was already published.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = .popf_raw(),
+        wpp_population = .popf_wpp(),
+        fbs_population = dplyr::bind_rows(
+          .popf_fbs(),
+          tibble::tibble(
+            year = 2010L,
+            area_code = 18L,
+            population = 1,
+            source_pop = "FAOSTAT FBS old"
+          )
+        )
+      ),
+      population_source = "pin_wpp_fbs_fallback"
+    )
+  )
+  esp <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 203L)
+  testthat::expect_equal(esp$population, 46600)
+  testthat::expect_equal(esp$source_pop, "pin")
+  btn <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 18L)
+  testthat::expect_equal(btn$population, 701633)
+  testthat::expect_equal(btn$source_pop, "UN WPP 2024")
+})

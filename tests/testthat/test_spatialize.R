@@ -244,6 +244,42 @@ testthat::test_that("build_gridded_landuse keeps proportional allocation when mu
   testthat::expect_equal(cell2, expected_c2, tolerance = 1e-6)
 })
 
+testthat::test_that("build_gridded_landuse still constrains cells missing a multicropping row", {
+  fix <- two_country_fixture()
+  # Only the first cell has a multicropping row; the second cell of
+  # country 1 (lon = 0.75) is absent from the layer altogether.
+  multicropping <- tibble::tribble(
+      ~lon, ~lat, ~mc_rainfed, ~mc_irrigated,
+      0.25, 50.25, 1, 1
+    )
+
+  result <- build_gridded_landuse(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(multicropping = multicropping)
+  )
+
+  cell1 <- result |>
+    dplyr::filter(lon == 0.25) |>
+    dplyr::pull(rainfed_ha)
+  cell2 <- result |>
+    dplyr::filter(lon == 0.75) |>
+    dplyr::pull(rainfed_ha)
+
+  # Country total must still be conserved.
+  testthat::expect_equal(cell1 + cell2, 1000, tolerance = 1e-4)
+
+  # The cell missing a multicropping row (lon = 0.75) must still be
+  # capacity constrained (mc = 1 default), giving the exact same result
+  # as supplying no multicropping layer at all for this fixture — not
+  # left unconstrained with infinite capacity, which would push its
+  # allocation well above the proportional share of 143 ha.
+  testthat::expect_equal(cell1, 773.2421083791, tolerance = 1e-6)
+  testthat::expect_equal(cell2, 226.7578916209, tolerance = 1e-6)
+})
+
 testthat::test_that("build_gridded_landuse distributes proportionally when within capacity", {
   # Single cell with plenty of cropland — no capacity pressure
   country_areas <- tibble::tribble(
@@ -368,6 +404,23 @@ testthat::test_that("build_gridded_landuse aggregates to CFTs when mapping provi
     dplyr::summarise(total = sum(rainfed_ha + irrigated_ha)) |>
     dplyr::pull(total)
   testthat::expect_equal(total, 1000, tolerance = 1e-6)
+})
+
+testthat::test_that("aggregate_to_cft aborts instead of fanning out on a repeated code", {
+  data <- tibble::tribble(
+      ~lon,  ~lat,  ~year, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,             15L,         100,             0
+    )
+  cft_map <- tibble::tribble(
+      ~item_prod_code, ~cft_name,
+                  15L, "temperate_cereals",
+                  15L, "other_dup"
+    )
+
+  testthat::expect_error(
+    whep:::.aggregate_to_cft(data, cft_map),
+    class = "rlang_error"
+  )
 })
 
 # Input validation ---------------------------------------------------------------

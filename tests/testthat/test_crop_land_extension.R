@@ -621,6 +621,59 @@ test_that("reported zero land components remain distinct from missing reports", 
   expect_equal(all_arable$permanent_ha, 0)
 })
 
+# whep#716: both land legs aggregate onto `polity_area_code`, and must read the
+# crosswalk the pipeline resolves through (`.polity_crosswalk()`). On the shipped
+# `polity_area_crosswalk` the Rest-of-World members promoted by whep#628 still
+# carry 999, so their land area would be summed into a bucket that
+# get_primary_production() no longer keys on.
+test_that("get_arable_permanent_land keys FAO land on the pipeline's bucket", {
+  expected <- .promoted_row_members()
+  fao <- tibble::tibble(
+    `Area Code` = rep(expected$area_code, each = 2L),
+    `Item Code` = rep(c(6620, 6621), times = nrow(expected)),
+    Element = "Area",
+    Unit = "1000 ha",
+    Year = 2020,
+    Value = rep(c(10, 7), times = nrow(expected))
+  )
+
+  ap <- whep::get_arable_permanent_land(data = fao, years = 2020)
+
+  expect_setequal(ap$area_code, expected$area_code_expected)
+  expect_false(999L %in% ap$area_code)
+  # Syria (212) files its own FAOSTAT returns and is not a residual territory.
+  expect_equal(ap$cropland_ha[ap$area_code == 212L], 10000)
+})
+
+test_that("get_arable_permanent_land keys the LUH2 backcast on the same bucket", {
+  expected <- .promoted_row_members_iso3()
+  fao <- tibble::tibble(
+    `Area Code` = rep(expected$area_code_expected, each = 2L),
+    `Item Code` = rep(c(6620, 6621), times = nrow(expected)),
+    Element = "Area",
+    Unit = "1000 ha",
+    Year = 1961,
+    Value = rep(c(10, 7), times = nrow(expected))
+  )
+  luh2 <- tibble::tibble(
+    ISO3 = rep(expected$area_iso3c, each = 4L),
+    Year = rep(c(1960L, 1960L, 1961L, 1961L), times = nrow(expected)),
+    Land_Use = rep(c("c3ann", "c3per"), times = 2L * nrow(expected)),
+    Area_Mha = rep(c(0.08, 0.02, 0.09, 0.02), times = nrow(expected))
+  )
+
+  ap <- whep::get_arable_permanent_land(
+    data = fao,
+    luh2_data = luh2,
+    years = 1960:1961
+  )
+  pre <- ap[ap$year == 1960L, ]
+
+  expect_setequal(pre$area_code, expected$area_code_expected)
+  expect_false(999L %in% pre$area_code)
+  expect_true(212L %in% pre$area_code)
+})
+
 test_that("get_arable_permanent_land drops the FAOSTAT China aggregate 351", {
   ap <- whep::get_arable_permanent_land(data = .rl_fixture(), years = 2020)
   expect_false(351L %in% ap$area_code)
@@ -1029,4 +1082,125 @@ test_that("build_fao_arable_fallow_extension warns and clamps when CBS 3002 exce
   )
   # arable target clamped at 0, so no ordinary crop area survives
   expect_equal(nrow(res), 0L)
+})
+
+# --- fodder share of the fallow-inclusive arable extension (whep#356) ---------
+
+# Same shape as .fao_fallow_items(), plus the fodder commodity-balance items the
+# fallow split treats as ordinary arable crops.
+.fao_fodder_items <- function() {
+  tibble::tribble(
+    ~item_cbs_code, ~Herb_Woody,
+    2000L, "Herbaceous", # fodder cereal and grasses
+    2003L, "Herbaceous", # fodder mix
+    2511L, "Herbaceous", # wheat
+    2560L, "Woody" # perennial
+  )
+}
+
+test_that("check_fodder_land_share reports the fodder share of arable land", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700, # fodder mix
+    2020L, 10L, 2511L, 300, # wheat
+    2020L, 10L, 2560L, 500, # perennial: outside the arable denominator
+    2020L, 20L, 2000L, 100, # fodder cereal and grasses
+    2020L, 20L, 2511L, 900
+  )
+  res <- whep::check_fodder_land_share(
+    extension,
+    items_prod_full = .fao_fodder_items()
+  )
+  expect_setequal(
+    names(res),
+    c("year", "area_code", "fodder_ha", "arable_ha", "fodder_share", "flagged")
+  )
+  au <- res[res$area_code == 10L, ]
+  expect_equal(au$fodder_ha, 700)
+  expect_equal(au$arable_ha, 1000) # perennial 2560 excluded
+  expect_equal(au$fodder_share, 0.7)
+  expect_true(au$flagged)
+  ok <- res[res$area_code == 20L, ]
+  expect_equal(ok$fodder_share, 0.1)
+  expect_false(ok$flagged)
+})
+
+test_that("check_fodder_land_share honours threshold and perennial-only years", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700,
+    2020L, 10L, 2511L, 300,
+    2020L, 30L, 2560L, 400 # perennial only: no arable land to attribute
+  )
+  lenient <- whep::check_fodder_land_share(
+    extension,
+    threshold = 0.9,
+    items_prod_full = .fao_fodder_items()
+  )
+  expect_false(any(lenient$flagged))
+  # a country-year with no arable row has no arable attribution to check
+  expect_equal(nrow(lenient[lenient$area_code == 30L, ]), 0L)
+})
+
+test_that("check_fodder_land_share rejects a missing column and a bad threshold", {
+  extension <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    2020L, 10L, 2003L, 700
+  )
+  expect_error(
+    whep::check_fodder_land_share(dplyr::select(extension, -"impact_u")),
+    "impact_u"
+  )
+  expect_error(
+    whep::check_fodder_land_share(extension, threshold = c(0.1, 0.2)),
+    "single number"
+  )
+})
+
+test_that("build_fao_arable_fallow_extension warns when fodder dominates", {
+  # Australia's shape: fodder harvested area alone exceeds FAO arable land, so
+  # the proportional split hands fodder most of the arable land footprint.
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    1975L, 10L, 2003L, 2100, # fodder mix (reconstructed, implausible)
+    1975L, 10L, 2511L, 400 # wheat
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    10L, 1975L, 1357, 0
+  )
+  expect_warning(
+    res <- whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      temporary_grassland = .no_temp_grassland(),
+      items_prod_full = .fao_fodder_items()
+    ),
+    "Fodder crops take over half the arable land"
+  )
+  # warn-only: the arable total still reconciles to FAO arable land exactly
+  expect_equal(sum(res$impact_u), 1357)
+  # and the share is passed straight through from the base
+  fodder <- res$impact_u[res$item_cbs_code == 2003L]
+  expect_equal(fodder / sum(res$impact_u), 2100 / 2500)
+})
+
+test_that("build_fao_arable_fallow_extension is quiet when fodder is minor", {
+  base <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~impact_u,
+    1975L, 10L, 2003L, 100,
+    1975L, 10L, 2511L, 900
+  )
+  ap <- tibble::tribble(
+    ~area_code, ~year, ~arable_ha, ~permanent_ha,
+    10L, 1975L, 1200, 0
+  )
+  expect_no_warning(
+    whep::build_fao_arable_fallow_extension(
+      base_extension = base,
+      arable_permanent = ap,
+      temporary_grassland = .no_temp_grassland(),
+      items_prod_full = .fao_fodder_items()
+    )
+  )
 })

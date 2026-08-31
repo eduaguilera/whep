@@ -77,6 +77,123 @@ add(
   "year-over-year discontinuities (candidates)"
 )
 
+# 1b. year scoping (internal) --------------------------------------------------
+# `build_x(years = Y)` must equal the full-range build filtered to Y. Three
+# violations shipped green on CI (#623, #625, #570) because no automated check
+# compared the two; this is that check (#631). It shells out once per layer so
+# the session build cache never holds the full production AND the full CBS at
+# once.
+#
+# Each layer needs the full build, which is the very thing this sweep refuses to
+# start unasked (see the note above). So a layer runs only when its cached full
+# build is already on disk, or when VAL_SCOPING_LAYERS names it explicitly.
+scoping_caches <- c(
+  production = ".whep_cache/scoping_full_production.rds",
+  wide_cbs = ".whep_cache/scoping_full_wide_cbs.rds"
+)
+scoping_forced <- strsplit(Sys.getenv("VAL_SCOPING_LAYERS", ""), ",")[[1]]
+score_scoping <- function(layer) {
+  variable <- paste0("year_scoping_", layer)
+  if (!layer %in% scoping_forced && !file.exists(scoping_caches[[layer]])) {
+    return(add(
+      variable,
+      "internal",
+      NA,
+      NA,
+      NA,
+      sprintf(
+        "not run: no %s, and not in VAL_SCOPING_LAYERS",
+        scoping_caches[[layer]]
+      )
+    ))
+  }
+  out <- system2(
+    "Rscript",
+    c(
+      "validation/year_scoping.R",
+      layer,
+      Sys.getenv("VAL_SCOPING_YEAR", "2010")
+    ),
+    stdout = TRUE,
+    stderr = FALSE
+  )
+  metric <- grep("^METRIC", out, value = TRUE)
+  if (length(metric) != 1L) {
+    return(add(variable, "internal", NA, NA, NA, "no METRIC line reported"))
+  }
+  num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", metric))
+  }
+  add(
+    variable,
+    "internal",
+    num("units"),
+    num("units") - num("failing"),
+    num("failing"),
+    sprintf(
+      "scoped vs full-range: %.0f keys only in full, max rel total %.2e",
+      num("keys_only_full"),
+      num("max_rel_total")
+    )
+  )
+}
+purrr::walk(names(scoping_caches), score_scoping)
+
+# 1c. temporary grassland vs FAO 6633 (external) -------------------------------
+# Modelled CBS 3002 against FAOSTAT RL item 6633, official (flag "A") rows only.
+# Like the scoping layers it needs a production build, so it runs only when its
+# cache already exists or VAL_TG_FORCE is set -- the sweep does not start a
+# multi-minute build unasked.
+tg_cache <- sprintf(
+  ".whep_cache/temp_grassland_ha_%s_%s.rds",
+  Sys.getenv("VAL_TG_YEAR_MIN", "2001"),
+  Sys.getenv("VAL_TG_YEAR_MAX", "2023")
+)
+if (!nzchar(Sys.getenv("VAL_TG_FORCE")) && !file.exists(tg_cache)) {
+  add(
+    "temp_grassland_6633",
+    "external",
+    NA,
+    NA,
+    NA,
+    sprintf("not run: no %s, and VAL_TG_FORCE unset", tg_cache)
+  )
+} else {
+  tg_out <- system2(
+    "Rscript",
+    "validation/temp_grassland_6633.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+  tg_metric <- grep("^METRIC", tg_out, value = TRUE)
+  if (length(tg_metric) != 1L) {
+    add(
+      "temp_grassland_6633",
+      "external",
+      NA,
+      NA,
+      NA,
+      "no METRIC line reported"
+    )
+  } else {
+    tg_num <- function(key) {
+      as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", tg_metric))
+    }
+    add(
+      "temp_grassland_6633",
+      "external",
+      tg_num("n_official_3002"),
+      tg_num("n_official_3002") - tg_num("n_failed"),
+      tg_num("n_failed"),
+      sprintf(
+        "CBS 3002 / FAO 6633 = %.2f, whole green-fodder group = %.2f",
+        tg_num("sum_ratio_3002"),
+        tg_num("sum_ratio_green_on_3002")
+      )
+    )
+  }
+}
+
 # 2. production (external, vs pinned subnational findings) ---------------------
 fin_files <- list.files(
   "validation/cache/findings",

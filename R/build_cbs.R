@@ -22,12 +22,44 @@
 #'   to a parquet/csv file. CBS-shaped rows should provide `year`, `value`,
 #'   one of `area_code` or `polity_area_code`, one of `item_cbs_code` or
 #'   `item_prod_code`, and preferably `element`. Production-shaped rows without
-#'   `element` are accepted as `production` when their unit is tonnes. Default
-#'   `NULL`.
+#'   `element` are accepted as `production` when their unit is tonnes.
+#'   **Rice supplied here is assumed to be on a paddy (rough-rice)
+#'   basis** and is multiplied by the paddy-to-milled extraction rate,
+#'   matching [build_primary_production()]; pre-divide by that rate if the
+#'   series is already milled. Default `NULL`.
 #' @param format One of `"long"` (default) or `"wide"`. `"long"` returns one row
 #'   per element. `"wide"` pivots the elements into columns, adds the live-animal
 #'   rows that the FAO sheet omits, and checks the supply-use identity. Both are
 #'   the same dataset; `"wide"` is what the IO model and the extensions consume.
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`, selecting
+#'   what happens to a traded item the CBS has no row for. The trade record is
+#'   joined onto the CBS, so it can only fill a row that already exists;
+#'   `"none"` keeps that, and the import is dropped. `"net_import"` first
+#'   creates the missing rows from the trade record, restricted to
+#'   tonnes-denominated items (live-animal trade is in heads and arrives
+#'   through [get_livestock_cbs()]), to net importers, and to areas the CBS
+#'   already covers in that year. Selecting it **moves published values** —
+#'   at 2010 it adds 1,164 keys and 53.7 Mt of imports, and reclassifies three
+#'   areas on the nourishment axis. `NEWS.md` states the rest, and whep#762
+#'   keeps the remaining decisions open.
+#'   [get_wide_cbs()] always uses `"none"`; ask for `format = "wide"` here to
+#'   get the wide table with recovery applied.
+#' @param trade_zero One of `"prefer_record"` (default) or `"keep"`,
+#'   selecting what happens when the CBS carries a **zero** import or export
+#'   and the trade record for the same `(year, area_code, item_cbs_code)`
+#'   carries a positive quantity. The trade record is filled in with
+#'   [dplyr::coalesce()], which replaces only a missing value, so the zero
+#'   used to stand and the trade was discarded. `"prefer_record"` takes the
+#'   positive trade quantity instead, because such a zero is not an
+#'   observation: measured at 2010, every one of them carries FAO flag `"I"`
+#'   (imputed) or the legacy `"S"` (standardized), and neither food-balance
+#'   vintage carries a single official `"A"` on a trade row. A non-zero CBS
+#'   value is never overwritten and a zero trade record never overwrites
+#'   anything, so the fill can only add trade. `"keep"` restores the
+#'   pre-whep#866 behaviour. **The default moves published values** — at 2010
+#'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
+#'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
+#'   The conflict count is reported by every build under either setting.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -54,9 +86,13 @@ build_commodity_balances <- function(
   example = FALSE,
   historical_data = NULL,
   format = c("long", "wide"),
+  trade_recovery = c("none", "net_import"),
+  trade_zero = .cbs_trade_zero_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
+  trade_recovery <- rlang::arg_match(trade_recovery)
+  trade_zero <- rlang::arg_match(trade_zero)
   if (example) {
     return(
       if (format == "wide") {
@@ -74,11 +110,21 @@ build_commodity_balances <- function(
   }
   if (is.null(.fixed_data)) {
     fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
-      .fix_cbs()
+      .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
     if (!is.null(historical_data)) {
       cli::cli_warn(
         "{.arg historical_data} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (trade_recovery != "none") {
+      cli::cli_warn(
+        "{.arg trade_recovery} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (trade_zero != "prefer_record") {
+      cli::cli_warn(
+        "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -123,6 +169,12 @@ build_commodity_balances <- function(
 .format_cbs_output <- function(df) {
   df <- tibble::as_tibble(df)
 
+  # `processing_primary` is a genuine destiny -- `domestic_supply` is built
+  # from it upstream (.reestimate_domestic_supply(), .apply_filled_shares(),
+  # .fill_historical_destinies()), so dropping it here left the published
+  # `sum(uses) == domestic_supply` identity broken for the pp_items whose
+  # entire production is destined for processing (palm fruit, hops, seed
+  # cotton, coconuts, hemp, kapok fruit, linum). whep#143.
   cbs_elements <- c(
     "domestic_supply",
     "production",
@@ -133,7 +185,8 @@ build_commodity_balances <- function(
     "feed",
     "seed",
     "other_uses",
-    "processing"
+    "processing",
+    "processing_primary"
   )
 
   has_flag <- "fao_flag" %in% names(df)
@@ -296,8 +349,20 @@ build_commodity_balances <- function(
   attr(cbs_raw, ".years") <- output_years
 
   # Aggregate FAOSTAT + FishStat trade to CBS item level for imputation
-  fao_trade_agg <- .aggregate_fao_trade_to_cbs(inputs$fao_trade)
+  # Both aggregates are reduced to their mass rows first: this attribute is the
+  # tonnes-denominated trade the imputation reads, and the FAOSTAT record also
+  # carries live-animal head counts (whep#865).
+  fao_trade_agg <- .mass_only_trade(
+    .aggregate_fao_trade_to_cbs(inputs$fao_trade),
+    "faostat-trade-totals"
+  )
   fishstat_agg <- inputs$fishstat_trade # already aggregated to CBS level
+  # FishStat is all tonnes today, but it goes through the same gate so a future
+  # non-mass unit cannot slip in silently. The gate can empty it, hence the
+  # second check rather than an `else if`.
+  if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
+    fishstat_agg <- .mass_only_trade(fishstat_agg, "fishstat-trade")
+  }
   if (!is.null(fishstat_agg) && nrow(fishstat_agg) > 0L) {
     # Keep only the columns common with fao_trade_agg
     common_cols <- c("year", "area_code", "item_cbs_code", "element", "value")
@@ -339,12 +404,20 @@ build_commodity_balances <- function(
 #'
 #' @param df A tibble from `.read_cbs()`. Expects `.years`
 #'   attribute (set automatically by `.read_cbs()`).
+#' @param trade_zero One of `"prefer_record"` (default) or `"keep"`. See
+#'   [build_commodity_balances()].
+#' @param trade_recovery One of `"none"` (default) or `"net_import"`. See
+#'   [build_commodity_balances()].
 #'
 #' @returns The same tibble with calibrated, imputed, and balanced values.
 #'
 #' @keywords internal
 #' @noRd
-.fix_cbs <- function(df) {
+.fix_cbs <- function(
+  df,
+  trade_recovery = "none",
+  trade_zero = "prefer_record"
+) {
   years <- attr(df, ".years") %||% 1850:2023
   fao_trade_cbs <- attr(df, ".fao_trade")
   cbs_raw <- df
@@ -377,12 +450,21 @@ build_commodity_balances <- function(
     src_lookup = src_lookup
   )
 
+  # 6b. Recover trade the CBS row set cannot see (opt-in, whep#762)
+  if (trade_recovery != "none") {
+    cli::cli_progress_step("Recovering trade-only rows")
+    recovered <- .cbs_trade_recovery_rows(cbs_raw3, fao_trade_cbs, years)
+    cbs_raw3 <- .cbs_bind_recovered(cbs_raw3, recovered)
+    src_lookup <- .add_recovered_sources(src_lookup, recovered)
+  }
+
   # 7. Impute trade and domestic supply
   cli::cli_progress_step("Imputing trade and domestic supply")
   cbs_raw4 <- .cbs_impute_trade(
     cbs_raw3,
     fao_trade_cbs,
-    src_lookup = src_lookup
+    src_lookup = src_lookup,
+    trade_zero = trade_zero
   )
 
   # 8. Fill destiny gaps
@@ -541,7 +623,7 @@ build_processing_coefs <- function(
       cbs,
       by = c("area_code", "year", "item_cbs", "element")
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   cbs |>
     .processed_raw(cb_processing_glo) |>
@@ -721,7 +803,24 @@ build_processing_coefs <- function(
 }
 
 # Aggregate fao_trade (which uses item_code_trade) to CBS item codes.
-# Returns a data.table with: year, area_code, item_cbs_code, element, value.
+# Returns a data.table with: year, area_code, item_cbs_code, element, unit,
+# value.
+#
+# `unit` is part of the key, not a passenger. The FAOSTAT trade record is not
+# uniformly denominated in mass: live animals are reported in `An` / `1000 An`
+# and bees in `No`, and `whep::cbs_trade_codes` maps those onto the 20
+# live-animal CBS items whose quantities are head counts. Summing across `unit`
+# put 135.3 M head and colonies of bees into the same tonnes-denominated
+# `value` column as 2.85 Gt of mass at 2010 -- between 4.3% and 11.6% of that
+# column's total in every year 1961-2023 (whep#865). Consumers that need
+# tonnes call `.mass_only_trade()`; nothing may read `value` without reading
+# `unit`.
+#
+# `1000 An` is rescaled to `An` here rather than in `.normalise_units()`, which
+# handles `1000 tonnes` but not this label, so the blast radius stays inside
+# this aggregation. Without it broiler, duck, turkey, rabbit and rodent trade
+# is a thousandfold low in its own unit, and item 1150 -- reported as
+# `1000 An` up to 2013 and `An` from 2014 -- carries a 1000x step mid-series.
 .aggregate_fao_trade_to_cbs <- function(fao_trade) {
   cbs_tc <- data.table::as.data.table(whep::cbs_trade_codes)
   items <- data.table::as.data.table(whep::items_full)[,
@@ -750,6 +849,58 @@ build_processing_coefs <- function(
   )
   dt <- dt[!is.na(item_cbs_code) & element %in% c("import", "export")]
   dt[,
+    value := data.table::fifelse(unit == "1000 An", value * 1000, value)
+  ]
+  dt[, unit := data.table::fifelse(unit == "1000 An", "An", unit)]
+  dt[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area_code, item_cbs_code, element, unit)
+  ]
+}
+
+# The unit labels that denominate mass in WHEP's trade inputs. FAOSTAT trade
+# totals report `t`; FishStat arrives already normalised to `tonnes` by
+# `.normalise_units()`. Both are the same quantity, so both are kept and
+# collapsed onto one key below.
+.mass_trade_units <- function() {
+  c("t", "tonnes")
+}
+
+# Reduce a unit-keyed trade aggregate to its mass rows and drop `unit`, so the
+# result is the tonnes-denominated `(year, area_code, item_cbs_code, element,
+# value)` contract the CBS trade imputation consumes. Rows in any other unit
+# are head counts or colony counts, not mass; they are dropped with a warning
+# naming what went, because silently adding them to the tonnes column is
+# whep#865 and silently discarding them without saying so is how the mixup
+# stayed invisible for as long as it did.
+#
+# The re-aggregation is not cosmetic: `t` and `tonnes` can both be present, and
+# dropping `unit` without collapsing would leave two rows on a key that
+# `.abort_if_trade_key_duplicated()` requires to be unique.
+.mass_only_trade <- function(trade, source_label) {
+  dt <- data.table::as.data.table(trade)
+  if (!rlang::has_name(dt, "unit")) {
+    cli::cli_abort(c(
+      "{.arg trade} from {.val {source_label}} has no {.field unit} column.",
+      "i" = "A trade aggregate must carry the unit of the quantity it sums."
+    ))
+  }
+  non_mass <- dt[!unit %in% .mass_trade_units()]
+  if (nrow(non_mass) > 0L) {
+    units <- sort(unique(non_mass$unit))
+    items <- length(unique(non_mass$item_cbs_code))
+    cli::cli_warn(c(
+      "Dropped {nrow(non_mass)} {.val {source_label}} trade row{?s} \\
+       not denominated in mass.",
+      "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+      "i" = "{items} CBS item{cli::qty(items)}{?s}, totalling \\
+             {round(sum(non_mass$value, na.rm = TRUE))}.",
+      "i" = "Live-animal trade is in head counts; the CBS {.field value} \\
+             column is tonnes."
+    ))
+  }
+  out <- dt[unit %in% .mass_trade_units()]
+  out[,
     .(value = sum(value, na.rm = TRUE)),
     by = .(year, area_code, item_cbs_code, element)
   ]
@@ -804,12 +955,23 @@ build_processing_coefs <- function(
 # .add_polity_columns_dt must be switched off. Rows whose iso3c is unknown, or
 # whose reported year predates every period of its area, keep NA and are dropped
 # by the caller.
+#
+# The ISO3 bridge goes through `.iso3_area_code_bridge()`, which breaks the tie
+# an ISO3 naming two reporting areas creates on the polities database rather
+# than on row order (whep#586/whep#718). Doing it here with
+# `unique(..., by = "iso3c")` kept the LOWEST `area_code`, so `ETH` entered as
+# 62 ("Ethiopia PDR", dissolved 1993) instead of 238 -- and because the
+# resolution below is year-aware on the code it is given, that decided the
+# `polity_code` too, not only the label (whep#719).
+#
+# The `area` label is attached from the resolved BUCKET rather than carried in
+# from the bridge row, the same rule `.aggregate_to_polities()` follows: the
+# label has to be a property of `area_code`, and `area_code` here is the
+# aggregation bucket. Taking it from the member row instead gave bucket 206 two
+# labels ("Sudan (former)" and "South Sudan") in the same year.
 .resolve_hist_trade_polities <- function(dt) {
-  area_bridge <- .current_area_lookup(include_unmapped = FALSE)[
-    !is.na(area_iso3c),
-    .(iso3c = area_iso3c, area = area_name, area_code)
-  ]
-  area_bridge <- unique(area_bridge, by = "iso3c")
+  area_bridge <- .iso3_area_code_bridge()
+  data.table::setnames(area_bridge, "area_code_fao", "area_code")
 
   out <- merge(dt, area_bridge, by = "iso3c", all.x = TRUE, sort = FALSE)
   out <- .add_polity_columns_dt(
@@ -819,6 +981,8 @@ build_processing_coefs <- function(
     include_unmapped = FALSE,
     backcast_anchor = -Inf
   )
+  labels <- .bucket_area_labels(out)
+  out[labels, on = c("polity_area_code", "year"), area := i.area]
   out[, area_code := polity_area_code]
   keep <- unique(c(names(dt), "area", "area_code", "polity_code"))
   out[, keep, with = FALSE]
@@ -884,6 +1048,23 @@ build_processing_coefs <- function(
     )
   ]
   dt[, unit := "tonnes"]
+  # Pin the row order, for the reason `.extract_fao()` does: the two pins are
+  # read through arrow's multi-threaded scanner and the `by=` aggregation above
+  # emits groups in order of first appearance, so this table came back in a
+  # session-dependent order -- 2 distinct orders over 7 sessions on the real
+  # pins at 1950-1965, same 45,871 rows and same values each time (whep#420).
+  # The `by=` key is unique, so the order is total.
+  data.table::setorderv(
+    dt,
+    c(
+      "year",
+      "area_code",
+      "item_cbs_code",
+      "item_cbs",
+      "element",
+      "polity_code"
+    )
+  )
   dt[!is.na(polity_code)]
 }
 
@@ -1136,7 +1317,12 @@ build_processing_coefs <- function(
     return(.empty_historical_cbs())
   }
 
-  dt <- .fix_item_codes(dt)
+  # #778: `items_full` above has just overwritten every 2807 label with the
+  # canonical "Rice and products", so the item name can no longer say whether
+  # the row is paddy or milled -- only the source can. Keyed on source, a
+  # historical rice row lands on the same milled-equivalent tonnage here as the
+  # same row does through `build_primary_production()`.
+  dt <- .fix_item_codes(dt, paddy_by_source = TRUE)
   key_cols <- c(
     "year",
     "area",
@@ -2001,12 +2187,13 @@ build_processing_coefs <- function(
 # more faithful still, and whep#709 has taken the historical extension off the
 # label -- the year skeleton, the observed-source join, the share fills and the
 # proxy fills are all keyed on the code now, so a second label no longer
-# multiplies rows there. Three joins still read the label and each needs a
-# decision before it can be re-keyed: `.polity_code_from_labels()` (whep#698,
-# blocked on whep#493), the `primary_area` seed join (whep#699, which also
-# needs the seed expression settled) and `.interpolate_destiny_shares()`
-# (whep#691). Until those three are gone, a second label for one code is still
-# the whep#563 shape, so this stays one label per code.
+# multiplies rows there. whep#691 has since taken the destiny-share skeleton off
+# it too -- `.interpolate_destiny_shares()` keys on the code and calls
+# `.attach_cbs_area_label()` at the end, so this lookup now feeds the label back
+# on in three places instead of being read as a key. ONE join still
+# reads the label: the `primary_area` seed join (whep#699, which also needs the
+# seed expression settled). Until it is gone, a second label for one code is
+# still the whep#563 shape, so this stays one label per code.
 .cbs_area_labels <- function(dt_raw) {
   cols <- intersect(c("area_code", "year", "area", "source"), names(dt_raw))
   labels <- unique(dt_raw[, cols, with = FALSE])
@@ -2198,21 +2385,34 @@ build_processing_coefs <- function(
           NA_real_
         )
       ),
-      food_share = food / domestic_supply,
-      feed_share = feed / domestic_supply,
-      other_uses_share = other_uses / domestic_supply,
-      processing_share = processing / domestic_supply,
-      processing_primary_share = processing_primary / domestic_supply
+      food_share = .cbs_safe_ratio(food, domestic_supply),
+      feed_share = .cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = .cbs_safe_ratio(other_uses, domestic_supply),
+      processing_share = .cbs_safe_ratio(processing, domestic_supply),
+      processing_primary_share = .cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
     ) |>
     dplyr::left_join(
       primary_area,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
     ) |>
-    dplyr::mutate(seed_rate = seed / area_ha) |>
+    dplyr::mutate(seed_rate = .cbs_safe_ratio(seed, area_ha)) |>
     .fill_share_columns() |>
     .apply_filled_shares() |>
     .fill_with_proxies(gdp_pop, land_wide) |>
     .finalise_historical(items)
+}
+
+# A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
+# are non-NA and survive is.na() filters downstream (whep#166). On a
+# 1950-1965 build, whep#426 measured 926 NaN values, 6 Inf values, and 80
+# destiny shares above one, all from exactly this division. Treat an
+# undefined ratio as NA so it gets filled like any other gap instead of being
+# carried forward as non-finite data.
+.cbs_safe_ratio <- function(num, denom) {
+  dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
 }
 
 .fill_share_columns <- function(df) {
@@ -2876,13 +3076,363 @@ build_processing_coefs <- function(
   )
 }
 
+# -- Recover trade the CBS row set cannot see ----------------------------------
+
+# `.cbs_impute_trade()` LEFT-joins the crosswalked FAOSTAT/FishStat trade onto
+# the pivoted CBS, so it can FILL an (area, item, year) the CBS already carries
+# but never CREATE one. The row set is whatever the balance sheets and
+# production already produced, so an area that imports an item its balance
+# sheet omits loses that import outright -- Singapore's 2010 basket is 72
+# tonnes-denominated items and 2.56 Mt of net imports short (whep#762).
+#
+# These helpers emit the missing `import`/`export` rows so the join has
+# something to land on. They run only under `trade_recovery = "net_import"`,
+# because they move published values, and they are deliberately narrower than
+# "every key the trade record carries". Each restriction below is what makes
+# the created row balanceable rather than a fabrication:
+#
+# * **Live animals are excluded.** Their CBS quantities are head counts, not
+#   tonnes (`items_cbs$item_type`). The unit mixing this used to guard against
+#   is now handled upstream -- `.mass_only_trade()` drops every non-mass row
+#   before this function sees the record (whep#865), and it is the wider guard
+#   of the two, because it also catches CBS 1171 ("Animals live nes", reported
+#   in `An` but typed `other`, so absent from `.live_animal_cbs_codes()`). The
+#   item-type exclusion stays for the second, independent reason: the wide CBS
+#   already gets its live-animal rows, in heads and from bilateral trade, via
+#   `get_livestock_cbs()`, so creating them here would duplicate that key.
+# * **Only net importers.** A created row has no production, so a net-exported
+#   one has nothing to export: the balancing cascade closes the identity by
+#   inventing production, and `check_supply_use_balance()` then passes on
+#   fabricated tonnage. 144 pairs / 28.9 Mt of exports at 2010 are left
+#   uncreated for that reason (whep#762 keeps the decision open).
+# * **Only (year, area) buckets the CBS already covers**, so the `area` label
+#   comes from the CBS rows themselves instead of a year-free lookup that
+#   would relabel a merged bucket -- one `area_code`, one `area` (whep#563).
+# * **Only area-years the area vocabulary reports.** FishStat keys Belgium 255
+#   from 1976, while every FAOSTAT product keys that territory 15
+#   (Belgium-Luxembourg) until 1999 and splits 255/256 only at 2000. Creating
+#   the 255 row would put two overlapping reporting areas on one territory-year
+#   rather than fill a gap, so those 459 rows / 6,948.4 kt stay uncreated
+#   (whep#884). This restriction is stated here rather than left implicit in
+#   the label join above, because the label join is exactly what a widening of
+#   the "areas the CBS already covers" rule (whep#867) would replace.
+.cbs_trade_recovery_rows <- function(cbs, fao_trade_cbs, years) {
+  candidates <- .cbs_trade_only_candidates(cbs, fao_trade_cbs, years)
+
+  candidates |>
+    tidyr::pivot_longer(
+      c("import", "export"),
+      names_to = "element",
+      values_to = "value"
+    ) |>
+    dplyr::filter(.data$value > 0) |>
+    dplyr::mutate(source = "FAOSTAT_trade") |>
+    dplyr::select(
+      year,
+      area_code,
+      item_cbs_code,
+      element,
+      area,
+      item_cbs,
+      value,
+      source
+    )
+}
+
+# The (year, area, item) keys the trade record carries and the CBS does not,
+# restricted as documented above and labelled from the CBS itself.
+.cbs_trade_only_candidates <- function(cbs, fao_trade_cbs, years) {
+  empty <- tibble::tibble(
+    year = numeric(),
+    area_code = integer(),
+    item_cbs_code = numeric(),
+    area = character(),
+    item_cbs = character(),
+    import = numeric(),
+    export = numeric()
+  )
+  if (is.null(fao_trade_cbs) || nrow(fao_trade_cbs) == 0L) {
+    return(empty)
+  }
+
+  trade <- data.table::as.data.table(fao_trade_cbs)
+  trade <- trade[
+    year %in%
+      years &
+      element %in% c("import", "export") &
+      !item_cbs_code %in% .live_animal_cbs_codes()
+  ]
+  covered <- unique(
+    data.table::as.data.table(cbs)[, .(year, area_code, item_cbs_code)]
+  )
+  trade <- trade[!covered, on = c("year", "area_code", "item_cbs_code")]
+  trade <- .drop_off_window_trade(trade)
+  if (nrow(trade) == 0L) {
+    return(empty)
+  }
+
+  .abort_if_trade_key_duplicated(trade)
+  data.table::dcast(
+    trade,
+    year + area_code + item_cbs_code ~ element,
+    value.var = "value",
+    fill = 0
+  ) |>
+    tibble::as_tibble() |>
+    ensure_columns(
+      empty[, c("import", "export")],
+      defaults = list(import = 0, export = 0)
+    ) |>
+    dplyr::filter(.data$import > .data$export) |>
+    .label_recovered_rows(cbs)
+}
+
+# Trade rows whose `(area_code, year)` the area vocabulary does not report
+# cannot become CBS rows: the territory already reports under another code in
+# those years, so a created row duplicates it instead of filling a gap. Dropped
+# with the tonnage named, because the alternative -- harmonising the source onto
+# the vocabulary WHEP's CBS uses -- is a science decision (whep#884), not
+# something this step may take silently.
+.drop_off_window_trade <- function(trade) {
+  keys <- .off_window_area_keys(trade)
+  if (nrow(keys) == 0L) {
+    return(trade)
+  }
+  keep <- trade[!keys[, .(area_code, year)], on = c("area_code", "year")]
+  dropped <- nrow(trade) - nrow(keep)
+  tonnes <- round(
+    sum(trade$value, na.rm = TRUE) - sum(keep$value, na.rm = TRUE)
+  )
+  areas <- sort(unique(keys$area_code))
+  area_list <- paste(areas, collapse = ", ")
+  cli::cli_alert_info(
+    "Not recovering {dropped} trade row{?s} ({tonnes} t) in \\
+     area{?s} {area_list}: no reporting area lands on \\
+     {cli::qty(length(areas))}{?it/them} in those years, so a created row \\
+     would duplicate the territory that does (whep#884)."
+  )
+  keep
+}
+
+
+# One `(year, area_code, item_cbs_code, element)` per trade row, or the dcast
+# below silently sums two records into one created row. The bridge in
+# `.aggregate_fao_trade_to_cbs()` already aggregates on exactly this key, so a
+# duplicate here means the key stopped being the key -- the shape of whep#164
+# and whep#240, and the reason this is an abort and not a warning.
+.abort_if_trade_key_duplicated <- function(trade) {
+  key <- c("year", "area_code", "item_cbs_code", "element")
+  duplicated_rows <- sum(duplicated(trade, by = key))
+  if (duplicated_rows > 0L) {
+    cli::cli_abort(c(
+      "Crosswalked trade is not unique per {.val {key}}.",
+      "x" = "{duplicated_rows} duplicate{?s} would be summed into one row.",
+      "i" = "Aggregate the trade record before recovering CBS rows."
+    ))
+  }
+  invisible(trade)
+}
+
+# The `area` label is a property of the (year, area_code) bucket, so it is read
+# from the CBS rows of that same bucket -- an inner join, which also enforces
+# the "areas the CBS already covers" restriction. The item label is year-free
+# and comes from the canonical lookup, so an item the CBS names nowhere (Meat
+# Meal, 2112) still gets one.
+.label_recovered_rows <- function(candidates, cbs) {
+  areas <- data.table::as.data.table(cbs)[,
+    .(year, area_code, area)
+  ] |>
+    unique() |>
+    tibble::as_tibble()
+  .abort_if_area_label_ambiguous(areas)
+
+  candidates |>
+    dplyr::inner_join(areas, by = c("year", "area_code")) |>
+    add_item_cbs_name(name_column = "item_cbs")
+}
+
+# One `area_code` must carry one `area` label in a given year (whep#563).
+.abort_if_area_label_ambiguous <- function(areas) {
+  ambiguous <- areas |>
+    dplyr::count(year, area_code) |>
+    dplyr::filter(.data$n > 1L)
+  if (nrow(ambiguous) > 0L) {
+    cli::cli_abort(c(
+      "{nrow(ambiguous)} (year, area_code) bucket{?s} carr{?ies/y} more than \\
+       one {.field area} label.",
+      "i" = "Recovered rows would split the bucket."
+    ))
+  }
+  invisible(areas)
+}
+
+# CBS items denominated in head counts rather than tonnes.
+.live_animal_cbs_codes <- function(items_cbs = whep::items_cbs) {
+  items_cbs |>
+    dplyr::filter(
+      item_type %in% c("livestock", "livestock_meat", "livestock_draft")
+    ) |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+}
+
+.cbs_bind_recovered <- function(cbs, recovered) {
+  if (nrow(recovered) == 0L) {
+    cli::cli_alert_info("No trade-only CBS rows to recover.")
+    return(cbs)
+  }
+  # Last line of defence, and the reason it is an abort: a recovered row for an
+  # area-year the vocabulary does not report is a duplicated territory in the
+  # published CBS, which no downstream check would flag as one (whep#884).
+  .abort_if_off_window_areas(recovered, what = "CBS row")
+  areas <- length(unique(recovered$area_code))
+  items <- length(unique(recovered$item_cbs_code))
+  cli::cli_alert_info(
+    "Recovered {nrow(recovered)} trade-only CBS row{?s} \\
+     ({items} item{?s}, {areas} area{?s})."
+  )
+  data.table::rbindlist(
+    list(data.table::as.data.table(cbs), recovered),
+    use.names = TRUE
+  )
+}
+
+# The source lookup is frozen before the recovered rows exist, so their
+# provenance has to be appended or every recovered element ships `source = NA`.
+# Their keys are absent from the CBS by construction, so the lookup stays
+# unique on its key.
+.add_recovered_sources <- function(src_lookup, recovered) {
+  if (nrow(recovered) == 0L) {
+    return(src_lookup)
+  }
+  by_cols <- c("year", "area_code", "item_cbs_code", "element")
+  data.table::rbindlist(
+    list(
+      src_lookup,
+      data.table::as.data.table(recovered)[,
+        c(by_cols, "source"),
+        with = FALSE
+      ]
+    ),
+    use.names = TRUE
+  ) |>
+    unique(by = by_cols)
+}
+
+# -- Tier-1 trade fill: what a CBS zero does to a positive trade record --------
+
+# The two answers to "the CBS says zero and the trade record says a positive
+# number", most-trusted first. `"prefer_record"` is the default: a zero is
+# often not an observation, and a measured positive flow outranks one that is
+# not. `"keep"` is the pre-whep#866 behaviour and stays selectable.
+.cbs_trade_zero_choices <- function() {
+  c("prefer_record", "keep")
+}
+
+# Tier 1 of the trade imputation. `dplyr::coalesce()` replaces only `NA`, so a
+# CBS row carrying `0` keeps the zero even when the crosswalked trade record
+# for the same `(year, area_code, item_cbs_code)` carries a positive quantity
+# (whep#866). `"prefer_record"`, the default, takes the record instead:
+#
+# * `"prefer_record"` -- a positive trade record outranks a CBS zero. A
+#   non-zero CBS value is never overwritten, and a zero trade record never
+#   overwrites anything, so this only ever adds trade.
+# * `"keep"` -- the pre-whep#866 behaviour: the balance sheet outranks the
+#   trade record, zero included. Kept selectable for sensitivity work and to
+#   reproduce a build made before the default changed.
+#
+# What the flags say about those zeros, measured at 2010 on the real pins: not
+# one of them is an official observation. 4,129 of the 4,493 import conflicts
+# (9.42 of 9.70 Mt) come from `faostat-fbs-new` carrying FAO flag `"I"`
+# (imputed), 328 from `faostat-fbs-old` carrying the legacy `"S"`
+# (standardized), and 36 from WHEP's own mean of non-primary sources. The
+# export side is the same shape: 3,771 conflicts, 10.27 Mt, all `"I"`/`"S"`.
+# Neither food-balance vintage carries a single flag `"A"` on an import or
+# export row in 2010, so the flag cannot separate "FAO looked and it was zero"
+# from "FAO filled a hole with zero" -- the whole column is derived. What FAO
+# does document is what its own imputed zero means:
+#
+#   "In case of a missing value replaced by FAO with a 0 because the phenomenon
+#    is assumed negligible for the considered unit, the flag to use is 'I'
+#    (imputed) and NOT 'N - not significant'."
+#     -- FAO, Statistical Standard Series: Observation Status Code List,
+#        Version 4, endorsed by DCG-T on 10 July 2025, guidance for flag "I".
+#
+# That is why the default trusts the measured flow. It is not free, and the
+# cost is booked where the balance closes rather than hidden: 2,654 of the
+# import conflicts (5.88 Mt) sit on a row with no production, and 1,885 export
+# conflicts (5.85 Mt) do too, so the cascade covers those with imputed
+# production and stock withdrawals -- at 2010, +1.54 Mt of production and
+# -3.77 Mt of stock variation. `check_supply_use_balance()` still passes on
+# every row, because the identity is what the cascade closes.
+#
+# One item carries most of the tonnage and is worth naming: CBS 2657
+# "Beverages, Fermented" is 5.75 Mt of the import total, and the food balance
+# sheet reports 0.63 Mt of imports worldwide against it while production is
+# 23.5 Mt -- a trade column FAO effectively never populated. If it ever turns
+# out that FAO standardizes that flow into a primary equivalent counted
+# elsewhere, this item is where the double count would sit (whep#866).
+.fill_tier1_trade <- function(cbs_value, trade_value, trade_zero) {
+  filled <- dplyr::coalesce(cbs_value, trade_value)
+  if (trade_zero == "keep") {
+    return(filled)
+  }
+  dplyr::if_else(
+    .is_trade_zero_conflict(filled, trade_value),
+    trade_value,
+    filled
+  )
+}
+
+# A CBS value of exactly zero facing a positive trade record. `NA` on either
+# side is not a conflict: a missing CBS value is what `coalesce()` fills, and a
+# missing record has nothing to offer.
+.is_trade_zero_conflict <- function(cbs_value, trade_value) {
+  !is.na(cbs_value) &
+    cbs_value == 0 &
+    !is.na(trade_value) &
+    trade_value > 0
+}
+
+# Say out loud how much trade the kept zeros discard, whichever branch is
+# selected. Under `"keep"` this is the only trace the loss leaves: the rows do
+# not go missing, they just stay at zero, so nothing downstream can tell them
+# apart from a genuine absence of trade.
+.report_trade_zero_conflicts <- function(wide) {
+  conflicts <- .count_trade_zero_conflicts(wide)
+  if (conflicts$pairs == 0L) {
+    return(invisible(wide))
+  }
+  pairs <- conflicts$pairs
+  tonnes <- round(conflicts$tonnes)
+  cli::cli_alert_info(
+    "CBS trade zeros against a positive trade record: \\
+     {pairs} key{?s}, {tonnes} tonnes."
+  )
+  invisible(wide)
+}
+
+# One count over both elements. `NA` is not a conflict -- that is the case
+# `coalesce()` already fills.
+.count_trade_zero_conflicts <- function(wide) {
+  hit_import <- .is_trade_zero_conflict(wide$import, wide$fao_trade_import)
+  hit_export <- .is_trade_zero_conflict(wide$export, wide$fao_trade_export)
+  list(
+    pairs = sum(hit_import) + sum(hit_export),
+    tonnes = sum(wide$fao_trade_import[hit_import]) +
+      sum(wide$fao_trade_export[hit_export])
+  )
+}
+
 # -- Impute trade + domestic supply --------------------------------------------
 
 .cbs_impute_trade <- function(
   cbs_raw3,
   fao_trade_cbs = NULL,
-  src_lookup = NULL
+  src_lookup = NULL,
+  trade_zero = "prefer_record"
 ) {
+  trade_zero <- rlang::arg_match(trade_zero, .cbs_trade_zero_choices())
   # Save source provenance before pivot cycle
   if (is.null(src_lookup)) {
     src_lookup <- .extract_source_lookup(cbs_raw3)
@@ -2979,11 +3529,13 @@ build_processing_coefs <- function(
       )
   }
 
+  .report_trade_zero_conflicts(wide)
+
   wide <- wide |>
     dplyr::mutate(
       # Tier 1: use FAOSTAT trade when CBS has no value
-      import = dplyr::coalesce(import, fao_trade_import),
-      export = dplyr::coalesce(export, fao_trade_export),
+      import = .fill_tier1_trade(import, fao_trade_import, trade_zero),
+      export = .fill_tier1_trade(export, fao_trade_export, trade_zero),
       # Tier 2: DS-production residual, only for tradeable items
       # (items that appear somewhere in FAOSTAT trade)
       # Items eligible for tier 2 residual imputation: must appear in
@@ -3182,9 +3734,14 @@ build_processing_coefs <- function(
 
 # Fill dest_share across time using a sparse skeleton:
 # interpolate/extrapolate shares at all years with domestic_supply data.
+#
+# Every key here is the CODE, never the `area` label (whep#691). The two sides
+# are two filters of one frame today, so the labels cannot disagree -- but that
+# is the caller's invariant, not this function's, and an unmatched key here is a
+# dropped row rather than an error. The label is detached and re-attached once
+# from the code at the end, the pattern `.select_best_source()` already uses.
 .interpolate_destiny_shares <- function(balance, destiny) {
   by_cols <- c(
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3201,19 +3758,21 @@ build_processing_coefs <- function(
   dt_bal <- balance
   dt_dest <- destiny
 
+  area_lookup <- .cbs_area_labels(dt_dest[!is.na(area)])
+
   # Target years: where domestic_supply exists (shares needed here).
   ds_keys <- unique(dt_bal[
     element == "domestic_supply",
-    .(year, area, area_code, item_cbs, item_cbs_code)
+    .(year, area_code, item_cbs, item_cbs_code)
   ])
 
   dest_elem <- unique(dt_dest[,
-    .(area, area_code, item_cbs, item_cbs_code, element, elem_cat)
+    .(area_code, item_cbs, item_cbs_code, element, elem_cat)
   ])
 
   target_rows <- ds_keys[
     dest_elem,
-    on = c("area", "area_code", "item_cbs", "item_cbs_code"),
+    on = c("area_code", "item_cbs", "item_cbs_code"),
     nomatch = 0,
     allow.cartesian = TRUE
   ]
@@ -3227,7 +3786,6 @@ build_processing_coefs <- function(
 
   anti_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3239,7 +3797,6 @@ build_processing_coefs <- function(
   # different sources contribute to one key.
   join_keys <- c(
     "year",
-    "area",
     "area_code",
     "item_cbs",
     "item_cbs_code",
@@ -3272,7 +3829,25 @@ build_processing_coefs <- function(
     all.x = TRUE,
     sort = FALSE
   )
-  fill_linear(out, dest_share, time_col = year, .by = by_cols, .copy = FALSE)
+  # Unbounded along the year axis on purpose: one observed split anywhere in
+  # the series is carried to every year that has none. What the frame does not
+  # contain, it cannot carry -- a key with no anchor at all keeps `dest_share`
+  # NA and falls back to the world average split in `.assemble_cbs_destinies()`,
+  # which is the other half of whep#833. The fallback hands the key a
+  # `processing` share it never reported, and `.cbs_second_processed_round()`
+  # then MANUFACTURES the oil and cake rows that crush implies. Measured at
+  # 2010, that is 30 keys a scoped build has and the full-range build does not
+  # (Qatar barley: all feed in the full build, 22% processing in the scoped
+  # one, whence beer, brans and DDGS). Their nearest anchors are 7 to 43 years
+  # away, so this is not a margin the window can be widened by.
+  out <- fill_linear(
+    out,
+    dest_share,
+    time_col = year,
+    .by = by_cols,
+    .copy = FALSE
+  )
+  .attach_cbs_area_label(out, area_lookup)
 }
 
 # Apply filled destiny shares to domestic supply and return final CBS rows.
@@ -3450,7 +4025,7 @@ build_processing_coefs <- function(
       by = c("year", "item_cbs")
     ) |>
     dplyr::mutate(
-      export_share = export_val / gross_avail
+      export_share = .cbs_safe_ratio(export_val, gross_avail)
     ) |>
     dplyr::select(year, item_cbs, export_share)
 
@@ -3554,7 +4129,7 @@ build_processing_coefs <- function(
         "element"
       )
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   proc_coefs_raw <- proc_base |>
     dplyr::rename(value_proc_raw = value_proc) |>

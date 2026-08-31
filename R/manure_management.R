@@ -109,20 +109,38 @@ split_manure_management <- function(excretion, options = list()) {
 
 # Attach the MMS shares to the excretion rows, one row per (input row, MMS).
 # "regional_default" gives every territory the Global rows. "region_specific"
-# resolves each territory's region and takes that region's rows when
-# `regional_mms_distribution` has any, falling back to the Global rows
-# otherwise -- the same matched/fallback rule the Tier-2 methane engine
-# applies in .resolve_mms_distribution() (R/livestock_manure.R). The fallback
-# is a left_join on species only, so a territory whose region is unknown keeps
-# exactly the status-quo split rather than losing its rows.
+# resolves each territory's region and hands it to the shared resolver below.
 .attach_mms_shares <- function(rows, source) {
-  global <- .mms_global_shares()
   if (identical(source, "regional_default")) {
+    return(.resolve_mms_shares(rows))
+  }
+  rows |>
+    dplyr::mutate(mms_region = .mms_region_of(.data$territory)) |>
+    .resolve_mms_shares("mms_region")
+}
+
+# The one MMS-share resolver, shared by both manure engines (#679): this
+# function and the Tier-2 methane / direct-N2O engine in R/livestock_manure.R,
+# which calls it with region_col = "region".
+#
+# Rows are expanded to one row per (input row, MMS type) by joining
+# `regional_mms_distribution` on `species_gen`. With no region column, or with
+# `region_col` absent from `rows`, every row takes the `region == "Global"`
+# distribution. With a region column, a row takes its own region's rows when
+# the table has any for that (region, species) -- only four pairs do -- and the
+# Global rows for that species otherwise. The fallback is a left_join on
+# species only, so a row whose region is unknown or unmatched keeps the Global
+# split rather than losing its rows or collapsing to a flat default (#201).
+.resolve_mms_shares <- function(rows, region_col = NULL) {
+  global <- .mms_global_shares()
+  if (is.null(region_col) || !rlang::has_name(rows, region_col)) {
     return(.join_mms_shares(rows, global))
   }
-  rows <- dplyr::mutate(rows, mms_region = .mms_region_of(.data$territory))
   regional <- .mms_regional_shares()
-  by <- c("species_gen" = "species", "mms_region")
+  by <- c(
+    c("species_gen" = "species"),
+    rlang::set_names("region", region_col)
+  )
   dplyr::bind_rows(
     dplyr::inner_join(rows, regional, by = by, relationship = "many-to-many"),
     .join_mms_shares(dplyr::anti_join(rows, regional, by = by), global)
@@ -138,6 +156,10 @@ split_manure_management <- function(excretion, options = list()) {
   )
 }
 
+# The shares are renormalised to sum to one within each (region, species), so
+# the split conserves mass whatever the table holds. On the shipped
+# `regional_mms_distribution` every group already sums to exactly 1, so the
+# division is by 1.0 and leaves each fraction bit-identical.
 .mms_global_shares <- function() {
   whep::regional_mms_distribution |>
     dplyr::filter(.data$region == "Global") |>
@@ -155,12 +177,7 @@ split_manure_management <- function(excretion, options = list()) {
       fraction = .data$fraction / sum(.data$fraction),
       .by = c("region", "species")
     ) |>
-    dplyr::select(
-      mms_region = "region",
-      "species",
-      "mms_type",
-      "fraction"
-    )
+    dplyr::select("region", "species", "mms_type", "fraction")
 }
 
 # `regional_mms_distribution`'s non-Global regions are IPCC region labels --
@@ -168,32 +185,25 @@ split_manure_management <- function(excretion, options = list()) {
 # through the same GLEAM-region lookup whep#465 built for the emission-factor
 # tables, rather than through a second crosswalk.
 #
-# The ISO3 leg is the one that resolves ordinary countries, so the area code
-# is carried WITH its ISO3. MEASURED on the 2020 national manure chain: given
-# `area_code` alone .gleam_region_of() resolves 2 of the 195 territories (the
-# two its dissolved-federation override table happens to list); with the ISO3
-# attached it resolves all 195.
-#
 # `territory` is a stringified `area_code` (see estimate_n_excretion()) but an
 # ISO3 literal is still accepted there, so a non-numeric territory is tried as
 # an ISO3. Anything that is neither resolves to NA and takes the Global rows,
 # which is why the region is resolved here and not required upstream.
+#
+# The area code needs no ISO3 attached to it: since whep#678 the shared
+# resolver derives the ISO3 from `area_code` itself.
 .mms_region_of <- function(territory) {
   .add_ipcc_region(.mms_region_keys(territory))$region
 }
 
 .mms_region_keys <- function(territory) {
   code <- suppressWarnings(as.integer(territory))
-  lookup <- .current_area_lookup(include_unmapped = TRUE)
   tibble::tibble(
     area_code = code,
-    iso3 = dplyr::coalesce(
-      as.character(lookup$area_iso3c)[match(code, lookup$area_code)],
-      dplyr::if_else(
-        is.na(code),
-        toupper(as.character(territory)),
-        NA_character_
-      )
+    iso3 = dplyr::if_else(
+      is.na(code),
+      toupper(as.character(territory)),
+      NA_character_
     )
   )
 }

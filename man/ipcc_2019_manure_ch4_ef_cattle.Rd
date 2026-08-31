@@ -9,14 +9,24 @@ A tibble with \code{region}, \code{category},
 \code{ef_kg_head_yr}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+Not the 2019 Refinement. Its Table 10.14 (Updated) publishes
+manure CH4 per kilogram of volatile solids (g CH4 kg VS-1), by
+productivity class and ten climate zones; the Refinement contains no
+per-head Tier 1 manure CH4 table at all (its only per-head CH4 tables
+are the enteric Tables 10.10/10.11 and Table 10.15 for deer, reindeer,
+rabbits, ostrich and fur-bearing animals). The per-head quantity stored
+here is the form of the 2006 Guidelines Table 10.14, but the values do
+not match it either (North American dairy cattle 27/42/60 for
+cool/temperate/warm against 48/78/112 in 2006; Latin American dairy
+cattle 47 against 2). \strong{The provenance of these values is unknown and
+unverified}; tracked in whep#601.
 }
 \usage{
 ipcc_2019_manure_ch4_ef_cattle
 }
 \description{
-Table 10.14: Tier 1 manure management CH4 emission factors
-for cattle by region (kg CH4/head/yr).
+Tier 1 manure management CH4 emission factors for cattle by region
+(kg CH4/head/yr).
 }
 \examples{
 ipcc_2019_manure_ch4_ef_cattle
