@@ -132,10 +132,11 @@ testthat::test_that("an absent polity is one no reporting area names", {
   absent <- .absent_from_crosswalk()
 
   # Non-vacuity, and the scale of the thing: absence is ordinary. 176 of the
-  # 735 live polities have no row, only 8 of them aggregates, so the 8 are a
-  # slice of a normal phenomenon rather than a class of their own.
+  # 735 live polities have no row, only 7 of them aggregates, so the 7 are a
+  # slice of a normal phenomenon rather than a class of their own. It was 8
+  # until whep#860 gave `F206-2011-2025` a row keyed on the aggregation bucket.
   testthat::expect_gt(nrow(absent), 100L)
-  testthat::expect_equal(sum(absent$polity_type == "aggregate"), 8L)
+  testthat::expect_equal(sum(absent$polity_type == "aggregate"), 7L)
 
   # The invariant that makes absence structural: no absent AGGREGATE carries a
   # prefix that any reporting area carries, so the row space has no slot to put
@@ -149,7 +150,7 @@ testthat::test_that("an absent polity is one no reporting area names", {
   )
 })
 
-testthat::test_that("absent aggregates are label-reachable but for three", {
+testthat::test_that("absent aggregates are label-reachable but for two", {
   testthat::skip_if_not_installed("sf")
 
   absent <- .absent_from_crosswalk()
@@ -171,18 +172,22 @@ testthat::test_that("absent aggregates are label-reachable but for three", {
     )
   )
 
-  # Three are reachable from neither route, and they are not one defect:
-  #   EGYSUD-1934-1956, CODRU-1922-1960  upstream composed-union identities for
-  #     footnote series that fold a colony into its metropole. Upstream has
-  #     registered no label for either, so nothing in this package can reach
-  #     them and nothing here can fix that.
-  #   F206-2011-2025  a real gap, but in the BUCKET vocabulary. FAOSTAT stops
-  #     reporting area 206 in 2011, so upstream adds no map row; the post-2011
-  #     combination is WHEP's own fold of 276 and 277 into `polity_area_code`
-  #     206, and this table has no column in which to say so. Expressing it is
-  #     whep#742, labelling it whep#860.
+  # Two are reachable from neither route, and both for the same reason:
+  # `EGYSUD-1934-1956` and `CODRU-1922-1960` are upstream composed-union
+  # identities for footnote series that fold a colony into its metropole.
+  # Upstream has registered no label for either, so nothing in this package can
+  # reach them and nothing here can fix that.
+  #
+  # `F206-2011-2025` used to be the third, and was a different thing: a real
+  # gap in the BUCKET vocabulary rather than a missing label. whep#860 closed it
+  # by keying a crosswalk row on `polity_area_code` 206 -- so it is now absent
+  # from THIS list because it is present in the crosswalk, which is what the
+  # test below asserts rather than leaves implied.
   testthat::expect_setequal(
     aggregates$polity_code[!reachable],
-    c("CODRU-1922-1960", "EGYSUD-1934-1956", "F206-2011-2025")
+    c("CODRU-1922-1960", "EGYSUD-1934-1956")
+  )
+  testthat::expect_true(
+    "F206-2011-2025" %in% whep::polity_area_crosswalk$polity_code
   )
 })

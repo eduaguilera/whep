@@ -31,6 +31,19 @@ testthat::test_that("footprint_scope applies detail overrides", {
   testthat::expect_equal(scope$method, "land-balance")
 })
 
+testthat::test_that("footprint_scope keeps a one-row result when a detail
+  is explicitly overridden with NULL", {
+  scope <- whep::footprint_scope(
+    "cropland",
+    "ha",
+    "FABIO-MRIO",
+    details = list(vintage = NULL)
+  )
+
+  testthat::expect_equal(nrow(scope), 1)
+  testthat::expect_true(is.na(scope$vintage))
+})
+
 testthat::test_that("footprint_scope rejects bad inputs", {
   testthat::expect_error(
     whep::footprint_scope("", "ha", "m"),

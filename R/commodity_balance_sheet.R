@@ -109,12 +109,21 @@ get_livestock_cbs <- function(primary_prod) {
     slaughter_livestock$item_cbs_code
   )
 
-  live_prod <- slaughtered |>
-    dplyr::left_join(
-      live_trade,
-      by = c("year", "area_code", "item_cbs_code")
-    ) |>
+  # A left_join here would drop any (year, area_code, item_cbs_code) that
+  # trades live animals but has no `slaughtered_heads` row of its own (e.g.
+  # a pure importer that never slaughters that species itself) -- its whole
+  # trade volume would vanish from the CBS/IO model instead of entering it
+  # (whep#168). full_join keeps that key, with `slaughtered` filled to 0.
+  live_prod_raw <- dplyr::full_join(
+    slaughtered,
+    live_trade,
+    by = c("year", "area_code", "item_cbs_code")
+  )
+  .warn_trade_only_livestock(live_prod_raw)
+
+  live_prod <- live_prod_raw |>
     dplyr::mutate(
+      slaughtered = tidyr::replace_na(slaughtered, 0),
       import = tidyr::replace_na(import, 0),
       export = tidyr::replace_na(export, 0),
       # FABIO convention: production = animals raised in country
@@ -150,6 +159,22 @@ get_livestock_cbs <- function(primary_prod) {
       stock_addition,
       domestic_supply
     )
+}
+
+# Report (year, area_code, item_cbs_code) keys that trade live animals with no
+# matching `slaughtered_heads` row, so the full_join filling them to 0 is
+# never a silent substitute for real slaughter data (whep#168).
+.warn_trade_only_livestock <- function(live_prod_raw) {
+  trade_only <- dplyr::filter(live_prod_raw, is.na(slaughtered))
+  if (nrow(trade_only) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "!" = "{nrow(trade_only)} live-animal (year, area, item) key{?s} \\
+           traded with no {.val slaughtered_heads} row.",
+    "i" = "Treating {cli::qty(nrow(trade_only))} th{?is/ese} as 0 slaughter \\
+           instead of dropping the trade volume."
+  ))
 }
 
 .slaughter_product_codes <- function(items_cbs = whep::items_cbs) {
