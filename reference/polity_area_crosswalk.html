@@ -83,13 +83,22 @@ period of a mapped area lying outside every span the map declares, kept so
 sources reported under their own historical borders still resolve;
 <code>"fabio_row_fold"</code> where FABIO collapses the area into its Rest-of-World
 bucket; <code>"prefix_fallback"</code> where the map covers the area not at all and the
-mapping is inferred from the polity-code prefix.</p></li>
+mapping is inferred from the polity-code prefix;
+<code>"whep_bucket_aggregate"</code> for a row that answers for an aggregation
+<strong>bucket</strong> rather than for a reporting area, described below.</p></li>
 <li><p><code>map_year_start</code>, <code>map_year_end</code>: Inclusive reporting years the upstream map
 assigns to this area-polity pair, <code>NA</code> unless <code>mapping_source</code> is
 <code>"upstream_map"</code>.</p></li>
 <li><p><code>map_match_route</code>: Upstream's record of how it decided the row
 (<code>"iso-equal"</code>, <code>"registry"</code>, <code>"manual-route"</code>, <code>"manual-replace"</code>,
 <code>"manual-span"</code>), <code>NA</code> unless <code>mapping_source</code> is <code>"upstream_map"</code>.</p></li>
+<li><p><code>applies_from_year</code>: First year the row answers for, when that is later
+than <code>polity_start_year</code>. <code>NA</code> on every row that answers for a reporting
+area, whose lower bound is the polity's own start – a row that exists must
+resolve, so area 276 answers <code>SDN-2011-2025</code> from 2011 even though upstream
+begins reporting the area in 2012. It is non-<code>NA</code> only on a
+<code>"whep_bucket_aggregate"</code> row, where it is the first year the bucket
+actually sums more than one reporting area.</p></li>
 <li><p><code>mapping_status</code>: Whether a polity was found, <strong>not</strong> how much to trust it.
 <code>"matched"</code> when a live polity resolved; <code>"manual"</code> when the decision was
 curated by hand, either by upstream (a <code>manual-*</code> <code>map_match_route</code>) or by
@@ -140,6 +149,34 @@ same answer is <code>reporting_polity_code</code>, materialised from this table'
 <code>legacy_polity_prefix</code> is not a substitute for one (#711).</p>
     </div>
     <div class="section level2">
+    <h2 id="a-bucket-that-sums-two-territories-gets-a-polity-that-means-both">A bucket that sums two territories gets a polity that means both<a class="anchor" aria-label="anchor" href="#a-bucket-that-sums-two-territories-gets-a-polity-that-means-both"></a></h2>
+
+
+<p>Every other row here answers for a <strong>reporting area</strong>, because that is what
+upstream's map is about. Bucket 206 from 2012 is the one place that is not
+enough: FAOSTAT reports area 206 through 2011 and areas 276/277 from 2012,
+WHEP sums the two successors back into bucket 206, and the bucket's own code
+had nothing later than <code>SUD-1956-2011</code> to answer with – a polity that ended
+at the secession, reported <code>out_of_span</code> on every post-2011 row (#414).</p>
+<p>Upstream now publishes the entity that means the sum, <code>F206-2011-2025</code>
+"Sudan and South Sudan (combined reporting)", <code>aggregate</code>, with a constructed
+polygon, on the same <code>F&lt;area&gt;</code> naming as <code>F237-1954-1975</code> (Vietnam) and
+<code>F249-1918-1990</code> (Yemen). It has no map row, correctly: as a claim about the
+reporting area it would be false. <code>data-raw/table_mappings.R</code> therefore adds
+one row per bucket that genuinely sums several territories and has no
+aggregate label of its own, deriving both the bucket-years and the polity
+from the two upstream tables rather than naming either by hand (#860).</p>
+<p>The row answers from <code>applies_from_year</code> (2012), not from the polity's own
+2011 start: at 2011 bucket 206 is still area 206 reporting alone, and
+upstream's map decides that year. So <code>(206, 2011)</code> stays <code>SUD-1956-2011</code> and
+only the years the bucket really is a two-territory sum move.</p>
+<p>The shape is unusual and deliberate: this aggregate is live <strong>at the same
+time as its own members</strong>, since areas 276 and 277 keep reporting
+separately. That is not a defect – <code>BLX-1850-1999</code> coexists with <code>BEL</code> and
+<code>LUX</code> for 149 years – and it makes bucket 206 the first bucket key carrying
+three live polities at once.</p>
+    </div>
+    <div class="section level2">
     <h2 id="a-bucket-resolves-here-only-because-it-is-also-an-area">A bucket resolves here only because it is also an area<a class="anchor" aria-label="anchor" href="#a-bucket-resolves-here-only-because-it-is-also-an-area"></a></h2>
 
 
@@ -159,6 +196,12 @@ bucket 238, which sums FAOSTAT area 62 Ethiopia PDR for 1961-1992; as an
 area row it dates FAOSTAT area 238 itself for a historical source reported
 under its own year's borders, which is how 149 historical-trade rows resolve
 at 1961. Marking it for one space would move the other. See #742.</p>
+<p><code>(206, F206-2011-2025)</code> is the one row written <strong>for</strong> the bucket, and it
+answers in the area space too: raw FAOSTAT area 206 for 2012 onwards
+resolves to it. Nothing is misattributed by that, because FAOSTAT emits no
+area-206 row after 2011 – the claim is unexercised rather than false – but
+it is the first row for which the two spaces could be told apart at all,
+which is the column #742 asks for and this table still does not carry.</p>
     </div>
     <div class="section level2">
     <h2 id="confidence-is-the-pair-not-mapping-status-alone">Confidence is the pair, not <code>mapping_status</code> alone<a class="anchor" aria-label="anchor" href="#confidence-is-the-pair-not-mapping-status-alone"></a></h2>
@@ -207,17 +250,12 @@ are reachable from neither route by design rather than by omission.</p>
 <p>No absence here can NA an <code>area_code</code> on a polycell, either:
 <code><a href="build_polycell_support.html">build_polycell_support()</a></code> excludes <code>polity_type == "aggregate"</code> by type
 before any lookup runs, so an aggregate emits no polycell to carry one.</p>
-<p>The one absence that is a real gap is <code>F206-2011-2025</code>, Sudan and South
-Sudan combined, and <strong>it is a gap in the bucket vocabulary rather than in
-<code>area_code</code></strong>. FAOSTAT stops reporting area 206 in 2011 and does not
-resume, so upstream deliberately adds no map row for it; the post-2011
-combination is WHEP's own fold of areas 276 and 277 into
-<code>polity_area_code</code> 206. This table answers per reporting area and has no
-column in which to say "bucket 206 from 2012 answers as <code>F206-2011-2025</code>",
-which is why <code><a href="polity_bucket_coverage.html">polity_bucket_coverage()</a></code> still labels that bucket
-<code>SUD-1956-2011</code> / <code>"out_of_span"</code> for 2012 onward – a polity that ended in
-2011. Expressing it is #742 and labelling it is #860; neither is decided
-here.</p>
+<p><code>F206-2011-2025</code> used to be the one absence that was a real gap, and it is
+filled: it now has a row, keyed on the bucket rather than on a reporting
+area, so <code><a href="polity_bucket_coverage.html">polity_bucket_coverage()</a></code> classifies bucket 206 <code>"aggregate"</code> from
+2012 instead of <code>"predecessor"</code>. See the bucket section above; #742's
+<code>key_role</code> column, which would mark a row as answering in only one of the
+two key spaces, is still open and is not what <code>applies_from_year</code> does.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

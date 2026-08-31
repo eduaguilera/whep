@@ -19,6 +19,12 @@ whose target stem differs from the source's (whep#740).
 WHEP's to decide, but the territory still has no upstream row of its own.
 In the default mode only the 31 members upstream names nowhere resolve
 through one; see row_promotion_status().
+&quot;whep_bucket_aggregate&quot; (1): WHEP's own row for an aggregation bucket
+rather than for a reporting area, naming the upstream aggregate polity that
+means the union of the areas the bucket sums. Bucket 206 from 2012 is the
+only one, on F206-2011-2025 &quot;Sudan and South Sudan (combined reporting)&quot;
+(whep#860). The polity is upstream's; the statement that it answers for the
+bucket is WHEP's, because the bucket is WHEP's.
 
 
 Counting crosswalk rows overstates the exposure, because most manufactured
@@ -52,6 +58,12 @@ whose target stem differs from the source's (whep#740).
 WHEP's to decide, but the territory still has no upstream row of its own.
 In the default mode only the 31 members upstream names nowhere resolve
 through one; see row_promotion_status().
+&quot;whep_bucket_aggregate&quot; (1): WHEP's own row for an aggregation bucket
+rather than for a reporting area, naming the upstream aggregate polity that
+means the union of the areas the bucket sums. Bucket 206 from 2012 is the
+only one, on F206-2011-2025 &quot;Sudan and South Sudan (combined reporting)&quot;
+(whep#860). The polity is upstream's; the statement that it answers for the
+bucket is WHEP's, because the bucket is WHEP's.
 
 
 Counting crosswalk rows overstates the exposure, because most manufactured
@@ -124,6 +136,12 @@ whose target stem differs from the source's (whep#740).</p></li>
 WHEP's to decide, but the territory still has no upstream row of its own.
 In the default mode only the 31 members upstream names nowhere resolve
 through one; see <code><a href="row_promotion_status.html">row_promotion_status()</a></code>.</p></li>
+<li><p><code>"whep_bucket_aggregate"</code> (1): WHEP's own row for an aggregation bucket
+rather than for a reporting area, naming the upstream aggregate polity that
+means the union of the areas the bucket sums. Bucket 206 from 2012 is the
+only one, on <code>F206-2011-2025</code> "Sudan and South Sudan (combined reporting)"
+(whep#860). The polity is upstream's; the statement that it answers for the
+bucket is WHEP's, because the bucket is WHEP's.</p></li>
 </ul><p>Counting crosswalk rows overstates the exposure, because most manufactured
 rows are never picked. This reports the provenance of the <strong>resolution</strong>: for
 each <code>(area_code, year)</code>, the class of the crosswalk row that
@@ -189,7 +207,9 @@ rows of <code>table</code> that pair carries (always 1 when <code>table</code> i
 <p><code>authority</code> collapses <code>mapping_source</code> to the question "who said so":</p><ul><li><p><code>"upstream"</code>: <code>"upstream_map"</code> or <code>"fabio_row_promoted"</code>.</p></li>
 <li><p><code>"whep_prefix"</code>: <code>"prefix_outside_map"</code> or <code>"prefix_fallback"</code> – a WHEP
 guess, and the population whep#740 asks to delete rather than replace.</p></li>
-<li><p><code>"whep_bucket"</code>: <code>"fabio_row_fold"</code> – WHEP's own documented bucket.</p></li>
+<li><p><code>"whep_bucket"</code>: <code>"fabio_row_fold"</code> or <code>"whep_bucket_aggregate"</code> – WHEP's
+own documented buckets. Both say the bucket is WHEP's to name; only the
+second names it with a polity upstream publishes.</p></li>
 <li><p><code>"unresolved"</code>: the area resolves to no polity, so nothing was said.</p></li>
 </ul><p>An unrecognised <code>mapping_source</code> aborts rather than being folded into one of
 these, so a new class of manufactured row cannot arrive already classified.</p>

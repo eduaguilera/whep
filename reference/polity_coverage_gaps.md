@@ -24,10 +24,14 @@ than the value does, so `gap_kind` names which kind a row is:
   year and the stand-in taken begins after it.
 
 - `"polity_ended"`: the polity had ended, so the value covers a
-  territory that entity no longer describes. This is the harder case,
-  and the one whep#414 is about: FAOSTAT areas 276 Sudan and 277 South
-  Sudan fold into bucket 206, whose label `SUD-1956-2011` ended at the
-  secession, and no live polity means "Sudan and South Sudan".
+  territory that entity no longer describes. This is the harder case:
+  FAOSTAT area 51 "Czechoslovakia" resolves to `F51-1947-1993` whatever
+  year it is asked for, because nothing later is mapped to that area.
+  Bucket 206 used to be the headline instance – areas 276 Sudan and 277
+  South Sudan fold into it and its label `SUD-1956-2011` had ended at
+  the secession (whep#414) – and is no longer one: upstream minted
+  `F206-2011-2025`, live over exactly the years the bucket sums both,
+  and whep#860 wired it on.
 
 `gap_kind` is not derivable from the returned columns, which is why it
 is returned rather than left to the caller. `"backcast_anchor"` is not
@@ -105,21 +109,21 @@ and whether their label covers the sum.
 ## Examples
 
 ``` r
-# FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
-# after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's
-# 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is
-# the polity live at the anchor, 102 years later.
+# FAOSTAT area 51 "Czechoslovakia" is the live case: `F51-1947-1993` ended in
+# 1993 and nothing later is mapped to the area, so a post-1993 row is a
+# stand-in. Area 238's 1850 row is the back-cast case: `ETH-1952-1993` labels
+# it because that is the polity live at the anchor, 102 years later.
 polity_coverage_gaps(
   tibble::tibble(
-    area_code = c(206L, 206L, 238L),
-    year = c(2005L, 2015L, 1850L),
+    area_code = c(51L, 51L, 238L),
+    year = c(1990L, 2015L, 1850L),
     value = 1
   )
 )
 #> # A tibble: 2 × 8
 #>   area_code  year polity_code   polity_name    polity_start_year polity_end_year
 #>       <int> <int> <chr>         <chr>                      <int>           <int>
-#> 1       206  2015 SUD-1956-2011 Sudan (1956-2…              1956            2011
+#> 1        51  2015 F51-1947-1993 Czechoslovaki…              1947            1993
 #> 2       238  1850 ETH-1952-1993 Ethiopia (195…              1952            1993
 #> # ℹ 2 more variables: gap_kind <chr>, n_rows <int>
 ```

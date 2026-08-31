@@ -28,6 +28,14 @@ Measured on the shipped snapshot, of 648 crosswalk rows:
   resolve through one; see
   [`row_promotion_status()`](https://eduaguilera.github.io/whep/reference/row_promotion_status.md).
 
+- `"whep_bucket_aggregate"` (1): WHEP's own row for an aggregation
+  bucket rather than for a reporting area, naming the upstream aggregate
+  polity that means the union of the areas the bucket sums. Bucket 206
+  from 2012 is the only one, on `F206-2011-2025` "Sudan and South Sudan
+  (combined reporting)" (whep#860). The polity is upstream's; the
+  statement that it answers for the bucket is WHEP's, because the bucket
+  is WHEP's.
+
 Counting crosswalk rows overstates the exposure, because most
 manufactured rows are never picked. This reports the provenance of the
 **resolution**: for each `(area_code, year)`, the class of the crosswalk
@@ -100,7 +108,9 @@ of rows of `table` that pair carries (always 1 when `table` is `NULL`).
   WHEP guess, and the population whep#740 asks to delete rather than
   replace.
 
-- `"whep_bucket"`: `"fabio_row_fold"` – WHEP's own documented bucket.
+- `"whep_bucket"`: `"fabio_row_fold"` or `"whep_bucket_aggregate"` –
+  WHEP's own documented buckets. Both say the bucket is WHEP's to name;
+  only the second names it with a polity upstream publishes.
 
 - `"unresolved"`: the area resolves to no polity, so nothing was said.
 

@@ -18,10 +18,13 @@ row's own year.
 &quot;polity_not_started&quot;: no mapped period covered even the anchored year and
 the stand-in taken begins after it.
 &quot;polity_ended&quot;: the polity had ended, so the value covers a territory
-that entity no longer describes. This is the harder case, and the one
-whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
-bucket 206, whose label SUD-1956-2011 ended at the secession, and no live
-polity means &quot;Sudan and South Sudan&quot;.
+that entity no longer describes. This is the harder case: FAOSTAT area 51
+&quot;Czechoslovakia&quot; resolves to F51-1947-1993 whatever year it is asked
+for, because nothing later is mapped to that area. Bucket 206 used to be
+the headline instance – areas 276 Sudan and 277 South Sudan fold into it
+and its label SUD-1956-2011 had ended at the secession (whep#414) – and
+is no longer one: upstream minted F206-2011-2025, live over exactly the
+years the bucket sums both, and whep#860 wired it on.
 
 
 gap_kind is not derivable from the returned columns, which is why it is
@@ -56,10 +59,13 @@ row's own year.
 &quot;polity_not_started&quot;: no mapped period covered even the anchored year and
 the stand-in taken begins after it.
 &quot;polity_ended&quot;: the polity had ended, so the value covers a territory
-that entity no longer describes. This is the harder case, and the one
-whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
-bucket 206, whose label SUD-1956-2011 ended at the secession, and no live
-polity means &quot;Sudan and South Sudan&quot;.
+that entity no longer describes. This is the harder case: FAOSTAT area 51
+&quot;Czechoslovakia&quot; resolves to F51-1947-1993 whatever year it is asked
+for, because nothing later is mapped to that area. Bucket 206 used to be
+the headline instance – areas 276 Sudan and 277 South Sudan fold into it
+and its label SUD-1956-2011 had ended at the secession (whep#414) – and
+is no longer one: upstream minted F206-2011-2025, live over exactly the
+years the bucket sums both, and whep#860 wired it on.
 
 
 gap_kind is not derivable from the returned columns, which is why it is
@@ -133,10 +139,13 @@ row's own year.</p></li>
 <li><p><code>"polity_not_started"</code>: no mapped period covered even the anchored year and
 the stand-in taken begins after it.</p></li>
 <li><p><code>"polity_ended"</code>: the polity had ended, so the value covers a territory
-that entity no longer describes. This is the harder case, and the one
-whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
-bucket 206, whose label <code>SUD-1956-2011</code> ended at the secession, and no live
-polity means "Sudan and South Sudan".</p></li>
+that entity no longer describes. This is the harder case: FAOSTAT area 51
+"Czechoslovakia" resolves to <code>F51-1947-1993</code> whatever year it is asked
+for, because nothing later is mapped to that area. Bucket 206 used to be
+the headline instance – areas 276 Sudan and 277 South Sudan fold into it
+and its label <code>SUD-1956-2011</code> had ended at the secession (whep#414) – and
+is no longer one: upstream minted <code>F206-2011-2025</code>, live over exactly the
+years the bucket sums both, and whep#860 wired it on.</p></li>
 </ul><p><code>gap_kind</code> is not derivable from the returned columns, which is why it is
 returned rather than left to the caller. <code>"backcast_anchor"</code> is not visible
 in the years at all – the resolver matched a real period, at the anchor –
@@ -206,21 +215,21 @@ more than one territory, and whether their label covers the sum.</p></div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting</span></span></span>
-<span class="r-in"><span><span class="co"># after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's</span></span></span>
-<span class="r-in"><span><span class="co"># 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is</span></span></span>
-<span class="r-in"><span><span class="co"># the polity live at the anchor, 102 years later.</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># FAOSTAT area 51 "Czechoslovakia" is the live case: `F51-1947-1993` ended in</span></span></span>
+<span class="r-in"><span><span class="co"># 1993 and nothing later is mapped to the area, so a post-1993 row is a</span></span></span>
+<span class="r-in"><span><span class="co"># stand-in. Area 238's 1850 row is the back-cast case: `ETH-1952-1993` labels</span></span></span>
+<span class="r-in"><span><span class="co"># it because that is the polity live at the anchor, 102 years later.</span></span></span>
 <span class="r-in"><span><span class="fu">polity_coverage_gaps</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/tibble.html" class="external-link">tibble</a></span><span class="op">(</span></span></span>
-<span class="r-in"><span>    area_code <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">206L</span>, <span class="fl">206L</span>, <span class="fl">238L</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>    year <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2005L</span>, <span class="fl">2015L</span>, <span class="fl">1850L</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    area_code <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">51L</span>, <span class="fl">51L</span>, <span class="fl">238L</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    year <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1990L</span>, <span class="fl">2015L</span>, <span class="fl">1850L</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>    value <span class="op">=</span> <span class="fl">1</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   area_code  year polity_code   polity_name    polity_start_year polity_end_year</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>       206  <span style="text-decoration: underline;">2</span>015 SUD-1956-2011 Sudan (1956-2…              <span style="text-decoration: underline;">1</span>956            <span style="text-decoration: underline;">2</span>011</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>        51  <span style="text-decoration: underline;">2</span>015 F51-1947-1993 Czechoslovaki…              <span style="text-decoration: underline;">1</span>947            <span style="text-decoration: underline;">1</span>993</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>       238  <span style="text-decoration: underline;">1</span>850 ETH-1952-1993 Ethiopia (195…              <span style="text-decoration: underline;">1</span>952            <span style="text-decoration: underline;">1</span>993</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: gap_kind &lt;chr&gt;, n_rows &lt;int&gt;</span></span>
 </code></pre></div>
