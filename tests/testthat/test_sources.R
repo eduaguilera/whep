@@ -38,3 +38,22 @@ test_that("trade source data is expanded from year range to single year rows", {
     expected
   )
 })
+
+test_that("expand_trade_sources aborts clearly on a non-positive
+  Timeline_Freq instead of a cryptic seq() error", {
+  trade_sources <- tibble::tibble(
+    Name = "bad_freq_source",
+    Trade = "t1",
+    Info_Format = "year",
+    Timeline_Start = 1,
+    Timeline_End = 3,
+    Timeline_Freq = 0,
+    `Imp/Exp` = "Imp",
+    SACO_link = NA,
+  )
+
+  expect_error(
+    expand_trade_sources(trade_sources),
+    "Timeline_Freq.*positive.*bad_freq_source"
+  )
+})
