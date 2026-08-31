@@ -434,7 +434,6 @@ reference:
   desc: >
     Download FAOSTAT data as is.
   contents:
-  - get_faostat_data
 
 - title: Data sources
   desc: >

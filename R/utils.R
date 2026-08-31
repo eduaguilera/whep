@@ -1940,9 +1940,8 @@ utils::globalVariables(
     # n_exceedance_extension.R (SJOS-N Module 4, Task 4.2) — footprint extension
     # category provenance stamp
     "method_n_exceedance",
-    # scrape_faostat.R — FAOSTAT area name/ISO3 lookup NSE columns, now read
-    # off `polity_area_crosswalk` rather than FAOSTAT's country profile (#541)
-    "fao_area_name",
+    # iso3_code — used by table_mappings.R, eu_aggregate.R,
+    # population_reach.R, polity_folds.R and polities.R
     "iso3_code",
     # polity_folds.R (#419) — reporting-area fold diagnostic
     "rows",
