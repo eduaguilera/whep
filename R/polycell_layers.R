@@ -382,7 +382,55 @@ read_polycell_support <- function(
       )
     }
   )
+  .warn_polycell_vintage(support)
   .polycell_support_role(support, role)
+}
+
+# The pin is a BUILD ARTEFACT of `whep::polities`, and merge order cannot keep
+# the two in step: a PR that re-syncs the vocabulary and a PR that regenerates
+# the pin are both correct in isolation and land against different snapshots.
+# That has now happened three times (whep#890, whep#905, whep#908), and each
+# time it was found by a consumer tripping over a missing territory rather than
+# by anything checking.
+#
+# So the reader says so. It compares the pin's polity set against what
+# `build_polycell_support()` would emit from today's vocabulary, and names the
+# territories that would be absent. It warns rather than aborts because a stale
+# pin is usable -- the gap is small and peripheral by construction, since a
+# newly minted polity is usually a small territory -- and because aborting would
+# make every downstream reader fail on a data refresh nobody has run yet.
+.warn_polycell_vintage <- function(support) {
+  prepared <- tryCatch(
+    .pcs_prepare_polities(whep::polities),
+    error = function(e) NULL
+  )
+  if (is.null(prepared) || !rlang::has_name(support, "polity_code")) {
+    return(invisible(support))
+  }
+  # Only polities that COULD have cells. Fourteen live polities carry no polygon
+  # at all (`polygon_status == "unassigned"`, e.g. CAN-1800-1866, PRY-1811-1870),
+  # so the producer cannot emit cells for them and never will until upstream
+  # draws one. Comparing against the whole prepared set would warn about those
+  # fourteen on every read, forever -- a guard that cries wolf is worse than no
+  # guard, because the real staleness then arrives inside a warning people have
+  # learned to skip. Measured: regenerating against an up-to-date vocabulary
+  # recovers 2 polities and leaves exactly these 14.
+  can_have_cells <- prepared$polity_code[
+    !(prepared$polity_code %in% .polities_without_polygon())
+  ]
+  missing <- setdiff(unique(can_have_cells), unique(support$polity_code))
+  if (length(missing) == 0L) {
+    return(invisible(support))
+  }
+  cli::cli_warn(c(
+    "!" = "The {.val polycell_support} pin is behind {.code whep::polities}:
+           {length(missing)} polit{?y/ies} in the vocabulary {?has/have} no
+           cells in the pin.",
+    "*" = "{.val {sort(missing)}}",
+    "i" = "Regenerate with {.fn build_polycell_support} and re-upload; see
+           {.file data-raw/} and {.file inst/scripts/prepare_upload.R}."
+  ))
+  invisible(support)
 }
 
 # The default is the PARTITION, and that is the whole consumer-side contract of
@@ -543,4 +591,15 @@ read_polycell_support <- function(
 
 .half_degree_centre <- function(x) {
   floor((x + 180) / 0.5) * 0.5 - 180 + 0.25
+}
+
+
+# Live polities with no polygon, read from the vocabulary rather than listed, so
+# it shrinks by itself as upstream draws them (whep-polities#155, #3).
+.polities_without_polygon <- function() {
+  pol <- sf::st_drop_geometry(whep::polities)
+  keep <- is.na(pol$has_geometry) |
+    !pol$has_geometry |
+    (!is.na(pol$polygon_status) & pol$polygon_status == "unassigned")
+  unique(pol$polity_code[keep])
 }
