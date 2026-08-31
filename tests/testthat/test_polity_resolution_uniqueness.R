@@ -183,6 +183,42 @@ testthat::test_that("the joined spans see an overlap the declared spans hide", {
   testthat::expect_equal(joined$polity_codes, "AAA-1900-2000, BBB-2000-2050")
 })
 
+testthat::test_that("a bucket-aggregate row is bounded by applies_from_year", {
+  # THE NEAR MISS OF whep#860, injected. Bucket 206's shape exactly:
+  # `SUD-1956-2011` ends in 2011 but reports through 2011, so the map widens it
+  # to cover that year; `F206-2011-2025` begins in 2011 because that is when its
+  # predecessor ends. Both therefore cover 2011 unless the bucket row declares
+  # the first year it answers for -- and 2011 is a year bucket 206 is NOT a
+  # multi-member sum, area 206 still reporting alone.
+  #
+  # Run twice on one fixture, so this says what the column DOES rather than
+  # what the shipped table happens to hold: with the floor there is no
+  # ambiguity, without it the resolver has two candidates for 2011 and picks by
+  # a `polity_start_year DESC` tie-break that decides nothing else in the whole
+  # crosswalk.
+  fixture <- data.frame(
+    area_code = c(206L, 206L),
+    polity_code = c("SUD-1956-2011", "F206-2011-2025"),
+    polity_start_year = c(1956L, 2011L),
+    polity_end_year = c(2011L, 2025L),
+    map_year_end = c(2011L, NA_integer_),
+    applies_from_year = c(NA_integer_, 2012L),
+    stringsAsFactors = FALSE
+  )
+
+  bounded <- whep:::.polity_join_conflicts(fixture, years = 2005:2020)
+  testthat::expect_equal(nrow(bounded), 0L)
+
+  fixture$applies_from_year <- NA_integer_
+  unbounded <- whep:::.polity_join_conflicts(fixture, years = 2005:2020)
+  testthat::expect_equal(nrow(unbounded), 1L)
+  testthat::expect_equal(unbounded$year, 2011L)
+  testthat::expect_equal(
+    unbounded$polity_codes,
+    "F206-2011-2025, SUD-1956-2011"
+  )
+})
+
 testthat::test_that("every area-year has exactly one joined candidate", {
   # ZERO, and it used to be one: `ANG-1905-1975` (colonial Angola) records no
   # successor upstream, `.open_polity_codes()` called it open,
@@ -267,7 +303,10 @@ testthat::test_that("the bucket recovers the polity outside two folds", {
   #   206  Sudan (former) 206 + Sudan 276 + South Sudan 277, three polities in
   #        EVERY reported year -- 65 of them, not just the 15 its periods
   #        overlap in, because the pre-secession years reach 276 and 277 through
-  #        the nearest-period stand-in. That is #414.
+  #        the nearest-period stand-in. That is #414. The bucket's OWN answer
+  #        changes at 2012 since #860 -- `SUD-1956-2011` through 2011, then the
+  #        aggregate `F206-2011-2025` -- so the trio is written two ways, but it
+  #        is a trio in the same 65 years either way.
   #   238  Ethiopia PDR 62 + Ethiopia 238, two polities from 1993 on -- 33
   #        years. Area 62 dissolved in 1993 and its own periods all end there,
   #        so from 1993 it resolves to `ETH-1952-1993` as an out-of-span
@@ -291,8 +330,18 @@ testthat::test_that("the bucket recovers the polity outside two folds", {
     out$polity_codes,
     c(
       "SDN-2011-2025, SSD-2011-2025, SUD-1956-2011",
+      "F206-2011-2025, SDN-2011-2025, SSD-2011-2025",
       "ETH-1952-1993, ETH-1993-2025"
     )
+  )
+  sudan <- out[out$polity_area_code == 206L, ]
+  testthat::expect_setequal(
+    sudan$year[grepl("SUD-", sudan$polity_codes)],
+    1961:2011
+  )
+  testthat::expect_setequal(
+    sudan$year[grepl("F206-", sudan$polity_codes)],
+    2012:2025
   )
   testthat::expect_setequal(out$year, 1961:2025)
   testthat::expect_equal(nrow(out), 98L)

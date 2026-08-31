@@ -25,6 +25,94 @@ testthat::test_that(".faostat_converter errors on invalid activity_data", {
   testthat::expect_error(.faostat_converter(c("livestock", "crop_area")))
 })
 
+testthat::test_that(".to_faostat_snake_case lower-cases and cleans separators", {
+  result <- whep:::.to_faostat_snake_case(c("Area Code (M49)", "Element"))
+  testthat::expect_equal(result, c("area_code__m49_", "element"))
+})
+
+# Regression test for #45: `get_faostat_data()` used to fetch bulk data via
+# `FAOSTAT::get_faostat_bulk()`, an extra dependency. `.faostat_bulk_zip_url()`
+# now resolves the download URL itself, straight off FAOSTAT's public,
+# unauthenticated bulk-download catalog (`bulks-faostat.fao.org`).
+testthat::test_that(".faostat_bulk_zip_url resolves a known code from the catalog", {
+  fake_catalog <- list(
+    Datasets = list(
+      Dataset = list(
+        list(DatasetCode = "QCL", FileLocation = "https://example.org/qcl.zip"),
+        list(DatasetCode = "EMN", FileLocation = "https://example.org/emn.zip")
+      )
+    )
+  )
+
+  testthat::local_mocked_bindings(
+    GET = function(...) structure(list(), class = "response"),
+    http_error = function(...) FALSE,
+    content = function(...) fake_catalog,
+    .package = "httr"
+  )
+
+  testthat::expect_equal(
+    whep:::.faostat_bulk_zip_url("EMN"),
+    "https://example.org/emn.zip"
+  )
+})
+
+testthat::test_that(".faostat_bulk_zip_url aborts for an unknown code", {
+  fake_catalog <- list(
+    Datasets = list(
+      Dataset = list(
+        list(DatasetCode = "QCL", FileLocation = "https://example.org/qcl.zip")
+      )
+    )
+  )
+
+  testthat::local_mocked_bindings(
+    GET = function(...) structure(list(), class = "response"),
+    http_error = function(...) FALSE,
+    content = function(...) fake_catalog,
+    .package = "httr"
+  )
+
+  testthat::expect_error(whep:::.faostat_bulk_zip_url("NOPE"))
+})
+
+testthat::test_that(".faostat_bulk_zip_url aborts when the catalog is unreachable", {
+  testthat::local_mocked_bindings(
+    GET = function(...) structure(list(), class = "response"),
+    http_error = function(...) TRUE,
+    status_code = function(...) 503,
+    .package = "httr"
+  )
+
+  testthat::expect_error(whep:::.faostat_bulk_zip_url("QCL"))
+})
+
+# Regression test for #45: `FAOSTAT::read_faostat_bulk()` read the bulk CSVs
+# as "latin1", which mis-decodes the UTF-8 files FAOSTAT actually publishes
+# today and silently corrupted accented area names (e.g. "Côte d'Ivoire"
+# turned into unmatched garbage, breaking the ISO3 join downstream).
+testthat::test_that(".read_faostat_bulk_csv keeps UTF-8 and snake-cases", {
+  csv_path <- withr::local_tempfile(fileext = ".csv")
+  con <- file(csv_path, open = "w", encoding = "UTF-8")
+  writeLines(
+    c(
+      "Area Code,Area,Element,Year,Value,Unit",
+      "107,Côte d'Ivoire,Stocks,2020,45120,An"
+    ),
+    con
+  )
+  close(con)
+
+  result <- whep:::.read_faostat_bulk_csv(csv_path)
+
+  testthat::expect_named(
+    result,
+    c("area_code", "area", "element", "year", "value", "unit")
+  )
+  testthat::expect_equal(result$area, "Côte d'Ivoire")
+  testthat::expect_equal(result$element, "stocks")
+})
+
 testthat::test_that(".activity_data_choices returns expected values", {
   choices <- .activity_data_choices()
 
