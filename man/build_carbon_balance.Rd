@@ -73,7 +73,14 @@ vegetated fraction of the natural stand, from
 \code{\link{soc_soil_cover_curve}}'s constant for the NATURAL class only
 -- managed grassland has no measured cover to use and stays on the curve
 -- and when absent every class stays on the curve, which is the previous
-behaviour; and an
+behaviour; \code{cropland_cover} (per cell, year and MONTH, from
+\code{\link{read_lpjml_crop_cover}}), which replaces the curve for the
+CROPLAND class with the cover its own crop calendar implies. The curve
+already gives cropland a season, but anchors it to the cell-year's
+warmest month: measured at 2010 the real crop mid-season falls there in
+only 5.2\% of cropland cells and three or more months away in 51.0\%, so
+the correction is one of timing rather than of annual mean (0.254 on the
+curve against 0.343 on the calendar); and an
 optional \code{equilibrium_climate} (the pre-industrial climatological
 normal, one representative monthly cycle per cell, used only for the
 equilibrium spin-up modifier while the forward march uses the year-specific

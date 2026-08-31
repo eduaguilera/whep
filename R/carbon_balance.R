@@ -73,7 +73,14 @@
 #'   \code{\link{soc_soil_cover_curve}}'s constant for the NATURAL class only
 #'   -- managed grassland has no measured cover to use and stays on the curve
 #'   -- and when absent every class stays on the curve, which is the previous
-#'   behaviour; and an
+#'   behaviour; \code{cropland_cover} (per cell, year and MONTH, from
+#'   \code{\link{read_lpjml_crop_cover}}), which replaces the curve for the
+#'   CROPLAND class with the cover its own crop calendar implies. The curve
+#'   already gives cropland a season, but anchors it to the cell-year's
+#'   warmest month: measured at 2010 the real crop mid-season falls there in
+#'   only 5.2% of cropland cells and three or more months away in 51.0%, so
+#'   the correction is one of timing rather than of annual mean (0.254 on the
+#'   curve against 0.343 on the calendar); and an
 #'   optional \code{equilibrium_climate} (the pre-industrial climatological
 #'   normal, one representative monthly cycle per cell, used only for the
 #'   equilibrium spin-up modifier while the forward march uses the year-specific
@@ -188,6 +195,7 @@ build_carbon_balance <- function(
     climate = climate,
     clay = clay,
     natural_cover = data$natural_cover,
+    cropland_cover = data$cropland_cover,
     equilibrium_climate = data$equilibrium_climate
   )
 }
@@ -240,7 +248,8 @@ build_carbon_balance <- function(
     clay,
     model,
     base$land_use,
-    d$natural_cover
+    d$natural_cover,
+    d$cropland_cover
   )
   base |>
     .cb_join_modifier(modifiers) |>
@@ -302,7 +311,8 @@ build_carbon_balance <- function(
   clay,
   model,
   land_use_classes,
-  natural_cover = NULL
+  natural_cover = NULL,
+  cropland_cover = NULL
 ) {
   keys <- c("lon", "lat", "area_code", "year")
   if (rlang::has_name(climate, "climate_modifier")) {
@@ -324,7 +334,8 @@ build_carbon_balance <- function(
       model,
       keys,
       land_use_classes,
-      natural_cover
+      natural_cover,
+      cropland_cover
     )
   })
   dplyr::bind_rows(parts)
@@ -350,12 +361,17 @@ build_carbon_balance <- function(
   model,
   keys,
   land_use_classes,
-  natural_cover = NULL
+  natural_cover = NULL,
+  cropland_cover = NULL
 ) {
   prepared <- climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes, natural_cover) |>
+    .cb_attach_soil_cover(
+      land_use_classes,
+      natural_cover,
+      cropland_cover
+    ) |>
     .cb_attach_class_water()
   group_keys <- c(keys, "land_use")
 
@@ -513,7 +529,8 @@ build_carbon_balance <- function(
 .cb_attach_soil_cover <- function(
   climate,
   land_use_classes,
-  natural_cover = NULL
+  natural_cover = NULL,
+  cropland_cover = NULL
 ) {
   classes <- unique(land_use_classes)
   climate |>
@@ -530,7 +547,8 @@ build_carbon_balance <- function(
     ) |>
     dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
     dplyr::select(-".cover_key") |>
-    .cb_apply_natural_cover(natural_cover)
+    .cb_apply_natural_cover(natural_cover) |>
+    .cb_apply_crop_cover(cropland_cover)
 }
 
 # Replace natural land's constant soil cover with the cover LPJmL grew.
@@ -554,6 +572,52 @@ build_carbon_balance <- function(
 #
 # A NULL layer leaves every class on the curve, which is the previous
 # behaviour exactly.
+# Replace cropland's curve cover with the cover its crop calendar implies.
+#
+# soc_soil_cover_curve gives cropland a real season, but anchors it to the
+# cell-year's WARMEST month as a stand-in for peak canopy. Measured at 2010
+# over 18,548 cropland cells, the area-weighted crop mid-season falls in the
+# warmest month in 5.2% of them and three or more months away in 51.0%, a
+# median absolute offset of three months. That is a timing error, not a level
+# one -- the curve averages 0.254 cover against the calendar's 0.343 -- so it
+# shows up as modelled canopy over real fallow rather than as a wrong annual
+# mean.
+#
+# Keyed on month as well as year, unlike the natural override: the natural
+# layer is one cover per cell-year, this one is twelve.
+.cb_apply_crop_cover <- function(prepared, cropland_cover) {
+  if (is.null(cropland_cover) || nrow(cropland_cover) == 0L) {
+    return(prepared)
+  }
+  .check_columns(
+    cropland_cover,
+    c("lon", "lat", "year", "month", "cropland_cover"),
+    "data$cropland_cover"
+  )
+  prepared |>
+    dplyr::left_join(
+      dplyr::distinct(
+        dplyr::select(
+          cropland_cover,
+          "lon",
+          "lat",
+          "year",
+          "month",
+          "cropland_cover"
+        )
+      ),
+      by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::mutate(
+      soil_cover = dplyr::if_else(
+        stringr::str_to_lower(.data$land_use) == "cropland" &
+          !is.na(.data$cropland_cover),
+        .data$cropland_cover,
+        .data$soil_cover
+      )
+    ) |>
+    dplyr::select(-"cropland_cover")
+}
 .cb_apply_natural_cover <- function(prepared, natural_cover) {
   if (is.null(natural_cover) || nrow(natural_cover) == 0L) {
     return(prepared)
@@ -1139,7 +1203,8 @@ build_carbon_balance <- function(
     d$clay,
     model,
     first$land_use,
-    d$natural_cover
+    d$natural_cover,
+    d$cropland_cover
   )
   first |>
     dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code", "land_use")) |>
@@ -1163,13 +1228,18 @@ build_carbon_balance <- function(
   clay,
   model,
   land_use_classes,
-  natural_cover = NULL
+  natural_cover = NULL,
+  cropland_cover = NULL
 ) {
   cell_keys <- c("lon", "lat", "area_code", "land_use")
   eq_climate |>
     .cb_join_clay(clay) |>
     .cb_arrange_by_month() |>
-    .cb_attach_soil_cover(land_use_classes, natural_cover) |>
+    .cb_attach_soil_cover(
+      land_use_classes,
+      natural_cover,
+      cropland_cover
+    ) |>
     dplyr::summarise(
       climate_modifier_eq = .cb_year_climate_modifier(
         model,

@@ -1,5 +1,34 @@
 # whep (development version)
 
+* **New `read_lpjml_crop_cover()` puts cropland's soil-cover season where the
+  crops actually are, instead of at the warmest month.**
+  `soc_soil_cover_curve` already gives cropland a season, but
+  `build_carbon_balance()` anchored it to each cell-year's warmest month as a
+  stand-in for peak canopy. Measured on the 1750-2023 run at 2010 over 18,548
+  cropland cells, the real area-weighted crop mid-season falls in the warmest
+  month in only **5.2%** of them, within one month in 22.6%, and **three or
+  more months away in 51.0%** -- a median absolute offset of three months.
+  Winter cereals, Mediterranean systems and irrigated dry-season crops all
+  grow away from the temperature peak, so the proxy put modelled full canopy
+  over real fallow and modelled bare soil over the real crop.
+
+  It is a **timing** error, not a level one: the curve's annual mean cover is
+  0.254 against the calendar's 0.343. Supply the result as
+  `data$cropland_cover` to `build_carbon_balance()`; it replaces the curve for
+  the CROPLAND class only, in both the transient march and the equilibrium, so
+  the two cannot disagree. Absent, every class stays on the curve and nothing
+  changes.
+
+  Derived from `sdate.nc`/`hdate.nc` area-weighted by `cftfrac.nc`, all first
+  written on 2026-08-27. Two properties of those files are handled explicitly:
+  bands are matched by NAME because only 12 of the 24 align by index
+  (`sdate` band 13 is `"irrigated temperate cereals"`, `cftfrac` band 13 is
+  `"rainfed others"`), and **41.7% of cells have `hdate < sdate`** because the
+  crop is sown in one calendar year and harvested in the next -- treating that
+  as an empty interval would book every winter cereal as permanently bare. The
+  calendar covers **98.8% of cropped area**; the `others` bands have none, and
+  a cell cropped entirely to `others` yields no row rather than a guess.
+
 * **`build_grass_natural_carbon_inputs()` gains `method_natural_c`, selecting
   whether natural land's carbon input is primary production or litterfall.**
   `"npp"` stays the default and nothing changes for existing callers.
