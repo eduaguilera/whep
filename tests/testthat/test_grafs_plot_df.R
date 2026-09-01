@@ -318,7 +318,7 @@ test_that(".create_crop_type_n_df remaps a processed byproduct to its parent cro
   )
   # Soyabeans production is 100% Irrigated for this province/year (the
   # explicit zero Rainfed row matters: an absent row, rather than a zero
-  # one, would leave .compute_crop_irrigation_shares() with nothing to join
+  # one, would leave .compute_irrigation_shares() with nothing to join
   # against and fall back to 0.5 for that combination), so the byproduct
   # (which carries Irrig_cat = NA) must be allocated fully to {NPEiN}, none
   # to {NPErN}.
@@ -445,9 +445,9 @@ test_that(".add_national_n_balance sums provinces into a Spain row", {
 })
 
 
-# .compute_crop_irrigation_shares ----------------------------------------------
+# .compute_irrigation_shares ----------------------------------------------
 
-test_that(".compute_crop_irrigation_shares falls back to 0.5 with no production", {
+test_that(".compute_irrigation_shares falls back to 0.5 with no production", {
   n_balance_full <- tibble::tribble(
     ~Province_name, ~Year, ~LandUse, ~Name_biomass, ~Irrig_cat, ~Prod_MgN,
     "Huesca", 2000, "Cropland", "Wheat", "Irrigated", 30,
@@ -456,7 +456,7 @@ test_that(".compute_crop_irrigation_shares falls back to 0.5 with no production"
     "Huesca", 2000, "Cropland", "Barley", "Rainfed", 0
   )
 
-  out <- .compute_crop_irrigation_shares(n_balance_full)
+  out <- .compute_irrigation_shares(n_balance_full)
   wheat_irrig <- out |>
     dplyr::filter(Name_biomass == "Wheat", Irrig_cat == "Irrigated") |>
     dplyr::pull(share)
@@ -749,7 +749,8 @@ test_that(".create_wastewater_surplus_df computes consumption minus returned N",
 
   out <- .create_wastewater_surplus_df(df_all_flows, prov_destiny_df)
 
-  # input = 80 + 20 = 100; returned = 30 (Cropland) + 5 (semi_natural) = 35.
+  # input totals 100 (80 crops-to-pop plus 20 livestock-to-human); returned
+  # totals 35 (30 Cropland plus 5 semi_natural), leaving a residual of 65.
   expect_equal(unique(out$label), "{WASTEWATER}")
   expect_equal(out$data, 65)
   expect_equal(out$align, "R")

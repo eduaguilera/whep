@@ -884,7 +884,7 @@ create_grafs_plot_df <- function(example = FALSE) {
   # remap above. Split each byproduct's N between Irrigated/Rainfed using
   # that specific parent crop's own production split from n_balance,
   # falling back to a 50/50 split where no matching n_balance data exists.
-  irrigation_shares <- .compute_crop_irrigation_shares(n_balance_full)
+  irrigation_shares <- .compute_irrigation_shares(n_balance_full)
 
   byproduct_rows <- cropland_flows_raw |>
     dplyr::filter(is_byproduct) |>
@@ -1067,7 +1067,7 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' `Irrig_cat`, and `share`.
 #'
 #' @noRd
-.compute_crop_irrigation_shares <- function(n_balance_full) {
+.compute_irrigation_shares <- function(n_balance_full) {
   n_balance_full |>
     dplyr::filter(
       LandUse == "Cropland",
