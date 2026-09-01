@@ -62,6 +62,9 @@
 #'   `"evap"`, `"interc"`, `"aet"`, `"prec"`, `"rain"`, `"irrig"`, `"runoff"`,
 #'   `"discharge"`, `"swc"`, `"pet"` (potential evapotranspiration),
 #'   `"soiltemp1"` and `"soiltemp2"` (soil temperature by layer),
+#'   `"stand_frac"` (per-CFT stand area fraction, from `cftfrac.nc`: the
+#'   weight every other per-CFT cube needs before it can be summed to a
+#'   cell),
 #'   `"cft_nir"` (per-CFT net irrigation requirement), `"cft_airrig_month"`
 #'   (per-CFT APPLIED irrigation by month) or the per-CFT
 #'   consumptive-water cubes `"cft_consump_water_b"` (blue) and
@@ -140,6 +143,7 @@ read_lpjml_hydrology <- function(
     "pet",
     "soiltemp1",
     "soiltemp2",
+    "stand_frac",
     "cft_nir",
     "cft_airrig_month",
     "cft_consump_water_b",
@@ -214,6 +218,7 @@ read_lpjml_hydrology <- function(
     "pet", "pet.nc", "PET", 12L,
     "soiltemp1", "soiltemp1.nc", "soiltemp1", 12L,
     "soiltemp2", "soiltemp2.nc", "soiltemp2", 12L,
+    "stand_frac", "cftfrac.nc", "CFTfrac", 1L,
     "cft_airrig_month", "cft_airrig_month.nc", "irrig", 12L,
     "cft_nir", "cft_nir.nc", "nir", 1L,
     "cft_consump_water_b", "cft_consump_water_b.nc", "consump_water_b", 1L,
@@ -225,6 +230,7 @@ read_lpjml_hydrology <- function(
 # soil layer.
 .hydro_band_vars <- function() {
   c(
+    "stand_frac",
     "cft_nir",
     "cft_airrig_month",
     "cft_consump_water_b",

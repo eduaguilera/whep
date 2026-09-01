@@ -1,5 +1,34 @@
 # whep (development version)
 
+* **`build_water_balance()` was overstating `blue_consump_mm`,
+  `green_consump_mm` and `cft_nir_mm`; they are now weighted by stand area.**
+  Every per-CFT LPJmL cube is a density per square metre of its own crop's
+  stand, not of the gridcell. The per-CFT terms were summed across bands with
+  a bare `sum()`, which is not the whole-cell total the documentation
+  promises: it overstates by **1 / (managed fraction of the cell)** -- a
+  median **2.7x**, **235x** at the 95th percentile, and up to **1000x** where
+  a cell holds a sliver of cropland.
+
+  The check that settles it needs no cell subset. At 2010, consumptive blue
+  plus green summed unweighted is **7.1 times** whole-cell evapotranspiration
+  (transpiration + evaporation + interception), which is impossible; weighted
+  by `cftfrac` it is **0.284x**, which is what cropland's share of global ET
+  looks like. The same weighting reconciles `cft_airrig_month` against the
+  crop-less `mirrig` cube at 0.999 globally and 1.000-1.001 cell by cell.
+
+  Supplying any per-CFT cube in `data` now also requires `stand_frac`, read
+  by default from `cftfrac.nc` via the new
+  `read_lpjml_hydrology("stand_frac")`. Missing fractions **abort**: an
+  unweighted sum is not a worse estimate of a cell total but a different
+  quantity with the wrong units, and it looks entirely plausible in
+  isolation. Bands are matched by `band_name`, falling back to `band` only
+  when neither table names its bands -- safe solely because both cubes come
+  from the same run.
+
+  **Nothing downstream consumed these three columns**, so no published WHEP
+  output changes; the correction lands before the per-crop water-footprint
+  work that would have been built on them.
+
 * **`read_lpjml_hydrology()` gains `"cft_airrig_month"`, per-crop applied
   irrigation by month, and refuses a per-CFT cube whose water is all on one
   band.** That cube is the first LPJmL output that is

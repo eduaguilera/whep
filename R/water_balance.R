@@ -105,6 +105,16 @@
 #'   Read the latter with
 #'   `read_lpjml_hydrology("cft_consump_water_g", monthly = FALSE)`, which
 #'   names their CFT bands so `bands` can select among them.
+#'
+#'   Supplying any per-CFT cube also requires `stand_frac` (`lon`, `lat`,
+#'   `year`, `band_name` or `band`, `value`), the per-CFT stand area
+#'   fractions, read by default with
+#'   `read_lpjml_hydrology("stand_frac", monthly = FALSE)`. Every per-CFT cube
+#'   is a density per square metre of ITS OWN STAND, so its bands must be
+#'   weighted by these fractions before they are summed to a cell. Without
+#'   them the aggregation aborts rather than returning an unweighted sum,
+#'   which is not a whole-cell total at all: it overstates by
+#'   1 / (managed fraction of the cell).
 #' @param example If `TRUE`, return a small fixture instead of reading data.
 #'   Defaults to `FALSE`.
 #' @return A tibble. For `resolution = "grid"`: `lon`, `lat`, `area_code`,
@@ -411,6 +421,7 @@ get_soc_climate_drivers <- function(
   if (identical(method$blue_green, "cft_native")) {
     .wb_warn_rainfed_blue(data$cft_consump_water_b, data$cft_consump_water_g)
   }
+  stand_frac <- .wb_stand_frac(data)
   band_inputs <- list(
     consump_blue_mm = data$cft_consump_water_b,
     consump_green_mm = data$cft_consump_water_g,
@@ -420,15 +431,16 @@ get_soc_climate_drivers <- function(
     purrr::map(band_inputs, .wb_filter_bands, bands = bands),
     names(band_inputs),
     .wb_join_cell_band,
-    .init = wide
+    .init = wide,
+    stand_frac = stand_frac
   )
-  .wb_attach_cell_consump(out, data, bands)
+  .wb_attach_cell_consump(out, data, bands, stand_frac)
 }
 
 # Attach the all-band (whole-cell) blue/green consumptive totals the AET split
 # uses. When no bands were selected these equal the reported columns, so they
 # are copied rather than re-summed.
-.wb_attach_cell_consump <- function(out, data, bands) {
+.wb_attach_cell_consump <- function(out, data, bands, stand_frac = NULL) {
   if (is.null(bands)) {
     return(dplyr::mutate(
       out,
@@ -444,8 +456,25 @@ get_soc_climate_drivers <- function(
     cell_inputs,
     names(cell_inputs),
     .wb_join_cell_band,
-    .init = out
+    .init = out,
+    stand_frac = stand_frac
   )
+}
+
+# The per-CFT stand fractions, needed to weight every other per-CFT cube.
+#
+# Read only when a per-CFT input is actually present, so a caller who never
+# asks for consumptive water or the net irrigation requirement still needs no
+# run directory.
+.wb_stand_frac <- function(data) {
+  needs <- !is.null(data$cft_consump_water_b) ||
+    !is.null(data$cft_consump_water_g) ||
+    !is.null(data$cft_nir)
+  if (!needs) {
+    return(NULL)
+  }
+  data$stand_frac %||%
+    read_lpjml_hydrology("stand_frac", monthly = FALSE)
 }
 
 # Keep only the named CFT bands of a per-CFT input before it is summed to the
@@ -486,8 +515,8 @@ get_soc_climate_drivers <- function(
 # default would cost every caller for an unused column. cft_nir_mm is NA unless
 # `data$cft_nir` is supplied as a cell-year (or per-band) `lon`,`lat`,`year`,
 # `value` tibble.
-.wb_join_cell_band <- function(wide, raw, out_col) {
-  summed <- .wb_cell_consump(raw, out_col)
+.wb_join_cell_band <- function(wide, raw, out_col, stand_frac = NULL) {
+  summed <- .wb_cell_consump(raw, out_col, stand_frac)
   if (is.null(summed)) {
     dplyr::mutate(wide, "{out_col}" := NA_real_)
   } else {
@@ -497,15 +526,85 @@ get_soc_climate_drivers <- function(
 
 # Sum a per-CFT consumptive-water input over its crop bands to a cell-year
 # total named `out_col`. Returns NULL when the input is absent.
-.wb_cell_consump <- function(raw, out_col) {
+# Sum a per-CFT cube to a whole-cell density.
+#
+# Every per-CFT cube is a density per square metre of ITS OWN STAND, so the
+# bands must be weighted by their stand fractions before they are added. A
+# bare sum() was used here until 2026-09-01 and overstated all three columns
+# by 1 / (managed fraction of the cell): a median 2.7x, 235x at the 95th
+# percentile and up to 1000x on cells with a sliver of cropland. In aggregate
+# it put consumptive blue+green water at 7.1 TIMES whole-cell
+# evapotranspiration, which is impossible; weighted it is 0.28x, which is
+# what cropland's share of global ET looks like.
+.wb_cell_consump <- function(raw, out_col, stand_frac) {
   if (is.null(raw)) {
     return(NULL)
   }
   raw |>
+    .wb_weight_by_stand(out_col, stand_frac) |>
     dplyr::summarise(
-      "{out_col}" := sum(value),
-      .by = c(lon, lat, year)
+      "{out_col}" := sum(.data$weighted),
+      .by = c("lon", "lat", "year")
     )
+}
+
+# Attach each band's stand fraction and form the area-weighted contribution.
+#
+# Refuses rather than falling back to an unweighted sum: the unweighted number
+# is not a worse estimate of a cell total, it is a different quantity with the
+# wrong units, and it looks entirely plausible in isolation.
+.wb_weight_by_stand <- function(raw, out_col, stand_frac) {
+  if (is.null(stand_frac)) {
+    cli::cli_abort(c(
+      "No stand fractions available to weight {.field {out_col}}.",
+      x = "Per-CFT cubes are per-STAND densities; summing them unweighted",
+      x = "overstates a cell by 1 / its managed fraction.",
+      i = "Supply {.code data$stand_frac}, or a {.arg run_dir} holding",
+      i = "{.file cftfrac.nc}."
+    ))
+  }
+  key <- .wb_band_key(raw, stand_frac)
+  .check_columns(
+    stand_frac,
+    c("lon", "lat", "year", key, "value"),
+    "data$stand_frac"
+  )
+  raw |>
+    dplyr::left_join(
+      dplyr::select(
+        stand_frac,
+        "lon",
+        "lat",
+        "year",
+        dplyr::all_of(key),
+        stand_frac = "value"
+      ),
+      by = c("lon", "lat", "year", key)
+    ) |>
+    dplyr::mutate(
+      weighted = .data$value * dplyr::coalesce(.data$stand_frac, 0)
+    )
+}
+
+# Which column identifies a band on both sides.
+#
+# `band_name` when both carry it, because a band index means whatever the run
+# was configured to mean. Falling back to `band` is safe only because both
+# cubes come from the SAME run, which is the one case where the index is
+# stable; a cube carrying neither cannot be weighted at all.
+.wb_band_key <- function(raw, stand_frac) {
+  both <- \(col) rlang::has_name(raw, col) && rlang::has_name(stand_frac, col)
+  if (both("band_name")) {
+    return("band_name")
+  }
+  if (both("band")) {
+    return("band")
+  }
+  cli::cli_abort(c(
+    "Cannot tell which band each row belongs to.",
+    i = "Weighting needs {.field band_name} (preferred) or {.field band} on",
+    i = "both the per-CFT cube and {.code data$stand_frac}."
+  ))
 }
 
 # Coerce one flux input to annual cell-year totals named `name`. Monthly inputs
