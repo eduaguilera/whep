@@ -97,6 +97,7 @@ reference:
   - read_lpjml_npp
   - read_cru_climate
   - build_water_balance
+  - build_crop_water_use
   - get_soc_climate_drivers
 
 - title: Soil-balance coefficient tables

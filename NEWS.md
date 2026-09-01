@@ -1,5 +1,19 @@
 # whep (development version)
 
+* **New `build_crop_water_use()`: applied irrigation per cell, crop and
+  month** (whep#916), from the v2 run's `cft_airrig_month` joined with each
+  crop's `cftfrac` stand fraction. Both unit conventions are returned side by
+  side -- `airrig_stand_mm`, the irrigation intensity on the crop's own
+  stand, and `airrig_cell_mm`, the same water as a whole-cell depth -- because
+  confusing them is the characteristic per-CFT error. Summing
+  `airrig_cell_mm` over crops reproduces the crop-less `irrig` cube at
+  **0.9975** on the 2010 slice (the 0.25% residual is water booked on stands
+  whose annual area snapshot is zero, excluded by construction). Rainfed
+  bands are kept: LPJmL books paddy water on *rainfed rice* (36% of the
+  stand-weighted total at July 2010). A border cell appears once per polity
+  sharing it with `cell_area_frac` carrying the split, and the polity
+  resolution weights intensity by stand area and depth by cell area.
+
 * **`build_water_balance()` was overstating `blue_consump_mm`,
   `green_consump_mm` and `cft_nir_mm`; they are now weighted by stand area.**
   Every per-CFT LPJmL cube is a density per square metre of its own crop's

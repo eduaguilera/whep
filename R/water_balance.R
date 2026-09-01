@@ -467,14 +467,24 @@ get_soc_climate_drivers <- function(
 # asks for consumptive water or the net irrigation requirement still needs no
 # run directory.
 .wb_stand_frac <- function(data) {
-  needs <- !is.null(data$cft_consump_water_b) ||
-    !is.null(data$cft_consump_water_g) ||
-    !is.null(data$cft_nir)
-  if (!needs) {
+  cubes <- list(
+    data$cft_consump_water_b,
+    data$cft_consump_water_g,
+    data$cft_nir
+  )
+  cubes <- purrr::compact(cubes)
+  if (length(cubes) == 0L) {
     return(NULL)
   }
-  data$stand_frac %||%
-    read_lpjml_hydrology("stand_frac", monthly = FALSE)
+  if (!is.null(data$stand_frac)) {
+    return(data$stand_frac)
+  }
+  # Restricted to the years the supplied cubes actually cover. Unrestricted,
+  # this read pulls all 274 years of cftfrac.nc into long form -- measured at
+  # 40+ GB resident on 2026-09-01, when a test fixture that forgot to inject
+  # stand_frac reached this fallback and exhausted the machine.
+  years <- sort(unique(unlist(purrr::map(cubes, \(x) unique(x$year)))))
+  read_lpjml_hydrology("stand_frac", years = years, monthly = FALSE)
 }
 
 # Keep only the named CFT bands of a per-CFT input before it is summed to the
