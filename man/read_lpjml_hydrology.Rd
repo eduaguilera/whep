@@ -7,7 +7,7 @@
 read_lpjml_hydrology(
   var = c("drainage", "transp", "evap", "interc", "aet", "prec", "rain", "irrig",
     "runoff", "discharge", "swc", "pet", "soiltemp1", "soiltemp2", "cft_nir",
-    "cft_consump_water_b", "cft_consump_water_g"),
+    "cft_airrig_month", "cft_consump_water_b", "cft_consump_water_g"),
   run_dir = NULL,
   years = NULL,
   first_year = NULL,
@@ -22,7 +22,8 @@ read_lpjml_hydrology(
 \code{"evap"}, \code{"interc"}, \code{"aet"}, \code{"prec"}, \code{"rain"}, \code{"irrig"}, \code{"runoff"},
 \code{"discharge"}, \code{"swc"}, \code{"pet"} (potential evapotranspiration),
 \code{"soiltemp1"} and \code{"soiltemp2"} (soil temperature by layer),
-\code{"cft_nir"} (per-CFT net irrigation requirement) or the per-CFT
+\code{"cft_nir"} (per-CFT net irrigation requirement), \code{"cft_airrig_month"}
+(per-CFT APPLIED irrigation by month) or the per-CFT
 consumptive-water cubes \code{"cft_consump_water_b"} (blue) and
 \code{"cft_consump_water_g"} (green). The per-CFT variables keep their \code{band}
 dimension, and carry \code{band_name} when the file names its bands.
@@ -77,6 +78,32 @@ variable name, so callers need not know the LPJmL naming quirks. The
 synthetic \code{"aet"} variable sums the three actual-evapotranspiration
 components (transpiration, evaporation, interception).
 }
+\section{Per-CFT cubes are per-STAND densities}{
+
+Every per-CFT variable is a density per square metre of ITS OWN CROP'S
+STAND, not of the gridcell. Summing the bands therefore does NOT give a
+cell total, and comparing that sum against a whole-cell cube overstates it
+badly: on the 2026-09-01 run, \code{"cft_airrig_month"} summed raw across bands
+is \strong{122.8 times} \code{"irrig"} (from \code{mirrig.nc}) for July 2010. Weight each
+band by its \code{cftfrac} stand fraction first and the same comparison closes
+to \strong{0.999}, and to 1.000-1.001 cell by cell on the most irrigated cells.
+
+So: multiply by the stand fraction before aggregating over bands, over
+cells, or against anything crop-less. The reader returns the model's own
+units and does not do this for you, because which weighting is wanted
+depends on the question -- a per-hectare-of-crop intensity keeps the
+per-stand value, a cell or catchment total does not.
+}
+
+\section{Rainfed rice carries applied water}{
+
+\code{"cft_airrig_month"} and \code{"cft_nir"} both book water on the \emph{rainfed} rice
+band -- 36\% of the stand-weighted applied total at July 2010. That is
+LPJmL's paddy management rather than a defect: flooded rice receives water
+whether or not the stand is classed as irrigated. Filtering to bands whose
+name starts with \code{"irrigated"} therefore drops real water.
+}
+
 \examples{
 read_lpjml_hydrology(example = TRUE)
 }

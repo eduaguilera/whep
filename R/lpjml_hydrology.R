@@ -71,6 +71,28 @@
 #'   `"pet"` and the two soil temperatures exist because the SOC drivers take
 #'   both from CRU instead, mixing two models' quantities in one expression;
 #'   see the note at `.hydro_var_map()`. Nothing consumes them yet.
+#' @section Per-CFT cubes are per-STAND densities:
+#' Every per-CFT variable is a density per square metre of ITS OWN CROP'S
+#' STAND, not of the gridcell. Summing the bands therefore does NOT give a
+#' cell total, and comparing that sum against a whole-cell cube overstates it
+#' badly: on the 2026-09-01 run, `"cft_airrig_month"` summed raw across bands
+#' is **122.8 times** `"irrig"` (from `mirrig.nc`) for July 2010. Weight each
+#' band by its `cftfrac` stand fraction first and the same comparison closes
+#' to **0.999**, and to 1.000-1.001 cell by cell on the most irrigated cells.
+#'
+#' So: multiply by the stand fraction before aggregating over bands, over
+#' cells, or against anything crop-less. The reader returns the model's own
+#' units and does not do this for you, because which weighting is wanted
+#' depends on the question -- a per-hectare-of-crop intensity keeps the
+#' per-stand value, a cell or catchment total does not.
+#'
+#' @section Rainfed rice carries applied water:
+#' `"cft_airrig_month"` and `"cft_nir"` both book water on the *rainfed* rice
+#' band -- 36% of the stand-weighted applied total at July 2010. That is
+#' LPJmL's paddy management rather than a defect: flooded rice receives water
+#' whether or not the stand is classed as irrigated. Filtering to bands whose
+#' name starts with `"irrigated"` therefore drops real water.
+#'
 #' @param run_dir Path to the LPJmL run output directory. Defaults to
 #'   `Sys.getenv("WHEP_LPJML_RUN_DIR")`.
 #' @param years Optional integer vector of calendar years to keep. `NULL`

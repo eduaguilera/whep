@@ -1,7 +1,8 @@
 # whep (development version)
 
-* **`read_lpjml_hydrology()` gains `"cft_airrig_month"`, and refuses it on the
-  run that currently ships it.** That cube is the first LPJmL output that is
+* **`read_lpjml_hydrology()` gains `"cft_airrig_month"`, per-crop applied
+  irrigation by month, and refuses a per-CFT cube whose water is all on one
+  band.** That cube is the first LPJmL output that is
   both monthly and per-crop, which is what whep#916 needs: applied irrigation
   was previously available either monthly with no crop dimension (`irrig`) or
   per crop with no month (`cft_nir`), so the water a crop received could not be
@@ -21,7 +22,22 @@
   split is the entire quantity, so a footprint or a soil-moisture term built
   on this would charge every crop's water to one crop with nothing downstream
   able to detect it. Summing over bands is not a workaround for the same
-  reason. whep#916 stays open until the run is redone.
+  reason.
+
+  **Resolved upstream in the 2026-09-01 `_v2` run** (`lbm364dl/LPJmL`
+  `a819b5d0`). The cause was not a fixed band index: with `separate_harvests`
+  on, crop irrigation is staged in `crop->sh->irrig_apply` and only reaches
+  `CFT_AIRRIG` at harvest, and the monthly accumulation sat inside the `else`
+  of that test -- so the only stand reaching it was `others`, whose band is
+  `rothers(ncft)` = 29. Verified on the new run: 14 of 32 bands carry water at
+  every step sampled, matching `cft_nir`, and the stand-weighted sum closes
+  against the crop-less `mirrig` cube at **0.999** globally and 1.000-1.001
+  cell by cell. The guard stays in place as the regression detector.
+
+  Every input the four LPJmL-derived pins read is **bit-identical** between
+  the two runs (`pft_npp`, `cftfrac`, `fpc`, `litfallc_nv`, `mswc`, `mprec`,
+  `mseepage`, `sdate`, `soilc_layer`, checked directly), so no pin needs
+  rebuilding for v2.
 
 * **New `read_lpjml_crop_cover()` puts cropland's soil-cover season where the
   crops actually are, instead of at the warmest month.**
