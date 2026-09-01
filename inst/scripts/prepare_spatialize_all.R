@@ -458,7 +458,8 @@ cft_to_pft <- c(
         item_prod_code = readr::col_integer(),
         item_prod_name = readr::col_character(),
         unmapped_reason = readr::col_character(),
-        in_raster_archive = readr::col_logical()
+        in_raster_archive = readr::col_logical(),
+        pattern_group = readr::col_character()
       )
     )
 }
@@ -1468,7 +1469,8 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
     dplyr::summarise(
       harvest_fraction = sum(harvest_fraction),
       .by = c(lon, lat, item_prod_code)
-    )
+    ) |>
+    .share_pattern_groups(xwalk)
 }
 
 

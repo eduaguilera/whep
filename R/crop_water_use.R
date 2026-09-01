@@ -184,5 +184,6 @@ build_crop_water_use <- function(
     stand_frac = 0.2,
     airrig_stand_mm = c(0, 0, 0, 0, 30, 80, 120, 90, 20, 0, 0, 0),
     airrig_cell_mm = c(0, 0, 0, 0, 6, 16, 24, 18, 4, 0, 0, 0)
-  )
+  ) |>
+    .add_reporting_polity_columns()
 }

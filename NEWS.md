@@ -1,5 +1,15 @@
 # whep (development version)
 
+* **EarthStat crosswalk: `pattern_group` pools one plant's rasters across its
+  FAOSTAT items.** `hemp` (777, fibre) and `hempseed` (336) come from the same
+  fields, but EarthStat publishes a raster per item, so each was spatialized
+  on its own footprint. Both now receive the summed pattern while keeping
+  their own code and FAOSTAT area (a code without a pattern loses its whole
+  world total silently, whep#877). `greencorn` stays on 446: FAOSTAT reports
+  it as a vegetable with its own harvested area, distinct from 56 maize
+  grain, so the double-counting concern raised in `39041368` does not apply.
+  Inert until the `spatialize-crop-patterns` pin is rebuilt.
+
 * **New `build_crop_water_use()`: applied irrigation per cell, crop and
   month** (whep#916), from the v2 run's `cft_airrig_month` joined with each
   crop's `cftfrac` stand fraction. Both unit conventions are returned side by

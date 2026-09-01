@@ -497,3 +497,49 @@ testthat::test_that("each EarthStat raster appears once in the crosswalk", {
   testthat::expect_equal(sum(duplicated(earthstat$earthstat_name)), 0L)
   testthat::expect_false(anyNA(earthstat$earthstat_name))
 })
+
+# ---- pattern groups: one plant, several FAOSTAT items ------------------------
+
+testthat::test_that("hemp and hempseed share a pattern group, keep their codes", {
+  earthstat <- .read_extdata_csv("earthstat_mapping.csv")
+  hemp <- earthstat[earthstat$earthstat_name %in% c("hemp", "hempseed"), ]
+  testthat::expect_identical(nrow(hemp), 2L)
+  testthat::expect_setequal(hemp$pattern_group, "hemp")
+  # Both items stay spatializable on their own FAOSTAT areas.
+  testthat::expect_setequal(hemp$item_prod_code, c(336L, 777L))
+  # Green corn is a distinct FAOSTAT item (446, Vegetables) from maize grain
+  # (56), so it is NOT grouped; checked against FAOSTAT on 2026-09-01.
+  gc <- earthstat[earthstat$earthstat_name == "greencorn", ]
+  testthat::expect_true(is.na(gc$pattern_group))
+  testthat::expect_equal(gc$item_prod_code, 446)
+})
+
+testthat::test_that(".share_pattern_groups pools a group and replicates it", {
+  patterns <- tibble::tribble(
+    ~lon, ~lat, ~item_prod_code, ~harvest_fraction,
+    0.25, 0.25, 336L, 0.10,
+    0.75, 0.25, 777L, 0.30,
+    0.25, 0.25, 56L, 0.50
+  )
+  xwalk <- tibble::tribble(
+    ~item_prod_code, ~pattern_group,
+    336L, "hemp",
+    777L, "hemp",
+    56L, NA_character_
+  )
+  out <- whep:::.share_pattern_groups(patterns, xwalk)
+  # Every grouped code gets the union of the group's cells and the summed
+  # fraction; maize is untouched.
+  for (code in c(336L, 777L)) {
+    g <- out[out$item_prod_code == code, ]
+    g <- g[order(g$lon), ]
+    testthat::expect_equal(g$lon, c(0.25, 0.75))
+    testthat::expect_equal(g$harvest_fraction, c(0.10, 0.30))
+  }
+  testthat::expect_equal(out$harvest_fraction[out$item_prod_code == 56L], 0.5)
+  # No group at all: identity.
+  testthat::expect_identical(
+    whep:::.share_pattern_groups(patterns, xwalk[3, ]),
+    patterns
+  )
+})
