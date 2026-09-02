@@ -293,12 +293,20 @@ decompose_manure_losses <- function(
 #' in `grafs_plot_df.R` includes it: that material is not ingested, so it
 #' cannot be assumed to leave the body as excreta, breaking the
 #' intake-approximates-excretion logic this compartment relies on.
+#' `population_food_inedible` -- the non-edible remainder
+#' `.split_food_inedible_loss()` (n_prov_destiny.R) split out of
+#' `population_food` (peel, bone, and similar trimmings) -- is excluded for
+#' the same reason: it is never ingested, so it cannot leave the body as
+#' excreta either. Unlike `population_other_uses`, it never reaches the
+#' population as food in this model at all -- it gets its own arrows,
+#' `{CRP_PROCLOSS}`/`{LVSTCK_INEDIBLE}` in `grafs_plot_df.R`, leaving
+#' Cropland/Livestock directly.
 #'
-#' Food waste is not included: the commodity-balance sheets underlying
-#' `n_prov_destiny` carry Food/Feed/Seed/Other-uses/Export/Import
-#' destinies but no separate consumer food-waste line, so this loss is
-#' excreta-only. Whether the `urban`/`People` recycling flows already
-#' folded in some food waste from the original source is unconfirmed.
+#' This compartment captures excreta loss only, not consumer food waste
+#' (spoilage, plate waste and similar, once ingredients have already
+#' reached the household) -- `n_prov_destiny` has no destiny for that.
+#' Whether the `urban`/`People` recycling flows already folded in some food
+#' waste from the original source is unconfirmed.
 #'
 #' @param n_prov_destiny Nitrogen flows tibble from
 #'   [create_n_prov_destiny()]. If `NULL`, loaded automatically.

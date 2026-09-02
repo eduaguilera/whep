@@ -172,6 +172,26 @@ test_that(".create_land_surplus_df counts population_food_inedible as output", {
   expect_equal(out$data, 60)
 })
 
+test_that(".create_land_surplus_df leaves processing_losses in surplus", {
+  # Per .compute_processing_losses() (n_prov_destiny.R), processing_losses
+  # is deliberately NOT a tracked output: it falls into surplus rather than
+  # counting as product, pending explicit by-product items. It still gets
+  # its own display arrow ({CRP_PROCLOSS}), but that is a separate concern
+  # from this residual.
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "processing_losses", 15
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - 30 output = 70; processing_losses stays inside surplus.
+  expect_equal(out$data, 70)
+})
+
 
 # .create_land_df helpers ------------------------------------------------------
 
@@ -749,32 +769,27 @@ test_that(".create_livestock_surplus_df computes LIVGASLOSS as inputs - outputs"
     "Huesca", 2000, "{AN_OTH}", "5", "R",
     "Huesca", 2000, "{CROP_EXPORT}", "999", "L"
   )
-  prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
-    "Huesca", 2000, "Synthetic", "Cropland", 999
-  )
 
-  out <- .create_livestock_surplus_df(df_all_flows, prov_destiny_df)
+  out <- .create_livestock_surplus_df(df_all_flows)
 
   expect_equal(unique(out$label), "{LIVGASLOSS}")
   expect_equal(out$data, 50)
   expect_equal(out$align, "R")
 })
 
-test_that(".create_livestock_surplus_df adds the inedible remainder to output", {
+test_that(".create_livestock_surplus_df counts LVSTCK_INEDIBLE as output", {
+  # LVSTCK_INEDIBLE (.create_livestock_inedible_df()) is the non-edible
+  # remainder .split_food_inedible_loss() (n_prov_destiny.R) split out of
+  # population_food -- it left Livestock like any other named output, so it
+  # must count toward output or it would inflate LIVGASLOSS instead.
   df_all_flows <- tibble::tribble(
     ~province, ~year, ~label, ~data, ~align,
     "Huesca", 2000, "{CROPS_TO_LIVESTOCK}", "50", "L",
-    "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", "20", "L"
-  )
-  prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
-    "Huesca", 2000, "Livestock", "population_food_inedible", 5,
-    # A Cropland-origin inedible row must not leak into the livestock total.
-    "Huesca", 2000, "Cropland", "population_food_inedible", 999
+    "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", "20", "L",
+    "Huesca", 2000, "{LVSTCK_INEDIBLE}", "5", "L"
   )
 
-  out <- .create_livestock_surplus_df(df_all_flows, prov_destiny_df)
+  out <- .create_livestock_surplus_df(df_all_flows)
 
   # input 50 - output (20 + 5 inedible) = 25, not 30.
   expect_equal(out$data, 25)
@@ -805,6 +820,26 @@ test_that(".create_wastewater_surplus_df computes consumption minus returned N",
   expect_equal(unique(out$label), "{WASTEWATER}")
   expect_equal(out$data, 65)
   expect_equal(out$align, "R")
+})
+
+test_that(".create_wastewater_surplus_df ignores population_food_inedible", {
+  # The inedible remainder now has its own arrows ({CRP_PROCLOSS},
+  # {LVSTCK_INEDIBLE}) leaving Cropland/Livestock directly, so it must not
+  # also inflate this residual -- it never reaches the population in the
+  # model at all.
+  df_all_flows <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_POP}", "80", "L"
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 999,
+    "Huesca", 2000, "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .create_wastewater_surplus_df(df_all_flows, prov_destiny_df)
+
+  expect_equal(out$data, 80)
 })
 
 test_that(".create_wastewater_surplus_df treats a missing side as zero", {
@@ -842,16 +877,8 @@ test_that(".create_cropland_total_df sums the four cropland-output labels", {
     ~province, ~year, ~label, ~data, ~align,
     "Huesca", 2000, "{CRP_PROCLOSS}", 20, "L"
   )
-  prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
-    "Huesca", 2000, "Synthetic", "Cropland", 999
-  )
 
-  out <- .create_cropland_total_df(
-    df_flow,
-    df_processing_losses,
-    prov_destiny_df
-  )
+  out <- .create_cropland_total_df(df_flow, df_processing_losses)
   pick <- function(prov) {
     dplyr::pull(
       dplyr::filter(out, province == prov, label == "{CRPLNDTOTN}"),
@@ -866,27 +893,20 @@ test_that(".create_cropland_total_df sums the four cropland-output labels", {
   expect_equal(unique(out$label), "{CRPLNDTOTN}")
 })
 
-test_that(".create_cropland_total_df adds the inedible remainder for Cropland origin only", {
+test_that(".create_cropland_total_df counts CRP_PROCLOSS as-is", {
+  # {CRP_PROCLOSS} (.create_processing_losses_df()) already folds in the
+  # population_food_inedible remainder for Cropland-origin items, so
+  # {CRPLNDTOTN} does not need its own separate add-back any more.
   df_flow <- tibble::tribble(
     ~province, ~year, ~label, ~data, ~align,
     "Huesca", 2000, "{CROPS_TO_POP}", 40, "L"
   )
   df_processing_losses <- tibble::tribble(
     ~province, ~year, ~label, ~data, ~align,
-    "Huesca", 2000, "{CRP_PROCLOSS}", 0, "L"
-  )
-  prov_destiny_df <- tibble::tribble(
-    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
-    "Huesca", 2000, "Cropland", "population_food_inedible", 10,
-    # A Livestock-origin inedible row must not leak into the cropland total.
-    "Huesca", 2000, "Livestock", "population_food_inedible", 999
+    "Huesca", 2000, "{CRP_PROCLOSS}", 10, "L"
   )
 
-  out <- .create_cropland_total_df(
-    df_flow,
-    df_processing_losses,
-    prov_destiny_df
-  )
+  out <- .create_cropland_total_df(df_flow, df_processing_losses)
 
   expect_equal(out$data[out$province == "Huesca"], 50)
 })
@@ -949,7 +969,8 @@ test_that(".combine_and_finalize_df binds flow dfs and finalizes", {
     df_animal_losses = empty,
     df_livestock_total = empty,
     df_livestock_surplus = empty,
-    df_land_surplus = empty
+    df_land_surplus = empty,
+    df_livestock_inedible = empty
   )
   pick <- function(l) dplyr::pull(dplyr::filter(out, label == l), data)
 
@@ -988,6 +1009,45 @@ test_that(".create_livestock_export_df sums exported livestock N", {
 
   expect_equal(unique(out$label), "{LIVESTOCK_EXPORTED}")
   expect_equal(out$data, 8)
+  expect_equal(out$align, "L")
+})
+
+
+# .create_livestock_inedible_df -------------------------------------------------
+
+test_that(".create_livestock_inedible_df sums the non-edible remainder", {
+  prov <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food_inedible", 6,
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food", 40,
+    # A Cropland-origin inedible row must not leak into the livestock total.
+    "Huesca", 2000, "Wheat and products", NA, "Cropland", "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .create_livestock_inedible_df(prov)
+
+  expect_equal(unique(out$label), "{LVSTCK_INEDIBLE}")
+  expect_equal(out$data, 6)
+  expect_equal(out$align, "L")
+})
+
+
+# .create_processing_losses_df ---------------------------------------------------
+
+test_that(".create_processing_losses_df sums processing losses and the inedible remainder", {
+  prov <- tibble::tribble(
+    ~Province_name, ~Year, ~Item, ~Irrig_cat, ~Box, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Olives", NA, "Cropland", "Cropland", "processing_losses", 20,
+    "Huesca", 2000, "Potato", NA, "Cropland", "Cropland", "population_food_inedible", 10,
+    "Huesca", 2000, "Wheat and products", NA, "Cropland", "Cropland", "population_food", 40,
+    # A Livestock-origin inedible row must not leak into the crop total.
+    "Huesca", 2000, "Bovine Meat", NA, "Livestock", "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .create_processing_losses_df(prov)
+
+  expect_equal(unique(out$label), "{CRP_PROCLOSS}")
+  expect_equal(out$data, 30)
   expect_equal(out$align, "L")
 })
 

@@ -40,11 +40,11 @@ create_grafs_plot_df <- function(example = FALSE) {
   df_livestock_export <- .create_livestock_export_df(prov_destiny_df)
   df_milk <- .create_milk_df(prov_destiny_df)
   df_livestock_total <- .create_livestock_total_df(prov_destiny_df)
+  df_livestock_inedible <- .create_livestock_inedible_df(prov_destiny_df)
 
   df_crplndtot <- .create_cropland_total_df(
     df_flow,
-    df_processing_losses,
-    prov_destiny_df
+    df_processing_losses
   )
 
   df_all_flows <- dplyr::bind_rows(
@@ -56,12 +56,10 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_lv_r_m,
     df_crop_losses,
     df_processing_losses,
-    df_animal_losses
+    df_animal_losses,
+    df_livestock_inedible
   )
-  df_livestock_surplus <- .create_livestock_surplus_df(
-    df_all_flows,
-    prov_destiny_df
-  )
+  df_livestock_surplus <- .create_livestock_surplus_df(df_all_flows)
   df_wastewater_surplus <- .create_wastewater_surplus_df(
     df_all_flows,
     prov_destiny_df
@@ -76,7 +74,8 @@ create_grafs_plot_df <- function(example = FALSE) {
     df_animal_losses = df_animal_losses,
     df_livestock_total = df_livestock_total,
     df_livestock_surplus = df_livestock_surplus,
-    df_land_surplus = df_land_surplus
+    df_land_surplus = df_land_surplus,
+    df_livestock_inedible = df_livestock_inedible
   )
 
   .assemble_grafs_df(list(
@@ -131,8 +130,7 @@ create_grafs_plot_df <- function(example = FALSE) {
 
 .create_cropland_total_df <- function(
   df_flow,
-  df_processing_losses,
-  prov_destiny_df
+  df_processing_losses
 ) {
   cropland_labels <- c(
     "{CROP_EXPORT}",
@@ -143,27 +141,14 @@ create_grafs_plot_df <- function(example = FALSE) {
 
   # Processing losses leave the cropland system just like exports, food and
   # feed do, so the cropland throughput total must count them too -- df_flow
-  # alone does not carry {CRP_PROCLOSS}.
-  df_source <- dplyr::bind_rows(df_flow, df_processing_losses) |>
+  # alone does not carry {CRP_PROCLOSS}. {CRP_PROCLOSS} itself already
+  # includes the population_food_inedible remainder
+  # (.create_processing_losses_df()), so {CROPS_TO_POP}'s edible-only basis
+  # does not understate this total.
+  df_totals <- dplyr::bind_rows(df_flow, df_processing_losses) |>
     dplyr::filter(label %in% cropland_labels) |>
     dplyr::mutate(data = suppressWarnings(as.numeric(data))) |>
     dplyr::select(province, year, data)
-
-  # {CROPS_TO_POP} is built from the edible-basis population_food destiny
-  # (see .split_food_inedible_loss() in n_prov_destiny.R); its
-  # population_food_inedible remainder carries no arrow of its own, so it
-  # must be added back in here or {CRPLNDTOTN} would understate cropland
-  # throughput by exactly the inedible fraction.
-  df_inedible <- prov_destiny_df |>
-    dplyr::filter(
-      Destiny == "population_food_inedible",
-      Origin == "Cropland"
-    ) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::rename(province = Province_name, year = Year)
-
-  df_totals <- dplyr::bind_rows(df_source, df_inedible)
 
   df_prov <- df_totals |>
     dplyr::filter(province != "Spain") |>
@@ -222,6 +207,7 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{AN_LS_OTH}",
     "{LV_EDBL}",
     "{LVSTCK_NOEDIBLE}",
+    "{LVSTCK_INEDIBLE}",
     "{LVST_MILK}",
     "{LIVESTOCK_EXPORTED}",
     "{LVSTCKTOTN}",
@@ -1278,6 +1264,12 @@ create_grafs_plot_df <- function(example = FALSE) {
   # (n_prov_destiny.R) split out of population_food -- it left the field
   # exactly like the edible fraction did, so it belongs in the same output
   # total or the surplus would overstate what is still in the system.
+  #
+  # processing_losses is deliberately NOT in this list: per
+  # .compute_processing_losses() (n_prov_destiny.R), that destiny is meant
+  # to fall into surplus rather than count as a tracked output, pending
+  # explicit by-product items -- it gets a display arrow ({CRP_PROCLOSS})
+  # for visibility, but this residual still counts it as unaccounted-for.
   output_destinies <- c(
     "population_food",
     "population_food_inedible",
@@ -1485,6 +1477,46 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::select(province, year, label, data, align)
 }
 
+#' Create livestock non-edible fraction dataset.
+#'
+#' @description
+#' Nitrogen in the inedible remainder `.split_food_inedible_loss()`
+#' (n_prov_destiny.R) split out of `population_food` for livestock-origin
+#' items (bones, offal and similar -- not [.create_livestock_df()]'s
+#' `{LVSTCK_NOEDIBLE}`, which is non-edible animal *products* like hides and
+#' wool). Drawn as its own arrow leaving Livestock directly, mirroring
+#' Alfredo Rodriguez et al.'s "Non-edible" arrow, rather than routed through
+#' `{LIVESTOCK_TO_HUMAN}` or hidden in a residual: the whole point of the
+#' edible/inedible split is that this fraction never reaches the population,
+#' so it should not appear to arrive there before leaving again.
+#'
+#' @param prov_destiny_df A tibble of production and destiny N flows.
+#'
+#' @return
+#' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
+#'
+#' @noRd
+.create_livestock_inedible_df <- function(prov_destiny_df) {
+  prov_destiny_df |>
+    dplyr::filter(
+      Origin == "Livestock",
+      Destiny == "population_food_inedible"
+    ) |>
+    dplyr::group_by(Province_name, Year) |>
+    dplyr::summarise(data = sum(MgN, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(
+      label = "{LVSTCK_INEDIBLE}",
+      align = "L"
+    ) |>
+    dplyr::select(
+      province = Province_name,
+      year = Year,
+      label,
+      data,
+      align
+    )
+}
+
 #' Create feed-from-cropland dataset.
 #'
 #' @description
@@ -1554,10 +1586,16 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' Create crop processing losses dataset.
 #'
 #' @description
-#' Nitrogen from cropland production that processing substitution could not
-#' credit to a named processed output ([create_n_prov_destiny()]'s
-#' `"processing_losses"` destiny -- grape pomace, olive cake, beet pulp and
-#' similar agro-industry residues).
+#' Nitrogen from cropland production that never reaches the population as
+#' food: processing substitution that could not credit a named processed
+#' output ([create_n_prov_destiny()]'s `"processing_losses"` destiny -- grape
+#' pomace, olive cake, beet pulp and similar agro-industry residues), plus the
+#' inedible remainder `.split_food_inedible_loss()` (n_prov_destiny.R) split
+#' out of `population_food` (peel, core, rind and similar trimmings). Alfredo
+#' Rodriguez et al.'s diagram has no separate arrow for the latter on the
+#' crop side (unlike livestock's `{LVSTCK_INEDIBLE}`), so it is folded into
+#' this existing one rather than left to inflate `{LIVESTOCK_TO_HUMAN}`'s
+#' crop-side counterpart or hide in `{WASTEWATER}`.
 #'
 #' @param prov_destiny_df A tibble of production and destiny N flows.
 #'
@@ -1569,7 +1607,7 @@ create_grafs_plot_df <- function(example = FALSE) {
   prov_destiny_df |>
     dplyr::filter(
       Origin == "Cropland",
-      Destiny == "processing_losses"
+      Destiny %in% c("processing_losses", "population_food_inedible")
     ) |>
     dplyr::group_by(Province_name, Year) |>
     dplyr::summarise(
@@ -1700,14 +1738,12 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' livestock N inputs and outputs across all flow datasets.
 #'
 #' @param df_all_flows A tibble binding all crop and livestock N flow datasets.
-#' @param prov_destiny_df A tibble of N flows with columns `Origin`, `Destiny`,
-#'   `Province_name`, `Year`, and `MgN`.
 #'
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
 #'
 #' @noRd
-.create_livestock_surplus_df <- function(df_all_flows, prov_destiny_df) {
+.create_livestock_surplus_df <- function(df_all_flows) {
   input_labels <- c(
     "{CROPS_TO_LIVESTOCK}",
     "{GRASS_TO_LIVESTOCK}",
@@ -1717,12 +1753,19 @@ create_grafs_plot_df <- function(example = FALSE) {
     "{IMPORT_ANIMALCR_MONOG}"
   )
 
+  # {LIVESTOCK_TO_HUMAN} is built from the edible-basis population_food
+  # destiny, split in n_prov_destiny.R; its population_food_inedible
+  # remainder now has its own arrow, {LVSTCK_INEDIBLE}
+  # (.create_livestock_inedible_df()), which must count toward output here
+  # too or it would inflate this gaseous-loss residual instead of being
+  # recognised as the non-edible fraction.
   output_labels <- c(
     "{LIVESTOCK_TO_HUMAN}",
     "{LIVESTOCK_EXPORTED}",
     "{LIVESTOCK_TO_CROPS}",
     "{LIVESTOCK_TO_GRASS}",
-    "{AN_OTH}"
+    "{AN_OTH}",
+    "{LVSTCK_INEDIBLE}"
   )
 
   df_inputs <- df_all_flows |>
@@ -1741,25 +1784,10 @@ create_grafs_plot_df <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  # {LIVESTOCK_TO_HUMAN} is built from the edible-basis population_food
-  # destiny, split in n_prov_destiny.R; its population_food_inedible
-  # remainder carries no arrow of its own, so it must be added to output here
-  # or it would inflate this gaseous-loss residual instead of being
-  # recognised as food waste.
-  df_inedible <- prov_destiny_df |>
-    dplyr::filter(
-      Destiny == "population_food_inedible",
-      Origin == "Livestock"
-    ) |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(inedible = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::rename(province = Province_name, year = Year)
-
   dplyr::full_join(df_inputs, df_outputs, by = c("province", "year")) |>
-    dplyr::full_join(df_inedible, by = c("province", "year")) |>
     dplyr::mutate(
       input = dplyr::coalesce(input, 0),
-      output = dplyr::coalesce(output, 0) + dplyr::coalesce(inedible, 0),
+      output = dplyr::coalesce(output, 0),
       data = input - output,
       label = "{LIVGASLOSS}",
       align = "R"
@@ -1775,12 +1803,13 @@ create_grafs_plot_df <- function(example = FALSE) {
 # data targets Cropland, so `returned` is ~{ORGOT}; the grass share is
 # included for the (currently negligible) rows that target grassland instead.
 #
-# The four input labels are built from the population_food destiny, which
-# `.split_food_inedible_loss()` (in n_prov_destiny.R) already split into an
-# edible population_food and a population_food_inedible remainder -- and
-# population_food_inedible carries no arrow of its own. Adding it back in
-# here is what makes it surface as wastewater instead of silently vanishing
-# from the balance.
+# The four input labels are built from the edible-basis population_food
+# destiny (.split_food_inedible_loss(), n_prov_destiny.R): its
+# population_food_inedible remainder is not part of what the population
+# consumes, so it is deliberately excluded here too -- it now has its own
+# arrows ({CRP_PROCLOSS}, {LVSTCK_INEDIBLE}) leaving Cropland/Livestock
+# directly, rather than appearing to arrive at the population before leaving
+# as wastewater.
 .create_wastewater_surplus_df <- function(df_all_flows, prov_destiny_df) {
   input_labels <- c(
     "{CROPS_TO_POP}",
@@ -1797,12 +1826,6 @@ create_grafs_plot_df <- function(example = FALSE) {
       .groups = "drop"
     )
 
-  df_inedible <- prov_destiny_df |>
-    dplyr::filter(Destiny == "population_food_inedible") |>
-    dplyr::group_by(Province_name, Year) |>
-    dplyr::summarise(inedible = sum(MgN, na.rm = TRUE), .groups = "drop") |>
-    dplyr::rename(province = Province_name, year = Year)
-
   df_returned <- prov_destiny_df |>
     dplyr::filter(
       Origin == "People",
@@ -1813,10 +1836,9 @@ create_grafs_plot_df <- function(example = FALSE) {
     dplyr::rename(province = Province_name, year = Year)
 
   df_inputs |>
-    dplyr::full_join(df_inedible, by = c("province", "year")) |>
     dplyr::full_join(df_returned, by = c("province", "year")) |>
     dplyr::mutate(
-      input = dplyr::coalesce(input, 0) + dplyr::coalesce(inedible, 0),
+      input = dplyr::coalesce(input, 0),
       returned = dplyr::coalesce(returned, 0),
       data = input - returned,
       label = "{WASTEWATER}",
@@ -1867,6 +1889,8 @@ create_grafs_plot_df <- function(example = FALSE) {
 #' @param df_livestock_total A tibble of total livestock N.
 #' @param df_livestock_surplus A tibble of livestock surplus N.
 #' @param df_land_surplus A tibble of land surplus N.
+#' @param df_livestock_inedible A tibble of the livestock non-edible
+#'   fraction N.
 #'
 #' @return
 #' A tibble with columns `province`, `year`, `label`, `data`, and `align`.
@@ -1881,7 +1905,8 @@ create_grafs_plot_df <- function(example = FALSE) {
   df_animal_losses,
   df_livestock_total,
   df_livestock_surplus,
-  df_land_surplus
+  df_land_surplus,
+  df_livestock_inedible
 ) {
   df_combi <- dplyr::bind_rows(
     .select_flow_cols(crop_livestock_flows),
@@ -1892,7 +1917,8 @@ create_grafs_plot_df <- function(example = FALSE) {
     .select_flow_cols(df_animal_losses),
     .select_flow_cols(df_livestock_total),
     .select_flow_cols(df_livestock_surplus),
-    .select_flow_cols(df_land_surplus)
+    .select_flow_cols(df_land_surplus),
+    .select_flow_cols(df_livestock_inedible)
   ) |>
     dplyr::arrange(province, year, label) |>
     dplyr::mutate(
