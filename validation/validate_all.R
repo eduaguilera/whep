@@ -444,5 +444,48 @@ if (length(nour_metric) == 1L) {
   )
 }
 
+# A. admin-unit drift (external, vs the compiled subnational panel) ------------
+# T18a (#1000): how much within-country geography a spatialization pattern
+# frozen at one reference year cannot represent. The panel is an internal
+# compilation that is not redistributed, so the sweep reports "not run" rather
+# than starting anything when WHEP_SUBNATIONAL is unset.
+adt_out <- if (nzchar(Sys.getenv("WHEP_SUBNATIONAL"))) {
+  system2(
+    "Rscript",
+    "validation/admin_drift_tvd.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+adt_metric <- grep("^METRIC", adt_out, value = TRUE)
+if (length(adt_metric) != 1L || grepl("status=skipped", adt_metric)) {
+  add(
+    "admin_drift",
+    "external",
+    NA,
+    NA,
+    NA,
+    "not run: WHEP_SUBNATIONAL unset (the panel is not redistributed)"
+  )
+} else {
+  adt_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", adt_metric))
+  }
+  add(
+    "admin_drift",
+    "external",
+    adt_num("n_tvd_rows"),
+    adt_num("n_tvd_rows") - adt_num("n_failed"),
+    adt_num("n_failed"),
+    sprintf(
+      "share-vector TVD vs the frozen reference year; Spain harvested area
+       1961 = %.1f%% of the national total in a different province",
+      adt_num("spain_area_1961")
+    )
+  )
+}
+
 cat("\n=== WHEP validation scorecard ===\n")
 dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)

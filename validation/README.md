@@ -58,6 +58,8 @@ a hardcoded grid.
 | `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. |
 | `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
+| `admin_drift_tvd.R` | Sizes the within-country geography a spatialization pattern frozen at one reference year cannot represent (#1000): total variation distance between an admin-unit share vector and its reference year, on observed subnational statistics. Also emits the per-source discrepancy and gap-year distributions the allocation policy is decided against. Needs `WHEP_SUBNATIONAL`; skips with a message when unset. See below. |
+| `gt_admin_drift.json` | Recorded state of that measurement per country × indicator × reference year × year, plus the gap-year and discrepancy summaries. **Committed** — a tripwire, meant to fail when the compiled panel changes. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -138,6 +140,78 @@ baseline, which is how the check was shown to fire rather than merely to pass.
 The production build (~130 s, ~4.5 GB peak for 2001–2023) is cached under the
 gitignored `.whep_cache/`, so only the first run is slow. `validate_all.R` runs
 this check only when that cache already exists, or when `VAL_TG_FORCE` is set.
+
+## Admin-unit drift (`admin_drift_tvd.R`)
+
+`run_spatialize()` splits a national total across 0.5-degree cells in proportion
+to a weight frozen at circa 2000 — the Monfreda `harvest_fraction` for crops, a
+LUH2 land-use proxy for livestock — so the *shape* of the allocation inside a
+country is the year-2000 shape in every year of the run. This script measures
+what that costs, and is the evidence Phase 3 of the subnational-spatialization
+plan (#1000) is asked with.
+
+For one country, indicator and item, with `s_u(t)` = admin unit `u`'s share of
+the national quantity in year `t`:
+
+```text
+TVD(t, r) = 0.5 * sum_u | s_u(t) - s_u(r) |
+```
+
+is the fraction of the national total sitting in a different unit than the
+reference-year pattern implies. Measured on **harvested area** (the quantity
+the plan's decision 8 binds; a production share would embed a within-unit
+yield) and on livestock head counts, area-weighted over items:
+
+| country | 1961 | 1970 | 1980 | 1990 | 2010 | 2020 |
+|---|---|---|---|---|---|---|
+| Spain | 28.0 | 24.5 | 16.5 | 12.5 | 10.3 | 12.1 |
+| Japan | 23.9 | 13.8 | 7.1 | 4.6 | 3.3 | 5.7 |
+| USA | 16.6 | 13.9 | 16.0 | 8.5 | 4.8 | – |
+| France | – | 19.9 | – | – | – | 9.2 |
+| Italy | – | 18.7 | – | – | – | 10.0 |
+| Australia | 12.5 | 11.6 | 6.1 | 5.9 | 6.2 | 12.9 |
+
+Per crop it reaches 63.6% (Spain maize 1961) and 60.0% (Japan barley 1961);
+French livestock against a 2010 reference reaches 48.7% (goats) and 42.8%
+(sheep). Drift is monotone in distance from the reference year and V-shaped
+about it. A `–` is a country-year where no item had at least five admin units
+common to both years, not a zero: the USA's 2020 field-crop rows in this panel
+are almost entirely flagged `duplicate_cell`, and France and Italy are compiled
+at 1970 / 2000 / 2020 only.
+
+The score is a **lower bound** on the allocation error — aggregating cells back
+to units cannot see misallocation between cells inside one unit.
+
+```bash
+WHEP_SUBNATIONAL=<panel.parquet> Rscript validation/admin_drift_tvd.R
+WHEP_SUBNATIONAL=... Rscript validation/admin_drift_tvd.R --record  # re-record
+WHEP_SUBNATIONAL=... Rscript validation/admin_drift_tvd.R --perturb # must FAIL
+```
+
+`--perturb` (or `VAL_ADT_PERTURB=<factor>`) scales every other admin unit inside
+each country-indicator-item-year. A *flat* scale would cancel in the shares and
+prove nothing, so the tripwire distorts the shape instead; 83 of the 90 recorded
+rows move under it.
+
+Two companion outputs feed the allocation-policy decisions and are written to
+the gitignored `cache/`, with their per-source summaries recorded in the JSON:
+
+- `cache/admin_drift_discrepancy.csv` — `admin_sum / national_total - 1` per
+  (country, item, year). Needs `VAL_ADT_NATIONAL_CSV` pointing at a
+  `build_primary_production()` export (`year`, `area_code`, `item_prod_code`,
+  `unit`, `value`); the section is skipped with a message when unset.
+- `cache/admin_drift_gap_years.csv` — interior missing years per series, with
+  run lengths, which is what `fill_proxy_growth()`'s `max_gap` settings are
+  chosen against.
+
+The zero-pattern-unit count (unit × crop pairs with reported area > 0 and no
+positive Monfreda cell) is **not** produced here: it needs a cell-to-unit
+crosswalk that does not exist until the level-1 grid lands.
+
+This **extends** `subnational.workflow.js` / `compare_findings.R` rather than
+replacing them. Those score WHEP's *national* value against subnational
+statistics summed to a national total; this one never uses a national value as
+skill, and reads a different artifact.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 

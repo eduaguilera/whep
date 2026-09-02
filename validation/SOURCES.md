@@ -28,6 +28,7 @@ committed.
 | occupation / land_per_tonne | Poore & Nemecek 2018 (LCA, m²·yr/kg) | open | `cache/ground_truth/occupation.json` | manual (cited) |
 | cycle_length | GGCMI Phase 3 crop calendar | open (Zenodo 5062513) | `cache/ground_truth/cycle_length.json`, `cache/data/GGCMI/` | manual + `ncdf4` |
 | stability | none (WHEP's own series) | — | — | `stability.R` |
+| admin_drift | WHEP subnational compilation (harmonized panel, `whep_production_subnational.parquet`) | internal compilation, **not redistributed** | path in `WHEP_SUBNATIONAL` (outside the repo); `cache/admin_drift_*.csv` | `admin_drift_tvd.R` |
 
 ## Packaged BNF coefficient provenance
 
@@ -282,6 +283,8 @@ Four derivation notes, all load-bearing:
 | Key | Dataset | Location |
 |---|---|---|
 | `WHEP_NASS_DIR` | USDA NASS QuickStats bulk (crops.csv ~8 GB) | `~/Nextcloud/WHEP_ERC 2025/.../NASS` |
+| `WHEP_SUBNATIONAL` | WHEP subnational production panel, 8.93M rows / 1860–2026 / 455 admin units / 26 countries (parquet, ~90 MB). **Internal compilation, not redistributed**: it is the Infante-Amate / Urrego-Mesa / Badia-Miró / Aguilera panel plus USDA NASS, Japan MAFF and ABS transcriptions, and the tier-2/3 families are consent-gated (plan #1000 task T23). Only `lane == "observational"` rows are directly transcribed statistics; the rest is the compilation's own gap-filling. Regenerate from the source zip named in its `SOURCE.md`; never edit in place. | one parquet file, path given by the env var |
+| `VAL_ADT_NATIONAL_CSV` | A `build_primary_production()` export used only for the admin-drift discrepancy section (`year`, `area_code`, `item_prod_code`, `unit`, `value`). Regenerable from WHEP itself; optional. | a local CSV, path given by the env var |
 
 (GAEZ is no longer a required local dataset: `gaez_potential.R` auto-downloads the
 GAEZ v4 multiple-cropping-zone layers from the open FAO bucket; `WHEP_GAEZ_DIR`
