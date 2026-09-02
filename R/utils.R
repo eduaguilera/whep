@@ -2117,6 +2117,8 @@ utils::globalVariables(
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
     "area_code_int",
+    # polities.R (#1000) — the containment edge the label resolver reads
+    "polity_containment",
     # admin_stats_nass.R (#1000) — USDA NASS bulk-dump column names and reader intermediates
     "AGG_LEVEL_DESC",
     "COUNTY_CODE",

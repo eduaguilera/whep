@@ -428,3 +428,45 @@ test_that("a succession year still resolves to exactly one polity", {
   expect_equal(resolve_polity_label("EGY", year = 1967L), "EGY-1967-1979")
   expect_equal(resolve_polity_label("MYS", year = 1965L), "MYS-1965-2025")
 })
+
+
+# ---- Members never claim their container's identity (whep#1000) -------------
+
+testthat::test_that("an ISO3 shared by a state and its provinces resolves to the state", {
+  # After the 2026-09 re-sync every Japanese prefecture carries iso3_code
+  # `JPN` beside the national periods; the containment edge makes them step
+  # aside. Ryukyu 1937-1945 sits inside the Japanese Empire the same way.
+  testthat::expect_equal(
+    whep::resolve_polity_label("JPN", year = 2010L),
+    "JPN-1952-2025"
+  )
+  testthat::expect_equal(
+    whep::resolve_polity_label("JPN", year = 1940L),
+    "JPN-1895-1945"
+  )
+  testthat::expect_equal(
+    whep::resolve_polity_label("JPN", year = 1880L),
+    "JPN-1800-1895"
+  )
+})
+
+testthat::test_that(".drop_contained_candidates() only drops members of a present container", {
+  cand <- data.frame(
+    polity_code = c("JPN-1952-2025", "JPN-AICHI-1871-2025"),
+    stringsAsFactors = FALSE
+  )
+  out <- whep:::.drop_contained_candidates(cand, 2010L)
+  testthat::expect_equal(out$polity_code, "JPN-1952-2025")
+  # The container absent: the member keeps its claim.
+  alone <- data.frame(
+    polity_code = "JPN-AICHI-1871-2025",
+    stringsAsFactors = FALSE
+  )
+  testthat::expect_equal(
+    whep:::.drop_contained_candidates(alone, 2010L)$polity_code,
+    "JPN-AICHI-1871-2025"
+  )
+  # Outside the edge's years the member is not contained by that container.
+  out_early <- whep:::.drop_contained_candidates(cand, 1900L)
+  testthat::expect_equal(sort(out_early$polity_code), sort(cand$polity_code))
+})
