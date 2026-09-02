@@ -44,6 +44,9 @@ reference:
   - admin_shares_prototype
   - admin_shares_schema
   - ensure_admin_shares
+  - read_admin_stats_nass
+  - read_admin_stats_eurostat
+  - read_admin_stats_sidra
 
 - title: Polycell spatial support
   desc: >
