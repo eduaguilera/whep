@@ -38,10 +38,17 @@ cell, band and year, \code{read_lpjml_hydrology("stand_frac", monthly = FALSE)} 
 Defaults to \code{FALSE}.}
 }
 \value{
-A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{year}, \code{month}, \code{band},
+A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, \code{year},
+\code{month}, \code{band},
 \code{band_name}, \code{stand_frac}, \code{airrig_stand_mm} and \code{airrig_cell_mm} at
 \code{"grid"} resolution (aggregated over cells at \code{"polity"}), plus the
 polity columns below.
+
+A border cell shared by several polities appears ONCE PER POLITY, with
+\code{cell_area_frac} carrying that polity's share of the cell. The mm
+columns are densities and do not split; the AREA does. Aggregating over
+cells therefore weights by \code{cell_area_frac} (times stand or cell area),
+and summing rows without it double-counts every border cell.
 }
 \description{
 Applied irrigation per cell, crop and month, from \code{cft_airrig_month.nc}
