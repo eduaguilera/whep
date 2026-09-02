@@ -15,7 +15,7 @@
 # Available datasets:
 #   naturalearth, faostat, luh2, monfreda, earthstat_fertilizer, mirca,
 #   hydrology, coello, nitrogen, west_manure, global_dams, hwsd, climate,
-#   population
+#   population, hyde, nass
 #
 # Every downloader skips files that already exist, so re-running is cheap.
 # `climate` is by far the largest (CRU TS is ~2.3 GB compressed, and the
@@ -49,7 +49,8 @@ download_all <- function(dest_dir, datasets = NULL) {
     "hwsd",
     "climate",
     "population",
-    "hyde"
+    "hyde",
+    "nass"
   )
 
   if (is.null(datasets)) {
@@ -87,7 +88,8 @@ download_all <- function(dest_dir, datasets = NULL) {
       hwsd = download_hwsd(dest_dir),
       climate = download_climate(dest_dir),
       population = download_population(dest_dir),
-      hyde = download_hyde(dest_dir)
+      hyde = download_hyde(dest_dir),
+      nass = download_nass(dest_dir)
     )
   }
 
