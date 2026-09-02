@@ -24,6 +24,10 @@ typology_stacked_bars <- function() {
           "livestock_mono",
           "livestock_rum",
           "population_food",
+          # population_food_inedible is the remainder
+          # .split_food_inedible_loss() (n_prov_destiny.R) split out of
+          # population_food -- it still entered the system as an import.
+          "population_food_inedible",
           "population_other_uses"
         )
     )

@@ -55,6 +55,23 @@ test_that(".system_production separates residues from production", {
   expect_equal(production, 300 + 120 + 60)
 })
 
+test_that(".system_production includes population_food_inedible", {
+  fixture <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Origin, ~Destiny, ~MgN,
+    2000, "Spain", "Wheat and products", "Cropland", "population_food", 30,
+    2000, "Spain", "Wheat and products", "Cropland", "population_food_inedible", 10,
+    # A Livestock-origin inedible row must not leak into the Cropland total.
+    2000, "Spain", "Bovine Meat", "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .system_production(fixture, "Cropland")
+
+  production <- out |>
+    dplyr::filter(Type == "Production") |>
+    dplyr::pull(MgN)
+  expect_equal(production, 40)
+})
+
 
 # .stack_plot_df ---------------------------------------------------------------
 
@@ -179,6 +196,19 @@ test_that(".system_level_inputs binds recoded soil inputs with imports", {
   expect_equal(pick("Food_import"), 30)
 })
 
+test_that(".system_level_inputs adds population_food_inedible to Food_import", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Outside", "population_food", 30,
+    2000, "Outside", "population_food_inedible", 5
+  )
+
+  out <- .system_level_inputs(fixture)
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_equal(pick("Food_import"), 35)
+})
+
 
 # .system_level_uses -----------------------------------------------------------
 
@@ -201,6 +231,20 @@ test_that(".system_level_uses splits Feed, Food, Other_uses and Export", {
   expect_equal(pick("Food"), 350)
   expect_equal(pick("Other_uses"), 25)
   expect_equal(pick("Export"), 60)
+})
+
+test_that(".system_level_uses counts population_food_inedible as Food", {
+  fixture <- tibble::tribble(
+    ~Year, ~Origin, ~Destiny, ~MgN,
+    2000, "Cropland", "population_food", 300,
+    2000, "Cropland", "population_food_inedible", 20,
+    2000, "Livestock", "population_food_inedible", 5
+  )
+
+  out <- .system_level_uses(fixture)
+  pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
+
+  expect_equal(pick("Food"), 325)
 })
 
 
@@ -355,6 +399,35 @@ test_that(".livestock_production sums livestock output to one Type", {
 
   expect_equal(unique(out$Type), "Production")
   expect_equal(out$MgN, 50)
+})
+
+test_that(".livestock_production includes population_food_inedible", {
+  fixture <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Origin, ~Destiny, ~MgN,
+    2000, "Spain", "Bovine Meat", "Livestock", "population_food", 50,
+    2000, "Spain", "Bovine Meat", "Livestock", "population_food_inedible", 8,
+    2000, "Spain", "Wheat and products", "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .livestock_production(fixture)
+
+  expect_equal(out$MgN, 58)
+})
+
+test_that(".livestock_production_split includes population_food_inedible", {
+  fixture <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Origin, ~Destiny, ~MgN,
+    2000, "Spain", "Bovine Meat", "Livestock", "population_food", 50,
+    2000, "Spain", "Bovine Meat", "Livestock", "population_food_inedible", 8
+  )
+  item_to_type <- tibble::tribble(
+    ~Item, ~prod_type,
+    "Bovine Meat", "Production_rum"
+  )
+
+  out <- .livestock_production_split(fixture, item_to_type)
+
+  expect_equal(out$MgN[out$Type == "Production_rum"], 58)
 })
 
 

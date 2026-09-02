@@ -1791,7 +1791,11 @@ plot_compart_factor_periods <- function(
 
 .destiny_group <- function(destiny) {
   dplyr::case_when(
-    destiny == "population_food" ~ "domestic_food",
+    # population_food_inedible is the remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food -- it left the field
+    # the same way, so it stays grouped as domestic_food here.
+    destiny %in% c("population_food", "population_food_inedible") ~
+      "domestic_food",
     destiny == "population_other_uses" ~ "non_food",
     destiny %in% c("livestock_rum", "livestock_mono") ~ "feed",
     destiny == "export" ~ "exported"
@@ -1805,6 +1809,7 @@ plot_compart_factor_periods <- function(
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -2073,6 +2078,7 @@ plot_compart_factor_periods <- function(
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",

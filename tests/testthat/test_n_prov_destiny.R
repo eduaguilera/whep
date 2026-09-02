@@ -1833,3 +1833,222 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
     ))
   )
 })
+
+
+# .split_food_inedible_loss ----------------------------------------------------
+
+test_that(".split_food_inedible_loss splits population_food by Edible_portion", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_food"], 80)
+  expect_equal(out$mg_n[out$destiny == "population_food_inedible"], 20)
+  # Nothing is lost: the two rows sum back to the original total.
+  expect_equal(sum(out$mg_n), 100)
+})
+
+test_that(".split_food_inedible_loss treats a missing Edible_portion as 1", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Wheat", NA_real_
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  # A missing Edible_portion degrades to fully edible: no inedible row.
+  expect_equal(nrow(out), 1)
+  expect_equal(out$destiny, "population_food")
+  expect_equal(out$mg_n, 100)
+})
+
+test_that(".split_food_inedible_loss leaves non-food destinies unchanged", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_other_uses", 10,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 5
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_other_uses"], 10)
+  expect_equal(out$mg_n[out$destiny == "export"], 5)
+  expect_equal(sum(out$mg_n), 115)
+})
+
+test_that(".split_food_inedible_loss keeps items independent", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 50
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs",
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8,
+    "Wheat", 1
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food"],
+    80
+  )
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food_inedible"],
+    20
+  )
+  expect_equal(
+    out$mg_n[out$item == "Wheat" & out$destiny == "population_food"],
+    50
+  )
+  expect_false(any(
+    out$item == "Wheat" & out$destiny == "population_food_inedible"
+  ))
+})
+
+
+# build_food_protein_destiny ---------------------------------------------------
+
+test_that("build_food_protein_destiny sums population_food only by default", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  # protein_t = 80 MgN * 6.25 (N-to-protein) = 500 t; protein_g_cap_day =
+  # 500 * 1e6 / 1e6 population / 365 = 500 / 365.
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+  expect_equal(out$method_protein_basis, "edible_portion")
+})
+
+test_that("build_food_protein_destiny adds the inedible remainder back in for whole_commodity", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(
+    destiny_df,
+    population,
+    protein_basis = "whole_commodity"
+  )
+
+  # protein_t = (80 + 20) MgN * 6.25 = 625 t; protein_g_cap_day =
+  # 625 * 1e6 / 1e6 population / 365 = 625 / 365.
+  expect_equal(out$protein_g_cap_day, 625 / 365)
+  expect_equal(out$method_protein_basis, "whole_commodity")
+})
+
+test_that("build_food_protein_destiny excludes non-food destinies", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "livestock_rum", 1000,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 1000
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+})
+
+test_that("build_food_protein_destiny keeps provinces separate", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "A", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 36.5,
+    2020, "B", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 73
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "A", 1e6,
+    2020, "B", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(nrow(out), 2)
+  expect_equal(out$protein_g_cap_day[out$province_name == "A"], 0.625)
+  expect_equal(out$protein_g_cap_day[out$province_name == "B"], 1.25)
+})

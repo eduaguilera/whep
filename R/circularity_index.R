@@ -129,6 +129,11 @@ plot_finn_circularity <- function(
       "livestock_rum",                "Livestock",
       "livestock_mono",               "Livestock",
       "population_food",              "People",
+      # population_food_inedible is the remainder .split_food_inedible_loss()
+      # (n_prov_destiny.R) split out of population_food -- it still reached
+      # the population compartment before being discarded, so it maps here
+      # too.
+      "population_food_inedible",     "People",
       "population_other_uses",        "People"
     )
   )

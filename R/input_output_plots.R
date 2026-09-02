@@ -293,6 +293,10 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          # The inedible remainder .split_food_inedible_loss() split out of
+          # population_food (n_prov_destiny.R) still left the system as
+          # production, so it belongs in this total too.
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -327,6 +331,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export",
           "livestock_rum",
@@ -494,6 +499,7 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
       Destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export",
           "livestock_rum",
@@ -530,7 +536,10 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   )
   food_import <- .import_use(
     df,
-    c("population_food", "population_other_uses"),
+    # population_food_inedible is the remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food; it still entered the
+    # system as an import, so it belongs in this total too.
+    c("population_food", "population_food_inedible", "population_other_uses"),
     "Food_import"
   )
 
@@ -561,11 +570,24 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
 
   human_ingestion <- df |>
     dplyr::filter(
-      Destiny %in% c("population_food", "population_other_uses"),
+      Destiny %in%
+        c(
+          "population_food",
+          # The inedible remainder .split_food_inedible_loss()
+          # (n_prov_destiny.R) split out of population_food is still part of
+          # "Food" for this balance -- it left the producing system exactly
+          # like the edible fraction did.
+          "population_food_inedible",
+          "population_other_uses"
+        ),
       Origin %in% c("Cropland", "semi_natural_agroecosystems", "Livestock")
     ) |>
     dplyr::mutate(
-      Type = dplyr::if_else(Destiny == "population_food", "Food", "Other_uses")
+      Type = dplyr::if_else(
+        Destiny %in% c("population_food", "population_food_inedible"),
+        "Food",
+        "Other_uses"
+      )
     ) |>
     dplyr::group_by(Year, Type) |>
     dplyr::summarise(MgN = sum(MgN), .groups = "drop")

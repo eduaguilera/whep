@@ -129,6 +129,19 @@ test_that(".create_livestock_total_df sums livestock output to a single label", 
   expect_equal(out$data, 28)
 })
 
+test_that(".create_livestock_total_df includes population_food_inedible", {
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Livestock", "population_food", 10,
+    "Huesca", 2000, "Livestock", "population_food_inedible", 5,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .create_livestock_total_df(prov_destiny_df)
+
+  expect_equal(out$data, 15)
+})
+
 
 # .create_land_surplus_df ------------------------------------------------------
 
@@ -142,6 +155,21 @@ test_that(".create_land_surplus_df computes inputs minus outputs", {
   # crop inputs are synthetic and fixation; crop outputs are export, food,
   # ruminant feed and monogastric feed
   expect_equal(crop_surplus, (60 + 10) - (100 + 40 + 30 + 20))
+})
+
+test_that(".create_land_surplus_df counts population_food_inedible as output", {
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 100,
+    "Huesca", 2000, "Cropland", "population_food", 30,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 10
+  )
+
+  out <- .create_land_surplus_df(prov_destiny_df) |>
+    dplyr::filter(label == "{CROP_SURPLUS}")
+
+  # 100 input - (30 + 10) output = 60, not 70.
+  expect_equal(out$data, 60)
 })
 
 
@@ -721,12 +749,35 @@ test_that(".create_livestock_surplus_df computes LIVGASLOSS as inputs - outputs"
     "Huesca", 2000, "{AN_OTH}", "5", "R",
     "Huesca", 2000, "{CROP_EXPORT}", "999", "L"
   )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 999
+  )
 
-  out <- .create_livestock_surplus_df(df_all_flows)
+  out <- .create_livestock_surplus_df(df_all_flows, prov_destiny_df)
 
   expect_equal(unique(out$label), "{LIVGASLOSS}")
   expect_equal(out$data, 50)
   expect_equal(out$align, "R")
+})
+
+test_that(".create_livestock_surplus_df adds the inedible remainder to output", {
+  df_all_flows <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_LIVESTOCK}", "50", "L",
+    "Huesca", 2000, "{LIVESTOCK_TO_HUMAN}", "20", "L"
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Livestock", "population_food_inedible", 5,
+    # A Cropland-origin inedible row must not leak into the livestock total.
+    "Huesca", 2000, "Cropland", "population_food_inedible", 999
+  )
+
+  out <- .create_livestock_surplus_df(df_all_flows, prov_destiny_df)
+
+  # input 50 - output (20 + 5 inedible) = 25, not 30.
+  expect_equal(out$data, 25)
 })
 
 
@@ -791,8 +842,16 @@ test_that(".create_cropland_total_df sums the four cropland-output labels", {
     ~province, ~year, ~label, ~data, ~align,
     "Huesca", 2000, "{CRP_PROCLOSS}", 20, "L"
   )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Synthetic", "Cropland", 999
+  )
 
-  out <- .create_cropland_total_df(df_flow, df_processing_losses)
+  out <- .create_cropland_total_df(
+    df_flow,
+    df_processing_losses,
+    prov_destiny_df
+  )
   pick <- function(prov) {
     dplyr::pull(
       dplyr::filter(out, province == prov, label == "{CRPLNDTOTN}"),
@@ -805,6 +864,31 @@ test_that(".create_cropland_total_df sums the four cropland-output labels", {
   expect_equal(pick("Spain"), 10)
   expect_true(all(out$align == "R"))
   expect_equal(unique(out$label), "{CRPLNDTOTN}")
+})
+
+test_that(".create_cropland_total_df adds the inedible remainder for Cropland origin only", {
+  df_flow <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CROPS_TO_POP}", 40, "L"
+  )
+  df_processing_losses <- tibble::tribble(
+    ~province, ~year, ~label, ~data, ~align,
+    "Huesca", 2000, "{CRP_PROCLOSS}", 0, "L"
+  )
+  prov_destiny_df <- tibble::tribble(
+    ~Province_name, ~Year, ~Origin, ~Destiny, ~MgN,
+    "Huesca", 2000, "Cropland", "population_food_inedible", 10,
+    # A Livestock-origin inedible row must not leak into the cropland total.
+    "Huesca", 2000, "Livestock", "population_food_inedible", 999
+  )
+
+  out <- .create_cropland_total_df(
+    df_flow,
+    df_processing_losses,
+    prov_destiny_df
+  )
+
+  expect_equal(out$data[out$province == "Huesca"], 50)
 })
 
 

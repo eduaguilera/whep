@@ -2102,6 +2102,13 @@ utils::globalVariables(
     # totals the blue/green AET split uses, kept apart from the
     # `bands`-restricted pair the output reports
     "consump_blue_all_mm",
-    "consump_green_all_mm"
+    "consump_green_all_mm",
+    # n_prov_destiny.R -- build_food_protein_destiny() NSE columns
+    "Edible_portion",
+    "edible_fraction",
+    # n_soil_inputs_nue.R -- .calculate_n_production()'s pivoted destiny
+    # column for the inedible remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food
+    "population_food_inedible"
   )
 )

@@ -81,13 +81,20 @@ create_typo_ts_plot <- function(
       animal_ingestion = sum(mg_n[
         destiny %in% c("livestock_mono", "livestock_rum")
       ]),
-      pop_consumption = sum(mg_n[destiny == "population_food"]),
+      # population_food_inedible is the remainder .split_food_inedible_loss()
+      # (n_prov_destiny.R) split out of population_food -- it still counts as
+      # consumption/production output here, the same way it does everywhere
+      # else these totals are computed.
+      pop_consumption = sum(mg_n[
+        destiny %in% c("population_food", "population_food_inedible")
+      ]),
       production_total = sum(mg_n[
         origin %in%
           c("Cropland", "Livestock", "semi_natural_agroecosystems") &
           destiny %in%
             c(
               "population_food",
+              "population_food_inedible",
               "population_other_uses",
               "livestock_mono",
               "livestock_rum",

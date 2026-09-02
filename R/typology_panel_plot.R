@@ -499,6 +499,10 @@ plot_typology_periods_panel <- function(
 
 # --- Private helpers: indicator computation ----------------------------------
 
+# population_food_inedible is the remainder .split_food_inedible_loss()
+# (n_prov_destiny.R) split out of population_food; it left the producing
+# system exactly like the edible fraction did, so every destiny list below
+# that includes population_food includes it too.
 .ext_dep_values <- function(flows) {
   ext <- flows |>
     dplyr::filter(
@@ -511,6 +515,7 @@ plot_typology_periods_panel <- function(
               "livestock_rum",
               "livestock_mono",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ))
     ) |>
@@ -529,6 +534,7 @@ plot_typology_periods_panel <- function(
               "livestock_rum",
               "livestock_mono",
               "population_food",
+              "population_food_inedible",
               "population_other_uses"
             ))
     ) |>
@@ -613,6 +619,7 @@ plot_typology_periods_panel <- function(
       destiny %in%
         c(
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "livestock_rum",
           "livestock_mono",
@@ -638,6 +645,7 @@ plot_typology_periods_panel <- function(
           "Cropland",
           "semi_natural_agroecosystems",
           "population_food",
+          "population_food_inedible",
           "population_other_uses",
           "export"
         )

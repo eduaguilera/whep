@@ -380,6 +380,29 @@ test_that(".grafs_prod_destiny_legacy maps to the legacy vocabulary", {
   )
 })
 
+test_that(".grafs_prod_destiny_legacy folds population_food_inedible into Food", {
+  # population_food_inedible is the remainder .split_food_inedible_loss()
+  # (n_prov_destiny.R) split out of population_food; the legacy vocabulary
+  # predates that split and must see the same undivided "Food" total, not a
+  # row silently dropped by the names(legacy_destiny) filter.
+  flows <- tibble::tribble(
+    ~item, ~box, ~origin, ~destiny,
+    "Wheat", "Cropland", "Cropland", "population_food",
+    "Wheat", "Cropland", "Cropland", "population_food_inedible"
+  ) |>
+    dplyr::mutate(
+      mg_n = c(80, 20),
+      year = 2000,
+      province_name = "Lugo",
+      irrig_cat = "rainfed"
+    )
+
+  out <- whep:::.grafs_prod_destiny_legacy(flows)
+
+  expect_equal(unique(out$Destiny), "Food")
+  expect_equal(sum(out$MgN), 100)
+})
+
 test_that(".grafs_prod_destiny_legacy drops soil inputs, repeats imports", {
   out <- whep:::.grafs_prod_destiny_legacy(julia_prov_destiny_fixture())
 

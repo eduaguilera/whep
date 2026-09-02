@@ -77,8 +77,19 @@ create_typologies_whep <- function(
     )
 
   # --- 1. Human share ------------------------------------------------------
+  # population_food_inedible is the remainder .split_food_inedible_loss()
+  # (n_prov_destiny.R) split out of population_food; `production` (from
+  # create_n_production()) already includes it, so the numerator must too or
+  # human_share would be understated by exactly the inedible fraction.
   food_consumption <- prod_destiny |>
-    dplyr::filter(destiny %in% c("population_food", "population_other_uses")) |>
+    dplyr::filter(
+      destiny %in%
+        c(
+          "population_food",
+          "population_food_inedible",
+          "population_other_uses"
+        )
+    ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       food_consumption = sum(mg_n, na.rm = TRUE),

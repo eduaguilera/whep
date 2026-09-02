@@ -94,6 +94,21 @@ test_that(".calculate_n_production does not crash when a destiny category is ent
   expect_equal(out$prod, 7)
 })
 
+test_that(".calculate_n_production includes population_food_inedible", {
+  # .split_food_inedible_loss() (n_prov_destiny.R) moves the inedible
+  # fraction of population_food into its own destiny; it must still count
+  # toward production or NUE would be understated by exactly that fraction.
+  grafs <- tibble::tribble(
+    ~year, ~province_name, ~item, ~box, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 4,
+    2000, "A", "Wheat", "Cropland", "population_food_inedible", 1
+  )
+
+  out <- .calculate_n_production(grafs)
+
+  expect_equal(out$prod, 5)
+})
+
 
 # calculate_nue_crops
 test_that("calculate_nue_crops computes NUE correctly", {
