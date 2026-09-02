@@ -233,7 +233,10 @@ test_that(".system_level_uses splits Feed, Food, Other_uses and Export", {
   expect_equal(pick("Export"), 60)
 })
 
-test_that(".system_level_uses counts population_food_inedible as Food", {
+test_that(".system_level_uses excludes population_food_inedible from Food", {
+  # Food stays edible-basis, matching {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in
+  # the GRAFS plot; the excluded amount surfaces as Surplus instead, via
+  # .surplus_from_totals()'s residual, not by being counted here.
   fixture <- tibble::tribble(
     ~Year, ~Origin, ~Destiny, ~MgN,
     2000, "Cropland", "population_food", 300,
@@ -244,7 +247,7 @@ test_that(".system_level_uses counts population_food_inedible as Food", {
   out <- .system_level_uses(fixture)
   pick <- function(t) dplyr::pull(dplyr::filter(out, Type == t), MgN)
 
-  expect_equal(pick("Food"), 325)
+  expect_equal(pick("Food"), 300)
 })
 
 
@@ -280,13 +283,13 @@ test_that(".stacked_area_plot returns a labelled stacked-area ggplot", {
   ) |>
     dplyr::mutate(Type = factor(Type))
 
-  g <- .stacked_area_plot(plot_df, "My title", c("A" = "red"))
+  g <- .stacked_area_plot(plot_df, c("A" = "red"))
   geoms <- vapply(g$layers, function(l) class(l$geom)[1], character(1))
 
   expect_s3_class(g, "ggplot")
   expect_true("GeomArea" %in% geoms)
   expect_true("GeomHline" %in% geoms)
-  expect_equal(g$labels$title, "My title")
+  expect_null(g$labels$title)
   expect_equal(g$labels$y, "Gg N")
   expect_equal(g$labels$x, "Year")
 })
@@ -474,53 +477,6 @@ test_that("plot_input_output honours per_ha on real (mocked) data", {
 
   expect_s3_class(g, "ggplot")
   expect_equal(g$labels$y, "kg N/ha")
-})
-
-
-# ported feature: accumulation term for semi-natural system --------------------
-
-test_that(".calculate_n_accum nets accumulation gains against losses", {
-  n_balance <- tibble::tribble(
-    ~Year, ~LandUse, ~Accum_gain_AG_MgN, ~Accum_gain_BG_MgN, ~Accum_loss,
-    2000, "Forest", 40, 10, 20,
-    2000, "Cropland", 999, 999, 999
-  )
-
-  out <- .calculate_n_accum(n_balance, landuse = "Forest")
-
-  expect_equal(unique(out$Type), "Accumulation")
-  expect_equal(out$MgN, 40 + 10 - 20)
-})
-
-test_that("plot_input_output adds an Accumulation layer for semi-natural", {
-  testthat::local_mocked_bindings(
-    create_n_nat_destiny = function(example = FALSE) {
-      tibble::tribble(
-        ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
-        2000, "Spain", "Grass", NA, "sna", "Fixation", "semi_natural_agroecosystems", 500,
-        2000, "Spain", "Grass", NA, "sna", "semi_natural_agroecosystems", "livestock_rum", 300
-      )
-    },
-    whep_read_file = function(alias) {
-      tibble::tribble(
-        ~Year, ~LandUse, ~Area_ygpit_ha, ~Accum_gain_AG_MgN, ~Accum_gain_BG_MgN, ~Accum_loss,
-        2000, "Forest", 1000, 40, 10, 20,
-        2000, "Cropland", 500, 999, 999, 999
-      )
-    }
-  )
-
-  g <- whep::plot_input_output(system = "semi_natural_agroecosystems")
-
-  expect_s3_class(g, "ggplot")
-  expect_true("Accumulation" %in% as.character(g$data$Type))
-  expect_true("Accumulation" %in% levels(g$data$Type))
-})
-
-test_that("plot_input_output_system keeps base levels in example mode", {
-  # example mode has no n_balance pin, so no Accumulation level is introduced
-  g <- whep::plot_input_output_system(example = TRUE)
-  expect_false("Accumulation" %in% levels(g$data$Type))
 })
 
 

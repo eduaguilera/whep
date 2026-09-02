@@ -109,10 +109,10 @@ test_that("create_typologies_whep computes the decision variables", {
   expect_equal(grass$crop_prod, 5)
 })
 
-test_that("create_typologies_whep counts population_food_inedible as food_consumption", {
-  # population_food_inedible is the remainder .split_food_inedible_loss()
-  # (n_prov_destiny.R) split out of population_food; `production` already
-  # includes it, so it must count toward food_consumption too.
+test_that("create_typologies_whep excludes population_food_inedible from food_consumption", {
+  # food_consumption is deliberately edible-basis only, matching
+  # {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot -- unlike
+  # `production`, which correctly includes population_food_inedible.
   flows <- tibble::tribble(
     ~province_name, ~item, ~destiny, ~mg_n,
     "Urban", "Wheat", "population_food", 80,
@@ -131,7 +131,7 @@ test_that("create_typologies_whep counts population_food_inedible as food_consum
     years = 2020
   )
 
-  expect_equal(out$food_consumption, 100)
+  expect_equal(out$food_consumption, 80)
 })
 
 test_that("create_typologies_whep ranks imported feed above cropland", {

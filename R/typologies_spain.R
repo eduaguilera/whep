@@ -126,12 +126,12 @@ create_typologies_spain <- function(
         ],
         na.rm = TRUE
       ),
+      # pop_consumption is deliberately edible-basis only (unlike
+      # production_total above): it represents what the population actually
+      # eats, matching {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot,
+      # not total field/system throughput.
       pop_consumption = sum(
-        mg_n[
-          destiny %in%
-            c("population_food", "population_food_inedible") &
-            origin != "Fish"
-        ],
+        mg_n[destiny == "population_food" & origin != "Fish"],
         na.rm = TRUE
       ),
 
