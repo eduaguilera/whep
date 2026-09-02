@@ -14,6 +14,7 @@ build_gridded_livestock(
   glw_density = NULL,
   grass_productivity = NULL,
   years = NULL,
+  proxy_method = c("luh2", "glw3"),
   area_key = c("grid", "polity_area")
 )
 }
@@ -121,12 +122,6 @@ proxies are used alone.}
 When supplied, \code{livestock_data}, \code{gridded_pasture}, and
 \code{gridded_cropland} are filtered to this set before processing.}
 
-\item{area_key}{Which area code the output is keyed on: \code{"grid"}
-(default, the reporting codes \code{livestock_data} and \code{country_grid} are
-keyed on) or \code{"polity_area"} (the \link{polity_area_crosswalk} bucket
-national tables are aggregated on). See
-\code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s \emph{Which area code the output is keyed on}.}
-
 \item{proxy_method}{Which spatial proxy carries the within-country
 weight: \code{"luh2"} (default) or \code{"glw3"}, validated with
 \code{\link[rlang:arg_match]{rlang::arg_match()}}. They are alternatives, never fallbacks: under
@@ -135,6 +130,12 @@ no positive cell for, aborts instead of quietly reverting to the LUH2
 proxy. The resolved value is recorded per row in
 \code{method_livestock_proxy}. See \emph{Which livestock proxy the weights come
 from}.}
+
+\item{area_key}{Which area code the output is keyed on: \code{"grid"}
+(default, the reporting codes \code{livestock_data} and \code{country_grid} are
+keyed on) or \code{"polity_area"} (the \link{polity_area_crosswalk} bucket
+national tables are aggregated on). See
+\code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s \emph{Which area code the output is keyed on}.}
 }
 \value{
 A tibble with gridded livestock data. Columns:
