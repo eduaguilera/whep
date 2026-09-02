@@ -96,6 +96,14 @@
 #'   value with no sourced constant behind it yet. Soil cover is computed
 #'   once per cover profile and joined to the classes, so the class count
 #'   does not multiply the monthly climate table.
+#' @param class_water How a cell's applied irrigation is shared among its
+#'   land-use classes in the moisture term. `"cell"` (default) gives every
+#'   class except natural land the cell-level water surplus, irrigation
+#'   included, as before. `"regime"` concentrates the irrigation on the
+#'   irrigated crop groups in proportion to their share of the cell and runs
+#'   every other class on rain alone; the area-weighted mean over classes is
+#'   the cell value either way. Needs `crop_groups`, because only groups
+#'   carry a regime. Recorded in `method_class_water`.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section Soil depth:
@@ -154,9 +162,11 @@ build_carbon_balance <- function(
   data = list(),
   years = NULL,
   crop_groups = list(),
+  class_water = c("cell", "regime"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
+  class_water <- .cb_check_class_water(class_water, crop_groups)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -171,7 +181,8 @@ build_carbon_balance <- function(
   if (progress) {
     cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
   }
-  d <- .cb_resolve_inputs(data, years)
+  d <- .cb_resolve_inputs(data, years, crop_groups)
+  d$class_water <- class_water
   if (progress) {
     cli::cli_progress_step("Computing per-class equilibrium")
   }
@@ -186,15 +197,19 @@ build_carbon_balance <- function(
   marched <- .cb_march(classes, init_stock)
   marched |>
     .cb_derive_son() |>
-    dplyr::mutate(method_soc = model, method_soc_init = init) |>
+    dplyr::mutate(
+      method_soc = model,
+      method_soc_init = init,
+      method_class_water = class_water
+    ) |>
     .cb_finalise(resolution) |>
     .resolve_polity_validity(polity_validity)
 }
 
 # -- Input resolution ---------------------------------------------------------
 
-.cb_resolve_inputs <- function(data, years = NULL) {
-  c_inputs <- data$c_inputs %||% .cb_read_c_inputs(years)
+.cb_resolve_inputs <- function(data, years = NULL, crop_groups = list()) {
+  c_inputs <- data$c_inputs %||% .cb_read_c_inputs(years, crop_groups)
   land_use <- data$land_use %||% .cb_read_land_use(years)
   climate <- data$climate %||% .cb_read_climate(years)
   # get_soc_climate_drivers() carries clay_pct in its own output, so a
@@ -262,7 +277,8 @@ build_carbon_balance <- function(
     model,
     base$land_use,
     d$natural_cover,
-    d$cropland_cover
+    d$cropland_cover,
+    class_water = .cb_class_water_spec(d$class_water, base)
   )
   base |>
     .cb_join_modifier(modifiers) |>
@@ -294,6 +310,7 @@ build_carbon_balance <- function(
     dplyr::select(dplyr::all_of(keys), "land_use", "group_share")
   crop <- land_use[.soc_is_cropland(land_use$land_use), ]
   other <- land_use[!.soc_is_cropland(land_use$land_use), ]
+  .cb_inform_undrawn_groups(groups, crop, keys)
   split <- crop |>
     dplyr::select(-"land_use") |>
     dplyr::inner_join(shares, by = keys, relationship = "many-to-many") |>
@@ -301,6 +318,26 @@ build_carbon_balance <- function(
     dplyr::select(-"group_share")
   unsplit <- dplyr::anti_join(crop, shares, by = keys)
   dplyr::bind_rows(other, split, unsplit)
+}
+
+# Grouped inputs whose cell-year has NO LUH2 cropland row draw no area and
+# carry no carbon into the march: the crop patterns say crops are there, the
+# land-use layer says no cropland is. That is a real disagreement between
+# two sources, so it is counted and reported rather than dropped silently.
+.cb_inform_undrawn_groups <- function(groups, crop, keys) {
+  undrawn <- dplyr::anti_join(groups, crop, by = keys)
+  if (nrow(undrawn) == 0L) {
+    return(invisible(NULL))
+  }
+  cells <- dplyr::n_distinct(undrawn[keys])
+  mha <- sum(undrawn$group_area_ha, na.rm = TRUE) / 1e6
+  cli::cli_inform(c(
+    "i" = "{nrow(undrawn)} grouped carbon-input row{?s} in {cells} cell-year{?s}
+           ({format(mha, digits = 3)} Mha of crop-pattern area) fall where
+           LUH2 has no cropland and draw no area: their carbon does not enter
+           the march."
+  ))
+  invisible(NULL)
 }
 
 # Join the modifier table onto the class table. The raw-driver modifier table
@@ -358,7 +395,8 @@ build_carbon_balance <- function(
   model,
   land_use_classes,
   natural_cover = NULL,
-  cropland_cover = NULL
+  cropland_cover = NULL,
+  class_water = NULL
 ) {
   keys <- c("lon", "lat", "area_code", "year")
   if (rlang::has_name(climate, "climate_modifier")) {
@@ -381,7 +419,8 @@ build_carbon_balance <- function(
       keys,
       land_use_classes,
       natural_cover,
-      cropland_cover
+      cropland_cover,
+      class_water
     )
   })
   dplyr::bind_rows(parts)
@@ -408,7 +447,8 @@ build_carbon_balance <- function(
   keys,
   land_use_classes,
   natural_cover = NULL,
-  cropland_cover = NULL
+  cropland_cover = NULL,
+  class_water = NULL
 ) {
   prepared <- climate |>
     .cb_join_clay(clay) |>
@@ -418,7 +458,7 @@ build_carbon_balance <- function(
       natural_cover,
       cropland_cover
     ) |>
-    .cb_attach_class_water()
+    .cb_attach_class_water(class_water)
   group_keys <- c(keys, "land_use")
 
   # Vectorised across cell-years where the shape allows it; NULL means fall
@@ -594,10 +634,12 @@ build_carbon_balance <- function(
       .by = c("lon", "lat", "area_code", "year")
     ) |>
     tidyr::crossing(.cover_key = unique(profile_of$.cover_key)) |>
+    dplyr::mutate(.curve_key = .cb_curve_key(.data$.cover_key)) |>
     dplyr::left_join(
       .cb_cover_curve(),
-      by = c(".cover_key" = "land_use", "months_from_peak")
+      by = c(".curve_key" = "land_use", "months_from_peak")
     ) |>
+    dplyr::select(-".curve_key") |>
     dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
     .cb_apply_natural_cover(natural_cover, key = ".cover_key") |>
     .cb_apply_crop_cover(cropland_cover, key = ".cover_key") |>
@@ -609,19 +651,43 @@ build_carbon_balance <- function(
     dplyr::select(-".cover_key")
 }
 
-# The soil-cover profile a class follows. Plain cropland and every herbaceous
-# crop group follow the annual crop curve (and the crop-calendar override);
-# woody crop groups follow a perennial cover; grassland and natural keep
-# their own rows. Anything else keeps its lowercase label and, absent from
-# the curve, runs bare -- the previous behaviour for urban.
+# The soil-cover profile a class follows. Plain cropland follows the annual
+# crop curve (and the pooled crop-calendar override); herbaceous crop groups
+# follow it per irrigation regime (`cropland_rainfed`, `cropland_irrigated`),
+# which only differs from plain cropland once a per-regime crop calendar is
+# supplied; woody crop groups follow a perennial cover; grassland and natural
+# keep their own rows. Anything else keeps its lowercase label and, absent
+# from the curve, runs bare -- the previous behaviour for urban. Idempotent:
+# a profile maps to itself, so a lookup can be keyed on it twice.
 .cb_cover_profile <- function(land_use) {
   key <- stringr::str_to_lower(land_use)
   crop <- .soc_is_cropland(key)
-  woody <- crop & !stringr::str_detect(key, "_herbaceous$") & key != "cropland"
+  herb <- crop & stringr::str_detect(key, "_herbaceous$")
+  woody <- crop & !herb & key != "cropland"
   dplyr::case_when(
+    key %in% .cb_cover_profiles ~ key,
     woody ~ "woody_cropland",
+    herb & stringr::str_starts(key, "cropland_irrigated_") ~
+      "cropland_irrigated",
+    herb ~ "cropland_rainfed",
     crop ~ "cropland",
     TRUE ~ key
+  )
+}
+
+.cb_cover_profiles <- c(
+  "cropland",
+  "cropland_rainfed",
+  "cropland_irrigated",
+  "woody_cropland"
+)
+
+# The curve row a profile reads: the two regime profiles share cropland's.
+.cb_curve_key <- function(profile) {
+  dplyr::if_else(
+    profile %in% c("cropland_rainfed", "cropland_irrigated"),
+    "cropland",
+    profile
   )
 }
 
@@ -663,34 +729,88 @@ build_carbon_balance <- function(
   if (is.null(cropland_cover) || nrow(cropland_cover) == 0L) {
     return(prepared)
   }
-  .check_columns(
-    cropland_cover,
-    c("lon", "lat", "year", "month", "cropland_cover"),
-    "data$cropland_cover"
-  )
+  lookup <- .cb_crop_cover_lookup(cropland_cover)
   prepared |>
+    dplyr::mutate(.crop_profile = .cb_cover_profile(.data[[key]])) |>
     dplyr::left_join(
-      dplyr::distinct(
-        dplyr::select(
-          cropland_cover,
-          "lon",
-          "lat",
-          "year",
-          "month",
-          "cropland_cover"
-        )
-      ),
-      by = c("lon", "lat", "year", "month")
+      lookup,
+      by = c("lon", "lat", "year", "month", ".crop_profile")
     ) |>
     dplyr::mutate(
       soil_cover = dplyr::if_else(
-        stringr::str_to_lower(.data[[key]]) == "cropland" &
-          !is.na(.data$cropland_cover),
+        !is.na(.data$cropland_cover),
         .data$cropland_cover,
         .data$soil_cover
       )
     ) |>
-    dplyr::select(-"cropland_cover")
+    dplyr::select(-"cropland_cover", -".crop_profile")
+}
+
+# One cover per cell-month and annual-crop profile. A pooled layer (no
+# `regime` column, the `read_lpjml_crop_cover()` default) serves plain
+# cropland and both herbaceous regime profiles alike. A per-regime layer
+# (`by = "regime"`) serves `cropland_rainfed` and `cropland_irrigated` from
+# their own bands, and plain cropland from the two pooled by cropped area --
+# the same number the pooled read would have given.
+.cb_crop_cover_lookup <- function(cropland_cover) {
+  annual <- setdiff(.cb_cover_profiles, "woody_cropland")
+  if (!rlang::has_name(cropland_cover, "regime")) {
+    .check_columns(
+      cropland_cover,
+      c("lon", "lat", "year", "month", "cropland_cover"),
+      "data$cropland_cover"
+    )
+    pooled <- cropland_cover |>
+      dplyr::select("lon", "lat", "year", "month", "cropland_cover") |>
+      dplyr::distinct()
+    return(tidyr::crossing(pooled, .crop_profile = annual))
+  }
+  .check_columns(
+    cropland_cover,
+    c(
+      "lon",
+      "lat",
+      "year",
+      "month",
+      "regime",
+      "cropped_frac",
+      "cropland_cover"
+    ),
+    "data$cropland_cover"
+  )
+  unknown <- setdiff(unique(cropland_cover$regime), c("rainfed", "irrigated"))
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{.arg data$cropland_cover} carries unknown regime{?s} {.val {unknown}}.",
+      i = "Expected {.val rainfed} and {.val irrigated}, as
+           {.fn read_lpjml_crop_cover} with {.code by = \"regime\"} writes."
+    ))
+  }
+  per_regime <- cropland_cover |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "year",
+      "month",
+      "regime",
+      "cropped_frac",
+      "cropland_cover"
+    ) |>
+    dplyr::distinct() |>
+    dplyr::mutate(.crop_profile = paste0("cropland_", .data$regime))
+  pooled <- per_regime |>
+    dplyr::summarise(
+      cropland_cover = stats::weighted.mean(
+        .data$cropland_cover,
+        .data$cropped_frac
+      ),
+      .by = c("lon", "lat", "year", "month")
+    ) |>
+    dplyr::mutate(.crop_profile = "cropland")
+  dplyr::bind_rows(
+    dplyr::select(per_regime, -"regime", -"cropped_frac"),
+    pooled
+  )
 }
 .cb_apply_natural_cover <- function(prepared, natural_cover, key = "land_use") {
   if (is.null(natural_cover) || nrow(natural_cover) == 0L) {
@@ -744,19 +864,94 @@ build_carbon_balance <- function(
 # irrigation (the precomputed-`climate_modifier` path, or a caller supplying
 # only the RothC drivers). It is passed through exactly as supplied rather
 # than guessed at.
-.cb_attach_class_water <- function(prepared) {
+#
+# `class_water = "regime"` (a spec from `.cb_class_water_spec()`) goes one step
+# further once crop GROUPS are marched: the cell's applied irrigation, which
+# the driver carries as a cell-mean depth, is concentrated on the irrigated
+# groups in proportion to their share of the cell (`irrigated_frac`), and
+# every other class -- rainfed groups, grassland, natural -- runs on rain
+# alone. The area-weighted mean over classes still equals the cell value, so
+# no water is created or lost; it is only put where it was applied. A
+# cell-year with irrigation but no irrigated class (cropland that stayed
+# unsplit) keeps the `"cell"` rule, so its irrigation is not dropped.
+.cb_attach_class_water <- function(prepared, class_water = NULL) {
   needed <- c("precip_mm", "pet_mm", "water_minus_pet_mm", "land_use")
   if (!all(purrr::map_lgl(needed, \(x) rlang::has_name(prepared, x)))) {
     return(prepared)
   }
+  regime <- !is.null(class_water) && identical(class_water$method, "regime")
   prepared |>
+    .cb_join_irrigated_frac(if (regime) class_water$irrigated_frac) |>
     dplyr::mutate(
-      water_minus_pet_mm = dplyr::if_else(
-        stringr::str_to_lower(.data$land_use) == "natural",
-        .data$precip_mm - .data$pet_mm,
-        .data$water_minus_pet_mm
+      .rain = .data$precip_mm - .data$pet_mm,
+      .irrig = .data$water_minus_pet_mm - .data$.rain,
+      .natural = stringr::str_to_lower(.data$land_use) == "natural",
+      .irrigated = .soc_is_irrigated_class(.data$land_use),
+      water_minus_pet_mm = dplyr::case_when(
+        .data$.irrigated_frac > 0 & .data$.irrigated ~
+          .data$.rain + .data$.irrig / .data$.irrigated_frac,
+        .data$.irrigated_frac > 0 ~ .data$.rain,
+        .data$.natural ~ .data$.rain,
+        TRUE ~ .data$water_minus_pet_mm
       )
+    ) |>
+    dplyr::select(
+      -".rain",
+      -".irrig",
+      -".natural",
+      -".irrigated",
+      -".irrigated_frac"
     )
+}
+
+# Attach each cell-year's irrigated share of the cell as `.irrigated_frac`;
+# zero everywhere when no spec is given (the `"cell"` rule) or where the
+# cell-year has no irrigated class. Joined on whichever of the four keys the
+# table carries, so the year-less equilibrium normal joins on the cell alone.
+.cb_join_irrigated_frac <- function(prepared, irrigated_frac) {
+  if (is.null(irrigated_frac)) {
+    return(dplyr::mutate(prepared, .irrigated_frac = 0))
+  }
+  keys <- intersect(c("lon", "lat", "area_code", "year"), names(prepared))
+  share <- irrigated_frac |>
+    dplyr::summarise(
+      .irrigated_frac = sum(.data$irrigated_frac),
+      .by = dplyr::all_of(keys)
+    )
+  prepared |>
+    dplyr::left_join(share, by = keys) |>
+    dplyr::mutate(.irrigated_frac = dplyr::coalesce(.data$.irrigated_frac, 0))
+}
+
+# The per-class water rule as a spec the modifier chain carries: the method
+# and, for `"regime"`, each cell-year's irrigated share of the cell from the
+# class table's area fractions. NULL for `"cell"`, the status quo.
+.cb_class_water_spec <- function(method, classes) {
+  if (is.null(method) || method != "regime") {
+    return(NULL)
+  }
+  irrigated <- classes |>
+    dplyr::filter(.soc_is_irrigated_class(.data$land_use)) |>
+    dplyr::summarise(
+      irrigated_frac = sum(.data$frac),
+      .by = c("lon", "lat", "area_code", "year")
+    )
+  list(method = "regime", irrigated_frac = irrigated)
+}
+
+# `"regime"` needs classes that can carry the irrigation; without crop groups
+# there are none and the option would silently do nothing, so it is refused.
+.cb_check_class_water <- function(class_water, crop_groups) {
+  class_water <- rlang::arg_match(class_water, c("cell", "regime"))
+  if (class_water == "regime" && identical(crop_groups$method, "none")) {
+    cli::cli_abort(c(
+      "{.arg class_water} = {.val regime} needs crop groups to carry the
+       irrigation.",
+      i = "Pass {.code crop_groups = list(method = \"spain_hist\")}, or keep
+           {.arg class_water} = {.val cell}."
+    ))
+  }
+  class_water
 }
 # Signed month offset of each month from the cell-year's warmest (peak-canopy)
 # month, on a 12-month circle mapped to -5..6 (0 = the warmest month). Aligns
@@ -1278,7 +1473,8 @@ build_carbon_balance <- function(
     model,
     first$land_use,
     d$natural_cover,
-    d$cropland_cover
+    d$cropland_cover,
+    class_water = .cb_class_water_spec(d$class_water, first)
   )
   first |>
     dplyr::left_join(eq_mod, by = c("lon", "lat", "area_code", "land_use")) |>
@@ -1303,7 +1499,8 @@ build_carbon_balance <- function(
   model,
   land_use_classes,
   natural_cover = NULL,
-  cropland_cover = NULL
+  cropland_cover = NULL,
+  class_water = NULL
 ) {
   cell_keys <- c("lon", "lat", "area_code", "land_use")
   eq_climate |>
@@ -1314,6 +1511,7 @@ build_carbon_balance <- function(
       natural_cover,
       cropland_cover
     ) |>
+    .cb_attach_class_water(class_water) |>
     dplyr::summarise(
       climate_modifier_eq = .cb_year_climate_modifier(
         model,
@@ -1892,7 +2090,10 @@ build_carbon_balance <- function(
       luc_transfer_mgc_ha = .cb_wmean(.data$luc_transfer_mgc_ha, .data$area_ha),
       rate_mgc_ha = .cb_wmean(.data$rate_mgc_ha, .data$area_ha),
       son_change_kgn_ha = .cb_wmean(.data$son_change_kgn_ha, .data$area_ha),
-      method_soc = .data$method_soc[1],
+      dplyr::across(
+        dplyr::any_of(c("method_soc", "method_class_water")),
+        \(x) x[1]
+      ),
       area_ha = sum(.data$area_ha),
       .by = c("area_code", "year")
     ) |>

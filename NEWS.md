@@ -20,7 +20,37 @@
   PROFILE (annual crop, woody crop, grassland, natural) and joined to the
   classes: with up to ~80 groups, crossing the monthly climate with every
   class would have multiplied the balance's largest table twentyfold.
-  Herbaceous groups follow the annual curve and the crop-calendar override;
+  Herbaceous groups follow the annual curve and the crop-calendar override,
+  and `read_lpjml_crop_cover(by = "regime")` now keeps the rainfed and the
+  irrigated calendar bands apart (with `cropped_frac`, each regime's share
+  of the cell) so the rainfed and irrigated herbaceous groups each read
+  their own season while plain cropland reads the area-weighted pool --
+  the same number the pooled read gives, so nothing moves without groups.
+  A `class_water = "regime"` option on `build_carbon_balance()` (default
+  `"cell"`, the status quo, recorded in `method_class_water`) concentrates
+  a cell's applied irrigation on its irrigated crop groups in proportion to
+  their share of the cell and runs every other class on rain alone; the
+  area-weighted mean over classes is still the cell value, and the same
+  rule now applies in the equilibrium spin-up as in the forward march.
+  Two defects found on the way: `crop_groups` was validated by
+  `build_carbon_balance()` but never forwarded to the carbon-input reader
+  on the real-data path (every grouped test injected `data$c_inputs`), and
+  the spatialized irrigation split read the spatialize chain's centroid
+  crosswalk, which carries no polity share and which
+  `build_gridded_landuse()` refuses; it now rides the carbon path's own
+  polycell support, so the regimes split on the same polycells as the
+  carbon they split. A third, from the same smoke: the shares were built
+  once for the `years` argument, which the production chain reads as a
+  RANGE (`c(2000, 2010)` grids eleven years) while the gridded land-use
+  builder takes exact years, so nine of eleven years were booked wholly
+  rainfed with only a per-year gap count to show it; the shares now follow
+  the years each gridded chunk actually carries. The genuine gap that
+  remains is the 25% of crop-pattern rows whose crop has no national area
+  row to split (hemp, several minor crops); those stay rainfed and are
+  still counted per year. Grouped inputs whose cell-year has no LUH2 cropland
+  row draw no area and never enter the march; that disagreement between
+  the crop patterns and LUH2 is now counted and reported (rows, cell-years
+  and Mha) instead of being dropped silently;
   woody groups take **an assumed perennial cover of 0.85**, the value
   grassland and natural already use, because no sourced constant for
   orchard or vineyard cover exists in the repository. That assumption is
@@ -77,7 +107,12 @@
   bands are kept: LPJmL books paddy water on *rainfed rice* (36% of the
   stand-weighted total at July 2010). A border cell appears once per polity
   sharing it with `cell_area_frac` carrying the split, and the polity
-  resolution weights intensity by stand area and depth by cell area.
+  resolution weights intensity by stand area and depth by cell area. Each
+  band also carries `crop_group`, the soil-carbon crop group its water
+  belongs to in `soc_crop_group()`'s vocabulary (the twelve named LPJmL
+  crops are herbaceous, so `cropland_<regime>_herbaceous`); the `others`,
+  grassland and bioenergy bands are `NA` rather than a guess, so the water
+  and carbon ledgers can be joined on one label.
 
 * **`build_water_balance()` was overstating `blue_consump_mm`,
   `green_consump_mm` and `cft_nir_mm`; they are now weighted by stand area.**

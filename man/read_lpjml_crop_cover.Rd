@@ -13,6 +13,7 @@ read_lpjml_crop_cover(
   run_dir = NULL,
   years = NULL,
   first_year = NULL,
+  by = c("cropland", "regime"),
   example = FALSE
 )
 }
@@ -26,12 +27,23 @@ uses \code{WHEP_LPJML_RUN_DIR}.}
 \item{first_year}{Calendar year of the files' first time step. \code{NULL}
 (default) reads it from the file's own \code{time} axis.}
 
+\item{by}{\code{"cropland"} (default) pools every calendar band into one cover
+per cell and month. \code{"regime"} keeps the rainfed and the irrigated bands
+apart -- a band is irrigated when its name starts with \code{irrigated} --
+and adds \code{regime} and \code{cropped_frac}, the regime's share of the cell, so
+a consumer can pool the two back by area. Rainfed and irrigated stands
+of one crop sow and harvest on different dates; the per-regime layer is
+what the herbaceous rainfed and irrigated crop groups of
+\code{\link[=build_carbon_balance]{build_carbon_balance()}} (\code{crop_groups = list(method = "spain_hist")})
+read, each from its own bands, while plain cropland reads the pool.}
+
 \item{example}{If \code{TRUE}, return a small fixture instead of reading a run.
 Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{year}, \code{month} and \code{cropland_cover}
-(a fraction in 0-1).
+(a fraction in 0-1); with \code{by = "regime"}, also \code{regime} (\code{"rainfed"} or
+\code{"irrigated"}) and \code{cropped_frac}, and up to two rows per cell-month.
 }
 \description{
 Per-cell, per-month share of a cell's cropped area that is under a growing

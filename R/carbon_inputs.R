@@ -92,9 +92,8 @@ build_carbon_inputs <- function(
 
 .ci_resolve_inputs <- function(data, years = NULL, cfg = .ci_group_config()) {
   crop_area <- data$crop_area %||% .ci_crop_area(data)
-  shares <- .ci_regime_shares(data, years, cfg)
   list(
-    cropland = .ci_cropland_input(data, years, crop_area, shares),
+    cropland = .ci_cropland_input(data, years, crop_area, cfg),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)
@@ -116,16 +115,22 @@ build_carbon_inputs <- function(
 # year, of which .ci_cropland_class() keeps about one in forty-two -- never
 # accumulates across the span. A caller-supplied `cropland` arrives whole and is
 # collapsed in one pass, as before (#624).
-.ci_cropland_input <- function(data, years, crop_area, shares = NULL) {
-  if (!is.null(data$cropland)) {
-    return(.ci_cropland_class(data$cropland, crop_area, shares))
+#
+# The irrigated shares are built for the years each chunk ACTUALLY carries,
+# not for the `years` argument: the production chain reads `years` as a
+# range (`.build_years()` expands `c(2000, 2010)` to 2000:2010) while
+# `build_gridded_landuse()` takes exact years, so shares built up front for
+# the argument covered two of eleven years on a real run and booked the
+# other nine wholly rainfed, with only the per-year gap count to show it.
+.ci_cropland_input <- function(data, years, crop_area, cfg) {
+  collapse <- function(cropland) {
+    shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
+    .ci_cropland_class(cropland, crop_area, shares)
   }
-  .sci_build(
-    "grid",
-    data,
-    years,
-    reduce = \(gridded) .ci_cropland_class(gridded, crop_area, shares)
-  )
+  if (!is.null(data$cropland)) {
+    return(collapse(data$cropland))
+  }
+  .sci_build("grid", data, years, reduce = collapse)
 }
 
 .ci_cropland_class <- function(cropland, crop_area, shares = NULL) {
@@ -270,7 +275,7 @@ build_carbon_inputs <- function(
     return(NULL)
   }
   if (!is.null(data$crop_regime_share)) {
-    return(data$crop_regime_share)
+    return(.ci_shares_for_years(data$crop_regime_share, years))
   }
   if (identical(cfg$irrigation, "none")) {
     return(tibble::tibble(
@@ -282,7 +287,20 @@ build_carbon_inputs <- function(
       irrigated_share = numeric()
     ))
   }
-  .ci_spatialized_regime_share(years)
+  .ci_spatialized_regime_share(
+    years,
+    data$country_grid %||% .sci_read_country_grid()
+  )
+}
+
+# Trim an injected share layer to the years being collapsed. A layer without
+# a `year` column is passed through so the column check downstream names
+# what is missing, rather than failing here on the filter.
+.ci_shares_for_years <- function(shares, years) {
+  if (is.null(years) || !rlang::has_name(shares, "year")) {
+    return(shares)
+  }
+  dplyr::filter(shares, .data$year %in% years)
 }
 
 # Crop-specific, yearly irrigated shares from the spatialization chain on its
@@ -291,16 +309,25 @@ build_carbon_inputs <- function(
 # cell x crop x year -- the only source WHEP has that is both crop-specific
 # and dynamic (LPJmL's cftfrac folds woody crops into one PFT and cannot
 # recover species; MIRCA is a static 2000 snapshot).
-.ci_spatialized_regime_share <- function(years) {
+#
+# The cell-polity support is the carbon path's own (`.sci_read_country_grid()`,
+# or the `country_grid` the caller injected), not the spatialize chain's
+# `country_grid.parquet`: that file is the centroid crosswalk with no polity
+# share, which `build_gridded_landuse()` refuses (S-A5), and using a second
+# crosswalk here would key the regime split on different polycells than the
+# carbon it splits.
+.ci_spatialized_regime_share <- function(years, country_grid) {
   aliases <- .spatial_input_aliases()
   read <- function(key, file) {
     .read_spatial_input(NULL, file, aliases[[key]])
   }
+  support <- .normalize_carbon_support(country_grid) |>
+    dplyr::select("lon", "lat", "area_code", "cell_area_frac")
   gridded <- build_gridded_landuse(
     country_areas = read("country_areas", "country_areas.parquet"),
     crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
     gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
-    country_grid = read("country_grid", "country_grid.parquet"),
+    country_grid = support,
     config = list(years = years)
   )
   gridded |>

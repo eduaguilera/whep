@@ -20,6 +20,7 @@ build_carbon_balance(
   data = list(),
   years = NULL,
   crop_groups = list(),
+  class_water = c("cell", "regime"),
   example = FALSE
 )
 }
@@ -106,6 +107,15 @@ calendar); woody groups take a perennial cover of 0.85, an ASSUMED
 value with no sourced constant behind it yet. Soil cover is computed
 once per cover profile and joined to the classes, so the class count
 does not multiply the monthly climate table.}
+
+\item{class_water}{How a cell's applied irrigation is shared among its
+land-use classes in the moisture term. \code{"cell"} (default) gives every
+class except natural land the cell-level water surplus, irrigation
+included, as before. \code{"regime"} concentrates the irrigation on the
+irrigated crop groups in proportion to their share of the cell and runs
+every other class on rain alone; the area-weighted mean over classes is
+the cell value either way. Needs \code{crop_groups}, because only groups
+carry a regime. Recorded in \code{method_class_water}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

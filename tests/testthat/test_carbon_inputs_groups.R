@@ -170,3 +170,150 @@ testthat::test_that("a malformed share layer is named", {
     "crop_regime_share"
   )
 })
+
+testthat::test_that("the spatialized split rides the carbon path's polycell support", {
+  # The spatialize chain's country_grid.parquet is the centroid crosswalk
+  # with no polity share; build_gridded_landuse() refuses it (S-A5), and a
+  # second crosswalk would split the regimes on different polycells than the
+  # carbon they split. The support handed down must be the carbon path's own,
+  # with its cell_area_frac.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .read_spatial_input = function(...) tibble::tibble(),
+    .sci_read_country_grid = function() {
+      tibble::tibble(
+        lon = c(0.25, 0.25),
+        lat = 5.25,
+        area_code = c(1L, 2L),
+        cell_area_frac = c(0.6, 0.4),
+        land_area_ha = 100
+      )
+    },
+    build_gridded_landuse = function(
+      country_areas,
+      crop_patterns,
+      gridded_cropland,
+      country_grid,
+      config = list()
+    ) {
+      seen <<- country_grid
+      tibble::tibble(
+        lon = 0.25,
+        lat = 5.25,
+        area_code = c(1L, 1L, 2L),
+        item_prod_code = c("15", "260", "15"),
+        year = 2010L,
+        rainfed_ha = c(30, 0, 5),
+        irrigated_ha = c(10, 0, 0)
+      )
+    },
+    .package = "whep"
+  )
+  cfg <- whep:::.ci_group_config(list(method = "spain_hist"))
+  share <- whep:::.ci_regime_shares(list(), 2010L, cfg)
+  testthat::expect_named(
+    seen,
+    c("lon", "lat", "area_code", "cell_area_frac")
+  )
+  testthat::expect_equal(seen$cell_area_frac, c(0.6, 0.4))
+  testthat::expect_equal(share$irrigated_share, c(0.25, 0, 0))
+  testthat::expect_identical(share$item_prod_code, c("15", "260", "15"))
+  # An injected support is used as given, not re-read.
+  injected <- whep:::.ci_regime_shares(
+    list(
+      country_grid = tibble::tibble(
+        lon = 0.75,
+        lat = 5.25,
+        area_code = 3L,
+        cell_area_frac = 1
+      )
+    ),
+    2010L,
+    cfg
+  )
+  testthat::expect_equal(seen$lon, 0.75)
+  testthat::expect_identical(nrow(injected), 3L)
+})
+
+testthat::test_that("shares are built for the years the crop layer carries", {
+  # The production chain reads `years` as a range while the gridded land-use
+  # builder takes exact years; a real run asked for c(2000, 2010), gridded
+  # eleven years of carbon and had shares for two. The shares must follow the
+  # layer being collapsed, year for year.
+  asked <- list()
+  testthat::local_mocked_bindings(
+    .read_spatial_input = function(...) tibble::tibble(),
+    .sci_read_country_grid = function() {
+      tibble::tibble(lon = 0.25, lat = 5.25, area_code = 1L, cell_area_frac = 1)
+    },
+    build_gridded_landuse = function(
+      country_areas,
+      crop_patterns,
+      gridded_cropland,
+      country_grid,
+      config = list()
+    ) {
+      asked[[length(asked) + 1L]] <<- config$years
+      tidyr::expand_grid(
+        lon = 0.25,
+        lat = 5.25,
+        area_code = 1L,
+        item_prod_code = "15",
+        year = config$years
+      ) |>
+        dplyr::mutate(rainfed_ha = 30, irrigated_ha = 10)
+    },
+    .package = "whep"
+  )
+  cropland <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 5.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = c(2000L, 2001L, 2002L)
+  ) |>
+    dplyr::mutate(
+      total_c_input_mgc_ha_yr = 2,
+      humified_fraction = 0.3,
+      method_c_input = "humified_weighted"
+    )
+  crop_area <- tibble::tibble(
+    lon = 0.25,
+    lat = 5.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    crop_area_ha = 100
+  )
+  out <- whep:::.ci_cropland_input(
+    list(cropland = cropland, crop_area = crop_area),
+    years = c(2000L, 2002L),
+    crop_area,
+    whep:::.ci_group_config(list(method = "spain_hist"))
+  )
+  # Asked for exactly the layer's years, not the range argument.
+  testthat::expect_identical(asked[[1]], c(2000L, 2001L, 2002L))
+  # And every year got its split: no year is wholly rainfed.
+  irrigated <- out[out$land_use == "cropland_irrigated_herbaceous", ]
+  testthat::expect_setequal(irrigated$year, c(2000L, 2001L, 2002L))
+  testthat::expect_equal(irrigated$class_area_ha, rep(25, 3))
+})
+
+testthat::test_that("an injected share layer is trimmed to the years asked", {
+  cfg <- whep:::.ci_group_config(list(method = "spain_hist"))
+  layer <- tibble::tibble(
+    lon = 0.25,
+    lat = 5.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = c(2000L, 2001L),
+    irrigated_share = 0.5
+  )
+  testthat::expect_identical(
+    whep:::.ci_regime_shares(list(crop_regime_share = layer), 2001L, cfg)$year,
+    2001L
+  )
+  testthat::expect_identical(
+    nrow(whep:::.ci_regime_shares(list(crop_regime_share = layer), NULL, cfg)),
+    2L
+  )
+})

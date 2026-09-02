@@ -124,3 +124,34 @@ testthat::test_that("a border cell fans out per polity, area split, mm kept", {
   testthat::expect_equal(maize_a$airrig_cell_mm, c(40, 40))
   testthat::expect_setequal(maize_a$cell_area_frac, c(0.7, 0.3))
 })
+
+testthat::test_that("each band carries its soil-carbon crop group, or NA", {
+  testthat::expect_identical(
+    whep:::.cwu_band_group(c(
+      "irrigated maize",
+      "rainfed temperate cereals",
+      "irrigated others",
+      "rainfed grassland",
+      "irrigated biomass tree",
+      "Rainfed Rice "
+    )),
+    c(
+      "cropland_irrigated_herbaceous",
+      "cropland_rainfed_herbaceous",
+      NA_character_,
+      NA_character_,
+      NA_character_,
+      "cropland_rainfed_herbaceous"
+    )
+  )
+  # The labels are soc_crop_group()'s own, so the ledgers can be joined.
+  testthat::expect_true(all(whep:::.soc_is_cropland(
+    stats::na.omit(whep:::.cwu_band_group(c("irrigated maize", "rainfed rice")))
+  )))
+})
+
+testthat::test_that("the group rides through grid and polity output", {
+  ex <- whep::build_crop_water_use(example = TRUE)
+  testthat::expect_true("crop_group" %in% names(ex))
+  testthat::expect_identical(ex$crop_group[1], "cropland_irrigated_herbaceous")
+})

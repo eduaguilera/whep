@@ -38,10 +38,17 @@
 #' @param example If `TRUE`, return a small fixture instead of reading a run.
 #'   Defaults to `FALSE`.
 #' @return A tibble with `lon`, `lat`, `area_code`, `cell_area_frac`, `year`,
-#'   `month`, `band`,
-#'   `band_name`, `stand_frac`, `airrig_stand_mm` and `airrig_cell_mm` at
-#'   `"grid"` resolution (aggregated over cells at `"polity"`), plus the
-#'   polity columns below.
+#'   `month`, `band`, `band_name`, `crop_group`, `stand_frac`,
+#'   `airrig_stand_mm` and `airrig_cell_mm` at `"grid"` resolution
+#'   (aggregated over cells at `"polity"`), plus the polity columns below.
+#'
+#'   `crop_group` is the soil-carbon crop group the band's water belongs to,
+#'   in the vocabulary of [soc_crop_group()] so the water and carbon ledgers
+#'   share it: LPJmL's twelve named crops are all herbaceous, so a band is
+#'   `cropland_rainfed_herbaceous` or `cropland_irrigated_herbaceous` by its
+#'   regime. The `others` bands pool woody crops with minor herbaceous ones
+#'   and cannot be resolved to a species, and the grassland and bioenergy
+#'   bands are not cropland; those carry `NA` rather than a guess.
 #'
 #'   A border cell shared by several polities appears ONCE PER POLITY, with
 #'   `cell_area_frac` carrying that polity's share of the cell. The mm
@@ -78,6 +85,7 @@ build_crop_water_use <- function(
     )
   country_grid <- data$country_grid %||% .carbon_cell_support()
   .cwu_assemble(airrig, stand_frac) |>
+    .cwu_attach_group() |>
     .cwu_attach_polity(country_grid) |>
     .cwu_finalise(resolution) |>
     .add_reporting_polity_columns()
@@ -150,6 +158,7 @@ build_crop_water_use <- function(
       "month",
       "band",
       "band_name",
+      "crop_group",
       "stand_frac",
       "airrig_stand_mm",
       "airrig_cell_mm"
@@ -166,9 +175,45 @@ build_crop_water_use <- function(
         .data$stand_w
       ),
       airrig_cell_mm = stats::weighted.mean(.data$airrig_cell_mm, .data$cell_w),
-      .by = c("area_code", "year", "month", "band", "band_name")
+      .by = c("area_code", "year", "month", "band", "band_name", "crop_group")
     )
 }
+
+# The soil-carbon crop group of each band, from its name. Regime by the
+# `irrigated` prefix (as the crop calendar reads it); the named LPJmL crops
+# are herbaceous, so they pool per regime exactly as soc_crop_group() pools
+# a herbaceous item. `others`, grassland and the bioenergy stands are NA.
+.cwu_attach_group <- function(cells) {
+  dplyr::mutate(cells, crop_group = .cwu_band_group(.data$band_name))
+}
+
+.cwu_band_group <- function(band_name) {
+  name <- stringr::str_to_lower(trimws(band_name))
+  crop <- stringr::str_remove(name, "^(irrigated|rainfed) ")
+  regime <- .crop_band_regime(name)
+  herbaceous <- crop %in% .lpjml_herbaceous_cfts
+  dplyr::if_else(
+    herbaceous,
+    paste0("cropland_", regime, "_herbaceous"),
+    NA_character_
+  )
+}
+
+# LPJmL's twelve calendar crops (the sdate/hdate bands), every one herbaceous.
+.lpjml_herbaceous_cfts <- c(
+  "temperate cereals",
+  "rice",
+  "maize",
+  "tropical cereals",
+  "pulses",
+  "temperate roots",
+  "tropical roots",
+  "oil crops sunflower",
+  "oil crops soybean",
+  "oil crops groundnut",
+  "oil crops rapeseed",
+  "sugarcane"
+)
 
 # Toy fixture: one cell, one irrigated crop, watered in the summer months.
 .example_crop_water_use <- function() {
@@ -180,6 +225,7 @@ build_crop_water_use <- function(
     month = 1:12,
     band = 19L,
     band_name = "irrigated maize",
+    crop_group = "cropland_irrigated_herbaceous",
     cell_area_frac = 1,
     stand_frac = 0.2,
     airrig_stand_mm = c(0, 0, 0, 0, 30, 80, 120, 90, 20, 0, 0, 0),

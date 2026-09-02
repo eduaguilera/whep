@@ -39,10 +39,17 @@ Defaults to \code{FALSE}.}
 }
 \value{
 A tibble with \code{lon}, \code{lat}, \code{area_code}, \code{cell_area_frac}, \code{year},
-\code{month}, \code{band},
-\code{band_name}, \code{stand_frac}, \code{airrig_stand_mm} and \code{airrig_cell_mm} at
-\code{"grid"} resolution (aggregated over cells at \code{"polity"}), plus the
-polity columns below.
+\code{month}, \code{band}, \code{band_name}, \code{crop_group}, \code{stand_frac},
+\code{airrig_stand_mm} and \code{airrig_cell_mm} at \code{"grid"} resolution
+(aggregated over cells at \code{"polity"}), plus the polity columns below.
+
+\code{crop_group} is the soil-carbon crop group the band's water belongs to,
+in the vocabulary of \code{\link[=soc_crop_group]{soc_crop_group()}} so the water and carbon ledgers
+share it: LPJmL's twelve named crops are all herbaceous, so a band is
+\code{cropland_rainfed_herbaceous} or \code{cropland_irrigated_herbaceous} by its
+regime. The \code{others} bands pool woody crops with minor herbaceous ones
+and cannot be resolved to a species, and the grassland and bioenergy
+bands are not cropland; those carry \code{NA} rather than a guess.
 
 A border cell shared by several polities appears ONCE PER POLITY, with
 \code{cell_area_frac} carrying that polity's share of the cell. The mm

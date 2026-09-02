@@ -98,3 +98,9 @@ soc_crop_group <- function(
 .soc_is_cropland <- function(land_use) {
   stringr::str_detect(stringr::str_to_lower(land_use), "^cropland")
 }
+
+# Is a class an IRRIGATED crop group? Only groups carry a regime; plain
+# cropland has none, so it is never irrigated here.
+.soc_is_irrigated_class <- function(land_use) {
+  stringr::str_starts(stringr::str_to_lower(land_use), "cropland_irrigated_")
+}
