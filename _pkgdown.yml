@@ -41,6 +41,9 @@ reference:
   - run_spatialize
   - build_gridded_landuse
   - build_gridded_livestock
+  - admin_shares_prototype
+  - admin_shares_schema
+  - ensure_admin_shares
 
 - title: Polycell spatial support
   desc: >
@@ -384,6 +387,7 @@ reference:
   - polities
   - polity_area_crosswalk
   - polity_label_aliases
+  - polity_containment
   - polities_cats
   - regions_full
   - add_polity_code
