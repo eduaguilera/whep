@@ -14,6 +14,7 @@ build_carbon_inputs(
   data = list(),
   years = NULL,
   crop_groups = list(),
+  density_basis = c("static", "renormalised"),
   example = FALSE
 )
 }
@@ -56,6 +57,17 @@ pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts
 every crop in its rainfed group. Recorded in \code{method_c_input}. A
 pre-built share layer can be supplied as \code{data$crop_regime_share} (\code{lon},
 \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).}
+
+\item{density_basis}{Which crop area weights the per-crop densities when
+they collapse to a class. \code{"static"} (default) uses the time-invariant
+crop-pattern area split by the polycell's share of the cell, as before.
+\code{"renormalised"} uses the yearly cell crop area the densities were
+computed on -- the FAOSTAT-renormalised area \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}}
+returns as \code{crop_area_ha} -- so the class carbon mass equals the sum of
+the crop masses that were spatialized. The two differ wherever the
+spatialized cell areas of a polity-crop-year do not sum to its FAOSTAT
+harvested area; the choice is recorded in \code{method_area_basis} on
+cropland rows.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

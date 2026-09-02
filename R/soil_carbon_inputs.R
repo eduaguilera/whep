@@ -62,7 +62,11 @@
 #'   `"grid"` resolution (or `(area_code, item_prod_code, year)` at
 #'   `"polity"`), with `residue_c_mgc_ha_yr`, `root_c_mgc_ha_yr`,
 #'   `weed_c_mgc_ha_yr`, `manure_c_mgc_ha_yr`, `total_c_input_mgc_ha_yr`,
-#'   `humified_fraction` and `method_c_input`, plus the polity columns below.
+#'   `humified_fraction`, `method_c_input` and `crop_area_ha` -- the crop's
+#'   area at that grain on the basis the densities are computed on: the
+#'   FAOSTAT-renormalised cell area where a national harvested area was
+#'   supplied, the spatialized area otherwise -- plus the polity columns
+#'   below.
 #'
 #' @inheritSection whep_polity_columns Polity columns
 #'
@@ -568,6 +572,7 @@ build_soil_carbon_inputs <- function(
     ) |>
     dplyr::select(
       dplyr::all_of(keys),
+      "crop_area_ha",
       "residue_c_mgc_ha_yr",
       "root_c_mgc_ha_yr",
       "weed_c_mgc_ha_yr",

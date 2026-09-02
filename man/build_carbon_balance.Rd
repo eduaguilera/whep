@@ -21,6 +21,7 @@ build_carbon_balance(
   years = NULL,
   crop_groups = list(),
   class_water = c("cell", "regime"),
+  density_basis = c("static", "renormalised"),
   example = FALSE
 )
 }
@@ -116,6 +117,12 @@ irrigated crop groups in proportion to their share of the cell and runs
 every other class on rain alone; the area-weighted mean over classes is
 the cell value either way. Needs \code{crop_groups}, because only groups
 carry a regime. Recorded in \code{method_class_water}.}
+
+\item{density_basis}{Which crop area weights the per-crop carbon densities
+when they collapse to a class; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{"static"}
+(default) keeps the crop-pattern weights, \code{"renormalised"} the yearly
+FAOSTAT-renormalised cell area the densities were computed on. Only read
+when the carbon inputs are built here rather than supplied.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

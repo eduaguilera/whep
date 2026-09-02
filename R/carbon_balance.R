@@ -104,6 +104,11 @@
 #'   every other class on rain alone; the area-weighted mean over classes is
 #'   the cell value either way. Needs `crop_groups`, because only groups
 #'   carry a regime. Recorded in `method_class_water`.
+#' @param density_basis Which crop area weights the per-crop carbon densities
+#'   when they collapse to a class; see [build_carbon_inputs()]. `"static"`
+#'   (default) keeps the crop-pattern weights, `"renormalised"` the yearly
+#'   FAOSTAT-renormalised cell area the densities were computed on. Only read
+#'   when the carbon inputs are built here rather than supplied.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section Soil depth:
@@ -163,10 +168,12 @@ build_carbon_balance <- function(
   years = NULL,
   crop_groups = list(),
   class_water = c("cell", "regime"),
+  density_basis = c("static", "renormalised"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
   class_water <- .cb_check_class_water(class_water, crop_groups)
+  density_basis <- rlang::arg_match(density_basis)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -181,7 +188,7 @@ build_carbon_balance <- function(
   if (progress) {
     cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
   }
-  d <- .cb_resolve_inputs(data, years, crop_groups)
+  d <- .cb_resolve_inputs(data, years, crop_groups, density_basis)
   d$class_water <- class_water
   if (progress) {
     cli::cli_progress_step("Computing per-class equilibrium")
@@ -208,8 +215,14 @@ build_carbon_balance <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.cb_resolve_inputs <- function(data, years = NULL, crop_groups = list()) {
-  c_inputs <- data$c_inputs %||% .cb_read_c_inputs(years, crop_groups)
+.cb_resolve_inputs <- function(
+  data,
+  years = NULL,
+  crop_groups = list(),
+  density_basis = "static"
+) {
+  c_inputs <- data$c_inputs %||%
+    .cb_read_c_inputs(years, crop_groups, density_basis)
   land_use <- data$land_use %||% .cb_read_land_use(years)
   climate <- data$climate %||% .cb_read_climate(years)
   # get_soc_climate_drivers() carries clay_pct in its own output, so a
@@ -2114,11 +2127,16 @@ build_carbon_balance <- function(
 # (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
 # grain is required: .cb_class_table() joins c_inputs onto the land-use areas
 # per cell.
-.cb_read_c_inputs <- function(years = NULL, crop_groups = list()) {
+.cb_read_c_inputs <- function(
+  years = NULL,
+  crop_groups = list(),
+  density_basis = "static"
+) {
   build_carbon_inputs(
     resolution = "grid",
     years = years,
-    crop_groups = crop_groups
+    crop_groups = crop_groups,
+    density_basis = density_basis
   )
 }
 

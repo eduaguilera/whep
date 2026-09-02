@@ -50,7 +50,23 @@
   still counted per year. Grouped inputs whose cell-year has no LUH2 cropland
   row draw no area and never enter the march; that disagreement between
   the crop patterns and LUH2 is now counted and reported (rows, cell-years
-  and Mha) instead of being dropped silently;
+  and Mha) instead of being dropped silently.
+  A `density_basis = c("static", "renormalised")` option on
+  `build_carbon_inputs()` and `build_carbon_balance()` chooses which crop
+  area weights the per-crop densities when they collapse to a class:
+  `"static"` (default, unchanged) the time-invariant crop-pattern area
+  split by the polycell's share of the cell; `"renormalised"` the yearly
+  FAOSTAT-renormalised cell area the densities were computed on, which
+  `build_soil_carbon_inputs()` now returns as `crop_area_ha`, so the class
+  carbon mass equals the sum of the crop masses that were spatialized. The
+  two differ wherever a polity-crop-year's spatialized cell areas do not
+  sum to its FAOSTAT harvested area; a science choice, recorded in
+  `method_area_basis` on cropland rows. Measured on the 2010 pins over
+  40,065 cropland cells, the per-cell class density ratio renormalised /
+  static has an area-weighted median of **0.988** (p5-p95 0.922-1.043)
+  and only 2.1% of cropland area sits outside 0.9-1.1, so the default
+  stays `"static"` and the option is there to quantify what the other
+  basis changes;
   woody groups take **an assumed perennial cover of 0.85**, the value
   grassland and natural already use, because no sourced constant for
   orchard or vineyard cover exists in the repository. That assumption is

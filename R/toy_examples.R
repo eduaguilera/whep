@@ -134,7 +134,10 @@
     0.25, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567,
     0.75, 0.25, 1L, "27", 2020L, 1.5, 0.5, 0.25, 0.5, 2.75, 0.152053748675567
   ) |>
-    dplyr::mutate(method_c_input = "humified_weighted") |>
+    dplyr::mutate(
+      method_c_input = "humified_weighted",
+      crop_area_ha = c(100, 50, 60, 40)
+    ) |>
     .add_reporting_polity_columns()
 }
 

@@ -263,3 +263,132 @@ test_that("example = TRUE returns the documented schema", {
     out$land_use %in% c("cropland", "grassland", "natural")
   ))
 })
+
+# ---- density basis: which area weights the per-crop densities ----------------
+
+.db_cropland <- function(with_area = TRUE) {
+  x <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = c("15", "27"),
+    year = 2010L,
+    total_c_input_mgc_ha_yr = c(3.25, 2.75),
+    humified_fraction = c(0.2, 0.1),
+    method_c_input = "humified_weighted"
+  )
+  if (with_area) {
+    x$crop_area_ha <- c(100, 300)
+  }
+  x
+}
+
+.db_static_area <- function() {
+  tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = c("15", "27"),
+    crop_area_ha = c(300, 100)
+  )
+}
+
+testthat::test_that("the static basis ignores the layer's own area", {
+  # The per-crop layer now carries crop_area_ha; under the default basis it
+  # must be dropped before the join, not suffixed into a second column.
+  with <- whep:::.ci_cropland_class(.db_cropland(TRUE), .db_static_area())
+  without <- whep:::.ci_cropland_class(.db_cropland(FALSE), .db_static_area())
+  testthat::expect_identical(with, without)
+  testthat::expect_equal(
+    with$c_input_mgc_ha_yr,
+    (3.25 * 300 + 2.75 * 100) / 400
+  )
+  testthat::expect_identical(with$method_area_basis, "static")
+})
+
+testthat::test_that("the renormalised basis weights by the layer's area", {
+  out <- whep:::.ci_cropland_class(
+    .db_cropland(TRUE),
+    crop_area = NULL,
+    basis = "renormalised"
+  )
+  testthat::expect_equal(
+    out$c_input_mgc_ha_yr,
+    (3.25 * 100 + 2.75 * 300) / 400
+  )
+  testthat::expect_equal(out$class_area_ha, 400)
+  testthat::expect_identical(out$method_area_basis, "renormalised")
+  # Mass-weighted humification follows the same weights.
+  mass <- c(3.25 * 100, 2.75 * 300)
+  testthat::expect_equal(
+    out$humified_fraction,
+    sum(c(0.2, 0.1) * mass) / sum(mass)
+  )
+})
+
+testthat::test_that("the renormalised basis refuses a layer without an area", {
+  testthat::expect_error(
+    whep:::.ci_cropland_class(
+      .db_cropland(FALSE),
+      crop_area = NULL,
+      basis = "renormalised"
+    ),
+    "crop_area_ha"
+  )
+})
+
+testthat::test_that("density_basis is validated and threaded from the builder", {
+  testthat::expect_error(
+    whep::build_carbon_inputs(density_basis = "faostat", example = TRUE),
+    class = "rlang_error"
+  )
+  # The per-crop fixture carries the area the renormalised basis needs.
+  testthat::expect_true(
+    "crop_area_ha" %in% names(whep::build_soil_carbon_inputs(example = TRUE))
+  )
+  out <- whep::build_carbon_inputs(
+    data = list(
+      cropland = .db_cropland(TRUE),
+      grass_natural = tibble::tibble(
+        lon = 0.25,
+        lat = 0.25,
+        area_code = 1L,
+        year = 2010L,
+        land_use = "natural",
+        c_input_mgc_ha_yr = 1,
+        humified_fraction = 0.3,
+        method_c_input = "lpjml_npp"
+      )
+    ),
+    density_basis = "renormalised"
+  )
+  crop <- out[out$land_use == "cropland", ]
+  testthat::expect_equal(
+    crop$c_input_mgc_ha_yr,
+    (3.25 * 100 + 2.75 * 300) / 400
+  )
+  testthat::expect_identical(crop$method_area_basis, "renormalised")
+  testthat::expect_true(is.na(out$method_area_basis[out$land_use == "natural"]))
+  # And the polity roll-up keeps the stamp.
+  pol <- whep::build_carbon_inputs(
+    resolution = "polity",
+    data = list(
+      cropland = .db_cropland(TRUE),
+      grass_natural = tibble::tibble(
+        lon = 0.25,
+        lat = 0.25,
+        area_code = 1L,
+        year = 2010L,
+        land_use = "natural",
+        c_input_mgc_ha_yr = 1,
+        humified_fraction = 0.3,
+        method_c_input = "lpjml_npp"
+      )
+    ),
+    density_basis = "renormalised"
+  )
+  testthat::expect_identical(
+    pol$method_area_basis[pol$land_use == "cropland"],
+    "renormalised"
+  )
+})

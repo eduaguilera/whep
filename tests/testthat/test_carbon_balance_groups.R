@@ -215,7 +215,11 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
   # forwards it to the resolver.
   seen <- NULL
   testthat::local_mocked_bindings(
-    .cb_read_c_inputs = function(years = NULL, crop_groups = list()) {
+    .cb_read_c_inputs = function(
+      years = NULL,
+      crop_groups = list(),
+      density_basis = "static"
+    ) {
       seen <<- crop_groups
       tibble::tibble()
     },
@@ -231,7 +235,12 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
 
   captured <- NULL
   testthat::local_mocked_bindings(
-    .cb_resolve_inputs = function(data, years = NULL, crop_groups = list()) {
+    .cb_resolve_inputs = function(
+      data,
+      years = NULL,
+      crop_groups = list(),
+      density_basis = "static"
+    ) {
       captured <<- crop_groups
       rlang::abort("stop here", class = "cbg_stop")
     },
@@ -492,5 +501,30 @@ testthat::test_that("grouped inputs with no LUH2 cropland to draw are reported",
   # Nothing to report when every group has a row to draw.
   testthat::expect_no_message(
     whep:::.cb_split_cropland_groups(land_use[1, ], c_inputs[1, ])
+  )
+})
+
+testthat::test_that("density_basis reaches the carbon-input reader", {
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    .cb_read_c_inputs = function(
+      years = NULL,
+      crop_groups = list(),
+      density_basis = "static"
+    ) {
+      seen <<- density_basis
+      tibble::tibble()
+    },
+    .cb_read_land_use = function(years = NULL) tibble::tibble(),
+    .cb_read_climate = function(years = NULL) {
+      tibble::tibble(lon = 0.25, lat = 5.25, clay_pct = 25)
+    },
+    .package = "whep"
+  )
+  whep:::.cb_resolve_inputs(list(), 2010L, list(), "renormalised")
+  testthat::expect_identical(seen, "renormalised")
+  testthat::expect_error(
+    whep::build_carbon_balance(density_basis = "faostat"),
+    class = "rlang_error"
   )
 })

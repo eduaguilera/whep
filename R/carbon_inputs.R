@@ -56,6 +56,16 @@
 #'   every crop in its rainfed group. Recorded in `method_c_input`. A
 #'   pre-built share layer can be supplied as `data$crop_regime_share` (`lon`,
 #'   `lat`, `area_code`, `item_prod_code`, `year`, `irrigated_share`).
+#' @param density_basis Which crop area weights the per-crop densities when
+#'   they collapse to a class. `"static"` (default) uses the time-invariant
+#'   crop-pattern area split by the polycell's share of the cell, as before.
+#'   `"renormalised"` uses the yearly cell crop area the densities were
+#'   computed on -- the FAOSTAT-renormalised area [build_soil_carbon_inputs()]
+#'   returns as `crop_area_ha` -- so the class carbon mass equals the sum of
+#'   the crop masses that were spatialized. The two differ wherever the
+#'   spatialized cell areas of a polity-crop-year do not sum to its FAOSTAT
+#'   harvested area; the choice is recorded in `method_area_basis` on
+#'   cropland rows.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
@@ -75,14 +85,16 @@ build_carbon_inputs <- function(
   data = list(),
   years = NULL,
   crop_groups = list(),
+  density_basis = c("static", "renormalised"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  density_basis <- rlang::arg_match(density_basis)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
   }
-  d <- .ci_resolve_inputs(data, years, cfg)
+  d <- .ci_resolve_inputs(data, years, cfg, density_basis)
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
     .add_reporting_polity_columns()
@@ -90,10 +102,19 @@ build_carbon_inputs <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.ci_resolve_inputs <- function(data, years = NULL, cfg = .ci_group_config()) {
-  crop_area <- data$crop_area %||% .ci_crop_area(data)
+.ci_resolve_inputs <- function(
+  data,
+  years = NULL,
+  cfg = .ci_group_config(),
+  density_basis = "static"
+) {
+  # The static weights are only read when they are the basis; the
+  # renormalised basis rides on the layer's own yearly area.
+  crop_area <- if (density_basis == "static") {
+    data$crop_area %||% .ci_crop_area(data)
+  }
   list(
-    cropland = .ci_cropland_input(data, years, crop_area, cfg),
+    cropland = .ci_cropland_input(data, years, crop_area, cfg, density_basis),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)
@@ -122,10 +143,10 @@ build_carbon_inputs <- function(
 # `build_gridded_landuse()` takes exact years, so shares built up front for
 # the argument covered two of eleven years on a real run and booked the
 # other nine wholly rainfed, with only the per-year gap count to show it.
-.ci_cropland_input <- function(data, years, crop_area, cfg) {
+.ci_cropland_input <- function(data, years, crop_area, cfg, basis = "static") {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
-    .ci_cropland_class(cropland, crop_area, shares)
+    .ci_cropland_class(cropland, crop_area, shares, basis)
   }
   if (!is.null(data$cropland)) {
     return(collapse(data$cropland))
@@ -133,12 +154,13 @@ build_carbon_inputs <- function(
   .sci_build("grid", data, years, reduce = collapse)
 }
 
-.ci_cropland_class <- function(cropland, crop_area, shares = NULL) {
-  join_keys <- c("lon", "lat", "area_code", "item_prod_code")
-  if (rlang::has_name(crop_area, "year")) {
-    join_keys <- c(join_keys, "year")
-  }
-  joined <- dplyr::inner_join(cropland, crop_area, by = join_keys)
+.ci_cropland_class <- function(
+  cropland,
+  crop_area,
+  shares = NULL,
+  basis = "static"
+) {
+  joined <- .ci_weighted_cropland(cropland, crop_area, basis)
   if (is.null(shares)) {
     joined <- dplyr::mutate(
       joined,
@@ -160,8 +182,36 @@ build_carbon_inputs <- function(
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
       class_area_ha = sum(.data$crop_area_ha),
       method_c_input = .data$method_c_input[1],
+      method_area_basis = basis,
       .by = c("lon", "lat", "area_code", "year", "land_use")
     )
+}
+
+# The per-crop rows with the area that weights them. `"static"` joins the
+# time-invariant crop-pattern weights (dropping any area the layer itself
+# carries, so the join cannot suffix two `crop_area_ha` columns);
+# `"renormalised"` keeps the layer's own yearly `crop_area_ha`, the basis
+# its densities were computed on, and refuses a layer that lacks it.
+.ci_weighted_cropland <- function(cropland, crop_area, basis) {
+  if (basis == "renormalised") {
+    if (!rlang::has_name(cropland, "crop_area_ha")) {
+      cli::cli_abort(c(
+        "{.arg density_basis} = {.val renormalised} needs {.field crop_area_ha}
+         on the per-crop cropland layer.",
+        i = "{.fn build_soil_carbon_inputs} returns it; a hand-built
+             {.arg data$cropland} must carry it, or use
+             {.val static}."
+      ))
+    }
+    return(cropland)
+  }
+  join_keys <- c("lon", "lat", "area_code", "item_prod_code")
+  if (rlang::has_name(crop_area, "year")) {
+    join_keys <- c(join_keys, "year")
+  }
+  cropland |>
+    dplyr::select(-dplyr::any_of("crop_area_ha")) |>
+    dplyr::inner_join(crop_area, by = join_keys)
 }
 
 # Fan each crop row out into its rainfed and irrigated parts and label each
@@ -385,7 +435,10 @@ build_carbon_inputs <- function(
     dplyr::summarise(
       c_input_mgc_ha_yr = .ci_wmean(.data$c_input_mgc_ha_yr, .data$area_weight),
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
-      method_c_input = .data$method_c_input[1],
+      dplyr::across(
+        dplyr::any_of(c("method_c_input", "method_area_basis")),
+        \(x) x[1]
+      ),
       .by = c("area_code", "year", "land_use")
     ) |>
     tibble::as_tibble()

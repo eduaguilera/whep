@@ -145,8 +145,11 @@ test_that("grid to polity aggregation conserves total C mass", {
     data = .sci_fixture_data()
   )
   # Recover per-cell C mass = per-ha x crop area, sum over cells per crop.
+  # The area is rebuilt from the crop patterns on purpose, independently of
+  # the crop_area_ha the layer itself now carries.
   cp <- .sci_grid_fixture()$crop_patterns
   grid_mass <- grid |>
+    dplyr::select(-"crop_area_ha") |>
     dplyr::left_join(
       dplyr::select(cp, lon, lat, item_prod_code, crop_area_ha),
       by = c("lon", "lat", "item_prod_code")
@@ -409,7 +412,8 @@ test_that("renormalization conserves the national carbon mass on the grid", {
     dplyr::summarise(spatial = sum(crop_area_ha), .by = "item_prod_code")
   faostat <- .sci_harvested_area_fixture() |>
     dplyr::select("item_prod_code", "faostat_area_ha")
-  recovered <- grid |>
+  scaled <- grid |>
+    dplyr::rename(layer_area = "crop_area_ha") |>
     dplyr::left_join(
       dplyr::select(cp, lon, lat, item_prod_code, crop_area_ha),
       by = c("lon", "lat", "item_prod_code")
@@ -418,7 +422,11 @@ test_that("renormalization conserves the national carbon mass on the grid", {
     dplyr::left_join(faostat, by = "item_prod_code") |>
     dplyr::mutate(
       scaled_area = crop_area_ha / spatial * faostat_area_ha
-    ) |>
+    )
+  # The layer's own crop_area_ha IS that renormalised area: the basis the
+  # densities were computed on, exposed for the class collapse to reuse.
+  testthat::expect_equal(scaled$layer_area, scaled$scaled_area)
+  recovered <- scaled |>
     dplyr::summarise(
       mass = sum(total_c_input_mgc_ha_yr * scaled_area),
       .by = "item_prod_code"
