@@ -109,14 +109,16 @@
 #'     land-use proxy.
 #'   If `NULL`, land-use weights are used alone.
 #' @param glw_density A tibble with species-specific gridded
-#'   livestock density from GLW3 (Gilbert et al. 2018). Optional.
+#'   livestock density from GLW3 (Gilbert et al. 2018). Required when
+#'   `proxy_method = "glw3"`; ignored, with a warning, under
+#'   `proxy_method = "luh2"`.
 #'   Expected columns:
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `species_group`: Must match `livestock_data`.
 #'   - `density`: Heads per cell (reference year ~2010).
-#'   If provided, this **replaces** the LUH2-based proxy for the
-#'   matching groups, while still being scaled by LUH2 time trends.
-#'   If `NULL`, LUH2 proxies are used for all groups.
+#'   Under `"glw3"` it **replaces** the LUH2 proxy for every group, still
+#'   masked by that year's LUH2 extent so a cell whose land use has gone
+#'   receives nothing.
 #' @param grass_productivity A tibble with grass productivity per cell
 #'   (`lon`, `lat`, `grass_npp`) from [read_lpjml_grass_productivity()].
 #'   Optional. When provided, it multiplies the `pasture`/`rangeland`
@@ -127,6 +129,14 @@
 #'   (default), all years present in `livestock_data` are processed.
 #'   When supplied, `livestock_data`, `gridded_pasture`, and
 #'   `gridded_cropland` are filtered to this set before processing.
+#' @param proxy_method Which spatial proxy carries the within-country
+#'   weight: `"luh2"` (default) or `"glw3"`, validated with
+#'   [rlang::arg_match()]. They are alternatives, never fallbacks: under
+#'   `"glw3"` a `NULL` `glw_density`, or a `species_group` that table has
+#'   no positive cell for, aborts instead of quietly reverting to the LUH2
+#'   proxy. The resolved value is recorded per row in
+#'   `method_livestock_proxy`. See *Which livestock proxy the weights come
+#'   from*.
 #' @param area_key Which area code the output is keyed on: `"grid"`
 #'   (default, the reporting codes `livestock_data` and `country_grid` are
 #'   keyed on) or `"polity_area"` (the [polity_area_crosswalk] bucket
@@ -148,8 +158,49 @@
 #'   - `heads`: Allocated live animal count.
 #'   - Any additional numeric columns from `livestock_data`
 #'     (e.g. `enteric_ch4_kt`, `manure_ch4_kt`).
+#'   - `method_livestock_proxy`: Which proxy produced the weights for
+#'     this row, one of `"luh2_area"`, `"luh2_grass"`, `"glw3"`.
+#'     Constant within a `(year, species_group)` block.
 #'
 #' @inheritSection build_gridded_landuse Which area code the output is keyed on
+#'
+#' @section Which livestock proxy the weights come from:
+#' `proxy_method` selects the within-country weight, and every output row
+#' records the resolved value in `method_livestock_proxy`:
+#'
+#' - `"luh2_area"`: LUH2 extent alone (`proxy_method = "luh2"`).
+#' - `"luh2_grass"`: LUH2 extent times grass NPP (`proxy_method = "luh2"`
+#'   with `grass_productivity` supplied). The grass weighting reaches the
+#'   `pasture` and `rangeland` proxies only, so `cropland` and `mixed`
+#'   groups in the same call stay `"luh2_area"`. The label is per species
+#'   group, not per cell: a grazer cell with no `grass_npp` keeps its area
+#'   weight but still travels under `"luh2_grass"`, because what the
+#'   column records is the weighting regime the group ran under.
+#' - `"glw3"`: GLW3 density masked by that year's LUH2 extent
+#'   (`proxy_method = "glw3"`).
+#'
+#' The default stays `"luh2"` even though `"glw3"` is the better-informed
+#' proxy. WHEP has no data mechanism for GLW3 yet -- no download script,
+#' env var, pin or reader (whep#1000, task T15a-ii) -- so a `"glw3"`
+#' default would abort every production run. This is a deliberate,
+#' documented deviation from "the default is the most rigorous available
+#' method", of the same shape as the interim `area_key = "grid"` default
+#' in `R/spatialize_compartments.R`; whep#1000 task T20 is the gate that
+#' revisits it.
+#'
+#' @section Species groups must be mapped, not guessed:
+#' Every `species_group` in `livestock_data` must have a row in
+#' `species_proxy`; an unmapped group aborts naming it. It used to fall
+#' back to the `"pasture"` proxy silently, so a typo or a new FAOSTAT item
+#' was given a grazing distribution with no trace in the output.
+#'
+#' The catch-all is explicit, not implicit.
+#' `inst/extdata/livestock_mapping.csv` maps FAOSTAT items 1140 and 1150
+#' (rabbits and hares, other rodents) and 1171 (live animals nes) onto the
+#' group `"other"` with the `cropland` and `mixed` proxies, so a catch-all
+#' group is reached by an explicit item mapping upstream and never by
+#' name-matching here. A group carrying several proxies keeps the first,
+#' as before.
 #'
 #' @export
 #'
@@ -187,8 +238,10 @@ build_gridded_livestock <- function(
   glw_density = NULL,
   grass_productivity = NULL,
   years = NULL,
+  proxy_method = c("luh2", "glw3"),
   area_key = c("grid", "polity_area")
 ) {
+  proxy_method <- rlang::arg_match(proxy_method)
   area_key <- rlang::arg_match(area_key)
   .validate_livestock_inputs(
     livestock_data,
@@ -237,6 +290,9 @@ build_gridded_livestock <- function(
   years <- sort(unique(livestock_data$year))
   groups <- sort(unique(livestock_data$species_group))
 
+  proxy_types <- .livestock_proxy_types(species_proxy, groups)
+  .check_livestock_proxy_inputs(proxy_method, glw_density, groups)
+
   cli::cli_alert_info(
     "Spatializing {length(groups)} groups over {length(years)} years"
   )
@@ -257,10 +313,11 @@ build_gridded_livestock <- function(
         pasture_yr = dplyr::filter(gridded_pasture, year == yr),
         cropland_yr = dplyr::filter(gridded_cropland, year == yr),
         country_grid = country_grid_yr,
-        species_proxy = species_proxy,
+        proxy_types = proxy_types,
         manure_pattern = manure_pattern,
         glw_density = glw_density,
         grass_productivity = grass_productivity,
+        proxy_method = proxy_method,
         numeric_cols = numeric_cols
       )
     },
@@ -408,6 +465,10 @@ build_gridded_livestock <- function(
 
 #' Build proxy weight grid from GLW3 species-specific density,
 #' scaled by LUH2 time trend.
+#'
+#' A group absent from `glw_density` yields a zero-row grid, which the
+#' caller reports. It cannot arrive here: `.check_livestock_proxy_inputs()`
+#' has already refused the whole call for such a group.
 #' @noRd
 .build_glw_proxy_grid <- function(
   group,
@@ -418,9 +479,6 @@ build_gridded_livestock <- function(
   proxy_type
 ) {
   glw_grp <- dplyr::filter(glw_density, species_group == group)
-  if (nrow(glw_grp) == 0L) {
-    return(NULL)
-  }
 
   # Get current land-use for temporal scaling
   lu <- switch(
@@ -472,6 +530,13 @@ build_gridded_livestock <- function(
 
 
 #' Spatialize all species groups for a single year.
+#'
+#' `proxy_method` picks the weight builder outright: the LUH2 branch never
+#' runs under `"glw3"` and the GLW3 branch never runs under `"luh2"`. The
+#' try-GLW3-then-fall-back-to-LUH2 block this replaces changed the proxy of
+#' whichever group the density table happened to be thin on, silently and
+#' per year, so two groups in one output could rest on different evidence
+#' with nothing recorded (whep#1000, task T15a-i).
 #' @noRd
 .spatialize_livestock_year <- function(
   yr,
@@ -479,29 +544,21 @@ build_gridded_livestock <- function(
   pasture_yr,
   cropland_yr,
   country_grid,
-  species_proxy,
+  proxy_types,
   manure_pattern,
   glw_density,
   grass_productivity,
+  proxy_method,
   numeric_cols
 ) {
   groups <- unique(livestock_yr$species_group)
 
   purrr::map(groups, \(grp) {
     grp_data <- dplyr::filter(livestock_yr, species_group == grp)
+    proxy_type <- proxy_types[[grp]]
 
-    # Determine proxy type for this group
-    proxy_row <- dplyr::filter(species_proxy, species_group == grp)
-    proxy_type <- if (nrow(proxy_row) > 0) {
-      proxy_row$spatial_proxy[1]
-    } else {
-      "pasture" # fallback
-    }
-
-    # Try GLW3 first if available
-    proxy_grid <- NULL
-    if (!is.null(glw_density)) {
-      proxy_grid <- .build_glw_proxy_grid(
+    proxy_grid <- if (proxy_method == "glw3") {
+      .build_glw_proxy_grid(
         grp,
         glw_density,
         pasture_yr,
@@ -509,11 +566,8 @@ build_gridded_livestock <- function(
         country_grid,
         proxy_type
       )
-    }
-
-    # Fall back to LUH2-based proxy
-    if (is.null(proxy_grid) || nrow(proxy_grid) == 0L) {
-      proxy_grid <- .build_proxy_grid(
+    } else {
+      .build_proxy_grid(
         proxy_type,
         pasture_yr,
         cropland_yr,
@@ -524,6 +578,7 @@ build_gridded_livestock <- function(
     }
 
     if (nrow(proxy_grid) == 0L) {
+      .warn_empty_proxy_grid(grp, yr, proxy_method)
       return(tibble::tibble())
     }
 
@@ -536,9 +591,148 @@ build_gridded_livestock <- function(
         year = yr,
         species_group = grp,
         .before = 1L
+      ) |>
+      dplyr::mutate(
+        method_livestock_proxy = .livestock_proxy_method(
+          proxy_method,
+          proxy_type,
+          grass_productivity
+        )
       )
   }) |>
     dplyr::bind_rows()
+}
+
+
+#' Resolve each species group's spatial proxy, or abort naming the group.
+#'
+#' Returns a named character vector, group -> proxy class. Where a group
+#' carries several proxy rows the first wins, which is what the replaced
+#' `proxy_row$spatial_proxy[1]` lookup did: `livestock_mapping.csv` maps
+#' `"other"` to both `cropland` (rabbits, rodents) and `mixed` (live
+#' animals nes), and `.read_livestock_mapping()` hands both rows over.
+#'
+#' The proxy class is checked here rather than at use: `.build_proxy_grid()`
+#' aborts on an unknown class through its `switch()` default, but
+#' `.build_glw_proxy_grid()`'s `switch()` has no default and would return
+#' `NULL` land use and fail somewhere else entirely.
+#' @noRd
+.livestock_proxy_types <- function(species_proxy, groups) {
+  .check_columns(
+    species_proxy,
+    c("species_group", "spatial_proxy"),
+    "species_proxy"
+  )
+  lookup <- species_proxy |>
+    dplyr::filter(species_group %in% groups, !is.na(spatial_proxy)) |>
+    dplyr::distinct(species_group, .keep_all = TRUE)
+
+  unmapped <- setdiff(groups, lookup$species_group)
+  if (length(unmapped) > 0L) {
+    cli::cli_abort(c(
+      "{length(unmapped)} {.field species_group} value{?s} in \\
+       {.arg livestock_data} {?has/have} no {.arg species_proxy} row:",
+      "x" = "{.val {unmapped}}.",
+      "i" = "An unmapped group used to fall back to the {.val pasture}
+             proxy silently. Map it in {.arg species_proxy}, or upstream in
+             {.file inst/extdata/livestock_mapping.csv}, which routes
+             catch-all items onto the group {.val other}."
+    ))
+  }
+
+  classes <- c("pasture", "cropland", "rangeland", "mixed")
+  unknown <- setdiff(lookup$spatial_proxy, classes)
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "{.arg species_proxy} carries {length(unknown)} unknown \\
+       {.field spatial_proxy} value{?s}:",
+      "x" = "{.val {unknown}}.",
+      "i" = "Expected one of {.val {classes}}."
+    ))
+  }
+
+  stats::setNames(lookup$spatial_proxy, lookup$species_group)
+}
+
+
+#' Check the proxy table the requested method needs.
+#'
+#' `"glw3"` is a selected method, not an opportunistic one: a missing table
+#' or a group the table has no positive cell for aborts rather than
+#' allocating that group on the LUH2 proxy under a `"glw3"` label.
+#' @noRd
+.check_livestock_proxy_inputs <- function(proxy_method, glw_density, groups) {
+  if (proxy_method != "glw3") {
+    if (!is.null(glw_density)) {
+      cli::cli_warn(c(
+        "{.arg glw_density} is ignored under {.arg proxy_method} \\
+         {.val {proxy_method}}.",
+        "i" = "Pass {.code proxy_method = \"glw3\"} to allocate on it."
+      ))
+    }
+    return(invisible(NULL))
+  }
+  if (is.null(glw_density)) {
+    cli::cli_abort(c(
+      "{.arg glw_density} is required when {.arg proxy_method} is \\
+       {.val glw3}.",
+      "i" = "The GLW3 density table is the whole weight under this method;
+             there is no LUH2 fallback."
+    ))
+  }
+  .check_columns(
+    glw_density,
+    c("lon", "lat", "species_group", "density"),
+    "glw_density"
+  )
+  covered <- glw_density |>
+    dplyr::filter(!is.na(density), density > 0) |>
+    dplyr::pull(species_group) |>
+    unique()
+  missing_groups <- setdiff(groups, covered)
+  if (length(missing_groups) > 0L) {
+    cli::cli_abort(c(
+      "{.arg glw_density} has no positive cell for {length(missing_groups)} \\
+       {.field species_group} value{?s} in {.arg livestock_data}:",
+      "x" = "{.val {missing_groups}}.",
+      "i" = "Add the group to {.arg glw_density} or run those groups under
+             {.code proxy_method = \"luh2\"}."
+    ))
+  }
+  invisible(NULL)
+}
+
+
+#' The `method_livestock_proxy` value one species group runs under.
+#'
+#' Constant within a group: the grass weighting in `.build_proxy_grid()` is
+#' applied to the whole grazer grid or to none of it.
+#' @noRd
+.livestock_proxy_method <- function(
+  proxy_method,
+  proxy_type,
+  grass_productivity
+) {
+  if (proxy_method == "glw3") {
+    return("glw3")
+  }
+  grazed <- proxy_type %in% c("pasture", "rangeland")
+  if (!is.null(grass_productivity) && grazed) "luh2_grass" else "luh2_area"
+}
+
+
+#' Report a species group whose proxy has no positive cell this year.
+#'
+#' The group's national totals are dropped for the year -- the early return
+#' happens before `.allocate_livestock_to_grid()`, so
+#' `.warn_unallocated_livestock()` never sees them.
+#' @noRd
+.warn_empty_proxy_grid <- function(grp, yr, proxy_method) {
+  cli::cli_warn(c(
+    "No {.val {proxy_method}} proxy cell carries weight for \\
+     {.val {grp}} in {yr}.",
+    "x" = "The group's national totals are dropped for that year."
+  ))
 }
 
 

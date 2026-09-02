@@ -307,9 +307,15 @@ testthat::test_that(".load_landuse_inputs reads pinned inputs when input_dir is 
 # --- Livestock-only end-to-end path ------------------------------------
 .write_livestock_fixture <- function(dir) {
   livestock_data <- tibble::tribble(
+    # `species_group` speaks the vocabulary of
+    # `inst/extdata/livestock_mapping.csv`, which is what
+    # `.read_livestock_mapping()` hands the engine: `cattle_dairy` and
+    # `cattle_non_dairy`, never a bare `cattle`. Until whep#1000 T15a-i an
+    # unmapped group was silently given the pasture proxy, so this fixture
+    # passed while naming a group the shipped mapping does not have.
     ~year, ~area_code, ~species_group, ~heads, ~enteric_ch4_kt,
-    2000L, 1L, "cattle", 10000, 1.0,
-    2000L, 1L, "pigs",    5000, 0.0
+    2000L,         1L, "cattle_dairy",  10000,             1.0,
+    2000L,         1L,         "pigs",   5000,             0.0
   )
   gridded_pasture <- tibble::tribble(
     ~lon,  ~lat,  ~year, ~pasture_ha, ~rangeland_ha,
@@ -572,8 +578,8 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   nanoparquet::write_parquet(
     tibble::tribble(
       ~year, ~area_code, ~species_group, ~heads, ~enteric_ch4_kt,
-      2000L,         1L,       "cattle",  10000,             1.0,
-      2000L,         2L,       "cattle",   2000,             0.2
+      2000L,         1L, "cattle_dairy",  10000,             1.0,
+      2000L,         2L, "cattle_dairy",   2000,             0.2
     ),
     file.path(tmp_in, "livestock_country_data.parquet")
   )
