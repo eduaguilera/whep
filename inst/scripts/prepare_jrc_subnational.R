@@ -81,6 +81,35 @@
 # country -> `country_code`, area_ha / production_t / yield_t_ha ->
 # `quantity` + `value` + `value_unit`.
 #
+# What the 2025.01 release actually contains
+# ------------------------------------------
+# The ESSD paper describes the first release: five crops in seven
+# classes, 961 regions, 1975-2020. Release 2025.01, which is what the
+# portal serves and what this script pinned, is wider, and a consumer
+# reading only the paper will get it wrong. Measured on the pinned
+# archive (sha256 d9bf...801e6) on 2026-09-02:
+#
+#   - 368,681 rows; 958 distinct REGION codes (955 NUTS-shaped: 3 at
+#     NUTS 0, 16 at NUTS 1, 73 at NUTS 2, 863 at NUTS 3; plus the three
+#     Excel-mangled codes below); 27 countries; years 1971-2024.
+#   - NINE crop classes, not seven: the paper's seven (Soft wheat,
+#     Durum wheat, Winter barley, Spring barley, Grain maize, Sunflower,
+#     Sugar beet) plus "Total wheat" and "Total barley", which are
+#     AGGREGATES OF MEMBERS THAT ARE ALSO PRESENT. The publisher says so
+#     itself: COHERENCE_CROP checks Total wheat against Soft + Durum and
+#     Total barley against Winter + Spring to 1%
+#     ("Regional_db_Structure_and_Flagging_system.pdf", Table 4). On the
+#     10,798 region-years carrying all three wheat areas, Total equals
+#     Soft + Durum exactly in 94.7% of cases (median absolute difference
+#     0 ha).
+#
+# So summing every class in this pin double-counts wheat and barley.
+# Which of the nine an item vocabulary keeps is an inclusion decision
+# and belongs to T10/T11 of the subnational plan, not to this reader:
+# the rows are passed through unchanged and counted, never dropped here.
+# `prepare_jrc_subnational()` names the aggregate classes it saw so the
+# operator cannot miss them.
+#
 # Usage:
 #   source("inst/scripts/prepare_jrc_subnational.R")
 #   prepared <- prepare_jrc_subnational()
@@ -335,6 +364,38 @@ read_jrc_subnational <- function(path) {
     "Production",  "production",  "production",     "t",
     "Yield",       "yield",       "yield",          "t/ha"
   )
+}
+
+# The two published classes that are sums of two other published
+# classes, per COHERENCE_CROP and Table 4 of
+# "Regional_db_Structure_and_Flagging_system.pdf": Total wheat = Soft
+# wheat + Durum wheat, Total barley = Winter barley + Spring barley.
+# They are kept (dropping one is T10/T11's inclusion decision) and
+# named at the end of a run so nobody sums all nine classes.
+.jrc_aggregate_classes <- function() {
+  tibble::tribble(
+    ~aggregate,      ~member_1,        ~member_2,
+    "Total wheat",   "Soft wheat",     "Durum wheat",
+    "Total barley",  "Winter barley",  "Spring barley"
+  )
+}
+
+.jrc_warn_aggregate_classes <- function(harmonized) {
+  known <- .jrc_aggregate_classes()
+  seen <- intersect(known$aggregate, unique(harmonized$source_native_item_code))
+  if (length(seen) == 0L) {
+    return(invisible(harmonized))
+  }
+  rows <- sum(harmonized$source_native_item_code %in% seen)
+  cli::cli_alert_warning(c(
+    "JRC: {length(seen)} of the crop class{?es} {?is/are} an aggregate of
+     other classes in the same table ({.val {seen}}, {rows} row{?s})."
+  ))
+  cli::cli_alert_info(
+    "Summing every class double-counts wheat and barley; which classes an
+     item vocabulary keeps is T10/T11's decision, not this reader's."
+  )
+  invisible(harmonized)
 }
 
 # Eurostat's pre-2025 area concept is "the area actually harvested"
@@ -768,6 +829,7 @@ prepare_jrc_subnational <- function(
      {dplyr::n_distinct(harmonized$source_native_item_code)} crop
      class{?es}, {min(harmonized$year)}-{max(harmonized$year)}."
   )
+  .jrc_warn_aggregate_classes(harmonized)
   manifest <- write_jrc_source_manifest(record, manifest_path, root)
   staged <- stage_jrc_pin(harmonized, staging_dir)
   list(

@@ -239,6 +239,52 @@ test_that("a non-NUTS region code warns and is kept, never repaired", {
   expect_equal(bad$value_flag, "invalid_region_code")
 })
 
+test_that("crop classes pass through unchanged, aggregates included", {
+  env <- .jrc_load_script()
+  raw <- .jrc_fixture_raw(env)
+  harmonized <- suppressWarnings(.jrc_fixture_harmonized(env))
+
+  # The reader filters no crop: which of the release's nine classes an
+  # item vocabulary keeps is T10/T11's inclusion decision.
+  expect_setequal(
+    unique(harmonized$source_native_item_code),
+    unique(raw$CROP_NAME)
+  )
+  expect_true("Total wheat" %in% harmonized$source_native_item_code)
+})
+
+test_that("the aggregate classes are named, never silently summed", {
+  env <- .jrc_load_script()
+  known <- env$.jrc_aggregate_classes()
+
+  expect_setequal(known$aggregate, c("Total wheat", "Total barley"))
+  expect_equal(
+    known$member_1[known$aggregate == "Total wheat"],
+    "Soft wheat"
+  )
+  expect_equal(
+    known$member_2[known$aggregate == "Total barley"],
+    "Spring barley"
+  )
+
+  harmonized <- suppressWarnings(.jrc_fixture_harmonized(env))
+  both <- dplyr::bind_rows(
+    harmonized,
+    dplyr::mutate(
+      harmonized[1L, ],
+      source_native_item_code = "Total barley"
+    )
+  )
+  expect_message(
+    env$.jrc_warn_aggregate_classes(both),
+    "Total barley"
+  )
+  expect_message(
+    env$.jrc_warn_aggregate_classes(both),
+    "aggregate of"
+  )
+})
+
 test_that("a repeated region-crop-year-variable key aborts", {
   env <- .jrc_load_script()
   raw <- .jrc_fixture_raw(env)
