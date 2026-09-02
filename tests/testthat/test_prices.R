@@ -218,6 +218,33 @@ testthat::test_that("build_primary_prices uses export trade prices", {
   testthat::expect_equal(wheat$price, 0.5)
 })
 
+testthat::test_that("build_primary_prices returns one row per year/item", {
+  # Regression test for issue #229: .compute_primary_prices used to merge
+  # a `prod_bridge` lookup (item_prod, item_cbs_code from items_prod_full)
+  # whose added columns were never used downstream. If that lookup were
+  # ever non-unique on item_prod_code, the merge would silently fan out
+  # duplicate (year, item_prod_code) rows. Assert the invariant directly,
+  # independent of whether items_prod_full happens to be unique today.
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 5000,
+    2020L, 9, "15", "tonnes", 3000,
+    2020L, 2, "1807", "tonnes", 1000
+  )
+
+  trade_prices <- .fake_trade_prices()
+
+  result <- build_primary_prices(
+    primary_prod = primary_prod,
+    trade_prices = trade_prices
+  )
+
+  key_counts <- result |>
+    dplyr::count(year, item_prod_code)
+
+  testthat::expect_true(all(key_counts$n == 1))
+})
+
 testthat::test_that("build_primary_prices falls back to production value", {
   primary_prod <- tibble::tribble(
     ~year, ~area_code, ~item_prod_code, ~unit, ~value,
@@ -253,6 +280,45 @@ testthat::test_that("build_primary_prices falls back to production value", {
 
   wheat <- result |> dplyr::filter(item_prod_code == "15")
   testthat::expect_equal(wheat$price, 0.5)
+})
+
+testthat::test_that("build_primary_prices drops infinite production price", {
+  # Zero production tonnage with a non-zero production value used to divide
+  # out to Inf, which is non-NA and survived the `!is.na(price)` filter
+  # (whep#166): the trade path already guards this with `!is.infinite()`,
+  # the primary-production path did not.
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~unit, ~value,
+    2020L, 2, "15", "tonnes", 0
+  )
+
+  trade_prices <- data.table::data.table(
+    year = integer(),
+    item_trade = character(),
+    item_code_trade = numeric(),
+    element = character(),
+    kdollars = numeric(),
+    tonnes = numeric(),
+    price = numeric()
+  )
+
+  vop <- data.table::data.table(
+    Item.Code = "15",
+    Area.Code = 2L,
+    Element = "Gross Production Value (constant 2014-2016 thousand US$)",
+    Unit = "1000 US$",
+    Year = 2020L,
+    Value = 2500
+  )
+
+  result <- build_primary_prices(
+    primary_prod = primary_prod,
+    value_of_production = vop,
+    trade_prices = trade_prices
+  )
+
+  testthat::expect_false(any(is.infinite(result$price)))
+  testthat::expect_true(all(is.na(result$price) | is.finite(result$price)))
 })
 
 testthat::test_that("build_primary_prices prefers export over production", {
@@ -466,9 +532,19 @@ testthat::test_that("build_cbs_prices adds residue prices", {
     price = c(0.5, 0.5)
   )
 
+  # Wheat is Cereals → residue is "Straw"
+  straw_code <- whep::items_full |>
+    dplyr::filter(item_cbs == "Straw") |>
+    dplyr::pull(item_cbs_code) |>
+    unique()
+
+  # The real CBS carries a row for the residue item too (produced
+  # alongside the parent crop), so it must be listed here for its
+  # estimated price to survive `.finalise_cbs_prices()` (#230).
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code,
-    2020L, 2, 2511
+    2020L, 2, 2511,
+    2020L, 2, straw_code
   )
 
   result <- build_cbs_prices(
@@ -476,12 +552,6 @@ testthat::test_that("build_cbs_prices adds residue prices", {
     trade_prices = trade_prices,
     residue_price_factor = 0.1
   )
-
-  # Wheat is Cereals → residue is "Straw"
-  straw_code <- whep::items_full |>
-    dplyr::filter(item_cbs == "Straw") |>
-    dplyr::pull(item_cbs_code) |>
-    unique()
 
   if (length(straw_code) > 0) {
     straw <- result[result$item_cbs_code == straw_code, ]
@@ -988,9 +1058,12 @@ testthat::test_that("build_cbs_prices keeps residues of a habitless crop", {
     price = 0.5
   )
 
+  # The residue's own item code must also be a CBS item for that year, as
+  # it would be in the real CBS (#230).
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code,
-    2020L, 2, 2559
+    2020L, 2, 2559,
+    2020L, 2, .other_residues_code
   )
 
   testthat::expect_warning(
@@ -1022,10 +1095,14 @@ testthat::test_that("build_cbs_prices keeps residues of a woody crop", {
     price = c(2.0, 0.2)
   )
 
+  # The residue codes must also be CBS items for that year, as they
+  # would be in the real CBS (#230).
   cbs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code,
     2020L, 2, 2661,
-    2020L, 2, 2611
+    2020L, 2, 2611,
+    2020L, 2, .firewood_code,
+    2020L, 2, .other_residues_code
   )
 
   result <- whep::build_cbs_prices(
@@ -1142,4 +1219,66 @@ testthat::test_that("build_cbs_prices example returns expected structure", {
   testthat::expect_equal(nrow(result), 10)
   testthat::expect_true(all(result$element %in% c("import", "export")))
   testthat::expect_true(all(result$price > 0))
+})
+
+# .finalise_cbs_prices() ------------------------------------------------------
+
+testthat::test_that(".finalise_cbs_prices never extrapolates outside an item's own CBS years", {
+  # Item 1 is a CBS item only in 2010. Item 2 is a CBS item only for
+  # 2000-2005. Before #230 was fixed, `tidyr::complete()` crossed the
+  # union of every year seen anywhere with every item, so item 1's
+  # single 2000 price got extrapolated across 2000-2010 and item 2 got
+  # extrapolated out to 2010 as well, i.e. years neither item ever had
+  # in the CBS.
+  cbs <- tibble::tribble(
+      ~year, ~item_cbs_code,
+      2010L, 1L,
+      2000L, 2L,
+      2001L, 2L,
+      2002L, 2L,
+      2003L, 2L,
+      2004L, 2L,
+      2005L, 2L
+    )
+
+  dt <- data.table::data.table(
+    year = c(2000L, 2005L),
+    element = c("export", "export"),
+    item_cbs = c("A", "B"),
+    item_cbs_code = c(1L, 2L),
+    price = c(10, 20)
+  )
+
+  result <- whep:::.finalise_cbs_prices(dt, cbs)
+
+  item1 <- result[result$item_cbs_code == 1L, ]
+  item2 <- result[result$item_cbs_code == 2L, ]
+
+  testthat::expect_equal(item1$year, 2010L)
+  testthat::expect_setequal(item2$year, 2000:2005)
+})
+
+testthat::test_that(".finalise_cbs_prices still interpolates within an item's CBS years", {
+  cbs <- tibble::tribble(
+      ~year, ~item_cbs_code,
+      2000L, 3L,
+      2001L, 3L,
+      2002L, 3L,
+      2003L, 3L,
+      2004L, 3L
+    )
+
+  dt <- data.table::data.table(
+    year = c(2000L, 2004L),
+    element = c("export", "export"),
+    item_cbs = c("C", "C"),
+    item_cbs_code = c(3L, 3L),
+    price = c(10, 20)
+  )
+
+  result <- whep:::.finalise_cbs_prices(dt, cbs)
+  result <- result[order(result$year), ]
+
+  testthat::expect_equal(result$year, 2000:2004)
+  testthat::expect_equal(result$price, seq(10, 20, by = 2.5))
 })

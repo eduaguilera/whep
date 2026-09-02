@@ -204,6 +204,30 @@ testthat::test_that(".write_landuse_outputs aggregates by cft_target column", {
   testthat::expect_true("others" %in% lpjml_out$cft_name)
 })
 
+testthat::test_that(".write_landuse_outputs aborts on a repeated cft_mapping code", {
+  result_crops <- tibble::tribble(
+      ~lon,  ~lat,  ~year, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,              15L,         100,             0
+    )
+  dup_mapping <- tibble::tribble(
+      ~item_prod_code, ~cft_name,             ~cft_lpjml,
+                  15L, "temperate_cereals",   "temperate_cereals",
+                  15L, "other_dup",           "other_dup"
+    )
+  fn <- getFromNamespace(".write_landuse_outputs", "whep")
+
+  testthat::expect_error(
+    fn(
+      result_crops,
+      dup_mapping,
+      withr::local_tempdir(),
+      list(aggregate_to_cft = TRUE),
+      cft_target = "whep"
+    ),
+    class = "rlang_error"
+  )
+})
+
 testthat::test_that(".write_run_metadata writes a round-trippable YAML", {
   tmp <- withr::local_tempdir()
   fn <- getFromNamespace(".write_run_metadata", "whep")
@@ -571,4 +595,12 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   )
   testthat::expect_true(2L %in% out$area_code)
   testthat::expect_equal(sum(out$heads), 12000)
+})
+
+testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping package data", {
+  read_packaged_cft_mapping <- getFromNamespace(
+    ".read_packaged_cft_mapping",
+    "whep"
+  )
+  testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
 })

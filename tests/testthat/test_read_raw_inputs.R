@@ -84,6 +84,87 @@ test_that(".aggregate_to_polities works without fao_flag", {
   expect_true("value" %in% names(result))
 })
 
+.local_fold_crosswalk <- function(env = parent.frame()) {
+  fixture <- data.table::data.table(
+    area_code = c(991L, 992L),
+    area_name = c("Testland North", "Testland South"),
+    area_iso3c = c("TSN", "TSS"),
+    polity_area_code = c(999L, 999L),
+    polity_code = c("TST-1900-2025", "TST-1900-2025"),
+    polity_name = c("Testland", "Testland"),
+    polity_start_year = c(1900L, 1900L),
+    polity_end_year = c(2025L, 2025L),
+    polity_type = c("national", "national"),
+    mapping_status = c("matched", "matched"),
+    has_geometry = c(TRUE, TRUE)
+  )
+  testthat::local_mocked_bindings(
+    .polity_crosswalk = function(include_unmapped = TRUE) {
+      data.table::copy(fixture)
+    },
+    .env = env
+  )
+}
+
+test_that(".aggregate_to_polities folds a bucket flag: agreeing members", {
+  # Two areas fold into one bucket (999) and agree on the flag: whep#581 --
+  # the bucket honestly keeps it, not merely "one member's" flag by luck of
+  # row order.
+  dt <- data.table::data.table(
+    area_code = c(991L, 992L),
+    year = c(2000L, 2000L),
+    element = c("production", "production"),
+    unit = c("tonnes", "tonnes"),
+    item_prod_code = c("15", "15"),
+    item_prod = c("Wheat", "Wheat"),
+    value = c(5000, 3000),
+    fao_flag = c("A", "A")
+  )
+
+  .local_fold_crosswalk()
+
+  result <- suppressWarnings(
+    whep:::.aggregate_to_polities(dt, item_prod_code, item_prod)
+  )
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 8000)
+  expect_equal(result$fao_flag, "A")
+})
+
+test_that(".aggregate_to_polities folds a bucket flag: disagreeing members", {
+  # Same fold, but the members disagree on provenance ("A" official vs
+  # "E" estimated). Before whep#581 this silently kept whichever member's
+  # flag sorted first into the group -- an accident of row order, not a
+  # property of the sum. The bucket must not claim either parent's
+  # provenance, so the flag comes out as NA.
+  dt <- data.table::data.table(
+    area_code = c(991L, 992L),
+    year = c(2000L, 2000L),
+    element = c("production", "production"),
+    unit = c("tonnes", "tonnes"),
+    item_prod_code = c("15", "15"),
+    item_prod = c("Wheat", "Wheat"),
+    value = c(5000, 3000),
+    fao_flag = c("A", "E")
+  )
+
+  .local_fold_crosswalk()
+
+  result <- suppressWarnings(
+    whep:::.aggregate_to_polities(dt, item_prod_code, item_prod)
+  )
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 8000)
+  expect_true(is.na(result$fao_flag))
+})
+
+test_that(".fold_fao_flag: agree, disagree, all-NA and mixed-NA cases", {
+  expect_equal(whep:::.fold_fao_flag(c("A", "A")), "A")
+  expect_true(is.na(whep:::.fold_fao_flag(c("A", "E"))))
+  expect_true(is.na(whep:::.fold_fao_flag(c(NA_character_, NA_character_))))
+  expect_equal(whep:::.fold_fao_flag(c("A", NA_character_)), "A")
+})
+
 test_that("a bucket comes out of the aggregator under exactly one area label", {
   # THE INVARIANT THAT VALUE-NEUTRALITY CHECKS CANNOT SEE (whep#563).
   #
@@ -158,10 +239,28 @@ test_that("the live Sudan bucket sums instead of splitting in two", {
   post <- out[out$year == 2015L, ]
   expect_equal(nrow(post), 1L)
   expect_equal(post$value, 125)
-  # And the label no longer flips mid-series: the same bucket is the same
-  # territory in 2005 and 2015, which is what a join key has to be.
-  expect_equal(length(unique(out$area)), 1L)
+  # ONE LABEL PER BUCKET-YEAR, which is the property whep#563 needs: the label
+  # is attached after the sum, keyed on `(bucket, year)`, so it cannot re-split
+  # a group. Asserted per year rather than across the series, because a bucket's
+  # label legitimately changes when the polity its code resolves to changes --
+  # 43 buckets do, `ETH-1952-1993` -> `ETH-1993-2025` among them, and bucket 206
+  # joined them when whep#860 gave it `F206-2011-2025` from 2012. Requiring one
+  # label across the whole series would forbid that, and it is not what makes
+  # the sum safe.
+  labels_per_bucket_year <- tapply(
+    out$area,
+    paste(out$area_code, out$year),
+    function(x) length(unique(x))
+  )
+  expect_true(all(labels_per_bucket_year == 1L))
   expect_equal(sum(out$value), sum(raw$value))
+
+  # And the change of label is at the secession, not anywhere else.
+  expect_equal(out$area[out$year == 2005L], "Sudan (1956-2011)")
+  expect_equal(
+    out$area[out$year == 2015L],
+    "Sudan and South Sudan (combined reporting)"
+  )
 })
 
 test_that("the aggregator labels a bucket from the bucket's own code", {
@@ -189,7 +288,7 @@ test_that("the aggregator labels a bucket from the bucket's own code", {
   expect_equal(
     out$area,
     whep::polity_area_crosswalk$polity_name[
-      whep::polity_area_crosswalk$polity_code == "SUD-1956-2011"
+      whep::polity_area_crosswalk$polity_code == "F206-2011-2025"
     ][[1]]
   )
 })
@@ -345,6 +444,58 @@ test_that(".extract_fao row order does not depend on the read order", {
 
   expect_gt(nrow(forward), 1L)
   expect_identical(forward, reversed)
+})
+
+# -- exact-set year filtering (whep#157) ----------------------------------------
+
+# `.filter_years()`'s contiguous-range fast path compared `length(years)`
+# against the range width without deduping first, so a duplicated request
+# like c(2000, 2000, 2002) (length 3, range width 3) wrongly took the fast
+# path and returned the unrequested in-between year 2001 too.
+test_that(".filter_years returns the exact set, not a min/max range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2000, 2000, 2002))
+
+  expect_equal(sort(result$year), c(2000, 2002))
+})
+
+test_that(".filter_years still uses the contiguous fast path for a range", {
+  df <- data.frame(year = 2000:2005, value = 1)
+
+  result <- whep:::.filter_years(df, years = c(2001, 2003, 2002))
+
+  expect_equal(sort(result$year), 2001:2003)
+})
+
+# `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+# (a row-group range filter); `.extract_fao()` used to never apply the exact
+# set afterwards, so a non-contiguous request like c(1961, 2000) silently came
+# back with all 40 years in between -- both a correctness bug (unrequested
+# years reach every downstream aggregation) and a memory hazard (pulling a
+# full range instead of two years can blow up RAM on a real pin).
+test_that(".extract_fao returns exactly the requested years", {
+  fixture <- data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = 2511L,
+    Item = "Wheat and products",
+    Element = "Production",
+    Unit = "tonnes",
+    Year = 1961:2000,
+    Value = 100
+  )
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+
+  out <- whep:::.extract_fao("faostat-cbs-new", years = c(1961, 2000))
+
+  expect_equal(sort(unique(out$year)), c(1961, 2000))
+  expect_equal(nrow(out), 2L)
 })
 
 # Issue whep#833. `.correct_processed()` calibrates a processing output by

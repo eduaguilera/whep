@@ -83,6 +83,30 @@ testthat::test_that(".pivot_cbs_wide splits stock variation by balance sign", {
   testthat::expect_equal(result$stock_withdrawal, c(0, 20))
 })
 
+testthat::test_that(".pivot_cbs_wide fills stock_variation as 0 when absent (#219)", {
+  cbs_long <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+      2010L, 1L, 100L, "production", 50,
+      2010L, 1L, 100L, "import", 5
+    )
+
+  result <- .pivot_cbs_wide(cbs_long)
+
+  testthat::expect_equal(result$stock_addition, 0)
+  testthat::expect_equal(result$stock_withdrawal, 0)
+})
+
+testthat::test_that(".pivot_cbs_wide aborts on a duplicate element key (#219)", {
+  cbs_long <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~element, ~value,
+      2010L, 1L, 100L, "production", 50,
+      2010L, 1L, 100L, "production", 20,
+      2010L, 1L, 100L, "stock_variation", 5
+    )
+
+  testthat::expect_error(.pivot_cbs_wide(cbs_long))
+})
+
 testthat::test_that("processing coefficients are internally consistent", {
   coefs <- .make_coefs_fixture()
 
@@ -196,8 +220,14 @@ testthat::test_that("livestock trade reconciles with polity-coded slaughter (Eth
       2000L, 238L, 1096L, NA, "slaughtered_heads", 100
     )
 
-  result <- get_livestock_cbs(primary)
-  ethiopia <- dplyr::filter(result, item_cbs_code == 1096L)
+  # USA (area 231) trades this item but has no slaughtered_heads row of its
+  # own, so building the CBS warns about it (whep#168).
+  testthat::expect_warning(result <- get_livestock_cbs(primary))
+  ethiopia <- dplyr::filter(
+    result,
+    item_cbs_code == 1096L,
+    area_code == 238L
+  )
 
   # Live-animal trade now matches the polity-coded slaughter row.
   testthat::expect_equal(ethiopia$area_code, 238L)
@@ -207,4 +237,55 @@ testthat::test_that("livestock trade reconciles with polity-coded slaughter (Eth
   testthat::expect_equal(ethiopia$production, 120)
   # Domestic supply is production plus import less export, so 120 plus 10 less 30.
   testthat::expect_equal(ethiopia$domestic_supply, 100)
+
+  # The USA side of the trade (area 231) has no slaughter row of its own for
+  # this item -- it must still survive as a trade-only row (whep#168) instead
+  # of being dropped by the join, with slaughtered treated as 0.
+  usa <- dplyr::filter(result, item_cbs_code == 1096L, area_code == 231L)
+  testthat::expect_equal(nrow(usa), 1L)
+  testthat::expect_equal(usa$import, 30)
+  testthat::expect_equal(usa$export, 10)
+  # No slaughter row for the USA side of this trade, so production (animals
+  # raised in country) is clamped to 0 and the imports sit as domestic supply:
+  # 0 (slaughtered) + 10 (export) - 30 (import), clamped, then + 30 - 10.
+  testthat::expect_equal(usa$production, 0)
+  testthat::expect_equal(usa$domestic_supply, 20)
+})
+
+testthat::test_that("livestock trade survives when the importer has no slaughter row (#168)", {
+  # Country 2 imports live horses (item 1096) and never slaughters any
+  # itself for that item -- it has no `slaughtered_heads` row at all, only
+  # a trade row. Country 1 slaughters and exports. Country 2's import
+  # volume must still enter the CBS instead of vanishing because it has no
+  # matching `slaughtered` row to left_join onto.
+  local_mocked_bindings(
+    .get_livestock_trade_totals = function(livestock_items) {
+      tibble::tribble(
+          ~year, ~area_code, ~item_cbs_code, ~import, ~export,
+          2000L, 1L, 1096L, 0, 30,
+          2000L, 2L, 1096L, 30, 0
+        )
+    }
+  )
+
+  primary <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+      2000L, 1L, 1096L, NA, "slaughtered_heads", 100,
+      2000L, 1L, 2735L, 1096L, "tonnes", 2
+    )
+
+  testthat::expect_warning(result <- get_livestock_cbs(primary))
+  importer <- dplyr::filter(
+    result,
+    area_code == 2L,
+    item_cbs_code == 1096L
+  )
+
+  testthat::expect_equal(nrow(importer), 1L)
+  testthat::expect_equal(importer$import, 30)
+  # No slaughter row for country 2, so production (animals raised in
+  # country) is clamped to 0 and the import sits entirely as domestic
+  # supply instead of vanishing.
+  testthat::expect_equal(importer$production, 0)
+  testthat::expect_equal(importer$domestic_supply, 30)
 })

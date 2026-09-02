@@ -1467,6 +1467,27 @@ test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
   expect_true(stringr::str_starts(result$source, "historical_"))
 })
 
+test_that(".prepare_historical_cbs names the 'Missing' bullet with an
+  {.field x} cross, not a bare unnamed line", {
+  # `"x" <- "Missing: ..."` inside the `c()` call passed to cli_abort() was
+  # an assignment, not a named c() element, so the bullet lost its
+  # cross-mark formatting (whep#172).
+  cnd <- rlang::catch_cnd(
+    whep:::.prepare_historical_cbs(
+      data.frame(area_code = 1L),
+      years = 1900:1901
+    )
+  )
+
+  # The cross-mark bullet renders as unicode "✖" or ASCII "x" depending on
+  # `cli.unicode`; either way it must be its own bulleted line, not appended
+  # bare onto the message with no marker at all.
+  expect_true(stringr::str_detect(
+    rlang::cnd_message(cnd),
+    "(✖|x) Missing: year and value\\."
+  ))
+})
+
 test_that(".cbs_extend_historical preserves observed historical sources", {
   cbs_raw0 <- tibble::tibble(
     year = c(1950L, 1961L),
@@ -1862,6 +1883,33 @@ test_that(".format_cbs_output returns long format with source column", {
     dplyr::filter(element == "production") |>
     dplyr::pull(source)
   expect_equal(prod_src, "FAOSTAT_prod")
+})
+
+
+test_that(".format_cbs_output keeps processing_primary (whep#143)", {
+  # domestic_supply is built upstream to include processing_primary as one
+  # of its summed destinies (.reestimate_domestic_supply(),
+  # .apply_filled_shares()), so dropping the element here breaks
+  # sum(uses) == domestic_supply for the pp_items whose entire domestic
+  # supply is destined for processing (e.g. Seed cotton).
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element,
+    ~value, ~source,
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "production",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "processing_primary",
+    5000, "FAOSTAT_prod",
+    2000L, "Spain", 203L, "Seed cotton", 2559L, "domestic_supply",
+    5000, "FAOSTAT_prod"
+  )
+
+  result <- whep:::.format_cbs_output(cbs)
+
+  expect_true("processing_primary" %in% result$element)
+  pp_value <- result |>
+    dplyr::filter(element == "processing_primary") |>
+    dplyr::pull(value)
+  expect_equal(pp_value, 5000)
 })
 
 
@@ -2516,6 +2564,72 @@ test_that("agreeing labels leave the destiny-share skeleton unchanged", {
       dplyr::pull(.data$dest_share),
     c(0.4, 0.6)
   )
+})
+
+# -- .cbs_safe_ratio division-by-zero guard (whep#166, whep#426) --------------
+
+test_that(".cbs_safe_ratio returns NA, not Inf, on a zero denominator", {
+  result <- whep:::.cbs_safe_ratio(
+    num = c(10, 0, 5, NA_real_, 4),
+    denom = c(0, 0, 2, 3, NA_real_)
+  )
+
+  expect_equal(result, c(NA_real_, NA_real_, 2.5, NA_real_, NA_real_))
+  expect_false(any(is.infinite(result)))
+  expect_false(any(is.nan(result)))
+})
+
+test_that(".fill_historical_destinies keeps a zero-supply share finite", {
+  # Reproduces whep#426 at function scope: domestic_supply == 0 with a
+  # non-zero destiny numerator used to divide out to Inf, and 0 * Inf (the
+  # `.apply_filled_shares()` coalesce-back) reintroduced NaN as data, both of
+  # which survive `!is.na()` filters.
+  df <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "production", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "import", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "export", 0,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "food", 10,
+    1950L, "Algeria", 4L, "Wheat", 2511L, "seed", 5
+  )
+
+  primary_area <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_cbs = character(),
+    item_cbs_code = integer(),
+    area_ha = double()
+  )
+  gdp_pop <- tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = character(),
+    pop = double()
+  )
+  land_wide <- tibble::tibble(
+    year = integer(),
+    area_code = integer(),
+    Cropland = double(),
+    Pasture = double(),
+    agriland = double()
+  )
+  items <- whep::items_full
+
+  result <- whep:::.fill_historical_destinies(
+    df,
+    primary_area,
+    gdp_pop,
+    land_wide,
+    items
+  )
+
+  numeric_cols <- result[vapply(result, is.numeric, logical(1L))]
+  expect_true(all(vapply(
+    numeric_cols,
+    \(x) all(is.finite(x) | is.na(x)),
+    TRUE
+  )))
 })
 
 # -- .read_historical_trade row order ------------------------------------------

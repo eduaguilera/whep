@@ -103,13 +103,18 @@
   year_col <- .detect_year_col(dt)
 
   # Fast path for contiguous ranges (common case in build pipelines).
-  y_min <- min(years, na.rm = TRUE)
-  y_max <- max(years, na.rm = TRUE)
-  if (length(years) == (y_max - y_min + 1L)) {
+  # Dedupe first: duplicated years must not inflate the length past the
+  # distinct-year count, or a request like c(2000, 2000, 2002) (length 3,
+  # range 2000-2002 also length 3) wrongly takes this branch and returns the
+  # unrequested 2001 too (whep#157).
+  years_unique <- unique(years)
+  y_min <- min(years_unique, na.rm = TRUE)
+  y_max <- max(years_unique, na.rm = TRUE)
+  if (length(years_unique) == (y_max - y_min + 1L)) {
     return(dt[dt[[year_col]] >= y_min & dt[[year_col]] <= y_max])
   }
 
-  dt[dt[[year_col]] %in% years]
+  dt[dt[[year_col]] %in% years_unique]
 }
 
 .detect_year_col <- function(df) {
@@ -445,7 +450,7 @@
   has_flag <- "fao_flag" %in% names(dt)
   if (has_flag) {
     dt <- dt[,
-      .(value = sum(value, na.rm = TRUE), fao_flag = fao_flag[1L]),
+      .(value = sum(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
       by = by_cols
     ]
   } else {
@@ -453,6 +458,20 @@
   }
 
   .apply_bucket_area_labels(dt, labels)
+}
+
+# A bucket that folds several reporting areas (whep#414) is a *sum*, and the
+# FAOSTAT flag is a per-row provenance code (`A` official, `E` estimated,
+# `I` imputed, ...), not an additive quantity. Keeping whichever member's flag
+# happened to sort first (whep#581) asserted a provenance the summed value
+# does not have. There is no FAO-endorsed precedence over the flag vocabulary
+# to fall back on instead, so this keeps the flag when every folded member
+# agrees and reports the disagreement honestly as `NA` otherwise, rather than
+# inventing a "worst flag wins" ranking. Single-member groups are unaffected:
+# they keep their own flag exactly as before.
+.fold_fao_flag <- function(fao_flag) {
+  distinct_flags <- unique(fao_flag[!is.na(fao_flag)])
+  if (length(distinct_flags) == 1L) distinct_flags else NA_character_
 }
 
 .extract_fao <- function(pin_alias, years = NULL) {
@@ -469,7 +488,12 @@
     "other_uses"
   )
 
+  # `.read_input()`'s arrow pushdown only narrows to [min(years), max(years)]
+  # (a row-group-level range filter, cheap to push down); apply the exact
+  # requested set afterwards so non-contiguous or partial requests do not
+  # silently carry the in-between years through (whep#157).
   dt <- .read_input(pin_alias, years = years, year_col = "Year")
+  dt <- .filter_years(dt, years = years)
   data.table::setnames(
     dt,
     c(

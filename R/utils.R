@@ -2103,6 +2103,9 @@ utils::globalVariables(
     # `bands`-restricted pair the output reports
     "consump_blue_all_mm",
     "consump_green_all_mm",
+    # commodity_balance_sheet.R (#168) — the live-animal slaughter total
+    # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
+    "slaughtered",
     # n_prov_destiny.R -- build_food_protein_destiny() NSE columns
     "Edible_portion",
     "edible_fraction",

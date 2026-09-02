@@ -169,6 +169,12 @@ build_commodity_balances <- function(
 .format_cbs_output <- function(df) {
   df <- tibble::as_tibble(df)
 
+  # `processing_primary` is a genuine destiny -- `domestic_supply` is built
+  # from it upstream (.reestimate_domestic_supply(), .apply_filled_shares(),
+  # .fill_historical_destinies()), so dropping it here left the published
+  # `sum(uses) == domestic_supply` identity broken for the pp_items whose
+  # entire production is destined for processing (palm fruit, hops, seed
+  # cotton, coconuts, hemp, kapok fruit, linum). whep#143.
   cbs_elements <- c(
     "domestic_supply",
     "production",
@@ -179,7 +185,8 @@ build_commodity_balances <- function(
     "feed",
     "seed",
     "other_uses",
-    "processing"
+    "processing",
+    "processing_primary"
   )
 
   has_flag <- "fao_flag" %in% names(df)
@@ -616,7 +623,7 @@ build_processing_coefs <- function(
       cbs,
       by = c("area_code", "year", "item_cbs", "element")
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   cbs |>
     .processed_raw(cb_processing_glo) |>
@@ -643,39 +650,19 @@ build_processing_coefs <- function(
     .format_proc_output()
 }
 
+# build_commodity_balances() has been long-format (one `element` column)
+# for a while now, so this only ever adds the item_cbs name. It used to also
+# convert a legacy wide CBS (one column per element) back to long, but that
+# branch referenced a `stock_retrieval` column that no longer exists in the
+# wide CBS shape (`.pivot_wider_cbs()` in commodity_balance_sheet.R splits
+# `stock_variation` into `stock_addition`/`stock_withdrawal` instead), was
+# unreachable from every call site, and had no test — so it was dead and
+# broken at the same time. Removed rather than fixed (whep#172); reintroduce
+# it against the current wide schema if a caller needs it again.
 .wide_cbs_to_long <- function(df) {
   items <- whep::items_full
 
-  # CBS output is now long format — just add item_cbs name
-  if ("element" %in% names(df)) {
-    return(
-      df |>
-        dplyr::left_join(
-          items |> dplyr::select(item_cbs_code, item_cbs),
-          by = "item_cbs_code"
-        )
-    )
-  }
-
-  # Legacy wide format support
-  src_cols <- grep("^source", names(df), value = TRUE)
-  polity_cols <- c(
-    "polity_area_code",
-    "reporting_polity_code",
-    "reporting_polity_name",
-    "reporting_polity_has_geometry"
-  )
   df |>
-    dplyr::select(-dplyr::any_of(c(src_cols, polity_cols))) |>
-    dplyr::mutate(
-      stock_variation = -stock_retrieval,
-      .keep = "unused"
-    ) |>
-    tidyr::pivot_longer(
-      cols = -c(year, area_code, item_cbs_code),
-      names_to = "element",
-      values_to = "value"
-    ) |>
     dplyr::left_join(
       items |> dplyr::select(item_cbs_code, item_cbs),
       by = "item_cbs_code"
@@ -1152,7 +1139,7 @@ build_processing_coefs <- function(
         "{.arg historical_data} is missing required CBS columns.",
         "x" = "Required columns: {.field year}, {.field value}, one of {.field area_code} or {.field polity_area_code}, and one of {.field item_cbs_code} or {.field item_prod_code}.",
         if (length(missing) > 0L) {
-          "x" <- "Missing: {.field {missing}}."
+          c("x" = "Missing: {.field {missing}}.")
         }
       )
     )
@@ -2378,21 +2365,34 @@ build_processing_coefs <- function(
           NA_real_
         )
       ),
-      food_share = food / domestic_supply,
-      feed_share = feed / domestic_supply,
-      other_uses_share = other_uses / domestic_supply,
-      processing_share = processing / domestic_supply,
-      processing_primary_share = processing_primary / domestic_supply
+      food_share = .cbs_safe_ratio(food, domestic_supply),
+      feed_share = .cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = .cbs_safe_ratio(other_uses, domestic_supply),
+      processing_share = .cbs_safe_ratio(processing, domestic_supply),
+      processing_primary_share = .cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
     ) |>
     dplyr::left_join(
       primary_area,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
     ) |>
-    dplyr::mutate(seed_rate = seed / area_ha) |>
+    dplyr::mutate(seed_rate = .cbs_safe_ratio(seed, area_ha)) |>
     .fill_share_columns() |>
     .apply_filled_shares() |>
     .fill_with_proxies(gdp_pop, land_wide) |>
     .finalise_historical(items)
+}
+
+# A zero (or NA) denominator turns num / denom into Inf or NaN, both of which
+# are non-NA and survive is.na() filters downstream (whep#166). On a
+# 1950-1965 build, whep#426 measured 926 NaN values, 6 Inf values, and 80
+# destiny shares above one, all from exactly this division. Treat an
+# undefined ratio as NA so it gets filled like any other gap instead of being
+# carried forward as non-finite data.
+.cbs_safe_ratio <- function(num, denom) {
+  dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
 }
 
 .fill_share_columns <- function(df) {
@@ -4005,7 +4005,7 @@ build_processing_coefs <- function(
       by = c("year", "item_cbs")
     ) |>
     dplyr::mutate(
-      export_share = export_val / gross_avail
+      export_share = .cbs_safe_ratio(export_val, gross_avail)
     ) |>
     dplyr::select(year, item_cbs, export_share)
 
@@ -4109,7 +4109,7 @@ build_processing_coefs <- function(
         "element"
       )
     ) |>
-    dplyr::mutate(scaling = value / value_proc)
+    dplyr::mutate(scaling = .cbs_safe_ratio(value, value_proc))
 
   proc_coefs_raw <- proc_base |>
     dplyr::rename(value_proc_raw = value_proc) |>
