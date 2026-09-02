@@ -520,7 +520,9 @@ build_nitrogen_balance <- function(
     return(dplyr::mutate(x, som_sequestration_n_t = 0))
   }
   seq_n <- data$carbon_balance |>
-    dplyr::filter(stringr::str_to_lower(.data$land_use) == "cropland") |>
+    # Crop GROUPS are cropland too (crop_groups = list(method = "spain_hist")),
+    # so this keys on the prefix, not the literal.
+    dplyr::filter(.soc_is_cropland(.data$land_use)) |>
     dplyr::mutate(item_cbs_code = NA_integer_) |>
     dplyr::summarise(
       som_sequestration_n_t = sum(

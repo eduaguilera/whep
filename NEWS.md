@@ -1,5 +1,60 @@
 # whep (development version)
 
+* **The soil carbon balance can march crop GROUPS as land-use classes**
+  (`crop_groups = list(method = "spain_hist")` on `build_carbon_inputs()`
+  and `build_carbon_balance()`), the Spain_Hist convention adopted as a
+  convention: herbaceous crops pool into one group per irrigation regime
+  because they rotate, so nothing inside the pool is a land-use change;
+  woody crops keep their species; rainfed and irrigated are separate
+  groups. The default `method = "none"` keeps one `cropland` class and
+  **every published number unchanged**; a test pins that the two calls are
+  identical.
+
+  What moves under `"spain_hist"`: each crop's cell area splits by its
+  irrigated share -- crop-specific and yearly, from `build_gridded_landuse()`
+  on the pinned spatialization inputs (`irrigation = "spatialized"`, the
+  only source WHEP has that is both; `"none"` books everything rainfed) --
+  and the groups are labelled by `soc_crop_group()`. The balance splits
+  each cell-year's LUH2 cropland over the groups in proportion to their
+  area, so LUH2's total is kept. Soil cover is now computed per cover
+  PROFILE (annual crop, woody crop, grassland, natural) and joined to the
+  classes: with up to ~80 groups, crossing the monthly climate with every
+  class would have multiplied the balance's largest table twentyfold.
+  Herbaceous groups follow the annual curve and the crop-calendar override;
+  woody groups take **an assumed perennial cover of 0.85**, the value
+  grassland and natural already use, because no sourced constant for
+  orchard or vineyard cover exists in the repository. That assumption is
+  recorded here and in the curve table so it can be replaced, not mistaken
+  for a measurement. The five `== "cropland"` predicates in the balance
+  now go through one helper, `.soc_is_cropland()`, so a group is cropland
+  for the C:N lookup, the cover curve and the water term without being
+  enumerated anywhere.
+
+* **`build_carbon_balance()` no longer loses the carbon of a land-use class
+  whose row disappears in a later year.** The vectorised march joined the
+  carried state onto the current year's rows, so a (cell, class) present last
+  year but absent this year was dropped -- and because the carried state was
+  rebuilt from those rows, its stock vanished from the ledger. The sequential
+  reference march kept a state entry that nothing ever released. Both now
+  re-add the vanished class at zero area, so the land-use-change transfer
+  treats it as an ordinary shrink to zero and releases its stock into the
+  cell's pool. No published value moves: `read_luh2_landuse()` keeps
+  zero-fraction rows for every class in every cell-year, so on the global
+  run no class row has ever vanished. It matters for the per-crop-group
+  balance, where classes (a woody species in a cell) legitimately come and
+  go. A regression pins mass conservation across the vanish year and the
+  agreement of the two marches on it.
+
+* **New `soc_crop_group()` assigns crops to the soil-carbon crop groups of
+  the Spain_Hist convention**: herbaceous crops pool into one group per
+  irrigation regime (they rotate, so no land-use-change event happens inside
+  the pool), woody crops keep their species, irrigated and rainfed are
+  separate. Labels are `cropland_<regime>_<herbaceous|species>`; every one
+  keeps the `cropland_` prefix, and `.soc_is_cropland()` is the single
+  predicate the balance will key on. The vocabulary is the shipped
+  `items_prod_full` (`Herb_Woody`, `Name_biomass`); an unclassified crop
+  aborts by name rather than pooling silently. Nothing consumes it yet.
+
 * **EarthStat crosswalk: `pattern_group` pools one plant's rasters across its
   FAOSTAT items.** `hemp` (777, fibre) and `hempseed` (336) come from the same
   fields, but EarthStat publishes a raster per item, so each was spatialized

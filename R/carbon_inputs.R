@@ -44,6 +44,18 @@
 #'   different crosswalks. When
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
+#' @param crop_groups How cropland is resolved into land-use classes, a named
+#'   list validated element-wise. `method`: `"none"` (default) keeps one
+#'   `cropland` class, every number unchanged; `"spain_hist"` marches crop
+#'   GROUPS as classes -- herbaceous crops pooled per irrigation regime (they
+#'   rotate, so nothing inside the pool is a land-use change), woody crops per
+#'   species, rainfed and irrigated separate -- labelled by [soc_crop_group()].
+#'   `irrigation`: where each crop's irrigated share of its cell area comes
+#'   from. `"spatialized"` (default) uses [build_gridded_landuse()] on the
+#'   pinned spatialization inputs, crop-specific and yearly; `"none"` puts
+#'   every crop in its rainfed group. Recorded in `method_c_input`. A
+#'   pre-built share layer can be supplied as `data$crop_regime_share` (`lon`,
+#'   `lat`, `area_code`, `item_prod_code`, `year`, `irrigated_share`).
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
@@ -62,13 +74,15 @@ build_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
+  cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
   }
-  d <- .ci_resolve_inputs(data, years)
+  d <- .ci_resolve_inputs(data, years, cfg)
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
     .add_reporting_polity_columns()
@@ -76,10 +90,11 @@ build_carbon_inputs <- function(
 
 # -- Input resolution ---------------------------------------------------------
 
-.ci_resolve_inputs <- function(data, years = NULL) {
+.ci_resolve_inputs <- function(data, years = NULL, cfg = .ci_group_config()) {
   crop_area <- data$crop_area %||% .ci_crop_area(data)
+  shares <- .ci_regime_shares(data, years, cfg)
   list(
-    cropland = .ci_cropland_input(data, years, crop_area),
+    cropland = .ci_cropland_input(data, years, crop_area, shares),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
       build_grass_natural_carbon_inputs(data = data, years = years)
@@ -101,28 +116,34 @@ build_carbon_inputs <- function(
 # year, of which .ci_cropland_class() keeps about one in forty-two -- never
 # accumulates across the span. A caller-supplied `cropland` arrives whole and is
 # collapsed in one pass, as before (#624).
-.ci_cropland_input <- function(data, years, crop_area) {
+.ci_cropland_input <- function(data, years, crop_area, shares = NULL) {
   if (!is.null(data$cropland)) {
-    return(.ci_cropland_class(data$cropland, crop_area))
+    return(.ci_cropland_class(data$cropland, crop_area, shares))
   }
   .sci_build(
     "grid",
     data,
     years,
-    reduce = \(gridded) .ci_cropland_class(gridded, crop_area)
+    reduce = \(gridded) .ci_cropland_class(gridded, crop_area, shares)
   )
 }
 
-.ci_cropland_class <- function(cropland, crop_area) {
+.ci_cropland_class <- function(cropland, crop_area, shares = NULL) {
   join_keys <- c("lon", "lat", "area_code", "item_prod_code")
   if (rlang::has_name(crop_area, "year")) {
     join_keys <- c(join_keys, "year")
   }
-  cropland |>
-    dplyr::inner_join(
-      crop_area,
-      by = join_keys
-    ) |>
+  joined <- dplyr::inner_join(cropland, crop_area, by = join_keys)
+  if (is.null(shares)) {
+    joined <- dplyr::mutate(
+      joined,
+      land_use = "cropland",
+      method_c_input = "humified_weighted"
+    )
+  } else {
+    joined <- .ci_split_into_groups(joined, shares)
+  }
+  joined |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
     ) |>
@@ -133,11 +154,171 @@ build_carbon_inputs <- function(
       ),
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
       class_area_ha = sum(.data$crop_area_ha),
-      .by = c("lon", "lat", "area_code", "year")
-    ) |>
+      method_c_input = .data$method_c_input[1],
+      .by = c("lon", "lat", "area_code", "year", "land_use")
+    )
+}
+
+# Fan each crop row out into its rainfed and irrigated parts and label each
+# with its crop group. The area weight splits by the crop's irrigated share
+# of its cell area; the per-hectare density and humified fraction are the
+# crop's own on both parts (nothing in the input layer distinguishes an
+# irrigated hectare's residue from a rainfed one's -- that difference enters
+# through the balance's cover and water terms, per group). A crop with no
+# share row is wholly rainfed; that is a data gap worth seeing, so the count
+# is reported rather than absorbed.
+.ci_split_into_groups <- function(joined, shares) {
+  .check_columns(
+    shares,
+    c("lon", "lat", "area_code", "item_prod_code", "year", "irrigated_share"),
+    "data$crop_regime_share"
+  )
+  shares <- shares |>
     dplyr::mutate(
-      land_use = "cropland",
-      method_c_input = "humified_weighted"
+      lon = round(.data$lon, 2),
+      lat = round(.data$lat, 2),
+      item_prod_code = as.character(.data$item_prod_code)
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "item_prod_code",
+      "year",
+      "irrigated_share"
+    )
+  with_share <- joined |>
+    dplyr::mutate(
+      lon = round(.data$lon, 2),
+      lat = round(.data$lat, 2),
+      item_prod_code = as.character(.data$item_prod_code)
+    ) |>
+    dplyr::left_join(
+      shares,
+      by = c("lon", "lat", "area_code", "item_prod_code", "year")
+    )
+  n_gap <- sum(is.na(with_share$irrigated_share))
+  if (n_gap > 0L) {
+    cli::cli_inform(c(
+      i = "{n_gap} cell-crop-year{?s} carr{?ies/y} no irrigated share and
+           {?is/are} booked as rainfed."
+    ))
+  }
+  with_share <- dplyr::mutate(
+    with_share,
+    irrigated_share = pmin(
+      pmax(dplyr::coalesce(.data$irrigated_share, 0), 0),
+      1
+    )
+  )
+  parts <- dplyr::bind_rows(
+    dplyr::mutate(
+      with_share,
+      irrigated = FALSE,
+      crop_area_ha = .data$crop_area_ha * (1 - .data$irrigated_share)
+    ),
+    dplyr::mutate(
+      with_share,
+      irrigated = TRUE,
+      crop_area_ha = .data$crop_area_ha * .data$irrigated_share
+    )
+  ) |>
+    dplyr::filter(.data$crop_area_ha > 0)
+  parts |>
+    dplyr::mutate(
+      land_use = soc_crop_group(
+        as.integer(.data$item_prod_code),
+        .data$irrigated
+      ),
+      method_c_input = "humified_weighted_spain_hist"
+    ) |>
+    dplyr::select(-"irrigated", -"irrigated_share")
+}
+
+# -- Crop groups: configuration and the irrigated-share layer -----------------
+
+# Validate the crop_groups configuration element-wise. Absent elements take
+# their default; unknown names or values abort, so a typo cannot silently
+# select the single-class path.
+.ci_group_config <- function(crop_groups = list()) {
+  known <- c("method", "irrigation")
+  extra <- setdiff(names(crop_groups), known)
+  if (length(extra) > 0L) {
+    cli::cli_abort(
+      "Unknown {.arg crop_groups} element{?s}: {.val {extra}}."
+    )
+  }
+  list(
+    method = rlang::arg_match0(
+      crop_groups$method %||% "none",
+      c("none", "spain_hist"),
+      arg_nm = "crop_groups$method"
+    ),
+    irrigation = rlang::arg_match0(
+      crop_groups$irrigation %||% "spatialized",
+      c("spatialized", "none"),
+      arg_nm = "crop_groups$irrigation"
+    )
+  )
+}
+
+# The irrigated share of each crop's cell area, per year. NULL means the
+# single-class path (or, under `irrigation = "none"`, every crop rainfed, which
+# the split treats as a share of zero everywhere).
+.ci_regime_shares <- function(data, years, cfg) {
+  if (!identical(cfg$method, "spain_hist")) {
+    return(NULL)
+  }
+  if (!is.null(data$crop_regime_share)) {
+    return(data$crop_regime_share)
+  }
+  if (identical(cfg$irrigation, "none")) {
+    return(tibble::tibble(
+      lon = numeric(),
+      lat = numeric(),
+      area_code = integer(),
+      item_prod_code = character(),
+      year = integer(),
+      irrigated_share = numeric()
+    ))
+  }
+  .ci_spatialized_regime_share(years)
+}
+
+# Crop-specific, yearly irrigated shares from the spatialization chain on its
+# pinned inputs: build_gridded_landuse() allocates each crop's national
+# irrigated area over cells, so the share is rainfed_ha / irrigated_ha per
+# cell x crop x year -- the only source WHEP has that is both crop-specific
+# and dynamic (LPJmL's cftfrac folds woody crops into one PFT and cannot
+# recover species; MIRCA is a static 2000 snapshot).
+.ci_spatialized_regime_share <- function(years) {
+  aliases <- .spatial_input_aliases()
+  read <- function(key, file) {
+    .read_spatial_input(NULL, file, aliases[[key]])
+  }
+  gridded <- build_gridded_landuse(
+    country_areas = read("country_areas", "country_areas.parquet"),
+    crop_patterns = read("crop_patterns", "crop_patterns.parquet"),
+    gridded_cropland = read("gridded_cropland", "gridded_cropland.parquet"),
+    country_grid = read("country_grid", "country_grid.parquet"),
+    config = list(years = years)
+  )
+  gridded |>
+    dplyr::mutate(
+      total = .data$rainfed_ha + .data$irrigated_ha,
+      irrigated_share = dplyr::if_else(
+        .data$total > 0,
+        .data$irrigated_ha / .data$total,
+        0
+      )
+    ) |>
+    dplyr::select(
+      "lon",
+      "lat",
+      "area_code",
+      "item_prod_code",
+      "year",
+      "irrigated_share"
     )
 }
 
@@ -154,6 +335,16 @@ build_carbon_inputs <- function(
 .ci_finalise <- function(x, resolution, land_use = NULL) {
   drop_cols <- c("class_area_ha")
   if (resolution == "grid") {
+    # Grouped cropland keeps its area as `group_area_ha`: the balance splits
+    # the cell's LUH2 cropland over the groups in that proportion, since
+    # LUH2 knows cropland but not which crops are on it.
+    grouped <- .soc_is_cropland(x$land_use) & x$land_use != "cropland"
+    if (any(grouped)) {
+      x <- dplyr::mutate(
+        x,
+        group_area_ha = dplyr::if_else(grouped, .data$class_area_ha, NA_real_)
+      )
+    }
     return(tibble::as_tibble(dplyr::select(x, -dplyr::any_of(drop_cols))))
   }
   if (!is.null(land_use)) {

@@ -13,6 +13,7 @@ build_carbon_inputs(
   resolution = c("grid", "polity"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
   example = FALSE
 )
 }
@@ -42,6 +43,19 @@ with the remaining members of \code{data}.}
 \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} and \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}
 builders so their readers slice to the requested years; ignored for inputs
 supplied via \code{data}.}
+
+\item{crop_groups}{How cropland is resolved into land-use classes, a named
+list validated element-wise. \code{method}: \code{"none"} (default) keeps one
+\code{cropland} class, every number unchanged; \code{"spain_hist"} marches crop
+GROUPS as classes -- herbaceous crops pooled per irrigation regime (they
+rotate, so nothing inside the pool is a land-use change), woody crops per
+species, rainfed and irrigated separate -- labelled by \code{\link[=soc_crop_group]{soc_crop_group()}}.
+\code{irrigation}: where each crop's irrigated share of its cell area comes
+from. \code{"spatialized"} (default) uses \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} on the
+pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts
+every crop in its rainfed group. Recorded in \code{method_c_input}. A
+pre-built share layer can be supplied as \code{data$crop_regime_share} (\code{lon},
+\code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

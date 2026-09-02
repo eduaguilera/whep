@@ -19,6 +19,7 @@ build_carbon_balance(
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
   example = FALSE
 )
 }
@@ -93,6 +94,18 @@ the default readers are used. Threaded into every default reader
 (\code{\link{read_luh2_landuse}}, \code{\link{get_soc_climate_drivers}} and
 \code{\link{build_carbon_inputs}}); ignored for inputs supplied via
 \code{data}.}
+
+\item{crop_groups}{How cropland is resolved into land-use classes; see
+\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list()} (default) keeps one \code{cropland} class.
+\code{list(method = "spain_hist")} marches crop GROUPS -- herbaceous crops
+pooled per irrigation regime, woody crops per species, rainfed and
+irrigated separate. Each cell-year's LUH2 cropland area is split over
+the groups in proportion to their crop-pattern area, so LUH2's total is
+kept. Herbaceous groups follow the annual crop cover (and the crop
+calendar); woody groups take a perennial cover of 0.85, an ASSUMED
+value with no sourced constant behind it yet. Soil cover is computed
+once per cover profile and joined to the classes, so the class count
+does not multiply the monthly climate table.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

@@ -199,6 +199,7 @@ reference:
     carbon inputs come from the LPJmL net primary production minus harvested
     carbon (grassland additionally carrying grazing-excreta carbon).
   contents:
+  - soc_crop_group
   - build_soil_carbon_inputs
   - build_grass_natural_carbon_inputs
   - build_carbon_inputs

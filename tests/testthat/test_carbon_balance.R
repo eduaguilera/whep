@@ -1713,3 +1713,71 @@ testthat::test_that("C7/907: a support without polity_code is left alone", {
   )
   testthat::expect_setequal(out$area_code, c(206L, 999L))
 })
+
+# ---- a class whose row vanishes must not take its carbon with it -----------
+
+.cb_vanish_fixture <- function() {
+  # Natural land is present in 2000 and 2001, then its ROW disappears in 2002
+  # while cropland takes over the whole cell. Until 2026-09-02 both marches
+  # dropped its stock: the vectorised one because state[cur] is a right join
+  # onto the current year, the sequential one because the named state vector
+  # kept an entry nothing released. Found while preparing the per-crop-group
+  # balance, where classes legitimately come and go per cell.
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 0.25, 1L, "cropland", 2000L, 40, 2.0, 40, 0.4,
+    0.25, 0.25, 1L, "natural", 2000L, 60, 1.5, 80, 0.6,
+    0.25, 0.25, 1L, "cropland", 2001L, 40, 2.0, 40, 0.4,
+    0.25, 0.25, 1L, "natural", 2001L, 60, 1.5, 80, 0.6,
+    0.25, 0.25, 1L, "cropland", 2002L, 100, 2.0, 40, 1.0
+  )
+}
+
+testthat::test_that("a vanished class releases its carbon into the cell", {
+  classes <- .cb_vanish_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  out <- whep:::.cb_march(classes, init)
+  mass <- out |>
+    dplyr::summarise(
+      mass = sum(.data$stock_mgc_ha * .data$area_ha),
+      .by = "year"
+    ) |>
+    dplyr::arrange(.data$year)
+  # The cell keeps its 100 ha: 2002 must NOT lose natural land's 60 ha of
+  # ~80 MgC/ha. Cropland absorbs it, so its density rises well above its own
+  # 40 MgC/ha equilibrium, and the cell mass survives the vanish year.
+  crop_2002 <- out$stock_mgc_ha[out$year == 2002L & out$land_use == "cropland"]
+  testthat::expect_gt(crop_2002, 40)
+  testthat::expect_gt(mass$mass[3], 0.9 * mass$mass[2])
+  # The vanished class is reported at zero area, not dropped.
+  nat_2002 <- out[out$year == 2002L & out$land_use == "natural", ]
+  testthat::expect_identical(nrow(nat_2002), 1L)
+  testthat::expect_equal(nat_2002$area_ha, 0)
+})
+
+testthat::test_that("both marches agree when a class vanishes", {
+  classes <- .cb_vanish_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  cell <- dplyr::mutate(
+    classes,
+    eff_rate = dplyr::if_else(
+      .data$soc_eq_mgc_ha > 0,
+      .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+      0
+    )
+  )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  testthat::expect_identical(nrow(fast), nrow(slow))
+  testthat::expect_equal(fast$stock_mgc_ha, slow$stock_mgc_ha, tolerance = 1e-9)
+  testthat::expect_equal(fast$area_ha, slow$area_ha)
+})

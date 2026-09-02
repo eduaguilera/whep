@@ -85,6 +85,17 @@
 #'   normal, one representative monthly cycle per cell, used only for the
 #'   equilibrium spin-up modifier while the forward march uses the year-specific
 #'   drivers).
+#' @param crop_groups How cropland is resolved into land-use classes; see
+#'   [build_carbon_inputs()]. `list()` (default) keeps one `cropland` class.
+#'   `list(method = "spain_hist")` marches crop GROUPS -- herbaceous crops
+#'   pooled per irrigation regime, woody crops per species, rainfed and
+#'   irrigated separate. Each cell-year's LUH2 cropland area is split over
+#'   the groups in proportion to their crop-pattern area, so LUH2's total is
+#'   kept. Herbaceous groups follow the annual crop cover (and the crop
+#'   calendar); woody groups take a perennial cover of 0.85, an ASSUMED
+#'   value with no sourced constant behind it yet. Soil cover is computed
+#'   once per cover profile and joined to the classes, so the class count
+#'   does not multiply the monthly climate table.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section Soil depth:
@@ -142,8 +153,10 @@ build_carbon_balance <- function(
   polity_validity = c("keep", "flag", "drop"),
   data = list(),
   years = NULL,
+  crop_groups = list(),
   example = FALSE
 ) {
+  crop_groups <- .ci_group_config(crop_groups)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -230,7 +243,7 @@ build_carbon_balance <- function(
 # climate coverage) is dropped with a warning by `.cb_drop_uncovered_climate()`.
 .cb_class_table <- function(d, model) {
   clay <- d$clay
-  base <- d$land_use |>
+  base <- .cb_split_cropland_groups(d$land_use, d$c_inputs) |>
     dplyr::mutate(
       frac = .data$area_ha / sum(.data$area_ha),
       .by = c("lon", "lat", "area_code", "year")
@@ -255,6 +268,39 @@ build_carbon_balance <- function(
     .cb_join_modifier(modifiers) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
     .cb_drop_uncovered_climate()
+}
+
+# Split each cell-year's LUH2 cropland area over the crop groups the carbon
+# inputs carry, in proportion to their `group_area_ha`. LUH2 knows how much
+# cropland a cell has, not which crops are on it; the inputs know the crop
+# areas but on the crop-pattern basis, not LUH2's. Proportional splitting
+# keeps LUH2's total. A cell-year with cropland but no grouped inputs keeps
+# its plain `cropland` row (zero carbon, as today), so nothing is dropped.
+# An ungrouped run is returned untouched.
+.cb_split_cropland_groups <- function(land_use, c_inputs) {
+  groups <- c_inputs[
+    .soc_is_cropland(c_inputs$land_use) & c_inputs$land_use != "cropland",
+  ]
+  if (nrow(groups) == 0L || !rlang::has_name(groups, "group_area_ha")) {
+    return(land_use)
+  }
+  keys <- c("lon", "lat", "area_code", "year")
+  shares <- groups |>
+    dplyr::mutate(
+      group_share = .data$group_area_ha / sum(.data$group_area_ha),
+      .by = dplyr::all_of(keys)
+    ) |>
+    dplyr::filter(is.finite(.data$group_share)) |>
+    dplyr::select(dplyr::all_of(keys), "land_use", "group_share")
+  crop <- land_use[.soc_is_cropland(land_use$land_use), ]
+  other <- land_use[!.soc_is_cropland(land_use$land_use), ]
+  split <- crop |>
+    dplyr::select(-"land_use") |>
+    dplyr::inner_join(shares, by = keys, relationship = "many-to-many") |>
+    dplyr::mutate(area_ha = .data$area_ha * .data$group_share) |>
+    dplyr::select(-"group_share")
+  unsplit <- dplyr::anti_join(crop, shares, by = keys)
+  dplyr::bind_rows(other, split, unsplit)
 }
 
 # Join the modifier table onto the class table. The raw-driver modifier table
@@ -533,22 +579,50 @@ build_carbon_balance <- function(
   cropland_cover = NULL
 ) {
   classes <- unique(land_use_classes)
+  # Crossed by cover PROFILE, not by class. Crop groups can number eighty
+  # (woody species x regime) and share five profiles between them; crossing
+  # the monthly climate with every class would multiply the largest table in
+  # the balance twentyfold. Each class is joined to its profile's rows after.
+  profile_of <- tibble::tibble(
+    land_use = classes,
+    .cover_key = .cb_cover_profile(classes)
+  )
   climate |>
     dplyr::select(-dplyr::any_of("soil_cover")) |>
     dplyr::mutate(
       months_from_peak = .cb_months_from_peak(.data$month, .data$temp_c),
       .by = c("lon", "lat", "area_code", "year")
     ) |>
-    tidyr::crossing(land_use = classes) |>
-    dplyr::mutate(.cover_key = stringr::str_to_lower(.data$land_use)) |>
+    tidyr::crossing(.cover_key = unique(profile_of$.cover_key)) |>
     dplyr::left_join(
       .cb_cover_curve(),
       by = c(".cover_key" = "land_use", "months_from_peak")
     ) |>
     dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
-    dplyr::select(-".cover_key") |>
-    .cb_apply_natural_cover(natural_cover) |>
-    .cb_apply_crop_cover(cropland_cover)
+    .cb_apply_natural_cover(natural_cover, key = ".cover_key") |>
+    .cb_apply_crop_cover(cropland_cover, key = ".cover_key") |>
+    dplyr::inner_join(
+      profile_of,
+      by = ".cover_key",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select(-".cover_key")
+}
+
+# The soil-cover profile a class follows. Plain cropland and every herbaceous
+# crop group follow the annual crop curve (and the crop-calendar override);
+# woody crop groups follow a perennial cover; grassland and natural keep
+# their own rows. Anything else keeps its lowercase label and, absent from
+# the curve, runs bare -- the previous behaviour for urban.
+.cb_cover_profile <- function(land_use) {
+  key <- stringr::str_to_lower(land_use)
+  crop <- .soc_is_cropland(key)
+  woody <- crop & !stringr::str_detect(key, "_herbaceous$") & key != "cropland"
+  dplyr::case_when(
+    woody ~ "woody_cropland",
+    crop ~ "cropland",
+    TRUE ~ key
+  )
 }
 
 # Replace natural land's constant soil cover with the cover LPJmL grew.
@@ -585,7 +659,7 @@ build_carbon_balance <- function(
 #
 # Keyed on month as well as year, unlike the natural override: the natural
 # layer is one cover per cell-year, this one is twelve.
-.cb_apply_crop_cover <- function(prepared, cropland_cover) {
+.cb_apply_crop_cover <- function(prepared, cropland_cover, key = "land_use") {
   if (is.null(cropland_cover) || nrow(cropland_cover) == 0L) {
     return(prepared)
   }
@@ -610,7 +684,7 @@ build_carbon_balance <- function(
     ) |>
     dplyr::mutate(
       soil_cover = dplyr::if_else(
-        stringr::str_to_lower(.data$land_use) == "cropland" &
+        stringr::str_to_lower(.data[[key]]) == "cropland" &
           !is.na(.data$cropland_cover),
         .data$cropland_cover,
         .data$soil_cover
@@ -618,7 +692,7 @@ build_carbon_balance <- function(
     ) |>
     dplyr::select(-"cropland_cover")
 }
-.cb_apply_natural_cover <- function(prepared, natural_cover) {
+.cb_apply_natural_cover <- function(prepared, natural_cover, key = "land_use") {
   if (is.null(natural_cover) || nrow(natural_cover) == 0L) {
     return(prepared)
   }
@@ -636,7 +710,7 @@ build_carbon_balance <- function(
     ) |>
     dplyr::mutate(
       soil_cover = dplyr::if_else(
-        stringr::str_to_lower(.data$land_use) == "natural" &
+        stringr::str_to_lower(.data[[key]]) == "natural" &
           !is.na(.data$natural_cover),
         .data$natural_cover,
         .data$soil_cover
@@ -1309,7 +1383,16 @@ build_carbon_balance <- function(
   init_dt <- data.table::as.data.table(init)
   init_dt[, cell_key := paste(lon, lat, area_code, sep = "\r")]
   # state: transferred stock per (cell_key, land_use), carried across years.
-  state <- init_dt[, .(cell_key, land_use, prev_stock = stock_mgc_ha)]
+  # lon/lat/area_code ride along so a class whose row vanishes in a later year
+  # can be re-added at zero area (see .cb_keep_vanished()).
+  state <- init_dt[, .(
+    cell_key,
+    land_use,
+    lon,
+    lat,
+    area_code,
+    prev_stock = stock_mgc_ha
+  )]
   prev <- NULL
   out <- vector("list", length(years))
   for (i in seq_along(years)) {
@@ -1341,6 +1424,7 @@ build_carbon_balance <- function(
     c_input_mgc_ha_yr,
     eff_rate
   )]
+  cur <- .cb_keep_vanished(cur, state)
   cur <- state[cur, on = c("cell_key", "land_use")]
   cur[is.na(prev_stock), prev_stock := 0]
   if (is.null(prev)) {
@@ -1373,7 +1457,14 @@ build_carbon_balance <- function(
       rate_mgc_ha = c_input_mgc_ha_yr - mineralization,
       cell_key
     )],
-    state = cur[, .(cell_key, land_use, prev_stock = new_stock)],
+    state = cur[, .(
+      cell_key,
+      land_use,
+      lon,
+      lat,
+      area_code,
+      prev_stock = new_stock
+    )],
     prev = cur[, .(
       cell_key,
       land_use,
@@ -1382,6 +1473,41 @@ build_carbon_balance <- function(
       old_area = area_ha
     )]
   )
+}
+
+# A class whose ROW disappears in a later year must not take its carbon with
+# it. `state[cur, ...]` is a right join onto the current year, so a (cell,
+# class) present last year but absent this year was silently dropped, and
+# because `state` and `prev` are rebuilt from `cur`, its stock vanished from
+# the ledger -- in both the vectorised march and the sequential twin. Found
+# while preparing the per-crop-group balance, where classes (a woody species
+# in a cell) legitimately come and go. The row is re-added at zero area, so
+# the land-use-change transfer treats it as an ordinary shrink to zero and
+# releases stock x lost hectares into the cell pool. A cell that vanishes
+# entirely still loses its carbon; that is a support change, not a class
+# change, and is out of scope here.
+.cb_keep_vanished <- function(cur, state) {
+  if (is.null(state) || nrow(state) == 0L) {
+    return(cur)
+  }
+  gone <- state[!cur, on = c("cell_key", "land_use")]
+  gone <- gone[cell_key %in% cur$cell_key]
+  if (nrow(gone) == 0L) {
+    return(cur)
+  }
+  yr <- cur$year[[1]]
+  filler <- gone[, .(
+    cell_key,
+    lon,
+    lat,
+    area_code,
+    land_use,
+    year = yr,
+    area_ha = 0,
+    c_input_mgc_ha_yr = 0,
+    eff_rate = 0
+  )]
+  data.table::rbindlist(list(cur, filler), use.names = TRUE)
 }
 
 # Vectorised land-use-change carbon transfer across all cells. Within a cell,
@@ -1492,6 +1618,7 @@ build_carbon_balance <- function(
 # zero area (a newly appearing class carries no carbon; Spain_Hist NaN guard,
 # SOC_Fun.R:388-390).
 .cb_year_step <- function(cur, prev, state) {
+  cur <- .cb_year_keep_vanished(cur, state)
   # Base radix order matches dplyr::arrange(land_use)'s C-locale ordering
   # without the per-call data-mask overhead (this runs once per cell-year).
   cur <- cur[order(cur$land_use, method = "radix"), , drop = FALSE]
@@ -1509,6 +1636,25 @@ build_carbon_balance <- function(
     rows = rows,
     state = stats::setNames(transferred$stock_mgc_ha, transferred$land_use)
   )
+}
+
+# The sequential twin of .cb_keep_vanished(): a class carried in `state` but
+# absent from this year's rows re-enters at zero area, so its stock is
+# released through the transfer instead of silently surviving in `state`
+# (or, in the vectorised march, vanishing outright).
+.cb_year_keep_vanished <- function(cur, state) {
+  gone <- setdiff(names(state), cur$land_use)
+  if (length(gone) == 0L || nrow(cur) == 0L) {
+    return(cur)
+  }
+  filler <- cur[rep(1L, length(gone)), , drop = FALSE]
+  filler$land_use <- gone
+  zero <- intersect(
+    c("area_ha", "c_input_mgc_ha_yr", "eff_rate", "frac", "soc_eq_mgc_ha"),
+    names(filler)
+  )
+  filler[zero] <- 0
+  dplyr::bind_rows(cur, filler)
 }
 
 # Per-class stock entering the current year's transfer. The first year passes
@@ -1698,7 +1844,7 @@ build_carbon_balance <- function(
 # other class maps to NonCropland.
 .cb_cropland_class <- function(land_use) {
   dplyr::if_else(
-    stringr::str_to_lower(land_use) == "cropland",
+    .soc_is_cropland(land_use),
     "Cropland",
     "NonCropland"
   )
@@ -1767,8 +1913,12 @@ build_carbon_balance <- function(
 # (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
 # grain is required: .cb_class_table() joins c_inputs onto the land-use areas
 # per cell.
-.cb_read_c_inputs <- function(years = NULL) {
-  build_carbon_inputs(resolution = "grid", years = years)
+.cb_read_c_inputs <- function(years = NULL, crop_groups = list()) {
+  build_carbon_inputs(
+    resolution = "grid",
+    years = years,
+    crop_groups = crop_groups
+  )
 }
 
 # Yearly per-cell per-class land-use areas from LUH2 v2h (read_luh2_landuse()
