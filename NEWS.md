@@ -1,5 +1,22 @@
 # whep (development version)
 
+* **`build_carbon_balance()` reports the land-use-change transfer as a
+  signed mass, `luc_transfer_mgc`, and that ledger closes.**
+  `luc_transfer_mgc_ha` is per hectare of a class's CURRENT area, so a
+  class whose area falls to zero -- which the balance now carries at zero
+  area so its carbon moves into the growing classes rather than vanishing
+  -- gives up its whole stock with no per-hectare expression, and
+  `sum(luc_transfer_mgc_ha * area_ha)` over a cell-year is positive by
+  exactly that stock. Found by the first real-run balance marching crop
+  groups (2009-2010, 82 classes, where species groups come and go
+  constantly): per-cell nets up to 4.3e7 Mg C while total stock was
+  conserved. The mass column carries the outflow on the vanished row and
+  sums to zero within every cell-year (test), and to the summed mass at
+  `"polity"` resolution. Check conservation on it, not on density x area.
+  That smoke also confirms the grouped march keeps LUH2's cropland total
+  exactly (1442.8 Mha both runs) and moves the global stock by 0.01%
+  (2762.2 against 2762.6 Pg C); the example fixture carries the column.
+
 * **The four LPJmL-derived pins now come from the 1750-2023 run (LPJmL
   6.1.1, 300-year spin-up, WHEP's own inputs, pre-industrial v2), and
   natural land's carbon input defaults to litterfall.** `lpjml-grass-availability`,

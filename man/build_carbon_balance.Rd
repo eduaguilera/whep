@@ -131,7 +131,8 @@ remote data. Defaults to \code{FALSE}.}
 A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
-\code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
+\code{luc_transfer_mgc_ha}, \code{luc_transfer_mgc}, \code{rate_mgc_ha},
+\code{son_change_kgn_ha},
 \code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
 polity columns below, plus
 \code{reporting_polity_out_of_span} when
@@ -155,6 +156,21 @@ break the trajectory rather than relabel it. The driver read therefore warns
 on its own key space (whep#462) while this argument decides the fate of the
 balance rows.
 }
+\section{The land-use-change ledger closes on mass, not on density}{
+
+\code{luc_transfer_mgc_ha} is the carbon a class received (positive) or
+gave up (negative) through land-use change, per hectare of the class's
+CURRENT area. A class whose area falls to zero still gives up its whole
+stock -- the balance carries the row at zero area and moves the carbon
+into the growing classes -- but at zero hectares that outflow has no
+per-hectare expression, so it is reported as 0 and
+\code{sum(luc_transfer_mgc_ha * area_ha)} over a cell-year is then positive
+by exactly the vanished stock. \code{luc_transfer_mgc} is the same
+transfer as a signed mass in Mg C, on every row including the vanished
+one, and sums to zero within every cell-year (and, at \code{"polity"}
+resolution, is the summed mass). Check conservation on the mass column.
+}
+
 \section{Soil depth}{
 
 Every carbon and nitrogen density this function reports -- \code{stock_mgc_ha},

@@ -111,6 +111,19 @@
 #'   when the carbon inputs are built here rather than supplied.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
+#' @section The land-use-change ledger closes on mass, not on density:
+#' \code{luc_transfer_mgc_ha} is the carbon a class received (positive) or
+#' gave up (negative) through land-use change, per hectare of the class's
+#' CURRENT area. A class whose area falls to zero still gives up its whole
+#' stock -- the balance carries the row at zero area and moves the carbon
+#' into the growing classes -- but at zero hectares that outflow has no
+#' per-hectare expression, so it is reported as 0 and
+#' \code{sum(luc_transfer_mgc_ha * area_ha)} over a cell-year is then positive
+#' by exactly the vanished stock. \code{luc_transfer_mgc} is the same
+#' transfer as a signed mass in Mg C, on every row including the vanished
+#' one, and sums to zero within every cell-year (and, at \code{"polity"}
+#' resolution, is the summed mass). Check conservation on the mass column.
+#'
 #' @section Soil depth:
 #' Every carbon and nitrogen density this function reports -- `stock_mgc_ha`,
 #' `mineralization_mgc_ha`, `c_input_mgc_ha`, `luc_transfer_mgc_ha`,
@@ -144,7 +157,8 @@
 #' @return A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 #'   \code{"grid"} resolution (or \code{(area_code, year)} at \code{"polity"}),
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
-#'   \code{luc_transfer_mgc_ha}, \code{rate_mgc_ha}, \code{son_change_kgn_ha},
+#'   \code{luc_transfer_mgc_ha}, \code{luc_transfer_mgc}, \code{rate_mgc_ha},
+#'   \code{son_change_kgn_ha},
 #'   \code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
 #'   polity columns below, plus
 #'   \code{reporting_polity_out_of_span} when
@@ -1665,6 +1679,7 @@ build_carbon_balance <- function(
       mineralization_mgc_ha = mineralization,
       c_input_mgc_ha = c_input_mgc_ha_yr,
       luc_transfer_mgc_ha = luc,
+      luc_transfer_mgc = mass_moved,
       rate_mgc_ha = c_input_mgc_ha_yr - mineralization,
       cell_key
     )],
@@ -1942,6 +1957,7 @@ build_carbon_balance <- function(
       transferred$mass_moved[idx] / cur$area_ha,
       0
     ),
+    luc_transfer_mgc = transferred$mass_moved[idx],
     rate_mgc_ha = cur$c_input_mgc_ha_yr - mineralization
   )
 }
@@ -2101,6 +2117,7 @@ build_carbon_balance <- function(
       ),
       c_input_mgc_ha = .cb_wmean(.data$c_input_mgc_ha, .data$area_ha),
       luc_transfer_mgc_ha = .cb_wmean(.data$luc_transfer_mgc_ha, .data$area_ha),
+      dplyr::across(dplyr::any_of("luc_transfer_mgc"), sum),
       rate_mgc_ha = .cb_wmean(.data$rate_mgc_ha, .data$area_ha),
       son_change_kgn_ha = .cb_wmean(.data$son_change_kgn_ha, .data$area_ha),
       dplyr::across(

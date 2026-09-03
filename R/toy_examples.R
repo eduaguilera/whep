@@ -656,7 +656,12 @@
     1.690785, 1.500000, 0.000000, -0.190785, 17.344081, "hsoc",
     "own_equilibrium"
   ) |>
-    dplyr::mutate(method_class_water = "cell") |>
+    dplyr::mutate(
+      method_class_water = "cell",
+      # No class vanishes in the toy, so the mass is exactly density x area.
+      luc_transfer_mgc = luc_transfer_mgc_ha * area_ha,
+      .after = "luc_transfer_mgc_ha"
+    ) |>
     .add_reporting_polity_columns()
 }
 

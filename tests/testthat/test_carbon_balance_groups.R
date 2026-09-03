@@ -528,3 +528,110 @@ testthat::test_that("density_basis reaches the carbon-input reader", {
     class = "rlang_error"
   )
 })
+
+# ---- the LUC ledger closes on mass -------------------------------------------
+
+.cbg_luc_data <- function(a2, b2) {
+  lu <- tibble::tibble(
+    lon = 0.25,
+    lat = 5.25,
+    area_code = 1L,
+    year = rep(2010:2011, each = 3),
+    land_use = rep(
+      c("cropland_rainfed_herbaceous", "cropland_rainfed_olive", "natural"),
+      2
+    ),
+    area_ha = c(60, 40, 100, a2, b2, 100)
+  )
+  ci <- lu |>
+    dplyr::select(-"area_ha") |>
+    dplyr::mutate(
+      c_input_mgc_ha_yr = c(2.5, 1.0, 1.5, 2.5, 1.0, 1.5),
+      humified_fraction = 0.3
+    )
+  cl <- tidyr::expand_grid(
+    lon = 0.25,
+    lat = 5.25,
+    area_code = 1L,
+    year = 2010:2011,
+    month = 1:12
+  ) |>
+    dplyr::mutate(
+      temp_c = 22,
+      precip_mm = 50,
+      pet_mm = 80,
+      water_minus_pet_mm = -30,
+      clay_pct = 25
+    )
+  list(land_use = lu, c_inputs = ci, climate = cl)
+}
+
+testthat::test_that("the transfer closes on mass even when a class vanishes", {
+  # Found by the real-run grouped smoke: sum(luc_transfer_mgc_ha * area_ha)
+  # over a cell-year was up to 4.3e7 Mg C, the stock of classes that had
+  # gone to zero area that year. The density column cannot carry an outflow
+  # at zero hectares; the mass column can, and must sum to zero.
+  cfg <- list(method = "spain_hist", irrigation = "none")
+  live <- whep::build_carbon_balance(
+    data = .cbg_luc_data(30, 70),
+    crop_groups = cfg
+  )
+  gone <- whep::build_carbon_balance(
+    data = .cbg_luc_data(100, 0),
+    crop_groups = cfg
+  )
+  for (out in list(live, gone)) {
+    net <- out |>
+      dplyr::summarise(
+        mass = sum(luc_transfer_mgc),
+        density_times_area = sum(luc_transfer_mgc_ha * area_ha),
+        stock = sum(stock_mgc_ha * area_ha),
+        .by = "year"
+      )
+    testthat::expect_equal(net$mass, c(0, 0), tolerance = 1e-9)
+    # Stock is conserved in both runs: the vanished olive's carbon moved.
+    testthat::expect_equal(net$stock[1], net$stock[2], tolerance = 1e-9)
+  }
+  # With both classes live the two ledgers agree; with the vanished olive
+  # the density ledger shows the outflow as a spurious source of exactly the
+  # vanished stock (40 ha x its 2010 density), which the mass ledger books.
+  live_net <- sum(
+    live$luc_transfer_mgc_ha[live$year == 2011L] *
+      live$area_ha[live$year == 2011L]
+  )
+  testthat::expect_equal(live_net, 0, tolerance = 1e-9)
+  olive_2010 <- gone[
+    gone$year == 2010L & gone$land_use == "cropland_rainfed_olive",
+  ]
+  gone_net <- sum(
+    gone$luc_transfer_mgc_ha[gone$year == 2011L] *
+      gone$area_ha[gone$year == 2011L]
+  )
+  testthat::expect_equal(
+    gone_net,
+    40 * olive_2010$stock_mgc_ha,
+    tolerance = 1e-6
+  )
+  vanished <- gone[
+    gone$year == 2011L & gone$land_use == "cropland_rainfed_olive",
+  ]
+  testthat::expect_equal(vanished$area_ha, 0)
+  testthat::expect_equal(
+    vanished$luc_transfer_mgc,
+    -40 * olive_2010$stock_mgc_ha,
+    tolerance = 1e-6
+  )
+  # The polity roll-up carries the summed mass and it closes there too.
+  pol <- whep::build_carbon_balance(
+    data = .cbg_luc_data(100, 0),
+    crop_groups = cfg,
+    resolution = "polity"
+  )
+  testthat::expect_equal(pol$luc_transfer_mgc, c(0, 0), tolerance = 1e-9)
+  # The example carries the column and, with no vanishing, equals density x area.
+  ex <- whep::build_carbon_balance(example = TRUE)
+  testthat::expect_equal(
+    ex$luc_transfer_mgc,
+    ex$luc_transfer_mgc_ha * ex$area_ha
+  )
+})
