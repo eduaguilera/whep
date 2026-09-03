@@ -86,16 +86,18 @@
 #'   equilibrium spin-up modifier while the forward march uses the year-specific
 #'   drivers).
 #' @param crop_groups How cropland is resolved into land-use classes; see
-#'   [build_carbon_inputs()]. `list()` (default) keeps one `cropland` class.
-#'   `list(method = "spain_hist")` marches crop GROUPS -- herbaceous crops
-#'   pooled per irrigation regime, woody crops per species, rainfed and
-#'   irrigated separate. Each cell-year's LUH2 cropland area is split over
-#'   the groups in proportion to their crop-pattern area, so LUH2's total is
-#'   kept. Herbaceous groups follow the annual crop cover (and the crop
-#'   calendar); woody groups take a perennial cover of 0.85, an ASSUMED
-#'   value with no sourced constant behind it yet. Soil cover is computed
-#'   once per cover profile and joined to the classes, so the class count
-#'   does not multiply the monthly climate table.
+#'   [build_carbon_inputs()]. `list()` (default) marches crop GROUPS --
+#'   herbaceous crops pooled per irrigation regime, woody crops per species,
+#'   rainfed and irrigated separate. Each cell-year's LUH2 cropland area is
+#'   split over the groups in proportion to their crop-pattern area, so
+#'   LUH2's total is kept (verified on a 2009-2010 run: 1442.8 Mha either
+#'   way, with the global stock moving 0.01%). Herbaceous groups follow the
+#'   annual crop cover (and the crop calendar); woody groups take a perennial
+#'   cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
+#'   Soil cover is computed once per cover profile and joined to the classes,
+#'   so the class count does not multiply the monthly climate table.
+#'   `list(method = "none")` keeps the single `cropland` class the package
+#'   used before.
 #' @param class_water How a cell's applied irrigation is shared among its
 #'   land-use classes in the moisture term. `"cell"` (default) gives every
 #'   class except natural land the cell-level water surplus, irrigation
@@ -105,10 +107,11 @@
 #'   the cell value either way. Needs `crop_groups`, because only groups
 #'   carry a regime. Recorded in `method_class_water`.
 #' @param density_basis Which crop area weights the per-crop carbon densities
-#'   when they collapse to a class; see [build_carbon_inputs()]. `"static"`
-#'   (default) keeps the crop-pattern weights, `"renormalised"` the yearly
-#'   FAOSTAT-renormalised cell area the densities were computed on. Only read
-#'   when the carbon inputs are built here rather than supplied.
+#'   when they collapse to a class; see [build_carbon_inputs()].
+#'   `"renormalised"` (default) uses the yearly FAOSTAT-renormalised cell area
+#'   the densities were computed on; `"static"` keeps the crop-pattern
+#'   weights the package used before. Only read when the carbon inputs are
+#'   built here rather than supplied.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section The land-use-change ledger closes on mass, not on density:
@@ -182,7 +185,7 @@ build_carbon_balance <- function(
   years = NULL,
   crop_groups = list(),
   class_water = c("cell", "regime"),
-  density_basis = c("static", "renormalised"),
+  density_basis = c("renormalised", "static"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
@@ -233,7 +236,7 @@ build_carbon_balance <- function(
   data,
   years = NULL,
   crop_groups = list(),
-  density_basis = "static"
+  density_basis = "renormalised"
 ) {
   c_inputs <- data$c_inputs %||%
     .cb_read_c_inputs(years, crop_groups, density_basis)
@@ -2147,7 +2150,7 @@ build_carbon_balance <- function(
 .cb_read_c_inputs <- function(
   years = NULL,
   crop_groups = list(),
-  density_basis = "static"
+  density_basis = "renormalised"
 ) {
   build_carbon_inputs(
     resolution = "grid",

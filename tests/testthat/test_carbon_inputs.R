@@ -13,8 +13,11 @@
     ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
     ~residue_c_mgc_ha_yr, ~root_c_mgc_ha_yr, ~manure_c_mgc_ha_yr,
     ~total_c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
+    ~crop_area_ha,
     0.25, 0.25, 1L, "15", 2000L, 1.5, 1.0, 0.5, 3.0, 0.20, "humified_weighted",
-    0.25, 0.25, 1L, "27", 2000L, 1.0, 0.5, 0.5, 2.0, 0.10, "humified_weighted"
+    30,
+    0.25, 0.25, 1L, "27", 2000L, 1.0, 0.5, 0.5, 2.0, 0.10, "humified_weighted",
+    10
   )
 }
 
@@ -47,10 +50,21 @@
   )
 }
 
+
+# The single-cropland-class path, named explicitly. These tests predate crop
+# groups and check the collapse of per-crop densities to ONE cropland class;
+# the package default is now `spain_hist`, which resolves each crop's
+# irrigated share from the pinned spatialization inputs and so cannot run in
+# an offline test that injects only `cropland`. Tests of the grouped path
+# live in test_carbon_inputs_groups.R, where the share layer is injected.
+.ci_single <- function(...) {
+  whep::build_carbon_inputs(..., crop_groups = list(method = "none"))
+}
+
 # -- Cropland aggregation -----------------------------------------------------
 
 test_that("cropland class = area-weighted per-ha C, C-weighted humification", {
-  out <- whep::build_carbon_inputs(resolution = "grid", data = .ci_test_data())
+  out <- .ci_single(resolution = "grid", data = .ci_test_data())
   crop <- dplyr::filter(out, land_use == "cropland")
   # Area-weighted per-ha C: (3.0*30 + 2.0*10) / (30+10) = 110/40 = 2.75.
   testthat::expect_equal(crop$c_input_mgc_ha_yr, 2.75, tolerance = 1e-9)
@@ -84,7 +98,7 @@ test_that("year-varying crop areas weight only their matching input year", {
     0.25, 0.25, 1L, "27", 2001L, 90
   )
 
-  out <- whep:::.ci_cropland_class(cropland, crop_area) |>
+  out <- whep:::.ci_cropland_class(cropland, crop_area, basis = "static") |>
     dplyr::arrange(.data$year)
 
   testthat::expect_equal(out$c_input_mgc_ha_yr, c(1.8, 8.2))
@@ -92,7 +106,7 @@ test_that("year-varying crop areas weight only their matching input year", {
 })
 
 test_that("output carries every class with the balance c_inputs schema", {
-  out <- whep::build_carbon_inputs(resolution = "grid", data = .ci_test_data())
+  out <- .ci_single(resolution = "grid", data = .ci_test_data())
   pointblank::expect_col_exists(
     out,
     c(
@@ -118,7 +132,7 @@ test_that("build_carbon_inputs output joins into build_carbon_balance", {
   # The assembled c_inputs must satisfy build_carbon_balance's join contract:
   # (lon, lat, area_code, year, land_use) with c_input_mgc_ha_yr +
   # humified_fraction. Build a matching land-use + climate + clay and run.
-  c_inputs <- whep::build_carbon_inputs(
+  c_inputs <- .ci_single(
     resolution = "grid",
     data = .ci_test_data()
   )
@@ -154,8 +168,8 @@ test_that("build_carbon_inputs output joins into build_carbon_balance", {
 })
 
 test_that("polity resolution aggregates cropland conserving carbon mass", {
-  grid <- whep::build_carbon_inputs(resolution = "grid", data = .ci_test_data())
-  pol <- whep::build_carbon_inputs(
+  grid <- .ci_single(resolution = "grid", data = .ci_test_data())
+  pol <- .ci_single(
     resolution = "polity",
     data = .ci_test_data()
   )
@@ -176,8 +190,9 @@ test_that("polity resolution aggregates cropland conserving carbon mass", {
   cropland <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
     ~total_c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
-    0.25, 0.25, 1L, "15", 2000L, 1.0, 0.20, "humified_weighted",
-    0.75, 0.25, 1L, "27", 2000L, 4.0, 0.10, "humified_weighted"
+    ~crop_area_ha,
+    0.25, 0.25, 1L, "15", 2000L, 1.0, 0.20, "humified_weighted", 90,
+    0.75, 0.25, 1L, "27", 2000L, 4.0, 0.10, "humified_weighted", 10
   )
   crop_area <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_prod_code, ~crop_area_ha,
@@ -204,7 +219,7 @@ test_that("polity resolution aggregates cropland conserving carbon mass", {
 }
 
 test_that("polity cropland density is area-weighted, not a plain mean", {
-  pol <- whep::build_carbon_inputs(
+  pol <- .ci_single(
     resolution = "polity",
     data = .ci_two_cell_data()
   )
@@ -213,7 +228,7 @@ test_that("polity cropland density is area-weighted, not a plain mean", {
   testthat::expect_equal(crop$c_input_mgc_ha_yr, 1.3, tolerance = 1e-9)
   # Total cropland carbon mass is conserved: density * total area == sum of the
   # per-cell density * cell area over the grid.
-  grid <- whep::build_carbon_inputs(
+  grid <- .ci_single(
     resolution = "grid",
     data = .ci_two_cell_data()
   )
@@ -230,7 +245,7 @@ test_that("polity cropland density is area-weighted, not a plain mean", {
 })
 
 test_that("polity grassland density uses its land-use area", {
-  pol <- whep::build_carbon_inputs(
+  pol <- .ci_single(
     resolution = "polity",
     data = .ci_two_cell_data()
   )
@@ -296,8 +311,16 @@ test_that("example = TRUE returns the documented schema", {
 testthat::test_that("the static basis ignores the layer's own area", {
   # The per-crop layer now carries crop_area_ha; under the default basis it
   # must be dropped before the join, not suffixed into a second column.
-  with <- whep:::.ci_cropland_class(.db_cropland(TRUE), .db_static_area())
-  without <- whep:::.ci_cropland_class(.db_cropland(FALSE), .db_static_area())
+  with <- whep:::.ci_cropland_class(
+    .db_cropland(TRUE),
+    .db_static_area(),
+    basis = "static"
+  )
+  without <- whep:::.ci_cropland_class(
+    .db_cropland(FALSE),
+    .db_static_area(),
+    basis = "static"
+  )
   testthat::expect_identical(with, without)
   testthat::expect_equal(
     with$c_input_mgc_ha_yr,
@@ -346,7 +369,7 @@ testthat::test_that("density_basis is validated and threaded from the builder", 
   testthat::expect_true(
     "crop_area_ha" %in% names(whep::build_soil_carbon_inputs(example = TRUE))
   )
-  out <- whep::build_carbon_inputs(
+  out <- .ci_single(
     data = list(
       cropland = .db_cropland(TRUE),
       grass_natural = tibble::tibble(
@@ -370,7 +393,7 @@ testthat::test_that("density_basis is validated and threaded from the builder", 
   testthat::expect_identical(crop$method_area_basis, "renormalised")
   testthat::expect_true(is.na(out$method_area_basis[out$land_use == "natural"]))
   # And the polity roll-up keeps the stamp.
-  pol <- whep::build_carbon_inputs(
+  pol <- .ci_single(
     resolution = "polity",
     data = list(
       cropland = .db_cropland(TRUE),

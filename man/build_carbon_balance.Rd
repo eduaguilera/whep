@@ -21,7 +21,7 @@ build_carbon_balance(
   years = NULL,
   crop_groups = list(),
   class_water = c("cell", "regime"),
-  density_basis = c("static", "renormalised"),
+  density_basis = c("renormalised", "static"),
   example = FALSE
 )
 }
@@ -98,16 +98,18 @@ the default readers are used. Threaded into every default reader
 \code{data}.}
 
 \item{crop_groups}{How cropland is resolved into land-use classes; see
-\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list()} (default) keeps one \code{cropland} class.
-\code{list(method = "spain_hist")} marches crop GROUPS -- herbaceous crops
-pooled per irrigation regime, woody crops per species, rainfed and
-irrigated separate. Each cell-year's LUH2 cropland area is split over
-the groups in proportion to their crop-pattern area, so LUH2's total is
-kept. Herbaceous groups follow the annual crop cover (and the crop
-calendar); woody groups take a perennial cover of 0.85, an ASSUMED
-value with no sourced constant behind it yet. Soil cover is computed
-once per cover profile and joined to the classes, so the class count
-does not multiply the monthly climate table.}
+\code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{list()} (default) marches crop GROUPS --
+herbaceous crops pooled per irrigation regime, woody crops per species,
+rainfed and irrigated separate. Each cell-year's LUH2 cropland area is
+split over the groups in proportion to their crop-pattern area, so
+LUH2's total is kept (verified on a 2009-2010 run: 1442.8 Mha either
+way, with the global stock moving 0.01\%). Herbaceous groups follow the
+annual crop cover (and the crop calendar); woody groups take a perennial
+cover of 0.85, an ASSUMED value with no sourced constant behind it yet.
+Soil cover is computed once per cover profile and joined to the classes,
+so the class count does not multiply the monthly climate table.
+\code{list(method = "none")} keeps the single \code{cropland} class the package
+used before.}
 
 \item{class_water}{How a cell's applied irrigation is shared among its
 land-use classes in the moisture term. \code{"cell"} (default) gives every
@@ -119,10 +121,11 @@ the cell value either way. Needs \code{crop_groups}, because only groups
 carry a regime. Recorded in \code{method_class_water}.}
 
 \item{density_basis}{Which crop area weights the per-crop carbon densities
-when they collapse to a class; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}. \code{"static"}
-(default) keeps the crop-pattern weights, \code{"renormalised"} the yearly
-FAOSTAT-renormalised cell area the densities were computed on. Only read
-when the carbon inputs are built here rather than supplied.}
+when they collapse to a class; see \code{\link[=build_carbon_inputs]{build_carbon_inputs()}}.
+\code{"renormalised"} (default) uses the yearly FAOSTAT-renormalised cell area
+the densities were computed on; \code{"static"} keeps the crop-pattern
+weights the package used before. Only read when the carbon inputs are
+built here rather than supplied.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

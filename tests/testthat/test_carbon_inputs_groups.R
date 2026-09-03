@@ -7,8 +7,9 @@
   tibble::tribble(
     ~lon, ~lat, ~area_code, ~item_prod_code, ~year,
     ~total_c_input_mgc_ha_yr, ~humified_fraction, ~method_c_input,
-    0.25, 0.25, 1L, "15", 2000L, 2.0, 0.20, "x",
-    0.25, 0.25, 1L, "260", 2000L, 4.0, 0.30, "x"
+    ~crop_area_ha,
+    0.25, 0.25, 1L, "15", 2000L, 2.0, 0.20, "x", 100,
+    0.25, 0.25, 1L, "260", 2000L, 4.0, 0.30, "x", 50
   )
 }
 
@@ -49,10 +50,15 @@
   d
 }
 
-testthat::test_that("the config validates element-wise and defaults to none", {
+testthat::test_that("the config validates element-wise and defaults to groups", {
   cfg <- whep:::.ci_group_config()
-  testthat::expect_identical(cfg$method, "none")
+  testthat::expect_identical(cfg$method, "spain_hist")
   testthat::expect_identical(cfg$irrigation, "spatialized")
+  # "none" stays reachable and is what the pre-group behaviour is called.
+  testthat::expect_identical(
+    whep:::.ci_group_config(list(method = "none"))$method,
+    "none"
+  )
   testthat::expect_error(
     whep:::.ci_group_config(list(method = "spain")),
     "crop_groups"
@@ -64,7 +70,10 @@ testthat::test_that("the config validates element-wise and defaults to none", {
 })
 
 testthat::test_that("method none is the single cropland class, unchanged", {
-  before <- whep::build_carbon_inputs(data = .cig_data())
+  before <- whep::build_carbon_inputs(
+    data = .cig_data(),
+    crop_groups = list(method = "none")
+  )
   after <- whep::build_carbon_inputs(
     data = .cig_data(.cig_share()),
     crop_groups = list(method = "none")
@@ -119,7 +128,11 @@ testthat::test_that("group areas partition the cropland area", {
   # Polity aggregation area-weights by class_area_ha, so a group's density
   # survives aggregation only if its area was carried. Check by conservation:
   # total cropland carbon mass equals the single-class total.
-  single <- whep::build_carbon_inputs(resolution = "polity", data = data)
+  single <- whep::build_carbon_inputs(
+    resolution = "polity",
+    data = data,
+    crop_groups = list(method = "none")
+  )
   grouped <- whep:::.ci_cropland_class(
     data$cropland,
     data$crop_area,
@@ -275,7 +288,8 @@ testthat::test_that("shares are built for the years the crop layer carries", {
     dplyr::mutate(
       total_c_input_mgc_ha_yr = 2,
       humified_fraction = 0.3,
-      method_c_input = "humified_weighted"
+      method_c_input = "humified_weighted",
+      crop_area_ha = 100
     )
   crop_area <- tibble::tibble(
     lon = 0.25,

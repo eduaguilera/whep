@@ -51,7 +51,22 @@ production (ratio above 2 on 3.2\% of natural area, holding 0.7\% of the
 litter mass); it is left as the run wrote it. The
 \code{lpjml-grass-natural-net-c} pin carries litterfall since its 2026-09-03
 version (the 1750-2023 run); an older pin or run aborts naming the
-missing column rather than falling back. Recorded in \code{method_c_input}.}
+missing column rather than falling back. Recorded in \code{method_c_input}.
+
+Litterfall \strong{includes root turnover}, so natural land must not receive a
+separate root term on top, and does not: LPJmL adds each PFT's root
+turnover carbon to the belowground litter pool and to the same
+\code{LITFALLC} accumulator as leaf litter (\code{src/grass/turnover_grass.c}
+lines 130-131 and \code{src/tree/turnover_tree.c} lines 162-163 at
+PIK-LPJmL/LPJmL, plus tree root exudates at lines 143-144). The run
+confirms it: at 1760 over 31,889 near-pure natural cells the
+litterfall/NPP median is 0.894, and \strong{0.965 on grass-dominated cells},
+which allocate roughly half their production below ground -- an
+above-ground-only litterfall would sit near 0.5 there. Adding fire
+closes the pre-industrial steady state at 0.930. Cropland is the
+opposite case: \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} assembles residues, roots
+and manure as separate terms, because a crop stand's roots are not an
+LPJmL litterfall flux.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},

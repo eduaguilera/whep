@@ -371,8 +371,12 @@ testthat::test_that("the spec is the irrigated groups' share of the cell", {
 })
 
 testthat::test_that("regime water without crop groups is refused, not ignored", {
+  # Groups are the default, so "no groups" has to be asked for to be tested.
   testthat::expect_error(
-    whep::build_carbon_balance(class_water = "regime"),
+    whep::build_carbon_balance(
+      class_water = "regime",
+      crop_groups = list(method = "none")
+    ),
     "crop_groups"
   )
   testthat::expect_error(

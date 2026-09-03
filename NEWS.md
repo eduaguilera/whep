@@ -1,5 +1,29 @@
 # whep (development version)
 
+* **The soil carbon balance now marches CROP GROUPS by default, and weights
+  the per-crop densities by the FAOSTAT-renormalised crop area.** Both
+  defaults were held back until the grouped path had been run on real data;
+  it has (2009-2010, 82 classes), so `crop_groups$method` defaults to
+  `"spain_hist"` and `density_basis` to `"renormalised"` in
+  `build_carbon_inputs()` and `build_carbon_balance()`. The previous
+  behaviour stays selectable as `crop_groups = list(method = "none")` and
+  `density_basis = "static"`, and both are recorded in `method_c_input` and
+  `method_area_basis`.
+
+  What changes for a caller who passes nothing: cropland resolves into
+  herbaceous groups per irrigation regime and woody groups per species
+  instead of one `cropland` class (LUH2's cropland total is preserved
+  exactly; the global stock moved 0.01% on the 2009-2010 run), and the class
+  density is weighted by the yearly renormalised crop area rather than the
+  static crop-pattern area (area-weighted median ratio 0.988, p5-p95
+  0.922-1.043). Two consequences worth knowing: the grouped path resolves
+  each crop's irrigated share from the pinned spatialization inputs, so a
+  caller who injects `data$cropland` offline must also inject
+  `data$crop_regime_share` or ask for `irrigation = "none"`; and the
+  renormalised basis needs `crop_area_ha` on the per-crop layer, which
+  `build_soil_carbon_inputs()` now returns and a hand-built layer must
+  carry. Both fail loudly, naming what is missing.
+
 * **`build_carbon_balance()` reports the land-use-change transfer as a
   signed mass, `luc_transfer_mgc`, and that ledger closes.**
   `luc_transfer_mgc_ha` is per hectare of a class's CURRENT area, so a

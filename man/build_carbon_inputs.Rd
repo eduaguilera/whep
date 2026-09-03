@@ -14,7 +14,7 @@ build_carbon_inputs(
   data = list(),
   years = NULL,
   crop_groups = list(),
-  density_basis = c("static", "renormalised"),
+  density_basis = c("renormalised", "static"),
   example = FALSE
 )
 }
@@ -46,11 +46,13 @@ builders so their readers slice to the requested years; ignored for inputs
 supplied via \code{data}.}
 
 \item{crop_groups}{How cropland is resolved into land-use classes, a named
-list validated element-wise. \code{method}: \code{"none"} (default) keeps one
-\code{cropland} class, every number unchanged; \code{"spain_hist"} marches crop
-GROUPS as classes -- herbaceous crops pooled per irrigation regime (they
-rotate, so nothing inside the pool is a land-use change), woody crops per
-species, rainfed and irrigated separate -- labelled by \code{\link[=soc_crop_group]{soc_crop_group()}}.
+list validated element-wise. \code{method}: \code{"spain_hist"} (default) resolves
+cropland into crop GROUPS -- herbaceous crops pooled per irrigation
+regime (they rotate, so nothing inside the pool is a land-use change),
+woody crops per species, rainfed and irrigated separate -- labelled by
+\code{\link[=soc_crop_group]{soc_crop_group()}}; \code{"none"} keeps the single \code{cropland} class the
+package used before, for comparison and for a caller that wants one
+cropland number.
 \code{irrigation}: where each crop's irrigated share of its cell area comes
 from. \code{"spatialized"} (default) uses \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} on the
 pinned spatialization inputs, crop-specific and yearly; \code{"none"} puts
@@ -59,15 +61,17 @@ pre-built share layer can be supplied as \code{data$crop_regime_share} (\code{lo
 \code{lat}, \code{area_code}, \code{item_prod_code}, \code{year}, \code{irrigated_share}).}
 
 \item{density_basis}{Which crop area weights the per-crop densities when
-they collapse to a class. \code{"static"} (default) uses the time-invariant
-crop-pattern area split by the polycell's share of the cell, as before.
-\code{"renormalised"} uses the yearly cell crop area the densities were
-computed on -- the FAOSTAT-renormalised area \code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}}
-returns as \code{crop_area_ha} -- so the class carbon mass equals the sum of
-the crop masses that were spatialized. The two differ wherever the
-spatialized cell areas of a polity-crop-year do not sum to its FAOSTAT
-harvested area; the choice is recorded in \code{method_area_basis} on
-cropland rows.}
+they collapse to a class. \code{"renormalised"} (default) uses the yearly cell
+crop area the densities were computed on -- the FAOSTAT-renormalised area
+\code{\link[=build_soil_carbon_inputs]{build_soil_carbon_inputs()}} returns as \code{crop_area_ha} -- so the class
+carbon mass equals the sum of the crop masses that were spatialized.
+\code{"static"} uses the time-invariant crop-pattern area split by the
+polycell's share of the cell, which the package used before. The two
+differ wherever the spatialized cell areas of a polity-crop-year do not
+sum to its FAOSTAT harvested area: measured on the 2010 pins over 40,065
+cropland cells the per-cell class density ratio renormalised/static has
+an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
+\code{method_area_basis} on cropland rows.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}

@@ -45,11 +45,13 @@
 #'   `cropland` or `grass_natural` are absent the respective builder is called
 #'   with the remaining members of `data`.
 #' @param crop_groups How cropland is resolved into land-use classes, a named
-#'   list validated element-wise. `method`: `"none"` (default) keeps one
-#'   `cropland` class, every number unchanged; `"spain_hist"` marches crop
-#'   GROUPS as classes -- herbaceous crops pooled per irrigation regime (they
-#'   rotate, so nothing inside the pool is a land-use change), woody crops per
-#'   species, rainfed and irrigated separate -- labelled by [soc_crop_group()].
+#'   list validated element-wise. `method`: `"spain_hist"` (default) resolves
+#'   cropland into crop GROUPS -- herbaceous crops pooled per irrigation
+#'   regime (they rotate, so nothing inside the pool is a land-use change),
+#'   woody crops per species, rainfed and irrigated separate -- labelled by
+#'   [soc_crop_group()]; `"none"` keeps the single `cropland` class the
+#'   package used before, for comparison and for a caller that wants one
+#'   cropland number.
 #'   `irrigation`: where each crop's irrigated share of its cell area comes
 #'   from. `"spatialized"` (default) uses [build_gridded_landuse()] on the
 #'   pinned spatialization inputs, crop-specific and yearly; `"none"` puts
@@ -57,15 +59,17 @@
 #'   pre-built share layer can be supplied as `data$crop_regime_share` (`lon`,
 #'   `lat`, `area_code`, `item_prod_code`, `year`, `irrigated_share`).
 #' @param density_basis Which crop area weights the per-crop densities when
-#'   they collapse to a class. `"static"` (default) uses the time-invariant
-#'   crop-pattern area split by the polycell's share of the cell, as before.
-#'   `"renormalised"` uses the yearly cell crop area the densities were
-#'   computed on -- the FAOSTAT-renormalised area [build_soil_carbon_inputs()]
-#'   returns as `crop_area_ha` -- so the class carbon mass equals the sum of
-#'   the crop masses that were spatialized. The two differ wherever the
-#'   spatialized cell areas of a polity-crop-year do not sum to its FAOSTAT
-#'   harvested area; the choice is recorded in `method_area_basis` on
-#'   cropland rows.
+#'   they collapse to a class. `"renormalised"` (default) uses the yearly cell
+#'   crop area the densities were computed on -- the FAOSTAT-renormalised area
+#'   [build_soil_carbon_inputs()] returns as `crop_area_ha` -- so the class
+#'   carbon mass equals the sum of the crop masses that were spatialized.
+#'   `"static"` uses the time-invariant crop-pattern area split by the
+#'   polycell's share of the cell, which the package used before. The two
+#'   differ wherever the spatialized cell areas of a polity-crop-year do not
+#'   sum to its FAOSTAT harvested area: measured on the 2010 pins over 40,065
+#'   cropland cells the per-cell class density ratio renormalised/static has
+#'   an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
+#'   `method_area_basis` on cropland rows.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
@@ -85,7 +89,7 @@ build_carbon_inputs <- function(
   data = list(),
   years = NULL,
   crop_groups = list(),
-  density_basis = c("static", "renormalised"),
+  density_basis = c("renormalised", "static"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
@@ -106,7 +110,7 @@ build_carbon_inputs <- function(
   data,
   years = NULL,
   cfg = .ci_group_config(),
-  density_basis = "static"
+  density_basis = "renormalised"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -143,7 +147,13 @@ build_carbon_inputs <- function(
 # `build_gridded_landuse()` takes exact years, so shares built up front for
 # the argument covered two of eleven years on a real run and booked the
 # other nine wholly rainfed, with only the per-year gap count to show it.
-.ci_cropland_input <- function(data, years, crop_area, cfg, basis = "static") {
+.ci_cropland_input <- function(
+  data,
+  years,
+  crop_area,
+  cfg,
+  basis = "renormalised"
+) {
   collapse <- function(cropland) {
     shares <- .ci_regime_shares(data, unique(cropland$year), cfg)
     .ci_cropland_class(cropland, crop_area, shares, basis)
@@ -158,7 +168,7 @@ build_carbon_inputs <- function(
   cropland,
   crop_area,
   shares = NULL,
-  basis = "static"
+  basis = "renormalised"
 ) {
   joined <- .ci_weighted_cropland(cropland, crop_area, basis)
   if (is.null(shares)) {
@@ -305,7 +315,7 @@ build_carbon_inputs <- function(
   }
   list(
     method = rlang::arg_match0(
-      crop_groups$method %||% "none",
+      crop_groups$method %||% "spain_hist",
       c("none", "spain_hist"),
       arg_nm = "crop_groups$method"
     ),

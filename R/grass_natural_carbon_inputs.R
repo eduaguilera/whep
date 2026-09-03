@@ -65,6 +65,21 @@
 #'   `lpjml-grass-natural-net-c` pin carries litterfall since its 2026-09-03
 #'   version (the 1750-2023 run); an older pin or run aborts naming the
 #'   missing column rather than falling back. Recorded in `method_c_input`.
+#'
+#'   Litterfall **includes root turnover**, so natural land must not receive a
+#'   separate root term on top, and does not: LPJmL adds each PFT's root
+#'   turnover carbon to the belowground litter pool and to the same
+#'   `LITFALLC` accumulator as leaf litter (`src/grass/turnover_grass.c`
+#'   lines 130-131 and `src/tree/turnover_tree.c` lines 162-163 at
+#'   PIK-LPJmL/LPJmL, plus tree root exudates at lines 143-144). The run
+#'   confirms it: at 1760 over 31,889 near-pure natural cells the
+#'   litterfall/NPP median is 0.894, and **0.965 on grass-dominated cells**,
+#'   which allocate roughly half their production below ground -- an
+#'   above-ground-only litterfall would sit near 0.5 there. Adding fire
+#'   closes the pre-industrial steady state at 0.930. Cropland is the
+#'   opposite case: [build_soil_carbon_inputs()] assembles residues, roots
+#'   and manure as separate terms, because a crop stand's roots are not an
+#'   LPJmL litterfall flux.
 #' @param method_natural_hf How natural land's humification fraction is set.
 #'   `"woody_share"` (default) carbon-weights the [residue_humification]
 #'   woody and herbaceous coefficients by the share of each cell-year's
