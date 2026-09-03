@@ -41,8 +41,25 @@
 #'     forwarded to both engines. See [build_gridded_landuse()]'s
 #'     *Which area code the output is keyed on*.
 #'   - `country_grid`: which cell-to-polity crosswalk the engines
-#'     allocate into, `"centroid"` (default) or `"fraction"`. See
-#'     *Which cell-to-polity crosswalk*.
+#'     allocate into, `"polycell"` (default), `"centroid"` or
+#'     `"fraction"`. See *Which cell-to-polity crosswalk*.
+#'   - `level` (integer, default `0L`): containment depth the grid is
+#'     resolved at. `0L` is today's cell-to-`area_code` grid; `1L` and
+#'     deeper key the cells on admin units through
+#'     [read_level_country_grid()], which only the `"polycell"`
+#'     crosswalk supports.
+#'   - `output_level` (integer, default `0L`): grain of the crop output.
+#'     `0L` sums granted-depth rows back onto the container, so
+#'     `(lon, lat, area_code, item_prod_code, year)` stays unique and the
+#'     schema equals a level-0 run's; a positive value returns unit-grain
+#'     rows carrying `level_polity_code`. It may not exceed `level`.
+#'   - `constraint_exclude` (default `NULL`): country x year ranges to hold
+#'     out of the admin constraint, as a named list such as
+#'     `list(USA = 1961:1989)`. Recorded in `run_metadata.yaml` and consumed
+#'     by the admin-shares resolver; it does not by itself change a run that
+#'     has no admin constraint wired.
+#'   - `livestock_proxy`: one of `"luh2"` (default) or `"glw3"`, forwarded
+#'     to [build_gridded_livestock()]'s `proxy_method`.
 #' @param paths Named list of filesystem paths. Recognised entries:
 #'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
 #'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
@@ -123,6 +140,10 @@
 #'     selected).
 #'   \item `run_metadata.yaml` — resolved preset, components,
 #'     flags, years, timestamp, and package version.
+#'   \item `admin_coverage.csv` — which admin source constrained each
+#'     container x item x year, at what tier, grain and depth. Written
+#'     only when `level > 0`, with its header and no rows where no
+#'     coverage is granted. See [admin_coverage_prototype()].
 #' }
 #'
 #' @seealso [build_gridded_landuse()].
@@ -174,6 +195,7 @@ run_spatialize <- function(
   # aggregation target, not engine flags).
   engine_overrides <- overrides[setdiff(names(overrides), "cft_target")]
   config <- .resolve_spatialize_config(preset, engine_overrides)
+  config <- .validate_level_config(config, components)
 
   resolved <- .resolve_paths(paths, preset, overrides)
   input_dir <- resolved$input_dir
@@ -223,6 +245,9 @@ run_spatialize <- function(
     overrides,
     input_dir
   )
+  if (config$level > 0L) {
+    output_paths$admin_coverage <- .write_admin_coverage(out_dir)
+  }
 
   cli::cli_alert_success(
     "Spatialize complete: {.path {out_dir}}"
@@ -274,6 +299,12 @@ run_spatialize <- function(
       area_key = config$area_key
     )
   )
+  # Decision 10's output grain is applied HERE, after the engine and outside
+  # its year loop: the engine allocates at the granted depth, and what is
+  # written is a reporting choice. At level 0 the result carries no
+  # `level_polity_code` and `.level_fold_output()` returns it identically, so
+  # the default path is bit-for-bit what it was.
+  result_crops <- .level_fold_output(result_crops, config$output_level)
   list(
     years = resolved_years,
     paths = .write_landuse_outputs(
@@ -315,6 +346,7 @@ run_spatialize <- function(
     species_proxy = ls_inputs$species_proxy,
     manure_pattern = ls_inputs$manure_pattern,
     years = resolved_years,
+    proxy_method = config$livestock_proxy,
     area_key = config$area_key
   )
   list(
@@ -331,7 +363,11 @@ run_spatialize <- function(
       max_iterations = 1000L,
       expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      level = 0L,
+      output_level = 0L,
+      constraint_exclude = NULL,
+      livestock_proxy = "luh2"
     ),
     whep = list(
       use_type_constraint = TRUE,
@@ -339,7 +375,11 @@ run_spatialize <- function(
       max_iterations = 1000L,
       expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      level = 0L,
+      output_level = 0L,
+      constraint_exclude = NULL,
+      livestock_proxy = "luh2"
     )
   )
 }
@@ -352,7 +392,11 @@ run_spatialize <- function(
     "expansion_threshold",
     "cft_target",
     "area_key",
-    "country_grid"
+    "country_grid",
+    "level",
+    "output_level",
+    "constraint_exclude",
+    "livestock_proxy"
   )
 }
 
@@ -451,6 +495,72 @@ run_spatialize <- function(
   utils::modifyList(defaults, overrides)
 }
 
+# Normalise and cross-check the depth keys once, before any input is read
+# (whep#1000 T12). `modifyList()` will happily take `level = 1.5` or an
+# `output_level` finer than the depth actually allocated, and both would only
+# surface as a wrong output grain hours into a run.
+.validate_level_config <- function(config, components) {
+  config$level <- .check_grid_level(config$level, "overrides$level")
+  config$output_level <- .check_grid_level(
+    config$output_level,
+    "overrides$output_level"
+  )
+  if (config$output_level > config$level) {
+    cli::cli_abort(c(
+      "{.code output_level = {config$output_level}} is finer than
+       {.code level = {config$level}}.",
+      i = "The output cannot be reported at a depth the run did not
+           allocate at."
+    ))
+  }
+  config$livestock_proxy <- rlang::arg_match0(
+    config$livestock_proxy %||% "luh2",
+    c("luh2", "glw3"),
+    arg_nm = "overrides$livestock_proxy"
+  )
+  # Assigned through `[` so an empty hold-out stays a recorded `NULL` key
+  # rather than disappearing from the config -- `$<- NULL` deletes the element,
+  # and `run_metadata.yaml` would then not say the run had no hold-out.
+  config["constraint_exclude"] <- list(
+    .check_constraint_exclude(config$constraint_exclude)
+  )
+  # The livestock engine has no output-grain step yet: T15b owns the two-level
+  # livestock allocation, so a depth run writes unit-grain livestock rows while
+  # the crop output is folded onto the container. Said out loud rather than
+  # left for a consumer to discover from a row count.
+  if (config$level > 0L && "livestock" %in% components) {
+    cli::cli_warn(c(
+      "!" = "Livestock output stays at the grain the grid carries;
+             {.code output_level} governs the crop output only.",
+      i = "Two-level livestock allocation and its fold are not wired yet
+           (whep#1000 T15b)."
+    ))
+  }
+  config
+}
+
+# `constraint_exclude` is a per-country year hold-out, consumed by the
+# admin-shares resolver. Its SHAPE is checked here so a typo is refused at the
+# door instead of silently constraining a country the run meant to exclude.
+.check_constraint_exclude <- function(exclude) {
+  if (is.null(exclude) || length(exclude) == 0L) {
+    return(NULL)
+  }
+  named <- !is.null(names(exclude)) && all(nzchar(names(exclude)))
+  years_ok <- all(purrr::map_lgl(
+    exclude,
+    \(x) is.numeric(x) && length(x) > 0L && !anyNA(x)
+  ))
+  if (!is.list(exclude) || !named || !years_ok) {
+    cli::cli_abort(c(
+      "{.arg overrides$constraint_exclude} must be a fully named list of
+       year vectors.",
+      i = "For example {.code list(USA = 1961:1989)}."
+    ))
+  }
+  purrr::map(exclude, \(x) sort(unique(as.integer(x))))
+}
+
 .resolve_years <- function(years, preset, country_areas) {
   available <- sort(unique(as.integer(country_areas$year)))
   if (!is.null(years)) {
@@ -532,7 +642,11 @@ run_spatialize <- function(
     "gridded_cropland.parquet",
     .spatial_input_aliases()[["gridded_cropland"]]
   )
-  country_grid <- .load_country_grid(input_dir, config$country_grid)
+  country_grid <- .load_country_grid(
+    input_dir,
+    config$country_grid,
+    config$level
+  )
 
   type_cropland <- NULL
   type_mapping <- NULL
@@ -591,7 +705,11 @@ run_spatialize <- function(
     "gridded_cropland.parquet",
     .spatial_input_aliases()[["gridded_cropland"]]
   )
-  country_grid <- .load_country_grid(input_dir, config$country_grid)
+  country_grid <- .load_country_grid(
+    input_dir,
+    config$country_grid,
+    config$level
+  )
 
   species_proxy <- .read_livestock_mapping()
 
@@ -641,7 +759,7 @@ run_spatialize <- function(
 #
 # The three are alternatives, never a fallback: a run asked for one crosswalk
 # must fail rather than quietly allocate into another.
-.load_country_grid <- function(input_dir, source = NULL) {
+.load_country_grid <- function(input_dir, source = NULL, level = 0L) {
   if (is.null(source)) {
     source <- "polycell"
   }
@@ -650,8 +768,22 @@ run_spatialize <- function(
     c("polycell", "centroid", "fraction"),
     arg_nm = "country_grid"
   )
+  level <- .check_grid_level(level)
   if (source == "polycell") {
-    return(.read_polycell_country_grid())
+    return(read_level_country_grid(level = level))
+  }
+  # Only the polycell support is keyed on a polity identity, so it is the only
+  # crosswalk a containment depth can be resolved against. The centroid grid
+  # holds one `area_code` per cell and the fractional one is built from the same
+  # reporting vocabulary; asking either for a depth and quietly getting level 0
+  # would put a constrained run on an unconstrained grid.
+  if (level > 0L) {
+    cli::cli_abort(c(
+      "{.arg country_grid} {.val {source}} carries no containment depth.",
+      x = "{.code level = {level}} was requested.",
+      i = "Depth is resolved against the polycell support's
+           {.field polity_code}; use {.code country_grid = \"polycell\"}."
+    ))
   }
   if (source == "centroid") {
     return(.read_spatial_input(

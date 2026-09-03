@@ -45,8 +45,25 @@ landuse engine.
 forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s
 \emph{Which area code the output is keyed on}.
 \item \code{country_grid}: which cell-to-polity crosswalk the engines
-allocate into, \code{"centroid"} (default) or \code{"fraction"}. See
-\emph{Which cell-to-polity crosswalk}.
+allocate into, \code{"polycell"} (default), \code{"centroid"} or
+\code{"fraction"}. See \emph{Which cell-to-polity crosswalk}.
+\item \code{level} (integer, default \code{0L}): containment depth the grid is
+resolved at. \code{0L} is today's cell-to-\code{area_code} grid; \code{1L} and
+deeper key the cells on admin units through
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}, which only the \code{"polycell"}
+crosswalk supports.
+\item \code{output_level} (integer, default \code{0L}): grain of the crop output.
+\code{0L} sums granted-depth rows back onto the container, so
+\verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
+schema equals a level-0 run's; a positive value returns unit-grain
+rows carrying \code{level_polity_code}. It may not exceed \code{level}.
+\item \code{constraint_exclude} (default \code{NULL}): country x year ranges to hold
+out of the admin constraint, as a named list such as
+\code{list(USA = 1961:1989)}. Recorded in \code{run_metadata.yaml} and consumed
+by the admin-shares resolver; it does not by itself change a run that
+has no admin constraint wired.
+\item \code{livestock_proxy}: one of \code{"luh2"} (default) or \code{"glw3"}, forwarded
+to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{proxy_method}.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
@@ -152,6 +169,10 @@ livestock stocks and emissions (when livestock component
 selected).
 \item \code{run_metadata.yaml} — resolved preset, components,
 flags, years, timestamp, and package version.
+\item \code{admin_coverage.csv} — which admin source constrained each
+container x item x year, at what tier, grain and depth. Written
+only when \code{level > 0}, with its header and no rows where no
+coverage is granted. See \code{\link[=admin_coverage_prototype]{admin_coverage_prototype()}}.
 }
 }
 

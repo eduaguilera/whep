@@ -194,6 +194,22 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
+    ".level_ragged_coverage", "full_join", "lon, lat, area_code", 1L,
+    "diagnostic",
+    "Assertion (b) of whep#1000 decision 10: it compares a granted country's
+     per-cell unit shares against the level-0 share the same cell carries, and
+     writes the mismatches to the ragged-coverage report. It allocates
+     nothing. Neither side has a year to key on -- level 0 IS a fixed 2015
+     snapshot (`.carbon_support_year()`) and the layer's shares are per
+     (cell, compartment) -- and whether the two should coexist per year is the
+     open question at T31(j), not something this comparison may decide.",
+    ".level_support_units", "inner_join", "polity_code, member_code", 1L,
+    "identity_lookup",
+    "The containment edge join proposes which containers a polity sat inside;
+     the interval intersection on the very next line disposes of them
+     (`pmax(start_year, start_year_edge)`, `pmin(end_year, end_year_edge)`,
+     then `start_year < end_year`). Keying it on a year instead would need one
+     row per polity-year. Same shape as `.add_polity_columns_dt()`.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -278,6 +294,14 @@
     "Its documented contract is one year's cropgrids, fallow and weights.",
     "attribute_fallow_to_crops", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "One year's tables, as above.",
+    "build_allocation_layer", "semi_join", "area_code, level", 1L,
+    "time_invariant",
+    "`granted` is the T25 coverage report's grant: which container is
+     allocated at which containment depth. A grant is a property of the
+     country and of the evidence base, not of a year -- the years a source
+     covers live in the coverage report itself and in `constraint_exclude`.
+     A year here would let one country be allocated at two depths in one run,
+     which decision 10 forbids.",
     "build_cropgrids_land_extension", "left_join", "area_code, item_cbs_code",
     1L, "time_invariant",
     "The CROPGRIDS physical-to-harvested ratio is one map vintage applied to
@@ -287,7 +311,19 @@
     "Compares two already-summarised footprints; its documented contract has no
      year column.",
     "prepare_livestock_emissions", "left_join", "area_code", 1L,
-    "identity_lookup", "area_code -> ISO3 through the current-area lookup."
+    "identity_lookup", "area_code -> ISO3 through the current-area lookup.",
+    ".match_admin_overrides", "left_join", "area_code", 1L,
+    "time_invariant",
+    "A per-container override is a policy the caller states once, not an
+     observation: `resolve_admin_shares(overrides =)` takes
+     (area_code, item_prod_code, source) and no year, so the container-wide
+     form can only key on the container. Keying it on the year would force
+     the user to enumerate every year an override applies to, the opposite of
+     what the argument is for (whep#1000 T25).",
+    ".match_admin_overrides", "left_join", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The item-specific form of the same policy lookup, joined before the
+     container-wide one so the more specific row wins (whep#1000 T25)."
   )
 }
 
@@ -496,6 +532,32 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".level_compartment_shares", "summarise",
+    "lon, lat, area_code, level_polity_code", 1L, "diagnostic",
+    "Reduces the allocation layer to one share per (cell, compartment) for the
+     two decision-10 assertions and nothing else; no hectare is allocated
+     through it. The year is absent BY ASSERTION rather than by omission: T37
+     fixed the layer's shares as summing to 1 per cell unconditionally, so
+     this function refuses (`whep_alloc_layer_varying_share`) a compartment
+     whose share of one cell differs between two of its own intervals instead
+     of summing across them. Making a share move through time is the
+     territory-basis mechanism, which belongs to T28.",
+    ".level_container_land", "summarise", "lon, lat, polity_code", 1L,
+    "single_year",
+    "Runs inside `purrr::map(years, ...)` over
+     `.filter_country_grid_year(support, yr)`, so the support is already one
+     year when it is summed, and `start_year = yr` is stamped on the result
+     afterwards.",
+    ".level_polity_types", "distinct", "polity_code, polity_type", 1L,
+    "identity_lookup",
+    "A polity code already names its own period (`JPN-1952-2025`), and its
+     type is an attribute of that period; the dedup IS the resolution, and the
+     function aborts if one code carries two types.",
+    ".level_ragged_coverage", "summarise", "lon, lat, area_code", 2L,
+    "diagnostic",
+    "The two reductions behind the ragged-coverage report of the same name --
+     the granted country's unit shares per cell and its level-0 share per
+     cell. See the join row for why neither side has a year.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it

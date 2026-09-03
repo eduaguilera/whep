@@ -164,7 +164,19 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 72 since whep#1000 T12, and it is a rise in the count against a fall in
+  # what matters. The level-aware grid this adds is MORE year-aware than the
+  # level-0 path it sits beside -- level 0 is a fixed 2015 snapshot, while a
+  # granted-depth compartment carries `start_year`/`end_year` and is filtered
+  # per simulation year -- and the three joins that arrive without a year are
+  # the kinds already admitted: the containment-edge lookup whose interval
+  # intersection immediately follows it, the per-country depth grant, and the
+  # cross-depth comparison that writes the ragged-coverage report.
+  # T25 (whep#1000) landed `.match_admin_overrides`'s two override lookups,
+  # both `time_invariant`: a per-container policy stated once, with no year
+  # to key on. 72 -> 74.
+  expect_lte(sum(baseline$n), 74L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -251,11 +263,20 @@ test_that("every year-free territorial grouping is classified", {
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
   #
-  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # 86 since whep#1000 T12: five groupings across four keys, all of them one of
+  # the admitted five. `.level_container_land()` is `single_year` (it sums a
+  # support already filtered to one year), `.level_polity_types()` is the
+  # polity -> type identity dedup, and the three behind decision 10's
+  # assertions are `diagnostic` -- they allocate nothing, and
+  # `.level_compartment_shares()` REFUSES a share that differs between two of a
+  # compartment's own intervals rather than summing across them, so the missing
+  # year is an assertion rather than an oversight.
+  #
+  # 85 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
   # down with the row.
-  expect_lte(sum(full$n), 80L)
+  expect_lte(sum(full$n), 85L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
