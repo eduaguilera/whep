@@ -1,5 +1,41 @@
 # whep (development version)
 
+* **The four LPJmL-derived pins now come from the 1750-2023 run (LPJmL
+  6.1.1, 300-year spin-up, WHEP's own inputs, pre-industrial v2), and
+  natural land's carbon input defaults to litterfall.** `lpjml-grass-availability`,
+  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
+  `lpjml-soc-hydrology` were regenerated together from that one run through
+  `regenerate_whep_lpjml_pins()` and published on 2026-09-03 (versions
+  `20260903T061045Z-32e78`, `-061130Z-3db6b`, `-061148Z-9d6ff`,
+  `-061246Z-91aa7`); `whep_inputs` points at them and
+  `validation/gt_lpjml_pins.json` is re-recorded (first year 1750, row
+  counts roughly doubled; the 2000/2010 means move by -3.2%, -3.4%, -2.1%
+  and +0.1% respectively against the 1901-2023 run they replace, the size of
+  the model-version and spin-up change, not a bug). Every WHEP user who does
+  not run LPJmL therefore reads the new model version in the feed,
+  soil-carbon and water chains at once, as the single entry point requires.
+
+  With litterfall on the pin, `build_grass_natural_carbon_inputs()` and
+  everything downstream default to `method_natural_c = "litterfall"`:
+  natural land's soil input is what the model returns to the soil
+  (`litfallc_nv`), not its whole primary production. **This is a large
+  change for natural land**: the per-cell ratio has a median of 0.844 at
+  2010, but weighted by LUH2 natural area the litter mass is **0.648** of
+  the production mass (0.632 at 2000), because the most productive cells
+  retain the most as growing biomass; the natural class's area-weighted
+  mean input falls from 8.1 to 5.2 MgC/ha/yr and its equilibrium soil
+  carbon with it. The per-cell ratio declines from 0.902 in the 1750s to
+  0.838 in the 2000s, so production as the input would have carried a
+  CO2-fertilisation trend into the soil. A tail of near-zero-production
+  cells carries litter above production (ratio above 2 on 3.2% of natural
+  area, 0.7% of the litter mass) and is left as the run wrote it.
+  Production stays selectable (`"npp"`) and both are recorded in
+  `method_c_input`; the example fixtures follow the default. One rule
+  closes a pin artefact: the run masks litter where no natural PFT grows,
+  so litterfall is NA on exactly the zero-production cells (612 of 58,795
+  natural rows at 2000, none with production and no litter); those become
+  zero, while an NA on a producing cell would stay NA as a visible gap.
+
 * **The soil carbon balance can march crop GROUPS as land-use classes**
   (`crop_groups = list(method = "spain_hist")` on `build_carbon_inputs()`
   and `build_carbon_balance()`), the Spain_Hist convention adopted as a

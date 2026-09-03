@@ -45,14 +45,26 @@
 #' natural land (both from [residue_humification]).
 #'
 #' @param method_natural_c Which LPJmL quantity is natural land's carbon
-#'   input. `"npp"` (default) is the natural PFTs' whole primary production;
-#'   `"litterfall"` is `litfallc_nv`, what the model actually returns to the
-#'   soil, excluding the increment retained in living biomass and what fire
-#'   and land conversion remove. Litterfall is the physically correct soil
-#'   input and runs 0.917 times production on near-pure natural cells at 2010
-#'   (0.844 across all cells carrying natural vegetation), but it needs a run
-#'   from 2026-08-27 or later, so the default stays `"npp"` while the
-#'   published pin predates those outputs. Recorded in `method_c_input`.
+#'   input. `"litterfall"` (default) is `litfallc_nv`, what the model
+#'   actually returns to the soil, excluding the increment retained in living
+#'   biomass and what fire and land conversion remove; `"npp"` is the natural
+#'   PFTs' whole primary production, the previous default. Litterfall is the
+#'   physically correct soil input, and it is a good deal smaller than
+#'   production where it matters: on the published pin at 2010 the per-cell
+#'   ratio has a median of 0.844 across cells carrying natural vegetation,
+#'   but weighted by LUH2 natural area the litter MASS is 0.648 of the
+#'   production mass (0.632 at 2000), because the most productive cells
+#'   retain the largest share of their production as growing biomass. The
+#'   natural class's area-weighted mean input therefore falls from 8.1 to
+#'   5.2 MgC/ha/yr, and its equilibrium soil carbon with it. The per-cell
+#'   ratio declines from 0.902 in the 1750s to 0.838 in the 2000s, so
+#'   production as the input would carry a CO2-fertilisation trend into the
+#'   soil. A tail of cells with almost no production carries litter above
+#'   production (ratio above 2 on 3.2% of natural area, holding 0.7% of the
+#'   litter mass); it is left as the run wrote it. The
+#'   `lpjml-grass-natural-net-c` pin carries litterfall since its 2026-09-03
+#'   version (the 1750-2023 run); an older pin or run aborts naming the
+#'   missing column rather than falling back. Recorded in `method_c_input`.
 #' @param method_natural_hf How natural land's humification fraction is set.
 #'   `"woody_share"` (default) carbon-weights the [residue_humification]
 #'   woody and herbaceous coefficients by the share of each cell-year's
@@ -101,7 +113,7 @@
 build_grass_natural_carbon_inputs <- function(
   resolution = c("grid", "polity"),
   method_natural_hf = c("woody_share", "woody"),
-  method_natural_c = c("npp", "litterfall"),
+  method_natural_c = c("litterfall", "npp"),
   data = list(),
   years = NULL,
   run_dir = NULL,
@@ -410,7 +422,7 @@ build_grass_natural_carbon_inputs <- function(
 .gn_natural_input <- function(
   d,
   method_natural_hf = "woody_share",
-  method_natural_c = "npp"
+  method_natural_c = "litterfall"
 ) {
   hf_woody <- .gn_humified(d$residue_humification, "woody_residue")
   hf_herb <- .gn_humified(d$residue_humification, "weed")
@@ -418,6 +430,7 @@ build_grass_natural_carbon_inputs <- function(
   hf <- .gn_natural_hf(rows, method_natural_hf, hf_woody, hf_herb)
   column <- .gn_natural_c_column(rows, method_natural_c)
   rows |>
+    .gn_zero_litter_without_production(column) |>
     dplyr::rename(c_input_mgc_ha_yr = dplyr::all_of(column)) |>
     dplyr::select(
       -dplyr::any_of(
@@ -436,6 +449,33 @@ build_grass_natural_carbon_inputs <- function(
       # production -- the term that sets its equilibrium (whep#799).
       method_c_input = paste0("lpjml_", method_natural_c)
     )
+}
+
+# A natural stand that produced nothing dropped nothing. The pin's litterfall
+# is NA, not zero, on the cells whose natural NPP is zero (612 of 58,795
+# natural rows at 2000, every one of them at zero production; none with
+# production and no litter), because the run masks its litter output where
+# no natural PFT grows. Left as NA, those cells would carry an NA input into
+# the balance where production books a zero. So the NA is closed to zero
+# ONLY where production is exactly zero; a missing litter value on a cell
+# that did produce stays NA, as a gap to be seen rather than absorbed.
+.gn_zero_litter_without_production <- function(rows, column) {
+  if (
+    column != "litterfall_c_mgc_ha_yr" ||
+      !rlang::has_name(rows, "npp_c_mgc_ha_yr")
+  ) {
+    return(rows)
+  }
+  dplyr::mutate(
+    rows,
+    litterfall_c_mgc_ha_yr = dplyr::if_else(
+      is.na(.data$litterfall_c_mgc_ha_yr) &
+        !is.na(.data$npp_c_mgc_ha_yr) &
+        .data$npp_c_mgc_ha_yr == 0,
+      0,
+      .data$litterfall_c_mgc_ha_yr
+    )
+  )
 }
 
 # Which column carries natural land's carbon input.

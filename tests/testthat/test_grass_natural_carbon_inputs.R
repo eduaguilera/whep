@@ -80,8 +80,15 @@
   d
 }
 
+# Production as the natural input, named on every call: these fixtures carry
+# per-PFT NPP and no litterfall, and the arithmetic they check is NPP's. The
+# package default is litterfall (see the method_natural_c section).
+.gn_build_npp <- function(...) {
+  whep::build_grass_natural_carbon_inputs(..., method_natural_c = "npp")
+}
+
 testthat::test_that("grid output has the documented schema and classes", {
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data()
   )
@@ -111,7 +118,7 @@ testthat::test_that("grid output has the documented schema and classes", {
 })
 
 testthat::test_that("natural C input sums the natural PFT bands", {
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -132,7 +139,7 @@ testthat::test_that("method 'woody' gives natural land the woody value", {
   # was carbon-weighted across the natural PFTs. It is now what
   # method_natural_hf = "woody" selects, and it must still be reachable
   # exactly, so a user can reproduce a pre-change build.
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     method_natural_hf = "woody",
     data = .gn_fixture_data(excreta = FALSE)
@@ -148,7 +155,7 @@ testthat::test_that("the default carbon-weights natural humification", {
   d <- .gn_fixture_data(excreta = FALSE)
   seam <- whep:::.gn_net_c_from_lpjml(d, years = NULL)
   d$net_c <- seam
-  out <- whep::build_grass_natural_carbon_inputs(resolution = "grid", data = d)
+  out <- .gn_build_npp(resolution = "grid", data = d)
   nat <- out[out$land_use == "natural", ]
   coef <- \(x) {
     whep::residue_humification$humified_fraction[
@@ -170,7 +177,7 @@ testthat::test_that("grassland humified fraction carbon-weights npp and excreta"
     whep::residue_humification$input_type == "excreta"
   ]
   # With no excreta the blend reduces to the weed (grass-litter) value.
-  gr0 <- whep::build_grass_natural_carbon_inputs(
+  gr0 <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -179,7 +186,7 @@ testthat::test_that("grassland humified fraction carbon-weights npp and excreta"
   # With grazing excreta added, each grassland cell's fraction is the
   # carbon-weighted blend of weed (litter) and the higher excreta coefficient,
   # so it sits strictly between the two and above the weed-only value.
-  gr1 <- whep::build_grass_natural_carbon_inputs(
+  gr1 <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = TRUE)
   )
@@ -190,7 +197,7 @@ testthat::test_that("grassland humified fraction carbon-weights npp and excreta"
 })
 
 testthat::test_that("grassland net C is floored at zero", {
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -205,7 +212,7 @@ testthat::test_that("grassland net C is floored at zero", {
 testthat::test_that("unit conversion is 100 gC/m2 = 1 MgC/ha", {
   data <- .gn_fixture_data(excreta = FALSE)
   # Cell B natural = 900 gC/m2 -> 9.0 MgC/ha.
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = data
   )
@@ -214,11 +221,11 @@ testthat::test_that("unit conversion is 100 gC/m2 = 1 MgC/ha", {
 })
 
 testthat::test_that("grazing excreta adds a per-ha density to grassland", {
-  with_ex <- whep::build_grass_natural_carbon_inputs(
+  with_ex <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = TRUE)
   )
-  without_ex <- whep::build_grass_natural_carbon_inputs(
+  without_ex <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -287,13 +294,13 @@ testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
   # The ISO3 form is a deprecated bridge (#463), so resolving it warns; this
   # test is about it still resolving rather than dropping the excreta carbon.
   testthat::expect_warning(
-    with_ex <- whep::build_grass_natural_carbon_inputs(
+    with_ex <- .gn_build_npp(
       resolution = "grid",
       data = d
     ),
     "deprecated"
   )
-  without_ex <- whep::build_grass_natural_carbon_inputs(
+  without_ex <- .gn_build_npp(
     resolution = "grid",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -309,7 +316,7 @@ testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
 })
 
 testthat::test_that("polity output aggregates area-weighted per class", {
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "polity",
     data = .gn_fixture_data(excreta = FALSE)
   )
@@ -416,7 +423,7 @@ testthat::test_that("real LPJmL run gives plausible C-input magnitudes", {
     data = list(country_grid = country_grid)
   )
   land_use <- land_use[land_use$land_use == "grassland", ]
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = list(
       npp = npp,
@@ -484,7 +491,7 @@ testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
 # the pinned and run-derived paths would silently disagree.
 
 testthat::test_that("net_c seam reproduces the per-PFT path exactly", {
-  from_pfts <- whep::build_grass_natural_carbon_inputs(
+  from_pfts <- .gn_build_npp(
     data = .gn_fixture_data()
   )
   seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
@@ -493,7 +500,7 @@ testthat::test_that("net_c seam reproduces the per-PFT path exactly", {
   d$harvestc <- NULL
   d$stand_frac <- NULL
   d$net_c <- seam
-  from_seam <- whep::build_grass_natural_carbon_inputs(data = d)
+  from_seam <- .gn_build_npp(data = d)
   testthat::expect_equal(from_seam, from_pfts)
 })
 
@@ -523,9 +530,9 @@ testthat::test_that("excreta still changes the result through the seam", {
   with_ex$net_c <- seam
   without <- .gn_fixture_data(excreta = FALSE)
   without$net_c <- seam
-  a <- whep::build_grass_natural_carbon_inputs(data = with_ex) |>
+  a <- .gn_build_npp(data = with_ex) |>
     dplyr::filter(land_use == "grassland")
-  b <- whep::build_grass_natural_carbon_inputs(data = without) |>
+  b <- .gn_build_npp(data = without) |>
     dplyr::filter(land_use == "grassland")
   testthat::expect_gt(sum(a$c_input_mgc_ha_yr), sum(b$c_input_mgc_ha_yr))
   testthat::expect_false(isTRUE(all.equal(
@@ -547,7 +554,7 @@ testthat::test_that("data$net_c takes precedence over run and pin", {
     0.25, 0.25, 2000L, "grassland", 2,
     0.25, 0.25, 2000L, "natural", 5
   )
-  out <- whep::build_grass_natural_carbon_inputs(data = d)
+  out <- .gn_build_npp(data = d)
   testthat::expect_equal(
     dplyr::filter(out, land_use == "natural")$c_input_mgc_ha_yr,
     5
@@ -558,7 +565,7 @@ testthat::test_that("a malformed net_c input is rejected by name", {
   d <- .gn_fixture_data()
   d$net_c <- tibble::tibble(lon = 0.25, lat = 0.25, year = 2000L)
   testthat::expect_error(
-    whep::build_grass_natural_carbon_inputs(data = d),
+    .gn_build_npp(data = d),
     "land_use"
   )
 })
@@ -644,7 +651,7 @@ testthat::test_that("an all-managed file reports no natural bands", {
 testthat::test_that("the three 6.x bands are summed into natural C input", {
   fixture <- .gn_fixture_data(excreta = FALSE)
   fixture$npp <- .gn_npp_fixture_611()
-  out <- whep::build_grass_natural_carbon_inputs(
+  out <- .gn_build_npp(
     resolution = "grid",
     data = fixture
   )
@@ -757,7 +764,7 @@ testthat::test_that("a layer without woody_share falls back loudly", {
 
 testthat::test_that("build_grass_natural_carbon_inputs validates the method", {
   testthat::expect_error(
-    whep::build_grass_natural_carbon_inputs(method_natural_hf = "guess"),
+    .gn_build_npp(method_natural_hf = "guess"),
     class = "rlang_error"
   )
 })
@@ -783,7 +790,7 @@ testthat::test_that("the natural output drops woody_share after using it", {
   )
 }
 
-testthat::test_that("the default keeps natural land on production", {
+testthat::test_that("the default puts natural land on litterfall", {
   d <- .gn_fixture_data()
   d$npp <- NULL
   d$harvestc <- NULL
@@ -791,11 +798,19 @@ testthat::test_that("the default keeps natural land on production", {
   d$net_c <- .gn_net_c_both()
   out <- whep::build_grass_natural_carbon_inputs(data = d) |>
     dplyr::filter(land_use == "natural")
-  testthat::expect_equal(out$c_input_mgc_ha_yr, 5)
-  testthat::expect_identical(unique(out$method_c_input), "lpjml_npp")
+  testthat::expect_equal(out$c_input_mgc_ha_yr, 4)
+  testthat::expect_identical(unique(out$method_c_input), "lpjml_litterfall")
   # The unused quantity must not survive into the output as a stray column.
   testthat::expect_false("litterfall_c_mgc_ha_yr" %in% names(out))
   testthat::expect_false("npp_c_mgc_ha_yr" %in% names(out))
+  # Production stays selectable, and says so.
+  npp <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_natural_c = "npp"
+  ) |>
+    dplyr::filter(land_use == "natural")
+  testthat::expect_equal(npp$c_input_mgc_ha_yr, 5)
+  testthat::expect_identical(unique(npp$method_c_input), "lpjml_npp")
 })
 
 testthat::test_that("method_natural_c = litterfall switches the input", {
@@ -901,4 +916,39 @@ testthat::test_that("a cell with no natural stand gets no per-stand value", {
   )
   testthat::expect_identical(nrow(out), 1L)
   testthat::expect_true(is.na(out$litterfall_c_mgc_ha_yr))
+})
+
+testthat::test_that("litterfall NA on a cell with no production is zero litter", {
+  # The pin masks litter where no natural PFT grows, so NA sits exactly on
+  # the zero-NPP cells (612 of 58,795 natural rows at 2000). Those become 0;
+  # an NA on a producing cell stays NA rather than being absorbed.
+  d <- .gn_fixture_data()
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~litterfall_c_mgc_ha_yr,
+    ~woody_share,
+    0.25, 0.25, 2000L, "natural", 0, NA, 0.5,
+    0.75, 0.25, 2000L, "natural", 5, NA, 0.5,
+    0.25, 0.75, 2000L, "natural", 5, 4, 0.5
+  )
+  d$country_grid <- tibble::tibble(
+    lon = c(0.25, 0.75, 0.25),
+    lat = c(0.25, 0.25, 0.75),
+    area_code = 1L,
+    cell_area_frac = 1
+  )
+  out <- whep::build_grass_natural_carbon_inputs(data = d) |>
+    dplyr::filter(land_use == "natural") |>
+    dplyr::arrange(lat, lon)
+  testthat::expect_equal(out$c_input_mgc_ha_yr, c(0, NA, 4))
+  # Production is untouched by the rule.
+  npp <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_natural_c = "npp"
+  ) |>
+    dplyr::filter(land_use == "natural") |>
+    dplyr::arrange(lat, lon)
+  testthat::expect_equal(npp$c_input_mgc_ha_yr, c(0, 5, 5))
 })

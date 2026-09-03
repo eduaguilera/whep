@@ -11,7 +11,7 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
   method_natural_hf = c("woody_share", "woody"),
-  method_natural_c = c("npp", "litterfall"),
+  method_natural_c = c("litterfall", "npp"),
   data = list(),
   years = NULL,
   run_dir = NULL,
@@ -32,14 +32,26 @@ production at 2010. Falls back to \code{"woody"}, with a warning, when the
 net-carbon layer has no \code{woody_share} column.}
 
 \item{method_natural_c}{Which LPJmL quantity is natural land's carbon
-input. \code{"npp"} (default) is the natural PFTs' whole primary production;
-\code{"litterfall"} is \code{litfallc_nv}, what the model actually returns to the
-soil, excluding the increment retained in living biomass and what fire
-and land conversion remove. Litterfall is the physically correct soil
-input and runs 0.917 times production on near-pure natural cells at 2010
-(0.844 across all cells carrying natural vegetation), but it needs a run
-from 2026-08-27 or later, so the default stays \code{"npp"} while the
-published pin predates those outputs. Recorded in \code{method_c_input}.}
+input. \code{"litterfall"} (default) is \code{litfallc_nv}, what the model
+actually returns to the soil, excluding the increment retained in living
+biomass and what fire and land conversion remove; \code{"npp"} is the natural
+PFTs' whole primary production, the previous default. Litterfall is the
+physically correct soil input, and it is a good deal smaller than
+production where it matters: on the published pin at 2010 the per-cell
+ratio has a median of 0.844 across cells carrying natural vegetation,
+but weighted by LUH2 natural area the litter MASS is 0.648 of the
+production mass (0.632 at 2000), because the most productive cells
+retain the largest share of their production as growing biomass. The
+natural class's area-weighted mean input therefore falls from 8.1 to
+5.2 MgC/ha/yr, and its equilibrium soil carbon with it. The per-cell
+ratio declines from 0.902 in the 1750s to 0.838 in the 2000s, so
+production as the input would carry a CO2-fertilisation trend into the
+soil. A tail of cells with almost no production carries litter above
+production (ratio above 2 on 3.2\% of natural area, holding 0.7\% of the
+litter mass); it is left as the run wrote it. The
+\code{lpjml-grass-natural-net-c} pin carries litterfall since its 2026-09-03
+version (the 1750-2023 run); an older pin or run aborts naming the
+missing column rather than falling back. Recorded in \code{method_c_input}.}
 
 \item{data}{Named list of pre-loaded inputs, each falling back to its reader
 when absent: \code{net_c} (the LPJmL net carbon density, \code{lon}, \code{lat}, \code{year},

@@ -3,32 +3,32 @@
   "compare_years": [2000, 2010],
   "pins": {
     "lpjml-grass-availability": {
-      "n_rows": 5239855,
-      "first_year": 1901,
+      "n_rows": 11381483,
+      "first_year": 1750,
       "last_year": 2023,
-      "mean": 1.497873698378,
-      "median": 0.8131964091524
+      "mean": 1.44994214162,
+      "median": 0.7815379599867
     },
     "lpjml-grass-productivity": {
-      "n_rows": 6809326,
-      "first_year": 1901,
+      "n_rows": 15177600,
+      "first_year": 1750,
       "last_year": 2023,
-      "mean": 183.282793100573,
-      "median": 102.712291717529
+      "mean": 177.122382538211,
+      "median": 100.120276451111
     },
     "lpjml-grass-natural-net-c": {
-      "n_rows": 12577999,
-      "first_year": 1901,
+      "n_rows": 27753566,
+      "first_year": 1750,
       "last_year": 2023,
-      "mean": 6.515723439151,
-      "median": 5.050242689103
+      "mean": 6.381554801542,
+      "median": 4.829043840335
     },
     "lpjml-soc-hydrology": {
-      "n_rows": 86781420,
-      "first_year": 1901,
+      "n_rows": 193317960,
+      "first_year": 1750,
       "last_year": 2023,
-      "mean": 0.4661381981875,
-      "median": 0.495465233922
+      "mean": 0.4668321627646,
+      "median": 0.4970483481884
     }
   }
 }
