@@ -1789,3 +1789,66 @@
       recorded_at = "2026-09-02T00:00:00Z"
     )
 }
+
+# ---- admin_shares_pins.R (#1000) -----------------------------------------------------
+
+# Ten rows of the 2026-09-03 staged build: the five largest Japanese
+# rice-area prefectures of 2000, and the complete Bolivian cocoa-bean
+# harvested-area group of 2023, whose five shares sum to 1. Three
+# families are reported absent, which is the state of the board until the
+# pins are registered.
+.example_admin_family <- function() {
+  list(
+    "admin-stats-japan" = tibble::tribble(
+      ~source_native_unit_id, ~source_native_unit_name, ~value,
+      "JPN-HOKKAIDO", "Hokkaido", 134900,
+      "JPN-NIIGATA", "Niigata", 120700,
+      "JPN-AKITA", "Akita", 95600,
+      "JPN-MIYAGI", "Miyagi", 84300,
+      "JPN-FUKUSHIMA", "Fukushima", 82300
+    ) |>
+      dplyr::mutate(
+        source = "admin-stats-japan",
+        source_native_item_code = "27",
+        source_native_item_name = "Rice",
+        indicator_used = "area_harvested",
+        quantity = "area",
+        year = 2000L,
+        value_unit = "ha",
+        value_flag = NA_character_,
+        grain = "admin1",
+        nuts_version = NA_character_,
+        source_version = "NATIONAL_OFFICIAL:JPN:MAFF",
+        recorded_at = "2026-09-03T06:21:54Z"
+      ) |>
+      dplyr::select(dplyr::all_of(.admin_family_shape("admin-stats-japan"))),
+    "admin-stats-latam" = tibble::tribble(
+      ~source_native_unit_id, ~source_native_unit_name, ~share,
+      "BOL-LAPAZ", "La Paz", 0.792032501,
+      "BOL-COCHABAMBA", "Cochabamba", 0.091117913,
+      "BOL-BEN", "Beni", 0.089528663,
+      "BOL-PANDO", "Pando", 0.018272781,
+      "BOL-SANTACRUZ", "Santa Cruz", 0.009048142
+    ) |>
+      dplyr::mutate(
+        source = "admin-stats-latam",
+        source_native_item_code = "661",
+        source_native_item_name = "Cocoa beans",
+        indicator_used = "area_harvested",
+        quantity = "area",
+        year = 2023L,
+        value_unit = "ha",
+        value_flag = NA_character_,
+        grain = "admin1",
+        nuts_version = NA_character_,
+        source_version = "2026-05-21",
+        recorded_at = "2026-09-03T06:21:54Z"
+      ) |>
+      dplyr::select(dplyr::all_of(.admin_family_shape("admin-stats-latam"))),
+    not_shipped = c(
+      "admin-stats-spain-provinces",
+      "admin-stats-australia",
+      "admin-stats-france-livestock"
+    )
+  )
+}

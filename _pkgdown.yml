@@ -47,6 +47,14 @@ reference:
   - read_admin_stats_nass
   - read_admin_stats_eurostat
   - read_admin_stats_sidra
+  - read_admin_family
+  - resolve_admin_shares
+  - read_level_country_grid
+  - build_allocation_layer
+  - admin_coverage_prototype
+  - aggregate_unit_extent
+  - check_extent_jumps
+  - backcast_admin_shares
 
 - title: Polycell spatial support
   desc: >
