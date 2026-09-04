@@ -80,6 +80,17 @@
 #'   opposite case: [build_soil_carbon_inputs()] assembles residues, roots
 #'   and manure as separate terms, because a crop stand's roots are not an
 #'   LPJmL litterfall flux.
+#'
+#'   It is a gross accumulator, not a residual: LPJmL increments it wherever
+#'   carbon enters the litter pools (turnover, phenological shedding, root
+#'   exudates, reproduction, mortality, fire-killed but uncombusted biomass,
+#'   harvest residues). It excludes what land-use conversion releases, which
+#'   the model books separately as `litfallc_luc` and which is far from
+#'   small: on the same near-pure natural cells at 1755-1765 it is 14.3% of
+#'   natural NPP against litterfall's 88.2%. Excluding it is what WHEP
+#'   needs, because the balance derives its own land-use-change transfer
+#'   from LUH2 areas and its own stocks; counting the model's conversion
+#'   litter as a soil input as well would book that carbon twice.
 #' @param method_natural_hf How natural land's humification fraction is set.
 #'   `"woody_share"` (default) carbon-weights the [residue_humification]
 #'   woody and herbaceous coefficients by the share of each cell-year's
