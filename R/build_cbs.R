@@ -1464,28 +1464,157 @@ build_processing_coefs <- function(
   )
 }
 
+# The residue rows the CBS carries, and only those.
+#
+# This used to copy the whole residue PRODUCTION row and relabel the copy as a
+# use: `feed` for Straw and Other crop residues, `other_uses` for Firewood. So
+# 100% of residue production was booked as eaten or burned, with no recovery
+# rate and no feed-use fraction -- 7.21 Pg DM of residue feed at 2020, against
+# the ~1.3 Pg the package's own coefficients give, and 5.74 Pg of it reaching
+# feed availability, where it displaced pasture: grass demand was met as grass
+# only 37% of the time while residues ran at 202% of theirs.
+#
+# The balance now carries only the residue that LEAVES the field.
+# `production` is the recovered residue, `feed` its feed-use share and
+# `other_uses` the rest, so production = feed + other_uses exactly. What stays
+# on the field is not a commodity and never enters the balance; it reaches the
+# soil through `residue_soil_dm_t` on the crop-NPP path, which is what stops
+# the two sides of WHEP disagreeing about the same straw.
+#
+# Firewood is recovered like the others but is fuel, never feed, so its whole
+# recovered mass is `other_uses`. Keyed on the residue item CODE rather than
+# its name, unlike the name test this replaces.
+.residue_cbs_elements <- function(res) {
+  feed_items <- c(2105L, 2106L) # Straw, Other crop residues
+  split <- .residue_recovered_split(res)
+  base <- dplyr::select(split, -"value", -"recovered", -"feed_dm_t")
+  is_feed_item <- as.integer(split$item_cbs_code_residue) %in% feed_items
+  dplyr::bind_rows(
+    dplyr::mutate(base, element = "production", value = split$recovered),
+    dplyr::mutate(
+      base,
+      element = "feed",
+      value = dplyr::if_else(is_feed_item, split$feed_dm_t, 0)
+    ),
+    dplyr::mutate(
+      base,
+      element = "other_uses",
+      value = dplyr::if_else(
+        is_feed_item,
+        split$recovered - split$feed_dm_t,
+        split$recovered
+      )
+    )
+  ) |>
+    dplyr::filter(.data$value > 0)
+}
+
+# Recovered residue and its feed share, per row of `get_primary_residues()`.
+#
+# `calculate_residue_destinies()` keys on `item_prod_code` (for the Krausmann
+# recovery category) while the pinned residue table is keyed on the CBS crop
+# item, so each row is bridged to the category (or categories) its CBS code
+# covers. The bridge is 1:1 for 72 of the 73 CBS codes that carry a category;
+# only 2570 spans two (Castor Beans and Rapeseed), and its mass is split
+# evenly between them rather than being assigned to whichever came first.
+# The representative `item_prod_code` per category is exact, not an
+# approximation: the destiny function reads nothing else from it.
+.residue_recovered_split <- function(res) {
+  res <- dplyr::mutate(
+    res,
+    item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
+    .residue_row = dplyr::row_number()
+  )
+  dest <- res |>
+    dplyr::left_join(
+      .residue_krausmann_bridge(),
+      by = "item_cbs_code_crop",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::left_join(.residue_destiny_regions(), by = "area_code") |>
+    dplyr::mutate(
+      residue_dm_t = .data$value / dplyr::n(),
+      .by = ".residue_row"
+    ) |>
+    calculate_residue_destinies() |>
+    dplyr::summarise(
+      recovered = sum(
+        .data$residue_feed_dm_t + .data$residue_burn_dm_t,
+        na.rm = TRUE
+      ),
+      feed_dm_t = sum(.data$residue_feed_dm_t, na.rm = TRUE),
+      .by = ".residue_row"
+    )
+  out <- dplyr::left_join(res, dest, by = ".residue_row")
+  .warn_unrecovered_residue(out)
+  dplyr::select(out, -".residue_row")
+}
+
+# CBS crop item -> a representative production item for each Krausmann
+# recovery category it covers.
+.residue_krausmann_bridge <- function(items = whep::items_prod_full) {
+  items |>
+    dplyr::filter(!is.na(.data$Cat_Krausmann)) |>
+    dplyr::distinct(
+      .data$item_cbs_code,
+      .data$Cat_Krausmann,
+      .keep_all = TRUE
+    ) |>
+    dplyr::transmute(
+      item_cbs_code_crop = as.integer(.data$item_cbs_code),
+      item_prod_code = as.character(.data$item_prod_code)
+    )
+}
+
+# The two regional vocabularies the destiny split needs, per area_code:
+# Krausmann for the recovery rate, UN M49 sub-region for the feed-use
+# fraction. They are different vocabularies on purpose (see
+# .residue_destiny_krausmann): region_UN_sub -> region_HANPP is not 1:1.
+.residue_destiny_regions <- function(regions = whep::regions_full) {
+  regions |>
+    dplyr::transmute(
+      area_code = .data$code,
+      region_krausmann = .data$region_krausmann,
+      region_un_sub = .data$region_UN_sub
+    ) |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+}
+
+# Residue whose crop reaches no Krausmann recovery category gets recovery 0
+# (`.residue_destiny_krausmann()` replaces the missing rate with zero), so all
+# of it stays on the field and it leaves the balance entirely. That is the
+# right default -- inventing a recovery rate would be worse -- but it is mass
+# leaving the CBS, so it is said out loud rather than simply not appearing.
+.warn_unrecovered_residue <- function(out) {
+  gone <- out[!is.na(out$recovered) & out$recovered == 0 & out$value > 0, ]
+  if (nrow(gone) == 0) {
+    return(invisible(NULL))
+  }
+  items <- sort(unique(gone$item_cbs_code_crop))
+  cli::cli_warn(c(
+    "{nrow(gone)} crop-residue row{?s} recover nothing, so they carry no CBS
+     production: {round(sum(gone$value, na.rm = TRUE) / 1e6)} Mt over
+     {length(items)} crop item{?s}.",
+    i = "Their crop reaches no {.field Cat_Krausmann} recovery category, so
+         the whole residue is left on the field and reaches the soil rather
+         than the balance."
+  ))
+  invisible(NULL)
+}
+
 .read_crop_residues <- function(years = NULL) {
   items_prod <- whep::items_prod_full
 
   res <- get_primary_residues() |>
-    .filter_years(years)
+    .filter_years(years) |>
+    .residue_cbs_elements()
 
   # Map back to item_cbs names for CBS integration
-  res <- res |>
-    dplyr::mutate(element = "production") |>
-    add_item_cbs_name(code_column = "item_cbs_code_residue") |>
+  res <- add_item_cbs_name(res, code_column = "item_cbs_code_residue") |>
     dplyr::rename(item_cbs = item_cbs_name)
 
   dt <- data.table::as.data.table(res)
-  dt_extra <- data.table::copy(dt)
-  dt_extra[,
-    element := data.table::fifelse(
-      item_cbs %in% c("Straw", "Other crop residues"),
-      "feed",
-      "other_uses"
-    )
-  ]
-  dt <- data.table::rbindlist(list(dt, dt_extra), use.names = TRUE, fill = TRUE)
   dt <- dt[!is.na(item_cbs)]
 
   items_bridge <- data.table::as.data.table(items_prod)[,
