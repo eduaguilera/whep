@@ -42,13 +42,20 @@ second application of \code{Edible_portion}. Applying \code{Edible_portion} agai
 here would double-discount.
 }
 \examples{
+# The head count is a round illustrative value, not a historical figure;
+# the year and province are picked to match the toy destiny fixture.
 population <- tibble::tibble(
-  year = 2020,
-  province_name = "Spain",
-  population = 47.35e6
+  year = 1862,
+  province_name = "Huesca",
+  population = 250000
 )
 build_food_protein_destiny(
   create_n_prov_destiny(example = TRUE),
   population
+)
+build_food_protein_destiny(
+  create_n_prov_destiny(example = TRUE),
+  population,
+  protein_basis = "whole_commodity"
 )
 }
