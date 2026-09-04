@@ -1804,7 +1804,7 @@ create_grafs_plot_df <- function(example = FALSE) {
 # included for the (currently negligible) rows that target grassland instead.
 #
 # The four input labels are built from the edible-basis population_food
-# destiny (.split_food_inedible_loss(), n_prov_destiny.R): its
+# destiny that .split_food_inedible_loss() in n_prov_destiny.R emits. Its
 # population_food_inedible remainder is not part of what the population
 # consumes, so it is deliberately excluded here too -- it now has its own
 # arrows ({CRP_PROCLOSS}, {LVSTCK_INEDIBLE}) leaving Cropland/Livestock
