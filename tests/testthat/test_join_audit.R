@@ -176,7 +176,17 @@ test_that("the enumerated baseline can only shrink", {
   # T25 (whep#1000) landed `.match_admin_overrides`'s two override lookups,
   # both `time_invariant`: a per-container policy stated once, with no year
   # to key on. 72 -> 74.
-  expect_lte(sum(baseline$n), 74L)
+  #
+  # 79 since whep#1000 T29, and none of the five is a year-blind read. Four of
+  # them key on `seam_year`, `y1` or `y2`, which ARE years -- the audit sees a
+  # year-free key only because it looks for a column spelled `year` -- and the
+  # fifth pair (`.sg_scan_one_pair`) joins two cuts of one frame already
+  # filtered to the two years of the window being scanned. Both sides of every
+  # one of the five descend from the same `seam_gate()` call's own `gates`
+  # frame or from `plan` itself, so none can cross a succession, and the gate
+  # is `diagnostic` in the strongest sense the class has: it aborts nothing,
+  # repairs nothing and returns evidence for a release decision.
+  expect_lte(sum(baseline$n), 79L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -272,11 +282,21 @@ test_that("every year-free territorial grouping is classified", {
   # compartment's own intervals rather than summing across them, so the missing
   # year is an assertion rather than an oversight.
   #
+  # 90 since whep#1000 T29: the seam gate's four, in three signatures. Two key
+  # on `seam_year`, which is the year the gated pair straddles, so they group
+  # across no time at all -- `.sg_tier_c()`'s `distinct()` collapses the seam
+  # list's ITEM dimension, which is tier C's documented contract, and
+  # `.sg_regime_mismatch()`'s `count()` runs on rows already reduced to that
+  # seam's own two years. The other two are `single_year`: both counts inside
+  # `.sg_scan_one_pair()` sit on a frame the caller has already cut to one
+  # (y1, y2) window. All four are gate machinery, and the gate moves no
+  # published value.
+  #
   # 85 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
   # down with the row.
-  expect_lte(sum(full$n), 85L)
+  expect_lte(sum(full$n), 89L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

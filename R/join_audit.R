@@ -323,7 +323,31 @@
     ".match_admin_overrides", "left_join", "area_code, item_prod_code", 1L,
     "time_invariant",
     "The item-specific form of the same policy lookup, joined before the
-     container-wide one so the more specific row wins (whep#1000 T25)."
+     container-wide one so the more specific row wins (whep#1000 T25).",
+    ".sg_regime_mismatch", "left_join", "area_code, seam_year", 1L,
+    "diagnostic",
+    "Both sides are derivations of the SAME
+     `distinct(seams, area_code, seam_year)` frame of one `seam_gate()` call
+     -- `wanted`, and so `mismatched`, is built from `gates` -- so the key
+     cannot cross a succession. `seam_year` is itself a year, the one the
+     gated pair straddles, so the join is year-keyed in substance and the
+     audit misses it only because the column is not spelled `year`
+     (whep#1000 T29).",
+    ".sg_scan_one_pair", "left_join", "area_code", 2L, "single_year",
+    "Both counted sides are `scored` cut to `year %in% c(from, to)` and to
+     `codes` in the lines just above, and the left side is those same `codes`
+     with `y1`/`y2` stamped on them. The scan runs ONE two-year window at a
+     time, so the years are constants of the call and are carried out of it
+     rather than missing from it (whep#1000 T29).",
+    ".sg_tier_c_gate", "left_join", "area_code, seam_year", 1L, "diagnostic",
+    "`plan` and `regime` are both built from the one `gates` frame of the same
+     `.sg_tier_c()` call, and `seam_year` is the year. Same argument as
+     `.sg_regime_mismatch` above; tier C reports and repairs nothing.",
+    ".sg_tier_c_gate", "left_join", "area_code, y1, y2", 1L, "diagnostic",
+    "`rates` is scanned over `distinct(plan, y1, y2)`, so the right side is
+     derived from the left and the two cannot disagree about a territory.
+     `y1` and `y2` ARE the pair's two years, which makes this key year-aware
+     in substance exactly as `.attach_mapping_source`'s period key is."
   )
 }
 
@@ -730,7 +754,26 @@
     "row_promotion_status", "summarise", "area_code, area_name, area_iso3c", 1L,
     "diagnostic",
     "`n_periods = n()` over an area's crosswalk periods, for the promotion
-     report. The two name columns are attributes of the code, carried through."
+     report. The two name columns are attributes of the code, carried through.",
+    ".sg_regime_mismatch", "count", "area_code, seam_year", 1L, "diagnostic",
+    "Counts, per (container, seam), the cell series whose within-unit weight
+     regime differs across the seam. Every counted row has already been
+     reduced over exactly the two years of that seam (`n_years == 2L`), and
+     `seam_year` is the year, so nothing collapses across time. It reaches no
+     value: a regime flip sets tier C's `reason`, and `seam_gate()` repairs
+     nothing (whep#1000 T29).",
+    ".sg_scan_one_pair", "count", "area_code", 2L, "single_year",
+    "`both` and `flags` are the one (y1, y2) window the caller passed in, cut
+     from `scored` two lines above, so each count is within that window and the
+     years ride out on `y1`/`y2`. Same scope as the join rows of the same
+     name.",
+    ".sg_tier_c", "distinct", "area_code, seam_year", 1L, "diagnostic",
+    "Reduces the resolver's per-ITEM seam list to the (container, seam year)
+     gates tier C is keyed on, which is its documented contract rather than an
+     omission: the crop-level engine output carries `crop_name` and no
+     `item_prod_code`, so there is nothing to join a per-item seam to.
+     `seam_year` is the year, so the dedup collapses the ITEM dimension and
+     never a year (whep#1000 T29)."
   )
 }
 

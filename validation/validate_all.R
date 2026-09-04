@@ -487,5 +487,49 @@ if (length(adt_metric) != 1L || grepl("status=skipped", adt_metric)) {
   )
 }
 
+# B. seam gate (internal, on a spatialization run) ----------------------------
+# T29 (#1000): whether a back-cast admin-share table and the cells it produced
+# are continuous across every seam the resolver found. It reads one existing
+# run_spatialize() output directory and nothing else, so the sweep reports
+# "not run" rather than starting a build when WHEP_SPATIALIZE_OUT_DIR is unset.
+asg_out <- if (nzchar(Sys.getenv("WHEP_SPATIALIZE_OUT_DIR"))) {
+  system2(
+    "Rscript",
+    "validation/admin_seam_gate.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+asg_metric <- grep("^METRIC", asg_out, value = TRUE)
+if (length(asg_metric) != 1L || grepl("status=skipped", asg_metric)) {
+  add(
+    "admin_seam_gate",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: WHEP_SPATIALIZE_OUT_DIR unset (needs a spatialization run)"
+  )
+} else {
+  asg_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", asg_metric))
+  }
+  add(
+    "admin_seam_gate",
+    "internal",
+    asg_num("n_tier_c_gates"),
+    asg_num("n_tier_c_gates") - asg_num("n_gate_failures"),
+    asg_num("n_gate_failures"),
+    sprintf(
+      "seam continuity over %d seam(s) of %d kind(s); %d recorded row(s) moved",
+      asg_num("n_seams"),
+      asg_num("n_seam_kinds"),
+      asg_num("n_moved")
+    )
+  )
+}
+
 cat("\n=== WHEP validation scorecard ===\n")
 dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)

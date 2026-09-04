@@ -60,6 +60,8 @@ a hardcoded grid.
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
 | `admin_drift_tvd.R` | Sizes the within-country geography a spatialization pattern frozen at one reference year cannot represent (#1000): total variation distance between an admin-unit share vector and its reference year, on observed subnational statistics. Also emits the per-source discrepancy and gap-year distributions the allocation policy is decided against. Needs `WHEP_SUBNATIONAL`; skips with a message when unset. See below. |
 | `gt_admin_drift.json` | Recorded state of that measurement per country × indicator × reference year × year, plus the gap-year and discrepancy summaries. **Committed** — a tripwire, meant to fail when the compiled panel changes. |
+| `admin_seam_gate.R` | Judges one `run_spatialize()` output for seam continuity (#1000): the three-tier `seam_gate()` — anchor identity, seam log-ratios against the observed distribution, cell-share jump rates around each seam — plus a derived window scan. Reads one local output directory; needs `WHEP_SPATIALIZE_OUT_DIR`, skips with a message when unset. See below. |
+| `gt_admin_seam_gate.json` | Recorded state of that gate per container × seam year. **Committed once a real run has been recorded** — a tripwire, meant to fail when the allocation moves. Absent until then. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -212,6 +214,72 @@ This **extends** `subnational.workflow.js` / `compare_findings.R` rather than
 replacing them. Those score WHEP's *national* value against subnational
 statistics summed to a national total; this one never uses a national value as
 skill, and reads a different artifact.
+
+## Seam gate (`admin_seam_gate.R`)
+
+The subnational-spatialization plan's decision 6 is that a series must be
+continuous across every **seam** — the year a country's admin constraint
+starts, and every source, grain, NUTS-version, coverage or indicator switch
+after it. `seam_gate()` is the judge, in three tiers documented on the function
+itself:
+
+- **A, identity at the anchor.** At each series' `t0` the table still holds the
+  observation: every unit's row is observed, the shares sum to 1 within 1e-8,
+  each share equals its own reported value's share, and `t0` is the `"start"`
+  seam the resolver named.
+- **B, the governed quantity.** The seam log-ratio
+  `|log(s_u(t0) / s_u(t0 - 1))|` of every unit at every seam year, against the
+  empirical distribution of that series' **observed** consecutive log-ratios
+  pooled over its units, gated pairs held out. The statistic is the fraction of
+  gated pairs beyond Q95, per container, judged against
+  `0.05 + 2 * sqrt(0.05 * 0.95 / n)` — the upper band of a binomial proportion
+  under the null that a seam pair is an ordinary pair.
+- **C, cell smoke.** `check_series_jumps()` on each cell's share of the national
+  total across `(t0-2, t0-1)`, `(t0-1, t0)` and `(t0, t0+1)`, one pair at a
+  time, cells under 100 ha in both years dropped first. The gate is that the
+  seam pair's flag rate exceeds its neighbours' mean by at most one percentage
+  point. Where the cells carry a `regime` column it must be identical on both
+  sides of the seam.
+
+This script is the live leg. It reads **one existing** `run_spatialize()`
+output directory and nothing else — no pin, no network, no rebuild:
+
+```bash
+WHEP_SPATIALIZE_OUT_DIR=<run dir> Rscript validation/admin_seam_gate.R
+WHEP_SPATIALIZE_OUT_DIR=... Rscript validation/admin_seam_gate.R --record
+WHEP_SPATIALIZE_OUT_DIR=... Rscript validation/admin_seam_gate.R --perturb
+```
+
+`gridded_landuse_crops.parquet` supplies tier C's cells (never the CFT
+aggregation, whose rows pool several items) and `admin_coverage.csv` supplies
+the seam list, rebuilt with the resolver's own `.admin_seam_list()`. That file
+carries no indicator and no NUTS version, so **two of the six seam kinds cannot
+be recovered from it**; point `VAL_ASG_SEAMS` at the resolver's own `seams`
+table to gate those too. Tiers A and B additionally need the back-cast share
+table (`VAL_ASG_SHARES`), which `run_spatialize()` does not write today — with
+it unset the script runs tier C alone and says so.
+
+Beyond the seam pairs, the script runs a **window scan**: tier B over every
+consecutive pair from `VAL_ASG_WINDOW` years (default 2) before each series'
+first seam to one year after it. The window is derived from that series' own
+first constrained year, so a country whose statistics start in 1974 and one
+that starts in 1850 each get their own; no year is written down anywhere in the
+gate or the script.
+
+`--perturb` (or `VAL_ASG_PERTURB=<factor>`) scales every other cell of each
+container and crop from the seam year onwards. A *flat* scale would cancel in
+the cell share and prove nothing, so the tripwire distorts the within-country
+shape at the seam and nowhere else, which is exactly the artefact tier C
+exists to catch. The default factor is 3 rather than something smaller because
+scaling half the mass by `f` renormalises the shares by about `(f + 1) / 2`,
+leaving the untouched half's ratio at about `2 / (f + 1)`, which only clears
+`check_series_jumps()`'s low bound of 0.55 once `f > 2.64`. The script aborts
+if a perturbed run moves no recorded row: a tripwire that fires on nothing has
+proved nothing.
+
+`gt_admin_seam_gate.json` does not exist until someone records a real run —
+`--record` writes it, and the plain run then judges every measured row against
+it and exits non-zero when one moves.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 
