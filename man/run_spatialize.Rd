@@ -63,7 +63,10 @@ out of the admin constraint, as a named list such as
 by the admin-shares resolver; it does not by itself change a run that
 has no admin constraint wired.
 \item \code{livestock_proxy}: one of \code{"luh2"} (default) or \code{"glw3"}, forwarded
-to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{proxy_method}.
+to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{proxy_method}. Under \code{"glw3"} the
+density table is read with \code{\link[=read_glw_density]{read_glw_density()}}, which needs a
+\code{WHEP_GLW3_DIR} tree and aborts without one; under \code{"luh2"} it is
+not read at all.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
@@ -127,6 +130,8 @@ Livestock (\code{components} contains \code{"livestock"}):
 \item \code{manure_pattern.parquet} (optional, enables
 manure-intensity weighting if present).
 \item \code{livestock_mapping.csv} from the installed package.
+\item The GLW3 rasters under \code{WHEP_GLW3_DIR}, read only when
+\code{livestock_proxy = "glw3"} (see \code{\link[=read_glw_density]{read_glw_density()}}).
 }
 }
 

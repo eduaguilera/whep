@@ -228,13 +228,16 @@ column records is the weighting regime the group ran under.
 }
 
 The default stays \code{"luh2"} even though \code{"glw3"} is the better-informed
-proxy. WHEP has no data mechanism for GLW3 yet -- no download script,
-env var, pin or reader (whep#1000, task T15a-ii) -- so a \code{"glw3"}
-default would abort every production run. This is a deliberate,
-documented deviation from "the default is the most rigorous available
-method", of the same shape as the interim \code{area_key = "grid"} default
-in \code{R/spatialize_compartments.R}; whep#1000 task T20 is the gate that
-revisits it.
+proxy. GLW3 now has a data mechanism -- \code{\link[=read_glw_density]{read_glw_density()}}, the
+\code{WHEP_GLW3_DIR} environment variable and
+\code{inst/scripts/download/download_glw3.R} (whep#1000, task T15a-ii) --
+but it is an opt-in local raster set, so a \code{"glw3"} default would abort
+every run on a machine that has not fetched it, and GLW3 covers nine of
+the eleven species groups (not \code{camels}, not \code{other}). This is a
+deliberate, documented deviation from "the default is the most rigorous
+available method", of the same shape as the interim \code{area_key = "grid"}
+default in \code{R/spatialize_compartments.R}; whep#1000 task T20 is the gate
+that revisits it.
 }
 
 \section{Species groups must be mapped, not guessed}{

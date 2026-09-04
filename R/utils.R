@@ -2270,6 +2270,46 @@ utils::globalVariables(
 #   exists",
     "indicator_switch",
     "source_name",
-    "run_length"
+    "run_length",
+    # admin_shares_gate.R (#1000) — three-tier seam gate on a back-cast
+    # share table (identity at the anchor, seam log-ratio vs. the
+    # observed distribution, cell-level smoke test)
+    "beyond_quantile",
+    "flag_rate",
+    "flag_rate_next",
+    "flag_rate_prev",
+    "flag_rate_seam",
+    "frac_beyond",
+    "gate_status",
+    "max_ha",
+    "n_beyond",
+    "n_flag",
+    "n_gated",
+    "n_reference",
+    "n_regime",
+    "n_regime_mismatch",
+    "n_series",
+    "n_years",
+    "neighbour_rate",
+    "prev_share",
+    "prev_treatment",
+    "prev_year",
+    "q_reference",
+    "regime",
+    "reported_value",
+    "role",
+    "seam_start_year",
+    "threshold",
+    "value_total",
+    "y1",
+    "y2",
+    # admin_shares_polities.R (#1000) — source-native admin identifiers
+    # resolved to polity codes at load time
+    "alias_source",
+    "n_unresolved",
+    # glw_density.R (#1000) — GLW3 gridded livestock reader and its
+    # species-group crosswalk
+    "glw_code",
+    "glw_species"
   )
 )

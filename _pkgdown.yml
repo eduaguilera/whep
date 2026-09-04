@@ -41,6 +41,7 @@ reference:
   - run_spatialize
   - build_gridded_landuse
   - build_gridded_livestock
+  - read_glw_density
   - admin_shares_prototype
   - admin_shares_schema
   - ensure_admin_shares
@@ -48,6 +49,7 @@ reference:
   - read_admin_stats_eurostat
   - read_admin_stats_sidra
   - read_admin_family
+  - resolve_admin_units
   - resolve_admin_shares
   - read_level_country_grid
   - build_allocation_layer
@@ -55,6 +57,8 @@ reference:
   - aggregate_unit_extent
   - check_extent_jumps
   - backcast_admin_shares
+  - seam_gate_tolerances
+  - seam_gate
 
 - title: Polycell spatial support
   desc: >

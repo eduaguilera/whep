@@ -1852,3 +1852,25 @@
     )
   )
 }
+
+# Illustrative, NOT sampled from GLW3: the rasters need a WHEP_GLW3_DIR
+# tree, which the example surface may not have. The shape is exact -- the
+# four contract columns, one row per cell and group, cattle_dairy and
+# cattle_non_dairy carrying identical counts as the crosswalk's
+# replication rule requires -- and the magnitudes are of the right order
+# for a 0.5-degree cell, but no value here is a GLW3 measurement.
+.example_glw_density <- function() {
+  tibble::tribble(
+    ~lon,    ~lat, ~species_group,      ~density,
+    -3.75,  40.25, "cattle_dairy",         12400,
+    -3.25,  40.25, "cattle_dairy",          8150,
+    -3.75,  40.25, "cattle_non_dairy",     12400,
+    -3.25,  40.25, "cattle_non_dairy",      8150,
+    -3.75,  40.25, "sheep_goats",         143000,
+    -3.25,  40.25, "sheep_goats",          97600,
+    -3.75,  40.25, "pigs",                 61200,
+    -3.25,  40.25, "pigs",                 44800,
+    -3.75,  40.25, "chickens_layers",     870000,
+    -3.25,  40.25, "poultry",              25300
+  )
+}
