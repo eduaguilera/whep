@@ -216,9 +216,10 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
   seen <- NULL
   testthat::local_mocked_bindings(
     .cb_read_c_inputs = function(
+      data = list(),
       years = NULL,
       crop_groups = list(),
-      density_basis = "static"
+      methods = list()
     ) {
       seen <<- crop_groups
       tibble::tibble()
@@ -239,7 +240,7 @@ testthat::test_that("crop_groups reaches the carbon-input reader on the real pat
       data,
       years = NULL,
       crop_groups = list(),
-      density_basis = "static"
+      methods = list()
     ) {
       captured <<- crop_groups
       rlang::abort("stop here", class = "cbg_stop")
@@ -508,15 +509,16 @@ testthat::test_that("grouped inputs with no LUH2 cropland to draw are reported",
   )
 })
 
-testthat::test_that("density_basis reaches the carbon-input reader", {
+testthat::test_that("density_basis and method_grazing reach the reader", {
   seen <- NULL
   testthat::local_mocked_bindings(
     .cb_read_c_inputs = function(
+      data = list(),
       years = NULL,
       crop_groups = list(),
-      density_basis = "static"
+      methods = list()
     ) {
-      seen <<- density_basis
+      seen <<- methods
       tibble::tibble()
     },
     .cb_read_land_use = function(years = NULL) tibble::tibble(),
@@ -525,12 +527,53 @@ testthat::test_that("density_basis reaches the carbon-input reader", {
     },
     .package = "whep"
   )
-  whep:::.cb_resolve_inputs(list(), 2010L, list(), "renormalised")
-  testthat::expect_identical(seen, "renormalised")
+  whep:::.cb_resolve_inputs(
+    list(),
+    2010L,
+    list(),
+    list(basis = "renormalised", grazing = "lpjml")
+  )
+  testthat::expect_identical(
+    seen,
+    list(basis = "renormalised", grazing = "lpjml")
+  )
   testthat::expect_error(
     whep::build_carbon_balance(density_basis = "faostat"),
     class = "rlang_error"
   )
+  testthat::expect_error(
+    whep::build_carbon_balance(method_grazing = "lpjml_module"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("the balance forwards its grazing inputs, and only those", {
+  # The balance keys its own land_use/climate layers in `data`, so handing the
+  # whole list to the input builders would change which layer they read. Only
+  # the two grazing entries travel.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    build_carbon_inputs = function(...) {
+      seen <<- list(...)
+      tibble::tibble()
+    },
+    .package = "whep"
+  )
+  whep:::.cb_read_c_inputs(
+    list(
+      livestock_intake = tibble::tibble(year = 2010L),
+      excreta = tibble::tibble(year = 2010L),
+      land_use = tibble::tibble(nope = 1)
+    ),
+    2010L,
+    list(),
+    list(basis = "renormalised", grazing = "whep")
+  )
+  testthat::expect_identical(
+    sort(names(seen$data)),
+    c("excreta", "livestock_intake")
+  )
+  testthat::expect_identical(seen$method_grazing, "whep")
 })
 
 # ---- the LUC ledger closes on mass -------------------------------------------

@@ -55,17 +55,29 @@
   )
 }
 
-.gn_excreta_fixture <- function() {
+.gn_excreta_fixture <- function(applied_c = 80) {
   # build_livestock_nutrient_flows()$applied shape. applied_c tonnes C on
-  # grassland. Polity 1 total grazing excreta = 80 tonnes C.
+  # grassland. Polity 1 total grazing excreta = 80 tonnes C by default.
   tibble::tribble(
     ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
-    2000L, "1", NA, "Grassland", NA, 80,
+    2000L, "1", NA, "Grassland", NA, applied_c,
     2000L, "1", NA, "Cropland", "wheat", 999
   )
 }
 
-.gn_fixture_data <- function(excreta = TRUE) {
+.gn_intake_fixture <- function(grass_dm_t = 100) {
+  # redistribute_feed() shape. Only the "grass" rows are grazed off the
+  # sward; the substitute the feed cascade adds when grass runs short comes
+  # out of the non-grass supply and must not be charged to grassland.
+  tibble::tribble(
+    ~year, ~territory, ~livestock_category, ~feed_quality, ~intake_dm_t,
+    2000L, "1", "Cattle_meat", "grass", grass_dm_t,
+    2000L, "1", "Cattle_meat", "substitute", 900,
+    2000L, "1", "Cattle_meat", "high_quality", 900
+  )
+}
+
+.gn_fixture_data <- function(excreta = TRUE, intake = FALSE) {
   d <- list(
     npp = .gn_npp_fixture(),
     harvestc = .gn_harvest_fixture(),
@@ -74,23 +86,40 @@
     land_use = .gn_land_use_fixture(),
     residue_humification = whep::residue_humification
   )
-  if (excreta) {
-    d$excreta <- .gn_excreta_fixture()
+  if (!isFALSE(excreta)) {
+    d$excreta <- if (isTRUE(excreta)) {
+      .gn_excreta_fixture()
+    } else {
+      .gn_excreta_fixture(applied_c = excreta)
+    }
+  }
+  if (!isFALSE(intake)) {
+    d$livestock_intake <- if (isTRUE(intake)) {
+      .gn_intake_fixture()
+    } else {
+      intake
+    }
   }
   d
 }
 
-# Production as the natural input, named on every call: these fixtures carry
-# per-PFT NPP and no litterfall, and the arithmetic they check is NPP's. The
-# package default is litterfall (see the method_natural_c section).
-.gn_build_npp <- function(...) {
-  whep::build_grass_natural_carbon_inputs(..., method_natural_c = "npp")
+# Production as the natural input, and LPJmL's own grazing, named on every
+# call: these fixtures carry per-PFT NPP and no litterfall, and the
+# arithmetic they check is that of NPP minus the run's own harvest. Both
+# package defaults differ (litterfall, and WHEP's grazing), and are exercised
+# in their own sections.
+.gn_build_npp <- function(..., method_grazing = "lpjml") {
+  whep::build_grass_natural_carbon_inputs(
+    ...,
+    method_natural_c = "npp",
+    method_grazing = method_grazing
+  )
 }
 
 testthat::test_that("grid output has the documented schema and classes", {
   out <- .gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data()
+    data = .gn_fixture_data(excreta = FALSE)
   )
   expected <- c(
     "lon",
@@ -179,7 +208,8 @@ testthat::test_that("grassland humified fraction carbon-weights npp and excreta"
   # With no excreta the blend reduces to the weed (grass-litter) value.
   gr0 <- .gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data(excreta = FALSE)
+    data = .gn_fixture_data(excreta = 0, intake = TRUE),
+    method_grazing = "whep"
   )
   gr0 <- gr0[gr0$land_use == "grassland", ]
   testthat::expect_equal(gr0$humified_fraction, rep(weed, nrow(gr0)))
@@ -188,7 +218,8 @@ testthat::test_that("grassland humified fraction carbon-weights npp and excreta"
   # so it sits strictly between the two and above the weed-only value.
   gr1 <- .gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data(excreta = TRUE)
+    data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+    method_grazing = "whep"
   )
   gr1 <- gr1[gr1$land_use == "grassland" & gr1$c_input_mgc_ha_yr > 0, ]
   testthat::expect_true(all(gr1$humified_fraction >= weed - 1e-9))
@@ -223,11 +254,13 @@ testthat::test_that("unit conversion is 100 gC/m2 = 1 MgC/ha", {
 testthat::test_that("grazing excreta adds a per-ha density to grassland", {
   with_ex <- .gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data(excreta = TRUE)
+    data = .gn_fixture_data(excreta = TRUE, intake = TRUE),
+    method_grazing = "whep"
   )
   without_ex <- .gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data(excreta = FALSE)
+    data = .gn_fixture_data(excreta = 0, intake = TRUE),
+    method_grazing = "whep"
   )
   # Polity 1 total grassland area = 100 + 300 = 400 ha; excreta 80 tonnes C
   # -> uniform 0.2 MgC/ha added to every grassland cell in polity 1.
@@ -276,7 +309,7 @@ testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
   esp_code <- whep::regions_full$code[
     whep::regions_full$iso3c == "ESP" & !is.na(whep::regions_full$iso3c)
   ][1]
-  d <- .gn_fixture_data(excreta = FALSE)
+  d <- .gn_fixture_data(excreta = FALSE, intake = TRUE)
   d$country_grid <- tibble::tribble(
     ~lon, ~lat, ~area_code, ~cell_area_frac,
     0.25, 0.25, esp_code, 1,
@@ -287,23 +320,30 @@ testthat::test_that("ISO3 excreta territory resolves to area_code, not NA", {
     0.25, 0.25, esp_code, 2000L, "grassland", 100,
     0.75, 0.25, esp_code, 2000L, "grassland", 300
   )
+  # The intake is keyed the same way, so the grazing removal lands on the
+  # same polity and cancels in the difference below.
+  d$livestock_intake$territory <- "ESP"
   d$excreta <- tibble::tribble(
     ~year, ~territory, ~sub_territory, ~land_use, ~crop, ~applied_c,
     2000L, "ESP", NA, "Grassland", NA, 80
   )
   # The ISO3 form is a deprecated bridge (#463), so resolving it warns; this
   # test is about it still resolving rather than dropping the excreta carbon.
-  testthat::expect_warning(
+  warnings <- testthat::capture_warnings(
     with_ex <- .gn_build_npp(
       resolution = "grid",
-      data = d
-    ),
-    "deprecated"
+      data = d,
+      method_grazing = "whep"
+    )
   )
-  without_ex <- .gn_build_npp(
+  testthat::expect_true(any(grepl("deprecated", warnings)))
+  d0 <- d
+  d0$excreta$applied_c <- 0
+  without_ex <- suppressWarnings(.gn_build_npp(
     resolution = "grid",
-    data = .gn_fixture_data(excreta = FALSE)
-  )
+    data = d0,
+    method_grazing = "whep"
+  ))
   gr_with <- with_ex[with_ex$land_use == "grassland", ]
   gr_with <- gr_with[order(gr_with$lon), ]
   gr_without <- without_ex[without_ex$land_use == "grassland", ]
@@ -492,10 +532,10 @@ testthat::test_that(".gn_read_stand_frac reads cftfrac.nc grassland stands", {
 
 testthat::test_that("net_c seam reproduces the per-PFT path exactly", {
   from_pfts <- .gn_build_npp(
-    data = .gn_fixture_data()
+    data = .gn_fixture_data(excreta = FALSE)
   )
   seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
-  d <- .gn_fixture_data()
+  d <- .gn_fixture_data(excreta = FALSE)
   d$npp <- NULL
   d$harvestc <- NULL
   d$stand_frac <- NULL
@@ -512,8 +552,27 @@ testthat::test_that("the net_c seam holds only LPJmL quantities", {
   # they stay outside the seam - which is the property this guards.
   testthat::expect_setequal(
     names(seam),
-    c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr", "woody_share")
+    c(
+      "lon",
+      "lat",
+      "year",
+      "land_use",
+      "npp_c_mgc_ha_yr",
+      "net_c_mgc_ha_yr",
+      "woody_share"
+    )
   )
+  # Both grazing methods must be servable from the seam: the whole grassland
+  # production and what LPJmL's own grazing left of it are separate columns,
+  # so neither method is baked in. Cell A: gross (0.3*400 + 0.1*600)/0.4 =
+  # 450 gC/m2, net (0.3*300 + 0.1*0)/0.4 = 225.
+  grass <- seam[seam$land_use == "grassland" & seam$lon == 0.25, ]
+  testthat::expect_equal(grass$npp_c_mgc_ha_yr, 4.5)
+  testthat::expect_equal(grass$net_c_mgc_ha_yr, 2.25)
+  # Natural land is never harvested, so it carries no net column value.
+  testthat::expect_true(all(is.na(
+    seam$net_c_mgc_ha_yr[seam$land_use == "natural"]
+  )))
   testthat::expect_setequal(unique(seam$land_use), c("grassland", "natural"))
   # Only natural land has a woody split; grassland is herbaceous by
   # definition and must not acquire one.
@@ -526,13 +585,13 @@ testthat::test_that("excreta still changes the result through the seam", {
   # The excreta term must stay live on the pinned path. Same net_c, excreta on
   # vs off: grassland carbon and its humified fraction must both move.
   seam <- whep:::.gn_net_c_from_lpjml(.gn_fixture_data(), years = NULL)
-  with_ex <- .gn_fixture_data()
+  with_ex <- .gn_fixture_data(intake = TRUE)
   with_ex$net_c <- seam
-  without <- .gn_fixture_data(excreta = FALSE)
+  without <- .gn_fixture_data(excreta = 0, intake = TRUE)
   without$net_c <- seam
-  a <- .gn_build_npp(data = with_ex) |>
+  a <- .gn_build_npp(data = with_ex, method_grazing = "whep") |>
     dplyr::filter(land_use == "grassland")
-  b <- .gn_build_npp(data = without) |>
+  b <- .gn_build_npp(data = without, method_grazing = "whep") |>
     dplyr::filter(land_use == "grassland")
   testthat::expect_gt(sum(a$c_input_mgc_ha_yr), sum(b$c_input_mgc_ha_yr))
   testthat::expect_false(isTRUE(all.equal(
@@ -545,19 +604,23 @@ testthat::test_that("data$net_c takes precedence over run and pin", {
   # A supplied net_c must be used verbatim even with a run directory present,
   # so no network or NetCDF read happens on the injected path.
   withr::local_envvar(WHEP_LPJML_RUN_DIR = "/nonexistent/run")
-  d <- .gn_fixture_data()
+  d <- .gn_fixture_data(excreta = FALSE)
   d$npp <- NULL
   d$harvestc <- NULL
   d$stand_frac <- NULL
   d$net_c <- tibble::tribble(
-    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
-    0.25, 0.25, 2000L, "grassland", 2,
-    0.25, 0.25, 2000L, "natural", 5
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~net_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "grassland", 2, 2,
+    0.25, 0.25, 2000L, "natural", 5, NA
   )
   out <- .gn_build_npp(data = d)
   testthat::expect_equal(
     dplyr::filter(out, land_use == "natural")$c_input_mgc_ha_yr,
     5
+  )
+  testthat::expect_equal(
+    dplyr::filter(out, land_use == "grassland")$c_input_mgc_ha_yr,
+    2
   )
 })
 
@@ -783,20 +846,23 @@ testthat::test_that("the natural output drops woody_share after using it", {
   # carries them. Natural litterfall sits below natural production because the
   # stand also grows, burns and is converted.
   tibble::tribble(
-    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~litterfall_c_mgc_ha_yr,
-    ~woody_share,
-    0.25, 0.25, 2000L, "grassland", 2, NA, NA,
-    0.25, 0.25, 2000L, "natural", 5, 4, 0.72
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr, ~net_c_mgc_ha_yr,
+    ~litterfall_c_mgc_ha_yr, ~woody_share,
+    0.25, 0.25, 2000L, "grassland", 2, 2, NA, NA,
+    0.25, 0.25, 2000L, "natural", 5, NA, 4, 0.72
   )
 }
 
 testthat::test_that("the default puts natural land on litterfall", {
-  d <- .gn_fixture_data()
+  d <- .gn_fixture_data(excreta = FALSE)
   d$npp <- NULL
   d$harvestc <- NULL
   d$stand_frac <- NULL
   d$net_c <- .gn_net_c_both()
-  out <- whep::build_grass_natural_carbon_inputs(data = d) |>
+  out <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_grazing = "lpjml"
+  ) |>
     dplyr::filter(land_use == "natural")
   testthat::expect_equal(out$c_input_mgc_ha_yr, 4)
   testthat::expect_identical(unique(out$method_c_input), "lpjml_litterfall")
@@ -806,7 +872,8 @@ testthat::test_that("the default puts natural land on litterfall", {
   # Production stays selectable, and says so.
   npp <- whep::build_grass_natural_carbon_inputs(
     data = d,
-    method_natural_c = "npp"
+    method_natural_c = "npp",
+    method_grazing = "lpjml"
   ) |>
     dplyr::filter(land_use == "natural")
   testthat::expect_equal(npp$c_input_mgc_ha_yr, 5)
@@ -814,14 +881,15 @@ testthat::test_that("the default puts natural land on litterfall", {
 })
 
 testthat::test_that("method_natural_c = litterfall switches the input", {
-  d <- .gn_fixture_data()
+  d <- .gn_fixture_data(excreta = FALSE)
   d$npp <- NULL
   d$harvestc <- NULL
   d$stand_frac <- NULL
   d$net_c <- .gn_net_c_both()
   out <- whep::build_grass_natural_carbon_inputs(
     data = d,
-    method_natural_c = "litterfall"
+    method_natural_c = "litterfall",
+    method_grazing = "lpjml"
   ) |>
     dplyr::filter(land_use == "natural")
   testthat::expect_equal(out$c_input_mgc_ha_yr, 4)
@@ -830,10 +898,14 @@ testthat::test_that("method_natural_c = litterfall switches the input", {
   # Grassland is untouched: litfallc_nv covers the natural stand only.
   grass <- whep::build_grass_natural_carbon_inputs(
     data = d,
-    method_natural_c = "litterfall"
+    method_natural_c = "litterfall",
+    method_grazing = "lpjml"
   ) |>
     dplyr::filter(land_use == "grassland")
-  base <- whep::build_grass_natural_carbon_inputs(data = d) |>
+  base <- whep::build_grass_natural_carbon_inputs(
+    data = d,
+    method_grazing = "lpjml"
+  ) |>
     dplyr::filter(land_use == "grassland")
   testthat::expect_equal(grass$c_input_mgc_ha_yr, base$c_input_mgc_ha_yr)
 })
@@ -951,4 +1023,159 @@ testthat::test_that("litterfall NA on a cell with no production is zero litter",
     dplyr::filter(land_use == "natural") |>
     dplyr::arrange(lat, lon)
   testthat::expect_equal(npp$c_input_mgc_ha_yr, c(0, 5, 5))
+})
+
+# ---- method_grazing: whose herd grazes the sward ----------------------------
+# LPJmL 6.1 runs its own livestock module on managed grassland, so the layer
+# arrives already grazed: pft_harvestc is the uptake NET of the feces and
+# urine returned to the stand. Adding WHEP's excreta to that, which the
+# excreta argument used to do unconditionally, books the same return twice.
+# The default now charges the class WHEP's own removal and return instead,
+# starting from the whole production so nothing of LPJmL's grazing survives.
+#
+# Fixture arithmetic, polity 1 over 400 ha of grassland:
+#   grazed  100 t DM * 0.45 = 45 MgC   -> 0.1125 MgC/ha
+#   excreta                   80 MgC   -> 0.2 MgC/ha
+#   cell A whole production (0.3*400 + 0.1*600)/0.4 = 450 gC/m2 = 4.5 MgC/ha
+#   cell A net of LPJmL's grazing (0.3*300 + 0.1*0)/0.4 = 225      = 2.25
+#   cell B whole 500 gC/m2 = 5.0, net (500-50) = 4.5
+
+.gn_grass_rows <- function(...) {
+  .gn_build_npp(resolution = "grid", ...) |>
+    dplyr::filter(land_use == "grassland") |>
+    dplyr::arrange(lon)
+}
+
+testthat::test_that("the whep method charges WHEP's removal and return", {
+  out <- .gn_grass_rows(
+    data = .gn_fixture_data(intake = TRUE),
+    method_grazing = "whep"
+  )
+  testthat::expect_equal(
+    out$c_input_mgc_ha_yr,
+    c(4.5 - 0.1125 + 0.2, 5 - 0.1125 + 0.2)
+  )
+  testthat::expect_identical(
+    unique(out$method_c_input),
+    "lpjml_npp_minus_whep_grazing"
+  )
+})
+
+testthat::test_that("the lpjml method keeps the model's own grazing", {
+  out <- .gn_grass_rows(data = .gn_fixture_data(excreta = FALSE))
+  testthat::expect_equal(out$c_input_mgc_ha_yr, c(2.25, 4.5))
+  testthat::expect_identical(
+    unique(out$method_c_input),
+    "lpjml_npp_minus_harvest"
+  )
+})
+
+testthat::test_that("the methods differ by exactly the two herds", {
+  lpjml <- .gn_grass_rows(data = .gn_fixture_data(excreta = FALSE))
+  whep_m <- .gn_grass_rows(
+    data = .gn_fixture_data(intake = TRUE),
+    method_grazing = "whep"
+  )
+  # LPJmL's grazing (harvest) is added back and WHEP's is taken off, so the
+  # difference is the model's removal minus WHEP's, plus WHEP's return.
+  lpjml_removed <- c(4.5 - 2.25, 5 - 4.5)
+  testthat::expect_equal(
+    whep_m$c_input_mgc_ha_yr - lpjml$c_input_mgc_ha_yr,
+    lpjml_removed - 0.1125 + 0.2
+  )
+})
+
+testthat::test_that("only the grass rows are grazed off the sward", {
+  # The feed cascade's grass-deficit substitute comes out of the non-grass
+  # supply; charging it to grassland would remove carbon nothing ate there.
+  base <- .gn_grass_rows(
+    data = .gn_fixture_data(intake = TRUE),
+    method_grazing = "whep"
+  )
+  more_substitute <- .gn_intake_fixture()
+  more_substitute$intake_dm_t[more_substitute$feed_quality != "grass"] <- 1e6
+  moved <- .gn_grass_rows(
+    data = .gn_fixture_data(intake = more_substitute),
+    method_grazing = "whep"
+  )
+  testthat::expect_equal(moved$c_input_mgc_ha_yr, base$c_input_mgc_ha_yr)
+})
+
+testthat::test_that("the lpjml method refuses WHEP's excreta, loudly", {
+  # The latent double count: this used to add the excreta silently on top of
+  # a layer that already carried LPJmL's own return.
+  testthat::expect_warning(
+    with_ex <- .gn_grass_rows(data = .gn_fixture_data(excreta = TRUE)),
+    "Ignoring"
+  )
+  without <- .gn_grass_rows(data = .gn_fixture_data(excreta = FALSE))
+  testthat::expect_equal(with_ex$c_input_mgc_ha_yr, without$c_input_mgc_ha_yr)
+})
+
+testthat::test_that("the whep method aborts without its own inputs", {
+  # Reading absent inputs as zero would silently turn grazed grassland into
+  # ungrazed grassland, an input even LPJmL's harvest was subtracted from.
+  testthat::expect_error(
+    .gn_grass_rows(
+      data = .gn_fixture_data(excreta = TRUE),
+      method_grazing = "whep"
+    ),
+    "livestock_intake"
+  )
+  testthat::expect_error(
+    .gn_grass_rows(
+      data = .gn_fixture_data(excreta = FALSE, intake = TRUE),
+      method_grazing = "whep"
+    ),
+    "excreta"
+  )
+})
+
+testthat::test_that("a year the intake does not cover aborts", {
+  # A gap in WHEP's feed chain and a year nothing grazed are the same number
+  # once the missing rows become a zero removal.
+  short <- .gn_intake_fixture()
+  short$year <- 1999L
+  testthat::expect_error(
+    .gn_grass_rows(
+      data = .gn_fixture_data(intake = short),
+      method_grazing = "whep"
+    ),
+    "2000"
+  )
+})
+
+testthat::test_that("grazing beyond production is floored and reported", {
+  # The removal is a polity total spread uniformly, so a cell below the
+  # polity mean can be asked for more carbon than it grew.
+  hungry <- .gn_intake_fixture(grass_dm_t = 1e5)
+  testthat::expect_warning(
+    out <- .gn_grass_rows(
+      data = .gn_fixture_data(intake = hungry),
+      method_grazing = "whep"
+    ),
+    "exceeds grassland production"
+  )
+  # Nothing but the excreta is left on either cell, and neither goes negative.
+  testthat::expect_equal(out$c_input_mgc_ha_yr, c(0.2, 0.2))
+})
+
+testthat::test_that("a grassland layer without the net column is refused", {
+  # Before the split, `npp_c_mgc_ha_yr` on a grassland row meant production
+  # already net of LPJmL's grazing. Read as the whole production it would
+  # double-subtract the grazing; the two cannot be told apart, so the layer
+  # is refused under either method.
+  d <- .gn_fixture_data(excreta = FALSE)
+  d$npp <- NULL
+  d$harvestc <- NULL
+  d$stand_frac <- NULL
+  d$net_c <- tibble::tribble(
+    ~lon, ~lat, ~year, ~land_use, ~npp_c_mgc_ha_yr,
+    0.25, 0.25, 2000L, "grassland", 2
+  )
+  testthat::expect_error(.gn_build_npp(data = d), "net_c_mgc_ha_yr")
+  testthat::expect_error(
+    .gn_build_npp(data = d, method_grazing = "whep"),
+    "net_c_mgc_ha_yr"
+  )
 })

@@ -10,6 +10,7 @@ natural carbon inputs per the WHEP historical carbon-balance design.
 \usage{
 build_grass_natural_carbon_inputs(
   resolution = c("grid", "polity"),
+  method_grazing = c("whep", "lpjml"),
   method_natural_hf = c("woody_share", "woody"),
   method_natural_c = c("litterfall", "npp"),
   data = list(),
@@ -21,6 +22,42 @@ build_grass_natural_carbon_inputs(
 \arguments{
 \item{resolution}{\code{"grid"} (default, per cell and class) or \code{"polity"}
 (aggregated to \code{area_code}, area-weighting the per-hectare densities).}
+
+\item{method_grazing}{Whose grazing removes carbon from grassland and
+returns it as excreta. \code{"whep"} (default) uses WHEP's own estimates: the
+realised grass intake of \code{\link[=redistribute_feed]{redistribute_feed()}} is the removal, converted
+from dry matter at the package's carbon fraction
+(\code{\link[=grass_access_shares]{grass_access_shares()}}\verb{$w_c_dm}), and the grassland \code{applied} stream of
+\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}} is the return. LPJmL's own grazing is
+backed out in full: the class starts from the whole grassland production
+(\code{npp_c_mgc_ha_yr}), not from what LPJmL left after grazing it, so no
+carbon is counted twice. Both \code{data$livestock_intake} and \code{data$excreta}
+are then required, and a requested year the intake table does not cover
+aborts rather than passing silently as an ungrazed year.
+
+\code{"lpjml"} uses the model's own livestock module instead
+(\code{npp_c_mgc_ha_yr - net_c_mgc_ha_yr}, the \code{pft_harvestc} grassland bands),
+and refuses WHEP's excreta with a warning, because that return is already
+inside the layer. LPJmL 6.1 grazes \code{UptakeC} off the managed-grassland
+stand, returns \code{FecesC} and \code{UrineC} to it, and books the difference as
+\code{pft_harvestc}: on the 1750-2023 run
+\code{pft_harvestc = UptakeC - FecesC - UrineC} holds cell by cell to machine
+precision (maximum relative difference 0 at 1900, 1960 and 2010), so
+\code{NPP - pft_harvestc} already carries an excreta return worth 5.9\% of
+grassland production in 1900, 3.8\% in 1960 and 4.5\% in 2010. Adding
+WHEP's excreta on top of it, which the \code{excreta} argument used to do,
+books that return twice.
+
+The two are alternatives, not tiers: \code{"whep"} is the default because
+WHEP's livestock chain, not LPJmL's, is what the rest of the package
+charges for feed, excretion and manure, so a grassland input built on
+LPJmL's herd would not reconcile with the manure the same herd applies to
+cropland. Backing LPJmL's grazing out recovers the carbon MASS but not
+its dynamics: the production the model simulated was itself shaped by the
+defoliation it applied, so the whole-production starting point is a known
+approximation, not an ungrazed counterfactual. Where WHEP's grazing
+removal exceeds a cell's production the input is floored at zero and the
+floored carbon is reported in a warning. Recorded in \code{method_c_input}.}
 
 \item{method_natural_hf}{How natural land's humification fraction is set.
 \code{"woody_share"} (default) carbon-weights the \link{residue_humification}
@@ -93,7 +130,10 @@ cell-\code{area_code} group is duplicated or \code{NA} (DA-23);
 \code{land_use} (per-cell class \code{area_ha}, used to spread
 excreta and to area-weight polity output); \code{excreta} (the \code{applied} tibble
 of \code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}, grassland rows carry \code{applied_c}
-tonnes C); \code{residue_humification} (defaults to \link{residue_humification}).}
+tonnes C); \code{livestock_intake} (the \code{\link[=redistribute_feed]{redistribute_feed()}} result, the same
+tibble the nitrogen path takes as \code{data$livestock_intake}, whose
+\code{feed_quality == "grass"} rows carry the grazed dry matter);
+\code{residue_humification} (defaults to \link{residue_humification}).}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover. Threaded into the default
@@ -129,10 +169,11 @@ minus harvested carbon (both per-plant-functional-type, \code{\link[=read_lpjml_
 floored at zero and converted to megagrams of carbon per hectare per year
 (1 gC/m2 = 0.01 MgC/ha). Natural land sums the eleven natural
 plant-functional-types (they coexist in one stand); grassland takes the
-stand-area-weighted mean of the rainfed and irrigated grassland net inputs
-and adds the grazing-excreta carbon from
-\code{\link[=build_livestock_nutrient_flows]{build_livestock_nutrient_flows()}}'s \code{applied} stream spread uniformly over
-the polity's grassland area. The humification fraction is the
+stand-area-weighted mean of the rainfed and irrigated grassland stands and
+charges them one grazing removal and one excreta return, from WHEP's own
+livestock chain by default and from LPJmL's livestock module on request
+(\code{method_grazing}), spread uniformly over the polity's grassland area. The
+humification fraction is the
 spontaneous-grass value for grassland and the woody-residue value for
 natural land (both from \link{residue_humification}).
 }

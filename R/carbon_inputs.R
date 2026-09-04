@@ -70,6 +70,11 @@
 #'   cropland cells the per-cell class density ratio renormalised/static has
 #'   an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
 #'   `method_area_basis` on cropland rows.
+#' @param method_grazing Whose grazing removes carbon from grassland and
+#'   returns it as excreta; see [build_grass_natural_carbon_inputs()].
+#'   `"whep"` (default) charges the class WHEP's own grass intake and applied
+#'   excreta, and so needs `data$livestock_intake` and `data$excreta`;
+#'   `"lpjml"` uses the model's livestock module instead and needs neither.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #' @return A tibble keyed by `(lon, lat, area_code, year, land_use)` at `"grid"`
@@ -90,15 +95,17 @@ build_carbon_inputs <- function(
   years = NULL,
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   example = FALSE
 ) {
   resolution <- rlang::arg_match(resolution)
   density_basis <- rlang::arg_match(density_basis)
+  method_grazing <- rlang::arg_match(method_grazing)
   cfg <- .ci_group_config(crop_groups)
   if (isTRUE(example)) {
     return(.example_carbon_inputs())
   }
-  d <- .ci_resolve_inputs(data, years, cfg, density_basis)
+  d <- .ci_resolve_inputs(data, years, cfg, density_basis, method_grazing)
   dplyr::bind_rows(d$cropland, d$grass_natural) |>
     .ci_finalise(resolution, data$land_use) |>
     .add_reporting_polity_columns()
@@ -110,7 +117,8 @@ build_carbon_inputs <- function(
   data,
   years = NULL,
   cfg = .ci_group_config(),
-  density_basis = "renormalised"
+  density_basis = "renormalised",
+  method_grazing = "whep"
 ) {
   # The static weights are only read when they are the basis; the
   # renormalised basis rides on the layer's own yearly area.
@@ -121,7 +129,11 @@ build_carbon_inputs <- function(
     cropland = .ci_cropland_input(data, years, crop_area, cfg, density_basis),
     crop_area = crop_area,
     grass_natural = data$grass_natural %||%
-      build_grass_natural_carbon_inputs(data = data, years = years)
+      build_grass_natural_carbon_inputs(
+        data = data,
+        years = years,
+        method_grazing = method_grazing
+      )
   )
 }
 

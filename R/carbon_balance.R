@@ -84,7 +84,13 @@
 #'   optional \code{equilibrium_climate} (the pre-industrial climatological
 #'   normal, one representative monthly cycle per cell, used only for the
 #'   equilibrium spin-up modifier while the forward march uses the year-specific
-#'   drivers).
+#'   drivers). Two further entries are forwarded to
+#'   \code{\link{build_carbon_inputs}} for the grassland grazing terms, and
+#'   read only when \code{c_inputs} is not supplied:
+#'   \code{livestock_intake} (the \code{\link{redistribute_feed}} result) and
+#'   \code{excreta} (the \code{applied} stream of
+#'   \code{\link{build_livestock_nutrient_flows}}), both required by the
+#'   default \code{method_grazing = "whep"}.
 #' @param crop_groups How cropland is resolved into land-use classes; see
 #'   [build_carbon_inputs()]. `list()` (default) marches crop GROUPS --
 #'   herbaceous crops pooled per irrigation regime, woody crops per species,
@@ -112,6 +118,13 @@
 #'   the densities were computed on; `"static"` keeps the crop-pattern
 #'   weights the package used before. Only read when the carbon inputs are
 #'   built here rather than supplied.
+#' @param method_grazing Whose grazing removes carbon from grassland and
+#'   returns it as excreta; see [build_grass_natural_carbon_inputs()].
+#'   `"whep"` (default) charges the class WHEP's own grass intake and applied
+#'   excreta, so it needs `data$livestock_intake` and `data$excreta` and
+#'   aborts without them; `"lpjml"` uses the model's own livestock module and
+#'   needs neither. Only read when the carbon inputs are built here rather
+#'   than supplied through `data$c_inputs`.
 #' @param example If \code{TRUE}, return a small fixture instead of reading
 #'   remote data. Defaults to \code{FALSE}.
 #' @section The land-use-change ledger closes on mass, not on density:
@@ -186,11 +199,13 @@ build_carbon_balance <- function(
   crop_groups = list(),
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   example = FALSE
 ) {
   crop_groups <- .ci_group_config(crop_groups)
   class_water <- .cb_check_class_water(class_water, crop_groups)
   density_basis <- rlang::arg_match(density_basis)
+  method_grazing <- rlang::arg_match(method_grazing)
   polity_validity <- rlang::arg_match(polity_validity)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
@@ -205,7 +220,12 @@ build_carbon_balance <- function(
   if (progress) {
     cli::cli_progress_step("Reading model inputs (may read multi-GB rasters)")
   }
-  d <- .cb_resolve_inputs(data, years, crop_groups, density_basis)
+  d <- .cb_resolve_inputs(
+    data,
+    years,
+    crop_groups,
+    list(basis = density_basis, grazing = method_grazing)
+  )
   d$class_water <- class_water
   if (progress) {
     cli::cli_progress_step("Computing per-class equilibrium")
@@ -236,10 +256,10 @@ build_carbon_balance <- function(
   data,
   years = NULL,
   crop_groups = list(),
-  density_basis = "renormalised"
+  methods = list(basis = "renormalised", grazing = "whep")
 ) {
   c_inputs <- data$c_inputs %||%
-    .cb_read_c_inputs(years, crop_groups, density_basis)
+    .cb_read_c_inputs(data, years, crop_groups, methods)
   land_use <- data$land_use %||% .cb_read_land_use(years)
   climate <- data$climate %||% .cb_read_climate(years)
   # get_soc_climate_drivers() carries clay_pct in its own output, so a
@@ -2147,16 +2167,27 @@ build_carbon_balance <- function(
 # (build_grass_natural_carbon_inputs) builders by build_carbon_inputs(). Grid
 # grain is required: .cb_class_table() joins c_inputs onto the land-use areas
 # per cell.
+#
+# Only the grazing inputs are forwarded from the balance's own `data`. The
+# rest of that list is keyed for the balance (its own land-use, climate and
+# cover layers), and handing it to the input builders wholesale would silently
+# change which layer they read.
 .cb_read_c_inputs <- function(
+  data = list(),
   years = NULL,
   crop_groups = list(),
-  density_basis = "renormalised"
+  methods = list(basis = "renormalised", grazing = "whep")
 ) {
   build_carbon_inputs(
     resolution = "grid",
+    data = list(
+      livestock_intake = data$livestock_intake,
+      excreta = data$excreta
+    ),
     years = years,
     crop_groups = crop_groups,
-    density_basis = density_basis
+    density_basis = methods$basis,
+    method_grazing = methods$grazing
   )
 }
 

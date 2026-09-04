@@ -22,6 +22,7 @@ build_carbon_balance(
   crop_groups = list(),
   class_water = c("cell", "regime"),
   density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   example = FALSE
 )
 }
@@ -87,7 +88,13 @@ curve against 0.343 on the calendar); and an
 optional \code{equilibrium_climate} (the pre-industrial climatological
 normal, one representative monthly cycle per cell, used only for the
 equilibrium spin-up modifier while the forward march uses the year-specific
-drivers).}
+drivers). Two further entries are forwarded to
+\code{\link{build_carbon_inputs}} for the grassland grazing terms, and
+read only when \code{c_inputs} is not supplied:
+\code{livestock_intake} (the \code{\link{redistribute_feed}} result) and
+\code{excreta} (the \code{applied} stream of
+\code{\link{build_livestock_nutrient_flows}}), both required by the
+default \code{method_grazing = "whep"}.}
 
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
 (default) keeps every year the inputs cover, but reading the full LUH2 range
@@ -126,6 +133,14 @@ when they collapse to a class; see \code{\link[=build_carbon_inputs]{build_carbo
 the densities were computed on; \code{"static"} keeps the crop-pattern
 weights the package used before. Only read when the carbon inputs are
 built here rather than supplied.}
+
+\item{method_grazing}{Whose grazing removes carbon from grassland and
+returns it as excreta; see \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}.
+\code{"whep"} (default) charges the class WHEP's own grass intake and applied
+excreta, so it needs \code{data$livestock_intake} and \code{data$excreta} and
+aborts without them; \code{"lpjml"} uses the model's own livestock module and
+needs neither. Only read when the carbon inputs are built here rather
+than supplied through \code{data$c_inputs}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading
 remote data. Defaults to \code{FALSE}.}

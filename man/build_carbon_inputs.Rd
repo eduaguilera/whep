@@ -15,6 +15,7 @@ build_carbon_inputs(
   years = NULL,
   crop_groups = list(),
   density_basis = c("renormalised", "static"),
+  method_grazing = c("whep", "lpjml"),
   example = FALSE
 )
 }
@@ -72,6 +73,12 @@ sum to its FAOSTAT harvested area: measured on the 2010 pins over 40,065
 cropland cells the per-cell class density ratio renormalised/static has
 an area-weighted median of 0.988 (p5-p95 0.922-1.043). Recorded in
 \code{method_area_basis} on cropland rows.}
+
+\item{method_grazing}{Whose grazing removes carbon from grassland and
+returns it as excreta; see \code{\link[=build_grass_natural_carbon_inputs]{build_grass_natural_carbon_inputs()}}.
+\code{"whep"} (default) charges the class WHEP's own grass intake and applied
+excreta, and so needs \code{data$livestock_intake} and \code{data$excreta};
+\code{"lpjml"} uses the model's livestock module instead and needs neither.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
