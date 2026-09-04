@@ -89,11 +89,23 @@ PIN_SPECS <- list(
     value = "grass_npp",
     bounds = list(grass_npp = c(0, 5000))
   ),
+  # net_c_mgc_ha_yr is required, not optional: since the grazing split
+  # npp_c_mgc_ha_yr is the WHOLE grassland production and this column is what
+  # LPJmL's own grazing left of it. A pin carrying only the first is a
+  # pre-split pin whose column means the other thing, which is why WHEP
+  # refuses it rather than reading it either way.
   list(
     alias = "lpjml-grass-natural-net-c",
-    columns = c("lon", "lat", "year", "land_use", "npp_c_mgc_ha_yr"),
+    columns = c(
+      "lon",
+      "lat",
+      "year",
+      "land_use",
+      "npp_c_mgc_ha_yr",
+      "net_c_mgc_ha_yr"
+    ),
     value = "npp_c_mgc_ha_yr",
-    bounds = list(npp_c_mgc_ha_yr = c(0, 100))
+    bounds = list(npp_c_mgc_ha_yr = c(0, 100), net_c_mgc_ha_yr = c(0, 100))
   ),
   list(
     alias = "lpjml-soc-hydrology",
