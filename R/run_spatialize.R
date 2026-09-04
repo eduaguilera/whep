@@ -59,7 +59,10 @@
 #'     by the admin-shares resolver; it does not by itself change a run that
 #'     has no admin constraint wired.
 #'   - `livestock_proxy`: one of `"luh2"` (default) or `"glw3"`, forwarded
-#'     to [build_gridded_livestock()]'s `proxy_method`.
+#'     to [build_gridded_livestock()]'s `proxy_method`. Under `"glw3"` the
+#'     density table is read with [read_glw_density()], which needs a
+#'     `WHEP_GLW3_DIR` tree and aborts without one; under `"luh2"` it is
+#'     not read at all.
 #' @param paths Named list of filesystem paths. Recognised entries:
 #'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
 #'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
@@ -102,6 +105,8 @@
 #'   \item `manure_pattern.parquet` (optional, enables
 #'     manure-intensity weighting if present).
 #'   \item `livestock_mapping.csv` from the installed package.
+#'   \item The GLW3 rasters under `WHEP_GLW3_DIR`, read only when
+#'     `livestock_proxy = "glw3"` (see [read_glw_density()]).
 #' }
 #'
 #' @section Which cell-to-polity crosswalk:
@@ -345,6 +350,7 @@ run_spatialize <- function(
     country_grid = ls_inputs$country_grid,
     species_proxy = ls_inputs$species_proxy,
     manure_pattern = ls_inputs$manure_pattern,
+    glw_density = ls_inputs$glw_density,
     years = resolved_years,
     proxy_method = config$livestock_proxy,
     area_key = config$area_key
@@ -720,13 +726,24 @@ run_spatialize <- function(
     required = FALSE
   )
 
+  # Only under the method that allocates on it. GLW3 is an env-var-gated
+  # local raster set, not one of this directory's parquets, so `input_dir`
+  # is not consulted -- `read_glw_density()` resolves `WHEP_GLW3_DIR` and
+  # aborts naming its download script when unset. Loading it unconditionally
+  # would make every default `"luh2"` run depend on a tree it never reads.
+  glw_density <- NULL
+  if (identical(config$livestock_proxy, "glw3")) {
+    glw_density <- read_glw_density()
+  }
+
   list(
     livestock_data = livestock_data,
     gridded_pasture = gridded_pasture,
     gridded_cropland = gridded_cropland,
     country_grid = country_grid,
     species_proxy = species_proxy,
-    manure_pattern = manure_pattern
+    manure_pattern = manure_pattern,
+    glw_density = glw_density
   )
 }
 

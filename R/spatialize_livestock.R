@@ -180,13 +180,16 @@
 #'   (`proxy_method = "glw3"`).
 #'
 #' The default stays `"luh2"` even though `"glw3"` is the better-informed
-#' proxy. WHEP has no data mechanism for GLW3 yet -- no download script,
-#' env var, pin or reader (whep#1000, task T15a-ii) -- so a `"glw3"`
-#' default would abort every production run. This is a deliberate,
-#' documented deviation from "the default is the most rigorous available
-#' method", of the same shape as the interim `area_key = "grid"` default
-#' in `R/spatialize_compartments.R`; whep#1000 task T20 is the gate that
-#' revisits it.
+#' proxy. GLW3 now has a data mechanism -- [read_glw_density()], the
+#' `WHEP_GLW3_DIR` environment variable and
+#' `inst/scripts/download/download_glw3.R` (whep#1000, task T15a-ii) --
+#' but it is an opt-in local raster set, so a `"glw3"` default would abort
+#' every run on a machine that has not fetched it, and GLW3 covers nine of
+#' the eleven species groups (not `camels`, not `other`). This is a
+#' deliberate, documented deviation from "the default is the most rigorous
+#' available method", of the same shape as the interim `area_key = "grid"`
+#' default in `R/spatialize_compartments.R`; whep#1000 task T20 is the gate
+#' that revisits it.
 #'
 #' @section Species groups must be mapped, not guessed:
 #' Every `species_group` in `livestock_data` must have a row in
