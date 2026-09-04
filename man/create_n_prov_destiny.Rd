@@ -24,8 +24,11 @@ Semi-natural agroecosystems, Livestock, Fish, or Agro-industry.
 Semi-natural agroecosystems, Livestock (manure), People (waste water),
 Deposition, Fixation, Synthetic, or Outside. Fish and Agro-industry are
 \code{box} values, not origins; their nitrogen enters as Outside.
-\item \code{destiny}: The destiny category of N: population_food,
-population_other_uses, livestock_mono, livestock_rum (feed), export,
+\item \code{destiny}: The destiny category of N: population_food (edible-basis;
+see \code{.split_food_inedible_loss()}), population_food_inedible (the
+inedible fraction of the same food, split out of population_food so
+nothing is silently discarded from the total), population_other_uses,
+livestock_mono, livestock_rum (feed), export,
 processing_losses (N not credited to a processed output),
 Cropland and semi_natural_agroecosystems (for N soil inputs).
 \item \code{mg_n}: Nitrogen amount in megagrams (Mg).

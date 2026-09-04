@@ -186,7 +186,9 @@ create_typologies_grafs_spain <- function(
 #' the same flows, but with a different schema and vocabulary, so the whole
 #' translation lives here instead of in every downstream helper:
 #'
-#' - `destiny == "population_food"` becomes `Destiny == "Food"`.
+#' - `destiny == "population_food"` (and its `population_food_inedible`
+#'   remainder, see `.split_food_inedible_loss()`) becomes `Destiny ==
+#'   "Food"`.
 #' - `destiny == "population_other_uses"` becomes `Destiny == "Other_uses"`.
 #' - `destiny` in `livestock_rum`/`livestock_mono` becomes `Destiny == "Feed"`.
 #' - `destiny == "export"` becomes `Destiny == "Export"`.
@@ -212,6 +214,11 @@ create_typologies_grafs_spain <- function(
 ) {
   legacy_destiny <- c(
     population_food = "Food",
+    # population_food_inedible is the remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food; the legacy vocabulary
+    # predates that split, so fold it back into "Food" or it would be
+    # silently dropped by the names(legacy_destiny) filter below.
+    population_food_inedible = "Food",
     population_other_uses = "Other_uses",
     livestock_rum = "Feed",
     livestock_mono = "Feed",

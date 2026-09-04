@@ -362,6 +362,7 @@ reference:
   - calculate_nue_livestock
   - calculate_system_nue
   - create_n_nat_destiny
+  - build_food_protein_destiny
   - create_grafs_plot_df
   - plot_input_output
   - plot_input_output_livestock

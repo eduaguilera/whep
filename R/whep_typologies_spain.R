@@ -77,8 +77,17 @@ create_typologies_whep <- function(
     )
 
   # --- 1. Human share ------------------------------------------------------
+  # food_consumption is deliberately edible-basis only (unlike `production`,
+  # which correctly includes population_food_inedible -- the remainder
+  # .split_food_inedible_loss() (n_prov_destiny.R) split out of
+  # population_food): it represents what the population actually eats,
+  # matching {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot, not total
+  # field/system throughput. human_share is therefore the fraction of
+  # production that actually reaches people as edible food.
   food_consumption <- prod_destiny |>
-    dplyr::filter(destiny %in% c("population_food", "population_other_uses")) |>
+    dplyr::filter(
+      destiny %in% c("population_food", "population_other_uses")
+    ) |>
     dplyr::group_by(year, province_name) |>
     dplyr::summarise(
       food_consumption = sum(mg_n, na.rm = TRUE),

@@ -81,6 +81,10 @@ create_typo_ts_plot <- function(
       animal_ingestion = sum(mg_n[
         destiny %in% c("livestock_mono", "livestock_rum")
       ]),
+      # pop_consumption is deliberately edible-basis only (unlike
+      # production_total below): it represents what the population actually
+      # eats, matching {CROPS_TO_POP}/{LIVESTOCK_TO_HUMAN} in the GRAFS plot,
+      # not total field/system throughput.
       pop_consumption = sum(mg_n[destiny == "population_food"]),
       production_total = sum(mg_n[
         origin %in%
@@ -88,6 +92,7 @@ create_typo_ts_plot <- function(
           destiny %in%
             c(
               "population_food",
+              "population_food_inedible",
               "population_other_uses",
               "livestock_mono",
               "livestock_rum",

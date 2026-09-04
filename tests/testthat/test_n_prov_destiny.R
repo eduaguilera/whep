@@ -542,14 +542,14 @@ test_that(".forwardfill_population does nothing when data already ends at last_y
       "Beef", "beef_bm"
     ),
     biomass = tibble::tribble(
-      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM,
-      "grape_bm", 0.2, 0.01, # 0.002   N/t FM
-      "wine_bm", 0.02, 0.005, # 0.0001  N/t FM (nearly N-free)
-      "juice_bm", 0.1, 0.01, # 0.001   N/t FM
-      "sunflower_bm", 0.93, 0.028, # 0.02604 N/t FM
-      "cake_bm", 0.9, 0.08, # 0.072   N/t FM (N-concentrating)
-      "oil_bm", 1.0, 0.0, # 0       N/t FM
-      "beef_bm", 0.3, 0.03
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~N_kgN_kgFM,
+      "grape_bm", 0.2, 0.01, NA_real_, # 0.002   N/t FM
+      "wine_bm", 0.02, 0.005, NA_real_, # 0.0001  N/t FM (nearly N-free)
+      "juice_bm", 0.1, 0.01, NA_real_, # 0.001   N/t FM
+      "sunflower_bm", 0.93, 0.028, NA_real_, # 0.02604 N/t FM
+      "cake_bm", 0.9, 0.08, NA_real_, # 0.072   N/t FM (N-concentrating)
+      "oil_bm", 1.0, 0.0, NA_real_, # 0       N/t FM
+      "beef_bm", 0.3, 0.03, NA_real_
     )
   )
 }
@@ -717,6 +717,30 @@ test_that(".calculate_processed_amounts drops substitutions it cannot price in N
   expect_equal(nrow(out$processing_losses), 0)
 })
 
+test_that(".add_product_n_per_fm prefers N_kgN_kgFM over Product coefs", {
+  # Same regression as .convert_fm_dm_n()/.convert_to_items_n(): this
+  # function must stay in sync with .convert_fm_dm_n()'s coefficient choice
+  # (see its own roxygen), so it needs the same N_kgN_kgFM priority.
+  df <- tibble::tribble(
+    ~Item, ~Name_biomass,
+    "Milk", "Milk_primary"
+  )
+  coefs <- list(
+    items = tibble::tribble(
+      ~item, ~Name_biomass,
+      "Milk", "Cow milk"
+    ),
+    biomass = tibble::tribble(
+      ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~N_kgN_kgFM,
+      "Cow milk", 0.119, 0.0576, 0.00528
+    )
+  )
+
+  out <- .add_product_n_per_fm(df, coefs)
+
+  expect_equal(out$n_per_fm, 0.00528)
+})
+
 test_that(".processing_n_scaling leaves an exactly balanced substitution alone", {
   # Outputs carry precisely the input's N: no loss, outputs unscaled.
   candidate <- tibble::tribble(
@@ -803,8 +827,8 @@ test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Wheat", 0.88, 0.85, 0.02, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Wheat", 0.88, 0.85, 0.02, 0.005, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -820,6 +844,26 @@ test_that(".convert_fm_dm_n converts FM to DM to N correctly", {
   expect_equal(residue$production_n, expected_n_residue)
 })
 
+test_that(".convert_fm_dm_n prefers N_kgN_kgFM over Product coefs for Product rows", {
+  # Same regression as .convert_to_items_n(): production_n must follow the
+  # same N_kgN_kgFM-preferred, Product-basis-fallback priority
+  # build_food_supply() documents, and must stay in sync with
+  # .add_product_n_per_fm() (see that function's roxygen).
+  merged <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
+    2000, "A", "Milk", "Livestock", "Livestock", NA, "Product", 1000, "Cow milk", "Cow milk"
+  )
+
+  coefs <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Cow milk", 0.119, NA_real_, 0.0576, NA_real_, 0.00528
+  )
+
+  out <- .convert_fm_dm_n(merged, coefs)
+
+  expect_equal(out$production_n, 1000 * 0.00528)
+})
+
 test_that(".convert_fm_dm_n uses primary biomass for special items", {
   merged <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~LandUse, ~Irrig_cat, ~prod_type, ~production_fm, ~Name_biomass_primary, ~Name_biomass,
@@ -827,9 +871,9 @@ test_that(".convert_fm_dm_n uses primary biomass for special items", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Almond", 0.9, 0.8, 0.03, 0.01,
-    "NutsGeneric", 0.5, 0.5, 0.01, 0.01
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Almond", 0.9, 0.8, 0.03, 0.01, NA_real_,
+    "NutsGeneric", 0.5, 0.5, 0.01, 0.01, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -846,9 +890,9 @@ test_that(".convert_fm_dm_n filters NA Item with zero production", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM,
-    "Something", 0.5, 0.5, 0.01, 0.01,
-    "Wheat", 0.88, 0.85, 0.02, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Residue_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Something", 0.5, 0.5, 0.01, 0.01, NA_real_,
+    "Wheat", 0.88, 0.85, 0.02, 0.005, NA_real_
   )
 
   out <- .convert_fm_dm_n(merged, coefs)
@@ -1121,7 +1165,7 @@ test_that(".combine_destinies conserves each item's demand over any row shape", 
 
 # .convert_to_items_n ----------------------------------------------------------
 
-test_that(".convert_to_items_n converts consumption FM to N", {
+test_that(".convert_to_items_n falls back to Product coefs when N_kgN_kgFM is absent", {
   combined <- tibble::tribble(
     ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
     2000, "A", "Wheat", "Cropland", "irrig", 100, 50, 20, 30
@@ -1133,17 +1177,47 @@ test_that(".convert_to_items_n converts consumption FM to N", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
-    "Wheat", 0.88, 0.02, 0.85, 0.005
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Wheat", 0.88, 0.02, 0.85, 0.005, NA_real_
   )
 
   out <- .convert_to_items_n(combined, codes, coefs)
 
-  # Wheat is "Product" type → uses Product coefs
+  # No N_kgN_kgFM → falls back to Product coefs.
   conv_factor <- 0.88 * 0.02
   expect_equal(out$food, 50 * conv_factor)
   expect_equal(out$other_uses, 20 * conv_factor)
   expect_equal(out$feed, 30 * conv_factor)
+})
+
+test_that(".convert_to_items_n prefers N_kgN_kgFM over Product coefs when both exist", {
+  # Regression test: the two nitrogen bases can disagree for a real item (cow
+  # milk: N_kgN_kgFM implies 3.30% protein, Product_kgN_kgDM * Product_kgDM_kgFM
+  # implies 4.28%). build_food_supply() documents N_kgN_kgFM as the preferred
+  # source "where available", so .convert_to_items_n() must match that
+  # priority instead of always deriving nitrogen from the Product basis.
+  combined <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~Box, ~Irrig_cat, ~production_n, ~food, ~other_uses, ~feed,
+    2000, "A", "Milk", "Livestock", NA, 100, 50, 20, 30
+  )
+
+  codes <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Milk", "Cow milk"
+  )
+
+  coefs <- tibble::tribble(
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Cow milk", 0.119, 0.0576, NA_real_, NA_real_, 0.00528
+  )
+
+  out <- .convert_to_items_n(combined, codes, coefs)
+
+  # N_kgN_kgFM must win over the Product-derived value (0.119 * 0.0576 =
+  # 0.0068544, about 30% higher than 0.00528).
+  expect_equal(out$food, 50 * 0.00528)
+  expect_equal(out$other_uses, 20 * 0.00528)
+  expect_equal(out$feed, 30 * 0.00528)
 })
 
 test_that(".convert_to_items_n uses residue coefs for Grass items", {
@@ -1158,8 +1232,8 @@ test_that(".convert_to_items_n uses residue coefs for Grass items", {
   )
 
   coefs <- tibble::tribble(
-    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM,
-    "Grass", 0.3, 0.01, 0.2, 0.025
+    ~Name_biomass, ~Product_kgDM_kgFM, ~Product_kgN_kgDM, ~Residue_kgDM_kgFM, ~Residue_kgN_kgDM, ~N_kgN_kgFM,
+    "Grass", 0.3, 0.01, 0.2, 0.025, NA_real_
   )
 
   out <- .convert_to_items_n(combined, codes, coefs)
@@ -1758,4 +1832,223 @@ test_that(".finalize_prod_destiny does not fan out on a two-Box item", {
       Destiny
     ))
   )
+})
+
+
+# .split_food_inedible_loss ----------------------------------------------------
+
+test_that(".split_food_inedible_loss splits population_food by Edible_portion", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_food"], 80)
+  expect_equal(out$mg_n[out$destiny == "population_food_inedible"], 20)
+  # Nothing is lost: the two rows sum back to the original total.
+  expect_equal(sum(out$mg_n), 100)
+})
+
+test_that(".split_food_inedible_loss treats a missing Edible_portion as 1", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 100
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Wheat", NA_real_
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  # A missing Edible_portion degrades to fully edible: no inedible row.
+  expect_equal(nrow(out), 1)
+  expect_equal(out$destiny, "population_food")
+  expect_equal(out$mg_n, 100)
+})
+
+test_that(".split_food_inedible_loss leaves non-food destinies unchanged", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_other_uses", 10,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 5
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(out$mg_n[out$destiny == "population_other_uses"], 10)
+  expect_equal(out$mg_n[out$destiny == "export"], 5)
+  expect_equal(sum(out$mg_n), 115)
+})
+
+test_that(".split_food_inedible_loss keeps items independent", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 100,
+    2020, "Spain", "Wheat", "rainfed", "Cropland", "Cropland",
+    "population_food", 50
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~Name_biomass,
+    "Eggs", "Eggs",
+    "Wheat", "Wheat"
+  )
+  biomass_coefs <- tibble::tribble(
+    ~Name_biomass, ~Edible_portion,
+    "Eggs", 0.8,
+    "Wheat", 1
+  )
+
+  out <- .split_food_inedible_loss(
+    destiny_df,
+    codes_coefs_items_full = codes_coefs_items_full,
+    biomass_coefs = biomass_coefs
+  )
+
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food"],
+    80
+  )
+  expect_equal(
+    out$mg_n[out$item == "Eggs" & out$destiny == "population_food_inedible"],
+    20
+  )
+  expect_equal(
+    out$mg_n[out$item == "Wheat" & out$destiny == "population_food"],
+    50
+  )
+  expect_false(any(
+    out$item == "Wheat" & out$destiny == "population_food_inedible"
+  ))
+})
+
+
+# build_food_protein_destiny ---------------------------------------------------
+
+test_that("build_food_protein_destiny sums population_food only by default", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  # protein_t = 80 MgN * 6.25 (N-to-protein) = 500 t; protein_g_cap_day =
+  # 500 * 1e6 / 1e6 population / 365 = 500 / 365.
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+  expect_equal(out$method_protein_basis, "edible_portion")
+})
+
+test_that("build_food_protein_destiny adds the inedible remainder back in for whole_commodity", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food_inedible", 20
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(
+    destiny_df,
+    population,
+    protein_basis = "whole_commodity"
+  )
+
+  # protein_t = (80 + 20) MgN * 6.25 = 625 t; protein_g_cap_day =
+  # 625 * 1e6 / 1e6 population / 365 = 625 / 365.
+  expect_equal(out$protein_g_cap_day, 625 / 365)
+  expect_equal(out$method_protein_basis, "whole_commodity")
+})
+
+test_that("build_food_protein_destiny excludes non-food destinies", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 80,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "livestock_rum", 1000,
+    2020, "Spain", "Eggs", "rainfed", "Livestock", "Livestock",
+    "export", 1000
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "Spain", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(out$protein_g_cap_day, 500 / 365)
+})
+
+test_that("build_food_protein_destiny keeps provinces separate", {
+  destiny_df <- tibble::tribble(
+    ~year, ~province_name, ~item, ~irrig_cat, ~box, ~origin, ~destiny, ~mg_n,
+    2020, "A", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 36.5,
+    2020, "B", "Eggs", "rainfed", "Livestock", "Livestock",
+    "population_food", 73
+  )
+  population <- tibble::tribble(
+    ~year, ~province_name, ~population,
+    2020, "A", 1e6,
+    2020, "B", 1e6
+  )
+
+  out <- build_food_protein_destiny(destiny_df, population)
+
+  expect_equal(nrow(out), 2)
+  expect_equal(out$protein_g_cap_day[out$province_name == "A"], 0.625)
+  expect_equal(out$protein_g_cap_day[out$province_name == "B"], 1.25)
 })
