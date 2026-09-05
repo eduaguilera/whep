@@ -14,6 +14,17 @@
 #   "offset", "flag_rate_prev", "flag_rate_seam", "flag_rate_next",
 #   "neighbour_rate", "excess"
 # )
+#
+# Added by the tier-B hold-out leg (T29b), for the same call. Nine are
+# new; `first_year` is already declared for another file and is listed
+# only because this one now uses it too:
+# c(
+#   "anchor_year", "holdout_k", "horizon", "n_backcast_years",
+#   "n_observed_years", "n_units_gated", "reconstructed",
+#   "share_backcast", "share_observed"
+# )
+#
+# No `.example_*` fixture is added: `seam_gate()`'s example is unchanged.
 
 #' Tolerances of the admin-shares seam gate
 #'
@@ -60,6 +71,21 @@
 #' - `cell_excess` (0.01): the plan's one percentage point. Tier C passes
 #'   when the seam pair's flag rate exceeds the mean of its two
 #'   neighbouring pairs' rates by no more than this.
+#' - `holdout_k` (10): how many of a series' earliest observed years the
+#'   tier-B hold-out withholds. The leg's power grows with the horizon,
+#'   because a wrong per-unit trend in the extent proxy accumulates
+#'   linearly with the years back-cast while the yardstick stays a single
+#'   year's move: on this package's own two-history fixture
+#'   (`test_admin_shares_gate.R`), two extent tables whose reconstructions
+#'   differ by a factor of 0.40 to 1.63 at ten years are **not** separated
+#'   at `holdout_k = 3` (both pass) and are separated decisively at 10
+#'   (0.008 against 0.383 of pairs beyond the reference quantile). Each
+#'   withheld year is also an observation removed from both the anchor and
+#'   the reference, so `holdout_k` cannot approach the length of the
+#'   record; ten leaves two decades of reference pairs on a thirty-year
+#'   series. Assumed, unverified: no measurement fixes it, and it is a
+#'   choice about how deep an extrapolation the gate certifies, not a
+#'   property of the data.
 #'
 #' Two further numbers are **derived** from those, and returned rather
 #' than set, so they cannot disagree with them:
@@ -86,6 +112,8 @@
 #'   scan.
 #' @param cell_excess Largest flag-rate excess tier C accepts, as a
 #'   fraction.
+#' @param holdout_k How many of a series' earliest observed years the
+#'   tier-B hold-out withholds.
 #'
 #' @return A named list of the arguments plus `null_rate` and
 #'   `min_gated`.
@@ -103,7 +131,8 @@ seam_gate_tolerances <- function(
   min_reference = 20L,
   cell_ratio_bounds = c(0.55, 1.6),
   cell_min_ha = 100,
-  cell_excess = 0.01
+  cell_excess = 0.01,
+  holdout_k = 10L
 ) {
   .validate_tol(identity_rel, "identity_rel")
   .validate_tol(identity_floor, "identity_floor")
@@ -113,6 +142,7 @@ seam_gate_tolerances <- function(
   .validate_tol(cell_excess, "cell_excess")
   .sg_check_quantile(reference_quantile)
   .sg_check_bounds(cell_ratio_bounds)
+  .sg_check_k(holdout_k)
   list(
     identity_rel = identity_rel,
     identity_floor = identity_floor,
@@ -123,7 +153,8 @@ seam_gate_tolerances <- function(
     min_reference = min_reference,
     cell_ratio_bounds = cell_ratio_bounds,
     cell_min_ha = cell_min_ha,
-    cell_excess = cell_excess
+    cell_excess = cell_excess,
+    holdout_k = as.integer(holdout_k)
   )
 }
 
@@ -179,6 +210,76 @@ seam_gate_tolerances <- function(
 #' invisible against its own year-to-year variation passes; one whose
 #' seams step further than its ordinary years do, does not.
 #'
+#' **That reasoning holds only where both sides of the pair are
+#' observations**, which `basis` records per pair and the container gate
+#' is grouped by:
+#'
+#' - `basis = "observed_both_sides"`: the seam year's row and the year
+#'   before it are both `treatment == "observed"`. The tier keeps its
+#'   meaning, and its `pass` enters the verdict. This is the
+#'   `source_switch`, `grain_switch`, `nuts_version_switch`,
+#'   `coverage_change` and `indicator_switch` case.
+#' - `basis = "vacuous_by_construction"`: the year before the seam is a
+#'   row the back-cast produced, or is absent. It is read off the two
+#'   rows' `treatment`, not off the seam kind, because that is the
+#'   operative fact. At a `"start"` seam of a table whose anchor matches
+#'   it -- tier A's last check -- it always holds: `t0` is the series'
+#'   first observed year, so
+#'   `s_u(t0 - 1)` is `s_u(t0) * E_u(t0 - 1) / E_u(t0)` renormalised, one
+#'   year of smooth extent change. Scored against a reference built from
+#'   the noisier observed year-to-year moves it cannot fail: two extent
+#'   proxies with opposite per-unit trends, whose reconstructions differ
+#'   by a factor of 0.40 to 1.63 ten years down, both return
+#'   `n_beyond = 0`. Such rows report `gate_status =
+#'   "vacuous_by_construction"` and `pass = NA`, and do **not** enter the
+#'   verdict; `frac_beyond` and `threshold` are still filled in, because
+#'   the numbers are worth reading even though they decide nothing.
+#'
+#' @section Tier B hold-out -- what stands in at a start seam:
+#' Only when `holdout` is supplied. For every series with a `"start"`
+#' seam, the first `holdout_k` observed years are withheld, the series is
+#' back-cast again from the next observed year (the `seam =` override of
+#' [backcast_admin_shares()], which is the same lever the verification
+#' protocol's temporal hold-out uses), and the reconstruction is scored
+#' against what was actually observed in those years:
+#' `|log(s_hat_u(t) / s_u(t))|` per unit and withheld year, against the
+#' same reference quantile of that series' observed consecutive
+#' log-ratios. The two are commensurable under iid year-to-year noise: a
+#' reconstruction error is a difference of two years' noise (the anchor's
+#' and the withheld year's), like a one-year move, and neither widens
+#' with the horizon. On this package's fixture the error distribution
+#' comes out slightly narrower than the reference, so the realised null
+#' exceedance rate sits under `null_rate` rather than over it; under
+#' persistent noise a deep hold-out over-rejects instead. Both departures
+#' are the safe direction for a gate, and neither is assumed: the
+#' measured fractions are in the tests.
+#'
+#' The reference excludes every pair at or below the hold-out anchor as
+#' well as every seam year, for the reason tier B holds its gated pairs
+#' out of their own reference: a series whose earliest years are unusual
+#' would otherwise both widen the yardstick and be measured by it. The
+#' consequence is worth stating plainly -- where the earliest years
+#' genuinely move differently from the rest of the record, this leg
+#' fails a proxy that is right about the rest. It fails loudly rather
+#' than passing quietly.
+#'
+#' The band divides by the number of **units** with a scored pair, not by
+#' the number of pairs. A unit's `holdout_k` errors all carry the anchor
+#' year's own noise, so they are one cluster and not `holdout_k`
+#' independent draws; dividing by pairs made this leg flag a correct
+#' proxy on the package's own fixture. `min_gated` therefore reads as a
+#' minimum unit count here (`gate_status = "too_few_units"`).
+#'
+#' A series with `holdout_k` or fewer observed years is reported
+#' `not_applicable`, never passed, and so is every series when `holdout`
+#' is not supplied: a start seam then has no evidence at all behind it,
+#' which the returned table says on its own row.
+#'
+#' What a pass certifies is a `holdout_k`-year extrapolation. Where the
+#' published back-cast runs deeper -- `n_backcast_years` on every row
+#' says how much deeper -- it is evidence about the first `holdout_k`
+#' years of it and no more.
+#'
 #' Every seam kind in `seams` is gated, coverage changes and indicator
 #' switches included: the seam list is taken as given rather than
 #' filtered, so a kind added upstream is gated without a change here. A
@@ -229,6 +330,18 @@ seam_gate_tolerances <- function(
 #'   or `rainfed_ha` plus `irrigated_ha`. `polycell_id`, `cell_id`,
 #'   `level_polity_code` and `regime` are used when present. `NULL`
 #'   (default) leaves tier C unevaluated.
+#' @param holdout What the tier-B hold-out needs, or `NULL` (default),
+#'   which leaves it unevaluated. A list of `extent`, the per-unit extent
+#'   table from [aggregate_unit_extent()] that the back-cast was run
+#'   with, and optionally `args`, a named list of further arguments for
+#'   [backcast_admin_shares()] -- the `settings` row of the original
+#'   back-cast, so the hold-out is run the way the run was.
+#'   `shares`, `extent` and `seam` are set by the leg and are refused in
+#'   `args`. With `holdout` supplied, `shares_backcast` must also carry
+#'   `indicator_used` and `treatment_year`, which the back-cast reads.
+#'   The re-run's own input errors -- an `extent` with two rows for a
+#'   unit-year, say -- surface as errors from it. That is not the gate
+#'   failing: a gate outcome is always a returned row.
 #' @param tolerances The numbers to judge with, from
 #'   [seam_gate_tolerances()].
 #'
@@ -236,20 +349,27 @@ seam_gate_tolerances <- function(
 #'   - `tier_a`: one row per series, with `t0`, `n_units`, `n_observed`,
 #'     `share_sum`, `max_rel_diff`, `basis`, `seam_start_year`,
 #'     `matches_seam_start`, `pass` and `reason`.
-#'   - `tier_b`: one row per gated unit-seam pair, with `log_ratio`,
-#'     `q_reference`, `n_reference`, `beyond_quantile` and `status`, plus
-#'     the container gate (`n_gated`, `n_beyond`, `frac_beyond`,
-#'     `threshold`, `gate_status`, `pass`) broadcast onto every row of
-#'     that container.
+#'   - `tier_b`: one row per gated unit-seam pair, with `basis`,
+#'     `log_ratio`, `q_reference`, `n_reference`, `beyond_quantile` and
+#'     `status`, plus the container gate (`n_gated`, `n_beyond`,
+#'     `frac_beyond`, `threshold`, `gate_status`, `pass`) broadcast onto
+#'     every row of that container and `basis`.
+#'   - `tier_b_holdout`: one row per unit and withheld year, with
+#'     `anchor_year`, `horizon`, `share_observed`, `share_backcast`,
+#'     `log_ratio`, `status` and the per-series gate; plus one row,
+#'     keyed on the series alone, for every start-seam series the leg
+#'     could not run (`status` beginning `"not_applicable"`). Zero rows
+#'     when no series has a `"start"` seam.
 #'   - `tier_c`: one row per gated `(area_code, seam_year)`, with the
 #'     three pairs' scanned series counts and flag rates,
 #'     `neighbour_rate`, `excess`, `n_regime_mismatch`, `pass` and
 #'     `reason`. Zero rows when `cells` is `NULL`.
-#'   - `verdict`: a named logical, `tier_a` / `tier_b` / `tier_c` /
-#'     `overall`. A tier is `TRUE` when every gate it evaluated passed,
-#'     `FALSE` when any failed and `NA` when it evaluated none.
-#'     `overall` is `FALSE` if any tier failed, `NA` if none was
-#'     evaluable, else `TRUE`.
+#'   - `verdict`: a named logical, `tier_a` / `tier_b` /
+#'     `tier_b_holdout` / `tier_c` / `overall`. A tier is `TRUE` when
+#'     every gate it evaluated passed, `FALSE` when any failed and `NA`
+#'     when it evaluated none -- which is what a container of nothing but
+#'     `"vacuous_by_construction"` rows gives. `overall` is `FALSE` if
+#'     any tier failed, `NA` if none was evaluable, else `TRUE`.
 #'
 #' @export
 #'
@@ -280,17 +400,26 @@ seam_gate <- function(
   shares_backcast,
   seams,
   cells = NULL,
+  holdout = NULL,
   tolerances = seam_gate_tolerances()
 ) {
   tolerances <- .sg_validate_tolerances(tolerances)
   .sg_validate_shares(shares_backcast)
   .sg_validate_seams(seams)
+  holdout <- .sg_validate_holdout(holdout, shares_backcast)
   tier_a <- .sg_tier_a(shares_backcast, seams, tolerances)
   tier_b <- .sg_tier_b(shares_backcast, seams, tolerances)
+  holdout_b <- .sg_tier_b_holdout(shares_backcast, seams, holdout, tolerances)
   tier_c <- .sg_tier_c(cells, seams, tolerances)
-  verdict <- .sg_verdict(tier_a, tier_b, tier_c)
-  .sg_report(tier_a, tier_b, tier_c, verdict)
-  list(tier_a = tier_a, tier_b = tier_b, tier_c = tier_c, verdict = verdict)
+  verdict <- .sg_verdict(tier_a, tier_b, holdout_b, tier_c)
+  .sg_report(tier_a, tier_b, holdout_b, tier_c, verdict)
+  list(
+    tier_a = tier_a,
+    tier_b = tier_b,
+    tier_b_holdout = holdout_b,
+    tier_c = tier_c,
+    verdict = verdict
+  )
 }
 
 # --- Keys and input validation ------------------------------------------------
@@ -327,6 +456,17 @@ seam_gate <- function(
     cli::cli_abort(
       "{.arg reference_quantile} must be one number strictly in (0, 1)."
     )
+  }
+}
+
+.sg_check_k <- function(value) {
+  ok <- is.numeric(value) &&
+    length(value) == 1 &&
+    !is.na(value) &&
+    value >= 1 &&
+    value == trunc(value)
+  if (!ok) {
+    cli::cli_abort("{.arg holdout_k} must be one whole number of years >= 1.")
   }
 }
 
@@ -395,6 +535,49 @@ seam_gate <- function(
     cli::cli_abort("{.arg seams} needs a numeric {.field seam_year}.")
   }
   invisible(NULL)
+}
+
+# The hold-out re-runs the back-cast, so it needs the extent table and
+# the two provenance columns that function keys on, neither of which the
+# gate's own contract asks for. Refused here rather than deep inside a
+# `do.call()`, and only when the leg is actually requested.
+.sg_validate_holdout <- function(holdout, shares) {
+  if (is.null(holdout)) {
+    return(NULL)
+  }
+  if (!is.list(holdout) || !rlang::has_name(holdout, "extent")) {
+    cli::cli_abort("{.arg holdout} must be a list with an {.field extent}.")
+  }
+  extra <- setdiff(names(holdout), c("extent", "args"))
+  if (length(extra) > 0) {
+    cli::cli_abort("{.arg holdout} has unknown element{?s} {.field {extra}}.")
+  }
+  .require_cols(
+    holdout$extent,
+    c("area_code", "level_polity_code", "level", "year", "extent_ha"),
+    "holdout$extent"
+  )
+  .require_cols(
+    shares,
+    c("indicator_used", "treatment_year"),
+    "shares_backcast"
+  )
+  list(extent = holdout$extent, args = .sg_holdout_args(holdout$args))
+}
+
+.sg_holdout_args <- function(args) {
+  args <- args %||% list()
+  if (!is.list(args) || (length(args) > 0 && !rlang::is_named(args))) {
+    cli::cli_abort("{.arg holdout$args} must be a named list.")
+  }
+  reserved <- intersect(names(args), c("shares", "extent", "seam"))
+  if (length(reserved) > 0) {
+    cli::cli_abort(c(
+      "{.arg holdout$args} sets {.field {reserved}}, which the leg sets.",
+      i = "The hold-out chooses the anchor; that is what it is."
+    ))
+  }
+  args
 }
 
 .sg_validate_cells <- function(cells) {
@@ -663,9 +846,23 @@ seam_gate <- function(
     dplyr::left_join(pairs, by = c(.sg_unit_key(), "year"))
 }
 
+# A seam log-ratio is evidence only where both its rows are
+# observations. Read off the two treatments rather than off the seam
+# kind, because that is the operative fact: at a `"start"` seam the year
+# before `t0` is a row the back-cast produced from `t0` (or is absent),
+# so the comparison is with a construction and cannot fail.
+.sg_pair_basis <- function(treatment, prev_treatment) {
+  observed <- !is.na(treatment) &
+    !is.na(prev_treatment) &
+    treatment == "observed" &
+    prev_treatment == "observed"
+  dplyr::if_else(observed, "observed_both_sides", "vacuous_by_construction")
+}
+
 .sg_score_pairs <- function(scored, tol) {
   scored |>
     dplyr::mutate(
+      basis = .sg_pair_basis(treatment, prev_treatment),
       n_reference = dplyr::coalesce(n_reference, 0L),
       status = dplyr::case_when(
         is.na(prev_year) ~ "no_previous_row",
@@ -686,17 +883,23 @@ seam_gate <- function(
 # container by a grouped `mutate()` rather than summarised and rejoined:
 # a rejoin on a bare territory key is what the package's join audit asks
 # code not to add, and there is nothing here it would buy.
+#
+# `basis` joins the grouping so that pairs whose comparison is with a
+# back-cast row are not pooled with pairs between two observations: one
+# rate over both would let the vacuous half dilute the half that means
+# something.
 .sg_container_gate <- function(scored, tol) {
   scored |>
     dplyr::mutate(
       n_gated = sum(status == "gated"),
       n_beyond = sum(beyond_quantile, na.rm = TRUE),
-      .by = dplyr::all_of(c("area_code", "level"))
+      .by = dplyr::all_of(c("area_code", "level", "basis"))
     ) |>
     dplyr::mutate(
       frac_beyond = dplyr::if_else(n_gated > 0L, n_beyond / n_gated, NA_real_),
       threshold = .sg_binomial_band(n_gated, tol),
       gate_status = dplyr::case_when(
+        basis == "vacuous_by_construction" ~ "vacuous_by_construction",
         n_gated == 0L ~ "no_pairs",
         n_gated < tol$min_gated ~ "too_few_pairs",
         .default = "gated"
@@ -733,6 +936,7 @@ seam_gate <- function(
     "q_reference",
     "n_reference",
     "beyond_quantile",
+    "basis",
     "status",
     "n_gated",
     "n_beyond",
@@ -758,8 +962,332 @@ seam_gate <- function(
     q_reference = numeric(),
     n_reference = integer(),
     beyond_quantile = logical(),
+    basis = character(),
     status = character(),
     n_gated = integer(),
+    n_beyond = integer(),
+    frac_beyond = numeric(),
+    threshold = numeric(),
+    gate_status = character(),
+    pass = logical()
+  )
+}
+
+# --- Tier B hold-out: what stands in where tier B cannot bite -----------------
+
+.sg_tier_b_holdout <- function(shares, seams, holdout, tol) {
+  series <- .sg_holdout_series(shares, seams, tol)
+  if (nrow(series) == 0L) {
+    return(.sg_holdout_prototype())
+  }
+  rows <- if (is.null(holdout)) {
+    .sg_holdout_refusal(series, "not_applicable_no_extent")
+  } else {
+    dplyr::bind_rows(
+      .sg_holdout_scored(
+        shares,
+        seams,
+        dplyr::filter(series, !is.na(anchor_year)),
+        holdout,
+        tol
+      ),
+      .sg_holdout_refusal(
+        dplyr::filter(series, is.na(anchor_year)),
+        "not_applicable_short_series"
+      )
+    )
+  }
+  .sg_holdout_gate(rows, tol)
+}
+
+# The series the leg is about: those the seam list calls `"start"`, with
+# the anchor the hold-out would move to. `anchor_year` is `NA` where the
+# record is too short to withhold `holdout_k` years and still have one to
+# anchor on -- reported, never shortened to fit.
+.sg_holdout_series <- function(shares, seams, tol) {
+  starts <- .sg_start_seams(seams)
+  observed <- dplyr::filter(shares, treatment == "observed")
+  if (nrow(starts) == 0L || nrow(observed) == 0L) {
+    return(.sg_holdout_series_prototype())
+  }
+  observed |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(.sg_series_key(), "year")))) |>
+    dplyr::summarise(
+      n_observed_years = dplyr::n(),
+      anchor_year = .sg_nth_year(year, tol$holdout_k + 1L),
+      .by = dplyr::all_of(.sg_series_key())
+    ) |>
+    dplyr::inner_join(starts, by = .sg_series_key()) |>
+    dplyr::inner_join(.sg_anchor_years(shares), by = .sg_series_key()) |>
+    dplyr::left_join(.sg_series_first_year(shares), by = .sg_series_key()) |>
+    dplyr::mutate(
+      holdout_k = as.integer(tol$holdout_k),
+      n_backcast_years = as.integer(t0 - first_year)
+    ) |>
+    dplyr::select(dplyr::all_of(.sg_holdout_series_cols()))
+}
+
+.sg_series_first_year <- function(shares) {
+  dplyr::summarise(
+    shares,
+    first_year = min(year),
+    .by = dplyr::all_of(.sg_series_key())
+  )
+}
+
+.sg_nth_year <- function(years, n) {
+  years <- sort(unique(years))
+  if (length(years) < n) {
+    return(NA_integer_)
+  }
+  as.integer(years[[n]])
+}
+
+.sg_holdout_series_cols <- function() {
+  c(
+    .sg_series_key(),
+    "t0",
+    "anchor_year",
+    "holdout_k",
+    "n_observed_years",
+    "n_backcast_years"
+  )
+}
+
+.sg_holdout_series_prototype <- function() {
+  tibble::tibble(
+    area_code = integer(),
+    level = integer(),
+    item_prod_code = integer(),
+    t0 = integer(),
+    anchor_year = integer(),
+    holdout_k = integer(),
+    n_observed_years = integer(),
+    n_backcast_years = integer()
+  )
+}
+
+# A series the leg could not run at all: one row, keyed on the series,
+# carrying its reason. It reaches the gate like any other row and counts
+# towards nothing, which is what keeps `not_applicable` out of `pass`.
+# The argument is `why`, not `status`, so that the assignment below reads
+# the argument rather than a column of `series` should one ever be added.
+.sg_holdout_refusal <- function(series, why) {
+  if (nrow(series) == 0L) {
+    return(.sg_holdout_prototype())
+  }
+  series |>
+    dplyr::mutate(
+      level_polity_code = NA_character_,
+      year = NA_integer_,
+      horizon = NA_integer_,
+      share_observed = NA_real_,
+      share_backcast = NA_real_,
+      log_ratio = NA_real_,
+      q_reference = NA_real_,
+      n_reference = NA_integer_,
+      beyond_quantile = NA,
+      status = why
+    )
+}
+
+.sg_holdout_scored <- function(shares, seams, series, holdout, tol) {
+  if (nrow(series) == 0L) {
+    return(.sg_holdout_prototype())
+  }
+  withheld <- .sg_holdout_withheld(shares, series)
+  produced <- .sg_holdout_backcast(shares, series, holdout)
+  shares |>
+    dplyr::filter(treatment == "observed") |>
+    dplyr::select(
+      dplyr::all_of(c(.sg_unit_key(), "year")),
+      share_observed = share
+    ) |>
+    dplyr::inner_join(withheld, by = c(.sg_series_key(), "year")) |>
+    dplyr::left_join(
+      produced,
+      by = c(.sg_unit_key(), "year"),
+      relationship = "one-to-one"
+    ) |>
+    dplyr::left_join(series, by = .sg_series_key()) |>
+    dplyr::left_join(
+      .sg_holdout_reference(shares, seams, series, tol),
+      by = .sg_series_key()
+    ) |>
+    .sg_holdout_status(tol)
+}
+
+.sg_holdout_status <- function(scored, tol) {
+  scored |>
+    dplyr::mutate(
+      horizon = as.integer(anchor_year - year),
+      log_ratio = .sg_log_ratio(share_backcast, share_observed),
+      n_reference = dplyr::coalesce(n_reference, 0L),
+      status = dplyr::case_when(
+        !dplyr::coalesce(reconstructed, FALSE) ~ "not_reconstructed",
+        is.na(share_backcast) | is.na(share_observed) ~ "na_share",
+        is.na(log_ratio) ~ "zero_share",
+        n_reference < tol$min_reference ~ "no_reference",
+        .default = "gated"
+      ),
+      beyond_quantile = dplyr::if_else(
+        status == "gated",
+        log_ratio > q_reference,
+        NA
+      )
+    )
+}
+
+# The observed years below the hold-out anchor: the first `holdout_k` of
+# them, counted on the years that are actually there, so a gap in the
+# record shortens no window.
+.sg_holdout_withheld <- function(shares, series) {
+  shares |>
+    dplyr::filter(treatment == "observed") |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(.sg_series_key(), "year")))) |>
+    dplyr::inner_join(
+      dplyr::select(series, dplyr::all_of(c(.sg_series_key(), "anchor_year"))),
+      by = .sg_series_key()
+    ) |>
+    dplyr::filter(year < anchor_year) |>
+    dplyr::select(dplyr::all_of(c(.sg_series_key(), "year")))
+}
+
+# Re-run the back-cast from the withheld anchor. Only the rows it
+# produced are kept: a series whose override did not take (an anchor year
+# that is not observed, a refused extent) would otherwise hand back the
+# observations themselves and score a perfect reconstruction of them.
+.sg_holdout_backcast <- function(shares, series, holdout) {
+  input <- shares |>
+    dplyr::semi_join(series, by = .sg_series_key()) |>
+    dplyr::filter(treatment == "observed") |>
+    dplyr::select(
+      -dplyr::any_of(c("treatment", "gap_rule", "extent_ha", "extent_basis"))
+    )
+  seam <- dplyr::transmute(
+    series,
+    area_code,
+    level,
+    item_prod_code,
+    t0 = anchor_year
+  )
+  args <- c(
+    list(shares = input, extent = holdout$extent, seam = seam),
+    holdout$args
+  )
+  do.call(backcast_admin_shares, args)$shares |>
+    dplyr::filter(!dplyr::coalesce(treatment == "observed", FALSE)) |>
+    dplyr::select(
+      dplyr::all_of(c(.sg_unit_key(), "year")),
+      share_backcast = share
+    ) |>
+    dplyr::mutate(reconstructed = TRUE)
+}
+
+# The same reference distribution tier B judges against, with the
+# hold-out window held out of it as tier B holds its gated pairs out of
+# theirs: every pair at or below the anchor goes, and so does every seam
+# year.
+.sg_holdout_reference <- function(shares, seams, series, tol) {
+  window <- shares |>
+    dplyr::filter(treatment == "observed") |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(c(.sg_series_key(), "year")))) |>
+    dplyr::inner_join(
+      dplyr::select(series, dplyr::all_of(c(.sg_series_key(), "anchor_year"))),
+      by = .sg_series_key()
+    ) |>
+    dplyr::filter(year <= anchor_year) |>
+    dplyr::select(dplyr::all_of(c(.sg_series_key(), "year")))
+  excluded <- dplyr::distinct(dplyr::bind_rows(
+    dplyr::select(
+      .sg_seam_years(seams),
+      dplyr::all_of(c(.sg_series_key(), "year"))
+    ),
+    window
+  ))
+  .sg_reference_quantiles(.sg_consecutive_pairs(shares), excluded, tol)
+}
+
+# The band divides by the number of units, not the number of pairs: a
+# unit's `holdout_k` errors all carry its anchor year's own noise, so
+# they are one cluster. `min_gated` is the same arithmetic on that count
+# -- one whole unit beyond the quantile is `1 / n_units` of the pairs.
+.sg_holdout_gate <- function(rows, tol) {
+  rows |>
+    dplyr::mutate(
+      n_gated = sum(status == "gated"),
+      n_units_gated = dplyr::n_distinct(level_polity_code[status == "gated"]),
+      n_beyond = sum(beyond_quantile, na.rm = TRUE),
+      .by = dplyr::all_of(.sg_series_key())
+    ) |>
+    dplyr::mutate(
+      frac_beyond = dplyr::if_else(n_gated > 0L, n_beyond / n_gated, NA_real_),
+      threshold = .sg_binomial_band(n_units_gated, tol),
+      gate_status = dplyr::case_when(
+        n_gated == 0L & startsWith(status, "not_applicable") ~
+          "not_applicable",
+        n_gated == 0L ~ "no_pairs",
+        n_units_gated < tol$min_gated ~ "too_few_units",
+        .default = "gated"
+      ),
+      pass = dplyr::if_else(
+        gate_status == "gated",
+        frac_beyond <= threshold,
+        NA
+      )
+    ) |>
+    dplyr::select(dplyr::all_of(.sg_holdout_cols()))
+}
+
+.sg_holdout_cols <- function() {
+  c(
+    .sg_unit_key(),
+    "t0",
+    "anchor_year",
+    "year",
+    "horizon",
+    "holdout_k",
+    "n_observed_years",
+    "n_backcast_years",
+    "share_observed",
+    "share_backcast",
+    "log_ratio",
+    "q_reference",
+    "n_reference",
+    "beyond_quantile",
+    "status",
+    "n_gated",
+    "n_units_gated",
+    "n_beyond",
+    "frac_beyond",
+    "threshold",
+    "gate_status",
+    "pass"
+  )
+}
+
+.sg_holdout_prototype <- function() {
+  tibble::tibble(
+    area_code = integer(),
+    level = integer(),
+    item_prod_code = integer(),
+    level_polity_code = character(),
+    t0 = integer(),
+    anchor_year = integer(),
+    year = integer(),
+    horizon = integer(),
+    holdout_k = integer(),
+    n_observed_years = integer(),
+    n_backcast_years = integer(),
+    share_observed = numeric(),
+    share_backcast = numeric(),
+    log_ratio = numeric(),
+    q_reference = numeric(),
+    n_reference = integer(),
+    beyond_quantile = logical(),
+    status = character(),
+    n_gated = integer(),
+    n_units_gated = integer(),
     n_beyond = integer(),
     frac_beyond = numeric(),
     threshold = numeric(),
@@ -991,10 +1519,11 @@ seam_gate <- function(
 
 # --- Verdict and report -------------------------------------------------------
 
-.sg_verdict <- function(tier_a, tier_b, tier_c) {
+.sg_verdict <- function(tier_a, tier_b, holdout_b, tier_c) {
   tiers <- c(
     tier_a = .sg_tier_verdict(tier_a$pass),
     tier_b = .sg_tier_verdict(tier_b$pass),
+    tier_b_holdout = .sg_tier_verdict(holdout_b$pass),
     tier_c = .sg_tier_verdict(tier_c$pass)
   )
   c(tiers, overall = .sg_overall_verdict(tiers))
@@ -1018,9 +1547,13 @@ seam_gate <- function(
   TRUE
 }
 
-.sg_report <- function(tier_a, tier_b, tier_c, verdict) {
+.sg_report <- function(tier_a, tier_b, holdout_b, tier_c, verdict) {
   n_scored <- sum(tier_b$status == "gated")
   judged <- dplyr::n_distinct(tier_b$area_code[!is.na(tier_b$pass)])
+  vacuous <- sum(tier_b$basis == "vacuous_by_construction")
+  n_holdout <- holdout_b |>
+    dplyr::distinct(dplyr::pick(dplyr::all_of(.sg_series_key()))) |>
+    nrow()
   cli::cli_inform(c(
     "{.fn seam_gate}: overall {.val {verdict[['overall']]}}.",
     "*" = "Tier A {.val {verdict[['tier_a']]}}: {nrow(tier_a)} series,
@@ -1028,7 +1561,11 @@ seam_gate <- function(
     "*" = "Tier B {.val {verdict[['tier_b']]}}: {n_scored} of
            {nrow(tier_b)} unit-seam pair{?s} scored,
            {judged} of {dplyr::n_distinct(tier_b$area_code)}
-           container{?s} judged.",
+           container{?s} judged; {vacuous} pair{?s} vacuous by
+           construction and out of the verdict.",
+    "*" = "Tier B hold-out {.val {verdict[['tier_b_holdout']]}}:
+           {sum(holdout_b$status == 'gated')} of {nrow(holdout_b)}
+           unit-year{?s} scored over {n_holdout} start-seam series.",
     "*" = "Tier C {.val {verdict[['tier_c']]}}: {nrow(tier_c)}
            container-seam gate{?s},
            {sum(tier_c$pass, na.rm = TRUE)} passing."

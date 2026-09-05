@@ -9,7 +9,19 @@
 # every one of them, and this is the live evidence for that claim.
 #
 # The three tiers are documented on `seam_gate()` itself and are not restated
-# here. What this script adds is where the live inputs come from, and one thing
+# here. Two things about tier B decide what this script records (T29b):
+#
+#   - its container gate is keyed on `(area_code, level, basis)`, not on
+#     `(area_code, level)`, so the summary below groups on `basis` too. Without
+#     it, `dplyr::first()` would pick one of two gates per container and report
+#     it as the container's.
+#   - at a `"start"` seam `basis` is `"vacuous_by_construction"`: the year
+#     before `t0` is the back-cast's own output, so the pair cannot fail and is
+#     reported rather than passed. What stands in its place is the hold-out
+#     leg, which needs the extent table -- `VAL_ASG_EXTENT` below. Without it a
+#     start seam is gated by tier A alone, and the run says so.
+#
+# What this script adds is where the live inputs come from, and one thing
 # the in-suite leg cannot have: the **window scan**. The plan asks the live gate
 # to look at every consecutive pair around the seam, not only the seam pair, as
 # a cheap check that the back-cast did not simply move the step one year. That
@@ -40,6 +52,13 @@
 #                            version, so those two seam kinds CANNOT be
 #                            recovered from it and are silently absent
 #                            otherwise. The count of kinds found is reported.
+#   VAL_ASG_EXTENT           optional; a local parquet or CSV holding the
+#                            per-unit extent table (`aggregate_unit_extent()`)
+#                            the back-cast was run with. It is what the tier-B
+#                            hold-out re-runs the back-cast from, and the only
+#                            evidence a start seam can have. Unset => the leg
+#                            reports `not_applicable_no_extent` for every
+#                            start-seam series, which is a gap, not a pass.
 #   VAL_ASG_WINDOW           years before each series' first constrained year
 #                            the window scan reaches. Default 2.
 #   VAL_ASG_PERTURB          perturbation factor (default 1; `--perturb`
@@ -218,6 +237,10 @@ asg_tier_a_summary <- function(tier_a) {
     dplyr::mutate(key = as.character(.data$area_code))
 }
 
+# Grouped on `basis` as well as the container, because the gate is: a
+# container with both a start seam and a source switch carries TWO gates, and
+# `first()` over the pair would report whichever sorted first as the
+# container's own.
 asg_tier_b_summary <- function(tier_b) {
   tier_b |>
     dplyr::summarise(
@@ -227,9 +250,35 @@ asg_tier_b_summary <- function(tier_b) {
       frac_beyond = dplyr::first(.data$frac_beyond),
       threshold = dplyr::first(.data$threshold),
       n_failing = sum(!dplyr::coalesce(.data$pass, TRUE)),
-      .by = c("area_code", "level")
+      .by = c("area_code", "level", "basis")
     ) |>
-    dplyr::mutate(key = paste(.data$area_code, .data$level, sep = "|"))
+    dplyr::mutate(
+      key = paste(.data$area_code, .data$level, .data$basis, sep = "|")
+    )
+}
+
+# The hold-out gate is per SERIES, not per container: each series has its own
+# anchor and its own withheld window, so pooling items would pool windows.
+asg_holdout_summary <- function(holdout) {
+  holdout |>
+    dplyr::summarise(
+      n_rows = dplyr::n(),
+      n_scored = sum(.data$status == "gated"),
+      n_gated = dplyr::first(.data$n_gated),
+      n_units_gated = dplyr::first(.data$n_units_gated),
+      n_beyond = dplyr::first(.data$n_beyond),
+      frac_beyond = dplyr::first(.data$frac_beyond),
+      n_failing = sum(!dplyr::coalesce(.data$pass, TRUE)),
+      .by = c("area_code", "level", "item_prod_code")
+    ) |>
+    dplyr::mutate(
+      key = paste(
+        .data$area_code,
+        .data$level,
+        .data$item_prod_code,
+        sep = "|"
+      )
+    )
 }
 
 asg_tier_c_summary <- function(tier_c) {
@@ -322,6 +371,24 @@ perturb <- as.numeric(Sys.getenv(
 ))
 window <- as.integer(Sys.getenv("VAL_ASG_WINDOW", "2"))
 
+# `--perturb` only proves anything against a RECORDED baseline: without one,
+# `asg_judge()` fails every row with why = "not recorded" regardless of the
+# perturbation, `n_moved` is > 0 either way, and the script aborts at line
+# ~527 for a reason that looks like the tripwire firing but is not one (#1000,
+# T34-7). Say so up front instead of letting that unrelated abort masquerade
+# as the tripwire working.
+if (perturb != 1 && !record && !file.exists(asg_baseline)) {
+  cli::cli_abort(c(
+    "{.code --perturb} (or {.envvar VAL_ASG_PERTURB}) needs a recorded
+     baseline to prove it moved something.",
+    x = "No {.path {asg_baseline}} yet, so every row would already read
+         {.val not recorded} and abort for that reason, not because the
+         perturbation was caught.",
+    i = "Run {.code Rscript validation/admin_seam_gate.R --record} on a
+         clean run first, then repeat with {.code --perturb}."
+  ))
+}
+
 out_dir <- Sys.getenv("WHEP_SPATIALIZE_OUT_DIR")
 crops_path <- file.path(out_dir, "gridded_landuse_crops.parquet")
 coverage_path <- file.path(out_dir, "admin_coverage.csv")
@@ -394,6 +461,21 @@ shares <- if (nzchar(shares_path) && file.exists(shares_path)) {
   NULL
 }
 
+extent_path <- Sys.getenv("VAL_ASG_EXTENT")
+holdout <- if (is.null(shares)) {
+  NULL
+} else if (nzchar(extent_path) && file.exists(extent_path)) {
+  list(extent = asg_read_table(extent_path))
+} else {
+  cli::cli_alert_warning(c(
+    "Tier B's hold-out is skipped: {.envvar VAL_ASG_EXTENT} is unset or does
+     not point at a file.",
+    i = "Every {.val start} seam is then gated by tier A alone -- tier B is
+         vacuous there by construction and reports itself so."
+  ))
+  NULL
+}
+
 gated <- if (is.null(shares)) {
   # Tier C alone still needs a share table's shape to reach the gate, so a
   # zero-row one is passed: tiers A and B then report themselves unevaluated.
@@ -411,7 +493,7 @@ gated <- if (is.null(shares)) {
     cells = cells
   )
 } else {
-  seam_gate(shares, seams, cells = cells)
+  seam_gate(shares, seams, cells = cells, holdout = holdout)
 }
 
 window_gated <- if (is.null(shares)) {
@@ -423,6 +505,7 @@ window_gated <- if (is.null(shares)) {
 
 tier_a <- asg_tier_a_summary(gated$tier_a)
 tier_b <- asg_tier_b_summary(gated$tier_b)
+holdout_b <- asg_holdout_summary(gated$tier_b_holdout)
 tier_c <- asg_tier_c_summary(gated$tier_c)
 window_b <- if (is.null(window_gated)) {
   asg_tier_b_summary(gated$tier_b[0, ])
@@ -436,6 +519,10 @@ gated$tier_c |> print(n = 40, width = Inf)
 dir.create(asg_cache, showWarnings = FALSE, recursive = TRUE)
 readr::write_csv(gated$tier_c, file.path(asg_cache, "admin_seam_gate_c.csv"))
 readr::write_csv(gated$tier_b, file.path(asg_cache, "admin_seam_gate_b.csv"))
+readr::write_csv(
+  gated$tier_b_holdout,
+  file.path(asg_cache, "admin_seam_gate_holdout.csv")
+)
 
 if (record) {
   baseline <- list(
@@ -446,7 +533,8 @@ if (record) {
       n_seams = nrow(seams),
       n_cell_rows = nrow(cells),
       window = window,
-      shares = nzchar(shares_path)
+      shares = nzchar(shares_path),
+      holdout = !is.null(holdout)
     ),
     note = paste(
       "Seam-gate state of one spatialization run: tier A identity at each",
@@ -455,9 +543,13 @@ if (record) {
       "is a measurement to be re-recorded when the run changes."
     ),
     tier_a = asg_record_group(tier_a, "area_code"),
-    tier_b = asg_record_group(tier_b, c("area_code", "level")),
+    tier_b = asg_record_group(tier_b, c("area_code", "level", "basis")),
+    holdout_b = asg_record_group(
+      holdout_b,
+      c("area_code", "level", "item_prod_code")
+    ),
     tier_c = asg_record_group(tier_c, "area_code"),
-    window_b = asg_record_group(window_b, c("area_code", "level"))
+    window_b = asg_record_group(window_b, c("area_code", "level", "basis"))
   )
   writeLines(
     jsonlite::toJSON(baseline, auto_unbox = TRUE, pretty = TRUE, digits = 17),
@@ -486,6 +578,12 @@ verdict <- dplyr::bind_rows(
   ) |>
     dplyr::mutate(group = "tier_b"),
   asg_judge(
+    holdout_b,
+    baseline$holdout_b,
+    c("n_rows", "n_scored", "n_gated", "n_units_gated", "n_beyond", "n_failing")
+  ) |>
+    dplyr::mutate(group = "holdout_b"),
+  asg_judge(
     tier_c,
     baseline$tier_c,
     c("n_gates", "n_failing", "n_regime_mismatch", "n_flag_seam")
@@ -506,13 +604,19 @@ verdict |>
   print(n = 40, width = Inf)
 
 n_moved <- sum(verdict$fail)
+# The hold-out is a gate like any other, so its failures join the count the
+# scorecard flags on. It is reported separately as well, because a start seam
+# gated by nothing at all (`holdout_scored=0`) and one gated and passing look
+# identical in a failure count.
 n_gate_fail <- sum(tier_a$n_failing) +
   sum(tier_b$n_failing) +
+  sum(holdout_b$n_failing) +
   sum(tier_c$n_failing)
 cat(sprintf(
   paste0(
     "METRIC status=run n_seams=%d n_seam_kinds=%d n_cell_rows=%d ",
-    "n_tier_c_gates=%d n_gate_failures=%d n_moved=%d window=%d perturb=%s\n"
+    "n_tier_c_gates=%d n_gate_failures=%d n_moved=%d window=%d perturb=%s ",
+    "holdout_scored=%d holdout_failing=%d\n"
   ),
   nrow(seams),
   dplyr::n_distinct(seams$seam_kind),
@@ -521,7 +625,9 @@ cat(sprintf(
   n_gate_fail,
   n_moved,
   window,
-  format(perturb)
+  format(perturb),
+  sum(holdout_b$n_scored),
+  sum(holdout_b$n_failing)
 ))
 
 if (n_moved > 0) {
