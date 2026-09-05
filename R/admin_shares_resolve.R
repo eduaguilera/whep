@@ -37,6 +37,13 @@
 #'    tied sources. This is the deterministic last resort, never a
 #'    scientific rule.
 #'
+#' None of the five reads `value`, so a source consented to ship derived
+#' shares only -- the Latin American panel of the *Shares-only rows*
+#' section of [admin_shares_schema()] -- competes, wins and is carried on
+#' exactly the same terms as a source shipping absolute areas. Its rows
+#' arrive in `shares` still carrying `value = NA`; nothing here fills that
+#' in, and nothing downstream may.
+#'
 #' Before any of that, the indicator in force is chosen per `(area_code,
 #' level, item_prod_code, year)` by decision 8's order of acceptance --
 #' `"area_harvested"`, `"area_planted_or_sown"`, `"area_main"`,
@@ -87,7 +94,10 @@
 #' @param shares Admin-shares table, conforming to [admin_shares_schema()]
 #'   except that `source` joins the key: a multi-source union is exactly
 #'   what resolution consumes, and the contract's key holds within one
-#'   source. Every row must have `treatment_year == "observed"`.
+#'   source. Every row must have `treatment_year == "observed"` and must
+#'   carry `value`, `share` or both; a row with neither aborts with class
+#'   `whep_error_admin_no_measure`, and a non-finite `value` or `share`
+#'   with class `whep_error_admin_nonfinite`.
 #' @param overrides Optional tibble of forced choices, with columns
 #'   `area_code`, `source` and optionally `item_prod_code` (`NA`, or the
 #'   column absent, means every item of that container). An item-specific
@@ -241,7 +251,16 @@ resolve_admin_shares <- function(
   shares <- tibble::as_tibble(shares)
   assert_table_schema(shares, .admin_resolve_schema(), arg = "shares")
   .abort_unobserved_shares(shares)
-  ensure_columns(shares, admin_shares_prototype())
+  completed <- ensure_columns(shares, admin_shares_prototype())
+  # The contract's cross-column rule, which no schema specification can
+  # carry: `value` may be missing where `share` is present (the consented
+  # shares-only case), but a row with neither measurement constrains
+  # nothing and must not be ranked as though it did. A non-finite
+  # measurement is refused with it -- `is.na(NaN)` is `TRUE`, so a 0/0
+  # artefact would enter resolution as a consented shares-only row.
+  .abort_nonfinite_admin_rows(completed, arg = "shares")
+  .abort_measureless_admin_rows(completed, arg = "shares")
+  completed
 }
 
 .abort_unobserved_shares <- function(shares) {

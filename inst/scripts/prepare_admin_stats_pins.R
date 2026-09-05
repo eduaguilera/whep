@@ -81,18 +81,42 @@ ADMIN_PINS_FIRST_YEAR <- 1961L
 # ---- The families -----------------------------------------------------
 
 # One row per family: the pin alias, its tier, the reporting grain of its
-# units, whether it ships source values or derived shares, and a label.
-# Spain is `admin2` because its provinces sit below the NUTS-2 autonomous
-# communities; every other family reports at its country's first
-# administrative level.
+# units, and whether it ships source values or derived shares.
+#
+# The ALIAS LIST and the MEASURE are read off `whep:::.admin_source_registry()`
+# through its two accessors, never restated here. They are permissions,
+# and a second statement of a permission is a second thing to disagree
+# with the gate: this table used to declare `measure` itself, so a family
+# could be built shipping a measurement `read_admin_shares()` then refused.
+# `tier` and `grain` are reporting metadata rather than permissions, so
+# they stay local -- with a guard, since a family added to the registry
+# needs them. Spain is `admin2` because its provinces sit below the NUTS-2
+# autonomous communities; every other family reports at its country's
+# first administrative level.
 .admin_pins_families <- function() {
-  tibble::tribble(
-    ~alias,                         ~tier, ~grain,   ~measure,
-    "admin-stats-japan",            2L,    "admin1", "value",
-    "admin-stats-spain-provinces",  2L,    "admin2", "value",
-    "admin-stats-australia",        2L,    "admin1", "value",
-    "admin-stats-france-livestock", 2L,    "admin1", "value",
-    "admin-stats-latam",            3L,    "admin1", "share"
+  reporting <- tibble::tribble(
+    ~alias,                         ~tier, ~grain,
+    "admin-stats-japan",            2L,    "admin1",
+    "admin-stats-spain-provinces",  2L,    "admin2",
+    "admin-stats-australia",        2L,    "admin1",
+    "admin-stats-france-livestock", 2L,    "admin1",
+    "admin-stats-latam",            3L,    "admin1"
+  )
+  aliases <- whep:::.admin_family_aliases()
+  undescribed <- setdiff(aliases, reporting$alias)
+  if (length(undescribed) > 0) {
+    cli::cli_abort(c(
+      "No tier or grain declared for {.val {undescribed}}.",
+      i = "The family list comes from {.fun whep:::.admin_source_registry};
+           add the reporting metadata for a family declared there."
+    ))
+  }
+  place <- match(aliases, reporting$alias)
+  tibble::tibble(
+    alias = aliases,
+    tier = reporting$tier[place],
+    grain = reporting$grain[place],
+    measure = whep:::.admin_family_measure(aliases)
   )
 }
 
@@ -527,7 +551,8 @@ stage_admin_pin <- function(
 #' Write the per-family manifest.
 #'
 #' One row per family: what it ships, how much of it, and the attribution
-#' or permission it ships under.
+#' or permission it ships under. Rows this run did not build are carried
+#' over from the file, never rewritten.
 write_admin_pins_manifest <- function(
   families,
   staged,
@@ -566,9 +591,40 @@ write_admin_pins_manifest <- function(
       "md5",
       "retrieved_at"
     )
-  readr::write_csv(out, path)
+  merged <- .admin_pins_merge_manifest(out, path)
+  readr::write_csv(merged, path)
   cli::cli_alert_success("admin-stats: manifest at {.file {path}}")
-  out
+  merged
+}
+
+# This manifest has two writers. `prepare_admin_shares_pin.R` keeps the
+# assembled `admin-shares` row in the same file -- the only tracked record
+# of that artifact's version, md5, byte count and composed attribution --
+# and a run here rebuilds only the families it was asked for. Writing
+# `out` wholesale therefore deleted every row this run did not build:
+# the assembled pin's row on a full run, and four of the five families on
+# `prepare_admin_stats_pins(aliases = <one>)`. Nothing detected the loss,
+# because the consent gate only asks whether the five FAMILIES are there.
+#
+# `utils::read.csv()`, not `data.table::fread()`: `attribution` is prose
+# with embedded commas and quotes, and a `fread()` round trip doubles an
+# escaped quote silently.
+.admin_pins_merge_manifest <- function(out, path) {
+  if (!file.exists(path)) {
+    return(out)
+  }
+  existing <- tibble::as_tibble(
+    utils::read.csv(path, stringsAsFactors = FALSE)
+  )
+  kept <- existing[!existing$alias %in% out$alias, , drop = FALSE]
+  if (nrow(kept) == 0) {
+    return(out)
+  }
+  cli::cli_alert_info(
+    "admin-stats: carrying over {nrow(kept)} row{?s} this run did not
+     build: {.val {kept$alias}}."
+  )
+  dplyr::bind_rows(out, kept)
 }
 
 # ---- Entry point ------------------------------------------------------

@@ -891,3 +891,124 @@ testthat::test_that("not_shipped flags resolved rows of a withheld family", {
   out2 <- whep:::resolve_admin_shares(shares)
   testthat::expect_false(any(out2$coverage$not_shipped))
 })
+
+# --- T38: shares-only rows are ranked and carried ----------------------------
+#
+# The Latin American family is consented as DERIVED SHARES ONLY (T23,
+# 2026-09-02), so `value` is absent on every one of its rows. Resolution
+# ranks on indicator, grain, tier and run length, none of which reads
+# `value`, so a shares-only candidate must compete and win on the same
+# terms as a valued one -- and must arrive intact, still carrying no value.
+
+# Two sibling units of one source that ships shares and no values.
+two_share_units <- function(
+  source,
+  tier,
+  grain,
+  years,
+  area_code = 19L,
+  item_prod_code = 661L
+) {
+  tidyr::crossing(
+    year = as.integer(years),
+    level_polity_code = paste0(source, c("-U1", "-U2"))
+  ) |>
+    dplyr::mutate(
+      area_code = area_code,
+      item_prod_code = item_prod_code,
+      indicator_used = "area_harvested",
+      nuts_version = NA_character_,
+      source = source,
+      tier = as.integer(tier),
+      grain = grain,
+      value = NA_real_,
+      share = dplyr::if_else(endsWith(level_polity_code, "-U1"), 0.6, 0.4)
+    ) |>
+    resolve_rows()
+}
+
+test_that("a shares-only candidate wins on grain and keeps no value", {
+  rows <- dplyr::bind_rows(
+    two_units(
+      "Eurostat",
+      1,
+      "admin1",
+      2000,
+      area_code = 19L,
+      item_prod_code = 661L
+    ),
+    two_share_units("admin-stats-latam", 3, "admin2", 2000)
+  )
+
+  resolved <- whep:::resolve_admin_shares(rows)
+
+  expect_equal(unique(resolved$shares$resolved_source), "admin-stats-latam")
+  expect_equal(unique(resolved$coverage$resolution_rule), "grain")
+  expect_true(all(is.na(resolved$shares$value)))
+  expect_equal(sort(resolved$shares$share), c(0.4, 0.6))
+  expect_equal(unique(resolved$dropped$source), "Eurostat")
+})
+
+test_that("a shares-only candidate can also lose, and is dropped whole", {
+  rows <- dplyr::bind_rows(
+    two_units(
+      "ES_provinces",
+      2,
+      "admin2",
+      2000,
+      area_code = 19L,
+      item_prod_code = 661L
+    ),
+    two_share_units("admin-stats-latam", 3, "admin1", 2000)
+  )
+
+  resolved <- whep:::resolve_admin_shares(rows)
+
+  expect_equal(unique(resolved$shares$resolved_source), "ES_provinces")
+  expect_equal(unique(resolved$dropped$source), "admin-stats-latam")
+  expect_true(all(is.na(resolved$dropped$value)))
+})
+
+test_that("a shares-only series is a run like any other", {
+  # Run length is counted on years present, not on values present.
+  rows <- dplyr::bind_rows(
+    two_share_units("latam_long", 3, "admin1", 2000:2004),
+    two_units(
+      "rival_short",
+      3,
+      "admin1",
+      2002,
+      area_code = 19L,
+      item_prod_code = 661L
+    )
+  )
+
+  resolved <- whep:::resolve_admin_shares(rows)
+
+  won <- dplyr::filter(resolved$coverage, year == 2002L)
+  expect_equal(won$resolved_source, "latam_long")
+  expect_equal(won$resolution_rule, "run_length")
+})
+
+test_that("resolve_admin_shares aborts on a row with neither measurement", {
+  rows <- two_share_units("admin-stats-latam", 3, "admin1", 2000)
+  rows$share <- NA_real_
+
+  expect_error(
+    whep:::resolve_admin_shares(rows),
+    class = "whep_error_admin_no_measure"
+  )
+})
+
+test_that("resolve_admin_shares aborts on a non-finite measurement", {
+  # `is.na(NaN)` is TRUE, so without this rule a 0/0 artefact enters
+  # resolution indistinguishable from the consented shares-only case and
+  # wins or loses a container on a value nobody computed.
+  rows <- two_share_units("admin-stats-latam", 3, "admin1", 2000)
+  rows$value <- c(NaN, NaN)
+
+  expect_error(
+    whep:::resolve_admin_shares(rows),
+    class = "whep_error_admin_nonfinite"
+  )
+})
