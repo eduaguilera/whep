@@ -61,7 +61,11 @@
 #' The `bio_coefs` table carries manure coefficients in its `Solid`, `Liquid`,
 #' `Excreta` and `Urban` `category` rows (keyed by `name_biomass` = species),
 #' with `residue_c_n_ratio` as the manure C:N and `residue_humified_c_kgc` as the
-#' humification fraction. Used to derive manure carbon from manure nitrogen.
+#' humification fraction. The `Solid` and `Liquid` rows cap the carbon that
+#' survives storage in [apply_management_losses()]. The `Excreta` rows are no
+#' longer used to derive excreted carbon: the cattle value is a fresh-dung
+#' C:N applied to whole-excreta N (see `.calc_excretion_c()`), and
+#' [estimate_n_excretion()] now takes carbon from the volatile solids instead.
 #' @noRd
 .manure_cn_coefs <- function(coefs = whep::whep_coef_table("bio_coefs")) {
   tibble::as_tibble(coefs) |>

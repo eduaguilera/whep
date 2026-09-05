@@ -8,6 +8,27 @@
 #' `n_intake = sum(intake_dm_t * feed_n_content)`, so the methods are directly
 #' comparable.
 #'
+#' Carbon is the carbon of the excreted organic matter,
+#' `vs_excretion * c_vs_fraction`, so it inherits the intake-and-digestibility
+#' mass balance of the volatile solids. Urine carbon is not part of the
+#' volatile solids under `method_vs = "intake_digestibility"` and is not
+#' counted: at a C:N near 0.9 it is under a tenth of a dairy cow's excreted
+#' carbon (Dijkstra et al. 2018, Table 5) and is respired within days of
+#' deposition, so it never reaches the soil carbon this feeds.
+#'
+#' @details
+#' The default `c_vs_fraction` of 0.47 kg C per kg of volatile solids is the
+#' carbon content of the components that make up faecal organic matter in
+#' Dijkstra et al. (2018, Front. Sustain. Food Syst. 2:63,
+#' doi:10.3389/fsufs.2018.00063, Table 1): fibre 0.44, microbial organic
+#' matter 0.47, protein 0.52 and lipids 0.75 g C per g dry matter, weighted
+#' towards the fibre and microbial debris that dominate faeces. Measured
+#' manures bracket it: 0.52 for fresh bedded dairy manure (Choi et al. 2022,
+#' PeerJ 10:e14134, doi:10.7717/peerj.14134, Table 1: 43.3% C and 83.3% VS
+#' of dry matter) and 0.39-0.46 for stored cattle and pig manure (Baek et al.
+#' 2020, Int. J. Environ. Res. Public Health 17:4737,
+#' doi:10.3390/ijerph17134737, Table 1).
+#'
 #' @param intake A tibble of realised feed intake with at least `year`,
 #'   `territory`, `sub_territory`, `livestock_category`, `item_cbs_code`,
 #'   `feed_quality` and `intake_dm_t` (the [redistribute_feed()] result).
@@ -22,13 +43,17 @@
 #'     (`n_intake - product_n`).
 #'   * `method_vs`: `"intake_digestibility"` (default,
 #'     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
+#'   * `method_c`: `"volatile_solids"` (default and only method,
+#'     `vs_excretion * c_vs_fraction`).
+#'   * `c_vs_fraction`: carbon per unit of volatile solids, kg C / kg VS.
+#'     Default 0.47; see Details.
 #'   * `product_n`: a tibble (`year`, `territory`, `sub_territory`,
 #'     `livestock_category`, `product_n`) required by `"intake_minus_product_n"`.
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category` and columns
 #'   `n_intake`, `n_excretion`, `c_excretion`, `vs_excretion`,
-#'   `method_n_excretion` and `method_vs`.
+#'   `method_n_excretion`, `method_vs` and `method_c_excretion`.
 #' @export
 #' @examples
 #' intake <- tibble::tribble(
@@ -56,15 +81,15 @@ estimate_n_excretion <- function(intake, options = list()) {
         "territory",
         "sub_territory",
         "livestock_category",
-        "bo_category",
-        "cn_species"
+        "bo_category"
       )
     ) |>
     .calc_excretion_n(opt) |>
-    .calc_excretion_c() |>
+    .calc_excretion_c(opt) |>
     dplyr::mutate(
       method_n_excretion = opt$method,
-      method_vs = opt$method_vs
+      method_vs = opt$method_vs,
+      method_c_excretion = opt$method_c
     ) |>
     dplyr::select(
       "year",
@@ -76,7 +101,8 @@ estimate_n_excretion <- function(intake, options = list()) {
       "c_excretion",
       "vs_excretion",
       "method_n_excretion",
-      "method_vs"
+      "method_vs",
+      "method_c_excretion"
     )
 }
 
@@ -87,6 +113,8 @@ estimate_n_excretion <- function(intake, options = list()) {
     list(
       method = "intake_minus_retention",
       method_vs = "intake_digestibility",
+      method_c = "volatile_solids",
+      c_vs_fraction = .excreta_c_vs_fraction(),
       product_n = NULL
     ),
     options
@@ -100,6 +128,10 @@ estimate_n_excretion <- function(intake, options = list()) {
   if (!opt$method_vs %in% "intake_digestibility") {
     cli::cli_abort("Unknown {.arg method_vs} {.val {opt$method_vs}}.")
   }
+  if (!opt$method_c %in% "volatile_solids") {
+    cli::cli_abort("Unknown {.arg method_c} {.val {opt$method_c}}.")
+  }
+  .check_c_vs_fraction(opt$c_vs_fraction)
   if (opt$method == "intake_minus_product_n" && is.null(opt$product_n)) {
     cli::cli_abort(
       "{.val intake_minus_product_n} needs {.arg product_n} in {.arg options}."
@@ -132,8 +164,7 @@ estimate_n_excretion <- function(intake, options = list()) {
       bridge,
       "livestock_category",
       "species_gen",
-      "bo_category",
-      "cn_species"
+      "bo_category"
     ),
     by = "livestock_category"
   )
@@ -251,13 +282,33 @@ estimate_n_excretion <- function(intake, options = list()) {
     )
 }
 
-.calc_excretion_c <- function(out) {
-  cn <- .manure_cn_coefs() |>
-    dplyr::filter(.data$manure_type == "Excreta") |>
-    dplyr::select("cn_species" = "species", "cn_ratio")
-  out <- dplyr::left_join(out, cn, by = "cn_species")
-  if (anyNA(out$cn_ratio)) {
-    cli::cli_abort("Missing Excreta C:N for some species.")
+# Excreted carbon is the carbon of the excreted organic matter: the volatile
+# solids times their carbon fraction. It used to be n_excretion times the
+# bio_coefs "Excreta" C:N, but that table's cattle value (19.07) is a fresh-dung
+# composition (C 0.44 and N 0.023 kg/kg DM) applied to the WHOLE excreted N,
+# of which some 60% is urinary and carries almost no carbon (Chadwick et al.
+# 2018, doi:10.1016/j.scitotenv.2018.04.152; Dijkstra et al. 2018,
+# doi:10.3389/fsufs.2018.00063, Table 5: dairy faeces C:N 13.4, urine 0.9,
+# whole excreta 6.6). Carbon then came out at 0.73 kg per kg of volatile
+# solids, more than organic matter can hold, so about 1.5x too high for the
+# global herd. Deriving it from the volatile solids makes it inherit the same
+# intake-and-digestibility mass balance as the feed it came from.
+.calc_excretion_c <- function(out, opt) {
+  dplyr::mutate(out, c_excretion = .data$vs_excretion * opt$c_vs_fraction)
+}
+
+# Default carbon fraction of excreted volatile solids (kg C / kg VS); the
+# sources are in estimate_n_excretion()'s Details.
+.excreta_c_vs_fraction <- function() {
+  0.47
+}
+
+.check_c_vs_fraction <- function(x) {
+  ok <- is.numeric(x) && length(x) == 1 && !is.na(x) && x > 0 && x < 1
+  if (!ok) {
+    cli::cli_abort(
+      "{.arg c_vs_fraction} must be a single number in (0, 1), not {.val {x}}."
+    )
   }
-  dplyr::mutate(out, c_excretion = .data$n_excretion * .data$cn_ratio)
+  invisible(NULL)
 }

@@ -23,6 +23,10 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 (\code{n_intake - product_n}).
 \item \code{method_vs}: \code{"intake_digestibility"} (default,
 \code{intake_dm_t * (1 - digestibility) * (1 - ash)}).
+\item \code{method_c}: \code{"volatile_solids"} (default and only method,
+\code{vs_excretion * c_vs_fraction}).
+\item \code{c_vs_fraction}: carbon per unit of volatile solids, kg C / kg VS.
+Default 0.47; see Details.
 \item \code{product_n}: a tibble (\code{year}, \code{territory}, \code{sub_territory},
 \code{livestock_category}, \code{product_n}) required by \code{"intake_minus_product_n"}.
 }}
@@ -31,7 +35,7 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 A tibble with one row per
 \verb{year x territory x sub_territory x livestock_category} and columns
 \code{n_intake}, \code{n_excretion}, \code{c_excretion}, \code{vs_excretion},
-\code{method_n_excretion} and \code{method_vs}.
+\code{method_n_excretion}, \code{method_vs} and \code{method_c_excretion}.
 }
 \description{
 Converts realised feed intake (the output of \code{\link[=redistribute_feed]{redistribute_feed()}}) into
@@ -40,6 +44,27 @@ excreted nitrogen, carbon and volatile solids per
 share one canonical nitrogen intake,
 \code{n_intake = sum(intake_dm_t * feed_n_content)}, so the methods are directly
 comparable.
+
+Carbon is the carbon of the excreted organic matter,
+\code{vs_excretion * c_vs_fraction}, so it inherits the intake-and-digestibility
+mass balance of the volatile solids. Urine carbon is not part of the
+volatile solids under \code{method_vs = "intake_digestibility"} and is not
+counted: at a C:N near 0.9 it is under a tenth of a dairy cow's excreted
+carbon (Dijkstra et al. 2018, Table 5) and is respired within days of
+deposition, so it never reaches the soil carbon this feeds.
+}
+\details{
+The default \code{c_vs_fraction} of 0.47 kg C per kg of volatile solids is the
+carbon content of the components that make up faecal organic matter in
+Dijkstra et al. (2018, Front. Sustain. Food Syst. 2:63,
+doi:10.3389/fsufs.2018.00063, Table 1): fibre 0.44, microbial organic
+matter 0.47, protein 0.52 and lipids 0.75 g C per g dry matter, weighted
+towards the fibre and microbial debris that dominate faeces. Measured
+manures bracket it: 0.52 for fresh bedded dairy manure (Choi et al. 2022,
+PeerJ 10:e14134, doi:10.7717/peerj.14134, Table 1: 43.3\% C and 83.3\% VS
+of dry matter) and 0.39-0.46 for stored cattle and pig manure (Baek et al.
+2020, Int. J. Environ. Res. Public Health 17:4737,
+doi:10.3390/ijerph17134737, Table 1).
 }
 \examples{
 intake <- tibble::tribble(
