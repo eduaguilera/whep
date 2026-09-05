@@ -62,6 +62,7 @@ a hardcoded grid.
 | `gt_admin_drift.json` | Recorded state of that measurement per country × indicator × reference year × year, plus the gap-year and discrepancy summaries. **Committed** — a tripwire, meant to fail when the compiled panel changes. |
 | `admin_seam_gate.R` | Judges one `run_spatialize()` output for seam continuity (#1000): the three-tier `seam_gate()` — anchor identity, seam log-ratios against the observed distribution, cell-share jump rates around each seam — plus a derived window scan. Reads one local output directory; needs `WHEP_SPATIALIZE_OUT_DIR`, skips with a message when unset. See below. |
 | `gt_admin_seam_gate.json` | Recorded state of that gate per container × seam year. **Committed once a real run has been recorded** — a tripwire, meant to fail when the allocation moves. Absent until then. |
+| `spatialize_grid_vintage.R` | Sizes what changes when the level-0 country grid stops being the 2015 snapshot and becomes year-aware (#1000, T39): support coverage, the national tables with no cell to land in, and optionally the gridded crop output itself. A **measurement behind an open decision**, not a gate. Reads the polycell-support pin (network on a machine with no pins cache) and caches the year-aware grid it builds; the sweep runs it only once that cache exists. See below. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -280,6 +281,86 @@ proved nothing.
 `gt_admin_seam_gate.json` does not exist until someone records a real run —
 `--record` writes it, and the plain run then judges every measured row against
 it and exits non-zero when one moves.
+
+## Level-0 grid vintage (`spatialize_grid_vintage.R`)
+
+`run_spatialize()` allocates a national total into a **country grid**: one row
+per 0.5° cell and reporting `area_code`, carrying that unit's share of the
+cell's land. Until #1000 T39 that grid was always the polycell support read at
+one reference year (`.carbon_support_year()` = 2015), so every year of a run —
+1851 included — was allocated into the present-day cell-to-country map. T31(j)
+made the grid year-aware and `read_level_country_grid(grid_vintage = )` now
+selects between the two. They are two different geographies, not two
+precisions of one, and this script sizes the difference so the choice between
+them is made on numbers.
+
+It measures three things, in increasing distance from the support and
+increasing cost:
+
+- **A, the support itself.** Per year: how many cells and reporting areas each
+  vintage carries, how much land, and — weighting each cell by the LUH2
+  cropland and pasture it holds that year — how much of that land each country
+  **loses** and **gains** between the vintages, and how much falls in a cell no
+  polity claims that year and is therefore attributed to nobody. Both
+  directions are reported: a one-sided metric cannot see a defect whose
+  signature is absorption.
+- **B, the national tables that have to land in it.** Per year: which reporting
+  areas of `country_areas` / `livestock_country_data` have no cell at all under
+  each vintage, and the harvested area and head count they carry.
+  `.warn_grid_missing_reporters()` warns about exactly this set at run time,
+  and the whole national total is dropped from the gridded output.
+- **C, the gridded output.** For a small year set, `build_gridded_landuse()`
+  runs twice on identical inputs differing only in the grid, and the outputs
+  are differenced per cell. Crops only, and **off by default** because it is
+  minutes per year.
+
+A and B are the honest bound on C: nothing the engine does can put a national
+total into a cell the grid does not offer it.
+
+It does **not** reach the SOC or nitrogen chains, which read the same polycell
+support through `.carbon_cell_support()` rather than through
+`read_level_country_grid()`, so `grid_vintage` does not reach them either
+(whep#1002).
+
+```bash
+Rscript validation/spatialize_grid_vintage.R
+VAL_GV_ENGINE_YEARS=1961,2015 Rscript validation/spatialize_grid_vintage.R
+VAL_GV_REBUILD=1 Rscript validation/spatialize_grid_vintage.R
+```
+
+| Variable | Meaning |
+|---|---|
+| `WHEP_POLYCELL_SUPPORT_PATH` | Optional. A local support parquet overriding the pin, as `read_polycell_support()` reads it. |
+| `VAL_GV_YEARS` | Optional. Comma-separated years for A and B. Default: every decade 1851–2021 plus 1961 and 2015. |
+| `VAL_GV_ENGINE_YEARS` | Optional. Comma-separated years for C. **Unset (the default) skips C.** |
+| `VAL_GV_ENGINE_ITEMS` | Optional. Comma-separated `item_prod_code`s for C. Default: six large-area crops. |
+| `VAL_GV_REBUILD` | Optional. `"1"` forces the year-aware grid to be rebuilt instead of read from its cache. |
+
+The pinned inputs (`polycell-support`, `spatialize-gridded-cropland`,
+`spatialize-gridded-pasture`, `spatialize-country-areas`,
+`spatialize-livestock-country-data`, and for C `spatialize-crop-patterns`) are
+read through `whep_read_file()`, so a machine with no pins cache needs the
+network. The script exits 0 with `METRIC status=skipped` when the support
+cannot be resolved, and says which input failed.
+
+Outputs land under `validation/cache/`, which is gitignored in full:
+
+| File | Contents |
+|---|---|
+| `grid_vintage_support.csv` | A, one row per year. |
+| `grid_vintage_reporters.csv` | B, one row per year and national table. |
+| `grid_vintage_missing_areas.csv` | B2, the ten largest losers per year. |
+| `grid_vintage_engine.csv` | C, one row per year and component (only when C runs). |
+| `grid_vintage_year_aware.rds` | The year-aware grid itself, which costs minutes to build (152 epoch denominators over ~484k rows). Rebuilt on `VAL_GV_REBUILD=1`. |
+
+`validate_all.R` parses the script's `METRIC` line into a `grid_vintage` row.
+That row leaves `ok` and `flag` empty on purpose: which vintage is right is the
+open question the measurement exists to inform, so there is no pass criterion
+to score, and inventing a threshold would be a methodological choice hidden in
+a scorecard. Because building the year-aware grid costs minutes and reads a
+pin — and the sweep does not start a build without being asked — the row reads
+`not run` until `grid_vintage_year_aware.rds` exists, i.e. until the script has
+been run once by hand.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 

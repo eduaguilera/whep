@@ -29,6 +29,7 @@ committed.
 | cycle_length | GGCMI Phase 3 crop calendar | open (Zenodo 5062513) | `cache/ground_truth/cycle_length.json`, `cache/data/GGCMI/` | manual + `ncdf4` |
 | stability | none (WHEP's own series) | — | — | `stability.R` |
 | admin_drift | WHEP subnational compilation (harmonized panel, `whep_production_subnational.parquet`) | internal compilation, **not redistributed** | path in `WHEP_SUBNATIONAL` (outside the repo); `cache/admin_drift_*.csv` | `admin_drift_tvd.R` |
+| grid_vintage | none (WHEP's own inputs): the `polycell-support` pin plus `spatialize-gridded-cropland`, `spatialize-gridded-pasture`, `spatialize-country-areas`, `spatialize-livestock-country-data` and, for the engine leg, `spatialize-crop-patterns` | pins, read through `whep_read_file()`; `WHEP_POLYCELL_SUPPORT_PATH` overrides the support with a local parquet | `cache/grid_vintage_*.csv`, `cache/grid_vintage_year_aware.rds` | `spatialize_grid_vintage.R` |
 
 ## Packaged BNF coefficient provenance
 

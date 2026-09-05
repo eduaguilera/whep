@@ -14,6 +14,28 @@ suppressPackageStartupMessages({
 source("validation/validate.R")
 source("validation/variables.R")
 
+# Scorecard arithmetic for the seam-gate row (#1000/T34-6). `n_gate_failures`
+# is the tier A/B/C pass-rate; `n_moved` is `admin_seam_gate.R`'s OWN baseline
+# tripwire (validation/admin_seam_gate.R, ~line 527: it `cli_abort()`s the
+# whole script when a recorded row moved, whatever the tier gates say). A run
+# whose baseline moved has therefore already failed the script that produced
+# these numbers, so folding only `n_gate_failures` into the scorecard's `flag`
+# column let it read green while `admin_seam_gate.R` exited non-zero -- the
+# moved baseline was demoted to free text nobody scans. `flag` is the union of
+# both signals so a moved baseline always shows up as a flag, not a footnote.
+.asg_scorecard_flag <- function(n_gate_failures, n_moved) {
+  n_gate_failures + n_moved
+}
+# Runs on every `source()` of this file, cache or no cache: a moved baseline
+# must inflate the flag even when every tier gate itself passed (the shape the
+# bug missed), so the invariant is pinned here rather than only downstream of
+# the WHEP_SPATIALIZE_OUT_DIR-gated block that would otherwise be the only
+# place exercising it.
+stopifnot(
+  "a moved seam-gate baseline must inflate the scorecard flag, not just the
+   free-text note" = .asg_scorecard_flag(n_gate_failures = 0, n_moved = 3) > 0
+)
+
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)
@@ -516,17 +538,83 @@ if (length(asg_metric) != 1L || grepl("status=skipped", asg_metric)) {
   asg_num <- function(key) {
     as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", asg_metric))
   }
+  asg_flag <- .asg_scorecard_flag(
+    asg_num("n_gate_failures"),
+    asg_num("n_moved")
+  )
   add(
     "admin_seam_gate",
     "internal",
     asg_num("n_tier_c_gates"),
-    asg_num("n_tier_c_gates") - asg_num("n_gate_failures"),
-    asg_num("n_gate_failures"),
+    asg_num("n_tier_c_gates") - asg_flag,
+    asg_flag,
     sprintf(
-      "seam continuity over %d seam(s) of %d kind(s); %d recorded row(s) moved",
+      "seam continuity over %d seam(s) of %d kind(s); %d gate failure(s), %d
+       recorded row(s) moved",
       asg_num("n_seams"),
       asg_num("n_seam_kinds"),
+      asg_num("n_gate_failures"),
       asg_num("n_moved")
+    )
+  )
+}
+
+# C. level-0 grid vintage (internal, on the polycell support) -----------------
+# T39 (#1000): what changes when level 0 stops being the 2015 snapshot and
+# becomes year-aware. This is a MEASUREMENT behind an open decision, not a
+# gate: which vintage is right is the question the measurement exists to
+# inform, so there is no pass criterion to score and `ok`/`flag` stay NA while
+# the note carries the magnitudes. Building the year-aware grid costs minutes
+# and reads the polycell pin, and this sweep does not start a build without
+# being asked (the rule stated for the production cache above), so the row
+# reports "not run" until the script has been run once and left its cache.
+gv_cache_rds <- "validation/cache/grid_vintage_year_aware.rds"
+gv_out <- if (file.exists(gv_cache_rds)) {
+  system2(
+    "Rscript",
+    "validation/spatialize_grid_vintage.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+gv_metric <- grep("^METRIC", gv_out, value = TRUE)
+if (length(gv_metric) != 1L || grepl("status=skipped", gv_metric)) {
+  add(
+    "grid_vintage",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: no cached year-aware grid (run
+     `Rscript validation/spatialize_grid_vintage.R` once)"
+  )
+} else {
+  # `cropland_loss_pct_max` and `at_year` are the literal "NA" when no year
+  # carries a cropland weight, so the field is read as text and coerced
+  # quietly rather than assumed numeric.
+  gv_num <- function(key) {
+    suppressWarnings(as.numeric(sub(
+      paste0(".*", key, "=([^ ]+).*"),
+      "\\1",
+      gv_metric
+    )))
+  }
+  add(
+    "grid_vintage",
+    "internal",
+    gv_num("n_years"),
+    NA,
+    NA,
+    sprintf(
+      "measurement, not a gate: %.0f cell(s) of the 2015 snapshot absent from
+       the year-aware grid in 1851; worst cropland loss %.2f%% at %.0f; %.0f
+       engine year(s)",
+      gv_num("n_cells_absent_1851"),
+      gv_num("cropland_loss_pct_max"),
+      gv_num("at_year"),
+      gv_num("n_engine_years")
     )
   )
 }
