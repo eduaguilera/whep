@@ -69,6 +69,19 @@
     ".adjust_food_for_leftovers", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS; the IO model is built per
      year.",
+    ".alloc_straddle", "left_join", "area_code, level_polity_code", 1L,
+    "diagnostic",
+    "Attaches each unit's own cell count to the straddling report. The report
+     names the units and cells a granted-depth allocation is exposed on; it
+     moves no allocated hectare. Its geometry is the allocation layer's
+     distinct compartments across the whole run, so a unit whose cells change
+     between two of its validity intervals is reported on their union -- said
+     here rather than left to be discovered, because the diagnostic is read
+     per year.",
+    ".alloc_straddle", "left_join",
+    "lon, lat, area_code, level_polity_code", 1L, "diagnostic",
+    "The same report, attaching each compartment-cell's sibling and foreign
+     sharing flags to the allocation. Same geometry, same caveat.",
     ".allocate_livestock_to_grid", "inner_join", "area_code", 1L, "single_year",
     "Called inside the per-year, per-species-group loop that stamps `year`
      afterwards.",
@@ -283,8 +296,23 @@
      the label the sources disagree about.",
     ".spatialize_to_bucket", "[", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, keeping the raw code alongside.",
+    ".extend_base_grid_pattern", "[", "area_code", 1L, "single_year",
+    "Gives a granted-depth compartment a zero-pattern row for every item its
+     container has a target for, inside one year of the spatialization.",
     ".spatialize_year", "[", "area_code, item_prod_code", 1L, "single_year",
-    "One year of the spatialization.",
+    "One year of the spatialization: the engine's core allocation join, the
+     national table onto the grid, where the national table is keyed on the
+     CONTAINER. whep#1000 T13 made this key the allocation grain, which is
+     chosen by `.alloc_target_cols()`; both grains are written out literally
+     at the call site so that this join stays visible here rather than
+     resolving to `<dynamic>`.",
+    ".spatialize_year", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same join in the other grain: a national table stating UNIT targets
+     is joined on the container AND the unit, so a unit receives its own
+     target instead of its container's whole total. Still one year of the
+     spatialization; the unit code names a polity that carries its own
+     period, and the year the row belongs to is stamped by the caller.",
     ".warn_orphan_land", "anti_join", "item_cbs_code, area_code", 1L,
     "diagnostic",
     "Reports extension rows no production or trade key supports.",
@@ -347,7 +375,16 @@
     "`rates` is scanned over `distinct(plan, y1, y2)`, so the right side is
      derived from the left and the two cannot disagree about a territory.
      `y1` and `y2` ARE the pair's two years, which makes this key year-aware
-     in substance exactly as `.attach_mapping_source`'s period key is."
+     in substance exactly as `.attach_mapping_source`'s period key is.",
+    ".recon_bridge_summary", "left_join", "area_code, item_prod_code", 2L,
+    "diagnostic",
+    "Both joins attach per-SERIES summaries to each other: the carried runs,
+     the first/last observed year and the run totals are all reductions of
+     the one `years` frame of a single `reconcile_admin_allocation()` call,
+     so the two sides cannot disagree about a territory, and what is joined
+     is the length of a run of years -- a year in the key would return one
+     year per year. The report moves no published value: it is T14's
+     visibility rule for decision T31(e)'s unlimited bridge (whep#1000 T14)."
   )
 }
 
@@ -400,6 +437,26 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".alloc_bridge_report", "summarise",
+    "area_code, item_prod_code, treatment, run_id", 1L, "year_axis",
+    "The length of one contiguous run of bridged years: the reduction over
+     the year axis is the quantity itself, and `run_id` is what a year-free
+     group means here.",
+    ".alloc_bridge_report", "mutate", "area_code, item_prod_code, treatment",
+    1L, "year_axis",
+    "Numbers the contiguous runs of a series with `cumsum(diff(year) != 1)`,
+     which reads the year axis to CUT it; the frame is already distinct on
+     (series, treatment, year).",
+    ".alloc_bridge_report", "summarise",
+    "area_code, item_prod_code, treatment", 1L, "year_axis",
+    "The longest such run per series, decision T31(e)'s visibility rule. A
+     year in the key would return one year per year.",
+    ".alloc_straddle", "distinct", "lon, lat, area_code, level_polity_code",
+    1L, "diagnostic",
+    "The allocation layer's distinct compartment-cells, for the straddling
+     report; see the join row of the same name.",
+    ".alloc_straddle", "summarise", "area_code, level_polity_code", 1L,
+    "diagnostic", "Each unit's cell count, for the same report.",
     ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reported-year window per area, the bound that
@@ -556,6 +613,15 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".level0_fold_epochs", "summarise",
+    "lon, lat, area_code, start_year, end_year", 1L, "single_year",
+    "`.carbon_fold_area_code()`'s DA-23 fold with the epoch in the key
+     (whep#1000 T39): two polities sharing one reporting code inside one cell
+     are summed only where their validity intervals coincide exactly, so a
+     successor is never added to its own predecessor. The group is one
+     interval, which is what `single_year` means for an interval-grain table;
+     it reads as year-free only because the audit tests for a column literally
+     named `year`, and the interval is carried as `start_year`/`end_year`.",
     ".level_compartment_shares", "summarise",
     "lon, lat, area_code, level_polity_code", 1L, "diagnostic",
     "Reduces the allocation layer to one share per (cell, compartment) for the
@@ -676,9 +742,29 @@
     "diagnostic",
     "The (area, crop) pairs the crop-pattern weights cover, so the warning can
      name the carbon they cannot spatialize.",
-    ".spatialize_year", "[", "area_code, item_prod_code", 2L, "single_year",
-    "Both are inside `.spatialize_year(yr, ...)`, which stamps `year = yr` at
-     the end.",
+    ".spatialize_type_cropland", "[", "area_code, item_prod_code", 1L,
+    "single_year",
+    "`type_pot`, the LUH2-type potential of one allocation group, deciding
+     whether that group has any of its crop's type to sit in or falls back to
+     total cropland. Called from `.spatialize_year(yr, ...)` on one year's
+     `type_cropland`, which is where the year is. It stood under
+     `.spatialize_year` until whep#1000 T13 lifted the type split into its own
+     helper; the key is unchanged.",
+    ".spatialize_type_cropland", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same fallback at unit grain: with unit targets the group is the unit,
+     so one unit's type cropland cannot keep a sibling out of the whole
+     group's fallback. Same year scope.",
+    ".spatialize_year", "[", "area_code, item_prod_code", 1L, "single_year",
+    "The four share denominators -- `rf_pot_sum`, `ir_pot_sum`, `rainfed_sum`,
+     `irrigated_sum` -- of the engine's allocation, over one year's grid.
+     Written out in both grains at the call site so the audit can see the key;
+     `.alloc_target_cols()` chooses which one runs.",
+    ".spatialize_year", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same four denominators at unit grain, so a unit's target is spread
+     over that unit's own potential and not its container's. Same year
+     scope.",
     ".summarise_folded_rows", "[", "area_code, polity_area_code, <dynamic>", 1L,
     "diagnostic",
     "Counts the rows each area folds into its bucket, for the fold warning's
@@ -710,6 +796,12 @@
     "diagnostic",
     "Reports the (country, crop) pairs with national area but no allocatable
      cell, inside one year of the spatialization.",
+    ".warn_unallocated_crops", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "diagnostic",
+    "The same report at unit grain, so a unit that cannot place its target is
+     named instead of being averaged into its container's success. Both grains
+     are written out at the call site; `.alloc_target_cols()` chooses which
+     one runs.",
     ".weight_supply_by_value", "mutate", "area_code, proc_group, proc_cbs_code",
     1L, "single_year",
     "`all(price_ok | type != \"supply\")` over one year's supply-use, so a
@@ -773,7 +865,36 @@
      omission: the crop-level engine output carries `crop_name` and no
      `item_prod_code`, so there is nothing to join a per-item seam to.
      `seam_year` is the year, so the dedup collapses the ITEM dimension and
-     never a year (whep#1000 T29)."
+     never a year (whep#1000 T29).",
+    ".recon_extent_one_year", "summarise", "area_code, level_polity_code", 1L,
+    "single_year",
+    "Sums a unit's cropland over its compartment cells for ONE year: both the
+     layer (`.filter_country_grid_year(layer, yr)`) and the cropland cells
+     are cut to `yr` before the join, and the year is stamped back on the
+     result, so the key is year-scoped by the caller's `map()` over years
+     (whep#1000 T14).",
+    ".recon_carried_runs", "mutate", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "Numbers each series' contiguous runs of carried years with
+     `cumsum(diff(year) != 1)`: it reads the year axis in order to cut it.
+     The same operation `.alloc_bridge_report` performs, for the reason the
+     diagnostics exist -- decision T31(e) allows a bridge of any length, so
+     the length must be visible (whep#1000 T14).",
+    ".recon_carried_runs", "summarise", "area_code, item_prod_code, run_id",
+    1L, "year_axis",
+    "The length, start and end of one contiguous run of carried years: the
+     reduction over the year axis IS the quantity, and `run_id` is what a
+     year-free group means here (whep#1000 T14).",
+    ".recon_bridge_summary", "summarise", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "The first and last OBSERVED year of a series, which is what decides
+     whether a carried run is interior (a bridge) or a leading back-cast (not
+     one). A year in the key would return one year per year (whep#1000 T14).",
+    ".recon_run_totals", "summarise", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "Total carried years and the longest run per series, the per-(country,
+     item) figure T13/T14 report so a 60-year bridge is legible rather than
+     merely legal (whep#1000 T14)."
   )
 }
 

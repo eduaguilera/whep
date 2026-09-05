@@ -186,7 +186,25 @@ test_that("the enumerated baseline can only shrink", {
   # frame or from `plan` itself, so none can cross a succession, and the gate
   # is `diagnostic` in the strongest sense the class has: it aborts nothing,
   # repairs nothing and returns evidence for a release decision.
-  expect_lte(sum(baseline$n), 79L)
+  #
+  # 83 since whep#1000 T13: +4, every one of them a real join that is
+  # classified rather than a key that stopped being visible. The engine's core
+  # allocation join KEEPS its `(area_code, item_prod_code)` row and gains the
+  # `(area_code, level_polity_code, item_prod_code)` twin, because the two
+  # grains are written out literally at the call site: had the computed
+  # `on = alloc_cols` been left in place the audit would have seen
+  # `<dynamic>`, and the most important territorial join in the spatialization
+  # would have left this ledger by going invisible, which is exactly the
+  # failure the ratchet exists to make impossible. `.extend_base_grid_pattern`
+  # is `single_year`, and the two-level allocation's straddling report adds
+  # two `diagnostic` joins: it names the cells a unit shares with a sibling or
+  # with another country and moves no allocated hectare.
+  #
+  # 85 since whep#1000 T14: the reconciliation diagnostics' bridge summary
+  # joins per-series run summaries to each other, both reductions of the one
+  # `years` frame of a single call; the joined quantity is a run LENGTH, so
+  # the row is `year_axis`, exactly as `.alloc_bridge_report`'s are.
+  expect_lte(sum(baseline$n), 85L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -292,11 +310,37 @@ test_that("every year-free territorial grouping is classified", {
   # (y1, y2) window. All four are gate machinery, and the gate moves no
   # published value.
   #
+  # 98 since whep#1000 T13: +8, and nothing left. The three groupings that
+  # were here keep their `(area_code, item_prod_code)` keys and each gains its
+  # unit-grain twin, because both grains are written out literally where the
+  # key is formed rather than passed as a computed vector; one of the three
+  # changed OWNER, from `.spatialize_year` to `.spatialize_type_cropland`,
+  # when the LUH2 type split moved into its own helper. That is +3. Two more
+  # are the straddling report's, `diagnostic` for the reason its join rows
+  # give. Three are `.alloc_bridge_report`'s, and all three are `year_axis`:
+  # the report's quantity IS the length of a contiguous run of bridged years,
+  # so a year in the key would return one year per year.
+  #
+  # 99 since whep#1000 T39: `.level0_fold_epochs()`, the year-aware level-0
+  # grid's fold, keys on `(lon, lat, area_code, start_year, end_year)`. The
+  # epoch IS in the key -- that is the whole point of the fold, so a successor
+  # is never summed with its own predecessor -- but it is carried as the
+  # interval bounds rather than as a column named `year`, which is what the
+  # audit tests for, so it arrives here looking year-free. `single_year`.
+  #
+  # 104 since whep#1000 T14: five groupings of the reconciliation
+  # diagnostics. Four are `year_axis` -- the run numbering, the per-run
+  # length, the first/last observed year and the per-series totals are all
+  # reductions over the year axis whose RESULT is a count of years, so a
+  # year in the key would return one year per year. One is `single_year`:
+  # the unit cropland extent is built one year at a time inside a `map()`
+  # over years, with both sides cut to that year before they meet.
+  #
   # 85 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
   # down with the row.
-  expect_lte(sum(full$n), 89L)
+  expect_lte(sum(full$n), 103L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
@@ -446,4 +490,50 @@ test_that("a renaming key is audited on both vocabularies", {
 
   expect_equal(audit$owner, "renaming")
   expect_equal(audit$key, "iso3, area_iso3c")
+})
+
+test_that("the allocation key is audited in both the grains it can take", {
+  # whep#1000 T13 made the spatialization engine's key depend on the grain
+  # its national table is keyed at. Passing the computed vector
+  # (`on = alloc_cols`) resolved to `<dynamic>` and took the engine's core
+  # allocation join -- the most important territorial join in the
+  # spatialization -- out of this audit altogether. Both grains are therefore
+  # written out at each call site, and this is what keeps those spellings
+  # equal to what `.alloc_target_cols()` actually returns.
+  container <- whep:::.alloc_target_cols(
+    tibble::tibble(area_code = 1L, item_prod_code = 15L),
+    tibble::tibble(area_code = 1L)
+  )
+  unit <- whep:::.alloc_target_cols(
+    tibble::tibble(
+      area_code = 1L,
+      level_polity_code = "U1",
+      item_prod_code = 15L
+    ),
+    tibble::tibble(area_code = 1L, level_polity_code = "U1")
+  )
+  want <- sort(c(
+    paste(container, collapse = ", "),
+    paste(unit, collapse = ", ")
+  ))
+
+  joins <- whep:::.territorial_joins()
+  expect_equal(
+    sort(unique(joins$key[joins$owner == ".spatialize_year"])),
+    want
+  )
+  groupings <- whep:::.territorial_groupings()
+  purrr::walk(
+    c(
+      ".spatialize_year",
+      ".spatialize_type_cropland",
+      ".warn_unallocated_crops"
+    ),
+    \(owner) {
+      expect_equal(
+        sort(unique(groupings$key[groupings$owner == owner])),
+        want
+      )
+    }
+  )
 })
