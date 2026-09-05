@@ -502,12 +502,29 @@ testthat::test_that("the default crosswalk is the polycell support", {
   # centroid parquet sitting in `tmp`. Asserted by standing a marker in front
   # of the support reader: an assertion that merely expected an error when the
   # pin was unpublished stopped testing anything the moment it was published.
+  #
+  # whep#1000 T39 added a second vintage, `"year_aware"`, which reads the
+  # support through `read_polycell_support()` rather than through
+  # `.carbon_cell_support()`'s 2015 fold, so BOTH are stood in front of. With
+  # only the second mocked this test read the live pin -- passing here and
+  # breaking the offline-tests job.
   testthat::local_mocked_bindings(
-    .carbon_cell_support = function(...) {
+    read_polycell_support = function(...) {
       tibble::tibble(
         lon = 0.25,
         lat = 50.25,
         area_code = 999L,
+        start_year = 1800L,
+        end_year = 2100L,
+        cell_area_ha = 1,
+        land_area_ha = 1
+      )
+    },
+    .carbon_cell_support = function(...) {
+      tibble::tibble(
+        lon = 0.25,
+        lat = 50.25,
+        area_code = 888L,
         cell_area_ha = 1,
         land_area_ha = 1,
         cell_area_frac = 1
@@ -518,8 +535,13 @@ testthat::test_that("the default crosswalk is the polycell support", {
 
   grid <- fn(tmp, NULL)
 
-  testthat::expect_setequal(grid$area_code, 999L)
+  testthat::expect_setequal(grid$area_code, 888L)
   testthat::expect_true(rlang::has_name(grid, "cell_area_frac"))
+
+  # The other vintage reads the support without the 2015 fold. Both markers
+  # stand so this test says which branch ran, not merely that one did.
+  aware <- fn(tmp, NULL, 0L, "year_aware")
+  testthat::expect_setequal(aware$area_code, 999L)
 })
 
 testthat::test_that("country_grid = 'centroid' still loads the centroid grid", {
@@ -601,6 +623,182 @@ testthat::test_that("country_grid is a recognised override and is recorded", {
   )
   testthat::expect_true(2L %in% out$area_code)
   testthat::expect_equal(sum(out$heads), 12000)
+})
+
+# --- grid_vintage (whep#1000 T39) -------------------------------------------
+
+# Landuse counterpart of `.write_livestock_fixture()`: the four parquets the
+# `"lpjml"` preset reads with `use_type_constraint = FALSE`. Item 15 is
+# `cft_mapping`'s wheat, so the CFT aggregation has something to group on.
+.write_landuse_fixture <- function(dir) {
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                400
+    ),
+    file.path(dir, "country_areas.parquet")
+  )
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               0.6,
+      0.75, 50.25,             15L,               0.4
+    ),
+    file.path(dir, "crop_patterns.parquet")
+  )
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,           600,
+      0.75, 50.25, 2000L,           500
+    ),
+    file.path(dir, "gridded_cropland.parquet")
+  )
+  nanoparquet::write_parquet(
+    tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    ),
+    file.path(dir, "country_grid.parquet")
+  )
+}
+
+testthat::test_that("the loader forwards grid_vintage to the reader", {
+  # What the loader passes on is the difference between two geographies, so it
+  # is captured rather than inferred. The default it resolves is the 2015
+  # snapshot, held there by `.grid_vintages()`; T39's own measurement is what
+  # keeps it there, and this is the assertion that would catch a silent flip.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    read_level_country_grid = function(level = 0L, grid_vintage = NULL, ...) {
+      seen <<- list(level = level, grid_vintage = grid_vintage)
+      tibble::tibble(
+        lon = 0.25,
+        lat = 50.25,
+        area_code = 1L,
+        cell_area_frac = 1
+      )
+    },
+    .package = "whep"
+  )
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  fn(NULL, "polycell")
+  testthat::expect_identical(seen$grid_vintage, "snapshot_2015")
+
+  fn(NULL, "polycell", 0L, "year_aware")
+  testthat::expect_identical(seen$grid_vintage, "year_aware")
+})
+
+testthat::test_that("the loader refuses an unknown grid_vintage", {
+  fn <- getFromNamespace(".load_country_grid", "whep")
+  testthat::expect_error(
+    fn(NULL, "polycell", 0L, "2015"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("a static crosswalk says the vintage is not read", {
+  tmp <- withr::local_tempdir()
+  .write_livestock_fixture(tmp)
+  .write_fraction_grid(tmp)
+  fn <- getFromNamespace(".load_country_grid", "whep")
+
+  testthat::expect_message(
+    grid <- fn(tmp, "centroid", 0L, "year_aware"),
+    "carries no validity interval"
+  )
+  testthat::expect_setequal(grid$area_code, 1L)
+  testthat::expect_identical(
+    whep:::.grid_vintage_method("centroid", "year_aware"),
+    "static_crosswalk"
+  )
+  testthat::expect_identical(
+    whep:::.grid_vintage_method("polycell", "snapshot_2015"),
+    "snapshot_2015"
+  )
+  # A granted depth never reads the key, so what is RECORDED is what the grid
+  # actually is, not what the config asked for.
+  testthat::expect_identical(
+    whep:::.grid_vintage_method("polycell", "snapshot_2015", 1L),
+    "year_aware"
+  )
+})
+
+testthat::test_that("grid_vintage is recorded in metadata and in the rows", {
+  tmp_in <- withr::local_tempdir()
+  .write_livestock_fixture(tmp_in)
+  .write_fraction_grid(tmp_in)
+  tmp_out <- withr::local_tempdir()
+
+  result <- whep::run_spatialize(
+    preset = "whep",
+    years = 2000L,
+    components = "livestock",
+    overrides = list(country_grid = "fraction", grid_vintage = "year_aware"),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )
+
+  testthat::expect_identical(result$config$grid_vintage, "year_aware")
+  meta <- yaml::read_yaml(file.path(tmp_out, "run_metadata.yaml"))
+  testthat::expect_identical(meta$config$grid_vintage, "year_aware")
+  # The crosswalk carries no vintage, so the RESOLVED method is neither of
+  # the two support vintages and the metadata says so beside the request.
+  testthat::expect_identical(meta$method_grid_vintage, "static_crosswalk")
+  out <- nanoparquet::read_parquet(
+    file.path(tmp_out, "gridded_livestock_emissions.parquet")
+  )
+  testthat::expect_identical(
+    unique(out$method_grid_vintage),
+    "static_crosswalk"
+  )
+})
+
+testthat::test_that("run_spatialize refuses an unknown grid_vintage", {
+  tmp_in <- withr::local_tempdir()
+  .write_livestock_fixture(tmp_in)
+  testthat::expect_error(
+    whep::run_spatialize(
+      preset = "whep",
+      years = 2000L,
+      components = "livestock",
+      overrides = list(country_grid = "centroid", grid_vintage = "2015"),
+      paths = list(input_dir = tmp_in, out_dir = withr::local_tempdir())
+    ),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that("both crop outputs carry method_grid_vintage", {
+  # The CFT aggregation groups on a fixed column set, so a provenance column
+  # added before it is dropped unless it is stamped on both writes.
+  tmp_in <- withr::local_tempdir()
+  .write_landuse_fixture(tmp_in)
+  tmp_out <- withr::local_tempdir()
+
+  whep::run_spatialize(
+    preset = "lpjml",
+    years = 2000L,
+    components = "landuse",
+    overrides = list(country_grid = "centroid"),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )
+
+  crops <- nanoparquet::read_parquet(
+    file.path(tmp_out, "gridded_landuse_crops.parquet")
+  )
+  cft <- nanoparquet::read_parquet(
+    file.path(tmp_out, "gridded_landuse.parquet")
+  )
+  testthat::expect_identical(
+    unique(crops$method_grid_vintage),
+    "static_crosswalk"
+  )
+  testthat::expect_identical(
+    unique(cft$method_grid_vintage),
+    "static_crosswalk"
+  )
 })
 
 testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping package data", {

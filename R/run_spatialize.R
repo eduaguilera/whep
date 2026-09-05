@@ -43,6 +43,18 @@
 #'   - `country_grid`: which cell-to-polity crosswalk the engines
 #'     allocate into, `"polycell"` (default), `"centroid"` or
 #'     `"fraction"`. See *Which cell-to-polity crosswalk*.
+#'   - `grid_vintage`: which vintage of the polycell support the level-0
+#'     grid is read at, `"snapshot_2015"` (default) or `"year_aware"`. See
+#'     [read_level_country_grid()]'s *Which vintage of the support level 0 is
+#'     read at*. The two are different geographies, not two precisions of one:
+#'     `"snapshot_2015"` allocates every year of a run into the present-day
+#'     cell-to-country map, `"year_aware"` into the map valid that year. The
+#'     snapshot remains the default because the national tables are on a
+#'     constant-territory basis the historical support cannot receive: see
+#'     `.grid_vintages()` and `validation/spatialize_grid_vintage.R`.
+#'     Recorded in `run_metadata.yaml` and per row in `method_grid_vintage`.
+#'     Not read under `country_grid = "centroid"` or `"fraction"`, which carry
+#'     no validity interval at all and are recorded as `"static_crosswalk"`.
 #'   - `level` (integer, default `0L`): containment depth the grid is
 #'     resolved at. `0L` is today's cell-to-`area_code` grid; `1L` and
 #'     deeper key the cells on admin units through
@@ -63,6 +75,14 @@
 #'     density table is read with [read_glw_density()], which needs a
 #'     `WHEP_GLW3_DIR` tree and aborts without one; under `"luh2"` it is
 #'     not read at all.
+#'   - `livestock_glw_variant`: which GLW3 product a `"glw3"` run
+#'     allocates on, `"DA"` (default, the dasymetric rasters) or `"AW"`
+#'     (the areal-weighted ones), forwarded to [read_glw_density()]'s
+#'     `variant`. They are different within-country geographies, so the
+#'     resolved value is recorded twice: in `run_metadata.yaml` with the
+#'     rest of the config, and per row in the output's
+#'     `method_livestock_proxy` as `"glw3_da"` or `"glw3_aw"`. Ignored
+#'     under `livestock_proxy = "luh2"`, which reads no raster.
 #' @param paths Named list of filesystem paths. Recognised entries:
 #'   - `l_files_dir`: path to the `L_files` root, for local prepared inputs.
 #'   - `input_dir`: directory holding the prepared input parquets. If `NULL`
@@ -136,6 +156,8 @@
 #' area the chosen grid has no cell for and the national total at stake.
 #'
 #' @section Outputs written to `out_dir`:
+#' Every parquet below carries `method_grid_vintage`, the geography the run
+#' allocated into: `"year_aware"`, `"snapshot_2015"` or `"static_crosswalk"`.
 #' \itemize{
 #'   \item `gridded_landuse_crops.parquet` — crop-level output.
 #'   \item `gridded_landuse.parquet` — CFT-aggregated output
@@ -144,7 +166,8 @@
 #'     livestock stocks and emissions (when livestock component
 #'     selected).
 #'   \item `run_metadata.yaml` — resolved preset, components,
-#'     flags, years, timestamp, and package version.
+#'     flags, years, timestamp, package version, and the resolved
+#'     `method_grid_vintage`.
 #'   \item `admin_coverage.csv` — which admin source constrained each
 #'     container x item x year, at what tier, grain and depth. Written
 #'     only when `level > 0`, with its header and no rows where no
@@ -357,7 +380,7 @@ run_spatialize <- function(
   )
   list(
     years = resolved_years,
-    paths = .write_livestock_outputs(gridded_livestock, out_dir)
+    paths = .write_livestock_outputs(gridded_livestock, out_dir, config)
   )
 }
 
@@ -370,10 +393,12 @@ run_spatialize <- function(
       expansion_threshold = 100L,
       area_key = "grid",
       country_grid = "polycell",
+      grid_vintage = "snapshot_2015",
       level = 0L,
       output_level = 0L,
       constraint_exclude = NULL,
-      livestock_proxy = "luh2"
+      livestock_proxy = "luh2",
+      livestock_glw_variant = "DA"
     ),
     whep = list(
       use_type_constraint = TRUE,
@@ -382,10 +407,12 @@ run_spatialize <- function(
       expansion_threshold = 100L,
       area_key = "grid",
       country_grid = "polycell",
+      grid_vintage = "snapshot_2015",
       level = 0L,
       output_level = 0L,
       constraint_exclude = NULL,
-      livestock_proxy = "luh2"
+      livestock_proxy = "luh2",
+      livestock_glw_variant = "DA"
     )
   )
 }
@@ -399,15 +426,35 @@ run_spatialize <- function(
     "cft_target",
     "area_key",
     "country_grid",
+    "grid_vintage",
     "level",
     "output_level",
     "constraint_exclude",
-    "livestock_proxy"
+    "livestock_proxy",
+    "livestock_glw_variant"
   )
 }
 
 .known_path_keys <- function() {
   c("input_dir", "out_dir", "l_files_dir")
+}
+
+# Which GLW3 product a `"glw3"` run allocates on. Validated here rather
+# than left to `read_glw_density()`'s own `arg_match()` so the abort names
+# the override key the user set, not the argument it was forwarded to.
+#
+# `"DA"` is the default because the dasymetric product is the more
+# rigorous of the two: it redistributes the census counts with
+# high-resolution covariates, where the areal-weighted one spreads them
+# evenly over the reporting unit's suitable land. It was the hardwired
+# choice before this key existed, so the default reproduces every run made
+# until now (whep#1000, wave-7 review finding 5).
+.check_glw_run_variant <- function(variant) {
+  rlang::arg_match0(
+    variant %||% "DA",
+    c("DA", "AW"),
+    arg_nm = "livestock_glw_variant"
+  )
 }
 
 .validate_paths <- function(paths) {
@@ -519,10 +566,21 @@ run_spatialize <- function(
            allocate at."
     ))
   }
+  config$grid_vintage <- .check_grid_vintage(
+    config$grid_vintage,
+    "overrides$grid_vintage"
+  )
   config$livestock_proxy <- rlang::arg_match0(
     config$livestock_proxy %||% "luh2",
     c("luh2", "glw3"),
     arg_nm = "overrides$livestock_proxy"
+  )
+  # Resolved even under `"luh2"`, which reads no raster: `run_metadata.yaml`
+  # then records the same key for every run, and a typo is caught when the
+  # run is configured rather than after the landuse component has already
+  # spent its hours.
+  config$livestock_glw_variant <- .check_glw_run_variant(
+    config$livestock_glw_variant
   )
   # Assigned through `[` so an empty hold-out stays a recorded `NULL` key
   # rather than disappearing from the config -- `$<- NULL` deletes the element,
@@ -651,7 +709,8 @@ run_spatialize <- function(
   country_grid <- .load_country_grid(
     input_dir,
     config$country_grid,
-    config$level
+    config$level,
+    config$grid_vintage
   )
 
   type_cropland <- NULL
@@ -714,7 +773,8 @@ run_spatialize <- function(
   country_grid <- .load_country_grid(
     input_dir,
     config$country_grid,
-    config$level
+    config$level,
+    config$grid_vintage
   )
 
   species_proxy <- .read_livestock_mapping()
@@ -733,7 +793,9 @@ run_spatialize <- function(
   # would make every default `"luh2"` run depend on a tree it never reads.
   glw_density <- NULL
   if (identical(config$livestock_proxy, "glw3")) {
-    glw_density <- read_glw_density()
+    glw_density <- read_glw_density(
+      variant = .check_glw_run_variant(config$livestock_glw_variant)
+    )
   }
 
   list(
@@ -776,7 +838,12 @@ run_spatialize <- function(
 #
 # The three are alternatives, never a fallback: a run asked for one crosswalk
 # must fail rather than quietly allocate into another.
-.load_country_grid <- function(input_dir, source = NULL, level = 0L) {
+.load_country_grid <- function(
+  input_dir,
+  source = NULL,
+  level = 0L,
+  grid_vintage = "snapshot_2015"
+) {
   if (is.null(source)) {
     source <- "polycell"
   }
@@ -786,9 +853,20 @@ run_spatialize <- function(
     arg_nm = "country_grid"
   )
   level <- .check_grid_level(level)
+  grid_vintage <- .check_grid_vintage(grid_vintage)
   if (source == "polycell") {
-    return(read_level_country_grid(level = level))
+    # The vintage is forwarded at level 0 only. A granted depth does not read
+    # it, and passing it there would make every depth run report a key it
+    # ignored; `.grid_vintage_method()` records what the grid actually is.
+    if (level > 0L) {
+      return(read_level_country_grid(level = level))
+    }
+    return(read_level_country_grid(
+      level = level,
+      grid_vintage = grid_vintage
+    ))
   }
+  .inform_static_crosswalk(source, grid_vintage)
   # Only the polycell support is keyed on a polity identity, so it is the only
   # crosswalk a containment depth can be resolved against. The centroid grid
   # holds one `area_code` per cell and the fractional one is built from the same
@@ -810,6 +888,37 @@ run_spatialize <- function(
     ))
   }
   .read_fraction_country_grid(input_dir)
+}
+
+# The centroid grid and the fractional crosswalk carry no validity interval at
+# all -- they are single-vintage rasterizations of one polity snapshot -- so
+# `grid_vintage` has nothing to select there. Said out loud, and recorded as
+# its own `method_grid_vintage` value, rather than letting a run report a
+# vintage it did not read.
+.inform_static_crosswalk <- function(source, grid_vintage) {
+  recorded <- .static_crosswalk_vintage()
+  cli::cli_inform(c(
+    i = "{.arg country_grid} {.val {source}} carries no validity interval;
+         {.arg grid_vintage} {.val {grid_vintage}} is not read.",
+    i = "The run records {.field method_grid_vintage} = {.val {recorded}}."
+  ))
+  invisible(NULL)
+}
+
+# What a run allocated on, as one closed vocabulary: the two support vintages
+# plus the static crosswalks, which are neither.
+.static_crosswalk_vintage <- function() {
+  "static_crosswalk"
+}
+
+.grid_vintage_method <- function(source, grid_vintage, level = 0L) {
+  if (!identical(source %||% "polycell", "polycell")) {
+    return(.static_crosswalk_vintage())
+  }
+  if (.check_grid_level(level) > 0L) {
+    return("year_aware")
+  }
+  .check_grid_vintage(grid_vintage)
 }
 
 # The polycell support resolved to the spatialization's grain. It is read
@@ -926,7 +1035,7 @@ run_spatialize <- function(
 ) {
   paths <- list()
   crop_path <- file.path(out_dir, "gridded_landuse_crops.parquet")
-  write_parquet_checked(result_crops, crop_path)
+  write_parquet_checked(.stamp_grid_vintage(result_crops, config), crop_path)
   paths$landuse_crops <- crop_path
 
   if (isTRUE(config$aggregate_to_cft)) {
@@ -961,17 +1070,37 @@ run_spatialize <- function(
         .by = dplyr::all_of(group_cols)
       )
     cft_path <- file.path(out_dir, "gridded_landuse.parquet")
-    write_parquet_checked(cft_result, cft_path)
+    write_parquet_checked(.stamp_grid_vintage(cft_result, config), cft_path)
     paths$landuse_cft <- cft_path
   }
 
   paths
 }
 
-.write_livestock_outputs <- function(gridded_livestock, out_dir) {
+.write_livestock_outputs <- function(gridded_livestock, out_dir, config) {
   path <- file.path(out_dir, "gridded_livestock_emissions.parquet")
-  write_parquet_checked(gridded_livestock, path)
+  write_parquet_checked(.stamp_grid_vintage(gridded_livestock, config), path)
   list(livestock = path)
+}
+
+# WHICH GEOGRAPHY THE ROW WAS ALLOCATED INTO, written on every output this
+# function produces. It is stamped here rather than inside the engines because
+# only the run knows which crosswalk and vintage were resolved: a caller
+# handing `build_gridded_landuse()` a grid directly has not said, and inventing
+# a label for it would be worse than not carrying one.
+#
+# Constant within a run by construction -- one grid feeds both engines -- so it
+# is a run-level provenance column, not a per-row measurement, and the CFT
+# aggregation neither groups on it nor needs to.
+.stamp_grid_vintage <- function(out, config) {
+  dplyr::mutate(
+    out,
+    method_grid_vintage = .grid_vintage_method(
+      config$country_grid,
+      config$grid_vintage,
+      config$level
+    )
+  )
 }
 
 .write_run_metadata <- function(
@@ -994,6 +1123,11 @@ run_spatialize <- function(
       tz = "UTC"
     ),
     package_version = as.character(utils::packageVersion("whep")),
+    method_grid_vintage = .grid_vintage_method(
+      config$country_grid,
+      config$grid_vintage,
+      config$level
+    ),
     input_source = if (is.null(input_dir)) "pins" else "directory",
     input_dir = input_dir,
     years = as.integer(years),
