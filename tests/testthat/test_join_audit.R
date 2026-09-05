@@ -164,7 +164,14 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 70 is the crop-residue destiny split (whep#1003). It is one year-free join
+  # and it is the loss wedge's shape, not a new year-blind read: the Krausmann
+  # recovery rates and the regional feed-use fractions are published without a
+  # time dimension, so the region a residue's coefficients come from cannot be
+  # year-keyed. Every residue row through it carries `year`; only the region
+  # membership does not.
+  expect_lte(sum(baseline$n), 70L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -257,7 +264,11 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 81L)
+  #
+  # 82 is `.residue_destiny_regions` (whep#1003), the distinct() that builds
+  # the two regional vocabularies the join above reads. Same reason, and the
+  # same reads `.sci_crop_regions` already carries for crop NPP.
+  expect_lte(sum(full$n), 82L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

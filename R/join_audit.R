@@ -243,6 +243,19 @@
     "The same window attach, on the grid of areas whose bucket membership is
      then resolved year-aware by `.add_polity_columns_dt()`. The window is a
      property of the area, not of one of its years (whep#884).",
+    ".residue_recovered_split", "left_join", "area_code", 1L,
+    "time_invariant",
+    "Attaches the Krausmann recovery region and the UN M49 sub-region a crop
+     residue's destiny coefficients are published for. Neither table has a time
+     dimension: `residue_krausmann.csv` is keyed on (crop category, Krausmann
+     region) and `residue_feed_fraction.csv` on the sub-region alone (Smil
+     1999, Lal 2005, Krausmann 2008, Erenstein 2014, McIntire 1992). Keying the
+     lookup on the year would be the defect rather than the fix, exactly as for
+     Gustavsson's Annex 1: it would leave every successor area without the
+     region its own coefficients come from. It reads the SAME two vocabularies
+     `.sci_crop_regions` already classifies for the crop-NPP coefficients. The
+     residue rows carry `year` into and out of this join; only the region
+     membership is year-free.",
     ".resolve_all_area_years", "left_join", "area_code", 1L, "time_invariant",
     "The first year the upstream FAOSTAT map reports each area at all: one
      number per area by construction, and the year bound the predicate right
@@ -585,6 +598,11 @@
      crosswalk's rows for one period: the output is that period's reporting
      span, so keying on the year would return the year itself. The period is
      already the year-scoped identity.",
+    ".residue_destiny_regions", "distinct", "area_code", 1L, "time_invariant",
+    "One row per area carrying its Krausmann region and UN M49 sub-region, the
+     two vocabularies the residue destiny split reads. It is
+     `.sci_crop_regions` on the residue side: the same groupings, published
+     without a year (see the matching join row), so this cannot be year-keyed.",
     ".sci_crop_regions", "distinct", "area_code", 1L, "time_invariant",
     "The Krausmann/HANPP/UN sub-region groupings the crop-NPP coefficients are
      published by; none of them varies in time.",

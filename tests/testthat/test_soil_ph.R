@@ -476,8 +476,10 @@ testthat::test_that(".hwsd_soc_columns tracks the bulk-density method", {
 testthat::test_that(".derive_map_unit_soc computes the documented stock", {
   soc <- whep:::.derive_map_unit_soc(.hwsd_soc_fixture(), "measured")
 
-  # t_oc * bulk * 30 * (1 - gravel), share-weighted within the map unit:
-  #   0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30 * 1.0)
+  # t_oc * bulk * 30 * (1 - gravel), share-weighted within the map unit. The
+  # fixture holds two components: three quarters at 1.0 percent carbon, bulk
+  # 1.30 and a tenth gravel, one quarter at 2.0 percent, bulk 1.20 and no
+  # gravel.
   expected <- 0.75 * (1.0 * 1.30 * 30 * 0.9) + 0.25 * (2.0 * 1.20 * 30)
   testthat::expect_equal(
     soc$soc_obs_mgc_ha[soc$mu_global == 1L],
