@@ -409,21 +409,23 @@ test_that("a non-numeric year column aborts", {
   )
 })
 
-test_that("aliases = NULL delegates to the published alias map", {
-  # The one leg that reads package data (`polity_label_aliases` and
-  # `polities`), so it is also the leg proving the delegation is wired to
-  # the real resolver rather than to the injected route. No network and
-  # no WHEP_* path, so it belongs in the suite; on the development
-  # machine it must be run through PowerShell, where loading
-  # `data/polities.rda` does not segfault.
+test_that("aliases = NULL reads the published alias map, ALIAS ROUTE ONLY", {
+  # The one leg that reads package data (`polity_label_aliases`), so it is
+  # also the leg proving the production default is wired to the real
+  # table. No network and no WHEP_* path, so it belongs in the suite; on
+  # the development machine it must be run through PowerShell, where
+  # loading `data/polities.rda` does not segfault.
   #
   # "ESP" is not an administrative identifier -- it is the container's own
-  # ISO3, which the identity route answers for -- and it is used here
-  # because NOT ONE published alias is scoped to a code system this
-  # function names (1,007 rows over 15 sources on the 2026-09-03
-  # snapshot, none of them `usda-nass-fips` and friends). A real state
-  # FIPS code therefore resolves to NA today, which is the second
-  # assertion.
+  # ISO3. `resolve_polity_label()`'s identity routes would answer for it
+  # (its NAME/ISO3 fallback), but `resolve_admin_units()` must never take
+  # that route: an administrative unit id that happens to collide with a
+  # polity name or ISO3 code must resolve to NA, not to the container.
+  # NOT ONE published alias is scoped to a code system this function names
+  # (1,007 rows over 15 sources on the 2026-09-03 snapshot, none of them
+  # `usda-nass-fips`, `whep-lab-spain-provinces` and friends), so both
+  # identifiers below are unresolved under the real, unmocked table --
+  # that is finding #1000/T34-3's regression pin.
   rows <- unit_rows(c("ESP", "19"), c(2000L, 2020L))
 
   out <- whep:::resolve_admin_units(
@@ -431,18 +433,54 @@ test_that("aliases = NULL delegates to the published alias map", {
     c("whep-lab-spain-provinces", "usda-nass-fips")
   )
 
-  expect_identical(
-    out$rows$level_polity_code,
-    whep::resolve_polity_label(
-      c("ESP", "19"),
-      source = c("whep-lab-spain-provinces", "usda-nass-fips"),
-      year = c(2000L, 2020L)
-    )
-  )
-  expect_identical(out$rows$level_polity_code[1], "ESP-1800-2025")
+  expect_true(is.na(out$rows$level_polity_code[1]))
   expect_true(is.na(out$rows$level_polity_code[2]))
+  expect_identical(out$diagnostics$n_unresolved, c(1L, 1L))
   expect_identical(
-    out$diagnostics$example_ids[out$diagnostics$n_unresolved > 0],
-    "19"
+    sort(out$diagnostics$example_ids),
+    c("19", "ESP")
   )
+})
+
+test_that("aliases = NULL still resolves a genuine published alias", {
+  # Mirrors the previous test's other direction: once a code-system-scoped
+  # row exists in the published table, the production path must resolve
+  # it -- the fix narrows the route, it must not also break resolution.
+  # `polity_label_aliases` is package data, not a function, but
+  # `local_mocked_bindings()` (testthat >= 3.2) rebinds any named object
+  # in the namespace, so this stands in for the whep-polities deliverable
+  # landing without waiting for it.
+  fake_aliases <- alias_rows("19", "usda-nass-fips", "FIX-IOWA-1846-2025")
+  testthat::local_mocked_bindings(
+    polity_label_aliases = fake_aliases,
+    .package = "whep"
+  )
+  rows <- unit_rows("19", 2020L)
+
+  out <- whep:::resolve_admin_units(rows, "usda-nass-fips")
+
+  expect_identical(out$rows$level_polity_code, "FIX-IOWA-1846-2025")
+  expect_identical(out$diagnostics$n_unresolved, 0L)
+})
+
+test_that("aliases = NULL never falls through to the name or ISO3 route", {
+  # Direct regression for finding #1000/T34-3: even when the published
+  # table (mocked here) carries rows, an id with no matching alias row
+  # must stay NA under aliases = NULL -- it must not fall through to
+  # `resolve_polity_label()`'s name/ISO3 identity routes, which would
+  # answer for "ESP" via the container polity's own ISO3 code.
+  testthat::local_mocked_bindings(
+    polity_label_aliases = alias_rows(
+      "19",
+      "usda-nass-fips",
+      "FIX-IOWA-1846-2025"
+    ),
+    .package = "whep"
+  )
+  rows <- unit_rows("ESP", 2000L)
+
+  out <- whep:::resolve_admin_units(rows, "whep-lab-spain-provinces")
+
+  expect_true(is.na(out$rows$level_polity_code))
+  expect_identical(out$diagnostics$n_unresolved, 1L)
 })

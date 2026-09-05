@@ -129,10 +129,15 @@
 #'   slugs in the table above. Length 1, or one value per row of `x`.
 #' @param year_col Name of the year column in `x`. Defaults to `"year"`.
 #' @param aliases Optional alias table in the [polity_label_aliases]
-#'   schema, used **instead of** the package data. `NULL`, the default,
-#'   delegates to [resolve_polity_label()] and is what production calls
-#'   use; an injected table takes the alias route only, with the same
-#'   source and year scoping.
+#'   schema, used **instead of** the package data. `NULL`, the default and
+#'   what production calls use, resolves against the published
+#'   [polity_label_aliases] through the ALIAS ROUTE ONLY -- never
+#'   [resolve_polity_label()] itself, whose name and ISO3 identity routes
+#'   would let an administrative identifier that happens to collide with a
+#'   polity name or ISO3 code resolve to the wrong thing (usually the
+#'   container). An injected table takes the same alias-only route, with
+#'   the same source and year scoping, so the two paths agree on
+#'   everything but which table they read.
 #'
 #' @return A list of two tibbles:
 #'
@@ -306,14 +311,14 @@ resolve_admin_units <- function(
 }
 
 .resolve_unique_keys <- function(keys, aliases) {
-  if (is.null(aliases)) {
-    return(whep::resolve_polity_label(
-      keys$label,
-      source = keys$source,
-      year = keys$year
-    ))
-  }
-  aliases <- .assert_alias_table(aliases)
+  # `aliases = NULL` (the production path) resolves against the SAME
+  # published table `resolve_polity_label()` reads, `polity_label_aliases`,
+  # but through the alias route ONLY -- never `resolve_polity_label()`
+  # itself, whose name and ISO3 identity routes would let an
+  # administrative identifier that happens to collide with a polity name
+  # or ISO3 code resolve to the wrong thing (usually the container). See
+  # the file banner and finding #1000/T34-3.
+  aliases <- .assert_alias_table(aliases %||% polity_label_aliases)
   alias_key <- .norm_polity_label(aliases$source_label)
   label_key <- .norm_polity_label(keys$label)
   vapply(
