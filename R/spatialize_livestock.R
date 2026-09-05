@@ -116,6 +116,9 @@
 #'   - `lon`, `lat`: Cell centre coordinates.
 #'   - `species_group`: Must match `livestock_data`.
 #'   - `density`: Heads per cell (reference year ~2010).
+#'   - `glw_variant`: Optional, `"DA"` or `"AW"`; [read_glw_density()]
+#'     always supplies it. A table mixing the two products is refused,
+#'     since one recorded label cannot describe both geographies.
 #'   Under `"glw3"` it **replaces** the LUH2 proxy for every group, still
 #'   masked by that year's LUH2 extent so a cell whose land use has gone
 #'   receives nothing.
@@ -159,8 +162,9 @@
 #'   - Any additional numeric columns from `livestock_data`
 #'     (e.g. `enteric_ch4_kt`, `manure_ch4_kt`).
 #'   - `method_livestock_proxy`: Which proxy produced the weights for
-#'     this row, one of `"luh2_area"`, `"luh2_grass"`, `"glw3"`.
-#'     Constant within a `(year, species_group)` block.
+#'     this row, one of `"luh2_area"`, `"luh2_grass"`, `"glw3_da"`,
+#'     `"glw3_aw"` (or plain `"glw3"` for a `glw_density` table carrying
+#'     no `glw_variant`). Constant within a `(year, species_group)` block.
 #'
 #' @inheritSection build_gridded_landuse Which area code the output is keyed on
 #'
@@ -176,8 +180,14 @@
 #'   group, not per cell: a grazer cell with no `grass_npp` keeps its area
 #'   weight but still travels under `"luh2_grass"`, because what the
 #'   column records is the weighting regime the group ran under.
-#' - `"glw3"`: GLW3 density masked by that year's LUH2 extent
-#'   (`proxy_method = "glw3"`).
+#' - `"glw3_da"` / `"glw3_aw"`: GLW3 density masked by that year's LUH2
+#'   extent (`proxy_method = "glw3"`), from the dasymetric or the
+#'   areal-weighted product respectively. The two are different
+#'   within-country geographies, so the label names which one: it is read
+#'   off `glw_density`'s `glw_variant` column, which [read_glw_density()]
+#'   stamps, and therefore cannot disagree with the raster the weights
+#'   came from. A `glw_density` built by hand, carrying no such column,
+#'   travels as plain `"glw3"`.
 #'
 #' The default stays `"luh2"` even though `"glw3"` is the better-informed
 #' proxy. GLW3 now has a data mechanism -- [read_glw_density()], the
@@ -599,7 +609,8 @@ build_gridded_livestock <- function(
         method_livestock_proxy = .livestock_proxy_method(
           proxy_method,
           proxy_type,
-          grass_productivity
+          grass_productivity,
+          glw_density
         )
       )
   }) |>
@@ -688,6 +699,7 @@ build_gridded_livestock <- function(
     c("lon", "lat", "species_group", "density"),
     "glw_density"
   )
+  .check_glw_density_variant(glw_density)
   covered <- glw_density |>
     dplyr::filter(!is.na(density), density > 0) |>
     dplyr::pull(species_group) |>
@@ -706,6 +718,33 @@ build_gridded_livestock <- function(
 }
 
 
+#' A density table must not mix the two GLW3 products.
+#'
+#' The dasymetric and areal-weighted rasters are alternatives on
+#' genuinely different within-country geographies, so a table holding both
+#' would allocate some species on one and some on the other while
+#' `method_livestock_proxy` recorded a single product for the lot. A table
+#' carrying no `glw_variant` at all is a hand-built one and is allowed
+#' through; [read_glw_density()] always stamps it.
+#' @noRd
+.check_glw_density_variant <- function(glw_density) {
+  if (!rlang::has_name(glw_density, "glw_variant")) {
+    return(invisible(NULL))
+  }
+  variants <- unique(glw_density$glw_variant)
+  known <- c("DA", "AW")
+  if (length(variants) != 1L || !(variants[[1]] %in% known)) {
+    cli::cli_abort(c(
+      "{.arg glw_density} must carry exactly one known \\
+       {.field glw_variant}.",
+      "x" = "Found {.val {variants}}.",
+      "i" = "The GLW3 products are alternatives: {.val {known}}."
+    ))
+  }
+  invisible(NULL)
+}
+
+
 #' The `method_livestock_proxy` value one species group runs under.
 #'
 #' Constant within a group: the grass weighting in `.build_proxy_grid()` is
@@ -714,13 +753,36 @@ build_gridded_livestock <- function(
 .livestock_proxy_method <- function(
   proxy_method,
   proxy_type,
-  grass_productivity
+  grass_productivity,
+  glw_density = NULL
 ) {
   if (proxy_method == "glw3") {
-    return("glw3")
+    return(.glw_proxy_label(glw_density))
   }
   grazed <- proxy_type %in% c("pasture", "rangeland")
   if (!is.null(grass_productivity) && grazed) "luh2_grass" else "luh2_area"
+}
+
+
+#' Which GLW3 product a density table was read from, as a method label.
+#'
+#' [read_glw_density()] stamps `glw_variant` on every row it returns, so
+#' the label is derived from the table itself and cannot drift from the
+#' geography it describes. The two products are alternatives on genuinely
+#' different within-country geographies -- the dasymetric one
+#' redistributes census counts with high-resolution covariates, the
+#' areal-weighted one spreads them evenly over the reporting unit -- and
+#' before this an output could not say which of them it rested on.
+#'
+#' A hand-built table carrying no `glw_variant` is labelled plain
+#' `"glw3"`. That is what is known about it; naming a product nobody
+#' recorded would be the drift this column exists to prevent.
+#' @noRd
+.glw_proxy_label <- function(glw_density) {
+  if (!rlang::has_name(glw_density, "glw_variant")) {
+    return("glw3")
+  }
+  paste0("glw3_", tolower(unique(glw_density$glw_variant)))
 }
 
 

@@ -1,5 +1,10 @@
 # NSE globals for glw_density.R (#1000):
 # c("glw_species", "glw_code")
+#
+# The `.example_glw_density()` fixture in R/toy_examples.R must be
+# replaced with the corrected one reported for wave-7 review finding 10:
+# the shipped one breaks the replication rule it illustrates and predates
+# both the `glw_variant` column and the poultry crosswalk change below.
 
 # Gridded livestock head counts for build_gridded_livestock(proxy_method =
 # "glw3"), read from the Gridded Livestock of the World version 3 rasters
@@ -89,6 +94,11 @@
 #'   - `species_group`: WHEP livestock functional type.
 #'   - `density`: GLW3 head count in that cell, the quantity
 #'     [build_gridded_livestock()] documents as "heads per cell".
+#'   - `glw_variant`: the `variant` these rows were read from, `"DA"` or
+#'     `"AW"`. It travels with the values so that
+#'     [build_gridded_livestock()] can record the product a run allocated
+#'     on in `method_livestock_proxy` without being told separately, which
+#'     is the only way the label cannot drift from the geography.
 #'   Cells with no positive count are dropped, so the table is sparse.
 #'
 #' @section How five-arcmin pixels become 0.5-degree cells:
@@ -106,6 +116,15 @@
 #' number of times aborts: a raster on another grid would otherwise be
 #' silently resampled onto shifted cells.
 #'
+#' Resolution alone does not place a raster, so the extent is checked too.
+#' Every edge must fall on a WHEP cell boundary: a raster of the right
+#' resolution offset by, say, 0.1 degrees aggregates onto centres that are
+#' not WHEP's, and an extent that is not a whole number of cells leaves a
+#' partial edge block whose truncated sum would travel as a full cell's
+#' head count. Neither is visible downstream --
+#' `build_gridded_livestock()`'s join on `lon`/`lat` would simply drop the
+#' species -- so both abort here, naming the offending edge and its offset.
+#'
 #' @section The GLW3 crosswalk and what it cannot split:
 #' `inst/extdata/glw3_species_group.csv` maps the eight GLW species onto
 #' WHEP's `species_group` vocabulary
@@ -119,7 +138,7 @@
 #' Two rules govern a many-to-one or one-to-many row set, and both are
 #' applied by this reader:
 #'   - **Several GLW species to one group are summed**: `sheep` + `goats`
-#'     into `sheep_goats`, `chickens` + `ducks` into `poultry`.
+#'     into `sheep_goats`.
 #'   - **One GLW species to several groups gives each group the same
 #'     value**: `cattle` feeds both `cattle_dairy` and `cattle_non_dairy`,
 #'     `chickens` feeds `chickens_layers` and `chickens_broilers`. GLW3
@@ -129,6 +148,29 @@
 #'     rule of whep#1000; task T10 may replace it with a split, and the
 #'     replacement is a new crosswalk plus a rule here, not a change of
 #'     contract.
+#'
+#' `poultry` takes the `ducks` layer alone. WHEP's `poultry` group is
+#' ducks + geese/guinea fowls + turkeys (`inst/extdata/livestock_mapping.csv`,
+#' FAOSTAT items 1068, 1072 and 1079); chickens are not in it, they have
+#' their own two groups. The crosswalk used to feed `chickens` into
+#' `poultry` as well, and since chickens outnumber ducks by an order of
+#' magnitude almost everywhere, the summation replaced the duck geography
+#' with a chicken-dominated one (whep#1000, task T15a-iii).
+#'
+#' This is the duck-only half of the decided rule, and it is interim. The
+#' decided rule is a within-group split by national head shares,
+#' `density(poultry) = duck * w_duck + chicken * (1 - w_duck)` with
+#' `w_duck` the national ducks share of ducks + geese/guinea fowls +
+#' turkeys per area and year, falling back to the duck layer alone where a
+#' country reports no poultry heads. That split cannot be applied here: it
+#' is per country and per year, while this table is neither, and the
+#' item-grain national head counts it needs are not among the inputs
+#' `run_spatialize()` loads (`livestock_country_data.parquet` is already
+#' summed to `species_group`, so ducks, geese and turkeys arrive as one
+#' number). Until that input exists, `poultry` carries the geography of
+#' the one group member GLW3 publishes, which is the decided rule's own
+#' no-heads treatment, rather than the geography of a species that is not
+#' in the group at all.
 #'
 #' `camels` and `other` have no GLW species and are absent from the result
 #' by construction. That is deliberate:
@@ -170,7 +212,8 @@ read_glw_density <- function(
     \(sp) .read_glw_species(sp, crosswalk, dir, variant)
   ) |>
     dplyr::bind_rows() |>
-    .apply_glw_crosswalk(crosswalk)
+    .apply_glw_crosswalk(crosswalk) |>
+    dplyr::mutate(glw_variant = variant)
 }
 
 
@@ -340,6 +383,51 @@ read_glw_density <- function(
 }
 
 
+# Whether the raster's cells line up with WHEP's 0.5-degree grid.
+# `.glw_agg_factor()` checks only that the pixels TILE a WHEP cell; a
+# raster at exactly 1/12 degree can still be offset from it.
+# `terra::aggregate()` anchors its blocks on the raster's own extent and
+# keeps it, so an offset raster aggregates onto centres that are not
+# WHEP's -- a 12 x 12 raster at xmin 10.1, ymin 40.1 yields cells at
+# lon 10.35/10.85 and lat 40.35/40.85 -- and `.build_glw_proxy_grid()`'s
+# inner join on `lon`/`lat` then drops every one of them, losing the whole
+# species with no warning anywhere.
+#
+# All four edges are checked, not only the two the aggregation anchors on:
+# an extent that is not a whole number of target cells leaves a partial
+# edge block, and its truncated sum would travel as a full cell's head
+# count. GLW3 as published spans -180..180 by -90..90, so every edge is on
+# the grid and this check is silent for it.
+#
+# The 1e-6 degree tolerance is an assumed, unverified value. It is far
+# below the 1/12-degree pixel (about 0.1 m at the equator, so no real
+# offset hides under it) and exists only to absorb the floating-point
+# representation of an extent accumulated from repeated 1/12 additions.
+.check_glw_alignment <- function(raster, target = 0.5) {
+  edges <- c(
+    xmin = terra::xmin(raster),
+    xmax = terra::xmax(raster),
+    ymin = terra::ymin(raster),
+    ymax = terra::ymax(raster)
+  )
+  offset <- edges - round(edges / target) * target
+  off_grid <- abs(offset) > 1e-6
+  if (any(off_grid)) {
+    cli::cli_abort(c(
+      "The GLW3 raster is not aligned to WHEP's {target}-degree grid.",
+      "x" = "Off-grid extent edges: {.field {names(edges)[off_grid]}}, at
+             {.val {unname(edges[off_grid])}}.",
+      "x" = "Offset from the nearest cell boundary, in degrees:
+             {.val {unname(offset[off_grid])}}.",
+      "i" = "Aggregating it would place the cells off WHEP's centres, where
+             the engine's join on {.field lon}/{.field lat} silently drops
+             them."
+    ))
+  }
+  invisible(NULL)
+}
+
+
 # One species' raster as 0.5-degree head counts. `fun = "sum"` with
 # `na.rm = TRUE` skips missing pixels inside a block; a block that is
 # entirely missing stays NA and is dropped by `na.rm` in the data-frame
@@ -350,9 +438,11 @@ read_glw_density <- function(
     dplyr::pull(glw_code) |>
     unique()
   raster <- terra::rast(.glw_raster_path(dir, code, variant))
+  fact <- .glw_agg_factor(terra::res(raster))
+  .check_glw_alignment(raster)
   cells <- raster |>
     terra::aggregate(
-      fact = .glw_agg_factor(terra::res(raster)),
+      fact = fact,
       fun = "sum",
       na.rm = TRUE
     ) |>
