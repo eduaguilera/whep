@@ -8,7 +8,8 @@ read_level_country_grid(
   level = 0L,
   support = NULL,
   containment = NULL,
-  reference_year = NULL
+  reference_year = NULL,
+  grid_vintage = c("snapshot_2015", "year_aware")
 )
 }
 \arguments{
@@ -16,22 +17,32 @@ read_level_country_grid(
 is today's cell-to-\code{area_code} grid.}
 
 \item{support}{Polycell support table in the \code{\link[=build_polycell_support]{build_polycell_support()}}
-grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. Only read at \code{level >= 1L}.}
+grain, overriding \code{\link[=read_polycell_support]{read_polycell_support()}}. Not read at \code{level = 0L}
+with \code{grid_vintage = "snapshot_2015"}, which resolves the support itself.}
 
 \item{containment}{Containment edge table in the \link{polity_containment}
 schema, overriding the packaged one. Only read at \code{level >= 1L}.}
 
 \item{reference_year}{Optional year to snapshot the grid at, applied with
 the package's own validity predicate. \code{NULL} (default) keeps the interval
-grain, which is what the engines' per-year filter expects. Only read at
-\code{level >= 1L}.}
+grain, which is what the engines' per-year filter expects. Not read at
+\code{level = 0L} with \code{grid_vintage = "snapshot_2015"}, whose reference year
+is fixed at \code{.carbon_support_year()}.}
+
+\item{grid_vintage}{Which vintage of the cell-to-polity support a level-0
+grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
+\emph{Which vintage of the support level 0 is read at}, which states why the
+snapshot is still the default. Not read at \code{level >= 1L}, which is
+year-aware by construction; snapshot a depth with \code{reference_year}.}
 }
 \value{
 A \code{tibble} with \code{lon}, \code{lat}, \code{area_code} (integer, the container's
 reporting code), \code{level_polity_code} (character, \code{NA} at level 0),
 \code{level} (integer), \code{cell_area_frac}, \code{polycell_id}, \code{start_year},
-\code{end_year}, \code{cell_area_ha} and \code{land_area_ha}. At level 0 the six columns
-\code{.carbon_cell_support()} returns are passed through unchanged.
+\code{end_year}, \code{cell_area_ha} and \code{land_area_ha}. At level 0 with
+\code{grid_vintage = "snapshot_2015"} the six columns \code{.carbon_cell_support()}
+returns are passed through unchanged; with \code{"year_aware"} those six
+arrive alongside \code{start_year} and \code{end_year}.
 }
 \description{
 The spatialization engines allocate a national total into the compartments
@@ -41,11 +52,55 @@ one row per cell and reporting \code{area_code}. \code{level >= 1L} resolves the
 polycell support one containment step deeper, so a cell held by a province
 arrives as a province-keyed row instead of being folded into its country.
 
-Level 0 is served by the unchanged \code{.read_polycell_country_grid()} path, so
-a default run is bit-for-bit what it was. Deeper levels bypass that path
-entirely -- in particular they never reach \code{.carbon_support_to_area_code()},
-whose fold is what deletes a province.
+Under \code{grid_vintage = "snapshot_2015"} level 0 is served by the unchanged
+\code{.read_polycell_country_grid()} path, so such a run is bit-for-bit what it
+was. Deeper levels bypass that path entirely -- in particular they never
+reach \code{.carbon_support_to_area_code()}, whose fold is what deletes a
+province.
 }
+\section{Which vintage of the support level 0 is read at}{
+
+The support is a table of cell-to-polity claims with validity intervals, so
+"which polity holds this cell" has an answer per year. Two answers are
+selectable and neither is ever a fallback for the other:
+
+\describe{
+\item{\code{"snapshot_2015"}}{One reference year, \code{.carbon_support_year()},
+folded onto reporting \code{area_code}s -- the carbon path's DA-28 / whep#549
+choice that migrating the territorial EXTENT does not migrate the
+ATTRIBUTION. Every year of a run is allocated into the SAME present-day
+geography.}
+\item{\code{"year_aware"}}{The support in its own interval grain, keyed and
+folded per epoch, so \code{.filter_country_grid_year()} selects the polities
+valid in each simulation year -- the same treatment a granted depth
+gets. A cell held by a polity that has no reporting code in that year,
+or by no polity at all, is then absent for that year.}
+}
+
+The two are different geographies, not two precisions of one, and the
+difference is large before about 1990: on the \verb{20260827T190201Z-f82a2}
+support the year-aware read covers 43,521 cells and 8,245 Mha of land at
+1851 against the snapshot's 68,546 cells and 13,461 Mha. Of that year's
+LUH2 cropland, 41.6\% is taken away from the country the snapshot gives it
+to and 21.7\% is given to a country the snapshot does not -- the two
+directions are reported separately, because a metric that scores only the
+losses cannot see a share that absorbs one country's land into another.
+100.5 Mha of the loss falls in cells no polity claims in 1851 and is
+attributed to nobody. At 2015 the two vintages agree exactly, which is the
+check that fails if the year-aware share is renormalised.
+\code{run_spatialize()} records the resolved value in \code{run_metadata.yaml} and in
+a \code{method_grid_vintage} column on every output it writes.
+
+\code{"snapshot_2015"} is still the default, against whep#1000 T31(j)'s stated
+preference, because WHEP's national tables are on a \strong{constant-territory}
+basis and the support is on a \strong{historical-polity} one. In 1961
+\code{country_areas} reports the Russian Federation, Kazakhstan and Ukraine
+where the year-aware grid offers only the USSR, so 17.2\% of the world's
+harvested area has no cell to land in and is dropped whole;
+\code{validation/spatialize_grid_vintage.R} measures it per year. Reconciling
+the two bases is a lineage step on the national side, not a grid setting.
+}
+
 \section{Which rows count as a level}{
 
 A polity is at depth \emph{d} when the containment edge (\link{polity_containment})
@@ -114,6 +169,15 @@ read_level_country_grid(
   level = 1L,
   support = support,
   containment = containment
+)
+
+# The same support read at level 0. The default vintage is the 2015
+# snapshot, which resolves the support itself and refuses one; the
+# year-aware read takes this one and keeps its validity intervals.
+read_level_country_grid(
+  level = 0L,
+  support = support,
+  grid_vintage = "year_aware"
 )
 }
 \seealso{

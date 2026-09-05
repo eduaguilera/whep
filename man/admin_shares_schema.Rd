@@ -19,6 +19,12 @@ source-native identifiers and never resolve names to WHEP codes here;
 a later resolution step reconciles those once. Unresolved rows keep
 \code{level_polity_code == NA} visibly rather than being dropped.
 
+There are two measurement columns, \code{value} and \code{share}, and a row must
+carry at least one of them. \code{value} may be missing wherever \code{share} is
+present, which is a \strong{first-class case} created by a publication
+consent and not a gap to be filled; see the section below before
+writing anything that assumes an absolute value is there.
+
 \code{admin_shares_schema()} is the \code{\link[=check_table_schema]{check_table_schema()}} contract itself;
 \code{\link[=admin_shares_prototype]{admin_shares_prototype()}} is the zero-row tibble it implies, and the
 two cannot drift apart because the prototype is built \emph{from} the schema
@@ -42,18 +48,29 @@ anchors to, one of \code{"area_harvested"}, \code{"area_planted_or_sown"},
 \code{"area_main"}, \code{"area_cultivated"}, \code{"production"}, \code{"yield"}.
 \item \code{year}: calendar year of the observation.
 \item \code{value}: the unit's own reported value for \code{indicator_used}, in the
-source's native unit.
-\item \code{share}: \code{value} divided by the admin sum across sibling units for
-the same \verb{(area_code, level, item_prod_code, indicator_used, year)};
-\code{NA} before that sum is available.
+source's native unit. \code{NA} on a row whose source is consented to
+ship shares only -- see \emph{Shares-only rows} below. Never invented.
+\item \code{share}: the unit's own value divided by the admin sum across sibling
+units for the same \verb{(area_code, level, item_prod_code, indicator_used, year)}, taken by the row's \strong{own producer} over its
+own units. \code{NA} where the producer ships values and that sum has not
+been taken. This package does not fill it in at load: a share derived
+here from the values in the same table would make the seam gate's
+value-versus-share identity (\code{R/admin_shares_gate.R}, tier A) true by
+construction, and an identity that cannot fail detects nothing.
 \item \code{source}: dataset label of the row's producer, e.g. \code{"USDA_NASS"},
 \code{"Eurostat_apro_cpshr"}, \code{"Eurostat_apro_cpnhr_h"},
 \code{"Eurostat_apro_mt_ls_r"}, \code{"Eurostat_ef_lsk_poultry"}, \code{"IBGE_PAM"},
-\code{"IBGE_PPM"}, \code{"JRC_1975_2020"}, or a tier-2/3 admin-statistics family
-label. Documented here, not enforced as a closed vocabulary: later
-tiers add sources this list cannot enumerate in advance, unlike
-\code{indicator_used}, \code{grain} and \code{treatment_year}, which the contract
-does close.
+\code{"IBGE_PPM"}, \code{"JRC_subnational_crops"}, or a tier-2/3
+admin-statistics family label. Documented here, \strong{not} enforced as a
+closed vocabulary: later tiers add sources this list cannot enumerate
+in advance, unlike \code{indicator_used}, \code{grain} and \code{treatment_year},
+which the contract does close. A caller may therefore put any label
+here, and \code{\link[=resolve_admin_shares]{resolve_admin_shares()}} will rank it. Where the vocabulary
+\emph{is} closed is at the pin boundary: every source in the assembled
+\code{admin-shares} pin must be declared before \code{\link[=read_admin_shares]{read_admin_shares()}} will
+hand it over, because that artifact carries sources whose values are
+withheld by a publication consent and an undeclared label is
+indistinguishable from a new one.
 \item \code{tier}: data tier of the source, \code{1L}-\code{3L}.
 \item \code{grain}: the reporting geography's fineness, one of \code{"admin1"},
 \code{"admin2"}, \code{"admin3"}, in that ascending order. Stored as
@@ -88,6 +105,55 @@ clean.
 }
 }
 
+\section{Shares-only rows}{
+
+A row may carry \code{share} and no \code{value}. That is not a defect, not a
+missing observation and not a gap for a later step to fill: it is what
+a publication consent produces, and the contract admits it on purpose.
+
+The Latin American subnational panel of Infante-Amate, Urrego-Mesa,
+Badia-Miro and Aguilera ships to WHEP as \strong{derived shares only} --
+875,514 rows over 142 first-level units of Argentina, Bolivia, Brazil,
+Chile, Colombia and Mexico -- under the co-author agreement of
+2026-09-02 recorded in \code{inst/extdata/admin_stats_pins_manifest.csv}.
+Its source values are withheld until that panel's own publication, so
+WHEP may carry each unit's share of its container's total and nothing
+else. Five of those six countries have no other subnational evidence in
+this package. Demanding a \code{value} would therefore not have improved the
+data: it would have dropped five countries out of the subnational
+constraint while every balance and conservation check still passed.
+
+\strong{A synthetic value is forbidden}, in both the forms that tempt:
+\itemize{
+\item \code{value = 0} satisfies the contract and then enters the allocation as
+a reported area of zero -- a claim the source never made, and one
+that a downstream reader cannot tell from a real zero.
+\item a value back-computed as \verb{share * national total} satisfies it too,
+and additionally reconstructs the quantity the consent withheld.
+}
+
+Neither is acceptable, and finding either in code is a defect to report
+rather than a shortcut to reuse. A shares-only row travels as a
+shares-only row: \code{\link[=resolve_admin_shares]{resolve_admin_shares()}} ranks candidates on
+indicator, grain, tier and run length, none of which reads \code{value}, and
+\code{allocate_level_crops()} (\code{R/spatialize_levels.R}) carries a
+\code{"share_normalised"} denominator for exactly this case.
+
+What the contract does still refuse is a row carrying \strong{neither}
+measurement: \code{\link[=ensure_admin_shares]{ensure_admin_shares()}} and \code{\link[=resolve_admin_shares]{resolve_admin_shares()}} abort
+on one with class \code{whep_error_admin_no_measure}, because such a row
+constrains nothing and would enter an allocation as an invisible
+abstention.
+
+It equally refuses a \strong{non-finite} \code{value} or \code{share}, with class
+\code{whep_error_admin_nonfinite}. \code{NaN} is not a missing measurement: it is
+what a 0/0 leaves behind, and since \code{is.na(NaN)} is \code{TRUE} every
+\code{is.na(value)} branch downstream would read it as the consented
+shares-only case above. \code{Inf} is refused with it, which no schema bound
+catches either -- \code{\link[=check_table_schema]{check_table_schema()}} guards \code{min} and \code{max} with
+\code{!is.na(values)}, and \code{value} has no maximum.
+}
+
 \examples{
 admin_shares_schema()
 
@@ -115,4 +181,16 @@ rows <- tibble::tibble(
   value_flag = NA_character_
 )
 nrow(check_table_schema(rows, admin_shares_schema()))
+
+# A shares-only pair, as a consented source ships it: `share` present,
+# `value` absent, and the contract satisfied.
+consented <- rows |>
+  dplyr::mutate(
+    value = NA_real_,
+    share = c(0.79, 0.21),
+    source = "admin-stats-latam",
+    source_id = "admin-stats-latam",
+    tier = 3L
+  )
+nrow(check_table_schema(consented, admin_shares_schema()))
 }

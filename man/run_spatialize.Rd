@@ -47,6 +47,18 @@ forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded
 \item \code{country_grid}: which cell-to-polity crosswalk the engines
 allocate into, \code{"polycell"} (default), \code{"centroid"} or
 \code{"fraction"}. See \emph{Which cell-to-polity crosswalk}.
+\item \code{grid_vintage}: which vintage of the polycell support the level-0
+grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}'s \emph{Which vintage of the support level 0 is
+read at}. The two are different geographies, not two precisions of one:
+\code{"snapshot_2015"} allocates every year of a run into the present-day
+cell-to-country map, \code{"year_aware"} into the map valid that year. The
+snapshot remains the default because the national tables are on a
+constant-territory basis the historical support cannot receive: see
+\code{.grid_vintages()} and \code{validation/spatialize_grid_vintage.R}.
+Recorded in \code{run_metadata.yaml} and per row in \code{method_grid_vintage}.
+Not read under \code{country_grid = "centroid"} or \code{"fraction"}, which carry
+no validity interval at all and are recorded as \code{"static_crosswalk"}.
 \item \code{level} (integer, default \code{0L}): containment depth the grid is
 resolved at. \code{0L} is today's cell-to-\code{area_code} grid; \code{1L} and
 deeper key the cells on admin units through
@@ -67,6 +79,14 @@ to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{pro
 density table is read with \code{\link[=read_glw_density]{read_glw_density()}}, which needs a
 \code{WHEP_GLW3_DIR} tree and aborts without one; under \code{"luh2"} it is
 not read at all.
+\item \code{livestock_glw_variant}: which GLW3 product a \code{"glw3"} run
+allocates on, \code{"DA"} (default, the dasymetric rasters) or \code{"AW"}
+(the areal-weighted ones), forwarded to \code{\link[=read_glw_density]{read_glw_density()}}'s
+\code{variant}. They are different within-country geographies, so the
+resolved value is recorded twice: in \code{run_metadata.yaml} with the
+rest of the config, and per row in the output's
+\code{method_livestock_proxy} as \code{"glw3_da"} or \code{"glw3_aw"}. Ignored
+under \code{livestock_proxy = "luh2"}, which reads no raster.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
@@ -165,6 +185,8 @@ area the chosen grid has no cell for and the national total at stake.
 
 \section{Outputs written to \code{out_dir}}{
 
+Every parquet below carries \code{method_grid_vintage}, the geography the run
+allocated into: \code{"year_aware"}, \code{"snapshot_2015"} or \code{"static_crosswalk"}.
 \itemize{
 \item \code{gridded_landuse_crops.parquet} — crop-level output.
 \item \code{gridded_landuse.parquet} — CFT-aggregated output
@@ -173,7 +195,8 @@ area the chosen grid has no cell for and the national total at stake.
 livestock stocks and emissions (when livestock component
 selected).
 \item \code{run_metadata.yaml} — resolved preset, components,
-flags, years, timestamp, and package version.
+flags, years, timestamp, package version, and the resolved
+\code{method_grid_vintage}.
 \item \code{admin_coverage.csv} — which admin source constrained each
 container x item x year, at what tier, grain and depth. Written
 only when \code{level > 0}, with its header and no rows where no

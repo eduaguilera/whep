@@ -19,13 +19,28 @@ adding absent columns as typed missing values and casting present ones
 to the contract's types -- then prove the result against
 \code{\link[=admin_shares_schema]{admin_shares_schema()}} with \code{\link[=assert_table_schema]{assert_table_schema()}}, which aborts
 naming the offending columns and values when it does not conform.
+
+Two rules are proved here rather than in the schema, because a
+\code{\link[=check_table_schema]{check_table_schema()}} specification speaks of one column at a time and
+skips a missing value on every bound:
+\itemize{
+\item Every row must carry \code{value}, \code{share}, or both. A row with neither
+aborts with class \code{whep_error_admin_no_measure}. A row with \code{share}
+alone is accepted -- see the \emph{Shares-only rows} section of
+\code{\link[=admin_shares_schema]{admin_shares_schema()}}, and never repair one by inventing a value.
+\item Neither measurement may be non-finite. \code{NaN} or \code{Inf} aborts with
+class \code{whep_error_admin_nonfinite}, because \code{is.na(NaN)} is \code{TRUE}
+and a \code{NaN} would otherwise travel as a shares-only row.
+}
 }
 \examples{
-# Omits only the columns the contract allows missing: `share`,
-# `nuts_version`, `source_native_id`, `source_native_name`,
-# `source_version` and `value_flag`. `level_polity_code` is part of
-# the key, so it must stay present and distinct per row even though the
-# contract allows it to be `NA` for a genuinely unresolved row.
+# Omits columns the contract allows missing: `share`, `nuts_version`,
+# `source_native_id`, `source_native_name`, `source_version` and
+# `value_flag`. (`value` is allow-missing too, but a row must carry it
+# or `share`, so this valued fixture keeps it.) `level_polity_code` is
+# part of the key, so it must stay present and distinct per row even
+# though the contract allows it to be `NA` for a genuinely unresolved
+# row.
 partial <- tibble::tibble(
   area_code = c(840L, 840L),
   level_polity_code = c("USA-IOWA", "USA-ILLINOIS"),

@@ -1861,16 +1861,72 @@
 # for a 0.5-degree cell, but no value here is a GLW3 measurement.
 .example_glw_density <- function() {
   tibble::tribble(
-    ~lon,    ~lat, ~species_group,      ~density,
-    -3.75,  40.25, "cattle_dairy",         12400,
-    -3.25,  40.25, "cattle_dairy",          8150,
-    -3.75,  40.25, "cattle_non_dairy",     12400,
-    -3.25,  40.25, "cattle_non_dairy",      8150,
-    -3.75,  40.25, "sheep_goats",         143000,
-    -3.25,  40.25, "sheep_goats",          97600,
-    -3.75,  40.25, "pigs",                 61200,
-    -3.25,  40.25, "pigs",                 44800,
-    -3.75,  40.25, "chickens_layers",     870000,
-    -3.25,  40.25, "poultry",              25300
+    ~lon,    ~lat, ~species_group,      ~density, ~glw_variant,
+    -3.75,  40.25, "cattle_dairy",         12400, "DA",
+    -3.25,  40.25, "cattle_dairy",          8150, "DA",
+    -3.75,  40.25, "cattle_non_dairy",     12400, "DA",
+    -3.25,  40.25, "cattle_non_dairy",      8150, "DA",
+    -3.75,  40.25, "chickens_broilers",   870000, "DA",
+    -3.25,  40.25, "chickens_broilers",   642000, "DA",
+    -3.75,  40.25, "chickens_layers",     870000, "DA",
+    -3.25,  40.25, "chickens_layers",     642000, "DA",
+    -3.75,  40.25, "pigs",                 61200, "DA",
+    -3.25,  40.25, "pigs",                 44800, "DA",
+    -3.75,  40.25, "poultry",              25300, "DA",
+    -3.25,  40.25, "poultry",              18100, "DA",
+    -3.75,  40.25, "sheep_goats",         143000, "DA",
+    -3.25,  40.25, "sheep_goats",          97600, "DA"
+  )
+}
+
+# `.example_admin_family()`; it is defined here only because that file was
+# out of bounds to the wave that wrote `read_admin_shares()`. Sampled from
+# the 2026-09-03 staged families -- two Japanese prefectures shipping
+# values and two Bolivian departments shipping shares -- so the shape and
+# the magnitudes are real, and the shares-only case is visible in the
+# example itself.
+#
+# `excluded` is built by the real reporter over the real consent manifest
+# rather than transcribed. A hardcoded copy drifted the moment `detail`
+# changed, and it advertised the wrong contract while every test passed.
+.example_admin_shares <- function() {
+  japan <- "admin-stats-japan"
+  latam <- "admin-stats-latam"
+  shares <- tibble::tibble(
+    area_code = c(110L, 110L, 19L, 19L),
+    level_polity_code = NA_character_,
+    level = 1L,
+    item_prod_code = c(27L, 27L, 661L, 661L),
+    indicator_used = "area_harvested",
+    year = c(2000L, 2000L, 2023L, 2023L),
+    value = c(134900, 120700, NA, NA),
+    share = c(NA, NA, 0.792032501, 0.009048142),
+    source = c(japan, japan, latam, latam),
+    tier = c(2L, 2L, 3L, 3L),
+    grain = "admin1",
+    concept_break = FALSE,
+    nuts_version = NA_character_,
+    source_native_id = c(
+      "JPN-HOKKAIDO",
+      "JPN-NIIGATA",
+      "BOL-LAPAZ",
+      "BOL-SANTACRUZ"
+    ),
+    source_native_name = c("Hokkaido", "Niigata", "La Paz", "Santa Cruz"),
+    source_id = c(japan, japan, latam, latam),
+    source_version = c(
+      "NATIONAL_OFFICIAL:JPN:MAFF",
+      "NATIONAL_OFFICIAL:JPN:MAFF",
+      "2026-05-21",
+      "2026-05-21"
+    ),
+    recorded_at = "2026-09-03T06:21:54Z",
+    treatment_year = "observed",
+    value_flag = NA_character_
+  )
+  list(
+    shares = shares,
+    excluded = .admin_shares_excluded(shares),
+    not_shipped = character()
   )
 }

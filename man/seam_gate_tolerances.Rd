@@ -12,7 +12,8 @@ seam_gate_tolerances(
   min_reference = 20L,
   cell_ratio_bounds = c(0.55, 1.6),
   cell_min_ha = 100,
-  cell_excess = 0.01
+  cell_excess = 0.01,
+  holdout_k = 10L
 )
 }
 \arguments{
@@ -35,6 +36,9 @@ scan.}
 
 \item{cell_excess}{Largest flag-rate excess tier C accepts, as a
 fraction.}
+
+\item{holdout_k}{How many of a series' earliest observed years the
+tier-B hold-out withholds.}
 }
 \value{
 A named list of the arguments plus \code{null_rate} and
@@ -83,6 +87,21 @@ to the scanned column, which here is a share, not an area.
 \item \code{cell_excess} (0.01): the plan's one percentage point. Tier C passes
 when the seam pair's flag rate exceeds the mean of its two
 neighbouring pairs' rates by no more than this.
+\item \code{holdout_k} (10): how many of a series' earliest observed years the
+tier-B hold-out withholds. The leg's power grows with the horizon,
+because a wrong per-unit trend in the extent proxy accumulates
+linearly with the years back-cast while the yardstick stays a single
+year's move: on this package's own two-history fixture
+(\code{test_admin_shares_gate.R}), two extent tables whose reconstructions
+differ by a factor of 0.40 to 1.63 at ten years are \strong{not} separated
+at \code{holdout_k = 3} (both pass) and are separated decisively at 10
+(0.008 against 0.383 of pairs beyond the reference quantile). Each
+withheld year is also an observation removed from both the anchor and
+the reference, so \code{holdout_k} cannot approach the length of the
+record; ten leaves two decades of reference pairs on a thirty-year
+series. Assumed, unverified: no measurement fixes it, and it is a
+choice about how deep an extrapolation the gate certifies, not a
+property of the data.
 }
 
 Two further numbers are \strong{derived} from those, and returned rather

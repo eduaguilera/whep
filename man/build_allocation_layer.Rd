@@ -2,7 +2,7 @@
 % Please edit documentation in R/spatialize_levels.R
 \name{build_allocation_layer}
 \alias{build_allocation_layer}
-\title{Choose an allocation depth per country and assert the result partitions}
+\title{Choose an allocation depth per country and assert no cell is claimed twice}
 \usage{
 build_allocation_layer(grid0, grid_deep, granted)
 }
@@ -20,7 +20,8 @@ T25 coverage report. \code{NULL} or a zero-row tibble returns \code{grid0}.}
 \value{
 \code{grid0}-shaped \code{tibble} with \code{level_polity_code} and \code{level},
 carrying the ragged-coverage diagnostic in its \code{"ragged_coverage"}
-attribute (a zero-row tibble when nothing failed).
+attribute and the unclaimed-land report in its \code{"unclaimed_land"}
+attribute (each a zero-row tibble when nothing was found).
 }
 \description{
 Decision 10's allocation layer: ONE country grid in which each country is
@@ -31,18 +32,20 @@ its level-0 row. The engines see a single grid and need no depth logic.
 \section{The two-part assertion}{
 
 \describe{
-\item{(a), an abort}{The shares sum to 1 per physical cell, within
-\code{1e-8}, \strong{across the layer as passed} -- unconditionally, not after a
-per-year filter (the fixture convention agreed at T37). A layer that is
-not a partition is either double-claiming ground (a container kept
-beside its own units) or losing it (a container dropped with no units to
-replace it), and both are invisible downstream because every national
-total still reconciles. Raised with class
-\code{whep_alloc_layer_not_partition}. A compartment whose share of one cell
-differs between two of its own validity intervals cannot be summed
-unconditionally and is refused with class
-\code{whep_alloc_layer_varying_share}; making a unit's share move through
-time is the territory-basis mechanism, which belongs to T28.}
+\item{(a), a one-sided abort}{The shares of one physical cell may never
+EXCEED 1, within \code{1e-8}, \strong{across the layer as passed} --
+unconditionally, not after a per-year filter (the fixture convention
+agreed at T37). A sum above 1 is ground claimed twice -- a container
+kept beside its own units -- and is invisible downstream because every
+national total still reconciles, so it aborts with class
+\code{whep_alloc_layer_not_partition}. A sum BELOW 1 is not an error: it is
+land inside the cell that no reporting polity claims, the same
+unclaimed ground the year-aware level-0 read leaves out, and it is
+reported rather than refused (see the unclaimed-land section). A
+compartment whose share of one cell differs between two of its own
+validity intervals cannot be summed unconditionally and is refused with
+class \code{whep_alloc_layer_varying_share}; making a unit's share move
+through time is the territory-basis mechanism, which belongs to T28.}
 \item{(b), a diagnostic}{For every granted country: no container-keyed row
 survives anywhere, and per cell the unit shares reproduce the country's
 level-0 share. Cells that fail are RETURNED, in the
@@ -52,6 +55,25 @@ removes. (b) failing is not by itself a defect: level 0 is a fixed 2015
 snapshot while granted depths are year-filtered by edge validity, and
 how the two coexist is open at T31(j).}
 }
+}
+
+\section{Unclaimed land}{
+
+A cell whose shares fall short of 1 holds land that no reporting polity
+claims. That is a real state of the grid and not corruption: on the live
+polycell support, the level-0 grid at the 2015 snapshot has 40 such cells
+out of 68,546 -- the worst claimed to 0.0116 at (20.75, 42.75) -- and the
+year-aware read leaves whole cells out on top of that, which is what
+\code{validation/spatialize_grid_vintage.R} sizes per year. Aborting on the
+shortfall would stop every granted-depth run on real data; ignoring it
+would hide land that no national total accounts for. So it is measured and
+returned, one row per short cell, in the \code{"unclaimed_land"} attribute:
+\code{lon}, \code{lat}, \code{claimed_share}, \code{unclaimed_share}, and \code{unclaimed_ha} (the
+shortfall in hectares, \code{NA} when the layer carries no \code{land_area_ha}). A
+run reads that attribute to say how much land is unclaimed and where. The
+attribute is always present; it is a zero-row tibble when every cell is
+fully claimed, and also on the no-grant path, which returns \code{grid0}
+unexamined.
 }
 
 \examples{

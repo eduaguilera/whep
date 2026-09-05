@@ -105,6 +105,9 @@ Expected columns:
 \item \code{lon}, \code{lat}: Cell centre coordinates.
 \item \code{species_group}: Must match \code{livestock_data}.
 \item \code{density}: Heads per cell (reference year ~2010).
+\item \code{glw_variant}: Optional, \code{"DA"} or \code{"AW"}; \code{\link[=read_glw_density]{read_glw_density()}}
+always supplies it. A table mixing the two products is refused,
+since one recorded label cannot describe both geographies.
 Under \code{"glw3"} it \strong{replaces} the LUH2 proxy for every group, still
 masked by that year's LUH2 extent so a cell whose land use has gone
 receives nothing.
@@ -155,8 +158,9 @@ reporting code the engine allocated on.
 \item Any additional numeric columns from \code{livestock_data}
 (e.g. \code{enteric_ch4_kt}, \code{manure_ch4_kt}).
 \item \code{method_livestock_proxy}: Which proxy produced the weights for
-this row, one of \code{"luh2_area"}, \code{"luh2_grass"}, \code{"glw3"}.
-Constant within a \verb{(year, species_group)} block.
+this row, one of \code{"luh2_area"}, \code{"luh2_grass"}, \code{"glw3_da"},
+\code{"glw3_aw"} (or plain \code{"glw3"} for a \code{glw_density} table carrying
+no \code{glw_variant}). Constant within a \verb{(year, species_group)} block.
 }
 }
 \description{
@@ -223,8 +227,14 @@ groups in the same call stay \code{"luh2_area"}. The label is per species
 group, not per cell: a grazer cell with no \code{grass_npp} keeps its area
 weight but still travels under \code{"luh2_grass"}, because what the
 column records is the weighting regime the group ran under.
-\item \code{"glw3"}: GLW3 density masked by that year's LUH2 extent
-(\code{proxy_method = "glw3"}).
+\item \code{"glw3_da"} / \code{"glw3_aw"}: GLW3 density masked by that year's LUH2
+extent (\code{proxy_method = "glw3"}), from the dasymetric or the
+areal-weighted product respectively. The two are different
+within-country geographies, so the label names which one: it is read
+off \code{glw_density}'s \code{glw_variant} column, which \code{\link[=read_glw_density]{read_glw_density()}}
+stamps, and therefore cannot disagree with the raster the weights
+came from. A \code{glw_density} built by hand, carrying no such column,
+travels as plain \code{"glw3"}.
 }
 
 The default stays \code{"luh2"} even though \code{"glw3"} is the better-informed

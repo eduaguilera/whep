@@ -22,10 +22,15 @@ slugs in the table above. Length 1, or one value per row of \code{x}.}
 \item{year_col}{Name of the year column in \code{x}. Defaults to \code{"year"}.}
 
 \item{aliases}{Optional alias table in the \link{polity_label_aliases}
-schema, used \strong{instead of} the package data. \code{NULL}, the default,
-delegates to \code{\link[=resolve_polity_label]{resolve_polity_label()}} and is what production calls
-use; an injected table takes the alias route only, with the same
-source and year scoping.}
+schema, used \strong{instead of} the package data. \code{NULL}, the default and
+what production calls use, resolves against the published
+\link{polity_label_aliases} through the ALIAS ROUTE ONLY -- never
+\code{\link[=resolve_polity_label]{resolve_polity_label()}} itself, whose name and ISO3 identity routes
+would let an administrative identifier that happens to collide with a
+polity name or ISO3 code resolve to the wrong thing (usually the
+container). An injected table takes the same alias-only route, with
+the same source and year scoping, so the two paths agree on
+everything but which table they read.}
 }
 \value{
 A list of two tibbles:

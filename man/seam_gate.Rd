@@ -8,6 +8,7 @@ seam_gate(
   shares_backcast,
   seams,
   cells = NULL,
+  holdout = NULL,
   tolerances = seam_gate_tolerances()
 )
 }
@@ -27,6 +28,19 @@ or \code{rainfed_ha} plus \code{irrigated_ha}. \code{polycell_id}, \code{cell_id
 \code{level_polity_code} and \code{regime} are used when present. \code{NULL}
 (default) leaves tier C unevaluated.}
 
+\item{holdout}{What the tier-B hold-out needs, or \code{NULL} (default),
+which leaves it unevaluated. A list of \code{extent}, the per-unit extent
+table from \code{\link[=aggregate_unit_extent]{aggregate_unit_extent()}} that the back-cast was run
+with, and optionally \code{args}, a named list of further arguments for
+\code{\link[=backcast_admin_shares]{backcast_admin_shares()}} -- the \code{settings} row of the original
+back-cast, so the hold-out is run the way the run was.
+\code{shares}, \code{extent} and \code{seam} are set by the leg and are refused in
+\code{args}. With \code{holdout} supplied, \code{shares_backcast} must also carry
+\code{indicator_used} and \code{treatment_year}, which the back-cast reads.
+The re-run's own input errors -- an \code{extent} with two rows for a
+unit-year, say -- surface as errors from it. That is not the gate
+failing: a gate outcome is always a returned row.}
+
 \item{tolerances}{The numbers to judge with, from
 \code{\link[=seam_gate_tolerances]{seam_gate_tolerances()}}.}
 }
@@ -36,20 +50,27 @@ A list:
 \item \code{tier_a}: one row per series, with \code{t0}, \code{n_units}, \code{n_observed},
 \code{share_sum}, \code{max_rel_diff}, \code{basis}, \code{seam_start_year},
 \code{matches_seam_start}, \code{pass} and \code{reason}.
-\item \code{tier_b}: one row per gated unit-seam pair, with \code{log_ratio},
-\code{q_reference}, \code{n_reference}, \code{beyond_quantile} and \code{status}, plus
-the container gate (\code{n_gated}, \code{n_beyond}, \code{frac_beyond},
-\code{threshold}, \code{gate_status}, \code{pass}) broadcast onto every row of
-that container.
+\item \code{tier_b}: one row per gated unit-seam pair, with \code{basis},
+\code{log_ratio}, \code{q_reference}, \code{n_reference}, \code{beyond_quantile} and
+\code{status}, plus the container gate (\code{n_gated}, \code{n_beyond},
+\code{frac_beyond}, \code{threshold}, \code{gate_status}, \code{pass}) broadcast onto
+every row of that container and \code{basis}.
+\item \code{tier_b_holdout}: one row per unit and withheld year, with
+\code{anchor_year}, \code{horizon}, \code{share_observed}, \code{share_backcast},
+\code{log_ratio}, \code{status} and the per-series gate; plus one row,
+keyed on the series alone, for every start-seam series the leg
+could not run (\code{status} beginning \code{"not_applicable"}). Zero rows
+when no series has a \code{"start"} seam.
 \item \code{tier_c}: one row per gated \verb{(area_code, seam_year)}, with the
 three pairs' scanned series counts and flag rates,
 \code{neighbour_rate}, \code{excess}, \code{n_regime_mismatch}, \code{pass} and
 \code{reason}. Zero rows when \code{cells} is \code{NULL}.
-\item \code{verdict}: a named logical, \code{tier_a} / \code{tier_b} / \code{tier_c} /
-\code{overall}. A tier is \code{TRUE} when every gate it evaluated passed,
-\code{FALSE} when any failed and \code{NA} when it evaluated none.
-\code{overall} is \code{FALSE} if any tier failed, \code{NA} if none was
-evaluable, else \code{TRUE}.
+\item \code{verdict}: a named logical, \code{tier_a} / \code{tier_b} /
+\code{tier_b_holdout} / \code{tier_c} / \code{overall}. A tier is \code{TRUE} when
+every gate it evaluated passed, \code{FALSE} when any failed and \code{NA}
+when it evaluated none -- which is what a container of nothing but
+\code{"vacuous_by_construction"} rows gives. \code{overall} is \code{FALSE} if
+any tier failed, \code{NA} if none was evaluable, else \code{TRUE}.
 }
 }
 \description{
@@ -103,6 +124,78 @@ under the null that a seam pair is an ordinary pair the fraction is
 binomial, and this is its upper band. A container whose seams are
 invisible against its own year-to-year variation passes; one whose
 seams step further than its ordinary years do, does not.
+
+\strong{That reasoning holds only where both sides of the pair are
+observations}, which \code{basis} records per pair and the container gate
+is grouped by:
+\itemize{
+\item \code{basis = "observed_both_sides"}: the seam year's row and the year
+before it are both \code{treatment == "observed"}. The tier keeps its
+meaning, and its \code{pass} enters the verdict. This is the
+\code{source_switch}, \code{grain_switch}, \code{nuts_version_switch},
+\code{coverage_change} and \code{indicator_switch} case.
+\item \code{basis = "vacuous_by_construction"}: the year before the seam is a
+row the back-cast produced, or is absent. It is read off the two
+rows' \code{treatment}, not off the seam kind, because that is the
+operative fact. At a \code{"start"} seam of a table whose anchor matches
+it -- tier A's last check -- it always holds: \code{t0} is the series'
+first observed year, so
+\code{s_u(t0 - 1)} is \code{s_u(t0) * E_u(t0 - 1) / E_u(t0)} renormalised, one
+year of smooth extent change. Scored against a reference built from
+the noisier observed year-to-year moves it cannot fail: two extent
+proxies with opposite per-unit trends, whose reconstructions differ
+by a factor of 0.40 to 1.63 ten years down, both return
+\code{n_beyond = 0}. Such rows report \code{gate_status = "vacuous_by_construction"} and \code{pass = NA}, and do \strong{not} enter the
+verdict; \code{frac_beyond} and \code{threshold} are still filled in, because
+the numbers are worth reading even though they decide nothing.
+}
+}
+
+\section{Tier B hold-out -- what stands in at a start seam}{
+
+Only when \code{holdout} is supplied. For every series with a \code{"start"}
+seam, the first \code{holdout_k} observed years are withheld, the series is
+back-cast again from the next observed year (the \verb{seam =} override of
+\code{\link[=backcast_admin_shares]{backcast_admin_shares()}}, which is the same lever the verification
+protocol's temporal hold-out uses), and the reconstruction is scored
+against what was actually observed in those years:
+\verb{|log(s_hat_u(t) / s_u(t))|} per unit and withheld year, against the
+same reference quantile of that series' observed consecutive
+log-ratios. The two are commensurable under iid year-to-year noise: a
+reconstruction error is a difference of two years' noise (the anchor's
+and the withheld year's), like a one-year move, and neither widens
+with the horizon. On this package's fixture the error distribution
+comes out slightly narrower than the reference, so the realised null
+exceedance rate sits under \code{null_rate} rather than over it; under
+persistent noise a deep hold-out over-rejects instead. Both departures
+are the safe direction for a gate, and neither is assumed: the
+measured fractions are in the tests.
+
+The reference excludes every pair at or below the hold-out anchor as
+well as every seam year, for the reason tier B holds its gated pairs
+out of their own reference: a series whose earliest years are unusual
+would otherwise both widen the yardstick and be measured by it. The
+consequence is worth stating plainly -- where the earliest years
+genuinely move differently from the rest of the record, this leg
+fails a proxy that is right about the rest. It fails loudly rather
+than passing quietly.
+
+The band divides by the number of \strong{units} with a scored pair, not by
+the number of pairs. A unit's \code{holdout_k} errors all carry the anchor
+year's own noise, so they are one cluster and not \code{holdout_k}
+independent draws; dividing by pairs made this leg flag a correct
+proxy on the package's own fixture. \code{min_gated} therefore reads as a
+minimum unit count here (\code{gate_status = "too_few_units"}).
+
+A series with \code{holdout_k} or fewer observed years is reported
+\code{not_applicable}, never passed, and so is every series when \code{holdout}
+is not supplied: a start seam then has no evidence at all behind it,
+which the returned table says on its own row.
+
+What a pass certifies is a \code{holdout_k}-year extrapolation. Where the
+published back-cast runs deeper -- \code{n_backcast_years} on every row
+says how much deeper -- it is evidence about the first \code{holdout_k}
+years of it and no more.
 
 Every seam kind in \code{seams} is gated, coverage changes and indicator
 switches included: the seam list is taken as given rather than

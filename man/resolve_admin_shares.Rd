@@ -15,7 +15,10 @@ resolve_admin_shares(
 \item{shares}{Admin-shares table, conforming to \code{\link[=admin_shares_schema]{admin_shares_schema()}}
 except that \code{source} joins the key: a multi-source union is exactly
 what resolution consumes, and the contract's key holds within one
-source. Every row must have \code{treatment_year == "observed"}.}
+source. Every row must have \code{treatment_year == "observed"} and must
+carry \code{value}, \code{share} or both; a row with neither aborts with class
+\code{whep_error_admin_no_measure}, and a non-finite \code{value} or \code{share}
+with class \code{whep_error_admin_nonfinite}.}
 
 \item{overrides}{Optional tibble of forced choices, with columns
 \code{area_code}, \code{source} and optionally \code{item_prod_code} (\code{NA}, or the
@@ -88,6 +91,13 @@ around that year, defined below.
 tied sources. This is the deterministic last resort, never a
 scientific rule.
 }
+
+None of the five reads \code{value}, so a source consented to ship derived
+shares only -- the Latin American panel of the \emph{Shares-only rows}
+section of \code{\link[=admin_shares_schema]{admin_shares_schema()}} -- competes, wins and is carried on
+exactly the same terms as a source shipping absolute areas. Its rows
+arrive in \code{shares} still carrying \code{value = NA}; nothing here fills that
+in, and nothing downstream may.
 
 Before any of that, the indicator in force is chosen per \verb{(area_code, level, item_prod_code, year)} by decision 8's order of acceptance --
 \code{"area_harvested"}, \code{"area_planted_or_sown"}, \code{"area_main"},

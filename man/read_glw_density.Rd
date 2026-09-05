@@ -54,6 +54,11 @@ A tibble with one row per cell and species group:
 \item \code{species_group}: WHEP livestock functional type.
 \item \code{density}: GLW3 head count in that cell, the quantity
 \code{\link[=build_gridded_livestock]{build_gridded_livestock()}} documents as "heads per cell".
+\item \code{glw_variant}: the \code{variant} these rows were read from, \code{"DA"} or
+\code{"AW"}. It travels with the values so that
+\code{\link[=build_gridded_livestock]{build_gridded_livestock()}} can record the product a run allocated
+on in \code{method_livestock_proxy} without being told separately, which
+is the only way the label cannot drift from the geography.
 Cells with no positive count are dropped, so the table is sparse.
 }
 }
@@ -91,6 +96,15 @@ The block factor is derived from the raster's own resolution rather than
 hardcoded, and a resolution that does not divide 0.5 degrees a whole
 number of times aborts: a raster on another grid would otherwise be
 silently resampled onto shifted cells.
+
+Resolution alone does not place a raster, so the extent is checked too.
+Every edge must fall on a WHEP cell boundary: a raster of the right
+resolution offset by, say, 0.1 degrees aggregates onto centres that are
+not WHEP's, and an extent that is not a whole number of cells leaves a
+partial edge block whose truncated sum would travel as a full cell's
+head count. Neither is visible downstream --
+\code{build_gridded_livestock()}'s join on \code{lon}/\code{lat} would simply drop the
+species -- so both abort here, naming the offending edge and its offset.
 }
 
 \section{The GLW3 crosswalk and what it cannot split}{
@@ -110,7 +124,7 @@ Two rules govern a many-to-one or one-to-many row set, and both are
 applied by this reader:
 \itemize{
 \item \strong{Several GLW species to one group are summed}: \code{sheep} + \code{goats}
-into \code{sheep_goats}, \code{chickens} + \code{ducks} into \code{poultry}.
+into \code{sheep_goats}.
 \item \strong{One GLW species to several groups gives each group the same
 value}: \code{cattle} feeds both \code{cattle_dairy} and \code{cattle_non_dairy},
 \code{chickens} feeds \code{chickens_layers} and \code{chickens_broilers}. GLW3
@@ -121,6 +135,29 @@ rule of whep#1000; task T10 may replace it with a split, and the
 replacement is a new crosswalk plus a rule here, not a change of
 contract.
 }
+
+\code{poultry} takes the \code{ducks} layer alone. WHEP's \code{poultry} group is
+ducks + geese/guinea fowls + turkeys (\code{inst/extdata/livestock_mapping.csv},
+FAOSTAT items 1068, 1072 and 1079); chickens are not in it, they have
+their own two groups. The crosswalk used to feed \code{chickens} into
+\code{poultry} as well, and since chickens outnumber ducks by an order of
+magnitude almost everywhere, the summation replaced the duck geography
+with a chicken-dominated one (whep#1000, task T15a-iii).
+
+This is the duck-only half of the decided rule, and it is interim. The
+decided rule is a within-group split by national head shares,
+\code{density(poultry) = duck * w_duck + chicken * (1 - w_duck)} with
+\code{w_duck} the national ducks share of ducks + geese/guinea fowls +
+turkeys per area and year, falling back to the duck layer alone where a
+country reports no poultry heads. That split cannot be applied here: it
+is per country and per year, while this table is neither, and the
+item-grain national head counts it needs are not among the inputs
+\code{run_spatialize()} loads (\code{livestock_country_data.parquet} is already
+summed to \code{species_group}, so ducks, geese and turkeys arrive as one
+number). Until that input exists, \code{poultry} carries the geography of
+the one group member GLW3 publishes, which is the decided rule's own
+no-heads treatment, rather than the geography of a species that is not
+in the group at all.
 
 \code{camels} and \code{other} have no GLW species and are absent from the result
 by construction. That is deliberate:
