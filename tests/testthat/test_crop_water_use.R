@@ -155,3 +155,34 @@ testthat::test_that("the group rides through grid and polity output", {
   testthat::expect_true("crop_group" %in% names(ex))
   testthat::expect_identical(ex$crop_group[1], "cropland_irrigated_herbaceous")
 })
+
+testthat::test_that("reading a run without years aborts instead of exhausting memory", {
+  # cft_airrig_month is ~7.7e7 long-form rows per year and 2.1e10 over the
+  # 274-year run, so `years = NULL` on the run-reading path is a request the
+  # machine cannot serve. It must say so before it starts, not die part way.
+  testthat::expect_error(
+    whep:::.cwu_read_airrig(run_dir = "/nonexistent", years = NULL),
+    "explicit"
+  )
+})
+
+testthat::test_that("stand fractions are read only for the cube's own years", {
+  # The weighting read used to take the caller's `years`, which is NULL by
+  # default, so injecting one year of airrig_month still pulled all 274 years
+  # of cftfrac.nc (1.75e9 rows, 40+ GB) to weight it.
+  airrig <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = c(2010L, 2010L, 2011L),
+    month = 1L,
+    band = 1L,
+    band_name = "irrigated rice",
+    value = 1
+  )
+  testthat::expect_equal(whep:::.cwu_years(airrig, NULL), c(2010L, 2011L))
+  # An injected cube wins over the argument, because it is what is weighted.
+  testthat::expect_equal(whep:::.cwu_years(airrig, 1990L), c(2010L, 2011L))
+  # With no cube there is nothing to derive from, so the argument stands.
+  testthat::expect_equal(whep:::.cwu_years(NULL, 1990L), 1990L)
+  testthat::expect_null(whep:::.cwu_years(NULL, NULL))
+})

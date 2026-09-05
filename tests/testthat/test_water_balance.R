@@ -1460,11 +1460,20 @@ testthat::test_that("a fully covered cell is unchanged by weighting", {
   testthat::expect_equal(out$blue_mm, 300)
 })
 
-testthat::test_that("a band with no stand fraction contributes nothing", {
-  out <- whep:::.wb_cell_consump(
-    .wb_two_band_cube(100, 200),
-    "blue_mm",
-    .wb_two_band_frac(0.3, 0.1)[1, ]
+testthat::test_that("a band with no stand fraction contributes nothing, loudly", {
+  # The zero-fill is kept, because a caller may legitimately supply a
+  # narrower cube than its weights -- but it is no longer SILENT. An
+  # unmatched band is an input mismatch, not a zero-area stand (cftfrac.nc
+  # carries every band, a zero-area one included, so a real absence joins
+  # with value 0), and zero-filling it publishes an entirely plausible
+  # fully rainfed world.
+  testthat::expect_warning(
+    out <- whep:::.wb_cell_consump(
+      .wb_two_band_cube(100, 200),
+      "blue_mm",
+      .wb_two_band_frac(0.3, 0.1)[1, ]
+    ),
+    "match no"
   )
   testthat::expect_equal(out$blue_mm, 30)
 })
@@ -1512,4 +1521,54 @@ testthat::test_that("a NULL per-CFT input still yields NULL", {
   testthat::expect_null(
     whep:::.wb_cell_consump(NULL, "blue_mm", .wb_two_band_frac(0.3, 0.1))
   )
+})
+
+testthat::test_that("an unmatched band with water warns instead of vanishing", {
+  # A band that fails to join a stand fraction is an input mismatch, never a
+  # real zero: cftfrac.nc carries every band including the zero-area ones, so
+  # a genuinely absent stand joins with value 0. Zero-filling an unmatched row
+  # deletes that band's water and leaves 0 rather than NA, so the downstream
+  # usability check still passes and publishes a fully rainfed world.
+  raw <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = c(2000L, 2010L),
+    band_name = c("irrigated rice", "irrigated rice"),
+    value = c(5, 5)
+  )
+  frac <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = "irrigated rice",
+    value = 0.4
+  )
+  testthat::expect_warning(
+    out <- whep:::.wb_weight_by_stand(raw, "consump_blue_mm", frac),
+    "match no"
+  )
+  testthat::expect_equal(out$weighted, c(0, 2))
+})
+
+testthat::test_that("a genuinely zero-area stand does not warn", {
+  # The other half: a band present in the stand table with value 0 is a real
+  # measurement and must stay silent, or the guard cries wolf on every cell.
+  raw <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = c("irrigated rice", "irrigated maize"),
+    value = c(5, 5)
+  )
+  frac <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2010L,
+    band_name = c("irrigated rice", "irrigated maize"),
+    value = c(0.4, 0)
+  )
+  testthat::expect_silent(
+    out <- whep:::.wb_weight_by_stand(raw, "consump_blue_mm", frac)
+  )
+  testthat::expect_equal(out$weighted, c(2, 0))
 })

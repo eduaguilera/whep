@@ -10,6 +10,21 @@
   testthat::expect_equal(actual, expected)
 }
 
+# Since whep#1003 `.build_supply_crop_residue()` supplies only the RECOVERED
+# residue, so it reaches `.residue_recovered_split()` and, for the synthetic
+# crop codes these fixtures use, recovers nothing (no Krausmann category).
+# These three tests are about the JOIN, not about recovery rates, so they run
+# with recovery held at 1 and the recovery behaviour is asserted separately.
+.with_full_recovery <- function(code) {
+  testthat::with_mocked_bindings(
+    code,
+    .residue_recovered_split = function(res, warn = TRUE) {
+      dplyr::mutate(res, recovered = .data$value, feed_dm_t = .data$value)
+    },
+    .package = "whep"
+  )
+}
+
 testthat::test_that(".build_processing works for processed items", {
   coeffs <- tibble::tribble(
     ~year, ~area_code, ~item_cbs_code_to_process, ~value_to_process, ~item_cbs_code_processed, ~final_value_processed,
@@ -222,38 +237,40 @@ testthat::test_that(".build_use_crop_draught uses field area for crop coproducts
 })
 
 testthat::test_that(".build_supply_crop_production gives crops and their residues", {
-  crop_prod_items <- tibble::tibble(item_prod_code = c(1, 2, 4))
+  .with_full_recovery({
+    crop_prod_items <- tibble::tibble(item_prod_code = c(1, 2, 4))
 
-  primary_prod <- tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 1, 3, NA, "tonnes", 40,
-    2000, 1, 2, 3, NA, "tonnes", 45,
-    2000, 1, 4, 5, NA, "tonnes", 50,
-    2001, 1, 4, 5, NA, "tonnes", 60,
-    2001, 1, 6, 3, NA, "tonnes", 60
-  )
+    primary_prod <- tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+      2000, 1, 1, 3, NA, "tonnes", 40,
+      2000, 1, 2, 3, NA, "tonnes", 45,
+      2000, 1, 4, 5, NA, "tonnes", 50,
+      2001, 1, 4, 5, NA, "tonnes", 60,
+      2001, 1, 6, 3, NA, "tonnes", 60
+    )
 
-  crop_residues <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
-    2000, 1, 3, 10, 40,
-    2000, 1, 5, 11, 45,
-    2001, 1, 5, 12, 60,
-    2001, 1, 4, 10, 80
-  )
+    crop_residues <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+      2000, 1, 3, 10, 40,
+      2000, 1, 5, 11, 45,
+      2001, 1, 5, 12, 60,
+      2001, 1, 4, 10, 80
+    )
 
-  expected <- tibble::tribble(
-    ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value, ~type,
-    2000, 1, 3, 3, 85, "supply",
-    2000, 1, 5, 5, 50, "supply",
-    2001, 1, 5, 5, 60, "supply",
-    2000, 1, 3, 10, 40, "supply",
-    2000, 1, 5, 11, 45, "supply",
-    2001, 1, 5, 12, 60, "supply"
-  )
+    expected <- tibble::tribble(
+      ~year, ~area_code, ~proc_cbs_code, ~item_cbs_code, ~value, ~type,
+      2000, 1, 3, 3, 85, "supply",
+      2000, 1, 5, 5, 50, "supply",
+      2001, 1, 5, 5, 60, "supply",
+      2000, 1, 3, 10, 40, "supply",
+      2000, 1, 5, 11, 45, "supply",
+      2001, 1, 5, 12, 60, "supply"
+    )
 
-  crop_prod_items |>
-    .build_supply_crop_production(primary_prod, crop_residues) |>
-    .expect_equal_unordered(expected)
+    crop_prod_items |>
+      .build_supply_crop_production(primary_prod, crop_residues) |>
+      .expect_equal_unordered(expected)
+  })
 })
 
 testthat::test_that(".build_supply_crop_product summarises crop production", {
@@ -336,63 +353,67 @@ testthat::test_that(".build_supply_crop_product keeps field coproducts in one pr
 })
 
 testthat::test_that(".build_supply_crop_residue joins residues correctly", {
-  cbs_items <- tibble::tibble(
-    item_cbs_code_crop = c(10, 20)
-  )
-  crop_residues <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
-    2000, 1, 10, 100, 50,
-    2000, 1, 30, 101, 25
-  )
+  .with_full_recovery({
+    cbs_items <- tibble::tibble(
+      item_cbs_code_crop = c(10, 20)
+    )
+    crop_residues <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+      2000, 1, 10, 100, 50,
+      2000, 1, 30, 101, 25
+    )
 
-  result <- .build_supply_crop_residue(
-    cbs_items,
-    crop_residues
-  )
+    result <- .build_supply_crop_residue(
+      cbs_items,
+      crop_residues
+    )
 
-  testthat::expect_equal(nrow(result), 1)
-  testthat::expect_equal(result$value, 50)
-  testthat::expect_equal(result$proc_cbs_code, 10)
-  testthat::expect_equal(result$item_cbs_code, 100)
+    testthat::expect_equal(nrow(result), 1)
+    testthat::expect_equal(result$value, 50)
+    testthat::expect_equal(result$proc_cbs_code, 10)
+    testthat::expect_equal(result$item_cbs_code, 100)
+  })
 })
 
 testthat::test_that(".build_crop_production attaches seed and residues to field coproduct process", {
-  crop_prod_items <- tibble::tibble(
-    item_prod_code = c(329L, 767L)
-  )
-  cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~seed,
-    2000, 1, 2559, 5,
-    2000, 1, 2661, 0
-  )
-  primary_prod <- tibble::tribble(
-    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
-    2000, 1, 328, 328, NA, "ha", 100,
-    2000, 1, 329, 2559, NA, "tonnes", 60,
-    2000, 1, 767, 2661, NA, "tonnes", 40
-  )
-  crop_residues <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
-    2000, 1, 328, 2106, 20
-  )
+  .with_full_recovery({
+    crop_prod_items <- tibble::tibble(
+      item_prod_code = c(329L, 767L)
+    )
+    cbs <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code, ~seed,
+      2000, 1, 2559, 5,
+      2000, 1, 2661, 0
+    )
+    primary_prod <- tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit, ~value,
+      2000, 1, 328, 328, NA, "ha", 100,
+      2000, 1, 329, 2559, NA, "tonnes", 60,
+      2000, 1, 767, 2661, NA, "tonnes", 40
+    )
+    crop_residues <- tibble::tribble(
+      ~year, ~area_code, ~item_cbs_code_crop, ~item_cbs_code_residue, ~value,
+      2000, 1, 328, 2106, 20
+    )
 
-  result <- .build_crop_production(
-    crop_prod_items,
-    cbs,
-    primary_prod,
-    crop_residues
-  )
+    result <- .build_crop_production(
+      crop_prod_items,
+      cbs,
+      primary_prod,
+      crop_residues
+    )
 
-  expected <- tibble::tribble(
-    ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
-    2000, 1, "crop_production", 328, 2559, "supply", 60,
-    2000, 1, "crop_production", 328, 2661, "supply", 40,
-    2000, 1, "crop_production", 328, 2106, "supply", 20,
-    2000, 1, "crop_production", 328, 2559, "use", 5
-  )
+    expected <- tibble::tribble(
+      ~year, ~area_code, ~proc_group, ~proc_cbs_code, ~item_cbs_code, ~type, ~value,
+      2000, 1, "crop_production", 328, 2559, "supply", 60,
+      2000, 1, "crop_production", 328, 2661, "supply", 40,
+      2000, 1, "crop_production", 328, 2106, "supply", 20,
+      2000, 1, "crop_production", 328, 2559, "use", 5
+    )
 
-  result |>
-    .expect_equal_unordered(expected)
+    result |>
+      .expect_equal_unordered(expected)
+  })
 })
 
 testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable", {
@@ -802,4 +823,33 @@ testthat::test_that("build_supply_use() calls .build_redistribute_intake() with 
 
   testthat::expect_equal(result, "supply_use_stub")
   testthat::expect_equal(captured$feed_mode, "historical")
+})
+
+testthat::test_that("supply-use supplies the recovered residue, not the whole crop", {
+  # whep#1003 made the CBS `production` element carry only the residue that
+  # leaves the field. The supply matrix and the output vector must describe
+  # the same commodity: `.build_mr_supply()` reads these rows while
+  # `.build_output_vector()` reads CBS production, and a mismatch does not
+  # surface as an error -- the output vector falls back to a Z/Y-derived
+  # figure where CBS production is 0, and the residue column of A is inflated
+  # by 1 / recovery elsewhere.
+  cbs_items <- tibble::tibble(item_cbs_code_crop = 15L)
+  residues <- tibble::tibble(
+    year = 2020L,
+    area_code = 203L,
+    item_cbs_code_crop = 15L,
+    item_cbs_code_residue = 2105L,
+    value = 1000
+  )
+  supply <- whep:::.build_supply_crop_residue(cbs_items, residues)
+  testthat::expect_equal(nrow(supply), 1L)
+  # Recovery is a fraction, so the supplied mass must be strictly less than
+  # the standing residue and non-negative.
+  testthat::expect_lt(supply$value, 1000)
+  testthat::expect_gte(supply$value, 0)
+
+  # And it must equal what the CBS path books as production for the same rows,
+  # which is the invariant the two sides were violating.
+  cbs_side <- whep:::.residue_recovered_split(residues, warn = FALSE)
+  testthat::expect_equal(supply$value, cbs_side$recovered)
 })

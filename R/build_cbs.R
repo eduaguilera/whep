@@ -1499,7 +1499,7 @@ build_processing_coefs <- function(
 # evenly between them rather than being assigned to whichever came first.
 # The representative `item_prod_code` per category is exact, not an
 # approximation: the destiny function reads nothing else from it.
-.residue_recovered_split <- function(res) {
+.residue_recovered_split <- function(res, warn = TRUE) {
   res <- dplyr::mutate(
     res,
     item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
@@ -1526,7 +1526,9 @@ build_processing_coefs <- function(
       .by = ".residue_row"
     )
   out <- dplyr::left_join(res, dest, by = ".residue_row")
-  .warn_unrecovered_residue(out)
+  if (isTRUE(warn)) {
+    .warn_unrecovered_residue(out)
+  }
   dplyr::select(out, -".residue_row")
 }
 

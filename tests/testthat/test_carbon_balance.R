@@ -1781,3 +1781,121 @@ testthat::test_that("both marches agree when a class vanishes", {
   testthat::expect_equal(fast$stock_mgc_ha, slow$stock_mgc_ha, tolerance = 1e-9)
   testthat::expect_equal(fast$area_ha, slow$area_ha)
 })
+
+.cb_appear_fixture <- function() {
+  # The mirror of .cb_vanish_fixture(): a class ABSENT in the opening year that
+  # appears later. Irrigated cropland shows up in 2001 when a crop's irrigated
+  # share turns positive, which under the crop-group default is the normal
+  # case rather than the exception -- `.ci_split_into_groups()` keeps only
+  # `crop_area_ha > 0`, so a group enters and leaves per cell per year.
+  tibble::tribble(
+    ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha,
+    ~c_input_mgc_ha_yr, ~soc_eq_mgc_ha, ~frac,
+    0.25, 5.25, 1L, "cropland_rainfed", 2000L, 60, 2.0, 40, 0.6,
+    0.25, 5.25, 1L, "natural", 2000L, 40, 1.5, 80, 0.4,
+    0.25, 5.25, 1L, "cropland_rainfed", 2001L, 40, 2.0, 40, 0.4,
+    0.25, 5.25, 1L, "cropland_irrigated", 2001L, 20, 3.0, 50, 0.2,
+    0.25, 5.25, 1L, "natural", 2001L, 40, 1.5, 80, 0.4
+  )
+}
+
+testthat::test_that("a class appearing mid-span keeps its cell coordinates", {
+  # Regression for the vectorised march's state join. `state` carries
+  # lon/lat/area_code for `.cb_keep_vanished()`, and in `state[cur]` those win
+  # the names, so a class with no state row came out with lon = lat =
+  # area_code = NA -- written into the output AND back into state, so the
+  # class stayed NA-keyed for every later year. At resolution = "polity" every
+  # such row worldwide then pooled into one spurious NA-coded bucket.
+  classes <- .cb_appear_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  out <- whep:::.cb_march(classes, init)
+  new_row <- out[out$year == 2001L & out$land_use == "cropland_irrigated", ]
+  testthat::expect_equal(nrow(new_row), 1L)
+  testthat::expect_false(is.na(new_row$lon))
+  testthat::expect_false(is.na(new_row$lat))
+  testthat::expect_false(is.na(new_row$area_code))
+  testthat::expect_equal(new_row$lon, 0.25)
+  testthat::expect_equal(new_row$lat, 5.25)
+  testthat::expect_equal(new_row$area_code, 1L)
+  # No row of any year may lose its keys, not only the new one.
+  testthat::expect_false(anyNA(out$lon))
+  testthat::expect_false(anyNA(out$area_code))
+})
+
+testthat::test_that("both marches agree when a class appears", {
+  classes <- .cb_appear_fixture()
+  init <- whep:::.cb_init_density(
+    dplyr::filter(classes, .data$year == 2000L),
+    "own_equilibrium"
+  )
+  fast <- whep:::.cb_march(classes, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  cell <- dplyr::mutate(
+    classes,
+    eff_rate = dplyr::if_else(
+      .data$soc_eq_mgc_ha > 0,
+      .data$c_input_mgc_ha_yr / .data$soc_eq_mgc_ha,
+      0
+    )
+  )
+  slow <- whep:::.cb_march_cell(cell, init) |>
+    dplyr::arrange(.data$year, .data$land_use)
+  testthat::expect_identical(nrow(fast), nrow(slow))
+  testthat::expect_equal(fast$stock_mgc_ha, slow$stock_mgc_ha, tolerance = 1e-9)
+  testthat::expect_equal(fast$lon, slow$lon)
+  testthat::expect_equal(fast$area_code, slow$area_code)
+})
+
+testthat::test_that("every method choice reaches both resolutions", {
+  # The multi-method contract: a choice that moves a number must be recorded.
+  # Two runs differing in density_basis or method_grazing used to be identical
+  # in every method column, and method_soc_init was dropped at "polity"
+  # because the roll-up hand-listed the columns it kept and any_of() omits a
+  # missing name in silence.
+  cols <- c(
+    "method_soc",
+    "method_soc_init",
+    "method_class_water",
+    "method_area_basis",
+    "method_grazing",
+    "method_crop_groups"
+  )
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(0.25, 0.25),
+    area_code = 1L,
+    land_use = c("cropland", "natural"),
+    year = 2000L,
+    area_ha = c(40, 60),
+    stock_mgc_ha = c(40, 80),
+    mineralization_mgc_ha = 1,
+    c_input_mgc_ha = 2,
+    luc_transfer_mgc_ha = 0,
+    luc_transfer_mgc = 0,
+    rate_mgc_ha = 1,
+    son_change_kgn_ha = 0.1,
+    method_soc = "hsoc",
+    method_soc_init = "own_equilibrium",
+    method_class_water = "none",
+    method_area_basis = "renormalised",
+    method_grazing = "whep",
+    method_crop_groups = "spain_hist"
+  )
+  grid <- whep:::.cb_finalise(marched, "grid")
+  polity <- whep:::.cb_finalise(marched, "polity")
+  testthat::expect_true(all(cols %in% names(grid)))
+  # The roll-up is the half that regressed: assert it carries EVERY method
+  # column, not merely some.
+  testthat::expect_true(all(cols %in% names(polity)))
+  testthat::expect_equal(polity$method_soc_init, "own_equilibrium")
+  testthat::expect_equal(polity$method_area_basis, "renormalised")
+  testthat::expect_equal(polity$method_grazing, "whep")
+  # A new method column must survive without anyone editing the roll-up.
+  marched$method_future_choice <- "x"
+  testthat::expect_true(
+    "method_future_choice" %in% names(whep:::.cb_finalise(marched, "polity"))
+  )
+})

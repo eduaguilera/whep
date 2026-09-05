@@ -470,12 +470,24 @@ testthat::test_that("every balances CSV parses to a rectangle", {
   dir <- system.file("extdata", "balances", package = "whep")
   testthat::skip_if(dir == "")
   for (f in list.files(dir, pattern = "[.]csv$", full.names = TRUE)) {
-    header <- utils::read.csv(f, nrows = 1, check.names = FALSE)
+    # Cross-READER, not self: two read.csv() calls on one file derive their
+    # column count from the same header and the same first lines, so they
+    # agree for every possible input including a corrupt one. Only comparing
+    # the reader that broke against the reader data-raw/ uses can see an
+    # unquoted comma, which spills a surplus field onto a NEW ROW under
+    # read.csv()'s fill = TRUE while readr keeps the record intact.
+    testthat::skip_if_not_installed("readr")
     full <- utils::read.csv(f, check.names = FALSE)
+    tidy <- readr::read_csv(f, show_col_types = FALSE, progress = FALSE)
     testthat::expect_equal(
       ncol(full),
-      ncol(header),
-      label = paste(basename(f), "column count")
+      ncol(tidy),
+      label = paste(basename(f), "column count agrees between readers")
+    )
+    testthat::expect_equal(
+      nrow(full),
+      nrow(tidy),
+      label = paste(basename(f), "row count agrees between readers")
     )
     # A ragged row shows up as an all-NA trailing column or as a row whose
     # last field is NA where the file has text.

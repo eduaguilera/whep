@@ -328,7 +328,11 @@ test_that("every model starts its trajectory at initial_soc_mgc_ha", {
     )
     unique(traj$soc_total[traj$year == 0])
   }
-  models <- c("hsoc", "rothc", "icbm", "amg")
+  # "lpjml" is exported and selectable by calculate_soc_dynamics() on this
+  # branch, so it belongs in the invariant that caught whep#348: a model that
+  # initialises its pools at their own steady state instead of splitting the
+  # SUPPLIED stock opens at the wrong number, and nothing else would notice.
+  models <- c("hsoc", "rothc", "icbm", "amg", "lpjml")
   if (requireNamespace("deSolve", quietly = TRUE)) {
     models <- c(models, "century")
   }

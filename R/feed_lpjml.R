@@ -476,6 +476,14 @@ read_lpjml_grass_productivity <- function(
       "Band(s) not in {.file {path}}: {band_names[is.na(band_idx)]}."
     )
   }
+  # bef4be1c made `first_year` default to NULL so a run's start year is read
+  # from the file rather than assumed to be 1901, but this reader was left
+  # passing the NULL straight through. `.clip_run_years()` then evaluated
+  # `NULL + seq_len(n_time) - 1L`, which is `numeric(0)`, so EVERY requested
+  # year was "outside coverage": the warning printed the coverage as Inf-Inf
+  # and the read returned zero rows, silently, for any caller that did not
+  # pass the year explicitly. Resolve it here, as the other LPJmL readers do.
+  first_year <- .lpjml_resolve_first_year(nc, first_year, basename(path))
   years <- .clip_run_years(years, first_year, nc$dim[["time"]]$len, path)
   if (length(years) == 0) {
     return(.empty_lpjml_bands())

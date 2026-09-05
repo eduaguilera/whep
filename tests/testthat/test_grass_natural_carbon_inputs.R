@@ -192,10 +192,15 @@ testthat::test_that("the default carbon-weights natural humification", {
     ]
   }
 
-  # Bounded by the two tabulated coefficients, and - unless the fixture
-  # happens to be all-woody - strictly below the woody one somewhere.
+  # Bounded by the two tabulated coefficients...
   testthat::expect_true(all(nat$humified_fraction <= coef("woody_residue")))
   testthat::expect_true(all(nat$humified_fraction >= coef("weed")))
+  # ...and STRICTLY inside them somewhere, which is the half that proves the
+  # default actually carbon-weights. Both bounds above are satisfied by the
+  # woody constant alone, so a wiring mistake that ignored
+  # `method_natural_hf` and applied woody everywhere passed this test.
+  testthat::expect_true(any(nat$humified_fraction < coef("woody_residue")))
+  testthat::expect_true(any(nat$humified_fraction > coef("weed")))
 })
 
 testthat::test_that("grassland humified fraction carbon-weights npp and excreta", {

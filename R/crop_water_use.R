@@ -26,8 +26,12 @@
 #' @param resolution `"grid"` (default, per cell) or `"polity"` (aggregated
 #'   to `area_code`, `airrig_stand_mm` area-weighted by stand area,
 #'   `airrig_cell_mm` by cell area).
-#' @param years Optional integer vector of calendar years to keep. `NULL`
-#'   (default) keeps every year the run covers.
+#' @param years Integer vector of calendar years to keep. Required when the
+#'   monthly per-CFT cube is read from a run: it is ~7.7e7 long-form rows per
+#'   year, so `NULL` (every year the run covers) is a request no machine can
+#'   serve and aborts rather than exhausting memory. `NULL` is fine when
+#'   `data$airrig_month` is supplied, since the years are then taken from the
+#'   cube itself.
 #' @param run_dir Path to the LPJmL run output directory. `NULL` (default)
 #'   uses `WHEP_LPJML_RUN_DIR`.
 #' @param data Named list of pre-loaded inputs, each falling back to its
@@ -75,12 +79,17 @@ build_crop_water_use <- function(
     return(.example_crop_water_use())
   }
   airrig <- data$airrig_month %||%
-    read_lpjml_hydrology("cft_airrig_month", run_dir = run_dir, years = years)
+    .cwu_read_airrig(run_dir, years)
   stand_frac <- data$stand_frac %||%
     read_lpjml_hydrology(
       "stand_frac",
       run_dir = run_dir,
-      years = years,
+      # Restricted to the years the irrigation cube actually covers, as
+      # `.wb_stand_frac()` does. Unrestricted this pulls all 274 years of
+      # cftfrac.nc into long form -- 1.75e9 rows, measured at 40+ GB resident
+      # on 2026-09-01 -- and it did so even when the caller injected a single
+      # year of `airrig_month` and left `years` at its NULL default.
+      years = .cwu_years(airrig, years),
       monthly = FALSE
     )
   country_grid <- data$country_grid %||% .carbon_cell_support()
@@ -89,6 +98,36 @@ build_crop_water_use <- function(
     .cwu_attach_polity(country_grid) |>
     .cwu_finalise(resolution) |>
     .add_reporting_polity_columns()
+}
+
+# The years to weight by, taken from the cube being weighted rather than from
+# the caller's `years`, which is NULL by default and means "every year the run
+# covers" on both reads.
+.cwu_years <- function(airrig, years) {
+  if (!is.null(airrig) && rlang::has_name(airrig, "year")) {
+    return(sort(unique(airrig$year)))
+  }
+  years
+}
+
+# `cft_airrig_month` is 720 x 277 x 32 bands x 12 months, so one year is 7.7e7
+# long-form rows and the full 274-year run is 2.1e10 -- unholdable at any
+# plausible memory size. `years = NULL` on this read is therefore not a
+# permissive default but a request the machine cannot serve, and it must say
+# so rather than start and die. The sibling per-CFT reads in water_balance.R
+# are bounded by the cubes they weight; this one has nothing to bound it.
+.cwu_read_airrig <- function(run_dir, years) {
+  if (is.null(years)) {
+    cli::cli_abort(c(
+      "{.fn build_crop_water_use} needs explicit {.arg years} to read
+       {.field cft_airrig_month} from a run.",
+      x = "The monthly per-CFT cube is ~7.7e7 rows per year; the whole run
+           does not fit in memory.",
+      i = "Pass {.arg years}, or supply {.code data$airrig_month} already
+           read for the years you want."
+    ))
+  }
+  read_lpjml_hydrology("cft_airrig_month", run_dir = run_dir, years = years)
 }
 
 # Attach the cell-polity support, KEEPING cell_area_frac: unlike the grass

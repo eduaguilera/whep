@@ -1,519 +1,5 @@
 # whep (development version)
 
-* **The soil carbon balance now marches CROP GROUPS by default, and weights
-  the per-crop densities by the FAOSTAT-renormalised crop area.** Both
-  defaults were held back until the grouped path had been run on real data;
-  it has (2009-2010, 82 classes), so `crop_groups$method` defaults to
-  `"spain_hist"` and `density_basis` to `"renormalised"` in
-  `build_carbon_inputs()` and `build_carbon_balance()`. The previous
-  behaviour stays selectable as `crop_groups = list(method = "none")` and
-  `density_basis = "static"`, and both are recorded in `method_c_input` and
-  `method_area_basis`.
-
-  What changes for a caller who passes nothing: cropland resolves into
-  herbaceous groups per irrigation regime and woody groups per species
-  instead of one `cropland` class (LUH2's cropland total is preserved
-  exactly; the global stock moved 0.01% on the 2009-2010 run), and the class
-  density is weighted by the yearly renormalised crop area rather than the
-  static crop-pattern area (area-weighted median ratio 0.988, p5-p95
-  0.922-1.043). Two consequences worth knowing: the grouped path resolves
-  each crop's irrigated share from the pinned spatialization inputs, so a
-  caller who injects `data$cropland` offline must also inject
-  `data$crop_regime_share` or ask for `irrigation = "none"`; and the
-  renormalised basis needs `crop_area_ha` on the per-crop layer, which
-  `build_soil_carbon_inputs()` now returns and a hand-built layer must
-  carry. Both fail loudly, naming what is missing.
-
-* **`build_carbon_balance()` reports the land-use-change transfer as a
-  signed mass, `luc_transfer_mgc`, and that ledger closes.**
-  `luc_transfer_mgc_ha` is per hectare of a class's CURRENT area, so a
-  class whose area falls to zero -- which the balance now carries at zero
-  area so its carbon moves into the growing classes rather than vanishing
-  -- gives up its whole stock with no per-hectare expression, and
-  `sum(luc_transfer_mgc_ha * area_ha)` over a cell-year is positive by
-  exactly that stock. Found by the first real-run balance marching crop
-  groups (2009-2010, 82 classes, where species groups come and go
-  constantly): per-cell nets up to 4.3e7 Mg C while total stock was
-  conserved. The mass column carries the outflow on the vanished row and
-  sums to zero within every cell-year (test), and to the summed mass at
-  `"polity"` resolution. Check conservation on it, not on density x area.
-  That smoke also confirms the grouped march keeps LUH2's cropland total
-  exactly (1442.8 Mha both runs) and moves the global stock by 0.01%
-  (2762.2 against 2762.6 Pg C); the example fixture carries the column.
-
-* **The four LPJmL-derived pins now come from the 1750-2023 run (LPJmL
-  6.1.1, 300-year spin-up, WHEP's own inputs, pre-industrial v2), and
-  natural land's carbon input defaults to litterfall.** `lpjml-grass-availability`,
-  `lpjml-grass-productivity`, `lpjml-grass-natural-net-c` and
-  `lpjml-soc-hydrology` were regenerated together from that one run through
-  `regenerate_whep_lpjml_pins()` and published on 2026-09-03 (versions
-  `20260903T061045Z-32e78`, `-061130Z-3db6b`, `-061148Z-9d6ff`,
-  `-061246Z-91aa7`); `whep_inputs` points at them and
-  `validation/gt_lpjml_pins.json` is re-recorded (first year 1750, row
-  counts roughly doubled; the 2000/2010 means move by -3.2%, -3.4%, -2.1%
-  and +0.1% respectively against the 1901-2023 run they replace, the size of
-  the model-version and spin-up change, not a bug). Every WHEP user who does
-  not run LPJmL therefore reads the new model version in the feed,
-  soil-carbon and water chains at once, as the single entry point requires.
-
-  With litterfall on the pin, `build_grass_natural_carbon_inputs()` and
-  everything downstream default to `method_natural_c = "litterfall"`:
-  natural land's soil input is what the model returns to the soil
-  (`litfallc_nv`), not its whole primary production. **This is a large
-  change for natural land**: the per-cell ratio has a median of 0.844 at
-  2010, but weighted by LUH2 natural area the litter mass is **0.648** of
-  the production mass (0.632 at 2000), because the most productive cells
-  retain the most as growing biomass; the natural class's area-weighted
-  mean input falls from 8.1 to 5.2 MgC/ha/yr and its equilibrium soil
-  carbon with it. The per-cell ratio declines from 0.902 in the 1750s to
-  0.838 in the 2000s, so production as the input would have carried a
-  CO2-fertilisation trend into the soil. A tail of near-zero-production
-  cells carries litter above production (ratio above 2 on 3.2% of natural
-  area, 0.7% of the litter mass) and is left as the run wrote it.
-  Production stays selectable (`"npp"`) and both are recorded in
-  `method_c_input`; the example fixtures follow the default. One rule
-  closes a pin artefact: the run masks litter where no natural PFT grows,
-  so litterfall is NA on exactly the zero-production cells (612 of 58,795
-  natural rows at 2000, none with production and no litter); those become
-  zero, while an NA on a producing cell would stay NA as a visible gap.
-
-* **The soil carbon balance can march crop GROUPS as land-use classes**
-  (`crop_groups = list(method = "spain_hist")` on `build_carbon_inputs()`
-  and `build_carbon_balance()`), the Spain_Hist convention adopted as a
-  convention: herbaceous crops pool into one group per irrigation regime
-  because they rotate, so nothing inside the pool is a land-use change;
-  woody crops keep their species; rainfed and irrigated are separate
-  groups. The default `method = "none"` keeps one `cropland` class and
-  **every published number unchanged**; a test pins that the two calls are
-  identical.
-
-  What moves under `"spain_hist"`: each crop's cell area splits by its
-  irrigated share -- crop-specific and yearly, from `build_gridded_landuse()`
-  on the pinned spatialization inputs (`irrigation = "spatialized"`, the
-  only source WHEP has that is both; `"none"` books everything rainfed) --
-  and the groups are labelled by `soc_crop_group()`. The balance splits
-  each cell-year's LUH2 cropland over the groups in proportion to their
-  area, so LUH2's total is kept. Soil cover is now computed per cover
-  PROFILE (annual crop, woody crop, grassland, natural) and joined to the
-  classes: with up to ~80 groups, crossing the monthly climate with every
-  class would have multiplied the balance's largest table twentyfold.
-  Herbaceous groups follow the annual curve and the crop-calendar override,
-  and `read_lpjml_crop_cover(by = "regime")` now keeps the rainfed and the
-  irrigated calendar bands apart (with `cropped_frac`, each regime's share
-  of the cell) so the rainfed and irrigated herbaceous groups each read
-  their own season while plain cropland reads the area-weighted pool --
-  the same number the pooled read gives, so nothing moves without groups.
-  A `class_water = "regime"` option on `build_carbon_balance()` (default
-  `"cell"`, the status quo, recorded in `method_class_water`) concentrates
-  a cell's applied irrigation on its irrigated crop groups in proportion to
-  their share of the cell and runs every other class on rain alone; the
-  area-weighted mean over classes is still the cell value, and the same
-  rule now applies in the equilibrium spin-up as in the forward march.
-  Two defects found on the way: `crop_groups` was validated by
-  `build_carbon_balance()` but never forwarded to the carbon-input reader
-  on the real-data path (every grouped test injected `data$c_inputs`), and
-  the spatialized irrigation split read the spatialize chain's centroid
-  crosswalk, which carries no polity share and which
-  `build_gridded_landuse()` refuses; it now rides the carbon path's own
-  polycell support, so the regimes split on the same polycells as the
-  carbon they split. A third, from the same smoke: the shares were built
-  once for the `years` argument, which the production chain reads as a
-  RANGE (`c(2000, 2010)` grids eleven years) while the gridded land-use
-  builder takes exact years, so nine of eleven years were booked wholly
-  rainfed with only a per-year gap count to show it; the shares now follow
-  the years each gridded chunk actually carries. The genuine gap that
-  remains is the 25% of crop-pattern rows whose crop has no national area
-  row to split (hemp, several minor crops); those stay rainfed and are
-  still counted per year. Grouped inputs whose cell-year has no LUH2 cropland
-  row draw no area and never enter the march; that disagreement between
-  the crop patterns and LUH2 is now counted and reported (rows, cell-years
-  and Mha) instead of being dropped silently.
-  A `density_basis = c("static", "renormalised")` option on
-  `build_carbon_inputs()` and `build_carbon_balance()` chooses which crop
-  area weights the per-crop densities when they collapse to a class:
-  `"static"` (default, unchanged) the time-invariant crop-pattern area
-  split by the polycell's share of the cell; `"renormalised"` the yearly
-  FAOSTAT-renormalised cell area the densities were computed on, which
-  `build_soil_carbon_inputs()` now returns as `crop_area_ha`, so the class
-  carbon mass equals the sum of the crop masses that were spatialized. The
-  two differ wherever a polity-crop-year's spatialized cell areas do not
-  sum to its FAOSTAT harvested area; a science choice, recorded in
-  `method_area_basis` on cropland rows. Measured on the 2010 pins over
-  40,065 cropland cells, the per-cell class density ratio renormalised /
-  static has an area-weighted median of **0.988** (p5-p95 0.922-1.043)
-  and only 2.1% of cropland area sits outside 0.9-1.1, so the default
-  stays `"static"` and the option is there to quantify what the other
-  basis changes;
-  woody groups take **an assumed perennial cover of 0.85**, the value
-  grassland and natural already use, because no sourced constant for
-  orchard or vineyard cover exists in the repository. That assumption is
-  recorded here and in the curve table so it can be replaced, not mistaken
-  for a measurement. The five `== "cropland"` predicates in the balance
-  now go through one helper, `.soc_is_cropland()`, so a group is cropland
-  for the C:N lookup, the cover curve and the water term without being
-  enumerated anywhere.
-
-* **`build_carbon_balance()` no longer loses the carbon of a land-use class
-  whose row disappears in a later year.** The vectorised march joined the
-  carried state onto the current year's rows, so a (cell, class) present last
-  year but absent this year was dropped -- and because the carried state was
-  rebuilt from those rows, its stock vanished from the ledger. The sequential
-  reference march kept a state entry that nothing ever released. Both now
-  re-add the vanished class at zero area, so the land-use-change transfer
-  treats it as an ordinary shrink to zero and releases its stock into the
-  cell's pool. No published value moves: `read_luh2_landuse()` keeps
-  zero-fraction rows for every class in every cell-year, so on the global
-  run no class row has ever vanished. It matters for the per-crop-group
-  balance, where classes (a woody species in a cell) legitimately come and
-  go. A regression pins mass conservation across the vanish year and the
-  agreement of the two marches on it.
-
-* **New `soc_crop_group()` assigns crops to the soil-carbon crop groups of
-  the Spain_Hist convention**: herbaceous crops pool into one group per
-  irrigation regime (they rotate, so no land-use-change event happens inside
-  the pool), woody crops keep their species, irrigated and rainfed are
-  separate. Labels are `cropland_<regime>_<herbaceous|species>`; every one
-  keeps the `cropland_` prefix, and `.soc_is_cropland()` is the single
-  predicate the balance will key on. The vocabulary is the shipped
-  `items_prod_full` (`Herb_Woody`, `Name_biomass`); an unclassified crop
-  aborts by name rather than pooling silently. Nothing consumes it yet.
-
-* **EarthStat crosswalk: `pattern_group` pools one plant's rasters across its
-  FAOSTAT items.** `hemp` (777, fibre) and `hempseed` (336) come from the same
-  fields, but EarthStat publishes a raster per item, so each was spatialized
-  on its own footprint. Both now receive the summed pattern while keeping
-  their own code and FAOSTAT area (a code without a pattern loses its whole
-  world total silently, whep#877). `greencorn` stays on 446: FAOSTAT reports
-  it as a vegetable with its own harvested area, distinct from 56 maize
-  grain, so the double-counting concern raised in `39041368` does not apply.
-  Inert until the `spatialize-crop-patterns` pin is rebuilt.
-
-* **New `build_crop_water_use()`: applied irrigation per cell, crop and
-  month** (whep#916), from the v2 run's `cft_airrig_month` joined with each
-  crop's `cftfrac` stand fraction. Both unit conventions are returned side by
-  side -- `airrig_stand_mm`, the irrigation intensity on the crop's own
-  stand, and `airrig_cell_mm`, the same water as a whole-cell depth -- because
-  confusing them is the characteristic per-CFT error. Summing
-  `airrig_cell_mm` over crops reproduces the crop-less `irrig` cube at
-  **0.9975** on the 2010 slice (the 0.25% residual is water booked on stands
-  whose annual area snapshot is zero, excluded by construction). Rainfed
-  bands are kept: LPJmL books paddy water on *rainfed rice* (36% of the
-  stand-weighted total at July 2010). A border cell appears once per polity
-  sharing it with `cell_area_frac` carrying the split, and the polity
-  resolution weights intensity by stand area and depth by cell area. Each
-  band also carries `crop_group`, the soil-carbon crop group its water
-  belongs to in `soc_crop_group()`'s vocabulary (the twelve named LPJmL
-  crops are herbaceous, so `cropland_<regime>_herbaceous`); the `others`,
-  grassland and bioenergy bands are `NA` rather than a guess, so the water
-  and carbon ledgers can be joined on one label.
-
-* **`build_water_balance()` was overstating `blue_consump_mm`,
-  `green_consump_mm` and `cft_nir_mm`; they are now weighted by stand area.**
-  Every per-CFT LPJmL cube is a density per square metre of its own crop's
-  stand, not of the gridcell. The per-CFT terms were summed across bands with
-  a bare `sum()`, which is not the whole-cell total the documentation
-  promises: it overstates by **1 / (managed fraction of the cell)** -- a
-  median **2.7x**, **235x** at the 95th percentile, and up to **1000x** where
-  a cell holds a sliver of cropland.
-
-  The check that settles it needs no cell subset. At 2010, consumptive blue
-  plus green summed unweighted is **7.1 times** whole-cell evapotranspiration
-  (transpiration + evaporation + interception), which is impossible; weighted
-  by `cftfrac` it is **0.284x**, which is what cropland's share of global ET
-  looks like. The same weighting reconciles `cft_airrig_month` against the
-  crop-less `mirrig` cube at 0.999 globally and 1.000-1.001 cell by cell.
-
-  Supplying any per-CFT cube in `data` now also requires `stand_frac`, read
-  by default from `cftfrac.nc` via the new
-  `read_lpjml_hydrology("stand_frac")`. Missing fractions **abort**: an
-  unweighted sum is not a worse estimate of a cell total but a different
-  quantity with the wrong units, and it looks entirely plausible in
-  isolation. Bands are matched by `band_name`, falling back to `band` only
-  when neither table names its bands -- safe solely because both cubes come
-  from the same run.
-
-  **Nothing downstream consumed these three columns**, so no published WHEP
-  output changes; the correction lands before the per-crop water-footprint
-  work that would have been built on them.
-
-* **`read_lpjml_hydrology()` gains `"cft_airrig_month"`, per-crop applied
-  irrigation by month, and refuses a per-CFT cube whose water is all on one
-  band.** That cube is the first LPJmL output that is
-  both monthly and per-crop, which is what whep#916 needs: applied irrigation
-  was previously available either monthly with no crop dimension (`irrig`) or
-  per crop with no month (`cft_nir`), so the water a crop received could not be
-  placed on that crop at the time it received it.
-
-  As written on 2026-08-27 the output is **wrong**: every crop's applied
-  irrigation is accumulated into a single band, `irrigated others`, in every
-  month of every year tested (Jan 1990, Jul 1990, Jul 2010, Jul 2023 - always
-  exactly 1 band of 32). It is provably a defect and not a property of the
-  forcing: `cft_nir` from the same run splits across **14 of 32** bands, and
-  `cftfrac` gives **13 irrigated bands** real area, so the crops exist and are
-  irrigated. The single band also carries **3.3 times** the crop-less `mirrig`
-  total for the same month, which is what summing every crop into one slot
-  looks like.
-
-  Reading it therefore **aborts**, naming the defect. It does not warn: the
-  split is the entire quantity, so a footprint or a soil-moisture term built
-  on this would charge every crop's water to one crop with nothing downstream
-  able to detect it. Summing over bands is not a workaround for the same
-  reason.
-
-  **Resolved upstream in the 2026-09-01 `_v2` run** (`lbm364dl/LPJmL`
-  `a819b5d0`). The cause was not a fixed band index: with `separate_harvests`
-  on, crop irrigation is staged in `crop->sh->irrig_apply` and only reaches
-  `CFT_AIRRIG` at harvest, and the monthly accumulation sat inside the `else`
-  of that test -- so the only stand reaching it was `others`, whose band is
-  `rothers(ncft)` = 29. Verified on the new run: 14 of 32 bands carry water at
-  every step sampled, matching `cft_nir`, and the stand-weighted sum closes
-  against the crop-less `mirrig` cube at **0.999** globally and 1.000-1.001
-  cell by cell. The guard stays in place as the regression detector.
-
-  Every input the four LPJmL-derived pins read is **bit-identical** between
-  the two runs (`pft_npp`, `cftfrac`, `fpc`, `litfallc_nv`, `mswc`, `mprec`,
-  `mseepage`, `sdate`, `soilc_layer`, checked directly), so no pin needs
-  rebuilding for v2.
-
-* **New `read_lpjml_crop_cover()` puts cropland's soil-cover season where the
-  crops actually are, instead of at the warmest month.**
-  `soc_soil_cover_curve` already gives cropland a season, but
-  `build_carbon_balance()` anchored it to each cell-year's warmest month as a
-  stand-in for peak canopy. Measured on the 1750-2023 run at 2010 over 18,548
-  cropland cells, the real area-weighted crop mid-season falls in the warmest
-  month in only **5.2%** of them, within one month in 22.6%, and **three or
-  more months away in 51.0%** -- a median absolute offset of three months.
-  Winter cereals, Mediterranean systems and irrigated dry-season crops all
-  grow away from the temperature peak, so the proxy put modelled full canopy
-  over real fallow and modelled bare soil over the real crop.
-
-  It is a **timing** error, not a level one: the curve's annual mean cover is
-  0.254 against the calendar's 0.343. Supply the result as
-  `data$cropland_cover` to `build_carbon_balance()`; it replaces the curve for
-  the CROPLAND class only, in both the transient march and the equilibrium, so
-  the two cannot disagree. Absent, every class stays on the curve and nothing
-  changes.
-
-  Derived from `sdate.nc`/`hdate.nc` area-weighted by `cftfrac.nc`, all first
-  written on 2026-08-27. Two properties of those files are handled explicitly:
-  bands are matched by NAME because only 12 of the 24 align by index
-  (`sdate` band 13 is `"irrigated temperate cereals"`, `cftfrac` band 13 is
-  `"rainfed others"`), and **41.7% of cells have `hdate < sdate`** because the
-  crop is sown in one calendar year and harvested in the next -- treating that
-  as an empty interval would book every winter cereal as permanently bare. The
-  calendar covers **98.8% of cropped area**; the `others` bands have none, and
-  a cell cropped entirely to `others` yields no row rather than a guess.
-
-* **`build_grass_natural_carbon_inputs()` gains `method_natural_c`, selecting
-  whether natural land's carbon input is primary production or litterfall.**
-  `"npp"` stays the default and nothing changes for existing callers.
-  `"litterfall"` uses `litfallc_nv`, what LPJmL actually returns to the soil:
-  production also carries the increment retained in living biomass, plus what
-  fire and land conversion remove, none of which enter the soil. Measured on
-  the 1750-2023 run at 2010, litterfall is **0.844 times production at the
-  median natural cell** (0.917 on near-pure natural cells, where no conversion
-  pulse is being subtracted), so the choice moves natural equilibrium carbon
-  by roughly that factor.
-
-  The default is `"npp"` only because the published
-  `lpjml-grass-natural-net-c` pin predates the outputs `"litterfall"` needs;
-  it is not a judgement that production is the better soil input. Asking for
-  litterfall when the layer has none **aborts**, naming the pin to regenerate,
-  rather than falling back to production and silently substituting one method
-  for another. The chosen method is recorded in `method_c_input`.
-
-  `litfallc_nv` is a whole-cell density and `pft_npp` is per-stand, so the
-  layer divides by `natural_stand_frac` from `fpc.nc` before the two sit in
-  one table. That division is self-limiting on this run -- the largest
-  per-stand value is 44.5 MgC/ha/yr, at stand fraction 0.74 rather than at a
-  small one -- so no floor is imposed. Managed grassland is untouched:
-  `litfallc_nv` covers the natural stand only.
-
-* **Every LPJmL reader now takes the run's start year from the file instead
-  of assuming 1901.** All seven entry points defaulted to
-  `first_year = 1901L` and the builders passed nothing, so reading the
-  1750-2023 run would have stamped 1750 data as 1901 -- silently, with no
-  error, and no symptom in any downstream artifact, which would still have
-  loaded with a valid schema. A pin regenerated from that run would have
-  carried a 151-year offset into the soil-carbon march, the nitrogen balance
-  and the footprints.
-
-  LPJmL stamps every output's time axis as `"days since YYYY-M-D"` on a
-  noleap calendar, so the year never had to be assumed. `first_year` now
-  defaults to `NULL`, meaning read it from the file; an explicit value still
-  wins, and a file whose axis carries no reference date aborts rather than
-  falling back to a year that is right for one run and wrong by 151 for
-  another. Affects `read_lpjml_hydrology()`, `read_lpjml_npp()`,
-  `read_lpjml_litterfall()`, `read_lpjml_natural_cover()`,
-  `read_lpjml_grass_productivity()` and
-  `build_grass_availability_lpjml()`. No published value changes: every
-  shipped pin came from a run starting in 1901, where the assumption held.
-
-* **New `read_lpjml_litterfall()` reads carbon returned to the soil as litter,
-  split by the stand that shed it** (`nv`, `agr`, `mgrass`, `luc`, `total`).
-  Litterfall is what physically enters the soil; net primary production is
-  not, because it also contains the increment that stays in living biomass.
-  Measured on the 1750-2023 run at 2010, natural litterfall is **0.84 times
-  natural NPP at the median cell and 0.68 in aggregate**, the shortfall being
-  biomass accumulation, fire, and the land-use conversion pulse. No published
-  value changes yet: nothing consumes the reader until the natural carbon
-  input is switched over.
-
-  Two things the reader has to absorb, both verified against the run rather
-  than assumed. `litfallc_agr.nc` holds a variable named `ALITFALLC_agr` where
-  its three siblings hold their own filename, so the data variable is resolved
-  by elimination rather than by name. And the four class files are whole-*cell*
-  densities while `pft_npp` is per-*stand*, so a per-stand input requires
-  dividing by `natural_stand_frac`; mixing the conventions understates a
-  partly-natural cell by exactly its natural fraction.
-
-* **`read_lpjml_natural_cover()` now works on a real run.** Inside `tibble()`,
-  `each = length(lon)` resolved to the lon *column* already bound rather than
-  the axis, so a 720x277x274 read tried to build 55 million rows per year and
-  aborted. Every test injected a tibble and so never reached the NetCDF path.
-  Both readers now carry a regression test that writes a small real NetCDF with
-  unequal `lon` and `lat` extents, where a wrong recycling changes the row
-  count. Measured cover on the 1750-2023 run at 2010: mean 0.869, median
-  1.000, 5th percentile 0.000.
-
-* **Natural land's humification fraction is now carbon-weighted across the
-  natural PFTs instead of being the woody constant everywhere.** Five of the
-  fourteen natural PFTs are not woody -- three grasses, a flood-tolerant
-  graminoid and Sphagnum moss -- and they carry **28.1% of natural net
-  primary production at 2010**, so `residue_humification`'s `woody_residue`
-  coefficient of 0.325 was being applied to more than a quarter of a flux
-  that is not wood.
-
-  The weighting is by **carbon**, not by area: forest out-produces the
-  non-forest it would otherwise be weighted against, so an area share
-  understates the woody carbon share and would over-correct. The share is
-  computed per cell and per year from the run's own per-PFT production and
-  travels in the net-carbon layer as `woody_share`.
-
-  Measured on the LPJmL 6.1.1 `..._socn_diag` run, the carbon-weighted woody
-  share of natural production is **0.719 at 2010** (0.753 in 1901, 0.737 in
-  2023), so the humification fraction falls **0.325 to 0.266**. Since HSOC
-  holds `(1 - hf)/0.48 + hf/0.02` years of input, its natural residence time
-  falls from **17.7 to 14.8 years** and **natural-land equilibrium soil
-  carbon moves to 0.84x its previous value**. Grassland and cropland are
-  untouched. This is a science decision, not a mechanical fix: it changes a
-  published quantity and rests on which humification coefficient belongs to
-  which tissue.
-
-  `build_grass_natural_carbon_inputs(method_natural_hf = "woody")` reproduces
-  the previous behaviour exactly. A net-carbon layer with no `woody_share`
-  column -- a pin built before this change -- falls back to the woody
-  constant **with a warning** rather than guessing a share.
-
-  Sphagnum moss is grouped with the herbaceous PFTs because
-  `residue_humification` has no peat coefficient. Peat stabilises carbon far
-  more efficiently than grass, so the grouping errs toward a lower fraction;
-  moss is 0.73% of natural production, so it cannot matter either way. It is
-  flagged rather than filled with an invented value.
-
-* `build_carbon_balance()` no longer applies a cell's irrigation to its
-  natural land. The RothC/HSOC moisture driver `water_minus_pet_mm` is a
-  cell-level surplus that already includes irrigation, while the climate
-  modifier is built per land-use class, so natural vegetation in every
-  irrigated cell was decomposing at the moisture of the crop beside it.
-  Natural land now uses `precip_mm - pet_mm`; cropland and managed grassland
-  are unchanged. Natural-land soil carbon rises slightly in irrigated cells
-  (a drier soil decomposes more slowly), and no other class moves. The
-  precomputed-`climate_modifier` path cannot separate rain from irrigation
-  and is passed through untouched.
-
-* New `read_hwsd_topsoil_soc()` reads observed 0-30 cm soil organic carbon
-  from HWSD onto WHEP's grid. HWSD v1.2's topsoil is 0-30 cm, the same layer
-  `build_carbon_balance()` reports, so this is the first observational anchor
-  available at the modelled depth -- and it comes from the archive the carbon
-  balance already reads for clay, one column across from it. It is a
-  benchmark only: no pipeline function consumes it, and no published value
-  changes. `bulk_density = "measured"` is the default because HWSD's
-  texture-derived `t_ref_bulk_density` knows nothing about organic matter and
-  would inflate peat carbon stocks roughly 3.6-fold.
-
-* **The four LPJmL-derived input pins now come from the 6.1.1
-  `..._socn_diag` run, raising natural-land carbon input ~7%.** They were
-  regenerated together from one run, as they must be: each carries the same
-  model's carbon and water, so refreshing a subset would leave WHEP mixing two
-  LPJmL versions across its feed, soil-carbon and water chains at once.
-
-  **Only `lpjml-grass-natural-net-c` moves.** Its natural-land carbon input
-  rises **+7.12% at 2010**, which is #810's PFT fix reaching pin users for the
-  first time -- the pin stores the already-summed natural density, so until
-  now the pinned path stayed on the eleven-band sum while a caller with a run
-  directory got fourteen. The rise grows over the span, +3.15% in 1901 to
-  +8.77% in 2023, because the three unlisted PFTs take a growing share of
-  natural net primary production.
-
-  **The other three are numerically unchanged**, which is the expected result
-  and was checked on every column rather than the one the comparison reports:
-  `lpjml-soc-hydrology` moves -0.000% on `swc_topsoil`, +0.000% on `prec_mm`
-  and +0.004% on `irrig_mm`; `lpjml-grass-availability` +0.000% on both of
-  its value columns. `lpjml-grass-productivity` gains one row on 6,809,325 --
-  seven marginal arid cells enter and six leave, all near 53-58E/17-23N with
-  tiny values, which is cells crossing the finite-value threshold rather than
-  a change in the data.
-
-  Downstream this raises the equilibrium SOC of natural land, so it moves in
-  the *opposite* direction to the excess-natural-SOC question in #799. It is a
-  correctness fix to the PFT set, not a calibration change, and #799 still
-  needs its own answer.
-
-* **`calculate_soc_hsoc()` now honours `clay_pct`, so the HSOC model gives
-  one answer from either entry point.** The argument was accepted and never
-  read: the function returned identical trajectories at 5% and 60% clay,
-  while `build_carbon_balance(model = "hsoc")` scaled the humification
-  coefficient by the Aguilera et al. (2018) Eq. 5-6 texture modifier before
-  calling it. The same model therefore returned different stocks depending on
-  which door you came through (whep#348 item 3). The scaling now happens
-  inside the exported function, and `.cb_steady_state()` hands over the
-  unscaled tabulated fraction so the modifier is still applied exactly once.
-
-  **Published values do not move.** `build_carbon_balance()` evaluates the
-  closed form, which already scaled by texture; the spin-up oracle and the
-  closed form still agree to 0 across 5-60% clay.
-
-  **Direct callers who passed `clay_pct` do move**, from a modifier of 1 to
-  the documented one: at a 3 Mg C/ha/yr input and a tabulated coefficient of
-  0.325 the 5000-year equilibrium goes 57.19 -> 43.98 Mg C/ha at 5% clay
-  (x0.769), 57.19 -> 57.13 at 23.4% (x0.999, RothC's Rothamsted reference)
-  and 57.19 -> 63.14 at 60% (x1.104). `clay_pct = NA`, the default, applies
-  no texture adjustment and reproduces the previous behaviour exactly.
-
-* **LPJmL is now a selectable soil-carbon turnover model.**
-  `calculate_soc_dynamics(model = "lpjml")` and
-  `build_carbon_balance(model = "lpjml")` run LPJmL's two-pool mineral-soil
-  kinetics, with `calculate_soc_lpjml()` and `soc_rate_modifier_lpjml()`
-  exported alongside the other five models. Of the carbon reaching the litter
-  layer, half is respired straight to the atmosphere and the remainder is split
-  98/2 between a fast pool decaying at 0.04/yr and a slow pool at 0.001/yr;
-  neither feeds the other and there is no inert pool. The equilibrium is
-  `input * (1 - atmfrac) * [fastfrac / k_fast + (1 - fastfrac) / k_slow] /
-  response`, a prefactor of 22.25 years, in which the slow pool receives 2% of
-  the input and holds 45% of the stock.
-
-  This applies LPJmL's *kinetics* to WHEP's carbon input, exactly as the RothC
-  model applies RothC's. It is not a reproduction of LPJmL's own soil carbon,
-  which is reported over 0-300 cm and layered by a rooting-depth function;
-  converting between the two needs decisions that are not settled (whep#799).
-
-  Three things are worth knowing before using it. The rate constants come from
-  the WHEP LPJmL 6.1.1 run configuration and **three of them disagree with
-  Schaphoff et al. (2018)**: the atmospheric fraction is 0.5 against a published
-  0.70, the fast fraction 0.98 against 0.985, and the fast rate 0.04 against
-  0.03. The response is capped at 1 by LPJmL's source and not by its published
-  equations, which binds from about 10.7 degrees at optimal moisture, so every
-  warm well-watered cell decomposes at exactly its nominal rate. And the model
-  needs a **soil**-temperature driver, which WHEP does not assemble; supplying
-  air temperature instead is a substitution the caller makes, so until one is
-  provided the model resolves to a neutral modifier rather than silently
-  standing air temperature in for soil.
-
-  A 5,000-year spin-up cannot converge this model -- its slow pool e-folds in
-  1,000/response years -- so the equilibrium is guarded by its defining
-  property, stationarity, rather than against a spin-up as the other five are.
-
 * **A positive trade record now outranks a CBS zero, and
   `build_commodity_balances()` gains `trade_zero` to select the old behaviour
   (#866).** Tier 1 of the trade imputation fills the CBS from the crosswalked
@@ -2151,6 +1637,53 @@
   the input's N and only accounted N is removed, balancing to 2.1e-16 every
   year. Where the primary-crop N of a zero-N processed item (wine, olive oil,
   sugar) should go is still open (whep#432).
+
+* **The N left over from a zero-N processed-item substitution (wine, olive
+  oil, sugar) now gets its own `processing_losses` destiny instead of
+  staying folded into the primary crop's own destinies.**
+  Previously, `removal_scale` only ever removed the N actually credited to
+  a named output, so a near-zero-N output (wine from grapes, oil from
+  olives) left most of the diverted mass sitting with the primary crop,
+  inflating that crop's own `export` residual. The full processed mass is
+  now always removed, the credited share still goes to the processed item,
+  and the remainder is booked as `destiny = "processing_losses"`,
+  `origin = "Cropland"`. No downstream surplus calculation (GRAFS plots,
+  LMDI decomposition) tracks this destiny by name, so it falls into
+  whatever each of them already treats as surplus, the same way
+  `no_tracked_output` items already do. Concretely,
+  `.create_land_surplus_df()` computes cropland surplus as inputs minus
+  tracked outputs, so reported cropland N surplus rises by exactly the
+  amount removed from `export`. That is the methodological choice this
+  destiny embodies: the residue (grape pomace, olive cake, beet pulp) is
+  counted as surplus rather than as product, pending explicit by-product
+  items.
+
+  Fixed two latent bugs surfaced while doing this. `create_n_nat_destiny()`
+  re-derived national production as the sum of every `Origin == Box` row,
+  which now includes `processing_losses` too, reinflating the national
+  `export` residual by exactly the amount this fix removes provincially;
+  `processing_losses` is now excluded from that sum and re-added as its own
+  row. And `.combine_destinies()` gave every row in a multi-row
+  `(Year, Province_name, Item)` group a full `production_share = 1` when
+  their combined production was zero, instead of splitting evenly, so an
+  item processed away entirely for a year duplicated its consumption once
+  per remaining row (41 province-years, all Grapes in 1983, where fuller
+  removal now reaches exactly zero where partial removal rarely did).
+
+  **Published values move.** Over 1860-2023, the new `processing_losses`
+  destiny totals 1,899,115 Mg, averaging 2.97% of Cropland-origin flows and
+  rising from 2.53% in 1860 to 5.34% by 2020; olives (1,460,624 Mg), barley
+  (230,838 Mg) and grapes (139,855 Mg) account for essentially all of it.
+  `export` falls by the same order in both outputs: from 44,226,105 Mg to
+  42,400,855 Mg (-1.83 Mt) in `create_n_prov_destiny()`, and from
+  17,691,588 Mg to 15,897,066 Mg (-1.79 Mt) in `create_n_nat_destiny()`,
+  whose `export` is a net residual on a different basis. Reported cropland N
+  surplus rises by 1,899,115 Mg, exactly the amount the new destiny carries.
+  The remaining destinies move only by what the `.combine_destinies()` fix
+  stops double-counting: `livestock_rum` -35,742 Mg, `population_food`
+  -21,094 Mg, `livestock_mono` -12,812 Mg, `population_other_uses` -542 Mg.
+  `Cropland` and `semi_natural_agroecosystems` soil inputs are unchanged.
+  National totals close to +34,403 Mg (+0.0090% of total N).
 
 * **The GRAFS provincial chain runs to 2023 instead of stopping at 2021.**
   The `n_balance_ygpit_all`, `npp_ygpit`, `intake_ygiac` and `n_excretion_ygs`

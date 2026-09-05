@@ -591,9 +591,46 @@ get_soc_climate_drivers <- function(
       ),
       by = c("lon", "lat", "year", key)
     ) |>
+    .wb_check_stand_match(out_col, key) |>
     dplyr::mutate(
       weighted = .data$value * dplyr::coalesce(.data$stand_frac, 0)
     )
+}
+
+# An UNMATCHED band is an input defect, never a real zero, so say so before
+# the coalesce hides it.
+#
+# `read_lpjml_hydrology("stand_frac")` filters nothing, so cftfrac.nc supplies
+# all 32 bands for every cell-year including the zero-area ones: a band with no
+# stand genuinely present joins, carrying value 0. A row that fails to join
+# therefore means the two sides disagree about coverage -- a stand_frac table
+# restricted to fewer years, or band names that differ by whitespace -- and
+# zero-filling it deletes that band's water silently. It cannot be caught
+# downstream either: the result is 0 rather than NA, so `.wb_has_cft_consump()`
+# still reports the split as usable and publishes `aet_blue_mm = 0`, a fully
+# rainfed world that looks entirely plausible. This warns rather than aborts
+# because a caller may legitimately supply a narrower cube than its weights,
+# but it names what failed so the zero is never silent.
+.wb_check_stand_match <- function(joined, out_col, key) {
+  bad <- joined[is.na(joined$stand_frac) & joined$value > 0, ]
+  if (nrow(bad) == 0L) {
+    return(joined)
+  }
+  bands <- sort(unique(as.character(bad[[key]])))
+  yrs <- sort(unique(bad$year))
+  n_bad <- nrow(bad)
+  # One quantity per message element: cli pluralises against the single
+  # vector in the string, and two in one element is an error, not a guess.
+  cli::cli_warn(c(
+    "!" = "{cli::qty(n_bad)}{n_bad} {out_col} row{?s} carry water but match
+           no stand fraction, so that water is dropped.",
+    i = "Unmatched {cli::qty(length(bands))}band{?s}:
+         {.val {utils::head(bands, 5)}}.",
+    i = "In {cli::qty(length(yrs))}year{?s} {.val {utils::head(yrs, 5)}}.",
+    i = "An unmatched band is an input mismatch, not a zero-area stand: a
+         zero-area band still appears in {.file cftfrac.nc} with value 0."
+  ))
+  joined
 }
 
 # Which column identifies a band on both sides.

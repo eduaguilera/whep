@@ -175,7 +175,11 @@
 #'   with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 #'   \code{luc_transfer_mgc_ha}, \code{luc_transfer_mgc}, \code{rate_mgc_ha},
 #'   \code{son_change_kgn_ha},
-#'   \code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
+#'   \code{area_ha}, and one column per method choice that moves a number:
+#'   \code{method_soc}, \code{method_soc_init}, \code{method_class_water},
+#'   \code{method_area_basis}, \code{method_grazing} and
+#'   \code{method_crop_groups}. All of them survive the \code{"polity"}
+#'   roll-up. Plus the
 #'   polity columns below, plus
 #'   \code{reporting_polity_out_of_span} when
 #'   \code{polity_validity = "flag"}.
@@ -244,7 +248,17 @@ build_carbon_balance <- function(
     dplyr::mutate(
       method_soc = model,
       method_soc_init = init,
-      method_class_water = class_water
+      method_class_water = class_water,
+      # Every choice that moves a published number is recorded, per the
+      # package's multi-method contract. `density_basis` shifts the per-cell
+      # class density by an area-weighted median 0.988 (p5-p95 0.922-1.043)
+      # over 40,065 cropland cells, `method_grazing` changes grassland's
+      # carbon input outright, and `crop_groups` decides what a class IS --
+      # yet two runs differing in any of them were previously identical in
+      # every method column.
+      method_area_basis = density_basis,
+      method_grazing = method_grazing,
+      method_crop_groups = crop_groups$method %||% "none"
     ) |>
     .cb_finalise(resolution) |>
     .resolve_polity_validity(polity_validity)
@@ -1673,7 +1687,19 @@ build_carbon_balance <- function(
     eff_rate
   )]
   cur <- .cb_keep_vanished(cur, state)
-  cur <- state[cur, on = c("cell_key", "land_use")]
+  # Join a coordinate-free slice of `state`. `state` gained lon/lat/area_code
+  # so `.cb_keep_vanished()` can build filler rows for a class that has gone,
+  # but in this right join X = `state`, so ITS lon/lat/area_code win the names
+  # and `cur`'s become i.lon/i.lat/i.area_code. A class APPEARING mid-span has
+  # no `state` row, so those three came out NA and were then written into the
+  # output rows and back into `state`, keeping the class NA-keyed for every
+  # later year -- and at `resolution = "polity"` every such row worldwide
+  # pooled into one spurious NA-coded polity. Under the crop-group default a
+  # class appearing mid-span is the normal case, not the exception.
+  cur <- state[, .(cell_key, land_use, prev_stock)][
+    cur,
+    on = c("cell_key", "land_use")
+  ]
   cur[is.na(prev_stock), prev_stock := 0]
   if (is.null(prev)) {
     # First year: no prior rates, and old_area == new_area so no LUC transfer.
@@ -2143,10 +2169,12 @@ build_carbon_balance <- function(
       dplyr::across(dplyr::any_of("luc_transfer_mgc"), sum),
       rate_mgc_ha = .cb_wmean(.data$rate_mgc_ha, .data$area_ha),
       son_change_kgn_ha = .cb_wmean(.data$son_change_kgn_ha, .data$area_ha),
-      dplyr::across(
-        dplyr::any_of(c("method_soc", "method_class_water")),
-        \(x) x[1]
-      ),
+      # Every method column, not a hand-listed subset. `any_of()` drops a name
+      # it does not find in silence, so a column omitted here simply never
+      # reaches the polity output while @return still promises it --
+      # `method_soc_init` was lost exactly that way. Selecting by prefix means
+      # a new method column cannot be forgotten.
+      dplyr::across(dplyr::starts_with("method_"), \(x) x[1]),
       area_ha = sum(.data$area_ha),
       .by = c("area_code", "year")
     ) |>

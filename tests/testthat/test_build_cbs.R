@@ -2971,10 +2971,41 @@ testthat::test_that("one CBS crop spanning two categories splits its mass", {
   # rather than assigned to whichever the join happened to return first, so
   # the result sits between the two single-category answers.
   bridge <- whep:::.residue_krausmann_bridge()
-  testthat::expect_identical(sum(bridge$item_cbs_code_crop == 2570L), 2L)
+  two <- bridge[bridge$item_cbs_code_crop == 2570L, ]
+  testthat::expect_identical(nrow(two), 2L)
+
   out <- whep:::.residue_cbs_elements(.rcr_row(crop = 2570L))
+  prod <- out$value[out$element == "production"]
+
+  # The balance identity is NOT evidence of a split: production, feed and
+  # other_uses all derive from the same `recovered`, so it holds however the
+  # mass is assigned -- including if the join were deduplicated and the whole
+  # tonnage booked under whichever category the join returned first. Compare
+  # against what EACH category alone gives, by restricting the bridge.
   testthat::expect_equal(
-    out$value[out$element == "production"],
+    prod,
     out$value[out$element == "feed"] + out$value[out$element == "other_uses"]
   )
+
+  single <- function(i) {
+    testthat::with_mocked_bindings(
+      {
+        one <- whep:::.residue_cbs_elements(.rcr_row(crop = 2570L))
+        one$value[one$element == "production"]
+      },
+      .residue_krausmann_bridge = function(...) two[i, ],
+      .package = "whep"
+    )
+  }
+  a <- single(1L)
+  b <- single(2L)
+  # An even split is the mean of the two single-category answers, and strictly
+  # between them whenever the two recovery rates differ. Skip the strict half
+  # if the region happens to give both categories the same rate, since then
+  # there is nothing for the split to be between.
+  testthat::expect_equal(prod, (a + b) / 2)
+  if (!isTRUE(all.equal(a, b))) {
+    testthat::expect_gt(prod, min(a, b))
+    testthat::expect_lt(prod, max(a, b))
+  }
 })
