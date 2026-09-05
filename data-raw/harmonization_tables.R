@@ -251,6 +251,149 @@ items_prod_full <- items_prod_full_raw |>
     by = "Name"
   )
 
+# Derived: admin-statistics source vocabularies --------------------------------
+
+# NSE symbols and registration this block needs (T11; the dispatcher wires
+# them up): the seven datasets `admin_items_nass`, `admin_items_eurostat`,
+# `admin_items_sidra`, `admin_items_jrc`, `admin_species_nass`,
+# `admin_species_eurostat` and `admin_species_sidra` need `_pkgdown.yml`
+# reference entries. No new `utils::globalVariables()` symbol is needed: every
+# column below is addressed through the `.data` pronoun.
+
+# The mapping kinds, in the vocabulary T10 fixed. `exact` is one source class
+# to one WHEP target; `aggregate` is a published total that binds, whose
+# members are never summed alongside it; `member` is one of those members,
+# recorded so the class is accounted for rather than silently absent;
+# `sum_member` is one of several classes that DO sum, the publisher shipping no
+# aggregate for them; `dropped` is a class with no exact WHEP counterpart,
+# never folded into a near neighbour.
+.mapping_kinds <- function() {
+  c("exact", "aggregate", "member", "sum_member", "dropped")
+}
+
+# Everything is read as character. The WHEP item keys are character in
+# items_prod_full (it carries the non-numeric "Fallow" key), and a numeric
+# guess here would make every join to it come back empty.
+.read_admin_vocabulary <- function(file) {
+  file.path(harmonization_dir, file) |>
+    readr::read_csv(
+      show_col_types = FALSE,
+      na = excel_na,
+      col_types = readr::cols(.default = readr::col_character())
+    )
+}
+
+# A target code that is not in the WHEP vocabulary is the failure these tables
+# most have to avoid making silent: the mapping still loads, the join simply
+# returns nothing, and the source class disappears without being counted as
+# dropped. So the codes are checked against the vocabulary they claim to be in.
+.assert_known_targets <- function(table, column, known, name) {
+  used <- unique(stats::na.omit(table[[column]]))
+  unknown <- setdiff(used, known)
+  if (length(unknown) > 0) {
+    cli::cli_abort(c(
+      "Unknown {.field {column}} value{?s} in {.val {name}}.",
+      "x" = "Not in the WHEP vocabulary: {.val {unknown}}."
+    ))
+  }
+  invisible(table)
+}
+
+# The contract every mapping row carries, so a half-filled row cannot ship:
+# a mapped row names its target, a dropped row names none, and anything that
+# is not an exact one-to-one mapping says why.
+.assert_mapping_rows <- function(table, column, name) {
+  bad_kind <- setdiff(unique(table$mapping_kind), .mapping_kinds())
+  if (length(bad_kind) > 0) {
+    cli::cli_abort(c(
+      "Unknown {.field mapping_kind} in {.val {name}}.",
+      "x" = "Not one of {.val {.mapping_kinds()}}: {.val {bad_kind}}."
+    ))
+  }
+  .assert_target_presence(table, column, name)
+  unexplained <- table$class_key[
+    table$mapping_kind != "exact" & is.na(table$mapping_reason)
+  ]
+  if (length(unexplained) > 0) {
+    cli::cli_abort(c(
+      "Unexplained non-exact mapping{?s} in {.val {name}}.",
+      "x" = "No {.field mapping_reason}: {.val {unexplained}}."
+    ))
+  }
+  invisible(table)
+}
+
+.assert_target_presence <- function(table, column, name) {
+  needs_target <- table$mapping_kind %in% c("exact", "sum_member")
+  missing_target <- table$class_key[needs_target & is.na(table[[column]])]
+  if (length(missing_target) > 0) {
+    cli::cli_abort(c(
+      "Mapped row{?s} with no target in {.val {name}}.",
+      "x" = "Empty {.field {column}}: {.val {missing_target}}."
+    ))
+  }
+  stray <- table$class_key[
+    table$mapping_kind == "dropped" & !is.na(table[[column]])
+  ]
+  if (length(stray) > 0) {
+    cli::cli_abort(c(
+      "Dropped row{?s} carrying a target in {.val {name}}.",
+      "x" = "Non-empty {.field {column}}: {.val {stray}}."
+    ))
+  }
+  invisible(table)
+}
+
+# `constrains` is what carries T10's livestock rules 1 and 4: an aggregate
+# class that maps to no single WHEP group still bounds the SUM of several, and
+# only an aggregate row may claim that.
+.assert_constraint_sets <- function(table, known, name) {
+  misplaced <- table$class_key[
+    table$mapping_kind != "aggregate" & !is.na(table$constrains)
+  ]
+  if (length(misplaced) > 0) {
+    cli::cli_abort(c(
+      "Only an {.val aggregate} row may carry {.field constrains}.",
+      "x" = "In {.val {name}}: {.val {misplaced}}."
+    ))
+  }
+  groups <- stats::na.omit(table$constrains) |>
+    stringr::str_split("\\+") |>
+    unlist() |>
+    unique()
+  unknown <- setdiff(groups, known)
+  if (length(unknown) > 0) {
+    cli::cli_abort(c(
+      "Unknown {.field constrains} member{?s} in {.val {name}}.",
+      "x" = "Not a WHEP species group: {.val {unknown}}."
+    ))
+  }
+  invisible(table)
+}
+
+.check_admin_items <- function(table, known, name) {
+  .assert_unique_key(table, "class_key", name)
+  .assert_mapping_rows(table, "item_prod_code", name)
+  .assert_known_targets(table, "item_prod_code", known, name)
+}
+
+.check_admin_species <- function(table, known, name) {
+  .assert_unique_key(table, "class_key", name)
+  .assert_mapping_rows(table, "species_group", name)
+  .assert_known_targets(table, "species_group", known, name)
+  .assert_constraint_sets(table, known, name)
+}
+
+admin_items_nass <- .read_admin_vocabulary("admin_items_nass.csv")
+admin_items_eurostat <- .read_admin_vocabulary("admin_items_eurostat.csv")
+admin_items_sidra <- .read_admin_vocabulary("admin_items_sidra.csv")
+admin_items_jrc <- .read_admin_vocabulary("admin_items_jrc.csv")
+admin_species_nass <- .read_admin_vocabulary("admin_species_nass.csv")
+admin_species_eurostat <- .read_admin_vocabulary(
+  "admin_species_eurostat.csv"
+)
+admin_species_sidra <- .read_admin_vocabulary("admin_species_sidra.csv")
+
 # Derived: items_prim ---------------------------------------------------------
 
 items_prim <- dplyr::bind_rows(
@@ -298,6 +441,49 @@ items_prim <- dplyr::bind_rows(
 .assert_unique_key(cbs_trade_codes, "item_code_trade", "cbs_trade_codes")
 .assert_unique_key(animals_codes, "item_cbs_code", "animals_codes")
 
+# The WHEP vocabularies the admin-statistics tables map onto. The species
+# groups are read from the gridding crosswalk rather than restated here, so a
+# group renamed there cannot leave a mapping table pointing at a name that no
+# longer exists.
+whep_item_prod_codes <- items_prod_full$item_prod_code
+
+whep_species_groups <- here::here(
+  "inst",
+  "extdata",
+  "livestock_mapping.csv"
+) |>
+  readr::read_csv(show_col_types = FALSE, na = excel_na) |>
+  dplyr::pull("species_group") |>
+  unique()
+
+.check_admin_items(admin_items_nass, whep_item_prod_codes, "admin_items_nass")
+.check_admin_items(
+  admin_items_eurostat,
+  whep_item_prod_codes,
+  "admin_items_eurostat"
+)
+.check_admin_items(
+  admin_items_sidra,
+  whep_item_prod_codes,
+  "admin_items_sidra"
+)
+.check_admin_items(admin_items_jrc, whep_item_prod_codes, "admin_items_jrc")
+.check_admin_species(
+  admin_species_nass,
+  whep_species_groups,
+  "admin_species_nass"
+)
+.check_admin_species(
+  admin_species_eurostat,
+  whep_species_groups,
+  "admin_species_eurostat"
+)
+.check_admin_species(
+  admin_species_sidra,
+  whep_species_groups,
+  "admin_species_sidra"
+)
+
 # Save as package data --------------------------------------------------------
 
 usethis::use_data(regions_full, overwrite = TRUE)
@@ -312,3 +498,10 @@ usethis::use_data(crops_eurostat, overwrite = TRUE)
 usethis::use_data(biomass_coefs, overwrite = TRUE)
 usethis::use_data(items_prod_full, overwrite = TRUE)
 usethis::use_data(items_prim, overwrite = TRUE)
+usethis::use_data(admin_items_nass, overwrite = TRUE)
+usethis::use_data(admin_items_eurostat, overwrite = TRUE)
+usethis::use_data(admin_items_sidra, overwrite = TRUE)
+usethis::use_data(admin_items_jrc, overwrite = TRUE)
+usethis::use_data(admin_species_nass, overwrite = TRUE)
+usethis::use_data(admin_species_eurostat, overwrite = TRUE)
+usethis::use_data(admin_species_sidra, overwrite = TRUE)

@@ -18,7 +18,7 @@
 # Coverage is partial by construction, and the partition is asserted below so a
 # new dataset cannot arrive both unchecked and unexcluded:
 #
-#   * checked  -- the 49 datasets written by the seven builders in
+#   * checked  -- the 56 datasets written by the seven builders in
 #     `.offline_data_builders()`, which read only inst/extdata/, data-raw/ and
 #     committed data/*.rda.
 #   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
