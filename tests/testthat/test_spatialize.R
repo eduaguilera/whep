@@ -406,6 +406,23 @@ testthat::test_that("build_gridded_landuse aggregates to CFTs when mapping provi
   testthat::expect_equal(total, 1000, tolerance = 1e-6)
 })
 
+testthat::test_that("aggregate_to_cft aborts instead of fanning out on a repeated code", {
+  data <- tibble::tribble(
+      ~lon,  ~lat,  ~year, ~item_prod_code, ~rainfed_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,             15L,         100,             0
+    )
+  cft_map <- tibble::tribble(
+      ~item_prod_code, ~cft_name,
+                  15L, "temperate_cereals",
+                  15L, "other_dup"
+    )
+
+  testthat::expect_error(
+    whep:::.aggregate_to_cft(data, cft_map),
+    class = "rlang_error"
+  )
+})
+
 # Input validation ---------------------------------------------------------------
 
 testthat::test_that("build_gridded_landuse errors on missing columns", {

@@ -55,10 +55,13 @@ row's own year.
 \item \code{"polity_not_started"}: no mapped period covered even the anchored year and
 the stand-in taken begins after it.
 \item \code{"polity_ended"}: the polity had ended, so the value covers a territory
-that entity no longer describes. This is the harder case, and the one
-whep#414 is about: FAOSTAT areas 276 Sudan and 277 South Sudan fold into
-bucket 206, whose label \code{SUD-1956-2011} ended at the secession, and no live
-polity means "Sudan and South Sudan".
+that entity no longer describes. This is the harder case: FAOSTAT area 51
+"Czechoslovakia" resolves to \code{F51-1947-1993} whatever year it is asked
+for, because nothing later is mapped to that area. Bucket 206 used to be
+the headline instance -- areas 276 Sudan and 277 South Sudan fold into it
+and its label \code{SUD-1956-2011} had ended at the secession (whep#414) -- and
+is no longer one: upstream minted \code{F206-2011-2025}, live over exactly the
+years the bucket sums both, and whep#860 wired it on.
 }
 
 \code{gap_kind} is not derivable from the returned columns, which is why it is
@@ -79,14 +82,14 @@ reading of the crosswalk. The area column may hold either a FAOSTAT
 by; both resolve through the same lookup.
 }
 \examples{
-# FAOSTAT area 206 "Sudan (former)" is the live case: it keeps reporting
-# after `SUD-1956-2011` ends, so post-2011 rows are stand-ins. Area 238's
-# 1850 row is the back-cast case: `ETH-1952-1993` labels it because that is
-# the polity live at the anchor, 102 years later.
+# FAOSTAT area 51 "Czechoslovakia" is the live case: `F51-1947-1993` ended in
+# 1993 and nothing later is mapped to the area, so a post-1993 row is a
+# stand-in. Area 238's 1850 row is the back-cast case: `ETH-1952-1993` labels
+# it because that is the polity live at the anchor, 102 years later.
 polity_coverage_gaps(
   tibble::tibble(
-    area_code = c(206L, 206L, 238L),
-    year = c(2005L, 2015L, 1850L),
+    area_code = c(51L, 51L, 238L),
+    year = c(1990L, 2015L, 1850L),
     value = 1
   )
 )

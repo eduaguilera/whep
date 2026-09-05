@@ -116,13 +116,22 @@
 #'   sources reported under their own historical borders still resolve;
 #'   `"fabio_row_fold"` where FABIO collapses the area into its Rest-of-World
 #'   bucket; `"prefix_fallback"` where the map covers the area not at all and the
-#'   mapping is inferred from the polity-code prefix.
+#'   mapping is inferred from the polity-code prefix;
+#'   `"whep_bucket_aggregate"` for a row that answers for an aggregation
+#'   **bucket** rather than for a reporting area, described below.
 #' - `map_year_start`, `map_year_end`: Inclusive reporting years the upstream map
 #'   assigns to this area-polity pair, `NA` unless `mapping_source` is
 #'   `"upstream_map"`.
 #' - `map_match_route`: Upstream's record of how it decided the row
 #'   (`"iso-equal"`, `"registry"`, `"manual-route"`, `"manual-replace"`,
 #'   `"manual-span"`), `NA` unless `mapping_source` is `"upstream_map"`.
+#' - `applies_from_year`: First year the row answers for, when that is later
+#'   than `polity_start_year`. `NA` on every row that answers for a reporting
+#'   area, whose lower bound is the polity's own start -- a row that exists must
+#'   resolve, so area 276 answers `SDN-2011-2025` from 2011 even though upstream
+#'   begins reporting the area in 2012. It is non-`NA` only on a
+#'   `"whep_bucket_aggregate"` row, where it is the first year the bucket
+#'   actually sums more than one reporting area.
 #' - `mapping_status`: Whether a polity was found, **not** how much to trust it.
 #'   `"matched"` when a live polity resolved; `"manual"` when the decision was
 #'   curated by hand, either by upstream (a `manual-*` `map_match_route`) or by
@@ -161,6 +170,34 @@
 #' `polity_code`. This table carries no column of that name, and
 #' `legacy_polity_prefix` is not a substitute for one (#711).
 #'
+#' @section A bucket that sums two territories gets a polity that means both:
+#' Every other row here answers for a **reporting area**, because that is what
+#' upstream's map is about. Bucket 206 from 2012 is the one place that is not
+#' enough: FAOSTAT reports area 206 through 2011 and areas 276/277 from 2012,
+#' WHEP sums the two successors back into bucket 206, and the bucket's own code
+#' had nothing later than `SUD-1956-2011` to answer with -- a polity that ended
+#' at the secession, reported `out_of_span` on every post-2011 row (#414).
+#'
+#' Upstream now publishes the entity that means the sum, `F206-2011-2025`
+#' "Sudan and South Sudan (combined reporting)", `aggregate`, with a constructed
+#' polygon, on the same `F<area>` naming as `F237-1954-1975` (Vietnam) and
+#' `F249-1918-1990` (Yemen). It has no map row, correctly: as a claim about the
+#' reporting area it would be false. `data-raw/table_mappings.R` therefore adds
+#' one row per bucket that genuinely sums several territories and has no
+#' aggregate label of its own, deriving both the bucket-years and the polity
+#' from the two upstream tables rather than naming either by hand (#860).
+#'
+#' The row answers from `applies_from_year` (2012), not from the polity's own
+#' 2011 start: at 2011 bucket 206 is still area 206 reporting alone, and
+#' upstream's map decides that year. So `(206, 2011)` stays `SUD-1956-2011` and
+#' only the years the bucket really is a two-territory sum move.
+#'
+#' The shape is unusual and deliberate: this aggregate is live **at the same
+#' time as its own members**, since areas 276 and 277 keep reporting
+#' separately. That is not a defect -- `BLX-1850-1999` coexists with `BEL` and
+#' `LUX` for 149 years -- and it makes bucket 206 the first bucket key carrying
+#' three live polities at once.
+#'
 #' @section A bucket resolves here only because it is also an area:
 #' There is one key column, `area_code`, and callers hand it **two kinds of
 #' code**: a raw FAOSTAT reporting area, and a `polity_area_code` aggregation
@@ -179,6 +216,13 @@
 #' area row it dates FAOSTAT area 238 itself for a historical source reported
 #' under its own year's borders, which is how 149 historical-trade rows resolve
 #' at 1961. Marking it for one space would move the other. See #742.
+#'
+#' `(206, F206-2011-2025)` is the one row written **for** the bucket, and it
+#' answers in the area space too: raw FAOSTAT area 206 for 2012 onwards
+#' resolves to it. Nothing is misattributed by that, because FAOSTAT emits no
+#' area-206 row after 2011 -- the claim is unexercised rather than false -- but
+#' it is the first row for which the two spaces could be told apart at all,
+#' which is the column #742 asks for and this table still does not carry.
 #'
 #' @section Confidence is the pair, not `mapping_status` alone:
 #' `"matched"` covers outcomes of very different confidence -- a curated hit in
@@ -228,17 +272,12 @@
 #' [build_polycell_support()] excludes `polity_type == "aggregate"` by type
 #' before any lookup runs, so an aggregate emits no polycell to carry one.
 #'
-#' The one absence that is a real gap is `F206-2011-2025`, Sudan and South
-#' Sudan combined, and **it is a gap in the bucket vocabulary rather than in
-#' `area_code`**. FAOSTAT stops reporting area 206 in 2011 and does not
-#' resume, so upstream deliberately adds no map row for it; the post-2011
-#' combination is WHEP's own fold of areas 276 and 277 into
-#' `polity_area_code` 206. This table answers per reporting area and has no
-#' column in which to say "bucket 206 from 2012 answers as `F206-2011-2025`",
-#' which is why [polity_bucket_coverage()] still labels that bucket
-#' `SUD-1956-2011` / `"out_of_span"` for 2012 onward -- a polity that ended in
-#' 2011. Expressing it is #742 and labelling it is #860; neither is decided
-#' here.
+#' `F206-2011-2025` used to be the one absence that was a real gap, and it is
+#' filled: it now has a row, keyed on the bucket rather than on a reporting
+#' area, so [polity_bucket_coverage()] classifies bucket 206 `"aggregate"` from
+#' 2012 instead of `"predecessor"`. See the bucket section above; #742's
+#' `key_role` column, which would mark a row as answering in only one of the
+#' two key spaces, is still open and is not what `applies_from_year` does.
 #' @source Derived from [polities],
 #'   `~/whep-polities/data/final/faostat_area_polity_map.csv` and
 #'   `inst/extdata/harmonization/regions_full.csv`.

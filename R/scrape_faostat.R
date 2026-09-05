@@ -6,9 +6,17 @@
 #' Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 #' it's fine.
 #'
+#' Data is downloaded straight from FAOSTAT's public bulk download service
+#' (`https://bulks-faostat.fao.org`), with no third-party client library and
+#' no API key: the dataset catalog resolves `activity_data` to its "All Data
+#' Normalized" zip, which is downloaded and read directly (#45). FAOSTAT's
+#' separate query API at `faostatservices.fao.org` now requires an
+#' authorization header WHEP does not have; the bulk download service is
+#' unaffected and needs none.
+#'
 #' @param activity_data activity data required from FAOSTAT; needs
 #'   to be one of `c('livestock','crop_area','crop_yield','crop_production')`.
-#' @param ... can be whichever column name from `get_faostat_bulk`,
+#' @param ... can be whichever column name from the resulting bulk data,
 #'   particularly `year`, `area` or `ISO3_CODE`.
 #' @param example Logical. If `TRUE`, return a small hardcoded example
 #'   `tibble` instead of scraping FAOSTAT. Useful for offline demos and
@@ -33,9 +41,7 @@ get_faostat_data <- function(activity_data, ..., example = FALSE) {
   faostat_converters <- .faostat_converter(activity_data)
 
   # scrape bulk data from FAOSTAT for a specific parameter
-  faostat_data <- FAOSTAT::get_faostat_bulk(
-    code = faostat_converters[["FAOSTAT_code"]]
-  )
+  faostat_data <- .get_faostat_bulk(faostat_converters[["FAOSTAT_code"]])
 
   # subset based on activity_data OR element in FAOSTAT
   # also subset only necessary columns for post-processing
@@ -80,6 +86,91 @@ get_faostat_data <- function(activity_data, ..., example = FALSE) {
   .warn_unmatched_fao_areas(unique(df$area[is.na(df$ISO3_CODE)]))
 
   df
+}
+
+#' Downloads and reads a FAOSTAT bulk dataset by its domain code
+#'
+#' @description
+#' Replicates `FAOSTAT::get_faostat_bulk()` without depending on the
+#' `FAOSTAT` package (#45): looks up `code` (e.g. `"QCL"`, `"EMN"`) in
+#' FAOSTAT's public bulk download catalog, downloads the "All Data
+#' Normalized" zip it points to, and reads the CSV inside. Column names and
+#' `element` values are snake-cased to match what `FAOSTAT::get_faostat_bulk`
+#' used to return, so callers (`get_faostat_data()`) do not need to change.
+#'
+#' @param code FAOSTAT domain code, e.g. `"QCL"`.
+#'
+#' @noRd
+#'
+#' @returns data.frame
+.get_faostat_bulk <- function(code) {
+  zip_url <- .faostat_bulk_zip_url(code)
+  zip_path <- withr::local_tempfile(fileext = ".zip")
+  utils::download.file(zip_url, zip_path, mode = "wb", quiet = TRUE)
+
+  .read_faostat_bulk_zip(zip_path, csv_name = basename(zip_url))
+}
+
+# Catalog of every FAOSTAT bulk dataset, unauthenticated and served straight
+# off FAOSTAT's CDN. This is distinct from (and unaffected by) the query API
+# at faostatservices.fao.org, which now rejects unauthenticated requests with
+# "Missing Authorization Header" (verified 2026-08, #45).
+.faostat_bulk_catalog_url <- function() {
+  "https://bulks-faostat.fao.org/production/datasets_E.json"
+}
+
+.faostat_bulk_zip_url <- function(code) {
+  response <- httr::GET(.faostat_bulk_catalog_url())
+  if (httr::http_error(response)) {
+    cli::cli_abort(
+      "Failed to reach the FAOSTAT bulk download catalog
+       ({httr::status_code(response)})."
+    )
+  }
+
+  catalog <- httr::content(response, as = "parsed", type = "application/json")
+  datasets <- catalog[["Datasets"]][["Dataset"]]
+  codes <- vapply(datasets, function(x) x[["DatasetCode"]], character(1))
+  match_idx <- match(code, codes)
+
+  if (is.na(match_idx)) {
+    cli::cli_abort(
+      "FAOSTAT domain code {.val {code}} not found in the bulk download
+       catalog."
+    )
+  }
+
+  datasets[[match_idx]][["FileLocation"]]
+}
+
+# The zip bundles the "All Data Normalized" CSV alongside code-list
+# companions (AreaCodes, Elements, Flags, ItemCodes); the data file shares
+# the zip's basename, same convention `FAOSTAT::read_faostat_bulk()` relied
+# on.
+.read_faostat_bulk_zip <- function(zip_path, csv_name) {
+  csv_name <- sub("\\.zip$", ".csv", csv_name)
+  extract_dir <- withr::local_tempdir()
+  utils::unzip(zip_path, files = csv_name, exdir = extract_dir)
+
+  .read_faostat_bulk_csv(file.path(extract_dir, csv_name))
+}
+
+# FAOSTAT's bulk CSVs are UTF-8 (unlike the "latin1" default
+# `FAOSTAT::read_faostat_bulk()` assumed, which mis-decoded accented area
+# names such as "Côte d'Ivoire" and left them unmatched downstream, #45).
+# Reading through a UTF-8 connection, rather than passing `encoding =`
+# straight to `read.csv()`, is what actually re-tags the strings correctly.
+.read_faostat_bulk_csv <- function(csv_path) {
+  con <- file(csv_path, encoding = "UTF-8")
+  df <- utils::read.csv(con, stringsAsFactors = FALSE, encoding = "UTF-8")
+  names(df) <- .to_faostat_snake_case(names(df))
+  df[["element"]] <- .to_faostat_snake_case(df[["element"]])
+
+  df
+}
+
+.to_faostat_snake_case <- function(x) {
+  gsub("[^[:alnum:]]", "_", tolower(x))
 }
 
 #' Converts activity_data on the necessary FAOSTAT code

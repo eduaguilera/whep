@@ -151,7 +151,6 @@ build_supply_use <- function(example = FALSE) {
       husbandry_items,
       feed_intake,
       primary_prod,
-      cbs,
       slaughter_product_items
     ),
     .build_slaughtering(
@@ -565,7 +564,6 @@ build_supply_use <- function(example = FALSE) {
   husbandry_items,
   feed_intake,
   primary_prod,
-  cbs = NULL,
   slaughter_product_items = tibble::tibble(item_cbs_code = integer())
 ) {
   dplyr::bind_rows(
@@ -573,7 +571,6 @@ build_supply_use <- function(example = FALSE) {
     .build_supply_husbandry(
       husbandry_items,
       primary_prod,
-      cbs,
       slaughter_product_items
     ),
   ) |>
@@ -595,14 +592,12 @@ build_supply_use <- function(example = FALSE) {
 .build_supply_husbandry <- function(
   husbandry_items,
   primary_prod,
-  cbs = NULL,
   slaughter_product_items = tibble::tibble(item_cbs_code = integer())
 ) {
   dplyr::bind_rows(
     .build_livestock_supply(
       primary_prod,
-      husbandry_items,
-      cbs
+      husbandry_items
     ),
     .build_livestock_prods_supply(
       primary_prod,
@@ -613,15 +608,15 @@ build_supply_use <- function(example = FALSE) {
     dplyr::mutate(type = "supply")
 }
 
+# `cbs` used to be threaded through here and the two callers above purely to
+# dodge the object-usage linter on an argument nothing ever read — feed
+# intake is stock-based, so live-animal husbandry output always uses the
+# stock count, never CBS production. Removed as dead (whep#172); the linter
+# that motivated it (`object_usage_linter`) is disabled in CI anyway (#131).
 .build_livestock_supply <- function(
   primary_prod,
-  husbandry_items,
-  cbs = NULL
+  husbandry_items
 ) {
-  force(cbs)
-
-  # Feed intake is stock-based, so live-animal husbandry output must use the
-  # stock count. CBS production is a slaughter/production flow for these items.
   primary_prod |>
     dplyr::filter(unit == "heads") |>
     dplyr::inner_join(

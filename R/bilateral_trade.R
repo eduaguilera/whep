@@ -366,13 +366,45 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
 
   btd |>
     dplyr::filter(unit %in% c("tonnes", "heads")) |>
-    dplyr::select(-unit) |>
+    .mass_only_bilateral_trade() |>
     .filter_only_items_in_cbs(cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
     ) |>
     dplyr::inner_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
+}
+
+# Reduce bilateral trade to its mass (tonnes) rows and drop `unit`, matching
+# the documented `get_bilateral_trade()` contract: `m["A", "B"]` is trade in
+# tonnes. Without this, `.build_trade_matrix()` sums `value` over
+# `(from_code, to_code)` with no unit dimension at all, so a head-count row
+# (live animals) is added straight into the tonnes column -- the same
+# collapse PR #925 fixed for `.aggregate_fao_trade_to_cbs()` in build_cbs.R,
+# on the same day, in a different file (whep#962). Measured on the real pin:
+# 11 dual-unit items, 1.08 billion head summed into 71.0 Mt across 25.2% of
+# the matrix's cells. IPF renormalises row/column totals afterwards, so the
+# level comes out right and only the partner allocation is silently wrong --
+# which is why this stayed invisible. Dropped rows are warned about, not
+# silently discarded.
+.mass_only_bilateral_trade <- function(btd) {
+  non_mass <- btd |> dplyr::filter(unit != "tonnes")
+  if (nrow(non_mass) > 0) {
+    units <- sort(unique(non_mass$unit))
+    items <- length(unique(non_mass$item_cbs_code))
+    cli::cli_warn(c(
+      "Dropped {nrow(non_mass)} bilateral trade row{?s} not \\
+       denominated in mass.",
+      "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+      "i" = "{items} CBS item{cli::qty(items)}{?s} affected, totalling \\
+             {round(sum(non_mass$value, na.rm = TRUE))}.",
+      "i" = "Live-animal trade is in head counts; the bilateral trade \\
+             matrix is denominated in tonnes."
+    ))
+  }
+  btd |>
+    dplyr::filter(unit == "tonnes") |>
+    dplyr::select(-unit)
 }
 
 .get_nested_cbs <- function(cbs, codes) {

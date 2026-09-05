@@ -283,8 +283,15 @@ build_grazing_feed_footprint <- function(
 
 # Grazing land per country for one year (grass items pooled), from the
 # native grassland land extension.
+# The LUH2 source is pinned explicitly here: it is the extension's own
+# default, but that default disagrees with the whole-territory land-use
+# ledger, which anchors grassland on the FAOSTAT pasture statistic instead
+# (whep#759).
 .grazing_grass_land <- function(year) {
-  build_grassland_land_extension(grassland_metric = "occupation") |>
+  build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "occupation"
+  ) |>
     dplyr::filter(year == .env$year) |>
     dplyr::transmute(
       year = as.integer(year),

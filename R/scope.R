@@ -111,7 +111,20 @@ get_scope <- function(x) {
   if (length(unknown) > 0) {
     cli::cli_abort("Unknown {.arg details} field{?s}: {.field {unknown}}.")
   }
-  utils::modifyList(defaults, details)
+  # `utils::modifyList()` drops a field entirely when its override is
+  # `NULL`, rather than keeping it set to `NULL` (`?modifyList`). A caller
+  # explicitly overriding a detail with `NULL` then silently lost that
+  # field from `defaults`, and `tibble()` later recycled every other
+  # length-1 column down to the missing field's length-0 value, so
+  # `footprint_scope()` returned a 0-row tibble instead of aborting or
+  # keeping the field (whep#172). An explicit `NULL` override is treated
+  # as "no value for this field", i.e. `NA`, since a scalar column cannot
+  # hold `NULL` itself.
+  details <- lapply(details, function(x) if (is.null(x)) NA_character_ else x)
+  if (length(details) > 0) {
+    defaults[names(details)] <- details
+  }
+  defaults
 }
 
 .validate_string1 <- function(value, arg) {

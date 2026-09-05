@@ -265,6 +265,21 @@ test_that(".polity_join_end_year widens only to a later reported year", {
   )
 })
 
+test_that(".polity_join_start_year narrows only to a later declared year", {
+  # The mirror of the end bound, and deliberately NOT symmetric with it: the end
+  # bound WIDENS to a reported year past the territorial span, while this one
+  # NARROWS to a year the row itself declares. `NA` is the normal case -- an
+  # area row is bounded by the polity's own start -- and an `applies_from_year`
+  # earlier than the polity's start can never move the bound.
+  expect_equal(
+    whep:::.polity_join_start_year(
+      c(1956L, 2011L, 2011L, NA, 2011L),
+      c(NA, 2012L, NA, 1900L, 1990L)
+    ),
+    c(1956, 2012, 2011, 1900, 2011)
+  )
+})
+
 test_that("a still-open period covers its terminal year, a succeeded one does not", {
   # EXCLUSIVE AT A SUCCESSION, INCLUSIVE AT THE OPEN END.
   #
@@ -666,16 +681,19 @@ testthat::test_that("the published reporting columns hide the stand-in", {
   # area-keyed build output crosses deletes that column, so the two rows below
   # are indistinguishable in published data even though one is a stand-in.
   #
-  # Bucket 206 "Sudan (former)" is the live case: FAOSTAT keeps reporting it
-  # after `SUD-1956-2011` ends, so 2015 lands on a polity that ended in 2011.
+  # FAOSTAT area 51 "Czechoslovakia" is the live case: it keeps being asked for
+  # after `F51-1947-1993` ends, so 2015 lands on a polity that ended in 1993.
+  # It replaces bucket 206, which used to be this example and stopped being one
+  # when whep#860 gave the bucket `F206-2011-2025` for 2012 onward -- the class
+  # is unchanged, only its exemplar.
   rows <- tibble::tibble(
-    area_code = 206L,
-    year = c(2005L, 2015L),
+    area_code = 51L,
+    year = c(1990L, 2015L),
     value = 1
   )
 
   resolved <- whep::add_polity_code(rows)
-  testthat::expect_equal(resolved$polity_code, rep("SUD-1956-2011", 2L))
+  testthat::expect_equal(resolved$polity_code, rep("F51-1947-1993", 2L))
   testthat::expect_equal(resolved$mapping_status, c("manual", "out_of_span"))
 
   published <- whep:::.add_reporting_polity_columns(rows)
@@ -691,20 +709,20 @@ testthat::test_that("the published reporting columns hide the stand-in", {
   # Same polity, same name, nothing saying one of them did not exist yet.
   testthat::expect_equal(
     published$reporting_polity_code,
-    rep("SUD-1956-2011", 2L)
+    rep("F51-1947-1993", 2L)
   )
 })
 
 testthat::test_that("polity_coverage_gaps finds what the columns hide", {
   gaps <- whep::polity_coverage_gaps(
-    tibble::tibble(area_code = 206L, year = c(2005L, 2015L, 2015L), value = 1)
+    tibble::tibble(area_code = 51L, year = c(1990L, 2015L, 2015L), value = 1)
   )
 
   testthat::expect_equal(nrow(gaps), 1L)
   testthat::expect_equal(gaps$year, 2015L)
-  testthat::expect_equal(gaps$area_code, 206L)
-  testthat::expect_equal(gaps$polity_code, "SUD-1956-2011")
-  testthat::expect_equal(gaps$polity_end_year, 2011L)
+  testthat::expect_equal(gaps$area_code, 51L)
+  testthat::expect_equal(gaps$polity_code, "F51-1947-1993")
+  testthat::expect_equal(gaps$polity_end_year, 1993L)
   # Row COUNTS, not distinct area-years: the caller wants to know how much of
   # its table is affected.
   testthat::expect_equal(gaps$n_rows, 2L)
@@ -760,16 +778,16 @@ testthat::test_that("polity_coverage_gaps agrees with the resolver", {
 testthat::test_that("polity_coverage_gaps names the direction of the gap", {
   # The two directions are different defects and #414 is only one of them, so
   # a consumer counting "rows attributed to a polity that did not exist" needs
-  # to be able to separate them. Bucket 206 post-secession is the `"ended"`
-  # case: the label `SUD-1956-2011` stopped at the secession while the bucket
-  # keeps summing both successors. Area 1 Armenia before 1991 is the
-  # `"not_started"` case, which is WHEP's documented back-cast convention.
+  # to be able to separate them. FAOSTAT area 51 after the dissolution is the
+  # `"ended"` case: `F51-1947-1993` stopped in 1993 and nothing later is mapped
+  # to that area. Area 1 Armenia before 1991 is the `"not_started"` case, which
+  # is WHEP's documented back-cast convention.
   gaps <- whep::polity_coverage_gaps(
-    tibble::tibble(area_code = c(206L, 1L), year = c(2015L, 1900L))
+    tibble::tibble(area_code = c(51L, 1L), year = c(2015L, 1900L))
   )
 
   testthat::expect_equal(
-    gaps$gap_kind[gaps$area_code == 206L],
+    gaps$gap_kind[gaps$area_code == 51L],
     "polity_ended"
   )
   testthat::expect_equal(
@@ -1002,11 +1020,12 @@ testthat::test_that("polity_coverage_gaps sees what the floor used to hide", {
 testthat::test_that("gap_kind separates a back-cast row from a hole", {
   # The three classes on one call, on the canonical area for each. 238 in 1850
   # matched a real period AT THE ANCHOR and is WHEP's own convention; 1 Armenia
-  # in 1900 matched nothing even at the anchor; 206 post-secession is the
-  # ended-polity case whep#414 is about.
+  # in 1900 matched nothing even at the anchor; 51 Czechoslovakia after 1993 is
+  # the ended-polity case (it was bucket 206 until whep#860 labelled that bucket
+  # `F206-2011-2025` for 2012 onward).
   gaps <- whep::polity_coverage_gaps(
     tibble::tibble(
-      area_code = c(238L, 1L, 206L),
+      area_code = c(238L, 1L, 51L),
       year = c(1850L, 1900L, 2015L)
     )
   )
@@ -1019,7 +1038,7 @@ testthat::test_that("gap_kind separates a back-cast row from a hole", {
     gaps$gap_kind[gaps$area_code == 1L],
     "polity_not_started"
   )
-  testthat::expect_equal(gaps$gap_kind[gaps$area_code == 206L], "polity_ended")
+  testthat::expect_equal(gaps$gap_kind[gaps$area_code == 51L], "polity_ended")
   # The polity really is the anchor year's, not the row's.
   testthat::expect_equal(
     gaps$polity_code[gaps$area_code == 238L],
@@ -1122,13 +1141,13 @@ testthat::test_that("polity_coverage_gaps needs the area column", {
   )
   # A non-default code column is honoured, and a table with no year column
   # falls back to the current mapping, which has no stand-ins by construction.
-  renamed <- tibble::tibble(bucket = 206L, year = 2015L)
+  renamed <- tibble::tibble(bucket = 51L, year = 2015L)
   testthat::expect_equal(
     nrow(whep::polity_coverage_gaps(renamed, code_column = "bucket")),
     1L
   )
   testthat::expect_equal(
-    nrow(whep::polity_coverage_gaps(tibble::tibble(area_code = 206L))),
+    nrow(whep::polity_coverage_gaps(tibble::tibble(area_code = 51L))),
     0L
   )
 })
@@ -1139,8 +1158,8 @@ testthat::test_that("the mapping-status switch carries the signal, opt-in", {
   # neither is imposed. What is asserted here is that each mode adds EXACTLY the
   # column it promises and changes nothing else.
   rows <- tibble::tibble(
-    area_code = 206L,
-    year = c(2005L, 2015L),
+    area_code = 51L,
+    year = c(1990L, 2015L),
     value = 1
   )
   base <- whep:::.add_reporting_polity_columns(rows)
@@ -1179,8 +1198,8 @@ testthat::test_that("the mapping-status switch carries the signal, opt-in", {
 testthat::test_that("the switch reaches the partner columns too", {
   trade <- tibble::tibble(
     area_code = 2L,
-    area_code_partner = 206L,
-    year = c(2005L, 2015L)
+    area_code_partner = 51L,
+    year = c(1990L, 2015L)
   )
   base <- whep:::.add_partner_polity_columns(trade)
 
@@ -1197,7 +1216,7 @@ testthat::test_that("re-running under the switch adds no duplicate column", {
   # Several builds attach the reporting columns to a frame that already has
   # them, so a mode's own column has to be dropped and rebuilt like the others
   # rather than appended a second time.
-  rows <- tibble::tibble(area_code = 206L, year = c(2005L, 2015L))
+  rows <- tibble::tibble(area_code = 51L, year = c(1990L, 2015L))
 
   withr::local_options(whep.polity_mapping_status = "flag")
   once <- whep:::.add_reporting_polity_columns(rows)
@@ -1237,9 +1256,12 @@ testthat::test_that("a mistyped mapping-status option aborts", {
 .carried_frame <- function(n_rows = 500L) {
   # What the fold emits: one identity per (area_code, year), repeated across the
   # many item rows that share it.
+  # 40 is a plain area, 206 is the fold, and 51 is an area whose only polity has
+  # ended -- so the frame carries a `matched`, a bucket-aggregate and an
+  # `out_of_span` identity, which is what the status test below needs.
   keys <- tibble::tibble(
-    area_code = c(40L, 206L),
-    year = c(2015L, 2015L)
+    area_code = c(40L, 206L, 51L),
+    year = c(2015L, 2015L, 2015L)
   )
   base <- whep:::.add_reporting_polity_columns(keys)
   base[rep(seq_len(nrow(base)), length.out = n_rows), ] |>
@@ -1261,9 +1283,9 @@ testthat::test_that("a carried identity is kept, not resolved row by row", {
 
   out <- whep:::.add_reporting_polity_columns(carried)
   testthat::expect_equal(as.data.frame(out), as.data.frame(carried))
-  # The only resolution left is the check, over the 2 distinct keys rather than
+  # The only resolution left is the check, over the 3 distinct keys rather than
   # the 500 rows. Dropping the carried columns puts the full resolution back.
-  testthat::expect_equal(seen, 2L)
+  testthat::expect_equal(seen, 3L)
 
   seen <- integer(0)
   stripped <- dplyr::select(
@@ -1298,7 +1320,7 @@ testthat::test_that("a contradicting carried identity warns and re-resolves", {
   )
   testthat::expect_equal(
     sort(unique(out$reporting_polity_code)),
-    c("CHL-1902-2025", "SUD-1956-2011")
+    c("CHL-1902-2025", "F206-2011-2025", "F51-1947-1993")
   )
 })
 
@@ -1321,8 +1343,14 @@ testthat::test_that("the status switch always re-resolves", {
   out <- whep:::.add_reporting_polity_columns(.carried_frame(4L))
   testthat::expect_true("reporting_mapping_status" %in% names(out))
   testthat::expect_equal(
-    unique(out$reporting_mapping_status[out$area_code == 206L]),
+    unique(out$reporting_mapping_status[out$area_code == 51L]),
     "out_of_span"
+  )
+  # Bucket 206 used to be the `out_of_span` half of this pair and is the
+  # `matched` half now: whep#860 gave it `F206-2011-2025`, a live aggregate.
+  testthat::expect_equal(
+    unique(out$reporting_mapping_status[out$area_code == 206L]),
+    "matched"
   )
 })
 

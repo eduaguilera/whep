@@ -55,6 +55,12 @@ whose target stem differs from the source's (whep#740).
 WHEP's to decide, but the territory still has no upstream row of its own.
 In the default mode only the 31 members upstream names nowhere resolve
 through one; see \code{\link[=row_promotion_status]{row_promotion_status()}}.
+\item \code{"whep_bucket_aggregate"} (1): WHEP's own row for an aggregation bucket
+rather than for a reporting area, naming the upstream aggregate polity that
+means the union of the areas the bucket sums. Bucket 206 from 2012 is the
+only one, on \code{F206-2011-2025} "Sudan and South Sudan (combined reporting)"
+(whep#860). The polity is upstream's; the statement that it answers for the
+bucket is WHEP's, because the bucket is WHEP's.
 }
 
 Counting crosswalk rows overstates the exposure, because most manufactured
@@ -78,7 +84,9 @@ instead.
 \item \code{"upstream"}: \code{"upstream_map"} or \code{"fabio_row_promoted"}.
 \item \code{"whep_prefix"}: \code{"prefix_outside_map"} or \code{"prefix_fallback"} -- a WHEP
 guess, and the population whep#740 asks to delete rather than replace.
-\item \code{"whep_bucket"}: \code{"fabio_row_fold"} -- WHEP's own documented bucket.
+\item \code{"whep_bucket"}: \code{"fabio_row_fold"} or \code{"whep_bucket_aggregate"} -- WHEP's
+own documented buckets. Both say the bucket is WHEP's to name; only the
+second names it with a polity upstream publishes.
 \item \code{"unresolved"}: the area resolves to no polity, so nothing was said.
 }
 

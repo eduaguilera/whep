@@ -1467,6 +1467,27 @@ test_that(".prepare_historical_cbs accepts generic production-shaped rows", {
   expect_true(stringr::str_starts(result$source, "historical_"))
 })
 
+test_that(".prepare_historical_cbs names the 'Missing' bullet with an
+  {.field x} cross, not a bare unnamed line", {
+  # `"x" <- "Missing: ..."` inside the `c()` call passed to cli_abort() was
+  # an assignment, not a named c() element, so the bullet lost its
+  # cross-mark formatting (whep#172).
+  cnd <- rlang::catch_cnd(
+    whep:::.prepare_historical_cbs(
+      data.frame(area_code = 1L),
+      years = 1900:1901
+    )
+  )
+
+  # The cross-mark bullet renders as unicode "✖" or ASCII "x" depending on
+  # `cli.unicode`; either way it must be its own bulleted line, not appended
+  # bare onto the message with no marker at all.
+  expect_true(stringr::str_detect(
+    rlang::cnd_message(cnd),
+    "(✖|x) Missing: year and value\\."
+  ))
+})
+
 test_that(".cbs_extend_historical preserves observed historical sources", {
   cbs_raw0 <- tibble::tibble(
     year = c(1950L, 1961L),

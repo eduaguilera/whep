@@ -10,7 +10,7 @@ get_faostat_data(activity_data, ..., example = FALSE)
 \item{activity_data}{activity data required from FAOSTAT; needs
 to be one of \code{c('livestock','crop_area','crop_yield','crop_production')}.}
 
-\item{...}{can be whichever column name from \code{get_faostat_bulk},
+\item{...}{can be whichever column name from the resulting bulk data,
 particularly \code{year}, \code{area} or \code{ISO3_CODE}.}
 
 \item{example}{Logical. If \code{TRUE}, return a small hardcoded example
@@ -30,6 +30,14 @@ Important: Dynamically allows for the introduction of subsets as \code{"..."}.
 
 Note: overhead by individually scraping FAOSTAT code QCL for crop data;
 it's fine.
+
+Data is downloaded straight from FAOSTAT's public bulk download service
+(\verb{https://bulks-faostat.fao.org}), with no third-party client library and
+no API key: the dataset catalog resolves \code{activity_data} to its "All Data
+Normalized" zip, which is downloaded and read directly (#45). FAOSTAT's
+separate query API at \code{faostatservices.fao.org} now requires an
+authorization header WHEP does not have; the bulk download service is
+unaffected and needs none.
 }
 \examples{
 get_faostat_data(example = TRUE)

@@ -382,7 +382,102 @@ read_polycell_support <- function(
       )
     }
   )
+  .warn_polycell_vintage(support)
+  .warn_polycell_layers(support)
   .polycell_support_role(support, role)
+}
+
+# `water` and `ice` are optional arguments of `build_polycell_support()` that
+# zero-fill silently, and the producer's identity
+# `polity_area_ha == land + inland_water + ice` still HOLDS when they do,
+# because zero satisfies it. So a pin built without them reconciles perfectly
+# while booking every lake, river and glacier as land. That has now shipped
+# twice: whep#885 (pin `20260818T105426Z-a0330`) and whep#1010 (pin
+# `20260827T190201Z-f82a2`, which reached `main`), each overstating 2015 land
+# by about 535 Mha, some 4 percent of the global total.
+#
+# The check therefore asserts the layer was SUPPLIED, not that the totals
+# reconcile -- the one thing reconciliation cannot see. It fires only when a
+# layer is zero in EVERY row, which is the one state that cannot be a
+# measurement: a world with no lakes and no glaciers. That makes it
+# false-positive-free on any real build, however the vocabulary or the
+# resolution changes, at the cost of not noticing a layer that is present but
+# wrong. A magnitude floor belongs at pin-publication time, where the expected
+# scale is known (the sound pin carries 461,821 water rows and 15,101 ice
+# rows, 1,643 and 618 Mha); here, in a reader that any caller may hit on any
+# vintage, the unambiguous signal is the right one. It warns rather than
+# aborts for the reason `.warn_polycell_vintage()` does, and because a caller
+# reading only `polity_area_ha` is unaffected.
+.warn_polycell_layers <- function(support) {
+  cols <- c("inland_water_ha", "ice_area_ha")
+  if (!all(purrr::map_lgl(cols, ~ rlang::has_name(support, .x)))) {
+    return(invisible(support))
+  }
+  empty <- cols[purrr::map_lgl(
+    cols,
+    ~ sum(support[[.x]] > 0, na.rm = TRUE) == 0L
+  )]
+  if (length(empty) == 0L) {
+    return(invisible(support))
+  }
+  land <- sum(support$land_area_ha, na.rm = TRUE) / 1e6
+  cli::cli_warn(c(
+    "!" = "The {.val polycell_support} pin has {.field {empty}} zero in every
+           row, so that layer's area is booked as land.",
+    i = "Land reads {round(land)} Mha here. A global zero is not a plausible
+         measurement: the layer was not supplied to
+         {.fn build_polycell_support}, which zero-fills it silently (whep#885,
+         whep#1010).",
+    i = "Check the pinned version in {.file inst/extdata/whep_inputs.csv}."
+  ))
+  invisible(support)
+}
+
+# The pin is a BUILD ARTEFACT of `whep::polities`, and merge order cannot keep
+# the two in step: a PR that re-syncs the vocabulary and a PR that regenerates
+# the pin are both correct in isolation and land against different snapshots.
+# That has now happened three times (whep#890, whep#905, whep#908), and each
+# time it was found by a consumer tripping over a missing territory rather than
+# by anything checking.
+#
+# So the reader says so. It compares the pin's polity set against what
+# `build_polycell_support()` would emit from today's vocabulary, and names the
+# territories that would be absent. It warns rather than aborts because a stale
+# pin is usable -- the gap is small and peripheral by construction, since a
+# newly minted polity is usually a small territory -- and because aborting would
+# make every downstream reader fail on a data refresh nobody has run yet.
+.warn_polycell_vintage <- function(support) {
+  prepared <- tryCatch(
+    .pcs_prepare_polities(whep::polities),
+    error = function(e) NULL
+  )
+  if (is.null(prepared) || !rlang::has_name(support, "polity_code")) {
+    return(invisible(support))
+  }
+  # Only polities that COULD have cells. Fourteen live polities carry no polygon
+  # at all (`polygon_status == "unassigned"`, e.g. CAN-1800-1866, PRY-1811-1870),
+  # so the producer cannot emit cells for them and never will until upstream
+  # draws one. Comparing against the whole prepared set would warn about those
+  # fourteen on every read, forever -- a guard that cries wolf is worse than no
+  # guard, because the real staleness then arrives inside a warning people have
+  # learned to skip. Measured: regenerating against an up-to-date vocabulary
+  # recovers 2 polities and leaves exactly these 14.
+  can_have_cells <- prepared$polity_code[
+    !(prepared$polity_code %in% .polities_without_polygon())
+  ]
+  missing <- setdiff(unique(can_have_cells), unique(support$polity_code))
+  if (length(missing) == 0L) {
+    return(invisible(support))
+  }
+  cli::cli_warn(c(
+    "!" = "The {.val polycell_support} pin is behind {.code whep::polities}:
+           {length(missing)} polit{?y/ies} in the vocabulary {?has/have} no
+           cells in the pin.",
+    "*" = "{.val {sort(missing)}}",
+    "i" = "Regenerate with {.fn build_polycell_support} and re-upload; see
+           {.file data-raw/} and {.file inst/scripts/prepare_upload.R}."
+  ))
+  invisible(support)
 }
 
 # The default is the PARTITION, and that is the whole consumer-side contract of
@@ -543,4 +638,15 @@ read_polycell_support <- function(
 
 .half_degree_centre <- function(x) {
   floor((x + 180) / 0.5) * 0.5 - 180 + 0.25
+}
+
+
+# Live polities with no polygon, read from the vocabulary rather than listed, so
+# it shrinks by itself as upstream draws them (whep-polities#155, #3).
+.polities_without_polygon <- function() {
+  pol <- sf::st_drop_geometry(whep::polities)
+  keep <- is.na(pol$has_geometry) |
+    !pol$has_geometry |
+    (!is.na(pol$polygon_status) & pol$polygon_status == "unassigned")
+  unique(pol$polity_code[keep])
 }

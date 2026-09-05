@@ -111,21 +111,32 @@ polity_bucket_coverage <- function(years = NULL) {
   ) |>
     tibble::as_tibble() |>
     dplyr::filter(!is.na(.data$polity_code)) |>
-    dplyr::left_join(.area_first_reported_year(), by = "area_code")
+    dplyr::left_join(.area_reported_year_bounds(), by = "area_code")
 }
 
-# The first year the upstream FAOSTAT map reports each area at all.
+# The years the upstream FAOSTAT map reports each area at all, both ends.
 #
 # The resolver bounds a period BELOW by `polity_start_year`, not by the map's
 # reporting years, so it answers "which polity would area 276 be in 2011?" with
 # `SDN-2011-2025` even though FAOSTAT does not report area 276 before 2012.
 # That is right for the resolver -- a row that exists must resolve -- and wrong
 # for this diagnostic, which asks which areas a bucket actually sums.
-.area_first_reported_year <- function() {
+#
+# BOTH BOUNDS COME FROM THE MAP NOW, and the upper one used to arrive by
+# accident. Area 206 stops reporting in 2011, and what dropped it from bucket
+# 206's member set for 2012 onward was `mapping_status == "out_of_span"` --
+# true only while the bucket had nothing later than `SUD-1956-2011` to resolve
+# to. whep#860 gives it `F206-2011-2025` from 2012, which resolves `matched`,
+# so the area re-entered its own bucket's member set and the fold read as three
+# polities (its own aggregate label plus the two successors) instead of two.
+# The documented rule was always "the upstream map must report the area that
+# year"; only half of it was implemented.
+.area_reported_year_bounds <- function() {
   crosswalk <- .polity_crosswalk(include_unmapped = FALSE)
   empty <- tibble::tibble(
     area_code = integer(0),
-    first_reported_year = integer(0)
+    first_reported_year = integer(0),
+    last_reported_year = integer(0)
   )
   if (!rlang::has_name(crosswalk, "map_year_start")) {
     return(empty)
@@ -134,6 +145,7 @@ polity_bucket_coverage <- function(years = NULL) {
     dplyr::filter(!is.na(.data$area_code), !is.na(.data$map_year_start)) |>
     dplyr::summarise(
       first_reported_year = min(.data$map_year_start),
+      last_reported_year = max(.data$map_year_end),
       .by = "area_code"
     )
 }
@@ -145,11 +157,13 @@ polity_bucket_coverage <- function(years = NULL) {
 # Sudan areas for 1990 returns SUD-1956-2011 (the one FAOSTAT actually reports)
 # plus SDN-2011-2025 and SSD-2011-2025 as stand-ins, and counting those made the
 # bucket look like a three-way fold in a year where only one area reports at
-# all. Two bounds are needed because the resolver applies neither for this
-# purpose: `out_of_span` drops a stand-in above a period, and the upstream map's
-# first reported year drops one below it -- area 276 resolves to SDN-2011-2025
-# from 2011 because that polity starts then, while FAOSTAT begins reporting the
-# area in 2012.
+# all. Three bounds are needed because the resolver applies none of them for
+# this purpose: `out_of_span` drops a stand-in on a period that never resolves,
+# and the upstream map's reporting years drop one below and one above it -- area
+# 276 resolves to SDN-2011-2025 from 2011 because that polity starts then, while
+# FAOSTAT begins reporting the area in 2012, and area 206 resolves to
+# F206-2011-2025 from 2012 as the BUCKET's label while FAOSTAT stopped reporting
+# the AREA in 2011.
 #
 # Measured on the FAOSTAT production pin, the reporting spans do not overlap:
 # area 206 carries 13,759 rows over 1961-2011, area 276 carries 3,467 over
@@ -159,7 +173,9 @@ polity_bucket_coverage <- function(years = NULL) {
     dplyr::filter(
       is.na(.data$mapping_status) | .data$mapping_status != "out_of_span",
       is.na(.data$first_reported_year) |
-        .data$year >= .data$first_reported_year
+        .data$year >= .data$first_reported_year,
+      is.na(.data$last_reported_year) |
+        .data$year <= .data$last_reported_year
     )
 }
 

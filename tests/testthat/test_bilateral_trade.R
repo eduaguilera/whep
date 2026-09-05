@@ -741,6 +741,68 @@ testthat::test_that(".balance_total_trade rescales larger side", {
   )
 })
 
+# .mass_only_bilateral_trade / .nest_by_year_item_code -------------------------
+
+testthat::test_that(".mass_only_bilateral_trade drops non-tonnes rows with a warning", {
+  btd <- tibble::tribble(
+      ~item_cbs_code, ~unit,    ~value,
+      1,              "tonnes", 100,
+      1,              "heads",  5000000,
+      2,              "tonnes", 40,
+    )
+
+  testthat::expect_warning(
+    result <- .mass_only_bilateral_trade(btd),
+    "not denominated in mass"
+  )
+
+  testthat::expect_false("unit" %in% names(result))
+  testthat::expect_equal(nrow(result), 2)
+  testthat::expect_equal(sum(result$value), 140)
+})
+
+testthat::test_that(".mass_only_bilateral_trade keeps quiet if all tonnes", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~unit,    ~value,
+    1,              "tonnes", 100,
+    2,              "tonnes", 40,
+  )
+
+  result <- testthat::expect_no_warning(.mass_only_bilateral_trade(btd))
+
+  testthat::expect_equal(sum(result$value), 140)
+})
+
+testthat::test_that(
+  paste(
+    ".nest_by_year_item_code does not sum head counts into the tonnes",
+    "column (whep#962)"
+  ),
+  {
+    # Regression for whep#962: .build_trade_matrix() sums `value` with no
+    # unit dimension, so a head-denominated row used to be added straight
+    # into the tonnes-denominated bilateral trade matrix.
+    btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit, ~value,
+      2010,  1,              10L,        20L,      "tonnes", 100,
+      2010,  1,              10L,        20L,      "heads",  5000000,
+    )
+    cbs <- tibble::tribble(
+      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+      2010,  1,              10L,        100,     0,
+      2010,  1,              20L,        0,       100,
+    )
+    codes <- factor(c(10L, 20L))
+
+    testthat::expect_warning(
+      result <- .nest_by_year_item_code(btd, cbs, codes),
+      "not denominated in mass"
+    )
+
+    testthat::expect_equal(sum(result$bilateral_trade[[1]]$value), 100)
+  }
+)
+
 # .match_btd_item_codes / .clean_bilateral_trade -------------------------------
 
 testthat::test_that(".match_btd_item_codes resolves CBS item names", {

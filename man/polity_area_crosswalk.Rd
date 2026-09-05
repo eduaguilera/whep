@@ -38,13 +38,22 @@ period of a mapped area lying outside every span the map declares, kept so
 sources reported under their own historical borders still resolve;
 \code{"fabio_row_fold"} where FABIO collapses the area into its Rest-of-World
 bucket; \code{"prefix_fallback"} where the map covers the area not at all and the
-mapping is inferred from the polity-code prefix.
+mapping is inferred from the polity-code prefix;
+\code{"whep_bucket_aggregate"} for a row that answers for an aggregation
+\strong{bucket} rather than for a reporting area, described below.
 \item \code{map_year_start}, \code{map_year_end}: Inclusive reporting years the upstream map
 assigns to this area-polity pair, \code{NA} unless \code{mapping_source} is
 \code{"upstream_map"}.
 \item \code{map_match_route}: Upstream's record of how it decided the row
 (\code{"iso-equal"}, \code{"registry"}, \code{"manual-route"}, \code{"manual-replace"},
 \code{"manual-span"}), \code{NA} unless \code{mapping_source} is \code{"upstream_map"}.
+\item \code{applies_from_year}: First year the row answers for, when that is later
+than \code{polity_start_year}. \code{NA} on every row that answers for a reporting
+area, whose lower bound is the polity's own start -- a row that exists must
+resolve, so area 276 answers \code{SDN-2011-2025} from 2011 even though upstream
+begins reporting the area in 2012. It is non-\code{NA} only on a
+\code{"whep_bucket_aggregate"} row, where it is the first year the bucket
+actually sums more than one reporting area.
 \item \code{mapping_status}: Whether a polity was found, \strong{not} how much to trust it.
 \code{"matched"} when a live polity resolved; \code{"manual"} when the decision was
 curated by hand, either by upstream (a \verb{manual-*} \code{map_match_route}) or by
@@ -100,6 +109,36 @@ same answer is \code{reporting_polity_code}, materialised from this table's
 \code{legacy_polity_prefix} is not a substitute for one (#711).
 }
 
+\section{A bucket that sums two territories gets a polity that means both}{
+
+Every other row here answers for a \strong{reporting area}, because that is what
+upstream's map is about. Bucket 206 from 2012 is the one place that is not
+enough: FAOSTAT reports area 206 through 2011 and areas 276/277 from 2012,
+WHEP sums the two successors back into bucket 206, and the bucket's own code
+had nothing later than \code{SUD-1956-2011} to answer with -- a polity that ended
+at the secession, reported \code{out_of_span} on every post-2011 row (#414).
+
+Upstream now publishes the entity that means the sum, \code{F206-2011-2025}
+"Sudan and South Sudan (combined reporting)", \code{aggregate}, with a constructed
+polygon, on the same \verb{F<area>} naming as \code{F237-1954-1975} (Vietnam) and
+\code{F249-1918-1990} (Yemen). It has no map row, correctly: as a claim about the
+reporting area it would be false. \code{data-raw/table_mappings.R} therefore adds
+one row per bucket that genuinely sums several territories and has no
+aggregate label of its own, deriving both the bucket-years and the polity
+from the two upstream tables rather than naming either by hand (#860).
+
+The row answers from \code{applies_from_year} (2012), not from the polity's own
+2011 start: at 2011 bucket 206 is still area 206 reporting alone, and
+upstream's map decides that year. So \verb{(206, 2011)} stays \code{SUD-1956-2011} and
+only the years the bucket really is a two-territory sum move.
+
+The shape is unusual and deliberate: this aggregate is live \strong{at the same
+time as its own members}, since areas 276 and 277 keep reporting
+separately. That is not a defect -- \code{BLX-1850-1999} coexists with \code{BEL} and
+\code{LUX} for 149 years -- and it makes bucket 206 the first bucket key carrying
+three live polities at once.
+}
+
 \section{A bucket resolves here only because it is also an area}{
 
 There is one key column, \code{area_code}, and callers hand it \strong{two kinds of
@@ -119,6 +158,13 @@ bucket 238, which sums FAOSTAT area 62 Ethiopia PDR for 1961-1992; as an
 area row it dates FAOSTAT area 238 itself for a historical source reported
 under its own year's borders, which is how 149 historical-trade rows resolve
 at 1961. Marking it for one space would move the other. See #742.
+
+\verb{(206, F206-2011-2025)} is the one row written \strong{for} the bucket, and it
+answers in the area space too: raw FAOSTAT area 206 for 2012 onwards
+resolves to it. Nothing is misattributed by that, because FAOSTAT emits no
+area-206 row after 2011 -- the claim is unexercised rather than false -- but
+it is the first row for which the two spaces could be told apart at all,
+which is the column #742 asks for and this table still does not carry.
 }
 
 \section{Confidence is the pair, not \code{mapping_status} alone}{
@@ -171,17 +217,12 @@ No absence here can NA an \code{area_code} on a polycell, either:
 \code{\link[=build_polycell_support]{build_polycell_support()}} excludes \code{polity_type == "aggregate"} by type
 before any lookup runs, so an aggregate emits no polycell to carry one.
 
-The one absence that is a real gap is \code{F206-2011-2025}, Sudan and South
-Sudan combined, and \strong{it is a gap in the bucket vocabulary rather than in
-\code{area_code}}. FAOSTAT stops reporting area 206 in 2011 and does not
-resume, so upstream deliberately adds no map row for it; the post-2011
-combination is WHEP's own fold of areas 276 and 277 into
-\code{polity_area_code} 206. This table answers per reporting area and has no
-column in which to say "bucket 206 from 2012 answers as \code{F206-2011-2025}",
-which is why \code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} still labels that bucket
-\code{SUD-1956-2011} / \code{"out_of_span"} for 2012 onward -- a polity that ended in
-2011. Expressing it is #742 and labelling it is #860; neither is decided
-here.
+\code{F206-2011-2025} used to be the one absence that was a real gap, and it is
+filled: it now has a row, keyed on the bucket rather than on a reporting
+area, so \code{\link[=polity_bucket_coverage]{polity_bucket_coverage()}} classifies bucket 206 \code{"aggregate"} from
+2012 instead of \code{"predecessor"}. See the bucket section above; #742's
+\code{key_role} column, which would mark a row as answering in only one of the
+two key spaces, is still open and is not what \code{applies_from_year} does.
 }
 
 \keyword{datasets}

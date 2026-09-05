@@ -334,3 +334,116 @@ testthat::test_that("sampled centres land on WHEP's canonical half-degree grid",
   testthat::expect_identical(water$lon, canonical)
   testthat::expect_identical(water$lat, floor(water$lat / 0.5) * 0.5 + 0.25)
 })
+
+# whep#908. The pin is a build artefact of `whep::polities`, and the two have
+# drifted apart three times (whep#890, whep#905, whep#908) -- each found by a
+# consumer tripping over a missing territory, never by a check. This is the
+# check. It is deliberately a WARNING and not an abort: a stale pin is usable,
+# and aborting would break every reader on a refresh nobody has run yet.
+testthat::test_that("reading a pin behind the vocabulary names the missing polities", {
+  support <- tibble::tibble(
+    polycell_id = 1:2,
+    polity_code = c("AAA-1900-2000", "BBB-1900-2000"),
+    cell_id = 1:2,
+    start_year = c(1900L, 1900L),
+    end_year = c(2000L, 2000L)
+  )
+  prepared <- tibble::tibble(
+    polity_code = c("AAA-1900-2000", "BBB-1900-2000", "ZZZ-2010-2025")
+  )
+  testthat::with_mocked_bindings(
+    testthat::expect_warning(
+      whep:::.warn_polycell_vintage(support),
+      "ZZZ-2010-2025"
+    ),
+    .pcs_prepare_polities = function(...) prepared,
+    .package = "whep"
+  )
+
+  # ...and stays silent when the pin covers the vocabulary. Without this half
+  # the guard could warn unconditionally and still pass the assertion above.
+  testthat::with_mocked_bindings(
+    testthat::expect_silent(whep:::.warn_polycell_vintage(support)),
+    .pcs_prepare_polities = function(...) prepared[1:2, ],
+    .package = "whep"
+  )
+
+  # A pin carrying MORE than the vocabulary is not a staleness: a retired polity
+  # keeps its cells until the next regeneration, and warning about that would
+  # cry wolf on every upstream retirement.
+  testthat::with_mocked_bindings(
+    testthat::expect_silent(whep:::.warn_polycell_vintage(support)),
+    .pcs_prepare_polities = function(...) prepared[1, ],
+    .package = "whep"
+  )
+})
+
+# whep#1010, the recurrence of whep#885: a support built without its water and
+# ice layers reconciles perfectly, because `polity_area_ha == land +
+# inland_water + ice` is satisfied by zero. The guard has to see that the
+# layers were SUPPLIED, which is the one thing the identity cannot show.
+.layerless_support <- function(water = 0, ice = 0) {
+  tibble::tibble(
+    polycell_id = 1:3,
+    lon = c(0.25, 0.75, 1.25),
+    lat = c(0.25, 0.25, 0.25),
+    polity_code = "AAA-1800-2025",
+    area_code = 1L,
+    land_area_ha = c(1000, 2000, 3000),
+    inland_water_ha = water,
+    ice_area_ha = ice
+  )
+}
+
+testthat::test_that(".warn_polycell_layers catches a zero-filled layer", {
+  # Both layers missing: the shape both shipped pins had.
+  testthat::expect_warning(
+    whep:::.warn_polycell_layers(.layerless_support()),
+    "inland_water_ha"
+  )
+  # One at a time, so the message names the layer that is actually empty
+  # rather than warning generically whenever either is.
+  testthat::expect_warning(
+    whep:::.warn_polycell_layers(.layerless_support(water = 5)),
+    "ice_area_ha"
+  )
+  testthat::expect_warning(
+    whep:::.warn_polycell_layers(.layerless_support(ice = 5)),
+    "inland_water_ha"
+  )
+})
+
+testthat::test_that(".warn_polycell_layers is silent on a supplied layer", {
+  # Without this half the guard could warn unconditionally and still pass
+  # above. A single non-zero row is enough: the claim is that the layer was
+  # supplied, not that any particular cell has water.
+  testthat::expect_silent(
+    whep:::.warn_polycell_layers(.layerless_support(water = 5, ice = 5))
+  )
+  testthat::expect_silent(
+    whep:::.warn_polycell_layers(
+      .layerless_support(water = c(0, 0, 7), ice = c(0, 3, 0))
+    )
+  )
+})
+
+testthat::test_that(".warn_polycell_layers ignores a support without the columns", {
+  # `role = "partition"` callers and hand-built fixtures need not carry them.
+  testthat::expect_silent(
+    whep:::.warn_polycell_layers(
+      dplyr::select(.layerless_support(), -"inland_water_ha", -"ice_area_ha")
+    )
+  )
+})
+
+testthat::test_that("the identity alone cannot catch a zero-filled layer", {
+  # The regression test for the REASON, not only the symptom: this is exactly
+  # the check that passed on both broken pins.
+  s <- .layerless_support()
+  s$polity_area_ha <- s$land_area_ha + s$inland_water_ha + s$ice_area_ha
+  testthat::expect_equal(
+    s$polity_area_ha,
+    s$land_area_ha + s$inland_water_ha + s$ice_area_ha
+  )
+  testthat::expect_warning(whep:::.warn_polycell_layers(s), "not a plausible")
+})

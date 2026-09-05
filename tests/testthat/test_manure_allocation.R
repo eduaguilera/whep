@@ -372,3 +372,34 @@ test_that("a present but missing manure_type aborts instead of duplicating mass"
     "manure_type"
   )
 })
+
+# whep#226: the internal per-stream and per-manure_type aggregations both
+# sum applied N, C and volatile solids without na.rm, so an NA silently
+# poisons the whole (year, territory, sub_territory) aggregate instead of
+# being caught.
+# Real data (whep#972's rule) never puts an NA there -- the internal driver
+# guarantees it -- but allocate_manure_to_land() is exported, so a caller can.
+# The entry point must abort loudly rather than let the NA propagate or
+# (worse) silently zero the group with na.rm = TRUE.
+test_that("a non-finite applied_n/applied_c/applied_vs aborts up front", {
+  na_n <- .toy_applied()
+  na_n$applied_n[1] <- NA_real_
+  expect_error(
+    whep::allocate_manure_to_land(na_n, .toy_gridded()),
+    class = "whep_manure_applied_non_finite"
+  )
+
+  na_c <- .toy_applied()
+  na_c$applied_c[2] <- NA_real_
+  expect_error(
+    whep::allocate_manure_to_land(na_c, .toy_gridded()),
+    class = "whep_manure_applied_non_finite"
+  )
+
+  inf_vs <- .toy_applied()
+  inf_vs$applied_vs[3] <- Inf
+  expect_error(
+    whep::allocate_manure_to_land(inf_vs, .toy_gridded()),
+    class = "whep_manure_applied_non_finite"
+  )
+})

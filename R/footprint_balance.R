@@ -351,7 +351,14 @@ build_land_balance_footprint <- function(
   # Build grassland once and pass it in: the FAO-arable crop extension nets the
   # same CBS 3002 out of its arable target as the grass side adds back, so
   # crop + grass occupation reconciles to FAO Arable land (no double-count).
-  grass_full <- build_grassland_land_extension(grassland_metric = "occupation")
+  # The LUH2 source is pinned explicitly here: it is the extension's own
+  # default, but that default disagrees with the whole-territory land-use
+  # ledger, which anchors grassland on the FAOSTAT pasture statistic
+  # instead (whep#759).
+  grass_full <- build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "occupation"
+  )
   crop <- build_fao_arable_fallow_extension(temporary_grassland = grass_full) |>
     dplyr::filter(year == .env$year) |>
     dplyr::select(area_code, item_cbs_code, value = impact_u)

@@ -110,7 +110,13 @@ whep_list_file_versions <- function(file_alias) {
 }
 
 .read_file <- function(paths, extension) {
-  path <- purrr::detect(paths, ~ stringr::str_ends(.x, extension))
+  # `extension` (e.g. "tar.gz") is a literal suffix, not a pattern: its "."
+  # would otherwise match any character as a regex, so a path ending in
+  # "tarXgz" (any X) would wrongly count as a "tar.gz" match (whep#172).
+  path <- purrr::detect(
+    paths,
+    ~ stringr::str_ends(.x, stringr::fixed(extension))
+  )
 
   # Only for formats this function knows how to read: an unrecognised
   # `extension` must still fall through to the "unknown file type" error. "nc"

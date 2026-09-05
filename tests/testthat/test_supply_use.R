@@ -74,13 +74,6 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
     2002, 1, 7, 2, 3, "tonnes", 50
   )
 
-  cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~production,
-    2000, 1, 1, 20,
-    2000, 1, 2, 30,
-    2001, 1, 1, 40
-  )
-
   slaughter_product_items <- tibble::tibble(
     item_cbs_code = 6L
   )
@@ -97,7 +90,6 @@ testthat::test_that(".build_supply_husbandry gives livestock and non-slaughter p
   .build_supply_husbandry(
     husbandry_items,
     primary_prod,
-    cbs,
     slaughter_product_items
   ) |>
     .expect_equal_unordered(expected)
@@ -417,8 +409,7 @@ testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable"
 
   result <- .build_livestock_supply(
     primary_prod,
-    husbandry_items,
-    cbs = NULL
+    husbandry_items
   )
 
   testthat::expect_equal(nrow(result), 2)
@@ -428,7 +419,7 @@ testthat::test_that(".build_livestock_supply uses heads when CBS is unavailable"
   )
 })
 
-testthat::test_that(".build_livestock_supply ignores CBS production flow", {
+testthat::test_that(".build_livestock_supply ignores non-heads rows", {
   husbandry_items <- tibble::tibble(
     live_anim_code = c(1, 2)
   )
@@ -438,17 +429,10 @@ testthat::test_that(".build_livestock_supply ignores CBS production flow", {
     2000, 1, 11, 2, NA, "heads", 200,
     2000, 1, 12, 1, NA, "tonnes", 50
   )
-  cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~production,
-    2000, 1, 1, 10,
-    2000, 1, 2, 20,
-    2000, 1, 3, 30
-  )
 
   result <- .build_livestock_supply(
     primary_prod,
-    husbandry_items,
-    cbs
+    husbandry_items
   )
 
   expected <- tibble::tribble(
@@ -471,15 +455,9 @@ testthat::test_that(".build_livestock_supply keeps live animals in head units", 
     2000, 1, 10, 50, 1, "tonnes", 80,
     2000, 1, 11, 51, 1, "tonnes", 20
   )
-  cbs <- tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~production, ~processing,
-    2000, 1, 1, 8, 10
-  )
-
   result <- .build_livestock_supply(
     primary_prod,
-    husbandry_items,
-    cbs
+    husbandry_items
   )
 
   expected <- tibble::tribble(

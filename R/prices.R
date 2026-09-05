@@ -717,31 +717,38 @@ build_cbs_prices <- function(
     data.table::setDT(cbs)
   }
 
-  # Get all year x item combinations present in CBS
-  cbs_items <- cbs[,
-    .(year, item_cbs_code)
-  ]
-  cbs_items <- unique(cbs_items)
+  # Every year x item combination actually present in CBS, i.e. each
+  # item's own CBS year span (not a global min/max across all items).
+  cbs_items <- unique(cbs[, .(year, item_cbs_code)])
 
-  # Join with prices to ensure coverage
-  dt <- merge(
+  # Item/element combinations known from the price table, restricted to
+  # items that actually appear in the CBS (drops price-only items that
+  # were never a CBS item at all).
+  item_elements <- unique(
+    dt[
+      item_cbs_code %in% cbs_items$item_cbs_code,
+      .(item_cbs, item_cbs_code, element)
+    ]
+  )
+
+  # Target grid: each item's CBS years crossed with its own known
+  # elements, so completion/extrapolation below never reaches a year in
+  # which that item was not part of the CBS.
+  target <- merge(
     cbs_items,
-    dt,
-    by = c("year", "item_cbs_code"),
-    all = TRUE
+    item_elements,
+    by = "item_cbs_code",
+    allow.cartesian = TRUE
   )
 
-  # Complete all year x item x element combinations
-  dt <- tidyr::complete(
-    tibble::as_tibble(dt),
-    year,
-    tidyr::nesting(
-      !!!rlang::syms(c("item_cbs", "item_cbs_code", "element"))
-    )
+  dt <- merge(
+    target,
+    dt[, .(year, item_cbs, item_cbs_code, element, price)],
+    by = c("year", "item_cbs_code", "item_cbs", "element"),
+    all.x = TRUE
   )
-  data.table::setDT(dt)
 
-  # Gap-fill prices over time
+  # Gap-fill prices over time, within each item's own CBS year span
   dt <- fill_linear(
     dt,
     price,

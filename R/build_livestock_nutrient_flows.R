@@ -106,6 +106,16 @@ build_livestock_nutrient_flows <- function(
   stats::setNames(lapply(stages, function(s) methods[[s]] %||% list()), stages)
 }
 
+# No na.rm here (whep#226): `losses` is always the internally-computed
+# apply_management_losses() result, never caller-supplied, and none of these
+# columns can carry an NA on that path -- apply_management_losses() already
+# aborts if a loss fraction or EF3 is missing, and every upstream sum feeding
+# n_stream (estimate_n_excretion()) already uses na.rm = TRUE, so a sparse
+# input becomes 0 there, not NA, before it ever reaches this helper. Measured
+# on real 1970 and 2010 national runs: 0 of ~462k rows and 0 of ~29k groups
+# carry an NA in any of these 7 columns. na.rm would only matter for a whole-
+# NA group, and per whep#972 that would silently fabricate a 0 for a case
+# that cannot occur here.
 .summarise_losses <- function(losses) {
   cols <- c(
     "n_volatilized",
