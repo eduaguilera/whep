@@ -165,7 +165,15 @@ create_n_production <- function(example = FALSE) {
     .ensure_destiny_cols() |>
     dplyr::mutate(
       feed = livestock_rum + livestock_mono,
-      prod = population_food + population_other_uses + feed + export,
+      # population_food_inedible is the remainder .split_food_inedible_loss()
+      # (n_prov_destiny.R) split out of population_food -- it was still
+      # produced, so it belongs in this total or NUE would be understated by
+      # exactly the inedible fraction.
+      prod = population_food +
+        population_food_inedible +
+        population_other_uses +
+        feed +
+        export,
       # Fish has no domestic production
       prod = dplyr::if_else(box == "Fish", 0, prod)
     ) |>
@@ -188,6 +196,7 @@ create_n_production <- function(example = FALSE) {
     "livestock_rum",
     "livestock_mono",
     "population_food",
+    "population_food_inedible",
     "population_other_uses",
     "export"
   )

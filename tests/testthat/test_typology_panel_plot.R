@@ -147,3 +147,43 @@ test_that("periods panel checks its plotting packages up front", {
   )
   expect_equal(record$pkg, c("ggplot2", "patchwork"))
 })
+
+
+# .ext_dep_values / .pollution_values -------------------------------------
+
+test_that(".ext_dep_values counts population_food_inedible on both sides", {
+  # population_food_inedible is the remainder .split_food_inedible_loss()
+  # (n_prov_destiny.R) split out of population_food; it must count on
+  # whichever side (external/internal) its origin belongs to.
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Outside", "population_food", 10,
+    2000, "A", "Outside", "population_food_inedible", 5,
+    2000, "A", "Cropland", "population_food", 20,
+    2000, "A", "Cropland", "population_food_inedible", 10
+  )
+
+  out <- whep:::.ext_dep_values(flows)
+
+  # ext_mg = 15 (10 + 5), int_mg = 30 (20 + 10); value = 15 / 45.
+  expect_equal(out$value, 15 / 45)
+})
+
+test_that(".pollution_values counts population_food_inedible in soil_out and lv_out", {
+  flows <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Cropland", "population_food", 20,
+    2000, "A", "Cropland", "population_food_inedible", 5,
+    2000, "A", "Livestock", "population_food", 8,
+    2000, "A", "Livestock", "population_food_inedible", 2
+  )
+  area_df <- tibble::tribble(
+    ~year, ~province_name, ~area_ha,
+    2000, "A", 100
+  )
+
+  out <- whep:::.pollution_values(flows, area_df)
+
+  expect_equal(out$soil_out, 25)
+  expect_equal(out$lv_out, 10)
+})

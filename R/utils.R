@@ -2105,6 +2105,13 @@ utils::globalVariables(
     "consump_green_all_mm",
     # commodity_balance_sheet.R (#168) — the live-animal slaughter total
     # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
-    "slaughtered"
+    "slaughtered",
+    # n_prov_destiny.R -- build_food_protein_destiny() NSE columns
+    "Edible_portion",
+    "edible_fraction",
+    # n_soil_inputs_nue.R -- .calculate_n_production()'s pivoted destiny
+    # column for the inedible remainder .split_food_inedible_loss()
+    # (n_prov_destiny.R) split out of population_food
+    "population_food_inedible"
   )
 )

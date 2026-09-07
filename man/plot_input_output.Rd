@@ -27,9 +27,7 @@ A \code{ggplot} object.
 \description{
 Builds a stacked-area plot of Spanish national nitrogen inputs (as negative
 values), production, residues, and surplus over time for either cropland or
-semi-natural agroecosystems. For the semi-natural system a nitrogen
-"Accumulation" term (net soil/biomass N accumulation) is added when the
-\code{n_balance_ygpit_all} pin is available.
+semi-natural agroecosystems.
 }
 \examples{
 plot_input_output(example = TRUE)

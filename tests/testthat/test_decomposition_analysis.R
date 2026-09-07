@@ -128,6 +128,10 @@ test_that(".destiny_group maps raw destinies to the four buckets", {
   )
 })
 
+test_that(".destiny_group maps population_food_inedible to domestic_food too", {
+  expect_equal(.destiny_group("population_food_inedible"), "domestic_food")
+})
+
 # Tests for .crop_output_by_destiny and .crop_item_destiny_shares
 test_that("crop destiny shares are computed proportionally per item", {
   n_prov_destiny <- tibble::tribble(
@@ -153,6 +157,22 @@ test_that("crop destiny shares are computed proportionally per item", {
   expect_equal(wheat_food, 0.6)
   expect_equal(wheat_feed, 0.4)
   expect_equal(barley_export, 1)
+})
+
+test_that(".crop_output_by_destiny groups population_food_inedible with domestic_food", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~item, ~origin, ~destiny, ~mg_n,
+    2000, "A", "Wheat", "Cropland", "population_food", 60,
+    2000, "A", "Wheat", "Cropland", "population_food_inedible", 15,
+    2000, "A", "Wheat", "Cropland", "livestock_rum", 40
+  )
+
+  out <- .crop_output_by_destiny(n_prov_destiny)
+
+  domestic_food <- out |>
+    dplyr::filter(item == "Wheat", destiny_grp == "domestic_food") |>
+    dplyr::pull(output_mg)
+  expect_equal(domestic_food, 75)
 })
 
 # .allocate_by_destiny_share
@@ -362,6 +382,24 @@ test_that("semi-natural panel computes surplus and national total area", {
   expect_equal(panel$surplus[panel$province_name == "A"], 50 - 20)
   expect_equal(panel$surplus[panel$province_name == "B"], 30 - 0)
   expect_equal(unique(panel$total_area), 150)
+})
+
+test_that(".build_semi_natural_panel counts population_food_inedible as output", {
+  n_prov_destiny <- tibble::tribble(
+    ~year, ~province_name, ~origin, ~destiny, ~mg_n,
+    2000, "A", "semi_natural_agroecosystems", "population_food", 20,
+    2000, "A", "semi_natural_agroecosystems", "population_food_inedible", 5,
+    2000, "A", "Deposition", "semi_natural_agroecosystems", 50
+  )
+  npp_ygpit <- tibble::tribble(
+    ~Year, ~Province_name, ~LandUse, ~Area_ygpit_ha,
+    2000, "A", "Dehesa", 100
+  )
+
+  panel <- .build_semi_natural_panel(n_prov_destiny, npp_ygpit)
+
+  expect_equal(panel$outputs, 25)
+  expect_equal(panel$surplus, 50 - 25)
 })
 
 # .national_livestock_lu

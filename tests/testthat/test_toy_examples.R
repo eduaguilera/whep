@@ -181,7 +181,7 @@ testthat::test_that("create_n_prov_destiny example returns valid tibble", {
   result <- create_n_prov_destiny(example = TRUE)
 
   testthat::expect_s3_class(result, "tbl_df")
-  testthat::expect_equal(nrow(result), 10)
+  testthat::expect_equal(nrow(result), 11)
   pointblank::expect_col_exists(
     result,
     columns = c(
@@ -197,6 +197,11 @@ testthat::test_that("create_n_prov_destiny example returns valid tibble", {
   )
   pointblank::expect_col_vals_not_null(result, "year")
   pointblank::expect_col_vals_not_null(result, "mg_n")
+  # The fixture must carry the edible/inedible split the real builder emits,
+  # so the documented example keeps showing both destinies.
+  testthat::expect_true(
+    "population_food_inedible" %in% result$destiny
+  )
 })
 
 testthat::test_that("create_n_nat_destiny example returns valid tibble", {

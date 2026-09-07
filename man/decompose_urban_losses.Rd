@@ -47,12 +47,20 @@ is deliberately excluded even though \code{.create_wastewater_surplus_df()}
 in \code{grafs_plot_df.R} includes it: that material is not ingested, so it
 cannot be assumed to leave the body as excreta, breaking the
 intake-approximates-excretion logic this compartment relies on.
+\code{population_food_inedible} -- the non-edible remainder
+\code{.split_food_inedible_loss()} (n_prov_destiny.R) split out of
+\code{population_food} (peel, bone, and similar trimmings) -- is excluded for
+the same reason: it is never ingested, so it cannot leave the body as
+excreta either. Unlike \code{population_other_uses}, it never reaches the
+population as food in this model at all -- it gets its own arrows,
+\code{{CRP_PROCLOSS}}/\code{{LVSTCK_INEDIBLE}} in \code{grafs_plot_df.R}, leaving
+Cropland/Livestock directly.
 
-Food waste is not included: the commodity-balance sheets underlying
-\code{n_prov_destiny} carry Food/Feed/Seed/Other-uses/Export/Import
-destinies but no separate consumer food-waste line, so this loss is
-excreta-only. Whether the \code{urban}/\code{People} recycling flows already
-folded in some food waste from the original source is unconfirmed.
+This compartment captures excreta loss only, not consumer food waste
+(spoilage, plate waste and similar, once ingredients have already
+reached the household) -- \code{n_prov_destiny} has no destiny for that.
+Whether the \code{urban}/\code{People} recycling flows already folded in some food
+waste from the original source is unconfirmed.
 }
 \examples{
 decompose_urban_losses(example = TRUE)
