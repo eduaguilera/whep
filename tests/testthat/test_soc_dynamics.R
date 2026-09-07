@@ -39,7 +39,11 @@ test_that("all five models return exactly the same columns", {
           initial_soc_mgc_ha = 50,
           c_input_mgc_ha_yr = 2,
           years = 5,
-          clay_pct = 20
+          clay_pct = 20,
+          # Structural test: it is about the schema, not the climate. "lpjml"
+          # now refuses to run without its drivers, and saying `1` explicitly
+          # is how a caller declares it meant neutral (whep#1006).
+          climate_modifier = 1
         )
       )
     }
@@ -65,7 +69,8 @@ test_that("soc_total is the year's pool sum for every model", {
         initial_soc_mgc_ha = 50,
         c_input_mgc_ha_yr = 2,
         years = 5,
-        clay_pct = 20
+        clay_pct = 20,
+        climate_modifier = 1
       )
     )
     per_year <- out |>
@@ -245,4 +250,66 @@ test_that("an already-supplied climate_modifier is honoured when raw drivers are
     utils::tail(no_mod$soc_total, 1),
     tolerance = 1e-9
   )
+})
+
+testthat::test_that("model = 'lpjml' refuses to run at a neutral modifier", {
+  # whep#1006: LPJmL's decomposition IS its temperature and moisture response,
+  # so a missing driver resolving to 1 does not give a coarser answer, it
+  # deletes the climate response, silently, on every production path.
+  base <- list(
+    initial_soc_mgc_ha = 50,
+    c_input_mgc_ha_yr = 2,
+    years = 3,
+    clay_pct = 20
+  )
+  testthat::expect_error(
+    whep::calculate_soc_dynamics(model = "lpjml", data = base),
+    "neutral climate modifier"
+  )
+  # It names what is still missing when only one driver is supplied.
+  testthat::expect_error(
+    whep::calculate_soc_dynamics(
+      model = "lpjml",
+      data = c(base, list(theta = 0.4))
+    ),
+    "temp_soil_c"
+  )
+})
+
+testthat::test_that("an explicit climate_modifier is still honoured for lpjml", {
+  # Supplying one says you meant it, so the refusal must not fire.
+  out <- whep::calculate_soc_dynamics(
+    model = "lpjml",
+    data = list(
+      initial_soc_mgc_ha = 50,
+      c_input_mgc_ha_yr = 2,
+      years = 3,
+      clay_pct = 20,
+      climate_modifier = 0.5
+    )
+  )
+  testthat::expect_s3_class(out, "data.frame")
+  testthat::expect_equal(unique(out$soc_total[out$year == 0]), 50)
+})
+
+testthat::test_that("the other models keep the permissive neutral default", {
+  # The refusal is deliberately lpjml-only: for the others the modifier is a
+  # refinement on a rate that stands without it, so a missing driver must
+  # still give an answer.
+  for (m in c("hsoc", "rothc", "icbm", "amg")) {
+    out <- whep::calculate_soc_dynamics(
+      model = m,
+      data = list(
+        initial_soc_mgc_ha = 50,
+        c_input_mgc_ha_yr = 2,
+        years = 3,
+        clay_pct = 20
+      )
+    )
+    testthat::expect_equal(
+      unique(out$soc_total[out$year == 0]),
+      50,
+      label = m
+    )
+  }
 })

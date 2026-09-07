@@ -276,7 +276,8 @@ get_soc_climate_drivers <- function(
   clay <- .wb_require_input(data$clay, "clay", c("clay_pct"))
   polity <- .wb_require_input(data$cell_polity, "cell_polity", c("area_code"))
   hydraulic <- .socd_soil_hydraulic(data)
-  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic) |>
+  soil_temp <- .socd_soil_temp(data, run_dir, years)
+  .assemble_soc_drivers(swc, monthly, clay, polity, hydraulic, soil_temp) |>
     .apply_polity_validity(polity_validity)
 }
 
@@ -1216,8 +1217,15 @@ get_soc_climate_drivers <- function(
 # every polity it overlaps. theta (volumetric soil water content, the ICBM
 # moisture driver) is the LPJmL topsoil fractional saturation times the cell's
 # derived porosity: theta = swc_topsoil * porosity.
-.assemble_soc_drivers <- function(swc, monthly, clay, polity, hydraulic) {
-  swc |>
+.assemble_soc_drivers <- function(
+  swc,
+  monthly,
+  clay,
+  polity,
+  hydraulic,
+  soil_temp = NULL
+) {
+  out <- swc |>
     dplyr::inner_join(monthly, by = c("lon", "lat", "year", "month")) |>
     dplyr::left_join(clay, by = c("lon", "lat")) |>
     dplyr::inner_join(
@@ -1225,25 +1233,76 @@ get_soc_climate_drivers <- function(
       by = c("lon", "lat")
     ) |>
     dplyr::left_join(hydraulic, by = c("lon", "lat")) |>
-    dplyr::mutate(theta = .data$swc_topsoil * .data$porosity) |>
-    dplyr::select(
-      lon,
-      lat,
-      area_code,
-      year,
-      month,
-      temp_c,
-      swc_topsoil,
-      precip_mm,
-      pet_mm,
-      water_minus_pet_mm,
-      water_balance_mm,
-      clay_pct,
-      theta,
-      t_field,
-      t_wilt,
-      porosity,
-      method_water_input
+    dplyr::mutate(theta = .data$swc_topsoil * .data$porosity)
+  if (!is.null(soil_temp)) {
+    out <- dplyr::left_join(
+      out,
+      soil_temp,
+      by = c("lon", "lat", "year", "month")
+    )
+  }
+  dplyr::select(
+    out,
+    lon,
+    lat,
+    area_code,
+    year,
+    month,
+    temp_c,
+    dplyr::any_of("temp_soil_c"),
+    swc_topsoil,
+    precip_mm,
+    pet_mm,
+    water_minus_pet_mm,
+    water_balance_mm,
+    clay_pct,
+    theta,
+    t_field,
+    t_wilt,
+    porosity,
+    method_water_input
+  )
+}
+
+# Soil temperature for the 0-30 cm carbon pool, depth-weighted across the two
+# LPJmL layers that span it.
+#
+# Confirmed from this run's own configuration rather than assumed: LPJmL 6.1.1
+# `soildepth` is [200, 300, 500, 1000, 1000, 10000] mm, so layer 1 is 0-20 cm
+# and layer 2 is 20-50 cm. The pool takes all 20 cm of the first and the top
+# 10 cm of the second, hence (2 * soiltemp1 + soiltemp2) / 3.
+#
+# Only reachable from a run directory. The `lpjml-soc-hydrology` pin carries
+# swc_topsoil, prec_mm and irrig_mm and no soil temperature, so on the pinned
+# path this returns NULL and `soc_rate_modifier_lpjml()`'s caller aborts rather
+# than silently running at a neutral modifier (whep#1006). Wiring it into the
+# pin means regenerating all four LPJmL-derived pins together.
+.socd_soil_temp <- function(data, run_dir, years) {
+  if (!is.null(data$soil_temp)) {
+    .check_columns(
+      data$soil_temp,
+      c("lon", "lat", "year", "month", "temp_soil_c"),
+      "data$soil_temp"
+    )
+    return(tibble::as_tibble(data$soil_temp))
+  }
+  if (is.null(run_dir) && !nzchar(Sys.getenv("WHEP_LPJML_RUN_DIR", ""))) {
+    return(NULL)
+  }
+  layers <- purrr::map(
+    c("soiltemp1", "soiltemp2"),
+    \(v) {
+      read_lpjml_hydrology(v, run_dir = run_dir, years = years, monthly = TRUE)
+    }
+  )
+  weights <- c(2 / 3, 1 / 3)
+  purrr::map2(layers, weights, \(x, w) {
+    dplyr::mutate(x, w_value = .data$value * w)
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::summarise(
+      temp_soil_c = sum(.data$w_value),
+      .by = c("lon", "lat", "year", "month")
     )
 }
 

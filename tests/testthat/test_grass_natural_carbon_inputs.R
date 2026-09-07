@@ -1184,3 +1184,65 @@ testthat::test_that("a grassland layer without the net column is refused", {
     "net_c_mgc_ha_yr"
   )
 })
+
+testthat::test_that("floored grazing carbon is reported as mass, weighted by area", {
+  # The warning used to report an area-unweighted ratio of per-hectare
+  # densities, so a 1 ha cell short by 4 MgC/ha and a 10,000 ha cell short by
+  # 0.01 MgC/ha contributed equally. The quantity a reader needs is the mass
+  # that did not get removed.
+  rows <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    npp_c_mgc_ha_yr = c(1, 5),
+    grazed_c = c(5, 5)
+  )
+  land_use <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    land_use = "grassland",
+    area_ha = c(1, 10000)
+  )
+  # Only the first cell is short, by 4 MgC/ha over 1 ha = 4 Mg C.
+  testthat::expect_warning(
+    whep:::.gn_warn_grazing_over_production(rows, land_use),
+    "Tg C unremoved"
+  )
+  testthat::expect_warning(
+    whep:::.gn_warn_grazing_over_production(rows, land_use),
+    "Mha"
+  )
+  # Without a land-use layer it must SAY it is not a mass rather than pretend.
+  testthat::expect_warning(
+    whep:::.gn_warn_grazing_over_production(rows),
+    "not a mass"
+  )
+})
+
+testthat::test_that("a tiny cell cannot dominate the floored-carbon report", {
+  # The regression for the weighting itself: make the small cell hugely short
+  # and the large cell barely so. Unweighted the small one dominates; weighted
+  # it is negligible, which is the truth.
+  rows <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    npp_c_mgc_ha_yr = c(0.001, 4.99),
+    grazed_c = c(100, 5)
+  )
+  land_use <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    land_use = "grassland",
+    area_ha = c(1, 1e6)
+  )
+  w <- testthat::capture_warnings(
+    whep:::.gn_warn_grazing_over_production(rows, land_use)
+  )
+  # Unremoved mass = 100 Mg (tiny cell) + 0.01 * 1e6 = 10,100 Mg, against
+  # asked = 100 + 5e6. So the share is ~0.2%, not the ~95% an unweighted
+  # density ratio would report.
+  testthat::expect_true(any(grepl("0.2%", w, fixed = TRUE)))
+})

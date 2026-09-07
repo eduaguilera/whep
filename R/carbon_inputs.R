@@ -193,6 +193,9 @@ build_carbon_inputs <- function(
     joined <- .ci_split_into_groups(joined, shares)
   }
   joined |>
+    # Same reason as in `.sci_sum_components()`: an input table without an
+    # input C:N is missing information, not carrying a zero.
+    ensure_columns(tibble::tibble(input_cn = numeric())) |>
     dplyr::mutate(
       c_mass = .data$total_c_input_mgc_ha_yr * .data$crop_area_ha
     ) |>
@@ -202,6 +205,10 @@ build_carbon_inputs <- function(
         .data$crop_area_ha
       ),
       humified_fraction = .ci_wmean(.data$humified_fraction, .data$c_mass),
+      # Carbon-weighted, because a class's input C:N is the ratio of the
+      # carbon and nitrogen it actually receives: weighting by area would let
+      # a large, barely-cropped class outvote a small, heavily-amended one.
+      input_cn = .ci_wmean(.data$input_cn, .data$c_mass),
       class_area_ha = sum(.data$crop_area_ha),
       method_c_input = .data$method_c_input[1],
       method_area_basis = basis,

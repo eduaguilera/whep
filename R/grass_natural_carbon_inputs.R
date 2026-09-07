@@ -712,7 +712,20 @@ build_grass_natural_carbon_inputs <- function(
       plant_c = pmax(.data$npp_c_mgc_ha_yr - .data$grazed_c, 0),
       excreta_c = dplyr::coalesce(.data$excreta_c_mgc_ha_yr, 0)
     ) |>
-    .gn_warn_grazing_over_production()
+    .gn_warn_grazing_over_production(d$land_use)
+}
+
+# Grassland hectares per CELL, for weighting the floored-carbon report. The
+# sibling `.gn_grass_area()` totals per polity-year, which is the denominator
+# the density is built on; this is the area each cell contributes, which is
+# what turns a per-hectare shortfall back into a mass.
+.gn_cell_grass_area <- function(land_use) {
+  land_use |>
+    dplyr::filter(stringr::str_to_lower(.data$land_use) == "grassland") |>
+    dplyr::summarise(
+      cell_grass_ha = sum(.data$area_ha),
+      .by = c("lon", "lat", "year")
+    )
 }
 
 .gn_grassland_method <- function(method_grazing) {
@@ -730,20 +743,57 @@ build_grass_natural_carbon_inputs <- function(
 # rather than absorbing it silently. A large share here means the grazing
 # estimate and the production layer disagree, which is a finding, not a
 # rounding.
-.gn_warn_grazing_over_production <- function(rows) {
+.gn_warn_grazing_over_production <- function(rows, land_use = NULL) {
   over <- rows$grazed_c > rows$npp_c_mgc_ha_yr
   if (!any(over, na.rm = TRUE)) {
     return(rows)
   }
-  lost <- sum(rows$grazed_c[over] - rows$npp_c_mgc_ha_yr[over], na.rm = TRUE)
-  asked <- sum(rows$grazed_c, na.rm = TRUE)
-  cli::cli_warn(c(
+  short <- rows$grazed_c - rows$npp_c_mgc_ha_yr
+  # Weight by each cell's grassland hectares. Unweighted, these are per-hectare
+  # DENSITIES, so a 1 ha cell short by 4 MgC/ha and a 10,000 ha cell short by
+  # 0.01 counted the same -- and the quantity a reader needs is the mass that
+  # did not get removed, not a mean of densities.
+  area <- if (is.null(land_use)) NULL else .gn_cell_grass_area(land_use)
+  mass <- NULL
+  if (!is.null(area)) {
+    w <- rows |>
+      dplyr::select("lon", "lat", "year") |>
+      dplyr::left_join(area, by = c("lon", "lat", "year"))
+    ha <- dplyr::coalesce(w$cell_grass_ha, 0)
+    mass <- list(
+      unremoved = sum(pmax(short, 0) * ha, na.rm = TRUE),
+      asked = sum(rows$grazed_c * ha, na.rm = TRUE),
+      area_over = sum(ha[over], na.rm = TRUE),
+      area_all = sum(ha, na.rm = TRUE)
+    )
+  }
+  msg <- c(
     "!" = "WHEP's grazing exceeds grassland production on
-           {sum(over, na.rm = TRUE)} of {nrow(rows)} cell-year{?s}.",
-    "i" = "Their input is floored at zero, leaving
-           {round(100 * lost / max(asked, .Machine$double.eps), 2)}% of the
-           grazed carbon density unremoved."
-  ))
+           {sum(over, na.rm = TRUE)} of {nrow(rows)} cell-year{?s}."
+  )
+  if (is.null(mass)) {
+    lost <- sum(short[over], na.rm = TRUE)
+    asked <- sum(rows$grazed_c, na.rm = TRUE)
+    msg <- c(
+      msg,
+      "i" = "Their input is floored at zero, leaving
+             {round(100 * lost / max(asked, .Machine$double.eps), 2)}% of the
+             grazed carbon DENSITY unremoved (no land-use layer supplied, so
+             this is unweighted by area and is not a mass)."
+    )
+  } else {
+    pct <- 100 * mass$unremoved / max(mass$asked, .Machine$double.eps)
+    pct_area <- 100 * mass$area_over / max(mass$area_all, .Machine$double.eps)
+    msg <- c(
+      msg,
+      "i" = "Their input is floored at zero, leaving
+             {round(mass$unremoved / 1e6, 1)} Tg C unremoved, which is
+             {round(pct, 2)}% of the grazed carbon.",
+      "i" = "Those cells hold {round(mass$area_over / 1e6, 1)} Mha,
+             {round(pct_area, 2)}% of the grassland area."
+    )
+  }
+  cli::cli_warn(msg)
   rows
 }
 

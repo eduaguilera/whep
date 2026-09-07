@@ -1499,7 +1499,11 @@ build_processing_coefs <- function(
 # evenly between them rather than being assigned to whichever came first.
 # The representative `item_prod_code` per category is exact, not an
 # approximation: the destiny function reads nothing else from it.
-.residue_recovered_split <- function(res, warn = TRUE) {
+.residue_recovered_split <- function(
+  res,
+  warn = TRUE,
+  method_destiny = "krausmann_regional"
+) {
   res <- dplyr::mutate(
     res,
     item_cbs_code_crop = as.integer(.data$item_cbs_code_crop),
@@ -1512,17 +1516,28 @@ build_processing_coefs <- function(
       relationship = "many-to-many"
     ) |>
     dplyr::left_join(.residue_destiny_regions(), by = "area_code") |>
+    # Split a multi-category CBS crop by how many PRODUCTION ITEMS each of its
+    # categories covers, not evenly. Only item 2570 ("Oilcrops, Other") spans
+    # two, and its twelve production items are not one-and-eleven: an even
+    # split silently gives the minority category half the mass, which is an
+    # unweighted mean of two recovery rates rather than the crop's own.
     dplyr::mutate(
-      residue_dm_t = .data$value / dplyr::n(),
+      residue_dm_t = .data$value *
+        .data$category_weight /
+        sum(.data$category_weight),
       .by = ".residue_row"
     ) |>
-    calculate_residue_destinies() |>
+    calculate_residue_destinies(method = method_destiny) |>
     dplyr::summarise(
       recovered = sum(
         .data$residue_feed_dm_t + .data$residue_burn_dm_t,
         na.rm = TRUE
       ),
       feed_dm_t = sum(.data$residue_feed_dm_t, na.rm = TRUE),
+      # Keep the multi-method stamp `calculate_residue_destinies()` sets. It
+      # used to be discarded here, so the CBS recorded nowhere how its residue
+      # rows had been produced.
+      method_residue_destiny = dplyr::first(.data$method_residue_destiny),
       .by = ".residue_row"
     )
   out <- dplyr::left_join(res, dest, by = ".residue_row")
@@ -1533,19 +1548,31 @@ build_processing_coefs <- function(
 }
 
 # CBS crop item -> a representative production item for each Krausmann
-# recovery category it covers.
+# recovery category it covers, WITH the number of production items that
+# category covers for this CBS code, so a crop spanning two categories can be
+# split by how much of it each really is.
 .residue_krausmann_bridge <- function(items = whep::items_prod_full) {
-  items |>
+  keyed <- items |>
     dplyr::filter(!is.na(.data$Cat_Krausmann)) |>
+    dplyr::mutate(item_cbs_code_crop = as.integer(.data$item_cbs_code))
+  weights <- keyed |>
+    dplyr::summarise(
+      category_weight = dplyr::n(),
+      .by = c("item_cbs_code_crop", "Cat_Krausmann")
+    )
+  keyed |>
     dplyr::distinct(
-      .data$item_cbs_code,
+      .data$item_cbs_code_crop,
       .data$Cat_Krausmann,
       .keep_all = TRUE
     ) |>
     dplyr::transmute(
-      item_cbs_code_crop = as.integer(.data$item_cbs_code),
+      item_cbs_code_crop = .data$item_cbs_code_crop,
+      Cat_Krausmann = .data$Cat_Krausmann,
       item_prod_code = as.character(.data$item_prod_code)
-    )
+    ) |>
+    dplyr::left_join(weights, by = c("item_cbs_code_crop", "Cat_Krausmann")) |>
+    dplyr::select(-"Cat_Krausmann")
 }
 
 # The two regional vocabularies the destiny split needs, per area_code:

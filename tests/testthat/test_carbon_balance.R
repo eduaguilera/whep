@@ -463,12 +463,16 @@ test_that("son_change resolves C:N for the lowercase 4-class land-use vocab", {
   # The LUH2 reader (phase 2B) emits lowercase cropland / grassland / natural /
   # urban. .cb_cn_lookup must map "cropland" to the Cropland C:N pair and every
   # other class to NonCropland (case-insensitive), never leaving son_change NA.
+  # One row per CELL, because the C:N ratio is now chosen by the cell's net
+  # change: this test is about the class vocabulary, so keeping each class in
+  # its own cell leaves the cell net equal to the row and tests what it always
+  # tested.
   marched <- tibble::tribble(
-    ~land_use, ~rate_mgc_ha,
-    "cropland", -0.5,
-    "grassland", -0.5,
-    "natural", 0.5,
-    "urban", -0.5
+    ~lon, ~lat, ~year, ~area_ha, ~land_use, ~rate_mgc_ha,
+    0.25, 0.25, 2000L, 100, "cropland", -0.5,
+    0.75, 0.25, 2000L, 100, "grassland", -0.5,
+    1.25, 0.25, 2000L, 100, "natural", 0.5,
+    1.75, 0.25, 2000L, 100, "urban", -0.5
   )
   out <- whep:::.cb_derive_son(marched)
   testthat::expect_false(any(is.na(out$son_change_kgn_ha)))
@@ -1897,5 +1901,164 @@ testthat::test_that("every method choice reaches both resolutions", {
   marched$method_future_choice <- "x"
   testthat::expect_true(
     "method_future_choice" %in% names(whep:::.cb_finalise(marched, "polity"))
+  )
+})
+
+testthat::test_that("crop groups do not manufacture nitrogen at an unchanged cell", {
+  # whep#1006: the C:N ratios are documented as applying to the NET carbon
+  # change, and they are asymmetric (8 on loss, 11 on gain). Choosing between
+  # them per crop-group row made a cell whose net cropland carbon did not move
+  # book +125 kg N/ha of mineralization and -90.9 of sequestration, inflating
+  # BOTH sides of the nitrogen balance and leaving ~34 kg N/ha net from
+  # nothing. The ratio now comes from the cell's net change.
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c(
+      "cropland_rainfed_herbaceous",
+      "cropland_irrigated_herbaceous"
+    ),
+    year = 2000L,
+    area_ha = c(100, 100),
+    rate_mgc_ha = c(-1, 1)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  # Net nitrogen over the cell must be zero, because net carbon is zero.
+  testthat::expect_equal(
+    sum(out$son_change_kgn_ha * out$area_ha),
+    0,
+    tolerance = 1e-8
+  )
+  # And the per-group detail survives: the losing group still mineralises and
+  # the gaining group still sequesters, they are just on one ratio.
+  testthat::expect_gt(out$son_change_kgn_ha[1], 0)
+  testthat::expect_lt(out$son_change_kgn_ha[2], 0)
+  testthat::expect_equal(out$son_change_kgn_ha[1], -out$son_change_kgn_ha[2])
+})
+
+testthat::test_that("a genuinely losing cell still uses the mineralization ratio", {
+  # The other half: the fix must not flatten the asymmetry, only decide it at
+  # the right grain. A cell losing carbon overall takes cn_mineralization for
+  # every one of its groups, including one that is gaining.
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c(
+      "cropland_rainfed_herbaceous",
+      "cropland_irrigated_herbaceous"
+    ),
+    year = 2000L,
+    area_ha = c(300, 100),
+    rate_mgc_ha = c(-1, 1)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  cn <- whep:::.cb_cn_lookup()
+  mineral <- cn$cn_mineralization[cn$cropland_class == "Cropland"]
+  testthat::expect_equal(out$son_change_kgn_ha[1], 1000 / mineral)
+  testthat::expect_equal(out$son_change_kgn_ha[2], -1000 / mineral)
+  # Net carbon is -200 Mg, so net nitrogen is that over the loss ratio.
+  testthat::expect_equal(
+    sum(out$son_change_kgn_ha * out$area_ha),
+    200 * 1000 / mineral,
+    tolerance = 1e-8
+  )
+})
+
+testthat::test_that("a single-class cell is unchanged by the regrouping", {
+  # Non-cropland and ungrouped cropland have one row per cell, so the cell net
+  # IS the row and nothing about their numbers may move.
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    area_code = 1L,
+    land_use = c("cropland", "natural"),
+    year = 2000L,
+    area_ha = c(100, 100),
+    rate_mgc_ha = c(-2, 3)
+  )
+  out <- whep:::.cb_derive_son(marched)
+  cn <- whep:::.cb_cn_lookup()
+  crop_min <- cn$cn_mineralization[cn$cropland_class == "Cropland"]
+  nat_seq <- cn$cn_sequestration[cn$cropland_class == "NonCropland"]
+  testthat::expect_equal(out$son_change_kgn_ha[1], 2 * 1000 / crop_min)
+  testthat::expect_equal(out$son_change_kgn_ha[2], -3 * 1000 / nat_seq)
+})
+
+testthat::test_that(".soc_marginal_cn is a saturating function of the input C:N", {
+  # CN_new = a - b/CN_input, floored, then bounded by the IPCC land-use range.
+  # Two independent derivations agree on this shape: Nicolardot et al. (2001)
+  # and Justes et al. (2009) fitted it to residue incubations, and
+  # CENTURY/DayCent's agdrat implements it.
+  cn <- function(x, m = "justes_2009") {
+    whep:::.soc_marginal_cn(x, rep("Cropland", length(x)), m)
+  }
+  # Monotone increasing in the input ratio: N-poor inputs form wider SOM.
+  v <- cn(c(15, 25, 40, 80))
+  testthat::expect_true(all(diff(v) > 0))
+  # Saturating, so the increments shrink.
+  testthat::expect_true(all(diff(diff(v)) < 0))
+  # DAMPED: input C:N spans more than fivefold here, the output must not.
+  testthat::expect_lt(max(v) / min(v), 1.6)
+})
+
+testthat::test_that("the two published parameter sets agree closely", {
+  # Justes 2009 and Nicolardot 2001 are refits of one relation; CENTURY is an
+  # independent process-model derivation of the same algebra. If they ever
+  # diverge materially, one of them has been transcribed wrongly.
+  x <- c(30, 50, 80, 130)
+  cls <- rep("Cropland", length(x))
+  a <- whep:::.soc_marginal_cn(x, cls, "nicolardot_2001")
+  b <- whep:::.soc_marginal_cn(x, cls, "century")
+  testthat::expect_true(all(abs(a - b) < 0.3))
+})
+
+testthat::test_that("the marginal C:N stays inside the IPCC land-use range", {
+  # The bounds are the published uncertainty ranges: cropland 8-15,
+  # non-cropland 10-30 (IPCC 2019 Vol.4 Ch.11 Eq 11.8).
+  wide <- c(1, 5, 15, 50, 200, 1000)
+  crop <- whep:::.soc_marginal_cn(wide, rep("Cropland", length(wide)))
+  testthat::expect_true(all(crop >= 8 & crop <= 15))
+  nat <- whep:::.soc_marginal_cn(wide, rep("NonCropland", length(wide)))
+  testthat::expect_true(all(nat >= 10 & nat <= 30))
+})
+
+testthat::test_that("no input ratio falls back to the land-use default", {
+  # Absent information is not a zero. Without an input ratio the function must
+  # return exactly what the package used before one existed.
+  bad <- c(NA, 0, -5, Inf, NaN)
+  crop <- whep:::.soc_marginal_cn(bad, rep("Cropland", length(bad)))
+  testthat::expect_true(all(crop == 10))
+  nat <- whep:::.soc_marginal_cn(bad, rep("NonCropland", length(bad)))
+  testthat::expect_true(all(nat == 15))
+})
+
+testthat::test_that(".cb_derive_son uses the input ratio only when it is there", {
+  marched <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    land_use = "cropland",
+    year = 2000L,
+    area_ha = 100,
+    rate_mgc_ha = -1
+  )
+  # Without input_cn: the directional path, and it says so.
+  a <- whep:::.cb_derive_son(marched)
+  testthat::expect_equal(a$method_som_cn, "directional_ipcc_range")
+  # With input_cn: the input-driven path, and it says so.
+  b <- whep:::.cb_derive_son(dplyr::mutate(marched, input_cn = 80))
+  testthat::expect_equal(b$method_som_cn, "justes_2009")
+  # A wide (N-poor) input forms wider SOM, so the SAME carbon loss releases
+  # LESS nitrogen than the narrow-input case.
+  c_narrow <- whep:::.cb_derive_son(dplyr::mutate(marched, input_cn = 15))
+  testthat::expect_lt(b$son_change_kgn_ha, c_narrow$son_change_kgn_ha)
+})
+
+testthat::test_that("an unknown SOM C:N method aborts", {
+  testthat::expect_error(
+    whep:::.soc_marginal_cn(30, "Cropland", "made_up"),
+    "Unknown"
   )
 })

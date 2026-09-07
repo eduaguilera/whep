@@ -2999,13 +2999,37 @@ testthat::test_that("one CBS crop spanning two categories splits its mass", {
   }
   a <- single(1L)
   b <- single(2L)
-  # An even split is the mean of the two single-category answers, and strictly
-  # between them whenever the two recovery rates differ. Skip the strict half
-  # if the region happens to give both categories the same rate, since then
-  # there is nothing for the split to be between.
-  testthat::expect_equal(prod, (a + b) / 2)
+  # The split is weighted by how many PRODUCTION ITEMS each category covers,
+  # not even: 2570 "Oilcrops, Other" is eleven items in one category and one
+  # in the other, so an even split would hand the minority half the mass.
+  w <- two$category_weight
+  expected <- (a * w[1] + b * w[2]) / sum(w)
+  testthat::expect_equal(prod, expected)
+  # Weighted, so it must sit strictly between the two single-category answers
+  # and NOT at their midpoint, unless the weights happen to be equal.
   if (!isTRUE(all.equal(a, b))) {
     testthat::expect_gt(prod, min(a, b))
     testthat::expect_lt(prod, max(a, b))
+    if (w[1] != w[2]) {
+      testthat::expect_false(isTRUE(all.equal(prod, (a + b) / 2)))
+    }
   }
+  # The weights are the item counts, and they are lopsided for this crop.
+  testthat::expect_true(all(w >= 1))
+  testthat::expect_gt(max(w), min(w))
+})
+
+testthat::test_that("the CBS records how its residue rows were produced", {
+  # calculate_residue_destinies() is a documented multi-method function whose
+  # stamp used to be discarded in the summarise, so the CBS carried no record
+  # of the method its residue rows came from.
+  out <- whep:::.residue_recovered_split(.rcr_row(crop = 15L), warn = FALSE)
+  testthat::expect_true("method_residue_destiny" %in% names(out))
+  testthat::expect_equal(out$method_residue_destiny, "krausmann_regional")
+  alt <- whep:::.residue_recovered_split(
+    .rcr_row(crop = 15L),
+    warn = FALSE,
+    method_destiny = "shares"
+  )
+  testthat::expect_equal(alt$method_residue_destiny, "shares")
 })

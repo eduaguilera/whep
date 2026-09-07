@@ -244,6 +244,7 @@ build_carbon_balance <- function(
   }
   marched <- .cb_march(classes, init_stock)
   marched |>
+    .cb_attach_input_cn(classes) |>
     .cb_derive_son() |>
     dplyr::mutate(
       method_soc = model,
@@ -2093,24 +2094,190 @@ build_carbon_balance <- function(
 # (negated relative to the Spain_Hist SOC_Fun.R:278-283 delta-SON-stock sign) so
 # downstream consumers add it directly. The asymmetric ratios come from
 # whep::soil_cn_ratios (Conventional rows).
-.cb_derive_son <- function(marched) {
+# Nitrogen from the soil-carbon change, using the ratio the cell's NET change
+# selects and then applying it to each class row.
+#
+# Put the class's input C:N back on the marched rows.
+#
+# `.cb_march_year()` selects its columns explicitly, so anything not needed by
+# the marching arithmetic is dropped -- correctly, since the loop is the hot
+# path. The input C:N is needed only afterwards, by `.cb_derive_son()`, so it
+# is rejoined here on the same key rather than threaded through the loop.
+#
+# Absent (no `input_cn` on the classes, e.g. grassland and natural land, whose
+# builders carry no input nitrogen) it simply does not attach, and
+# `.cb_derive_son()` then takes the directional path it always did.
+.cb_attach_input_cn <- function(marched, classes) {
+  if (!rlang::has_name(classes, "input_cn")) {
+    return(marched)
+  }
+  key <- c("lon", "lat", "area_code", "land_use", "year")
+  lookup <- classes |>
+    tibble::as_tibble() |>
+    dplyr::select(dplyr::all_of(key), "input_cn") |>
+    dplyr::distinct(dplyr::across(dplyr::all_of(key)), .keep_all = TRUE)
+  dplyr::left_join(tibble::as_tibble(marched), lookup, by = key)
+}
+
+# The C:N at which soil organic matter is FORMED, as a saturating function of
+# the C:N of the carbon input that formed it.
+#
+#     CN_new = a - b / CN_input,   floored, then bounded by land use
+#
+# WHY THIS SHAPE. Two independent derivations give it, and they agree to about
+# 0.1 C:N units across the whole range:
+#
+#   * fitted to residue incubations. Nicolardot, Recous & Mary (2001) fitted
+#     `R_b = a - b/R` to 27 mature crop residues (a = 16.1, b = 123, floor
+#     7.8); Justes, Mary & Nicolardot (2009) refitted it on 43 residues
+#     (a = 15.4 +/- 0.6, b = 76 +/- 13). Nicolardot (2001) is also the
+#     citation HSOCN's own nitrogen submodel follows.
+#   * implemented in a process model. CENTURY/DayCent's `agdrat` sets the C:N
+#     of new SOM from surface litter as the same algebraic function of the
+#     litter's N concentration, shipping (16, 10, 0.02), i.e. 16 - 120/CN_in
+#     floored at 10.
+#
+# At CN_input 30 / 50 / 80 / 130 the CENTURY form gives 12.0 / 13.6 / 14.5 /
+# 15.1 and Nicolardot gives 12.0 / 13.6 / 14.6 / 15.2.
+#
+# WHY IT IS DAMPED, which is the point. The relation saturates, so a large
+# change in input quality makes a small change in the ratio of what forms.
+# Manzoni et al. (2008 Science 321:684; 2010 Ecol. Monogr. 80:89) fit the
+# critical litter ratio as input^0.75 over ~2,600 litterbag samplings from 21
+# datasets, with falling carbon-use efficiency as the mechanism. That damping
+# is why long-term MINERAL nitrogen barely moves soil C:N (no significant
+# response over 479 Chinese cropland sites, Li & Li 2025; 13.9 vs 14.1 after
+# 113 years at Bad Lauchstadt, Francioli et al. 2016) while ORGANIC amendments
+# move it a lot (FYM 12.4 vs 14.1 unfertilised at the same site).
+#
+# MARGINAL, NOT BULK. This is the ratio of newly formed material, which is the
+# quantity WHEP needs, because its coefficient multiplies the CHANGE in soil
+# carbon. Bulk soil C:N is strongly buffered and barely moves -- Kirkby et al.
+# (2016) changed input stoichiometry hard for five years and the stable pool's
+# stock moved enormously while its ratio did not; 60 treatments across 20
+# French long-term experiments span only 7.8-13.0. Those results are about the
+# bulk and do not contradict this.
+#
+# BOUNDS. Clamped to the IPCC 2019 Vol.4 Ch.11 Eq 11.8 ranges per land use
+# (cropland 8-15, non-cropland 10-30), and it returns the land-use DEFAULT
+# when no input ratio is available, so a caller with no input nitrogen gets
+# exactly the previous behaviour.
+.som_marginal_cn_coefs <- function() {
+  system.file("extdata", "balances", "som_marginal_cn.csv", package = "whep") |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble()
+}
+
+.som_cn_bounds <- function() {
+  system.file("extdata", "balances", "som_cn_bounds.csv", package = "whep") |>
+    utils::read.csv(stringsAsFactors = FALSE) |>
+    tibble::as_tibble()
+}
+
+.soc_marginal_cn <- function(
+  input_cn,
+  cropland_class,
+  method = "justes_2009"
+) {
+  coefs <- .som_marginal_cn_coefs()
+  row <- coefs[coefs$method == method, ]
+  if (nrow(row) != 1L) {
+    cli::cli_abort(
+      "Unknown {.arg method} {.val {method}}. Use one of
+       {.val {coefs$method}}."
+    )
+  }
+  bounds <- .som_cn_bounds()
+  idx <- match(cropland_class, bounds$cropland_class)
+  if (anyNA(idx)) {
+    cli::cli_abort(
+      "No SOM C:N bounds for cropland class
+       {.val {unique(cropland_class[is.na(idx)])}}."
+    )
+  }
+  lo <- bounds$cn_min[idx]
+  hi <- bounds$cn_max[idx]
+  default <- bounds$cn_default[idx]
+  raw <- row$a - row$b / input_cn
+  out <- pmax(raw, row$floor)
+  out <- pmin(pmax(out, lo), hi)
+  # No input ratio (absent, non-positive or non-finite) means no information,
+  # not a zero: fall back to the land-use default, which is what the package
+  # did before an input ratio existed.
+  usable <- is.finite(input_cn) & input_cn > 0
+  dplyr::if_else(usable, out, default)
+}
+
+# WHAT THE ASYMMETRY MEANS. It is not two process stoichiometries. Soil C:N is
+# FLEXIBLE, and the pair brackets the bulk ratio to say how far it moves: a
+# soil gaining carbon is heading to a WIDER ratio, one losing carbon to a
+# NARROWER one. Cropland bulk is 10 with 11 on gain and 8 on loss;
+# non-cropland bulk is 15 with 15 and 11. The value is therefore a statement
+# about where THAT SOIL's ratio is going, which is a property of the cell, not
+# of whichever crop group happens to sit on part of it -- and the dataset
+# documents both as applying to the NET change for the same reason.
+#
+# The bounds are expert parameterisation from the Spain historical workbook
+# and carry no citation (see `soil_cn_ratios`); sourcing them is open.
+#
+# Choosing per row instead broke that. Crop groups (the default since
+# c4900fe0) split cropland into several rows, so a cell with one group losing
+# carbon and another gaining it picked 8 for the first and 11 for the second:
+# a cell whose net cropland carbon did not move still booked +125 kg N/ha of
+# mineralization and -90.9 of sequestration, inflating BOTH sides of the
+# nitrogen balance and leaving ~34 kg N/ha net where nothing had changed.
+# Picking the ratio at cell grain and applying it per row keeps each group's
+# own son_change -- the per-group detail is not lost -- while making the rows
+# sum to exactly the cell's net, because the ratio is then a constant across
+# the cell.
+.cb_derive_son <- function(marched, method_som_cn = "justes_2009") {
+  .check_columns(
+    marched,
+    c("lon", "lat", "year", "area_ha", "land_use", "rate_mgc_ha"),
+    "marched"
+  )
   cn <- .cb_cn_lookup()
-  marched |>
+  out <- marched |>
     dplyr::mutate(cropland_class = .cb_cropland_class(.data$land_use)) |>
     dplyr::left_join(cn, by = "cropland_class") |>
     dplyr::mutate(
+      net_rate = sum(.data$rate_mgc_ha * .data$area_ha, na.rm = TRUE),
+      .by = c("lon", "lat", "year", "cropland_class")
+    )
+  # Input-driven where an input ratio is available, directional where it is
+  # not. The two are alternatives, not a fallback chain: which one ran is
+  # recorded in `method_som_cn`.
+  if (rlang::has_name(out, "input_cn")) {
+    out <- dplyr::mutate(
+      out,
+      cn_used = .soc_marginal_cn(
+        .data$input_cn,
+        .data$cropland_class,
+        method_som_cn
+      ),
+      method_som_cn = method_som_cn
+    )
+  } else {
+    out <- dplyr::mutate(
+      out,
       cn_used = dplyr::if_else(
-        .data$rate_mgc_ha < 0,
+        .data$net_rate < 0,
         .data$cn_mineralization,
         .data$cn_sequestration
       ),
+      method_som_cn = "directional_ipcc_range"
+    )
+  }
+  out |>
+    dplyr::mutate(
       son_change_kgn_ha = -.data$rate_mgc_ha * 1000 / .data$cn_used
     ) |>
     dplyr::select(
       -"cropland_class",
       -"cn_mineralization",
       -"cn_sequestration",
-      -"cn_used"
+      -"cn_used",
+      -"net_rate"
     )
 }
 

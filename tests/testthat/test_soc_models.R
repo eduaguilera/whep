@@ -323,7 +323,10 @@ test_that("every model starts its trajectory at initial_soc_mgc_ha", {
         initial_soc_mgc_ha = s0,
         c_input_mgc_ha_yr = 2,
         years = 3,
-        clay_pct = 20
+        clay_pct = 20,
+        # The invariant is about pool INITIALISATION, not climate. "lpjml"
+        # refuses to run without its drivers, so declare the neutral.
+        climate_modifier = 1
       )
     )
     unique(traj$soc_total[traj$year == 0])

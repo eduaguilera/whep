@@ -683,3 +683,86 @@ testthat::test_that("unspatialized carbon warning reads singular for one crop", 
     "1 polity-crop carbon component"
   )
 })
+
+testthat::test_that("the input C:N is formed from matched carbon and nitrogen", {
+  # The ratio must come from components whose nitrogen is KNOWN, paired with
+  # the carbon of those same components. Dividing ALL the carbon by SOME of
+  # the nitrogen would overstate the ratio, and it would do so invisibly.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "root", "manure"),
+    c_mass_mg = c(800, 200, 300),
+    # The root component's nitrogen is unknown; it must drop out of BOTH
+    # sides rather than count as nitrogen-free.
+    n_mass_mg = c(10, NA, 20)
+  )
+  out <- whep:::.sci_sum_components(
+    gridded,
+    c("area_code", "item_prod_code", "year")
+  )
+  testthat::expect_equal(out$input_n_mg, 30)
+  testthat::expect_equal(out$input_c_with_n_mg, 1100)
+  per_ha <- whep:::.sci_per_hectare(out)
+  # 1100 / 30, NOT 1300 / 30.
+  testthat::expect_equal(per_ha$input_cn, 1100 / 30)
+})
+
+testthat::test_that("components with no nitrogen at all give an absent ratio", {
+  # Absent, not infinite: an all-unknown nitrogen must not read as zero, which
+  # would peg the derived SOM C:N at its ceiling.
+  gridded <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    item_prod_code = "15",
+    year = 2000L,
+    crop_area_ha = 10,
+    input_type = c("crop_residue", "manure"),
+    c_mass_mg = c(800, 300)
+  )
+  out <- whep:::.sci_sum_components(
+    gridded,
+    c("area_code", "item_prod_code", "year")
+  )
+  per_ha <- whep:::.sci_per_hectare(out)
+  testthat::expect_false(is.finite(per_ha$input_cn))
+  # And that absence must resolve to the land-use default, not to a ceiling.
+  testthat::expect_equal(
+    whep:::.soc_marginal_cn(per_ha$input_cn, "Cropland"),
+    10
+  )
+})
+
+testthat::test_that("a manure-rich input forms narrower SOM than a straw-rich one", {
+  # The mechanism, end to end at this stage: manure is nitrogen-rich, straw is
+  # not, so a manure-fed soil forms organic matter with a narrower C:N.
+  base <- function(c_mass, n_mass, type) {
+    tibble::tibble(
+      lon = 0.25,
+      lat = 0.25,
+      area_code = 1L,
+      item_prod_code = "15",
+      year = 2000L,
+      crop_area_ha = 10,
+      input_type = type,
+      c_mass_mg = c_mass,
+      n_mass_mg = n_mass
+    )
+  }
+  keys <- c("area_code", "item_prod_code", "year")
+  straw <- whep:::.sci_per_hectare(
+    whep:::.sci_sum_components(base(1000, 12.5, "crop_residue"), keys)
+  )
+  manure <- whep:::.sci_per_hectare(
+    whep:::.sci_sum_components(base(1000, 66.7, "manure"), keys)
+  )
+  testthat::expect_gt(straw$input_cn, manure$input_cn)
+  cn_straw <- whep:::.soc_marginal_cn(straw$input_cn, "Cropland")
+  cn_manure <- whep:::.soc_marginal_cn(manure$input_cn, "Cropland")
+  testthat::expect_gt(cn_straw, cn_manure)
+})

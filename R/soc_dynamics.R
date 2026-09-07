@@ -116,6 +116,7 @@ calculate_soc_dynamics <- function(
 .soc_climate_modifier <- function(model, data) {
   drivers <- .soc_climate_drivers(model)
   if (!all(purrr::map_lgl(drivers, \(d) rlang::has_name(data, d)))) {
+    .soc_refuse_neutral(model, drivers, data)
     return(data$climate_modifier %||% 1)
   }
   fn <- switch(
@@ -130,6 +131,37 @@ calculate_soc_dynamics <- function(
   do.call(fn, data[drivers])
 }
 
+# Refuse to run the LPJmL model at a neutral modifier.
+#
+# A missing driver resolving to 1 is a reasonable default for a model whose
+# climate response is an optional refinement. It is not reasonable for this
+# one: LPJmL's decomposition IS its temperature and moisture response, so a
+# neutral modifier does not degrade the model, it deletes it -- silently, on
+# every production path, because `get_soc_climate_drivers()` emitted no
+# `temp_soil_c` at all until whep#1006 and the pinned path still does not.
+# The package's own rule is that methods are alternatives, never silent
+# fallbacks.
+#
+# The other five models keep the permissive behaviour, because for them the
+# modifier genuinely is a refinement on top of a rate that stands without it.
+.soc_refuse_neutral <- function(model, drivers, data) {
+  if (!identical(model, "lpjml") || !is.null(data$climate_modifier)) {
+    return(invisible(NULL))
+  }
+  missing <- drivers[!purrr::map_lgl(drivers, \(d) rlang::has_name(data, d))]
+  cli::cli_abort(c(
+    "{.val lpjml} needs {.field {missing}} and would otherwise run at a
+     neutral climate modifier, which is not a coarser answer but no climate
+     response at all.",
+    i = "{.fn get_soc_climate_drivers} emits {.field temp_soil_c} only from a
+         run directory: the {.val lpjml-soc-hydrology} pin carries
+         {.field swc_topsoil}, {.field prec_mm} and {.field irrig_mm} and no
+         soil temperature.",
+    i = "Pass {.arg run_dir} (or {.envvar WHEP_LPJML_RUN_DIR}), or supply
+         {.code data$climate_modifier} explicitly to say you meant it."
+  ))
+}
+
 .soc_climate_drivers <- function(model) {
   switch(
     model,
@@ -139,9 +171,11 @@ calculate_soc_dynamics <- function(
     amg = c("temp_c", "water_balance_mm"),
     century = c("temp_c", "precip_mm", "pet_mm"),
     # LPJmL drives its response with SOIL temperature and the soil's degree
-    # of saturation. WHEP does not assemble a soil-temperature driver, so
-    # this resolves to the neutral modifier unless the caller supplies one:
-    # substituting air temperature is a choice, not a fallback (whep#799).
+    # of saturation. `get_soc_climate_drivers()` now emits `temp_soil_c` from
+    # a run directory as the depth-weighted 0-30 cm blend of LPJmL layers 1
+    # and 2, matching the carbon pool. Substituting AIR temperature would be a
+    # choice, not a fallback (whep#799), so it is not done; when the driver is
+    # absent the model aborts rather than running neutral.
     lpjml = c("temp_soil_c", "theta")
   )
 }
