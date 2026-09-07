@@ -291,7 +291,7 @@ test_that(".stacked_area_plot returns a labelled stacked-area ggplot", {
   expect_true("GeomHline" %in% geoms)
   expect_null(g$labels$title)
   expect_equal(g$labels$y, "Gg N")
-  expect_equal(g$labels$x, "Year")
+  expect_null(g$labels$x)
 })
 
 

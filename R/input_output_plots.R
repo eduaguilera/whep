@@ -622,13 +622,20 @@ plot_input_output_system <- function(per_ha = FALSE, example = FALSE) {
   annotate_label = NULL,
   y_lab = "Gg N"
 ) {
+  year_breaks <- seq(
+    floor(min(plot_df$Year) / 20) * 20,
+    ceiling(max(plot_df$Year) / 20) * 20,
+    by = 20
+  )
+
   plot <- ggplot2::ggplot(
     plot_df,
     ggplot2::aes(x = Year, y = MgN, fill = Type)
   ) +
     ggplot2::geom_area(position = "stack") +
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
-    ggplot2::labs(x = "Year", y = y_lab, fill = "") +
+    ggplot2::labs(x = NULL, y = y_lab, fill = "") +
+    ggplot2::scale_x_continuous(breaks = year_breaks) +
     ggplot2::scale_fill_manual(
       breaks = breaks,
       labels = labels,
