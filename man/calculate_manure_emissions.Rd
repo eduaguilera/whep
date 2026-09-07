@@ -4,7 +4,7 @@
 \alias{calculate_manure_emissions}
 \title{Calculate manure emissions (CH4 + N2O).}
 \usage{
-calculate_manure_emissions(data, tier = NULL)
+calculate_manure_emissions(data, tier = NULL, options = list())
 }
 \arguments{
 \item{data}{Dataframe with \code{species}, \code{heads}.
@@ -14,11 +14,46 @@ select regional emission factors.}
 
 \item{tier}{Integer 1 or 2. If \code{NULL} (default),
 auto-selects based on data completeness.}
+
+\item{options}{A named list of manure-engine options. Every default
+reproduces the behaviour in force before whep#949, so passing none leaves
+published values unchanged.
+
+\code{mms_region} selects how the manure-management split in
+\link{regional_mms_distribution} is keyed:
+\itemize{
+\item \code{"as_available"} (default): a row uses its own region when the frame
+already carries a \code{region} column, and the \code{region == "Global"} split
+otherwise. Tier 1 resolves a region for the (sourced) per-head
+N-excretion table and so takes the region-specific split; Tier 2 carries
+no region and so takes the Global one.
+\item \code{"resolve"}: the IPCC region is resolved from \code{iso3}, \code{area_code} or
+\code{polity_area_code} where it is missing, which makes the table's four
+region-specific \verb{(region, species)} pairs live on the Tier 2 path too.
+Those four pairs are an unsourced placeholder (whep#921), which is why
+this is opt-in rather than the default.
+\item \code{"global"}: every row takes the \code{region == "Global"} split, whatever
+region column it carries.
+}
+
+\code{climate_source} selects the climate zone the methane conversion factors
+in \link{climate_mcf} are read at. A \code{climate_zone} column already on the frame
+is always used. \code{"assumed"} (default) fills a missing one with
+\code{assumed_climate_zone}; \code{"from_data"} aborts instead of assuming.
+
+\code{assumed_climate_zone} is the zone \code{"assumed"} fills in: \code{"Cool"},
+\code{"Temperate"} (default) or \code{"Warm"}. WHEP has no territory-to-zone
+crosswalk, so the whole world is assumed Temperate unless a caller
+supplies zones; \code{method_manure_ch4} records which of the two happened, and
+this argument exists so the sensitivity to the assumption can be measured
+(whep#949).}
 }
 \value{
 Dataframe with all input columns preserved, plus:
 \itemize{
 \item \code{method_manure_ch4}: tracking label.
+\item \code{method_mms}: which manure-management split was used
+(\code{"regional_default"} or \code{"region_specific"}).
 \item Tier 1: \code{manure_ef_kgch4}, \code{manure_ch4_tier1}.
 \item Tier 2: \code{volatile_solids}, \code{methane_potential},
 \code{weighted_mcf}, \code{manure_ch4_per_head},
