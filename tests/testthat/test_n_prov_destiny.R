@@ -355,6 +355,57 @@ test_that(".calculate_processing_shares returns 0 for zero national production",
   expect_equal(out$share_processing, 0)
 })
 
+# .calculate_processing_excess ----------------------------------------------------
+
+test_that(".calculate_processing_excess is 0 when domestic production covers processing", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Grapes", "Wine", 40, 0.5
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Grapes", 100
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(out$excess_fm, 0)
+})
+
+test_that(".calculate_processing_excess reports the shortfall when processing exceeds domestic production", {
+  # Modelled on Spain's soybean crush: domestic production is negligible next
+  # to the volume actually processed, almost all of it imported.
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Soyabeans", "Soyabean Cake", 3200000, 0.79,
+    2000, "Soyabeans", "Soyabean Oil", 3200000, 0.19
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Soyabeans", 3600
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(nrow(out), 1)
+  expect_equal(out$excess_fm, 3200000 - 3600)
+})
+
+test_that(".calculate_processing_excess treats missing national production as 0", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Soyabeans", "Soyabean Cake", 500, 0.79
+  )
+  national_production <- tibble::tribble(
+    ~Year, ~Item, ~national_production_fm,
+    2000, "Wheat", 100
+  )
+
+  out <- .calculate_processing_excess(spain_coefs, national_production)
+
+  expect_equal(out$excess_fm, 500)
+})
+
 
 # .expand_processed_items ---------------------------------------------------------
 
@@ -715,6 +766,175 @@ test_that(".calculate_processed_amounts drops substitutions it cannot price in N
   expect_equal(out$non_processed$production_fm, 100)
   expect_equal(sum(out$processed_items$production_fm), 0)
   expect_equal(nrow(out$processing_losses), 0)
+})
+
+test_that(".calculate_processed_amounts adds the import-fed excess to the processed volume instead of capping it at domestic production", {
+  # Modelled on Spain's soybean crush: domestic production alone (100) covers
+  # only a fraction of what actually gets processed; the rest (an extra 50)
+  # has to be imported first.
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "rainfed", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Sunflower seed", 1
+  )
+  processing_excess_fm <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~excess_fm,
+    2000, "A", "Sunflower seed", 50
+  )
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Sunflower seed", "Sunflower Cake", 150, 0.45,
+    2000, "Sunflower seed", "Sunflower Oil", 150, 0.4
+  )
+
+  out_baseline <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
+  out_with_excess <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs(),
+    processing_excess_fm = processing_excess_fm
+  )
+
+  cake_baseline <- out_baseline$processed_items$production_fm[
+    out_baseline$processed_items$Item == "Sunflower Cake"
+  ]
+  cake_with_excess <- out_with_excess$processed_items$production_fm[
+    out_with_excess$processed_items$Item == "Sunflower Cake"
+  ]
+
+  # 150 total processed (100 domestic + 50 import-fed) instead of 100: the
+  # cake output scales up by the same 1.5x -- not capped at the
+  # domestic-only amount.
+  expect_equal(cake_with_excess, cake_baseline * 1.5)
+
+  # The primary item's own domestic production is fully consumed either way,
+  # but its own import requirement (the 50 that had no domestic supply to
+  # draw from) now surfaces as import_shortfall instead of vanishing.
+  expect_equal(out_with_excess$non_processed$production_fm, 0)
+  expect_equal(out_with_excess$import_shortfall$shortfall_fm, 50)
+})
+
+test_that(".calculate_processed_amounts defaults to no import-fed excess", {
+  prod <- tibble::tribble(
+    ~Year, ~Province_name, ~Name_biomass, ~Item, ~Box, ~Irrig_cat, ~prod_type, ~production_fm,
+    2000, "A", "sunflower_bm", "Sunflower seed", "Cropland", "rainfed", "Product", 100
+  )
+  processing_shares <- tibble::tribble(
+    ~Year, ~Item, ~share_processing,
+    2000, "Sunflower seed", 1
+  )
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Sunflower seed", "Sunflower Cake", 100, 0.45,
+    2000, "Sunflower seed", "Sunflower Oil", 100, 0.4
+  )
+
+  out <- .calculate_processed_amounts(
+    prod,
+    processing_shares,
+    spain_coefs,
+    .test_processing_coefs()
+  )
+
+  expect_equal(nrow(out$import_shortfall), 0)
+})
+
+test_that(".route_processing_shortfall adds to feed/food/other_uses by the item's default_destiny", {
+  shortfall <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~shortfall_fm,
+    2000, "A", "Soyabeans", 50,
+    2000, "A", "Sunflower Oil", 20
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~default_destiny,
+    "Soyabeans", "Feed",
+    "Sunflower Oil", "Other_uses"
+  )
+
+  out <- .route_processing_shortfall(shortfall, codes_coefs_items_full)
+
+  soy_row <- out[out$Item == "Soyabeans", ]
+  expect_equal(soy_row$feed, 50)
+  expect_equal(soy_row$food, 0)
+  expect_equal(soy_row$other_uses, 0)
+
+  oil_row <- out[out$Item == "Sunflower Oil", ]
+  expect_equal(oil_row$other_uses, 20)
+  expect_equal(oil_row$feed, 0)
+})
+
+test_that(".route_processing_shortfall falls back to other_uses when default_destiny is missing or unrecognised", {
+  shortfall <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~shortfall_fm,
+    2000, "A", "Mystery crop", 10
+  )
+  codes_coefs_items_full <- tibble::tribble(
+    ~item, ~default_destiny,
+    "Mystery crop", NA_character_
+  )
+
+  out <- .route_processing_shortfall(shortfall, codes_coefs_items_full)
+
+  expect_equal(out$other_uses, 10)
+  expect_equal(out$feed, 0)
+  expect_equal(out$food, 0)
+})
+
+test_that(".processing_excess_consumption_shares allocates by where the processed outputs are consumed, not by which province grows the primary item", {
+  spain_coefs <- tibble::tribble(
+    ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
+    2000, "Soyabeans", "Soyabean Cake", 1000, 0.79,
+    2000, "Soyabeans", "Soyabean Oil", 1000, 0.19
+  )
+  feed_intake <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~feed, ~food_pets,
+    2000, "GrowsSoy", "Soyabean Cake", 0, 0,
+    2000, "ConsumesSoy", "Soyabean Cake", 300, 0,
+    2000, "ConsumesSoy", "Soyabean Oil", 100, 0
+  )
+  food_other_uses <- tibble::tribble(
+    ~Year, ~Province_name, ~Item, ~food, ~other_uses,
+    2000, "GrowsSoy", "Soyabean Cake", 0, 0,
+    2000, "ConsumesSoy", "Soyabean Cake", 0, 0
+  )
+
+  out <- .processing_excess_consumption_shares(
+    spain_coefs,
+    feed_intake,
+    food_other_uses
+  )
+
+  grows_share <- out$alloc_share[out$Province_name == "GrowsSoy"]
+  consumes_share <- out$alloc_share[out$Province_name == "ConsumesSoy"]
+
+  expect_equal(grows_share, 0)
+  expect_equal(consumes_share, 1)
+})
+
+test_that(".processing_excess_by_province multiplies the national excess by each province's allocation share", {
+  processing_excess <- tibble::tribble(
+    ~Year, ~Item, ~excess_fm,
+    2000, "Soyabeans", 1000
+  )
+  alloc_shares <- tibble::tribble(
+    ~Year, ~Item, ~Province_name, ~alloc_share,
+    2000, "Soyabeans", "A", 0.3,
+    2000, "Soyabeans", "B", 0.7
+  )
+
+  out <- .processing_excess_by_province(processing_excess, alloc_shares)
+
+  expect_equal(out$excess_fm[out$Province_name == "A"], 300)
+  expect_equal(out$excess_fm[out$Province_name == "B"], 700)
 })
 
 test_that(".add_product_n_per_fm prefers N_kgN_kgFM over Product coefs", {
