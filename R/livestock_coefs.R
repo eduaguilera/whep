@@ -654,7 +654,10 @@
 #'   The temperature column each value is taken from varies by species
 #'   (sheep 0.19 and goats 0.13 are the developed-country cool column, while
 #'   horses 1.64, mules 0.90 and camels 1.92 are the developing-country
-#'   temperate column); tracked in whep#601.
+#'   temperate column). For buffalo 2.00 and swine 6.00 the source region is
+#'   not recorded and cannot be recovered from the value: 2006 Table 10.14 is
+#'   resolved by region and by degree Celsius, and more than one cell carries
+#'   each of those two numbers. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_manure_ch4_ef_other
@@ -676,12 +679,22 @@
 #'   here, and 1.0/2.0/2.5 for static-pile and passive-windrow composting
 #'   against 0.5/0.5/0.5 and 1.0/1.0/1.5 here. Some cells match neither
 #'   edition: dry lot 1.5/2.5/4.0 (both editions give 1.0/1.5/2.0),
-#'   intensive-windrow composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5) and
-#'   pit storage under one month 3/3/5 (2006 gives 3/3/30). Where a 2006 row
-#'   is resolved per degree Celsius the value taken is not always the
-#'   mid-point of the class (uncovered anaerobic lagoon temperate 73 percent
-#'   is the 14 degree column, not the 78 percent of 20 degrees);
-#'   tracked in whep#601.
+#'   intensive-windrow composting 0.5/0.5/0.5 (both give 0.5/1.0/1.5),
+#'   passive-windrow composting 1.0/1.0/1.5 (2006 gives 0.5/1.0/1.5, the
+#'   2019 Refinement 1.0/2.0/2.5), pit storage under one month 3/3/5 (2006
+#'   gives 3/3/30) and liquid/slurry with crust warm 47 percent, which is in
+#'   no column of that 2006 row (its warm class runs 44 percent at 26 degrees,
+#'   48 at 27 and 50 at 28 or above) and in no cell of the 2019 table.
+#'   `"Anaerobic Digester"` 0 is not a published default in either edition:
+#'   2006 Table 10.17 gives the range 0-100 percent and requires the compiler
+#'   to calculate it, and the 2019 Refinement resolves it into six
+#'   leakage-and-storage classes spanning 1.00 to 13.17 percent.
+#'   **Assumed, unverified.** Where a 2006 row is resolved per degree Celsius
+#'   the value taken is not always the mid-point of the class: uncovered
+#'   anaerobic lagoon temperate 73 percent is the 14 degree column, not the
+#'   78 percent of 20 degrees, and liquid/slurry without crust and pit storage
+#'   over one month take 35 percent for temperate, which is the 18 degree
+#'   column rather than the 42 percent of 20 degrees. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_mcf_manure
@@ -738,7 +751,16 @@
 #'   defers it to Ch 11. Its stored 0.01 is the 2006 Ch 11 Table 11.1
 #'   EF3PRP,SO for sheep and other animals; the 2019 Refinement's Table 11.1
 #'   (Updated) gives 0.004 for cattle, poultry and pigs and 0.003 for sheep
-#'   and other animals. Tracked in whep#601.
+#'   and other animals.
+#'   Four further rows are WHEP composite or fallback labels with no
+#'   counterpart system in Table 10.21 of either edition, so no published
+#'   value backs them: `"Liquid/Slurry"` 0.002 (the published liquid/slurry
+#'   EF3 is 0.005 with a crust and 0 without; 0.002 is the pit-storage
+#'   value), `"Solid Storage and Dry Lot"` 0.005 (the 2006 solid-storage
+#'   value, while dry lot is 0.02 in both editions), `"Burned for Fuel"` 0
+#'   (both editions give no EF3 here and report those emissions under fuel
+#'   combustion or waste incineration instead) and `"Other"` 0.005.
+#'   **Assumed, unverified.** Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2019_n2o_ef_direct
@@ -786,9 +808,14 @@
 #'
 #' @format A tibble with `category`, `bo_m3_kg_vs`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated) --
-#'   Table 10.16 in that edition is the manure CH4 factors for deer and
-#'   similar species. Every row matches its high-productivity column except
+#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated). That
+#'   edition has no Table 10.16: its list of tables jumps from Table 10.15
+#'   (Updated), the per-head manure CH4 factors for deer, reindeer, rabbits,
+#'   ostrich and fur-bearing animals, straight to Table 10.16A. Table 10.16
+#'   is the 2006 Guidelines' number for that deer/reindeer/rabbit/fur-bearing
+#'   table (0.22/0.36/0.08/0.68 kg CH4 head-1 yr-1, no ostrich row), and the
+#'   2006 edition has no Bo table at all -- its Bo defaults live in Annex
+#'   10A.2. Every row matches its high-productivity column except
 #'   `"Swine - Breeding"` 0.27: Table 10.16A publishes one swine Bo
 #'   (0.48 North America, 0.45 other high-productivity regions, 0.29 low
 #'   productivity) and the 2006 Annex 10A.2 derivation tables give breeding
@@ -860,10 +887,12 @@
 #'   resolved per degree Celsius, and the value taken for a `temp_zone` is
 #'   not always the bound of that class, nor always present in the row:
 #'   North American dairy cows 53 is the 12 degree column rather than the 48
-#'   of the cool class, Asian dairy cows 16 is the 18 degree column rather
-#'   than the 31 of the warm class, Latin American dairy cows 1 is the cool
-#'   value where the warm class gives 2, and Western European dairy cows 20
-#'   appears in no column of that row (its cool value is 21).
+#'   of the cool class, North American other cattle 2 is the 15 degree value
+#'   where the whole cool class of that row is 1, Asian dairy cows 16 is the
+#'   18 degree column rather than the 31 of the warm class, Latin American
+#'   dairy cows 1 is the cool value where the warm class gives 2, and Western
+#'   European dairy cows 20 appears in no column of that row (its cool value
+#'   is 21).
 #'   Tracked in whep#601.
 #'
 #' @examples
@@ -878,7 +907,26 @@
 #'
 #' @format A tibble with `system`, `temp_c`, `mcf_percent`.
 #'
-#' @source IPCC 2006, Vol 4, Ch 10, Table 10.17.
+#' @source Loosely IPCC 2006, Vol 4, Ch 10, Table 10.17, but re-resolved
+#'   onto a 10/15/20/25 degree Celsius grid the published table does not
+#'   use, and the `temp_c == 25` value of every one of the four rows appears
+#'   in no column of Table 10.17. Verified against the published table:
+#'   - Liquid/slurry is the only row Table 10.17 resolves per degree, as
+#'     17/19/20/22/25/27 percent for 10 to 15 degrees rising to 65 percent
+#'     at 25 (without a natural crust cover). Stored 17 is its 10 degree
+#'     column, but 25 is the 14 degree column rather than the 27 of 15
+#'     degrees, 35 is the 18 degree column rather than the 42 of 20 degrees,
+#'     and 48 is in no column at all (46 at 21 degrees, 50 at 22).
+#'   - Pasture/range/paddock, daily spread and solid storage are published
+#'     only by climate class -- 1.0/1.5/2.0, 0.1/0.5/1.0 and 2.0/4.0/5.0
+#'     percent for cool/temperate/warm. Stored 10 and 15 degrees take the
+#'     cool and temperate figures, but 20 degrees takes the warm figure
+#'     although 20 degrees falls inside the published temperate class, and
+#'     25 degrees takes 2.5, 1.5 and 6 percent, none of which the table
+#'     publishes. **Assumed, unverified.**
+#'   No function in `R/` reads this object -- the Tier 2 manure path uses
+#'   [climate_mcf] and the Tier 1 path [ipcc_2019_mcf_manure] -- so nothing
+#'   published depends on it. Tracked in whep#601.
 #'
 #' @examples
 #' ipcc_2006_mcf_temp
@@ -1028,7 +1076,28 @@
 #' @format A tibble with `mms_type`, `climate_zone`,
 #'   `mcf_percent`.
 #'
-#' @source IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
+#' @source Predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
+#'   **not** the 2019 Refinement, and with the same provenance profile as
+#'   [ipcc_2019_mcf_manure], which holds the same values under the Tier 1
+#'   system labels. This object is the live one: `.calc_manure_ch4_tier2()`
+#'   weights it by the manure-system mix. Verified against both editions:
+#'   - Matching both: daily spread 0.1/0.5/1.0, solid storage 2.0/4.0/5.0,
+#'     poultry manure 1.5 and burned for fuel 10.
+#'   - The 2006 edition only: pasture/range/paddock 1.0/1.5/2.0, against a
+#'     single 0.47 percent in the 2019 Refinement.
+#'   - Derived from the 2006 per-degree rows, but not at the class bound:
+#'     liquid/slurry 17/35/80 takes 35 from the 18 degree column rather than
+#'     the 42 of 20 degrees, and anaerobic lagoon 66/73/80 takes 73 from the
+#'     14 degree column rather than the 78 of 20 degrees.
+#'   - Matching neither edition: dry lot 1.5/2.5/4.0 (both give 1.0/1.5/2.0)
+#'     and the single all-climate values for intensive-windrow composting
+#'     0.5 and passive-windrow composting 1.0, which both editions resolve
+#'     by climate (2006 gives 0.5/1.0/1.5 for each; the 2019 Refinement
+#'     0.5/1.0/1.5 and 1.0/2.0/2.5). `"Anaerobic Digester"` 0 is published
+#'     by neither: 2006 gives the range 0-100 percent and requires a
+#'     calculation, the 2019 Refinement six leakage-and-storage classes
+#'     spanning 1.00 to 13.17 percent. **Assumed, unverified.**
+#'   Tracked in whep#601.
 #'
 #' @examples
 #' climate_mcf
