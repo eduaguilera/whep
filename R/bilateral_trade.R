@@ -364,10 +364,17 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   cbs <- cbs |>
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
-  btd |>
+  # The CBS-item filter is a row filter on the item code alone, so it can run
+  # before the unit filter without changing what survives both. Doing it first
+  # scopes the two warnings below to the items that would actually have
+  # reached a matrix.
+  in_cbs <- btd |>
     dplyr::filter(unit %in% c("tonnes", "heads")) |>
+    .filter_only_items_in_cbs(cbs)
+
+  in_cbs |>
     .mass_only_bilateral_trade() |>
-    .filter_only_items_in_cbs(cbs) |>
+    .warn_seedless_trade_groups(in_cbs) |>
     tidyr::nest(
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
@@ -405,6 +412,47 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   btd |>
     dplyr::filter(unit == "tonnes") |>
     dplyr::select(-unit)
+}
+
+# Keeping only the tonnes rows is right for the matrix's documented
+# denomination, but it does not merely trim a mixed cell: where a whole
+# year-item group is head-denominated it empties that group outright, and the
+# inner join in `.nest_by_year_item_code()` then drops the group from the
+# result with no trace at all. On the 20250714 pin that is 283 groups over 11
+# live-animal items and 1986-2013, carrying 80,104 observed seed cells and
+# 7.95 bn head; FAOSTAT reports those items in Head only up to 2013.
+#
+# The lost cells are not a unit mixup. Those items are balanced onto
+# head-count row and column targets, which `get_livestock_cbs()` derives from
+# exactly the rows dropped here, so the seed and the target agreed. What goes
+# is observed partner structure, replaced by the marginals estimate at 10%
+# trust. Which unit should seed a head-denominated item is a modelling call
+# and is left open in whep#962; this only refuses to lose the groups in
+# silence, so nobody has to rediscover the gap from a row count.
+.warn_seedless_trade_groups <- function(mass, all_units) {
+  lost <- all_units |>
+    dplyr::distinct(year, item_cbs_code) |>
+    dplyr::anti_join(
+      dplyr::distinct(mass, year, item_cbs_code),
+      by = c("year", "item_cbs_code")
+    )
+
+  if (nrow(lost) > 0) {
+    items <- sort(unique(lost$item_cbs_code))
+    years <- range(lost$year)
+    cli::cli_warn(c(
+      "{nrow(lost)} year-item trade matri{?x/ces} lost every seed cell to \\
+       the mass-only filter and {?is/are} absent from the result.",
+      "i" = "{length(items)} CBS item{?s}: {.val {items}}, \\
+             {years[[1]]}-{years[[2]]}.",
+      "i" = "Their trade is denominated in head counts, and so are the \\
+             totals they would have been balanced onto, so the observed \\
+             partner structure is replaced by the marginals estimate \\
+             (whep#962)."
+    ))
+  }
+
+  mass
 }
 
 .get_nested_cbs <- function(cbs, codes) {
