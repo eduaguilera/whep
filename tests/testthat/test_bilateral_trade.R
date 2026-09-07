@@ -6,8 +6,16 @@ testthat::test_that("get_bilateral_trade returns expected structure", {
   testthat::expect_s3_class(result, "tbl_df")
   testthat::expect_named(
     result,
-    c("year", "item_cbs_code", "bilateral_trade")
+    c(
+      "year",
+      "item_cbs_code",
+      "bilateral_trade",
+      "has_cbs_totals",
+      "method_items_not_in_cbs"
+    )
   )
+  testthat::expect_true(all(result$has_cbs_totals))
+  testthat::expect_true(all(result$method_items_not_in_cbs == "drop"))
   testthat::expect_equal(nrow(result), 10)
   testthat::expect_true(all(
     purrr::map_lgl(result$bilateral_trade, is.matrix)
@@ -554,11 +562,187 @@ testthat::test_that(".filter_only_items_in_cbs removes items not in cbs", {
     3, 30
   )
   cbs <- tibble::tibble(item_cbs_code = c(1, 3))
-  result <- .filter_only_items_in_cbs(btd, cbs)
+  testthat::expect_warning(
+    result <- .filter_only_items_in_cbs(btd, cbs),
+    "no commodity balance"
+  )
 
   testthat::expect_equal(nrow(result), 2)
   items <- result |> dplyr::pull(item_cbs_code)
   testthat::expect_true(all(items %in% c(1, 3)))
+})
+
+# Items with no CBS row (whep#943) -------------------------------------------
+
+testthat::test_that(".filter_only_items_in_cbs reports the code, tonnage and share dropped", {
+  # Regression for whep#943: the drop used to be silent, so 26% of the
+  # pin's traded tonnage left the pipeline with no message at all.
+  btd <- tibble::tribble(
+      ~item_cbs_code, ~value,
+      2511, 250,
+      5001, 750
+    )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_warning(
+    .filter_only_items_in_cbs(btd, cbs),
+    "5001"
+  )
+  testthat::expect_warning(
+    .filter_only_items_in_cbs(btd, cbs),
+    "75 percent"
+  )
+})
+
+testthat::test_that(".filter_only_items_in_cbs stays silent when all match", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~value,
+    2511, 250,
+    2514, 750
+  )
+  cbs <- tibble::tibble(item_cbs_code = c(2511, 2514))
+
+  result <- testthat::expect_no_warning(
+    .filter_only_items_in_cbs(btd, cbs)
+  )
+  testthat::expect_equal(nrow(result), 2)
+})
+
+testthat::test_that(".filter_only_items_in_cbs keeps the items on 'keep'", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~value,
+    2511, 250,
+    5001, 750
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_warning(
+    result <- .filter_only_items_in_cbs(btd, cbs, "keep"),
+    "no commodity balance"
+  )
+  testthat::expect_equal(sum(result$value), 1000)
+  testthat::expect_setequal(result$item_cbs_code, c(2511, 5001))
+})
+
+testthat::test_that(".filter_only_items_in_cbs aborts on 'abort'", {
+  btd <- tibble::tribble(
+    ~item_cbs_code, ~value,
+    2511, 250,
+    5001, 750
+  )
+  cbs <- tibble::tibble(item_cbs_code = 2511)
+
+  testthat::expect_error(
+    .filter_only_items_in_cbs(btd, cbs, "abort"),
+    "no commodity balance"
+  )
+})
+
+testthat::test_that("get_bilateral_trade rejects an unknown method", {
+  testthat::expect_error(
+    get_bilateral_trade(method_items_not_in_cbs = "map_to_residual"),
+    class = "rlang_error"
+  )
+})
+
+testthat::test_that(".own_margin_totals uses the item's own reported flows", {
+  codes <- factor(c(10, 20, 30))
+  flows <- tibble::tribble(
+    ~from_code, ~to_code, ~value,
+    10L, 20L, 40,
+    10L, 30L, 60,
+    20L, 30L, 25
+  )
+
+  result <- .own_margin_totals(flows, codes)
+
+  testthat::expect_equal(as.character(result$area_code), c("10", "20", "30"))
+  testthat::expect_equal(result$export, c(100, 25, 0))
+  testthat::expect_equal(result$import, c(0, 40, 85))
+  # Self-derived margins agree by construction, so balancing is the identity.
+  testthat::expect_equal(result$balanced_export, result$export)
+  testthat::expect_equal(result$balanced_import, result$import)
+})
+
+testthat::test_that(".attach_total_trade drops unanchored groups by default", {
+  nested <- tibble::tribble(
+    ~year, ~item_cbs_code, ~bilateral_trade,
+    2010, 2511, tibble::tibble(from_code = 10L, to_code = 20L, value = 100),
+    2010, 5001, tibble::tibble(from_code = 10L, to_code = 20L, value = 750)
+  )
+  codes <- factor(c(10, 20))
+  cbs <- tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2010, 2511, 10, 100, 0,
+    2010, 2511, 20, 0, 100
+  ) |>
+    dplyr::mutate(area_code = factor(area_code, levels = codes))
+
+  result <- .attach_total_trade(nested, cbs, codes, "drop")
+
+  testthat::expect_equal(result$item_cbs_code, 2511)
+  testthat::expect_true(all(result$has_cbs_totals))
+})
+
+testthat::test_that(".attach_total_trade flags self-derived margins on 'keep'", {
+  nested <- tibble::tribble(
+    ~year, ~item_cbs_code, ~bilateral_trade,
+    2010, 2511, tibble::tibble(from_code = 10L, to_code = 20L, value = 100),
+    2010, 5001, tibble::tibble(from_code = 10L, to_code = 20L, value = 750)
+  )
+  codes <- factor(c(10, 20))
+  cbs <- tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2010, 2511, 10, 100, 0,
+    2010, 2511, 20, 0, 100
+  ) |>
+    dplyr::mutate(area_code = factor(area_code, levels = codes))
+
+  result <- .attach_total_trade(nested, cbs, codes, "keep")
+
+  testthat::expect_equal(result$item_cbs_code, c(2511, 5001))
+  testthat::expect_equal(result$has_cbs_totals, c(TRUE, FALSE))
+  unanchored <- result$total_trade[[2]]
+  testthat::expect_equal(unanchored$export, c(750, 0))
+  testthat::expect_equal(unanchored$import, c(0, 750))
+})
+
+testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
+  # The invariant that matters: a kept item's balanced matrix must still
+  # hold the tonnage the pin reported for it, and a dropped one must not
+  # appear at all. `.balance_matrix()` renormalises to the margins, which
+  # for a kept item are its own row/column sums.
+  btd <- tibble::tribble(
+    ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit, ~value,
+    2010, 2511, 10L, 20L, "tonnes", 100,
+    2010, 5001, 10L, 20L, "tonnes", 750,
+    2010, 5001, 20L, 10L, "tonnes", 250
+  )
+  cbs <- tibble::tribble(
+    ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+    2010, 2511, 10L, 100, 0,
+    2010, 2511, 20L, 0, 100
+  )
+  codes <- factor(c(10L, 20L))
+
+  testthat::expect_warning(
+    nested_drop <- .nest_by_year_item_code(btd, cbs, codes, "drop"),
+    "no commodity balance"
+  )
+  dropped <- .process_bilateral_trade(nested_drop, codes)
+  testthat::expect_equal(dropped$item_cbs_code, 2511)
+
+  testthat::expect_warning(
+    nested_keep <- .nest_by_year_item_code(btd, cbs, codes, "keep"),
+    "no commodity balance"
+  )
+  kept <- .process_bilateral_trade(nested_keep, codes)
+
+  testthat::expect_equal(kept$item_cbs_code, c(2511, 5001))
+  other <- kept$bilateral_trade[[2]]
+  testthat::expect_equal(sum(other), 1000)
+  testthat::expect_equal(other["10", "20"], 750)
+  testthat::expect_equal(other["20", "10"], 250)
 })
 
 testthat::test_that(".downscale_estimate_matrix scales rows exceeding balance", {

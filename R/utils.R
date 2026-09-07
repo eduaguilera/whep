@@ -2105,6 +2105,10 @@ utils::globalVariables(
     "consump_green_all_mm",
     # commodity_balance_sheet.R (#168) — the live-animal slaughter total
     # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
-    "slaughtered"
+    "slaughtered",
+    # bilateral_trade.R (#943) — integer copy of the country factor level,
+    # used to join a trade matrix's own row/column margins onto the country
+    # dimension when no CBS row anchors the item
+    "area_code_int"
   )
 )

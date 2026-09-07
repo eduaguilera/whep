@@ -32,6 +32,9 @@
     .add_reporting_polity_columns()
 }
 
+# `has_cbs_totals` and `method_items_not_in_cbs` reflect the default
+# `method_items_not_in_cbs = "drop"` run: every surviving item is anchored on
+# CBS export/import totals, so the flag is TRUE throughout (whep#943).
 .example_get_bilateral_trade <- function() {
   tibble::tribble(
     ~year, ~item_cbs_code, ~bilateral_trade,
@@ -45,7 +48,11 @@
     2003L, 2613, matrix(1, nrow = 187, ncol = 187),
     2018L, 2671, matrix(1, nrow = 187, ncol = 187),
     2021L, 2582, matrix(1, nrow = 187, ncol = 187)
-  )
+  ) |>
+    dplyr::mutate(
+      has_cbs_totals = TRUE,
+      method_items_not_in_cbs = "drop"
+    )
 }
 
 # Eleven rows sampled from a real get_feed_intake() run (national grain, IPCC
