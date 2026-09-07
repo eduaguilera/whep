@@ -124,7 +124,7 @@ create_n_prov_destiny <- function(example = FALSE) {
 
   processing_excess_by_province <- .processing_excess_by_province(
     processing_excess,
-    .processing_excess_consumption_shares(
+    .processing_excess_shares(
       spain_coefs,
       add_feed_output$feed_intake,
       food_and_other_uses
@@ -1357,7 +1357,7 @@ build_food_protein_destiny <- function(
 #' per Year/Item where any of its outputs has demand, 0 otherwise).
 #' @keywords internal
 #' @noRd
-.processing_excess_consumption_shares <- function(
+.processing_excess_shares <- function(
   spain_coefs,
   feed_intake,
   food_other_uses
@@ -1414,10 +1414,10 @@ build_food_protein_destiny <- function(
 #' @description Combines the national import-fed processing volume (see
 #' `.calculate_processing_excess()`) with each province's share of the
 #' primary item's processed-output demand (see
-#' `.processing_excess_consumption_shares()`).
+#' `.processing_excess_shares()`).
 #'
 #' @param processing_excess Output of `.calculate_processing_excess()`.
-#' @param alloc_shares Output of `.processing_excess_consumption_shares()`.
+#' @param alloc_shares Output of `.processing_excess_shares()`.
 #'
 #' @return A dataframe with Year, Province_name, Item, excess_fm.
 #' @keywords internal

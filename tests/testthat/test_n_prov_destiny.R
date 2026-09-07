@@ -889,7 +889,7 @@ test_that(".route_processing_shortfall falls back to other_uses when default_des
   expect_equal(out$food, 0)
 })
 
-test_that(".processing_excess_consumption_shares allocates by where the processed outputs are consumed, not by which province grows the primary item", {
+test_that(".processing_excess_shares allocates by where the processed outputs are consumed, not by which province grows the primary item", {
   spain_coefs <- tibble::tribble(
     ~Year, ~Item, ~ProcessedItem, ~value_to_process, ~cf,
     2000, "Soyabeans", "Soyabean Cake", 1000, 0.79,
@@ -907,7 +907,7 @@ test_that(".processing_excess_consumption_shares allocates by where the processe
     2000, "ConsumesSoy", "Soyabean Cake", 0, 0
   )
 
-  out <- .processing_excess_consumption_shares(
+  out <- .processing_excess_shares(
     spain_coefs,
     feed_intake,
     food_other_uses
