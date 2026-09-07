@@ -245,10 +245,25 @@
 
 # ---- Inputs -----------------------------------------------------------------
 
+# ABORTS on an unset environment variable rather than alerting and continuing.
+# It alerted before, and that is how whep#1010 shipped: the pin published on
+# 2026-08-27 has `inland_water_ha == 0` and `ice_area_ha == 0` in all 484,314
+# rows, two days after whep#885 closed the same defect. An alert in a run that
+# prints thousands of lines over hours is not a gate, and the identity every
+# S-A section here checks is satisfied by a zero, so nothing downstream of this
+# point can recover the fact. A build with no water is a legitimate thing to
+# want and is what `build_polycell_support()` does when called directly; it is
+# not a thing to VERIFY, which is what this script is for.
 .vps_water <- function() {
   if (is.null(.vps_env("WHEP_LPJML_INPUT_DIR"))) {
-    cli::cli_alert_warning("WHEP_LPJML_INPUT_DIR unset: no inland water.")
-    return(NULL)
+    cli::cli_abort(c(
+      "{.envvar WHEP_LPJML_INPUT_DIR} is unset, so there would be no inland
+       water layer.",
+      x = "Every lake and river inside a polity would be booked as land and
+           every gate below would still pass (whep#885, whep#1010).",
+      i = "Point it at the {.file GLWD/} download from
+           {.file inst/scripts/download/download_hydrology.R}."
+    ))
   }
   water <- whep::read_glwd_water()
   cli::cli_alert_info(
@@ -262,8 +277,14 @@
 
 .vps_ice <- function() {
   if (is.null(.vps_env("WHEP_NATURALEARTH_DIR"))) {
-    cli::cli_alert_warning("WHEP_NATURALEARTH_DIR unset: no ice.")
-    return(NULL)
+    cli::cli_abort(c(
+      "{.envvar WHEP_NATURALEARTH_DIR} is unset, so there would be no ice
+       layer.",
+      x = "Every glacier inside a polity would be booked as land and every
+           gate below would still pass (whep#885, whep#1010).",
+      i = "Point it at the {.file NaturalEarth/} download from
+           {.file inst/scripts/download/download_naturalearth.R}."
+    ))
   }
   ice <- whep::read_glaciated_areas()
   cli::cli_alert_info(
@@ -298,6 +319,74 @@
 }
 
 # ---- Sections ---------------------------------------------------------------
+
+# S-A0: the optional layers were SUPPLIED. This runs before every other gate
+# because it is the only one whose failure the others cannot see: `water` and
+# `ice` zero-fill, and S-A1's identity is satisfied by a zero, so a build with
+# neither layer passes every section below with a max residual of 0 ha. That is
+# not hypothetical -- two published pins were built that way, whep#885's
+# `20260818T105426Z-a0330` and whep#1010's `20260827T190201Z-f82a2`, and the
+# second put 2015 land 534.9 Mha (+4.1%) too high.
+#
+# The stamp is checked first because it is a label and cannot be satisfied by
+# arithmetic. The floors are checked as well, and only on a WHOLE-TABLE run,
+# because a subset legitimately measures less: they are what catches a layer
+# that was supplied but arrived on the wrong grid, which the stamp cannot see.
+# They are floors rather than equalities so that a genuine rebuild against a
+# new polity vocabulary or a new GLWD vintage moves them without failing. The
+# sound pin `20260825T102349Z-1a0eb` measures 471,251 wet rows / 1,657.6 Mha
+# and 20,801 icy rows / 981.1 Mha, so each floor sits well below a real build
+# and far above a zero-fill.
+.vps_layers_supplied <- function(support, whole_table) {
+  .vps_h("S-A0: the inland water and ice layers were supplied")
+  stamp <- sort(unique(support$layers_supplied))
+  cli::cli_text("layers_supplied {.val {stamp}}.")
+  if (!identical(stamp, "ice,water")) {
+    cli::cli_abort(c(
+      "The built support is not stamped with both optional layers.",
+      "x" = "{.field layers_supplied} is {.val {stamp}}, so at least one of
+             {.field inland_water_ha} and {.field ice_area_ha} is identically
+             zero and its area is booked as land.",
+      "i" = "Every gate below would still pass: the S-A1 identity is satisfied
+             by a zero (whep#885, whep#1010)."
+    ))
+  }
+  floors <- tibble::tribble(
+    ~column, ~min_rows, ~min_mha,
+    "inland_water_ha", 100000L, 1000,
+    "ice_area_ha", 5000L, 400
+  )
+  measured <- floors |>
+    dplyr::mutate(
+      rows = purrr::map_int(.data$column, \(cl) sum(support[[cl]] > 0)),
+      mha = purrr::map_dbl(.data$column, \(cl) sum(support[[cl]]) / 1e6)
+    )
+  purrr::pwalk(measured, \(column, min_rows, min_mha, rows, mha) {
+    cli::cli_text(
+      "{column}: {rows} row{?s} > 0 (floor {min_rows}),
+       {round(mha, 3)} Mha (floor {min_mha})."
+    )
+  })
+  if (!whole_table) {
+    cli::cli_alert_info("Subset run: the whole-table floors are not applied.")
+    return(invisible(measured))
+  }
+  short <- dplyr::filter(
+    measured,
+    .data$rows < .data$min_rows | .data$mha < .data$min_mha
+  )
+  if (nrow(short) > 0L) {
+    cli::cli_abort(c(
+      "A supplied layer measures far less than a real global build.",
+      "x" = "{.field {short$column}}.",
+      "i" = "A layer on the wrong grid matches no polycell and is booked as
+             land without being absent; check that {.field lon}/{.field lat}
+             are on the same half-degree centres."
+    ))
+  }
+  cli::cli_alert_success("Both layers were supplied and clear their floors.")
+  invisible(measured)
+}
 
 .vps_identity <- function(polycells) {
   .vps_h("S-A1: the three categories sum to polity_area_ha")
@@ -1128,6 +1217,7 @@
     "{nrow(support)} interval rows
      ({dplyr::n_distinct(polycells$polycell_id)} polycells)."
   )
+  .vps_layers_supplied(support, whole_table)
   .vps_identity(polycells)
   .vps_reaggregation(polycells, historical_year)
   .vps_reaggregation(polycells, year)
