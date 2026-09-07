@@ -153,13 +153,20 @@ typology_stacked_bars <- function() {
 
   print(p_total)
   ggplot2::ggsave(
-    "C:/PhD/Typologies/Typologies_spain/new_typologies/stacked_typologies_total.png",
+    "C:/PhD/Typologies/Typologies_spain/new_typologies/stacked_typologies_total_new.png",
     plot = p_total,
-    width = 10,
+    width = 12,
     height = 6,
     dpi = 300
   )
   print(p_pct)
+  ggplot2::ggsave(
+    "C:/PhD/Typologies/Typologies_spain/new_typologies/stacked_typologies_pct_new.png",
+    plot = p_pct,
+    width = 12,
+    height = 6,
+    dpi = 300
+  )
 
   list(total = df_total, pct = df_pct, p_total = p_total, p_pct = p_pct)
 }
@@ -211,6 +218,13 @@ typology_area_stacked_bars <- function() {
   )
 
   print(p_total)
+  ggplot2::ggsave(
+    "C:/PhD/Typologies/Typologies_spain/new_typologies/stacked_typologies_area_new.png",
+    plot = p_total,
+    width = 12,
+    height = 6,
+    dpi = 300
+  )
   print(p_pct)
 
   list(df = df, p_total = p_total, p_pct = p_pct)
