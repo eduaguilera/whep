@@ -521,26 +521,31 @@ build_carbon_balance <- function(
     .cb_attach_soil_cover(
       land_use_classes,
       natural_cover,
-      cropland_cover
+      cropland_cover,
+      expand = FALSE
     ) |>
     .cb_attach_class_water(class_water)
-  group_keys <- c(keys, "land_use")
+  # Reduce on the modifier key, expand to classes afterwards. Both paths below
+  # therefore run on ~7 keys per cell-year instead of ~88 classes.
+  group_keys <- c(keys, ".cover_key", ".irrigated")
 
   # Vectorised across cell-years where the shape allows it; NULL means fall
   # through to the per-group path below, which stays the reference.
   fast <- .cb_rothc_modifier_vectorised(prepared, model, group_keys)
-  if (!is.null(fast)) {
-    return(fast)
+  reduced <- if (!is.null(fast)) {
+    fast
+  } else {
+    prepared |>
+      dplyr::summarise(
+        climate_modifier = .cb_year_climate_modifier(
+          model,
+          dplyr::pick(dplyr::everything()),
+          dplyr::first(.data$clay_pct)
+        ),
+        .by = dplyr::all_of(group_keys)
+      )
   }
-  prepared |>
-    dplyr::summarise(
-      climate_modifier = .cb_year_climate_modifier(
-        model,
-        dplyr::pick(dplyr::everything()),
-        dplyr::first(.data$clay_pct)
-      ),
-      .by = dplyr::all_of(group_keys)
-    )
+  .cb_expand_to_classes(reduced, land_use_classes)
 }
 
 # The RothC/HSOC climate modifier for EVERY cell-year at once.
@@ -681,24 +686,27 @@ build_carbon_balance <- function(
   climate,
   land_use_classes,
   natural_cover = NULL,
-  cropland_cover = NULL
+  cropland_cover = NULL,
+  expand = TRUE
 ) {
-  classes <- unique(land_use_classes)
-  # Crossed by cover PROFILE, not by class. Crop groups can number eighty
-  # (woody species x regime) and share five profiles between them; crossing
-  # the monthly climate with every class would multiply the largest table in
-  # the balance twentyfold. Each class is joined to its profile's rows after.
-  profile_of <- tibble::tibble(
-    land_use = classes,
-    .cover_key = .cb_cover_profile(classes)
-  )
+  profile_of <- .cb_profile_of(land_use_classes)
+  # Crossed by MODIFIER KEY, not by class, and it STAYS that way until after
+  # the modifier has been reduced (`.cb_expand_to_classes()` does the
+  # expansion). The modifier depends on the class only through its cover
+  # profile and whether it is irrigated, so 88 crop-group classes collapse to
+  # about seven distinct keys. Expanding first and reducing after multiplied
+  # the largest table in the balance ~12-fold and then discarded the surplus
+  # at the join -- the comment here used to claim the saving the code did not
+  # make, and a 2020 grid run spent 4.5 h of CPU without completing.
   climate |>
     dplyr::select(-dplyr::any_of("soil_cover")) |>
     dplyr::mutate(
       months_from_peak = .cb_months_from_peak(.data$month, .data$temp_c),
       .by = c("lon", "lat", "area_code", "year")
     ) |>
-    tidyr::crossing(.cover_key = unique(profile_of$.cover_key)) |>
+    tidyr::crossing(
+      dplyr::distinct(dplyr::select(profile_of, ".cover_key", ".irrigated"))
+    ) |>
     dplyr::mutate(.curve_key = .cb_curve_key(.data$.cover_key)) |>
     dplyr::left_join(
       .cb_cover_curve(),
@@ -708,12 +716,52 @@ build_carbon_balance <- function(
     dplyr::mutate(soil_cover = dplyr::coalesce(.data$soil_cover, 0)) |>
     .cb_apply_natural_cover(natural_cover, key = ".cover_key") |>
     .cb_apply_crop_cover(cropland_cover, key = ".cover_key") |>
+    .cb_cover_expand(profile_of, expand)
+}
+
+# `expand = TRUE` returns the per-CLASS rows this has always returned, which is
+# what a caller wanting one row per class-month expects. The modifier chain
+# passes FALSE and stays on the ~7 profile-regime keys until the reduction is
+# done, which is the whole point of keying by profile in the first place.
+.cb_cover_expand <- function(covered, profile_of, expand) {
+  if (!isTRUE(expand)) {
+    return(covered)
+  }
+  covered |>
     dplyr::inner_join(
       profile_of,
-      by = ".cover_key",
+      by = c(".cover_key", ".irrigated"),
       relationship = "many-to-many"
     ) |>
-    dplyr::select(-".cover_key")
+    dplyr::select(-".cover_key", -".irrigated")
+}
+
+# Class -> (cover profile, irrigated) -- the only two things the climate
+# modifier reads off a class. `.natural` is not a third: "natural" is its own
+# cover profile, so the profile already carries it. Irrigation IS a third
+# property because woody crop groups of BOTH regimes share the
+# `woody_cropland` profile, so the profile alone cannot tell them apart.
+.cb_profile_of <- function(land_use_classes) {
+  classes <- unique(land_use_classes)
+  tibble::tibble(
+    land_use = classes,
+    .cover_key = .cb_cover_profile(classes),
+    .irrigated = .soc_is_irrigated_class(classes)
+  )
+}
+
+# Expand a modifier that was reduced per (cell-year, cover profile, irrigated)
+# out to the classes those keys stand for. Every class sharing a key gets the
+# same modifier, which is exactly what computing it per class produced -- the
+# modifier has no other class dependence.
+.cb_expand_to_classes <- function(modifier, land_use_classes) {
+  .cb_profile_of(land_use_classes) |>
+    dplyr::inner_join(
+      modifier,
+      by = c(".cover_key", ".irrigated"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::select(-".cover_key", -".irrigated")
 }
 
 # The soil-cover profile a class follows. Plain cropland follows the annual
@@ -940,9 +988,30 @@ build_carbon_balance <- function(
 # cell-year with irrigation but no irrigated class (cropland that stayed
 # unsplit) keeps the `"cell"` rule, so its irrigation is not dropped.
 .cb_attach_class_water <- function(prepared, class_water = NULL) {
-  needed <- c("precip_mm", "pet_mm", "water_minus_pet_mm", "land_use")
+  # Keyed on the cover profile and the irrigation flag rather than on
+  # `land_use`, because the rows are profile-keyed until the modifier has been
+  # reduced. Both properties are exactly what the rule read off the class:
+  # "natural" is its own profile, and `.irrigated` already travels with the
+  # key (woody classes of both regimes share one profile, so it must).
+  needed <- c("precip_mm", "pet_mm", "water_minus_pet_mm")
+  keyed <- rlang::has_name(prepared, ".cover_key") &&
+    rlang::has_name(prepared, ".irrigated")
+  if (!keyed && !rlang::has_name(prepared, "land_use")) {
+    return(prepared)
+  }
   if (!all(purrr::map_lgl(needed, \(x) rlang::has_name(prepared, x)))) {
     return(prepared)
+  }
+  # Works on either keying. The modifier chain hands it profile-keyed rows;
+  # a caller with per-class rows (and every existing test) gets the same rule
+  # by deriving the two properties from the class.
+  if (!keyed) {
+    prepared <- dplyr::mutate(
+      prepared,
+      .cover_key = .cb_cover_profile(.data$land_use),
+      .irrigated = .soc_is_irrigated_class(.data$land_use),
+      .derived_keys = TRUE
+    )
   }
   regime <- !is.null(class_water) && identical(class_water$method, "regime")
   prepared |>
@@ -950,8 +1019,7 @@ build_carbon_balance <- function(
     dplyr::mutate(
       .rain = .data$precip_mm - .data$pet_mm,
       .irrig = .data$water_minus_pet_mm - .data$.rain,
-      .natural = stringr::str_to_lower(.data$land_use) == "natural",
-      .irrigated = .soc_is_irrigated_class(.data$land_use),
+      .natural = stringr::str_to_lower(.data$.cover_key) == "natural",
       water_minus_pet_mm = dplyr::case_when(
         .data$.irrigated_frac > 0 & .data$.irrigated ~
           .data$.rain + .data$.irrig / .data$.irrigated_frac,
@@ -964,9 +1032,18 @@ build_carbon_balance <- function(
       -".rain",
       -".irrig",
       -".natural",
-      -".irrigated",
       -".irrigated_frac"
-    )
+    ) |>
+    .cb_drop_derived_keys()
+}
+
+# Keys derived here are scaffolding, not output: drop them again so a
+# per-class caller gets back exactly the columns it passed in.
+.cb_drop_derived_keys <- function(x) {
+  if (!rlang::has_name(x, ".derived_keys")) {
+    return(x)
+  }
+  dplyr::select(x, -".derived_keys", -".cover_key", -".irrigated")
 }
 
 # Attach each cell-year's irrigated share of the cell as `.irrigated_frac`;

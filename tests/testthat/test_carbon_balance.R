@@ -2062,3 +2062,73 @@ testthat::test_that("an unknown SOM C:N method aborts", {
     "Unknown"
   )
 })
+
+testthat::test_that("the climate modifier depends on a class only through profile and regime", {
+  # The premise of the performance fix: the modifier reads nothing off a class
+  # except its cover profile and whether it is irrigated. If that ever stops
+  # being true, reducing on the key and expanding afterwards would collapse
+  # classes that should differ -- so assert the premise directly.
+  # Several woody species, because that is where the saving is: they all share
+  # one profile, so the key count stays flat as the class count grows.
+  classes <- c(
+    "cropland",
+    "cropland_rainfed_herbaceous",
+    "cropland_irrigated_herbaceous",
+    "cropland_rainfed_olive",
+    "cropland_irrigated_olive",
+    "cropland_rainfed_almond",
+    "cropland_rainfed_vine",
+    "cropland_irrigated_almond",
+    "grassland",
+    "natural"
+  )
+  p <- whep:::.cb_profile_of(classes)
+  # Woody classes of BOTH regimes share one profile, which is why the
+  # irrigation flag has to travel with the key and the profile alone will not
+  # do.
+  woody <- p[p$.cover_key == "woody_cropland", ]
+  testthat::expect_equal(nrow(woody), 5L)
+  testthat::expect_setequal(woody$.irrigated, c(TRUE, FALSE))
+  # Five woody classes, but only TWO keys between them: that collapse is the
+  # saving, and it is why the profile alone will not do.
+  woody_keys <- dplyr::distinct(dplyr::select(
+    woody,
+    ".cover_key",
+    ".irrigated"
+  ))
+  testthat::expect_equal(nrow(woody_keys), 2L)
+  # And the key set really is coarser than the class set overall.
+  keys <- dplyr::distinct(dplyr::select(p, ".cover_key", ".irrigated"))
+  testthat::expect_lt(nrow(keys), length(classes))
+})
+
+testthat::test_that("expanding to classes gives every sharer the same modifier", {
+  classes <- c(
+    "cropland_rainfed_olive",
+    "cropland_irrigated_olive",
+    "cropland_rainfed_almond",
+    "grassland"
+  )
+  modifier <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    area_code = 1L,
+    year = 2000L,
+    .cover_key = c("woody_cropland", "woody_cropland", "grassland"),
+    .irrigated = c(FALSE, TRUE, FALSE),
+    climate_modifier = c(0.4, 0.6, 0.9)
+  )
+  out <- whep:::.cb_expand_to_classes(modifier, classes)
+  testthat::expect_setequal(out$land_use, classes)
+  # The two rainfed woody classes share a key, so they must share a value.
+  olive <- out$climate_modifier[out$land_use == "cropland_rainfed_olive"]
+  almond <- out$climate_modifier[out$land_use == "cropland_rainfed_almond"]
+  testthat::expect_equal(olive, almond)
+  testthat::expect_equal(olive, 0.4)
+  # And the irrigated one must NOT: that is the distinction the flag exists for.
+  irrig <- out$climate_modifier[out$land_use == "cropland_irrigated_olive"]
+  testthat::expect_equal(irrig, 0.6)
+  testthat::expect_false(isTRUE(all.equal(olive, irrig)))
+  # The helper keys are gone from the output.
+  testthat::expect_false(any(c(".cover_key", ".irrigated") %in% names(out)))
+})
