@@ -250,7 +250,12 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 81L)
+  #
+  # 80 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # `get_faostat_data()`, the only thing that called it. A cap left above the
+  # real count is slack a new unregistered group could hide in, so it comes
+  # down with the row.
+  expect_lte(sum(full$n), 80L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%
