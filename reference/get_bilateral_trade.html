@@ -44,7 +44,11 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_bilateral_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">FALSE</span>, cbs <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">get_bilateral_trade</span><span class="op">(</span></span>
+<span>  example <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  cbs <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  method_items_not_in_cbs <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"drop"</span>, <span class="st">"keep"</span>, <span class="st">"abort"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -59,6 +63,19 @@ downloading remote data. Default is <code>FALSE</code>.</p></dd>
 <dt id="arg-cbs">cbs<a class="anchor" aria-label="anchor" href="#arg-cbs"></a></dt>
 <dd><p>Optional pre-computed wide CBS tibble from
 <code><a href="get_wide_cbs.html">get_wide_cbs()</a></code>. If <code>NULL</code> (default), it is built internally.</p></dd>
+
+
+<dt id="arg-method-items-not-in-cbs">method_items_not_in_cbs<a class="anchor" aria-label="anchor" href="#arg-method-items-not-in-cbs"></a></dt>
+<dd><p>How to treat a traded item whose
+<code>item_cbs_code</code> has no commodity balance sheet row to balance it
+against. See the <em>Items with no CBS row</em> section. One of:</p><ul><li><p><code>"drop"</code> (default): discard those flows, the historical
+behaviour. Published values are unaffected by this argument's
+existence as long as the default is kept.</p></li>
+<li><p><code>"keep"</code>: keep the flows and take the row and column margins from
+the reported bilateral data itself instead of from the CBS.</p></li>
+<li><p><code>"abort"</code>: fail, so that a refreshed pin cannot introduce
+unanchored items unnoticed.</p></li>
+</ul><p><code>example = TRUE</code> always returns the <code>"drop"</code> fixture.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -85,6 +102,14 @@ commodity balance sheet (which is considered more accurate for totals).</p></li>
 </ul><p>The sums may not be exactly the expected values because of precision
 issues and/or the iterative proportional fitting algorithm not converging
 fast enough, but should be relatively very close to the desired totals.</p></li>
+<li><p><code>has_cbs_totals</code>: <code>TRUE</code> when the matrix margins came from the
+commodity balance sheet, <code>FALSE</code> when the item had no CBS row for
+that year and its margins were taken from the reported bilateral
+flows themselves. Always <code>TRUE</code> unless
+<code>method_items_not_in_cbs = "keep"</code>.</p></li>
+<li><p><code>method_items_not_in_cbs</code>: the treatment chosen for items with no
+CBS row, recorded so a downstream consumer can tell which variant it
+is holding.</p></li>
 </ul><p>The step by step approach to obtain this data tries to follow the FABIO
 model and is explained below. All the steps are performed separately for
 each group of year and item.</p><ul><li><p>From the FAOSTAT reported bilateral trade, there are sometimes two values
@@ -136,23 +161,54 @@ matrix.</p></li>
 <a href="https://en.wikipedia.org/wiki/Iterative_proportional_fitting" class="external-link">iterative proportional fitting algorithm</a>. The target sums for rows and columns are respectively the balanced
 exports and imports computed from the commodity balance sheet.</p></li>
 </ul></div>
+    <div class="section level2">
+    <h2 id="items-with-no-cbs-row">Items with no CBS row<a class="anchor" aria-label="anchor" href="#items-with-no-cbs-row"></a></h2>
+
+
+<p>The bilateral trade matrices are balanced against the total exports and
+imports reported in the commodity balance sheet, so an item with no CBS
+supply/use row has nothing to balance against. Historically those flows
+were discarded silently. Measured on the <code>bilateral_trade</code> pin
+<code>20250714T123347Z-2c392</code> (after the export-preference deduplication and
+the tonnes filter, i.e. exactly what reaches this step): 12.51 Gt of
+47.48 Gt, <strong>26.4% of the traded tonnage over 1986-2021</strong>, in 7 items, of
+which 99.1% is the FABIO-style aggregate placeholder <code>"Other"</code>
+(<code>item_cbs_code</code> 5001). The drop is now reported with
+<code><a href="https://cli.r-lib.org/reference/cli_abort.html" class="external-link">cli::cli_warn()</a></code> whichever method is chosen, because a quarter of world
+trade should not disappear without a message.</p>
+<p>The share is far from constant: 9.1% over 1986-2003, <strong>49.6% over
+2004-2013</strong> and 4.3% over 2014-2021. The middle block is not a real
+trade signal. It contains physically impossible flows booked in tonnes:
+Colombia to the United States, 2004, 2.58 Gt of <code>"Other"</code> in a single
+cell, more than world cereal production; Kenya to the Netherlands,
+515-594 Mt/year over 2005-2009. Excluding item 5001 altogether, the
+whole drop is 112 Mt, 0.24% of traded tonnage.</p>
+<p>Which treatment is right is therefore a methodological question, not a
+lookup: <code>"Other"</code> is an unallocated residual whose 2004-2013 values are
+demonstrably corrupt, so <code>"keep"</code> carries that corruption into the
+output, and mapping the residual onto real CBS items would need a
+sourced disaggregation key that does not exist in the package. Nothing
+downstream consumes the kept rows yet either: <code><a href="build_io_model.html">build_io_model()</a></code> takes
+its item dimension from supply-use and the CBS, so an item absent from
+both is ignored by <code>.build_trade_shares()</code> regardless of this argument.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="fu">get_bilateral_trade</span><span class="op">(</span>example <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 3</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>     year item_cbs_code bilateral_trade  </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;list&gt;</span>           </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>003          <span style="text-decoration: underline;">2</span>552 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>015          <span style="text-decoration: underline;">2</span>672 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>015          <span style="text-decoration: underline;">2</span>664 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">2</span>011          <span style="text-decoration: underline;">2</span>543 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>991          <span style="text-decoration: underline;">2</span>613 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>999          <span style="text-decoration: underline;">2</span>578 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">2</span>001          <span style="text-decoration: underline;">2</span>590 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>003          <span style="text-decoration: underline;">2</span>613 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>018          <span style="text-decoration: underline;">2</span>671 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>021          <span style="text-decoration: underline;">2</span>582 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 10 × 5</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     year item_cbs_code bilateral_trade   has_cbs_totals method_items_not_in_cbs</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;list&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;lgl&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span>  <span style="text-decoration: underline;">2</span>003          <span style="text-decoration: underline;">2</span>552 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span>  <span style="text-decoration: underline;">2</span>015          <span style="text-decoration: underline;">2</span>672 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span>  <span style="text-decoration: underline;">2</span>015          <span style="text-decoration: underline;">2</span>664 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span>  <span style="text-decoration: underline;">2</span>011          <span style="text-decoration: underline;">2</span>543 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span>  <span style="text-decoration: underline;">1</span>991          <span style="text-decoration: underline;">2</span>613 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span>  <span style="text-decoration: underline;">1</span>999          <span style="text-decoration: underline;">2</span>578 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span>  <span style="text-decoration: underline;">2</span>001          <span style="text-decoration: underline;">2</span>590 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span>  <span style="text-decoration: underline;">2</span>003          <span style="text-decoration: underline;">2</span>613 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span>  <span style="text-decoration: underline;">2</span>018          <span style="text-decoration: underline;">2</span>671 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span>  <span style="text-decoration: underline;">2</span>021          <span style="text-decoration: underline;">2</span>582 <span style="color: #949494;">&lt;dbl [187 × 187]&gt;</span> TRUE           drop                   </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

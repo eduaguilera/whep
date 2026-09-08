@@ -5,7 +5,11 @@ Reports trade between pairs of countries in given years.
 ## Usage
 
 ``` r
-get_bilateral_trade(example = FALSE, cbs = NULL)
+get_bilateral_trade(
+  example = FALSE,
+  cbs = NULL,
+  method_items_not_in_cbs = c("drop", "keep", "abort")
+)
 ```
 
 ## Arguments
@@ -20,6 +24,24 @@ get_bilateral_trade(example = FALSE, cbs = NULL)
   Optional pre-computed wide CBS tibble from
   [`get_wide_cbs()`](https://eduaguilera.github.io/whep/reference/get_wide_cbs.md).
   If `NULL` (default), it is built internally.
+
+- method_items_not_in_cbs:
+
+  How to treat a traded item whose `item_cbs_code` has no commodity
+  balance sheet row to balance it against. See the *Items with no CBS
+  row* section. One of:
+
+  - `"drop"` (default): discard those flows, the historical behaviour.
+    Published values are unaffected by this argument's existence as long
+    as the default is kept.
+
+  - `"keep"`: keep the flows and take the row and column margins from
+    the reported bilateral data itself instead of from the CBS.
+
+  - `"abort"`: fail, so that a refreshed pin cannot introduce unanchored
+    items unnoticed.
+
+  `example = TRUE` always returns the `"drop"` fixture.
 
 ## Value
 
@@ -62,6 +84,15 @@ following columns:
   issues and/or the iterative proportional fitting algorithm not
   converging fast enough, but should be relatively very close to the
   desired totals.
+
+- `has_cbs_totals`: `TRUE` when the matrix margins came from the
+  commodity balance sheet, `FALSE` when the item had no CBS row for that
+  year and its margins were taken from the reported bilateral flows
+  themselves. Always `TRUE` unless `method_items_not_in_cbs = "keep"`.
+
+- `method_items_not_in_cbs`: the treatment chosen for items with no CBS
+  row, recorded so a downstream consumer can tell which variant it is
+  holding.
 
 The step by step approach to obtain this data tries to follow the FABIO
 model and is explained below. All the steps are performed separately for
@@ -135,21 +166,55 @@ each group of year and item.
   The target sums for rows and columns are respectively the balanced
   exports and imports computed from the commodity balance sheet.
 
+## Items with no CBS row
+
+The bilateral trade matrices are balanced against the total exports and
+imports reported in the commodity balance sheet, so an item with no CBS
+supply/use row has nothing to balance against. Historically those flows
+were discarded silently. Measured on the `bilateral_trade` pin
+`20250714T123347Z-2c392` (after the export-preference deduplication and
+the tonnes filter, i.e. exactly what reaches this step): 12.51 Gt of
+47.48 Gt, **26.4% of the traded tonnage over 1986-2021**, in 7 items, of
+which 99.1% is the FABIO-style aggregate placeholder `"Other"`
+(`item_cbs_code` 5001). The drop is now reported with
+[`cli::cli_warn()`](https://cli.r-lib.org/reference/cli_abort.html)
+whichever method is chosen, because a quarter of world trade should not
+disappear without a message.
+
+The share is far from constant: 9.1% over 1986-2003, **49.6% over
+2004-2013** and 4.3% over 2014-2021. The middle block is not a real
+trade signal. It contains physically impossible flows booked in tonnes:
+Colombia to the United States, 2004, 2.58 Gt of `"Other"` in a single
+cell, more than world cereal production; Kenya to the Netherlands,
+515-594 Mt/year over 2005-2009. Excluding item 5001 altogether, the
+whole drop is 112 Mt, 0.24% of traded tonnage.
+
+Which treatment is right is therefore a methodological question, not a
+lookup: `"Other"` is an unallocated residual whose 2004-2013 values are
+demonstrably corrupt, so `"keep"` carries that corruption into the
+output, and mapping the residual onto real CBS items would need a
+sourced disaggregation key that does not exist in the package. Nothing
+downstream consumes the kept rows yet either:
+[`build_io_model()`](https://eduaguilera.github.io/whep/reference/build_io_model.md)
+takes its item dimension from supply-use and the CBS, so an item absent
+from both is ignored by `.build_trade_shares()` regardless of this
+argument.
+
 ## Examples
 
 ``` r
 get_bilateral_trade(example = TRUE)
-#> # A tibble: 10 × 3
-#>     year item_cbs_code bilateral_trade  
-#>    <int>         <dbl> <list>           
-#>  1  2003          2552 <dbl [187 × 187]>
-#>  2  2015          2672 <dbl [187 × 187]>
-#>  3  2015          2664 <dbl [187 × 187]>
-#>  4  2011          2543 <dbl [187 × 187]>
-#>  5  1991          2613 <dbl [187 × 187]>
-#>  6  1999          2578 <dbl [187 × 187]>
-#>  7  2001          2590 <dbl [187 × 187]>
-#>  8  2003          2613 <dbl [187 × 187]>
-#>  9  2018          2671 <dbl [187 × 187]>
-#> 10  2021          2582 <dbl [187 × 187]>
+#> # A tibble: 10 × 5
+#>     year item_cbs_code bilateral_trade   has_cbs_totals method_items_not_in_cbs
+#>    <int>         <dbl> <list>            <lgl>          <chr>                  
+#>  1  2003          2552 <dbl [187 × 187]> TRUE           drop                   
+#>  2  2015          2672 <dbl [187 × 187]> TRUE           drop                   
+#>  3  2015          2664 <dbl [187 × 187]> TRUE           drop                   
+#>  4  2011          2543 <dbl [187 × 187]> TRUE           drop                   
+#>  5  1991          2613 <dbl [187 × 187]> TRUE           drop                   
+#>  6  1999          2578 <dbl [187 × 187]> TRUE           drop                   
+#>  7  2001          2590 <dbl [187 × 187]> TRUE           drop                   
+#>  8  2003          2613 <dbl [187 × 187]> TRUE           drop                   
+#>  9  2018          2671 <dbl [187 × 187]> TRUE           drop                   
+#> 10  2021          2582 <dbl [187 × 187]> TRUE           drop                   
 ```
