@@ -1594,9 +1594,14 @@ build_gridded_landuse <- function(
   } else {
     "(country, crop)"
   }
+  # `cli::qty()` restates the quantity immediately before `{?s}`. Without it
+  # the interpolated `{grain}` sits between the count and the plural marker,
+  # and cli pluralises on `grain` -- a length-1 string -- so every message
+  # read "258 (country, crop) pair". Measured against `main`, which had the
+  # count adjacent to the marker and pluralised correctly.
   cli::cli_warn(c(
-    "{nrow(leaked)} {grain} pair{?s} in year {yr} have national \\
-     harvested area but no allocatable grid cell; \\
+    "{nrow(leaked)} {grain} {cli::qty(nrow(leaked))}pair{?s} in year {yr} \\
+     have national harvested area but no allocatable grid cell; \\
      {round(sum(leaked$national_area))} ha dropped:",
     "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
   ))

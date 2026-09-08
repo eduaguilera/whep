@@ -204,7 +204,13 @@ test_that("the enumerated baseline can only shrink", {
   # joins per-series run summaries to each other, both reductions of the one
   # `years` frame of a single call; the joined quantity is a run LENGTH, so
   # the row is `year_axis`, exactly as `.alloc_bridge_report`'s are.
-  expect_lte(sum(baseline$n), 85L)
+  #
+  # 84 since the pre-PR review: the ratchet moves DOWN. Assertion (b) stopped
+  # being a full_join of two independently reduced sides and became an
+  # interval sweep of both sides together, so the join that could not say
+  # WHEN it was comparing no longer exists. That is the direction this
+  # number is supposed to move.
+  expect_lte(sum(baseline$n), 84L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -336,11 +342,19 @@ test_that("every year-free territorial grouping is classified", {
   # the unit cropland extent is built one year at a time inside a `map()`
   # over years, with both sides cut to that year before they meet.
   #
+  # 105 since the pre-PR review: `.alloc_straddle` gained a per-container
+  # unit count, `diagnostic`, because keyed on the cell alone a unit sharing
+  # a cell with another COUNTRY scored as a sibling straddle with no sibling
+  # in the layer. `.level_compartment_shares` moved from
+  # `(cell, compartment)` to `(cell, compartment, interval)` and from
+  # `diagnostic` to `single_year`: the interval belongs in the key, so a
+  # successor's share is never added to its predecessor's.
+  #
   # 85 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
   # down with the row.
-  expect_lte(sum(full$n), 103L)
+  expect_lte(sum(full$n), 104L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

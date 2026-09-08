@@ -23,6 +23,11 @@
 #   residual_share, share_reported, shares_foreign, shares_sibling, target_ha,
 #   weight_area, weight_basis, weight_irrigated, weight_rainfed
 #
+# FOR THE INTEGRATION PASS -- the pre-PR review fixes add NO further NSE
+# symbol beyond the list above: every helper they introduce reads its columns
+# through the `.data` pronoun (`dropped_ha`, `claimed_share`) or through
+# string-valued `.by` / `dplyr::select()` keys (`epoch`).
+#
 # `allocate_level_crops()` and `build_level_crop_targets()` are new exports and
 # need NAMESPACE, `man/` and a `_pkgdown.yml` reference entry. Both examples
 # run the real functions on inline `tibble::tribble()` fixtures in a fraction
@@ -71,16 +76,21 @@
 #' }
 #'
 #' The two are different geographies, not two precisions of one, and the
-#' difference is large before about 1990: on the `20260827T190201Z-f82a2`
-#' support the year-aware read covers 43,521 cells and 8,245 Mha of land at
-#' 1851 against the snapshot's 68,546 cells and 13,461 Mha. Of that year's
+#' difference is large before about 1990: on the `20260825T102349Z-1a0eb`
+#' support the year-aware read covers 41,597 cells and 7,942 Mha of land at
+#' 1851 against the snapshot's 66,709 cells and 12,926 Mha. Of that year's
 #' LUH2 cropland, 41.6% is taken away from the country the snapshot gives it
-#' to and 21.7% is given to a country the snapshot does not -- the two
+#' to and 21.5% is given to a country the snapshot does not -- the two
 #' directions are reported separately, because a metric that scores only the
 #' losses cannot see a share that absorbs one country's land into another.
-#' 100.5 Mha of the loss falls in cells no polity claims in 1851 and is
+#' 101.8 Mha of the loss falls in cells no polity claims in 1851 and is
 #' attributed to nobody. At 2015 the two vintages agree exactly, which is the
 #' check that fails if the year-aware share is renormalised.
+#'
+#' Those figures are the `20260825T102349Z-1a0eb` support's, not the
+#' `20260827T190201Z-f82a2` one's: that later pin books every hectare of
+#' inland water and ice as land (whep#1010), which moves the cell count and
+#' the land, though not the argument.
 #' `run_spatialize()` records the resolved value in `run_metadata.yaml` and in
 #' a `method_grid_vintage` column on every output it writes.
 #'
@@ -148,6 +158,67 @@
 #'   *Which vintage of the support level 0 is read at*, which states why the
 #'   snapshot is still the default. Not read at `level >= 1L`, which is
 #'   year-aware by construction; snapshot a depth with `reference_year`.
+#' @param containers Optional integer vector of container reporting
+#'   `area_code`s the depth read is scoped to -- the containers a run grants a
+#'   depth. `NULL` (default) reads every admitted edge. Only read at
+#'   `level >= 1L`. See *Which containers a depth is read for*.
+#' @param double_claim Which clashes the double-claim gate refuses, one of
+#'   `"co_presence"` (default) or `"measured"`. See *Which double claims are
+#'   refused*. Only read at `level >= 1L`.
+#'
+#' @section Which double claims are refused:
+#' A support that carries a container's own row beside its units' rows in one
+#' cell claims that ground twice: `cell_land_ha` is the sum over the cell, so
+#' every unit's share is divided by a total counting the same ground twice,
+#' and nothing downstream can see it because the container's national total
+#' still reconciles. The two rules are alternatives, never a fallback.
+#'
+#' \describe{
+#'   \item{`"co_presence"`}{The default, and fail-closed: a container row
+#'     found beside its own units is refused, full stop. It is the strict
+#'     rule because this table carries no geometry -- whether the two
+#'     polygons overlap cannot be read off it.}
+#'   \item{`"measured"`}{Refuses only a container the cell's own area
+#'     REFUTES: at least one shared cell-epoch whose whole claimed territory
+#'     exceeds `cell_area_ha`. A cell cannot hold more territory than it has,
+#'     so an excess is proof; but the proof is ONE-SIDED, which is why this
+#'     is the weaker rule and not the default. A cell half of which is ocean
+#'     can hold a duplicate under its own area and show no excess. Every
+#'     clash it passes over is warned about by container and cell-epoch
+#'     count.}
+#' }
+#'
+#' On the `20260827T190201Z-f82a2` support the measurement separates the two
+#' cleanly: over the ten containers the shipped edge table admits at depth 1,
+#' 3,285 of 3,965 clashing cell-epochs over-claim by 529.03 Mha in total, and
+#' the whole of that sits in eight containers whose units are genuinely
+#' nested -- Alaska inside the USA alone over-claims 150 Mha over 1,156 of its
+#' 1,372 shared cells. The two that over-claim nothing are Ryukyu inside Japan
+#' 1895-1945 (8 cells, 0 Mha) and Singapore inside Malaysia (1 cell, 0 Mha),
+#' whose ground in the shared cell is disjoint. The decision is taken per
+#' CONTAINER rather than per cell for that reason: a nested container's
+#' coastal cells hide their own duplicate, while its interior cells prove the
+#' nesting outright.
+#'
+#' @section Which containers a depth is read for:
+#' Without `containers`, every edge [polity_containment] admits at this depth
+#' is read, whoever the run is for. On the shipped edge table that is ten
+#' containers with support rows -- Alaska inside the USA, three 1949
+#' Indonesian units, Manchuria inside three Chinese epochs, Serbia inside
+#' three Yugoslav ones, Singapore inside Malaysia -- and each of them is
+#' carried in the polycell support BESIDE its own units, so
+#' `.level_check_no_double_claim()` refuses the read. The refusal is right:
+#' continuing would divide every unit's share by a cell land total that
+#' counts the same ground twice. It is simply not the Japanese run's
+#' business.
+#'
+#' `containers` scopes the edge set to the containers asked for, and that is
+#' all it does. **Scoping is not suppressing**: the double-claim gate, the
+#' aggregate-container refusal and the support-empty abort all still run, on
+#' the scoped edges, so a granted container whose own row survives beside its
+#' units aborts exactly as before. A container named here that no edge places
+#' at this depth aborts with class `whep_level_container_not_admitted` rather
+#' than returning a grid that silently lacks it.
 #'
 #' @return A `tibble` with `lon`, `lat`, `area_code` (integer, the container's
 #'   reporting code), `level_polity_code` (character, `NA` at level 0),
@@ -188,6 +259,16 @@
 #'   containment = containment
 #' )
 #'
+#' # The same read scoped to the containers a run grants a depth. Japan's
+#' # reporting code is 110, so the edge above is kept and any other
+#' # container's is left at level 0.
+#' read_level_country_grid(
+#'   level = 1L,
+#'   support = support,
+#'   containment = containment,
+#'   containers = 110L
+#' )
+#'
 #' # The same support read at level 0. The default vintage is the 2015
 #' # snapshot, which resolves the support itself and refuses one; the
 #' # year-aware read takes this one and keeps its validity intervals.
@@ -201,9 +282,13 @@ read_level_country_grid <- function(
   support = NULL,
   containment = NULL,
   reference_year = NULL,
-  grid_vintage = c("snapshot_2015", "year_aware")
+  grid_vintage = c("snapshot_2015", "year_aware"),
+  containers = NULL,
+  double_claim = c("co_presence", "measured")
 ) {
   level <- .check_grid_level(level)
+  containers <- .level_check_containers(containers)
+  double_claim <- rlang::arg_match(double_claim)
   # Whether the caller SUPPLIED a vintage, which `arg_match()` cannot say once
   # it has resolved one: the unevaluated default is the whole vocabulary, so
   # its length is the question. Only used to decide whether a depth read has
@@ -211,6 +296,7 @@ read_level_country_grid <- function(
   vintage_given <- length(grid_vintage) == 1L
   grid_vintage <- rlang::arg_match(grid_vintage)
   if (level == 0L) {
+    .refuse_level0_containers(containers)
     return(.level0_country_grid(
       support,
       containment,
@@ -222,9 +308,12 @@ read_level_country_grid <- function(
   support <- support %||% read_polycell_support()
   support <- .level_support_intervals(tibble::as_tibble(support))
   containment <- tibble::as_tibble(containment %||% whep::polity_containment)
-  edges <- .level_admit_edges(containment, level)
+  edges <- .level_scope_containers(
+    .level_admit_edges(containment, level),
+    containers
+  )
   units <- .level_support_units(support, edges, level)
-  grid <- .level_attach_cell_share(units, support)
+  grid <- .level_attach_cell_share(units, support, double_claim)
   if (!is.null(reference_year)) {
     grid <- .filter_country_grid_year(grid, as.integer(reference_year))
   }
@@ -248,22 +337,37 @@ read_level_country_grid <- function(
 #' @section The two-part assertion:
 #' \describe{
 #'   \item{(a), a one-sided abort}{The shares of one physical cell may never
-#'     EXCEED 1, within `1e-8`, **across the layer as passed** --
-#'     unconditionally, not after a per-year filter (the fixture convention
-#'     agreed at T37). A sum above 1 is ground claimed twice -- a container
-#'     kept beside its own units -- and is invisible downstream because every
-#'     national total still reconciles, so it aborts with class
+#'     EXCEED 1, within `1e-8`, **at any one year**: the sum is taken over the
+#'     rows valid together, once per epoch the layer carries, and a layer with
+#'     no validity intervals is one epoch and therefore the unconditional sum
+#'     T37 agreed on. Summing ACROSS epochs was the defect: two successive
+#'     polities each hold their cell whole and never coexist, so every
+#'     succession of the year-aware level-0 read -- the USSR, Yugoslavia,
+#'     Sudan, Czechoslovakia -- summed to 2 and no year-aware grid could be
+#'     combined with a granted depth. A sum above 1 is ground claimed twice --
+#'     a container kept beside its own units -- and is invisible downstream
+#'     because every national total still reconciles, so it aborts with class
 #'     `whep_alloc_layer_not_partition`. A sum BELOW 1 is not an error: it is
 #'     land inside the cell that no reporting polity claims, the same
 #'     unclaimed ground the year-aware level-0 read leaves out, and it is
 #'     reported rather than refused (see the unclaimed-land section). A
-#'     compartment whose share of one cell differs between two of its own
-#'     validity intervals cannot be summed unconditionally and is refused with
-#'     class `whep_alloc_layer_varying_share`; making a unit's share move
-#'     through time is the territory-basis mechanism, which belongs to T28.}
+#'     compartment holding two different shares of one cell IN ONE EPOCH is a
+#'     contradiction rather than a share that moves, and is refused with class
+#'     `whep_alloc_layer_varying_share`; a share that differs between two
+#'     DISJOINT intervals of one compartment is now read at each of them,
+#'     which is what the year-aware level-0 read produces on real data.}
 #'   \item{(b), a diagnostic}{For every granted country: no container-keyed row
-#'     survives anywhere, and per cell the unit shares reproduce the country's
-#'     level-0 share. Cells that fail are RETURNED, in the
+#'     survives anywhere, and per cell AND EPOCH the unit shares reproduce the
+#'     country's level-0 share **in that same epoch**. Both sides are swept
+#'     together per (cell, container), so neither is ever compared against a
+#'     total taken across every epoch of the other. The epochs read are those
+#'     of the container's own depth in the cell -- from its first unit row to
+#'     its last, gaps inside it included -- because outside that span the
+#'     layer holds no units for it at all and the 2015 snapshot claims every
+#'     year, which is the vintage question open at T31(j) rather than anything
+#'     the units did; land the layer then leaves unclaimed is reported by the
+#'     other attribute. A container with no unit row in a cell at all is
+#'     reported over its level-0 span. Rows that fail are RETURNED, in the
 #'     `"ragged_coverage"` attribute, and are never back-filled with the
 #'     container -- back-filling would restore exactly the fold this feature
 #'     removes. (b) failing is not by itself a defect: level 0 is a fixed 2015
@@ -273,20 +377,71 @@ read_level_country_grid <- function(
 #'
 #' @section Unclaimed land:
 #' A cell whose shares fall short of 1 holds land that no reporting polity
-#' claims. That is a real state of the grid and not corruption: on the live
-#' polycell support, the level-0 grid at the 2015 snapshot has 40 such cells
-#' out of 68,546 -- the worst claimed to 0.0116 at (20.75, 42.75) -- and the
-#' year-aware read leaves whole cells out on top of that, which is what
-#' `validation/spatialize_grid_vintage.R` sizes per year. Aborting on the
-#' shortfall would stop every granted-depth run on real data; ignoring it
-#' would hide land that no national total accounts for. So it is measured and
-#' returned, one row per short cell, in the `"unclaimed_land"` attribute:
-#' `lon`, `lat`, `claimed_share`, `unclaimed_share`, and `unclaimed_ha` (the
-#' shortfall in hectares, `NA` when the layer carries no `land_area_ha`). A
-#' run reads that attribute to say how much land is unclaimed and where. The
+#' claims. That is a real state of the grid and not corruption: on the
+#' `20260825T102349Z-1a0eb` polycell support, the level-0 grid at the 2015
+#' snapshot has 37 such cells out of 66,709 -- the worst claimed to 0.0116 at
+#' (20.75, 42.75) -- and the year-aware read leaves whole cells out on top of
+#' that, which is what `validation/spatialize_grid_vintage.R` sizes per year.
+#' Aborting on the shortfall would stop every granted-depth run on real data;
+#' ignoring it would hide land that no national total accounts for. So it is
+#' measured and returned, ONE ROW PER (CELL, EPOCH) that falls short, in the
+#' `"unclaimed_land"` attribute: `lon`, `lat`, `start_year`, `end_year`
+#' (`NA` for a bound the layer never gave), `claimed_share`,
+#' `unclaimed_share`, and `unclaimed_ha`. A caller reads that attribute to
+#' learn how much land is unclaimed, where, AND WHEN.
+#'
+#' The epoch is in the report because a cell is not one claim: it is short in
+#' the years it is short. Judging each cell at its fullest epoch instead --
+#' the moment the double-claim check has to read -- forgives a cell short only
+#' before one of its holders existed, but by the same line of code it also
+#' hides a cell that goes short in a LATER epoch, which is what a granted
+#' depth ending before its container produces, and it turned an abort into
+#' silence. So every epoch is read.
+#'
+#' WHICH YEARS ARE READ is a second question, and reading each cell between
+#' its own first claim and its last answered it wrongly. A depth stops
+#' covering its container either by holding a smaller share or by holding NO
+#' ROW -- which is what a real deep grid produces, since a unit has no rows
+#' outside its validity -- and in the second case the cell's last claim IS the
+#' depth's end, so the window closed exactly where the silence began. On the
+#' `20260825T102349Z-1a0eb` support, a depth for `area_code` 33 that
+#' reproduces its level-0 shares exactly but stops in 1990 left 7,810 of the
+#' 8,109 cells it still holds after 1990 in neither report -- 826.5 Mha of
+#' land, each cell counted once -- and 0 ragged rows. It is now 0 cells.
+#'
+#' The window is therefore the union of the layer's span in the cell and the
+#' level-0 span of the granted containers holding it: the same rule at both
+#' ends, so a depth that starts late is caught like one that ends early, and a
+#' cell the depth never reaches at all is read over the level-0 span alone.
+#' It widens only to years level 0 itself states -- a row carrying no validity
+#' interval (the 2015 snapshot, which has no time dimension) gives no bound to
+#' fall short of, and the window then stops at the layer's own.
+#'
+#' The ragged-coverage report does NOT widen with it, and the asymmetry is
+#' deliberate. This report asks what the LAYER claims, where absence is a fact
+#' whatever `grid0`'s vintage; assertion (b) COMPARES two grids, and outside a
+#' container's depth span it would be comparing year-scoped units against a
+#' level 0 that may claim every year by having no time dimension at all --
+#' the open vintage question at T31(j), not a defect of the units. So the
+#' land a stopped depth leaves is reported here, once, rather than twice or
+#' not at all.
+#'
+#' `unclaimed_ha` is `NA` where the layer carries no `land_area_ha` at all --
+#' never 0, which would deny the shortfall. For an epoch no compartment
+#' claims, the shortfall is instead read from `base`: `grid0`'s own row for
+#' the granted container, in that same cell and on its own interval, which
+#' `.level_cell_segments(shares, base)` already receives `base` for and which
+#' carries a measurement rather than an absence. `unclaimed_ha` is `NA` there
+#' only when `base` itself gives no matching land for the epoch -- no `base`
+#' was supplied (a direct caller of the internal `.level_unclaimed_ha()`), or
+#' the container's own row carries no `land_area_ha` either. Every hectare
+#' figure this function reports assumes `land_area_ha` on each row already
+#' equals `cell_area_frac` times the cell's whole land; that is a contract on
+#' the CALLER's `grid0` and `grid_deep`, not something re-derived or checked
+#' here, so a layer whose two disagree reports the column's stated value. The
 #' attribute is always present; it is a zero-row tibble when every cell is
-#' fully claimed, and also on the no-grant path, which returns `grid0`
-#' unexamined.
+#' fully claimed in every epoch, and also on the no-grant path, which returns
+#' `grid0` unexamined.
 #'
 #' @param grid0 The level-0 country grid, e.g. `read_level_country_grid(0L)`.
 #' @param grid_deep A granted-depth country grid, e.g.
@@ -338,11 +493,17 @@ build_allocation_layer <- function(grid0, grid_deep, granted) {
   .level_check_supply(deep, granted)
   base <- dplyr::filter(grid0, !(area_code %in% granted$area_code))
   layer <- dplyr::bind_rows(base, deep)
-  shares <- .level_compartment_shares(layer)
-  unclaimed <- .assert_layer_partition(shares) |>
-    .level_unclaimed_ha(shares)
-  .level_warn_unclaimed(unclaimed)
-  ragged <- .level_ragged_coverage(shares, grid0, granted)
+  # The interval columns are filled in before the shares are taken, never on
+  # the returned layer: a row with no validity is valid always, and the sweep
+  # below needs both bounds present to place its events.
+  shares <- .level_compartment_shares(.level_support_intervals(layer))
+  base <- .level_granted_base(grid0, granted)
+  segments <- .level_cell_segments(shares, base)
+  has_land <- rlang::has_name(segments, "claimed_ha")
+  unclaimed <- .assert_layer_partition(segments) |>
+    .level_unclaimed_ha(has_land, base)
+  .level_warn_unclaimed(unclaimed, has_land)
+  ragged <- .level_ragged_coverage(shares, base, granted)
   .level_warn_ragged(ragged)
   .level_attach_diagnostics(layer, ragged, unclaimed)
 }
@@ -357,25 +518,22 @@ build_allocation_layer <- function(grid0, grid_deep, granted) {
 #' the file is written with this header and no rows, so a reader can tell "no
 #' coverage was granted" from "the file was never written".
 #'
+#' It IS the resolver's own coverage schema, returned rather than restated:
+#' this function had a second, hand-written list of names (`source`, `tier`,
+#' `grain`, and a character `not_shipped`) where [resolve_admin_shares()]
+#' emits `resolved_source`, `resolved_tier`, `resolved_grain` and a logical,
+#' so handing the resolver's table to the writer aborted on three missing
+#' columns, and the writer's subset would have dropped the resolution audit
+#' trail (`resolved_indicator`, `resolved_nuts_version`, `resolution_rule`)
+#' from the file.
+#'
 #' @return A zero-row `tibble` with the report's columns.
 #' @export
 #'
 #' @examples
 #' admin_coverage_prototype()
 admin_coverage_prototype <- function() {
-  tibble::tibble(
-    area_code = integer(),
-    item_prod_code = integer(),
-    year = integer(),
-    source = character(),
-    tier = integer(),
-    grain = character(),
-    level = integer(),
-    reporting_units = character(),
-    n_units_reporting = integer(),
-    coverage_change = logical(),
-    not_shipped = character()
-  )
+  .admin_coverage_prototype()
 }
 
 # --- Level validation --------------------------------------------------------
@@ -498,6 +656,81 @@ admin_coverage_prototype <- function() {
   ))
 }
 
+# The containers a depth read is scoped to. Whole `area_code`s, because that
+# is the space `granted`, `constraint_exclude` and every reporting join
+# already speak; a container polity code would key the scope on an identity
+# the run never states.
+.level_check_containers <- function(containers, arg = "containers") {
+  if (is.null(containers)) {
+    return(NULL)
+  }
+  ok <- is.numeric(containers) &&
+    length(containers) > 0L &&
+    !anyNA(containers) &&
+    all(containers == trunc(containers))
+  if (!ok) {
+    cli::cli_abort(c(
+      "{.arg {arg}} must be a non-empty vector of whole
+       {.field area_code}s, or {.val {NULL}}.",
+      i = "For example {.code {arg} = 110L}, Japan."
+    ))
+  }
+  sort(unique(as.integer(containers)))
+}
+
+# Level 0 keys cells on the reporting `area_code` directly and admits no edge,
+# so there is nothing for a container scope to select. Refused rather than
+# ignored, for the same reason `containment` is.
+.refuse_level0_containers <- function(containers) {
+  if (is.null(containers)) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{.arg containers} is not read at {.code level = 0}.",
+    x = "It scopes the containment edges a DEPTH is resolved against; level 0
+         resolves none.",
+    i = "Pass {.code level >= 1} to grant a depth to
+         {.val {containers}}."
+  ))
+}
+
+# SCOPING IS NOT SUPPRESSING. This drops the edges of containers the run did
+# not ask for, and nothing else: the aggregate refusal, the support-empty
+# abort and the double-claim gate all still run afterwards, on what is left.
+# A run for Japan should not have to answer for Alaska sitting inside the USA
+# in a support that carries both -- but if Japan's own container row survives
+# beside its prefectures, that is Japan's defect and it still aborts.
+.level_scope_containers <- function(edges, containers) {
+  present <- sort(unique(edges$container_area_code))
+  if (is.null(containers)) {
+    cli::cli_inform(
+      "No {.arg containers} scope: every admitted containment edge is read
+       ({length(present)} container{?s})."
+    )
+    return(edges)
+  }
+  absent <- setdiff(containers, present)
+  if (length(absent) > 0L) {
+    cli::cli_abort(
+      c(
+        "{length(absent)} scoped container{?s} {?has/have} no admitted
+         containment edge at this depth.",
+        x = "{.field area_code}{?s}: {.val {absent}}.",
+        i = "Admitted here: {.val {present}}."
+      ),
+      class = "whep_level_container_not_admitted"
+    )
+  }
+  dropped <- setdiff(present, containers)
+  if (length(dropped) > 0L) {
+    cli::cli_inform(
+      "Scoped to {length(containers)} container{?s}; {length(dropped)}
+       other{?s} stay at level 0: {.val {dropped}}."
+    )
+  }
+  dplyr::filter(edges, .data$container_area_code %in% containers)
+}
+
 # The containment edge names a member's container, which is what a DEPTH is
 # resolved against; level 0 has no member. Refused rather than ignored for the
 # same reason as above.
@@ -542,16 +775,19 @@ admin_coverage_prototype <- function() {
 # the denominator is the cell's WHOLE measured land, taken BEFORE any row is
 # dropped. Taking it after renormalises the survivors over a smaller cell and
 # hands an unkeyable polity's hectares to whoever else holds the cell -- on the
-# `20260827T190201Z-f82a2` support, 17,655 cells carry such a row. That
+# `20260825T102349Z-1a0eb` support, 17,655 cells carry such a row. That
 # absorption is invisible to a partition check, because renormalising is
 # exactly what forces the shares to sum to 1; what catches it is comparing the
 # kept shares against the cell's whole land, which is what the two vintages
-# then agree on at 2015. Measured on that support: taking the denominator
-# after the drop moved 46 of the 73,950 rows valid at 2015 away from the
-# snapshot the same year has to reproduce, the worst by a factor of 86, and
-# handed 0.27 Mha of 2015 LUH2 cropland to countries the snapshot does not
-# give it to -- a pure GAIN, which a metric scoring only losses reported as
-# a flat zero.
+# then agree on at 2015. Measured on that support, the level-0 read has 72,099
+# rows valid at 2015; taking the denominator after the drop moves some of them
+# away from the snapshot the same year has to reproduce, and hands 2015 LUH2
+# cropland to countries the snapshot does not give it to -- a pure GAIN, which
+# a metric scoring only losses reports as a flat zero. The counts and hectares
+# once quoted here were measured on `20260827T190201Z-f82a2`, the pin that
+# books inland water and ice as land (whep#1010); the rejected implementation
+# has not been re-run on the sound pin, so the claim is left qualitative
+# rather than carried on a number known to be off its basis.
 #
 # Taking one denominator across the whole interval-grain table would instead
 # count each cell once per epoch, which is the trap `.level_cell_land()` was
@@ -833,9 +1069,28 @@ admin_coverage_prototype <- function() {
   units
 }
 
+# The bounds a row with no validity interval is given. One place decides them,
+# so the sweep that places events and the reports that read them back cannot
+# disagree about which year means "no bound was given".
+.level_open_interval <- function() {
+  c(start = -2147483647L, end = 2147483647L)
+}
+
+# A bound the layer never gave is REPORTED as `NA`, not as the sentinel the
+# sweep needs: a reader of the unclaimed-land or ragged-coverage attribute is
+# not asked to recognise 2147483647 as "no end".
+.level_open_to_na <- function(years) {
+  dplyr::if_else(
+    years %in% .level_open_interval(),
+    NA_integer_,
+    as.integer(years)
+  )
+}
+
 # A support with no validity interval is a single-epoch table; give it the open
 # interval rather than treating a missing bound as year zero.
 .level_support_intervals <- function(support) {
+  open <- .level_open_interval()
   if (!rlang::has_name(support, "start_year")) {
     support$start_year <- NA_integer_
   }
@@ -844,19 +1099,19 @@ admin_coverage_prototype <- function() {
   }
   support |>
     dplyr::mutate(
-      start_year = dplyr::coalesce(as.integer(start_year), -2147483647L),
-      end_year = dplyr::coalesce(as.integer(end_year), 2147483647L)
+      start_year = dplyr::coalesce(as.integer(start_year), open[["start"]]),
+      end_year = dplyr::coalesce(as.integer(end_year), open[["end"]])
     )
 }
 
 # --- The share of the physical cell ------------------------------------------
 
-.level_attach_cell_share <- function(units, support) {
+.level_attach_cell_share <- function(units, support, double_claim) {
   nested_col <- intersect(.level_container_frac_cols(), names(support))
   if (length(nested_col) > 0L) {
     return(.level_share_nested(units, support, nested_col[[1L]]))
   }
-  .level_check_no_double_claim(units, support)
+  .level_check_no_double_claim(units, support, double_claim)
   cell_land <- .level_cell_land(support, unique(units$start_year))
   units |>
     dplyr::left_join(cell_land, by = c("lon", "lat", "start_year")) |>
@@ -953,7 +1208,25 @@ admin_coverage_prototype <- function() {
 # ground twice. Nothing downstream can see it -- the container's national total
 # still reconciles -- so it is refused here rather than resolved by picking one.
 # This is the consumer-side half of the T07 gate.
-.level_check_no_double_claim <- function(units, support) {
+#
+# WHICH CLASHES ARE REFUSED is `double_claim`'s question, and the two rules
+# are alternatives, never a fallback:
+#
+# - `"co_presence"` (default) refuses every clash. It is the fail-closed rule
+#   because this table cannot see geometry: a container beside its own units
+#   halves those units' shares wherever the two describe the same ground, and
+#   nothing downstream can tell that they do.
+# - `"measured"` refuses only a container whose clash the cell's own area
+#   REFUTES -- at least one shared cell-epoch holding more territory than the
+#   cell has. That is a one-sided proof and is therefore weaker, not stronger:
+#   a cell half of which is ocean can hide a duplicate under its own area. A
+#   clash it passes over is warned about, never silent.
+.level_check_no_double_claim <- function(
+  units,
+  support,
+  double_claim = .level_double_claim_rules()
+) {
+  double_claim <- rlang::arg_match(double_claim)
   clash <- units |>
     dplyr::select("lon", "lat", "container_code", "start_year", "end_year") |>
     dplyr::distinct() |>
@@ -974,17 +1247,161 @@ admin_coverage_prototype <- function() {
   if (nrow(clash) == 0L) {
     return(invisible(NULL))
   }
+  over <- .level_double_claim_excess(clash, support)
+  if (identical(double_claim, "measured")) {
+    clash <- .level_double_claim_refuted(clash, over)
+  }
+  if (nrow(clash) == 0L) {
+    return(invisible(NULL))
+  }
+  .abort_double_claim(clash, over, double_claim)
+}
+
+.level_double_claim_rules <- function() {
+  c("co_presence", "measured")
+}
+
+.abort_double_claim <- function(clash, over, double_claim) {
   codes <- sort(unique(clash$container_code))
   cli::cli_abort(
     c(
-      "{nrow(clash)} cell{?s} carry a container row beside its own units
-       ({round(sum(clash$land_area_ha, na.rm = TRUE) / 1e6, 2)} Mha).",
+      "{nrow(clash)} container-cell row{?s} over
+       {dplyr::n_distinct(clash$lon, clash$lat)} distinct cell{?s} carry a
+       container row beside its own units
+       ({round(sum(clash$land_area_ha, na.rm = TRUE) / 1e6, 2)} Mha of
+       container land).",
       x = "Container{?s}: {.val {codes}}.",
+      i = .level_double_claim_measure(over, codes),
       i = "The two claim the same ground, so the cell's land no longer
            partitions. A level-tagged support returns the units INSTEAD of
-           their container; see the T07 package-wide level gate."
+           their container; see the T07 package-wide level gate.",
+      i = "Scope the read with {.arg containers} where the clash is in a
+           container this run does not grant; the rule in force is
+           {.code double_claim = {.val {double_claim}}}."
     ),
     class = "whep_level_support_double_claim"
+  )
+}
+
+# HOW MUCH OF THE CO-PRESENCE IS A MEASURED OVER-CLAIM. Reported beside every
+# refusal, and under `double_claim = "measured"` it also decides which
+# containers are refused.
+#
+# What the table can see is whether a cell's whole claimed territory exceeds
+# the cell's own area, which is a one-sided proof: a cell cannot hold more
+# territory than it has. On the `20260827T190201Z-f82a2` support that
+# separates the eight containers whose units are genuinely nested (Alaska in
+# the USA over-claims 150 Mha over 1,156 of its 1,372 shared cells) from the
+# two whose ground in the shared cell is disjoint and over-claims nothing
+# (Ryukyu in Japan 1895-1945, 8 cells; Singapore in Malaysia, 1 cell). It is
+# one-sided, not a verdict: a zero is co-presence the cell's own area cannot
+# refute, not proof the ground is disjoint.
+#
+# `NULL` where the support carries no `cell_area_ha` to measure against, which
+# is a state `"measured"` refuses to guess at.
+.level_double_claim_excess <- function(clash, support) {
+  if (!rlang::has_name(support, "cell_area_ha")) {
+    return(NULL)
+  }
+  territory <- if (rlang::has_name(support, "polity_area_ha")) {
+    "polity_area_ha"
+  } else {
+    "land_area_ha"
+  }
+  clash |>
+    dplyr::distinct(
+      .data$lon,
+      .data$lat,
+      .data$container_code,
+      .data$start_year,
+      .data$end_year
+    ) |>
+    dplyr::inner_join(
+      dplyr::select(
+        support,
+        "lon",
+        "lat",
+        "cell_area_ha",
+        claimed_ha = dplyr::all_of(territory),
+        sup_start = "start_year",
+        sup_end = "end_year"
+      ),
+      by = c("lon", "lat"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(
+      .data$start_year < .data$sup_end,
+      .data$sup_start < .data$end_year
+    ) |>
+    dplyr::summarise(
+      excess_ha = max(
+        0,
+        sum(.data$claimed_ha, na.rm = TRUE) -
+          dplyr::first(.data$cell_area_ha)
+      ),
+      .by = c("lon", "lat", "container_code", "start_year", "end_year")
+    )
+}
+
+# The clash rows `"measured"` still refuses: those of a container the cell's
+# own area refutes SOMEWHERE. The decision is per CONTAINER and not per cell
+# on purpose -- a coastal cell can hide its own duplicate under its area, so
+# judging cell by cell would pass exactly the cells a nested container is
+# hardest to see in, while its interior cells prove the nesting outright.
+.level_double_claim_refuted <- function(clash, over) {
+  if (is.null(over)) {
+    cli::cli_abort(c(
+      "{.code double_claim = \"measured\"} needs the support's
+       {.field cell_area_ha} to measure the over-claim against.",
+      i = "Supply it, or judge on co-presence with
+           {.code double_claim = \"co_presence\"}."
+    ))
+  }
+  refuted <- over |>
+    dplyr::summarise(
+      any_over = any(.data$excess_ha > 0),
+      excess_mha = sum(.data$excess_ha) / 1e6,
+      n_epochs = dplyr::n(),
+      .by = "container_code"
+    )
+  passed <- dplyr::filter(refuted, !.data$any_over)
+  if (nrow(passed) > 0L) {
+    cli::cli_warn(c(
+      "!" = "{nrow(passed)} container{?s} {?sits/sit} beside {?its/their} own
+             units in {sum(passed$n_epochs)} cell-epoch{?s} that the cell's
+             own area does not refute; {.code double_claim = \"measured\"}
+             lets {?it/them} through.",
+      "*" = "{.val {sort(passed$container_code)}}.",
+      i = "A zero over-claim is co-presence the cell's area cannot refute,
+           not proof the ground is disjoint."
+    ))
+  }
+  dplyr::semi_join(
+    clash,
+    dplyr::filter(refuted, .data$any_over),
+    by = "container_code"
+  )
+}
+
+.level_double_claim_measure <- function(over, codes = NULL) {
+  if (is.null(over) || nrow(over) == 0L) {
+    return(
+      "The support carries no {.field cell_area_ha}, so the over-claim
+            was not measured."
+    )
+  }
+  if (!is.null(codes)) {
+    over <- dplyr::filter(over, .data$container_code %in% codes)
+  }
+  paste0(
+    "Measured over-claim: ",
+    sum(over$excess_ha > 0),
+    " of ",
+    nrow(over),
+    " clashing cell-epochs hold more territory than the cell has (",
+    round(sum(over$excess_ha) / 1e6, 2),
+    " Mha). A zero is co-presence the cell's own area cannot refute, not
+     proof the ground is disjoint."
   )
 }
 
@@ -995,11 +1412,24 @@ admin_coverage_prototype <- function() {
       grid$cell_area_frac > 1 + 1e-8
   )
   if (length(bad) > 0L) {
-    cli::cli_abort(c(
-      "{length(bad)} compartment{?s} have a share outside {.code [0, 1]}.",
-      x = "Range: {.val {range(grid$cell_area_frac[bad])}}.",
-      i = "A cell whose measured land is zero has no share to take."
-    ))
+    # The sole bound on a share that multiplies every downstream hectare.
+    # `build_allocation_layer()` catches an over-claim independently, but
+    # `NA` sums to `NA` and is dropped by its `> 1 + tol` filter, and a
+    # negative share does not merely sum BELOW 1: paired with a genuine
+    # over-claim in the same cell and epoch it CANCELS it, so the sum reads
+    # as a perfect partition while one compartment claims more than the
+    # whole cell. `.level_check_finite_share()` refuses both `NA` and a
+    # negative share on that path for exactly that reason; this bound
+    # refuses them here too, on the shares `read_level_country_grid()`
+    # computes for itself.
+    cli::cli_abort(
+      c(
+        "{length(bad)} compartment{?s} have a share outside {.code [0, 1]}.",
+        x = "Range: {.val {range(grid$cell_area_frac[bad])}}.",
+        i = "A cell whose measured land is zero has no share to take."
+      ),
+      class = "whep_level_share_out_of_range"
+    )
   }
   grid |>
     dplyr::mutate(
@@ -1115,31 +1545,88 @@ admin_coverage_prototype <- function() {
   )
 }
 
-# One row per (cell, compartment). A compartment appearing in several of its own
-# validity intervals contributes its share ONCE; a share that differs between
-# those intervals cannot be summed unconditionally and is refused. The
-# compartment's land rides along where the layer carries it, on the same
-# once-per-compartment basis, so the unclaimed report can be stated in hectares
-# without a second fold of the same key.
+# A SHARE THE SWEEP CANNOT READ DOES NOT FAIL ASSERTION (a); IT DISABLES IT.
+# `cumsum()` carries an `NA` into every later segment of its cell, and both
+# bounds of the sweep -- `claimed_share > 1 + tol` and `claimed_share <
+# 1 - tol` -- drop an `NA` row, so a single missing share silently exempts a
+# whole cell from the check the layer exists to pass, in the direction that
+# aborts. `Inf` reached the partition abort instead and was reported there as
+# a cell claimed twice, which sends the reader to the wrong fix. So the share
+# is required to be FINITE where the sweep reads it, and says which rows are
+# not. `grid0` and `grid_deep` are the caller's tables here, not necessarily
+# ones `.level_finish_grid()` has already bounded.
+#
+# A NEGATIVE SHARE DOES NOT FAIL ASSERTION (a) EITHER; IT HIDES A FAILURE.
+# `cumsum()` sums it in unchanged, so it never disables the check the way an
+# `NA` does -- but paired with a genuine over-claim in the SAME cell and
+# epoch it CANCELS the excess: one compartment claiming 1.4 of a cell beside
+# another claiming -0.4 sums to exactly 1 and reads as a perfect partition,
+# though one of the two claims 140% of the ground. So the share is required
+# to be NON-NEGATIVE at the same check that already requires it finite.
+.level_check_finite_share <- function(layer, tol = 1e-8) {
+  bad <- which(
+    !is.finite(layer$cell_area_frac) | layer$cell_area_frac < -tol
+  )
+  if (length(bad) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- utils::head(bad, 3L)
+  shown <- paste0("row ", worst, ": ", layer$cell_area_frac[worst])
+  cli::cli_abort(
+    c(
+      "{length(bad)} row{?s} of the allocation layer carry a
+       {.field cell_area_frac} that is not finite or is negative.",
+      x = "{.val {shown}}.",
+      i = "An {.val {NA}} share is not a failed assertion but a suspended
+           one: it propagates through the cell's running total and both
+           bounds then drop the row, so the cell is never checked at all.",
+      i = "A negative share is not suspended, it is WRONG: it can cancel a
+           genuine over-claim elsewhere in the same cell and epoch, so the
+           aggregate sum passes while one compartment claims more than the
+           whole cell."
+    ),
+    class = "whep_alloc_layer_share_not_finite"
+  )
+}
+
+# One row per (cell, compartment, VALIDITY INTERVAL). A compartment repeated
+# with the same interval contributes its share ONCE, and two rows of one
+# compartment-interval carrying DIFFERENT shares are a contradiction in the
+# layer as given -- not a share that moves -- so they are refused rather than
+# resolved by picking one. The interval is in the key because the sweep in
+# `.level_cell_segments()` reads it: a share that genuinely differs between two
+# disjoint intervals of one compartment is what the year-aware level-0 read
+# produces, and summing those two as if they coexisted is the defect the sweep
+# exists to remove. The compartment's land rides along on the same basis, so
+# the unclaimed report can be stated in hectares without a second fold.
 .level_compartment_shares <- function(layer, tol = 1e-8) {
+  .level_check_finite_share(layer, tol)
   shares <- layer |>
     dplyr::summarise(
       share = dplyr::first(cell_area_frac),
       share_span = max(cell_area_frac) - min(cell_area_frac),
       n_rows = dplyr::n(),
       dplyr::across(dplyr::any_of("land_area_ha"), dplyr::first),
-      .by = c("lon", "lat", "area_code", "level_polity_code")
+      .by = c(
+        "lon",
+        "lat",
+        "area_code",
+        "level_polity_code",
+        "start_year",
+        "end_year"
+      )
     )
   varying <- dplyr::filter(shares, share_span > tol)
   if (nrow(varying) > 0L) {
     cli::cli_abort(
       c(
-        "{nrow(varying)} compartment{?s} hold different shares of one cell in
-         different validity intervals.",
+        "{nrow(varying)} compartment{?s} hold two different shares of one
+         cell in one validity interval.",
         x = "Worst span: {.val {max(varying$share_span)}}.",
-        i = "Assertion (a) is evaluated on the layer as passed, so a share
-             that moves through time cannot be checked here. Moving one is
-             the territory-basis mechanism (T28)."
+        i = "One compartment holds one share of one cell at one time; two
+             rows saying otherwise cannot be summed and cannot be chosen
+             between. A share that differs between DISJOINT intervals is
+             read at each of them and is not this."
       ),
       class = "whep_alloc_layer_varying_share"
     )
@@ -1150,9 +1637,209 @@ admin_coverage_prototype <- function() {
     "lat",
     "area_code",
     "level_polity_code",
+    "start_year",
+    "end_year",
     "share",
     dplyr::any_of("land_area_ha")
   )
+}
+
+# THE PARTITION HOLDS PER (CELL, EPOCH), NOT PER CELL. The layer's rows carry
+# validity intervals, and two compartments whose intervals never overlap never
+# claim the same ground: a cell held whole by the USSR and then whole by its
+# successor sums to 2 over the layer as passed, and every succession of the
+# year-aware level-0 read is such a cell. Summing across epochs made that
+# vintage unusable with any granted depth.
+#
+# EVERY epoch, by an INTERVAL SWEEP: each compartment contributes `+share` at
+# its start year and `-share` at its end, and the running sum over a cell's
+# events is what that cell holds between one event and the next. The state is
+# read after EVERY event of a year, so a succession boundary counts the
+# successor and not both, and a zero-length interval counts neither. That
+# reading does not depend on how events falling on one year are ordered among
+# themselves, which is why no order is imposed: the peak-based sweep needed
+# ends before starts, because it maximised over the part-way states inside a
+# year as well, where a start read before an end shows a claim nothing holds.
+# A layer whose intervals are all open has one epoch per cell, and its claim
+# is then the unconditional sum T37 agreed on -- unchanged.
+#
+# ALL the segments, not the fullest one. Detecting "claimed twice" needs only
+# the peak, but the unclaimed report has to say how much is unclaimed AND WHEN,
+# and a cell judged in its fullest epoch alone is silent about a cell that goes
+# short in a later one -- which is the direction a granted depth ending before
+# its container produces. The peak is recovered from the segments where it is
+# wanted, rather than the segments being thrown away to keep it.
+#
+# It is a sweep and not a per-epoch re-filter because the shipped support
+# carries about 150 distinct interval-start years over 438,000 compartments:
+# filtering the layer once per epoch is that product, and does not finish. The
+# segments cost no more than the peak did -- there are two events per
+# compartment either way.
+.level_cell_segments <- function(shares, base) {
+  has_land <- rlang::has_name(shares, "land_area_ha")
+  land <- if (has_land) .level_measured_land(shares) else 0
+  n <- nrow(shares)
+  segments <- dplyr::bind_rows(
+    tibble::tibble(
+      lon = rep(shares$lon, 2L),
+      lat = rep(shares$lat, 2L),
+      at = c(shares$start_year, shares$end_year),
+      d_share = c(shares$share, -shares$share),
+      d_land = c(rep_len(land, n), -rep_len(land, n))
+    ),
+    .level_window_events(shares, base)
+  ) |>
+    dplyr::arrange(.data$lon, .data$lat, .data$at) |>
+    dplyr::mutate(
+      claimed_share = cumsum(.data$d_share),
+      claimed_ha = cumsum(.data$d_land),
+      .by = c("lon", "lat")
+    ) |>
+    .level_last_state(
+      c("lon", "lat"),
+      c("claimed_share", "claimed_ha")
+    ) |>
+    .level_close_segments(c("lon", "lat"))
+  # "0 ha" and "not measured" are different statements, so a layer with no
+  # land column must not come back carrying a hectare figure of zero.
+  if (has_land) segments else dplyr::select(segments, -"claimed_ha")
+}
+
+# The granted containers' own rows of `grid0`, in interval grain. Both
+# diagnostics read them: assertion (b) compares the units against them, and
+# the sweep takes the years they cover as the outer edge of the window it
+# reads the cell over. One function, so the two cannot disagree about which
+# rows level 0 contributes.
+.level_granted_base <- function(grid0, granted) {
+  grid0 |>
+    dplyr::filter(.data$area_code %in% granted$area_code) |>
+    .level_support_intervals()
+}
+
+# THE YEARS A CELL IS READ OVER, and the fix to the silence a granted depth
+# that simply STOPS used to produce. The sweep's own events end at the cell's
+# last claim, so a window drawn from the layer alone ends exactly where the
+# silence starts: a depth ending in 1950 in a cell nobody else holds leaves
+# the layer with no row after 1949, the last segment closes at 1950, and
+# every later year -- 838.6 Mha of it for area_code 33 alone on the shipped
+# support -- is unclaimed and unreported. A depth that ends by SHRINKING was
+# reported and one that ends by ABSENCE was not, though both say the same
+# thing and absence is what a real deep grid produces, because a unit has no
+# rows outside its own validity.
+#
+# So the window is the union of the layer's span in the cell and the level-0
+# span of the granted containers holding it. ONE RULE AT BOTH ENDS: a depth
+# that starts late is the same defect mirrored, and a cell the depth never
+# reaches at all has no layer span, so it is read over the level-0 span
+# alone. What the window does NOT do is invent a bound: it widens only to
+# years level 0 itself states.
+#
+# A BOUND LEVEL 0 NEVER GAVE IS NOT ONE THE LAYER CAN FALL SHORT OF. The 2015
+# snapshot carries no time dimension, so `.level_support_intervals()` gives
+# its rows the open interval; extending to that would report a leading and a
+# trailing unclaimed epoch for every granted cell of that vintage, which is
+# the T31(j) question of how a year-scoped depth and a year-free level 0
+# coexist, not a shortfall. The open sentinel is therefore dropped rather
+# than extended to, at both ends.
+#
+# The events carry no share and no land, so they move no running total: they
+# add only the event YEARS the sweep would otherwise never see. They are
+# placed strictly OUTSIDE the layer's own span, never inside it, so no
+# segment the layer already describes is split in two.
+.level_window_events <- function(shares, base) {
+  span <- dplyr::summarise(
+    shares,
+    lo = min(.data$start_year),
+    hi = max(.data$end_year),
+    .by = c("lon", "lat")
+  )
+  open <- .level_open_interval()
+  lead <- base |>
+    dplyr::filter(.data$start_year != open[["start"]]) |>
+    .level_cell_bound("start_year", min) |>
+    dplyr::left_join(span, by = c("lon", "lat")) |>
+    dplyr::filter(dplyr::coalesce(.data$at < .data$lo, TRUE))
+  trail <- base |>
+    dplyr::filter(.data$end_year != open[["end"]]) |>
+    .level_cell_bound("end_year", max) |>
+    dplyr::left_join(span, by = c("lon", "lat")) |>
+    dplyr::filter(dplyr::coalesce(.data$at > .data$hi, TRUE))
+  dplyr::bind_rows(lead, trail) |>
+    dplyr::mutate(d_share = 0, d_land = 0) |>
+    dplyr::select("lon", "lat", "at", "d_share", "d_land")
+}
+
+# One bound per cell, on a frame that may hold no rows at all: with every
+# bound open -- the 2015-snapshot vintage -- the filter above leaves nothing,
+# and dplyr type-probes the aggregate on the empty frame, where `min()` warns
+# and returns `Inf`. The early return is that case, not a convenience.
+.level_cell_bound <- function(rows, col, reduce) {
+  if (nrow(rows) == 0L) {
+    return(tibble::tibble(lon = numeric(), lat = numeric(), at = integer()))
+  }
+  dplyr::summarise(
+    rows,
+    at = reduce(.data[[col]]),
+    .by = c("lon", "lat")
+  )
+}
+
+# A layer carrying `land_area_ha` on SOME rows only under-counts every hectare
+# figure taken from it, silently: a row with no land reads as 0 ha claimed
+# while its share still counts, so the shortfall is scaled by a denominator
+# smaller than the land actually claimed. "The column is there" and "the
+# column is filled" are different statements, and only the second one makes
+# the hectares mean anything.
+.level_measured_land <- function(shares) {
+  n_open <- sum(is.na(shares$land_area_ha))
+  if (n_open > 0L) {
+    cli::cli_warn(c(
+      "!" = "{n_open} compartment{?s} of the allocation layer carry no
+             {.field land_area_ha}.",
+      i = "Their share still counts, so the hectares in the
+           {.field unclaimed_land} attribute are taken over the land that IS
+           measured and under-state the shortfall."
+    ))
+  }
+  dplyr::coalesce(shares$land_area_ha, 0)
+}
+
+# The state that HOLDS from one event year to the next is the one left after
+# EVERY event of that year, so a succession boundary counts the successor and
+# not both, and a zero-length interval counts neither. The frame is already
+# sorted, so that state is the last row of each (group, year) run and a run
+# boundary finds it in one pass: a grouped reduction instead would run over
+# the 400,000-odd (cell, container) groups a real layer carries and cost
+# several times the sweep it closes.
+.level_last_state <- function(states, keys, cols) {
+  run <- do.call(
+    dplyr::consecutive_id,
+    unname(as.list(states[c(keys, "at")]))
+  )
+  states |>
+    dplyr::filter(dplyr::coalesce(run != dplyr::lead(run), TRUE)) |>
+    dplyr::select(dplyr::all_of(c(keys, "at", cols)))
+}
+
+# The state read after every event of one year holds until the next event, so
+# a group's epochs are the elementary intervals between its own event years.
+# The last state is dropped: after a group's final event nothing it carries is
+# open and there is no next year to close a segment at. Which years the group
+# HAS events in is the caller's question, not this one's:
+# `.level_window_events()` adds the bounds level 0 states for a cell before
+# the sweep runs, so the segment after a stopped depth exists to be dropped
+# from, and the peak-based report's other failure -- forgiving a shortfall in
+# an early epoch and hiding one in a late epoch, by one line of code -- is
+# gone either way.
+.level_close_segments <- function(states, keys) {
+  states |>
+    dplyr::mutate(
+      start_year = .data$at,
+      end_year = dplyr::lead(.data$at),
+      .by = dplyr::all_of(keys)
+    ) |>
+    dplyr::filter(!is.na(.data$end_year)) |>
+    dplyr::select(-"at")
 }
 
 # Assertion (a), one-sided: a cell may never be claimed twice, but it may be
@@ -1162,157 +1849,419 @@ admin_coverage_prototype <- function() {
 # denominator, so real cells sum below 1 before any depth is granted. That is a
 # property of `grid0`, not of the grant, and it is land nobody reports rather
 # than land the layer lost. Returns the shortfall for the caller to report.
-.assert_layer_partition <- function(shares, tol = 1e-8) {
-  cells <- dplyr::summarise(
-    shares,
-    claimed_share = sum(share),
-    .by = c("lon", "lat")
-  )
-  over <- dplyr::filter(cells, .data$claimed_share > 1 + tol)
+.assert_layer_partition <- function(segments, tol = 1e-8) {
+  over <- dplyr::filter(segments, .data$claimed_share > 1 + tol)
   if (nrow(over) > 0L) {
     .abort_layer_over_claimed(over)
   }
-  cells |>
+  segments |>
     dplyr::filter(.data$claimed_share < 1 - tol) |>
     dplyr::mutate(unclaimed_share = 1 - .data$claimed_share) |>
     dplyr::arrange(dplyr::desc(.data$unclaimed_share))
 }
 
+# How an epoch reads in a message. The sweep needs a sentinel for a bound the
+# layer never gave; a person reading the warning needs the words.
+.level_epoch_text <- function(start_year, end_year) {
+  dplyr::case_when(
+    is.na(start_year) & is.na(end_year) ~ "every year the layer describes",
+    is.na(start_year) ~ paste("everything up to", end_year),
+    is.na(end_year) ~ paste("everything from", start_year),
+    .default = paste0(start_year, "-", end_year)
+  )
+}
+
 .abort_layer_over_claimed <- function(over) {
   worst <- over[which.max(over$claimed_share), , drop = FALSE]
+  epoch <- .level_epoch_text(
+    .level_open_to_na(worst$start_year),
+    .level_open_to_na(worst$end_year)
+  )
   cli::cli_abort(
     c(
-      "{nrow(over)} cell{?s} of the allocation layer are claimed twice.",
+      "{nrow(over)} (cell, epoch) row{?s} of the allocation layer are
+       claimed twice.",
       x = "Worst: ({worst$lon}, {worst$lat}) sums to
-           {.val {worst$claimed_share}}, above 1.",
-      i = "A sum above 1 is a container kept beside its own units, and it
-           leaves every national total reconciling. A sum below 1 is
-           permitted: it is land no reporting polity claims, returned in the
+           {.val {worst$claimed_share}}, above 1, over {epoch}.",
+      i = "A sum above 1 is ground claimed twice -- a container kept beside
+           its own units, or one compartment whose own validity intervals
+           overlap without coinciding -- and it leaves every national total
+           reconciling either way. A sum below 1 is permitted: it is land
+           no reporting polity claims, returned in the
            {.field unclaimed_land} attribute."
     ),
     class = "whep_alloc_layer_not_partition"
   )
 }
 
+# The reference land for a (cell, epoch) SEGMENT NOBODY CURRENTLY CLAIMS.
+# `base` is `.level_granted_base()`'s output -- `grid0`'s own rows for the
+# granted containers, each on its own validity interval -- and the widened
+# window is built from those SAME rows (`.level_window_events()`), so a
+# segment outside the layer's own span cannot hold a claim from any OTHER
+# compartment either: if one did, the layer's own span would already reach
+# it and no widening would have been needed. Summing the `base` rows valid
+# across the segment's interval therefore reads the cell's whole land there,
+# on the SAME interval it is reported over -- a measurement that exists,
+# never one carried forward from a different epoch. `NA` where `base` gives
+# no matching row: no `base` was passed at all, or the row it has there
+# carries no `land_area_ha`.
+.level_base_land_gap <- function(unclaimed, base) {
+  if (
+    is.null(base) ||
+      nrow(unclaimed) == 0L ||
+      !rlang::has_name(base, "land_area_ha")
+  ) {
+    return(rep(NA_real_, nrow(unclaimed)))
+  }
+  keyed <- dplyr::mutate(unclaimed, row_id = dplyr::row_number())
+  gap <- keyed |>
+    dplyr::select("lon", "lat", "start_year", "end_year", "row_id") |>
+    dplyr::inner_join(
+      dplyr::select(
+        base,
+        "lon",
+        "lat",
+        "start_year",
+        "end_year",
+        "land_area_ha"
+      ),
+      by = c("lon", "lat"),
+      suffix = c("", "_base"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::filter(
+      .data$start_year < .data$end_year_base,
+      .data$start_year_base < .data$end_year
+    ) |>
+    dplyr::summarise(
+      gap_ha = sum(.data$land_area_ha, na.rm = TRUE),
+      .by = "row_id"
+    )
+  dplyr::left_join(keyed, gap, by = "row_id")$gap_ha
+}
+
 # The cell's whole measured land is not a column of the layer, but it is
 # recoverable wherever the claimed land is: `claimed_share` is the fraction of
 # the cell's land that the claimed rows hold, so the shortfall in hectares is
-# `claimed_ha * unclaimed_share / claimed_share`. It sums the land off
-# `shares`, not off the layer, so a compartment repeated across its own
-# validity intervals contributes its land ONCE.
-.level_unclaimed_ha <- function(unclaimed, shares) {
-  no_land <- !rlang::has_name(shares, "land_area_ha")
-  if (nrow(unclaimed) == 0L || no_land) {
-    return(dplyr::mutate(unclaimed, unclaimed_ha = NA_real_))
+# `claimed_ha * unclaimed_share / claimed_share`. Both come off the same
+# epoch's rows, so a compartment repeated across its own validity intervals
+# contributes its land ONCE and the share and the hectares describe the same
+# moment.
+#
+# "NOBODY CLAIMS IT" IS `claimed_share <= tol`, NOT `== 0`, and the
+# proportional formula above cannot price it: the segment after a cell's
+# last claim is what the running total is left at once every claim has been
+# closed, and `cumsum()` over doubles does not cancel to exactly 0
+# (`0.1 + 0.2 + 0.7` less the same three leaves 2.2e-16), so
+# `claimed_ha / claimed_share` there is a ratio of two rounding errors -- 0,
+# which denies the shortfall, or a plausible hectare figure that is pure
+# noise. `.level_base_land_gap()` prices it instead, from `base`, which is
+# what `.level_cell_segments(shares, base)` already receives `base` for.
+#
+# FOUR STATES, NOT TWO. A layer with no land column cannot put a magnitude on
+# any shortfall. Where something IS claimed, the proportional formula prices
+# the rest. Where nothing is claimed, `base` prices it where `base` covers
+# that cell and epoch; where it does not, the shortfall is `NA`, never 0 and
+# never `NaN` -- the peak-based formula this replaced returned `NaN`, which
+# `is.na()` accepts, so a layer carrying land was reported as carrying none.
+.level_unclaimed_ha <- function(unclaimed, has_land, base = NULL, tol = 1e-8) {
+  if (nrow(unclaimed) == 0L || !has_land) {
+    return(.level_unclaimed_out(dplyr::mutate(
+      unclaimed,
+      unclaimed_ha = NA_real_
+    )))
   }
-  claimed <- shares |>
-    dplyr::summarise(
-      claimed_ha = sum(.data$land_area_ha, na.rm = TRUE),
-      .by = c("lon", "lat")
-    )
+  gap_ha <- .level_base_land_gap(unclaimed, base)
   unclaimed |>
-    dplyr::left_join(claimed, by = c("lon", "lat")) |>
     dplyr::mutate(
-      unclaimed_ha = .data$claimed_ha *
-        .data$unclaimed_share /
-        .data$claimed_share
+      unclaimed_ha = dplyr::if_else(
+        .data$claimed_share > tol,
+        .data$claimed_ha * .data$unclaimed_share / .data$claimed_share,
+        gap_ha
+      )
     ) |>
-    dplyr::select(-"claimed_ha")
+    .level_unclaimed_out()
+}
+
+.level_unclaimed_out <- function(unclaimed) {
+  unclaimed |>
+    dplyr::mutate(
+      start_year = .level_open_to_na(.data$start_year),
+      end_year = .level_open_to_na(.data$end_year)
+    ) |>
+    dplyr::select(
+      dplyr::all_of(
+        names(.level_unclaimed_prototype())
+      )
+    )
 }
 
 .level_unclaimed_prototype <- function() {
   tibble::tibble(
     lon = numeric(),
     lat = numeric(),
+    start_year = integer(),
+    end_year = integer(),
     claimed_share = numeric(),
     unclaimed_share = numeric(),
     unclaimed_ha = numeric()
   )
 }
 
-.level_warn_unclaimed <- function(unclaimed) {
+.level_warn_unclaimed <- function(unclaimed, has_land) {
   if (nrow(unclaimed) == 0L) {
     return(invisible(NULL))
   }
   worst <- unclaimed[1L, , drop = FALSE]
-  # "0 Mha" and "not measured" are different statements: a layer carrying no
-  # land column cannot put a magnitude on the shortfall, and reporting zero
-  # would hide it exactly as refusing to report it would.
-  total <- if (all(is.na(unclaimed$unclaimed_ha))) {
-    "no land column on the layer, so no hectares"
-  } else {
-    paste0(
-      round(sum(unclaimed$unclaimed_ha, na.rm = TRUE) / 1e6, 2),
-      " Mha over all such cells"
-    )
-  }
+  epoch <- .level_epoch_text(worst$start_year, worst$end_year)
+  cells <- dplyr::n_distinct(unclaimed$lon, unclaimed$lat)
+  total <- .level_unclaimed_total(unclaimed, has_land)
   cli::cli_warn(c(
-    "!" = "{nrow(unclaimed)} cell{?s} of the allocation layer hold land no
-           reporting polity claims.",
+    "!" = "{nrow(unclaimed)} (cell, epoch) row{?s} of the allocation layer
+           hold land no reporting polity claims, over {cells} cell{?s}.",
     "*" = "Worst: ({worst$lon}, {worst$lat}), {.val {worst$unclaimed_share}}
-           of the cell's land unclaimed; {total}.",
+           of the cell's land unclaimed over {epoch}; {total}.",
     i = "Returned in the {.field unclaimed_land} attribute. This is a
          property of the level-0 grid, not of the grant, and it is NOT an
          error; it is land outside every national total."
   ))
 }
 
+# "0 Mha", "not measured" and "not computable" are three different statements.
+# Reporting zero for either of the last two would hide the shortfall exactly as
+# refusing to report it would, and calling a layer that carries land one that
+# does not is worse still: it sends the reader to fix the wrong thing.
+#
+# AND THE SUM OVER THE ROWS IS NOT AN AREA. The report is one row per (cell,
+# EPOCH), so a cell short in several epochs contributes its land once per
+# epoch -- median 1 row per cell on the shipped support and up to 14 -- and
+# summing the column gives hectare-epochs: 6182.97 Mha where the land
+# involved is 2951.11. It sat beside a documented per-year figure, where a
+# reader compares it against global land, and "over all such rows" was not
+# enough to stop that. The headline is therefore the LAND: each cell counted
+# once, at the epoch it is shortest in, which is the most of that cell any
+# one year leaves unclaimed. The rows themselves carry the per-epoch detail
+# for anyone who wants it summed differently.
+.level_unclaimed_total <- function(unclaimed, has_land) {
+  if (!has_land) {
+    return("no land column on the layer, so no hectares")
+  }
+  n_open <- sum(is.na(unclaimed$unclaimed_ha))
+  measured <- dplyr::filter(unclaimed, !is.na(.data$unclaimed_ha))
+  # One bound per cell, on a frame that may hold NO row at all: when every
+  # unclaimed row carries `NA` hectares -- `base` gave none of them a
+  # measurement -- the filter above leaves nothing, and dplyr type-probes the
+  # aggregate on the empty frame, where `max()` warns and returns `-Inf`. The
+  # early return is that case, the same one `.level_cell_bound()` guards
+  # against 200-odd lines above; printing "0 Mha of land" here would deny a
+  # shortfall that was never measured at all, exactly what the header above
+  # this function forbids.
+  if (nrow(measured) == 0L) {
+    return(paste0(
+      "no epoch's shortfall could be measured, over ",
+      cli::pluralize("{n_open} row{?s}"),
+      " claimed by nobody, whose land the layer never measures"
+    ))
+  }
+  worst <- measured |>
+    dplyr::summarise(ha = max(.data$unclaimed_ha), .by = c("lon", "lat"))
+  total <- paste0(
+    round(sum(worst$ha) / 1e6, 2),
+    " Mha of land, each cell counted once at its worst epoch"
+  )
+  if (n_open == 0L) {
+    return(total)
+  }
+  paste0(
+    total,
+    ", plus ",
+    cli::pluralize("{n_open} row{?s}"),
+    " claimed by nobody, whose land the layer never measures"
+  )
+}
+
 # Assertion (b), a diagnostic and never a repair.
-.level_ragged_coverage <- function(shares, grid0, granted, tol = 1e-8) {
-  units <- shares |>
-    dplyr::filter(area_code %in% granted$area_code) |>
-    dplyr::summarise(
-      unit_share = sum(share),
-      n_units = sum(!is.na(level_polity_code)),
-      n_container_rows = sum(is.na(level_polity_code)),
-      .by = c("lon", "lat", "area_code")
-    )
-  base <- grid0 |>
-    dplyr::filter(area_code %in% granted$area_code) |>
-    dplyr::summarise(
-      level0_share = sum(cell_area_frac),
-      .by = c("lon", "lat", "area_code")
-    )
-  units |>
-    dplyr::full_join(base, by = c("lon", "lat", "area_code")) |>
+#
+# BOTH SIDES ON ONE GRAIN. The units and the level-0 shares are swept together,
+# per (cell, container), so each side is read over the same elementary interval
+# and never one against a total taken across every epoch of the other. Reading
+# the units at one moment per CELL was the defect: a container whose units
+# exactly reproduce its level-0 share in every year was reported ragged
+# whenever the cell's fullest moment fell in a neighbour's epoch, and 84,522
+# (cell, container) pairs of the year-aware level-0 read carry more than one
+# epoch.
+.level_ragged_coverage <- function(shares, base, granted, tol = 1e-8) {
+  units <- dplyr::filter(shares, .data$area_code %in% granted$area_code)
+  .level_container_segments(units, base) |>
+    dplyr::filter(.data$in_window) |>
     dplyr::mutate(
-      n_units = dplyr::coalesce(n_units, 0L),
-      n_container_rows = dplyr::coalesce(n_container_rows, 0L),
-      difference = dplyr::coalesce(unit_share, 0) -
-        dplyr::coalesce(level0_share, 0),
+      difference = .data$unit_share - .data$level0_share,
       reason = .level_ragged_reason(
-        n_container_rows,
-        n_units,
-        level0_share,
-        difference,
+        .data$n_container_rows,
+        .data$n_units,
+        .data$n_level0_rows,
+        .data$difference,
         tol
       )
     ) |>
-    dplyr::filter(!is.na(reason)) |>
-    dplyr::select(
-      "lon",
-      "lat",
-      "area_code",
-      "n_units",
-      "n_container_rows",
-      "unit_share",
-      "level0_share",
-      "difference",
-      "reason"
+    dplyr::filter(!is.na(.data$reason)) |>
+    .level_ragged_out()
+}
+
+# The running totals each side of assertion (b) contributes to the sweep.
+.level_ragged_sums <- function() {
+  c(
+    "unit_share",
+    "n_units",
+    "n_container_rows",
+    "level0_share",
+    "n_level0_rows",
+    "u_started",
+    "b_started"
+  )
+}
+
+# The same sweep as `.level_cell_segments()`, keyed on (cell, CONTAINER) and
+# carrying both sides at once, so a segment states the container's unit share
+# and its level-0 share over one and the same interval.
+.level_container_segments <- function(units, base) {
+  dplyr::bind_rows(
+    .level_unit_events(units),
+    .level_base_events(base)
+  ) |>
+    dplyr::arrange(.data$lon, .data$lat, .data$area_code, .data$at) |>
+    dplyr::mutate(
+      dplyr::across(dplyr::all_of(.level_ragged_sums()), cumsum),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    .level_last_state(
+      c("lon", "lat", "area_code"),
+      .level_ragged_sums()
+    ) |>
+    .level_ragged_window() |>
+    .level_close_segments(c("lon", "lat", "area_code"))
+}
+
+# A granted container's rows of the layer as sweep events. `u_started` counts
+# starts only, so its running total is how many of the container's unit rows
+# the cell has seen begin, and the group's last value is how many there are.
+.level_unit_events <- function(units) {
+  starts <- tibble::tibble(
+    lon = units$lon,
+    lat = units$lat,
+    area_code = units$area_code,
+    at = units$start_year,
+    unit_share = units$share,
+    n_units = as.integer(!is.na(units$level_polity_code)),
+    n_container_rows = as.integer(is.na(units$level_polity_code)),
+    level0_share = 0,
+    n_level0_rows = 0L,
+    u_started = 1L,
+    b_started = 0L
+  )
+  ends <- starts |>
+    dplyr::mutate(
+      at = units$end_year,
+      dplyr::across(
+        dplyr::all_of(c("unit_share", "n_units", "n_container_rows")),
+        \(v) -v
+      ),
+      u_started = 0L
+    )
+  dplyr::bind_rows(starts, ends)
+}
+
+# The level-0 side of the same sweep: the container's own share of the cell,
+# in whatever validity intervals `grid0` carries. A `grid0` with none is one
+# epoch spanning the whole layer, which is the 2015 snapshot's shape.
+.level_base_events <- function(base) {
+  starts <- tibble::tibble(
+    lon = base$lon,
+    lat = base$lat,
+    area_code = base$area_code,
+    at = base$start_year,
+    unit_share = 0,
+    n_units = 0L,
+    n_container_rows = 0L,
+    level0_share = base$cell_area_frac,
+    n_level0_rows = 1L,
+    u_started = 0L,
+    b_started = 1L
+  )
+  ends <- starts |>
+    dplyr::mutate(
+      at = base$end_year,
+      dplyr::across(
+        dplyr::all_of(c("level0_share", "n_level0_rows")),
+        \(v) -v
+      ),
+      b_started = 0L
+    )
+  dplyr::bind_rows(starts, ends)
+}
+
+# THE EPOCHS ASSERTION (b) IS READ OVER. A granted container's DEPTH in a cell
+# spans from its first unit row to its last, gaps inside it included. Outside
+# that span the layer holds no units for the container at all, and comparing a
+# year-scoped depth against a level-0 grid carrying no time dimension there is
+# the open question at T31(j) rather than anything the units did: the 2015
+# snapshot claims every year, so every granted cell would otherwise report a
+# ragged epoch before its units began and another after they ended. What that
+# leaves out is not lost -- a cell the layer does not fully claim in those
+# years is reported by the unclaimed-land attribute, whose question it is.
+# Where the container has NO unit row in the cell at all, its level-0 span is
+# read instead, so a cell its depth never reaches is still reported.
+.level_ragged_window <- function(states) {
+  states |>
+    dplyr::mutate(
+      u_total = max(.data$u_started),
+      b_total = max(.data$b_started),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    dplyr::mutate(
+      in_window = dplyr::if_else(
+        .data$u_total > 0L,
+        .data$u_started > 0L &
+          .data$u_started -
+            .data$n_units -
+            .data$n_container_rows <
+            .data$u_total,
+        .data$b_started > 0L &
+          .data$b_started - .data$n_level0_rows < .data$b_total
+      )
     )
 }
 
+.level_ragged_out <- function(ragged) {
+  ragged |>
+    dplyr::mutate(
+      start_year = .level_open_to_na(.data$start_year),
+      end_year = .level_open_to_na(.data$end_year)
+    ) |>
+    dplyr::select(dplyr::all_of(names(.level_ragged_prototype())))
+}
+
+# A container's depth window can contain an epoch in which the container is
+# not in the cell AT ALL -- it leaves and comes back, which the year-aware
+# level-0 read has 2,632 (cell, container, epoch) rows of. Both sides are then
+# empty and they AGREE, so there is nothing to report: `no_unit_rows` states
+# that level 0 puts the container in the cell and the depth gives it no unit
+# there, which is false of an epoch level 0 does not put it in either. A
+# diagnostic row whose two sides agree is noise, and enough of it hides the
+# rows that do not.
 .level_ragged_reason <- function(
   n_container_rows,
   n_units,
-  level0_share,
+  n_level0_rows,
   difference,
   tol
 ) {
   dplyr::case_when(
     n_container_rows > 0L ~ "container_row_present",
+    n_units == 0L & n_level0_rows == 0L ~ NA_character_,
     n_units == 0L ~ "no_unit_rows",
-    is.na(level0_share) ~ "unit_outside_level0",
+    n_level0_rows == 0L ~ "unit_outside_level0",
     abs(difference) > tol ~ "unit_share_mismatch",
     .default = NA_character_
   )
@@ -1323,6 +2272,8 @@ admin_coverage_prototype <- function() {
     lon = numeric(),
     lat = numeric(),
     area_code = integer(),
+    start_year = integer(),
+    end_year = integer(),
     n_units = integer(),
     n_container_rows = integer(),
     unit_share = numeric(),
@@ -1337,9 +2288,11 @@ admin_coverage_prototype <- function() {
     return(invisible(NULL))
   }
   counts <- table(ragged$reason)
+  cells <- dplyr::n_distinct(ragged$lon, ragged$lat)
   cli::cli_warn(c(
-    "!" = "{nrow(ragged)} cell{?s} of the allocation layer are ragged: a
-           granted country's units do not reproduce its level-0 share.",
+    "!" = "{nrow(ragged)} (cell, container, epoch) row{?s} of the allocation
+           layer are ragged: a granted country's units do not reproduce its
+           level-0 share. {cells} cell{?s} carry one.",
     "*" = "{paste(names(counts), unname(counts), sep = ': ',
              collapse = '; ')}.",
     i = "Returned in the {.field ragged_coverage} attribute. They are NOT
@@ -1637,6 +2590,10 @@ admin_coverage_prototype <- function() {
 #' - `straddle`: per unit and item, `n_cells`, `straddle_sibling`,
 #'   `straddle_foreign` and `cell_limited`.
 #' - `conservation`: allocated against target, at container and unit grain.
+#'   The container's target is the NATIONAL total, so hectares that became no
+#'   unit's target are visible here as well as in `coverage$dropped_ha`; the
+#'   unit rows are warned about only where their container reconciles, which
+#'   is the sibling-absorption failure they exist to see.
 #' - `bridges`: per `(area_code, item_prod_code, treatment)`, how many years
 #'   of the shares were not observed and the longest contiguous run of them,
 #'   so a 60-year LUH2 bridge is visible rather than merely legal (decision
@@ -1714,6 +2671,7 @@ allocate_level_crops <- function(
     tolerance_relative = split$own$tolerance_relative,
     tolerance_absolute = split$own$tolerance_absolute
   )
+  .alloc_warn_dropped(built$coverage)
   parts <- .alloc_run_engine(
     .alloc_engine_areas(built$targets),
     crop_patterns,
@@ -1778,11 +2736,13 @@ allocate_level_crops <- function(
 #' `"pattern_implied"`, `"admin_area_shares"`, `"admin_backcast_luh2"`,
 #' `"admin_residual"` (a unit carrying its share of the residual on the
 #' weights that split it -- whether because it reported nothing, or because
-#' it declared a share the split did not run on) and `"unallocated"` (a
-#' unit the shares do not cover and no residual reaches, whose target is
-#' 0). The column names what placed the hectares, so a unit whose declared
-#' share was displaced by the pattern weights is `"admin_residual"` and not
-#' `"admin_area_shares"`.
+#' it declared a share the split did not run on) and `"unallocated"` (a unit
+#' whose target is 0: the shares do not cover it and no residual reaches it,
+#' or the group had neither pattern weight nor cropland for anything to be
+#' split on, `coverage$weight_basis == "none"`). The column names what placed
+#' the hectares, so a unit whose declared share was displaced by the pattern
+#' weights is `"admin_residual"` and not `"admin_area_shares"`, and a group
+#' the pattern never ran on is `"unallocated"` and not `"pattern_implied"`.
 #'
 #' A group whose reported values are all zero while the national total is
 #' positive cannot set a shape. Under complete coverage every share is 0,
@@ -1791,6 +2751,13 @@ allocate_level_crops <- function(
 #' 100% of the national total). Where that leaves NO positive target at all,
 #' [allocate_level_crops()] returns the empty allocation beside this
 #' coverage rather than calling an engine with nothing to place.
+#'
+#' An admin-share row carrying no `level_polity_code` names no unit -- that
+#' is what [resolve_admin_units()] leaves on a unit it could not resolve --
+#' and is dropped, counted and named before the split. `NA` is the layer's
+#' own value for "this container is at level 0 and IS its own unit", so such
+#' a row would otherwise bind the container's own row and publish one
+#' unresolved province as the country's complete subnational evidence.
 #'
 #' @section What counts as a report:
 #' One predicate. A unit reports when it carries a `value`, a `share`, or
@@ -1898,7 +2865,12 @@ build_level_crop_targets <- function(
     dplyr::left_join(
       shares,
       by = c("year", "area_code", "level_polity_code", "item_prod_code"),
-      relationship = "many-to-one"
+      relationship = "many-to-one",
+      # `.alloc_prepare_shares()` has already removed every unresolved row, so
+      # this cannot bind `NA` to the level-0 container's `NA`. Said here too:
+      # a share row that names no unit must never match one, and dplyr's
+      # default is that it does.
+      na_matches = "never"
     ) |>
     .alloc_group_state() |>
     .alloc_area_shares()
@@ -2102,9 +3074,45 @@ build_level_crop_targets <- function(
       }
     ) |>
     dplyr::select(dplyr::all_of(names(proto)))
+  rows <- .alloc_drop_unresolved(rows)
   .alloc_check_share_key(rows)
   .alloc_check_negative_values(rows)
   rows
+}
+
+# THE TWO MEANINGS OF A MISSING `level_polity_code`, separated where they meet.
+# In the allocation layer it says "this container is at level 0 and IS its own
+# single unit"; in the admin-share contract it says "`resolve_admin_units()`
+# could not resolve this unit to a polity, and the row is kept visible rather
+# than dropped" (R/admin_shares.R). The target join matches `NA` to `NA`, so an
+# unresolved province bound its country's own level-0 row: one row became the
+# country's complete subnational evidence, `.alloc_warn_unmatched_shares()`
+# stayed silent because the code DID match, and the group read as
+# `admin_area_shares` with full coverage. At a value near the national total
+# that publishes one province as the whole country; at a small one it aborts
+# the run on a discrepancy no province reported.
+#
+# The fix is at the root and not at the join: after this, `NA` never reaches
+# the allocation from the share side, so the value carries exactly one meaning
+# for the rest of the file. The rows are dropped rather than refused, which is
+# what the sibling case (a unit the layer does not carry) already does, and
+# they are named, because dropping them lowers the group's coverage.
+.alloc_drop_unresolved <- function(rows) {
+  unresolved <- dplyr::filter(rows, is.na(level_polity_code))
+  if (nrow(unresolved) == 0L) {
+    return(rows)
+  }
+  codes <- sort(unique(unresolved$area_code))
+  cli::cli_warn(c(
+    "{nrow(unresolved)} admin-share row{?s} carry no
+     {.field level_polity_code} and so name no unit.",
+    "x" = "{length(codes)} container{?s}: {.val {utils::head(codes, 5L)}}.",
+    i = "A missing unit code means the layer's level-0 container, so such a
+         row would bind the container's own row as though a province had
+         reported it. Resolve the unit codes with {.fn resolve_admin_units}
+         first; until then the group is treated as reporting fewer units."
+  ))
+  dplyr::filter(rows, !is.na(level_polity_code))
 }
 
 # FAIL CLOSED ON A NEGATIVE REPORTED AREA. A negative value makes a negative
@@ -2282,6 +3290,38 @@ build_level_crop_targets <- function(
   ))
 }
 
+# The hectares that became NO unit's target. `.alloc_warn_unweighted()` cannot
+# see them: it anti-joins on (year, container, item), and a group whose units
+# all carry a weights row OF ZEROS matches that key and passes. The engine
+# cannot see them either, because `.alloc_engine_areas()` filters
+# `target_ha > 0` and the group never reaches it -- so
+# `build_gridded_landuse()`'s own "no allocatable grid cell" warning, which
+# fires on exactly this mass one step later on the national path, never fires
+# here. `coverage$dropped_ha` recorded it and nothing in the package read it.
+#
+# The threshold is relative as well as absolute so that float noise in
+# `1 - sum(share)` cannot raise a warning about a hectare that was placed.
+.alloc_warn_dropped <- function(coverage, tol = 1e-6) {
+  dropped <- dplyr::filter(
+    coverage,
+    .data$national_total_ha > 0,
+    .data$dropped_ha > pmax(tol, 1e-9 * .data$national_total_ha)
+  )
+  if (nrow(dropped) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- sort(unique(dropped$area_code))
+  cli::cli_warn(c(
+    "{nrow(dropped)} (container, item, year) group{?s} turned part of a
+     national total into no unit target; {round(sum(dropped$dropped_ha))} ha
+     dropped.",
+    "x" = "{length(codes)} area_code{?s}: {.val {utils::head(codes, 5L)}}.",
+    i = "The hectares are in {.field coverage$dropped_ha}, and
+         {.field coverage$weight_basis} says whether the units had any
+         pattern or cropland to receive them."
+  ))
+}
+
 # --- The split ---------------------------------------------------------------
 
 # ONE PREDICATE FOR "THIS UNIT REPORTED". `reports` is what `coverage`
@@ -2440,6 +3480,12 @@ build_level_crop_targets <- function(
   observed <- is.na(treatment) | treatment == "observed"
   declared <- weight_basis %in% "declared"
   dplyr::case_when(
+    # No weight and no cropland anywhere in the group: every share is 0 and
+    # the pattern regime never ran, so naming the row for it would credit
+    # the LUH2 pattern with hectares nothing placed. `weight_basis` is the
+    # only column that separates this from a real pattern split, and it is
+    # group-grain, so a consumer of `targets` alone could not.
+    basis == "pattern" & weight_basis %in% "none" ~ "unallocated",
     basis == "pattern" ~ "pattern_implied",
     !is_reporter & basis == "residual" ~ "admin_residual",
     # A unit the group's own shares do not cover, where there is no residual
@@ -2723,8 +3769,16 @@ build_level_crop_targets <- function(
 .alloc_straddle <- function(allocation, layer) {
   cells <- layer |>
     dplyr::distinct(lon, lat, area_code, level_polity_code) |>
+    # A SIBLING IS A UNIT OF THE SAME CONTAINER, so the count that decides it
+    # has to carry `area_code`. Keyed on the cell alone, a unit sharing a cell
+    # with another COUNTRY scored as sibling straddle with no sibling anywhere
+    # in the layer, and the two columns -- whose whole purpose is to separate
+    # those two exposures -- returned the same number.
     dplyr::mutate(
       n_units_here = dplyr::n_distinct(level_polity_code),
+      .by = c("lon", "lat", "area_code")
+    ) |>
+    dplyr::mutate(
       n_areas_here = dplyr::n_distinct(area_code),
       .by = c("lon", "lat")
     ) |>
@@ -2777,6 +3831,13 @@ build_level_crop_targets <- function(
 # that cannot be placed leaves the unit short while the container still
 # reconciles if a sibling absorbed it, and a container short by the same
 # hectares tells you the mass left the country altogether.
+#
+# THE CONTAINER IS MEASURED AGAINST THE NATIONAL TOTAL, never against the sum
+# of the unit targets. Summing the unit targets makes the check circular: a
+# hectare the unit split never turned into a target is missing from both sides
+# at once, so 90% of a national crop area could leave the country with the
+# table reporting a difference of exactly 0 and nothing warning. The mass is
+# the same one `coverage$dropped_ha` records, and the two now agree.
 .alloc_conservation <- function(allocation, targets, tolerance) {
   by_unit <- allocation |>
     dplyr::summarise(
@@ -2798,8 +3859,11 @@ build_level_crop_targets <- function(
   by_container <- by_unit |>
     dplyr::summarise(
       allocated_ha = sum(allocated_ha, na.rm = TRUE),
-      target_ha = sum(target_ha, na.rm = TRUE),
       .by = c("year", "area_code", "item_prod_code")
+    ) |>
+    dplyr::full_join(
+      .alloc_national_totals(targets),
+      by = c("year", "area_code", "item_prod_code")
     ) |>
     dplyr::mutate(grain = "container", level_polity_code = NA_character_)
   out <- dplyr::bind_rows(by_container, by_unit) |>
@@ -2821,17 +3885,90 @@ build_level_crop_targets <- function(
   out
 }
 
-.alloc_warn_conservation <- function(conservation, tolerance) {
-  bad <- conservation |>
-    dplyr::filter(
-      grain == "container",
-      abs(difference_ha) > 1e-6,
-      abs(dplyr::coalesce(difference_frac, 0)) > tolerance
+# The container's target, taken from the national total the split started
+# from. `national_total_ha` is constant inside a (year, container, item) on the
+# public path -- it comes from a many-to-one join with `country_areas` -- and
+# that is CHECKED here rather than trusted: the whole point of the container
+# grain is that its target is not the circular sum of the unit targets, so the
+# one input it does rest on may not be whichever value happens to sort first.
+.alloc_national_totals <- function(targets) {
+  if (!rlang::has_name(targets, "national_total_ha")) {
+    cli::cli_abort(c(
+      "{.arg targets} carries no {.field national_total_ha}.",
+      i = "The container's conservation target is the national total, not
+           the sum of the unit targets; without it a hectare that became no
+           unit's target would be missing from both sides at once."
+    ))
+  }
+  totals <- targets |>
+    dplyr::summarise(
+      target_ha = dplyr::first(national_total_ha),
+      n_totals = dplyr::n_distinct(national_total_ha),
+      .by = c("year", "area_code", "item_prod_code")
     )
+  .alloc_check_one_total(totals)
+  dplyr::select(totals, -"n_totals")
+}
+
+.alloc_check_one_total <- function(totals) {
+  bad <- dplyr::filter(totals, .data$n_totals > 1L)
+  if (nrow(bad) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- bad[1L, , drop = FALSE]
+  cli::cli_abort(
+    c(
+      "{nrow(bad)} (year, container, item) group{?s} carry more than one
+       {.field national_total_ha}.",
+      x = "First: area_code {.val {worst$area_code}}, item
+           {.val {worst$item_prod_code}}, {.val {worst$year}} --
+           {worst$n_totals} distinct totals.",
+      i = "The container's conservation target IS that total. Picking one of
+           several would set the target the whole check is measured against
+           from whichever row sorted first."
+    ),
+    class = "whep_alloc_national_total_varies"
+  )
+}
+
+# The container rows are the headline; the unit rows are warned about ONLY
+# where their container reconciles, because that is the failure they exist to
+# see -- a sibling absorbing another unit's target leaves every national total
+# right -- and repeating a container's own shortfall once per unit would bury
+# it.
+.alloc_warn_conservation <- function(conservation, tolerance) {
+  containers <- .alloc_conservation_bad(conservation, "container", tolerance)
+  .alloc_warn_conservation_at(containers, "container", tolerance)
+  units <- .alloc_conservation_bad(conservation, "unit", tolerance) |>
+    dplyr::anti_join(
+      containers,
+      by = c("year", "area_code", "item_prod_code")
+    )
+  .alloc_warn_conservation_at(units, "unit", tolerance)
+}
+
+# `difference_frac` is `NA` where the target is 0, and a relative tolerance has
+# nothing to test there -- but hectares allocated against no target at all is
+# the loudest breach of the two, not a case to fall through. Coalescing the
+# `NA` to 0 excused it; the absolute half above (`difference_ha`) is what
+# decides it instead.
+.alloc_conservation_bad <- function(conservation, want, tolerance) {
+  conservation |>
+    dplyr::filter(
+      grain == want,
+      abs(difference_ha) > 1e-6,
+      is.na(difference_frac) | abs(difference_frac) > tolerance
+    )
+}
+
+.alloc_warn_conservation_at <- function(bad, grain_name, tolerance) {
   if (nrow(bad) == 0L) {
     return(invisible(NULL))
   }
   worst <- bad[which.max(abs(bad$difference_ha)), , drop = FALSE]
+  if (grain_name == "unit") {
+    return(.alloc_warn_unit_conservation(bad, worst, tolerance))
+  }
   # The difference is SIGNED and both signs are reachable, so the wording
   # states the magnitude and lets the number carry the direction. Saying
   # "allocate less than their target" described one direction as if it were
@@ -2839,7 +3976,8 @@ build_level_crop_targets <- function(
   # target produces -- would have been reported in words that denied it.
   cli::cli_warn(c(
     "{nrow(bad)} (container, item, year) group{?s} allocate a total
-     differing from their target by more than {.val {tolerance}} relative.",
+     differing from their target by more than {.val {tolerance}} relative,
+     or hold hectares against no target at all.",
     "x" = "Worst: area_code {.val {worst$area_code}}, item
            {.val {worst$item_prod_code}}, {.val {worst$year}} --
            {round(worst$allocated_ha)} ha allocated against
@@ -2848,6 +3986,25 @@ build_level_crop_targets <- function(
     i = "Negative is a target the engine could not place, which it names
          itself; positive is more allocated than was asked for, which no
          path should reach."
+  ))
+}
+
+# A unit off its target inside a container that is exactly on its own: the
+# hectares did not leave the country, they went to the wrong unit of it. No
+# conservation check at the container grain can see that, which is why the
+# unit rows are computed at all -- they were computed and then never read.
+.alloc_warn_unit_conservation <- function(bad, worst, tolerance) {
+  cli::cli_warn(c(
+    "{nrow(bad)} (unit, item, year) row{?s} miss their target by more than
+     {.val {tolerance}} relative -- or hold hectares against no target at all
+     -- inside a container that reconciles.",
+    "x" = "Worst: unit {.val {worst$level_polity_code}}, item
+           {.val {worst$item_prod_code}}, {.val {worst$year}} --
+           {round(worst$allocated_ha)} ha allocated against
+           {round(worst$target_ha)} ha targeted
+           ({round(worst$difference_ha)} ha).",
+    i = "A sibling unit absorbed the difference, so every national total
+         still reconciles and only the unit grain shows it."
   ))
 }
 

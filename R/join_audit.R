@@ -207,15 +207,6 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
-    ".level_ragged_coverage", "full_join", "lon, lat, area_code", 1L,
-    "diagnostic",
-    "Assertion (b) of whep#1000 decision 10: it compares a granted country's
-     per-cell unit shares against the level-0 share the same cell carries, and
-     writes the mismatches to the ragged-coverage report. It allocates
-     nothing. Neither side has a year to key on -- level 0 IS a fixed 2015
-     snapshot (`.carbon_support_year()`) and the layer's shares are per
-     (cell, compartment) -- and whether the two should coexist per year is the
-     open question at T31(j), not something this comparison may decide.",
     ".level_support_units", "inner_join", "polity_code, member_code", 1L,
     "identity_lookup",
     "The containment edge join proposes which containers a polity sat inside;
@@ -457,6 +448,15 @@
      report; see the join row of the same name.",
     ".alloc_straddle", "summarise", "area_code, level_polity_code", 1L,
     "diagnostic", "Each unit's cell count, for the same report.",
+    ".alloc_straddle", "mutate", "lon, lat, area_code", 1L, "diagnostic",
+    "Counts the units of ONE CONTAINER sharing a cell, which is what makes a
+     straddle a sibling's rather than a foreign country's. `area_code` is in
+     the key for exactly that reason: keyed on the cell alone, a unit sharing
+     a cell with another COUNTRY scored as sibling straddle with no sibling
+     anywhere in the layer, and the two columns whose purpose is to separate
+     those exposures returned the same number. Both sides are the same
+     `layer` frame of one call, so the key cannot cross a succession, and the
+     report moves no allocated hectare.",
     ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reported-year window per area, the bound that
@@ -623,15 +623,18 @@
      it reads as year-free only because the audit tests for a column literally
      named `year`, and the interval is carried as `start_year`/`end_year`.",
     ".level_compartment_shares", "summarise",
-    "lon, lat, area_code, level_polity_code", 1L, "diagnostic",
-    "Reduces the allocation layer to one share per (cell, compartment) for the
-     two decision-10 assertions and nothing else; no hectare is allocated
-     through it. The year is absent BY ASSERTION rather than by omission: T37
-     fixed the layer's shares as summing to 1 per cell unconditionally, so
-     this function refuses (`whep_alloc_layer_varying_share`) a compartment
-     whose share of one cell differs between two of its own intervals instead
-     of summing across them. Making a share move through time is the
-     territory-basis mechanism, which belongs to T28.",
+    "lon, lat, area_code, level_polity_code, start_year, end_year", 1L,
+    "single_year",
+    "Reduces the allocation layer to one share per (cell, compartment,
+     INTERVAL) for the two decision-10 assertions and nothing else; no
+     hectare is allocated through it. The interval is in the key, which is
+     the whole point: a compartment's share of a cell is read at each of its
+     own validity intervals and never summed across them, so a successor is
+     never added to its predecessor. It reads as year-free only because the
+     audit tests for a column literally named `year` while the grain is
+     carried as `start_year`/`end_year`. The function still refuses
+     (`whep_alloc_layer_varying_share`) a compartment holding two shares of
+     one cell WITHIN one interval, which cannot be summed or chosen between.",
     ".level_container_land", "summarise", "lon, lat, polity_code", 1L,
     "single_year",
     "Runs inside `purrr::map(years, ...)` over
@@ -643,11 +646,25 @@
     "A polity code already names its own period (`JPN-1952-2025`), and its
      type is an attribute of that period; the dedup IS the resolution, and the
      function aborts if one code carries two types.",
-    ".level_ragged_coverage", "summarise", "lon, lat, area_code", 2L,
+    ".level_container_segments", "mutate", "lon, lat, area_code", 1L,
     "diagnostic",
-    "The two reductions behind the ragged-coverage report of the same name --
-     the granted country's unit shares per cell and its level-0 share per
-     cell. See the join row for why neither side has a year.",
+    "Assertion (b) of whep#1000 decision 10, which compares a granted
+     country's unit shares in a cell against the level-0 share the same cell
+     carries, and writes mismatches to the ragged-coverage report. It
+     allocates nothing. This is an INTERVAL SWEEP: both sides are swept
+     together on (cell, container) so each segment states the two shares over
+     one and the same interval, and the grain rides on `start_year`/`end_year`
+     rather than a column named `year`, which is the only reason it reads as
+     year-free. The earlier row here said neither side had a year to key on;
+     that was false, and reusing one peak epoch for both sides is what let a
+     container short in a LATER epoch go unreported.",
+    ".level_ragged_window", "mutate", "lon, lat, area_code", 1L,
+    "diagnostic",
+    "Bounds that sweep to the container's own depth span in the cell, so a
+     container that leaves a cell and returns is not read as ragged across
+     the gap where BOTH sides are legitimately empty (Mexico holds
+     (-99.25, 27.75) whole until 1848 and 0.0022 of it from 1867). Same
+     interval grain, same report, allocates nothing.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it
