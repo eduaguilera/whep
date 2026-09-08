@@ -33,8 +33,16 @@ against both editions of Vol 4, Ch 10, Table 10.21:
   not in Table 10.21 in either edition, which defers it to Ch 11. Its
   stored 0.01 is the 2006 Ch 11 Table 11.1 EF3PRP,SO for sheep and other
   animals; the 2019 Refinement's Table 11.1 (Updated) gives 0.004 for
-  cattle, poultry and pigs and 0.003 for sheep and other animals.
-  Tracked in whep#601.
+  cattle, poultry and pigs and 0.003 for sheep and other animals. Four
+  further rows are WHEP composite or fallback labels with no counterpart
+  system in Table 10.21 of either edition, so no published value backs
+  them: `"Liquid/Slurry"` 0.002 (the published liquid/slurry EF3 is
+  0.005 with a crust and 0 without; 0.002 is the pit-storage value),
+  `"Solid Storage and Dry Lot"` 0.005 (the 2006 solid-storage value,
+  while dry lot is 0.02 in both editions), `"Burned for Fuel"` 0 (both
+  editions give no EF3 here and report those emissions under fuel
+  combustion or waste incineration instead) and `"Other"` 0.005.
+  **Assumed, unverified.** Tracked in whep#601.
 
 ## Examples
 

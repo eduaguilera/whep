@@ -914,6 +914,8 @@ and other data-quality diagnostics.
 - [`check_fodder_land_share()`](https://eduaguilera.github.io/whep/reference/check_fodder_land_share.md)
   : Check how much arable land the fallow split attributes to fodder
   crops.
+- [`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md)
+  : Check where the arable-land extension changes composition mid-panel.
 - [`check_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/check_parquet_integrity.md)
   : Check the structural integrity of a Parquet file.
 - [`assert_parquet_integrity()`](https://eduaguilera.github.io/whep/reference/assert_parquet_integrity.md)
@@ -999,6 +1001,8 @@ methods for enteric methane, manure methane, and manure nitrous oxide.
   : Calculate enteric methane emissions.
 - [`calculate_manure_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_manure_emissions.md)
   : Calculate manure emissions (CH4 + N2O).
+- [`manure_engine_options`](https://eduaguilera.github.io/whep/reference/manure_engine_options.md)
+  : Manure engine options
 - [`estimate_n_excretion()`](https://eduaguilera.github.io/whep/reference/estimate_n_excretion.md)
   : Estimate livestock nitrogen, carbon and volatile-solids excretion.
 - [`split_manure_management()`](https://eduaguilera.github.io/whep/reference/split_manure_management.md)

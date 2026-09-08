@@ -51,7 +51,10 @@ build_fao_arable_fallow_extension(
   base_extension = NULL,
   fallow_weights = NULL,
   temporary_grassland = NULL,
-  items_prod_full = whep::items_prod_full
+  items_prod_full = whep::items_prod_full,
+  temp_grassland_basis = c("modelled", "modelled_then_fao", "fao_official", "fao_all",
+    "none"),
+  fodder_gap = c("as_reported", "carry_forward", "drop")
 )
 ```
 
@@ -110,11 +113,35 @@ build_fao_arable_fallow_extension(
   `Herb_Woody`. Defaults to
   [items_prod_full](https://eduaguilera.github.io/whep/reference/items_prod_full.md).
 
+- temp_grassland_basis:
+
+  Which measurement of temporary grassland is netted out of the arable
+  target. `"modelled"` (default) is the published behaviour: WHEP's own
+  CBS 3002, which exists for 26 EU polities and stops in 2019.
+  `"modelled_then_fao"` keeps that and fills every other country-year
+  from official FAO 6633. `"fao_official"` uses official FAO 6633
+  everywhere, `"fao_all"` uses FAO 6633 on every observation-status flag
+  (~81% of it is FAO-imputed), and `"none"` nets nothing, the behaviour
+  before whep#349. See the netting-basis section.
+
+- fodder_gap:
+
+  How the FAOSTAT fodder items (CBS `2000`-`2003`) are treated where
+  their sources have run out. `"as_reported"` (default) is the published
+  behaviour: no fodder from 2020, so ordinary crops absorb its land.
+  `"carry_forward"` extends each fodder series' last observed physical
+  area over the rest of that country's panel. `"drop"` removes fodder
+  from the whole panel. See the fodder-gap section.
+
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(fallow-inclusive physical land in hectares), and `method_land`
-(`"fao_arable_fallow"`).
+(fallow-inclusive physical land in hectares), `method_land`
+(`"fao_arable_fallow"`), `temp_grassland_netted_ha` (hectares netted out
+of that country-year's arable target, `0` where the netting term is
+structurally absent), `method_temp_grassland` (the
+`temp_grassland_basis` in force) and `method_fodder` (the `fodder_gap`
+in force).
 
 ## Temporary grassland (no double-count)
 
@@ -136,6 +163,50 @@ correct but slow, since that build reruns much of the pipeline; supply
 the table to avoid the rebuild. Where modelled CBS 3002 exceeds FAO
 Arable land (survey vs. fodder-reconstruction mismatch) the arable
 target is clamped at 0 and a warning is emitted.
+
+## Netting basis, and the 2019/2020 seam
+
+Modelled CBS 3002 comes from EU AgriDB alone — FAOSTAT production item
+996 is in neither production pin, and the EU AgriDB fodder source runs
+1961-2019 for all 28 of its region keys. So over 2001-2023 the netting
+term exists for **26 EU polities and the years 2001-2019 only**, and is
+identically zero everywhere else. For those 26 polities the arable
+target therefore steps **from 96.4 Mha in 2019 to 103 Mha in 2020**
+while their own FAO arable land *falls*, so ordinary arable crops there
+gain land with no land-use change behind it. Measured over 2001-2023 on
+the real inputs, the land the netting removes is 8.2-9.8 Mha a year to
+2019 and **exactly 0** from 2020. `temp_grassland_basis` exposes the
+alternatives measured in whep#937 and whep#354; `"modelled"` remains the
+default so this argument changes no published number until a basis is
+chosen deliberately. `temp_grassland_netted_ha` in the output, and
+[`check_arable_composition()`](https://eduaguilera.github.io/whep/reference/check_arable_composition.md),
+make the switch-off visible either way.
+
+FAO's own item 6633 "Temporary meadows and pastures" measures the same
+concept, runs 2001-2023, and is what the `"fao_*"` bases read. It is not
+a drop-in replacement: only ~19% of it is an official value, Greece and
+Poland are imputed zeros throughout while WHEP models 2.10 and 4.78 Mha
+there, and its scope is country-dependent — for Ireland, Sweden, the
+United Kingdom, the Netherlands, Belgium, Luxembourg and Czechia it
+equals WHEP's CBS 3002 to the digit, while for Germany, Italy, Romania,
+Spain, Denmark, Austria and Bulgaria it is 3-40 times larger and lands
+near the whole green-fodder group. `validation/temp_grassland_6633.R`
+records that comparison.
+
+## Fodder gap
+
+FAOSTAT's fodder tonnage (`faostat-production-old`, production only, no
+harvested area at all) runs to 2013, whose rows `.combine_fodder()`
+drops, so it effectively ends in 2012; EU AgriDB, the only other source,
+ends in 2019. Fodder harvested area is reconstructed from those two, so
+a build reaching 2020 has **no fodder at all** from that year: measured
+over 2001-2023 on the real inputs, fodder is 9.2% of the reconciled
+arable land extension in 2001 and 7.6% in 2019, then **0%** from 2020,
+with ordinary arable crops absorbing the difference (whep#938). A
+second, earlier composition change sits inside the covered window: from
+2013 the FAOSTAT-derived fodder area disappears and the dry-matter-yield
+estimate jumps from 2.3 to 75.0 Mha, held flat to 2019. `fodder_gap`
+exposes the treatments; `"as_reported"` remains the default.
 
 ## Examples
 
@@ -168,9 +239,10 @@ build_fao_arable_fallow_extension(
   temporary_grassland = temporary_grassland,
   items_prod_full = items
 )
-#> # A tibble: 2 × 5
-#>    year area_code item_cbs_code impact_u method_land      
-#>   <int>     <int>         <int>    <dbl> <chr>            
-#> 1  2020         1          2511      400 fao_arable_fallow
-#> 2  2020         1          2560      100 fao_arable_fallow
+#> # A tibble: 2 × 8
+#>    year area_code item_cbs_code impact_u method_land       method_temp_grassland
+#>   <int>     <int>         <int>    <dbl> <chr>             <chr>                
+#> 1  2020         1          2511      400 fao_arable_fallow modelled             
+#> 2  2020         1          2560      100 fao_arable_fallow modelled             
+#> # ℹ 2 more variables: method_fodder <chr>, temp_grassland_netted_ha <dbl>
 ```

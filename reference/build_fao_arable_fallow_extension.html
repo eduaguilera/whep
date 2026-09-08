@@ -137,7 +137,10 @@ without inventing a crop allocation.</p></li>
 <span>  base_extension <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  fallow_weights <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  temporary_grassland <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  items_prod_full <span class="op">=</span> <span class="fu">whep</span><span class="fu">::</span><span class="va"><a href="items_prod_full.html">items_prod_full</a></span></span>
+<span>  items_prod_full <span class="op">=</span> <span class="fu">whep</span><span class="fu">::</span><span class="va"><a href="items_prod_full.html">items_prod_full</a></span>,</span>
+<span>  temp_grassland_basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"modelled"</span>, <span class="st">"modelled_then_fao"</span>, <span class="st">"fao_official"</span>, <span class="st">"fao_all"</span>,</span>
+<span>    <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  fodder_gap <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"as_reported"</span>, <span class="st">"carry_forward"</span>, <span class="st">"drop"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -190,12 +193,35 @@ to skip that rebuild, or pass one with no CBS 3002 rows to opt out.</p></dd>
 <dd><p>Crosswalk used to classify <code>item_cbs_code</code> as arable or
 perennial via <code>Herb_Woody</code>. Defaults to <a href="items_prod_full.html">items_prod_full</a>.</p></dd>
 
+
+<dt id="arg-temp-grassland-basis">temp_grassland_basis<a class="anchor" aria-label="anchor" href="#arg-temp-grassland-basis"></a></dt>
+<dd><p>Which measurement of temporary grassland is
+netted out of the arable target. <code>"modelled"</code> (default) is the published
+behaviour: WHEP's own CBS 3002, which exists for 26 EU polities and stops
+in 2019. <code>"modelled_then_fao"</code> keeps that and fills every other
+country-year from official FAO 6633. <code>"fao_official"</code> uses official FAO
+6633 everywhere, <code>"fao_all"</code> uses FAO 6633 on every observation-status
+flag (~81% of it is FAO-imputed), and <code>"none"</code> nets nothing, the behaviour
+before whep#349. See the netting-basis section.</p></dd>
+
+
+<dt id="arg-fodder-gap">fodder_gap<a class="anchor" aria-label="anchor" href="#arg-fodder-gap"></a></dt>
+<dd><p>How the FAOSTAT fodder items (CBS <code>2000</code>-<code>2003</code>) are
+treated where their sources have run out. <code>"as_reported"</code> (default) is the
+published behaviour: no fodder from 2020, so ordinary crops absorb its
+land. <code>"carry_forward"</code> extends each fodder series' last observed physical
+area over the rest of that country's panel. <code>"drop"</code> removes fodder from
+the whole panel. See the fodder-gap section.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with columns <code>year</code>, <code>area_code</code>, <code>item_cbs_code</code>,
-<code>impact_u</code> (fallow-inclusive physical land in hectares), and <code>method_land</code>
-(<code>"fao_arable_fallow"</code>).</p>
+<code>impact_u</code> (fallow-inclusive physical land in hectares), <code>method_land</code>
+(<code>"fao_arable_fallow"</code>), <code>temp_grassland_netted_ha</code> (hectares netted out of
+that country-year's arable target, <code>0</code> where the netting term is
+structurally absent), <code>method_temp_grassland</code> (the <code>temp_grassland_basis</code>
+in force) and <code>method_fodder</code> (the <code>fodder_gap</code> in force).</p>
     </div>
     <div class="section level2">
     <h2 id="temporary-grassland-no-double-count-">Temporary grassland (no double-count)<a class="anchor" aria-label="anchor" href="#temporary-grassland-no-double-count-"></a></h2>
@@ -217,6 +243,51 @@ build reruns much of the pipeline; supply the table to avoid the rebuild.
 Where modelled CBS 3002 exceeds FAO Arable land (survey vs.
 fodder-reconstruction mismatch) the arable target is clamped at 0 and a
 warning is emitted.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="netting-basis-and-the-seam">Netting basis, and the 2019/2020 seam<a class="anchor" aria-label="anchor" href="#netting-basis-and-the-seam"></a></h2>
+
+
+<p>Modelled CBS 3002 comes from EU AgriDB alone — FAOSTAT production item 996
+is in neither production pin, and the EU AgriDB fodder source runs
+1961-2019 for all 28 of its region keys. So over 2001-2023 the netting term
+exists for <strong>26 EU polities and the years 2001-2019 only</strong>, and is
+identically zero everywhere else. For those 26 polities the arable target
+therefore steps <strong>from 96.4 Mha in 2019 to 103 Mha in 2020</strong> while their own
+FAO arable land <em>falls</em>, so ordinary arable crops there gain land with no
+land-use change behind it. Measured over 2001-2023 on the real inputs, the
+land the netting removes is 8.2-9.8 Mha a year to 2019 and <strong>exactly 0</strong> from
+2020. <code>temp_grassland_basis</code> exposes the alternatives measured in whep#937
+and whep#354; <code>"modelled"</code> remains the default so this argument changes no
+published number until a basis is chosen deliberately.
+<code>temp_grassland_netted_ha</code> in the output, and
+<code><a href="check_arable_composition.html">check_arable_composition()</a></code>, make the switch-off visible either way.</p>
+<p>FAO's own item 6633 "Temporary meadows and pastures" measures the same
+concept, runs 2001-2023, and is what the <code>"fao_*"</code> bases read. It is not a
+drop-in replacement: only ~19% of it is an official value, Greece and Poland
+are imputed zeros throughout while WHEP models 2.10 and 4.78 Mha there, and
+its scope is country-dependent — for Ireland, Sweden, the United Kingdom,
+the Netherlands, Belgium, Luxembourg and Czechia it equals WHEP's CBS 3002
+to the digit, while for Germany, Italy, Romania, Spain, Denmark, Austria and
+Bulgaria it is 3-40 times larger and lands near the whole green-fodder
+group. <code>validation/temp_grassland_6633.R</code> records that comparison.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="fodder-gap">Fodder gap<a class="anchor" aria-label="anchor" href="#fodder-gap"></a></h2>
+
+
+<p>FAOSTAT's fodder tonnage (<code>faostat-production-old</code>, production only, no
+harvested area at all) runs to 2013, whose rows <code>.combine_fodder()</code> drops,
+so it effectively ends in 2012; EU AgriDB, the only other source, ends in
+2019. Fodder harvested area is reconstructed from those two, so a build
+reaching 2020 has <strong>no fodder at all</strong> from that year: measured over
+2001-2023 on the real inputs, fodder is 9.2% of the reconciled arable land
+extension in 2001 and 7.6% in 2019, then <strong>0%</strong> from 2020, with ordinary
+arable crops absorbing the difference (whep#938). A second, earlier
+composition change sits inside the covered window: from 2013 the
+FAOSTAT-derived fodder area disappears and the dry-matter-yield estimate
+jumps from 2.3 to 75.0 Mha, held flat to 2019.
+<code>fodder_gap</code> exposes the treatments; <code>"as_reported"</code> remains the default.</p>
     </div>
 
     <div class="section level2">
@@ -249,11 +320,12 @@ warning is emitted.</p>
 <span class="r-in"><span>  temporary_grassland <span class="op">=</span> <span class="va">temporary_grassland</span>,</span></span>
 <span class="r-in"><span>  items_prod_full <span class="op">=</span> <span class="va">items</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 5</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land      </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 2 × 8</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    year area_code item_cbs_code impact_u method_land       method_temp_grassland</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>511      400 fao_arable_fallow modelled             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span>  <span style="text-decoration: underline;">2</span>020         1          <span style="text-decoration: underline;">2</span>560      100 fao_arable_fallow modelled             </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 2 more variables: method_fodder &lt;chr&gt;, temp_grassland_netted_ha &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

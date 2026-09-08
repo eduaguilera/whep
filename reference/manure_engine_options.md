@@ -1,26 +1,9 @@
-# Calculate manure emissions (CH4 + N2O).
+# Manure engine options
 
-Wrapper that selects Tier 1 or 2 for manure CH4 and computes N2O (Tier 2
-only; skipped for Tier 1).
-
-## Usage
-
-``` r
-calculate_manure_emissions(data, tier = NULL, options = list())
-```
+Shared description of the `options` list the IPCC manure engine takes,
+documented once and inherited by the functions that accept it.
 
 ## Arguments
-
-- data:
-
-  Dataframe with `species`, `heads`. For Tier 2, also needs `cohort`,
-  `weight`, and `diet_quality`. For Tier 1, `iso3` is used to select
-  regional emission factors.
-
-- tier:
-
-  Integer 1 or 2. If `NULL` (default), auto-selects based on data
-  completeness.
 
 - options:
 
@@ -60,38 +43,3 @@ calculate_manure_emissions(data, tier = NULL, options = list())
   supplies zones; `method_manure_ch4` records which of the two happened,
   and this argument exists so the sensitivity to the assumption can be
   measured (whep#949).
-
-## Value
-
-Dataframe with all input columns preserved, plus:
-
-- `method_manure_ch4`: tracking label.
-
-- `method_mms`: which manure-management split was used
-  (`"regional_default"` or `"region_specific"`).
-
-- Tier 1: `manure_ef_kgch4`, `manure_ch4_tier1`.
-
-- Tier 2: `volatile_solids`, `methane_potential`, `weighted_mcf`,
-  `manure_ch4_per_head`, `manure_ch4_tier2`.
-
-- N2O (both tiers): `method_manure_n2o`, `n_excretion`,
-  `manure_n2o_direct`, `manure_n2o_indirect`, `manure_n2o_total`. Tier 1
-  uses default per-head excretion rates; Tier 2 uses the energy/nitrogen
-  balance.
-
-## Examples
-
-``` r
-tibble::tibble(
-  species = "Cattle", heads = 1000, iso3 = "DEU"
-) |>
-  calculate_manure_emissions(tier = 1)
-#> # A tibble: 1 × 15
-#>   species heads iso3  species_gen method_manure_ch4 manure_ef_kgch4
-#>   <chr>   <dbl> <chr> <chr>       <chr>                       <dbl>
-#> 1 Cattle   1000 DEU   Cattle      IPCC_2019_Tier1                 1
-#> # ℹ 9 more variables: manure_ch4_tier1 <dbl>, method_manure_n2o <chr>,
-#> #   manure_category <chr>, region <chr>, n_excretion <dbl>, method_mms <chr>,
-#> #   manure_n2o_direct <dbl>, manure_n2o_indirect <dbl>, manure_n2o_total <dbl>
-```

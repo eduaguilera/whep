@@ -56,7 +56,7 @@ manure CH4, and manure N2O.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_livestock_emissions</span><span class="op">(</span><span class="va">data</span>, tier <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">calculate_livestock_emissions</span><span class="op">(</span><span class="va">data</span>, tier <span class="op">=</span> <span class="cn">NULL</span>, options <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,6 +72,35 @@ For Tier 2, also needs <code>cohort</code>, <code>weight</code> (or <code>iso3</
 <dt id="arg-tier">tier<a class="anchor" aria-label="anchor" href="#arg-tier"></a></dt>
 <dd><p>Integer 1 or 2. If <code>NULL</code> (default), auto-selects
 based on data completeness.</p></dd>
+
+
+<dt id="arg-options">options<a class="anchor" aria-label="anchor" href="#arg-options"></a></dt>
+<dd><p>A named list of manure-engine options. Every default
+reproduces the behaviour in force before whep#949, so passing none leaves
+published values unchanged.</p>
+<p><code>mms_region</code> selects how the manure-management split in
+<a href="regional_mms_distribution.html">regional_mms_distribution</a> is keyed:</p><ul><li><p><code>"as_available"</code> (default): a row uses its own region when the frame
+already carries a <code>region</code> column, and the <code>region == "Global"</code> split
+otherwise. Tier 1 resolves a region for the (sourced) per-head
+N-excretion table and so takes the region-specific split; Tier 2 carries
+no region and so takes the Global one.</p></li>
+<li><p><code>"resolve"</code>: the IPCC region is resolved from <code>iso3</code>, <code>area_code</code> or
+<code>polity_area_code</code> where it is missing, which makes the table's four
+region-specific <code>(region, species)</code> pairs live on the Tier 2 path too.
+Those four pairs are an unsourced placeholder (whep#921), which is why
+this is opt-in rather than the default.</p></li>
+<li><p><code>"global"</code>: every row takes the <code>region == "Global"</code> split, whatever
+region column it carries.</p></li>
+</ul><p><code>climate_source</code> selects the climate zone the methane conversion factors
+in <a href="climate_mcf.html">climate_mcf</a> are read at. A <code>climate_zone</code> column already on the frame
+is always used. <code>"assumed"</code> (default) fills a missing one with
+<code>assumed_climate_zone</code>; <code>"from_data"</code> aborts instead of assuming.</p>
+<p><code>assumed_climate_zone</code> is the zone <code>"assumed"</code> fills in: <code>"Cool"</code>,
+<code>"Temperate"</code> (default) or <code>"Warm"</code>. WHEP has no territory-to-zone
+crosswalk, so the whole world is assumed Temperate unless a caller
+supplies zones; <code>method_manure_ch4</code> records which of the two happened, and
+this argument exists so the sensitivity to the assumption can be measured
+(whep#949).</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -97,7 +126,7 @@ and original data columns preserved.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 6</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   species      cohort  heads enteric_ch4_tier2 manure_ch4_tier2 manure_n2o_total</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Dairy Cattle Adult …  <span style="text-decoration: underline;">1</span>000           <span style="text-decoration: underline;">126</span>919.           <span style="text-decoration: underline;">18</span>255.            <span style="text-decoration: underline;">2</span>701.</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Dairy Cattle Adult …  <span style="text-decoration: underline;">1</span>000           <span style="text-decoration: underline;">126</span>919.           <span style="text-decoration: underline;">18</span>255.            <span style="text-decoration: underline;">2</span>189.</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
