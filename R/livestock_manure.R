@@ -39,6 +39,11 @@
 #'   moves published Tier 2 manure CH4, which is a maintainer decision and not
 #'   a wiring cleanup. `method_manure_ch4` records the table used.
 #'
+#'   `"ipcc_2019"` carries one known incompleteness: the Refinement pairs its
+#'   single 0.47 percent pasture MCF with a mandatory `Bo` of 0.19, and this
+#'   engine applies one per-species `Bo` to every stream, so the pair cannot be
+#'   honoured here. See the corresponding section of [climate_mcf_ipcc].
+#'
 #'   `climate_source` selects the climate zone the methane conversion factors
 #'   in the MCF table are read at. A `climate_zone` column already on the frame
 #'   is always used. `"assumed"` (default) fills a missing one with

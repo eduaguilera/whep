@@ -53,6 +53,11 @@ every system, so both alternatives apply a stated collapse rule; see
 moves published Tier 2 manure CH4, which is a maintainer decision and not
 a wiring cleanup. \code{method_manure_ch4} records the table used.
 
+\code{"ipcc_2019"} carries one known incompleteness: the Refinement pairs its
+single 0.47 percent pasture MCF with a mandatory \code{Bo} of 0.19, and this
+engine applies one per-species \code{Bo} to every stream, so the pair cannot be
+honoured here. See the corresponding section of \link{climate_mcf_ipcc}.
+
 \code{climate_source} selects the climate zone the methane conversion factors
 in the MCF table are read at. A \code{climate_zone} column already on the frame
 is always used. \code{"assumed"} (default) fills a missing one with
