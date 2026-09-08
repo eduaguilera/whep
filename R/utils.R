@@ -2113,6 +2113,10 @@ utils::globalVariables(
     "temp_grassland_netted_ha",
     "method_temp_grassland",
     "method_fodder",
-    "flag"
+    "flag",
+    # bilateral_trade.R (#943) — integer copy of the country factor level,
+    # used to join a trade matrix's own row/column margins onto the country
+    # dimension when no CBS row anchors the item
+    "area_code_int"
   )
 )

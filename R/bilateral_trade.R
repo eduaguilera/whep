@@ -7,6 +7,48 @@
 #'   downloading remote data. Default is `FALSE`.
 #' @param cbs Optional pre-computed wide CBS tibble from
 #'   [get_wide_cbs()]. If `NULL` (default), it is built internally.
+#' @param method_items_not_in_cbs How to treat a traded item whose
+#'   `item_cbs_code` has no commodity balance sheet row to balance it
+#'   against. See the *Items with no CBS row* section. One of:
+#'   - `"drop"` (default): discard those flows, the historical
+#'     behaviour. Published values are unaffected by this argument's
+#'     existence as long as the default is kept.
+#'   - `"keep"`: keep the flows and take the row and column margins from
+#'     the reported bilateral data itself instead of from the CBS.
+#'   - `"abort"`: fail, so that a refreshed pin cannot introduce
+#'     unanchored items unnoticed.
+#'
+#'   `example = TRUE` always returns the `"drop"` fixture.
+#'
+#' @section Items with no CBS row:
+#' The bilateral trade matrices are balanced against the total exports and
+#' imports reported in the commodity balance sheet, so an item with no CBS
+#' supply/use row has nothing to balance against. Historically those flows
+#' were discarded silently. Measured on the `bilateral_trade` pin
+#' `20250714T123347Z-2c392` (after the export-preference deduplication and
+#' the tonnes filter, i.e. exactly what reaches this step): 12.51 Gt of
+#' 47.48 Gt, **26.4% of the traded tonnage over 1986-2021**, in 7 items, of
+#' which 99.1% is the FABIO-style aggregate placeholder `"Other"`
+#' (`item_cbs_code` 5001). The drop is now reported with
+#' `cli::cli_warn()` whichever method is chosen, because a quarter of world
+#' trade should not disappear without a message.
+#'
+#' The share is far from constant: 9.1% over 1986-2003, **49.6% over
+#' 2004-2013** and 4.3% over 2014-2021. The middle block is not a real
+#' trade signal. It contains physically impossible flows booked in tonnes:
+#' Colombia to the United States, 2004, 2.58 Gt of `"Other"` in a single
+#' cell, more than world cereal production; Kenya to the Netherlands,
+#' 515-594 Mt/year over 2005-2009. Excluding item 5001 altogether, the
+#' whole drop is 112 Mt, 0.24% of traded tonnage.
+#'
+#' Which treatment is right is therefore a methodological question, not a
+#' lookup: `"Other"` is an unallocated residual whose 2004-2013 values are
+#' demonstrably corrupt, so `"keep"` carries that corruption into the
+#' output, and mapping the residual onto real CBS items would need a
+#' sourced disaggregation key that does not exist in the package. Nothing
+#' downstream consumes the kept rows yet either: [build_io_model()] takes
+#' its item dimension from supply-use and the CBS, so an item absent from
+#' both is ignored by `.build_trade_shares()` regardless of this argument.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -36,6 +78,14 @@
 #'   The sums may not be exactly the expected values because of precision
 #'   issues and/or the iterative proportional fitting algorithm not converging
 #'   fast enough, but should be relatively very close to the desired totals.
+#' - `has_cbs_totals`: `TRUE` when the matrix margins came from the
+#'   commodity balance sheet, `FALSE` when the item had no CBS row for
+#'   that year and its margins were taken from the reported bilateral
+#'   flows themselves. Always `TRUE` unless
+#'   `method_items_not_in_cbs = "keep"`.
+#' - `method_items_not_in_cbs`: the treatment chosen for items with no
+#'   CBS row, recorded so a downstream consumer can tell which variant it
+#'   is holding.
 #'
 #'  The step by step approach to obtain this data tries to follow the FABIO
 #'  model and is explained below. All the steps are performed separately for
@@ -97,7 +147,13 @@
 #'
 #' @examples
 #' get_bilateral_trade(example = TRUE)
-get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
+get_bilateral_trade <- function(
+  example = FALSE,
+  cbs = NULL,
+  method_items_not_in_cbs = c("drop", "keep", "abort")
+) {
+  method <- rlang::arg_match(method_items_not_in_cbs)
+
   if (example) {
     return(.example_get_bilateral_trade())
   }
@@ -119,9 +175,10 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
     "Balancing trade matrices ({nrow(btd)} year-item groups)"
   )
   btd |>
-    .nest_by_year_item_code(cbs, codes) |>
+    .nest_by_year_item_code(cbs, codes, method) |>
     .process_bilateral_trade(codes) |>
-    dplyr::select(-total_trade)
+    dplyr::select(-total_trade) |>
+    dplyr::mutate(method_items_not_in_cbs = method)
 }
 
 .process_bilateral_trade <- function(btd, codes) {
@@ -360,7 +417,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   needed_estimates * scale
 }
 
-.nest_by_year_item_code <- function(btd, cbs, codes) {
+.nest_by_year_item_code <- function(btd, cbs, codes, method = "drop") {
   cbs <- cbs |>
     dplyr::mutate(area_code = factor(area_code, levels = codes))
 
@@ -370,7 +427,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
   # reached a matrix.
   in_cbs <- btd |>
     dplyr::filter(unit %in% c("tonnes", "heads")) |>
-    .filter_only_items_in_cbs(cbs)
+    .filter_only_items_in_cbs(cbs, method)
 
   in_cbs |>
     .mass_only_bilateral_trade() |>
@@ -379,7 +436,57 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
       bilateral_trade = c(from_code, to_code, value),
       .by = c(year, item_cbs_code)
     ) |>
-    dplyr::inner_join(.get_nested_cbs(cbs, codes), c("year", "item_cbs_code"))
+    .attach_total_trade(cbs, codes, method)
+}
+
+# Attach the CBS export/import margins each trade matrix is balanced against.
+# The inner join is what actually removes an item with no CBS row, and it is
+# stricter than `.filter_only_items_in_cbs()`: it keys on (year, item), so it
+# also removes a CBS item in a year the CBS does not cover. Under
+# `method = "keep"` those (year, item) groups are kept instead, with margins
+# derived from their own reported flows -- see `.own_margin_totals()`.
+.attach_total_trade <- function(nested, cbs, codes, method) {
+  nested_cbs <- .get_nested_cbs(cbs, codes)
+  anchored <- nested |>
+    dplyr::inner_join(nested_cbs, dplyr::join_by(year, item_cbs_code)) |>
+    dplyr::mutate(has_cbs_totals = TRUE)
+
+  if (method != "keep") {
+    return(anchored)
+  }
+
+  unanchored <- nested |>
+    dplyr::anti_join(nested_cbs, dplyr::join_by(year, item_cbs_code)) |>
+    dplyr::mutate(
+      total_trade = purrr::map(bilateral_trade, .own_margin_totals, codes),
+      has_cbs_totals = FALSE
+    )
+
+  dplyr::bind_rows(anchored, unanchored) |>
+    dplyr::arrange(year, item_cbs_code)
+}
+
+# Margins for an item the CBS cannot anchor: use the item's own reported
+# bilateral flows as its total exports (row sums) and imports (column sums).
+# This is the honest choice available without inventing a CBS total -- it
+# leaves the reported flows essentially untouched by the balancing step
+# (row and column sums already agree by construction) while keeping the
+# downstream code path identical to the anchored one. It is *not* a
+# statement that the totals are right; `has_cbs_totals` records that they
+# were self-derived.
+.own_margin_totals <- function(flows, codes) {
+  exports <- flows |>
+    dplyr::summarise(export = sum(value, na.rm = TRUE), .by = from_code)
+  imports <- flows |>
+    dplyr::summarise(import = sum(value, na.rm = TRUE), .by = to_code)
+
+  tibble::tibble(area_code = codes) |>
+    dplyr::mutate(area_code_int = as.integer(as.character(area_code))) |>
+    dplyr::left_join(exports, dplyr::join_by(area_code_int == from_code)) |>
+    dplyr::left_join(imports, dplyr::join_by(area_code_int == to_code)) |>
+    dplyr::select(-area_code_int) |>
+    tidyr::replace_na(list(export = 0, import = 0)) |>
+    .balance_total_trade()
 }
 
 # Reduce bilateral trade to its mass (tonnes) rows and drop `unit`, matching
@@ -484,7 +591,7 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
     tidyr::replace_na(list(export = 0, import = 0))
 }
 
-.filter_only_items_in_cbs <- function(btd, cbs) {
+.filter_only_items_in_cbs <- function(btd, cbs, method = "drop") {
   btd_items <- btd |>
     dplyr::pull(item_cbs_code) |>
     unique() |>
@@ -495,11 +602,62 @@ get_bilateral_trade <- function(example = FALSE, cbs = NULL) {
     unique() |>
     sort()
 
-  # TODO: Also include these (need total export/import reports)
   items_not_in_cbs <- btd_items[!btd_items %in% cbs_items]
+
+  if (length(items_not_in_cbs) == 0) {
+    return(btd)
+  }
+
+  .report_items_not_in_cbs(btd, items_not_in_cbs, method)
+
+  if (method == "keep") {
+    return(btd)
+  }
 
   btd |>
     dplyr::filter(!item_cbs_code %in% items_not_in_cbs)
+}
+
+# Say out loud how much trade has no CBS row to be balanced against. This used
+# to be a bare TODO comment and no message at all, which hid a quarter of the
+# pin's traded tonnage (whep#943): 12.51 Gt of 47.48 Gt over 1986-2021, 99.1%
+# of it the FABIO-style aggregate placeholder "Other" (item_cbs_code 5001).
+# The "abort" method turns the same finding into a hard failure, for a caller
+# that would rather not build a matrix set at all than build one missing an
+# item. See the "Items with no CBS row" section of get_bilateral_trade().
+.report_items_not_in_cbs <- function(btd, items_not_in_cbs, method) {
+  # Scope the tonnage to mass rows. This runs BEFORE
+  # `.mass_only_bilateral_trade()` (see `.nest_by_year_item_code()`), so the
+  # frame still carries `heads` rows, and summing them alongside `tonnes`
+  # would report head counts as tonnage -- the same collapse whep#865 and
+  # whep#962 fixed elsewhere. `unit` is absent when a caller has already
+  # reduced to mass, in which case every row is mass.
+  mass <- if (rlang::has_name(btd, "unit")) {
+    dplyr::filter(btd, unit == "tonnes")
+  } else {
+    btd
+  }
+  affected <- mass |>
+    dplyr::filter(item_cbs_code %in% items_not_in_cbs)
+  total <- sum(mass$value, na.rm = TRUE)
+  dropped <- sum(affected$value, na.rm = TRUE)
+  share <- if (total > 0) 100 * dropped / total else 0
+  n_items <- length(items_not_in_cbs)
+
+  report <- c(
+    "{n_items} bilateral trade item{?s} ha{?s/ve} no commodity balance \\
+     sheet row to balance against.",
+    "i" = "Item {cli::qty(n_items)}code{?s}: {.val {items_not_in_cbs}}.",
+    "i" = "{nrow(affected)} row{?s}, {signif(dropped, 4)} of \\
+           {signif(total, 4)} tonnes, {round(share, 1)} percent of the \\
+           traded tonnage reaching this step.",
+    "i" = "{.arg method_items_not_in_cbs} is {.val {method}}."
+  )
+
+  if (method == "abort") {
+    cli::cli_abort(report)
+  }
+  cli::cli_warn(report)
 }
 
 .get_all_country_codes <- function(btd, cbs) {

@@ -4,7 +4,11 @@
 \alias{get_bilateral_trade}
 \title{Bilateral trade data}
 \usage{
-get_bilateral_trade(example = FALSE, cbs = NULL)
+get_bilateral_trade(
+  example = FALSE,
+  cbs = NULL,
+  method_items_not_in_cbs = c("drop", "keep", "abort")
+)
 }
 \arguments{
 \item{example}{If \code{TRUE}, return a small example output without
@@ -12,6 +16,21 @@ downloading remote data. Default is \code{FALSE}.}
 
 \item{cbs}{Optional pre-computed wide CBS tibble from
 \code{\link[=get_wide_cbs]{get_wide_cbs()}}. If \code{NULL} (default), it is built internally.}
+
+\item{method_items_not_in_cbs}{How to treat a traded item whose
+\code{item_cbs_code} has no commodity balance sheet row to balance it
+against. See the \emph{Items with no CBS row} section. One of:
+\itemize{
+\item \code{"drop"} (default): discard those flows, the historical
+behaviour. Published values are unaffected by this argument's
+existence as long as the default is kept.
+\item \code{"keep"}: keep the flows and take the row and column margins from
+the reported bilateral data itself instead of from the CBS.
+\item \code{"abort"}: fail, so that a refreshed pin cannot introduce
+unanchored items unnoticed.
+}
+
+\code{example = TRUE} always returns the \code{"drop"} fixture.}
 }
 \value{
 A tibble with the reported trade between countries. For efficient
@@ -46,6 +65,14 @@ commodity balance sheet (which is considered more accurate for totals).
 The sums may not be exactly the expected values because of precision
 issues and/or the iterative proportional fitting algorithm not converging
 fast enough, but should be relatively very close to the desired totals.
+\item \code{has_cbs_totals}: \code{TRUE} when the matrix margins came from the
+commodity balance sheet, \code{FALSE} when the item had no CBS row for
+that year and its margins were taken from the reported bilateral
+flows themselves. Always \code{TRUE} unless
+\code{method_items_not_in_cbs = "keep"}.
+\item \code{method_items_not_in_cbs}: the treatment chosen for items with no
+CBS row, recorded so a downstream consumer can tell which variant it
+is holding.
 }
 
 The step by step approach to obtain this data tries to follow the FABIO
@@ -113,6 +140,38 @@ exports and imports computed from the commodity balance sheet.
 \description{
 Reports trade between pairs of countries in given years.
 }
+\section{Items with no CBS row}{
+
+The bilateral trade matrices are balanced against the total exports and
+imports reported in the commodity balance sheet, so an item with no CBS
+supply/use row has nothing to balance against. Historically those flows
+were discarded silently. Measured on the \code{bilateral_trade} pin
+\verb{20250714T123347Z-2c392} (after the export-preference deduplication and
+the tonnes filter, i.e. exactly what reaches this step): 12.51 Gt of
+47.48 Gt, \strong{26.4\% of the traded tonnage over 1986-2021}, in 7 items, of
+which 99.1\% is the FABIO-style aggregate placeholder \code{"Other"}
+(\code{item_cbs_code} 5001). The drop is now reported with
+\code{cli::cli_warn()} whichever method is chosen, because a quarter of world
+trade should not disappear without a message.
+
+The share is far from constant: 9.1\% over 1986-2003, \strong{49.6\% over
+2004-2013} and 4.3\% over 2014-2021. The middle block is not a real
+trade signal. It contains physically impossible flows booked in tonnes:
+Colombia to the United States, 2004, 2.58 Gt of \code{"Other"} in a single
+cell, more than world cereal production; Kenya to the Netherlands,
+515-594 Mt/year over 2005-2009. Excluding item 5001 altogether, the
+whole drop is 112 Mt, 0.24\% of traded tonnage.
+
+Which treatment is right is therefore a methodological question, not a
+lookup: \code{"Other"} is an unallocated residual whose 2004-2013 values are
+demonstrably corrupt, so \code{"keep"} carries that corruption into the
+output, and mapping the residual onto real CBS items would need a
+sourced disaggregation key that does not exist in the package. Nothing
+downstream consumes the kept rows yet either: \code{\link[=build_io_model]{build_io_model()}} takes
+its item dimension from supply-use and the CBS, so an item absent from
+both is ignored by \code{.build_trade_shares()} regardless of this argument.
+}
+
 \examples{
 get_bilateral_trade(example = TRUE)
 }
