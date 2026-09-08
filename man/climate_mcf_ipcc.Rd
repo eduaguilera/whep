@@ -73,6 +73,26 @@ time is unknown (Table 10.17 footnote 1).
 }
 }
 
+\section{The 2019 pasture value is half of a pair}{
+
+The Refinement's single 0.47 percent for pasture, range and paddock is
+\strong{not} a drop-in replacement for the 2006 triple. Section 10.4.2 of the
+same chapter states that it "must be used in conjunction with a single B0
+value of 0.19 m3 CH4 kg-1 of VS excreted", and that this pair "was judged
+by the expert panel to be more accurate than emission factors estimated
+from regionally based MCFs and animal category based B0" -- which is
+precisely what WHEP computes. \code{.calc_manure_ch4_tier2()} multiplies one
+per-species \code{Bo} from \link{ipcc_tier2_bo_values} by the share-weighted MCF, so
+it cannot hold a system-specific \code{Bo} without computing the product per
+manure stream instead. Selecting \code{"ipcc_2019"} therefore adopts the
+Refinement's pasture MCF against WHEP's animal-category \code{Bo}, the hybrid
+the Refinement rejects. Paired properly, the pasture stream would fall by
+40 percent (buffalo, \code{Bo} 0.10) to 82 percent (mules and asses, \code{Bo} 0.33)
+rather than the uniform 68.7 percent the MCF alone gives at the Temperate
+default. Restructuring the kernel to a per-stream \code{Bo} is out of scope for
+the table and open in whep#1022.
+}
+
 \section{What the table cannot hold}{
 
 The 2019 Refinement resolves the anaerobic digester into \strong{six}

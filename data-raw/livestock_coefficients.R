@@ -1948,6 +1948,14 @@ generate_ipcc_tier2_params <- function() {
     #     Refinement's own stated default where retention time is unknown
     #     (Table 10.17 footnote 1).
     #
+    # The 2019 pasture value is half of a pair. Section 10.4.2 states that the
+    # single 0.47 percent "must be used in conjunction with a single B0 value
+    # of 0.19 m3 CH4 kg-1 of VS excreted", judged more accurate than
+    # "regionally based MCFs and animal category based B0" -- which is what
+    # WHEP computes. The Tier 2 kernel applies one per-species Bo to the
+    # share-weighted MCF, so the pair cannot be honoured without a per-stream
+    # product. See `?climate_mcf_ipcc` and #1022.
+    #
     # The 2006 anaerobic digester is `NA` on purpose: the edition publishes
     # "0-100%" and requires the compiler to compute it with its Formula 1, so
     # there is no default to ship. An MMS split that routes manure to a
