@@ -194,6 +194,27 @@ seam_gate_tolerances <- function(
 #' on purpose, so a temporal hold-out is expected to fail it and says so
 #' in `reason`.
 #'
+#' Two states are not a pass, and each says so on its own row rather
+#' than in a verdict. Both keep their measured numbers, because what is
+#' withheld is the verdict and not the evidence:
+#'
+#' - **no `"start"` seam names the series**, so the last check above did
+#'   not run: `pass` is `NA`, `reason = "no_start_seam"`. Gated here
+#'   means what the check means -- a seam year to compare `t0` with --
+#'   so a series named only by, say, a `source_switch` seam is ungated
+#'   in tier A and gated in tier B, where that seam actually lands. An
+#'   empty or filtered seam list would otherwise certify a run by
+#'   handing tier A nothing to check.
+#' - **no observed row at all**, so there is no anchor to measure:
+#'   `pass` is `NA`, `reason = "no_observed_anchor"` and every anchor
+#'   measurement on the row is `NA`. Such a series has a row here rather
+#'   than none, because a series that never reached the tier is the one
+#'   state a table of tier-A rows cannot otherwise show.
+#'
+#' Both reasons come after the identity ones, so a series whose identity
+#' is wrong still fails on the identity: a missing seam withholds a
+#' verdict, it does not excuse one.
+#'
 #' @section Tier B -- the governed quantity:
 #' The seam log-ratio `|log(s_u(t0) / s_u(t0 - 1))|` of every unit at
 #' every seam year, judged against the empirical distribution of the
@@ -318,13 +339,29 @@ seam_gate_tolerances <- function(
 #' series that changes weight regime at the seam is discontinuous by
 #' construction rather than by measurement.
 #'
+#' Nothing in the package writes that column today: the allocation's
+#' regime label is `method_crop_alloc`, which lives on the targets
+#' table and not on the cell grid, so on the shipped crop-level output
+#' this axis is **not evaluated**. Such a gate reports
+#' `regime_checked = FALSE` and `n_regime_mismatch = NA` -- `NA` rather
+#' than zero, because an axis nobody looked at has no count of
+#' mismatches -- and the report line says how many of the gates are in
+#' that state, so a pass is not read as evidence that no regime flipped.
+#'
 #' @param shares_backcast A back-cast share table, the `shares` element
 #'   of [backcast_admin_shares()]. Columns: `area_code`, `level`,
 #'   `item_prod_code`, `level_polity_code`, `year`, `share`, `treatment`,
 #'   optionally `value`. One row per unit and year.
 #' @param seams A seam list, the `seams` element of
 #'   [resolve_admin_shares()]: `area_code`, `level`, `item_prod_code`,
-#'   `seam_year`, `seam_kind`.
+#'   `seam_year`, `seam_kind`. Every seam must name a series
+#'   `shares_backcast` carries, or the gate aborts
+#'   (`whep_seam_gate_seams_unmatched`): such a seam is gated by nothing
+#'   and leaves no row in any tier, so it can be reported nowhere else.
+#'   The resolver emits one `"start"` seam per series, so a matched pair
+#'   satisfies this by construction and a breach means the two tables
+#'   come from different runs, or one of them was filtered. A zero-row
+#'   `shares_backcast` -- the tier-C-only call -- is exempt.
 #' @param cells Optional crop-level engine output for tier C: `lon`,
 #'   `lat`, `year`, `area_code`, `crop_name`, and either `harvested_ha`
 #'   or `rainfed_ha` plus `irrigated_ha`. `polycell_id`, `cell_id`,
@@ -334,8 +371,9 @@ seam_gate_tolerances <- function(
 #'   which leaves it unevaluated. A list of `extent`, the per-unit extent
 #'   table from [aggregate_unit_extent()] that the back-cast was run
 #'   with, and optionally `args`, a named list of further arguments for
-#'   [backcast_admin_shares()] -- the `settings` row of the original
-#'   back-cast, so the hold-out is run the way the run was.
+#'   [backcast_admin_shares()] -- normally
+#'   `list(settings = <the knobs the original back-cast ran with>)`, so
+#'   the hold-out is run the way the run was.
 #'   `shares`, `extent` and `seam` are set by the leg and are refused in
 #'   `args`. With `holdout` supplied, `shares_backcast` must also carry
 #'   `indicator_used` and `treatment_year`, which the back-cast reads.
@@ -346,9 +384,11 @@ seam_gate_tolerances <- function(
 #'   [seam_gate_tolerances()].
 #'
 #' @return A list:
-#'   - `tier_a`: one row per series, with `t0`, `n_units`, `n_observed`,
-#'     `share_sum`, `max_rel_diff`, `basis`, `seam_start_year`,
-#'     `matches_seam_start`, `pass` and `reason`.
+#'   - `tier_a`: one row per series `shares_backcast` carries, with
+#'     `t0`, `n_units`, `n_observed`, `share_sum`, `max_rel_diff`,
+#'     `basis`, `seam_start_year`, `matches_seam_start`, `pass` and
+#'     `reason`. `pass` is `NA` where the tier judged nothing, and
+#'     `reason` says which of the two ways.
 #'   - `tier_b`: one row per gated unit-seam pair, with `basis`,
 #'     `log_ratio`, `q_reference`, `n_reference`, `beyond_quantile` and
 #'     `status`, plus the container gate (`n_gated`, `n_beyond`,
@@ -368,8 +408,14 @@ seam_gate_tolerances <- function(
 #'     `tier_b_holdout` / `tier_c` / `overall`. A tier is `TRUE` when
 #'     every gate it evaluated passed, `FALSE` when any failed and `NA`
 #'     when it evaluated none -- which is what a container of nothing but
-#'     `"vacuous_by_construction"` rows gives. `overall` is `FALSE` if
-#'     any tier failed, `NA` if none was evaluable, else `TRUE`.
+#'     `"vacuous_by_construction"` rows gives, and what an empty seam
+#'     list gives in every tier at once. `overall` is `FALSE` if any
+#'     tier failed; `NA` if any series of `shares_backcast` left tier A,
+#'     tier B and the hold-out with nothing but `NA` for a `pass`, or if
+#'     no tier evaluated anything; else `TRUE`. A pass therefore covers
+#'     every series the gate was handed. Tier C does not count towards
+#'     that coverage: it is keyed on `(container, seam year)` and
+#'     carries no item, so it cannot stand in for a series.
 #'
 #' @export
 #'
@@ -406,20 +452,23 @@ seam_gate <- function(
   tolerances <- .sg_validate_tolerances(tolerances)
   .sg_validate_shares(shares_backcast)
   .sg_validate_seams(seams)
+  .sg_validate_series_match(shares_backcast, seams)
   holdout <- .sg_validate_holdout(holdout, shares_backcast)
-  tier_a <- .sg_tier_a(shares_backcast, seams, tolerances)
-  tier_b <- .sg_tier_b(shares_backcast, seams, tolerances)
-  holdout_b <- .sg_tier_b_holdout(shares_backcast, seams, holdout, tolerances)
-  tier_c <- .sg_tier_c(cells, seams, tolerances)
-  verdict <- .sg_verdict(tier_a, tier_b, holdout_b, tier_c)
-  .sg_report(tier_a, tier_b, holdout_b, tier_c, verdict)
-  list(
-    tier_a = tier_a,
-    tier_b = tier_b,
-    tier_b_holdout = holdout_b,
-    tier_c = tier_c,
-    verdict = verdict
+  tiers <- list(
+    tier_a = .sg_tier_a(shares_backcast, seams, tolerances),
+    tier_b = .sg_tier_b(shares_backcast, seams, tolerances),
+    tier_b_holdout = .sg_tier_b_holdout(
+      shares_backcast,
+      seams,
+      holdout,
+      tolerances
+    ),
+    tier_c = .sg_tier_c(cells, seams, tolerances)
   )
+  coverage <- .sg_series_coverage(shares_backcast, tiers)
+  verdict <- .sg_verdict(tiers, coverage)
+  .sg_report(tiers, verdict, coverage)
+  c(tiers, list(verdict = verdict))
 }
 
 # --- Keys and input validation ------------------------------------------------
@@ -580,6 +629,47 @@ seam_gate <- function(
   args
 }
 
+# A seam whose series `shares_backcast` does not carry is gated by
+# nothing and leaves no row in any tier to report itself on, so the gate
+# would pronounce on a run while measuring none of it. There is nowhere
+# but here it can be seen, which is why this one is refused rather than
+# returned. A zero-row `shares_backcast` is exempt: that is the
+# documented tier-C-only call, where tiers A and B report themselves
+# unevaluated on their own.
+.sg_validate_series_match <- function(shares, seams) {
+  if (nrow(shares) == 0L || nrow(seams) == 0L) {
+    return(invisible(NULL))
+  }
+  unmatched <- dplyr::anti_join(
+    .sg_distinct_keys(seams, .sg_series_key()),
+    .sg_distinct_keys(shares, .sg_series_key()),
+    by = .sg_series_key()
+  )
+  if (nrow(unmatched) == 0L) {
+    return(invisible(NULL))
+  }
+  shown <- .sg_series_labels(unmatched)
+  cli::cli_abort(
+    c(
+      "{nrow(unmatched)} seam series {?is/are} absent from
+       {.arg shares_backcast}.",
+      x = "{.val {shown}}",
+      i = "Gate a run against its own seam list, or filter both tables to
+           the same series."
+    ),
+    class = "whep_seam_gate_seams_unmatched"
+  )
+}
+
+.sg_series_labels <- function(keys) {
+  sprintf(
+    "area_code %s, level %s, item %s",
+    keys$area_code,
+    keys$level,
+    keys$item_prod_code
+  )
+}
+
 .sg_validate_cells <- function(cells) {
   .require_cols(
     cells,
@@ -600,18 +690,49 @@ seam_gate <- function(
 
 # --- Tier A: identity at the anchor -------------------------------------------
 
+# One row per series `shares` carries, including the series that have no
+# anchor to measure: a series that never reached the tier is the one
+# state a table of tier-A rows cannot otherwise show, and it is what the
+# gate is handed when a `treatment` column arrives mislabelled.
 .sg_tier_a <- function(shares, seams, tol) {
+  series <- .sg_distinct_keys(shares, .sg_series_key())
+  if (nrow(series) == 0L) {
+    return(.sg_tier_a_prototype())
+  }
+  measured <- .sg_anchor_measures(shares, tol)
+  dplyr::bind_rows(measured, .sg_unanchored_rows(series, measured)) |>
+    dplyr::left_join(.sg_start_seams(seams), by = .sg_series_key()) |>
+    .sg_anchor_verdict(tol)
+}
+
+# The anchor identity of the series that have an anchor.
+.sg_anchor_measures <- function(shares, tol) {
   anchors <- .sg_anchor_years(shares)
   if (nrow(anchors) == 0L) {
-    return(.sg_tier_a_prototype())
+    return(anchors)
   }
   shares |>
     dplyr::inner_join(anchors, by = .sg_series_key()) |>
     dplyr::filter(year == t0) |>
     .sg_anchor_value_share(tol) |>
-    .sg_anchor_summarise() |>
-    dplyr::left_join(.sg_start_seams(seams), by = .sg_series_key()) |>
-    .sg_anchor_verdict(tol)
+    .sg_anchor_summarise()
+}
+
+# Every measurement is at `t0`, so a series with no `t0` carries `NA`
+# for all of them rather than a zero: a count of nothing is not a count
+# of none. Written out rather than left to `bind_rows()`, which would
+# leave the columns absent altogether when no series has an anchor.
+.sg_unanchored_rows <- function(series, measured) {
+  series |>
+    dplyr::anti_join(measured, by = .sg_series_key()) |>
+    dplyr::mutate(
+      t0 = NA_integer_,
+      n_units = NA_integer_,
+      n_observed = NA_integer_,
+      share_sum = NA_real_,
+      max_rel_diff = NA_real_,
+      basis = NA_character_
+    )
 }
 
 # `t0` is the anchor the back-cast used, which is the first year it left
@@ -699,6 +820,17 @@ seam_gate <- function(
   max(x)
 }
 
+# The two withholding reasons come last, so a series nothing gates still
+# fails on its own identity where its identity is wrong: a missing seam
+# withholds a verdict, it does not excuse one.
+#
+# What withholds the seam verdict is `matches_seam_start` being `NA` --
+# the check's own result, not a second membership test keyed on
+# something else. A vacuity test that asked "does any seam name this
+# series?" while the check asked "does a start seam name it?" passed a
+# series on a comparison that never ran; and asking it in formatted
+# strings while the join asks it in values marked a joined series
+# ungated. One key, one kind of comparison, and it is the check's.
 .sg_anchor_verdict <- function(anchors, tol) {
   anchors |>
     dplyr::mutate(
@@ -708,17 +840,28 @@ seam_gate <- function(
         t0 == seam_start_year
       ),
       reason = dplyr::case_when(
+        is.na(t0) ~ "no_observed_anchor",
         n_observed < n_units ~ "anchor_row_not_observed",
         is.na(share_sum) ~ "anchor_share_missing",
         abs(share_sum - 1) > tol$identity_rel ~ "anchor_shares_not_unit_sum",
         !dplyr::coalesce(max_rel_diff <= tol$identity_rel, TRUE) ~
           "anchor_share_disagrees_with_value",
         !dplyr::coalesce(matches_seam_start, TRUE) ~ "anchor_not_seam_start",
+        is.na(matches_seam_start) ~ "no_start_seam",
         .default = ""
       ),
-      pass = reason == ""
+      pass = dplyr::case_when(
+        reason == "" ~ TRUE,
+        reason %in% .sg_tier_a_ungated() ~ NA,
+        .default = FALSE
+      )
     ) |>
     dplyr::select(dplyr::all_of(.sg_tier_a_cols()))
+}
+
+# The tier-A reasons that withhold a verdict instead of failing one.
+.sg_tier_a_ungated <- function() {
+  c("no_start_seam", "no_observed_anchor")
 }
 
 .sg_tier_a_cols <- function() {
@@ -1519,14 +1662,14 @@ seam_gate <- function(
 
 # --- Verdict and report -------------------------------------------------------
 
-.sg_verdict <- function(tier_a, tier_b, holdout_b, tier_c) {
-  tiers <- c(
-    tier_a = .sg_tier_verdict(tier_a$pass),
-    tier_b = .sg_tier_verdict(tier_b$pass),
-    tier_b_holdout = .sg_tier_verdict(holdout_b$pass),
-    tier_c = .sg_tier_verdict(tier_c$pass)
+.sg_verdict <- function(tiers, coverage) {
+  by_tier <- c(
+    tier_a = .sg_tier_verdict(tiers$tier_a$pass),
+    tier_b = .sg_tier_verdict(tiers$tier_b$pass),
+    tier_b_holdout = .sg_tier_verdict(tiers$tier_b_holdout$pass),
+    tier_c = .sg_tier_verdict(tiers$tier_c$pass)
   )
-  c(tiers, overall = .sg_overall_verdict(tiers))
+  c(by_tier, overall = .sg_overall_verdict(by_tier, coverage$n_ungated))
 }
 
 .sg_tier_verdict <- function(pass) {
@@ -1537,30 +1680,69 @@ seam_gate <- function(
   all(pass)
 }
 
-.sg_overall_verdict <- function(tiers) {
+# A failure is a failure whatever else was measured, so it is read
+# first. Short of one, a run is certified only if every series it
+# carries was judged: a tier verdict of `TRUE` over the series that were
+# gated says nothing about the ones that were not, and `TRUE` here would
+# be read as saying it did.
+.sg_overall_verdict <- function(tiers, n_ungated) {
   if (any(!tiers, na.rm = TRUE)) {
     return(FALSE)
   }
-  if (all(is.na(tiers))) {
+  if (n_ungated > 0L || all(is.na(tiers))) {
     return(NA)
   }
   TRUE
 }
 
-.sg_report <- function(tier_a, tier_b, holdout_b, tier_c, verdict) {
+# Judged means one thing in this file: a gate returned a `pass` that is
+# not `NA`. Counted per series of `shares_backcast`, over the three
+# tiers that are keyed on a series -- tier C is keyed on
+# `(container, seam year)` and carries no item, so it cannot answer for
+# one series of a container's several.
+.sg_series_coverage <- function(shares, tiers) {
+  series <- .sg_distinct_keys(shares, .sg_series_key())
+  judged <- dplyr::bind_rows(
+    .sg_judged_series(tiers$tier_a),
+    .sg_judged_series(tiers$tier_b),
+    .sg_judged_series(tiers$tier_b_holdout)
+  )
+  ungated <- dplyr::anti_join(series, judged, by = .sg_series_key())
+  list(n_series = nrow(series), n_ungated = nrow(ungated))
+}
+
+.sg_judged_series <- function(tier) {
+  .sg_distinct_keys(dplyr::filter(tier, !is.na(pass)), .sg_series_key())
+}
+
+.sg_report <- function(tiers, verdict, coverage) {
+  tier_a <- tiers$tier_a
+  tier_b <- tiers$tier_b
+  holdout_b <- tiers$tier_b_holdout
+  tier_c <- tiers$tier_c
+  n_series <- coverage$n_series
+  n_judged <- n_series - coverage$n_ungated
   n_scored <- sum(tier_b$status == "gated")
-  judged <- dplyr::n_distinct(tier_b$area_code[!is.na(tier_b$pass)])
+  b_judged <- dplyr::n_distinct(tier_b$area_code[!is.na(tier_b$pass)])
   vacuous <- sum(tier_b$basis == "vacuous_by_construction")
   n_holdout <- holdout_b |>
     dplyr::distinct(dplyr::pick(dplyr::all_of(.sg_series_key()))) |>
     nrow()
+  a_failing <- sum(!tier_a$pass, na.rm = TRUE)
+  a_no_seam <- sum(tier_a$reason == "no_start_seam")
+  a_no_anchor <- sum(tier_a$reason == "no_observed_anchor")
+  unchecked <- sum(!tier_c$regime_checked)
   cli::cli_inform(c(
     "{.fn seam_gate}: overall {.val {verdict[['overall']]}}.",
+    "*" = "Coverage: {n_judged} of {n_series} series judged by tier A,
+           tier B or the hold-out, which is what {.field overall}
+           requires.",
     "*" = "Tier A {.val {verdict[['tier_a']]}}: {nrow(tier_a)} series,
-           {sum(!tier_a$pass)} failing.",
+           {a_failing} failing, {a_no_seam} with no start seam,
+           {a_no_anchor} with no observed row.",
     "*" = "Tier B {.val {verdict[['tier_b']]}}: {n_scored} of
            {nrow(tier_b)} unit-seam pair{?s} scored,
-           {judged} of {dplyr::n_distinct(tier_b$area_code)}
+           {b_judged} of {dplyr::n_distinct(tier_b$area_code)}
            container{?s} judged; {vacuous} pair{?s} vacuous by
            construction and out of the verdict.",
     "*" = "Tier B hold-out {.val {verdict[['tier_b_holdout']]}}:
@@ -1568,7 +1750,8 @@ seam_gate <- function(
            unit-year{?s} scored over {n_holdout} start-seam series.",
     "*" = "Tier C {.val {verdict[['tier_c']]}}: {nrow(tier_c)}
            container-seam gate{?s},
-           {sum(tier_c$pass, na.rm = TRUE)} passing."
+           {sum(tier_c$pass, na.rm = TRUE)} passing,
+           {unchecked} with the regime axis unchecked."
   ))
   invisible(NULL)
 }

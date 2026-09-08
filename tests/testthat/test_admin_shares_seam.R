@@ -725,7 +725,11 @@ test_that("max_gap bounds the back-cast run and max_gap_linear is inert", {
     rep(1900:1904, times = 2),
     rep(100, 10)
   )
-  bounded <- whep:::backcast_admin_shares(shares, extent, max_gap = 2)
+  bounded <- whep:::backcast_admin_shares(
+    shares,
+    extent,
+    settings = list(max_gap = 2)
+  )
 
   # Four back-cast years against a two-year budget: nothing is filled,
   # every year is refused for want of a complete unit set.
@@ -735,8 +739,16 @@ test_that("max_gap bounds the back-cast run and max_gap_linear is inert", {
   expect_equal(bounded$settings$max_gap, 2)
 
   # `max_gap_linear` cannot bite while the window ends at t0.
-  a <- whep:::backcast_admin_shares(shares, extent, max_gap_linear = 0)
-  b <- whep:::backcast_admin_shares(shares, extent, max_gap_linear = 3)
+  a <- whep:::backcast_admin_shares(
+    shares,
+    extent,
+    settings = list(max_gap_linear = 0)
+  )
+  b <- whep:::backcast_admin_shares(
+    shares,
+    extent,
+    settings = list(max_gap_linear = 3)
+  )
   expect_equal(a$shares$share, b$shares$share)
   expect_equal(b$settings$max_gap_linear, 3)
 })
@@ -791,7 +803,11 @@ test_that("repair = TRUE mends an isolated collapse and back-casts on", {
     rep(1900:1903, times = 2),
     c(1000, 1010, 5, 1020, 100, 100, 100, 100)
   )
-  out <- whep:::backcast_admin_shares(shares, extent, repair = TRUE)
+  out <- whep:::backcast_admin_shares(
+    shares,
+    extent,
+    settings = list(repair = TRUE)
+  )
 
   expect_equal(seam_count(out, "extent_jump_repaired"), 1L)
   expect_equal(seam_count(out, "extent_jump_refused"), 0L)
@@ -875,11 +891,34 @@ test_that("a bad zero_policy, repair or duplicated key aborts", {
   )
 
   expect_error(
-    whep:::backcast_admin_shares(shares, extent, zero_policy = "hold_inside")
+    whep:::backcast_admin_shares(
+      shares,
+      extent,
+      settings = list(zero_policy = "hold_inside")
+    )
   )
   expect_error(
-    whep:::backcast_admin_shares(shares, extent, repair = NA),
+    whep:::backcast_admin_shares(
+      shares,
+      extent,
+      settings = list(repair = NA)
+    ),
     "repair"
+  )
+  # A knob that does not exist is a typo, not a setting: it must abort
+  # rather than be dropped, which is the one thing a bundle can lose that
+  # eight formals could not.
+  expect_error(
+    whep:::backcast_admin_shares(
+      shares,
+      extent,
+      settings = list(max_gaps = 2)
+    ),
+    "max_gaps"
+  )
+  expect_error(
+    whep:::backcast_admin_shares(shares, extent, settings = list(2)),
+    "named list"
   )
   expect_error(
     whep:::backcast_admin_shares(dplyr::bind_rows(shares, shares), extent),

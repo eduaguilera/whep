@@ -20,7 +20,14 @@ optionally \code{value}. One row per unit and year.}
 
 \item{seams}{A seam list, the \code{seams} element of
 \code{\link[=resolve_admin_shares]{resolve_admin_shares()}}: \code{area_code}, \code{level}, \code{item_prod_code},
-\code{seam_year}, \code{seam_kind}.}
+\code{seam_year}, \code{seam_kind}. Every seam must name a series
+\code{shares_backcast} carries, or the gate aborts
+(\code{whep_seam_gate_seams_unmatched}): such a seam is gated by nothing
+and leaves no row in any tier, so it can be reported nowhere else.
+The resolver emits one \code{"start"} seam per series, so a matched pair
+satisfies this by construction and a breach means the two tables
+come from different runs, or one of them was filtered. A zero-row
+\code{shares_backcast} -- the tier-C-only call -- is exempt.}
 
 \item{cells}{Optional crop-level engine output for tier C: \code{lon},
 \code{lat}, \code{year}, \code{area_code}, \code{crop_name}, and either \code{harvested_ha}
@@ -32,8 +39,9 @@ or \code{rainfed_ha} plus \code{irrigated_ha}. \code{polycell_id}, \code{cell_id
 which leaves it unevaluated. A list of \code{extent}, the per-unit extent
 table from \code{\link[=aggregate_unit_extent]{aggregate_unit_extent()}} that the back-cast was run
 with, and optionally \code{args}, a named list of further arguments for
-\code{\link[=backcast_admin_shares]{backcast_admin_shares()}} -- the \code{settings} row of the original
-back-cast, so the hold-out is run the way the run was.
+\code{\link[=backcast_admin_shares]{backcast_admin_shares()}} -- normally
+\verb{list(settings = <the knobs the original back-cast ran with>)}, so
+the hold-out is run the way the run was.
 \code{shares}, \code{extent} and \code{seam} are set by the leg and are refused in
 \code{args}. With \code{holdout} supplied, \code{shares_backcast} must also carry
 \code{indicator_used} and \code{treatment_year}, which the back-cast reads.
@@ -47,9 +55,11 @@ failing: a gate outcome is always a returned row.}
 \value{
 A list:
 \itemize{
-\item \code{tier_a}: one row per series, with \code{t0}, \code{n_units}, \code{n_observed},
-\code{share_sum}, \code{max_rel_diff}, \code{basis}, \code{seam_start_year},
-\code{matches_seam_start}, \code{pass} and \code{reason}.
+\item \code{tier_a}: one row per series \code{shares_backcast} carries, with
+\code{t0}, \code{n_units}, \code{n_observed}, \code{share_sum}, \code{max_rel_diff},
+\code{basis}, \code{seam_start_year}, \code{matches_seam_start}, \code{pass} and
+\code{reason}. \code{pass} is \code{NA} where the tier judged nothing, and
+\code{reason} says which of the two ways.
 \item \code{tier_b}: one row per gated unit-seam pair, with \code{basis},
 \code{log_ratio}, \code{q_reference}, \code{n_reference}, \code{beyond_quantile} and
 \code{status}, plus the container gate (\code{n_gated}, \code{n_beyond},
@@ -69,8 +79,14 @@ three pairs' scanned series counts and flag rates,
 \code{tier_b_holdout} / \code{tier_c} / \code{overall}. A tier is \code{TRUE} when
 every gate it evaluated passed, \code{FALSE} when any failed and \code{NA}
 when it evaluated none -- which is what a container of nothing but
-\code{"vacuous_by_construction"} rows gives. \code{overall} is \code{FALSE} if
-any tier failed, \code{NA} if none was evaluable, else \code{TRUE}.
+\code{"vacuous_by_construction"} rows gives, and what an empty seam
+list gives in every tier at once. \code{overall} is \code{FALSE} if any
+tier failed; \code{NA} if any series of \code{shares_backcast} left tier A,
+tier B and the hold-out with nothing but \code{NA} for a \code{pass}, or if
+no tier evaluated anything; else \code{TRUE}. A pass therefore covers
+every series the gate was handed. Tier C does not count towards
+that coverage: it is keyed on \verb{(container, seam year)} and
+carries no item, so it cannot stand in for a series.
 }
 }
 \description{
@@ -107,6 +123,28 @@ one that catches a \code{shares_backcast} and a \code{seams} built from
 different runs -- and a deliberate \verb{seam =} override, which moves \code{t0}
 on purpose, so a temporal hold-out is expected to fail it and says so
 in \code{reason}.
+
+Two states are not a pass, and each says so on its own row rather
+than in a verdict. Both keep their measured numbers, because what is
+withheld is the verdict and not the evidence:
+\itemize{
+\item \strong{no \code{"start"} seam names the series}, so the last check above did
+not run: \code{pass} is \code{NA}, \code{reason = "no_start_seam"}. Gated here
+means what the check means -- a seam year to compare \code{t0} with --
+so a series named only by, say, a \code{source_switch} seam is ungated
+in tier A and gated in tier B, where that seam actually lands. An
+empty or filtered seam list would otherwise certify a run by
+handing tier A nothing to check.
+\item \strong{no observed row at all}, so there is no anchor to measure:
+\code{pass} is \code{NA}, \code{reason = "no_observed_anchor"} and every anchor
+measurement on the row is \code{NA}. Such a series has a row here rather
+than none, because a series that never reached the tier is the one
+state a table of tier-A rows cannot otherwise show.
+}
+
+Both reasons come after the identity ones, so a series whose identity
+is wrong still fails on the identity: a missing seam withholds a
+verdict, it does not excuse one.
 }
 
 \section{Tier B -- the governed quantity}{
@@ -236,6 +274,15 @@ identical on both sides of every gated pair. A regime flip at a seam
 fails tier C on its own, whatever the flag rates do, because a cell
 series that changes weight regime at the seam is discontinuous by
 construction rather than by measurement.
+
+Nothing in the package writes that column today: the allocation's
+regime label is \code{method_crop_alloc}, which lives on the targets
+table and not on the cell grid, so on the shipped crop-level output
+this axis is \strong{not evaluated}. Such a gate reports
+\code{regime_checked = FALSE} and \code{n_regime_mismatch = NA} -- \code{NA} rather
+than zero, because an axis nobody looked at has no count of
+mismatches -- and the report line says how many of the gates are in
+that state, so a pass is not read as evidence that no regime flipped.
 }
 
 \examples{

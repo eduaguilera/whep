@@ -295,27 +295,32 @@ check_extent_jumps <- function(
 #' @param binding_indicator The indicator that binds, `"area_harvested"`
 #'   by the plan's decision 8. `t0` is the series' first observed year
 #'   carrying it; a series with none is refused (`no_binding_anchor`).
-#' @param max_gap Passed to [fill_proxy_growth()]. Default `Inf`, its own
-#'   default.
-#' @param max_gap_linear Passed to [fill_proxy_growth()]. Default `0`, a
-#'   placeholder pending T31(e); see the interior-gaps section.
-#' @param zero_policy How case (a) is handled. Only `"hold_outside"` is
-#'   signed off (decision 9); the argument exists so a later decision can
-#'   add a value without changing call sites.
-#' @param repair Logical. On a flagged extent jump, `TRUE` applies the
-#'   unit-keyed analogue of `.fix_luh2_crop_collapse()` and refuses only
-#'   what stays flagged; `FALSE` (default, pending T31) refuses the
-#'   affected series outright. Either way the choice is in `settings` and
-#'   the outcome in `diagnostics`.
-#' @param ratio_bounds Plausible band for [check_extent_jumps()].
-#' @param collapse_ratio Fraction of the adjacent-year mean below which a
-#'   year counts as an isolated collapse: `0.02`, as in
-#'   `.fix_luh2_crop_collapse()` (`R/build_production.R:629-630`).
-#' @param min_neighbour_ha Both neighbours must exceed this for a collapse
-#'   to be repaired: 100 ha, that function's `min_neighbor_mha = 0.001`
-#'   Mha expressed in hectares.
-#' @param tolerance Absolute tolerance for the share and extent
-#'   arithmetic.
+#' @param settings Named list of tuning knobs, each defaulting as below.
+#'   An unknown key aborts, and what the call ran with comes back in the
+#'   returned `settings` tibble:
+#'
+#'   - `max_gap` (`Inf`): passed to [fill_proxy_growth()], its own
+#'     default.
+#'   - `max_gap_linear` (`0`): passed to [fill_proxy_growth()]; a
+#'     placeholder pending T31(e), see the interior-gaps section.
+#'   - `zero_policy` (`"hold_outside"`): how case (a) is handled. Only
+#'     `"hold_outside"` is signed off (decision 9); the key exists so a
+#'     later decision can add a value without changing call sites.
+#'   - `repair` (`FALSE`): on a flagged extent jump, `TRUE` applies the
+#'     unit-keyed analogue of `.fix_luh2_crop_collapse()` and refuses only
+#'     what stays flagged; `FALSE`, pending T31, refuses the affected
+#'     series outright. Either way the choice is in `settings` and the
+#'     outcome in `diagnostics`.
+#'   - `ratio_bounds` (`c(0.55, 1.6)`): plausible band for
+#'     [check_extent_jumps()].
+#'   - `collapse_ratio` (`0.02`): fraction of the adjacent-year mean below
+#'     which a year counts as an isolated collapse, as in
+#'     `.fix_luh2_crop_collapse()` (`R/build_production.R:629-630`).
+#'   - `min_neighbour_ha` (`100`): both neighbours must exceed this for a
+#'     collapse to be repaired -- that function's
+#'     `min_neighbor_mha = 0.001` Mha expressed in hectares.
+#'   - `tolerance` (`1e-9`): absolute tolerance for the share and extent
+#'     arithmetic.
 #'
 #' @return A list of four tibbles:
 #'   - `shares`: the input rows plus the completed year set for the `t0`
@@ -363,25 +368,20 @@ backcast_admin_shares <- function(
   extent,
   seam = NULL,
   binding_indicator = "area_harvested",
-  max_gap = Inf,
-  max_gap_linear = 0,
-  zero_policy = "hold_outside",
-  repair = FALSE,
-  ratio_bounds = c(0.55, 1.6),
-  collapse_ratio = 0.02,
-  min_neighbour_ha = 100,
-  tolerance = 1e-9
+  settings = list()
 ) {
-  zero_policy <- rlang::arg_match(zero_policy, "hold_outside")
+  config <- .backcast_config(settings)
+  repair <- config$repair
+  tolerance <- config$tolerance
   .backcast_validate(shares, extent, binding_indicator, repair)
   anchors <- .backcast_resolve_t0(shares, seam, binding_indicator)
   guard <- .backcast_guard_extent(
     extent,
     anchors$t0,
     repair,
-    ratio_bounds,
-    collapse_ratio,
-    min_neighbour_ha
+    config$ratio_bounds,
+    config$collapse_ratio,
+    config$min_neighbour_ha
   )
   panel <- .backcast_build_panel(
     shares,
@@ -390,7 +390,12 @@ backcast_admin_shares <- function(
     extent,
     binding_indicator
   )
-  filled <- .backcast_run_fill(panel$data, max_gap, max_gap_linear, tolerance)
+  filled <- .backcast_run_fill(
+    panel$data,
+    config$max_gap,
+    config$max_gap_linear,
+    tolerance
+  )
   zeroed <- .backcast_zero_cases(filled$data, tolerance)
   final <- .backcast_renormalise(zeroed$data, tolerance)
   diag <- dplyr::bind_rows(
@@ -402,17 +407,8 @@ backcast_admin_shares <- function(
     final$diag,
     .backcast_gap_diag(final$data, shares)
   )
-  settings <- .backcast_settings(
-    max_gap,
-    max_gap_linear,
-    zero_policy,
-    repair,
-    binding_indicator,
-    ratio_bounds,
-    collapse_ratio,
-    min_neighbour_ha
-  )
-  .backcast_assemble(shares, final$data, diag, settings)
+  record <- .backcast_settings(config, binding_indicator)
+  .backcast_assemble(shares, final$data, diag, record)
 }
 
 # --- Private helpers: unit extent ---------------------------------------------
@@ -1466,26 +1462,60 @@ backcast_admin_shares <- function(
     dplyr::mutate(n = dplyr::coalesce(n, 0L))
 }
 
-.backcast_settings <- function(
-  max_gap,
-  max_gap_linear,
-  zero_policy,
-  repair,
-  binding_indicator,
-  ratio_bounds,
-  collapse_ratio,
-  min_neighbour_ha
-) {
+.backcast_settings <- function(config, binding_indicator) {
   tibble::tibble(
     gap_rule = "refuse_interior",
-    max_gap = as.numeric(max_gap),
-    max_gap_linear = as.numeric(max_gap_linear),
-    zero_policy = zero_policy,
-    repair = repair,
+    max_gap = as.numeric(config$max_gap),
+    max_gap_linear = as.numeric(config$max_gap_linear),
+    zero_policy = config$zero_policy,
+    repair = config$repair,
     binding_indicator = binding_indicator,
-    ratio_bounds_lo = ratio_bounds[[1]],
-    ratio_bounds_hi = ratio_bounds[[2]],
-    collapse_ratio = collapse_ratio,
-    min_neighbour_ha = min_neighbour_ha
+    ratio_bounds_lo = config$ratio_bounds[[1]],
+    ratio_bounds_hi = config$ratio_bounds[[2]],
+    collapse_ratio = config$collapse_ratio,
+    min_neighbour_ha = config$min_neighbour_ha
   )
+}
+
+# The knobs of the three sub-steps, bundled rather than spread over eight
+# formals (CLAUDE.md: group related arguments into named lists, the way
+# `allocate_level_crops()` takes its `config`). This is the one place the
+# defaults are written down, and `.backcast_settings()` records what a
+# call actually ran with.
+.backcast_defaults <- function() {
+  list(
+    max_gap = Inf,
+    max_gap_linear = 0,
+    zero_policy = "hold_outside",
+    repair = FALSE,
+    ratio_bounds = c(0.55, 1.6),
+    collapse_ratio = 0.02,
+    min_neighbour_ha = 100,
+    tolerance = 1e-9
+  )
+}
+
+# An unknown key is a typo, and a silently ignored typo is a run the
+# caller believes carried a setting it never had.
+.backcast_config <- function(settings) {
+  defaults <- .backcast_defaults()
+  named <- is.list(settings) &&
+    (length(settings) == 0L || !is.null(names(settings)))
+  if (!named) {
+    cli::cli_abort("{.arg settings} must be a named list.")
+  }
+  unknown <- setdiff(names(settings), names(defaults))
+  if (length(unknown) > 0L) {
+    cli::cli_abort(c(
+      "Unknown {.arg settings} key{?s}: {.field {unknown}}.",
+      "i" = "Known key{?s}: {.field {names(defaults)}}."
+    ))
+  }
+  config <- utils::modifyList(defaults, settings)
+  config$zero_policy <- rlang::arg_match0(
+    config$zero_policy,
+    "hold_outside",
+    arg_nm = "settings$zero_policy"
+  )
+  config
 }

@@ -224,12 +224,21 @@ asg_perturb <- function(cells, seams, factor) {
 
 # --- Measurement summaries ----------------------------------------------------
 
+# Tier A withholds a verdict where no `"start"` seam names a series and
+# where a series carries no observed row, so `pass` is `NA` there and
+# `basis` with it -- the same shape tiers B and C have always had, and
+# the same `coalesce()` handles it: an ungated series is not a failing
+# one. Without it a single `NA` propagates through the sum into
+# `n_gate_failures` and the scorecard reads `NA` failures. The count of
+# ungated series is carried alongside, because a gate that measured
+# nothing must not be read off a failure count of zero.
 asg_tier_a_summary <- function(tier_a) {
   tier_a |>
     dplyr::summarise(
       n_series = dplyr::n(),
-      n_failing = sum(!.data$pass),
-      n_value_basis = sum(.data$basis == "value"),
+      n_failing = sum(!dplyr::coalesce(.data$pass, TRUE)),
+      n_ungated = sum(is.na(.data$pass)),
+      n_value_basis = sum(.data$basis == "value", na.rm = TRUE),
       max_share_sum_dev = .asg_max(abs(.data$share_sum - 1)),
       max_rel_diff = .asg_max(.data$max_rel_diff),
       .by = "area_code"
@@ -616,7 +625,7 @@ cat(sprintf(
   paste0(
     "METRIC status=run n_seams=%d n_seam_kinds=%d n_cell_rows=%d ",
     "n_tier_c_gates=%d n_gate_failures=%d n_moved=%d window=%d perturb=%s ",
-    "holdout_scored=%d holdout_failing=%d\n"
+    "holdout_scored=%d holdout_failing=%d tier_a_ungated=%d\n"
   ),
   nrow(seams),
   dplyr::n_distinct(seams$seam_kind),
@@ -627,7 +636,8 @@ cat(sprintf(
   window,
   format(perturb),
   sum(holdout_b$n_scored),
-  sum(holdout_b$n_failing)
+  sum(holdout_b$n_failing),
+  sum(tier_a$n_ungated)
 ))
 
 if (n_moved > 0) {

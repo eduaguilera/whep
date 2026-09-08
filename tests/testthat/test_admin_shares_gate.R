@@ -341,12 +341,192 @@ test_that("tier A reports an anchor that is not the seam list's start", {
   expect_equal(out$tier_a$reason, "anchor_not_seam_start")
 })
 
-test_that("tier A is unevaluated when nothing is observed", {
+test_that("tier A fails a back-cast row standing at the anchor", {
+  # The identity tier exists to refuse exactly this: the anchor is the
+  # first year carrying an observation, so a unit whose statistics begin
+  # later leaves a reconstructed row beside the observed ones at `t0`.
+  # `.backcast_produced_rows()` labels such a row
+  # "backcast_t0_geometry", which is what is injected here.
+  shares <- gate_backcast_1890() |>
+    dplyr::mutate(
+      treatment = dplyr::if_else(
+        year == .seam1890_first_observed() & level_polity_code == "S1",
+        "backcast_t0_geometry",
+        treatment
+      )
+    )
+  out <- whep:::seam_gate(shares, gate_seams())
+
+  # Only `treatment` moved, so every other tier-A check still passes and
+  # the observed-row check is the only thing that can fail this.
+  expect_equal(out$tier_a$t0, .seam1890_first_observed())
+  expect_equal(out$tier_a$share_sum, 1, tolerance = 1e-12)
+  expect_equal(out$tier_a$max_rel_diff, 0, tolerance = 1e-8)
+  expect_true(out$tier_a$matches_seam_start)
+
+  expect_equal(out$tier_a$n_units, 3L)
+  expect_equal(out$tier_a$n_observed, 2L)
+  expect_false(out$tier_a$pass)
+  expect_equal(out$tier_a$reason, "anchor_row_not_observed")
+  expect_false(out$verdict[["tier_a"]])
+  expect_false(out$verdict[["overall"]])
+})
+
+test_that("a series with no observed row is a row, not a silence", {
+  # There is no anchor, so every anchor measurement is `NA` -- but the
+  # series still gets a row. A series that never reached the tier at all
+  # is the one state a table of tier-A rows cannot otherwise show, and
+  # it is what a mislabelled `treatment` column produces.
   shares <- dplyr::mutate(gate_backcast_1890(), treatment = "luh2_clamped")
   out <- whep:::seam_gate(shares, gate_seams())
 
-  expect_equal(nrow(out$tier_a), 0L)
+  expect_equal(nrow(out$tier_a), 1L)
+  expect_equal(out$tier_a$reason, "no_observed_anchor")
+  expect_true(is.na(out$tier_a$pass))
+  expect_true(is.na(out$tier_a$t0))
+  expect_true(is.na(out$tier_a$share_sum))
+  expect_true(is.na(out$tier_a$basis))
   expect_true(is.na(out$verdict[["tier_a"]]))
+})
+
+test_that("a passing tier C does not certify an unanchored table", {
+  # Tier C is keyed on (container, seam year) and carries no item, so it
+  # cannot stand in for a series. With nothing observed, tier A, tier B
+  # and the hold-out all judge nothing, and a run no tier judged is
+  # uncertified rather than passed.
+  shares <- dplyr::mutate(gate_backcast_1890(), treatment = "luh2_clamped")
+  expect_message(
+    out <- whep:::seam_gate(shares, gate_seams(), cells = gate_cells()),
+    "Coverage: 0 of 1"
+  )
+
+  expect_true(out$verdict[["tier_c"]])
+  expect_true(is.na(out$verdict[["overall"]]))
+})
+
+test_that("a series no seam names is reported ungated, never passed", {
+  # An empty seam list gates nothing at all, and a gate that was handed
+  # nothing to check must not read as a pass.
+  out <- whep:::seam_gate(gate_backcast_1890(), gate_seams()[0, ])
+
+  expect_equal(nrow(out$tier_a), 1L)
+  expect_equal(out$tier_a$reason, "no_start_seam")
+  expect_true(is.na(out$tier_a$pass))
+  expect_true(is.na(out$verdict[["tier_a"]]))
+  expect_true(is.na(out$verdict[["overall"]]))
+  # The identity numbers are still measured and still reported: what is
+  # withheld is the verdict, not the evidence.
+  expect_equal(out$tier_a$share_sum, 1, tolerance = 1e-12)
+  expect_equal(out$tier_a$n_observed, 3L)
+})
+
+test_that("tier A withholds a pass where only a non-start seam names it", {
+  # Tier A's one seam-derived check is that `t0` is the year the
+  # `"start"` seam names, so a series with no `"start"` seam has that
+  # check withheld, not satisfied. Deciding "gated" on "some seam names
+  # the series" while checking "a start seam names the series" is what
+  # let a source switch certify an anchor nothing had looked at.
+  out <- whep:::seam_gate(
+    gate_backcast_1890(),
+    gate_seams(seam_kind = "source_switch")
+  )
+
+  expect_true(is.na(out$tier_a$seam_start_year))
+  expect_true(is.na(out$tier_a$matches_seam_start))
+  expect_equal(out$tier_a$reason, "no_start_seam")
+  expect_true(is.na(out$tier_a$pass))
+  # The identity numbers are still measured and still reported.
+  expect_equal(out$tier_a$share_sum, 1, tolerance = 1e-12)
+  expect_equal(out$tier_a$n_observed, 3L)
+
+  # The seam it does carry is tier B's, and the year before `t0` is a
+  # back-cast row, so tier B is vacuous here too: nothing anywhere
+  # judged this series, and the gate must not read as a pass.
+  expect_true(all(out$tier_b$basis == "vacuous_by_construction"))
+  expect_true(is.na(out$verdict[["tier_a"]]))
+  expect_true(is.na(out$verdict[["overall"]]))
+})
+
+test_that("a non-start seam tier B can judge does gate its series", {
+  # The mirror of the test above, and the reason tier A's withheld pass
+  # is not a failure: where the seam lands between two observations,
+  # tier B judges the series and the run is certifiable on that.
+  out <- whep:::seam_gate(
+    gate_wide_shares(),
+    gate_seams(seam_year = 1910L, seam_kind = "source_switch", area_code = 700L)
+  )
+
+  expect_equal(out$tier_a$reason, "no_start_seam")
+  expect_true(is.na(out$tier_a$pass))
+  expect_true(all(out$tier_b$basis == "observed_both_sides"))
+  expect_true(out$verdict[["tier_b"]])
+  expect_true(out$verdict[["overall"]])
+})
+
+test_that("an ungated series never hides an identity failure", {
+  broken <- gate_backcast_1890() |>
+    dplyr::mutate(
+      share = dplyr::if_else(
+        year == .seam1890_first_observed() & level_polity_code == "S1",
+        share + 0.05,
+        share
+      )
+    )
+  out <- whep:::seam_gate(broken, gate_seams()[0, ])
+
+  expect_equal(out$tier_a$reason, "anchor_shares_not_unit_sum")
+  expect_false(out$tier_a$pass)
+  expect_false(out$verdict[["overall"]])
+})
+
+test_that("one gated series does not certify an ungated sibling", {
+  two <- dplyr::bind_rows(
+    gate_backcast_1890(),
+    dplyr::mutate(gate_backcast_1890(), item_prod_code = 44L)
+  )
+  expect_message(out <- whep:::seam_gate(two, gate_seams()), "Coverage: 1 of 2")
+
+  expect_equal(nrow(out$tier_a), 2L)
+  gated <- dplyr::filter(out$tier_a, item_prod_code == 15L)
+  ungated <- dplyr::filter(out$tier_a, item_prod_code == 44L)
+  expect_true(gated$pass)
+  expect_equal(gated$reason, "")
+  expect_true(is.na(ungated$pass))
+  expect_equal(ungated$reason, "no_start_seam")
+
+  # Tier A passed everything it judged, so its own verdict is TRUE --
+  # and `overall` is still withheld, because one of the two series was
+  # judged by nothing.
+  expect_true(out$verdict[["tier_a"]])
+  expect_true(is.na(out$verdict[["overall"]]))
+})
+
+test_that("the series key is compared by value, not by how it prints", {
+  # `as.character(1e5)` is "1e+05" and `as.character(100000L)` is
+  # "100000", so a key compared as formatted text disagrees with the
+  # same key compared by a join. Whichever side carries the double, it
+  # is one series and the gate must judge it.
+  shares <- dplyr::mutate(gate_backcast_1890(), area_code = 1e5)
+  seams <- gate_seams(area_code = 100000L)
+  expect_false(identical(
+    as.character(unique(shares$area_code)),
+    as.character(unique(seams$area_code))
+  ))
+
+  out <- whep:::seam_gate(shares, seams)
+  expect_equal(out$tier_a$seam_start_year, .seam1890_first_observed())
+  expect_true(out$tier_a$matches_seam_start)
+  expect_equal(out$tier_a$reason, "")
+  expect_true(out$tier_a$pass)
+  expect_true(out$verdict[["overall"]])
+
+  # The mirror image: the double on the seam side instead.
+  mirrored <- whep:::seam_gate(
+    dplyr::mutate(gate_backcast_1890(), area_code = 100000L),
+    dplyr::mutate(gate_seams(), area_code = 1e5)
+  )
+  expect_equal(mirrored$tier_a$reason, "")
+  expect_true(mirrored$tier_a$pass)
 })
 
 # --- tier B -------------------------------------------------------------------
@@ -873,7 +1053,10 @@ test_that("the hold-out passes its settings to the back-cast", {
   out <- whep:::seam_gate(
     gate_trend_backcast(right, observed),
     gate_seams(area_code = 700L),
-    holdout = list(extent = right, args = list(max_gap = 0))
+    holdout = list(
+      extent = right,
+      args = list(settings = list(max_gap = 0))
+    )
   )
 
   expect_true(all(out$tier_b_holdout$status == "na_share"))
@@ -996,6 +1179,35 @@ test_that("tier C fails a seam pair that flags where its neighbours do not", {
   expect_equal(out$tier_c$reason, "seam_flag_rate_excess")
   expect_false(out$tier_c$pass)
   expect_false(out$verdict[["overall"]])
+})
+
+test_that("tier C says when it had no regime column to check", {
+  # Nothing in the package writes a `regime` column today, so on the
+  # shipped crop-level output this axis is never evaluated. A gate that
+  # passed while saying nothing about it would read as evidence that no
+  # regime flipped: the report says how many gates are in that state.
+  expect_message(
+    out <- whep:::seam_gate(
+      gate_backcast_1890(),
+      gate_seams(),
+      cells = gate_cells()
+    ),
+    "1 with the regime axis unchecked"
+  )
+  expect_false(out$tier_c$regime_checked)
+  # `NA`, not `0`: an axis that was not evaluated has no count of
+  # mismatches, and a zero there reads as a measurement.
+  expect_true(is.na(out$tier_c$n_regime_mismatch))
+  expect_true(out$tier_c$pass)
+
+  expect_message(
+    whep:::seam_gate(
+      gate_backcast_1890(),
+      gate_seams(),
+      cells = gate_cells(regime = function(cell, year) "type_aware")
+    ),
+    "0 with the regime axis unchecked"
+  )
 })
 
 test_that("tier C fails a regime flip on its own", {
@@ -1154,6 +1366,39 @@ test_that("seam_gate refuses malformed input but never a failed gate", {
     )
   )
   expect_false(failing$verdict[["overall"]])
+})
+
+test_that("a seam naming a series the shares do not carry is refused", {
+  shares <- gate_backcast_1890()
+
+  # The whole seam list from another run: every tier evaluates nothing
+  # and the gate used to pronounce the run passed.
+  expect_error(
+    whep:::seam_gate(shares, gate_seams(area_code = 901L)),
+    class = "whep_seam_gate_seams_unmatched"
+  )
+  # The realistic shape is partial: most seams match, one names a series
+  # the table does not carry and so is gated by nothing.
+  expect_error(
+    whep:::seam_gate(
+      shares,
+      dplyr::bind_rows(gate_seams(), gate_seams(area_code = 902L))
+    ),
+    "902"
+  )
+  # A seam for an item the share table does not carry is the same
+  # mismatch, on a key the container code cannot show.
+  expect_error(
+    whep:::seam_gate(shares, gate_seams(item_prod_code = 44L)),
+    class = "whep_seam_gate_seams_unmatched"
+  )
+
+  # A matched pair is untouched, and so is the documented tier-C-only
+  # call, which passes a zero-row share table on purpose.
+  expect_no_error(whep:::seam_gate(shares, gate_seams()))
+  expect_no_error(
+    whep:::seam_gate(shares[0, ], gate_seams(), cells = gate_cells())
+  )
 })
 
 test_that("the gate reports a summary and returns five elements", {

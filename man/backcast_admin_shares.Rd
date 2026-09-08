@@ -9,14 +9,7 @@ backcast_admin_shares(
   extent,
   seam = NULL,
   binding_indicator = "area_harvested",
-  max_gap = Inf,
-  max_gap_linear = 0,
-  zero_policy = "hold_outside",
-  repair = FALSE,
-  ratio_bounds = c(0.55, 1.6),
-  collapse_ratio = 0.02,
-  min_neighbour_ha = 100,
-  tolerance = 1e-09
+  settings = list()
 )
 }
 \arguments{
@@ -39,34 +32,33 @@ observations are counted (\code{seam_supersedes_observed}).}
 by the plan's decision 8. \code{t0} is the series' first observed year
 carrying it; a series with none is refused (\code{no_binding_anchor}).}
 
-\item{max_gap}{Passed to \code{\link[=fill_proxy_growth]{fill_proxy_growth()}}. Default \code{Inf}, its own
-default.}
-
-\item{max_gap_linear}{Passed to \code{\link[=fill_proxy_growth]{fill_proxy_growth()}}. Default \code{0}, a
-placeholder pending T31(e); see the interior-gaps section.}
-
-\item{zero_policy}{How case (a) is handled. Only \code{"hold_outside"} is
-signed off (decision 9); the argument exists so a later decision can
-add a value without changing call sites.}
-
-\item{repair}{Logical. On a flagged extent jump, \code{TRUE} applies the
+\item{settings}{Named list of tuning knobs, each defaulting as below.
+An unknown key aborts, and what the call ran with comes back in the
+returned \code{settings} tibble:
+\itemize{
+\item \code{max_gap} (\code{Inf}): passed to \code{\link[=fill_proxy_growth]{fill_proxy_growth()}}, its own
+default.
+\item \code{max_gap_linear} (\code{0}): passed to \code{\link[=fill_proxy_growth]{fill_proxy_growth()}}; a
+placeholder pending T31(e), see the interior-gaps section.
+\item \code{zero_policy} (\code{"hold_outside"}): how case (a) is handled. Only
+\code{"hold_outside"} is signed off (decision 9); the key exists so a
+later decision can add a value without changing call sites.
+\item \code{repair} (\code{FALSE}): on a flagged extent jump, \code{TRUE} applies the
 unit-keyed analogue of \code{.fix_luh2_crop_collapse()} and refuses only
-what stays flagged; \code{FALSE} (default, pending T31) refuses the
-affected series outright. Either way the choice is in \code{settings} and
-the outcome in \code{diagnostics}.}
-
-\item{ratio_bounds}{Plausible band for \code{\link[=check_extent_jumps]{check_extent_jumps()}}.}
-
-\item{collapse_ratio}{Fraction of the adjacent-year mean below which a
-year counts as an isolated collapse: \code{0.02}, as in
-\code{.fix_luh2_crop_collapse()} (\code{R/build_production.R:629-630}).}
-
-\item{min_neighbour_ha}{Both neighbours must exceed this for a collapse
-to be repaired: 100 ha, that function's \code{min_neighbor_mha = 0.001}
-Mha expressed in hectares.}
-
-\item{tolerance}{Absolute tolerance for the share and extent
-arithmetic.}
+what stays flagged; \code{FALSE}, pending T31, refuses the affected
+series outright. Either way the choice is in \code{settings} and the
+outcome in \code{diagnostics}.
+\item \code{ratio_bounds} (\code{c(0.55, 1.6)}): plausible band for
+\code{\link[=check_extent_jumps]{check_extent_jumps()}}.
+\item \code{collapse_ratio} (\code{0.02}): fraction of the adjacent-year mean below
+which a year counts as an isolated collapse, as in
+\code{.fix_luh2_crop_collapse()} (\code{R/build_production.R:629-630}).
+\item \code{min_neighbour_ha} (\code{100}): both neighbours must exceed this for a
+collapse to be repaired -- that function's
+\code{min_neighbor_mha = 0.001} Mha expressed in hectares.
+\item \code{tolerance} (\code{1e-9}): absolute tolerance for the share and extent
+arithmetic.
+}}
 }
 \value{
 A list of four tibbles:
