@@ -303,11 +303,16 @@ items_prod_full <- items_prod_full_raw |>
 # a mapped row names its target, a dropped row names none, and anything that
 # is not an exact one-to-one mapping says why.
 .assert_mapping_rows <- function(table, column, name) {
-  bad_kind <- setdiff(unique(table$mapping_kind), .mapping_kinds())
+  kinds <- .mapping_kinds()
+  bad_kind <- setdiff(unique(table$mapping_kind), kinds)
   if (length(bad_kind) > 0) {
+    # `kinds` is a local, not `{.val {.mapping_kinds()}}`: cli >= 3.4.0
+    # reads a `{}` expression starting with a dot as a style name and
+    # aborts with "Invalid cli literal", losing the whole message
+    # (whep#618).
     cli::cli_abort(c(
       "Unknown {.field mapping_kind} in {.val {name}}.",
-      "x" = "Not one of {.val {.mapping_kinds()}}: {.val {bad_kind}}."
+      "x" = "Not one of {.val {kinds}}: {.val {bad_kind}}."
     ))
   }
   .assert_target_presence(table, column, name)

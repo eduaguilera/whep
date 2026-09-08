@@ -321,3 +321,56 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
     )
   })
 })
+
+# The builder's own guards, read without running the builder ---------------
+#
+# `harmonization_tables.R` refuses a malformed inst/extdata CSV, and what a
+# maintainer gets from that refusal is the whole value of it. cli >= 3.4.0
+# reads a `{}` expression starting with a dot as a STYLE name, so
+# `{.val {.mapping_kinds()}}` aborted with "Invalid cli literal" and took
+# the table name, the rejected value and the vocabulary with it (whep#618,
+# already fixed twice in R/). Nothing else reaches these guards: the
+# rebuild above only ever walks the happy path, because the repo's CSVs
+# are clean.
+
+.assigned_name <- function(expr) {
+  assigned <- is.call(expr) &&
+    identical(as.character(expr[[1]]), "<-") &&
+    is.name(expr[[2]])
+  if (assigned) rlang::as_name(expr[[2]]) else NA_character_
+}
+
+# Evaluates only the named top-level definitions of a builder, so a guard
+# can be called without the builder's file reads and .rda writes.
+.builder_definitions <- function(builder, defs, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  env <- new.env(parent = globalenv())
+  wanted <- exprs[purrr::map_chr(exprs, .assigned_name) %in% defs]
+  purrr::walk(wanted, eval, envir = env)
+  env
+}
+
+testthat::test_that("a mistyped mapping_kind names the vocabulary it missed", {
+  root <- .skip_without_data_raw()
+  env <- .builder_definitions(
+    "harmonization_tables.R",
+    c(".mapping_kinds", ".assert_target_presence", ".assert_mapping_rows"),
+    root
+  )
+  rows <- tibble::tibble(
+    class_key = "SOYBEANS - ACRES HARVESTED",
+    item_prod_code = "236",
+    mapping_kind = "aggregat",
+    mapping_reason = "summed over the two NASS soybean classes"
+  )
+
+  err <- testthat::expect_error(
+    env$.assert_mapping_rows(rows, "item_prod_code", "admin_items_nass")
+  )
+  refusal <- conditionMessage(err)
+
+  testthat::expect_no_match(refusal, "Invalid cli literal")
+  testthat::expect_match(refusal, "admin_items_nass")
+  testthat::expect_match(refusal, "aggregat")
+  testthat::expect_match(refusal, "sum_member")
+})
