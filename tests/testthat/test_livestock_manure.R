@@ -557,6 +557,129 @@ testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
   testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
 })
 
+testthat::test_that("mcf_source selects the MCF table and records it", {
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+  weighted <- function(src) {
+    whep:::.calc_weighted_mcf(data, options = list(mcf_source = src))
+  }
+
+  shipped <- weighted("as_shipped")
+  gl2006 <- weighted("ipcc_2006")
+  ref2019 <- weighted("ipcc_2019")
+
+  # Global cattle mix is 0.50 pasture, 0.30 solid storage, 0.15 liquid
+  # slurry, 0.05 daily spread, read at the Temperate default.
+  #   as shipped: 0.50*1.5 + 0.30*4.0 + 0.15*35 + 0.05*0.5 is 7.225 percent.
+  #   2006:       0.50*1.5 + 0.30*4.0 + 0.15*42 + 0.05*0.5 is 8.275 percent.
+  #   2019:       0.50*0.47 + 0.30*4.0 + 0.15*39 + 0.05*0.5 is 7.31 percent.
+  testthat::expect_equal(shipped$weighted_mcf, 0.07225)
+  testthat::expect_equal(gl2006$weighted_mcf, 0.08275)
+  testthat::expect_equal(ref2019$weighted_mcf, 0.0731)
+
+  testthat::expect_match(shipped$method_manure_ch4, "mcf_as_shipped")
+  testthat::expect_match(gl2006$method_manure_ch4, "mcf_ipcc_2006")
+  testthat::expect_match(ref2019$method_manure_ch4, "mcf_ipcc_2019")
+})
+
+testthat::test_that("the default mcf_source reproduces climate_mcf exactly", {
+  # The guarantee that this option moves no published number: over every
+  # species and zone the engine can reach, the default weighted MCF equals the
+  # one computed from `climate_mcf` outside the engine.
+  grid <- tidyr::expand_grid(
+    species_gen = unique(whep::regional_mms_distribution$species),
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  engine <- whep:::.calc_weighted_mcf(grid)
+
+  independent <- whep:::.mms_global_shares() |>
+    dplyr::rename(species_gen = "species") |>
+    dplyr::inner_join(
+      grid,
+      by = "species_gen",
+      relationship = "many-to-many"
+    ) |>
+    dplyr::inner_join(
+      whep::climate_mcf,
+      by = c("mms_type", "climate_zone")
+    ) |>
+    dplyr::summarise(
+      expected_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+      .by = c("species_gen", "climate_zone")
+    )
+
+  joined <- dplyr::inner_join(
+    engine,
+    independent,
+    by = c("species_gen", "climate_zone")
+  )
+  testthat::expect_equal(nrow(joined), nrow(grid))
+  testthat::expect_equal(joined$weighted_mcf, joined$expected_mcf)
+})
+
+testthat::test_that("every shipped MMS label resolves an MCF, any source", {
+  # Extends the whep#950 referential invariant to the selectable tables: a
+  # label the engine can hand the MCF join must resolve a non-NA factor in all
+  # three zones whichever table is in force. This is what would catch an MMS
+  # vocabulary that starts routing manure to the 2006 anaerobic digester,
+  # which has no published default.
+  labels <- unique(whep::regional_mms_distribution$mms_type)
+  grid <- tidyr::expand_grid(
+    mms_type = labels,
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  for (src in c("as_shipped", "ipcc_2006", "ipcc_2019")) {
+    matched <- grid |>
+      dplyr::inner_join(
+        whep:::.mcf_table(src),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::filter(!is.na(.data$mcf_percent))
+    testthat::expect_equal(
+      nrow(matched),
+      nrow(grid),
+      label = paste("resolved MCF cells under", src)
+    )
+  }
+})
+
+testthat::test_that("the 2006 anaerobic digester has no MCF and aborts", {
+  # 2006 Table 10.17 gives the digester as 0 to 100 percent and requires the
+  # compiler to evaluate its Formula 1, so `climate_mcf_ipcc` carries NA. A
+  # split that routes manure there must abort rather than take a number the
+  # edition does not publish.
+  testthat::local_mocked_bindings(
+    .mms_global_shares = function() {
+      tibble::tribble(
+        ~species, ~mms_type,            ~fraction,
+        "Cattle", "Anaerobic Digester", 1
+      )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(
+      data,
+      options = list(mcf_source = "ipcc_2006")
+    ),
+    class = "whep_missing_mcf"
+  )
+})
+
+testthat::test_that("an unknown mcf_source value aborts", {
+  testthat::expect_error(
+    whep:::.manure_options(list(mcf_source = "ipcc_2013")),
+    "mcf_source"
+  )
+})
+
 testthat::test_that("an unknown manure option name aborts", {
   testthat::expect_error(
     whep::calculate_manure_emissions(

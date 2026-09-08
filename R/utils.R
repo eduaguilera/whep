@@ -2211,6 +2211,11 @@ utils::globalVariables(
     ".n_known",
     ".c_with_n",
     "input_n_mg",
-    "input_c_with_n_mg"
+    "input_c_with_n_mg",
+    # livestock_coefs.R / livestock_manure.R (#1022) — the as-published MCF
+    # table the `mcf_source` option can read instead of `climate_mcf`, and
+    # the IPCC-edition column that selects one of its two transcriptions
+    "climate_mcf_ipcc",
+    "edition"
   )
 )

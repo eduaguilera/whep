@@ -1217,6 +1217,219 @@ test_that("climate_mcf holds the 2006-derived values whep#601 documents", {
   testthat::expect_equal(mcf_of("Anaerobic Digester", "All"), 0)
 })
 
+# `climate_mcf_ipcc` carries the two as-published alternatives the
+# `mcf_source` option can read instead. Every cell was read off the two PDFs
+# the object's `@source` names and checksums; what is locked here is both the
+# transcription and the two collapse rules, which are WHEP choices rather than
+# IPCC statements and so are the part a future edit could silently move.
+test_that("climate_mcf_ipcc is a clean tibble over both editions", {
+  obj <- whep::climate_mcf_ipcc
+  assert_clean_tibble(
+    obj,
+    "climate_mcf_ipcc",
+    c("edition", "mms_type", "climate_zone", "mcf_percent"),
+    min_rows = 60L
+  )
+  testthat::expect_setequal(
+    unique(obj$edition),
+    c("ipcc_2006", "ipcc_2019")
+  )
+  testthat::expect_setequal(
+    unique(obj$climate_zone),
+    c("Cool", "Temperate", "Warm")
+  )
+  # Every system is resolved in all three zones under both editions, so the
+  # table can substitute for `climate_mcf` without a partial join.
+  per_key <- obj |>
+    dplyr::count(.data$edition, .data$mms_type)
+  testthat::expect_setequal(per_key$n, 3L)
+  # Only the 2006 anaerobic digester has no published default.
+  na_rows <- obj[is.na(obj$mcf_percent), ]
+  testthat::expect_setequal(na_rows$mms_type, "Anaerobic Digester")
+  testthat::expect_setequal(na_rows$edition, "ipcc_2006")
+})
+
+test_that("climate_mcf_ipcc transcribes Table 10.17 of each edition", {
+  mcf_of <- function(ed, sys) {
+    rows <- whep::climate_mcf_ipcc |>
+      dplyr::filter(.data$edition == ed, .data$mms_type == sys) |>
+      dplyr::arrange(match(
+        .data$climate_zone,
+        c("Cool", "Temperate", "Warm")
+      ))
+    rows$mcf_percent
+  }
+
+  # 2006 Guidelines, Vol 4, Ch 10, Table 10.17, pp. 10.44-10.47. The rows
+  # published as one value per climate class are transcriptions.
+  testthat::expect_equal(mcf_of("ipcc_2006", "Daily Spread"), c(0.1, 0.5, 1.0))
+  testthat::expect_equal(mcf_of("ipcc_2006", "Solid Storage"), c(2.0, 4.0, 5.0))
+  testthat::expect_equal(mcf_of("ipcc_2006", "Dry Lot"), c(1.0, 1.5, 2.0))
+  testthat::expect_equal(
+    mcf_of("ipcc_2006", "Pasture/Range/Paddock"),
+    c(1.0, 1.5, 2.0)
+  )
+  testthat::expect_equal(
+    mcf_of("ipcc_2006", "Poultry Manure"),
+    c(1.5, 1.5, 1.5)
+  )
+  testthat::expect_equal(mcf_of("ipcc_2006", "Burned for Fuel"), c(10, 10, 10))
+  testthat::expect_equal(
+    mcf_of("ipcc_2006", "Composting - Intensive"),
+    c(0.5, 1.0, 1.5)
+  )
+  testthat::expect_equal(
+    mcf_of("ipcc_2006", "Composting - Passive"),
+    c(0.5, 1.0, 1.5)
+  )
+
+  # The two per-degree rows are collapsed at the middle column of each class
+  # -- 12, 20 and 27 degrees, the classes being Cool below 15, Temperate 15
+  # to 25 and Warm above 25 per Table 10.15 of the same chapter. Liquid slurry
+  # is the without-natural-crust-cover series.
+  testthat::expect_equal(mcf_of("ipcc_2006", "Liquid/Slurry"), c(20, 42, 78))
+  testthat::expect_equal(mcf_of("ipcc_2006", "Anaerobic Lagoon"), c(70, 78, 80))
+
+  # 2006 publishes 0 to 100 percent and its Formula 1 for the digester, so
+  # there is no default to ship.
+  testthat::expect_true(all(is.na(mcf_of("ipcc_2006", "Anaerobic Digester"))))
+
+  # 2019 Refinement, Vol 4, Ch 10, Table 10.17 (Updated), pp. 10.68-10.70.
+  testthat::expect_equal(mcf_of("ipcc_2019", "Daily Spread"), c(0.1, 0.5, 1.0))
+  testthat::expect_equal(mcf_of("ipcc_2019", "Solid Storage"), c(2.0, 4.0, 5.0))
+  testthat::expect_equal(mcf_of("ipcc_2019", "Dry Lot"), c(1.0, 1.5, 2.0))
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Poultry Manure"),
+    c(1.5, 1.5, 1.5)
+  )
+  testthat::expect_equal(mcf_of("ipcc_2019", "Burned for Fuel"), c(10, 10, 10))
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Composting - Intensive"),
+    c(0.5, 1.0, 1.5)
+  )
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Composting - Passive"),
+    c(1.0, 2.0, 2.5)
+  )
+  # The Refinement replaces the three 2006 pasture values with one.
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Pasture/Range/Paddock"),
+    c(0.47, 0.47, 0.47)
+  )
+
+  # The 2019 sub-zone rows are the unweighted mean over the sub-zones the
+  # Refinement groups into each class: Cool over Cool Temperate Moist and Dry
+  # plus Boreal Moist and Dry, Temperate over Warm Temperate Moist and Dry,
+  # Warm over Tropical Montane, Wet, Moist and Dry.
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Anaerobic Lagoon"),
+    c(mean(c(60, 67, 50, 49)), mean(c(73, 76)), mean(c(76, 80, 80, 80)))
+  )
+  # Liquid slurry at the 6-month retention time, the Refinement's own default
+  # where retention time is unknown.
+  testthat::expect_equal(
+    mcf_of("ipcc_2019", "Liquid/Slurry"),
+    c(mean(c(21, 26, 14, 14)), mean(c(37, 41)), mean(c(59, 76, 73, 74)))
+  )
+
+  # The digester is six leakage-and-storage classes, kept as six labels
+  # rather than flattened onto one "Anaerobic Digester" number.
+  digesters <- whep::climate_mcf_ipcc |>
+    dplyr::filter(
+      .data$edition == "ipcc_2019",
+      stringr::str_starts(.data$mms_type, "Anaerobic Digester")
+    )
+  testthat::expect_equal(dplyr::n_distinct(digesters$mms_type), 6L)
+  testthat::expect_equal(min(digesters$mcf_percent), 1.00)
+  testthat::expect_equal(max(digesters$mcf_percent), 13.17)
+})
+
+test_that("climate_mcf departs from both editions only where documented", {
+  # The referential form of the whep#601 finding: rather than three
+  # hand-picked cells, compare every live-vocabulary cell of the shipped table
+  # against both editions and assert the disagreeing set is exactly the one
+  # `?climate_mcf` documents. A future edit that fixes or breaks another cell
+  # changes this set.
+  shipped <- whep::climate_mcf |>
+    dplyr::filter(.data$climate_zone != "All")
+  by_edition <- function(ed) {
+    whep::climate_mcf_ipcc |>
+      dplyr::filter(.data$edition == ed) |>
+      dplyr::select("mms_type", "climate_zone", ipcc = "mcf_percent")
+  }
+  differs <- function(ed) {
+    shipped |>
+      dplyr::inner_join(
+        by_edition(ed),
+        by = c("mms_type", "climate_zone")
+      ) |>
+      dplyr::filter(
+        is.na(.data$ipcc) | .data$mcf_percent != .data$ipcc
+      ) |>
+      dplyr::mutate(cell = paste(.data$mms_type, .data$climate_zone)) |>
+      dplyr::pull("cell")
+  }
+
+  # Against 2006. Two different kinds of departure:
+  #   dry lot 1.5/2.5/4.0 appears in no column of the published row, which
+  #     gives one triple 1.0/1.5/2.0 for all temperatures;
+  #   liquid slurry and the lagoon are the published per-degree row read at a
+  #     different column than the class middle -- the shipped picks are the
+  #     class-end columns for cool and warm and the 18 and 14 degree columns
+  #     for temperate, so they are traceable but not to the same rule.
+  # Lagoon warm agrees only because the 27 degree column and the class end
+  # both read 80.
+  testthat::expect_setequal(
+    differs("ipcc_2006"),
+    c(
+      "Dry Lot Cool",
+      "Dry Lot Temperate",
+      "Dry Lot Warm",
+      "Liquid/Slurry Cool",
+      "Liquid/Slurry Temperate",
+      "Liquid/Slurry Warm",
+      "Anaerobic Lagoon Cool",
+      "Anaerobic Lagoon Temperate"
+    )
+  )
+
+  # Against the 2019 Refinement: the same eight, plus lagoon warm, plus the
+  # three pasture cells the Refinement replaces with a single 0.47 percent.
+  # Pasture is the one that matters numerically: it is 0.50 of the global
+  # cattle manure split and 1.00 for sheep, goats, camels, mules and asses.
+  testthat::expect_setequal(
+    differs("ipcc_2019"),
+    c(
+      "Dry Lot Cool",
+      "Dry Lot Temperate",
+      "Dry Lot Warm",
+      "Liquid/Slurry Cool",
+      "Liquid/Slurry Temperate",
+      "Liquid/Slurry Warm",
+      "Anaerobic Lagoon Cool",
+      "Anaerobic Lagoon Temperate",
+      "Anaerobic Lagoon Warm",
+      "Pasture/Range/Paddock Cool",
+      "Pasture/Range/Paddock Temperate",
+      "Pasture/Range/Paddock Warm"
+    )
+  )
+
+  # The three `climate_zone` "All" rows of the shipped table are the
+  # composting pair and the digester. Neither edition publishes a
+  # climate-independent value for any of them, and the join in
+  # `.calc_weighted_mcf()` never matches "All", so they are unreachable.
+  testthat::expect_setequal(
+    whep::climate_mcf$mms_type[whep::climate_mcf$climate_zone == "All"],
+    c(
+      "Composting - Intensive",
+      "Composting - Passive",
+      "Anaerobic Digester",
+      "Burned for Fuel"
+    )
+  )
+})
+
 test_that("ipcc_2006_mcf_temp keeps its off-grid 25 degree column", {
   # Table 10.17 resolves liquid/slurry per degree and the other three
   # systems by climate class only, so no published column sits at 25

@@ -1097,11 +1097,106 @@
 #'     by neither: 2006 gives the range 0-100 percent and requires a
 #'     calculation, the 2019 Refinement six leakage-and-storage classes
 #'     spanning 1.00 to 13.17 percent. **Assumed, unverified.**
-#'   Tracked in whep#601.
+#'
+#'   Only six of the eleven systems here are reachable on the live path:
+#'   [regional_mms_distribution] routes manure to daily spread, solid storage,
+#'   liquid/slurry, the anaerobic lagoon, pasture/range/paddock and poultry
+#'   manure, and `.calc_weighted_mcf()` aborts on any label outside that set.
+#'   So the dry-lot, composting and anaerobic-digester cells enter no published
+#'   number today, and the four rows keyed `climate_zone` `"All"` are
+#'   unreachable for a second reason: the MCF join is on
+#'   `(mms_type, climate_zone)` and never asks for `"All"`. The cells that both
+#'   are live and depend on the edition are pasture/range/paddock,
+#'   liquid/slurry and the anaerobic lagoon. [climate_mcf_ipcc] carries the
+#'   as-published alternative for each, selectable with the `mcf_source`
+#'   option; measured, the 2019 Refinement's single 0.47 percent pasture value
+#'   moves Tier 2 manure CH4 by -68.7 percent for the fully grazing species
+#'   and by +1.2 percent for cattle at the Temperate default, where the
+#'   pasture drop and a higher liquid/slurry factor nearly cancel.
+#'
+#'   Tracked in whep#601 and whep#1022.
 #'
 #' @examples
 #' climate_mcf
 "climate_mcf"
+
+#' As-published MCF alternatives to [climate_mcf].
+#'
+#' @description
+#' Methane conversion factors transcribed from Table 10.17 of each IPCC
+#' edition, over the same `mms_type` / `climate_zone` key space as
+#' [climate_mcf] so that either can be substituted for it. Selected with the
+#' `mcf_source` manure-engine option (see [manure_engine_options]); the
+#' default remains [climate_mcf], so this object changes no published value
+#' until a caller asks for it.
+#'
+#' Six cells of [climate_mcf] match no published IPCC value, and three of the
+#' `mms_type` labels that carry them -- dry lot, the two composting rows and
+#' the anaerobic digester -- are unreachable on the live Tier 2 path, because
+#' [regional_mms_distribution] routes manure to only six systems and none of
+#' them is one of those. The cells that *are* live and edition-dependent are
+#' pasture/range/paddock, liquid/slurry and the anaerobic lagoon.
+#'
+#' @format A tibble with columns:
+#' \describe{
+#'   \item{edition}{`"ipcc_2006"` or `"ipcc_2019"`, the two values the
+#'     `mcf_source` option takes.}
+#'   \item{mms_type}{Manure-management system, in the [climate_mcf]
+#'     vocabulary, plus the six 2019 anaerobic-digester classes.}
+#'   \item{climate_zone}{`"Cool"`, `"Temperate"` or `"Warm"`.}
+#'   \item{mcf_percent}{Methane conversion factor (percent of `Bo`
+#'     achieved). `NA` where the edition publishes no default -- the 2006
+#'     anaerobic digester, which is "0-100 percent, calculate".}
+#' }
+#'
+#' @section Collapse rules:
+#' Neither edition publishes exactly three numbers for every system, so two
+#' collapse rules are applied. Both are WHEP choices, stated here because
+#' they are not IPCC statements:
+#'
+#' * **2006 per-degree rows** (liquid/slurry, uncovered anaerobic lagoon) are
+#'   read at the middle column of each temperature class. Table 10.15 of the
+#'   same chapter defines the classes as Cool below 15 C, Temperate 15 to
+#'   25 C and Warm above 25 C, and Table 10.17 groups its 19 per-degree
+#'   columns the same way, so the middle columns are 12 C, 20 C and 27 C.
+#'   Liquid/slurry takes the "without natural crust cover" series and the
+#'   optional 40 percent crust reduction is not applied.
+#' * **2019 sub-zone rows** are the unweighted mean over the sub-zones the
+#'   Refinement itself groups into each of Cool (Cool Temperate Moist, Cool
+#'   Temperate Dry, Boreal Moist, Boreal Dry), Temperate (Warm Temperate
+#'   Moist, Warm Temperate Dry) and Warm (Tropical Montane, Tropical Wet,
+#'   Tropical Moist, Tropical Dry). Liquid/slurry is read at the 6-month
+#'   retention time, which is the Refinement's own default where retention
+#'   time is unknown (Table 10.17 footnote 1).
+#'
+#' @section What the table cannot hold:
+#' The 2019 Refinement resolves the anaerobic digester into **six**
+#' leakage-and-storage classes spanning 1.00 to 13.17 percent, so no single
+#' `"Anaerobic Digester"` MCF exists to ship. They are carried as six
+#' distinct `mms_type` values rather than flattened to one number, and no
+#' shipped MMS vocabulary selects one: which class a country's digesters
+#' belong to is an inventory input WHEP does not have (whep#1022). The 2006
+#' digester is `NA` for the same reason -- that edition publishes a 0 to 100
+#' percent range and requires the compiler to evaluate its Formula 1.
+#'
+#' @source
+#'   IPCC. 2006. *2006 IPCC Guidelines for National Greenhouse Gas
+#'   Inventories*, Vol 4, Ch 10, Table 10.17 "MCF values by temperature for
+#'   manure management systems", pp. 10.44-10.47 (PDF md5
+#'   `97b97e8d0e4ca101c77fac2d63a0cb86`).
+#'
+#'   IPCC. 2019. *2019 Refinement to the 2006 IPCC Guidelines for National
+#'   Greenhouse Gas Inventories*, Vol 4, Ch 10, Table 10.17 (Updated)
+#'   "Methane conversion factors for manure management systems",
+#'   pp. 10.68-10.70 (PDF md5 `c1784e747af9bb307e93f4170c12679a`).
+#'
+#'   Both PDFs re-downloaded from `ipcc-nggip.iges.or.jp` and checksummed on
+#'   2026-09-08. Every cell here was read off them; the collapse rules above
+#'   are the only step that is not a transcription.
+#'
+#' @examples
+#' climate_mcf_ipcc
+"climate_mcf_ipcc"
 
 #' Regional MMS distribution.
 #'

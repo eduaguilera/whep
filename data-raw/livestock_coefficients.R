@@ -1883,7 +1883,14 @@ generate_ipcc_tier2_params <- function() {
     # columns of the 2006 per-degree rows rather than the class bound; and
     # dry lot 1.5/2.5/4.0, the single-value composting rows and Anaerobic
     # Digester 0 match neither edition (assumed, unverified).
-    # See `?climate_mcf` and #601.
+    # Only six of the eleven systems are reachable: regional_mms_distribution
+    # routes manure to daily spread, solid storage, liquid/slurry, anaerobic
+    # lagoon, pasture/range/paddock and poultry manure, so the dry lot,
+    # composting and digester cells enter no published number today. The four
+    # climate_zone "All" rows are unreachable for a second reason: the MCF
+    # join is on mms_type and climate_zone and never asks for "All".
+    # climate_mcf_ipcc below carries the as-published alternative.
+    # See `?climate_mcf` and #601, #1022.
     climate_mcf = tibble::tribble(
       ~mms_type, ~climate_zone, ~mcf_percent,
       "Daily Spread",              "Cool",       0.1,
@@ -1911,6 +1918,151 @@ generate_ipcc_tier2_params <- function() {
       "Composting - Passive",      "All",        1.0,
       "Anaerobic Digester",        "All",        0.0,
       "Burned for Fuel",           "All",       10.0
+    ),
+
+    # As-published MCF alternatives to `climate_mcf`, over the same
+    # (mms_type, climate_zone) key space so either can be substituted for it.
+    # Read off the published PDFs, both re-downloaded and md5-checked
+    # 2026-09-08:
+    #   2006: IPCC 2006 Guidelines, Vol 4, Ch 10, Table 10.17, pp. 10.44-10.47
+    #     (md5 97b97e8d0e4ca101c77fac2d63a0cb86).
+    #   2019: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17 (Updated),
+    #     pp. 10.68-10.70 (md5 c1784e747af9bb307e93f4170c12679a).
+    #
+    # Neither edition publishes exactly three numbers for every system, so two
+    # collapse rules are applied. Both are WHEP choices, not IPCC statements:
+    #
+    #   2006, per-degree rows (liquid/slurry, uncovered lagoon): the middle
+    #     column of each temperature class. Table 10.15 of the same chapter
+    #     defines the classes as Cool below 15 C, Temperate 15 to 25 C and
+    #     Warm above 25 C, and Table 10.17 groups its 19 per-degree columns
+    #     the same way, so the middle columns are 12 C, 20 C and 27 C.
+    #     Liquid/slurry takes the "without natural crust cover" series; the
+    #     40 percent crust reduction is not applied.
+    #   2019, sub-zone rows: the unweighted mean over the sub-zones the
+    #     Refinement groups into each of Cool, Temperate and Warm --
+    #     Cool = Cool Temperate Moist, Cool Temperate Dry, Boreal Moist,
+    #     Boreal Dry; Temperate = Warm Temperate Moist, Warm Temperate Dry;
+    #     Warm = Tropical Montane, Tropical Wet, Tropical Moist, Tropical Dry.
+    #     Liquid/slurry is read at the 6-month retention time, which is the
+    #     Refinement's own stated default where retention time is unknown
+    #     (Table 10.17 footnote 1).
+    #
+    # The 2006 anaerobic digester is `NA` on purpose: the edition publishes
+    # "0-100%" and requires the compiler to compute it with its Formula 1, so
+    # there is no default to ship. An MMS split that routes manure to a
+    # digester therefore aborts under `mcf_source = "ipcc_2006"` instead of
+    # asserting a number the edition does not give.
+    #
+    # The 2019 digester is published as six leakage-and-storage classes, which
+    # a single "Anaerobic Digester" label cannot hold. They are carried here as
+    # six distinct `mms_type` values; no shipped MMS vocabulary selects one, so
+    # picking a class is an open decision (whep#1022) rather than a default.
+    climate_mcf_ipcc = tibble::tribble(
+      ~edition, ~mms_type, ~climate_zone, ~mcf_percent,
+      # -- 2006 Guidelines, Table 10.17 --
+      "ipcc_2006", "Daily Spread",           "Cool",       0.1,
+      "ipcc_2006", "Daily Spread",           "Temperate",  0.5,
+      "ipcc_2006", "Daily Spread",           "Warm",       1.0,
+      "ipcc_2006", "Solid Storage",          "Cool",       2.0,
+      "ipcc_2006", "Solid Storage",          "Temperate",  4.0,
+      "ipcc_2006", "Solid Storage",          "Warm",       5.0,
+      "ipcc_2006", "Dry Lot",                "Cool",       1.0,
+      "ipcc_2006", "Dry Lot",                "Temperate",  1.5,
+      "ipcc_2006", "Dry Lot",                "Warm",       2.0,
+      "ipcc_2006", "Liquid/Slurry",          "Cool",      20.0,
+      "ipcc_2006", "Liquid/Slurry",          "Temperate", 42.0,
+      "ipcc_2006", "Liquid/Slurry",          "Warm",      78.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Cool",      70.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Temperate", 78.0,
+      "ipcc_2006", "Anaerobic Lagoon",       "Warm",      80.0,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Cool",       1.0,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Temperate",  1.5,
+      "ipcc_2006", "Pasture/Range/Paddock",  "Warm",       2.0,
+      "ipcc_2006", "Poultry Manure",         "Cool",       1.5,
+      "ipcc_2006", "Poultry Manure",         "Temperate",  1.5,
+      "ipcc_2006", "Poultry Manure",         "Warm",       1.5,
+      "ipcc_2006", "Composting - Intensive", "Cool",       0.5,
+      "ipcc_2006", "Composting - Intensive", "Temperate",  1.0,
+      "ipcc_2006", "Composting - Intensive", "Warm",       1.5,
+      "ipcc_2006", "Composting - Passive",   "Cool",       0.5,
+      "ipcc_2006", "Composting - Passive",   "Temperate",  1.0,
+      "ipcc_2006", "Composting - Passive",   "Warm",       1.5,
+      "ipcc_2006", "Anaerobic Digester",     "Cool",       NA,
+      "ipcc_2006", "Anaerobic Digester",     "Temperate",  NA,
+      "ipcc_2006", "Anaerobic Digester",     "Warm",       NA,
+      "ipcc_2006", "Burned for Fuel",        "Cool",      10.0,
+      "ipcc_2006", "Burned for Fuel",        "Temperate", 10.0,
+      "ipcc_2006", "Burned for Fuel",        "Warm",      10.0,
+      # -- 2019 Refinement, Table 10.17 (Updated) --
+      "ipcc_2019", "Daily Spread",           "Cool",       0.1,
+      "ipcc_2019", "Daily Spread",           "Temperate",  0.5,
+      "ipcc_2019", "Daily Spread",           "Warm",       1.0,
+      "ipcc_2019", "Solid Storage",          "Cool",       2.0,
+      "ipcc_2019", "Solid Storage",          "Temperate",  4.0,
+      "ipcc_2019", "Solid Storage",          "Warm",       5.0,
+      "ipcc_2019", "Dry Lot",                "Cool",       1.0,
+      "ipcc_2019", "Dry Lot",                "Temperate",  1.5,
+      "ipcc_2019", "Dry Lot",                "Warm",       2.0,
+      "ipcc_2019", "Liquid/Slurry",          "Cool",      18.75,
+      "ipcc_2019", "Liquid/Slurry",          "Temperate", 39.0,
+      "ipcc_2019", "Liquid/Slurry",          "Warm",      70.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Cool",      56.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Temperate", 74.5,
+      "ipcc_2019", "Anaerobic Lagoon",       "Warm",      79.0,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Cool",       0.47,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Temperate",  0.47,
+      "ipcc_2019", "Pasture/Range/Paddock",  "Warm",       0.47,
+      "ipcc_2019", "Poultry Manure",         "Cool",       1.5,
+      "ipcc_2019", "Poultry Manure",         "Temperate",  1.5,
+      "ipcc_2019", "Poultry Manure",         "Warm",       1.5,
+      "ipcc_2019", "Composting - Intensive", "Cool",       0.5,
+      "ipcc_2019", "Composting - Intensive", "Temperate",  1.0,
+      "ipcc_2019", "Composting - Intensive", "Warm",       1.5,
+      "ipcc_2019", "Composting - Passive",   "Cool",       1.0,
+      "ipcc_2019", "Composting - Passive",   "Temperate",  2.0,
+      "ipcc_2019", "Composting - Passive",   "Warm",       2.5,
+      "ipcc_2019", "Burned for Fuel",        "Cool",      10.0,
+      "ipcc_2019", "Burned for Fuel",        "Temperate", 10.0,
+      "ipcc_2019", "Burned for Fuel",        "Warm",      10.0,
+      # The six 2019 digester classes, unreachable by the shipped MMS
+      # vocabulary and deliberately not collapsed onto "Anaerobic Digester".
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Cool", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Temperate", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Gastight Storage",
+        "Warm", 1.00,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Cool", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Temperate", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Low Quality Storage",
+        "Warm", 1.41,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Cool", 3.55,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Temperate", 4.38,
+      "ipcc_2019", "Anaerobic Digester - Low Leakage, Open Storage",
+        "Warm", 4.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Cool", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Temperate", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Gastight Storage",
+        "Warm", 9.59,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Cool", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Temperate", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Low Quality Storage",
+        "Warm", 10.00,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Cool", 12.14,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Temperate", 12.97,
+      "ipcc_2019", "Anaerobic Digester - High Leakage, Open Storage",
+        "Warm", 13.17
     ),
 
     # Regional MMS Distribution.
@@ -2183,6 +2335,7 @@ main <- function() {
     livestock_production_defaults = ipcc_t2_raw$production_defaults,
     feed_characteristics = ipcc_t2_raw$feed_characteristics,
     climate_mcf = ipcc_t2_raw$climate_mcf,
+    climate_mcf_ipcc = ipcc_t2_raw$climate_mcf_ipcc,
     regional_mms_distribution = ipcc_t2_raw$regional_mms_distribution,
     temperature_adjustment = ipcc_t2_raw$temperature_adjustment,
     indirect_n2o_ef = ipcc_t2_raw$indirect_n2o_ef,

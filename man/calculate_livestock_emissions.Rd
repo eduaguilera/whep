@@ -35,21 +35,35 @@ this is opt-in rather than the default.
 region column it carries.
 }
 
-\code{climate_source} selects where the climate zone the methane conversion
-factors in \link{climate_mcf} are read at comes from. A \code{climate_zone} a row
-already carries is always used and stamped \code{climate_from_data}; the option
-governs only the rows left without one, whether that is a hole in a
-supplied column or a wholly absent column.
+\code{mcf_source} selects which methane conversion factor table the Tier 2
+manure CH4 weighting reads:
 \itemize{
-\item \code{"assumed"} (default): fill with \code{assumed_climate_zone}.
-\item \code{"from_data"}: abort instead of assuming.
+\item \code{"as_shipped"} (default): \link{climate_mcf}, whose live rows are
+predominantly the 2006 Guidelines Table 10.17 with six cells that match
+no published IPCC value (whep#601, whep#1022).
+\item \code{"ipcc_2006"}: the matching \code{edition} rows of \link{climate_mcf_ipcc}, read
+off Table 10.17 of the 2006 Guidelines.
+\item \code{"ipcc_2019"}: the matching \code{edition} rows of \link{climate_mcf_ipcc}, read
+off Table 10.17 (Updated) of the 2019 Refinement.
 }
 
+Neither edition publishes one number per Cool/Temperate/Warm zone for
+every system, so both alternatives apply a stated collapse rule; see
+\link{climate_mcf_ipcc}. The shipped default is kept because changing the MCF
+moves published Tier 2 manure CH4, which is a maintainer decision and not
+a wiring cleanup. \code{method_manure_ch4} records the table used.
+
+\code{climate_source} selects the climate zone the methane conversion factors
+in the MCF table are read at. A \code{climate_zone} column already on the frame
+is always used. \code{"assumed"} (default) fills a missing one with
+\code{assumed_climate_zone}; \code{"from_data"} aborts instead of assuming.
+
 \code{assumed_climate_zone} is the zone \code{"assumed"} fills in: \code{"Cool"},
-\code{"Temperate"} (default) or \code{"Warm"}. It is an assumption, not a
-measurement; \code{method_manure_ch4} records per row which of the sources
-applied, and this argument exists so the sensitivity to the assumption can
-be measured (whep#949).}
+\code{"Temperate"} (default) or \code{"Warm"}. WHEP has no territory-to-zone
+crosswalk, so the whole world is assumed Temperate unless a caller
+supplies zones; \code{method_manure_ch4} records which of the two happened, and
+this argument exists so the sensitivity to the assumption can be measured
+(whep#949).}
 }
 \value{
 Dataframe with all emission columns, method tracking,
