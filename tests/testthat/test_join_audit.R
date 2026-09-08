@@ -164,7 +164,13 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 70 since whep#1003: `.residue_use_fractions()` attaches the Krausmann
+  # recovery and UN sub-region feed-use groupings so the CBS residue split can
+  # use the same coefficients the crop-NPP path already does. It is the same
+  # `time_invariant` region join `.sci_crop_prod_wide` records, off the same
+  # `regions_full` columns, and the fractions it emits are keyed on `year`.
+  expect_lte(sum(baseline$n), 70L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
@@ -257,7 +263,11 @@ test_that("every year-free territorial grouping is classified", {
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
-  expect_lte(sum(full$n), 81L)
+  #
+  # 82 since whep#1003: the region dedup inside `.residue_use_fractions()`,
+  # one row per area of the same time-invariant Krausmann and UN sub-region
+  # groupings `.sci_crop_regions` already dedups the same way.
+  expect_lte(sum(full$n), 82L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(
     full$class %in%

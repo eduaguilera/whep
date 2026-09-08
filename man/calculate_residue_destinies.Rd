@@ -4,7 +4,11 @@
 \alias{calculate_residue_destinies}
 \title{Estimate the destinies of crop residues.}
 \usage{
-calculate_residue_destinies(x, method = c("krausmann_regional", "shares"))
+calculate_residue_destinies(
+  x,
+  method = c("krausmann_regional", "shares"),
+  bedding_fraction = 0
+)
 }
 \arguments{
 \item{x}{A tibble with \code{item_prod_code} and \code{residue_dm_t}. The
@@ -17,15 +21,61 @@ the recovery-table labels or the matching \code{regions_full} labels. The
 \item{method}{Destiny method: \code{"krausmann_regional"} (default, Krausmann
 recovery x UN-sub-regional feed-use fraction) or \code{"shares"} (the
 Spain-specific per-crop-year use/burn shares, flagged \code{to_be_revised}).}
+
+\item{bedding_fraction}{Share of the \strong{removed non-feed} residue used as
+animal bedding, in \verb{[0, 1]}. Default \code{0}, which leaves every published
+value where it was: the bedding destiny is reported as zero and
+\code{residue_burn_dm_t} keeps the whole non-feed removal, exactly as before
+this argument existed.
+
+\strong{There is deliberately no sourced default}, because no settled global
+bedding-only fraction exists. Every global framework merges bedding with
+feed: FAO GLEAM 2.0/3.0 \code{FracRemove} (default 0.45) covers "feed, bedding
+and construction" together, and the IPCC 2019 Refinement Vol.4 Ch.11
+Eq. 11.6 \code{FracRemove} has the same scope with no default at all ("if data
+are not available, assume no removal"). \code{residue_feed_fraction}, the
+feed-use table this function uses, is drawn from that same literature and
+likewise does not isolate bedding. Three anchors exist if a value is
+wanted, none of them a settled coefficient:
+\itemize{
+\item Wirsenius (2000, \emph{Human Use of Land and Organic Materials}, PhD thesis,
+Chalmers/Göteborg, Table 3.21 p.126): 270 Tg DM/yr of litter, i.e. 14\%
+of \emph{distributed} cereal straw and stover and 11\% of all distributed crop
+by-products, with region x species rates in Table 3.13 p.86. The author
+grades these as "very rough figures", and South and Central Asia cattle
+is entered as 0 because the data were absent — an admitted gap that must
+not be inherited as an estimate.
+\item Statistics Denmark tables HALM / HALM1 / HALM2, "Straw yield and use",
+1997-2025, the only official statistic carrying a bedding-only column:
+16-21\% of straw production and about 30\% of the removed straw.
+\item Bentsen, Felby and Thorsen (2014), \emph{Prog. Energy Combust. Sci.}
+40:59-73, Table 5 (Denmark, 2006-2008, from the same source): barley
+16\%, wheat 11\% of production. The same paper's section 4.7 is worth
+reading before generalising any of this: "very little information exists
+on how residues are actually used".
+}
+
+Note also that Smil (1999) carries no bedding fraction, only a
+straw-per-manure ratio (about 250 kg straw per tonne of excrement), so it
+cannot be cited for a share of production. Picking a number here is the
+caller's decision and must be justified where it is set. See whep#1005.
+
+Bedding is taken out of the removed non-feed share, never out of
+\code{residue_soil_dm_t}, which is what the IPCC 2019 Refinement Vol.4 Ch.10
+(p. 10.96) requires: bedding coming from crop residues has to be
+accounted for in \code{FracRemove} so it is not also counted as residue
+returned to the soil.}
 }
 \value{
-The input tibble with \code{residue_feed_dm_t}, \code{residue_burn_dm_t},
-\code{residue_soil_dm_t} and \code{method_residue_destiny}.
+The input tibble with \code{residue_feed_dm_t}, \code{residue_bedding_dm_t},
+\code{residue_burn_dm_t}, \code{residue_soil_dm_t}, \code{method_residue_destiny} and
+\code{bedding_fraction}.
 }
 \description{
-Splits crop residue dry matter into three destinies that sum to the total
-residue: fed to livestock, burned / removed for fuel, and left on the field
-for soil incorporation.
+Splits crop residue dry matter into four destinies that sum to the total
+residue: fed to livestock, used as animal bedding, otherwise removed
+(burned, fuel, construction, industry, export), and left on the field for
+soil incorporation.
 }
 \examples{
 calculate_residue_destinies(

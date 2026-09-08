@@ -250,6 +250,12 @@
      and it cannot be year-keyed because the resolver does not carry it --
      `polity_start_year` is the polity's, not the map's (area 276: 2011 against
      2012).",
+    ".residue_use_fractions", "left_join", "area_code", 1L, "time_invariant",
+    "The same Krausmann recovery and UN sub-region feed-use groupings
+     `.sci_crop_prod_wide` attaches, for the same reason and off the same
+     `regions_full` columns: neither varies in time. The residue rows this
+     joins onto do carry `year`, and the fractions it emits are keyed on it
+     (whep#1003).",
     ".resolve_hist_trade_polities", "merge", "iso3c", 1L, "identity_lookup",
     "ISO3 -> area bridge, immediately followed by the year-aware polity
      resolution.",
@@ -580,6 +586,10 @@
     ".read_fodder_euadb", "distinct", "area_iso3c", 1L, "identity_lookup",
     "ISO3 -> bucket bridge, one row per ISO3; the fodder rows keep their own
      year.",
+    ".residue_use_fractions", "distinct", "area_code", 1L, "time_invariant",
+    "One row per area of the Krausmann recovery and UN sub-region feed-use
+     groupings, the same dedup `.sci_crop_regions` does off the same
+     `regions_full` columns: the frame has no year to collapse (whep#1003).",
     ".reporting_periods", "summarise", "area_code, polity_code", 1L,
     "year_axis",
     "`min(map_year_start)` and `max(map_year_end)` ARE the reduction over the

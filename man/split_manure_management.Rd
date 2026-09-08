@@ -22,13 +22,49 @@ resolves to, and the Global rows when its region has none. Only four
 \verb{(region, species)} pairs carry region-specific rows (North America
 cattle and swine, Western Europe cattle, Latin America cattle), so
 every other row is unchanged.
-}}
+}
+
+\code{bedding} optionally traces crop-residue bedding into the managed manure
+streams. \code{NULL} (default) leaves every published value where it was: the
+bedding columns are reported as zero and the streams stay excreta-only.
+Supply the \code{\link[=build_residue_bedding_supply]{build_residue_bedding_supply()}} contract (\code{year}, \code{territory},
+\code{sub_territory}, \code{bedding_dm_t}, \code{bedding_c_t}, \code{bedding_n_t}) to add it.
+
+Bedding reaches only the \strong{litter-using collected} systems --
+\code{"Solid Storage"}, \code{"Daily Spread"} and \code{"Poultry Manure"}, the last being
+the deep-litter system whose own IPCC loss row is labelled "Poultry manure
+with litter". \code{"Liquid/Slurry"} and \code{"Anaerobic Lagoon"} use little or no
+litter and get none, and the grazing (\code{"Pasture/Range/Paddock"}) stream
+keeps its excreta-only composition because animals at pasture are not
+bedded (whep#1005). Within a \verb{(year, territory, sub_territory)} the
+bedding is split across those systems in proportion to their excreted
+nitrogen, the same N-proportional share \code{\link[=allocate_manure_to_land]{allocate_manure_to_land()}} uses
+for its carbon and volatile-solids splits.
+
+This is a \strong{supply-side} wiring only: the quantity supplied is placed on
+the litter-using streams and reported, but it is not bounded by what the
+housed herd could physically use. Bedding supplied for a group with no
+litter-using collected stream is warned about with its magnitude rather
+than zeroed in silence. Bounding it by demand needs per-head litter rates,
+and the citable sets disagree by more than an order of magnitude: EMEP/EEA
+Guidebook 2023, Ch. 3.B Table 3-7 gives 1500 kg straw per dairy cow-year
+over a 180-day housing period and 200 kg per finishing pig-year, and
+Rösemann et al. (Thünen Report 84) gives 5.0-8.0 kg per dairy place-day by
+housing system, while the only globally applied set (Smerald, Rahimi and
+Scheer 2023, \emph{Sci. Data} 10:685, from Scarlat et al. 2010) uses 0.375 kg
+per cattle-day. That is whep#1005's point 2 and it stays open.
+
+IPCC 2019 Refinement Vol.4 Ch.10 p. 10.96 offers an independent
+cross-check on the nitrogen: about 7 kg N per dairy cow-year, 4 for other
+cattle, 0.8 for market and 5.5 for breeding swine, doubled for deep
+bedding (Webb 2001; Döhler et al. 2002).}
 }
 \value{
 A tibble with one row per
 \verb{year x territory x sub_territory x livestock_category x mms_type}, plus
 \code{species_gen}, \code{loss_category}, \code{stream} (\code{"grazing"} or \code{"collected"}),
-\code{n_stream}, \code{c_stream}, \code{vs_stream} and \code{method_mms}.
+\code{n_stream}, \code{c_stream}, \code{vs_stream}, \code{dm_bedding}, \code{n_bedding},
+\code{c_bedding}, \code{method_mms} and \code{method_bedding}.
 }
 \description{
 Splits the excreted nitrogen, carbon and volatile solids from

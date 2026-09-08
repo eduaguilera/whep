@@ -67,16 +67,17 @@
   )
 }
 
-# Excreted N must equal field-applied N plus management losses (N2O-N, N2-N,
-# volatilized, leached); indirect N2O is a sub-flux and is not added again.
+# Excreted N (plus any bedding N traced into the managed streams) must equal
+# field-applied N plus management losses (N2O-N, N2-N, volatilized, leached);
+# indirect N2O is a sub-flux and is not added again.
 .balance_n <- function(res) {
   applied <- sum(res$applied$applied_n)
   lost <- with(
     res$losses,
     sum(n_volatilized + n_leached + n2o_direct_n + n2_n)
   )
-  excreted <- sum(res$excretion$n_excretion)
-  c(out = applied + lost, excreted = excreted)
+  supplied <- sum(res$excretion$n_excretion) + sum(res$bedding$n_bedding)
+  c(out = applied + lost, excreted = supplied)
 }
 
 test_that("national run chains the pipeline and conserves the N balance", {
@@ -85,7 +86,7 @@ test_that("national run chains the pipeline and conserves the N balance", {
     resolution = "national",
     gridded = .toy_gridded_nat()
   )
-  expect_named(res, c("applied", "losses", "excretion"))
+  expect_named(res, c("applied", "losses", "excretion", "bedding"))
   bal <- .balance_n(res)
   expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
 })
@@ -336,4 +337,46 @@ test_that("build_livestock_nutrient_flows guards bad resolution and methods stag
     ),
     "excrete"
   )
+})
+
+test_that("bedding is reported as zero by default and does not move a number", {
+  res <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    resolution = "national",
+    gridded = .toy_gridded_nat()
+  )
+  expect_true(all(res$bedding$n_bedding == 0))
+  expect_true(all(res$bedding$c_bedding == 0))
+  expect_true(all(res$applied$method_bedding == "none"))
+  expect_true(all(res$applied$method_bedding_carbon == "cap_at_stored_cn"))
+})
+
+test_that("bedding routed through the split stage conserves the N balance", {
+  # The driver's own invariant, extended: excreted + bedding = applied + lost.
+  # The bedding term is the reason it still closes once litter is traced.
+  bedding <- tibble::tibble(
+    year = 2020L,
+    territory = "ESP",
+    sub_territory = NA_character_,
+    bedding_dm_t = 50,
+    bedding_c_t = 50 * 0.458,
+    bedding_n_t = 50 * 0.00592
+  )
+  res <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    resolution = "national",
+    methods = list(split = list(bedding = bedding)),
+    gridded = .toy_gridded_nat(cap = 1e6)
+  )
+  expect_equal(sum(res$bedding$n_bedding), 50 * 0.00592)
+  expect_true(all(res$applied$method_bedding == "litter_mms_n_share"))
+  bal <- .balance_n(res)
+  expect_equal(bal[["out"]], bal[["excreted"]], tolerance = 1e-6)
+
+  base <- whep::build_livestock_nutrient_flows(
+    .toy_intake_nat(),
+    resolution = "national",
+    gridded = .toy_gridded_nat(cap = 1e6)
+  )
+  expect_gt(sum(res$applied$applied_n), sum(base$applied$applied_n))
 })

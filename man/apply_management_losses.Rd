@@ -7,15 +7,42 @@
 apply_management_losses(split, options = list())
 }
 \arguments{
-\item{split}{A tibble from \code{\link[=split_manure_management]{split_manure_management()}}.}
+\item{split}{A tibble from \code{\link[=split_manure_management]{split_manure_management()}}. The \code{dm_bedding},
+\code{n_bedding} and \code{c_bedding} columns are optional and default to zero, so a
+\code{split} produced before bedding existed behaves exactly as it did.}
 
 \item{options}{A named list. \code{method} selects the loss method
-(\code{"ipcc_2019_tier2"}).}
+(\code{"ipcc_2019_tier2"}). \code{bedding_carbon} selects what happens to the
+bedding carbon in storage, and only matters once bedding is non-zero:
+\itemize{
+\item \code{"cap_at_stored_cn"} (default): the cap is applied to excreta plus
+bedding carbon together, \verb{applied_c = min(c_stream + c_bedding, applied_n * post-storage C:N)}. This is the published behaviour and it
+is worth knowing what it implies: on WHEP's own coefficients the cap
+already \strong{binds} for the solid systems, so today's applied C:N for
+\verb{Solid Storage} and \verb{Daily Spread} is already exactly the bedded
+farmyard-manure value (cattle 20.16 against excreta 19.07), reached by
+discarding 30\% of the excreted carbon rather than by adding straw.
+Adding bedding under this rule therefore raises the applied carbon only
+through the bedding \strong{nitrogen} it brings, and books the rest of the
+straw carbon as a storage loss.
+\item \code{"additive"}: the cap is applied to the excreta carbon alone and the
+bedding carbon is added on top of it untouched,
+\verb{applied_c = min(c_stream, applied_n * post-storage C:N) + c_bedding}.
+No storage loss is applied to bedding carbon, which makes this an
+explicit upper bound rather than an estimate -- it needs no
+bedding-specific loss coefficient, because there is no sourced one.
+}
+
+Whichever rule is chosen, bedding is \strong{not} added to the volatile solids:
+the \code{Bo}/\code{MCF} methane pathway downstream is calibrated on excreta
+volatile solids, and extending it to litter is a separate decision
+(whep#1005).}
 }
 \value{
 The input rows with \code{manure_type}, \code{applied_n}, \code{applied_c},
 \code{applied_vs}, \code{n_volatilized}, \code{n_leached}, \code{n2o_direct_n}, \code{n2_n},
-\code{n2o_indirect_n}, \code{c_lost}, \code{vs_destroyed} and \code{method_losses}.
+\code{n2o_indirect_n}, \code{c_lost}, \code{vs_destroyed}, \code{method_losses} and
+\code{method_bedding_carbon}.
 }
 \description{
 Nets the nitrogen surviving manure management onto the field, applying the

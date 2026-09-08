@@ -32,8 +32,12 @@
 #' @return A named list with `applied` (manure applied per
 #'   `land_use x crop (x cell)` with `manure_type` (`"Excreta"`/`"Solid"`/
 #'   `"Liquid"`) and all `method_*` provenance columns), `losses`
-#'   (management-loss side-streams per polity) and `excretion` (the
-#'   per-category excretion totals).
+#'   (management-loss side-streams per polity), `excretion` (the per-category
+#'   excretion totals) and `bedding` (the bedding dry matter, carbon and
+#'   nitrogen that entered the managed streams; all zero unless
+#'   `methods$split$bedding` was supplied). The conserved nitrogen balance is
+#'   `excreted + bedding = applied + management losses`, which reduces to the
+#'   excreta-only identity when no bedding is traced.
 #' @export
 #' @examples
 #' intake <- tibble::tribble(
@@ -81,8 +85,24 @@ build_livestock_nutrient_flows <- function(
       alloc_opt
     ),
     losses = .summarise_losses(losses),
-    excretion = excretion
+    excretion = excretion,
+    bedding = .summarise_bedding(split)
   )
+}
+
+# The bedding that entered the managed streams, per polity. Reported even when
+# it is all zeros: the nitrogen balance is `excreted + bedding = applied +
+# losses`, and a caller checking that identity needs the bedding term to be
+# present rather than inferred from whether an option was passed.
+.summarise_bedding <- function(split) {
+  split |>
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::all_of(c("dm_bedding", "n_bedding", "c_bedding")),
+        sum
+      ),
+      .by = c("year", "territory", "sub_territory")
+    )
 }
 
 # Private helpers ----
@@ -156,7 +176,9 @@ build_livestock_nutrient_flows <- function(
       method_n_excretion = excretion$method_n_excretion[1],
       method_vs = excretion$method_vs[1],
       method_mms = split$method_mms[1],
+      method_bedding = split$method_bedding[1],
       method_losses = losses$method_losses[1],
+      method_bedding_carbon = losses$method_bedding_carbon[1],
       method_allocation = alloc_opt$method,
       method_cap = alloc_opt$cap_method,
       disposal_method = alloc_opt$disposal_method,
