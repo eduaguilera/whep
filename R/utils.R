@@ -2117,6 +2117,11 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # livestock_coefs.R / livestock_manure.R (#1022) — the as-published MCF
+    # table the `mcf_source` option can read instead of `climate_mcf`, and
+    # the IPCC-edition column that selects one of its two transcriptions
+    "climate_mcf_ipcc",
+    "edition"
   )
 )

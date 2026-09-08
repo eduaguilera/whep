@@ -23,8 +23,24 @@
 #'   * `"global"`: every row takes the `region == "Global"` split, whatever
 #'     region column it carries.
 #'
+#'   `mcf_source` selects which methane conversion factor table the Tier 2
+#'   manure CH4 weighting reads:
+#'   * `"as_shipped"` (default): [climate_mcf], whose live rows are
+#'     predominantly the 2006 Guidelines Table 10.17 with six cells that match
+#'     no published IPCC value (whep#601, whep#1022).
+#'   * `"ipcc_2006"`: the matching `edition` rows of [climate_mcf_ipcc], read
+#'     off Table 10.17 of the 2006 Guidelines.
+#'   * `"ipcc_2019"`: the matching `edition` rows of [climate_mcf_ipcc], read
+#'     off Table 10.17 (Updated) of the 2019 Refinement.
+#'
+#'   Neither edition publishes one number per Cool/Temperate/Warm zone for
+#'   every system, so both alternatives apply a stated collapse rule; see
+#'   [climate_mcf_ipcc]. The shipped default is kept because changing the MCF
+#'   moves published Tier 2 manure CH4, which is a maintainer decision and not
+#'   a wiring cleanup. `method_manure_ch4` records the table used.
+#'
 #'   `climate_source` selects the climate zone the methane conversion factors
-#'   in [climate_mcf] are read at. A `climate_zone` column already on the frame
+#'   in the MCF table are read at. A `climate_zone` column already on the frame
 #'   is always used. `"assumed"` (default) fills a missing one with
 #'   `assumed_climate_zone`; `"from_data"` aborts instead of assuming.
 #'
@@ -389,10 +405,10 @@ NULL
 .calc_weighted_mcf <- function(data, options = list()) {
   opt <- .manure_options(options)
   data <- .apply_climate_zone(data, opt)
+  data <- .stamp_ch4_method(data, paste0("mcf_", opt$mcf_source))
 
   # Get MCF by MMS and climate zone
-  mcf_tbl <- climate_mcf |>
-    dplyr::select(mms_type, climate_zone, mcf_percent)
+  mcf_tbl <- .mcf_table(opt$mcf_source)
 
   # For each row, compute weighted MCF over its MMS distribution.
   data <- data |>
@@ -623,6 +639,7 @@ NULL
 .manure_options <- function(options = list()) {
   defaults <- list(
     mms_region = "as_available",
+    mcf_source = "as_shipped",
     climate_source = "assumed",
     assumed_climate_zone = "Temperate"
   )
@@ -637,12 +654,17 @@ NULL
   # rlang::arg_match() needs a symbol, so each option is bound to one first.
   opt <- utils::modifyList(defaults, options)
   mms_region <- opt$mms_region
+  mcf_source <- opt$mcf_source
   climate_source <- opt$climate_source
   assumed_climate_zone <- opt$assumed_climate_zone
   list(
     mms_region = rlang::arg_match(
       mms_region,
       c("as_available", "resolve", "global")
+    ),
+    mcf_source = rlang::arg_match(
+      mcf_source,
+      c("as_shipped", "ipcc_2006", "ipcc_2019")
     ),
     climate_source = rlang::arg_match(
       climate_source,
@@ -661,6 +683,28 @@ NULL
 #' @noRd
 .mms_region_col <- function(mms_region) {
   if (identical(mms_region, "global")) NULL else "region"
+}
+
+#' Which MCF table `.calc_weighted_mcf()` reads.
+#'
+#' `"as_shipped"` is the default because moving the MCF moves published Tier 2
+#' manure CH4: the shipped table's live rows are 2006 Table 10.17 values, so
+#' `"ipcc_2006"` differs from it only where WHEP read an off-class column
+#' (liquid/slurry, anaerobic lagoon) and `"ipcc_2019"` also replaces the
+#' pasture/range/paddock row with the Refinement's single 0.47 percent. Which
+#' edition WHEP should track is whep#1022, not a default this function picks.
+#'
+#' The alternatives keep `climate_mcf`'s key space, so the join in
+#' `.calc_weighted_mcf()` is unchanged and an MMS label neither table carries
+#' still aborts in `.check_mms_matched()`.
+#' @noRd
+.mcf_table <- function(mcf_source) {
+  if (identical(mcf_source, "as_shipped")) {
+    return(dplyr::select(climate_mcf, mms_type, climate_zone, mcf_percent))
+  }
+  climate_mcf_ipcc |>
+    dplyr::filter(edition == mcf_source) |>
+    dplyr::select(mms_type, climate_zone, mcf_percent)
 }
 
 #' Resolve the IPCC region the MMS split is keyed on, and record which split

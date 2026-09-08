@@ -737,6 +737,7 @@ reference:
     Climate, manure management, and uncertainty tables.
   contents:
   - climate_mcf
+  - climate_mcf_ipcc
   - regional_mms_distribution
   - temperature_adjustment
   - grazing_energy_coefs

@@ -31,8 +31,25 @@ by climate (2006 gives 0.5/1.0/1.5 for each; the 2019 Refinement
 by neither: 2006 gives the range 0-100 percent and requires a
 calculation, the 2019 Refinement six leakage-and-storage classes
 spanning 1.00 to 13.17 percent. \strong{Assumed, unverified.}
-Tracked in whep#601.
 }
+
+Only six of the eleven systems here are reachable on the live path:
+\link{regional_mms_distribution} routes manure to daily spread, solid storage,
+liquid/slurry, the anaerobic lagoon, pasture/range/paddock and poultry
+manure, and \code{.calc_weighted_mcf()} aborts on any label outside that set.
+So the dry-lot, composting and anaerobic-digester cells enter no published
+number today, and the four rows keyed \code{climate_zone} \code{"All"} are
+unreachable for a second reason: the MCF join is on
+\verb{(mms_type, climate_zone)} and never asks for \code{"All"}. The cells that both
+are live and depend on the edition are pasture/range/paddock,
+liquid/slurry and the anaerobic lagoon. \link{climate_mcf_ipcc} carries the
+as-published alternative for each, selectable with the \code{mcf_source}
+option; measured, the 2019 Refinement's single 0.47 percent pasture value
+moves Tier 2 manure CH4 by -68.7 percent for the fully grazing species
+and by +1.2 percent for cattle at the Temperate default, where the
+pasture drop and a higher liquid/slurry factor nearly cancel.
+
+Tracked in whep#601 and whep#1022.
 }
 \usage{
 climate_mcf
