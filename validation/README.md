@@ -315,11 +315,24 @@ because it is an arithmetic identity over three integers, not a measurement.
    scopes its inputs to container 110 and the six MAFF items rather than let
    ~200 countries be dropped for having no cell; with no non-Japanese cell in
    the grid, that changes nothing about Japan's answer.
-2. *The registered world pin is unsound* (whep#1010): zero inland water and
-   zero ice, which `territory == land + water + ice` cannot see because zero
-   satisfies it. The sound version is `20260825T102349Z-1a0eb`. The pilot
-   support was built with the water layer applied, so this run does not
-   inherit the defect — and cannot be compared against a world run that does.
+2. *The world pin was unsound and has been repinned* (whep#1010, fixed by
+   whep#1012). The defective version `20260827T190201Z-f82a2` carried zero
+   inland water and zero ice, which `territory == land + water + ice` cannot
+   see because zero satisfies it. **`whep_inputs.csv` now registers
+   `20260907T111653Z-e654d`, which carries both layers and is the version to
+   use.** Do not repin backwards onto `20260825T102349Z-1a0eb`: it is sound on
+   the layers but predates the bucket `area_code` work (whep#907).
+   **A pilot support generated before whep#1012 must be regenerated**, and
+   this is the one case where the guard's fallback gets the wrong answer for
+   the right reason. `read_polycell_support()` defaults to
+   `require_layers = TRUE` and aborts (`whep_polycell_absent_layers`) on a
+   support whose layers it cannot vouch for. Where the `layers_supplied` stamp
+   is present the *label* answers; where it is absent the fallback asks whether
+   the column is zero in every row — and **Japan's ice genuinely is**, because
+   Japan has no glaciers in the source. So an unstamped pilot support is
+   refused for having a correct measurement. Re-running
+   `inst/scripts/build_pilot_polycell_support.R` fixes it: it calls
+   `build_polycell_support()`, which stamps `layers_supplied` itself.
 3. *The alias rows are injected.* `resolve_admin_units()` resolves
    `JPN-HOKKAIDO` under the code system `whep-lab-japan`, and
    `polity_label_aliases` ships none of those rows: they are a whep-polities
