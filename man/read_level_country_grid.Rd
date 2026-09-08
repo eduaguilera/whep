@@ -9,7 +9,9 @@ read_level_country_grid(
   support = NULL,
   containment = NULL,
   reference_year = NULL,
-  grid_vintage = c("snapshot_2015", "year_aware")
+  grid_vintage = c("snapshot_2015", "year_aware"),
+  containers = NULL,
+  double_claim = c("co_presence", "measured")
 )
 }
 \arguments{
@@ -34,6 +36,15 @@ grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
 \emph{Which vintage of the support level 0 is read at}, which states why the
 snapshot is still the default. Not read at \code{level >= 1L}, which is
 year-aware by construction; snapshot a depth with \code{reference_year}.}
+
+\item{containers}{Optional integer vector of container reporting
+\code{area_code}s the depth read is scoped to -- the containers a run grants a
+depth. \code{NULL} (default) reads every admitted edge. Only read at
+\code{level >= 1L}. See \emph{Which containers a depth is read for}.}
+
+\item{double_claim}{Which clashes the double-claim gate refuses, one of
+\code{"co_presence"} (default) or \code{"measured"}. See \emph{Which double claims are
+refused}. Only read at \code{level >= 1L}.}
 }
 \value{
 A \code{tibble} with \code{lon}, \code{lat}, \code{area_code} (integer, the container's
@@ -148,6 +159,64 @@ container's own row on the same land basis.}
 }
 }
 
+\section{Which double claims are refused}{
+
+A support that carries a container's own row beside its units' rows in one
+cell claims that ground twice: \code{cell_land_ha} is the sum over the cell, so
+every unit's share is divided by a total counting the same ground twice,
+and nothing downstream can see it because the container's national total
+still reconciles. The two rules are alternatives, never a fallback.
+
+\describe{
+\item{\code{"co_presence"}}{The default, and fail-closed: a container row
+found beside its own units is refused, full stop. It is the strict
+rule because this table carries no geometry -- whether the two
+polygons overlap cannot be read off it.}
+\item{\code{"measured"}}{Refuses only a container the cell's own area
+REFUTES: at least one shared cell-epoch whose whole claimed territory
+exceeds \code{cell_area_ha}. A cell cannot hold more territory than it has,
+so an excess is proof; but the proof is ONE-SIDED, which is why this
+is the weaker rule and not the default. A cell half of which is ocean
+can hold a duplicate under its own area and show no excess. Every
+clash it passes over is warned about by container and cell-epoch
+count.}
+}
+
+On the \verb{20260827T190201Z-f82a2} support the measurement separates the two
+cleanly: over the ten containers the shipped edge table admits at depth 1,
+3,285 of 3,965 clashing cell-epochs over-claim by 529.03 Mha in total, and
+the whole of that sits in eight containers whose units are genuinely
+nested -- Alaska inside the USA alone over-claims 150 Mha over 1,156 of its
+1,372 shared cells. The two that over-claim nothing are Ryukyu inside Japan
+1895-1945 (8 cells, 0 Mha) and Singapore inside Malaysia (1 cell, 0 Mha),
+whose ground in the shared cell is disjoint. The decision is taken per
+CONTAINER rather than per cell for that reason: a nested container's
+coastal cells hide their own duplicate, while its interior cells prove the
+nesting outright.
+}
+
+\section{Which containers a depth is read for}{
+
+Without \code{containers}, every edge \link{polity_containment} admits at this depth
+is read, whoever the run is for. On the shipped edge table that is ten
+containers with support rows -- Alaska inside the USA, three 1949
+Indonesian units, Manchuria inside three Chinese epochs, Serbia inside
+three Yugoslav ones, Singapore inside Malaysia -- and each of them is
+carried in the polycell support BESIDE its own units, so
+\code{.level_check_no_double_claim()} refuses the read. The refusal is right:
+continuing would divide every unit's share by a cell land total that
+counts the same ground twice. It is simply not the Japanese run's
+business.
+
+\code{containers} scopes the edge set to the containers asked for, and that is
+all it does. \strong{Scoping is not suppressing}: the double-claim gate, the
+aggregate-container refusal and the support-empty abort all still run, on
+the scoped edges, so a granted container whose own row survives beside its
+units aborts exactly as before. A container named here that no edge places
+at this depth aborts with class \code{whep_level_container_not_admitted} rather
+than returning a grid that silently lacks it.
+}
+
 \examples{
 # Offline: a two-cell support for one Japanese prefecture, with the
 # containment edge that puts it inside Japan. No pin and no network.
@@ -174,6 +243,16 @@ read_level_country_grid(
   level = 1L,
   support = support,
   containment = containment
+)
+
+# The same read scoped to the containers a run grants a depth. Japan's
+# reporting code is 110, so the edge above is kept and any other
+# container's is left at level 0.
+read_level_country_grid(
+  level = 1L,
+  support = support,
+  containment = containment,
+  containers = 110L
 )
 
 # The same support read at level 0. The default vintage is the 2015

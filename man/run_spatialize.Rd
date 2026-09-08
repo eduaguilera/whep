@@ -64,6 +64,16 @@ resolved at. \code{0L} is today's cell-to-\code{area_code} grid; \code{1L} and
 deeper key the cells on admin units through
 \code{\link[=read_level_country_grid]{read_level_country_grid()}}, which only the \code{"polycell"}
 crosswalk supports.
+\item \code{granted_containers} (default \code{NULL}): the container \code{area_code}s the
+run grants a depth, e.g. \code{110L} for Japan. \strong{Required whenever
+\code{level > 0}} and refused at \code{level = 0}; a depth run must say whose
+depth it is, because that decides which containment edges
+\code{\link[=read_level_country_grid]{read_level_country_grid()}} reads, which admin-share rows constrain
+the run, and which cells \code{\link[=build_allocation_layer]{build_allocation_layer()}} takes from the
+deep grid rather than from level 0. See \emph{What a granted depth runs}.
+\item \code{double_claim}: which clashes the depth read's double-claim gate
+refuses, \code{"co_presence"} (default) or \code{"measured"}, forwarded to
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}. The default is the fail-closed rule.
 \item \code{output_level} (integer, default \code{0L}): grain of the crop output.
 \code{0L} sums granted-depth rows back onto the container, so
 \verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
@@ -105,8 +115,10 @@ otherwise to a session temporary directory (suffixed with \verb{_custom} when
 }}
 }
 \value{
-Invisibly, a named list with \code{preset}, resolved \code{config},
-\code{years}, \code{out_dir}, and \code{output_paths}.
+Invisibly, a named list with \code{preset}, \code{components}, \code{cft_target},
+resolved \code{config}, \code{years}, \code{out_dir}, \code{output_paths}, and \code{admin} -- the
+resolver's coverage report and the constraint summary at a granted depth,
+\code{NULL} otherwise.
 }
 \description{
 Wrapper around \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} that resolves a named
@@ -158,6 +170,50 @@ manure-intensity weighting if present).
 }
 }
 
+\section{What a granted depth runs}{
+
+With \code{level > 0} the landuse step does not call \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}
+on a level-0 grid. It runs the subnational chain, in this order, and each
+step aborts naming what it is missing rather than continuing on the
+level-0 pattern:
+
+\enumerate{
+\item \code{\link[=read_level_country_grid]{read_level_country_grid()}} twice -- level 0 for the ungranted
+countries, \code{level} scoped to \code{granted_containers} for the granted ones
+-- and \code{\link[=build_allocation_layer]{build_allocation_layer()}} to assert the two partition every
+cell. Both halves are read year-aware, which is what
+\code{method_grid_vintage} has always recorded for a depth run.
+\item \code{\link[=read_admin_shares]{read_admin_shares()}}, scoped to \code{granted_containers}. A granted
+container with no admin row aborts with class
+\code{whep_run_admin_container_absent}; an unregistered pin with
+\code{whep_run_no_admin_shares}.
+\item \code{\link[=resolve_admin_units]{resolve_admin_units()}}, turning each source's native identifier
+into a polity code under the code system that identifier belongs to.
+Rows resolving to nothing are dropped and counted; a source resolving
+to nothing at all aborts with \code{whep_run_admin_unresolved}, and a
+source whose code system is undeclared with
+\code{whep_run_admin_code_system}.
+\item \code{\link[=resolve_admin_shares]{resolve_admin_shares()}}, applying indicator and source precedence
+and honouring \code{constraint_exclude}. A constraint sharing no
+\code{level_polity_code} with the layer aborts with
+\code{whep_run_admin_layer_mismatch}, because a run whose constraint
+matched nothing is indistinguishable from an unconstrained one in
+every output it writes.
+\item \code{\link[=allocate_level_crops]{allocate_level_crops()}}, splitting each national total across the
+container's units and spreading each unit's target over that unit's
+cells.
+\item \code{\link[=reconcile_admin_allocation]{reconcile_admin_allocation()}} and \code{\link[=seam_gate]{seam_gate()}}, written beside
+the parquets as the run's own audit trail.
+}
+
+What actually happened is recorded in \code{run_metadata.yaml} under
+\code{admin_constraint} -- the resolved, dropped and held-out row counts, the
+units constrained, the \code{method_crop_alloc} tally over the targets, the
+share basis the gate judged on, and the gate's verdict -- and per row in
+the targets' own \code{method_crop_alloc}. A level-0 run records
+\code{admin_constraint: none}.
+}
+
 \section{Which cell-to-polity crosswalk}{
 
 The producer builds two crosswalks from the same polygons.
@@ -204,6 +260,15 @@ flags, years, timestamp, package version, and the resolved
 container x item x year, at what tier, grain and depth. Written
 only when \code{level > 0}, with its header and no rows where no
 coverage is granted. See \code{\link[=admin_coverage_prototype]{admin_coverage_prototype()}}.
+\item Eleven further CSVs, written only when \code{level > 0} and the
+landuse component ran: \code{admin_targets.csv} (one row per unit, item and
+year with its share, target and \code{method_crop_alloc}),
+\code{admin_group_coverage.csv}, \code{admin_conservation.csv},
+\code{admin_breach.csv}, \code{admin_reconciliation.csv},
+\code{admin_reconciliation_units.csv}, \code{admin_unit_cropland.csv},
+\code{admin_seams.csv} and the three seam-gate tiers
+\code{admin_seam_gate_a.csv}, \code{admin_seam_gate_b.csv},
+\code{admin_seam_gate_c.csv}.
 }
 }
 
