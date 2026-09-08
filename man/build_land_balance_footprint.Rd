@@ -40,6 +40,12 @@ is the independent, non-Leontief estimator for stress-testing the
 multi-regional input-output footprint via
 \code{\link[=compare_footprint_methods]{compare_footprint_methods()}}.
 
+The crop side is \code{\link[=build_fao_arable_fallow_extension]{build_fao_arable_fallow_extension()}} with
+\code{unsupported_target = "unallocated"}, pinned explicitly: FAO land that no
+crop can be named for arrives on an \code{item_cbs_code} of \code{NA}, which the
+balance cannot route, so it is reported by the orphan-land warning rather
+than folded into a crop (whep#1026).
+
 Grass items (\code{item_cbs_code} 3000 and 3002) are barely traded, so
 their land stays with the producing country: the balance, unlike
 the input-output model, does not route grass through the
