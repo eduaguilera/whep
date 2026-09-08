@@ -363,3 +363,96 @@ testthat::test_that("the helper column does not leak into the output", {
   )
   testthat::expect_false(rlang::has_name(result, "cw_effective"))
 })
+
+# .join_temperature_adjustment: fail closed on NA -----------------------------
+
+testthat::test_that("a missing temperature is assumed and stamped", {
+  # The absent-column case already assumes 15 C and stamps it. A hole inside a
+  # supplied column is the same absence: refusing it would drop the row's
+  # animals out of the energy balance, which is what this guard was written to
+  # prevent in the first place.
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = c(100, 100),
+    method_energy = "IPCC_2019_Tier2",
+    temperature_c = c(-10, NA_real_)
+  )
+
+  testthat::expect_warning(
+    result <- whep:::.join_temperature_adjustment(data),
+    "temperature_c"
+  )
+
+  # 15 C is thermoneutral, so the assumed row takes no adjustment at all.
+  testthat::expect_equal(result$temp_adjustment, c(0.2, 0))
+  testthat::expect_equal(
+    grepl("temp_assumed_15C", result$method_energy),
+    c(FALSE, TRUE)
+  )
+})
+
+testthat::test_that("an absent temperature column keeps its declared 15 C", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    species_gen = "Cattle",
+    heads = 100,
+    method_energy = "IPCC_2019_Tier2"
+  )
+
+  result <- whep:::.join_temperature_adjustment(data)
+
+  testthat::expect_equal(result$temperature_c, 15)
+  testthat::expect_match(result$method_energy, "temp_assumed_15C")
+})
+
+testthat::test_that("a missing temperature keeps its row in the balance", {
+  # The failure this replaces: the bins span the whole real line, so an NA
+  # matched none of them and the row left the energy balance without a trace.
+  # It must now solve, with the assumption on the row.
+  data <- tibble::tibble(
+    species = c("Dairy Cattle", "Dairy Cattle"),
+    cohort = "Adult Female",
+    heads = c(100, 100),
+    weight = 600,
+    diet_quality = "Medium",
+    temperature_c = c(15, NA_real_)
+  )
+
+  testthat::expect_warning(
+    result <- whep::estimate_energy_demand(data),
+    "temperature_c"
+  )
+
+  testthat::expect_equal(nrow(result), 2L)
+  testthat::expect_false(anyNA(result$gross_energy))
+  # Both rows solve to the same energy: the assumed 15 C is the measured 15 C.
+  testthat::expect_equal(result$gross_energy[1], result$gross_energy[2])
+  testthat::expect_equal(
+    grepl("temp_assumed_15C", result$method_energy),
+    c(FALSE, TRUE)
+  )
+})
+
+testthat::test_that("no row is lost to the temperature bin lookup", {
+  data <- tibble::tibble(
+    species = "Dairy Cattle",
+    cohort = "Adult Female",
+    heads = 100,
+    weight = 600,
+    diet_quality = "Medium",
+    temperature_c = c(-40, 4.9, 5, 24.9, 25, 45)
+  )
+
+  result <- whep::estimate_energy_demand(data)
+
+  testthat::expect_equal(nrow(result), 6L)
+  testthat::expect_false(anyNA(result$temp_adjustment))
+})
+
+testthat::test_that("the bins keep their IPCC half-open bounds", {
+  testthat::expect_equal(
+    whep:::.temp_adjustment_of(c(-Inf, 4.999, 5, 24.999, 25, 100)),
+    c(0.2, 0.2, 0.0, 0.0, 0.1, 0.1)
+  )
+})
