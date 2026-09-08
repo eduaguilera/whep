@@ -808,3 +808,439 @@ testthat::test_that(".read_packaged_cft_mapping reuses the whep::cft_mapping pac
   )
   testthat::expect_identical(read_packaged_cft_mapping(), whep::cft_mapping)
 })
+
+# The hold-out this gate accepts is the hold-out `resolve_admin_shares()`
+# reads. The gate once took any non-empty name, so `list(USA = 1961:1989)`
+# -- the form the roxygen and this abort's own example used to show -- was
+# recorded in `run_metadata.yaml` and then refused by the only consumer
+# there is, with class `whep_error_admin_exclude`.
+
+testthat::test_that("an ISO3-keyed constraint_exclude is refused", {
+  check <- getFromNamespace(".check_constraint_exclude", "whep")
+
+  err <- testthat::expect_error(
+    check(list(USA = 1961:1989)),
+    class = "whep_error_admin_exclude"
+  )
+  testthat::expect_match(conditionMessage(err), "area_code")
+  testthat::expect_match(conditionMessage(err), "USA")
+})
+
+testthat::test_that("an area_code-keyed hold-out is what both ends take", {
+  check <- getFromNamespace(".check_constraint_exclude", "whep")
+  exclude <- check(list("840" = c(1989, 1961:1989)))
+
+  testthat::expect_identical(exclude, list("840" = 1961:1989))
+  # The same value, through the consumer the gate defers to.
+  parse_exclude <- getFromNamespace(".parse_exclude_years", "whep")
+  rows <- parse_exclude(exclude)
+  testthat::expect_identical(unique(rows$area_code), 840L)
+  testthat::expect_identical(sort(rows$year), 1961:1989)
+})
+
+# --- The granted-depth wiring (whep#1000 T40) -------------------------------
+#
+# Every test below fails on the code as it stood before T40, where
+# `overrides$level` was validated, written into `run_metadata.yaml`, and then
+# read by nothing: `build_allocation_layer()`, `resolve_admin_shares()`,
+# `allocate_level_crops()`, `reconcile_admin_allocation()` and `seam_gate()`
+# had no call site anywhere in `R/`, `inst/` or `validation/` outside their own
+# tests, so a `level = 1L` run allocated FAOSTAT national totals on the level-0
+# pattern and ignored every subnational row.
+
+# Two Japanese prefectures, one cell each, in the shape
+# `read_polycell_support()` returns. `area_code` is carried explicitly because
+# `polity_area_crosswalk` has no row for a prefecture: without it the level-0
+# half of the allocation layer would lose the container entirely.
+.rs_depth_support <- function() {
+  tibble::tribble(
+    ~polycell_id, ~cell_id, ~lon,   ~lat,  ~polity_code,
+    "AICHI@1",          1L, 137.25, 35.25, "JPN-AICHI-1871-2025",
+    "GIFU@2",           2L, 137.75, 35.25, "JPN-GIFU-1871-2025"
+  ) |>
+    dplyr::mutate(
+      area_code = 110L,
+      start_year = 1952L,
+      end_year = 2025L,
+      cell_area_ha = c(3000, 4000),
+      land_area_ha = c(3000, 4000)
+    )
+}
+
+# One item, one year, two prefectures reporting 300 and 700 ha. The pin ships
+# `value` and no `share`, which is what every value-shipping family does.
+.rs_depth_shares <- function() {
+  tibble::tibble(
+    area_code = 110L,
+    level_polity_code = NA_character_,
+    level = 1L,
+    item_prod_code = 15L,
+    indicator_used = "area_harvested",
+    year = 2000L,
+    value = c(300, 700),
+    share = NA_real_,
+    source = "admin-stats-japan",
+    tier = 2L,
+    grain = "admin1",
+    concept_break = FALSE,
+    nuts_version = NA_character_,
+    source_native_id = c("JPN-AICHI", "JPN-GIFU"),
+    source_native_name = c("Aichi", "Gifu"),
+    source_id = "admin-stats-japan",
+    source_version = NA_character_,
+    recorded_at = "2026-01-01T00:00:00Z",
+    treatment_year = "observed",
+    value_flag = NA_character_
+  )
+}
+
+# The identity alias route the investigation found for the staged Japanese
+# pin: `polity_code == paste0(source_native_unit_id, "-1871-2025")`, bijective
+# over the 46 prefectures. Stubbed rather than read, because the alias rows
+# are a whep-polities deliverable that `polity_label_aliases` does not carry
+# yet, and the suite must not depend on them landing.
+.rs_stub_resolve_units <- function(x, code_system, year_col = "year", ...) {
+  rows <- dplyr::mutate(
+    x,
+    alias_source = as.character(code_system),
+    level_polity_code = paste0(x$source_native_unit_id, "-1871-2025")
+  )
+  list(
+    rows = rows,
+    diagnostics = tibble::tibble(
+      source = unique(rows$source),
+      alias_source = unique(rows$alias_source),
+      n_rows = nrow(rows),
+      n_unresolved = 0L,
+      example_ids = NA_character_
+    )
+  )
+}
+
+.rs_write_depth_inputs <- function(dir) {
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      year = 2000L,
+      area_code = 110L,
+      item_prod_code = 15L,
+      harvested_area_ha = 1000
+    ),
+    file.path(dir, "country_areas.parquet")
+  )
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      lon = c(137.25, 137.75),
+      lat = 35.25,
+      item_prod_code = 15L,
+      harvest_fraction = c(0.5, 0.5)
+    ),
+    file.path(dir, "crop_patterns.parquet")
+  )
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      lon = c(137.25, 137.75),
+      lat = 35.25,
+      year = 2000L,
+      cropland_ha = c(5000, 5000)
+    ),
+    file.path(dir, "gridded_cropland.parquet")
+  )
+}
+
+.rs_local_depth_mocks <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    read_polycell_support = function(...) .rs_depth_support(),
+    read_admin_shares = function(...) {
+      list(
+        shares = .rs_depth_shares(),
+        excluded = tibble::tibble(
+          source = character(),
+          reason = character(),
+          detail = character()
+        ),
+        not_shipped = character()
+      )
+    },
+    resolve_admin_units = .rs_stub_resolve_units,
+    .package = "whep",
+    .env = env
+  )
+}
+
+testthat::test_that("a depth run allocates on admin shares, not the pattern", {
+  # THE TEST THE MISSING CALL SITE FAILED. Two prefectures reporting 300 and
+  # 700 ha of a 1,000 ha national total, over two cells whose gridded pattern
+  # is an even 50/50 split. A run that ignored the admin rows would put 500 ha
+  # in each cell and still conserve the national total, which is why the
+  # conservation check alone cannot see the defect.
+  .rs_local_depth_mocks()
+  tmp_in <- withr::local_tempdir()
+  tmp_out <- withr::local_tempdir()
+  .rs_write_depth_inputs(tmp_in)
+
+  res <- suppressWarnings(suppressMessages(whep::run_spatialize(
+    preset = "lpjml",
+    years = 2000L,
+    components = "landuse",
+    overrides = list(
+      level = 1L,
+      output_level = 1L,
+      granted_containers = 110L
+    ),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )))
+
+  crops <- tibble::as_tibble(nanoparquet::read_parquet(
+    file.path(tmp_out, "gridded_landuse_crops.parquet")
+  ))
+  testthat::expect_setequal(
+    crops$level_polity_code,
+    c("JPN-AICHI-1871-2025", "JPN-GIFU-1871-2025")
+  )
+  placed <- crops |>
+    dplyr::summarise(
+      ha = sum(rainfed_ha + irrigated_ha),
+      .by = "level_polity_code"
+    ) |>
+    dplyr::arrange(level_polity_code)
+  testthat::expect_equal(placed$ha, c(300, 700))
+  testthat::expect_equal(sum(placed$ha), 1000)
+  testthat::expect_identical(unique(crops$method_grid_vintage), "year_aware")
+
+  targets <- utils::read.csv(file.path(tmp_out, "admin_targets.csv"))
+  testthat::expect_identical(
+    unique(targets$method_crop_alloc),
+    "admin_area_shares"
+  )
+  testthat::expect_equal(sort(targets$share), c(0.3, 0.7))
+})
+
+testthat::test_that("a depth run records what actually constrained it", {
+  .rs_local_depth_mocks()
+  tmp_in <- withr::local_tempdir()
+  tmp_out <- withr::local_tempdir()
+  .rs_write_depth_inputs(tmp_in)
+
+  suppressWarnings(suppressMessages(whep::run_spatialize(
+    preset = "lpjml",
+    years = 2000L,
+    components = "landuse",
+    overrides = list(level = 1L, granted_containers = 110L),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )))
+
+  meta <- yaml::read_yaml(file.path(tmp_out, "run_metadata.yaml"))
+  testthat::expect_identical(meta$config$granted_containers, 110L)
+  testthat::expect_identical(meta$config$double_claim, "co_presence")
+  testthat::expect_identical(meta$admin_constraint$n_shares_resolved, 2L)
+  testthat::expect_identical(meta$admin_constraint$n_units_constrained, 2L)
+  # The family ships values and no share, so the gate's series was normalised
+  # from them -- which makes tier A's share-against-value identity vacuous,
+  # and the run says so rather than reporting a pass it did not earn.
+  testthat::expect_identical(
+    meta$admin_constraint$method_admin_share$value_normalised,
+    2L
+  )
+  testthat::expect_identical(
+    meta$admin_constraint$method_crop_alloc$admin_area_shares,
+    2L
+  )
+
+  # Every diagnostic the run promised is on disk, with its header at least.
+  for (nm in unlist(whep:::.admin_run_files())) {
+    testthat::expect_true(file.exists(file.path(tmp_out, nm)), info = nm)
+  }
+  coverage <- utils::read.csv(file.path(tmp_out, "admin_coverage.csv"))
+  testthat::expect_identical(
+    names(coverage),
+    names(whep::admin_coverage_prototype())
+  )
+  testthat::expect_equal(nrow(coverage), 1L)
+})
+
+testthat::test_that("a level-0 run says it had no admin constraint", {
+  tmp_in <- withr::local_tempdir()
+  tmp_out <- withr::local_tempdir()
+  .rs_write_depth_inputs(tmp_in)
+  nanoparquet::write_parquet(
+    tibble::tibble(
+      lon = c(137.25, 137.75),
+      lat = 35.25,
+      area_code = 110L,
+      cell_area_frac = 1
+    ),
+    file.path(tmp_in, "country_grid.parquet")
+  )
+  suppressWarnings(suppressMessages(whep::run_spatialize(
+    preset = "lpjml",
+    years = 2000L,
+    components = "landuse",
+    overrides = list(country_grid = "centroid"),
+    paths = list(input_dir = tmp_in, out_dir = tmp_out)
+  )))
+  meta <- yaml::read_yaml(file.path(tmp_out, "run_metadata.yaml"))
+  testthat::expect_identical(meta$admin_constraint, "none")
+  testthat::expect_false(
+    file.exists(file.path(tmp_out, "admin_targets.csv"))
+  )
+})
+
+testthat::test_that("a depth needs containers, and level 0 refuses them", {
+  testthat::expect_error(
+    whep::run_spatialize(preset = "lpjml", overrides = list(level = 1L)),
+    "grants a depth to no container"
+  )
+  testthat::expect_error(
+    whep::run_spatialize(
+      preset = "lpjml",
+      overrides = list(granted_containers = 110L)
+    ),
+    "level = 0"
+  )
+})
+
+testthat::test_that("an unregistered admin-shares pin aborts a depth run", {
+  testthat::local_mocked_bindings(
+    read_polycell_support = function(...) .rs_depth_support(),
+    read_admin_shares = function(...) {
+      list(
+        shares = whep::admin_shares_prototype(),
+        excluded = tibble::tibble(),
+        not_shipped = "admin-shares"
+      )
+    },
+    .package = "whep"
+  )
+  tmp_in <- withr::local_tempdir()
+  tmp_out <- withr::local_tempdir()
+  .rs_write_depth_inputs(tmp_in)
+  testthat::expect_error(
+    suppressWarnings(suppressMessages(whep::run_spatialize(
+      preset = "lpjml",
+      years = 2000L,
+      components = "landuse",
+      overrides = list(level = 1L, granted_containers = 110L),
+      paths = list(input_dir = tmp_in, out_dir = tmp_out)
+    ))),
+    class = "whep_run_no_admin_shares"
+  )
+})
+
+testthat::test_that("a granted container with no admin row aborts", {
+  fn <- getFromNamespace(".admin_scope_containers", "whep")
+  testthat::expect_error(
+    fn(.rs_depth_shares(), c(110L, 724L)),
+    class = "whep_run_admin_container_absent"
+  )
+  kept <- suppressMessages(fn(.rs_depth_shares(), 110L))
+  testthat::expect_equal(nrow(kept), 2L)
+})
+
+testthat::test_that("shares that resolve to no polity abort the constraint", {
+  testthat::local_mocked_bindings(
+    resolve_admin_units = function(x, code_system, ...) {
+      list(
+        rows = dplyr::mutate(
+          x,
+          alias_source = "whep-lab-japan",
+          level_polity_code = NA_character_
+        ),
+        diagnostics = tibble::tibble()
+      )
+    },
+    .package = "whep"
+  )
+  fn <- getFromNamespace(".admin_resolve_units", "whep")
+  testthat::expect_error(
+    fn(.rs_depth_shares()),
+    class = "whep_run_admin_unresolved"
+  )
+})
+
+testthat::test_that("the unit resolver is handed the readers' column name", {
+  # The contract calls the identifier `source_native_id`;
+  # `resolve_admin_units()` reads `source_native_unit_id`. Handing the rows
+  # over unrenamed aborts on
+  # the missing column, so the rename is pinned rather than assumed.
+  seen <- NULL
+  testthat::local_mocked_bindings(
+    resolve_admin_units = function(x, code_system, ...) {
+      seen <<- list(cols = names(x), system = code_system)
+      .rs_stub_resolve_units(x, code_system, ...)
+    },
+    .package = "whep"
+  )
+  fn <- getFromNamespace(".admin_resolve_units", "whep")
+  out <- fn(.rs_depth_shares())
+  testthat::expect_true("source_native_unit_id" %in% seen$cols)
+  testthat::expect_identical(unique(seen$system), "whep-lab-japan")
+  testthat::expect_true("source_native_id" %in% names(out$shares))
+  testthat::expect_false("alias_source" %in% names(out$shares))
+})
+
+testthat::test_that("every admin source names one code system", {
+  fn <- getFromNamespace(".admin_code_systems_for", "whep")
+  testthat::expect_identical(
+    fn(c(
+      "admin-stats-japan",
+      "USDA_NASS",
+      "IBGE_PAM",
+      "JRC_subnational_crops"
+    )),
+    c("whep-lab-japan", "usda-nass-fips", "ibge-uf", "jrc-nuts")
+  )
+  # Read off the registry, so a family added there cannot go missing here.
+  families <- getFromNamespace(".admin_family_aliases", "whep")()
+  testthat::expect_identical(
+    fn(families),
+    paste0("whep-lab-", sub("^admin-stats-", "", families))
+  )
+  testthat::expect_error(
+    fn("Eurostat_apro_cpshr_2099"),
+    class = "whep_run_admin_code_system"
+  )
+})
+
+testthat::test_that("a constraint meeting no layer unit aborts", {
+  fn <- getFromNamespace(".admin_check_layer_units", "whep")
+  shares <- tibble::tibble(level_polity_code = c("A-1", "A-2"))
+  testthat::expect_error(
+    fn(shares, tibble::tibble(level_polity_code = c("B-1", "B-2"))),
+    class = "whep_run_admin_layer_mismatch"
+  )
+  testthat::expect_silent(suppressMessages(
+    fn(shares, tibble::tibble(level_polity_code = "A-2"))
+  ))
+})
+
+testthat::test_that("a value-shipping family's share is the group's own", {
+  fn <- getFromNamespace(".admin_gate_shares", "whep")
+  out <- fn(dplyr::mutate(.rs_depth_shares(), treatment = "observed"))
+  testthat::expect_identical(unique(out$share_basis), "value_normalised")
+  testthat::expect_equal(out$share, c(0.3, 0.7))
+  testthat::expect_equal(sum(out$share), 1)
+
+  # A family that ships its own share keeps it untouched.
+  reported <- .rs_depth_shares() |>
+    dplyr::mutate(share = c(0.25, 0.75), treatment = "observed")
+  kept <- fn(reported)
+  testthat::expect_identical(unique(kept$share_basis), "reported")
+  testthat::expect_equal(kept$share, c(0.25, 0.75))
+
+  # Neither a share nor a usable value is not silently a zero share.
+  none <- .rs_depth_shares() |>
+    dplyr::mutate(value = NA_real_, treatment = "observed")
+  testthat::expect_identical(unique(fn(none)$share_basis), "unavailable")
+})
+
+testthat::test_that("a vacuous tier-A identity is said out loud", {
+  fn <- getFromNamespace(".warn_gate_identity_vacuous", "whep")
+  gate <- getFromNamespace(".admin_gate_shares", "whep")
+  testthat::expect_warning(
+    fn(gate(dplyr::mutate(.rs_depth_shares(), treatment = "observed"))),
+    "holds by construction"
+  )
+  reported <- .rs_depth_shares() |>
+    dplyr::mutate(share = c(0.25, 0.75), treatment = "observed")
+  testthat::expect_silent(fn(gate(reported)))
+})

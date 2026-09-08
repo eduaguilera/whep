@@ -69,11 +69,14 @@ crosswalk supports.
 \verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
 schema equals a level-0 run's; a positive value returns unit-grain
 rows carrying \code{level_polity_code}. It may not exceed \code{level}.
-\item \code{constraint_exclude} (default \code{NULL}): country x year ranges to hold
-out of the admin constraint, as a named list such as
-\code{list(USA = 1961:1989)}. Recorded in \code{run_metadata.yaml} and consumed
-by the admin-shares resolver; it does not by itself change a run that
-has no admin constraint wired.
+\item \code{constraint_exclude} (default \code{NULL}): container x year ranges to
+hold out of the admin constraint, as a list named by \code{area_code},
+such as \code{list("840" = 1961:1989)}. That is the key
+\code{\link[=resolve_admin_shares]{resolve_admin_shares()}} reads, and it is checked here against the
+same rule, so a hold-out this run records is one the resolver can
+honour. Recorded in \code{run_metadata.yaml} and consumed by the
+admin-shares resolver; it does not by itself change a run that has
+no admin constraint wired.
 \item \code{livestock_proxy}: one of \code{"luh2"} (default) or \code{"glw3"}, forwarded
 to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{proxy_method}. Under \code{"glw3"} the
 density table is read with \code{\link[=read_glw_density]{read_glw_density()}}, which needs a

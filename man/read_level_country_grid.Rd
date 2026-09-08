@@ -78,16 +78,21 @@ or by no polity at all, is then absent for that year.}
 }
 
 The two are different geographies, not two precisions of one, and the
-difference is large before about 1990: on the \verb{20260827T190201Z-f82a2}
-support the year-aware read covers 43,521 cells and 8,245 Mha of land at
-1851 against the snapshot's 68,546 cells and 13,461 Mha. Of that year's
+difference is large before about 1990: on the \verb{20260825T102349Z-1a0eb}
+support the year-aware read covers 41,597 cells and 7,942 Mha of land at
+1851 against the snapshot's 66,709 cells and 12,926 Mha. Of that year's
 LUH2 cropland, 41.6\% is taken away from the country the snapshot gives it
-to and 21.7\% is given to a country the snapshot does not -- the two
+to and 21.5\% is given to a country the snapshot does not -- the two
 directions are reported separately, because a metric that scores only the
 losses cannot see a share that absorbs one country's land into another.
-100.5 Mha of the loss falls in cells no polity claims in 1851 and is
+101.8 Mha of the loss falls in cells no polity claims in 1851 and is
 attributed to nobody. At 2015 the two vintages agree exactly, which is the
 check that fails if the year-aware share is renormalised.
+
+Those figures are the \verb{20260825T102349Z-1a0eb} support's, not the
+\verb{20260827T190201Z-f82a2} one's: that later pin books every hectare of
+inland water and ice as land (whep#1010), which moves the cell count and
+the land, though not the argument.
 \code{run_spatialize()} records the resolved value in \code{run_metadata.yaml} and in
 a \code{method_grid_vintage} column on every output it writes.
 
