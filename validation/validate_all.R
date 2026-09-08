@@ -619,5 +619,90 @@ if (length(gv_metric) != 1L || grepl("status=skipped", gv_metric)) {
   )
 }
 
+# D. Japan depth-1 pilot (internal, one constrained spatialization) ----------
+# #1000: the first `run_spatialize(level = 1)` on real administrative
+# statistics. It runs an allocation, so it is never started unasked: it needs
+# a Japan-only polycell support (`WHEP_POLYCELL_SUPPORT_PATH`) and a directory
+# of prepared spatialization parquets (`VAL_JP_INPUT_DIR`), and reports "not
+# run" when either is absent.
+#
+# `flag` is the union of three signals, for the reason the seam-gate row
+# above states: the pilot exits non-zero on a moved anchor and on a moved
+# recorded row, and neither would show in a gate-failure count alone. The
+# anchor is the load-bearing one -- it is the hand-computed Hokkaido number
+# the whole leg exists to reproduce -- so `anchor_ok = 0` must flag even when
+# every recorded row still matches.
+.jp_scorecard_flag <- function(n_gate_failures, n_failed, anchor_ok) {
+  n_gate_failures + n_failed + (1L - anchor_ok)
+}
+stopifnot(
+  "a moved Japan anchor must inflate the scorecard flag, not just the
+   free-text note" = .jp_scorecard_flag(0, 0, 0L) > 0
+)
+jp_ready <- nzchar(Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH")) &&
+  nzchar(Sys.getenv("VAL_JP_INPUT_DIR"))
+jp_out <- if (jp_ready) {
+  system2("Rscript", "validation/japan_pilot.R", stdout = TRUE, stderr = FALSE)
+} else {
+  character(0)
+}
+jp_metric <- grep("^METRIC", jp_out, value = TRUE)
+if (length(jp_metric) != 1L || grepl("status=skipped", jp_metric)) {
+  add(
+    "japan_pilot",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: needs WHEP_POLYCELL_SUPPORT_PATH (the Japan pilot support) and
+     VAL_JP_INPUT_DIR"
+  )
+} else {
+  # Anchored on the leading space, unlike the older readers above: this
+  # METRIC line carries both `n_groups` and `n_prescan_groups`, and an
+  # unanchored `n_groups=` matches inside the longer key.
+  jp_num <- function(key) {
+    # `suppressWarnings` for the same reason `grid_vintage`'s reader has it:
+    # a field can legitimately be the literal "NA" -- `anchor_ha` is, when the
+    # anchor's group is not in the run at all -- and the coercion should be
+    # quiet rather than warn. `anchor_ok` and `n_failed` are integers whatever
+    # happens, so the flag below still resolves.
+    suppressWarnings(as.numeric(sub(
+      paste0(".* ", key, "=(-?[0-9.e+-]+).*"),
+      "\\1",
+      jp_metric
+    )))
+  }
+  jp_flag <- .jp_scorecard_flag(
+    jp_num("n_gate_failures"),
+    jp_num("n_failed"),
+    as.integer(jp_num("anchor_ok"))
+  )
+  add(
+    "japan_pilot",
+    "internal",
+    jp_num("n_groups"),
+    jp_num("n_groups") - jp_num("n_beyond_tolerance"),
+    jp_flag,
+    sprintf(
+      "Hokkaido paddy rice 2000 = %.2f ha (rel %.1e); %.0f of %.0f pre-scan
+       group(s) refused by T31(d), worst %.1f%% short; %.0f group(s) beyond
+       tolerance; %.0f of %.0f unit-item series gapped, longest %.0f yr;
+       %.0f of %.0f seam gate(s) failing",
+      jp_num("anchor_ha"),
+      jp_num("anchor_rel"),
+      jp_num("n_refused"),
+      jp_num("n_prescan_groups"),
+      100 * jp_num("worst_disc_frac"),
+      jp_num("n_beyond_tolerance"),
+      jp_num("n_gap_series"),
+      jp_num("n_series"),
+      jp_num("max_gap_run"),
+      jp_num("n_gate_failures"),
+      jp_num("n_gates")
+    )
+  )
+}
+
 cat("\n=== WHEP validation scorecard ===\n")
 dplyr::bind_rows(scores$rows) |> print(n = Inf, width = Inf)

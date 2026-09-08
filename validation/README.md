@@ -62,6 +62,8 @@ a hardcoded grid.
 | `gt_admin_drift.json` | Recorded state of that measurement per country × indicator × reference year × year, plus the gap-year and discrepancy summaries. **Committed** — a tripwire, meant to fail when the compiled panel changes. |
 | `admin_seam_gate.R` | Judges one `run_spatialize()` output for seam continuity (#1000): the three-tier `seam_gate()` — anchor identity, seam log-ratios against the observed distribution, cell-share jump rates around each seam — plus a derived window scan. Reads one local output directory; needs `WHEP_SPATIALIZE_OUT_DIR`, skips with a message when unset. See below. |
 | `gt_admin_seam_gate.json` | Recorded state of that gate per container × seam year. **Committed once a real run has been recorded** — a tripwire, meant to fail when the allocation moves. Absent until then. |
+| `japan_pilot.R` | Runs **one whole constrained spatialization** end to end (#1000): Japan at depth 1, its national crop totals split across 46 prefectures by MAFF's reported areas, 1961–2022, six crops. The first `run_spatialize(level = 1)` on real administrative statistics rather than a fixture. Reproduces a hand-computed anchor (Hokkaido, paddy rice, 2000) and reports coverage, discrepancy, capacity breaches, straddling, interior gaps and the seam gate on real numbers. Needs `WHEP_POLYCELL_SUPPORT_PATH` (the Japan pilot support) and `VAL_JP_INPUT_DIR`; skips loudly when either is absent, which a fresh clone always does. See below. |
+| `gt_japan_pilot.json` | Recorded state of that run: the pre-scan per item over the full stated scope, the per-item coverage and breach summary, the seam-gate tiers at their own gate grain, the interior-gap summary, and the anchor. **Committed** — a tripwire, meant to fail when the allocation, the pin or the support moves. |
 | `spatialize_grid_vintage.R` | Sizes what changes when the level-0 country grid stops being the 2015 snapshot and becomes year-aware (#1000, T39): support coverage, the national tables with no cell to land in, and optionally the gridded crop output itself. A **measurement behind an open decision**, not a gate. Reads the polycell-support pin (network on a machine with no pins cache) and caches the year-aware grid it builds; the sweep runs it only once that cache exists. See below. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
@@ -227,7 +229,11 @@ itself:
 - **A, identity at the anchor.** At each series' `t0` the table still holds the
   observation: every unit's row is observed, the shares sum to 1 within 1e-8,
   each share equals its own reported value's share, and `t0` is the `"start"`
-  seam the resolver named.
+  seam the resolver named. A series with no `"start"` seam to compare `t0`
+  with, or with no observed row to anchor on at all, comes back `pass = NA`
+  with the reason on its row rather than passed; the METRIC line's
+  `tier_a_ungated` counts them, and a series no tier judged holds the gate's
+  `overall` verdict at `NA`.
 - **B, the governed quantity.** The seam log-ratio
   `|log(s_u(t0) / s_u(t0 - 1))|` of every unit at every seam year, against the
   empirical distribution of that series' **observed** consecutive log-ratios
@@ -281,6 +287,92 @@ proved nothing.
 `gt_admin_seam_gate.json` does not exist until someone records a real run —
 `--record` writes it, and the plain run then judges every measured row against
 it and exits non-zero when one moves.
+
+## Japan depth-1 pilot (`japan_pilot.R`)
+
+The other two subnational legs each look at one slice of the depth chain:
+`admin_drift_tvd.R` measures the panel before any run, `admin_seam_gate.R`
+judges a run that already exists. This one **is** the run: it drives
+`run_spatialize(level = 1, granted_containers = 110L)` over Japan for
+1961–2022 and six crops, and it is the first time that path has met real
+administrative statistics instead of a fixture.
+
+**The anchor.** Hokkaido, paddy rice (`item_prod_code` 27), year 2000. MAFF
+reports 134,900 ha; the 46 prefectures report 1,762,002 ha between them;
+FAOSTAT's national total is 1,770,000 ha. Coverage is complete, so no residual
+unit is raised and the reported units rescale proportionally —
+134,900 × 1,770,000 / 1,762,002 = **135,512.33 ha**. The script pins that
+number, recomputes it from the pin and the allocator, and exits non-zero if it
+moves by more than 1e-9 relative. It is judged harder than everything else
+because it is an arithmetic identity over three integers, not a measurement.
+
+**Three things are approximate, and the script says so in its own header.**
+
+1. *The support is Japan-only.* It carries the 46 prefecture polycells and no
+   `area_code` at all, so `read_level_country_grid(level = 0)` returns zero
+   rows against it and the allocation layer is the depth grid alone. Every
+   layer row is reported as `unit_outside_level0` ragged coverage. The leg
+   scopes its inputs to container 110 and the six MAFF items rather than let
+   ~200 countries be dropped for having no cell; with no non-Japanese cell in
+   the grid, that changes nothing about Japan's answer.
+2. *The registered world pin is unsound* (whep#1010): zero inland water and
+   zero ice, which `territory == land + water + ice` cannot see because zero
+   satisfies it. The sound version is `20260825T102349Z-1a0eb`. The pilot
+   support was built with the water layer applied, so this run does not
+   inherit the defect — and cannot be compared against a world run that does.
+3. *The alias rows are injected.* `resolve_admin_units()` resolves
+   `JPN-HOKKAIDO` under the code system `whep-lab-japan`, and
+   `polity_label_aliases` ships none of those rows: they are a whep-polities
+   deliverable that has not landed, and without them every unit resolves to
+   `NA` and the run aborts with `whep_run_admin_unresolved`. The script builds
+   the 46-row identity map and installs it in the package namespace, so the
+   production call path — `.admin_resolve_units()`, which passes no `aliases`
+   — resolves it exactly as it will once the rows are published. **The alias
+   `source` must be the code-system slug `whep-lab-japan`, never the pin's own
+   `admin-stats-japan`:** measured, the first resolves 32,095 of 32,095 rows
+   and the second 0 of 32,095, because the resolver builds the slug from
+   `code_system` and never reads the rows' own `source`. The script asserts
+   both numbers so the trap cannot come back silently.
+
+**The pre-scan.** Decision T31(d) refuses a group whose units all report and
+whose areas still miss the national total by more than both tolerances, and
+`.alloc_refuse_discrepancy()` aborts the whole run on the first one, naming
+only the worst. So the leg evaluates the same rule first, over the full stated
+scope, prints every refused group, and runs the engine without their national
+rows — their admin-share rows stay in the constraint, so the seam gate and the
+gap report still see them. Nothing is repaired and no tolerance is widened:
+which side of a refused group is wrong is a methodological question the leg
+does not answer, and the refused groups are printed, written to
+`cache/pilot_japan/prescan.csv`, counted in the METRIC line and recorded per
+item in the baseline over the full scope.
+
+**Two diagnostics the driver drops.** `allocate_level_crops()` returns a
+`straddle` table and a `bridges` table and `reconcile_admin_allocation()`
+returns a third, but `.write_admin_outputs()` writes eleven CSVs and none of
+them is any of the three, nor does `.admin_run_record()` carry them — so a
+depth run cannot be audited for cell straddling or carried years from its own
+output directory. This leg recomputes both. That is a workaround for a defect
+in `R/run_spatialize.R`, not a design.
+
+**Tier C is always empty here.** `.admin_seam_gate()` calls `seam_gate()` with
+the shares and the seams and no cells, so the cell tier has nothing to judge on
+any `run_spatialize()` depth run. Tier C on this run's grid is exactly what
+`admin_seam_gate.R` is for: point its `WHEP_SPATIALIZE_OUT_DIR` at
+`validation/cache/pilot_japan/run`.
+
+```bash
+WHEP_POLYCELL_SUPPORT_PATH=<pilot support.parquet> \
+  VAL_JP_INPUT_DIR=<prepared inputs> Rscript validation/japan_pilot.R
+... Rscript validation/japan_pilot.R --record    # re-record the baseline
+... Rscript validation/japan_pilot.R --refresh   # rebuild the scoped inputs
+```
+
+| Variable | Meaning |
+|---|---|
+| `WHEP_POLYCELL_SUPPORT_PATH` | Required. The Japan-only pilot support, from `inst/scripts/build_pilot_polycell_support.R`. A support with no `JPN-*` prefecture polycell — which is what the registered world pin is — skips the leg. |
+| `VAL_JP_INPUT_DIR` | Required. A directory of prepared spatialization parquets, as `run_spatialize(paths = list(input_dir = ))` takes them. Unset skips the leg. |
+| `VAL_JP_YEARS` | Optional. Comma-separated years. Default 1961–2022, the span the MAFF family covers. |
+| `VAL_JP_ITEMS` | Optional. Comma-separated `item_prod_code`s. Default 15, 27, 44, 116, 122, 236 — the six the family ships. |
 
 ## Level-0 grid vintage (`spatialize_grid_vintage.R`)
 
