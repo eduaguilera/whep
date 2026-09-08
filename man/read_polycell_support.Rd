@@ -7,6 +7,7 @@
 read_polycell_support(
   path = NULL,
   version = NULL,
+  require_layers = TRUE,
   role = c("partition", "overlap", "all")
 )
 }
@@ -16,6 +17,12 @@ variable and the pin.}
 
 \item{version}{Pin version, passed to \code{\link[=whep_read_file]{whep_read_file()}}. \code{NULL} takes the
 version frozen in \link{whep_inputs}.}
+
+\item{require_layers}{Whether to refuse a support built without its inland
+water and ice layers. \code{TRUE} (default) aborts with class
+\code{whep_polycell_absent_layers}; see \emph{Refusing a zero-filled support}.
+\code{FALSE} returns the table anyway, for a caller that needs the territory
+and not the land/water/ice split and says so.}
 
 \item{role}{Which layer to return. \code{"partition"} (default) is the rows that
 partition each cell -- every row of a table built with the default
@@ -34,6 +41,35 @@ A \code{tibble} in the \code{\link[=build_polycell_support]{build_polycell_suppo
 Resolves the versioned \code{polycell_support} input (DA-17), preferring a local
 parquet named by \code{Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH")} so a development
 build can be used before it is published.
+}
+\section{Refusing a zero-filled support}{
+
+\code{water} and \code{ice} are optional arguments of \code{\link[=build_polycell_support]{build_polycell_support()}} and
+zero-fill when absent, so a support can be published with every lake, river
+and glacier inside a polity booked as land. Nothing in the table's own
+arithmetic can see that: the identity
+\code{polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha} holds to
+\verb{max |residual| = 0 ha} either way, because zero satisfies it. It has
+happened twice -- \verb{20260818T105426Z-a0330} (whep#885) and
+\verb{20260827T190201Z-f82a2} (whep#1010) -- and on the second, 2015 land was
+534.9 Mha (+4.1\%) too high across 94.3\% of the \verb{(cell, area_code)} groups
+the gridded carbon path reads.
+
+So this reader checks, and \strong{aborts} rather than warning. Both times the
+defect reached a pin there was a warning to see: whep#885 added
+\code{cli_warn()} to the producer's zero-fill branch, and
+\code{verify_polycell_support.R} prints one when the layer's environment variable
+is unset. A warning inside a build that runs for hours is not a gate. Every
+consumer of this table divides a nutrient or carbon mass by land area, so a
+4\% error in the denominator is not a caveat to carry forward.
+
+What is checked is whether the layers were \strong{supplied}, never whether the
+totals reconcile. A table built since whep#1010 carries \code{layers_supplied},
+and the check is an equality on that label. On one published before it, the
+fallback is that neither \code{inland_water_ha} nor \code{ice_area_ha} is identically
+zero -- scale-free, so it holds on a single-country development build as
+well as on the global pin, and a global zero is not a plausible measurement
+of either quantity.
 
 A support table may carry a second, \strong{non-partitioning} layer: the
 aggregate polities of \code{\link[=build_polycell_support]{build_polycell_support()}}\code{(aggregates = "overlap_layer")}, whose polygons cover their members' and therefore claim
@@ -41,6 +77,7 @@ ground twice. This returns the partition alone unless asked otherwise, so a
 consumer that never heard of the layer cannot pick a row of it up by
 accident.
 }
+
 \examples{
 # Requires WHEP_POLYCELL_SUPPORT_PATH or a published pin; not run without it.
 if (nzchar(Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH"))) {

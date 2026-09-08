@@ -3712,3 +3712,94 @@ testthat::test_that("every resolved label is a code some caller can join", {
   extra <- sort(setdiff(unique(codes), whep:::.regions_csv_area_codes()))
   testthat::expect_equal(extra, c(206L, 351L))
 })
+
+# whep#1010 — the provenance stamp -------------------------------------------
+
+testthat::test_that("layers_supplied names the layers the build consumed", {
+  testthat::skip_if_not_installed("sf")
+
+  # The stamp exists because no arithmetic over this table can distinguish a
+  # zero-filled layer from a real one: the identity
+  # `polity_area_ha == land + inland_water + ice` holds either way, because
+  # zero satisfies it, and two published pins shipped that way (whep#885,
+  # whep#1010). A LABEL cannot be satisfied by arithmetic.
+  cell <- pcs_cell(10.25, 45.25)
+  geometries <- pcs_one_polity(cell)
+  water <- tibble::tibble(lon = 10.25, lat = 45.25, water_frac = 0.2)
+  ice <- sf::st_sf(geometry = sf::st_sfc(cell, crs = 4326))
+
+  both <- whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    water = water,
+    ice = ice
+  )
+  testthat::expect_equal(unique(both$layers_supplied), "ice,water")
+
+  # The absent-layer warning is whep#885's and is asserted on its own below;
+  # here it is only noise.
+  wet <- suppressWarnings(whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    water = water
+  ))
+  testthat::expect_equal(unique(wet$layers_supplied), "water")
+
+  icy <- suppressWarnings(whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    ice = ice
+  ))
+  testthat::expect_equal(unique(icy$layers_supplied), "ice")
+
+  bare <- suppressWarnings(whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries
+  ))
+  testthat::expect_equal(unique(bare$layers_supplied), "none")
+  # ... and this is the pin that shipped twice: the stamp is the only column
+  # that can tell it apart from a sound build.
+  testthat::expect_equal(bare$inland_water_ha, 0)
+  testthat::expect_equal(bare$ice_area_ha, 0)
+  testthat::expect_equal(bare$land_area_ha, bare$polity_area_ha)
+})
+
+testthat::test_that("the stamp records what was consumed, not what was passed", {
+  testthat::skip_if_not_installed("sf")
+
+  # An empty layer is dropped before use -- `.pcs_prepare_ice()` returns NULL
+  # for one, and `.pcs_add_water()` zero-fills a zero-row one -- so a caller
+  # can hand in a layer that never reaches an area. Stamping the ARGUMENT would
+  # make the artefact claim a layer it does not carry, which is worse than no
+  # stamp at all.
+  geometries <- pcs_one_polity(pcs_cell(10.25, 45.25))
+  support <- suppressWarnings(whep::build_polycell_support(
+    years = 2015L,
+    geometries = geometries,
+    water = tibble::tibble(
+      lon = numeric(),
+      lat = numeric(),
+      water_frac = numeric()
+    ),
+    ice = sf::st_sf(geometry = sf::st_sfc(crs = 4326))
+  ))
+
+  testthat::expect_equal(unique(support$layers_supplied), "none")
+})
+
+testthat::test_that("the absent-layer warning fires for each layer", {
+  testthat::skip_if_not_installed("sf")
+
+  # The warning is whep#885's guard and it is kept, but it is not the gate:
+  # the pin published two days after whep#885 closed was built with neither
+  # layer and this warning in place. That is why the stamp and
+  # `read_polycell_support()`'s refusal exist as well.
+  geometries <- pcs_one_polity(pcs_cell(10.25, 45.25))
+  testthat::expect_warning(
+    testthat::expect_warning(
+      whep::build_polycell_support(years = 2015L, geometries = geometries),
+      class = "whep_polycell_absent_ice"
+    ),
+    class = "whep_polycell_absent_water"
+  )
+})
