@@ -2105,6 +2105,15 @@ utils::globalVariables(
     "consump_green_all_mm",
     # commodity_balance_sheet.R (#168) — the live-animal slaughter total
     # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
-    "slaughtered"
+    "slaughtered",
+    # soil_carbon_inputs.R (#1006) — the nitrogen that travels with each
+    # carbon component so an input C:N can be formed, and the data.table
+    # masks `.sci_sum_components()` builds to total ONLY the components whose
+    # nitrogen is known together with the carbon that matched them
+    "n_mass_mg",
+    ".n_known",
+    ".c_with_n",
+    "input_n_mg",
+    "input_c_with_n_mg"
   )
 )
