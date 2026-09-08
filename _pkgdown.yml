@@ -430,11 +430,6 @@ reference:
   - primary_double
   - smil_2001_synthetic_n_global
 
-- title: FAOSTAT raw data
-  desc: >
-    Download FAOSTAT data as is.
-  contents:
-
 - title: Data sources
   desc: >
     Get a tidy dataframe with the found sources for different data.
