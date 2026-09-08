@@ -346,3 +346,224 @@ testthat::test_that(".join_bo gives Camels their own Bo, distinct from Buffalo",
   testthat::expect_equal(buffalo_bo, 0.10)
   testthat::expect_false(isTRUE(all.equal(camel_bo, buffalo_bo)))
 })
+
+# EF3 vocabulary and the silent 0.005 default (#950) ---------------------------
+
+testthat::test_that("Global poultry direct N2O uses the litter EF3 (#950)", {
+  result <- tibble::tribble(
+    ~species_gen, ~n_excretion, ~heads, ~region,
+    "Poultry",    1,            1,      "Global"
+  ) |>
+    whep:::.calc_direct_n2o()
+
+  # Global poultry MMS split: 0.80 "Poultry Manure" + 0.20 "Solid Storage".
+  # ipcc_2019_n2o_ef_direct carries no "Poultry Manure" row, so the label-only
+  # join left 0.80 of the split on the 0.005 "Other" coalesce default and the
+  # weighted EF3 came out a flat 0.005. Resolved through .manure_ef3() the
+  # deep-litter row applies: 0.80 * 0.001 + 0.20 * 0.005 = 0.0018.
+  testthat::expect_equal(result$manure_n2o_direct, 0.0018 * (44 / 28))
+  testthat::expect_false(
+    isTRUE(all.equal(result$manure_n2o_direct, 0.005 * (44 / 28)))
+  )
+})
+
+testthat::test_that("every shipped MMS label resolves an EF3 and an MCF (#950)", {
+  # Referential invariant, the check that would have caught #950: every label
+  # regional_mms_distribution can hand the manure engine must resolve both a
+  # direct-N2O EF3 and a methane conversion factor in all three IPCC zones.
+  labels <- unique(whep::regional_mms_distribution$mms_type)
+
+  testthat::expect_equal(
+    sort(intersect(labels, whep:::.manure_ef3()$mms_type)),
+    sort(labels)
+  )
+
+  grid <- tidyr::expand_grid(
+    mms_type = labels,
+    climate_zone = c("Cool", "Temperate", "Warm")
+  )
+  matched <- dplyr::semi_join(
+    grid,
+    whep::climate_mcf,
+    by = c("mms_type", "climate_zone")
+  )
+  testthat::expect_equal(nrow(matched), nrow(grid))
+})
+
+testthat::test_that("an MMS label with no EF3 aborts instead of taking 0.005", {
+  testthat::local_mocked_bindings(
+    .mms_global_shares = function() {
+      tibble::tribble(
+        ~species, ~mms_type,          ~fraction,
+        "Cattle", "Composting - Bin", 1
+      )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species_gen, ~n_excretion, ~heads,
+    "Cattle",     1,            1
+  )
+
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data),
+    class = "whep_missing_ef3"
+  )
+})
+
+testthat::test_that("an MMS label with no MCF row aborts instead of taking 2%", {
+  # "Anaerobic Digester" exists in climate_mcf only with climate_zone "All",
+  # so a Temperate lookup misses it and used to coalesce to a flat 2.0 percent.
+  testthat::local_mocked_bindings(
+    .mms_global_shares = function() {
+      tibble::tribble(
+        ~species, ~mms_type,            ~fraction,
+        "Cattle", "Anaerobic Digester", 1
+      )
+    },
+    .package = "whep"
+  )
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(data),
+    class = "whep_missing_mcf"
+  )
+})
+
+testthat::test_that("a species with no MMS distribution aborts", {
+  data <- tibble::tribble(
+    ~species_gen, ~n_excretion, ~heads,
+    "Rabbits",    1,            1
+  )
+
+  testthat::expect_error(
+    whep:::.calc_direct_n2o(data),
+    class = "whep_missing_mms_species"
+  )
+})
+
+# Tier 2 region and climate zone (#949) ----------------------------------------
+
+testthat::test_that("Tier 2 manure resolves the IPCC region on request (#949)", {
+  data <- tibble::tibble(
+    species = "Cattle, dairy",
+    heads = 1000,
+    iso3 = "USA",
+    milk_yield_kg_day = 20,
+    diet_quality = "High"
+  ) |>
+    whep::calculate_cohorts_systems()
+
+  default <- whep::calculate_manure_emissions(data, tier = 2)
+  regional <- whep::calculate_manure_emissions(
+    data,
+    tier = 2,
+    options = list(mms_region = "resolve")
+  )
+
+  testthat::expect_false("region" %in% names(default))
+  testthat::expect_equal(unique(regional$region), "North America")
+  # Global cattle mix x Temperate MCF (Table 10.17):
+  #   0.50*1.5 + 0.30*4.0 + 0.15*35.0 + 0.05*0.5 = 7.225 percent.
+  # North America's mix is 0.40 Liquid/Slurry, 0.30 Solid Storage,
+  # 0.25 Pasture, 0.05 Daily Spread:
+  #   0.40*35.0 + 0.30*4.0 + 0.25*1.5 + 0.05*0.5 = 15.6 percent.
+  testthat::expect_equal(unique(default$weighted_mcf), 0.07225)
+  testthat::expect_equal(unique(regional$weighted_mcf), 0.156)
+  testthat::expect_equal(unique(default$method_mms), "regional_default")
+  testthat::expect_equal(unique(regional$method_mms), "region_specific")
+})
+
+testthat::test_that("a region request with no area key warns and is recorded", {
+  data <- dairy_tier2_fixture()
+
+  testthat::expect_warning(
+    out <- whep::calculate_manure_emissions(
+      data,
+      tier = 2,
+      options = list(mms_region = "resolve")
+    ),
+    class = "whep_no_region_key"
+  )
+  testthat::expect_false("region" %in% names(out))
+  testthat::expect_equal(unique(out$method_mms), "regional_default")
+})
+
+testthat::test_that("mms_region 'global' ignores a region column", {
+  base <- tibble::tribble(
+    ~species_gen, ~n_excretion, ~heads, ~region,
+    "Cattle",     100,          10,     "North America"
+  )
+
+  regional <- whep:::.calc_direct_n2o(base)
+  forced <- whep:::.calc_direct_n2o(base, options = list(mms_region = "global"))
+  global <- base |>
+    dplyr::mutate(region = "Global") |>
+    whep:::.calc_direct_n2o()
+
+  testthat::expect_equal(forced$manure_n2o_direct, global$manure_n2o_direct)
+  testthat::expect_false(
+    isTRUE(all.equal(regional$manure_n2o_direct, global$manure_n2o_direct))
+  )
+  testthat::expect_equal(unique(forced$method_mms), "regional_default")
+})
+
+testthat::test_that("the assumed climate zone is selectable and recorded", {
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  warm <- whep:::.calc_weighted_mcf(
+    data,
+    options = list(assumed_climate_zone = "Warm")
+  )
+  cool <- whep:::.calc_weighted_mcf(
+    data,
+    options = list(assumed_climate_zone = "Cool")
+  )
+
+  # Global cattle mix x Warm MCF:
+  #   0.50*2.0 + 0.30*5.0 + 0.15*80.0 + 0.05*1.0 = 14.55 percent.
+  # x Cool MCF: 0.50*1.0 + 0.30*2.0 + 0.15*17.0 + 0.05*0.1 = 3.655 percent.
+  testthat::expect_equal(warm$weighted_mcf, 0.1455)
+  testthat::expect_equal(cool$weighted_mcf, 0.03655)
+  testthat::expect_match(warm$method_manure_ch4, "climate_assumed_warm")
+  testthat::expect_match(cool$method_manure_ch4, "climate_assumed_cool")
+})
+
+testthat::test_that("climate_source 'from_data' needs a climate_zone column", {
+  data <- tibble::tribble(
+    ~species_gen, ~method_manure_ch4,
+    "Cattle",     "IPCC_2019_Tier2"
+  )
+
+  testthat::expect_error(
+    whep:::.calc_weighted_mcf(
+      data,
+      options = list(climate_source = "from_data")
+    ),
+    class = "whep_missing_climate_zone"
+  )
+
+  supplied <- data |>
+    dplyr::mutate(climate_zone = "Warm") |>
+    whep:::.calc_weighted_mcf(options = list(climate_source = "from_data"))
+  testthat::expect_equal(supplied$weighted_mcf, 0.1455)
+  testthat::expect_match(supplied$method_manure_ch4, "climate_from_data")
+})
+
+testthat::test_that("an unknown manure option name aborts", {
+  testthat::expect_error(
+    whep::calculate_manure_emissions(
+      single_tier1_fixture(),
+      tier = 1,
+      options = list(mms_regoin = "resolve")
+    ),
+    class = "whep_manure_options"
+  )
+})

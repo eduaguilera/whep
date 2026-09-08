@@ -648,6 +648,7 @@ reference:
   - calculate_livestock_emissions
   - calculate_enteric_ch4
   - calculate_manure_emissions
+  - manure_engine_options
   - estimate_n_excretion
   - split_manure_management
   - apply_management_losses
