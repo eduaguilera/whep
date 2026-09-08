@@ -803,6 +803,45 @@ testthat::test_that(
   }
 )
 
+testthat::test_that(
+  paste(
+    ".nest_by_year_item_code will not lose a head-only matrix in",
+    "silence (whep#962)"
+  ),
+  {
+    # The mass-only filter empties a year-item group whose whole seed is head
+    # counts, and the inner join then drops that group from the result. On the
+    # 20250714 pin that is 283 groups over 11 live-animal items and 1986-2013,
+    # 80,104 observed seed cells. Those items are balanced onto head-count
+    # targets from the same rows, so what goes is real partner structure and
+    # not a unit mixup -- it must at least be visible.
+    btd <- tibble::tribble(
+      ~year, ~item_cbs_code, ~from_code, ~to_code, ~unit,    ~value,
+      2010,  2511,           10L,        20L,      "tonnes", 100,
+      2010,  1049,           10L,        20L,      "heads",  5000000,
+    )
+    cbs <- tibble::tribble(
+      ~year, ~item_cbs_code, ~area_code, ~export, ~import,
+      2010,  2511,           10L,        100,     0,
+      2010,  2511,           20L,        0,       100,
+      2010,  1049,           10L,        5000000, 0,
+      2010,  1049,           20L,        0,       5000000,
+    )
+    codes <- factor(c(10L, 20L))
+
+    testthat::expect_warning(
+      testthat::expect_warning(
+        result <- .nest_by_year_item_code(btd, cbs, codes),
+        "not denominated in mass"
+      ),
+      "lost every seed cell"
+    )
+
+    # The group really is gone: the warning is the only trace it leaves.
+    testthat::expect_equal(result$item_cbs_code, 2511)
+  }
+)
+
 # .match_btd_item_codes / .clean_bilateral_trade -------------------------------
 
 testthat::test_that(".match_btd_item_codes resolves CBS item names", {
