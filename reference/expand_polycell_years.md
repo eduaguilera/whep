@@ -54,7 +54,7 @@ if (requireNamespace("sf", quietly = TRUE)) {
 #> ℹ This is correct for a smoke build and wrong for a published pin (#885).
 #>   Supply the layer, or state in the publishing commit that inland_water_ha is
 #>   zero by construction.
-#> # A tibble: 18 × 22
+#> # A tibble: 18 × 23
 #>    polycell_id        cell_id   lon   lat polity_code area_code  year start_year
 #>    <chr>                <int> <dbl> <dbl> <chr>           <int> <int>      <int>
 #>  1 AAA-2000-2020@380…  380269  10.2  44.8 AAA-2000-2…        11  2010       2000
@@ -75,9 +75,10 @@ if (requireNamespace("sf", quietly = TRUE)) {
 #> 16 AAA-2000-2020@381…  381270  10.8  45.2 AAA-2000-2…        11  2012       2000
 #> 17 AAA-2000-2020@382…  382269  11.2  44.8 AAA-2000-2…        11  2012       2000
 #> 18 AAA-2000-2020@382…  382270  11.2  45.2 AAA-2000-2…        11  2012       2000
-#> # ℹ 14 more variables: end_year <int>, cell_area_ha <dbl>,
+#> # ℹ 15 more variables: end_year <int>, cell_area_ha <dbl>,
 #> #   polity_area_ha <dbl>, land_area_ha <dbl>, inland_water_ha <dbl>,
 #> #   ice_area_ha <dbl>, geometry_source <chr>, polygon_status <chr>,
 #> #   split_method <chr>, coverage_status <chr>, support_role <chr>,
-#> #   area_engine <chr>, luh2_vintage <chr>, water_excess_ha <dbl>
+#> #   area_engine <chr>, luh2_vintage <chr>, layers_supplied <chr>,
+#> #   water_excess_ha <dbl>
 ```

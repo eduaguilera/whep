@@ -16,16 +16,16 @@ twice and lose 12-15% of the land of an island or heavily coastal country.
 fill_proxy_growth() consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and boundary_step makes it:
-&quot;relink&quot; (default) re-measures the previous year inside the incoming
+&quot;relink&quot; re-measures the previous year inside the incoming
 polity's polygon before taking the ratio, so only within-territory growth
 is ever used and annexing a province never moves the back-cast. On Ethiopia
 in 1952, when Eritrea joins, that is +1.9% instead of +8.0%.
-&quot;level_step&quot; takes the ratio between the two polygons as measured, so the
-territorial change passes through as a level step and the 1850 row is
-scaled to the smaller empire it is labelled with. That is the reframing the
-whole method exists for; it is also the option most exposed to a bad
-polygon, because an artefact of the polity database then compounds down the
-back-cast exactly as a real annexation would.
+&quot;level_step&quot; (default) takes the ratio between the two polygons as
+measured, so the territorial change passes through as a level step and the
+1850 row is scaled to the smaller empire it is labelled with. That is the
+reframing the whole method exists for; it is also the option most exposed
+to a bad polygon, because an artefact of the polity database then compounds
+down the back-cast exactly as a real annexation would.
 
 
 Measured over 1850-1961 against the present-day series, 18.0% of back-cast
@@ -49,16 +49,16 @@ twice and lose 12-15% of the land of an island or heavily coastal country.
 fill_proxy_growth() consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and boundary_step makes it:
-&quot;relink&quot; (default) re-measures the previous year inside the incoming
+&quot;relink&quot; re-measures the previous year inside the incoming
 polity's polygon before taking the ratio, so only within-territory growth
 is ever used and annexing a province never moves the back-cast. On Ethiopia
 in 1952, when Eritrea joins, that is +1.9% instead of +8.0%.
-&quot;level_step&quot; takes the ratio between the two polygons as measured, so the
-territorial change passes through as a level step and the 1850 row is
-scaled to the smaller empire it is labelled with. That is the reframing the
-whole method exists for; it is also the option most exposed to a bad
-polygon, because an artefact of the polity database then compounds down the
-back-cast exactly as a real annexation would.
+&quot;level_step&quot; (default) takes the ratio between the two polygons as
+measured, so the territorial change passes through as a level step and the
+1850 row is scaled to the smaller empire it is labelled with. That is the
+reframing the whole method exists for; it is also the option most exposed
+to a bad polygon, because an artefact of the polity database then compounds
+down the back-cast exactly as a real annexation would.
 
 
 Measured over 1850-1961 against the present-day series, 18.0% of back-cast
@@ -121,16 +121,16 @@ water, so weighting them by a raw coastal cell's land share would discount it
 twice and lose 12-15% of the land of an island or heavily coastal country.</p>
 <p><code><a href="fill_proxy_growth.html">fill_proxy_growth()</a></code> consumes only this series' year-on-year ratios, so a
 change of territory can only reach the back-cast as a ratio. What that ratio
-should be is a real choice, and <code>boundary_step</code> makes it:</p><ul><li><p><code>"relink"</code> (default) re-measures the previous year inside the <strong>incoming</strong>
+should be is a real choice, and <code>boundary_step</code> makes it:</p><ul><li><p><code>"relink"</code> re-measures the previous year inside the <strong>incoming</strong>
 polity's polygon before taking the ratio, so only within-territory growth
 is ever used and annexing a province never moves the back-cast. On Ethiopia
 in 1952, when Eritrea joins, that is +1.9% instead of +8.0%.</p></li>
-<li><p><code>"level_step"</code> takes the ratio between the two polygons as measured, so the
-territorial change passes through as a level step and the 1850 row is
-scaled to the smaller empire it is labelled with. That is the reframing the
-whole method exists for; it is also the option most exposed to a bad
-polygon, because an artefact of the polity database then compounds down the
-back-cast exactly as a real annexation would.</p></li>
+<li><p><code>"level_step"</code> (default) takes the ratio between the two polygons as
+measured, so the territorial change passes through as a level step and the
+1850 row is scaled to the smaller empire it is labelled with. That is the
+reframing the whole method exists for; it is also the option most exposed
+to a bad polygon, because an artefact of the polity database then compounds
+down the back-cast exactly as a real annexation would.</p></li>
 </ul><p>Measured over 1850-1961 against the present-day series, 18.0% of back-cast
 crop tonnage at 1850 sits between the two rules, falling to 0.07% by 1960.</p>
 <p>This reads gridded LUH2 for every requested year and is minutes-to-tens-of-

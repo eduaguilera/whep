@@ -2,6 +2,75 @@
 
 ## whep (development version)
 
+- **[`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  now refuses a support built without its inland water and ice layers,
+  and
+  [`build_polycell_support()`](https://eduaguilera.github.io/whep/reference/build_polycell_support.md)
+  stamps which layers it consumed
+  ([\#1010](https://github.com/eduaguilera/whep/issues/1010), regression
+  of [\#885](https://github.com/eduaguilera/whep/issues/885)).** `water`
+  and `ice` are optional arguments that zero-fill when absent, so a pin
+  can ship with every lake, river and glacier inside a polity booked as
+  `land_area_ha` – and nothing in the table’s own arithmetic can see it,
+  because the identity
+  `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` holds
+  to `max |residual| = 0 ha` on an all-zero layer. Two published pins
+  were built that way, `20260818T105426Z-a0330`
+  ([\#885](https://github.com/eduaguilera/whep/issues/885)) and
+  `20260827T190201Z-f82a2`
+  ([\#1010](https://github.com/eduaguilera/whep/issues/1010)), the
+  second two days after the first was closed and with
+  [\#885](https://github.com/eduaguilera/whep/issues/885)’s warning
+  already in place.
+
+  The output now carries `layers_supplied`, a label naming what the
+  build consumed (`"ice,water"`, `"water"`, `"ice"` or `"none"`). A
+  label cannot be satisfied by arithmetic, which is the point: every
+  cross-column check this table has is satisfied by a zero.
+  [`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+  aborts with class `whep_polycell_absent_layers` when the stamp says a
+  layer was missing, and on a support published before the stamp existed
+  falls back to asserting that `inland_water_ha` and `ice_area_ha` are
+  not identically zero. Pass `require_layers = FALSE` for a caller that
+  needs the territory and not the land/water/ice split.
+  `inst/scripts/verify_polycell_support.R` gains an S-A0 gate that
+  aborts on an unset `WHEP_LPJML_INPUT_DIR` or `WHEP_NATURALEARTH_DIR`
+  instead of alerting and continuing, and applies the whole-table floors
+  (100,000 wet rows / 1,000 Mha; 5,000 icy rows / 400 Mha).
+
+  **Published values move**, for every consumer keyed on the cell
+  support:
+  [`build_n_deposition()`](https://eduaguilera.github.io/whep/reference/build_n_deposition.md),
+  [`build_carbon_balance()`](https://eduaguilera.github.io/whep/reference/build_carbon_balance.md),
+  [`build_nitrogen_balance()`](https://eduaguilera.github.io/whep/reference/build_nitrogen_balance.md),
+  [`build_polycell_land_uses()`](https://eduaguilera.github.io/whep/reference/build_polycell_land_uses.md)
+  and
+  [`build_historical_land_areas()`](https://eduaguilera.github.io/whep/reference/build_historical_land_areas.md).
+  The pin is regenerated as `20260907T111653Z-e654d` with GLWD v2 inland
+  water and `ne_10m_glaciated_areas` ice, on the committed polities
+  snapshot, keeping the
+  [\#907](https://github.com/eduaguilera/whep/issues/907) reporting
+  `area_code` that the previous sound pin (`20260825T102349Z-1a0eb`)
+  predates – so this is a regeneration rather than a revert, which would
+  have traded [\#1010](https://github.com/eduaguilera/whep/issues/1010)
+  for [\#907](https://github.com/eduaguilera/whep/issues/907). Global
+  land in the pinned support falls from 85,698.454 Mha to 83,621.586
+  Mha, inland water rises from 0 to 1,636.259 Mha over 457,823 rows and
+  ice from 0 to 440.610 Mha over 12,407 rows. Territory is unchanged:
+  the new support holds the **same 484,314 polycell-intervals** as the
+  old one with per-row `polity_area_ha` identical to 0 ha, so the only
+  thing that moved is that 2,076.869 Mha of it is now booked as water
+  and ice rather than land. At the gridded carbon path’s 2015 slice land
+  falls from 13,463.044 Mha to 12,928.139 Mha – the old figure was 534.9
+  Mha (4.1%) high – across 94.3% of the 73,997 `(cell, area_code)`
+  groups; single cells in Lake Victoria drop from 309,083 ha of land to
+  2.9 ha. Every gridded nutrient and carbon density divided by land area
+  moves in the opposite direction. The pin keeps
+  `aggregates = "exclude"` like the one it replaces, and at a fixed year
+  that is provably free: an overlap-layer build of the same inputs
+  agrees with it to 0 ha on land, water, ice and territory at both 1900
+  and 2015.
+
 - **A positive trade record now outranks a CBS zero, and
   [`build_commodity_balances()`](https://eduaguilera.github.io/whep/reference/build_commodity_balances.md)
   gains `trade_zero` to select the old behaviour

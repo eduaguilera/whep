@@ -167,8 +167,10 @@ alongside the partition marked <code>support_role == "overlap"</code> – see
 <code>lon</code>, <code>lat</code>, <code>polity_code</code>, <code>area_code</code>, <code>start_year</code>, <code>end_year</code>,
 <code>cell_area_ha</code>, <code>polity_area_ha</code>, <code>land_area_ha</code>, <code>inland_water_ha</code>,
 <code>ice_area_ha</code>, <code>geometry_source</code>, <code>polygon_status</code>, <code>split_method</code>,
-<code>coverage_status</code>, <code>support_role</code>, <code>area_engine</code> and <code>luh2_vintage</code>, plus
-<code>year</code> when <code>years</code> is supplied. <code>support_role</code> is <code>"partition"</code> on every
+<code>coverage_status</code>, <code>support_role</code>, <code>area_engine</code>, <code>luh2_vintage</code> and
+<code>layers_supplied</code>, plus <code>year</code> when <code>years</code> is supplied.
+<code>layers_supplied</code> is the provenance stamp described under <em>Optional layers
+are stamped, not inferred</em> below. <code>support_role</code> is <code>"partition"</code> on every
 row unless <code>aggregates = "overlap_layer"</code> was asked for. <code>area_engine</code> is
 <code>"s2"</code> except on the pieces the spherical engine cannot read back, which
 are measured with <code><a href="https://rspatial.github.io/terra/reference/expanse.html" class="external-link">terra::expanse()</a></code> rather than dropped. Diagnostics ride
@@ -320,6 +322,29 @@ layer as a whole. That is also why the <code>"overlap"</code> diagnostic keeps
 measuring the partition only: an over-full cell means something there, and
 in this layer it means nothing.</p>
     </div>
+    <div class="section level2">
+    <h2 id="optional-layers-are-stamped-not-inferred">Optional layers are stamped, not inferred<a class="anchor" aria-label="anchor" href="#optional-layers-are-stamped-not-inferred"></a></h2>
+
+
+<p><code>water</code> and <code>ice</code> are optional, and when either is absent its column is
+filled with zeros. That is correct for a smoke build and wrong for a
+published pin, and no identity this table carries can tell the two apart:
+<code>polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha</code> holds to
+<code>max |residual| = 0 ha</code> on an all-zero layer, because zero satisfies it.
+Two published pins were built that way and passed every check –
+<code>20260818T105426Z-a0330</code> (whep#885) and <code>20260827T190201Z-f82a2</code>
+(whep#1010), the second of them two days after the first was closed and with
+whep#885's warning already in place. On the second, 2015 land came out
+534.9 Mha (+4.1%) high and single cells in Lake Victoria went from 2.9 ha of
+land to 309,083 ha.</p>
+<p>So the output carries <code>layers_supplied</code>, a label naming which of the two the
+build actually consumed: <code>"ice,water"</code>, <code>"water"</code>, <code>"ice"</code> or <code>"none"</code>. It
+records what was consumed rather than what was passed, since an empty layer
+is dropped before use. A label cannot be satisfied by arithmetic, which is
+the whole point – <code><a href="read_polycell_support.html">read_polycell_support()</a></code> refuses a support whose stamp
+says a layer was missing, and falls back to asserting the columns are not
+identically zero on a table published before the stamp existed.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -343,7 +368,7 @@ in this layer it means nothing.</p>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span style="color: #00BBBB;">ℹ</span> This is correct for a smoke build and wrong for a published pin (#885).</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span>   Supply the layer, or state in the publishing commit that <span style="color: #00BB00;">inland_water_ha</span> is</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span>   zero by construction.</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 22</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 23</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> AAA-2000-2020@3802…  <span style="text-decoration: underline;">380</span>269  10.2  44.8 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
@@ -352,11 +377,12 @@ in this layer it means nothing.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> AAA-2000-2020@3812…  <span style="text-decoration: underline;">381</span>270  10.8  45.2 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> AAA-2000-2020@3822…  <span style="text-decoration: underline;">382</span>269  11.2  44.8 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> AAA-2000-2020@3822…  <span style="text-decoration: underline;">382</span>270  11.2  45.2 AAA-2000-2…        11  <span style="text-decoration: underline;">2</span>015       <span style="text-decoration: underline;">2</span>000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 14 more variables: end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># ℹ 15 more variables: end_year &lt;int&gt;, cell_area_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   polity_area_ha &lt;dbl&gt;, land_area_ha &lt;dbl&gt;, inland_water_ha &lt;dbl&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   ice_area_ha &lt;dbl&gt;, geometry_source &lt;chr&gt;, polygon_status &lt;chr&gt;,</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   split_method &lt;chr&gt;, coverage_status &lt;chr&gt;, support_role &lt;chr&gt;,</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_engine &lt;chr&gt;, luh2_vintage &lt;chr&gt;, water_excess_ha &lt;dbl&gt;</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   area_engine &lt;chr&gt;, luh2_vintage &lt;chr&gt;, layers_supplied &lt;chr&gt;,</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;">#   water_excess_ha &lt;dbl&gt;</span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

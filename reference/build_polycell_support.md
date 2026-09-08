@@ -104,9 +104,11 @@ A `tibble` whose columns are a superset of `polycell_id`, `cell_id`,
 `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-`coverage_status`, `support_role`, `area_engine` and `luh2_vintage`,
-plus `year` when `years` is supplied. `support_role` is `"partition"` on
-every row unless `aggregates = "overlap_layer"` was asked for.
+`coverage_status`, `support_role`, `area_engine`, `luh2_vintage` and
+`layers_supplied`, plus `year` when `years` is supplied.
+`layers_supplied` is the provenance stamp described under *Optional
+layers are stamped, not inferred* below. `support_role` is `"partition"`
+on every row unless `aggregates = "overlap_layer"` was asked for.
 `area_engine` is `"s2"` except on the pieces the spherical engine cannot
 read back, which are measured with
 [`terra::expanse()`](https://rspatial.github.io/terra/reference/expanse.html)
@@ -287,6 +289,30 @@ the layer as a whole. That is also why the `"overlap"` diagnostic keeps
 measuring the partition only: an over-full cell means something there,
 and in this layer it means nothing.
 
+## Optional layers are stamped, not inferred
+
+`water` and `ice` are optional, and when either is absent its column is
+filled with zeros. That is correct for a smoke build and wrong for a
+published pin, and no identity this table carries can tell the two
+apart: `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha`
+holds to `max |residual| = 0 ha` on an all-zero layer, because zero
+satisfies it. Two published pins were built that way and passed every
+check – `20260818T105426Z-a0330` (whep#885) and `20260827T190201Z-f82a2`
+(whep#1010), the second of them two days after the first was closed and
+with whep#885's warning already in place. On the second, 2015 land came
+out 534.9 Mha (+4.1%) high and single cells in Lake Victoria went from
+2.9 ha of land to 309,083 ha.
+
+So the output carries `layers_supplied`, a label naming which of the two
+the build actually consumed: `"ice,water"`, `"water"`, `"ice"` or
+`"none"`. It records what was consumed rather than what was passed,
+since an empty layer is dropped before use. A label cannot be satisfied
+by arithmetic, which is the whole point –
+[`read_polycell_support()`](https://eduaguilera.github.io/whep/reference/read_polycell_support.md)
+refuses a support whose stamp says a layer was missing, and falls back
+to asserting the columns are not identically zero on a table published
+before the stamp existed.
+
 ## Examples
 
 ``` r
@@ -310,7 +336,7 @@ if (requireNamespace("sf", quietly = TRUE)) {
 #> ℹ This is correct for a smoke build and wrong for a published pin (#885).
 #>   Supply the layer, or state in the publishing commit that inland_water_ha is
 #>   zero by construction.
-#> # A tibble: 6 × 22
+#> # A tibble: 6 × 23
 #>   polycell_id         cell_id   lon   lat polity_code area_code  year start_year
 #>   <chr>                 <int> <dbl> <dbl> <chr>           <int> <int>      <int>
 #> 1 AAA-2000-2020@3802…  380269  10.2  44.8 AAA-2000-2…        11  2015       2000
@@ -319,9 +345,10 @@ if (requireNamespace("sf", quietly = TRUE)) {
 #> 4 AAA-2000-2020@3812…  381270  10.8  45.2 AAA-2000-2…        11  2015       2000
 #> 5 AAA-2000-2020@3822…  382269  11.2  44.8 AAA-2000-2…        11  2015       2000
 #> 6 AAA-2000-2020@3822…  382270  11.2  45.2 AAA-2000-2…        11  2015       2000
-#> # ℹ 14 more variables: end_year <int>, cell_area_ha <dbl>,
+#> # ℹ 15 more variables: end_year <int>, cell_area_ha <dbl>,
 #> #   polity_area_ha <dbl>, land_area_ha <dbl>, inland_water_ha <dbl>,
 #> #   ice_area_ha <dbl>, geometry_source <chr>, polygon_status <chr>,
 #> #   split_method <chr>, coverage_status <chr>, support_role <chr>,
-#> #   area_engine <chr>, luh2_vintage <chr>, water_excess_ha <dbl>
+#> #   area_engine <chr>, luh2_vintage <chr>, layers_supplied <chr>,
+#> #   water_excess_ha <dbl>
 ```
