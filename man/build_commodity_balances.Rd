@@ -14,6 +14,7 @@ build_commodity_balances(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  residue_use = .cbs_residue_use_choices(),
   .fixed_data = NULL
 )
 }
@@ -77,6 +78,34 @@ pre-whep#866 behaviour. \strong{The default moves published values} — at 2010
 it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 10.27 Mt, moving 26,538 published rows over 180 areas; see \code{NEWS.md}.
 The conflict count is reported by every build under either setting.}
+
+\item{residue_use}{One of \code{"all_feed"} (default) or
+\code{"krausmann_recovered"}, selecting how crop-residue production is
+apportioned between the \code{feed} and \code{other_uses} destinies.
+
+\code{"all_feed"} is the published convention: every tonne of gross residue
+production is booked once more as a use, and that use is \code{feed} for
+\code{2105} Straw and \code{2106} Other crop residues (\code{2107} Firewood goes to
+\code{other_uses}). There is no recovery rate and no feed-use fraction on that
+path, so \code{production == feed} exactly for the two feedable items.
+
+\code{"krausmann_recovered"} carries only the residue that leaves the field:
+\code{production} becomes gross times the \code{residue_krausmann} recovery rate,
+\code{feed} is that times the \code{residue_feed_fraction} UN M49 sub-regional
+feed-use fraction, and \code{other_uses} is the rest, so
+\code{production == feed + other_uses}. The residue left on the field never
+enters the balance and reaches the soil through
+\code{\link[=calculate_residue_destinies]{calculate_residue_destinies()}} instead, which is what makes the two
+sides of the package agree about the same straw (whep#1003).
+
+\strong{Selecting it moves published values.} Measured on the current
+\code{crop_residues} pin at 2020, over the area-attributable rows: gross
+residue 9.338 Pg becomes 7.792 Pg of \code{production} (-16.6\%) and residue
+\code{feed} falls from 7.209 Pg to 1.697 Pg (-76.5\%), with 1.546 Pg staying on
+the field. Residue feed availability drives \code{\link[=redistribute_feed]{redistribute_feed()}}, which
+fills CBS items before the grassland sink, so the grass share of realised
+intake rises. The default is \code{"all_feed"} so that nothing moves unless it
+is asked for.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

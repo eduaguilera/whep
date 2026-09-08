@@ -464,3 +464,206 @@ test_that("both engines see the same MMS mix for one territory", {
     stats::setNames(engine$fraction, engine$mms_type)[sort(engine$mms_type)]
   )
 })
+
+# ---- Bedding (whep#1005) ---------------------------------------------------
+
+.toy_bedding <- function(dm = 100) {
+  # Wheat straw composition from bio_coefs: 0.458 kg C, 0.00592 kg N per kg DM.
+  tibble::tibble(
+    year = 2020L,
+    territory = "ES",
+    sub_territory = NA_character_,
+    bedding_dm_t = dm,
+    bedding_c_t = dm * 0.458,
+    bedding_n_t = dm * 0.00592
+  )
+}
+
+test_that("no bedding is the default and leaves every value where it was", {
+  split <- whep::split_manure_management(.toy_excretion())
+  expect_true(all(split$dm_bedding == 0))
+  expect_true(all(split$n_bedding == 0))
+  expect_true(all(split$c_bedding == 0))
+  expect_true(all(split$method_bedding == "none"))
+
+  losses <- whep::apply_management_losses(split)
+  expect_true(all(losses$method_bedding_carbon == "cap_at_stored_cn"))
+  # The same rows without the bedding columns at all -- a `split` assembled by
+  # a caller that predates them -- must give identical numbers.
+  bare <- dplyr::select(split, -"dm_bedding", -"n_bedding", -"c_bedding")
+  expect_equal(
+    whep::apply_management_losses(bare)$applied_n,
+    losses$applied_n
+  )
+  expect_equal(
+    whep::apply_management_losses(bare)$applied_c,
+    losses$applied_c
+  )
+})
+
+test_that("bedding reaches only the litter-using collected streams", {
+  split <- whep::split_manure_management(
+    .toy_excretion(),
+    options = list(bedding = .toy_bedding())
+  )
+  expect_true(all(split$method_bedding == "litter_mms_n_share"))
+  litter <- split$mms_type %in%
+    c("Solid Storage", "Daily Spread", "Poultry Manure")
+  expect_true(all(split$dm_bedding[!litter] == 0))
+  expect_true(all(split$dm_bedding[litter] > 0))
+  expect_true(all(split$dm_bedding[split$stream == "grazing"] == 0))
+  # Mass is conserved: every tonne supplied is placed on some stream.
+  expect_equal(sum(split$dm_bedding), 100)
+  expect_equal(sum(split$n_bedding), 100 * 0.00592)
+  expect_equal(sum(split$c_bedding), 100 * 0.458)
+})
+
+test_that("bedding is split over litter streams by their excreted N", {
+  split <- whep::split_manure_management(
+    .toy_excretion(),
+    options = list(bedding = .toy_bedding())
+  )
+  litter <- split[
+    split$mms_type %in%
+      c("Solid Storage", "Daily Spread", "Poultry Manure") &
+      split$stream == "collected",
+  ]
+  expect_equal(
+    litter$dm_bedding / sum(litter$dm_bedding),
+    litter$n_stream / sum(litter$n_stream)
+  )
+})
+
+test_that("bedding nitrogen raises applied N and C, and grazing is untouched", {
+  base <- whep::apply_management_losses(
+    whep::split_manure_management(.toy_excretion())
+  )
+  bed <- whep::apply_management_losses(
+    whep::split_manure_management(
+      .toy_excretion(),
+      options = list(bedding = .toy_bedding())
+    )
+  )
+  graze <- base$stream == "grazing"
+  expect_equal(bed$applied_n[graze], base$applied_n[graze])
+  expect_equal(bed$applied_c[graze], base$applied_c[graze])
+  expect_gt(sum(bed$applied_n), sum(base$applied_n))
+  expect_gt(sum(bed$applied_c), sum(base$applied_c))
+  # Under the default cap the applied C:N of the cattle solid streams does not
+  # move at all: `pmin(c, applied_n * cn_post)` already binds there (cattle
+  # excreta C:N 19.07 against stored solid 20.16), so WHEP already reports the
+  # bedded farmyard-manure C:N with or without any straw in the model, and
+  # bedding raises the applied carbon only through the nitrogen it brings.
+  # That is the finding whep#1005 turns on.
+  cattle_solid <- base$manure_type == "Solid" &
+    base$stream == "collected" &
+    base$species_gen == "Cattle"
+  expect_true(any(cattle_solid))
+  expect_equal(
+    bed$applied_c[cattle_solid] / bed$applied_n[cattle_solid],
+    base$applied_c[cattle_solid] / base$applied_n[cattle_solid]
+  )
+  # Pig daily spread is the counter-case: its nitrogen losses are small enough
+  # (7%) that `applied_n * 13.22` stays above the excreta carbon, the cap does
+  # not bind, and the straw carbon does reach the field and lift the applied
+  # C:N. Whether the cap binds is a property of the (species, MMS) pair, not of
+  # bedding, which is exactly what makes it a decision rather than a detail.
+  pig_spread <- base$mms_type == "Daily Spread" & base$species_gen == "Swine"
+  expect_true(any(pig_spread))
+  expect_true(all(
+    bed$applied_c[pig_spread] / bed$applied_n[pig_spread] >
+      base$applied_c[pig_spread] / base$applied_n[pig_spread]
+  ))
+})
+
+test_that("the additive rule lifts the applied C:N above the stored value", {
+  split <- whep::split_manure_management(
+    .toy_excretion(),
+    options = list(bedding = .toy_bedding())
+  )
+  capped <- whep::apply_management_losses(split)
+  additive <- whep::apply_management_losses(
+    split,
+    options = list(bedding_carbon = "additive")
+  )
+  expect_true(all(additive$method_bedding_carbon == "additive"))
+  cattle_solid <- capped$manure_type == "Solid" &
+    capped$stream == "collected" &
+    capped$species_gen == "Cattle"
+  expect_gt(sum(additive$applied_c), sum(capped$applied_c))
+  # The rule only ever adds carbon, and where the cap was binding it lifts the
+  # applied C:N above the stored value.
+  expect_true(all(additive$applied_c >= capped$applied_c))
+  expect_true(all(
+    additive$applied_c[cattle_solid] / additive$applied_n[cattle_solid] >
+      capped$applied_c[cattle_solid] / capped$applied_n[cattle_solid]
+  ))
+  # Nitrogen is untouched by a carbon rule.
+  expect_equal(additive$applied_n, capped$applied_n)
+})
+
+test_that("bedding closes the excreted + bedding = applied + lost balance", {
+  split <- whep::split_manure_management(
+    .toy_excretion(),
+    options = list(bedding = .toy_bedding())
+  )
+  losses <- whep::apply_management_losses(split)
+  supplied <- sum(.toy_excretion()$n_excretion) + sum(split$n_bedding)
+  accounted <- sum(losses$applied_n) +
+    sum(
+      losses$n_volatilized +
+        losses$n_leached +
+        losses$n2o_direct_n +
+        losses$n2_n
+    )
+  expect_equal(accounted, supplied)
+})
+
+test_that("bedding with nowhere to go is reported, not zeroed in silence", {
+  # Sheep are 100% pasture/range/paddock in the Global MMS distribution, so a
+  # sheep-only herd has no litter-using collected stream to bed.
+  sheep <- tibble::tibble(
+    year = 2020L,
+    territory = "ES",
+    sub_territory = NA,
+    livestock_category = "Sheep",
+    n_excretion = 100,
+    c_excretion = 1240,
+    vs_excretion = 60
+  )
+  expect_warning(
+    whep::split_manure_management(
+      sheep,
+      options = list(bedding = .toy_bedding())
+    ),
+    "no litter-using collected manure stream"
+  )
+})
+
+test_that("bedding guards its own contract", {
+  expect_error(
+    whep::split_manure_management(
+      .toy_excretion(),
+      options = list(bedding = tibble::tibble(year = 2020L))
+    ),
+    class = "whep_error_bedding_cols"
+  )
+  expect_error(
+    whep::apply_management_losses(
+      whep::split_manure_management(.toy_excretion()),
+      options = list(bedding_carbon = "whatever")
+    ),
+    class = "rlang_error"
+  )
+  # Two bedding rows for one group would place the same litter twice; the
+  # join is declared `many-to-one` so it aborts instead.
+  expect_error(
+    whep::split_manure_management(
+      .toy_excretion(),
+      options = list(
+        bedding = dplyr::bind_rows(.toy_bedding(60), .toy_bedding(40))
+      )
+    ),
+    class = "dplyr_error_join_relationship_many_to_one"
+  )
+})

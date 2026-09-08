@@ -60,6 +60,33 @@
 #'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 #'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
 #'   The conflict count is reported by every build under either setting.
+#' @param residue_use One of `"all_feed"` (default) or
+#'   `"krausmann_recovered"`, selecting how crop-residue production is
+#'   apportioned between the `feed` and `other_uses` destinies.
+#'
+#'   `"all_feed"` is the published convention: every tonne of gross residue
+#'   production is booked once more as a use, and that use is `feed` for
+#'   `2105` Straw and `2106` Other crop residues (`2107` Firewood goes to
+#'   `other_uses`). There is no recovery rate and no feed-use fraction on that
+#'   path, so `production == feed` exactly for the two feedable items.
+#'
+#'   `"krausmann_recovered"` carries only the residue that leaves the field:
+#'   `production` becomes gross times the `residue_krausmann` recovery rate,
+#'   `feed` is that times the `residue_feed_fraction` UN M49 sub-regional
+#'   feed-use fraction, and `other_uses` is the rest, so
+#'   `production == feed + other_uses`. The residue left on the field never
+#'   enters the balance and reaches the soil through
+#'   [calculate_residue_destinies()] instead, which is what makes the two
+#'   sides of the package agree about the same straw (whep#1003).
+#'
+#'   **Selecting it moves published values.** Measured on the current
+#'   `crop_residues` pin at 2020, over the area-attributable rows: gross
+#'   residue 9.338 Pg becomes 7.792 Pg of `production` (-16.6%) and residue
+#'   `feed` falls from 7.209 Pg to 1.697 Pg (-76.5%), with 1.546 Pg staying on
+#'   the field. Residue feed availability drives [redistribute_feed()], which
+#'   fills CBS items before the grassland sink, so the grass share of realised
+#'   intake rises. The default is `"all_feed"` so that nothing moves unless it
+#'   is asked for.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -88,11 +115,13 @@ build_commodity_balances <- function(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  residue_use = .cbs_residue_use_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
+  residue_use <- rlang::arg_match(residue_use, .cbs_residue_use_choices())
   if (example) {
     return(
       if (format == "wide") {
@@ -109,7 +138,13 @@ build_commodity_balances <- function(
     ))
   }
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
+    fixed <- .read_cbs(
+      primary_all,
+      start_year,
+      end_year,
+      historical_data,
+      residue_use = residue_use
+    ) |>
       .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
     if (!is.null(historical_data)) {
@@ -125,6 +160,11 @@ build_commodity_balances <- function(
     if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (residue_use != "all_feed") {
+      cli::cli_warn(
+        "{.arg residue_use} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -300,8 +340,10 @@ build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  residue_use = .cbs_residue_use_choices()
 ) {
+  residue_use <- rlang::arg_match(residue_use, .cbs_residue_use_choices())
   output_years <- start_year:end_year
 
   # FAOSTAT CBS data begins at 1961. When historical extension is needed,
@@ -318,7 +360,8 @@ build_commodity_balances <- function(
   cli::cli_progress_step("Reading CBS inputs")
   inputs <- .cbs_read_inputs(
     primary_all,
-    years
+    years,
+    residue_use = residue_use
   )
 
   # 2. Build first raw CBS (combine sources, select best)
@@ -712,7 +755,8 @@ build_processing_coefs <- function(
 
 .cbs_read_inputs <- function(
   primary_all,
-  years
+  years,
+  residue_use = .cbs_residue_use_choices()
 ) {
   # Reuse CB extracts from production build if available
   cb <- attr(primary_all, ".cb_extracts")
@@ -745,7 +789,10 @@ build_processing_coefs <- function(
   primary_cbs_area <- .primary_to_cbs_area(primary_all)
 
   # Crop residues
-  crop_residues <- .read_crop_residues(years = years)
+  crop_residues <- .read_crop_residues(
+    years = years,
+    residue_use = residue_use
+  )
 
   # Land areas
   land_areas_wide <- .read_land_areas_wide(years = years)
@@ -1444,7 +1491,21 @@ build_processing_coefs <- function(
   )
 }
 
-.read_crop_residues <- function(years = NULL) {
+.cbs_residue_use_choices <- function() {
+  c("all_feed", "krausmann_recovered")
+}
+
+# Residue commodity items (2105 Straw, 2106 Other crop residues) can be fed;
+# 2107 Firewood is recovered like the rest but is fuel, never feed (whep#1003).
+.cbs_feedable_residues <- function() {
+  c("Straw", "Other crop residues")
+}
+
+.read_crop_residues <- function(
+  years = NULL,
+  residue_use = .cbs_residue_use_choices()
+) {
+  residue_use <- rlang::arg_match(residue_use, .cbs_residue_use_choices())
   items_prod <- whep::items_prod_full
 
   res <- get_primary_residues() |>
@@ -1457,15 +1518,11 @@ build_processing_coefs <- function(
     dplyr::rename(item_cbs = item_cbs_name)
 
   dt <- data.table::as.data.table(res)
-  dt_extra <- data.table::copy(dt)
-  dt_extra[,
-    element := data.table::fifelse(
-      item_cbs %in% c("Straw", "Other crop residues"),
-      "feed",
-      "other_uses"
-    )
-  ]
-  dt <- data.table::rbindlist(list(dt, dt_extra), use.names = TRUE, fill = TRUE)
+  dt <- if (identical(residue_use, "all_feed")) {
+    .residue_rows_all_feed(dt)
+  } else {
+    .residue_rows_recovered(dt, years)
+  }
   dt <- dt[!is.na(item_cbs)]
 
   items_bridge <- data.table::as.data.table(items_prod)[,
@@ -1514,6 +1571,165 @@ build_processing_coefs <- function(
     )
   ]
   .apply_bucket_area_labels(dt, labels)
+}
+
+# `"all_feed"`: the published convention. Every tonne of residue production is
+# copied once more as a use, and the copy is `feed` for the two feedable residue
+# items and `other_uses` for firewood -- so `production == feed` for straw and
+# other crop residues, with no recovery rate and no feed-use fraction anywhere
+# on this path (whep#1003).
+.residue_rows_all_feed <- function(dt) {
+  dt_extra <- data.table::copy(dt)
+  dt_extra[,
+    element := data.table::fifelse(
+      item_cbs %in% .cbs_feedable_residues(),
+      "feed",
+      "other_uses"
+    )
+  ]
+  data.table::rbindlist(list(dt, dt_extra), use.names = TRUE, fill = TRUE)
+}
+
+# `"krausmann_recovered"`: the balance carries only the residue that leaves the
+# field. `production` becomes the recovered residue (gross x Krausmann recovery
+# rate), `feed` its feed-use share and `other_uses` the rest, so
+# `production == feed + other_uses` exactly. The residue left on the field is
+# not a commodity, never enters the balance, and reaches the soil through
+# `calculate_residue_destinies()`'s `residue_soil_dm_t` -- which is what stops
+# the two sides of the package disagreeing about the same straw (whep#1003).
+#
+# Bedding is inside `other_uses`, not an element of its own: the FAO element
+# vocabulary has no bedding destiny. Its quantity comes from
+# `calculate_residue_destinies(bedding_fraction = )` and reaches the manure
+# pools through `build_residue_bedding_supply()` (whep#1005).
+.residue_rows_recovered <- function(dt, years) {
+  fractions <- .residue_use_fractions(years)
+  dt <- merge(
+    dt,
+    fractions,
+    by = c("year", "area_code", "item_cbs_code_residue"),
+    all.x = TRUE,
+    sort = FALSE
+  )
+  .warn_residues_no_fraction(dt)
+  dt[,
+    recovered_frac := data.table::fifelse(
+      is.na(recovered_frac),
+      0,
+      recovered_frac
+    )
+  ]
+  dt[, feed_frac := data.table::fifelse(is.na(feed_frac), 0, feed_frac)]
+  dt[,
+    feed_frac := data.table::fifelse(
+      item_cbs %in% .cbs_feedable_residues(),
+      feed_frac,
+      0
+    )
+  ]
+  feed <- data.table::copy(dt)[, `:=`(
+    element = "feed",
+    value = value * feed_frac
+  )]
+  other <- data.table::copy(dt)[,
+    `:=`(
+      element = "other_uses",
+      value = value * (recovered_frac - feed_frac)
+    )
+  ]
+  dt[, value := value * recovered_frac]
+  out <- data.table::rbindlist(
+    list(dt, feed, other),
+    use.names = TRUE,
+    fill = TRUE
+  )
+  out[, c("recovered_frac", "feed_frac") := NULL]
+  out
+}
+
+# Recovery and feed-use fractions of gross residue per
+# `(year, area_code, item_cbs_code_residue)`, computed by
+# `calculate_residue_destinies()` at the crop grain the pin actually carries and
+# only then aggregated. Aggregating the fractions rather than the tonnage is
+# exact -- they are tonnage-weighted means over the same rows -- and it keeps
+# `get_primary_residues()`'s schema untouched, which four other consumers read.
+#
+# The coefficients are the package's own: `residue_krausmann` recovery rates
+# (Krausmann et al. 2008) crossed with the `residue_feed_fraction` UN M49
+# sub-regional feed-use fractions (Smil 1999, Lal 2005, Krausmann 2008,
+# Erenstein 2014, McIntire 1992), both already sourced in
+# `inst/extdata/coefs/`. Nothing new is assumed here.
+.residue_use_fractions <- function(years) {
+  items <- whep::items_prod_full |>
+    dplyr::distinct(.data$item_prod, .data$item_prod_code)
+  regions <- whep::regions_full |>
+    dplyr::transmute(
+      area_code = .data$code,
+      region_krausmann = .data$region_krausmann,
+      region_un_sub = .data$region_UN_sub
+    ) |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::distinct(.data$area_code, .keep_all = TRUE)
+
+  whep_read_file("crop_residues") |>
+    dplyr::rename_with(tolower) |>
+    dplyr::filter(.data$product_residue == "Residue") |>
+    .filter_years(years) |>
+    tibble::as_tibble() |>
+    add_area_code(name_column = "area") |>
+    add_item_cbs_code(
+      name_column = "item_cbs",
+      code_column = "item_cbs_code_residue"
+    ) |>
+    dplyr::filter(!is.na(.data$area_code)) |>
+    dplyr::left_join(items, by = "item_prod") |>
+    dplyr::left_join(regions, by = "area_code") |>
+    dplyr::mutate(residue_dm_t = .data$prod_ygpit_mg) |>
+    calculate_residue_destinies(method = "krausmann_regional") |>
+    dplyr::summarise(
+      gross = sum(.data$residue_dm_t, na.rm = TRUE),
+      recovered = sum(
+        .data$residue_feed_dm_t +
+          .data$residue_bedding_dm_t +
+          .data$residue_burn_dm_t,
+        na.rm = TRUE
+      ),
+      feed = sum(.data$residue_feed_dm_t, na.rm = TRUE),
+      .by = c("year", "area_code", "item_cbs_code_residue")
+    ) |>
+    dplyr::filter(.data$gross > 0) |>
+    dplyr::transmute(
+      year = .data$year,
+      area_code = .data$area_code,
+      item_cbs_code_residue = .data$item_cbs_code_residue,
+      recovered_frac = .data$recovered / .data$gross,
+      feed_frac = .data$feed / .data$gross
+    ) |>
+    data.table::as.data.table()
+}
+
+# Say when a residue row gets no recovery fraction, instead of zeroing it away.
+# A missing fraction sends the whole row's production to zero, which is a
+# silent deletion of real tonnage, so it is named with its magnitude.
+#
+# Rows with no `area_code` are excluded: those are the ones
+# `.warn_residues_no_area()` already names by label upstream, they can never
+# match a fraction keyed on the code, and `.read_crop_residues()` drops them a
+# few lines later for having no polity either. Warning about them again would
+# report 0.879 Pg at 2019-2020 as lost tonnage when it is the same tonnage the
+# published path discards too.
+.warn_residues_no_fraction <- function(dt) {
+  gap <- dt[!is.na(area_code) & is.na(recovered_frac) & value > 0]
+  if (nrow(gap) == 0L) {
+    return(invisible(NULL))
+  }
+  codes <- unique(gap$area_code)
+  cli::cli_warn(c(
+    "{nrow(gap)} crop-residue row{?s} over {length(codes)}
+     area{?s} got no recovery fraction.",
+    i = "{round(sum(gap$value))} t of residue production is set to zero."
+  ))
+  invisible(NULL)
 }
 
 .read_land_areas_wide <- function(years = NULL) {

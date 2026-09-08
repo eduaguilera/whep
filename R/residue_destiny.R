@@ -1,8 +1,9 @@
 #' Estimate the destinies of crop residues.
 #'
-#' Splits crop residue dry matter into three destinies that sum to the total
-#' residue: fed to livestock, burned / removed for fuel, and left on the field
-#' for soil incorporation.
+#' Splits crop residue dry matter into four destinies that sum to the total
+#' residue: fed to livestock, used as animal bedding, otherwise removed
+#' (burned, fuel, construction, industry, export), and left on the field for
+#' soil incorporation.
 #'
 #' @param x A tibble with `item_prod_code` and `residue_dm_t`. The
 #'   `krausmann_regional` method also needs `region_krausmann` (for the recovery
@@ -13,8 +14,50 @@
 #' @param method Destiny method: `"krausmann_regional"` (default, Krausmann
 #'   recovery x UN-sub-regional feed-use fraction) or `"shares"` (the
 #'   Spain-specific per-crop-year use/burn shares, flagged `to_be_revised`).
-#' @return The input tibble with `residue_feed_dm_t`, `residue_burn_dm_t`,
-#'   `residue_soil_dm_t` and `method_residue_destiny`.
+#' @param bedding_fraction Share of the **removed non-feed** residue used as
+#'   animal bedding, in `[0, 1]`. Default `0`, which leaves every published
+#'   value where it was: the bedding destiny is reported as zero and
+#'   `residue_burn_dm_t` keeps the whole non-feed removal, exactly as before
+#'   this argument existed.
+#'
+#'   **There is deliberately no sourced default**, because no settled global
+#'   bedding-only fraction exists. Every global framework merges bedding with
+#'   feed: FAO GLEAM 2.0/3.0 `FracRemove` (default 0.45) covers "feed, bedding
+#'   and construction" together, and the IPCC 2019 Refinement Vol.4 Ch.11
+#'   Eq. 11.6 `FracRemove` has the same scope with no default at all ("if data
+#'   are not available, assume no removal"). `residue_feed_fraction`, the
+#'   feed-use table this function uses, is drawn from that same literature and
+#'   likewise does not isolate bedding. Three anchors exist if a value is
+#'   wanted, none of them a settled coefficient:
+#'   * Wirsenius (2000, *Human Use of Land and Organic Materials*, PhD thesis,
+#'     Chalmers/Göteborg, Table 3.21 p.126): 270 Tg DM/yr of litter, i.e. 14%
+#'     of *distributed* cereal straw and stover and 11% of all distributed crop
+#'     by-products, with region x species rates in Table 3.13 p.86. The author
+#'     grades these as "very rough figures", and South and Central Asia cattle
+#'     is entered as 0 because the data were absent — an admitted gap that must
+#'     not be inherited as an estimate.
+#'   * Statistics Denmark tables HALM / HALM1 / HALM2, "Straw yield and use",
+#'     1997-2025, the only official statistic carrying a bedding-only column:
+#'     16-21% of straw production and about 30% of the removed straw.
+#'   * Bentsen, Felby and Thorsen (2014), *Prog. Energy Combust. Sci.*
+#'     40:59-73, Table 5 (Denmark, 2006-2008, from the same source): barley
+#'     16%, wheat 11% of production. The same paper's section 4.7 is worth
+#'     reading before generalising any of this: "very little information exists
+#'     on how residues are actually used".
+#'
+#'   Note also that Smil (1999) carries no bedding fraction, only a
+#'   straw-per-manure ratio (about 250 kg straw per tonne of excrement), so it
+#'   cannot be cited for a share of production. Picking a number here is the
+#'   caller's decision and must be justified where it is set. See whep#1005.
+#'
+#'   Bedding is taken out of the removed non-feed share, never out of
+#'   `residue_soil_dm_t`, which is what the IPCC 2019 Refinement Vol.4 Ch.10
+#'   (p. 10.96) requires: bedding coming from crop residues has to be
+#'   accounted for in `FracRemove` so it is not also counted as residue
+#'   returned to the soil.
+#' @return The input tibble with `residue_feed_dm_t`, `residue_bedding_dm_t`,
+#'   `residue_burn_dm_t`, `residue_soil_dm_t`, `method_residue_destiny` and
+#'   `bedding_fraction`.
 #' @export
 #' @examples
 #' calculate_residue_destinies(
@@ -25,9 +68,11 @@
 #' )
 calculate_residue_destinies <- function(
   x,
-  method = c("krausmann_regional", "shares")
+  method = c("krausmann_regional", "shares"),
+  bedding_fraction = 0
 ) {
   method <- rlang::arg_match(method)
+  .check_bedding_fraction(bedding_fraction)
   .crop_npp_validate(
     x,
     c("item_prod_code", "residue_dm_t"),
@@ -38,7 +83,9 @@ calculate_residue_destinies <- function(
     krausmann_regional = .residue_destiny_krausmann(x),
     shares = .residue_destiny_shares(x)
   )
-  dplyr::mutate(out, method_residue_destiny = method)
+  out |>
+    .split_residue_bedding(bedding_fraction) |>
+    dplyr::mutate(method_residue_destiny = method)
 }
 
 #' Build residue feed availability for feed allocation.
@@ -93,7 +140,141 @@ build_residue_feed_avail <- function(
     )
 }
 
+#' Build the bedding manure input from the residue bedding destiny.
+#'
+#' @description
+#' Turns the bedding destiny of crop residues into the `bedding` contract
+#' [split_manure_management()] consumes: bedding dry matter with its carbon and
+#' nitrogen, aggregated to `year x territory x sub_territory`.
+#'
+#' Carbon and nitrogen come from the same `bio_coefs` residue columns the crop
+#' NPP and nitrogen-balance paths already use for residue composition
+#' (`residue_c_kgdm`, `residue_n_kgdm`, joined on `item_prod_code`), so the
+#' straw that arrives in the manure heap carries the composition the rest of
+#' the package gives it, and nothing new is assumed here. For the cereals that
+#' supply most bedding that table holds 0.40-0.49 kg C and 0.005-0.007 kg N per
+#' kg DM, a C:N of roughly 57-98 -- far wider than the excreta it is mixed
+#' with, which is why bedding raises the C:N of stored farmyard manure.
+#'
+#' Those nitrogen values sit at the high end of what is published. Verified
+#' per-mass straw nitrogen spans 0.0022 kg N per kg DM (Andersson et al. 2024,
+#' *Front. Sustain. Food Syst.* 8:1393674, Table 1, wheat straw used as
+#' bedding) through 0.0045-0.0058 in the two European inventory sources
+#' (EMEP/EEA Guidebook 2023 Ch. 3.B Table 3-7 footnote a, 4 g N per kg fresh;
+#' Rösemann et al., Thünen Report 84, Table 3.6) to the IPCC 2019 Refinement
+#' Vol.4 Ch.11 Table 11.1a above-ground residue defaults of 0.006 (wheat,
+#' maize) and 0.007 (barley, rice). Since the bedding nitrogen is what moves
+#' the applied carbon under the default storage rule, that threefold spread
+#' propagates directly; carbon is much tighter (0.398-0.495 kg C per kg DM
+#' across the same sources).
+#'
+#' @param x A tibble with `item_prod_code`, `year`, `territory` and
+#'   `residue_bedding_dm_t` (from [calculate_residue_destinies()] with a
+#'   non-zero `bedding_fraction`). `sub_territory` is optional and defaults to
+#'   `NA`, the national grain.
+#' @return A tibble with `year`, `territory`, `sub_territory`, `bedding_dm_t`,
+#'   `bedding_c_t` and `bedding_n_t`.
+#' @export
+#' @examples
+#' tibble::tibble(
+#'   item_prod_code = "15", year = 2020L, territory = "203",
+#'   residue_bedding_dm_t = 1000
+#' ) |>
+#'   build_residue_bedding_supply()
+build_residue_bedding_supply <- function(x) {
+  .crop_npp_validate(
+    x,
+    c("item_prod_code", "year", "territory", "residue_bedding_dm_t"),
+    "build_residue_bedding_supply"
+  )
+  composition <- whep::whep_coef_table("bio_coefs") |>
+    dplyr::transmute(
+      item_prod_code = as.character(.data$item_prod_code),
+      residue_c_kgdm = .data$residue_c_kgdm,
+      residue_n_kgdm = .data$residue_n_kgdm
+    ) |>
+    dplyr::distinct(.data$item_prod_code, .keep_all = TRUE)
+  x |>
+    tibble::as_tibble() |>
+    ensure_columns(
+      tibble::tibble(sub_territory = character()),
+      extra = "keep"
+    ) |>
+    dplyr::mutate(item_prod_code = as.character(.data$item_prod_code)) |>
+    dplyr::left_join(composition, by = "item_prod_code") |>
+    .warn_bedding_no_composition() |>
+    dplyr::summarise(
+      bedding_dm_t = sum(.data$residue_bedding_dm_t, na.rm = TRUE),
+      bedding_c_t = sum(
+        .data$residue_bedding_dm_t * .data$residue_c_kgdm,
+        na.rm = TRUE
+      ),
+      bedding_n_t = sum(
+        .data$residue_bedding_dm_t * .data$residue_n_kgdm,
+        na.rm = TRUE
+      ),
+      .by = c("year", "territory", "sub_territory")
+    )
+}
+
 # ---- Private helpers --------------------------------------------------
+
+# Bedding is carved out of the removed non-feed share, never out of the feed or
+# the field-left share: a tonne of straw cannot be both bedded and burned, and
+# the residue that never leaves the field is not a commodity at all. The four
+# destinies therefore still sum to `residue_dm_t` (whep#1005 point 4).
+.split_residue_bedding <- function(out, bedding_fraction) {
+  dplyr::mutate(
+    out,
+    residue_bedding_dm_t = .data$residue_burn_dm_t * bedding_fraction,
+    residue_burn_dm_t = .data$residue_burn_dm_t * (1 - bedding_fraction),
+    bedding_fraction = bedding_fraction
+  )
+}
+
+.check_bedding_fraction <- function(bedding_fraction) {
+  ok <- rlang::is_scalar_double(bedding_fraction) ||
+    rlang::is_scalar_integer(bedding_fraction)
+  if (!ok || is.na(bedding_fraction)) {
+    cli::cli_abort(
+      "{.arg bedding_fraction} must be a single non-missing number.",
+      class = "whep_error_bedding_fraction"
+    )
+  }
+  if (bedding_fraction < 0 || bedding_fraction > 1) {
+    cli::cli_abort(
+      "{.arg bedding_fraction} must lie in {.val {c(0, 1)}}, not
+       {.val {bedding_fraction}}.",
+      class = "whep_error_bedding_fraction"
+    )
+  }
+  invisible(NULL)
+}
+
+# Say when bedding dry matter has no residue composition to convert it with,
+# instead of summing it away to zero carbon and zero nitrogen. `bio_coefs`
+# carries no residue row for some `item_prod_code`s, and na.rm in the sums
+# below would turn that into a silent loss of the carbon and nitrogen the whole
+# point of this function is to trace.
+.warn_bedding_no_composition <- function(joined) {
+  gap <- joined[
+    is.na(joined$residue_c_kgdm) | is.na(joined$residue_n_kgdm),
+    ,
+    drop = FALSE
+  ]
+  gap <- gap[gap$residue_bedding_dm_t > 0, , drop = FALSE]
+  if (nrow(gap) == 0L) {
+    return(joined)
+  }
+  items <- unique(gap$item_prod_code)
+  cli::cli_warn(c(
+    "{length(items)} crop{?s} bedding dry matter has no {.field bio_coefs}
+     residue composition: {.val {items}}.",
+    i = "{round(sum(gap$residue_bedding_dm_t))} t of bedding dry matter
+      contributes no carbon or nitrogen to the manure streams."
+  ))
+  joined
+}
 
 # The feed-use fraction is keyed by UN M49 sub-region, not by HANPP region: the
 # coefficient table's 17 named values are M49 sub-regions (Sub-Saharan Africa,

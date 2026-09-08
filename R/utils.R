@@ -2117,6 +2117,11 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # build_cbs.R (#1003) — the crop-residue recovery and feed-use fractions
+    # of gross residue, joined onto the residue rows to build the
+    # `krausmann_recovered` production/feed/other_uses split
+    "recovered_frac",
+    "feed_frac"
   )
 )

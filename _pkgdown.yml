@@ -329,6 +329,7 @@ reference:
   - summarize_bnf
   - calculate_residue_destinies
   - build_residue_feed_avail
+  - build_residue_bedding_supply
 
 - title: Tidy datasets
   desc: >

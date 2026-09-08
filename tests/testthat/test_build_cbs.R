@@ -2894,3 +2894,124 @@ test_that("binding an off-window recovered row aborts", {
     class = "whep_error_off_window_area_year"
   )
 })
+
+# ---- Crop-residue use split (whep#1003) ------------------------------------
+
+# One wheat row and one firewood row for Spain, at the grain the pin carries.
+# Spain resolves to region_krausmann "West Europe" (recovery 0.7 for
+# "Wheat, other cereals" and for "Permanent crops") and region_UN_sub
+# "Southern Europe" (feed-use fraction 0.2).
+.residue_pin_rows <- function() {
+  tibble::tibble(
+    Year = c(2020, 2020),
+    area = c("Spain", "Spain"),
+    item_prod = c("Wheat", "Olives"),
+    item_cbs = c("Straw", "Firewood"),
+    item_cbs_crop = c("Wheat and products", "Olives"),
+    Name_biomass = c("Straw", "Average wood"),
+    Product_residue = c("Residue", "Residue"),
+    Prod_ygpit_Mg = c(1000, 500),
+    Area_ygpit_ha = c(100, 50)
+  )
+}
+
+.local_residue_pin <- function(env = parent.frame()) {
+  testthat::local_mocked_bindings(
+    whep_read_file = function(name, ...) {
+      if (!identical(name, "crop_residues")) {
+        cli::cli_abort("unexpected input {.val {name}}")
+      }
+      .residue_pin_rows()
+    },
+    .env = env
+  )
+}
+
+test_that("the published residue convention books every tonne as feed", {
+  # whep#1003's premise, pinned: on the default path the production and feed
+  # values are equal for Straw and Other crop residues, with no recovery rate
+  # and no feed-use fraction anywhere on the path. Firewood is recovered the
+  # same way but is fuel, so its use row is other_uses.
+  .local_residue_pin()
+  out <- whep:::.read_crop_residues(years = 2020, residue_use = "all_feed")
+  wide <- out |>
+    tidyr::pivot_wider(names_from = element, values_from = value)
+  straw <- wide[wide$item_cbs == "Straw", ]
+  wood <- wide[wide$item_cbs == "Firewood", ]
+
+  expect_equal(straw$production, 1000)
+  expect_equal(straw$feed, 1000)
+  expect_false("feed" %in% out$element[out$item_cbs == "Firewood"])
+  expect_equal(wood$production, 500)
+  expect_equal(wood$other_uses, 500)
+})
+
+test_that("krausmann_recovered carries only the recovered residue", {
+  .local_residue_pin()
+  out <- whep:::.read_crop_residues(
+    years = 2020,
+    residue_use = "krausmann_recovered"
+  )
+  wide <- out |>
+    tidyr::pivot_wider(names_from = element, values_from = value)
+  straw <- wide[wide$item_cbs == "Straw", ]
+  wood <- wide[wide$item_cbs == "Firewood", ]
+
+  # Recovery 0.7, feed-use fraction 0.2: 700 t leaves the field, 140 t of it
+  # as feed and 560 t to other uses. The 300 t left on the field is not a
+  # commodity and never enters the balance.
+  expect_equal(straw$production, 700)
+  expect_equal(straw$feed, 140)
+  expect_equal(straw$other_uses, 560)
+  # Firewood is recovered like the rest but never fed.
+  expect_equal(wood$production, 350)
+  expect_equal(wood$feed, 0)
+  expect_equal(wood$other_uses, 350)
+})
+
+test_that("krausmann_recovered closes production = feed + other_uses", {
+  # The invariant, not three hand-picked numbers: this is what makes the CBS
+  # residue rows internally consistent, and it is the thing a future
+  # coefficient change must not break.
+  .local_residue_pin()
+  wide <- whep:::.read_crop_residues(
+    years = 2020,
+    residue_use = "krausmann_recovered"
+  ) |>
+    tidyr::pivot_wider(names_from = element, values_from = value)
+  expect_equal(wide$production, wide$feed + wide$other_uses)
+})
+
+test_that("residue_use is validated", {
+  expect_error(
+    whep:::.read_crop_residues(years = 2020, residue_use = "guesswork"),
+    class = "rlang_error"
+  )
+  expect_error(
+    whep::build_commodity_balances(residue_use = "guesswork"),
+    class = "rlang_error"
+  )
+})
+
+test_that("a residue row with no recovery fraction is named, not zeroed", {
+  # A code that is real but absent from the fraction table sends the whole
+  # row's production to zero. That is a deletion of real tonnage, so it warns
+  # with its magnitude rather than happening in silence.
+  dt <- data.table::data.table(
+    year = 2020,
+    area_code = 203L,
+    item_cbs = "Straw",
+    item_cbs_code_residue = 2105,
+    element = "production",
+    value = 1000,
+    recovered_frac = NA_real_,
+    feed_frac = NA_real_
+  )
+  expect_warning(
+    whep:::.warn_residues_no_fraction(dt),
+    "no recovery fraction"
+  )
+  # The rows the name-keyed area join already lost are not reported again.
+  dt_na <- data.table::copy(dt)[, area_code := NA_integer_]
+  expect_no_warning(whep:::.warn_residues_no_fraction(dt_na))
+})
