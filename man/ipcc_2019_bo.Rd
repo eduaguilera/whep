@@ -8,9 +8,14 @@
 A tibble with \code{category}, \code{bo_m3_kg_vs}.
 }
 \source{
-IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated) --
-Table 10.16 in that edition is the manure CH4 factors for deer and
-similar species. Every row matches its high-productivity column except
+IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated). That
+edition has no Table 10.16: its list of tables jumps from Table 10.15
+(Updated), the per-head manure CH4 factors for deer, reindeer, rabbits,
+ostrich and fur-bearing animals, straight to Table 10.16A. Table 10.16
+is the 2006 Guidelines' number for that deer/reindeer/rabbit/fur-bearing
+table (0.22/0.36/0.08/0.68 kg CH4 head-1 yr-1, no ostrich row), and the
+2006 edition has no Bo table at all -- its Bo defaults live in Annex
+10A.2. Every row matches its high-productivity column except
 \code{"Swine - Breeding"} 0.27: Table 10.16A publishes one swine Bo
 (0.48 North America, 0.45 other high-productivity regions, 0.29 low
 productivity) and the 2006 Annex 10A.2 derivation tables give breeding

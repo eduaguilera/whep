@@ -595,6 +595,7 @@ reference:
   - check_supply_use_balance
   - check_series_jumps
   - check_fodder_land_share
+  - check_arable_composition
   - check_parquet_integrity
   - assert_parquet_integrity
   - write_parquet_checked
@@ -648,6 +649,7 @@ reference:
   - calculate_livestock_emissions
   - calculate_enteric_ch4
   - calculate_manure_emissions
+  - manure_engine_options
   - estimate_n_excretion
   - split_manure_management
   - apply_management_losses

@@ -1258,9 +1258,18 @@ generate_gleam_pdf_tables <- function() {
 
 generate_ipcc_2019_tables <- function() {
   list(
-    # Table 10.10: Enteric Fermentation EF - Cattle (kg CH4/head/yr).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.10.
-    table_10_10 = tibble::tribble(
+    # Tier 1 enteric fermentation EF, cattle (kg CH4/head/yr). Regional
+    # cattle factors are Table 10.11 in BOTH editions; Table 10.10 is the
+    # non-cattle table in both, so the element names here follow the
+    # published numbering rather than the reverse.
+    # Source: predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.11 --
+    # NOT the 2019 Refinement's Table 10.11 (Updated), which gives 138/64 for
+    # North America and 126/52 for Western Europe. Oceania dairy 90, Middle
+    # East dairy 63 and Indian Subcontinent 68/47 match neither edition, and
+    # the Global fallback row 80/47 is in no IPCC table (assumed,
+    # unverified). Per-cell detail in `?ipcc_2019_enteric_ef_cattle`;
+    # the revalue decision is #601.
+    table_10_11_cattle = tibble::tribble(
       ~region, ~category, ~ef_kg_head_yr,
       "North America",        "Dairy Cattle",  128,
       "North America",        "Other Cattle",   53,
@@ -1284,9 +1293,15 @@ generate_ipcc_2019_tables <- function() {
       "Global",               "Other Cattle",   47
     ),
 
-    # Table 10.11: Enteric Fermentation EF - Other Livestock.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.11.
-    table_10_11 = tibble::tribble(
+    # Tier 1 enteric fermentation EF, non-cattle species. Table 10.10 in
+    # both editions.
+    # Source: the 2006 Guidelines, Vol 4, Ch 10, Table 10.10,
+    # developed-countries column -- NOT the 2019 Refinement, whose Table
+    # 10.10 (Updated) splits sheep 9/5, goats 9/5 and swine 1.5/1.0 by
+    # productivity system and moves buffalo into the regional Table 10.11.
+    # Poultry 0 is a project choice; both editions say "insufficient data
+    # for calculation". See `?ipcc_2019_enteric_ef_other` and #601.
+    table_10_10_other = tibble::tribble(
       ~category,             ~ef_kg_head_yr,
       "Buffalo",              55,
       "Sheep",                 8,
@@ -1299,8 +1314,15 @@ generate_ipcc_2019_tables <- function() {
       "Poultry",               0
     ),
 
-    # Table 10.14: Manure Management CH4 EF - Cattle.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+    # Tier 1 manure management CH4 EF, cattle (kg CH4/head/yr).
+    # Source: UNKNOWN AND UNVERIFIED. Not the 2019 Refinement: its Table
+    # 10.14 (Updated) is g CH4 per kg VS by productivity class and ten
+    # climate zones, and that edition publishes no per-head Tier 1 manure
+    # CH4 table for cattle at all. The per-head shape is the 2006
+    # Guidelines' Table 10.14, but the values are not that table's either --
+    # North American dairy cattle 27/42/60 against 48/78/112, Latin American
+    # dairy cattle 47 against 2, African dairy cattle 31 against 1. Do not
+    # add a citation here until the real provenance is established; #601.
     table_10_14_cattle = tibble::tribble(
       ~region, ~category, ~climate, ~ef_kg_head_yr,
       "North America",   "Dairy Cattle", "Cool",      27,
@@ -1331,8 +1353,15 @@ generate_ipcc_2019_tables <- function() {
       "Global",          "Other Cattle", "Temperate",  2
     ),
 
-    # Table 10.14: Manure Management CH4 EF - Other Livestock.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.14.
+    # Tier 1 manure management CH4 EF, non-cattle species.
+    # Source: the 2006 Guidelines, Vol 4, Ch 10, Table 10.14 (buffalo,
+    # swine) and Table 10.15 (the rest) -- NOT the 2019 Refinement, which
+    # publishes no per-head Tier 1 manure CH4 table. The temperature column
+    # varies by species: sheep 0.19 and goats 0.13 are developed-country
+    # cool, horses 1.64, mules 0.90 and camels 1.92 developing-country
+    # temperate. For buffalo 2 and swine 6 the source region is not
+    # recorded and more than one cell of Table 10.14 carries each value.
+    # See `?ipcc_2019_manure_ch4_ef_other` and #601.
     table_10_14_other = tibble::tribble(
       ~category,                ~climate, ~ef_kg_head_yr,
       "Buffalo",                "All",     2,
@@ -1347,12 +1376,27 @@ generate_ipcc_2019_tables <- function() {
       "Camels",                 "All",     1.92
     ),
 
-    # Table 10.12: Ym values (% GE converted to CH4).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.13 (Updated).
-    # Note: The 2019 Refinement introduced a feedlot distinction for
-    # cattle. Table 10.13 gives a SINGLE Ym for sheep -- "irrespective
-    # of feed quality" -- with no body-weight split (see #250); there
-    # is no IPCC source for a <75kg/>=75kg distinction or a 4.7 value.
+    # Ym, methane conversion rate (% of gross energy).
+    # Source: MIXED ACROSS EDITIONS.
+    # - Sheep 6.7 and goats 5.5 are the 2019 Refinement, Vol 4, Ch 10,
+    #   Table 10.13 (Updated). That table gives a SINGLE Ym for sheep
+    #   "irrespective of feed quality", with no body-weight split (#250):
+    #   there is no IPCC source for a <75kg/>=75kg distinction or a 4.7
+    #   value. The 2006 Table 10.13 has no goat row and gives mature sheep
+    #   6.5 and lambs under one year 4.5.
+    # - Cattle and buffalo 6.5 pasture/range and mixed are the 2006
+    #   Guidelines Table 10.12, which gives 6.5 for every non-feedlot
+    #   cattle and buffalo class. The 2019 Refinement's Table 10.12
+    #   (Updated) instead resolves them by production level and feed
+    #   digestibility: 5.7, 6.0, 6.3, 6.5 for dairy cows by yield class,
+    #   7.0 for >75 percent forage non-dairy, 6.3 for mixed rations, 4.0
+    #   for grain feedlots and 3.0 for steam-flaked-corn feedlots. The
+    #   feedlot 3.0 stored here is therefore the 2006 ">=90 percent
+    #   concentrate" value.
+    # - Camels 5.0 is in NO IPCC table (assumed, unverified). Both
+    #   editions direct compilers to reuse the other-cattle or buffalo Ym
+    #   for camels, i.e. 6.5.
+    # See `?ipcc_2019_ym` and #601.
     table_10_12 = tibble::tribble(
       ~category, ~feed_situation, ~ym_percent, ~ym_uncertainty,
       "Cattle",  "Pasture/Range",          6.5, 1.0,
@@ -1365,10 +1409,22 @@ generate_ipcc_2019_tables <- function() {
       "Camels",  "All",                    5.0, 1.0
     ),
 
-    # Table 10.16: Bo - Maximum CH4 producing capacity (m3/kg VS).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16.
-    # Note: Dairy and Other cattle have DIFFERENT Bo values.
-    table_10_16 = tibble::tribble(
+    # Bo, maximum CH4 producing capacity of manure (m3 CH4/kg VS).
+    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.16A (Updated).
+    # The number is 10.16A, not 10.16: that edition has no Table 10.16 at
+    # all, and 10.16 is the 2006 number for the deer/reindeer/rabbit/
+    # fur-bearing manure CH4 table. The 2006 edition has no Bo table --
+    # its defaults live in Annex 10A.2.
+    # Note: dairy and other cattle have DIFFERENT Bo values. Other Cattle
+    # 0.18 is the Western European non-dairy column (North America 0.19,
+    # Eastern Europe and Oceania 0.17), and Swine - Market 0.45 the
+    # non-North-American high-productivity column (North America 0.48).
+    # Swine - Breeding 0.27 is in NEITHER edition (assumed, unverified):
+    # Table 10.16A publishes one swine Bo and 2006 Annex 10A.2 gives
+    # breeding swine the same Bo as market swine. 0.27 coincides with the
+    # North American market-swine VOLATILE-SOLIDS rate of 0.27 kg VS per
+    # head per day in that annex. See `?ipcc_2019_bo` and #601.
+    table_10_16a = tibble::tribble(
       ~category,            ~bo_m3_kg_vs,
       "Dairy Cattle",        0.24,
       "Other Cattle",        0.18,
@@ -1384,11 +1440,23 @@ generate_ipcc_2019_tables <- function() {
       "Poultry - Broilers",  0.36
     ),
 
-    # Table 10.17: MCF by MMS type and annual average temperature.
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
-    # Note: Full temperature detail (Cool <=10, Temperate 11-25,
-    # Warm >=26). The 2019 Refinement provides MCF for each
-    # degree Celsius; we use representative values.
+    # MCF, methane conversion factor by manure system and climate class.
+    # Source: predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
+    # whose cool/temperate/warm structure this follows. It is the 2006
+    # edition, not the 2019 Refinement, that resolves MCF per degree
+    # Celsius; the Refinement's Table 10.17 (Updated) resolves ten climate
+    # zones and liquid retention time, and differs in level -- a single
+    # 0.47 percent for pasture/range/paddock against 1.0/1.5/2.0 here, and
+    # 1.0/2.0/2.5 for static-pile and passive-windrow composting.
+    # Where a 2006 row is per degree Celsius the value taken is not always
+    # the mid-point of the class: uncovered anaerobic lagoon temperate 73
+    # is the 14 degree column and the two liquid rows take 35 for
+    # temperate, the 18 degree column rather than 42 at 20 degrees.
+    # Cells matching NEITHER edition: dry lot 1.5/2.5/4.0, intensive-windrow
+    # composting 0.5/0.5/0.5, passive-windrow composting 1.0/1.0/1.5, pit
+    # storage under one month 3/3/5 and liquid/slurry with crust warm 47.
+    # Anaerobic Digester 0 is also unpublished in both (assumed,
+    # unverified). See `?ipcc_2019_mcf_manure` and #601.
     table_10_17 = tibble::tribble(
       ~system, ~climate_zone, ~mcf_percent,
       "Pasture/Range/Paddock",         "Cool",       1.0,
@@ -1440,8 +1508,19 @@ generate_ipcc_2019_tables <- function() {
       "Poultry Manure - Deep Litter",  "Warm",       1.5
     ),
 
-    # Table 10.19: N Excretion Rates (kg N/head/yr).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.19.
+    # Nitrogen excretion, stored as kg N per head per year -- which is
+    # what `.calc_manure_n2o_tier1()` consumes.
+    # Source: UNVERIFIED. Table 10.19 publishes a RATE, kg N per 1000 kg
+    # animal mass per day, in both editions (dairy cattle North America
+    # 0.59 in the 2019 Refinement, 0.44 in 2006), and these annual
+    # per-head numbers do not follow from either. The Refinement's Table
+    # 10A.1 (New) supplies the missing weight, so rate x weight x 365 is
+    # fully sourced and gives 140 for North America against the 105 here,
+    # 118 Western Europe (100), 84 Eastern Europe (80), 128 Oceania (80),
+    # 72 Latin America (50), 62 Asia (50), 42 Africa (40), 64 Middle East
+    # (40) and 68 Indian Subcontinent (50). Other cattle needs the cohort
+    # population mix of Table 10A.2 (New) weighted the same way.
+    # See `?ipcc_2019_n_excretion` and #601.
     table_10_19 = tibble::tribble(
       ~region, ~category, ~nex_kg_n_head_yr,
       "North America",        "Dairy Cattle",      105,
@@ -1476,9 +1555,25 @@ generate_ipcc_2019_tables <- function() {
       "Global",               "Poultry - Layers",    0.8
     ),
 
-    # Table 10.21: Direct N2O Emission Factors
-    # (kg N2O-N per kg N in MMS).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.21.
+    # EF3, direct N2O emission factors (kg N2O-N per kg N excreted).
+    # Source: MIXED, and not consistently the 2019 Refinement's Table 10.21.
+    # - Both editions: liquid/slurry with crust 0.005, in-vessel composting
+    #   0.006, poultry with and without litter 0.001.
+    # - 2006 only: solid storage 0.005 (2019: 0.010), static-pile
+    #   composting 0.006 (0.010), passive-windrow composting 0.01 (0.005),
+    #   anaerobic digester 0 (0.0006).
+    # - Neither edition: daily spread 0.01, liquid/slurry without crust
+    #   0.002 and uncovered anaerobic lagoon 0.001 (all three are 0 in
+    #   both), dry lot 0.005 (0.02 in both), intensive-windrow composting
+    #   0.006 (2019: 0.005; 2006: 0.1).
+    # Pasture/range/paddock is not in Table 10.21 in either edition, which
+    # defers it to Ch 11. Its 0.01 is the 2006 Ch 11 Table 11.1 EF3PRP,SO
+    # for sheep and other animals; the 2019 Table 11.1 (Updated) gives
+    # 0.004 for cattle, poultry and pigs and 0.003 for sheep and other.
+    # Liquid/Slurry 0.002, Solid Storage and Dry Lot 0.005, Burned for Fuel
+    # 0 and Other 0.005 are WHEP composite or fallback labels with no
+    # counterpart system in either edition (assumed, unverified).
+    # See `?ipcc_2019_n2o_ef_direct` and #601.
     table_10_21 = tibble::tribble(
       ~system,                          ~ef_kg_n2o_n_per_kg_n,
       "Uncovered Anaerobic Lagoon",      0.001,
@@ -1529,7 +1624,15 @@ generate_ipcc_2019_tables <- function() {
 
 generate_ipcc_2006_tables <- function() {
   list(
-    # Table 10.11 (2006): Tier 1 Enteric Fermentation EFs.
+    # Tier 1 enteric fermentation EFs.
+    # Source: 2006 Guidelines, Vol 4, Ch 10, Table 10.11 for the cattle rows
+    # and Table 10.10 (developed-countries column) for the Global
+    # non-cattle rows. Three departures from the published tables: Oceania
+    # dairy cattle is 90 here where Table 10.11 gives 100; the published
+    # table groups Africa AND the Middle East in one row, 46 dairy and 31
+    # other, which is repeated here as two regions; and the Indian
+    # Subcontinent row, 58 dairy and 27 other, is absent.
+    # See `?ipcc_2006_enteric_ef` and #601.
     ipcc_2006_enteric_ef = tibble::tribble(
       ~region, ~category, ~ef_kg_head_yr,
       "North America",   "Dairy Cattle",     128,
@@ -1556,7 +1659,18 @@ generate_ipcc_2006_tables <- function() {
       "Global",          "Mules and Asses",   10
     ),
 
-    # Table 10.14 (2006): Tier 1 Manure CH4 EFs.
+    # Tier 1 manure CH4 EFs.
+    # Source: 2006 Guidelines, Vol 4, Ch 10, Table 10.14 for cattle, swine
+    # and buffalo and Table 10.15 for sheep, goats and poultry. Table 10.14
+    # is resolved per degree Celsius, and the value taken for a temp_zone is
+    # not always the bound of that class, nor always present in the row:
+    # North American dairy cows 53 is the 12 degree column rather than the
+    # 48 of the cool class, North American other cattle 2 is the 15 degree
+    # value where the whole cool class is 1, Asian dairy cows 16 is the 18
+    # degree column rather than the 31 of the warm class, Latin American
+    # dairy cows 1 is the cool value where the warm class gives 2, and
+    # Western European dairy cows 20 appears in no column of that row (its
+    # cool value is 21). See `?ipcc_2006_manure_ef` and #601.
     ipcc_2006_manure_ef = tibble::tribble(
       ~region, ~category, ~ef_kg_head_yr, ~temp_zone,
       "North America",   "Dairy Cattle",  53,  "Cool",
@@ -1574,7 +1688,13 @@ generate_ipcc_2006_tables <- function() {
       "Global",          "Poultry",        0.02, "All"
     ),
 
-    # Table 10.17 (2006): MCF by Temperature.
+    # MCF by temperature, loosely 2006 Guidelines Vol 4 Ch 10 Table 10.17
+    # but re-resolved onto a 10/15/20/25 degree grid that table does not
+    # use. The temp_c == 25 value of all four rows is in no column of
+    # Table 10.17 (assumed, unverified), and for the three class-resolved
+    # rows the 20 degree value is the warm-class figure although 20 degrees
+    # falls inside the published temperate class. Nothing in R/ reads this
+    # object. See `?ipcc_2006_mcf_temp` and #601.
     ipcc_2006_mcf_temp = tibble::tribble(
       ~system, ~temp_c, ~mcf_percent,
       "Liquid/Slurry",          10, 17,
@@ -1751,10 +1871,19 @@ generate_ipcc_tier2_params <- function() {
       "Mules and Asses", 0.0, 0.0, 0.0, 0.0, 6.0, 0.0
     ),
 
-    # Climate-zone MCF (Methane Conversion Factor).
-    # Source: IPCC 2019 Refinement, Vol 4, Ch 10, Table 10.17.
-    # This is the simplified 3-zone version. Full table is in
-    # table_10_17 above.
+    # Climate-zone MCF (Methane Conversion Factor). The simplified 3-zone
+    # version of table_10_17 above, and the one that is live:
+    # `.calc_manure_ch4_tier2()` weights it by the manure-system mix.
+    # Source: predominantly the 2006 Guidelines, Vol 4, Ch 10, Table 10.17,
+    # NOT the 2019 Refinement, and with the same provenance profile as
+    # table_10_17. Daily spread, solid storage, poultry manure and burned
+    # for fuel match both editions; pasture/range/paddock 1.0/1.5/2.0 is
+    # 2006 only, against a single 0.47 percent in the Refinement;
+    # liquid/slurry 35 and anaerobic lagoon 73 are the 18 and 14 degree
+    # columns of the 2006 per-degree rows rather than the class bound; and
+    # dry lot 1.5/2.5/4.0, the single-value composting rows and Anaerobic
+    # Digester 0 match neither edition (assumed, unverified).
+    # See `?climate_mcf` and #601.
     climate_mcf = tibble::tribble(
       ~mms_type, ~climate_zone, ~mcf_percent,
       "Daily Spread",              "Cool",       0.1,
@@ -2026,15 +2155,15 @@ main <- function() {
   message("\nGenerating IPCC 2019 tables...")
   ipcc_raw <- generate_ipcc_2019_tables()
   ipcc_2019 <- list(
-    ipcc_2019_enteric_ef_cattle = ipcc_raw$table_10_10,
-    ipcc_2019_enteric_ef_other = ipcc_raw$table_10_11,
+    ipcc_2019_enteric_ef_cattle = ipcc_raw$table_10_11_cattle,
+    ipcc_2019_enteric_ef_other = ipcc_raw$table_10_10_other,
     ipcc_2019_manure_ch4_ef_cattle = ipcc_raw$table_10_14_cattle,
     ipcc_2019_manure_ch4_ef_other = ipcc_raw$table_10_14_other,
     ipcc_2019_mcf_manure = ipcc_raw$table_10_17,
     ipcc_2019_n_excretion = ipcc_raw$table_10_19,
     ipcc_2019_n2o_ef_direct = ipcc_raw$table_10_21,
     ipcc_2019_ym = ipcc_raw$table_10_12,
-    ipcc_2019_bo = ipcc_raw$table_10_16,
+    ipcc_2019_bo = ipcc_raw$table_10_16a,
     ipcc_2019_cfi = ipcc_raw$table_10_4
   )
 

@@ -61,8 +61,10 @@
 #'   `lon`, `lat`, `polity_code`, `area_code`, `start_year`, `end_year`,
 #'   `cell_area_ha`, `polity_area_ha`, `land_area_ha`, `inland_water_ha`,
 #'   `ice_area_ha`, `geometry_source`, `polygon_status`, `split_method`,
-#'   `coverage_status`, `support_role`, `area_engine` and `luh2_vintage`, plus
-#'   `year` when `years` is supplied. `support_role` is `"partition"` on every
+#'   `coverage_status`, `support_role`, `area_engine`, `luh2_vintage` and
+#'   `layers_supplied`, plus `year` when `years` is supplied.
+#'   `layers_supplied` is the provenance stamp described under *Optional layers
+#'   are stamped, not inferred* below. `support_role` is `"partition"` on every
 #'   row unless `aggregates = "overlap_layer"` was asked for. `area_engine` is
 #'   `"s2"` except on the pieces the spherical engine cannot read back, which
 #'   are measured with `terra::expanse()` rather than dropped. Diagnostics ride
@@ -226,6 +228,27 @@
 #' layer as a whole. That is also why the `"overlap"` diagnostic keeps
 #' measuring the partition only: an over-full cell means something there, and
 #' in this layer it means nothing.
+#'
+#' @section Optional layers are stamped, not inferred:
+#' `water` and `ice` are optional, and when either is absent its column is
+#' filled with zeros. That is correct for a smoke build and wrong for a
+#' published pin, and no identity this table carries can tell the two apart:
+#' `polity_area_ha == land_area_ha + inland_water_ha + ice_area_ha` holds to
+#' `max |residual| = 0 ha` on an all-zero layer, because zero satisfies it.
+#' Two published pins were built that way and passed every check --
+#' `20260818T105426Z-a0330` (whep#885) and `20260827T190201Z-f82a2`
+#' (whep#1010), the second of them two days after the first was closed and with
+#' whep#885's warning already in place. On the second, 2015 land came out
+#' 534.9 Mha (+4.1%) high and single cells in Lake Victoria went from 2.9 ha of
+#' land to 309,083 ha.
+#'
+#' So the output carries `layers_supplied`, a label naming which of the two the
+#' build actually consumed: `"ice,water"`, `"water"`, `"ice"` or `"none"`. It
+#' records what was consumed rather than what was passed, since an empty layer
+#' is dropped before use. A label cannot be satisfied by arithmetic, which is
+#' the whole point -- [read_polycell_support()] refuses a support whose stamp
+#' says a layer was missing, and falls back to asserting the columns are not
+#' identically zero on a table published before the stamp existed.
 #' @export
 #'
 #' @examples
@@ -251,12 +274,14 @@ build_polycell_support <- function(
 
   geometries <- geometries %||% get_polity_geometries()
   polities <- .pcs_prepare_polities(geometries, aggregates)
+  ice_union <- .pcs_prepare_ice(ice)
+  layers <- .pcs_layers_supplied(water, ice_union)
   support <- polities |>
     .pcs_intersect_grid() |>
-    .pcs_add_ice(.pcs_prepare_ice(ice)) |>
+    .pcs_add_ice(ice_union) |>
     .pcs_split_intervals() |>
     .pcs_add_water(water) |>
-    .pcs_finalize(.pcs_geometry_source(geometries), data)
+    .pcs_finalize(.pcs_geometry_source(geometries), data, layers)
 
   .pcs_inform_overlap_layer(support)
   support |>
@@ -1470,6 +1495,36 @@ expand_polycell_years <- function(support, years) {
 # already warns about the PARTIAL case in these exact terms ("their inland water
 # becomes land silently"); this is the total case, which returned before reaching
 # it.
+# THE PROVENANCE STAMP, and the reason the warning above is not enough on its
+# own. #885 added that warning, and the pin regenerated two days after #885 was
+# closed was still built with neither layer (`20260827T190201Z-f82a2`: all
+# 484,314 rows zero in `inland_water_ha` and `ice_area_ha`, 2015 land +534.9 Mha
+# = +4.1%, whep#1010). A `cli_warn()` in a build that runs for hours and prints
+# thousands of lines is not a gate; the person who published that pin had the
+# warning and did not see it.
+#
+# So the ARTEFACT states what went into it. `layers_supplied` names the optional
+# layers whose absence changes the area decomposition -- and only those, so
+# supplying the DA-12 crosswalk still changes no value of the table. It is a
+# LABEL, which is what makes it useful: no arithmetic over the area columns can
+# satisfy it, whereas every cross-column identity this table has is satisfied by
+# a zero, which is precisely how the defect passed twice.
+#
+# The conditions mirror the two zero-fill branches exactly rather than testing
+# the arguments: `.pcs_prepare_ice()` returns NULL for an empty layer, and
+# `.pcs_add_water()` zero-fills a zero-row one, so a caller can hand in a layer
+# that is never consumed. The stamp must say what was consumed.
+.pcs_layers_supplied <- function(water, ice_union) {
+  supplied <- c(
+    if (!is.null(water) && nrow(water) > 0L) "water",
+    if (!is.null(ice_union)) "ice"
+  )
+  if (length(supplied) == 0L) {
+    return("none")
+  }
+  paste(sort(supplied), collapse = ",")
+}
+
 .pcs_warn_layer_absent <- function(arg, column) {
   cli::cli_warn(
     c(
@@ -1556,7 +1611,7 @@ expand_polycell_years <- function(support, years) {
 
 # -- Assembly -----------------------------------------------------------------
 
-.pcs_finalize <- function(pieces, geometry_source, data) {
+.pcs_finalize <- function(pieces, geometry_source, data, layers = "none") {
   pieces |>
     dplyr::mutate(
       polycell_id = paste0(.data$polity_code, "@", .data$cell_id),
@@ -1571,7 +1626,8 @@ expand_polycell_years <- function(support, years) {
         0
       ),
       geometry_source = geometry_source,
-      luh2_vintage = .pcs_luh2_vintage(data$luh2)
+      luh2_vintage = .pcs_luh2_vintage(data$luh2),
+      layers_supplied = layers
     ) |>
     .pcs_add_split_method() |>
     dplyr::select(
@@ -1621,7 +1677,8 @@ expand_polycell_years <- function(support, years) {
     "coverage_status",
     "support_role",
     "area_engine",
-    "luh2_vintage"
+    "luh2_vintage",
+    "layers_supplied"
   )
 }
 

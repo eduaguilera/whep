@@ -74,16 +74,16 @@ twice and lose 12-15\% of the land of an island or heavily coastal country.
 change of territory can only reach the back-cast as a ratio. What that ratio
 should be is a real choice, and \code{boundary_step} makes it:
 \itemize{
-\item \code{"relink"} (default) re-measures the previous year inside the \strong{incoming}
+\item \code{"relink"} re-measures the previous year inside the \strong{incoming}
 polity's polygon before taking the ratio, so only within-territory growth
 is ever used and annexing a province never moves the back-cast. On Ethiopia
 in 1952, when Eritrea joins, that is +1.9\% instead of +8.0\%.
-\item \code{"level_step"} takes the ratio between the two polygons as measured, so the
-territorial change passes through as a level step and the 1850 row is
-scaled to the smaller empire it is labelled with. That is the reframing the
-whole method exists for; it is also the option most exposed to a bad
-polygon, because an artefact of the polity database then compounds down the
-back-cast exactly as a real annexation would.
+\item \code{"level_step"} (default) takes the ratio between the two polygons as
+measured, so the territorial change passes through as a level step and the
+1850 row is scaled to the smaller empire it is labelled with. That is the
+reframing the whole method exists for; it is also the option most exposed
+to a bad polygon, because an artefact of the polity database then compounds
+down the back-cast exactly as a real annexation would.
 }
 
 Measured over 1850-1961 against the present-day series, 18.0\% of back-cast
