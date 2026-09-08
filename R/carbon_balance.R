@@ -2780,9 +2780,26 @@ build_carbon_balance <- function(
 # EXEMPT from the `polity_validity` year-check (whep#675), for the reason given
 # in R/soil_ph.R: `cell_polity` is a spatial extent here, the output has no
 # `year` and no `area_code`, so no row can name a polity that did not exist.
-.cb_hwsd_clay <- function(cell_polity) {
+.cb_hwsd_clay <- function(
+  cell_polity,
+  source = c("auto", "pin", "local"),
+  version = NULL
+) {
+  .resolve_hwsd_grid(
+    alias = .hwsd_clay_pin(),
+    cols = "clay_pct",
+    derive = .derive_hwsd_clay,
+    source = source,
+    version = version,
+    target_grid = cell_polity
+  )
+}
+
+# Aggregate per-cell clay from a local HWSD archive. Unlike the hydraulic
+# properties this IS an HWSD quantity throughout -- a share-weighted mean of
+# HWSD's own `t_clay` -- so the pinned grid carries it directly.
+.derive_hwsd_clay <- function(hwsd_dir, target_grid) {
   rlang::check_installed("terra")
-  hwsd_dir <- .resolve_hwsd_dir(NULL)
   mu_clay <- .read_hwsd_attributes_local(
     hwsd_dir,
     required = .hwsd_clay_columns()
@@ -2796,7 +2813,7 @@ build_carbon_balance <- function(
     hwsd_dir,
     mu_clay,
     target_res = 0.5,
-    target_grid = cell_polity,
+    target_grid = target_grid,
     value_col = "clay_pct",
     out_col = "clay_pct"
   )

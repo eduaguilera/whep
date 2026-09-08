@@ -909,7 +909,10 @@ test_that(".cb_hwsd_clay reads per-cell clay from HWSD", {
     -3.75, 40.25, 203L,
     -3.25, 40.25, 203L
   )
-  clay <- whep:::.cb_hwsd_clay(cell_polity)
+  # `source = "local"` explicitly: this test exists to exercise the LOCAL
+  # aggregation from the HWSD archive it just checked for, and the reader now
+  # defaults to the published grid so that every user shares one vintage.
+  clay <- whep:::.cb_hwsd_clay(cell_polity, source = "local")
   testthat::expect_setequal(names(clay), c("lon", "lat", "clay_pct"))
   testthat::expect_true(all(clay$clay_pct >= 0 & clay$clay_pct <= 100))
 })
