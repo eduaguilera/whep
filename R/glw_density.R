@@ -1,10 +1,5 @@
-# NSE globals for glw_density.R (#1000):
-# c("glw_species", "glw_code")
-#
-# The `.example_glw_density()` fixture in R/toy_examples.R must be
-# replaced with the corrected one reported for wave-7 review finding 10:
-# the shipped one breaks the replication rule it illustrates and predates
-# both the `glw_variant` column and the poultry crosswalk change below.
+# NSE globals for glw_density.R (#1000): the two symbols this file adds
+# are glw_species and glw_code.
 
 # Gridded livestock head counts for build_gridded_livestock(proxy_method =
 # "glw3"), read from the Gridded Livestock of the World version 3 rasters

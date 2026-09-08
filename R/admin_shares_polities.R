@@ -1,7 +1,7 @@
-# NSE globals for admin_shares_polities.R (#1000):
-# c("alias_source", "n_unresolved")
-# ("source", "source_native_unit_id" and "level_polity_code" are already
-# declared in R/utils.R.)
+# NSE globals for admin_shares_polities.R (#1000): the two symbols this
+# file adds are alias_source and n_unresolved. ("source",
+# "source_native_unit_id" and "level_polity_code" are already declared in
+# R/utils.R.)
 #
 # Resolution at load (#1000, T34).
 #

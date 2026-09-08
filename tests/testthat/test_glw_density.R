@@ -352,6 +352,23 @@ test_that("an unset WHEP_GLW3_DIR aborts naming the download script", {
   )
 })
 
+test_that("glw_dir wins over WHEP_GLW3_DIR, which is what the doc says", {
+  # Both directories exist, so nothing but the precedence decides which
+  # one comes back. Every other test here sets `WHEP_GLW3_DIR = ""`, so
+  # reversing the two lines of `.resolve_glw_dir()` left the suite green
+  # while a run silently read a different GLW3 vintage than it was asked
+  # for.
+  root <- withr::local_tempdir()
+  env_dir <- file.path(root, "envdir")
+  arg_dir <- file.path(root, "argdir")
+  dir.create(env_dir)
+  dir.create(arg_dir)
+  withr::local_envvar(WHEP_GLW3_DIR = env_dir)
+
+  expect_identical(whep:::.resolve_glw_dir(arg_dir), arg_dir)
+  expect_identical(whep:::.resolve_glw_dir(NULL), env_dir)
+})
+
 test_that("a directory that does not exist aborts naming it", {
   withr::local_envvar(WHEP_GLW3_DIR = "")
   missing_dir <- file.path(withr::local_tempdir(), "absent")

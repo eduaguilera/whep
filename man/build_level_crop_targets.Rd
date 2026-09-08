@@ -71,11 +71,13 @@ container the layer holds at level 0, which is its own single unit),
 \code{"pattern_implied"}, \code{"admin_area_shares"}, \code{"admin_backcast_luh2"},
 \code{"admin_residual"} (a unit carrying its share of the residual on the
 weights that split it -- whether because it reported nothing, or because
-it declared a share the split did not run on) and \code{"unallocated"} (a
-unit the shares do not cover and no residual reaches, whose target is
-0). The column names what placed the hectares, so a unit whose declared
-share was displaced by the pattern weights is \code{"admin_residual"} and not
-\code{"admin_area_shares"}.
+it declared a share the split did not run on) and \code{"unallocated"} (a unit
+whose target is 0: the shares do not cover it and no residual reaches it,
+or the group had neither pattern weight nor cropland for anything to be
+split on, \code{coverage$weight_basis == "none"}). The column names what placed
+the hectares, so a unit whose declared share was displaced by the pattern
+weights is \code{"admin_residual"} and not \code{"admin_area_shares"}, and a group
+the pattern never ran on is \code{"unallocated"} and not \code{"pattern_implied"}.
 
 A group whose reported values are all zero while the national total is
 positive cannot set a shape. Under complete coverage every share is 0,
@@ -84,6 +86,13 @@ refusal fires on any group where that matters (the discrepancy is then
 100\% of the national total). Where that leaves NO positive target at all,
 \code{\link[=allocate_level_crops]{allocate_level_crops()}} returns the empty allocation beside this
 coverage rather than calling an engine with nothing to place.
+
+An admin-share row carrying no \code{level_polity_code} names no unit -- that
+is what \code{\link[=resolve_admin_units]{resolve_admin_units()}} leaves on a unit it could not resolve --
+and is dropped, counted and named before the split. \code{NA} is the layer's
+own value for "this container is at level 0 and IS its own unit", so such
+a row would otherwise bind the container's own row and publish one
+unresolved province as the country's complete subnational evidence.
 }
 
 \section{What counts as a report}{

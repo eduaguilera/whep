@@ -108,8 +108,9 @@
 #
 # It says nothing about how the VALUE was estimated, and the contract has
 # no column that does. Measured on the harmonized panel
-# (`C:/XL_files/whep/input/subnational/whep_production_subnational.parquet`,
-# the 2026-08-31 snapshot, on 2026-09-05):
+# (`Sys.getenv("WHEP_SUBNATIONAL")`, the file
+# `inst/scripts/prepare_admin_stats_pins.R` reads; the 2026-08-31
+# snapshot, measured on 2026-09-05):
 #
 #   - Japan, Australia and France are 100% `lane == "observational"`
 #     (32,273 + 18,843 + 21,917 / 13,725 / 157,708 rows), so T24 selecting

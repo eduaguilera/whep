@@ -615,6 +615,13 @@ read_admin_family <- function(families = NULL, example = FALSE) {
 #' current [polities] snapshot on every load. That is what lets this
 #' artifact age without going stale.
 #'
+#' That call needs one rename first. The contract names the identifier
+#' column `source_native_id`, where [resolve_admin_units()] takes the
+#' readers' `source_native_unit_id`, so the composition is
+#' `dplyr::rename(shares, source_native_unit_id = source_native_id)` and
+#' then [resolve_admin_units()]. Handing the rows over unrenamed aborts
+#' on the missing column.
+#'
 #' @section What the excluded report can and cannot say:
 #' `excluded` names every tier-2/3 family of [read_admin_family()] that
 #' contributed no row to this pin, with a reason from a closed vocabulary
@@ -626,6 +633,10 @@ read_admin_family <- function(families = NULL, example = FALSE) {
 #'   consent is not recorded and the assembly refused to ship it.
 #' - `"no_rows_in_pin"`: its consent is recorded, but none of its rows
 #'   survived onto the contract.
+#' - `"pin_not_read"`: no pin was read at all -- the alias is not
+#'   registered in [`whep_inputs`], or the board returned no rows -- so
+#'   nothing about this family was measured. Every family carries this
+#'   reason together, and `not_shipped` says the same thing.
 #'
 #' The second reason is expected for `"admin-stats-france-livestock"` and
 #' will stay so: that family is head counts, and head counts are outside
@@ -642,9 +653,11 @@ read_admin_family <- function(families = NULL, example = FALSE) {
 #' (`"no_consent_manifest_row"`, `"no_rows_in_pin"`) and adds one reason a
 #' read cannot observe: `"not_available"`, a consented family that was
 #' neither registered on the board nor staged locally when the pin was
-#' assembled. At read time that is indistinguishable from
-#' `"no_rows_in_pin"`, which is why the vocabulary here stays closed at
-#' two.
+#' assembled. That is a fact about an assembly this read never saw, so it
+#' stays build-time only. What a read can always tell apart is whether it
+#' read a pin at all, which is what `"pin_not_read"` says -- the report
+#' used to claim five families had been read and filtered when the board
+#' had not been touched.
 #'
 #' @param example If `TRUE`, return a small fixture instead of reading the
 #'   pin. Defaults to `FALSE`.
@@ -810,7 +823,9 @@ read_admin_shares <- function(example = FALSE) {
       "i" = "The pin is keyed source-natively so that resolution is redone
              on every load; a frozen polity code would age against
              {.val polities} with nothing to warn about it.",
-      "i" = "Resolve with {.fun resolve_admin_units} after reading."
+      "i" = "Resolve with {.fun resolve_admin_units} after reading,
+             renaming {.field source_native_id} to
+             {.field source_native_unit_id} first."
     ),
     class = "whep_error_admin_pin_resolved"
   )
@@ -1025,6 +1040,9 @@ read_admin_shares <- function(example = FALSE) {
   # agree with the gate about which families are in the pin, or a family
   # present under a perturbed label is reported as absent.
   absent <- setdiff(.admin_family_aliases(), .admin_families_named(rows))
+  if (nrow(rows) == 0L) {
+    return(.admin_shares_unread(absent))
+  }
   granted <- absent %in% .admin_shares_consented(manifest)
   tibble::tibble(
     source = absent,
@@ -1037,6 +1055,26 @@ read_admin_shares <- function(example = FALSE) {
         .admin_shares_absence(absent),
         "absent from inst/extdata/admin_stats_pins_manifest.csv"
       )
+    )
+  )
+}
+
+# No pin was read, so no family was read and filtered:
+# `.admin_shares_read_pin()` returns the zero-row prototype when the alias is
+# unregistered or the board hands back nothing, and `read_admin_shares()`
+# reports that same state as `not_shipped`. Calling it `"no_rows_in_pin"`
+# asserted an assembly this read never saw, and pointed at per-source drop
+# counts nothing had computed.
+.admin_shares_unread <- function(absent) {
+  tibble::tibble(
+    source = absent,
+    reason = rep("pin_not_read", length(absent)),
+    detail = rep(
+      paste0(
+        "no pin was read: the alias is not registered in whep_inputs, or ",
+        "the board returned no rows; see the read's not_shipped element"
+      ),
+      length(absent)
     )
   )
 }

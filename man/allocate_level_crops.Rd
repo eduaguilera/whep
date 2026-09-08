@@ -58,6 +58,10 @@ A list of seven tibbles:
 \item \code{straddle}: per unit and item, \code{n_cells}, \code{straddle_sibling},
 \code{straddle_foreign} and \code{cell_limited}.
 \item \code{conservation}: allocated against target, at container and unit grain.
+The container's target is the NATIONAL total, so hectares that became no
+unit's target are visible here as well as in \code{coverage$dropped_ha}; the
+unit rows are warned about only where their container reconciles, which
+is the sibling-absorption failure they exist to see.
 \item \code{bridges}: per \verb{(area_code, item_prod_code, treatment)}, how many years
 of the shares were not observed and the longest contiguous run of them,
 so a 60-year LUH2 bridge is visible rather than merely legal (decision

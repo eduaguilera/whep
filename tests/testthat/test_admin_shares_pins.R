@@ -260,6 +260,27 @@ test_that("a LatAm pin without its share column aborts", {
   expect_error(whep:::read_admin_family("admin-stats-latam"), "share")
 })
 
+test_that("the documented composition needs the documented rename", {
+  # `read_admin_shares()` prescribes `resolve_admin_units()` as the way to
+  # get polities, and the two ends key the identifier column under
+  # different names. The rename is now stated at both ends; this pins the
+  # asymmetry itself, so renaming either column re-opens the question.
+  shares <- whep:::read_admin_shares(example = TRUE)$shares
+
+  expect_true("source_native_id" %in% names(shares))
+  expect_false("source_native_unit_id" %in% names(shares))
+  expect_error(
+    whep:::resolve_admin_units(shares, "whep-lab-japan"),
+    "source_native_unit_id"
+  )
+
+  renamed <- dplyr::rename(shares, source_native_unit_id = source_native_id)
+  expect_s3_class(
+    whep:::resolve_admin_units(renamed, "whep-lab-japan")$rows,
+    "tbl_df"
+  )
+})
+
 test_that("the example is the documented shape and needs no board", {
   example <- whep:::read_admin_family(example = TRUE)
 
@@ -448,6 +469,32 @@ test_that("an unregistered pin is reported, and the board is not read", {
   expect_equal(nrow(out$shares), 0L)
   expect_equal(out$not_shipped, "admin-shares")
   expect_equal(nrow(out$excluded), 5L)
+  # Not "no_rows_in_pin": nothing was read, so no family was filtered and
+  # the per-source drop counts that reason points at were never computed.
+  expect_equal(unique(out$excluded$reason), "pin_not_read")
+  expect_match(unique(out$excluded$detail), "no pin was read")
+})
+
+test_that("a registered alias that reads nothing is also pin_not_read", {
+  # The live shape of the same state: the alias is on the board, the read
+  # comes back empty. `not_shipped` and `excluded` have to agree.
+  local_admin_shares_board(rows = whep:::admin_shares_prototype())
+
+  out <- whep:::read_admin_shares()
+
+  expect_equal(out$not_shipped, "admin-shares")
+  expect_equal(unique(out$excluded$reason), "pin_not_read")
+})
+
+test_that("a pin that was read reports the families it dropped", {
+  # The control for the two above: with rows on the contract the report is
+  # about filtering, and `pin_not_read` must not appear.
+  local_admin_shares_board()
+
+  out <- whep:::read_admin_shares()
+
+  expect_equal(out$not_shipped, character(0))
+  expect_false("pin_not_read" %in% out$excluded$reason)
 })
 
 test_that("a board failure propagates instead of reading as an absence", {

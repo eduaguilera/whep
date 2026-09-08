@@ -56,9 +56,15 @@ download_nass <- function(dest_dir) {
     gregexpr("qs\\.[a-z_]+_[0-9]{8}\\.txt\\.gz", html)
   ))
   if (length(names) == 0) {
+    # The URL is resolved to a local first: cli >= 3.4.0 reads a `{}`
+    # expression starting with a dot as a style name, so
+    # `{.url {.nass_datasets_url()}}` aborts with "Invalid cli literal"
+    # and the whole message is lost (whep#618, the same trap fixed in
+    # `.download_natural_earth()`).
+    listing_url <- .nass_datasets_url()
     cli::cli_abort(c(
       "The NASS dataset listing named no dated dump.",
-      i = "Its markup may have changed; check {.url {.nass_datasets_url()}}."
+      i = "Its markup may have changed; check {.url {listing_url}}."
     ))
   }
   unique(names)

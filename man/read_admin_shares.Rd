@@ -33,6 +33,13 @@ every row; a caller that needs polities passes the rows through
 \code{\link[=resolve_admin_units]{resolve_admin_units()}}, which redoes the resolution against the
 current \link{polities} snapshot on every load. That is what lets this
 artifact age without going stale.
+
+That call needs one rename first. The contract names the identifier
+column \code{source_native_id}, where \code{\link[=resolve_admin_units]{resolve_admin_units()}} takes the
+readers' \code{source_native_unit_id}, so the composition is
+\code{dplyr::rename(shares, source_native_unit_id = source_native_id)} and
+then \code{\link[=resolve_admin_units]{resolve_admin_units()}}. Handing the rows over unrenamed aborts
+on the missing column.
 }
 \section{What the excluded report can and cannot say}{
 
@@ -46,6 +53,10 @@ it ships under, which is the manifest's own job:
 consent is not recorded and the assembly refused to ship it.
 \item \code{"no_rows_in_pin"}: its consent is recorded, but none of its rows
 survived onto the contract.
+\item \code{"pin_not_read"}: no pin was read at all -- the alias is not
+registered in \code{\link{whep_inputs}}, or the board returned no rows -- so
+nothing about this family was measured. Every family carries this
+reason together, and \code{not_shipped} says the same thing.
 }
 
 The second reason is expected for \code{"admin-stats-france-livestock"} and
@@ -63,9 +74,11 @@ It shares this vocabulary where the two can mean the same thing
 (\code{"no_consent_manifest_row"}, \code{"no_rows_in_pin"}) and adds one reason a
 read cannot observe: \code{"not_available"}, a consented family that was
 neither registered on the board nor staged locally when the pin was
-assembled. At read time that is indistinguishable from
-\code{"no_rows_in_pin"}, which is why the vocabulary here stays closed at
-two.
+assembled. That is a fact about an assembly this read never saw, so it
+stays build-time only. What a read can always tell apart is whether it
+read a pin at all, which is what \code{"pin_not_read"} says -- the report
+used to claim five families had been read and filtered when the board
+had not been touched.
 }
 
 \examples{

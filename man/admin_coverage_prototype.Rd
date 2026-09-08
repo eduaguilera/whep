@@ -16,6 +16,15 @@ item x year, saying which admin source constrained it and at what grain. The
 populated table is produced by the T25 resolver; until a run is wired to one,
 the file is written with this header and no rows, so a reader can tell "no
 coverage was granted" from "the file was never written".
+
+It IS the resolver's own coverage schema, returned rather than restated:
+this function had a second, hand-written list of names (\code{source}, \code{tier},
+\code{grain}, and a character \code{not_shipped}) where \code{\link[=resolve_admin_shares]{resolve_admin_shares()}}
+emits \code{resolved_source}, \code{resolved_tier}, \code{resolved_grain} and a logical,
+so handing the resolver's table to the writer aborted on three missing
+columns, and the writer's subset would have dropped the resolution audit
+trail (\code{resolved_indicator}, \code{resolved_nuts_version}, \code{resolution_rule})
+from the file.
 }
 \examples{
 admin_coverage_prototype()

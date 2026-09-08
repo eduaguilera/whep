@@ -553,6 +553,21 @@ stage_admin_pin <- function(
 #' One row per family: what it ships, how much of it, and the attribution
 #' or permission it ships under. Rows this run did not build are carried
 #' over from the file, never rewritten.
+#'
+#' WHAT THIS FILE CANNOT EXPRESS. A consent row deleted here to revoke a
+#' family's publication permission is written back by the next rebuild of
+#' that family, with its attribution text regenerated, and
+#' `.admin_shares_check_consent()` then reads the permission off a file
+#' the shipping run wrote itself: verified by deleting the
+#' `admin-stats-latam` row on a copy of the manifest, rebuilding that one
+#' family, and watching `whep:::.admin_shares_check_pin()` go from
+#' REFUSED to GRANTED. The surface where a revocation does stick is
+#' `.admin_source_registry()` in `R/admin_shares_pins.R`, which is code a
+#' reviewer approves in a diff, and which R/admin_shares_pins.R:151-157
+#' already gives this exact reason for. Whether the manifest should
+#' instead be hand-maintained, or the registry carry a third state that
+#' says revoked, is a maintainer's call and is deliberately not made
+#' here.
 write_admin_pins_manifest <- function(
   families,
   staged,
