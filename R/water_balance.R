@@ -1286,7 +1286,19 @@ get_soc_climate_drivers <- function(
     )
     return(tibble::as_tibble(data$soil_temp))
   }
-  if (is.null(run_dir) && !nzchar(Sys.getenv("WHEP_LPJML_RUN_DIR", ""))) {
+  # Read ONLY when the caller asked for a run explicitly. Falling back to
+  # WHEP_LPJML_RUN_DIR here would make every caller that injected its own data
+  # reach for NetCDF files anyway -- which is what happened: the test suite
+  # injects `data` and passes no `run_dir`, but the env var is set on a
+  # developer machine, so this read fired and the suite began reading multi-GB
+  # rasters. CLAUDE.md forbids exactly that ("the suite must never reach the
+  # network or read a WHEP_* path"), and it stalled a gate run for 40 minutes
+  # before anyone noticed.
+  #
+  # Nothing is lost by being explicit: soil temperature has one consumer,
+  # `model = "lpjml"`, which aborts with an instruction when the driver is
+  # absent rather than running climate-blind.
+  if (is.null(run_dir)) {
     return(NULL)
   }
   layers <- purrr::map(
@@ -1295,6 +1307,13 @@ get_soc_climate_drivers <- function(
       read_lpjml_hydrology(v, run_dir = run_dir, years = years, monthly = TRUE)
     }
   )
+  # A reader yielding nothing for a layer means the run does not write it.
+  # That is an absence, not a zero-temperature soil, so the whole driver is
+  # absent and `model = "lpjml"` aborts rather than marching on half the depth
+  # or on a fabricated temperature.
+  if (any(purrr::map_lgl(layers, \(x) is.null(x) || nrow(x) == 0L))) {
+    return(NULL)
+  }
   weights <- c(2 / 3, 1 / 3)
   purrr::map2(layers, weights, \(x, w) {
     dplyr::mutate(x, w_value = .data$value * w)

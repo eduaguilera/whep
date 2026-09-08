@@ -157,8 +157,10 @@ calculate_soc_dynamics <- function(
          run directory: the {.val lpjml-soc-hydrology} pin carries
          {.field swc_topsoil}, {.field prec_mm} and {.field irrig_mm} and no
          soil temperature.",
-    i = "Pass {.arg run_dir} (or {.envvar WHEP_LPJML_RUN_DIR}), or supply
-         {.code data$climate_modifier} explicitly to say you meant it."
+    i = "Pass {.arg run_dir} to {.fn get_soc_climate_drivers} explicitly --
+         the env var alone does not trigger the read, so that an offline
+         caller is never made to open a raster -- or supply
+         {.code data$climate_modifier} to say you meant neutral."
   ))
 }
 

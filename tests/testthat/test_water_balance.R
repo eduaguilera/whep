@@ -176,9 +176,11 @@ testthat::test_that("SOC LPJmL readers receive the requested run directory", {
     data = data
   )
 
+  # soiltemp1/soiltemp2 join the list because the SOC drivers now emit
+  # `temp_soil_c` as the depth-weighted 0-30 cm blend of LPJmL's two layers.
   testthat::expect_setequal(
     vapply(calls, `[[`, character(1), "var"),
-    c("prec", "irrig")
+    c("prec", "irrig", "soiltemp1", "soiltemp2")
   )
   testthat::expect_true(all(vapply(
     calls,
@@ -1571,4 +1573,39 @@ testthat::test_that("a genuinely zero-area stand does not warn", {
     out <- whep:::.wb_weight_by_stand(raw, "consump_blue_mm", frac)
   )
   testthat::expect_equal(out$weighted, c(2, 0))
+})
+
+testthat::test_that("soil temperature is never read without an explicit run_dir", {
+  # CLAUDE.md: the suite must never read a WHEP_* path. `.socd_soil_temp()`
+  # briefly fell back to WHEP_LPJML_RUN_DIR, so a caller that injected all its
+  # own data still opened NetCDF rasters whenever a developer machine had the
+  # env var set -- which stalled a gate run for 40 minutes. Reading is now
+  # explicit, and this pins it with the env var deliberately SET.
+  withr::with_envvar(
+    c(WHEP_LPJML_RUN_DIR = "/nonexistent/run"),
+    {
+      testthat::expect_null(whep:::.socd_soil_temp(list(), NULL, 2020L))
+    }
+  )
+})
+
+testthat::test_that("an injected soil temperature is used and validated", {
+  st <- tibble::tibble(
+    lon = 0.25,
+    lat = 0.25,
+    year = 2020L,
+    month = 1L,
+    temp_soil_c = 7.5
+  )
+  got <- whep:::.socd_soil_temp(list(soil_temp = st), NULL, 2020L)
+  testthat::expect_equal(got$temp_soil_c, 7.5)
+  # A malformed injection must abort rather than be silently ignored.
+  testthat::expect_error(
+    whep:::.socd_soil_temp(
+      list(soil_temp = dplyr::select(st, -"temp_soil_c")),
+      NULL,
+      2020L
+    ),
+    "temp_soil_c"
+  )
 })
