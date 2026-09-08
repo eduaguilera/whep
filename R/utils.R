@@ -2105,6 +2105,14 @@ utils::globalVariables(
     "consump_green_all_mm",
     # commodity_balance_sheet.R (#168) — the live-animal slaughter total
     # `.warn_trade_only_livestock()` checks for NA to flag a trade-only key
-    "slaughtered"
+    "slaughtered",
+    # arable_permanent_land.R (#937, #938) — the recorded netting amount and
+    # the two selected-method columns of the fallow-inclusive extension, plus
+    # the FAOSTAT observation-status flag that decides which item 6633 rows
+    # are an official measurement rather than FAO's own gap-filling
+    "temp_grassland_netted_ha",
+    "method_temp_grassland",
+    "method_fodder",
+    "flag"
   )
 )
