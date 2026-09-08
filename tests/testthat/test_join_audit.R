@@ -164,7 +164,17 @@ test_that("the enumerated baseline can only shrink", {
   # code -- and neither can be year-keyed, because the window is what the year
   # is being compared with. Both rises are the shape `.resolve_all_area_years`
   # already records above.
-  expect_lte(sum(baseline$n), 69L)
+  #
+  # 70 since whep#939: `.pop_overlap_pairs()` attaches a polity's transitive
+  # successors, so `read_population()` can see that a 1961 row for the USSR and
+  # a 1961 row for Russia are the same ground under two area codes. It is the
+  # `.land_in_polygons` shape again -- the key is the polity PERIOD, the
+  # year-scoped identity itself -- and the year enters at the very next join,
+  # which keys on (year, successor polity). One year-free identity row buys a
+  # world population sum that stops counting a dissolved federation and its
+  # successors twice: 15.6-23.2% too high on `pin_wpp_fbs_fallback`, and
+  # 0.19-0.57% too high on the default source over 1850-1992.
+  expect_lte(sum(baseline$n), 70L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting

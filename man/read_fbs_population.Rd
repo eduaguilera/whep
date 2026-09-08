@@ -51,7 +51,12 @@ the same two pins for the numerator.
 FAOSTAT's regional and grouping aggregates (\code{World}, \code{Africa},
 \verb{European Union}, \verb{Least Developed Countries} and 38 others) carry area codes
 at or above 5000, resolve to no polity, and are dropped, so they cannot leak
-into a per-country denominator.
+into a per-country denominator. An area is kept only if it resolves to a
+\strong{polity}, not merely to a \code{polity_area_code} bucket: area 351 "China" is
+the aggregate over areas 41, 96, 128 and 214, is numbered below 5000, and
+does land on a bucket of its own, so a bucket-only filter admitted it on top
+of its four members — 1.46 billion persons in 2021 (#939). Every area
+dropped for having a bucket and no polity is named in a message.
 
 \code{area_code} is \code{polity_area_code}, a \strong{bucket, not an identity}, resolved
 year by year exactly as the commodity balances resolve it. On the real pins no
