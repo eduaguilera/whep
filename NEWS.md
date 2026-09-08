@@ -1,24 +1,5 @@
 # whep (development version)
 
-* **`get_faostat_data()` and its scraper are removed (#999).** The function had
-  no caller in `R/`, `data-raw/`, `inst/` or the vignettes -- the #541 entry
-  below already recorded that -- and no pipeline input arrives through it.
-  Every real input comes by one of the three documented mechanisms: a pin, an
-  env-var-gated local raster, or a verified on-demand download. It survived as
-  an exported convenience wrapper around FAOSTAT's bulk endpoint that still
-  drew maintenance: #541 rewrote its ISO3 resolution and #993 replaced its
-  download path to drop the `FAOSTAT` package dependency, both on code nobody
-  called. That dependency removal is kept -- it is independent of this and
-  worth having either way.
-
-  No published WHEP value changes: nothing read FAOSTAT through this path. A
-  user who called `whep::get_faostat_data()` directly to pull a raw FAOSTAT
-  domain must now fetch it themselves; the package no longer offers a
-  general-purpose FAOSTAT downloader. `.fao_area_iso3_lookup()` goes with it,
-  including its row in the `R/join_audit.R` ratchet -- the ratchet asserts both
-  directions, so a deleted function whose baseline entry stayed would have
-  failed its own stale check.
-
 * **`read_polycell_support()` now refuses a support built without its inland
   water and ice layers, and `build_polycell_support()` stamps which layers it
   consumed (#1010, regression of #885).** `water` and `ice` are optional
