@@ -232,6 +232,14 @@ build_grass_natural_carbon_inputs <- function(
   if (.gn_can_read_run(data, run_dir)) {
     return(.gn_net_c_from_lpjml(data, years, run_dir))
   }
+  # Deliberately NOT year-filtered at the read. `.gn_check_grassland_schema()`
+  # is a VINTAGE guard on the artifact -- it refuses a pin that predates the
+  # grazing split -- and it can only fire when it can see grassland rows.
+  # Handed a year slice instead of the whole pin, a request for years the pin
+  # thinly covers (or does not cover at all) would present as "no grassland
+  # rows", skip the refusal, and accept the very layer whose acceptance
+  # double-subtracts LPJmL's grazing. The pin is ~537 MB, so reading it whole
+  # costs seconds; the guard is worth more than that.
   .read_lpjml_pin(.gn_net_c_alias()) |>
     .gn_check_net_c(.gn_net_c_alias()) |>
     .filter_years_if_present(years)

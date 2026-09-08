@@ -151,7 +151,11 @@ A tibble keyed by \code{(lon, lat, area_code, land_use, year)} at
 with \code{stock_mgc_ha}, \code{mineralization_mgc_ha}, \code{c_input_mgc_ha},
 \code{luc_transfer_mgc_ha}, \code{luc_transfer_mgc}, \code{rate_mgc_ha},
 \code{son_change_kgn_ha},
-\code{area_ha}, \code{method_soc} and \code{method_soc_init}, plus the
+\code{area_ha}, and one column per method choice that moves a number:
+\code{method_soc}, \code{method_soc_init}, \code{method_class_water},
+\code{method_area_basis}, \code{method_grazing} and
+\code{method_crop_groups}. All of them survive the \code{"polity"}
+roll-up. Plus the
 polity columns below, plus
 \code{reporting_polity_out_of_span} when
 \code{polity_validity = "flag"}.

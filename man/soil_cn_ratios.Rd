@@ -81,6 +81,26 @@ stock change into net nitrogen mineralization (when carbon is lost)
 or net nitrogen sequestration (when carbon accumulates), by cropland
 class and management system.
 }
+\section{What the asymmetry represents}{
+
+The two directional ratios are not two process stoichiometries. They express
+the FLEXIBILITY of soil C:N: a soil gaining carbon is expected to move to a
+wider ratio, a soil losing carbon to a narrower one, so the pair brackets
+the bulk value. Cropland is 8 -- 10 -- 11 and non-cropland 11 -- 15 -- 15.
+
+This is why both are documented as applying to the \emph{net} change: the
+ratio describes where a given soil's C:N is heading, which is a property of
+the soil, not of an individual crop or field on part of it. Applying the
+choice at a finer grain than the soil makes the two directions
+non-cancelling and manufactures nitrogen at a soil whose carbon did not
+change.
+
+The bounds themselves remain unsourced; see the source section below. What
+is wanted is a published \emph{marginal} C:N -- the ratio of the CHANGE in
+soil carbon to the change in soil nitrogen -- not a bulk soil C:N, which is
+a different quantity.
+}
+
 \examples{
 soil_cn_ratios
 }

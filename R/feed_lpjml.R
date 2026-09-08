@@ -267,9 +267,17 @@ read_lpjml_grass_productivity <- function(
 # the fact that a local run directory is an equally valid answer -- the whole
 # point of pinning these layers is that a user has a choice, so the error has to
 # state both options.
-.read_lpjml_pin <- function(alias, envvar = "WHEP_LPJML_RUN_DIR") {
+.read_lpjml_pin <- function(
+  alias,
+  envvar = "WHEP_LPJML_RUN_DIR",
+  years = NULL
+) {
   tryCatch(
-    whep_read_file(alias),
+    whep_read_file(alias, years = years),
+    # A `years` wiring mistake is NOT a missing pin. Re-raised unchanged so the
+    # reader is not sent to check their network and their run directory for a
+    # bug that is neither.
+    whep_year_filter_error = function(e) rlang::cnd_signal(e),
     error = function(e) {
       cli::cli_abort(
         c(
@@ -295,7 +303,7 @@ read_lpjml_grass_productivity <- function(
 
 .read_pin_grass_avail <- function(years, shares) {
   .normalise_grass_avail(
-    whep_read_file(.lpjml_grass_avail_alias()),
+    whep_read_file(.lpjml_grass_avail_alias(), years = years),
     years,
     shares,
     .lpjml_grass_avail_alias()
@@ -359,7 +367,7 @@ read_lpjml_grass_productivity <- function(
 
 .read_pin_grass_prod <- function(years) {
   .normalise_grass_prod(
-    whep_read_file(.lpjml_grass_prod_alias()),
+    whep_read_file(.lpjml_grass_prod_alias(), years = years),
     years,
     .lpjml_grass_prod_alias()
   )
@@ -411,12 +419,24 @@ read_lpjml_grass_productivity <- function(
   )
 }
 
-.filter_years_if_present <- function(data, years) {
+.filter_years_if_present <- function(data, years, year_col = "year") {
   if (is.null(years)) {
-    data
-  } else {
-    dplyr::filter(data, as.integer(.data$year) %in% as.integer(years))
+    return(data)
   }
+  # `year_col` is honoured rather than assumed: `whep_read_file()` exposes it,
+  # and hardcoding `year` here meant a caller naming another column had the
+  # range pushed down on THEIR column and the exact set applied to `year` --
+  # an abort when only theirs existed, and a wrong subset when both did.
+  if (!rlang::has_name(data, year_col)) {
+    cli::cli_abort(
+      "No {.field {year_col}} column to filter {.arg years} on.",
+      class = "whep_year_filter_error"
+    )
+  }
+  dplyr::filter(
+    data,
+    as.integer(.data[[year_col]]) %in% as.integer(years)
+  )
 }
 
 # gC/m2/yr -> grazable t DM/ha/yr. 1 gC/m2 = 0.01 tC/ha; / w_c_dm -> t DM/ha.

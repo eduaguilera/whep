@@ -1166,13 +1166,15 @@ get_soc_climate_drivers <- function(
   if (!.socd_needs_pin(data, run_dir)) {
     return(NULL)
   }
-  raw <- .read_lpjml_pin(.socd_hydro_alias())
+  raw <- .read_lpjml_pin(.socd_hydro_alias(), years = years)
   .check_columns(
     raw,
     c("lon", "lat", "year", "month", "swc_topsoil", "prec_mm", "irrig_mm"),
     .socd_hydro_alias()
   )
-  .filter_years_if_present(tibble::as_tibble(raw), years)
+  # `whep_read_file()` pushed `years` into the parquet and applied the exact
+  # set, so filtering again here would be a no-op.
+  tibble::as_tibble(raw)
 }
 
 # Pull one column out of the pinned monthly table as the (lon, lat, year,

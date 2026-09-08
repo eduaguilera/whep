@@ -23,8 +23,12 @@ build_crop_water_use(
 to \code{area_code}, \code{airrig_stand_mm} area-weighted by stand area,
 \code{airrig_cell_mm} by cell area).}
 
-\item{years}{Optional integer vector of calendar years to keep. \code{NULL}
-(default) keeps every year the run covers.}
+\item{years}{Integer vector of calendar years to keep. Required when the
+monthly per-CFT cube is read from a run: it is ~7.7e7 long-form rows per
+year, so \code{NULL} (every year the run covers) is a request no machine can
+serve and aborts rather than exhausting memory. \code{NULL} is fine when
+\code{data$airrig_month} is supplied, since the years are then taken from the
+cube itself.}
 
 \item{run_dir}{Path to the LPJmL run output directory. \code{NULL} (default)
 uses \code{WHEP_LPJML_RUN_DIR}.}
