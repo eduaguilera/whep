@@ -92,6 +92,18 @@ For \code{format = "long"}, a tibble with columns: \code{year}, legacy numeric
 become one column each, \code{stock_variation} is split into the non-negative
 \code{stock_addition} and \code{stock_withdrawal}, and \code{domestic_supply} is total use
 excluding \code{export}.
+
+\code{fao_flag} is FAOSTAT's own observation-status code for the value, taken
+from the source that \code{source} names (\code{"A"} official, \code{"E"} estimated,
+\code{"I"} imputed, \code{"S"} standardized, \code{"SD"}, \code{"X"}). It is \code{NA} wherever
+the number is not one FAOSTAT published under a flag: a WHEP-derived row
+(the processing pathway, the destiny gap-fills, the pre-1961 historical
+extension), a row whose source carries no flag, and a row summed or
+averaged from parts whose flags disagree. The flag is a claim about the
+value, so it is dropped rather than guessed when the parts do not agree.
+Rows sourced from \code{"FAOSTAT_prod"} are \code{NA} today because
+\code{\link[=build_primary_production]{build_primary_production()}} does not carry the flag out of the
+production pin.
 }
 \description{
 Construct commodity balance sheets (CBS) from raw FAOSTAT data.

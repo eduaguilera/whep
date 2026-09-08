@@ -2117,6 +2117,12 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # build_cbs.R (#953) — the source bucket the FAOSTAT observation-status
+    # flag is folded on, so the restored `fao_flag` follows the source the
+    # value was selected from, plus the joined-in flag column
+    "source_group",
+    "n_group_flags",
+    "i.fao_flag"
   )
 )

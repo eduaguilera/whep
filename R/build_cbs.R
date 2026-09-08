@@ -74,6 +74,18 @@
 #'   `stock_addition` and `stock_withdrawal`, and `domestic_supply` is total use
 #'   excluding `export`.
 #'
+#'   `fao_flag` is FAOSTAT's own observation-status code for the value, taken
+#'   from the source that `source` names (`"A"` official, `"E"` estimated,
+#'   `"I"` imputed, `"S"` standardized, `"SD"`, `"X"`). It is `NA` wherever
+#'   the number is not one FAOSTAT published under a flag: a WHEP-derived row
+#'   (the processing pathway, the destiny gap-fills, the pre-1961 historical
+#'   extension), a row whose source carries no flag, and a row summed or
+#'   averaged from parts whose flags disagree. The flag is a claim about the
+#'   value, so it is dropped rather than guessed when the parts do not agree.
+#'   Rows sourced from `"FAOSTAT_prod"` are `NA` today because
+#'   [build_primary_production()] does not carry the flag out of the
+#'   production pin.
+#'
 #' @export
 #'
 #' @examples
@@ -218,11 +230,15 @@ build_commodity_balances <- function(
   # below handles differing sources for the same key+value.
   dt <- unique(dt, by = c(by_cols, "value"))
   if (has_flag) {
+    # `source[1L]` is an arbitrary pick and always was; the flag must not be,
+    # because it is a claim about the summed value rather than a label for one
+    # of its parts. `.fold_fao_flag()` keeps the flag when every row of the
+    # group agrees and reports the disagreement as NA (whep#581).
     dt <- dt[,
       .(
         value = .sum_if_any_cbs(value),
         source = source[1L],
-        fao_flag = fao_flag[1L]
+        fao_flag = .fold_fao_flag(fao_flag)
       ),
       by = by_cols
     ]
@@ -1404,10 +1420,22 @@ build_processing_coefs <- function(
     "item_cbs_code",
     "element"
   )
-  dt <- dt[,
-    .(value = mean(value, na.rm = TRUE)),
-    by = c(key_cols, "source")
-  ]
+  # The flag folds with the mean rather than being dropped: this collapse runs
+  # over the WHOLE frame when `historical_data` is supplied, so dropping it
+  # here would put every 1961+ row back to NA on that path alone (whep#953).
+  # The best-source pick below keeps one row per key, so the surviving flag is
+  # the one belonging to the source that survived with it.
+  if ("fao_flag" %in% names(dt)) {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE), fao_flag = .fold_fao_flag(fao_flag)),
+      by = c(key_cols, "source")
+    ]
+  } else {
+    dt <- dt[,
+      .(value = mean(value, na.rm = TRUE)),
+      by = c(key_cols, "source")
+    ]
+  }
   dt <- dt[!is.nan(value)]
   dt[, .source_rank := .cbs_source_rank(source, year)]
   data.table::setorderv(dt, c(key_cols, ".source_rank", "source"))
@@ -1926,7 +1954,15 @@ build_processing_coefs <- function(
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
   area_lookup <- .cbs_area_labels(dt_raw)
-  dt_raw <- dt_raw[, c(key_cols, "source", "value"), with = FALSE]
+  # `fao_flag` is kept here on purpose. Reducing to (key, source, value) is
+  # what made the documented `fao_flag` column structurally NA: it was gone
+  # before `.format_cbs_output()` could carry it, so the branch that stamps
+  # NA_character_ was the only one that ever ran (whep#953).
+  keep_cols <- c(key_cols, "source", "value")
+  if ("fao_flag" %in% names(dt_raw)) {
+    keep_cols <- c(keep_cols, "fao_flag")
+  }
+  dt_raw <- dt_raw[, keep_cols, with = FALSE]
 
   # Pivot only primary sources (3 cols) instead of all sources.
   # Avoids expensive frankv over many source columns.
@@ -2104,6 +2140,7 @@ build_processing_coefs <- function(
   ]
 
   wide[area_lookup, area := i.area, on = "area_code"]
+  wide <- .add_best_source_flag(wide, dt_raw, key_cols, primary_sources)
 
   wide <- wide |>
     dplyr::select(
@@ -2114,8 +2151,66 @@ build_processing_coefs <- function(
       element,
       year,
       source,
-      value
+      value,
+      fao_flag
     )
+}
+
+# The FAOSTAT observation-status flag of the source the value was TAKEN from.
+#
+# The pick has to follow the value. `.select_best_source()` chooses the value
+# by a stated priority (FAOSTAT_prod > FBS_New > scaled FBS_Old > mean of the
+# rest), and the sources disagree about provenance: measured on a real
+# 2010-2013 `cbs_raw_all`, 289,262 of its 1,010,180 selection keys (28.6%) are
+# reported with more than one distinct flag across sources. Keeping whichever
+# flag sorted first would therefore attribute one vintage's provenance to
+# another vintage's number in a quarter of the table.
+#
+# Within a single source there is nothing to choose: 0 of 1,906,689
+# (key, source) groups carry two distinct flags, because
+# `.aggregate_to_polities()` has already folded the polity buckets with
+# `.fold_fao_flag()`. The `mean` branch is the one place that really does
+# average several sources, so it gets that same fold -- keep the flag when
+# every averaged source agrees, `NA` when they do not (whep#581).
+.add_best_source_flag <- function(wide, dt_raw, key_cols, primary_sources) {
+  wide[, fao_flag := NA_character_]
+  if (!"fao_flag" %in% names(dt_raw)) {
+    return(wide)
+  }
+  flags <- dt_raw[!is.na(fao_flag)]
+  flags[,
+    source_group := data.table::fifelse(
+      source %in% primary_sources,
+      source,
+      "mean"
+    )
+  ]
+  flags <- .fold_flags_by(flags, c(key_cols, "source_group"))
+  # The scaled FBS_Old value is FBS_Old's number times a ratio, so it keeps
+  # FBS_Old's flag; every other label is the group name already.
+  wide[,
+    source_group := data.table::fifelse(
+      source == "FAOSTAT_FBS_Old_scaled",
+      "FAOSTAT_FBS_Old",
+      source
+    )
+  ]
+  wide[flags, fao_flag := i.fao_flag, on = c(key_cols, "source_group")]
+  wide[, source_group := NULL]
+  wide
+}
+
+# `.fold_fao_flag()`'s rule -- one flag if the group agrees, otherwise none --
+# applied per group without calling it once per group. A group that keeps two
+# rows after the distinct-flag dedup disagrees, so dropping those leaves
+# exactly the agreeing groups, and a key absent from the result joins as NA.
+# It is the same answer (asserted against the helper in test_build_cbs.R) and
+# 5x cheaper: measured on a real 2010-2013 `cbs_raw_all`, 1.4 s against 6.8 s
+# for 1.9M groups, which is most of what carrying the flag costs at all.
+.fold_flags_by <- function(flags, by_cols) {
+  out <- unique(flags, by = c(by_cols, "fao_flag"))
+  out[, n_group_flags := .N, by = by_cols]
+  out[n_group_flags == 1L, c(by_cols, "fao_flag"), with = FALSE]
 }
 
 # The order `.assemble_cbs_sources()` binds its sources in. It is what decided
@@ -2259,8 +2354,14 @@ build_processing_coefs <- function(
   ]
   data.table::setnames(observed_sources, "source", "observed_source")
 
+  # `fao_flag` goes with `source` here, and unlike `source` it does not come
+  # back. Below, the year skeleton and `.fill_historical_destinies()` replace
+  # the value of most of these rows, and `observed_source` is coalesced to
+  # `"historical_fill"` precisely because the result is WHEP's estimate rather
+  # than a reported figure. A FAOSTAT flag carried across that would describe
+  # a number FAOSTAT never published, so the pre-1961 extension keeps NA.
   cbs_hist <- cbs_hist |>
-    dplyr::select(-dplyr::any_of(c("source", "area")))
+    dplyr::select(-dplyr::any_of(c("source", "area", "fao_flag")))
 
   cbs_hist <- .cbs_complete_year_nesting_dt(
     cbs_hist,
@@ -2879,7 +2980,8 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
-      value
+      value,
+      dplyr::any_of("fao_flag")
     )
 }
 
@@ -2923,10 +3025,26 @@ build_processing_coefs <- function(
   )
 }
 
+# Take the provenance columns off before a pivot cycle, so `src_lookup` can
+# put them back afterwards. Both have to go, not just `source`: a surviving
+# `fao_flag` becomes an id column of `tidyr::pivot_wider()` -- splitting one
+# key into a row per flag -- and collides with the re-joined copy on the way
+# out, arriving as `fao_flag.x` / `fao_flag.y`.
+.drop_cbs_provenance <- function(df) {
+  dplyr::select(df, -dplyr::any_of(c("source", "fao_flag")))
+}
+
+# The provenance the `.fix_cbs()` steps park here and re-join at their end,
+# because the pivot cycles in between cannot carry a non-numeric passenger.
+# `fao_flag` travels with `source` rather than beside it, so the row that
+# names the source is the row that names its flag -- `unique(by = by_cols)`
+# keeps one row per key, and taking the two from different rows would let a
+# key claim FBS_New's provenance for an FBS_Old number.
 .extract_source_lookup <- function(df) {
   dt <- if (data.table::is.data.table(df)) df else data.table::as.data.table(df)
   by_cols <- c("year", "area_code", "item_cbs_code", "element")
-  unique(dt[, c(by_cols, "source"), with = FALSE], by = by_cols)
+  cols <- c(by_cols, "source", intersect("fao_flag", names(dt)))
+  unique(dt[, cols, with = FALSE], by = by_cols)
 }
 
 # -- Redistribute non-processed ------------------------------------------------
@@ -2941,7 +3059,8 @@ build_processing_coefs <- function(
   }
 
   dt <- data.table::as.data.table(cbs_raw2)
-  dt[, source := NULL]
+  drop <- intersect(c("source", "fao_flag"), names(dt))
+  dt[, (drop) := NULL]
 
   # Items with processing but no matching processed products
   proc_keys <- data.table::as.data.table(processd_raw)[,
@@ -3457,7 +3576,7 @@ build_processing_coefs <- function(
   }
 
   wide <- cbs_raw3 |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     tidyr::pivot_wider(
       names_from = element,
       values_from = value,
@@ -4161,7 +4280,7 @@ build_processing_coefs <- function(
 
   cbs_filtered <- cbs_raw6 |>
     dplyr::filter(!is.na(element)) |>
-    dplyr::select(-dplyr::any_of("source"))
+    .drop_cbs_provenance()
 
   # Ensure processing and other_uses rows exist for groups that need
 
@@ -4229,6 +4348,7 @@ build_processing_coefs <- function(
       item_cbs_code,
       element,
       source,
+      dplyr::any_of("fao_flag"),
       value = value2
     )
 }
@@ -4250,7 +4370,7 @@ build_processing_coefs <- function(
 
   cbs_raw8 <- cbs_raw7 |>
     dplyr::filter(year %in% years) |>
-    dplyr::select(-dplyr::any_of("source")) |>
+    .drop_cbs_provenance() |>
     .test_cbs()
   cbs_raw8 <- merge(
     cbs_raw8,
