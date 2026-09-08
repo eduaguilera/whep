@@ -2251,6 +2251,12 @@ build_carbon_balance <- function(
     tibble::as_tibble()
 }
 
+# Whether an input ratio carries information. Shared by the value and the
+# provenance stamp so the two cannot disagree about which route ran.
+.soc_cn_input_usable <- function(input_cn) {
+  is.finite(input_cn) & input_cn > 0
+}
+
 .soc_marginal_cn <- function(
   input_cn,
   cropland_class,
@@ -2281,7 +2287,7 @@ build_carbon_balance <- function(
   # No input ratio (absent, non-positive or non-finite) means no information,
   # not a zero: fall back to the land-use default, which is what the package
   # did before an input ratio existed.
-  usable <- is.finite(input_cn) & input_cn > 0
+  usable <- .soc_cn_input_usable(input_cn)
   dplyr::if_else(usable, out, default)
 }
 
@@ -2325,6 +2331,14 @@ build_carbon_balance <- function(
   # not. The two are alternatives, not a fallback chain: which one ran is
   # recorded in `method_som_cn`.
   if (rlang::has_name(out, "input_cn")) {
+    # Stamped PER ROW by what actually ran, not by what was asked for. The
+    # column being present does not mean it holds a ratio: measured on a real
+    # 2020 build, `input_cn` was NA on all 811,138 cropland rows, because the
+    # nitrogen of the NPP components only exists when
+    # `calculate_crop_npp_components()` has run and the turnkey chain does not
+    # call it. Stamping the requested method regardless made the output claim
+    # an input-driven ratio while every row used the land-use default -- a
+    # constant wearing an input-driven name (whep#1034).
     out <- dplyr::mutate(
       out,
       cn_used = .soc_marginal_cn(
@@ -2332,7 +2346,11 @@ build_carbon_balance <- function(
         .data$cropland_class,
         method_som_cn
       ),
-      method_som_cn = method_som_cn
+      method_som_cn = dplyr::if_else(
+        .soc_cn_input_usable(.data$input_cn),
+        method_som_cn,
+        "land_use_default"
+      )
     )
   } else {
     out <- dplyr::mutate(

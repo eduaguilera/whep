@@ -2135,3 +2135,42 @@ testthat::test_that("expanding to classes gives every sharer the same modifier",
   # The helper keys are gone from the output.
   testthat::expect_false(any(c(".cover_key", ".irrigated") %in% names(out)))
 })
+
+testthat::test_that("method_som_cn records the route that actually ran", {
+  # The column being PRESENT does not mean it holds a ratio. Measured on a real
+  # 2020 build, `input_cn` was NA on all 811,138 cropland rows, so stamping the
+  # requested method regardless made every row claim an input-driven ratio
+  # while using the land-use default -- a constant wearing an input-driven
+  # name.
+  marched <- tibble::tibble(
+    lon = c(0.25, 0.75),
+    lat = 0.25,
+    year = 2020L,
+    land_use = "cropland",
+    area_ha = 1,
+    rate_mgc_ha = c(-1, 1),
+    input_cn = c(NA_real_, 40)
+  )
+
+  out <- whep:::.cb_derive_son(marched)
+
+  testthat::expect_equal(
+    out$method_som_cn[is.na(out$input_cn)],
+    "land_use_default"
+  )
+  testthat::expect_equal(
+    out$method_som_cn[!is.na(out$input_cn)],
+    "justes_2009"
+  )
+  # The VALUE follows the same predicate, checked through the nitrogen it
+  # produces since `cn_used` is intermediate: the unknown row uses the
+  # land-use default of 10, so losing 1 MgC/ha mineralises 100 kgN/ha; the
+  # known row uses 15.4 - 76/40 = 13.5, so gaining 1 MgC/ha immobilises
+  # 1000/13.5 = 74.1.
+  testthat::expect_equal(out$son_change_kgn_ha[is.na(out$input_cn)], 100)
+  testthat::expect_equal(
+    out$son_change_kgn_ha[!is.na(out$input_cn)],
+    -1000 / 13.5,
+    tolerance = 1e-6
+  )
+})
