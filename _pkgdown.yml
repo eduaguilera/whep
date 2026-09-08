@@ -641,6 +641,9 @@ reference:
   contents:
   - prepare_livestock_emissions
   - calculate_livestock_emissions
+  - build_gridded_livestock_emissions
+  - build_cell_climate_zone
+  - livestock_emissions_to_kt
   - calculate_enteric_ch4
   - calculate_manure_emissions
   - manure_engine_options

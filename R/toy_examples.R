@@ -1637,3 +1637,68 @@
   ) |>
     dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
 }
+
+# Six rows of a real `build_cell_climate_zone()` run over CRU TS 4.07: three
+# cells around Lake Victoria in 1961 (measured) and the same three in 1880
+# (backcast from the 1901-1930 climatology), so the fixture shows both
+# `method_climate_zone` values and both sides of the 18 degC Temperate/Warm cut.
+.example_cell_climate_zone <- function() {
+  tibble::tribble(
+    ~lon,   ~lat, ~year, ~mean_annual_temp_c, ~climate_zone,
+    ~method_climate_zone,
+    34.25, -0.25, 1880L,            21.61694,        "Warm",
+    "climatology_1901_1930",
+    34.75,  0.25, 1880L,            20.00972,        "Warm",
+    "climatology_1901_1930",
+    35.25,  0.75, 1880L,            17.16806,   "Temperate",
+    "climatology_1901_1930",
+    34.25, -0.25, 1961L,            22.51667,        "Warm",
+    "cru_ts_annual",
+    34.75,  0.25, 1961L,            20.90833,        "Warm",
+    "cru_ts_annual",
+    35.25,  0.75, 1961L,            16.97500,   "Temperate",
+    "cru_ts_annual"
+  )
+}
+
+# nolint start: object_length_linter.
+# Three real Tier 2 rows from a `build_gridded_livestock_emissions()` run on a
+# three-row Kenyan herd: one dairy herd split between a Warm lowland cell and a
+# Temperate highland cell (the 1961 CRU means either side of the 18 degC cut),
+# plus a non-dairy herd confined to the lowland cell. The dairy manure CH4
+# therefore diverges from its national-mean-temperature counterpart (0.799)
+# while the single-cell non-dairy herd cannot diverge (1). Cells and their
+# `area_code` are the real `spatialize-country-grid` rows, registered in
+# tests/testthat/fixtures/country_grid_example_cells.csv.
+.example_gridded_livestock_emissions <- function() {
+  tibble::tribble(
+    ~year, ~area_code,  ~lon,  ~lat,             ~species,  ~heads,
+    ~mean_annual_temp_c, ~climate_zone, ~diet_quality,
+    ~enteric_ch4_kt, ~manure_ch4_kt, ~manure_n2o_kt,
+    ~divergence_enteric_ch4, ~divergence_manure_ch4, ~divergence_manure_n2o,
+    1961L,       114L, 34.25, -0.25,      "Cattle, dairy", 120000,
+    22.51667, "Warm", "Medium",
+    4.7876219, 1.86499108, 0.076414542,
+    1, 0.79862543, 1,
+    1961L,       114L, 35.25,  0.75,      "Cattle, dairy",  80000,
+    16.97500, "Temperate", "Medium",
+    3.1917479, 0.61739109, 0.050943028,
+    1, 0.79862543, 1,
+    1961L,       114L, 34.25, -0.25, "Cattle, non-dairy",   50000,
+    22.51667, "Warm", "Medium",
+    2.8982329, 0.84674270, 0.053775247,
+    1, 1.00000000, 1
+  ) |>
+    dplyr::mutate(
+      enteric_ch4_national_kt = enteric_ch4_kt / divergence_enteric_ch4,
+      manure_ch4_national_kt = manure_ch4_kt / divergence_manure_ch4,
+      manure_n2o_national_kt = manure_n2o_kt / divergence_manure_n2o,
+      method_climate_zone = "cru_ts_annual",
+      method_diet = "uniform_medium",
+      method_enteric = "IPCC_2019_Tier2",
+      method_manure_ch4 = "IPCC_2019_Tier2",
+      method_manure_n2o = "IPCC_2019_Tier2"
+    ) |>
+    .add_reporting_polity_columns()
+}
+# nolint end

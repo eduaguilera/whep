@@ -3522,6 +3522,365 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
     dplyr::select(year, area_code, species_group, nex_kg_n_head, source)
 }
 
+# The three FAOSTAT emission Elements read from the
+# `faostat-emissions-livestock` pin, named by the output column each lands in.
+.livestock_emission_elements <- function() {
+  c(
+    enteric_ch4_kt = "Enteric fermentation (Emissions CH4)",
+    manure_ch4_kt = "Manure management (Emissions CH4)",
+    manure_n2o_kt = "Manure management (Emissions N2O)"
+  )
+}
+
+# The (species group, emission column) pairs whose absence is structural, so a
+# 0 kt there is an observation rather than an invention. Nothing else is
+# filled.
+#
+# Poultry do not ferment enterically: IPCC 2006 Vol.4 Ch.10 Table 10.10 gives
+# no enteric fermentation emission factor for any bird, and FAOSTAT
+# correspondingly publishes no such row. Measured on pin vintage
+# 20260325T113403Z-23bf8: the items "Chickens", "Chickens, layers",
+# "Chickens, broilers", "Ducks", "Turkeys" and "Poultry Birds" carry 0
+# "Enteric fermentation (Emissions CH4)" rows under either Source, against
+# 14,081 manure-CH4 rows for each chicken item.
+#
+# The list stops there deliberately. On that same vintage, 29,722 of 90,273
+# joined rows carry an NA `enteric_ch4_kt` before any fill: chickens_broilers
+# 11,781, chickens_layers 11,781 and poultry 6,034 -- 29,596 structural zeros
+# -- plus 126 camel rows, which are not. Those 126 are area codes 19 and 170
+# over 1961-2050, reporting camels under the FAOSTAT item "Camels and
+# Llamas", which carries 4,167 manure-CH4 rows and 0 enteric rows. Camels do
+# ferment enterically (IPCC Table 10.10 gives them 46 kg CH4/head/yr), so a 0
+# there would be a fabricated observation; they stay NA and are reported.
+.livestock_structural_zeros <- function() {
+  tibble::tribble(
+    ~species_group, ~emission_col,
+    "chickens_layers", "enteric_ch4_kt",
+    "chickens_broilers", "enteric_ch4_kt",
+    "poultry", "enteric_ch4_kt"
+  )
+}
+
+# FAOSTAT emission items to WHEP species groups.
+#
+# "Mules and Asses" is deliberately absent. It is the FAOSTAT aggregate of
+# "Asses" and "Mules and hinnies", so mapping all three to `equines` counts
+# the aggregate's areas twice (whep#1016). Measured on pin vintage
+# 20260325T113403Z-23bf8, over areas with `Area Code` < 5000 under
+# "FAO TIER 1": 133 areas report the aggregate at some point, 83 of them
+# alongside BOTH parts, 133 alongside at least one part, and 0 alongside
+# neither. At the finest grain measured -- area x year x Element -- all 22,179
+# combinations carrying the aggregate also carry at least one part, and 13,986
+# carry both. So the aggregate is never the only equine row: dropping it loses
+# nothing and keeping it double counts. In 2020 it removes exactly the 634.3
+# kt that "Asses" (549.0 kt) and "Mules and hinnies" (85.3 kt) already carry.
+#
+# Under "UNFCCC" 2 areas do report the aggregate alone, but the Source filter
+# removes those rows before this map is applied.
+#
+# "Camels" and "Camels and Llamas" overlap in 0 areas, so both stay.
+.livestock_emi_species_map <- function() {
+  tibble::tribble(
+    ~emi_item, ~species_group,
+    "Cattle, dairy", "cattle_dairy",
+    "Cattle, non-dairy", "cattle_non_dairy",
+    "Buffalo", "buffalo",
+    "Sheep", "sheep_goats",
+    "Goats", "sheep_goats",
+    "Swine, market", "pigs",
+    "Swine, breeding", "pigs",
+    "Chickens, layers", "chickens_layers",
+    "Chickens, broilers", "chickens_broilers",
+    "Ducks", "poultry",
+    "Turkeys", "poultry",
+    "Horses", "equines",
+    "Asses", "equines",
+    "Mules and hinnies", "equines",
+    "Camels", "camels",
+    "Camels and Llamas", "camels"
+  )
+}
+
+# The version of a pin as frozen in inst/extdata/whep_inputs.csv, so an abort
+# can name the vintage that has to be replaced.
+.registered_pin_version <- function(alias) {
+  inputs <- whep::whep_inputs
+  idx <- match(alias, inputs$alias)
+  if (is.na(idx)) {
+    return(NA_character_)
+  }
+  inputs$version[[idx]]
+}
+
+# The columns without which the pin cannot even be inspected for the emission
+# Elements. `Source` is NOT one of them: the registered vintage
+# 20260526T151303Z-bac9d has 14 columns and no `Source` at all, and demanding
+# it here reported a UNFCCC duplication that vintage cannot have, instead of
+# the absent Elements that are the actual defect (whep#1016).
+.check_emission_columns <- function(emi_raw, pin_version) {
+  required <- c("Element", "Area Code", "Year", "Item", "Value")
+  missing <- setdiff(required, names(emi_raw))
+  if (length(missing) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "The {.val faostat-emissions-livestock} pin is missing
+     {length(missing)} required column{?s}: {.val {missing}}.",
+    x = "Reading the emission Elements needs every column listed above.",
+    i = "Registered pin version: {.val {pin_version}}.",
+    i = "Columns present: {.val {names(emi_raw)}}."
+  ))
+}
+
+# whep#1016 itself, and the first thing checked once the pin is readable: an
+# emission Element that is not in the pin at all.
+#
+# This is the condition the registered vintage is in. It must be diagnosed
+# before anything else, because every later check -- the `Source` column, the
+# `FAO TIER 1` subset, the item map -- describes a pin that still HAS the
+# Elements, and reporting one of those sends the reader after a problem that
+# is not there.
+.check_emission_elements <- function(emi_raw, pin_version) {
+  wanted <- unname(.livestock_emission_elements())
+  have <- sort(unique(emi_raw$Element))
+  absent <- setdiff(wanted, have)
+  if (length(absent) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "The {.val faostat-emissions-livestock} pin carries no rows for
+     {.val {absent}}.",
+    x = "Registered pin version: {.val {pin_version}}.",
+    i = "The {length(have)} Element{?s} it does carry: {.val {have}}.",
+    i = "The build stops rather than filling the gap with zeros. Global
+     enteric CH4 alone is 107,993 kt in 2020 (FAO TIER 1, equine aggregate
+     dropped -- what this code produces), measured on the last vintage that
+     carried it, {.val 20260325T113403Z-23bf8}. A zero column would silently
+     book roughly 108 Tg CH4/yr as an observed absence (whep#1016).",
+    i = "Restore a pin vintage carrying {.val {absent}} and freeze its
+     version in {.file inst/extdata/whep_inputs.csv}."
+  ))
+}
+
+# The `FAO TIER 1` subset, and the second condition: a pin that HAS the
+# Elements but no `Source` column. That is not whep#1016 -- the rows are there
+# and usable -- but the UNFCCC duplication sitting on top of them cannot be
+# removed, so the totals would be inflated rather than missing.
+.filter_fao_tier1 <- function(emi_raw, pin_version) {
+  if (!rlang::has_name(emi_raw, "Source")) {
+    cli::cli_abort(c(
+      "The {.val faostat-emissions-livestock} pin is missing column
+       {.val Source}, but does carry the emission Elements.",
+      x = "Measured on vintage {.val 20260325T113403Z-23bf8}: 41 areas
+       report under both {.val FAO TIER 1} and {.val UNFCCC} in 2020 (179
+       across 1961-2050), and keeping both raises 2020 enteric CH4 from
+       107,993 kt to 130,793 kt, a 1.21x inflation.",
+      i = "Registered pin version: {.val {pin_version}}.",
+      i = "Without {.field Source} that duplication cannot be removed, so
+       the build stops rather than publishing the inflated total."
+    ))
+  }
+  # Keep FAO TIER 1 only, as .read_livestock_stocks() already does for the
+  # stock rows of the same pin (R/build_production.R).
+  tier1 <- dplyr::filter(emi_raw, .data$Source == "FAO TIER 1")
+  if (nrow(tier1) == 0L) {
+    cli::cli_abort(c(
+      "No {.val FAO TIER 1} rows in the
+       {.val faostat-emissions-livestock} pin.",
+      x = "{nrow(emi_raw)} row{?s} read, none of them {.val FAO TIER 1};
+       sources present: {.val {sort(unique(emi_raw$Source))}}.",
+      i = "Registered pin version: {.val {pin_version}}."
+    ))
+  }
+  tier1
+}
+
+# One emission Element, aggregated from FAOSTAT items to WHEP species groups.
+#
+# Aborts when the Element contributes no observation, which is the whole
+# point: a `filter()` that matches 0 rows and a genuine 0 kt are
+# indistinguishable once the result is joined and gap-filled, and that is
+# exactly how the registered pin came to ship 208,244 rows of exactly zero
+# emissions (whep#1016).
+.extract_emission_element <- function(emi, element, value_col, pin_version) {
+  rows <- dplyr::filter(emi, .data$Element == element)
+  mapped <- rows |>
+    dplyr::transmute(
+      area_code = as.integer(`Area Code`),
+      year = as.integer(Year),
+      emi_item = Item,
+      value = Value
+    ) |>
+    dplyr::filter(!is.na(area_code), area_code < 5000L) |>
+    dplyr::inner_join(.livestock_emi_species_map(), by = "emi_item")
+  out <- mapped |>
+    dplyr::summarise(
+      n_obs = sum(!is.na(value)),
+      n_missing = sum(is.na(value)),
+      value = sum(value, na.rm = TRUE),
+      .by = c(year, area_code, species_group)
+    ) |>
+    # `sum(NA, na.rm = TRUE)` is 0, so a group whose rows all carry a missing
+    # `Value` collapsed to a literal 0 kt inside a non-empty result, and the
+    # row-count guard never fired. That is the whep#1016 output shape reached
+    # by a second route. A group with no observation in it is missing.
+    dplyr::mutate(value = dplyr::if_else(n_obs == 0L, NA_real_, value))
+  .check_element_observed(out, nrow(rows), nrow(mapped), element, pin_version)
+  .warn_partly_observed(out, element)
+  out |>
+    dplyr::select(year, area_code, species_group, value) |>
+    dplyr::rename(!!value_col := value)
+}
+
+# The Element contributed nothing usable. The three causes need different
+# repairs, so they get different messages: no row carries the element in this
+# subset, rows exist but no area or item survives the filters, or rows and
+# items exist but every `Value` is missing.
+.check_element_observed <- function(
+  out,
+  n_raw,
+  n_mapped,
+  element,
+  pin_version
+) {
+  if (nrow(out) > 0L && any(!is.na(out$value))) {
+    return(invisible(NULL))
+  }
+  cause <- if (n_raw == 0L) {
+    "No {.val FAO TIER 1} row carries this element."
+  } else if (n_mapped == 0L) {
+    "The pin carries {n_raw} row{?s} for it, but none survived the
+     area filter and the item-to-species map."
+  } else {
+    "The pin carries {n_raw} row{?s} for it and {n_mapped} survived the
+     filters, but every Value in them is missing."
+  }
+  cli::cli_abort(c(
+    "No usable {.val {element}} data in the
+     {.val faostat-emissions-livestock} pin.",
+    x = cause,
+    i = "Registered pin version: {.val {pin_version}}.",
+    i = "The build stops here rather than filling the gap with zeros:
+     global enteric CH4 alone is 107,993 kt in 2020 (FAO TIER 1, equine
+     aggregate dropped; measured on vintage
+     {.val 20260325T113403Z-23bf8}), so a zero column would silently drop
+     roughly 108 Tg CH4/yr (whep#1016)."
+  ))
+}
+
+# A group with some observed items and some missing ones keeps the observed
+# sum, which treats each missing item as contributing nothing. That is the
+# long-standing behaviour and no number moves, but the total is partial, so it
+# is warned about rather than left silent. No vintage triggers it today:
+# 20260325T113403Z-23bf8 has 0 missing Values across all 708,443 rows of the
+# three Elements.
+.warn_partly_observed <- function(out, element) {
+  partial <- out$n_obs > 0L & out$n_missing > 0L
+  if (!any(partial)) {
+    return(invisible(NULL))
+  }
+  cli::cli_warn(c(
+    "In {sum(partial)} {.val {element}} group{?s}, at least one item row
+     carries a missing Value.",
+    i = "{sum(out$n_missing[partial])} such row{?s} contribute nothing to
+     their group's total, so those totals are partial, not complete.",
+    i = "Groups are keyed on {.field year}, {.field area_code} and
+     {.field species_group}."
+  ))
+}
+
+# The three Elements, aggregated and joined into one emissions table.
+#
+# The checks are ordered so the diagnosis matches the failure: the Elements
+# being absent (whep#1016) is tested before the `Source` column, because the
+# registered pin is missing both and only the first is the defect.
+.summarise_livestock_emissions <- function(emi_raw, pin_version) {
+  .check_emission_columns(emi_raw, pin_version)
+  .check_emission_elements(emi_raw, pin_version)
+  tier1 <- .filter_fao_tier1(emi_raw, pin_version)
+  parts <- purrr::imap(
+    .livestock_emission_elements(),
+    \(element, value_col) {
+      .extract_emission_element(tier1, element, value_col, pin_version)
+    }
+  )
+  purrr::reduce(
+    parts,
+    \(x, y) {
+      dplyr::full_join(x, y, by = c("year", "area_code", "species_group"))
+    }
+  ) |>
+    .fill_structural_zeros()
+}
+
+# Fill only the gaps `.livestock_structural_zeros()` names. Everything else
+# stays NA: a species that has the process but no published row is missing,
+# not zero, and the previous blanket fill booked 126 camel rows at 0 kt
+# enteric CH4 on that basis.
+.fill_structural_zeros <- function(emissions) {
+  emissions |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(names(.livestock_emission_elements())),
+      \(x) {
+        groups <- .structural_zero_groups(dplyr::cur_column())
+        dplyr::if_else(is.na(x) & species_group %in% groups, 0, x)
+      }
+    ))
+}
+
+# The species groups whose absence from one emission column is structural.
+.structural_zero_groups <- function(column) {
+  .livestock_structural_zeros() |>
+    dplyr::filter(.data$emission_col == column) |>
+    dplyr::pull(species_group)
+}
+
+# Attach the emissions table to the national stock rows.
+#
+# What used to be here turned every unmatched row into a literal 0 kt. With
+# the pin's emission Elements gone, that meant every row: 208,244 rows of
+# exactly zero shipped as if observed (whep#1016). Unmatched rows now keep
+# NA, and a join that matches nothing at all aborts, which is the case the
+# zero-fill could not distinguish from a world with no emissions in it.
+.join_livestock_emissions <- function(stocks_grouped, emissions) {
+  value_cols <- names(.livestock_emission_elements())
+  joined <- stocks_grouped |>
+    dplyr::left_join(emissions, by = c("year", "area_code", "species_group"))
+  # A matched row can now carry an NA in one column and a value in another --
+  # camels have manure emissions and no enteric row -- so no single column
+  # decides whether the row matched.
+  matched <- joined |>
+    dplyr::mutate(
+      is_matched = dplyr::if_any(
+        dplyr::all_of(value_cols),
+        \(x) !is.na(x)
+      )
+    ) |>
+    dplyr::pull(is_matched)
+  if (!any(matched)) {
+    cli::cli_abort(c(
+      "No livestock stock row matched an emissions row.",
+      x = "{nrow(emissions)} emission row{?s} joined onto
+       {nrow(stocks_grouped)} stock row{?s} and matched none.",
+      i = "The join keys {.field year}, {.field area_code} and
+       {.field species_group} do not line up between the two tables."
+    ))
+  }
+  if (any(!matched)) {
+    gap_years <- range(joined$year[!matched])
+    cli::cli_warn(c(
+      "{sum(!matched)} of {nrow(joined)} stock row{?s} have no FAOSTAT
+       emissions row; their emission columns stay {.val {NA}}.",
+      i = "Years {gap_years[[1]]}-{gap_years[[2]]}. FAOSTAT emissions begin
+       in 1961 while stocks run from 1851, so the historical extension has
+       no emissions by construction.",
+      i = "They are left missing rather than set to {.val {0}}: a zero here
+       reads downstream as an observed absence (whep#1016)."
+    ))
+  }
+  joined
+}
+
 
 prepare_livestock_inputs <- function(
   l_files_dir,
@@ -3583,108 +3942,21 @@ prepare_livestock_inputs <- function(
     )
 
   # --- Emissions from pin ---
-  emi_raw <- tryCatch(
-    {
-      dt <- whep:::.read_input("faostat-emissions-livestock")
-      tibble::as_tibble(dt)
-    },
-    error = function(e) NULL
+  # No tryCatch here. A swallowed read error used to leave `emissions` NULL
+  # and the three emission columns set to a literal 0, so an outage and a
+  # world without livestock emissions produced the same output (whep#1016).
+  # A failure to read an input must propagate.
+  emi_pin <- "faostat-emissions-livestock"
+  emi_raw <- tibble::as_tibble(whep:::.read_input(emi_pin))
+  emissions <- .summarise_livestock_emissions(
+    emi_raw,
+    .registered_pin_version(emi_pin)
   )
-
-  emissions <- NULL
-  if (!is.null(emi_raw)) {
-    emi_species_map <- tribble(
-      ~emi_item, ~species_group,
-      "Cattle, dairy", "cattle_dairy",
-      "Cattle, non-dairy", "cattle_non_dairy",
-      "Buffalo", "buffalo",
-      "Sheep", "sheep_goats",
-      "Goats", "sheep_goats",
-      "Swine, market", "pigs",
-      "Swine, breeding", "pigs",
-      "Chickens, layers", "chickens_layers",
-      "Chickens, broilers", "chickens_broilers",
-      "Ducks", "poultry",
-      "Turkeys", "poultry",
-      "Horses", "equines",
-      "Asses", "equines",
-      "Mules and hinnies", "equines",
-      "Mules and Asses", "equines",
-      "Camels", "camels",
-      "Camels and Llamas", "camels"
-    )
-
-    enteric_ch4 <- emi_raw |>
-      filter(Element == "Enteric fermentation (Emissions CH4)") |>
-      transmute(
-        area_code = as.integer(`Area Code`),
-        year = as.integer(Year),
-        emi_item = Item,
-        enteric_ch4_kt = Value
-      ) |>
-      filter(!is.na(area_code), area_code < 5000L) |>
-      inner_join(emi_species_map, by = "emi_item") |>
-      summarise(
-        enteric_ch4_kt = sum(enteric_ch4_kt, na.rm = TRUE),
-        .by = c(year, area_code, species_group)
-      )
-
-    manure_ch4 <- emi_raw |>
-      filter(Element == "Manure management (Emissions CH4)") |>
-      transmute(
-        area_code = as.integer(`Area Code`),
-        year = as.integer(Year),
-        emi_item = Item,
-        manure_ch4_kt = Value
-      ) |>
-      filter(!is.na(area_code), area_code < 5000L) |>
-      inner_join(emi_species_map, by = "emi_item") |>
-      summarise(
-        manure_ch4_kt = sum(manure_ch4_kt, na.rm = TRUE),
-        .by = c(year, area_code, species_group)
-      )
-
-    manure_n2o <- emi_raw |>
-      filter(Element == "Manure management (Emissions N2O)") |>
-      transmute(
-        area_code = as.integer(`Area Code`),
-        year = as.integer(Year),
-        emi_item = Item,
-        manure_n2o_kt = Value
-      ) |>
-      filter(!is.na(area_code), area_code < 5000L) |>
-      inner_join(emi_species_map, by = "emi_item") |>
-      summarise(
-        manure_n2o_kt = sum(manure_n2o_kt, na.rm = TRUE),
-        .by = c(year, area_code, species_group)
-      )
-
-    emissions <- enteric_ch4 |>
-      full_join(manure_ch4, by = c("year", "area_code", "species_group")) |>
-      full_join(manure_n2o, by = c("year", "area_code", "species_group")) |>
-      mutate(
-        enteric_ch4_kt = if_else(is.na(enteric_ch4_kt), 0, enteric_ch4_kt),
-        manure_ch4_kt = if_else(is.na(manure_ch4_kt), 0, manure_ch4_kt),
-        manure_n2o_kt = if_else(is.na(manure_n2o_kt), 0, manure_n2o_kt)
-      )
-  }
 
   # --- Merge stocks + emissions ---
   livestock_country <- stocks_grouped |>
-    mutate(manure_n_mg = heads * nex_kg_n_head / 1000)
-
-  if (!is.null(emissions)) {
-    livestock_country <- livestock_country |>
-      left_join(emissions, by = c("year", "area_code", "species_group")) |>
-      mutate(
-        enteric_ch4_kt = if_else(is.na(enteric_ch4_kt), 0, enteric_ch4_kt),
-        manure_ch4_kt = if_else(is.na(manure_ch4_kt), 0, manure_ch4_kt),
-        manure_n2o_kt = if_else(is.na(manure_n2o_kt), 0, manure_n2o_kt)
-      )
-  } else {
-    livestock_country <- livestock_country |>
-      mutate(enteric_ch4_kt = 0, manure_ch4_kt = 0, manure_n2o_kt = 0)
-  }
+    mutate(manure_n_mg = heads * nex_kg_n_head / 1000) |>
+    .join_livestock_emissions(emissions)
 
   livestock_out <- livestock_country |>
     select(

@@ -7,6 +7,7 @@
 build_livestock_ghg_extension(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  method_diet = c("national_feed", "uniform_medium"),
   data = list(),
   example = FALSE
 )
@@ -17,9 +18,21 @@ build_livestock_ghg_extension(
 \item{gwp}{100-year global warming potential standard, \code{"ar6"} (default),
 \code{"ar5"} or \code{"ar4"}.}
 
+\item{method_diet}{How Tier 2 resolves each herd's \code{diet_quality}, which
+sets DE\% and so gross energy, enteric CH4, volatile solids and nitrogen
+excretion at once. \code{"national_feed"} (default) derives it from the
+country's own feed mix; \code{"uniform_medium"} assumes the IPCC \code{"Medium"}
+diet for every herd. The assumption is never selected implicitly, and the
+choice is recorded in \code{method_ghg}. Ignored at Tier 1, whose emission
+factors carry no diet dimension.}
+
 \item{data}{Optional named list of pre-loaded inputs to avoid remote reads:
-\code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output). It falls back to
-its reader when absent.}
+\code{primary_prod} (the \code{\link[=get_primary_production]{get_primary_production()}} output) and, for Tier 2
+with \code{method_diet = "national_feed"}, \code{feed_intake} (the
+\code{\link[=get_feed_intake]{get_feed_intake()}} output). \code{primary_prod} falls back to its reader when
+absent; \code{feed_intake} does not, because \code{\link[=get_feed_intake]{get_feed_intake()}} rebuilds the
+whole feed allocation and would silently turn this extension into an
+hours-long build. Supply it, or choose \code{method_diet = "uniform_medium"}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading remote
 data. Defaults to \code{FALSE}.}
