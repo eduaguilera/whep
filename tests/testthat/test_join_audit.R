@@ -190,7 +190,18 @@ test_that("the enumerated baseline can only shrink", {
   # membership does not.
   # Re-derived by RUNNING the audit on the merged tree, never by adding
   # the two sides' deltas.
-  expect_lte(sum(baseline$n), 74L)
+  #
+  # 75 since whep#939: `.pop_overlap_pairs()` attaches a polity's transitive
+  # successors, so `read_population()` can see that a 1961 row for the USSR and
+  # a 1961 row for Russia are the same ground under two area codes. It is the
+  # `.land_in_polygons` shape again -- the key is the polity PERIOD, the
+  # year-scoped identity itself -- and the year enters at the very next join,
+  # which keys on (year, successor polity). One year-free identity row buys a
+  # world population sum that stops counting a dissolved federation and its
+  # successors twice: on `pin_wpp_fbs_fallback` the sum was 30.2% too high at
+  # 1961, 21.5% at 2000 and 18.4% at 2021, and the default `pin` source was
+  # 0.19%-0.58% too high over 1850-1992.
+  expect_lte(sum(baseline$n), 75L)
   expect_true(all(nzchar(baseline$why)))
   # `label_identity` and `label_redundant` are deliberately absent: they
   # classified one join each, the ones whep#698 and whep#691 removed. Putting
