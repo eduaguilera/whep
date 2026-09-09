@@ -14,6 +14,7 @@ build_commodity_balances(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
   .fixed_data = NULL
 )
 }
@@ -77,6 +78,26 @@ pre-whep#866 behaviour. \strong{The default moves published values} — at 2010
 it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 10.27 Mt, moving 26,538 published rows over 180 areas; see \code{NEWS.md}.
 The conflict count is reported by every build under either setting.}
+
+\item{share_overflow}{One of \code{"report"} (default), \code{"clamp"}, \code{"drop"} or
+\code{"abort"}, selecting what happens when a pre-1962 destiny share exceeds 1
+— a destiny larger than the \code{domestic_supply} it is apportioned from
+(whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows do:
+\code{other_uses} 70, \code{processing_primary} 19, \code{food} 15, \code{feed} 4. They are
+1.03\% of the 1961 \code{other_uses} mass and 0.17\% of the \code{food} mass. The
+cause is not this arithmetic: 89 of them are FAOSTAT's own 1961 balances
+not closing (the non-food Commodity Balances, which carry tobacco, hides
+and skins, silk, wool and fibres as \code{other_uses} and which no
+better-ranked source overwrites), and the other 19 are hops in
+net-exporting years, whose \code{processing_primary} is the whole production
+by construction. \code{"report"} therefore keeps every value as measured and
+only warns, so it \strong{moves no published value}; it names the count, the
+split by destiny and the three largest. \code{"clamp"} caps the share at 1,
+\code{"drop"} sets it to \code{NA} so the key is filled from a neighbouring year
+instead (and booked as 0 where the violating year is the only
+observation), and \code{"abort"} refuses to build. Which of those is right is
+an open question — see whep#980 — so the reporting default is the one
+that invents nothing.}
 
 \item{.fixed_data}{Optional tibble with the same structure as the
 output of the internal \code{.read_cbs() |> .fix_cbs()} steps. When

@@ -2894,3 +2894,216 @@ test_that("binding an off-window recovered row aborts", {
     class = "whep_error_off_window_area_year"
   )
 })
+
+# -- Destiny shares above one (whep#980) ---------------------------------------
+
+# One area, one item, two years. 1951 is the FAOSTAT-anchor shape that produces
+# the real violation: an observed destiny larger than the observed
+# `domestic_supply`. 1950 carries only production and trade, so it has no
+# observed destiny of its own and is the year the 1951 share is carried back
+# to -- which is how a share above one reaches a published number.
+.share_overflow_frame <- function() {
+  tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "production", 100,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "import", 20,
+    1950L, "Kuwait", 118L, "Hides and skins", 2748L, "export", 0,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "production", 100,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "import", 23,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "export", 0,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "domestic_supply", 123,
+    1951L, "Kuwait", 118L, "Hides and skins", 2748L, "other_uses", 1373
+  )
+}
+
+.share_overflow_args <- function() {
+  list(
+    primary_area = tibble::tibble(
+      year = integer(),
+      area = character(),
+      area_code = integer(),
+      item_cbs = character(),
+      item_cbs_code = integer(),
+      area_ha = double()
+    ),
+    gdp_pop = tibble::tibble(
+      year = integer(),
+      area_code = character(),
+      pop = double()
+    ),
+    land_wide = tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      Cropland = double(),
+      Pasture = double(),
+      agriland = double()
+    )
+  )
+}
+
+.run_share_overflow <- function(method) {
+  a <- .share_overflow_args()
+  whep:::.fill_historical_destinies(
+    .share_overflow_frame(),
+    a$primary_area,
+    a$gdp_pop,
+    a$land_wide,
+    whep::items_full,
+    share_overflow = method
+  )
+}
+
+.other_uses_at <- function(result, yr) {
+  result |>
+    dplyr::filter(.data$year == yr, .data$element == "other_uses") |>
+    dplyr::pull(.data$value)
+}
+
+test_that(".destiny_shares_above_one finds only the violating destinies", {
+  # The invariant, stated once: every destiny reported must actually exceed
+  # the supply it was divided by, and every destiny that does must be
+  # reported. An equality test on one row would not catch a share column
+  # wired to the wrong element.
+  wide <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs, ~item_cbs_code, ~domestic_supply,
+    1951L, 118L, "Hides and skins", 2748L, 123,
+    1951L, 4L, "Wheat", 2511L, 1000,
+    1951L, 9L, "Bovine Meat", 2731L, 100
+  ) |>
+    dplyr::mutate(
+      food = c(NA, 500, 120),
+      feed = c(NA, NA, NA),
+      other_uses = c(1373, NA, NA),
+      processing = c(NA, NA, NA),
+      processing_primary = c(NA, NA, NA),
+      food_share = whep:::.cbs_safe_ratio(food, domestic_supply),
+      feed_share = whep:::.cbs_safe_ratio(feed, domestic_supply),
+      other_uses_share = whep:::.cbs_safe_ratio(
+        other_uses,
+        domestic_supply
+      ),
+      processing_share = whep:::.cbs_safe_ratio(
+        processing,
+        domestic_supply
+      ),
+      processing_primary_share = whep:::.cbs_safe_ratio(
+        processing_primary,
+        domestic_supply
+      )
+    )
+
+  over <- whep:::.destiny_shares_above_one(wide)
+
+  expect_true(all(over$value > over$domestic_supply))
+  expect_true(all(over$share > 1))
+  expect_setequal(over$destiny, c("other_uses", "food"))
+  expect_setequal(over$area_code, c(118L, 9L))
+})
+
+test_that("a destiny share above one is reported, not passed in silence", {
+  # whep#980, called the way the pipeline calls it -- no `share_overflow`
+  # argument at all. Before this change the default path warned nothing: the
+  # 11.16x share was carried to every other year of the key and multiplied
+  # back by that year's supply without a word.
+  a <- .share_overflow_args()
+
+  expect_warning(
+    whep:::.fill_historical_destinies(
+      .share_overflow_frame(),
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full
+    ),
+    class = "whep_destiny_share_overflow"
+  )
+})
+
+test_that("share_overflow = 'report' leaves every value where it was", {
+  # The default must move no published number: the 1951 observation stays as
+  # reported, and the 11.16x share still fills 1950.
+  result <- suppressWarnings(.run_share_overflow("report"))
+
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  # 1950 supply is 100 + 20 - 0 = 120, filled at the 1951 share 1373/123.
+  expect_equal(.other_uses_at(result, 1950L), 120 * 1373 / 123)
+})
+
+test_that("share_overflow = 'clamp' caps the filled destiny at the supply", {
+  result <- suppressWarnings(.run_share_overflow("clamp"))
+
+  # The observation itself is never overwritten -- `.apply_filled_shares()`
+  # only coalesces into a gap -- but the year it fills now gets the whole
+  # supply and no more.
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  expect_equal(.other_uses_at(result, 1950L), 120)
+})
+
+test_that("share_overflow = 'drop' refuses to fill from a violating share", {
+  result <- suppressWarnings(.run_share_overflow("drop"))
+
+  # 1951 is the only observation of this key, so dropping its share leaves
+  # 1950 with nothing to fill from and `.finalise_historical()` books a zero.
+  expect_equal(.other_uses_at(result, 1951L), 1373)
+  expect_equal(.other_uses_at(result, 1950L), 0)
+})
+
+test_that("share_overflow = 'abort' refuses to build", {
+  expect_error(
+    .run_share_overflow("abort"),
+    class = "whep_destiny_share_overflow"
+  )
+})
+
+test_that("share_overflow rejects an unknown method", {
+  expect_error(
+    .run_share_overflow("renormalise"),
+    class = "rlang_error"
+  )
+})
+
+test_that("build_commodity_balances validates share_overflow", {
+  expect_error(
+    build_commodity_balances(example = TRUE, share_overflow = "renormalise"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      share_overflow = "clamp"
+    ),
+    "ignored"
+  )
+})
+
+test_that("a balanced frame reports nothing", {
+  frame <- .share_overflow_frame() |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        .data$element == "other_uses",
+        100,
+        .data$value
+      )
+    )
+  a <- .share_overflow_args()
+
+  expect_no_warning(
+    whep:::.fill_historical_destinies(
+      frame,
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full,
+      share_overflow = "report"
+    )
+  )
+})

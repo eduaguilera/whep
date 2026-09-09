@@ -60,6 +60,25 @@
 #'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 #'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
 #'   The conflict count is reported by every build under either setting.
+#' @param share_overflow One of `"report"` (default), `"clamp"`, `"drop"` or
+#'   `"abort"`, selecting what happens when a pre-1962 destiny share exceeds 1
+#'   — a destiny larger than the `domestic_supply` it is apportioned from
+#'   (whep#980). Measured on a real 1950–1965 build, 108 of 207,816 rows do:
+#'   `other_uses` 70, `processing_primary` 19, `food` 15, `feed` 4. They are
+#'   1.03% of the 1961 `other_uses` mass and 0.17% of the `food` mass. The
+#'   cause is not this arithmetic: 89 of them are FAOSTAT's own 1961 balances
+#'   not closing (the non-food Commodity Balances, which carry tobacco, hides
+#'   and skins, silk, wool and fibres as `other_uses` and which no
+#'   better-ranked source overwrites), and the other 19 are hops in
+#'   net-exporting years, whose `processing_primary` is the whole production
+#'   by construction. `"report"` therefore keeps every value as measured and
+#'   only warns, so it **moves no published value**; it names the count, the
+#'   split by destiny and the three largest. `"clamp"` caps the share at 1,
+#'   `"drop"` sets it to `NA` so the key is filled from a neighbouring year
+#'   instead (and booked as 0 where the violating year is the only
+#'   observation), and `"abort"` refuses to build. Which of those is right is
+#'   an open question — see whep#980 — so the reporting default is the one
+#'   that invents nothing.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -88,11 +107,13 @@ build_commodity_balances <- function(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  share_overflow = .cbs_share_overflow_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
+  share_overflow <- rlang::arg_match(share_overflow)
   if (example) {
     return(
       if (format == "wide") {
@@ -109,7 +130,13 @@ build_commodity_balances <- function(
     ))
   }
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
+    fixed <- .read_cbs(
+      primary_all,
+      start_year,
+      end_year,
+      historical_data,
+      share_overflow = share_overflow
+    ) |>
       .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
     if (!is.null(historical_data)) {
@@ -125,6 +152,11 @@ build_commodity_balances <- function(
     if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (share_overflow != "report") {
+      cli::cli_warn(
+        "{.arg share_overflow} is ignored when {.arg .fixed_data} is supplied."
       )
     }
     fixed <- .fixed_data
@@ -300,7 +332,8 @@ build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -341,7 +374,8 @@ build_commodity_balances <- function(
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
-    years
+    years,
+    share_overflow = share_overflow
   )
 
   # Trim to requested years and attach context for downstream
@@ -2205,7 +2239,8 @@ build_processing_coefs <- function(
 .cbs_extend_historical <- function(
   cbs_raw0,
   inputs,
-  years
+  years,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
   items <- whep::items_full
 
@@ -2272,7 +2307,8 @@ build_processing_coefs <- function(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
       inputs$land_areas_wide,
-      items
+      items,
+      share_overflow = share_overflow
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -2329,8 +2365,13 @@ build_processing_coefs <- function(
   primary_area,
   gdp_pop,
   land_wide,
-  items
+  items,
+  share_overflow = .cbs_share_overflow_choices()
 ) {
+  share_overflow <- rlang::arg_match(
+    share_overflow,
+    .cbs_share_overflow_choices()
+  )
   expected_elements <- c(
     "domestic_supply",
     "production",
@@ -2374,6 +2415,7 @@ build_processing_coefs <- function(
         domestic_supply
       )
     ) |>
+    .apply_share_overflow(share_overflow) |>
     dplyr::left_join(
       primary_area,
       by = c("year", "area", "area_code", "item_cbs", "item_cbs_code")
@@ -2393,6 +2435,152 @@ build_processing_coefs <- function(
 # carried forward as non-finite data.
 .cbs_safe_ratio <- function(num, denom) {
   dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
+}
+
+# -- Destiny shares above one --------------------------------------------------
+
+# The five destiny shares of `.fill_historical_destinies()`, each with the
+# element it divides by `domestic_supply`. `seed_rate` is deliberately absent:
+# it is seed per hectare, not a share of supply, so it has no reason to sit
+# below one.
+.destiny_share_map <- function() {
+  c(
+    food_share = "food",
+    feed_share = "feed",
+    other_uses_share = "other_uses",
+    processing_share = "processing",
+    processing_primary_share = "processing_primary"
+  )
+}
+
+# What to do with a destiny that exceeds the domestic supply it is apportioned
+# from (whep#980), most conservative first.
+#
+# `"report"` is the default and is the behaviour every published build has had:
+# the share is kept exactly as measured, and is now named out loud instead of
+# passing in silence. It is the default because the overflow is a property of
+# the FAOSTAT source rather than of this arithmetic -- see
+# `.apply_share_overflow()` -- so overriding it here would replace a reported
+# number by an invented one.
+#
+# `"clamp"` caps the share at 1, which asserts that the destiny is at most the
+# whole supply. `"drop"` sets it to `NA` so `.fill_share_columns()` fills the
+# key from a neighbouring year instead of trusting the violating one; where the
+# violating year is the only observation, the destiny stays missing and
+# `.finalise_historical()` books it as 0. `"abort"` refuses to build.
+.cbs_share_overflow_choices <- function() {
+  c("report", "clamp", "drop", "abort")
+}
+
+# Every row whose destiny exceeds the `domestic_supply` it is divided by.
+.destiny_shares_above_one <- function(df) {
+  shares <- .destiny_share_map()
+  purrr::map2(
+    names(shares),
+    unname(shares),
+    \(share_col, element) .one_share_above_one(df, share_col, element)
+  ) |>
+    purrr::list_rbind()
+}
+
+.one_share_above_one <- function(df, share_col, element) {
+  tibble::as_tibble(df) |>
+    dplyr::filter(!is.na(.data[[share_col]]), .data[[share_col]] > 1) |>
+    dplyr::transmute(
+      destiny = element,
+      year,
+      area_code,
+      item_cbs,
+      item_cbs_code,
+      value = .data[[element]],
+      domestic_supply,
+      share = .data[[share_col]]
+    )
+}
+
+# A destiny share above one says a single destiny exceeds the domestic supply
+# it is apportioned from -- a balance violation, and one that propagates,
+# because `.fill_share_columns()` carries the share to every other year of the
+# same key and `.apply_filled_shares()` multiplies it back by that year's
+# supply.
+#
+# Measured on a real 1950-1965 build of `main` (207,816 rows), 108 shares
+# exceed one, every one of them at the 1961 FAOSTAT anchor except the
+# `processing_primary` block: `other_uses` 70, `processing_primary` 19,
+# `food` 15, `feed` 4, `processing` 0. Two mechanisms, neither of them in this
+# arithmetic:
+#
+# * 89 of them are FAOSTAT's own 1961 balances not closing. Traced back to the
+#   source extracts, `faostat-cbs-old-crops` has 46 keys with
+#   `other_uses > domestic_supply`, `faostat-cbs-old-animal` 27 and
+#   `faostat-fbs-old` 2 -- e.g. Kuwait hides and skins, 1,373 t of other uses
+#   against 123 t of supply. `other_uses` dominates because it is the destiny
+#   the *non-food* Commodity Balances carry (tobacco, hides and skins, silk,
+#   wool, fibres), and those items exist in no better-ranked source, so
+#   `.select_best_source()` cannot overwrite them the way `FAOSTAT_FBS_Old`
+#   overwrites the food/feed rows of the same file.
+# * The 19 `processing_primary` cases are structural rather than reported.
+#   `.assemble_cbs_sources()` copies the `pp_items` production row into a
+#   `processing_primary` row, so the numerator is the whole production while
+#   `domestic_supply` nets trade out of it; every one of the 19 is hops in a
+#   net-exporting year, and the same construction is what puts seven
+#   `processing_primary` shares below zero.
+#
+# The offending rows are 1.03% of the frame's 1961 `other_uses` mass, 0.32% of
+# `processing_primary`, 0.17% of `food` and 0.001% of `feed`, so this is small
+# -- but it was invisible, which is what this reports.
+#
+# Renormalising the five shares to sum to one is not offered: 47 of the 70
+# `other_uses` offenders are the only observed destiny of their row, so there
+# is nothing to renormalise against.
+.apply_share_overflow <- function(df, method) {
+  over <- .destiny_shares_above_one(df)
+  .report_share_overflow(over, method)
+  if (nrow(over) == 0L || method == "report") {
+    return(df)
+  }
+  replacement <- if (method == "clamp") 1 else NA_real_
+  df |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(names(.destiny_share_map())),
+      \(x) dplyr::if_else(!is.na(x) & x > 1, replacement, x)
+    ))
+}
+
+.report_share_overflow <- function(over, method) {
+  if (nrow(over) == 0L) {
+    return(invisible(over))
+  }
+  per_destiny <- over |>
+    dplyr::count(destiny, name = "n") |>
+    dplyr::arrange(dplyr::desc(n))
+  worst <- over |> dplyr::slice_max(share, n = 3L, with_ties = FALSE)
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(over)} historical destiny share{?s} exceed{?s/} 1, so that ",
+      "destiny is larger than the {.field domestic_supply} it is ",
+      "apportioned from."
+    ),
+    "*" = paste0(
+      "By destiny: {.val {paste0(per_destiny$destiny, ' = ', ",
+      "per_destiny$n)}}."
+    ),
+    "*" = paste0(
+      "Largest: {.val {paste0(worst$destiny, ' ', worst$year, ' area ', ",
+      "worst$area_code, ' ', worst$item_cbs, ' = ', round(worst$share, 2), ",
+      "'x supply')}}."
+    ),
+    "i" = paste0(
+      "{.arg share_overflow} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_share_overflow_choices(), method)}} also select",
+      "able."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_destiny_share_overflow")
+  }
+  cli::cli_warn(bullets, class = "whep_destiny_share_overflow")
+  invisible(over)
 }
 
 .fill_share_columns <- function(df) {
