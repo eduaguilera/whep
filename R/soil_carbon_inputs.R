@@ -394,7 +394,17 @@ build_soil_carbon_inputs <- function(
       relationship = "many-to-many"
     ) |>
     .sci_rescale_cell_area(harvested_area) |>
-    dplyr::mutate(c_mass_mg = .data$c_mass_mg * .data$area_weight) |>
+    # Nitrogen is scaled by the SAME area weight as carbon and carried through
+    # the select. Dropping it here is what made `input_cn` NA on all 811,138
+    # cropland rows of a real build: the column was rebuilt as all-NA by the
+    # missing-column guard in `.sci_sum_components()`, so the loss presented as
+    # "no component carried a nitrogen" rather than as an error. Scaling only
+    # the carbon would be worse than dropping it -- a polity-level nitrogen
+    # mass on every cell makes the input C:N far too narrow.
+    dplyr::mutate(
+      c_mass_mg = .data$c_mass_mg * .data$area_weight,
+      n_mass_mg = .data$n_mass_mg * .data$area_weight
+    ) |>
     dplyr::select(
       "lon",
       "lat",
@@ -403,6 +413,7 @@ build_soil_carbon_inputs <- function(
       "year",
       "input_type",
       "c_mass_mg",
+      "n_mass_mg",
       "crop_area_ha"
     )
 }
@@ -533,6 +544,11 @@ build_soil_carbon_inputs <- function(
   # A caller (or a fixture) may supply components with no nitrogen at all.
   # That is "no information", so the column is created as NA and the input C:N
   # comes out NA, which `.soc_marginal_cn()` answers with the land-use default.
+  # A hand-built fixture may legitimately arrive with no nitrogen column at
+  # all. A PIPELINE table must not: `.sci_join_weights()` carries `n_mass_mg`
+  # through, and its silent absence is how a dropped column presented as "no
+  # component carried a nitrogen" for every row of a real build rather than as
+  # an error.
   if (!("n_mass_mg" %in% names(dt))) {
     dt[, n_mass_mg := NA_real_]
   }
@@ -718,7 +734,23 @@ build_soil_carbon_inputs <- function(
       year = as.integer(.data$year),
       residue_soil_c_t = .data$residue_soil_c_t,
       root_c_t = .data$root_c_t,
-      weed_npp_c_t = .data$weed_npp_c_t
+      weed_npp_c_t = .data$weed_npp_c_t,
+      # The NITROGEN of the two components that carry carbon here.
+      # `calculate_npp_carbon_nitrogen()` already produces both -- `root_n_t`
+      # and, via `.npp_cn_soil_residue()`, `residue_soil_n_t` -- and this
+      # transmute simply dropped them, so `input_cn` was formed from the manure
+      # alone: a manure C:N (median 12.5 against the manure stream's own 11.97)
+      # setting the C:N of organic matter built from residues and roots too.
+      #
+      # Weed nitrogen is deliberately absent rather than forgotten: weed CARBON
+      # is identically zero in this chain, because only
+      # `calculate_crop_npp_components()` creates `weed_ag_dm_t` and the
+      # turnkey path does not call it (see `.sci_warn_zero_weeds()`). A
+      # component contributing no carbon cannot move a carbon-weighted ratio,
+      # so its absence costs nothing until that function is wired in, at which
+      # point `weed_npp_n_t` should join this list.
+      residue_soil_n_t = .data$residue_soil_n_t,
+      root_n_t = .data$root_n_t
     )
 }
 
