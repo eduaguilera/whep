@@ -43,14 +43,17 @@
 #'   `"ar5"` or `"ar4"`.
 #' @param method_diet How Tier 2 resolves each herd's `diet_quality`, which
 #'   sets DE% and so gross energy, enteric CH4, volatile solids and nitrogen
-#'   excretion at once. `"national_feed"` (default) derives it from the
-#'   country's own feed mix; `"uniform_medium"` assumes the IPCC `"Medium"`
-#'   diet for every herd. The assumption is never selected implicitly, and the
-#'   choice is recorded in `method_ghg`. Ignored at Tier 1, whose emission
-#'   factors carry no diet dimension.
+#'   excretion at once. `"per_cell_feed"` (default) derives it from the feed
+#'   mix of the cell the herd is in; `"national_feed"` from the country's own
+#'   mix; `"uniform_medium"` assumes the IPCC `"Medium"` diet for every herd.
+#'   The gridded rung is the default because WHEP resolves a diet per cell and
+#'   a diet varies within a country, so a national mix is a coarsening and an
+#'   assumed Medium is coarser still. Both remain selectable. The assumption is
+#'   never chosen implicitly, and the rung used is recorded in `method_ghg`.
+#'   Ignored at Tier 1, whose emission factors carry no diet dimension.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
 #'   `primary_prod` (the [get_primary_production()] output) and, for Tier 2
-#'   with `method_diet = "national_feed"`, `feed_intake` (the
+#'   with either feed-derived diet, `feed_intake` (the
 #'   [get_feed_intake()] output). `primary_prod` falls back to its reader when
 #'   absent; `feed_intake` does not, because [get_feed_intake()] rebuilds the
 #'   whole feed allocation and would silently turn this extension into an
@@ -72,7 +75,7 @@
 build_livestock_ghg_extension <- function(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
-  method_diet = c("national_feed", "uniform_medium"),
+  method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   data = list(),
   example = FALSE
 ) {
@@ -114,9 +117,9 @@ build_livestock_ghg_extension <- function(
       tier = tier
     ))
   }
-  if (method_diet == "national_feed" && is.null(feed_intake)) {
+  if (method_diet != "uniform_medium" && is.null(feed_intake)) {
     cli::cli_abort(c(
-      "Tier 2 with {.arg method_diet} {.val national_feed} needs a
+      "Tier 2 with {.arg method_diet} {.val {method_diet}} needs a
        feed-intake table.",
       i = "Pass it as {.code data$feed_intake}, e.g. from
            {.fun get_feed_intake} -- which rebuilds the whole feed allocation
