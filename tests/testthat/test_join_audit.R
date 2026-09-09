@@ -350,10 +350,11 @@ test_that("every year-free territorial grouping is classified", {
   # `diagnostic` to `single_year`: the interval belongs in the key, so a
   # successor's share is never added to its predecessor's.
   #
-  # 85 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
+  # 104 since whep#999: `.fao_area_iso3_lookup()` and its one row went with
   # `get_faostat_data()`, the only thing that called it. A cap left above the
   # real count is slack a new unregistered group could hide in, so it comes
-  # down with the row.
+  # down with the row, 105 to 104. Re-derived by running the audit rather
+  # than by subtracting: the registry sums to 104 over 100 signatures.
   expect_lte(sum(full$n), 104L)
   expect_true(all(nzchar(full$why)))
   expect_true(all(

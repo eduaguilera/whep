@@ -122,8 +122,9 @@
 #                               clean checkout skips.
 #   VAL_JP_INPUT_DIR            required; a directory of prepared
 #                               spatialization parquets -- the same one
-#                               `run_spatialize(paths = list(input_dir = ))`
-#                               takes. Wants `country_areas.parquet`,
+#                               `run_spatialize()` reads as the `input_dir`
+#                               element of its `paths` argument. Wants
+#                               `country_areas.parquet`,
 #                               `crop_patterns.parquet`,
 #                               `gridded_cropland.parquet`,
 #                               `type_cropland.parquet` and, optionally,

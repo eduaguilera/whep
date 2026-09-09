@@ -1732,11 +1732,11 @@
     "Eurostat_apro_cpnhr_h", "FRF2", "Champagne-Ardenne", "C1110", "Common wheat and spelt", "area", "area_harvested", 1990L, 417100, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_apro_cpnhr_h", "FRF2", "Champagne-Ardenne", "C1110", "Common wheat and spelt", "production", "production", 1990L, 3423200, "tonnes", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_apro_cpnhr_h", "FRF1", "Alsace", "C1300", "Barley", "area", "area_harvested", 1995L, 7400, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
-    "Eurostat_apro_cpshr", "ES51", "Cataluña", "C1110", "Common wheat and spelt", "area", "area_harvested", 2020L, 90660, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "28/05/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpshr", "ES51", "Catalu\u00f1a", "C1110", "Common wheat and spelt", "area", "area_harvested", 2020L, 90660, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "28/05/26 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_apro_cpshr", "DE11", "Stuttgart", "C1110", "Common wheat and spelt", "area", "area_harvested", 2003L, 85500, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "28/05/26 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_apro_mt_ls_r", "FRF2", "Champagne-Ardenne", "A2000", "Live bovine animals", "heads", NA_character_, 2020L, 547520, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_apro_mt_ls_r", "FRF2", "Champagne-Ardenne", "A2300F", "Dairy cows", "heads", NA_character_, 2020L, 86390, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
-    "Eurostat_apro_mt_ls_r", "FI20", "Åland", "A3100", "Live swine, domestic species", "heads", NA_character_, 2020L, NA_real_, "heads", "C", FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_mt_ls_r", "FI20", "\u00c5land", "A3100", "Live swine, domestic species", "heads", NA_character_, 2020L, NA_real_, "heads", "C", FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
     "Eurostat_ef_lsk_poultry", "FRF2", "Champagne-Ardenne", "A5000", "Live poultry", "heads", NA_character_, 2020L, 6600200, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "17/06/26 23:00:00", "2026-09-02T00:00:00Z"
   )
 }

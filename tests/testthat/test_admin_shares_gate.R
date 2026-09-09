@@ -1439,8 +1439,18 @@ test_that("no seam year is hardcoded anywhere in the gate", {
     "seam_gate_tolerances",
     grep("^\\.sg_", ls(asNamespace("whep"), all.names = TRUE), value = TRUE)
   )
+  # Deparse the BODY and the FORMALS, never the closure. Deparsing a closure
+  # emits whatever the surface attaches to it -- a `<bytecode: 0x...>` line, an
+  # `<environment: 0x...>` line, a source reference -- and none of that is
+  # code. On the built tarball those lines carried digit runs that the year
+  # pattern matched (1636, 1689, 1715), so the check failed on the package's
+  # own memory addresses while passing under `load_all()`, where they are
+  # absent. Body plus formals is the function's actual source and nothing else,
+  # so the check now reads the same on a source checkout, an install and a
+  # tarball.
   code <- unlist(lapply(objects, function(nm) {
-    deparse(get(nm, envir = asNamespace("whep")))
+    fn <- get(nm, envir = asNamespace("whep"))
+    c(deparse(body(fn)), deparse(formals(fn)))
   }))
 
   # `L?` is load-bearing: an R year literal is written `1961L`, and

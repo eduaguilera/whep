@@ -2400,3 +2400,16 @@ utils::globalVariables(
     "usable"
   )
 )
+
+# admin_shares_gate.R (#1000) — the three symbols the file's own header block
+# lists and that were never appended here. `offset` is created by a
+# `mutate()` and read on the next line of the same call
+# (`.sg_cell_pair_plan`, `.sg_regime_mismatch`); `pass` likewise in
+# `.sg_judged_series`. R CMD check reports both as "no visible binding".
+utils::globalVariables(
+  c(
+    "matches_seam_start",
+    "offset",
+    "pass"
+  )
+)

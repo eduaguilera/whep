@@ -620,7 +620,7 @@ if (length(gv_metric) != 1L || grepl("status=skipped", gv_metric)) {
 }
 
 # D. Japan depth-1 pilot (internal, one constrained spatialization) ----------
-# #1000: the first `run_spatialize(level = 1)` on real administrative
+# #1000: the first `run_spatialize()` call at level 1, on real administrative
 # statistics. It runs an allocation, so it is never started unasked: it needs
 # a Japan-only polycell support (`WHEP_POLYCELL_SUPPORT_PATH`) and a directory
 # of prepared spatialization parquets (`VAL_JP_INPUT_DIR`), and reports "not
