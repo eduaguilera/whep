@@ -3062,6 +3062,29 @@ test_that("share_overflow rejects an unknown method", {
   )
 })
 
+test_that("build_commodity_balances validates share_overflow", {
+  expect_error(
+    build_commodity_balances(example = TRUE, share_overflow = "renormalise"),
+    class = "rlang_error"
+  )
+  expect_warning(
+    build_commodity_balances(
+      .fixed_data = tibble::tibble(
+        year = c(2010L, 2011L),
+        area = "Spain",
+        area_code = 203L,
+        item_cbs = "Wheat and products",
+        item_cbs_code = 2511L,
+        element = "import",
+        value = c(1, 2),
+        source = "FAOSTAT_trade"
+      ),
+      share_overflow = "clamp"
+    ),
+    "ignored"
+  )
+})
+
 test_that("a balanced frame reports nothing", {
   frame <- .share_overflow_frame() |>
     dplyr::mutate(
