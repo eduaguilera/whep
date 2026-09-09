@@ -1669,7 +1669,7 @@
 # therefore diverges from its national-mean-temperature counterpart (0.799)
 # while the single-cell non-dairy herd cannot diverge (1). Cells and their
 # `area_code` are the real `spatialize-country-grid` rows, registered in
-# tests/testthat/fixtures/country_grid_example_cells.csv.
+# `tests/testthat/fixtures/country_grid_example_cells.csv`.
 .example_gridded_livestock_emissions <- function() {
   tibble::tribble(
     ~year, ~area_code,  ~lon,  ~lat,             ~species,  ~heads,
