@@ -23,6 +23,12 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 (\code{n_intake - product_n}).
 \item \code{method_vs}: \code{"intake_digestibility"} (default,
 \code{intake_dm_t * (1 - digestibility) * (1 - ash)}).
+\item \code{method_c}: \code{"volatile_solids"} (default,
+\code{vs_excretion * carbon_per_volatile_solids}) or \code{"excreta_cn"}
+(\verb{n_excretion *} the \code{bio_coefs} \code{Excreta} carbon-to-nitrogen ratio,
+the behaviour before whep#1006). See the carbon section below.
+\item \code{carbon_per_volatile_solids}: kilograms of carbon per kilogram of
+volatile solids for \code{"volatile_solids"}. Default \code{0.47}.
 \item \code{product_n}: a tibble (\code{year}, \code{territory}, \code{sub_territory},
 \code{livestock_category}, \code{product_n}) required by \code{"intake_minus_product_n"}.
 }}
@@ -31,7 +37,7 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 A tibble with one row per
 \verb{year x territory x sub_territory x livestock_category} and columns
 \code{n_intake}, \code{n_excretion}, \code{c_excretion}, \code{vs_excretion},
-\code{method_n_excretion} and \code{method_vs}.
+\code{method_n_excretion}, \code{method_vs} and \code{method_c_excretion}.
 }
 \description{
 Converts realised feed intake (the output of \code{\link[=redistribute_feed]{redistribute_feed()}}) into
@@ -41,6 +47,36 @@ share one canonical nitrogen intake,
 \code{n_intake = sum(intake_dm_t * feed_n_content)}, so the methods are directly
 comparable.
 }
+\section{Excreted carbon}{
+
+Carbon is taken from the volatile solids, so it inherits the same intake
+and digestibility mass balance as the feed it came from. The default
+\code{0.47} kg C per kg volatile solids is the carbon content of microbial
+organic matter in Dijkstra et al. (2018), Front. Sustain. Food Syst. 2:63,
+Table 1 (fibre 0.44, microbial organic matter 0.47, starch 0.45, protein
+0.52, lipid 0.75 g C/g DM), and their Table 5 puts dairy faeces at
+0.46 g C per g faecal organic matter (13.4 g C/g N over 154 g N and 4469 g
+organic matter per day). Measured manures bracket it: 0.52 for fresh bedded
+dairy manure (Choi et al. 2022, PeerJ 10:e14134, Table 1, 43.3\% C and 83.3\%
+volatile solids of dry matter) and 0.39-0.46 for stored cattle and pig
+manure (Baek et al. 2020, Int. J. Environ. Res. Public Health 17:4737,
+Table 1, carbon on a volatile-solids basis). IPCC 2019 Vol.4 Ch.10 gives no
+carbon fraction of volatile solids; none is cited to it here.
+
+\code{"excreta_cn"} reproduces the retired route. Its \code{bio_coefs} \code{Excreta}
+carbon-to-nitrogen ratio is 19.065 for cattle, which is a faeces
+composition (2.313\% N of dry matter) applied to whole-excreta nitrogen, of
+which roughly 60\% is urinary and carries almost no carbon (urine
+carbon-to-nitrogen 0.9 in Dijkstra et al. 2018, Table 5). Against ASAE
+D384.1 FEB03 Table 1 as-voided faeces plus urine, whole-excreta
+carbon-to-nitrogen at 0.47 kg C per kg volatile solids is 10.4 for dairy
+and 10.0 for beef, so that route runs cattle about 1.9 times high; it is
+kept selectable for comparison only. Urine carbon is not in the volatile
+solids and is deliberately not added: at carbon-to-nitrogen 0.9 it is under
+a tenth of a dairy cow's excreted carbon and is respired within days of
+deposition.
+}
+
 \examples{
 intake <- tibble::tribble(
   ~year, ~territory, ~sub_territory, ~livestock_category,

@@ -22,13 +22,47 @@
 #'     (`n_intake - product_n`).
 #'   * `method_vs`: `"intake_digestibility"` (default,
 #'     `intake_dm_t * (1 - digestibility) * (1 - ash)`).
+#'   * `method_c`: `"volatile_solids"` (default,
+#'     `vs_excretion * carbon_per_volatile_solids`) or `"excreta_cn"`
+#'     (`n_excretion *` the `bio_coefs` `Excreta` carbon-to-nitrogen ratio,
+#'     the behaviour before whep#1006). See the carbon section below.
+#'   * `carbon_per_volatile_solids`: kilograms of carbon per kilogram of
+#'     volatile solids for `"volatile_solids"`. Default `0.47`.
 #'   * `product_n`: a tibble (`year`, `territory`, `sub_territory`,
 #'     `livestock_category`, `product_n`) required by `"intake_minus_product_n"`.
+#'
+#' @section Excreted carbon:
+#' Carbon is taken from the volatile solids, so it inherits the same intake
+#' and digestibility mass balance as the feed it came from. The default
+#' `0.47` kg C per kg volatile solids is the carbon content of microbial
+#' organic matter in Dijkstra et al. (2018), Front. Sustain. Food Syst. 2:63,
+#' Table 1 (fibre 0.44, microbial organic matter 0.47, starch 0.45, protein
+#' 0.52, lipid 0.75 g C/g DM), and their Table 5 puts dairy faeces at
+#' 0.46 g C per g faecal organic matter (13.4 g C/g N over 154 g N and 4469 g
+#' organic matter per day). Measured manures bracket it: 0.52 for fresh bedded
+#' dairy manure (Choi et al. 2022, PeerJ 10:e14134, Table 1, 43.3% C and 83.3%
+#' volatile solids of dry matter) and 0.39-0.46 for stored cattle and pig
+#' manure (Baek et al. 2020, Int. J. Environ. Res. Public Health 17:4737,
+#' Table 1, carbon on a volatile-solids basis). IPCC 2019 Vol.4 Ch.10 gives no
+#' carbon fraction of volatile solids; none is cited to it here.
+#'
+#' `"excreta_cn"` reproduces the retired route. Its `bio_coefs` `Excreta`
+#' carbon-to-nitrogen ratio is 19.065 for cattle, which is a faeces
+#' composition (2.313% N of dry matter) applied to whole-excreta nitrogen, of
+#' which roughly 60% is urinary and carries almost no carbon (urine
+#' carbon-to-nitrogen 0.9 in Dijkstra et al. 2018, Table 5). Against ASAE
+#' D384.1 FEB03 Table 1 as-voided faeces plus urine, whole-excreta
+#' carbon-to-nitrogen at 0.47 kg C per kg volatile solids is 10.4 for dairy
+#' and 10.0 for beef, so that route runs cattle about 1.9 times high; it is
+#' kept selectable for comparison only. Urine carbon is not in the volatile
+#' solids and is deliberately not added: at carbon-to-nitrogen 0.9 it is under
+#' a tenth of a dairy cow's excreted carbon and is respired within days of
+#' deposition.
 #'
 #' @return A tibble with one row per
 #'   `year x territory x sub_territory x livestock_category` and columns
 #'   `n_intake`, `n_excretion`, `c_excretion`, `vs_excretion`,
-#'   `method_n_excretion` and `method_vs`.
+#'   `method_n_excretion`, `method_vs` and `method_c_excretion`.
 #' @export
 #' @examples
 #' intake <- tibble::tribble(
@@ -61,10 +95,11 @@ estimate_n_excretion <- function(intake, options = list()) {
       )
     ) |>
     .calc_excretion_n(opt) |>
-    .calc_excretion_c() |>
+    .calc_excretion_c(opt) |>
     dplyr::mutate(
       method_n_excretion = opt$method,
-      method_vs = opt$method_vs
+      method_vs = opt$method_vs,
+      method_c_excretion = opt$method_c
     ) |>
     dplyr::select(
       "year",
@@ -76,7 +111,8 @@ estimate_n_excretion <- function(intake, options = list()) {
       "c_excretion",
       "vs_excretion",
       "method_n_excretion",
-      "method_vs"
+      "method_vs",
+      "method_c_excretion"
     )
 }
 
@@ -87,6 +123,8 @@ estimate_n_excretion <- function(intake, options = list()) {
     list(
       method = "intake_minus_retention",
       method_vs = "intake_digestibility",
+      method_c = "volatile_solids",
+      carbon_per_volatile_solids = .carbon_per_volatile_solids(),
       product_n = NULL
     ),
     options
@@ -100,6 +138,12 @@ estimate_n_excretion <- function(intake, options = list()) {
   if (!opt$method_vs %in% "intake_digestibility") {
     cli::cli_abort("Unknown {.arg method_vs} {.val {opt$method_vs}}.")
   }
+  method_c <- opt$method_c
+  opt$method_c <- rlang::arg_match(
+    method_c,
+    c("volatile_solids", "excreta_cn")
+  )
+  .check_carbon_per_vs(opt$carbon_per_volatile_solids)
   if (opt$method == "intake_minus_product_n" && is.null(opt$product_n)) {
     cli::cli_abort(
       "{.val intake_minus_product_n} needs {.arg product_n} in {.arg options}."
@@ -251,7 +295,47 @@ estimate_n_excretion <- function(intake, options = list()) {
     )
 }
 
-.calc_excretion_c <- function(out) {
+# Carbon content of excreted organic matter, kg C per kg volatile solids.
+# 0.47 is the carbon content of microbial organic matter in Dijkstra et al.
+# (2018), Front. Sustain. Food Syst. 2:63, doi:10.3389/fsufs.2018.00063,
+# Table 1; their Table 5 gives dairy faeces 0.46 g C per g faecal organic
+# matter. Measured manures bracket it, 0.52 fresh bedded dairy (Choi et al.
+# 2022, PeerJ 10:e14134, doi:10.7717/peerj.14134, Table 1) to 0.39-0.46 stored
+# (Baek et al. 2020, IJERPH 17:4737, doi:10.3390/ijerph17134737, Table 1).
+.carbon_per_volatile_solids <- function() {
+  0.47
+}
+
+.check_carbon_per_vs <- function(value) {
+  ok <- is.numeric(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    value > 0 &&
+    value <= 1
+  if (!ok) {
+    cli::cli_abort(
+      "{.arg carbon_per_volatile_solids} must be one number in (0, 1]."
+    )
+  }
+  invisible(NULL)
+}
+
+# Excreted carbon. The volatile-solids route keeps carbon on the same intake
+# and digestibility mass balance as the nitrogen and the volatile solids, so
+# the two organic-matter estimates cannot disagree. The Excreta C:N route it
+# replaced could, and did per species: measured on the real 2020 national
+# chain it put excreted carbon at 0.547 kg C per kg volatile solids for beef
+# cattle (0.504-0.568 across all four demand-tier x feed-mode runs), 0.521
+# for dairy and 0.646 for the All_species bucket, against a highest measured
+# manure value of 0.52, while leaving pigs at 0.289 and poultry at 0.328. The
+# global mean, 0.483, hid all of it (whep#1006).
+.calc_excretion_c <- function(out, opt) {
+  if (identical(opt$method_c, "volatile_solids")) {
+    return(dplyr::mutate(
+      out,
+      c_excretion = .data$vs_excretion * opt$carbon_per_volatile_solids
+    ))
+  }
   cn <- .manure_cn_coefs() |>
     dplyr::filter(.data$manure_type == "Excreta") |>
     dplyr::select("cn_species" = "species", "cn_ratio")
