@@ -23,17 +23,19 @@
 #'   * `"global"`: every row takes the `region == "Global"` split, whatever
 #'     region column it carries.
 #'
-#'   `climate_source` selects the climate zone the methane conversion factors
-#'   in [climate_mcf] are read at. A `climate_zone` column already on the frame
-#'   is always used. `"assumed"` (default) fills a missing one with
-#'   `assumed_climate_zone`; `"from_data"` aborts instead of assuming.
+#'   `climate_source` selects where the climate zone the methane conversion
+#'   factors in [climate_mcf] are read at comes from. A `climate_zone` a row
+#'   already carries is always used and stamped `climate_from_data`; the option
+#'   governs only the rows left without one, whether that is a hole in a
+#'   supplied column or a wholly absent column.
+#'   * `"assumed"` (default): fill with `assumed_climate_zone`.
+#'   * `"from_data"`: abort instead of assuming.
 #'
 #'   `assumed_climate_zone` is the zone `"assumed"` fills in: `"Cool"`,
-#'   `"Temperate"` (default) or `"Warm"`. WHEP has no territory-to-zone
-#'   crosswalk, so the whole world is assumed Temperate unless a caller
-#'   supplies zones; `method_manure_ch4` records which of the two happened, and
-#'   this argument exists so the sensitivity to the assumption can be measured
-#'   (whep#949).
+#'   `"Temperate"` (default) or `"Warm"`. It is an assumption, not a
+#'   measurement; `method_manure_ch4` records per row which of the sources
+#'   applied, and this argument exists so the sensitivity to the assumption can
+#'   be measured (whep#949).
 #'
 #' @name manure_engine_options
 #' @keywords internal
@@ -324,8 +326,8 @@ NULL
       ash_tbl,
       by = c("species_gen" = "category")
     ) |>
+    .assume_missing_ash() |>
     dplyr::mutate(
-      ash_percent = dplyr::coalesce(ash_percent, 8.0),
       # IPCC 2019 Eq 10.24:
       #   VS = GE * [(1 - DE/100) + UE] * (1 - ASH/100) / 18.45
       # UE is the urinary energy fraction of GE (default 0.04); it enters as an
@@ -335,6 +337,23 @@ NULL
         (1 - ash_percent / 100) /
         ge_content
     )
+}
+
+#' Declare the manure ash content of a species `ipcc_tier2_manure_ash` omits.
+#'
+#' The bare `coalesce(ash_percent, 8.0)` this replaces handed every such
+#' species the ruminant ash content as if it had been looked up.
+#' @noRd
+.assume_missing_ash <- function(data) {
+  .fill_assumed_param(
+    data,
+    col = "ash_percent",
+    kind = "digestion_like",
+    values = .named_values(ipcc_tier2_manure_ash, "category", "ash_percent"),
+    quantity = "manure ash content",
+    tag = "ash",
+    method_col = "method_manure_ch4"
+  )
 }
 
 #' Join Bo values differentiated by dairy/other.
@@ -354,10 +373,28 @@ NULL
       by = c("bo_category" = "category")
     ) |>
     dplyr::rename(methane_potential = bo_m3_kg_vs) |>
-    dplyr::mutate(
-      methane_potential = dplyr::coalesce(methane_potential, 0.18)
-    ) |>
+    .assume_missing_bo() |>
     dplyr::select(-bo_category)
+}
+
+#' Declare the Bo of a species `ipcc_tier2_bo_values` omits.
+#'
+#' The bare `coalesce(methane_potential, 0.18)` this replaces handed every such
+#' species Other Cattle's methane potential with nothing recording that it had
+#' not been looked up. `uncertainty_ranges` puts Bo at 0.80-1.20 of its central
+#' value; an assumed Bo is at least that uncertain, and the shipped values span
+#' 0.10 (buffalo) to 0.45 (market swine).
+#' @noRd
+.assume_missing_bo <- function(data) {
+  .fill_assumed_param(
+    data,
+    col = "methane_potential",
+    kind = "digestion_like",
+    values = .named_values(ipcc_tier2_bo_values, "category", "bo_m3_kg_vs"),
+    quantity = "methane potential (Bo)",
+    tag = "bo",
+    method_col = "method_manure_ch4"
+  )
 }
 
 #' Map species to Bo category.
@@ -378,6 +415,226 @@ NULL
   )
 }
 
+# Declared assumptions for species no IPCC table covers ------------------------
+
+#' The nearest covered species for one the IPCC tables give no parameters for.
+#'
+#' `livestock_mapping.csv` carries three species whose `species_group` is
+#' `"other"` -- Rabbits and hares, Rodents other and Animals live nes -- and
+#' none of them is keyed in `ipcc_tier2_bo_values`, `ipcc_tier2_manure_ash`,
+#' `ipcc_tier2_n_retention` or `regional_mms_distribution`. Their manure exists,
+#' so the row is not refused and is not given a bare number either: it takes the
+#' parameters of the nearest covered species and records that it did.
+#'
+#' The neighbour differs by what the parameter depends on, which is why there
+#' are two columns:
+#' - `digestion_like` sets the parameters the gut decides (Bo, manure ash).
+#'   Rabbits and cavies are hindgut-fermenting herbivores on high-fibre diets,
+#'   as horses and asses are, so the horse values are the nearest shipped ones.
+#' - `husbandry_like` sets the parameters the housing decides (the
+#'   manure-management split, and the share of nitrogen retained in product).
+#'   Both are caged small stock kept over dry litter and slaughtered young,
+#'   which is the poultry pattern rather than the horse one.
+#'
+#' ASSUMED, UNVERIFIED: neither the IPCC 2006 Guidelines nor the 2019 Refinement
+#' publishes Tier 2 manure parameters for rabbits or rodents, so these are
+#' arguments from the nearest covered species, not values read from a table.
+#'
+#' The table is also the closed list of species that may be filled at all. A
+#' species that is not on it resolves no manure-management split and
+#' `.check_mms_matched()` aborts on it (whep#950), because a split invented for
+#' an animal nobody has argued a husbandry for is a guess, not an estimate.
+#' `"Animals live nes"` is on the list with no neighbour in either column: it is
+#' a residual FAOSTAT category with no single husbandry, so it takes the
+#' unlisted-species fallbacks (`.fill_assumed_param()` for the gut parameters
+#' and `.assumed_mms_fallback()` for the split) rather than a neighbour it
+#' cannot be said to resemble. `animals_codes` and `livestock_mapping.csv`
+#' spell the rodent category differently, so both spellings are listed.
+#' @noRd
+.assumed_species_neighbours <- function() {
+  tibble::tribble(
+    ~species_gen, ~digestion_like, ~husbandry_like,
+    "Rabbits and hares", "Horses", "Poultry",
+    "Rodents other", "Horses", "Poultry",
+    "Rodents, other", "Horses", "Poultry",
+    "Animals live nes", NA_character_, NA_character_
+  )
+}
+
+#' The neighbour of each row's species for one kind of parameter, `NA` when the
+#' species is not one the table above argues a neighbour for.
+#' @noRd
+.assumed_neighbour_of <- function(species_gen, kind) {
+  neighbours <- .assumed_species_neighbours()
+  neighbours[[kind]][match(species_gen, neighbours$species_gen)]
+}
+
+#' A shipped coefficient table as a named vector, keyed by its category.
+#' @noRd
+.named_values <- function(tbl, key_col, value_col) {
+  stats::setNames(tbl[[value_col]], tbl[[key_col]])
+}
+
+#' Fill one per-species manure parameter that resolved no value, and say so.
+#'
+#' Three states, and only the third is acceptable here: a bare default is
+#' indistinguishable from a measurement once downstream, and an abort excludes
+#' manure that exists. So the row keeps a value, takes it from the nearest
+#' covered species where one is argued (`.assumed_species_neighbours()`) and
+#' otherwise from the unweighted mean over the categories the shipped table does
+#' cover, and carries the basis in its `method_*` column so a consumer can
+#' filter assumed rows from measured ones.
+#'
+#' ASSUMED, UNVERIFIED: the mean of a coefficient table is a central estimate
+#' for an animal the IPCC does not parameterise, not an IPCC value. Its
+#' uncertainty is at least the spread of the table it is drawn from.
+#' @noRd
+.fill_assumed_param <- function(
+  data,
+  col,
+  kind,
+  values,
+  quantity,
+  tag,
+  method_col
+) {
+  gap <- is.na(data[[col]])
+  if (!any(gap)) {
+    return(data)
+  }
+  neighbour <- .assumed_neighbour_of(data$species_gen, kind)
+  from_neighbour <- unname(values[match(neighbour, names(values))])
+  basis <- dplyr::if_else(
+    is.na(from_neighbour),
+    "table_mean",
+    stringr::str_replace_all(tolower(neighbour), " ", "_")
+  )
+  filled <- dplyr::coalesce(from_neighbour, mean(values, na.rm = TRUE))
+  data[[col]][gap] <- filled[gap]
+  .warn_assumed(data$species_gen[gap], quantity, basis[gap])
+  .stamp_assumption(data, method_col, paste0(tag, "_assumed_", basis), gap)
+}
+
+#' Say out loud which species took a declared assumption, and from what.
+#' @noRd
+.warn_assumed <- function(species, quantity, basis) {
+  species <- sort(unique(species[!is.na(species)]))
+  cli::cli_warn(c(
+    "!" = "No {quantity} in the IPCC tables for {.val {species}}.",
+    i = "Assumed from {.val {sort(unique(basis))}} and stamped in the method
+         column: a declared assumption, not a measured value."
+  ))
+}
+
+#' Append an assumption tag to a method column, on the assumed rows only.
+#'
+#' The column is created when a caller did not supply one, so a helper called
+#' on its own still returns its assumptions rather than dropping them. `tag` may
+#' be one label or one per row; `where` selects the rows that actually took the
+#' assumption, so a measured row is never stamped.
+#' @noRd
+.stamp_assumption <- function(data, col, tag, where) {
+  # `where` may be one value for the whole frame; `if_else()` sizes its output
+  # from the condition, so recycle it before the branches are built.
+  where <- rep_len(!is.na(where) & where, nrow(data))
+  if (!any(where)) {
+    return(data)
+  }
+  if (!rlang::has_name(data, col)) {
+    data[[col]] <- rep(NA_character_, nrow(data))
+  }
+  current <- data[[col]]
+  stamped <- dplyr::if_else(is.na(current), tag, paste0(current, "; ", tag))
+  data[[col]] <- dplyr::if_else(where, stamped, current)
+  data
+}
+
+#' The manure-management split assumed for a species with no shipped one.
+#'
+#' Every fraction still comes from `regional_mms_distribution`: what is assumed
+#' is only which covered species the row is managed like
+#' (`.assumed_species_neighbours()`), so the split cannot drift from the shipped
+#' table. A species that argues no neighbour takes `.assumed_mms_fallback()`.
+#' @noRd
+.assumed_mms_shares <- function(species_gen) {
+  wanted <- tibble::tibble(species_gen = unique(species_gen))
+  mapped <- wanted |>
+    dplyr::inner_join(.assumed_species_neighbours(), by = "species_gen") |>
+    dplyr::inner_join(
+      dplyr::filter(regional_mms_distribution, region == "Global"),
+      by = c("husbandry_like" = "species"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::transmute(
+      species_gen,
+      mms_type,
+      fraction,
+      mms_basis = tolower(husbandry_like)
+    )
+  dplyr::bind_rows(
+    mapped,
+    dplyr::cross_join(
+      dplyr::anti_join(wanted, mapped, by = "species_gen"),
+      .assumed_mms_fallback()
+    )
+  )
+}
+
+#' Where the manure of an unlisted species is assumed to go.
+#'
+#' Every minor species `regional_mms_distribution` does cover is predominantly
+#' pasture/range/paddock -- Sheep, Goats, Camels and Mules and Asses at 100 %,
+#' Horses at 80 % -- so deposited-where-it-falls is the shipped table's own
+#' treatment of minor livestock, and the nearest defensible basis for a minor
+#' species it omits. ASSUMED, UNVERIFIED: no IPCC table assigns a management
+#' split to these species.
+#' @noRd
+.assumed_mms_fallback <- function() {
+  tibble::tibble(
+    mms_type = "Pasture/Range/Paddock",
+    fraction = 1,
+    mms_basis = "pasture"
+  )
+}
+
+#' Replace unresolved manure-management shares with the declared assumption.
+#'
+#' `regional_mms_distribution` covers nine species. WHEP's livestock vocabulary
+#' carries four more with manure -- rabbits, rodents (two spellings) and the
+#' residual `"Animals live nes"` -- and the IPCC publishes no split for any of
+#' them. That is an absent quantity, not an absent contract: the manure exists,
+#' no maintainer can fix it by editing a table, and refusing the row would drop
+#' it out of the balance. So those species, and only those species, take the
+#' argued split of `.assumed_species_neighbours()`; `mms_basis` names it and is
+#' `NA` on every measured row.
+#'
+#' Anything else keeps its unresolved rows and reaches `.check_mms_matched()`,
+#' which aborts (whep#950). That is deliberate: an unknown species arriving here
+#' is a vocabulary defect the maintainer can and should fix, and inventing a
+#' split for it would hide exactly the failure this fill exists to make visible.
+#' @noRd
+.fill_assumed_mms_shares <- function(shares) {
+  shares <- dplyr::mutate(shares, mms_basis = NA_character_)
+  gap <- (is.na(shares$mms_type) | is.na(shares$fraction)) &
+    shares$species_gen %in% .assumed_species_neighbours()$species_gen
+  if (!any(gap)) {
+    return(shares)
+  }
+  assumed <- shares[gap, ] |>
+    dplyr::select(-dplyr::any_of(c("mms_type", "fraction", "mms_basis"))) |>
+    dplyr::left_join(
+      .assumed_mms_shares(shares$species_gen[gap]),
+      by = "species_gen",
+      relationship = "many-to-many"
+    )
+  .warn_assumed(
+    assumed$species_gen,
+    "manure management distribution",
+    assumed$mms_basis
+  )
+  dplyr::bind_rows(shares[!gap, ], assumed)
+}
+
 #' Calculate weighted MCF across MMS types.
 #'
 #' Every row's MCF is the mean over its own MMS distribution, so an MMS type
@@ -385,6 +642,12 @@ NULL
 #' taking a flat default: it means the MMS vocabulary and the MCF table have
 #' drifted apart, which is a defect in the tables, not a modelling choice
 #' (whep#950).
+#'
+#' The four species `regional_mms_distribution` omits but WHEP's livestock
+#' vocabulary carries are the one exception, and they are handled before that
+#' abort by `.fill_assumed_mms_shares()`: their manure exists and no table
+#' publishes its split, so the row takes an argued one and says so in
+#' `method_manure_ch4` rather than being refused.
 #' @noRd
 .calc_weighted_mcf <- function(data, options = list()) {
   opt <- .manure_options(options)
@@ -398,7 +661,7 @@ NULL
   data <- data |>
     dplyr::mutate(row_id = dplyr::row_number())
 
-  mms_joined <- data |>
+  mcf_rows <- data |>
     dplyr::select(
       row_id,
       species_gen,
@@ -406,21 +669,87 @@ NULL
       dplyr::any_of("region")
     ) |>
     .resolve_mms_shares(.mms_region_col(opt$mms_region)) |>
+    .fill_assumed_mms_shares() |>
     dplyr::left_join(
       mcf_tbl,
       by = c("mms_type", "climate_zone")
     ) |>
     .check_mms_matched("mcf_percent")
 
-  weighted <- mms_joined |>
+  mms_joined <- mcf_rows |>
     dplyr::summarise(
       weighted_mcf = sum(fraction * mcf_percent / 100),
+      mms_basis = dplyr::first(mms_basis),
       .by = row_id
     )
 
-  data |>
-    dplyr::left_join(weighted, by = "row_id") |>
+  out <- data |>
+    dplyr::left_join(mms_joined, by = "row_id") |>
     dplyr::select(-row_id)
+  .check_weighted_mcf(out)
+  out |>
+    .stamp_assumption(
+      "method_manure_ch4",
+      paste0("mms_assumed_", out$mms_basis),
+      !is.na(out$mms_basis)
+    ) |>
+    dplyr::select(-mms_basis)
+}
+
+#' The climate zones `climate_mcf` actually keys.
+#'
+#' `"All"` is the wildcard row for systems whose MCF does not vary with climate
+#' (anaerobic digester, burned for fuel, composting), not a label a row can
+#' carry, so it is not a zone a caller may supply. Derived from the shipped
+#' table rather than written down, so the two cannot drift apart.
+#' @noRd
+.climate_mcf_zones <- function() {
+  setdiff(sort(unique(climate_mcf$climate_zone)), "All")
+}
+
+#' Fail closed on a climate-zone label `climate_mcf` does not key.
+#'
+#' A label like `"Boreal"` finds no MCF, and the `coalesce()` that used to sit
+#' below would hand it the 2% default of a liquid/slurry system regardless of
+#' what the animal's manure actually goes to. This is the one case that is not
+#' an absence: the caller supplied a zone, from a vocabulary that is not the
+#' one `climate_mcf` keys, and mapping it onto Cool/Temperate/Warm would be
+#' guessing at a measurement rather than estimating an absent one. A `NA` zone
+#' is absence and takes the declared assumption above instead.
+#' @noRd
+.check_climate_zone <- function(data) {
+  known <- .climate_mcf_zones()
+  unknown <- setdiff(unique(data$climate_zone), known)
+  if (length(unknown) == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{length(unknown)} {.field climate_zone} label{?s} not keyed in
+     {.var climate_mcf}: {.val {unknown}}.",
+    x = "Such a label matches no methane conversion factor, and used to take
+         the 2% liquid/slurry default with no warning and no method stamp.",
+    i = "Keyed zones: {.val {known}}.",
+    i = "{.fun build_cell_climate_zone} emits exactly those; a
+         caller-supplied {.arg cell_climate} must use the same vocabulary."
+  ))
+}
+
+#' Fail closed on a row that resolved no weighted MCF.
+#'
+#' Every species now resolves a distribution and every distribution an MCF, so
+#' this is the assertion that they do: it turns a future gap into a named abort
+#' instead of an `NA` that a downstream `na.rm` sum would read as zero.
+#' @noRd
+.check_weighted_mcf <- function(data) {
+  n_na <- sum(is.na(data$weighted_mcf))
+  if (n_na == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{n_na} row{?s} resolved no {.field weighted_mcf}.",
+    i = "Every row should have been caught by the climate-zone, MMS-share or
+         MCF check above, so this is a gap none of them covers."
+  ))
 }
 
 #' Calculate nitrogen excretion (n_excretion).
@@ -430,39 +759,14 @@ NULL
 
   # Get CP% from feed_characteristics (not hardcoded)
   if (!rlang::has_name(data, "cp_percent")) {
-    if (rlang::has_name(data, "diet_quality")) {
-      data <- data |>
-        dplyr::left_join(
-          feed_characteristics |>
-            dplyr::select(diet_quality, cp_percent),
-          by = "diet_quality"
-        )
-    } else {
-      data <- data |>
-        dplyr::mutate(cp_percent = 12.0)
-    }
+    data <- .join_diet_cp(data)
   }
 
-  # Get N retention from table (differentiated dairy/other)
-  n_ret_tbl <- ipcc_tier2_n_retention |>
-    dplyr::select(category, n_retention_frac)
-
-  data <- data |>
+  data |>
+    .assume_missing_cp() |>
+    .join_n_retention() |>
+    .assume_missing_n_retention() |>
     dplyr::mutate(
-      n_ret_category = .get_bo_category(species, species_gen)
-    ) |>
-    dplyr::left_join(
-      n_ret_tbl,
-      by = c("n_ret_category" = "category")
-    ) |>
-    dplyr::mutate(
-      n_retention_frac = dplyr::coalesce(
-        n_retention_frac,
-        0.07
-      ),
-      # Default crude protein when the diet join left it NA, so N intake (and
-      # thus Tier 2 manure N2O) resolves instead of propagating NA.
-      cp_percent = dplyr::coalesce(cp_percent, 12),
       n_intake = (gross_energy / ge_content) *
         (cp_percent / 100) /
         6.25,
@@ -470,7 +774,109 @@ NULL
         (1 - n_retention_frac) *
         livestock_constants$days_in_year
     ) |>
-    dplyr::select(-n_ret_category)
+    dplyr::select(-dplyr::any_of("n_ret_category"))
+}
+
+#' Attach the crude protein of each row's own diet, where it has one.
+#' @noRd
+.join_diet_cp <- function(data) {
+  if (!rlang::has_name(data, "diet_quality")) {
+    return(dplyr::mutate(data, cp_percent = NA_real_))
+  }
+  data |>
+    dplyr::left_join(
+      feed_characteristics |>
+        dplyr::select(diet_quality, cp_percent),
+      by = "diet_quality"
+    )
+}
+
+#' Declare the crude protein assumed for a row whose diet resolved none.
+#'
+#' The bare 12 this replaces is not a free-standing number: it is the Medium
+#' diet's `cp_percent` in `feed_characteristics`. Reading it from there says
+#' which diet the row was assumed to eat, and the stamp says that it was
+#' assumed rather than resolved -- nitrogen intake, and so Tier 2 manure N2O,
+#' scales linearly with it.
+#' @noRd
+.assume_missing_cp <- function(data) {
+  gap <- is.na(data$cp_percent)
+  if (!any(gap)) {
+    return(data)
+  }
+  assumed <- .assumed_diet_cp()
+  data$cp_percent[gap] <- assumed
+  cli::cli_warn(c(
+    "!" = "{sum(gap)} row{?s} {?has/have} no diet to take a crude protein
+       content from.",
+    i = "Assumed the {.val Medium} diet's {assumed}% and stamped it in
+         {.field method_manure_n2o}."
+  ))
+  .stamp_assumption(data, "method_manure_n2o", "cp_assumed_medium_diet", gap)
+}
+
+#' The crude protein assumed when a row carries no diet.
+#' @noRd
+.assumed_diet_cp <- function() {
+  feed_characteristics$cp_percent[
+    feed_characteristics$diet_quality == "Medium"
+  ]
+}
+
+#' Join the retained-nitrogen fraction, by subcategory then by species.
+#'
+#' `.get_bo_category()` keys swine and poultry by subcategory
+#' (`"Swine - Market"`, `"Poultry - Layers"`) while `ipcc_tier2_n_retention`
+#' keys them by species, so the exact join never matched for either and both
+#' silently took the bare 0.07 that used to sit below -- Other Cattle's
+#' retention, which inflated their nitrogen excretion by
+#' `(1 - 0.07) / (1 - 0.30)` = 33%. The base-category leg below is what makes
+#' the shipped 0.30 reachable.
+#' @noRd
+.join_n_retention <- function(data) {
+  n_ret_tbl <- ipcc_tier2_n_retention |>
+    dplyr::select(category, n_retention_frac)
+  data |>
+    dplyr::mutate(
+      n_ret_category = .get_bo_category(species, species_gen),
+      n_ret_base = .base_category(n_ret_category)
+    ) |>
+    dplyr::left_join(n_ret_tbl, by = c("n_ret_category" = "category")) |>
+    dplyr::left_join(
+      dplyr::rename(n_ret_tbl, n_retention_base = n_retention_frac),
+      by = c("n_ret_base" = "category")
+    ) |>
+    dplyr::mutate(
+      n_retention_frac = dplyr::coalesce(
+        n_retention_frac,
+        n_retention_base
+      )
+    ) |>
+    dplyr::select(-n_ret_base, -n_retention_base)
+}
+
+#' The species part of a subcategory label ("Swine - Market" -> "Swine").
+#' @noRd
+.base_category <- function(category) {
+  stringr::str_trim(stringr::str_extract(category, "^[^-]+"))
+}
+
+#' Declare the retained-nitrogen fraction of a species IPCC omits.
+#' @noRd
+.assume_missing_n_retention <- function(data) {
+  .fill_assumed_param(
+    data,
+    col = "n_retention_frac",
+    kind = "husbandry_like",
+    values = .named_values(
+      ipcc_tier2_n_retention,
+      "category",
+      "n_retention_frac"
+    ),
+    quantity = "nitrogen retention fraction",
+    tag = "n_retention",
+    method_col = "method_manure_n2o"
+  )
 }
 
 #' Calculate direct N2O from manure management.
@@ -500,6 +906,10 @@ NULL
 #' unresolved label aborts: it used to silently take the table's 0.005 `Other`
 #' value, which is what put 80% of poultry manure on 0.005 where the litter
 #' rows give 0.001 (whep#950).
+#'
+#' A species with no shipped split is the separate case, and the separate rule:
+#' `.fill_assumed_mms_shares()` gives the four WHEP carries and the IPCC omits
+#' an argued split first, and everything else still reaches the abort.
 #' @noRd
 .calc_weighted_direct_n2o <- function(
   data,
@@ -519,23 +929,51 @@ NULL
       dplyr::any_of("region")
     ) |>
     .resolve_mms_shares(.mms_region_col(mms_region)) |>
+    .fill_assumed_mms_shares() |>
     dplyr::left_join(ef3_tbl, by = "mms_type") |>
     .check_mms_matched("ef3") |>
     dplyr::summarise(
       weighted_ef3 = sum(fraction * ef3),
+      mms_basis = dplyr::first(mms_basis),
       .by = row_id_n2o
     )
 
-  n_animals <- .animal_count(data)
-  data |>
-    dplyr::left_join(n2o_weighted, by = "row_id_n2o") |>
+  out <- data |>
+    dplyr::left_join(n2o_weighted, by = "row_id_n2o")
+  .check_weighted_ef3(out)
+
+  n_animals <- .animal_count(out)
+  out |>
     dplyr::mutate(
       manure_n2o_direct = n_animals *
         n_excretion *
         weighted_ef3 *
         n2o_to_n
     ) |>
-    dplyr::select(-row_id_n2o, -weighted_ef3)
+    .stamp_assumption(
+      "method_manure_n2o",
+      paste0("mms_assumed_", out$mms_basis),
+      !is.na(out$mms_basis)
+    ) |>
+    dplyr::select(-row_id_n2o, -weighted_ef3, -mms_basis)
+}
+
+#' Fail closed on a row that resolved no weighted EF3.
+#'
+#' Every species now resolves a distribution and every system an EF3, so this
+#' is the assertion that they do: it turns a future gap into a named abort
+#' rather than the bare 0.005 that used to stand in for one.
+#' @noRd
+.check_weighted_ef3 <- function(data) {
+  n_na <- sum(is.na(data$weighted_ef3))
+  if (n_na == 0L) {
+    return(invisible(NULL))
+  }
+  cli::cli_abort(c(
+    "{n_na} row{?s} resolved no {.field weighted_ef3}.",
+    i = "Every row should have taken either a shipped or a declared manure
+         management distribution, so this is a gap neither covers."
+  ))
 }
 
 #' Calculate indirect N2O (volatilization + leaching).
@@ -707,47 +1145,71 @@ NULL
 
 #' Attach the climate zone the MCF is read at, and record where it came from.
 #'
-#' A zone the frame already carries always wins, so nothing supplied upstream
-#' is discarded. `"from_data"` demands one; `"assumed"` fills a missing one
-#' with `assumed_climate_zone` and says so in `method_manure_ch4`.
+#' `climate_source` is the one place the question "where does the zone come
+#' from" is answered, and it is answered per row rather than per frame. A zone
+#' the frame already carries always wins, so nothing supplied upstream is
+#' discarded and those rows are stamped `climate_from_data`. Only the rows left
+#' without one reach `climate_source`, which is why a hole inside a supplied
+#' column and a wholly absent column are the same case here: both are an absent
+#' quantity, and refusing either would drop an animal whose manure exists out of
+#' the balance.
 #'
-#' Where the zone *should* come from is an open question (whep#949): IPCC 2019
-#' Vol 4 Ch 10 defines Cool / Temperate / Warm by annual mean temperature, and
-#' WHEP has CRU air temperature, but the thresholds and the aggregation from
-#' cells to a reporting territory are a methodological choice that is not made
-#' here. `assumed_climate_zone` exists so the sensitivity to that choice can be
-#' measured in the meantime.
+#' `"from_data"` refuses to fill and aborts. `"assumed"` fills with
+#' `assumed_climate_zone`, which is ASSUMED, UNVERIFIED for any particular row:
+#' `"Temperate"` is the middle of the three zones `climate_mcf` keys, so it is
+#' the least-committal choice, not a measurement, and `assumed_climate_zone`
+#' exists so the sensitivity to it can be measured (whep#949). A gap inside a
+#' supplied column also warns, because there the caller meant to resolve the
+#' zone and a row got away; a wholly absent column is the documented default and
+#' stamps without warning.
+#'
+#' An unknown *label* is not an absence and is not filled: see
+#' `.check_climate_zone()`.
 #' @noRd
 .apply_climate_zone <- function(data, opt) {
-  if (rlang::has_name(data, "climate_zone")) {
-    return(.stamp_ch4_method(data, "climate_from_data"))
+  supplied <- rlang::has_name(data, "climate_zone")
+  if (!supplied) {
+    data <- dplyr::mutate(data, climate_zone = NA_character_)
   }
+  gap <- is.na(data$climate_zone)
+  data <- .stamp_assumption(
+    data,
+    "method_manure_ch4",
+    "climate_from_data",
+    !gap
+  )
+  if (any(gap)) {
+    data <- .fill_climate_zone(data, gap, opt, warn = supplied)
+  }
+  .check_climate_zone(data)
+  data
+}
+
+#' Fill the rows that carry no climate zone, the way `climate_source` says.
+#' @noRd
+.fill_climate_zone <- function(data, gap, opt, warn) {
   if (identical(opt$climate_source, "from_data")) {
     cli::cli_abort(
       "{.arg climate_source} {.val from_data} needs a {.var climate_zone} \\
-       column holding one of {.val {c('Cool', 'Temperate', 'Warm')}}.",
+       column holding one of {.val {c('Cool', 'Temperate', 'Warm')}} for \\
+       every row; {sum(gap)} row{?s} {?has/have} none.",
       class = "whep_missing_climate_zone"
     )
   }
-  data |>
-    dplyr::mutate(climate_zone = opt$assumed_climate_zone) |>
-    .stamp_ch4_method(
-      paste0("climate_assumed_", tolower(opt$assumed_climate_zone))
-    )
-}
-
-#' Append a marker to `method_manure_ch4` when the frame carries one.
-#'
-#' The tier functions create the column; the private helpers are also called
-#' directly on bare frames in tests, which have no method column to append to.
-#' @noRd
-.stamp_ch4_method <- function(data, marker) {
-  if (!rlang::has_name(data, "method_manure_ch4")) {
-    return(data)
+  zone <- opt$assumed_climate_zone
+  if (warn) {
+    cli::cli_warn(c(
+      "!" = "{sum(gap)} row{?s} {?has/have} no {.field climate_zone}.",
+      i = "Assumed {.val {zone}} and stamped in {.field method_manure_ch4};
+           resolve it upstream and pass it in {.field climate_zone}."
+    ))
   }
-  dplyr::mutate(
+  data$climate_zone[gap] <- zone
+  .stamp_assumption(
     data,
-    method_manure_ch4 = paste0(method_manure_ch4, "; ", marker)
+    "method_manure_ch4",
+    paste0("climate_assumed_", tolower(zone)),
+    gap
   )
 }
 

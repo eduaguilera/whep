@@ -2116,6 +2116,43 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # livestock_climate.R (#1016) -- CRU annual reduction and the held
+    # climatology that stands in for the years before the record starts
+    "n_months",
+    "mean_annual_temp_c",
+    "method_climate_zone",
+    # gridded_livestock_emissions.R (#1016) -- per-cell IPCC emissions, the
+    # kilogram-to-kilotonne bridge, and the diet ladder that resolves
+    # diet_quality per row instead of defaulting it
+    "de_anchor_class",
+    "de_anchor_percent",
+    "de_percent_diet",
+    "intake_dry_matter",
+    "layer_diet",
+    "enteric_ch4_kt",
+    "manure_ch4_kt",
+    "manure_n2o_kt",
+    "enteric_ch4_kt_grid",
+    "enteric_ch4_kt_nat",
+    "manure_ch4_kt_grid",
+    "manure_ch4_kt_nat",
+    "manure_n2o_kt_grid",
+    "manure_n2o_kt_nat",
+    "divergence_enteric_ch4",
+    "divergence_manure_ch4",
+    "divergence_manure_n2o",
+    # livestock_manure.R (#1010, #1016) -- the declared assumptions a species
+    # outside the IPCC coefficient tables takes, and the base-category leg that
+    # makes swine and poultry reach their own nitrogen retention
+    "mms_basis",
+    "husbandry_like",
+    "n_ret_base",
+    "n_retention_base",
+    # gridded_livestock_emissions.R (#1016) -- `method_diet` is created by an
+    # earlier `mutate()` and read again on the right-hand side of the
+    # `if_else()` in `.apply_diet_layer()`, which R CMD check reports as a
+    # missing binding.
+    "method_diet"
   )
 )

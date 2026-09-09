@@ -159,6 +159,43 @@ worth having — apply it only after checking the verification path really is
 offline, and never apply it to code that is not on `main` (work living on an
 unmerged feature branch cannot be picked up from a fresh clone).
 
+### Writing a PR or issue body
+
+**Lead with what the change adds: the problem, then the result.** A reviewer
+must be able to learn what they are being asked to merge from the opening
+lines. Then the details, then the numbers, then the evidence.
+
+**Process goes last.** Reconciliation with a branch that landed mid-flight, an
+approach that turned out wrong, a claim that failed its own check, a figure
+corrected on a second pass — all of it belongs in a closing section, never in
+the opening and never woven through the substance. This is about placement,
+not disclosure: a correction that changes the reviewer's decision is still
+mandatory, and a wrong number is still fixed and stated. Do not tally your own
+errors; state what is true now.
+
+**Never use a bare number as a heading or a reference.** Every mention of a
+pull request or an issue says which of the two it is and carries a short title
+naming its subject — `PR #1042 — gridded livestock emissions restored`,
+`issue #1043 — truncated aggregation factor`, never `#1042` alone. A reader
+scanning headings, a release-notes assembler, and anyone reading `git log` a
+year from now all need the subject without opening a link. The `Closes #N` /
+`Refs #N` lines are the exception: those are machine-read and stay bare.
+
+**State the base of every percentage**, and never quote a change in a
+component as though it were the change in the total that contains it. Where
+several figures come from different variants of one computation, either report
+a single consistent series or label every variant — a figure taken from a
+different variant than its neighbours is not a series.
+
+**Ask open questions with the questioning tool, not in prose.** A science
+decision surfaced under [Classify every change](#classify-every-change-mechanical-or-science-decision)
+is put to the maintainer through the structured question interface, with the
+alternatives and what changes numerically between them, not mentioned in a
+paragraph and left to be noticed. A question buried in a PR body or a report is
+a question that does not get answered: the work stalls, or proceeds on an
+assumption nobody agreed to. Keep working on whatever does not depend on the
+answer while it is outstanding.
+
 ## Running things
 
 `.Rprofile` runs `devtools::load_all()` on session start, so a plain

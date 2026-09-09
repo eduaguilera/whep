@@ -41,9 +41,23 @@
 #' @param tier IPCC tier, `1` (default) or `2`.
 #' @param gwp 100-year global warming potential standard, `"ar6"` (default),
 #'   `"ar5"` or `"ar4"`.
+#' @param method_diet How Tier 2 resolves each herd's `diet_quality`, which
+#'   sets DE% and so gross energy, enteric CH4, volatile solids and nitrogen
+#'   excretion at once. `"per_cell_feed"` (default) derives it from the feed
+#'   mix of the cell the herd is in; `"national_feed"` from the country's own
+#'   mix; `"uniform_medium"` assumes the IPCC `"Medium"` diet for every herd.
+#'   The gridded rung is the default because WHEP resolves a diet per cell and
+#'   a diet varies within a country, so a national mix is a coarsening and an
+#'   assumed Medium is coarser still. Both remain selectable. The assumption is
+#'   never chosen implicitly, and the rung used is recorded in `method_ghg`.
+#'   Ignored at Tier 1, whose emission factors carry no diet dimension.
 #' @param data Optional named list of pre-loaded inputs to avoid remote reads:
-#'   `primary_prod` (the [get_primary_production()] output). It falls back to
-#'   its reader when absent.
+#'   `primary_prod` (the [get_primary_production()] output) and, for Tier 2
+#'   with either feed-derived diet, `feed_intake` (the
+#'   [get_feed_intake()] output). `primary_prod` falls back to its reader when
+#'   absent; `feed_intake` does not, because [get_feed_intake()] rebuilds the
+#'   whole feed allocation and would silently turn this extension into an
+#'   hours-long build. Supply it, or choose `method_diet = "uniform_medium"`.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
 #'
@@ -61,11 +75,13 @@
 build_livestock_ghg_extension <- function(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  method_diet = c("per_cell_feed", "national_feed", "uniform_medium"),
   data = list(),
   example = FALSE
 ) {
   tier <- .check_ghg_tier(tier)
   gwp <- match.arg(gwp)
+  method_diet <- rlang::arg_match(method_diet)
   if (isTRUE(example)) {
     return(.example_ghg_extension())
   }
@@ -77,26 +93,51 @@ build_livestock_ghg_extension <- function(
   }
 
   primary_prod |>
-    .livestock_emissions_by_sector(tier) |>
-    .ghg_co2e_extension(tier, gwp) |>
+    .livestock_emissions_by_sector(tier, method_diet, data$feed_intake) |>
+    .ghg_co2e_extension(tier, gwp, method_diet) |>
     .add_reporting_polity_columns()
 }
 
 # Run the cohort emissions pipeline, expanding to cohorts only for Tier 2 so
 # Tier 1 stays at the lighter species grain. The IO-grain keys (year,
 # area_code, item_cbs_code) are carried through unchanged.
-.livestock_emissions_by_sector <- function(primary_prod, tier) {
-  prepared <- if (tier == 2L) {
-    prepare_livestock_emissions(primary_prod, expand_cohorts = TRUE)
-  } else {
-    prepare_livestock_emissions(primary_prod)
+#
+# Tier 2 needs a diet before it can solve its energy balance, and it no longer
+# invents one: the requested rung of the diet ladder is applied here, on the
+# same national grain the extension reports on. Tier 1 needs none.
+.livestock_emissions_by_sector <- function(
+  primary_prod,
+  tier,
+  method_diet,
+  feed_intake
+) {
+  if (tier != 2L) {
+    return(calculate_livestock_emissions(
+      prepare_livestock_emissions(primary_prod),
+      tier = tier
+    ))
   }
-  calculate_livestock_emissions(prepared, tier = tier)
+  if (method_diet != "uniform_medium" && is.null(feed_intake)) {
+    cli::cli_abort(c(
+      "Tier 2 with {.arg method_diet} {.val {method_diet}} needs a
+       feed-intake table.",
+      i = "Pass it as {.code data$feed_intake}, e.g. from
+           {.fun get_feed_intake} -- which rebuilds the whole feed allocation
+           and is not read for you, because that would turn this extension
+           into an hours-long build without saying so.",
+      i = "Or select {.val uniform_medium} to assume the IPCC {.val Medium}
+           diet explicitly."
+    ))
+  }
+  primary_prod |>
+    prepare_livestock_emissions(expand_cohorts = TRUE) |>
+    .resolve_diet_quality(method_diet, feed_intake) |>
+    calculate_livestock_emissions(tier = tier)
 }
 
 # Convert enteric + manure CH4 (and Tier 2 manure N2O) to CO2e with the chosen
 # GWP100 factors, then sum to (year, area_code, item_cbs_code).
-.ghg_co2e_extension <- function(emissions, tier, gwp) {
+.ghg_co2e_extension <- function(emissions, tier, gwp, method_diet = NULL) {
   .check_emission_keys(emissions)
   factors <- .ghg_gwp_factors(gwp)
   ch4 <- .sum_emission_cols(
@@ -118,21 +159,28 @@ build_livestock_ghg_extension <- function(
       year = as.integer(.data$year),
       area_code = as.integer(.data$area_code),
       item_cbs_code = as.integer(.data$item_cbs_code),
-      method_ghg = .ghg_method_label(tier, gwp)
+      method_ghg = .ghg_method_label(tier, gwp, method_diet)
     ) |>
     dplyr::filter(.data$impact_u > 0) |>
     dplyr::select(year, area_code, item_cbs_code, impact_u, method_ghg)
 }
 
-# Row-wise sum of the requested emission columns. Absent columns (e.g. manure
-# N2O at Tier 1) contribute zero; an NA within a present column propagates so
-# unresolved rows can be detected and dropped rather than silently zeroed.
+# Row-wise sum of the requested emission columns. An absent column now aborts:
+# it used to contribute zero, so a renamed or dropped emission column would
+# quietly remove a whole gas from the footprint while every total still
+# reconciled. Both tiers produce all three columns (Tier 1 manure N2O writes
+# into the same `manure_n2o_total`), so nothing legitimately arrives without
+# them. An NA within a present column still propagates, so unresolved rows can
+# be detected and dropped rather than silently zeroed.
 .sum_emission_cols <- function(emissions, cols) {
-  present <- cols[cols %in% names(emissions)]
-  if (length(present) == 0L) {
-    return(rep(0, nrow(emissions)))
+  missing <- setdiff(cols, names(emissions))
+  if (length(missing) > 0L) {
+    cli::cli_abort(c(
+      "Livestock emissions are missing column{?s}: {.field {missing}}.",
+      i = "An absent emission column is a missing gas, not a zero one."
+    ))
   }
-  Reduce(`+`, lapply(present, function(col) emissions[[col]]))
+  Reduce(`+`, lapply(cols, function(col) emissions[[col]]))
 }
 
 # IPCC 100-year global warming potentials (kg CO2e per kg gas).
@@ -145,8 +193,14 @@ build_livestock_ghg_extension <- function(
   )
 }
 
-.ghg_method_label <- function(tier, gwp) {
-  paste0("IPCC_2019_Tier", tier, "_", toupper(gwp))
+# Tier 1 emission factors carry no diet dimension, so only the Tier 2 label
+# records which rung of the diet ladder produced the numbers.
+.ghg_method_label <- function(tier, gwp, method_diet = NULL) {
+  label <- paste0("IPCC_2019_Tier", tier, "_", toupper(gwp))
+  if (tier != 2L || is.null(method_diet)) {
+    return(label)
+  }
+  paste0(label, "_diet_", method_diet)
 }
 
 .warn_dropped_ghg <- function(co2e, emissions, tier) {

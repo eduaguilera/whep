@@ -108,6 +108,7 @@ testthat::test_that("Tier 2 drops rows it cannot resolve instead of emitting NA"
   result <- suppressWarnings(
     whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = .ghg_prod_fixture())
     )
   )
@@ -181,10 +182,93 @@ testthat::test_that("Tier 2 warns explicitly when a real species has no energy c
   testthat::expect_warning(
     result <- whep::build_livestock_ghg_extension(
       tier = 2,
+      method_diet = "uniform_medium",
       data = list(primary_prod = prod)
     ),
     "no Tier 2 coefficients"
   )
 
   testthat::expect_equal(nrow(result), 0L)
+})
+
+# .sum_emission_cols: an absent gas is not a zero gas --------------------------
+
+testthat::test_that("an absent emission column aborts instead of summing 0", {
+  emissions <- tibble::tibble(enteric_ch4_tier1 = 1e6)
+
+  testthat::expect_error(
+    whep:::.sum_emission_cols(
+      emissions,
+      c(
+        "enteric_ch4_tier1",
+        "manure_ch4_tier1"
+      )
+    ),
+    "missing column"
+  )
+})
+
+testthat::test_that("present columns still sum row-wise with NA propagating", {
+  emissions <- tibble::tibble(
+    enteric_ch4_tier1 = c(1, 2, NA),
+    manure_ch4_tier1 = c(10, 20, 30)
+  )
+
+  testthat::expect_equal(
+    whep:::.sum_emission_cols(
+      emissions,
+      c(
+        "enteric_ch4_tier1",
+        "manure_ch4_tier1"
+      )
+    ),
+    c(11, 22, NA)
+  )
+})
+
+# method_diet -----------------------------------------------------------------
+
+testthat::test_that("Tier 2 records which diet method produced the numbers", {
+  result <- suppressWarnings(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "uniform_medium",
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+
+  testthat::expect_true(all(
+    result$method_ghg == "IPCC_2019_Tier2_AR6_diet_uniform_medium"
+  ))
+})
+
+testthat::test_that("Tier 1 carries no diet dimension in its label", {
+  result <- whep::build_livestock_ghg_extension(
+    tier = 1,
+    method_diet = "uniform_medium",
+    data = list(primary_prod = .ghg_prod_fixture())
+  )
+
+  testthat::expect_true(all(result$method_ghg == "IPCC_2019_Tier1_AR6"))
+})
+
+testthat::test_that("an unknown diet method is rejected", {
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "per_cell_feed",
+      data = list(primary_prod = .ghg_prod_fixture())
+    )
+  )
+})
+
+testthat::test_that("Tier 2 refuses to rebuild the feed intake behind you", {
+  testthat::expect_error(
+    whep::build_livestock_ghg_extension(
+      tier = 2,
+      method_diet = "national_feed",
+      data = list(primary_prod = .ghg_prod_fixture())
+    ),
+    "feed-intake table"
+  )
 })
