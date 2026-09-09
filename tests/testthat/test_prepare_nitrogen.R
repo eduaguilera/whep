@@ -701,3 +701,30 @@ test_that(".extract_hani_deposition reads both species offline", {
     rep(1.5e9, 3L)
   )
 })
+
+
+test_that(".resolve_n_excretion names the columns it is missing (#621)", {
+  .need_spatialize_helper(".resolve_n_excretion")
+  # Each bullet of a cli message is its own format string, so the plural
+  # marker in the first bullet had no quantity at all -- the column names sit
+  # in the second -- and cli aborted with "Cannot pluralize without a
+  # quantity" on every call, whatever the input. Two missing columns, so the
+  # plural branch is the one exercised.
+  bad <- tibble::tibble(year = 2000L, area_code = 41L)
+  cnd <- expect_error(
+    .resolve_n_excretion(bad, keys = NULL),
+    class = "rlang_error"
+  )
+  expect_match(conditionMessage(cnd), "species_group")
+  expect_match(conditionMessage(cnd), "nex_kg_n_head")
+  expect_match(conditionMessage(cnd), "missing required columns")
+  # One missing column takes the singular branch.
+  cnd1 <- expect_error(
+    .resolve_n_excretion(
+      dplyr::mutate(bad, species_group = "cattle"),
+      keys = NULL
+    ),
+    class = "rlang_error"
+  )
+  expect_match(conditionMessage(cnd1), "missing required column:")
+})
