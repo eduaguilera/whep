@@ -632,13 +632,6 @@ Lookup and coefficient tables used internally across the pipeline.
 - [`smil_2001_synthetic_n_global`](https://eduaguilera.github.io/whep/reference/smil_2001_synthetic_n_global.md)
   : Smil (2001) global synthetic nitrogen production, 1913-2000
 
-## FAOSTAT raw data
-
-Download FAOSTAT data as is.
-
-- [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  : Scrape activity data from FAOSTAT and post-process it
-
 ## Data sources
 
 Get a tidy dataframe with the found sources for different data.

@@ -158,11 +158,10 @@
   whose proximate constituents exceed their own dry matter — is
   untouched and stays a coefficient question for the data owner.
 
-- **[`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  now resolves `ISO3_CODE` from \[polity_area_crosswalk\] instead of
-  FAOSTAT’s vendored `FAOcountryProfile` name table, and the
-  hand-maintained fix block is gone
-  ([\#541](https://github.com/eduaguilera/whep/issues/541)).** The
+- **`get_faostat_data()` now resolves `ISO3_CODE` from
+  \[polity_area_crosswalk\] instead of FAOSTAT’s vendored
+  `FAOcountryProfile` name table, and the hand-maintained fix block is
+  gone ([\#541](https://github.com/eduaguilera/whep/issues/541)).** The
   profile table is stale relative to the labels FAOSTAT publishes today,
   so eight of the 211 FAOSTAT area names in `regions_full$FAOSTAT_name`
   came out with `ISO3_CODE = NA`: three current reporters — `Eswatini`
@@ -175,15 +174,13 @@
   [\#313](https://github.com/eduaguilera/whep/issues/313)). Coverage
   over those labels goes from 203/211 to 210/211, with zero
   disagreements on the codes both routes resolved. No published WHEP
-  value changes:
-  [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  has no caller in `R/`, `data-raw/` or the vignettes, and every
-  pipeline ISO3 bridge already went through the crosswalk. A user who
-  grouped its output by `ISO3_CODE`, however, was silently dropping
-  Eswatini, North Macedonia and Taiwan. The codes are maintained
-  upstream in whep-polities rather than in whep, so the one place the
-  two routes disagreed — `US Minor Is.`, which the FAOSTAT profile gave
-  the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
+  value changes: `get_faostat_data()` has no caller in `R/`, `data-raw/`
+  or the vignettes, and every pipeline ISO3 bridge already went through
+  the crosswalk. A user who grouped its output by `ISO3_CODE`, however,
+  was silently dropping Eswatini, North Macedonia and Taiwan. The codes
+  are maintained upstream in whep-polities rather than in whep, so the
+  one place the two routes disagreed — `US Minor Is.`, which the FAOSTAT
+  profile gave the non-ISO `PUS` — now takes the ISO 3166-1 `UMI`.
 
 - **Reconstructed fodder rows no longer claim to be FAOSTAT
   ([\#937](https://github.com/eduaguilera/whep/issues/937)).**
@@ -4914,9 +4911,8 @@
   ([`read_luh2_landuse()`](https://eduaguilera.github.io/whep/reference/read_luh2_landuse.md),
   [`get_soc_climate_drivers()`](https://eduaguilera.github.io/whep/reference/get_soc_climate_drivers.md)).
   The columns are additive: no existing column or value changes.
-  [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  keeps returning raw FAOSTAT area names (it is the pre-resolution
-  reader), and
+  `get_faostat_data()` keeps returning raw FAOSTAT area names (it is the
+  pre-resolution reader), and
   [`build_grazing_feed_footprint()`](https://eduaguilera.github.io/whep/reference/build_grazing_feed_footprint.md)/[`build_land_balance_footprint()`](https://eduaguilera.github.io/whep/reference/build_land_balance_footprint.md)
   are aggregated over time and have no year to resolve a polity against.
   [`build_urban_n()`](https://eduaguilera.github.io/whep/reference/build_urban_n.md)
@@ -5068,8 +5064,8 @@
   best-ranked one instead of aborting. Both default to the previous
   behaviour ([\#139](https://github.com/eduaguilera/whep/issues/139)).
 
-- [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  no longer attaches and then unloads `FAOSTAT` to make
+- `get_faostat_data()` no longer attaches and then unloads `FAOSTAT` to
+  make
   [`FAOSTAT::fillCountryCode()`](https://rdrr.io/pkg/FAOSTAT/man/fillCountryCode.html)
   see its lazily loaded `FAOcountryProfile`. The ISO3 lookup now loads
   that dataset explicitly and matches area names itself, reproducing
@@ -5181,7 +5177,6 @@ CRAN release: 2025-07-25
   and `pins` package
   ([\#29](https://github.com/eduaguilera/whep/issues/29),
   [\#43](https://github.com/eduaguilera/whep/issues/43)).
-- Get raw FAOSTAT data with
-  [`get_faostat_data()`](https://eduaguilera.github.io/whep/reference/get_faostat_data.md)
-  wrapper ([\#3](https://github.com/eduaguilera/whep/issues/3)).
+- Get raw FAOSTAT data with `get_faostat_data()` wrapper
+  ([\#3](https://github.com/eduaguilera/whep/issues/3)).
 - Initial CRAN submission.
