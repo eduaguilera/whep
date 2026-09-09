@@ -187,6 +187,15 @@ several figures come from different variants of one computation, either report
 a single consistent series or label every variant — a figure taken from a
 different variant than its neighbours is not a series.
 
+**Ask open questions with the questioning tool, not in prose.** A science
+decision surfaced under [Classify every change](#classify-every-change-mechanical-or-science-decision)
+is put to the maintainer through the structured question interface, with the
+alternatives and what changes numerically between them, not mentioned in a
+paragraph and left to be noticed. A question buried in a PR body or a report is
+a question that does not get answered: the work stalls, or proceeds on an
+assumption nobody agreed to. Keep working on whatever does not depend on the
+answer while it is outstanding.
+
 ## Running things
 
 `.Rprofile` runs `devtools::load_all()` on session start, so a plain
