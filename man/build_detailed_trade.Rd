@@ -9,6 +9,7 @@ build_detailed_trade(
   cbs = NULL,
   min_share = 1e-04,
   extend_time = FALSE,
+  method_unbacked_quantity = c("drop", "keep", "abort"),
   example = FALSE
 )
 }
@@ -28,6 +29,21 @@ threshold are dropped when extending time. Default \code{0.0001}.}
 CBS years and linear interpolation of country shares.
 Default \code{FALSE}.}
 
+\item{method_unbacked_quantity}{How to treat a reported \code{tonnes}
+quantity for a FAOSTAT trade item whose country-level mass FAOSTAT
+itself does not publish. See the \emph{Quantities FAOSTAT does not back
+with a mass} section. One of:
+\itemize{
+\item \code{"drop"} (default): discard those rows, warning with the tonnage
+removed. They are not masses, and no conversion to mass is
+derivable.
+\item \code{"keep"}: carry them verbatim, with the same warning. The
+historical behaviour, and unsafe for anything that treats the
+column as mass.
+\item \code{"abort"}: fail, so a refreshed pin cannot reintroduce them
+unnoticed.
+}}
+
 \item{example}{Logical. If \code{TRUE}, return a small example tibble
 without downloading remote data. Default \code{FALSE}.}
 }
@@ -42,6 +58,9 @@ A tibble with columns:
 \item \code{unit}: Measurement unit (\code{"tonnes"} or \code{"heads"}).
 \item \code{value}: Trade quantity.
 \item \code{country_share}: Share of total trade for this partner.
+\item \code{method_unbacked_quantity}: the treatment chosen for quantities
+FAOSTAT does not back with a mass, recorded so a downstream
+consumer can tell which variant it is holding.
 }
 }
 \description{
@@ -73,6 +92,53 @@ against 9.97 million observed rows, and half of the emitted
 3.42 of 6.85 million). Scoping the extension to the CBS
 coverage a group actually has is a methodological choice, not a bug fix,
 and is tracked in issue #232.
+}
+
+\section{Quantities FAOSTAT does not back with a mass}{
+
+The Detailed Trade Matrix carries a \code{tonnes} column for every item, but
+FAOSTAT does not stand behind all of it. For trade item 1293
+(\emph{Crude organic material n.e.c.}, mapped here to CBS item 5001
+\code{"Other"}) the aggregate \emph{Trade: Crops and livestock products} domain
+publishes a \strong{value} but no country-level \strong{mass}: on the
+\code{faostat-trade-totals} pin \verb{20260325T120525Z-7b85f} that item has
+28,213 value rows against 6,000 quantity rows, only 1,830 of them
+non-zero, and every quantity above 10 Mt belongs to a FAOSTAT \emph{regional
+aggregate} (area code >= 51000) flagged \code{E}. Spot-checked for Colombia,
+Kenya, South Africa and Japan over 2002-2010, the country-level
+quantity is \code{0} or absent in every year.
+
+The detailed matrix nonetheless reports masses for it that cannot be
+masses (whep#1023). On the \code{faostat-trade-bilateral} pin
+\verb{20260407T095142Z-b3f81}, Colombia's 2004 export of item 1293 to the
+United States is 2,579,549,000 tonnes against an export value of
+USD 584.4 million, i.e. \strong{USD 0.227 per tonne}; South Africa's
+2008-2013 flows with Uganda run at USD 0.011-0.015 per tonne. The
+mirrored report of the same flow disagrees by factors of 356 to
+838,000 - Kenya says it exported 534,611,300 tonnes to the
+Netherlands in 2009, the Netherlands says it imported 72,076 tonnes
+(7,417x) - and it is always the large side that is not a mass. What the
+large side actually counts (stems, pieces, bunches) is \strong{not recorded
+anywhere in the data and is therefore unverified}, and the implied
+units per tonne are not constant across cells, so no conversion factor
+can be derived: the figures can be dropped or carried, not corrected.
+
+\code{method_unbacked_quantity} selects the treatment. Screened tonnage on
+the full pin, restricted to items that map to a CBS item: 15.31 Gt of
+83.16 Gt (\strong{18.4\%}), 99.78\% of it item 1293. By year the screen takes
+12.7-70.0\% of 2003-2013, 5.6-16.5\% of 1986-1988, 10.1-13.0\% of
+2000-2002, at most 3.3\% of 1989-1999 and at most 0.04\% of 2014-2021 -
+item 1293 carries no bilateral quantity at all from 2014, which is why
+the recent record looks clean.
+
+Those tonnes do not reach this function's output today whichever method
+is chosen, for an unrelated reason: item 1293's CBS name \code{"Other"} has
+no row in \code{whep::items_full}, so the item-code bridge leaves it without
+an \code{item_cbs_code} and it is dropped a step later. That was silent
+until now and is warned about separately; four CBS names and 14 of the
+710 trade item codes in \code{whep::cbs_trade_codes} are affected. The
+screen is therefore explicit where the mapping gap was accidental, and
+it keeps working if the gap is ever filled.
 }
 
 \examples{

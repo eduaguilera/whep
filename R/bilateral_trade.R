@@ -14,7 +14,9 @@
 #'     behaviour. Published values are unaffected by this argument's
 #'     existence as long as the default is kept.
 #'   - `"keep"`: keep the flows and take the row and column margins from
-#'     the reported bilateral data itself instead of from the CBS.
+#'     the reported bilateral data itself instead of from the CBS. It
+#'     **refuses** when a kept item's tonnes are not masses; see the
+#'     *Items with no CBS row* section.
 #'   - `"abort"`: fail, so that a refreshed pin cannot introduce
 #'     unanchored items unnoticed.
 #'
@@ -49,6 +51,27 @@
 #' downstream consumes the kept rows yet either: [build_io_model()] takes
 #' its item dimension from supply-use and the CBS, so an item absent from
 #' both is ignored by `.build_trade_shares()` regardless of this argument.
+#'
+#' Those figures are not masses, and that has now been traced to the
+#' FAOSTAT source (whep#1023). CBS item 5001 is fed by FAOSTAT trade item
+#' 1293 (*Crude organic material n.e.c.*), for which FAOSTAT's aggregate
+#' *Trade: Crops and livestock products* domain publishes a value but no
+#' country-level mass, while its Detailed Trade Matrix reports tonnages
+#' worth USD 0.01-0.5 per tonne whose mirrored report of the same flow
+#' disagrees by factors of 356 to 838,000. What the large side
+#' counts is unverified and the implied units per tonne are not constant,
+#' so nothing can be rescaled. See
+#' [build_detailed_trade()]'s *Quantities FAOSTAT does not back with a
+#' mass* section for the full measurement.
+#'
+#' `"keep"` therefore **aborts** with class
+#' `"whep_unbacked_mass_trade"` when the items it would keep include one
+#' of those, rather than distributing 2.58 Gt through a matrix. `"drop"`,
+#' the default, is unaffected, and so is every published number: item
+#' 5001 has no CBS row, so the default already removes it. A caller who
+#' wants a trade matrix that carries item 5001 has to obtain a mass for it
+#' first; [build_detailed_trade()] screens the same rows at the producer,
+#' where the fix belongs.
 #'
 #' @returns
 #' A tibble with the reported trade between countries. For efficient
@@ -611,11 +634,53 @@ get_bilateral_trade <- function(
   .report_items_not_in_cbs(btd, items_not_in_cbs, method)
 
   if (method == "keep") {
+    .refuse_unbacked_mass_items(btd, items_not_in_cbs)
     return(btd)
   }
 
   btd |>
     dplyr::filter(!item_cbs_code %in% items_not_in_cbs)
+}
+
+# `method_items_not_in_cbs = "keep"` takes an item's matrix margins from the
+# reported bilateral flows themselves (`.own_margin_totals()`), so whatever the
+# pin says is what comes out. That is only safe while the pin's `tonnes` are
+# masses, and for the items `.unbacked_mass_cbs_items()` names they are not:
+# FAOSTAT publishes no country-level mass for the trade items feeding them, and
+# the matrix figures reach 2.58 Gt in one cell at USD 0.227/tonne (whep#1023).
+# No conversion is derivable, so refusing is the only honest option left here;
+# the fix itself belongs in the producer, `build_detailed_trade()`.
+.refuse_unbacked_mass_items <- function(btd, items_not_in_cbs) {
+  unbacked <- intersect(items_not_in_cbs, .unbacked_mass_cbs_items())
+  if (length(unbacked) == 0) {
+    return(invisible(btd))
+  }
+
+  # Scope to mass rows: this runs before `.mass_only_bilateral_trade()`, so
+  # summing alongside `heads` would report head counts as tonnage.
+  affected <- btd |>
+    dplyr::filter(item_cbs_code %in% unbacked)
+  if (rlang::has_name(affected, "unit")) {
+    affected <- dplyr::filter(affected, unit == "tonnes")
+  }
+  tonnage <- sum(affected$value, na.rm = TRUE)
+
+  cli::cli_abort(
+    c(
+      "{.arg method_items_not_in_cbs} {.val keep} would carry \\
+       {nrow(affected)} row{?s} whose {.field tonnes} are not masses.",
+      "i" = "CBS item {cli::qty(length(unbacked))}code{?s}: \\
+             {.val {unbacked}}, {signif(tonnage, 4)} reported tonnes.",
+      "i" = "FAOSTAT publishes no country-level mass for the trade \\
+             item{?s} feeding {cli::qty(length(unbacked))}{?it/them}, and \\
+             the true unit is unverified, so the values can be dropped but \\
+             not corrected (whep#1023).",
+      "i" = "Use {.arg method_items_not_in_cbs} {.val drop} (the default), \\
+             or screen the rows at the producer with \\
+             {.fun build_detailed_trade}."
+    ),
+    class = "whep_unbacked_mass_trade"
+  )
 }
 
 # Say out loud how much trade has no CBS row to be balanced against. This used
