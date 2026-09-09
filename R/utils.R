@@ -2148,6 +2148,11 @@ utils::globalVariables(
     "mms_basis",
     "husbandry_like",
     "n_ret_base",
-    "n_retention_base"
+    "n_retention_base",
+    # gridded_livestock_emissions.R (#1016) -- `method_diet` is created by an
+    # earlier `mutate()` and read again on the right-hand side of the
+    # `if_else()` in `.apply_diet_layer()`, which R CMD check reports as a
+    # missing binding.
+    "method_diet"
   )
 )

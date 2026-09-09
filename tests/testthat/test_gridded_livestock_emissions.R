@@ -103,6 +103,43 @@ testthat::test_that("the example fixture matches the documented contract", {
     )
 })
 
+testthat::test_that("the example fixture is what the function actually emits", {
+  # The contract test above asserts only that columns EXIST, so a fixture whose
+  # numbers drift away from the code passes it. That happened: the shipped
+  # `manure_n2o_kt` was generated under the flat pasture EF3 and survived the
+  # rebase onto whep#1019's weighted path, leaving the pkgdown reference page
+  # 23.4% high on the one quantity this branch is about. Assert the values, so
+  # the next coefficient change breaks the fixture instead of the example.
+  #
+  # Inputs are the example's OWN, not `.grid_fixture()`, which uses a different
+  # country, different cells and different temperatures.
+  herd <- tibble::tribble(
+    ~lon, ~lat, ~year, ~area_code, ~species_group, ~heads,
+    34.25, -0.25, 1961L, 114L, "cattle_dairy", 120000,
+    35.25, 0.75, 1961L, 114L, "cattle_dairy", 80000,
+    34.25, -0.25, 1961L, 114L, "cattle_non_dairy", 50000
+  )
+  climate <- tibble::tribble(
+    ~lon, ~lat, ~year, ~mean_annual_temp_c, ~climate_zone,
+    34.25, -0.25, 1961L, 22.51667, "Warm",
+    35.25, 0.75, 1961L, 16.97500, "Temperate"
+  ) |>
+    dplyr::mutate(method_climate_zone = "cru_ts_annual")
+
+  fixture <- whep::build_gridded_livestock_emissions(example = TRUE)
+  live <- whep::build_gridded_livestock_emissions(
+    herd,
+    method_diet = "uniform_medium",
+    data = list(cell_climate = climate)
+  )
+
+  for (col in c("enteric_ch4_kt", "manure_ch4_kt", "manure_n2o_kt")) {
+    testthat::expect_equal(fixture[[col]], live[[col]], tolerance = 1e-6)
+  }
+  testthat::expect_equal(fixture$method_manure_ch4, live$method_manure_ch4)
+  testthat::expect_equal(fixture$method_manure_n2o, live$method_manure_n2o)
+})
+
 testthat::test_that("emissions are per cell and positive", {
   result <- whep::build_gridded_livestock_emissions(
     .grid_fixture(),
