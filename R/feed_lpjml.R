@@ -274,11 +274,19 @@ read_lpjml_grass_productivity <- function(
 ) {
   tryCatch(
     whep_read_file(alias, years = years),
-    # A `years` wiring mistake is NOT a missing pin. Re-raised unchanged so the
-    # reader is not sent to check their network and their run directory for a
-    # bug that is neither.
-    whep_year_filter_error = function(e) rlang::cnd_signal(e),
     error = function(e) {
+      # A `years` wiring mistake is NOT a missing pin, so it passes through
+      # untouched rather than being relabelled as a network failure.
+      #
+      # This test lives INSIDE the `error` handler on purpose. Catching the
+      # class in a sibling handler and re-signalling with `cnd_signal()` does
+      # NOT work: the enclosing `tryCatch()`'s own `error` handler is still
+      # established while a sibling handler runs, so the re-signalled condition
+      # is caught by it and rewritten anyway -- which is exactly what the
+      # previous version of this function did while claiming otherwise.
+      if (inherits(e, "whep_year_filter_error")) {
+        stop(e)
+      }
       cli::cli_abort(
         c(
           "Could not read the pinned {.val {alias}} artifact.",
