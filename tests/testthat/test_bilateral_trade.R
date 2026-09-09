@@ -785,13 +785,16 @@ testthat::test_that(".process_bilateral_trade output is worker-invariant", {
   )
   testthat::expect_gt(nrow(nested), 2L)
 
-  worker_counts <- c(1L, 2L)
-  if (
-    !.core_limit_in_force() &&
-      isTRUE(parallel::detectCores() >= 4L) &&
-      !.is_windows()
-  ) {
-    worker_counts <- c(worker_counts, 4L)
+  # `mclapply(mc.cores > 1)` stops outright on Windows, so the only honest
+  # multi-worker comparison there is none: run serially and let the assertion
+  # below be trivially true rather than erroring. `.parallel_workers()` already
+  # forces 1 on Windows, so the invariant it guards cannot be violated there.
+  worker_counts <- if (.is_windows()) {
+    1L
+  } else if (!.core_limit_in_force() && isTRUE(parallel::detectCores() >= 4L)) {
+    c(1L, 2L, 4L)
+  } else {
+    c(1L, 2L)
   }
 
   runs <- purrr::map(worker_counts, function(workers) {
