@@ -95,13 +95,13 @@
 
 .example_ghg_extension <- function() {
   tibble::tribble(
-    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg,
-    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6",
-    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6",
-    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6",
-    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6",
-    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6"
+    ~year, ~area_code, ~item_cbs_code, ~impact_u, ~method_ghg, ~method_mms, ~method_manure_ch4,
+    1986L, 10L, 960L, 6.156e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 961L, 3.078e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 10L, 976L, 1.10565e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1986L, 100L, 961L, 2.2464e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1987L, 10L, 961L, 3.10878e9, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1",
+    1987L, 100L, 960L, 8.424e8, "IPCC_2019_Tier1_AR6", "region_specific", "IPCC_2019_Tier1"
   ) |>
     .add_reporting_polity_columns()
 }

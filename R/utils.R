@@ -2117,6 +2117,10 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # livestock_ghg_extension.R (#1029) — the manure-management split the
+    # manure engine stamped, carried through the extension's sum so a
+    # non-default `options` run is self-describing downstream
+    "method_mms"
   )
 )
