@@ -2295,6 +2295,89 @@ test_that(".cbs_fix_final_balance clamps DS then export, no negatives", {
 })
 
 
+# -- Default-destiny replacement (whep#996) -----------------------------------
+
+# `.cbs_final_balance()` repairs a `default_prone` row -- one whose supply side
+# already agrees with `domestic_supply`, so only the destiny split is out of
+# balance -- by booking the gap on the item's `default_destiny`. Palmkernel
+# Cake (2595) defaults to `Food`, so a row that already spends its whole
+# domestic supply on `feed` used to end up with `food` AND `feed` each holding
+# the full supply: `use` came out at 2x `supply`.
+.default_prone_cbs <- function(destinies) {
+  tibble::tibble(
+    element = c("import", "domestic_supply", names(destinies)),
+    value = c(1000, 1000, unname(destinies))
+  ) |>
+    dplyr::mutate(
+      year = 2017L,
+      area = "Testland",
+      area_code = 4L,
+      item_cbs = "Palmkernel Cake",
+      item_cbs_code = 2595L,
+      source = "FAOSTAT_FBS_New"
+    )
+}
+
+.default_prone_wide <- function(destinies) {
+  whep:::.cbs_final_balance(
+    .default_prone_cbs(destinies),
+    years = 2017L
+  ) |>
+    tibble::as_tibble() |>
+    whep:::.pivot_cbs_wide() |>
+    whep::ensure_columns(
+      tibble::tibble(
+        production = double(),
+        export = double(),
+        food = double(),
+        feed = double(),
+        seed = double(),
+        other_uses = double(),
+        processing = double(),
+        processing_primary = double()
+      ),
+      defaults = list(
+        production = 0,
+        export = 0,
+        food = 0,
+        feed = 0,
+        seed = 0,
+        other_uses = 0,
+        processing = 0,
+        processing_primary = 0
+      )
+    )
+}
+
+test_that("the default destiny does not book domestic supply twice", {
+  # The invariant, not a hand-picked number: supply must equal use. Before the
+  # fix this row balanced at 2000 against 1000.
+  result <- .default_prone_wide(c(feed = 1000, food = 5)) |>
+    whep::check_supply_use_balance()
+
+  expect_true(all(result$balanced))
+})
+
+test_that("the default destiny keeps the split the row reported", {
+  # Which column the supply lands on: the residual goes to the item's default
+  # destiny and the observed split stays. Clearing the other destinies instead
+  # would move the whole 1000 t from `feed` to human `food`.
+  result <- .default_prone_wide(c(feed = 1000, food = 5))
+
+  expect_equal(result$feed, 1000)
+  expect_equal(result$food, 0)
+})
+
+test_that("a row with no destiny still gets the whole domestic supply", {
+  # The case the repair was written for must not move: with nothing else
+  # booked, the default destiny still takes all of `domestic_supply`.
+  result <- .default_prone_wide(c(food = 0))
+
+  expect_equal(result$food, 1000)
+  expect_true(all(whep::check_supply_use_balance(result)$balanced))
+})
+
+
 # -- FBS scaling ratio bounds (issue #161) ------------------------------------
 
 test_that(".select_best_source clamps extreme FBS scaling ratio", {
