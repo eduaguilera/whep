@@ -2116,6 +2116,10 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # build_cbs.R (#1024) — the per-key count of distinct units, used by
+    # `.abort_if_units_mixed()` to reject a sum that would add two
+    # denominations into one `value`
+    "n_units"
   )
 )

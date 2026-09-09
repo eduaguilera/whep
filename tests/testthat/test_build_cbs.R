@@ -1033,9 +1033,9 @@ test_that(".select_best_source keys on area_code, not periodized name", {
   # vs periodized polity name). They must still compete on the integer code
   # instead of both surviving and being summed downstream (100 + 90 = 190).
   cbs_raw_all <- tibble::tribble(
-    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
-    "China, mainland", 41L, "Wheat", 2511L, "production", 2010L, 100, "FAOSTAT_prod",
-    "China (PRC)", 41L, "Wheat", 2511L, "production", 2010L, 90, "FAOSTAT_FBS_New"
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit,
+    "China, mainland", 41L, "Wheat", 2511L, "production", 2010L, 100, "FAOSTAT_prod", "tonnes",
+    "China (PRC)", 41L, "Wheat", 2511L, "production", 2010L, 90, "FAOSTAT_FBS_New", "tonnes"
   )
 
   selected <- whep:::.select_best_source(cbs_raw_all)
@@ -1080,9 +1080,9 @@ test_that("a duplicated (key, source) pair is summed, not counted", {
 # four labels each) and shuffling the rows flipped the label for 13.
 .period_rows <- function() {
   tibble::tribble(
-    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
-    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_Old",
-    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_Old"
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,           ~unit,
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_Old", "tonnes",
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_Old", "tonnes"
   )
 }
 
@@ -1104,9 +1104,9 @@ test_that("the label comes from the highest-priority source, not the first row",
   # decided the label, and it is now stated instead of implied: FBS_New outranks
   # FBS_Old wherever it reports the code, however the rows arrive.
   rows <- tibble::tribble(
-    ~area,          ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
-    "Old vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 100,    "FAOSTAT_FBS_Old",
-    "New vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 90,     "FAOSTAT_FBS_New"
+    ~area,          ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,           ~unit,
+    "Old vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 100,    "FAOSTAT_FBS_Old", "tonnes",
+    "New vintage",  300L,       "Wheat",   2511L,          "production", 1990L, 90,     "FAOSTAT_FBS_New", "tonnes"
   )
 
   expect_equal(unique(whep:::.select_best_source(rows)$area), "New vintage")
@@ -1121,9 +1121,9 @@ test_that("within one source the earliest year names the code", {
   # period name, so which YEAR is consulted decides it. Reversing the rows used
   # to swap the answer.
   rows <- tibble::tribble(
-    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
-    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_New",
-    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_New"
+    ~area,                ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,           ~unit,
+    "Utopia (1950-2025)", 300L,       "Wheat",   2511L,          "production", 1990L, 200,    "FAOSTAT_FBS_New", "tonnes",
+    "Utopia (1900-1950)", 300L,       "Wheat",   2511L,          "production", 1940L, 100,    "FAOSTAT_FBS_New", "tonnes"
   )
 
   expect_equal(
@@ -1141,9 +1141,9 @@ test_that("an unranked source still labels a code it alone reports", {
   # that source reports must still come out labelled. `area` is a join key, and
   # an NA there drops the code from four inner joins.
   rows <- tibble::tribble(
-    ~area,      ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,
-    "Zedland",  400L,       "Wheat",   2511L,          "import", 1950L, 100,    "trade_hist",
-    "Aardland", 400L,       "Wheat",   2511L,          "import", 1950L, 90,     "trade_hist"
+    ~area,      ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source,      ~unit,
+    "Zedland",  400L,       "Wheat",   2511L,          "import", 1950L, 100,    "trade_hist", "tonnes",
+    "Aardland", 400L,       "Wheat",   2511L,          "import", 1950L, 90,     "trade_hist", "tonnes"
   )
 
   expect_equal(unique(whep:::.select_best_source(rows)$area), "Aardland")
@@ -2892,5 +2892,222 @@ test_that("binding an off-window recovered row aborts", {
   expect_error(
     whep:::.cbs_bind_recovered(.belgium_cbs(), recovered),
     class = "whep_error_off_window_area_year"
+  )
+})
+
+
+# -- unit keying in the CBS sums (whep#1024) ----------------------------------
+
+# The crosswalk `.get_traded_residues()` needs, hand-built so the test stays
+# offline and independent of `whep::cbs_trade_codes` edits. Item 801 is an oil
+# cake (kept by `comm_group`), item 866 is a live animal the same trade record
+# reports in head counts.
+.residue_crosswalk <- function() {
+  list(
+    cbs_trade = tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      801L,             "Cake, soybeans",
+      866L,             "Cattle"
+    ),
+    items = tibble::tribble(
+      ~item_cbs,        ~item_cbs_code, ~comm_group,
+      "Cake, soybeans", 2590L,          "Oil cakes",
+      "Cattle",         866L,           "Live animals"
+    )
+  )
+}
+
+.residue_trade_rows <- function() {
+  tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_code_trade, ~element, ~unit, ~value,
+    2015L, "Spain", 203L,       801L,             "import", "t",   100,
+    2015L, "Spain", 203L,       801L,             "import", "t",   50
+  ) |>
+    data.table::as.data.table()
+}
+
+test_that(".get_traded_residues sums mass and says nothing when all is mass", {
+  cw <- .residue_crosswalk()
+
+  expect_no_warning(
+    result <- whep:::.get_traded_residues(
+      .residue_trade_rows(),
+      cw$cbs_trade,
+      cw$items
+    )
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 150)
+})
+
+test_that(".get_traded_residues drops head counts instead of summing them", {
+  # The whep#865 shape one source over: `.read_fao_trade()` emits `An` and
+  # `1000 An` and `No` beside `t`, and the summarise drops `unit` from the
+  # key. Only a crosswalk edit or a FAOSTAT relabel stands between that and
+  # head counts landing in a tonnes column, so the row has to go, and go
+  # loudly. The crosswalk is bent here to put a head-count trade code onto a
+  # residue item, which is exactly the edit the guard exists for.
+  cw <- .residue_crosswalk()
+  cw$cbs_trade$item_cbs[2] <- "Cake, soybeans"
+  mixed <- data.table::rbindlist(list(
+    .residue_trade_rows(),
+    data.table::data.table(
+      year = 2015L,
+      area = "Spain",
+      area_code = 203L,
+      item_code_trade = 866L,
+      element = "import",
+      unit = "An",
+      value = 4000
+    )
+  ))
+
+  expect_warning(
+    result <- whep:::.get_traded_residues(mixed, cw$cbs_trade, cw$items),
+    "not denominated in mass"
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 150)
+})
+
+test_that(".get_traded_residues aborts when the trade record lost its unit", {
+  cw <- .residue_crosswalk()
+  unitless <- .residue_trade_rows()
+  unitless[, unit := NULL]
+
+  expect_error(
+    whep:::.get_traded_residues(unitless, cw$cbs_trade, cw$items),
+    "has no"
+  )
+})
+
+.fiber_rows <- function(units) {
+  tibble::tibble(
+    year = 2015L,
+    area = "Spain",
+    area_code = 203L,
+    item_cbs = "Tobacco",
+    item_cbs_code = 826L,
+    element = "production",
+    unit = units,
+    value = c(10, 5)
+  ) |>
+    data.table::as.data.table()
+}
+
+.fiber_crosswalk <- function() {
+  list(
+    cbs_trade = tibble::tribble(
+      ~item_code_trade, ~item_cbs,
+      826L,             "Tobacco"
+    ),
+    items = tibble::tribble(
+      ~item_cbs, ~item_cbs_code,
+      "Tobacco", 826L
+    )
+  )
+}
+
+test_that(".get_fiber_tobacco sums a single-unit record unchanged", {
+  # The `faostat-cbs-new` pin ships `Unit` as a logical column of a single
+  # `TRUE`, which `.normalise_units()` stringifies (whep#1025). One unit is
+  # one unit, so the guard has to pass it through untouched -- a mass-only
+  # filter here would drop the whole record.
+  cw <- .fiber_crosswalk()
+
+  result <- whep:::.get_fiber_tobacco(
+    .fiber_rows(c("TRUE", "TRUE")),
+    cw$cbs_trade,
+    cw$items
+  )
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 15)
+})
+
+test_that(".get_fiber_tobacco aborts on a mixed-unit record", {
+  cw <- .fiber_crosswalk()
+
+  expect_error(
+    whep:::.get_fiber_tobacco(
+      .fiber_rows(c("tonnes", "1000 No")),
+      cw$cbs_trade,
+      cw$items
+    ),
+    "mixes 2 units"
+  )
+})
+
+test_that(".get_fiber_tobacco aborts when the record has no unit column", {
+  cw <- .fiber_crosswalk()
+  unitless <- .fiber_rows(c("tonnes", "tonnes"))
+  unitless[, unit := NULL]
+
+  expect_error(
+    whep:::.get_fiber_tobacco(unitless, cw$cbs_trade, cw$items),
+    "has no"
+  )
+})
+
+test_that(".select_best_source aborts when one key carries two units", {
+  # `key_cols` excludes `unit`, and everything after it reads `value` with the
+  # unit already gone: `fun.aggregate` sums a duplicated (key, source) pair and
+  # `other_mean` averages across sources. Either way one key in two units
+  # becomes one number denominated in neither.
+  cbs_raw_all <- tibble::tribble(
+    ~area,   ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,           ~unit,
+    "Spain", 203L,       "Cattle",  866L,           "production", 2010L, 5000,   "FAOSTAT_FBS_Old", "tonnes",
+    "Spain", 203L,       "Cattle",  866L,           "production", 2010L, 3000,   "FAOSTAT_FBS_Old", "1000 No"
+  )
+
+  expect_error(
+    whep:::.select_best_source(cbs_raw_all),
+    "mixes 2 units"
+  )
+})
+
+test_that(".select_best_source allows two units on different keys", {
+  # Two units are how a mixed-unit source is meant to travel -- one row per
+  # unit. Only a unit split WITHIN one summed key is the defect, so the guard
+  # must not reject a frame it would leave alone.
+  cbs_raw_all <- tibble::tribble(
+    ~area,   ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,        ~unit,
+    "Spain", 203L,       "Wheat",   2511L,          "production", 2010L, 5000,   "FAOSTAT_prod", "tonnes",
+    "Spain", 203L,       "Cattle",  866L,           "production", 2010L, 3000,   "FAOSTAT_prod", "1000 No"
+  )
+
+  result <- whep:::.select_best_source(cbs_raw_all)
+
+  expect_equal(nrow(result), 2L)
+  expect_setequal(result$value, c(5000, 3000))
+})
+
+test_that(".select_best_source tolerates a source that carries no unit", {
+  # Crop residues and the pre-1961 historical trade arrive without the column,
+  # so `rbindlist(fill = TRUE)` gives them `NA`. Counting `NA` as a unit of its
+  # own would abort every real build without a number being wrong.
+  cbs_raw_all <- tibble::tribble(
+    ~area,   ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,           ~unit,
+    "Spain", 203L,       "Wheat",   2511L,          "production", 2010L, 5000,   "FAOSTAT_prod",    "tonnes",
+    "Spain", 203L,       "Wheat",   2511L,          "production", 2010L, 4000,   "FAOSTAT_FBS_New", NA_character_
+  )
+
+  result <- whep:::.select_best_source(cbs_raw_all)
+
+  expect_equal(nrow(result), 1L)
+  expect_equal(result$value, 5000)
+})
+
+test_that(".select_best_source aborts on a frame with no unit column", {
+  cbs_raw_all <- tibble::tribble(
+    ~area,   ~area_code, ~item_cbs, ~item_cbs_code, ~element,     ~year, ~value, ~source,
+    "Spain", 203L,       "Wheat",   2511L,          "production", 2010L, 5000,   "FAOSTAT_prod"
+  )
+
+  expect_error(
+    whep:::.select_best_source(cbs_raw_all),
+    "has no"
   )
 })

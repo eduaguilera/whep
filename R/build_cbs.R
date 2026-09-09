@@ -858,16 +858,34 @@ build_processing_coefs <- function(
 # dropping `unit` without collapsing would leave two rows on a key that
 # `.abort_if_trade_key_duplicated()` requires to be unique.
 .mass_only_trade <- function(trade, source_label) {
-  dt <- data.table::as.data.table(trade)
+  out <- .drop_non_mass_rows(trade, source_label)
+  out[,
+    .(value = sum(value, na.rm = TRUE)),
+    by = .(year, area_code, item_cbs_code, element)
+  ]
+}
+
+# Keep only the mass rows of a unit-carrying frame, saying what went. `unit`
+# survives, so the caller decides its own aggregation key -- the two CBS
+# callers keep `item_cbs` and `area`, which `.mass_only_trade()`'s fixed
+# `(year, area_code, item_cbs_code, element)` contract does not.
+#
+# Filtering rather than summing is the whep#865 remedy: adding head counts to
+# a tonnes column is the bug, and dropping them without a word is why it went
+# unnoticed for as long as it did. Nothing downstream can catch it either --
+# `check_supply_use_balance()` is row-wise and carries no unit dimension.
+.drop_non_mass_rows <- function(df, source_label) {
+  dt <- data.table::as.data.table(df)
   if (!rlang::has_name(dt, "unit")) {
     cli::cli_abort(c(
-      "{.arg trade} from {.val {source_label}} has no {.field unit} column.",
-      "i" = "A trade aggregate must carry the unit of the quantity it sums."
+      "The {.val {source_label}} record has no {.field unit} column.",
+      "i" = "A frame summed on {.field value} must carry the unit of the \\
+             quantity it sums."
     ))
   }
   non_mass <- dt[!unit %in% .mass_trade_units()]
   if (nrow(non_mass) > 0L) {
-    units <- sort(unique(non_mass$unit))
+    units <- sort(unique(as.character(non_mass$unit)))
     items <- length(unique(non_mass$item_cbs_code))
     cli::cli_warn(c(
       "Dropped {nrow(non_mass)} {.val {source_label}} trade row{?s} \\
@@ -879,11 +897,82 @@ build_processing_coefs <- function(
              column is tonnes."
     ))
   }
-  out <- dt[unit %in% .mass_trade_units()]
-  out[,
-    .(value = sum(value, na.rm = TRUE)),
-    by = .(year, area_code, item_cbs_code, element)
+  dt[unit %in% .mass_trade_units()]
+}
+
+# Abort when a frame about to be summed with `unit` outside the grouping key
+# carries more than one unit, so the sum cannot add two denominations into one
+# `value`. That mixup has shipped twice -- whep#865 put 135.3 M head into a
+# tonnes column, whep#962 did the same to the bilateral trade matrix -- and
+# both times nothing downstream noticed, because `check_supply_use_balance()`
+# is row-wise over a frame that carries no unit column at all.
+#
+# `key_cols = NULL` checks the whole frame. Otherwise the check is per output
+# key, which is the precise statement of the hazard: one summed row built from
+# two denominations. Two units on DIFFERENT keys are fine -- that is how a
+# mixed-unit source is meant to travel, one row per unit.
+#
+# Rows with a missing `unit` are excluded. Several CBS sources reach
+# `.select_best_source()` without the column at all -- crop residues, the
+# pre-1961 historical trade, and `.get_traded_residues()` /
+# `.get_fiber_tobacco()`, which each check their unit before dropping it --
+# and they are tonnes by construction, so counting `NA` as a unit of its own
+# would fire on every build without a number being wrong. The column itself is
+# still required: a frame that lost it is the shape of whep#865.
+.abort_if_units_mixed <- function(df, source_label, key_cols = NULL) {
+  dt <- data.table::as.data.table(df)
+  if (!rlang::has_name(dt, "unit")) {
+    cli::cli_abort(c(
+      "The {.val {source_label}} record has no {.field unit} column.",
+      "i" = "A frame summed on {.field value} must carry the unit of the \\
+             quantity it sums."
+    ))
+  }
+  if (is.null(key_cols)) {
+    .abort_on_units(.distinct_units(dt), source_label)
+    return(invisible(df))
+  }
+  # The NA filter goes in `i` rather than into a subset of its own: this runs
+  # over the whole assembled CBS, so materialising a filtered copy of it is a
+  # cost the check does not need to pay.
+  per_key <- dt[
+    !is.na(unit),
+    .(n_units = data.table::uniqueN(unit)),
+    by = key_cols
   ]
+  mixed <- per_key[n_units > 1L]
+  if (nrow(mixed) > 0L) {
+    offending <- dt[mixed, on = key_cols, nomatch = NULL]
+    .abort_on_units(
+      .distinct_units(offending),
+      source_label,
+      n_keys = nrow(mixed)
+    )
+  }
+  invisible(df)
+}
+
+.distinct_units <- function(dt) {
+  units <- unique(as.character(dt$unit))
+  sort(units[!is.na(units)])
+}
+
+.abort_on_units <- function(units, source_label, n_keys = NULL) {
+  if (length(units) <= 1L) {
+    return(invisible(NULL))
+  }
+  scope <- if (is.null(n_keys)) {
+    "in one sum"
+  } else {
+    cli::format_inline("on {n_keys} summed key{?s}")
+  }
+  cli::cli_abort(c(
+    "The {.val {source_label}} record mixes {length(units)} units \\
+     {scope}.",
+    "i" = "Unit{cli::qty(length(units))}{?s}: {.val {units}}.",
+    "x" = "Summing {.field value} across units adds different quantities \\
+           into one column (whep#865)."
+  ))
 }
 
 # Read FishStat trade data (pre-aggregated to CBS items) from pins.
@@ -1719,6 +1808,17 @@ build_processing_coefs <- function(
   )
 }
 
+# Oil cakes, molasses, fibres, palm kernels and hides taken straight from the
+# FAOSTAT trade record, which the commodity balances do not cover from 2014 on.
+#
+# `.mass_only_trade()`'s rule applies here too, for the same source: the
+# summarise below drops `unit` from the key, and `.read_fao_trade()` emits
+# `An`, `1000 An` and `No` alongside `t` (whep#865). None of them reaches this
+# point today -- measured on the real pin at 2014+, all 85,635 rows of these 63
+# trade codes are `t` and no output key draws from two units -- so the filter
+# is a no-op on current data. It is the crosswalk edit or the FAOSTAT relabel
+# it guards against, which would otherwise add head counts to a tonnes column
+# with nothing downstream able to see it.
 .get_traded_residues <- function(fao_trade, cbs_trade, items) {
   fao_trade |>
     dplyr::filter(year > 2013) |>
@@ -1746,6 +1846,7 @@ build_processing_coefs <- function(
             "Hides and skins"
           )
     ) |>
+    .drop_non_mass_rows("faostat-trade-totals") |>
     dplyr::summarise(
       value = sum(value, na.rm = TRUE),
       .by = c(
@@ -1759,7 +1860,21 @@ build_processing_coefs <- function(
     )
 }
 
+# Fibre and tobacco rows from the Commodity Balances (non-food) record, which
+# the food balance sheets do not carry.
+#
+# The summarise below drops `unit` from the key, so a mixed-unit `cbs_new`
+# would sum two denominations into one `value` -- the same shape as whep#865
+# one source over. This cannot happen today, and not for a reassuring reason:
+# the `faostat-cbs-new` pin ships `Unit` as a logical column holding a single
+# `TRUE` for all 58,107 rows, which `.normalise_units()` stringifies to
+# `"TRUE"` (whep#1025). One unit is one unit, so the assertion passes and no
+# value moves -- and it is what will catch the mixture the moment that pin
+# carries real unit labels again. A mass-only filter is deliberately NOT used
+# here: against `"TRUE"` it would drop the entire record.
 .get_fiber_tobacco <- function(cbs_new, cbs_trade, items) {
+  .abort_if_units_mixed(cbs_new, "faostat-cbs-new")
+
   cbs_new |>
     dplyr::rename(
       item_trade = item_cbs,
@@ -1923,6 +2038,24 @@ build_processing_coefs <- function(
     "element"
   )
 
+  # `unit` is deliberately not a key -- the selected CBS is tonnes throughout
+  # and the output carries no unit column -- so assert that, instead of
+  # assuming it. Everything below reads `value` with `unit` already gone: the
+  # `fun.aggregate` SUMS a duplicated (key, source) pair and the `other_mean`
+  # below AVERAGES across the non-primary sources, so one key reported in two
+  # units would silently become one number denominated in neither. The
+  # comment on `fun.aggregate` already named that hazard; this is the part
+  # that makes it an error rather than a sum.
+  #
+  # It holds on the real record, and by more than luck: every source that
+  # reaches here with a `unit` normalises to `"tonnes"` -- FBS_New's `1000 t`,
+  # FBS_Old's `1000 tonnes`, both old CBS pins' `tonnes`, and
+  # `.primary_to_cbs()`'s explicit `unit == "tonnes"` filter. FBS_New's one
+  # non-mass unit (`1000 No`, total population) is on an element
+  # `.extract_fao()` drops. The rest arrive without the column and are tonnes
+  # by construction; see `.abort_if_units_mixed()` on why `NA` is tolerated.
+  .abort_if_units_mixed(cbs_raw_all, "cbs_raw_all", key_cols = key_cols)
+
   dt_raw <- data.table::as.data.table(cbs_raw_all)
   dt_raw <- dt_raw[!is.na(area)]
   area_lookup <- .cbs_area_labels(dt_raw)
@@ -1967,9 +2100,11 @@ build_processing_coefs <- function(
   #     Sudan and South Sudan from 2011, asserted in test_polity_folds.R) now emits one row.
   #
   # `fun.aggregate` STAYS regardless, as a guard rather than as a fix for a known duplicate:
-  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket, a re-mapped
-  # item code, one key reported in two units, since `key_cols` excludes `unit` -- would silently
-  # turn every cell of the table into a row count instead of erroring.
+  # `dcast()`'s fallback is global, so any future duplicate anywhere -- a bucket or a re-mapped
+  # item code -- would silently turn every cell of the table into a row count instead of
+  # erroring. The third case this used to list, one key reported in two units, is no longer
+  # left to it: summing across units is not a repaired duplicate but a wrong number, so
+  # `.abort_if_units_mixed()` above rejects it before the cast (whep#1024).
   #
   # All-NA cells stay NA rather than collapsing to 0: `sum(na.rm = TRUE)` of nothing is 0, and a
   # zero where there is no observation is a different claim from a missing one. `fill = NA` is
