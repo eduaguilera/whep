@@ -14,12 +14,50 @@
 # Usage:
 #   source("inst/scripts/prepare_faostat_balances.R")
 #   balances <- download_faostat_balances(tempdir())
-#   # then hand each path to prepare_upload.R's prepare_for_upload()
+#   # then hand each path to prepare_upload.R's prepare_for_upload(),
+#   # ALWAYS with the column spec -- see faostat_balance_col_types():
+#   prepare_for_upload(
+#     balances$path[[1]],
+#     balances$alias[[1]],
+#     col_types = faostat_balance_col_types()
+#   )
 #
 # Source: https://bulks-faostat.fao.org/production/datasets_E.json
 # -----------------------------------------------------------------------
 
 FAOSTAT_BULK_ROOT <- "https://bulks-faostat.fao.org/production/"
+
+#' Column types for a FAOSTAT "All Data (Normalized)" bulk CSV.
+#'
+#' Every label column is read as character and nothing is guessed. readr
+#' guesses per column from the values present, and it parses "t" -- FAOSTAT's
+#' tonnes label -- as the logical TRUE. So a domain reporting a single unit
+#' loses its unit label entirely: the CB (non-food, 2010-) domain is all
+#' tonnes, and the faostat-cbs-new pin holds TRUE in the Unit column of all
+#' 127,558 rows of its 2026-06-15 release (whep#1025). The same guess turns an
+#' all-empty Note column into a logical, which is why the four other FAOSTAT
+#' pins carry a boolean Note.
+#'
+#' `.default` covers the columns that differ between domains -- Note, and the
+#' `Item Code (CPC)` / `Item Code (FBS)` / `Area Code (M49)` code columns,
+#' which FAO writes with a leading apostrophe and which are labels, not
+#' numbers -- and stops a newly added column from being guessed either.
+#'
+#' The numeric columns are col_double(), not col_integer(), because that is
+#' what the guesser produced for the pins already published: keeping the types
+#' identical means a refreshed pin differs from its predecessor only in the
+#' Unit and Note columns, and no downstream join changes type.
+faostat_balance_col_types <- function() {
+  readr::cols(
+    .default = readr::col_character(),
+    `Area Code` = readr::col_double(),
+    `Item Code` = readr::col_double(),
+    `Element Code` = readr::col_double(),
+    `Year Code` = readr::col_double(),
+    Year = readr::col_double(),
+    Value = readr::col_double()
+  )
+}
 
 # alias: the whep_inputs.csv alias each domain feeds.
 FAOSTAT_BALANCE_DOMAINS <- tibble::tibble(

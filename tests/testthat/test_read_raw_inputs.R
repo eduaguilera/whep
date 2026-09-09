@@ -542,3 +542,65 @@ test_that(".correct_processed deletes the output off-anchor (whep#833)", {
   # must then be replaced by an equality against the full-axis answer.
   expect_equal(.processed_axis_value(2005:2010), 0)
 })
+
+# -- unit-label coercion (whep#1025) -------------------------------------------
+
+# The `faostat-cbs-new` pin was published with the boolean TRUE in the `Unit`
+# column of every one of its 127,558 rows, because its producer read the
+# FAOSTAT bulk CSV with readr's type guesser and readr parses "t" -- FAO's
+# tonnes label -- as a logical. `.normalise_units()` then handed it on as the
+# string "TRUE" without noticing, so the unit label of that whole source was
+# gone and every unit-keyed guard downstream was inert while looking satisfied.
+# `.extract_fao()` now refuses the coerced column instead of normalising it.
+.unit_label_fixture <- function(unit) {
+  data.table::data.table(
+    `Area Code` = 203L,
+    Area = "Testland",
+    `Item Code` = 2511L,
+    Item = "Wheat and products",
+    Element = "Production",
+    Unit = unit,
+    Year = c(2010L, 2011L),
+    Value = c(100, 200)
+  )
+}
+
+.extract_with_unit <- function(unit, alias = "faostat-cbs-new") {
+  fixture <- .unit_label_fixture(unit)
+  .local_aggregator_crosswalk()
+  testthat::local_mocked_bindings(
+    .read_input = function(pin_alias, years = NULL, year_col = NULL) {
+      data.table::copy(fixture)
+    }
+  )
+  whep:::.extract_fao(alias)
+}
+
+test_that(".extract_fao aborts on a logical unit column (whep#1025)", {
+  expect_error(
+    .extract_with_unit(c(TRUE, TRUE)),
+    class = "whep_unit_label_coerced"
+  )
+})
+
+test_that(".extract_fao aborts on a blank or missing unit label", {
+  expect_error(
+    .extract_with_unit(c("t", NA_character_)),
+    class = "whep_unit_label_missing"
+  )
+  expect_error(
+    .extract_with_unit(c("t", "  ")),
+    class = "whep_unit_label_missing"
+  )
+})
+
+test_that(".extract_fao keeps a character unit label", {
+  expect_equal(unique(.extract_with_unit(c("t", "t"))$unit), "t")
+})
+
+test_that(".assert_unit_labels names the pin it refused", {
+  expect_error(
+    whep:::.assert_unit_labels(c(TRUE, FALSE), "faostat-cbs-new"),
+    "faostat-cbs-new"
+  )
+})
