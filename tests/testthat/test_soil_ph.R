@@ -1064,3 +1064,51 @@ testthat::test_that("the reconstruction keeps the 0.01 quantisation", {
     testthat::expect_equal(out[[col]], round(out[[col]], 2))
   }
 })
+
+testthat::test_that("a target cell with no coordinate is refused", {
+  grid <- tibble::tibble(lon = c(0.25, 0.75), lat = 0.25, clay_pct = 20)
+  target <- tibble::tibble(lon = c(0.25, NA), lat = c(0.25, 0.25))
+
+  # The LOCAL route aborts on this at terra::ext(). The pin route used to
+  # tolerate it, keep the NA row, and let `.gapfill_soil()` stamp it with the
+  # loam constant -- plausible soil at a place that is not on the map.
+  testthat::expect_error(
+    whep:::.hwsd_crop_to_target(grid, target),
+    "missing coordinate"
+  )
+})
+
+testthat::test_that("a repeated cell in the grid is refused", {
+  # Duplicates recombine across the three per-property gap-fills and can
+  # produce t_wilt above t_field: impossible soil from a grid that passes
+  # every range and geometry check.
+  doubled <- tibble::tibble(
+    lon = c(0.25, 0.25),
+    lat = c(0.25, 0.25),
+    clay_pct = c(20, 90)
+  )
+
+  testthat::expect_error(
+    whep:::.check_hwsd_grid(doubled, "clay_pct", "test grid"),
+    "repeats"
+  )
+})
+
+testthat::test_that("the reconstruction rounds a value that needs rounding", {
+  # The earlier version of this test used counts whose unrounded mean was
+  # already exactly representable at 2 dp, so it passed with the rounding
+  # deleted. These counts give 1/3 of the way between two classes, which is not.
+  counts <- tibble::tibble(lon = 0.25, lat = 0.25)
+  for (cl in whep:::.hwsd_texture_classes()) {
+    counts[[paste0("n_", cl)]] <- switch(cl, sand = 1, clay = 2, 0)
+  }
+
+  out <- whep:::.hydraulic_from_class_counts(counts)
+
+  coef <- whep::soil_hydraulic_by_texture
+  raw <- (coef$field_capacity[coef$usda_texture_class == "sand"] +
+    2 * coef$field_capacity[coef$usda_texture_class == "clay"]) /
+    3
+  testthat::expect_false(isTRUE(all.equal(raw, round(raw, 2))))
+  testthat::expect_equal(out$t_field, round(raw, 2))
+})

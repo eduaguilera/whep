@@ -487,13 +487,26 @@ read_hwsd_topsoil_soc <- function(
   if (is.null(target_grid)) {
     return(grid)
   }
+  # An NA coordinate aborts the LOCAL route at `terra::ext()`. Tolerating it
+  # here (with na.rm) made the two routes disagree in the worst direction:
+  # the pin route kept the NA rows, `.gapfill_soil()` found no neighbour for a
+  # coordinate that does not exist, and stamped them with its loam CONSTANT --
+  # plausible soil at a place that is not on the map. Refuse it on both routes.
+  bad <- is.na(target_grid$lon) | is.na(target_grid$lat)
+  if (any(bad)) {
+    cli::cli_abort(c(
+      "{sum(bad)} target cell{?s} ha{?s/ve} a missing coordinate.",
+      i = "A cell with no {.field lon}/{.field lat} cannot be gap-filled from
+           its neighbours and would take the fallback constant instead."
+    ))
+  }
   pad <- target_res / 2
   dplyr::filter(
     grid,
-    .data$lon >= min(target_grid$lon, na.rm = TRUE) - pad,
-    .data$lon <= max(target_grid$lon, na.rm = TRUE) + pad,
-    .data$lat >= min(target_grid$lat, na.rm = TRUE) - pad,
-    .data$lat <= max(target_grid$lat, na.rm = TRUE) + pad
+    .data$lon >= min(target_grid$lon) - pad,
+    .data$lon <= max(target_grid$lon) + pad,
+    .data$lat >= min(target_grid$lat) - pad,
+    .data$lat <= max(target_grid$lat) + pad
   )
 }
 
@@ -505,6 +518,19 @@ read_hwsd_topsoil_soc <- function(
     cli::cli_abort(
       "{.val {source_label}} carries no cells."
     )
+  }
+  # A repeated cell multiplies through `.gapfill_soil_hydraulic()`, whose three
+  # per-property results are recombined with an inner join: two duplicate rows
+  # become eight, each mixing t_field, t_wilt and porosity taken from DIFFERENT
+  # source cells. That produced t_wilt above t_field -- physically impossible
+  # soil -- from a grid that passed every other check.
+  dup <- duplicated(grid[c("lon", "lat")])
+  if (any(dup)) {
+    cli::cli_abort(c(
+      "{.val {source_label}} repeats {sum(dup)} cell{?s}.",
+      i = "Each (lon, lat) must appear once; duplicates recombine across
+           properties and can yield t_wilt above t_field."
+    ))
   }
   off <- abs((grid$lon - target_res / 2) %% target_res) > 1e-6 |
     abs((grid$lat - target_res / 2) %% target_res) > 1e-6
