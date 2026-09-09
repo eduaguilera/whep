@@ -23,6 +23,12 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 (\code{n_intake - product_n}).
 \item \code{method_vs}: \code{"intake_digestibility"} (default,
 \code{intake_dm_t * (1 - digestibility) * (1 - ash)}).
+\item \code{forage_n}: nitrogen content of the grazed forage that intake rows with
+no \code{item_cbs_code} take. \code{"assumed_midrange"} (default, 0.02 kg N/kg DM,
+an assumed unverified value), \code{"gleam_grass_fresh"} (0.022),
+\code{"gleam_grass_hay"} (0.017) and \code{"gleam_grass_mean"} from GLEAM 3.0
+Supplement S1 Tab. S.3.3, or \code{"biomass_coefs_grass"} (0.0174) from the
+\code{bio_coefs} \code{Grass} row.
 \item \code{product_n}: a tibble (\code{year}, \code{territory}, \code{sub_territory},
 \code{livestock_category}, \code{product_n}) required by \code{"intake_minus_product_n"}.
 }}
@@ -31,7 +37,7 @@ bucket and so loses the territory for 62 of the 257 codes it knows.}
 A tibble with one row per
 \verb{year x territory x sub_territory x livestock_category} and columns
 \code{n_intake}, \code{n_excretion}, \code{c_excretion}, \code{vs_excretion},
-\code{method_n_excretion} and \code{method_vs}.
+\code{method_n_excretion}, \code{method_vs} and \code{method_forage_n}.
 }
 \description{
 Converts realised feed intake (the output of \code{\link[=redistribute_feed]{redistribute_feed()}}) into
