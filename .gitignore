@@ -51,6 +51,3 @@ tree.html
 
 # interactive code diagram (generated, local only)
 diagram/
-
-# PR and issue body drafts (working material, human-facing prose)
-docs/pr/

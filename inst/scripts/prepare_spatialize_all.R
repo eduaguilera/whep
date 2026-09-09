@@ -3536,9 +3536,17 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
 # 0 kt there is an observation rather than an invention. Nothing else is
 # filled.
 #
-# Poultry do not ferment enterically: IPCC 2006 Vol.4 Ch.10 Table 10.10 gives
-# no enteric fermentation emission factor for any bird, and FAOSTAT
-# correspondingly publishes no such row. Measured on pin vintage
+# Poultry: neither IPCC nor FAOSTAT publishes an enteric factor, and WHEP
+# books the absence as 0. Be precise about why, because "birds do not ferment
+# enterically" is NOT the reason and this package's own documentation says so:
+# `ipcc_2019_enteric_ef_other`'s @source records that both the 2006 Guidelines
+# and the 2019 Refinement give poultry "insufficient data for calculation", so
+# the stored 0 is a project choice rather than a published factor, tracked in
+# whep#601. What makes it safe to treat as structural HERE is narrower and
+# checkable: FAOSTAT publishes no enteric row for any bird, so nothing is being
+# overwritten and the 0 matches the coefficient the package already applies.
+# If whep#601 ever resolves to a non-zero factor, these rows must move with it.
+# Measured on pin vintage
 # 20260325T113403Z-23bf8: the items "Chickens", "Chickens, layers",
 # "Chickens, broilers", "Ducks", "Turkeys" and "Poultry Birds" carry 0
 # "Enteric fermentation (Emissions CH4)" rows under either Source, against
