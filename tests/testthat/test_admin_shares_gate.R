@@ -1439,19 +1439,29 @@ test_that("no seam year is hardcoded anywhere in the gate", {
     "seam_gate_tolerances",
     grep("^\\.sg_", ls(asNamespace("whep"), all.names = TRUE), value = TRUE)
   )
-  # Deparse the BODY and the FORMALS, never the closure. Deparsing a closure
-  # emits whatever the surface attaches to it -- a `<bytecode: 0x...>` line, an
-  # `<environment: 0x...>` line, a source reference -- and none of that is
-  # code. On the built tarball those lines carried digit runs that the year
-  # pattern matched (1636, 1689, 1715), so the check failed on the package's
-  # own memory addresses while passing under `load_all()`, where they are
-  # absent. Body plus formals is the function's actual source and nothing else,
-  # so the check now reads the same on a source checkout, an install and a
-  # tarball.
+  # This check reads SOURCE, so it cannot run on an instrumented build.
+  #
+  # It failed on `test-coverage` while passing everywhere else. Under covr each
+  # expression is wrapped in a `covr:::count()` call whose trace key embeds the
+  # source line number, and in a 1,757-line file those keys read 1636, 1689,
+  # 1715 -- which the year pattern matches exactly. The check failed on its own
+  # line numbers while reporting years that appear nowhere in the gate, so it
+  # looked like the defect it exists to catch.
+  #
+  # Two defences, because a filter alone depends on covr's internal shape:
+  # skip where the package is instrumented, and drop trace lines anywhere else.
+  # The invariant is still enforced on every other surface -- R CMD check on
+  # four platforms, the offline job, and a local run.
+  testthat::skip_if(
+    nzchar(Sys.getenv("R_COVR")),
+    "covr instruments the body; its trace keys carry source line numbers"
+  )
+
   code <- unlist(lapply(objects, function(nm) {
     fn <- get(nm, envir = asNamespace("whep"))
     c(deparse(body(fn)), deparse(formals(fn)))
   }))
+  code <- code[!grepl("covr|:::count\\(|\\.R:[0-9]+:[0-9]+", code)]
 
   # `L?` is load-bearing: an R year literal is written `1961L`, and
   # `\\b` finds no boundary between the digit and the suffix, so a

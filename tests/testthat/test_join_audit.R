@@ -290,12 +290,18 @@ test_that("every year-free territorial grouping is classified", {
   # comparing two different Rest-of-World residuals against each other.
   full <- whep:::.territorial_grouping_baseline()
   #
-  # 79 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
+  # 81 since whep#884: `.area_reporting_windows()` reduces the crosswalk's
   # periods to one window per area and `.off_window_area_years()` reduces an
   # area's off-window rows to the span they cover. Both are `year_axis` -- the
   # year is the thing being reduced over, so putting it in the key returns the
   # year itself, which is the same reason `.area_first_reported_year` is on
   # this ledger.
+  #
+  # (This anchor read 79 and the chain below therefore did not reach its own
+  # final number. `main` immediately before whep#999 asserts 81, and with 81
+  # the chain closes exactly: 81 +5 +4 +8 +1 +5 +1 -1 = 104. Corrected here
+  # rather than in a separate main-side change, because this branch rewrites
+  # the tail of the same chain and a reviewer reads it in one pass.)
   #
   # 86 since whep#1000 T12: five groupings across four keys, all of them one of
   # the admitted five. `.level_container_land()` is `single_year` (it sums a
