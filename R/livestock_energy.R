@@ -508,6 +508,12 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
 }
 
 #' Join temperature adjustment factors.
+#'
+#' A missing `temperature_c` column, or an `NA` value within it, is
+#' imputed to the 15C default -- the band join is an exact-match filter
+#' on `temp_min <= temperature_c < temp_max`, and `NA` satisfies no
+#' band, so leaving it unimputed would silently drop the whole row
+#' from energy demand and every downstream emission (#216).
 #' @noRd
 .join_temperature_adjustment <- function(data) {
   if (!rlang::has_name(data, "temperature_c")) {
@@ -518,6 +524,26 @@ estimate_energy_demand <- function(data, method = "ipcc2019") {
           method_energy,
           "; temp_assumed_15C"
         )
+      )
+  }
+
+  n_na <- sum(is.na(data$temperature_c))
+  if (n_na > 0) {
+    cli::cli_warn(c(
+      "{n_na} row{?s} with {.code NA} {.field temperature_c} imputed
+       to the 15C default before the temperature-adjustment join.",
+      i = "Otherwise {cli::qty(n_na)}{?this row/these rows} would
+           silently drop out of energy demand: the join is an exact
+           band match, and no band matches {.code NA}."
+    ))
+    data <- data |>
+      dplyr::mutate(
+        method_energy = dplyr::if_else(
+          is.na(temperature_c),
+          paste0(method_energy, "; temp_assumed_15C"),
+          method_energy
+        ),
+        temperature_c = dplyr::coalesce(temperature_c, 15)
       )
   }
 
