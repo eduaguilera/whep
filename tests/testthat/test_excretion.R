@@ -118,3 +118,59 @@ test_that("estimate_n_excretion guards against bad input", {
     "product_n"
   )
 })
+
+test_that("forage_n selects the grazed-forage N and records the choice", {
+  # Every one of the grazed sink's 500 t of grass carries the selected N, and
+  # nothing else in the toy intake does, so n_intake moves exactly with it.
+  fn <- whep:::.feed_n_content_lookup()
+  barley_n <- fn$feed_n_kgn_kgdm[fn$item_cbs_code == 2513L]
+  for (m in whep:::.forage_n_methods()) {
+    res <- whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(forage_n = m)
+    )
+    cm <- res[res$livestock_category == "Cattle_milk", ]
+    expect_equal(
+      cm$n_intake,
+      100 * barley_n + 500 * whep:::.forage_n_kgn_kgdm(m)
+    )
+    expect_true(all(res$method_forage_n == m))
+  }
+})
+
+test_that("the default forage_n leaves excreted nitrogen unchanged", {
+  # Regression lock: the shipped default is still the 0.02 kg N/kg DM the
+  # package has always used, so no published nitrogen moves (whep#1050).
+  expect_equal(whep:::.forage_n_kgn_kgdm(), 0.02)
+  expect_equal(
+    whep::estimate_n_excretion(.toy_intake())$n_excretion,
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(forage_n = "assumed_midrange")
+    )$n_excretion
+  )
+})
+
+test_that("every forage_n option sits in the GLEAM roughage grass band", {
+  # An invariant, not a table of expectations: GLEAM 3.0 Supplement S1
+  # Tab. S.3.3 brackets grazed forage at 17-31 g N per kg DM, from GRASSH to
+  # GRASSLEGF. A coefficient fitted to a target instead of read from a source
+  # lands outside that band.
+  vals <- purrr::map_dbl(whep:::.forage_n_methods(), whep:::.forage_n_kgn_kgdm)
+  expect_true(all(vals >= 0.017 & vals <= 0.031))
+  expect_equal(whep:::.forage_n_kgn_kgdm("gleam_grass_fresh"), 0.022)
+  expect_equal(whep:::.forage_n_kgn_kgdm("gleam_grass_hay"), 0.017)
+  expect_equal(whep:::.forage_n_kgn_kgdm("gleam_grass_mean"), 0.0195)
+  expect_equal(whep:::.forage_n_kgn_kgdm("biomass_coefs_grass"), 0.0174)
+})
+
+test_that("an unknown forage_n aborts instead of falling back", {
+  expect_error(
+    whep::estimate_n_excretion(
+      .toy_intake(),
+      options = list(forage_n = "calibrated_to_faostat")
+    ),
+    class = "rlang_error"
+  )
+  expect_error(whep:::.forage_n_kgn_kgdm("bogus"), class = "rlang_error")
+})
