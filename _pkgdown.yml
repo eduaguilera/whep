@@ -41,6 +41,29 @@ reference:
   - run_spatialize
   - build_gridded_landuse
   - build_gridded_livestock
+  - read_glw_density
+  - admin_shares_prototype
+  - admin_shares_schema
+  - ensure_admin_shares
+  - read_admin_stats_nass
+  - read_admin_stats_eurostat
+  - read_admin_stats_sidra
+  - read_admin_family
+  - read_admin_shares
+  - resolve_admin_units
+  - resolve_admin_shares
+  - read_level_country_grid
+  - build_allocation_layer
+  - admin_coverage_prototype
+  - build_level_crop_targets
+  - allocate_level_crops
+  - reconcile_admin_allocation
+  - unit_cropland_extent
+  - aggregate_unit_extent
+  - check_extent_jumps
+  - backcast_admin_shares
+  - seam_gate_tolerances
+  - seam_gate
 
 - title: Polycell spatial support
   desc: >
@@ -384,6 +407,7 @@ reference:
   - polities
   - polity_area_crosswalk
   - polity_label_aliases
+  - polity_containment
   - polities_cats
   - regions_full
   - add_polity_code
@@ -412,6 +436,20 @@ reference:
   - items_prod_full
   - add_item_prod_code
   - add_item_prod_name
+- subtitle: Administrative-statistics vocabularies
+  desc: >
+    Source crop classes and livestock classes of the subnational statistics
+    readers mapped onto WHEP items and species groups, with the mapping kind
+    and, for livestock aggregates, the group set whose sum they constrain.
+  contents:
+  - admin_source_vocabularies
+  - admin_items_nass
+  - admin_items_eurostat
+  - admin_items_sidra
+  - admin_items_jrc
+  - admin_species_nass
+  - admin_species_eurostat
+  - admin_species_sidra
 
 - title: Reference tables
   desc: >

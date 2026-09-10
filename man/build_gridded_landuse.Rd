@@ -106,6 +106,17 @@ Default: \code{100L}.
 \item \code{area_key}: Which area code the output is keyed on, \code{"grid"}
 (default) or \code{"polity_area"}. See \emph{Which area code the output is
 keyed on}.
+\item \code{mc_factor}: Which multi-cropping factor sets the capacity
+ceiling of a granted-depth compartment, \code{"unit"} (default) or
+\code{"national"}. See \emph{The capacity ceiling and its breach}. A grid
+with no \code{level_polity_code} has no unit, so the two are the same
+table there and a level-0 run is unaffected.
+\item \code{pattern_extension}: \code{"none"} (default) or \code{"granted_units"}.
+Under \code{"granted_units"}, a granted-depth compartment carrying no
+\code{crop_patterns} row for an item the national table gives it a
+target for gains one at \code{harvest_fraction = 0}, so the crop is
+placed uniformly over that unit's cropland of its LUH2 type
+instead of being dropped. Level-0 rows are never extended.
 }}
 }
 \value{
@@ -126,6 +137,14 @@ reporting code the engine allocated on.
 \item \code{rainfed_ha}: Rainfed harvested area in the cell.
 \item \code{irrigated_ha}: Irrigated harvested area in the cell.
 }
+
+The per-compartment capacity breach is a second table and is
+therefore \strong{not} returned here: this function's return value is a
+contract two in-package consumers and every \code{run_spatialize()} caller
+already depend on, and an attribute would ride through every dplyr
+verb into comparisons that are about the allocation. Allocate at a
+granted depth with \code{\link[=allocate_level_crops]{allocate_level_crops()}}, which returns the breach
+beside the allocation. See \emph{The capacity ceiling and its breach}.
 }
 \description{
 Disaggregate country-level FAOSTAT crop harvested areas to a 0.5-degree
@@ -144,6 +163,40 @@ redistributed using a logit-based transformation.
 \item Individual crops are aggregated into crop functional types (CFTs).
 }
 }
+\section{The capacity ceiling and its breach}{
+
+The ceiling is soft: \code{.redistribute_country_dt()} rescales every crop
+back to its target after the logit passes, so where a compartment's
+cells cannot hold the target the target wins and the ceiling gives
+way. That excess is measured rather than absorbed, and returned as the
+\code{breach} table of \code{\link[=allocate_level_crops]{allocate_level_crops()}}: one row per compartment,
+cell, item and \code{mc_basis}, with \code{rf_over} and \code{ir_over} in hectares,
+which T14's reconciliation consumes as a table and never as warning
+text. A cell's ceiling
+is shared by every item in it, so the cell's excess is attributed to
+items \strong{pro rata by their allocated area} -- no other split is
+available, and summing the rows of a cell recovers its excess exactly.
+
+\code{mc_basis} records which multi-cropping factor the row was scored
+against. Rows carrying a \code{level_polity_code} are scored twice: at
+\code{"national"}, the factor the \code{multicropping} layer supplies (which is
+a national figure broadcast to every cell, so it inflates a unit's
+breach by construction), and at \code{"unit"}, the unit's own implied
+intensity -- its whole allocated harvested area over the same physical
+cropland the ceiling uses, floored at 1 because a factor below 1 would
+forbid single cropping on land that exists. \code{in_force} marks the basis
+\code{mc_factor} selected, which is the one the redistribution ran against.
+
+The unit factor makes a unit's \emph{aggregate} ceiling equal its own
+allocation by construction, so a breach at \code{"unit"} is always a
+within-unit concentration, never a shortfall of the unit as a whole;
+that is the difference the pair of bases exists to show. The plan
+phrases the unit factor as unit harvested over unit \emph{herbaceous} LUH2
+cropland; the ceiling carries no LUH2 type split, so it is computed
+over the same cropland the ceiling itself multiplies, and a
+herbaceous-only denominator would leave the two inconsistent.
+}
+
 \section{Which area code the output is keyed on}{
 
 The chain allocates \emph{from} a national table keyed on \code{area_code} and

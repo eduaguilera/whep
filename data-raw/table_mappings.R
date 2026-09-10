@@ -168,6 +168,74 @@ cli::cli_inform(paste0(
   "{length(unique(polity_label_aliases$source_label))} labels."
 ))
 
+# The member-container containment edge published by whep-polities
+# (data/final/polity_containment.csv, whep-polities#649, closing whep#51).
+# Any WHEP admin unit (a province, a prefecture, ...) is already a
+# `polity_type == "subnational"` row of `polities`; this edge is the piece
+# that was missing -- which member polity sits inside which container
+# polity, and for what years. Embedded here for the same reason
+# `polity_label_aliases` is: a package function cannot depend on a sibling
+# checkout existing.
+whep_polity_containment_csv <- Sys.getenv(
+  "WHEP_POLITY_CONTAINMENT_CSV",
+  unset = path.expand("~/whep-polities/data/final/polity_containment.csv")
+)
+
+if (!file.exists(whep_polity_containment_csv)) {
+  cli::cli_abort(c(
+    "The published polity containment edge set is missing.",
+    x = "Looked for {.path {whep_polity_containment_csv}}.",
+    i = paste(
+      "It is published by whep-polities as",
+      "{.path data/final/polity_containment.csv} (#649)."
+    ),
+    i = paste(
+      "If that repository is checked out elsewhere, point",
+      "{.envvar WHEP_POLITY_CONTAINMENT_CSV} at the file."
+    ),
+    i = paste(
+      "The committed data/polity_containment.rda already carries the edge",
+      "set, so only regeneration is affected, not use."
+    )
+  ))
+}
+
+polity_containment <- readr::read_csv(
+  whep_polity_containment_csv,
+  show_col_types = FALSE,
+  na = excel_na,
+  col_types = readr::cols(
+    member_code = readr::col_character(),
+    container_code = readr::col_character(),
+    start_year = readr::col_integer(),
+    end_year = readr::col_integer(),
+    basis = readr::col_character()
+  )
+)
+
+# Every edge endpoint must name a polity the upstream database carries.
+# Checked against the freshly read `polities`, not against the committed
+# data/polities.rda, because the two are regenerated together from this
+# script.
+unknown_containment_codes <- setdiff(
+  c(polity_containment$member_code, polity_containment$container_code),
+  polities$polity_code
+)
+if (length(unknown_containment_codes) > 0L) {
+  cli::cli_abort(c(
+    "The published containment edge set names polities this package cannot
+     carry.",
+    x = "Unknown: {.val {utils::head(unknown_containment_codes, 5)}}.",
+    i = "Rebuild from the same whep-polities revision that produced the
+         edge set."
+  ))
+}
+
+cli::cli_inform(paste0(
+  "Loaded {nrow(polity_containment)} published containment edges over ",
+  "{dplyr::n_distinct(polity_containment$container_code)} containers."
+))
+
 regions_full_raw <- here::here(
   "inst",
   "extdata",
@@ -1055,3 +1123,4 @@ usethis::use_data(items_prod, overwrite = TRUE)
 usethis::use_data(polities, overwrite = TRUE, compress = "xz")
 usethis::use_data(polity_area_crosswalk, overwrite = TRUE)
 usethis::use_data(polity_label_aliases, overwrite = TRUE)
+usethis::use_data(polity_containment, overwrite = TRUE)

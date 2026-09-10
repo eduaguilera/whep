@@ -58,6 +58,13 @@ a hardcoded grid.
 | `lpjml_wind_provenance.R` | Audits `lpjml-wind-isimip-1901-2019` against the ISIMIP2a files it claims to come from, by rebuilding the monthly means with `cdo` and requiring exact equality. The sibling above answers "is this pin corrupt?"; this answers "is it the dataset its name says?" (#371). Needs the daily chunks on disk via `WHEP_ISIMIP_WIND_DIR`; no baseline file, because the source *is* the baseline. |
 | `temp_grassland_6633.R` | Checks modelled CBS 3002 (temporary grassland, the quantity PR #349 nets out of the FAO arable target) against FAOSTAT RL item 6633, **official rows only** — 68% of that series is FAO-imputed, including outright imputed zeros for Greece and Poland. See below. |
 | `gt_temp_grassland_6633.json` | Recorded state of that comparison per modelled concept. **Committed** — a tripwire, meant to fail when the fodder reconstruction moves. |
+| `admin_drift_tvd.R` | Sizes the within-country geography a spatialization pattern frozen at one reference year cannot represent (#1000): total variation distance between an admin-unit share vector and its reference year, on observed subnational statistics. Also emits the per-source discrepancy and gap-year distributions the allocation policy is decided against. Needs `WHEP_SUBNATIONAL`; skips with a message when unset. See below. |
+| `gt_admin_drift.json` | Recorded state of that measurement per country × indicator × reference year × year, plus the gap-year and discrepancy summaries. **Committed** — a tripwire, meant to fail when the compiled panel changes. |
+| `admin_seam_gate.R` | Judges one `run_spatialize()` output for seam continuity (#1000): the three-tier `seam_gate()` — anchor identity, seam log-ratios against the observed distribution, cell-share jump rates around each seam — plus a derived window scan. Reads one local output directory; needs `WHEP_SPATIALIZE_OUT_DIR`, skips with a message when unset. See below. |
+| `gt_admin_seam_gate.json` | Recorded state of that gate per container × seam year. **Committed once a real run has been recorded** — a tripwire, meant to fail when the allocation moves. Absent until then. |
+| `japan_pilot.R` | Runs **one whole constrained spatialization** end to end (#1000): Japan at depth 1, its national crop totals split across 46 prefectures by MAFF's reported areas, 1961–2022, six crops. The first `run_spatialize(level = 1)` on real administrative statistics rather than a fixture. Reproduces a hand-computed anchor (Hokkaido, paddy rice, 2000) and reports coverage, discrepancy, capacity breaches, straddling, interior gaps and the seam gate on real numbers. Needs `WHEP_POLYCELL_SUPPORT_PATH` (the Japan pilot support) and `VAL_JP_INPUT_DIR`; skips loudly when either is absent, which a fresh clone always does. See below. |
+| `gt_japan_pilot.json` | Recorded state of that run: the pre-scan per item over the full stated scope, the per-item coverage and breach summary, the seam-gate tiers at their own gate grain, the interior-gap summary, and the anchor. **Committed** — a tripwire, meant to fail when the allocation, the pin or the support moves. |
+| `spatialize_grid_vintage.R` | Sizes what changes when the level-0 country grid stops being the 2015 snapshot and becomes year-aware (#1000, T39): support coverage, the national tables with no cell to land in, and optionally the gridded crop output itself. A **measurement behind an open decision**, not a gate. Reads the polycell-support pin (network on a machine with no pins cache) and caches the year-aware grid it builds; the sweep runs it only once that cache exists. See below. |
 
 ## Temporary grassland vs FAO 6633 (`temp_grassland_6633.R`)
 
@@ -138,6 +145,327 @@ baseline, which is how the check was shown to fire rather than merely to pass.
 The production build (~130 s, ~4.5 GB peak for 2001–2023) is cached under the
 gitignored `.whep_cache/`, so only the first run is slow. `validate_all.R` runs
 this check only when that cache already exists, or when `VAL_TG_FORCE` is set.
+
+## Admin-unit drift (`admin_drift_tvd.R`)
+
+`run_spatialize()` splits a national total across 0.5-degree cells in proportion
+to a weight frozen at circa 2000 — the Monfreda `harvest_fraction` for crops, a
+LUH2 land-use proxy for livestock — so the *shape* of the allocation inside a
+country is the year-2000 shape in every year of the run. This script measures
+what that costs, and is the evidence Phase 3 of the subnational-spatialization
+plan (#1000) is asked with.
+
+For one country, indicator and item, with `s_u(t)` = admin unit `u`'s share of
+the national quantity in year `t`:
+
+```text
+TVD(t, r) = 0.5 * sum_u | s_u(t) - s_u(r) |
+```
+
+is the fraction of the national total sitting in a different unit than the
+reference-year pattern implies. Measured on **harvested area** (the quantity
+the plan's decision 8 binds; a production share would embed a within-unit
+yield) and on livestock head counts, area-weighted over items:
+
+| country | 1961 | 1970 | 1980 | 1990 | 2010 | 2020 |
+|---|---|---|---|---|---|---|
+| Spain | 28.0 | 24.5 | 16.5 | 12.5 | 10.3 | 12.1 |
+| Japan | 23.9 | 13.8 | 7.1 | 4.6 | 3.3 | 5.7 |
+| USA | 16.6 | 13.9 | 16.0 | 8.5 | 4.8 | – |
+| France | – | 19.9 | – | – | – | 9.2 |
+| Italy | – | 18.7 | – | – | – | 10.0 |
+| Australia | 12.5 | 11.6 | 6.1 | 5.9 | 6.2 | 12.9 |
+
+Per crop it reaches 63.6% (Spain maize 1961) and 60.0% (Japan barley 1961);
+French livestock against a 2010 reference reaches 48.7% (goats) and 42.8%
+(sheep). Drift is monotone in distance from the reference year and V-shaped
+about it. A `–` is a country-year where no item had at least five admin units
+common to both years, not a zero: the USA's 2020 field-crop rows in this panel
+are almost entirely flagged `duplicate_cell`, and France and Italy are compiled
+at 1970 / 2000 / 2020 only.
+
+The score is a **lower bound** on the allocation error — aggregating cells back
+to units cannot see misallocation between cells inside one unit.
+
+```bash
+WHEP_SUBNATIONAL=<panel.parquet> Rscript validation/admin_drift_tvd.R
+WHEP_SUBNATIONAL=... Rscript validation/admin_drift_tvd.R --record  # re-record
+WHEP_SUBNATIONAL=... Rscript validation/admin_drift_tvd.R --perturb # must FAIL
+```
+
+`--perturb` (or `VAL_ADT_PERTURB=<factor>`) scales every other admin unit inside
+each country-indicator-item-year. A *flat* scale would cancel in the shares and
+prove nothing, so the tripwire distorts the shape instead; 83 of the 90 recorded
+rows move under it.
+
+Two companion outputs feed the allocation-policy decisions and are written to
+the gitignored `cache/`, with their per-source summaries recorded in the JSON:
+
+- `cache/admin_drift_discrepancy.csv` — `admin_sum / national_total - 1` per
+  (country, item, year). Needs `VAL_ADT_NATIONAL_CSV` pointing at a
+  `build_primary_production()` export (`year`, `area_code`, `item_prod_code`,
+  `unit`, `value`); the section is skipped with a message when unset.
+- `cache/admin_drift_gap_years.csv` — interior missing years per series, with
+  run lengths, which is what `fill_proxy_growth()`'s `max_gap` settings are
+  chosen against.
+
+The zero-pattern-unit count (unit × crop pairs with reported area > 0 and no
+positive Monfreda cell) is **not** produced here: it needs a cell-to-unit
+crosswalk that does not exist until the level-1 grid lands.
+
+This **extends** `subnational.workflow.js` / `compare_findings.R` rather than
+replacing them. Those score WHEP's *national* value against subnational
+statistics summed to a national total; this one never uses a national value as
+skill, and reads a different artifact.
+
+## Seam gate (`admin_seam_gate.R`)
+
+The subnational-spatialization plan's decision 6 is that a series must be
+continuous across every **seam** — the year a country's admin constraint
+starts, and every source, grain, NUTS-version, coverage or indicator switch
+after it. `seam_gate()` is the judge, in three tiers documented on the function
+itself:
+
+- **A, identity at the anchor.** At each series' `t0` the table still holds the
+  observation: every unit's row is observed, the shares sum to 1 within 1e-8,
+  each share equals its own reported value's share, and `t0` is the `"start"`
+  seam the resolver named. A series with no `"start"` seam to compare `t0`
+  with, or with no observed row to anchor on at all, comes back `pass = NA`
+  with the reason on its row rather than passed; the METRIC line's
+  `tier_a_ungated` counts them, and a series no tier judged holds the gate's
+  `overall` verdict at `NA`.
+- **B, the governed quantity.** The seam log-ratio
+  `|log(s_u(t0) / s_u(t0 - 1))|` of every unit at every seam year, against the
+  empirical distribution of that series' **observed** consecutive log-ratios
+  pooled over its units, gated pairs held out. The statistic is the fraction of
+  gated pairs beyond Q95, per container, judged against
+  `0.05 + 2 * sqrt(0.05 * 0.95 / n)` — the upper band of a binomial proportion
+  under the null that a seam pair is an ordinary pair.
+- **C, cell smoke.** `check_series_jumps()` on each cell's share of the national
+  total across `(t0-2, t0-1)`, `(t0-1, t0)` and `(t0, t0+1)`, one pair at a
+  time, cells under 100 ha in both years dropped first. The gate is that the
+  seam pair's flag rate exceeds its neighbours' mean by at most one percentage
+  point. Where the cells carry a `regime` column it must be identical on both
+  sides of the seam.
+
+This script is the live leg. It reads **one existing** `run_spatialize()`
+output directory and nothing else — no pin, no network, no rebuild:
+
+```bash
+WHEP_SPATIALIZE_OUT_DIR=<run dir> Rscript validation/admin_seam_gate.R
+WHEP_SPATIALIZE_OUT_DIR=... Rscript validation/admin_seam_gate.R --record
+WHEP_SPATIALIZE_OUT_DIR=... Rscript validation/admin_seam_gate.R --perturb
+```
+
+`gridded_landuse_crops.parquet` supplies tier C's cells (never the CFT
+aggregation, whose rows pool several items) and `admin_coverage.csv` supplies
+the seam list, rebuilt with the resolver's own `.admin_seam_list()`. That file
+carries no indicator and no NUTS version, so **two of the six seam kinds cannot
+be recovered from it**; point `VAL_ASG_SEAMS` at the resolver's own `seams`
+table to gate those too. Tiers A and B additionally need the back-cast share
+table (`VAL_ASG_SHARES`), which `run_spatialize()` does not write today — with
+it unset the script runs tier C alone and says so.
+
+Beyond the seam pairs, the script runs a **window scan**: tier B over every
+consecutive pair from `VAL_ASG_WINDOW` years (default 2) before each series'
+first seam to one year after it. The window is derived from that series' own
+first constrained year, so a country whose statistics start in 1974 and one
+that starts in 1850 each get their own; no year is written down anywhere in the
+gate or the script.
+
+`--perturb` (or `VAL_ASG_PERTURB=<factor>`) scales every other cell of each
+container and crop from the seam year onwards. A *flat* scale would cancel in
+the cell share and prove nothing, so the tripwire distorts the within-country
+shape at the seam and nowhere else, which is exactly the artefact tier C
+exists to catch. The default factor is 3 rather than something smaller because
+scaling half the mass by `f` renormalises the shares by about `(f + 1) / 2`,
+leaving the untouched half's ratio at about `2 / (f + 1)`, which only clears
+`check_series_jumps()`'s low bound of 0.55 once `f > 2.64`. The script aborts
+if a perturbed run moves no recorded row: a tripwire that fires on nothing has
+proved nothing.
+
+`gt_admin_seam_gate.json` does not exist until someone records a real run —
+`--record` writes it, and the plain run then judges every measured row against
+it and exits non-zero when one moves.
+
+## Japan depth-1 pilot (`japan_pilot.R`)
+
+The other two subnational legs each look at one slice of the depth chain:
+`admin_drift_tvd.R` measures the panel before any run, `admin_seam_gate.R`
+judges a run that already exists. This one **is** the run: it drives
+`run_spatialize(level = 1, granted_containers = 110L)` over Japan for
+1961–2022 and six crops, and it is the first time that path has met real
+administrative statistics instead of a fixture.
+
+**The anchor.** Hokkaido, paddy rice (`item_prod_code` 27), year 2000. MAFF
+reports 134,900 ha; the 46 prefectures report 1,762,002 ha between them;
+FAOSTAT's national total is 1,770,000 ha. Coverage is complete, so no residual
+unit is raised and the reported units rescale proportionally —
+134,900 × 1,770,000 / 1,762,002 = **135,512.33 ha**. The script pins that
+number, recomputes it from the pin and the allocator, and exits non-zero if it
+moves by more than 1e-9 relative. It is judged harder than everything else
+because it is an arithmetic identity over three integers, not a measurement.
+
+**Three things are approximate, and the script says so in its own header.**
+
+1. *The support is Japan-only.* It carries the 46 prefecture polycells and no
+   `area_code` at all, so `read_level_country_grid(level = 0)` returns zero
+   rows against it and the allocation layer is the depth grid alone. Every
+   layer row is reported as `unit_outside_level0` ragged coverage. The leg
+   scopes its inputs to container 110 and the six MAFF items rather than let
+   ~200 countries be dropped for having no cell; with no non-Japanese cell in
+   the grid, that changes nothing about Japan's answer.
+2. *The world pin was unsound and has been repinned* (whep#1010, fixed by
+   whep#1012). The defective version `20260827T190201Z-f82a2` carried zero
+   inland water and zero ice, which `territory == land + water + ice` cannot
+   see because zero satisfies it. **`whep_inputs.csv` now registers
+   `20260907T111653Z-e654d`, which carries both layers and is the version to
+   use.** Do not repin backwards onto `20260825T102349Z-1a0eb`: it is sound on
+   the layers but predates the bucket `area_code` work (whep#907).
+   **A pilot support generated before whep#1012 must be regenerated**, and
+   this is the one case where the guard's fallback gets the wrong answer for
+   the right reason. `read_polycell_support()` defaults to
+   `require_layers = TRUE` and aborts (`whep_polycell_absent_layers`) on a
+   support whose layers it cannot vouch for. Where the `layers_supplied` stamp
+   is present the *label* answers; where it is absent the fallback asks whether
+   the column is zero in every row — and **Japan's ice genuinely is**, because
+   Japan has no glaciers in the source. So an unstamped pilot support is
+   refused for having a correct measurement. Re-running
+   `inst/scripts/build_pilot_polycell_support.R` fixes it: it calls
+   `build_polycell_support()`, which stamps `layers_supplied` itself.
+3. *The alias rows are injected.* `resolve_admin_units()` resolves
+   `JPN-HOKKAIDO` under the code system `whep-lab-japan`, and
+   `polity_label_aliases` ships none of those rows: they are a whep-polities
+   deliverable that has not landed, and without them every unit resolves to
+   `NA` and the run aborts with `whep_run_admin_unresolved`. The script builds
+   the 46-row identity map and installs it in the package namespace, so the
+   production call path — `.admin_resolve_units()`, which passes no `aliases`
+   — resolves it exactly as it will once the rows are published. **The alias
+   `source` must be the code-system slug `whep-lab-japan`, never the pin's own
+   `admin-stats-japan`:** measured, the first resolves 32,095 of 32,095 rows
+   and the second 0 of 32,095, because the resolver builds the slug from
+   `code_system` and never reads the rows' own `source`. The script asserts
+   both numbers so the trap cannot come back silently.
+
+**The pre-scan.** Decision T31(d) refuses a group whose units all report and
+whose areas still miss the national total by more than both tolerances, and
+`.alloc_refuse_discrepancy()` aborts the whole run on the first one, naming
+only the worst. So the leg evaluates the same rule first, over the full stated
+scope, prints every refused group, and runs the engine without their national
+rows — their admin-share rows stay in the constraint, so the seam gate and the
+gap report still see them. Nothing is repaired and no tolerance is widened:
+which side of a refused group is wrong is a methodological question the leg
+does not answer, and the refused groups are printed, written to
+`cache/pilot_japan/prescan.csv`, counted in the METRIC line and recorded per
+item in the baseline over the full scope.
+
+**Two diagnostics the driver drops.** `allocate_level_crops()` returns a
+`straddle` table and a `bridges` table and `reconcile_admin_allocation()`
+returns a third, but `.write_admin_outputs()` writes eleven CSVs and none of
+them is any of the three, nor does `.admin_run_record()` carry them — so a
+depth run cannot be audited for cell straddling or carried years from its own
+output directory. This leg recomputes both. That is a workaround for a defect
+in `R/run_spatialize.R`, not a design.
+
+**Tier C is always empty here.** `.admin_seam_gate()` calls `seam_gate()` with
+the shares and the seams and no cells, so the cell tier has nothing to judge on
+any `run_spatialize()` depth run. Tier C on this run's grid is exactly what
+`admin_seam_gate.R` is for: point its `WHEP_SPATIALIZE_OUT_DIR` at
+`validation/cache/pilot_japan/run`.
+
+```bash
+WHEP_POLYCELL_SUPPORT_PATH=<pilot support.parquet> \
+  VAL_JP_INPUT_DIR=<prepared inputs> Rscript validation/japan_pilot.R
+... Rscript validation/japan_pilot.R --record    # re-record the baseline
+... Rscript validation/japan_pilot.R --refresh   # rebuild the scoped inputs
+```
+
+| Variable | Meaning |
+|---|---|
+| `WHEP_POLYCELL_SUPPORT_PATH` | Required. The Japan-only pilot support, from `inst/scripts/build_pilot_polycell_support.R`. A support with no `JPN-*` prefecture polycell — which is what the registered world pin is — skips the leg. |
+| `VAL_JP_INPUT_DIR` | Required. A directory of prepared spatialization parquets, as `run_spatialize(paths = list(input_dir = ))` takes them. Unset skips the leg. |
+| `VAL_JP_YEARS` | Optional. Comma-separated years. Default 1961–2022, the span the MAFF family covers. |
+| `VAL_JP_ITEMS` | Optional. Comma-separated `item_prod_code`s. Default 15, 27, 44, 116, 122, 236 — the six the family ships. |
+
+## Level-0 grid vintage (`spatialize_grid_vintage.R`)
+
+`run_spatialize()` allocates a national total into a **country grid**: one row
+per 0.5° cell and reporting `area_code`, carrying that unit's share of the
+cell's land. Until #1000 T39 that grid was always the polycell support read at
+one reference year (`.carbon_support_year()` = 2015), so every year of a run —
+1851 included — was allocated into the present-day cell-to-country map. T31(j)
+made the grid year-aware and `read_level_country_grid(grid_vintage = )` now
+selects between the two. They are two different geographies, not two
+precisions of one, and this script sizes the difference so the choice between
+them is made on numbers.
+
+It measures three things, in increasing distance from the support and
+increasing cost:
+
+- **A, the support itself.** Per year: how many cells and reporting areas each
+  vintage carries, how much land, and — weighting each cell by the LUH2
+  cropland and pasture it holds that year — how much of that land each country
+  **loses** and **gains** between the vintages, and how much falls in a cell no
+  polity claims that year and is therefore attributed to nobody. Both
+  directions are reported: a one-sided metric cannot see a defect whose
+  signature is absorption.
+- **B, the national tables that have to land in it.** Per year: which reporting
+  areas of `country_areas` / `livestock_country_data` have no cell at all under
+  each vintage, and the harvested area and head count they carry.
+  `.warn_grid_missing_reporters()` warns about exactly this set at run time,
+  and the whole national total is dropped from the gridded output.
+- **C, the gridded output.** For a small year set, `build_gridded_landuse()`
+  runs twice on identical inputs differing only in the grid, and the outputs
+  are differenced per cell. Crops only, and **off by default** because it is
+  minutes per year.
+
+A and B are the honest bound on C: nothing the engine does can put a national
+total into a cell the grid does not offer it.
+
+It does **not** reach the SOC or nitrogen chains, which read the same polycell
+support through `.carbon_cell_support()` rather than through
+`read_level_country_grid()`, so `grid_vintage` does not reach them either
+(whep#1002).
+
+```bash
+Rscript validation/spatialize_grid_vintage.R
+VAL_GV_ENGINE_YEARS=1961,2015 Rscript validation/spatialize_grid_vintage.R
+VAL_GV_REBUILD=1 Rscript validation/spatialize_grid_vintage.R
+```
+
+| Variable | Meaning |
+|---|---|
+| `WHEP_POLYCELL_SUPPORT_PATH` | Optional. A local support parquet overriding the pin, as `read_polycell_support()` reads it. |
+| `VAL_GV_YEARS` | Optional. Comma-separated years for A and B. Default: every decade 1851–2021 plus 1961 and 2015. |
+| `VAL_GV_ENGINE_YEARS` | Optional. Comma-separated years for C. **Unset (the default) skips C.** |
+| `VAL_GV_ENGINE_ITEMS` | Optional. Comma-separated `item_prod_code`s for C. Default: six large-area crops. |
+| `VAL_GV_REBUILD` | Optional. `"1"` forces the year-aware grid to be rebuilt instead of read from its cache. |
+
+The pinned inputs (`polycell-support`, `spatialize-gridded-cropland`,
+`spatialize-gridded-pasture`, `spatialize-country-areas`,
+`spatialize-livestock-country-data`, and for C `spatialize-crop-patterns`) are
+read through `whep_read_file()`, so a machine with no pins cache needs the
+network. The script exits 0 with `METRIC status=skipped` when the support
+cannot be resolved, and says which input failed.
+
+Outputs land under `validation/cache/`, which is gitignored in full:
+
+| File | Contents |
+|---|---|
+| `grid_vintage_support.csv` | A, one row per year. |
+| `grid_vintage_reporters.csv` | B, one row per year and national table. |
+| `grid_vintage_missing_areas.csv` | B2, the ten largest losers per year. |
+| `grid_vintage_engine.csv` | C, one row per year and component (only when C runs). |
+| `grid_vintage_year_aware.rds` | The year-aware grid itself, which costs minutes to build (152 epoch denominators over ~484k rows). Rebuilt on `VAL_GV_REBUILD=1`. |
+
+`validate_all.R` parses the script's `METRIC` line into a `grid_vintage` row.
+That row leaves `ok` and `flag` empty on purpose: which vintage is right is the
+open question the measurement exists to inform, so there is no pass criterion
+to score, and inventing a threshold would be a methodological choice hidden in
+a scorecard. Because building the year-aware grid costs minutes and reads a
+pin — and the sweep does not start a build without being asked — the row reads
+`not run` until `grid_vintage_year_aware.rds` exists, i.e. until the script has
+been run once by hand.
 
 ## Year-scoping equivalence (`year_scoping.R`)
 

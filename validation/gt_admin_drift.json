@@ -1,0 +1,909 @@
+{
+  "recorded_at": "2026-09-02T17:10:32+0200",
+  "panel": {
+    "env": "WHEP_SUBNATIONAL",
+    "file": "whep_production_subnational.parquet",
+    "rows_observed": 614779,
+    "rows_scored": 290120
+  },
+  "note": "Measured within-country drift of admin-unit share vectors against a frozen reference year, on directly transcribed statistics only. Not a tolerance: every number is a measurement to be re-recorded when the panel changes. `tvd` and `gaps` are judged every run; `discrepancy` is judged only when VAL_ADT_NATIONAL_CSV supplied national totals.",
+  "tvd": {
+    "Australia|area|2000|1961": {
+      "indicator": "area",
+      "year": 1961,
+      "n_items": 4,
+      "n_unit_pairs": 24,
+      "tvd_weighted": 12.514701730409763,
+      "tvd_median": 16.248310784904131,
+      "max_item": "Barley",
+      "max_tvd": 25.345398442221338
+    },
+    "Australia|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 4,
+      "n_unit_pairs": 24,
+      "tvd_weighted": 11.648024892871142,
+      "tvd_median": 13.052559693597864,
+      "max_item": "Potatoes",
+      "max_tvd": 20.99833901564822
+    },
+    "Australia|area|2000|1980": {
+      "indicator": "area",
+      "year": 1980,
+      "n_items": 4,
+      "n_unit_pairs": 24,
+      "tvd_weighted": 6.0623860512693915,
+      "tvd_median": 7.6881544450244057,
+      "max_item": "Potatoes",
+      "max_tvd": 16.588919987560534
+    },
+    "Australia|area|2000|1990": {
+      "indicator": "area",
+      "year": 1990,
+      "n_items": 5,
+      "n_unit_pairs": 30,
+      "tvd_weighted": 5.9396699038122618,
+      "tvd_median": 9.1363752173260586,
+      "max_item": "Oats",
+      "max_tvd": 10.001238342690783
+    },
+    "Australia|area|2000|2010": {
+      "indicator": "area",
+      "year": 2010,
+      "n_items": 4,
+      "n_unit_pairs": 25,
+      "tvd_weighted": 6.162345629997577,
+      "tvd_median": 11.216903170864592,
+      "max_item": "Barley",
+      "max_tvd": 14.084594520878388
+    },
+    "Australia|area|2000|2020": {
+      "indicator": "area",
+      "year": 2020,
+      "n_items": 4,
+      "n_unit_pairs": 23,
+      "tvd_weighted": 12.869052658704119,
+      "tvd_median": 12.934055619056515,
+      "max_item": "Barley",
+      "max_tvd": 16.634144649670006
+    },
+    "France|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 9,
+      "n_unit_pairs": 658,
+      "tvd_weighted": 19.936259879688141,
+      "tvd_median": 22.741891347051691,
+      "max_item": "Sunflower seed",
+      "max_tvd": 48.520757203190193
+    },
+    "France|area|2000|2020": {
+      "indicator": "area",
+      "year": 2020,
+      "n_items": 13,
+      "n_unit_pairs": 991,
+      "tvd_weighted": 9.2158921608753737,
+      "tvd_median": 13.382644335327038,
+      "max_item": "Tomatoes",
+      "max_tvd": 27.078080695347172
+    },
+    "Italy|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 12,
+      "n_unit_pairs": 185,
+      "tvd_weighted": 18.677254932606356,
+      "tvd_median": 23.233886849818248,
+      "max_item": "Apples",
+      "max_tvd": 49.486926773952781
+    },
+    "Italy|area|2000|2020": {
+      "indicator": "area",
+      "year": 2020,
+      "n_items": 12,
+      "n_unit_pairs": 185,
+      "tvd_weighted": 10.008782118667385,
+      "tvd_median": 11.488920690518867,
+      "max_item": "Potatoes",
+      "max_tvd": 50.141271124609077
+    },
+    "Japan|area|2000|1961": {
+      "indicator": "area",
+      "year": 1961,
+      "n_items": 5,
+      "n_unit_pairs": 223,
+      "tvd_weighted": 23.878720880749913,
+      "tvd_median": 31.450400804387936,
+      "max_item": "Barley",
+      "max_tvd": 60.031604377043777
+    },
+    "Japan|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 5,
+      "n_unit_pairs": 222,
+      "tvd_weighted": 13.773731047841398,
+      "tvd_median": 27.157479050673022,
+      "max_item": "Wheat",
+      "max_tvd": 55.684470377688989
+    },
+    "Japan|area|2000|1980": {
+      "indicator": "area",
+      "year": 1980,
+      "n_items": 5,
+      "n_unit_pairs": 222,
+      "tvd_weighted": 7.0450574368974861,
+      "tvd_median": 18.997125340994732,
+      "max_item": "Barley",
+      "max_tvd": 27.486618401665631
+    },
+    "Japan|area|2000|1990": {
+      "indicator": "area",
+      "year": 1990,
+      "n_items": 5,
+      "n_unit_pairs": 221,
+      "tvd_weighted": 4.5559745473150706,
+      "tvd_median": 12.901436560816235,
+      "max_item": "Barley",
+      "max_tvd": 16.607328316822951
+    },
+    "Japan|area|2000|2010": {
+      "indicator": "area",
+      "year": 2010,
+      "n_items": 5,
+      "n_unit_pairs": 212,
+      "tvd_weighted": 3.2609876973607017,
+      "tvd_median": 5.7170941587944215,
+      "max_item": "Barley",
+      "max_tvd": 13.373529997214536
+    },
+    "Japan|area|2000|2020": {
+      "indicator": "area",
+      "year": 2020,
+      "n_items": 5,
+      "n_unit_pairs": 188,
+      "tvd_weighted": 5.6635370082043242,
+      "tvd_median": 7.4555086555037233,
+      "max_item": "Soya beans",
+      "max_tvd": 22.964555819282364
+    },
+    "Spain|area|2000|1961": {
+      "indicator": "area",
+      "year": 1961,
+      "n_items": 14,
+      "n_unit_pairs": 567,
+      "tvd_weighted": 28.004394537594031,
+      "tvd_median": 37.355526717652594,
+      "max_item": "Maize (corn)",
+      "max_tvd": 63.646308319965016
+    },
+    "Spain|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 16,
+      "n_unit_pairs": 612,
+      "tvd_weighted": 24.542335672921915,
+      "tvd_median": 29.008348952532778,
+      "max_item": "Maize (corn)",
+      "max_tvd": 53.174569040471113
+    },
+    "Spain|area|2000|1980": {
+      "indicator": "area",
+      "year": 1980,
+      "n_items": 16,
+      "n_unit_pairs": 610,
+      "tvd_weighted": 16.475197605687224,
+      "tvd_median": 22.434047583620362,
+      "max_item": "Maize (corn)",
+      "max_tvd": 43.992724393761904
+    },
+    "Spain|area|2000|1990": {
+      "indicator": "area",
+      "year": 1990,
+      "n_items": 16,
+      "n_unit_pairs": 605,
+      "tvd_weighted": 12.470548025855781,
+      "tvd_median": 13.529098704790684,
+      "max_item": "Beans, dry",
+      "max_tvd": 39.261280527516327
+    },
+    "Spain|area|2000|2010": {
+      "indicator": "area",
+      "year": 2010,
+      "n_items": 16,
+      "n_unit_pairs": 590,
+      "tvd_weighted": 10.336941655698556,
+      "tvd_median": 16.763781076593613,
+      "max_item": "Sugar beet",
+      "max_tvd": 27.273318340691727
+    },
+    "Spain|area|2000|2020": {
+      "indicator": "area",
+      "year": 2020,
+      "n_items": 16,
+      "n_unit_pairs": 589,
+      "tvd_weighted": 12.132446607825168,
+      "tvd_median": 19.778001519736421,
+      "max_item": "Apples",
+      "max_tvd": 41.185392466250462
+    },
+    "United States of America|area|2000|1961": {
+      "indicator": "area",
+      "year": 1961,
+      "n_items": 5,
+      "n_unit_pairs": 104,
+      "tvd_weighted": 16.605557849378098,
+      "tvd_median": 19.682691947746854,
+      "max_item": "Sugar beet",
+      "max_tvd": 41.564380538766514
+    },
+    "United States of America|area|2000|1970": {
+      "indicator": "area",
+      "year": 1970,
+      "n_items": 5,
+      "n_unit_pairs": 105,
+      "tvd_weighted": 13.874091434659976,
+      "tvd_median": 17.852482866971194,
+      "max_item": "Sugar beet",
+      "max_tvd": 35.070692009682119
+    },
+    "United States of America|area|2000|1980": {
+      "indicator": "area",
+      "year": 1980,
+      "n_items": 5,
+      "n_unit_pairs": 105,
+      "tvd_weighted": 15.983650387486177,
+      "tvd_median": 22.125282213926504,
+      "max_item": "Barley",
+      "max_tvd": 26.919697609943626
+    },
+    "United States of America|area|2000|1990": {
+      "indicator": "area",
+      "year": 1990,
+      "n_items": 5,
+      "n_unit_pairs": 102,
+      "tvd_weighted": 8.50462995806833,
+      "tvd_median": 11.869619375879914,
+      "max_item": "Barley",
+      "max_tvd": 25.03327379076039
+    },
+    "United States of America|area|2000|2010": {
+      "indicator": "area",
+      "year": 2010,
+      "n_items": 5,
+      "n_unit_pairs": 103,
+      "tvd_weighted": 4.7928147479708612,
+      "tvd_median": 8.3420456507876555,
+      "max_item": "Barley",
+      "max_tvd": 18.784101329762727
+    },
+    "Australia|livestock_stock|2000|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 3,
+      "n_unit_pairs": 18,
+      "tvd_weighted": 14.714594185650123,
+      "tvd_median": 9.8176548113195903,
+      "max_item": "Sheep",
+      "max_tvd": 14.808459469574442
+    },
+    "Australia|livestock_stock|2000|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 3,
+      "n_unit_pairs": 17,
+      "tvd_weighted": 4.9418206564384821,
+      "tvd_median": 4.942990713424229,
+      "max_item": "Pigs",
+      "max_tvd": 5.1850935050743487
+    },
+    "Australia|livestock_stock|2000|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 3,
+      "n_unit_pairs": 17,
+      "tvd_weighted": 2.1410385479313696,
+      "tvd_median": 3.242771867680704,
+      "max_item": "Pigs",
+      "max_tvd": 7.1127916888247285
+    },
+    "Australia|livestock_stock|2000|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 3,
+      "n_unit_pairs": 22,
+      "tvd_weighted": 2.9458139989972123,
+      "tvd_median": 2.8945435454752499,
+      "max_item": "Pigs",
+      "max_tvd": 6.2886192353068564
+    },
+    "Australia|livestock_stock|2000|2010": {
+      "indicator": "livestock_stock",
+      "year": 2010,
+      "n_items": 2,
+      "n_unit_pairs": 14,
+      "tvd_weighted": 3.7566218328786363,
+      "tvd_median": 4.4818233142090422,
+      "max_item": "Pigs",
+      "max_tvd": 5.2574875489484256
+    },
+    "Australia|livestock_stock|2000|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 2,
+      "n_unit_pairs": 14,
+      "tvd_weighted": 9.8458679055964264,
+      "tvd_median": 11.127378748330429,
+      "max_item": "Pigs",
+      "max_tvd": 12.5033453319652
+    },
+    "Australia|livestock_stock|2010|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 2,
+      "n_unit_pairs": 12,
+      "tvd_weighted": 17.989142095260632,
+      "tvd_median": 14.169469430387537,
+      "max_item": "Sheep",
+      "max_tvd": 18.070855129402975
+    },
+    "Australia|livestock_stock|2010|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 2,
+      "n_unit_pairs": 12,
+      "tvd_weighted": 8.2161168409932657,
+      "tvd_median": 8.6136146050780074,
+      "max_item": "Pigs",
+      "max_tvd": 9.0218428369032502
+    },
+    "Australia|livestock_stock|2010|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 2,
+      "n_unit_pairs": 12,
+      "tvd_weighted": 4.7514466899737613,
+      "tvd_median": 8.0695772343398708,
+      "max_item": "Pigs",
+      "max_tvd": 11.512844394464732
+    },
+    "Australia|livestock_stock|2010|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 2,
+      "n_unit_pairs": 15,
+      "tvd_weighted": 6.3921318910566471,
+      "tvd_median": 7.7018761554615995,
+      "max_item": "Pigs",
+      "max_tvd": 9.0529887419494575
+    },
+    "Australia|livestock_stock|2010|2000": {
+      "indicator": "livestock_stock",
+      "year": 2000,
+      "n_items": 2,
+      "n_unit_pairs": 14,
+      "tvd_weighted": 3.7383331674090887,
+      "tvd_median": 4.4818233142090422,
+      "max_item": "Pigs",
+      "max_tvd": 5.2574875489484256
+    },
+    "Australia|livestock_stock|2010|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 2,
+      "n_unit_pairs": 15,
+      "tvd_weighted": 6.1368031907711575,
+      "tvd_median": 7.3513033669271373,
+      "max_item": "Pigs",
+      "max_tvd": 8.6553200574210063
+    },
+    "France|livestock_stock|2000|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 20.220756844768555,
+      "tvd_median": 20.182877247876398,
+      "max_item": "Goats",
+      "max_tvd": 31.606349277729688
+    },
+    "France|livestock_stock|2000|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 19.398400023861949,
+      "tvd_median": 19.647261841825912,
+      "max_item": "Goats",
+      "max_tvd": 26.908357938592474
+    },
+    "France|livestock_stock|2000|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 13.112395980299867,
+      "tvd_median": 13.141757293145389,
+      "max_item": "Goats",
+      "max_tvd": 20.353433826312738
+    },
+    "France|livestock_stock|2000|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 6.2548295557390796,
+      "tvd_median": 6.4700919773643868,
+      "max_item": "Goats",
+      "max_tvd": 11.759516258386231
+    },
+    "France|livestock_stock|2000|2010": {
+      "indicator": "livestock_stock",
+      "year": 2010,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 5.5530589329399049,
+      "tvd_median": 5.8580728003879559,
+      "max_item": "Goats",
+      "max_tvd": 17.0690700393335
+    },
+    "France|livestock_stock|2000|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 10.337396564313613,
+      "tvd_median": 11.483167858153607,
+      "max_item": "Goats",
+      "max_tvd": 27.974981336186072
+    },
+    "France|livestock_stock|2010|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 25.626107462880238,
+      "tvd_median": 24.95340041432857,
+      "max_item": "Goats",
+      "max_tvd": 48.675419317063188
+    },
+    "France|livestock_stock|2010|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 24.794601851796244,
+      "tvd_median": 24.95340041432857,
+      "max_item": "Goats",
+      "max_tvd": 43.977427977925984
+    },
+    "France|livestock_stock|2010|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 18.58549771855898,
+      "tvd_median": 18.447895865648047,
+      "max_item": "Goats",
+      "max_tvd": 37.422503865646242
+    },
+    "France|livestock_stock|2010|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 11.791608393130884,
+      "tvd_median": 11.393377680042319,
+      "max_item": "Goats",
+      "max_tvd": 28.828586297719731
+    },
+    "France|livestock_stock|2010|2000": {
+      "indicator": "livestock_stock",
+      "year": 2000,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 5.6038965716992166,
+      "tvd_median": 5.8580728003879559,
+      "max_item": "Goats",
+      "max_tvd": 17.0690700393335
+    },
+    "France|livestock_stock|2010|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 8,
+      "n_unit_pairs": 712,
+      "tvd_weighted": 4.896542093910103,
+      "tvd_median": 5.5243855685018097,
+      "max_item": "Horses",
+      "max_tvd": 19.868983176806964
+    },
+    "Italy|livestock_stock|2000|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 19.852144733210196,
+      "tvd_median": 17.825844030963825,
+      "max_item": "Cattle, non-dairy",
+      "max_tvd": 51.718549075137432
+    },
+    "Italy|livestock_stock|2000|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 15.214951240171732,
+      "tvd_median": 15.509699054105202,
+      "max_item": "Cattle, non-dairy",
+      "max_tvd": 58.088180840750056
+    },
+    "Italy|livestock_stock|2000|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 8.4370482004987952,
+      "tvd_median": 11.159777171030438,
+      "max_item": "Pigs",
+      "max_tvd": 25.126367976978425
+    },
+    "Italy|livestock_stock|2000|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 3.9480277477867678,
+      "tvd_median": 5.7967554446822662,
+      "max_item": "Pigs",
+      "max_tvd": 12.774560390473713
+    },
+    "Italy|livestock_stock|2000|2010": {
+      "indicator": "livestock_stock",
+      "year": 2010,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 2.8841668417611497,
+      "tvd_median": 3.7448562453683749,
+      "max_item": "Cattle, dairy",
+      "max_tvd": 9.9337341668376951
+    },
+    "Italy|livestock_stock|2000|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 6,
+      "n_unit_pairs": 90,
+      "tvd_weighted": 8.6708807667752588,
+      "tvd_median": 9.3689876228457507,
+      "max_item": "Goats",
+      "max_tvd": 17.179145250666075
+    },
+    "Italy|livestock_stock|2010|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 21.910802898159616,
+      "tvd_median": 19.929550067606563,
+      "max_item": "Cattle, non-dairy",
+      "max_tvd": 52.625518329387411
+    },
+    "Italy|livestock_stock|2010|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 17.38524257935763,
+      "tvd_median": 15.111193164499507,
+      "max_item": "Cattle, non-dairy",
+      "max_tvd": 56.499693693072793
+    },
+    "Italy|livestock_stock|2010|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 10.837553038166698,
+      "tvd_median": 11.286934194545207,
+      "max_item": "Pigs",
+      "max_tvd": 29.349186948136314
+    },
+    "Italy|livestock_stock|2010|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 6.4113130413940231,
+      "tvd_median": 7.4134620691045789,
+      "max_item": "Pigs",
+      "max_tvd": 16.997379361631602
+    },
+    "Italy|livestock_stock|2010|2000": {
+      "indicator": "livestock_stock",
+      "year": 2000,
+      "n_items": 8,
+      "n_unit_pairs": 120,
+      "tvd_weighted": 2.9785515030335605,
+      "tvd_median": 3.7448562453683749,
+      "max_item": "Cattle, dairy",
+      "max_tvd": 9.9337341668376951
+    },
+    "Italy|livestock_stock|2010|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 6,
+      "n_unit_pairs": 90,
+      "tvd_weighted": 5.8534881754739718,
+      "tvd_median": 6.0394911342138595,
+      "max_item": "Goats",
+      "max_tvd": 15.406676182692719
+    },
+    "Portugal|livestock_stock|2000|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 15.321979771301036,
+      "tvd_median": 12.496831164398722,
+      "max_item": "Sheep",
+      "max_tvd": 28.479183286705812
+    },
+    "Portugal|livestock_stock|2000|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 8.4017201164681641,
+      "tvd_median": 10.919446508366217,
+      "max_item": "Sheep",
+      "max_tvd": 19.233605957998375
+    },
+    "Portugal|livestock_stock|2000|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 4.4055137260682899,
+      "tvd_median": 7.7277725861624962,
+      "max_item": "Pigs",
+      "max_tvd": 10.968106313455687
+    },
+    "Portugal|livestock_stock|2000|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 2.0483680349046214,
+      "tvd_median": 4.8628579063122324,
+      "max_item": "Horses",
+      "max_tvd": 21.574721574721572
+    },
+    "Portugal|livestock_stock|2000|2010": {
+      "indicator": "livestock_stock",
+      "year": 2010,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 6.7856614270084306,
+      "tvd_median": 4.9069877898868164,
+      "max_item": "Horses",
+      "max_tvd": 16.062378167641324
+    },
+    "Portugal|livestock_stock|2000|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 12.301555077756717,
+      "tvd_median": 13.812670519062737,
+      "max_item": "Horses",
+      "max_tvd": 18.652387327086121
+    },
+    "Portugal|livestock_stock|2010|1961": {
+      "indicator": "livestock_stock",
+      "year": 1961,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 18.505925821622967,
+      "tvd_median": 14.966330232614427,
+      "max_item": "Pigs",
+      "max_tvd": 28.326818822253113
+    },
+    "Portugal|livestock_stock|2010|1970": {
+      "indicator": "livestock_stock",
+      "year": 1970,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 13.21160405133471,
+      "tvd_median": 13.038947852471901,
+      "max_item": "Pigs",
+      "max_tvd": 20.679853696045157
+    },
+    "Portugal|livestock_stock|2010|1980": {
+      "indicator": "livestock_stock",
+      "year": 1980,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 9.7825378407603285,
+      "tvd_median": 8.8254515050181208,
+      "max_item": "Pigs",
+      "max_tvd": 14.063410646776164
+    },
+    "Portugal|livestock_stock|2010|1990": {
+      "indicator": "livestock_stock",
+      "year": 1990,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 8.5207700719533577,
+      "tvd_median": 7.6561636334473908,
+      "max_item": "Horses",
+      "max_tvd": 37.637099742362892
+    },
+    "Portugal|livestock_stock|2010|2000": {
+      "indicator": "livestock_stock",
+      "year": 2000,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 6.606216266147122,
+      "tvd_median": 4.9069877898868164,
+      "max_item": "Horses",
+      "max_tvd": 16.062378167641324
+    },
+    "Portugal|livestock_stock|2010|2020": {
+      "indicator": "livestock_stock",
+      "year": 2020,
+      "n_items": 8,
+      "n_unit_pairs": 40,
+      "tvd_weighted": 7.1690750836896733,
+      "tvd_median": 7.7005351904330617,
+      "max_item": "Cattle, non-dairy",
+      "max_tvd": 14.088342424928978
+    }
+  },
+  "gaps": {
+    "NATIONAL_OFFICIAL:AUS:ABS|area": {
+      "indicator": "area",
+      "n_series": 40,
+      "n_series_with_gaps": 17,
+      "gap_years": 156,
+      "observed_years": 1863,
+      "max_run": 20,
+      "median_span": 62
+    },
+    "NATIONAL_OFFICIAL:JPN:MAFF|area": {
+      "indicator": "area",
+      "n_series": 276,
+      "n_series_with_gaps": 101,
+      "gap_years": 531,
+      "observed_years": 16347,
+      "max_run": 48,
+      "median_span": 62
+    },
+    "NATIONAL_OFFICIAL:USA:USDA_NASS|area": {
+      "indicator": "area",
+      "n_series": 2501,
+      "n_series_with_gaps": 1753,
+      "gap_years": 19031,
+      "observed_years": 18075,
+      "max_run": 60,
+      "median_span": 11
+    },
+    "PI_COMPILATION:MEDITERRANEAN_SUBNATIONAL|area": {
+      "indicator": "area",
+      "n_series": 8474,
+      "n_series_with_gaps": 5009,
+      "gap_years": 131142,
+      "observed_years": 172324,
+      "max_run": 49,
+      "median_span": 38
+    },
+    "NATIONAL_OFFICIAL:AUS:ABS|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n_series": 47,
+      "n_series_with_gaps": 17,
+      "gap_years": 150,
+      "observed_years": 2498,
+      "max_run": 15,
+      "median_span": 59
+    },
+    "PI_COMPILATION:LATAM_SUBNATIONAL|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n_series": 133,
+      "n_series_with_gaps": 1,
+      "gap_years": 20,
+      "observed_years": 7953,
+      "max_run": 20,
+      "median_span": 61
+    },
+    "PI_COMPILATION:MEDITERRANEAN_SUBNATIONAL|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n_series": 1189,
+      "n_series_with_gaps": 0,
+      "gap_years": 0,
+      "observed_years": 71060,
+      "max_run": 0,
+      "median_span": 60
+    }
+  },
+  "discrepancy": {
+    "NATIONAL_OFFICIAL:AUS:ABS|area": {
+      "indicator": "area",
+      "n": 307,
+      "n_no_national": 0,
+      "p05": -0.18451709072517253,
+      "p25": -0.058410872608510633,
+      "p50": -0.00041492210780436078,
+      "p75": 0.019783576568010108,
+      "p95": 0.22207376876679774
+    },
+    "NATIONAL_OFFICIAL:JPN:MAF|area": {
+      "indicator": "area",
+      "n": 13,
+      "n_no_national": 0,
+      "p05": -0.0036394358567975347,
+      "p25": -0.0030076726342711524,
+      "p50": -0.0028394495412844556,
+      "p75": -0.0016677357280308058,
+      "p95": -0.0013065108307431796
+    },
+    "NATIONAL_OFFICIAL:JPN:MAFF|area": {
+      "indicator": "area",
+      "n": 359,
+      "n_no_national": 0,
+      "p05": -0.19109941520467835,
+      "p25": -0.032074749569219796,
+      "p50": -0.0050957501280082251,
+      "p75": -0.00021786859551903293,
+      "p95": 0.00048437480078038442
+    },
+    "NATIONAL_OFFICIAL:USA:USDA_NASS|area": {
+      "indicator": "area",
+      "n": 876,
+      "n_no_national": 1109,
+      "p05": -0.99954546361972074,
+      "p25": -0.87111242905317821,
+      "p50": -0.23145756602392847,
+      "p75": -0.0002457908975135592,
+      "p95": 0.00048897076863019251
+    },
+    "PI_COMPILATION:MEDITERRANEAN_SUBNATIONAL|area": {
+      "indicator": "area",
+      "n": 5457,
+      "n_no_national": 685,
+      "p05": -0.36971954545454544,
+      "p25": -0.064510843373493887,
+      "p50": -0.016571212121212153,
+      "p75": 0.00026542016843467131,
+      "p95": 0.36758998397725401
+    },
+    "NATIONAL_OFFICIAL:AUS:ABS|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n": 107,
+      "n_no_national": 241,
+      "p05": -0.31461348734891403,
+      "p25": -0.020688417497257916,
+      "p50": -0.00028692671287700033,
+      "p75": 2.5545238979685081e-07,
+      "p95": 0.014485976759462262
+    },
+    "PI_COMPILATION:LATAM_SUBNATIONAL|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n": 7750,
+      "n_no_national": 203,
+      "p05": 0,
+      "p25": 0,
+      "p50": 0,
+      "p75": 0,
+      "p95": 0
+    },
+    "PI_COMPILATION:MEDITERRANEAN_SUBNATIONAL|livestock_stock": {
+      "indicator": "livestock_stock",
+      "n": 1787,
+      "n_no_national": 29,
+      "p05": -3.200056959418161e-08,
+      "p25": 0,
+      "p50": 0,
+      "p75": 0,
+      "p95": 2.2204460492503131e-16
+    }
+  }
+}

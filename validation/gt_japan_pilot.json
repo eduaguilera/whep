@@ -1,0 +1,250 @@
+{
+  "recorded_at": "2026-09-07T09:54:32+0200",
+  "scope": {
+    "container": 110,
+    "level": 1,
+    "years": "1961-2022",
+    "items": "15|27|44|116|122|236",
+    "preset": "whep",
+    "support": "pilot_polycell_support.parquet",
+    "aliases_published": 1007,
+    "aliases_injected": 46,
+    "slug_resolved": 32095,
+    "slug_under_pin_source": 0
+  },
+  "note": "Japan depth-1 pilot on the real MAFF admin-shares pin and the Japan-only pilot polycell support. Every number is a measured state to be re-recorded when an input changes, not a tolerance. The anchor is judged separately and harder; see `.jp_anchor` in the script. The support is Japan-only and the alias rows are injected: both are stated in the script header and neither is a property of the pipeline.",
+  "anchor": {
+    "unit": "JPN-HOKKAIDO-1871-2025",
+    "item_prod_code": 27,
+    "year": 2000,
+    "reported_ha": 134900,
+    "admin_sum_ha": 1762002,
+    "national_ha": 1770000,
+    "target_ha": 135512.33199508287,
+    "conservation_rel": 8.7000000000000004e-16
+  },
+  "run": {
+    "run": {
+      "n_years": 62,
+      "n_items": 6,
+      "n_units": 46,
+      "n_cells": 305,
+      "n_layer_rows": 2016,
+      "n_ragged": 1220,
+      "n_unclaimed": 0,
+      "n_shares_pin": 32095,
+      "n_shares_resolved": 16347,
+      "n_shares_dropped": 15748,
+      "n_prescan_groups": 372,
+      "n_prescan_complete": 221,
+      "n_prescan_breaching": 33,
+      "n_refused": 5,
+      "worst_disc_frac": 0.48355192835475952,
+      "n_targets": 16882,
+      "n_groups": 367,
+      "n_beyond_tolerance": 28,
+      "n_breach_rows": 25011,
+      "breach_ha": 6120263.7529802406,
+      "n_seams": 88,
+      "n_seam_kinds": 2,
+      "n_series": 276,
+      "n_series_possible": 276,
+      "n_gap_series": 101,
+      "gap_years": 531,
+      "max_gap_run": 48,
+      "allocated_ha": 177811797,
+      "anchor_ha": 135512.33199508299
+    }
+  },
+  "prescan": {
+    "item|15": {
+      "n_groups": 62,
+      "n_complete": 20,
+      "n_breaching": 0,
+      "n_refused": 0,
+      "coverage_min": 0.86956521739130432,
+      "median_disc_frac": 2.782526976075363e-05,
+      "min_disc_frac": -0.00075637642919964816,
+      "max_disc_frac": 0.001484375
+    },
+    "item|27": {
+      "n_groups": 62,
+      "n_complete": 62,
+      "n_breaching": 0,
+      "n_refused": 0,
+      "coverage_min": 1,
+      "median_disc_frac": 0.012315985327863018,
+      "min_disc_frac": 0.0021145320197044335,
+      "max_disc_frac": 0.095609348914858103
+    },
+    "item|44": {
+      "n_groups": 62,
+      "n_complete": 5,
+      "n_breaching": 25,
+      "n_refused": 5,
+      "coverage_min": 0.69565217391304346,
+      "median_disc_frac": 0.095049410651124128,
+      "min_disc_frac": 0.041655869396216634,
+      "max_disc_frac": 0.48355192835475952
+    },
+    "item|116": {
+      "n_groups": 62,
+      "n_complete": 56,
+      "n_breaching": 4,
+      "n_refused": 0,
+      "coverage_min": 0.32608695652173914,
+      "median_disc_frac": 0.0019839463437741089,
+      "min_disc_frac": -0.032142011834319528,
+      "max_disc_frac": 0.12011658031088084
+    },
+    "item|122": {
+      "n_groups": 62,
+      "n_complete": 16,
+      "n_breaching": 4,
+      "n_refused": 0,
+      "coverage_min": 0.13043478260869565,
+      "median_disc_frac": 0.0083664169787765301,
+      "min_disc_frac": -0.00057142857142857147,
+      "max_disc_frac": 0.19979591836734695
+    },
+    "item|236": {
+      "n_groups": 62,
+      "n_complete": 62,
+      "n_breaching": 0,
+      "n_refused": 0,
+      "coverage_min": 1,
+      "median_disc_frac": 2.7624947588789382e-05,
+      "min_disc_frac": -0.0011467889908256881,
+      "max_disc_frac": 0.013853557923685115
+    }
+  },
+  "items": {
+    "item|15": {
+      "n_groups": 62,
+      "coverage_min": 0.86956521739130399,
+      "coverage_mean": 0.96388499298737718,
+      "max_abs_disc_frac": 0.001484375,
+      "n_beyond": 0,
+      "target_ha": 14560000.000000002,
+      "n_breach": 2002,
+      "breach_ha": 406719.78465452668
+    },
+    "item|27": {
+      "n_groups": 62,
+      "coverage_min": 1,
+      "coverage_mean": 1,
+      "max_abs_disc_frac": 0.095609348914858103,
+      "n_beyond": 0,
+      "target_ha": 136474300,
+      "n_breach": 2030,
+      "breach_ha": 4950475.8712125802
+    },
+    "item|44": {
+      "n_groups": 57,
+      "coverage_min": 0.69565217391304401,
+      "coverage_mean": 0.87414187643020602,
+      "max_abs_disc_frac": 0.418808971384377,
+      "n_beyond": 20,
+      "target_ha": 5701760,
+      "n_breach": 1803,
+      "breach_ha": 103236.28536730149
+    },
+    "item|116": {
+      "n_groups": 62,
+      "coverage_min": 0.32608695652173902,
+      "coverage_mean": 0.95511921458625526,
+      "max_abs_disc_frac": 0.120116580310881,
+      "n_beyond": 4,
+      "target_ha": 7453937.0000000009,
+      "n_breach": 2030,
+      "breach_ha": 117480.81172710049
+    },
+    "item|122": {
+      "n_groups": 62,
+      "coverage_min": 0.13043478260869601,
+      "coverage_mean": 0.92847124824684413,
+      "max_abs_disc_frac": 0.199795918367347,
+      "n_beyond": 4,
+      "target_ha": 5207600.0000000009,
+      "n_breach": 1999,
+      "breach_ha": 284026.2822501827
+    },
+    "item|236": {
+      "n_groups": 62,
+      "coverage_min": 1,
+      "coverage_mean": 1,
+      "max_abs_disc_frac": 0.0138535579236851,
+      "n_beyond": 0,
+      "target_ha": 8414200,
+      "n_breach": 2030,
+      "breach_ha": 258324.71776854867
+    }
+  },
+  "gate": {
+    "gate|tier_a": {
+      "n_rows": 6,
+      "n_gates": 6,
+      "n_pass": 6,
+      "n_fail": 0,
+      "n_withheld": 0
+    },
+    "gate|tier_b": {
+      "n_rows": 3529,
+      "n_gates": 2,
+      "n_pass": 0,
+      "n_fail": 1,
+      "n_withheld": 1
+    },
+    "gate|tier_c": {
+      "n_rows": 0,
+      "n_gates": 0,
+      "n_pass": 0,
+      "n_fail": 0,
+      "n_withheld": 0
+    }
+  },
+  "gaps": {
+    "item|15": {
+      "n_series": 46,
+      "n_series_with_gaps": 10,
+      "gap_years": 103,
+      "observed_years": 2749,
+      "max_run": 21
+    },
+    "item|27": {
+      "n_series": 46,
+      "n_series_with_gaps": 0,
+      "gap_years": 0,
+      "observed_years": 2852,
+      "max_run": 0
+    },
+    "item|44": {
+      "n_series": 46,
+      "n_series_with_gaps": 20,
+      "gap_years": 176,
+      "observed_years": 2522,
+      "max_run": 48
+    },
+    "item|116": {
+      "n_series": 46,
+      "n_series_with_gaps": 31,
+      "gap_years": 128,
+      "observed_years": 2724,
+      "max_run": 2
+    },
+    "item|122": {
+      "n_series": 46,
+      "n_series_with_gaps": 40,
+      "gap_years": 124,
+      "observed_years": 2648,
+      "max_run": 36
+    },
+    "item|236": {
+      "n_series": 46,
+      "n_series_with_gaps": 0,
+      "gap_years": 0,
+      "observed_years": 2852,
+      "max_run": 0
+    }
+  }
+}

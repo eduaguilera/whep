@@ -14,6 +14,28 @@ suppressPackageStartupMessages({
 source("validation/validate.R")
 source("validation/variables.R")
 
+# Scorecard arithmetic for the seam-gate row (#1000/T34-6). `n_gate_failures`
+# is the tier A/B/C pass-rate; `n_moved` is `admin_seam_gate.R`'s OWN baseline
+# tripwire (validation/admin_seam_gate.R, ~line 527: it `cli_abort()`s the
+# whole script when a recorded row moved, whatever the tier gates say). A run
+# whose baseline moved has therefore already failed the script that produced
+# these numbers, so folding only `n_gate_failures` into the scorecard's `flag`
+# column let it read green while `admin_seam_gate.R` exited non-zero -- the
+# moved baseline was demoted to free text nobody scans. `flag` is the union of
+# both signals so a moved baseline always shows up as a flag, not a footnote.
+.asg_scorecard_flag <- function(n_gate_failures, n_moved) {
+  n_gate_failures + n_moved
+}
+# Runs on every `source()` of this file, cache or no cache: a moved baseline
+# must inflate the flag even when every tier gate itself passed (the shape the
+# bug missed), so the invariant is pinned here rather than only downstream of
+# the WHEP_SPATIALIZE_OUT_DIR-gated block that would otherwise be the only
+# place exercising it.
+stopifnot(
+  "a moved seam-gate baseline must inflate the scorecard flag, not just the
+   free-text note" = .asg_scorecard_flag(n_gate_failures = 0, n_moved = 3) > 0
+)
+
 year_min <- as.integer(Sys.getenv("VAL_YEAR_MIN", "1970"))
 year_max <- as.integer(Sys.getenv("VAL_YEAR_MAX", "2010"))
 bench_years <- c(1990L, 2000L, 2010L)
@@ -441,6 +463,244 @@ if (length(nour_metric) == 1L) {
     NA,
     NA,
     "needs the CBS build and the faostat-fbs-new pin"
+  )
+}
+
+# A. admin-unit drift (external, vs the compiled subnational panel) ------------
+# T18a (#1000): how much within-country geography a spatialization pattern
+# frozen at one reference year cannot represent. The panel is an internal
+# compilation that is not redistributed, so the sweep reports "not run" rather
+# than starting anything when WHEP_SUBNATIONAL is unset.
+adt_out <- if (nzchar(Sys.getenv("WHEP_SUBNATIONAL"))) {
+  system2(
+    "Rscript",
+    "validation/admin_drift_tvd.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+adt_metric <- grep("^METRIC", adt_out, value = TRUE)
+if (length(adt_metric) != 1L || grepl("status=skipped", adt_metric)) {
+  add(
+    "admin_drift",
+    "external",
+    NA,
+    NA,
+    NA,
+    "not run: WHEP_SUBNATIONAL unset (the panel is not redistributed)"
+  )
+} else {
+  adt_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", adt_metric))
+  }
+  add(
+    "admin_drift",
+    "external",
+    adt_num("n_tvd_rows"),
+    adt_num("n_tvd_rows") - adt_num("n_failed"),
+    adt_num("n_failed"),
+    sprintf(
+      "share-vector TVD vs the frozen reference year; Spain harvested area
+       1961 = %.1f%% of the national total in a different province",
+      adt_num("spain_area_1961")
+    )
+  )
+}
+
+# B. seam gate (internal, on a spatialization run) ----------------------------
+# T29 (#1000): whether a back-cast admin-share table and the cells it produced
+# are continuous across every seam the resolver found. It reads one existing
+# run_spatialize() output directory and nothing else, so the sweep reports
+# "not run" rather than starting a build when WHEP_SPATIALIZE_OUT_DIR is unset.
+asg_out <- if (nzchar(Sys.getenv("WHEP_SPATIALIZE_OUT_DIR"))) {
+  system2(
+    "Rscript",
+    "validation/admin_seam_gate.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+asg_metric <- grep("^METRIC", asg_out, value = TRUE)
+if (length(asg_metric) != 1L || grepl("status=skipped", asg_metric)) {
+  add(
+    "admin_seam_gate",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: WHEP_SPATIALIZE_OUT_DIR unset (needs a spatialization run)"
+  )
+} else {
+  asg_num <- function(key) {
+    as.numeric(sub(paste0(".*", key, "=([0-9.e+-]+).*"), "\\1", asg_metric))
+  }
+  asg_flag <- .asg_scorecard_flag(
+    asg_num("n_gate_failures"),
+    asg_num("n_moved")
+  )
+  add(
+    "admin_seam_gate",
+    "internal",
+    asg_num("n_tier_c_gates"),
+    asg_num("n_tier_c_gates") - asg_flag,
+    asg_flag,
+    sprintf(
+      "seam continuity over %d seam(s) of %d kind(s); %d gate failure(s), %d
+       recorded row(s) moved",
+      asg_num("n_seams"),
+      asg_num("n_seam_kinds"),
+      asg_num("n_gate_failures"),
+      asg_num("n_moved")
+    )
+  )
+}
+
+# C. level-0 grid vintage (internal, on the polycell support) -----------------
+# T39 (#1000): what changes when level 0 stops being the 2015 snapshot and
+# becomes year-aware. This is a MEASUREMENT behind an open decision, not a
+# gate: which vintage is right is the question the measurement exists to
+# inform, so there is no pass criterion to score and `ok`/`flag` stay NA while
+# the note carries the magnitudes. Building the year-aware grid costs minutes
+# and reads the polycell pin, and this sweep does not start a build without
+# being asked (the rule stated for the production cache above), so the row
+# reports "not run" until the script has been run once and left its cache.
+gv_cache_rds <- "validation/cache/grid_vintage_year_aware.rds"
+gv_out <- if (file.exists(gv_cache_rds)) {
+  system2(
+    "Rscript",
+    "validation/spatialize_grid_vintage.R",
+    stdout = TRUE,
+    stderr = FALSE
+  )
+} else {
+  character(0)
+}
+gv_metric <- grep("^METRIC", gv_out, value = TRUE)
+if (length(gv_metric) != 1L || grepl("status=skipped", gv_metric)) {
+  add(
+    "grid_vintage",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: no cached year-aware grid (run
+     `Rscript validation/spatialize_grid_vintage.R` once)"
+  )
+} else {
+  # `cropland_loss_pct_max` and `at_year` are the literal "NA" when no year
+  # carries a cropland weight, so the field is read as text and coerced
+  # quietly rather than assumed numeric.
+  gv_num <- function(key) {
+    suppressWarnings(as.numeric(sub(
+      paste0(".*", key, "=([^ ]+).*"),
+      "\\1",
+      gv_metric
+    )))
+  }
+  add(
+    "grid_vintage",
+    "internal",
+    gv_num("n_years"),
+    NA,
+    NA,
+    sprintf(
+      "measurement, not a gate: %.0f cell(s) of the 2015 snapshot absent from
+       the year-aware grid in 1851; worst cropland loss %.2f%% at %.0f; %.0f
+       engine year(s)",
+      gv_num("n_cells_absent_1851"),
+      gv_num("cropland_loss_pct_max"),
+      gv_num("at_year"),
+      gv_num("n_engine_years")
+    )
+  )
+}
+
+# D. Japan depth-1 pilot (internal, one constrained spatialization) ----------
+# whep#1000: the first level-1 `run_spatialize` call, on real administrative
+# statistics. It runs an allocation, so it is never started unasked: it needs
+# a Japan-only polycell support (`WHEP_POLYCELL_SUPPORT_PATH`) and a directory
+# of prepared spatialization parquets (`VAL_JP_INPUT_DIR`), and reports "not
+# run" when either is absent.
+#
+# `flag` is the union of three signals, for the reason the seam-gate row
+# above states: the pilot exits non-zero on a moved anchor and on a moved
+# recorded row, and neither would show in a gate-failure count alone. The
+# anchor is the load-bearing one -- it is the hand-computed Hokkaido number
+# the whole leg exists to reproduce -- so `anchor_ok = 0` must flag even when
+# every recorded row still matches.
+.jp_scorecard_flag <- function(n_gate_failures, n_failed, anchor_ok) {
+  n_gate_failures + n_failed + (1L - anchor_ok)
+}
+stopifnot(
+  "a moved Japan anchor must inflate the scorecard flag, not just the
+   free-text note" = .jp_scorecard_flag(0, 0, 0L) > 0
+)
+jp_ready <- nzchar(Sys.getenv("WHEP_POLYCELL_SUPPORT_PATH")) &&
+  nzchar(Sys.getenv("VAL_JP_INPUT_DIR"))
+jp_out <- if (jp_ready) {
+  system2("Rscript", "validation/japan_pilot.R", stdout = TRUE, stderr = FALSE)
+} else {
+  character(0)
+}
+jp_metric <- grep("^METRIC", jp_out, value = TRUE)
+if (length(jp_metric) != 1L || grepl("status=skipped", jp_metric)) {
+  add(
+    "japan_pilot",
+    "internal",
+    NA,
+    NA,
+    NA,
+    "not run: needs WHEP_POLYCELL_SUPPORT_PATH (the Japan pilot support) and
+     VAL_JP_INPUT_DIR"
+  )
+} else {
+  # Anchored on the leading space, unlike the older readers above: this
+  # METRIC line carries both `n_groups` and `n_prescan_groups`, and an
+  # unanchored `n_groups=` matches inside the longer key.
+  jp_num <- function(key) {
+    # `suppressWarnings` for the same reason `grid_vintage`'s reader has it:
+    # a field can legitimately be the literal "NA" -- `anchor_ha` is, when the
+    # anchor's group is not in the run at all -- and the coercion should be
+    # quiet rather than warn. `anchor_ok` and `n_failed` are integers whatever
+    # happens, so the flag below still resolves.
+    suppressWarnings(as.numeric(sub(
+      paste0(".* ", key, "=(-?[0-9.e+-]+).*"),
+      "\\1",
+      jp_metric
+    )))
+  }
+  jp_flag <- .jp_scorecard_flag(
+    jp_num("n_gate_failures"),
+    jp_num("n_failed"),
+    as.integer(jp_num("anchor_ok"))
+  )
+  add(
+    "japan_pilot",
+    "internal",
+    jp_num("n_groups"),
+    jp_num("n_groups") - jp_num("n_beyond_tolerance"),
+    jp_flag,
+    sprintf(
+      "Hokkaido paddy rice 2000 = %.2f ha (rel %.1e); %.0f of %.0f pre-scan
+       group(s) refused by T31(d), worst %.1f%% short; %.0f group(s) beyond
+       tolerance; %.0f of %.0f unit-item series gapped, longest %.0f yr;
+       %.0f of %.0f seam gate(s) failing",
+      jp_num("anchor_ha"),
+      jp_num("anchor_rel"),
+      jp_num("n_refused"),
+      jp_num("n_prescan_groups"),
+      100 * jp_num("worst_disc_frac"),
+      jp_num("n_beyond_tolerance"),
+      jp_num("n_gap_series"),
+      jp_num("n_series"),
+      jp_num("max_gap_run"),
+      jp_num("n_gate_failures"),
+      jp_num("n_gates")
+    )
   )
 }
 

@@ -1,0 +1,80 @@
+source,source_table,class_key,source_class_code,source_class_name,item_prod_code,mapping_kind,mapping_reason
+Eurostat,apro_cpshr|apro_cpnhr_h,ARA,ARA,Arable land,,dropped,"No exact WHEP counterpart: a land-use total, not a crop; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,ARA99,ARA99,Other arable land crops n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C0000,C0000,Cereals for the production of grain (including seed),,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,C1000,C1000,Cereals (excluding rice) for the production of grain (including seed),,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,C1100,C1100,Wheat and spelt,15,aggregate,"Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1). Includes spelt, which WHEP books with wheat."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1110,C1110,Common wheat and spelt,15,member,"Member of the published aggregate C1100, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1111,C1111,Common winter wheat and spelt,15,member,"Member of the published aggregate C1100, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1112,C1112,Common spring wheat and spelt,15,member,"Member of the published aggregate C1100, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1120,C1120,Durum wheat,15,member,"Member of the published aggregate C1100, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1200,C1200,Rye and winter cereal mixtures (maslin),,dropped,"No exact WHEP counterpart: the class spans rye (71) and maslin (103), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1210,C1210,Rye,71,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,C1220,C1220,Winter cereal mixtures (maslin),103,sum_member,"One of several source classes summed to make the WHEP item 103 (Mixed grain) (T10 crop rule 1: no aggregate is published, so members sum)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1300,C1300,Barley,44,aggregate,Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1).
+Eurostat,apro_cpshr|apro_cpnhr_h,C1310,C1310,Winter barley,44,member,"Member of the published aggregate C1300, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1320,C1320,Spring barley,44,member,"Member of the published aggregate C1300, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1400,C1400,Oats and spring cereal mixtures (mixed grain other than maslin),,dropped,"No exact WHEP counterpart: the class spans oats (75) and mixed grain (103), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1410,C1410,Oats,75,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,C1420,C1420,Spring cereal mixtures (mixed grain other than maslin),103,sum_member,"One of several source classes summed to make the WHEP item 103 (Mixed grain) (T10 crop rule 1: no aggregate is published, so members sum)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1500,C1500,Grain maize and corn-cob-mix,56,exact,"Grain maize and corn-cob-mix, both grain maize (T10 crop rule 2)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C1600,C1600,Triticale,97,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,C1700,C1700,Sorghum,83,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,C1900,C1900,"Other cereals n.e.c. (buckwheat, millet, canary seed, etc.)",,dropped,"No exact WHEP counterpart: the class spans buckwheat (89), millet (79), canary seed (101) and cereals n.e.c. (108), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C2000,C2000,Rice,27,aggregate,"Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1). Source rice area is paddy, so it binds WHEP item 27 (T10 crop rule 3)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C2100,C2100,Rice Indica,27,member,"Member of the published aggregate C2000, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,C2200,C2200,Rice Japonica,27,member,"Member of the published aggregate C2000, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,E0000,E0000,Seeds and seedlings,,dropped,"No exact WHEP counterpart: seeds and seedlings are a production stage, not a WHEP crop item; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,F0000,F0000,"Fruits, berries and nuts (excluding citrus fruits, grapes and strawberries)",,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,G0000,G0000,Plants harvested green from arable land,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,G1000,G1000,Temporary grasses and grazings,996,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,G2000,G2000,Leguminous plants harvested green,,dropped,"No exact WHEP counterpart: the class spans lucerne (641), clover (640) and other green legumes (643), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,G2100,G2100,Lucerne,641,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,G2900,G2900,Other leguminous plants harvested green n.e.c. (clover etc.),,dropped,"No exact WHEP counterpart: the class spans clover (640) and other green legumes (643), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,G2910,G2910,Clover and mixtures,640,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,G3000,G3000,Green maize,,dropped,"Excluded: maize is grain maize only, silage and forage maize excluded (T10 crop rule 2). WHEP item 636 (Forage and silage, maize) exists but T10 does not admit this class into the maize vocabulary."
+Eurostat,apro_cpshr|apro_cpnhr_h,G9100,G9100,Other cereals harvested green (excluding green maize),,dropped,No exact WHEP counterpart: cereals harvested green have no WHEP item; 651 (Forage products) is a catch-all; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,G9900,G9900,Other plants harvested green from arable land n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,H9000,H9000,Other permanent crops for human consumption n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I0000,I0000,Industrial crops,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,I1100,I1100,Oilseeds,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,I1110,I1110,Rape and turnip rape seeds,270,aggregate,Published aggregate of classes that are also served; the aggregate binds and its members are never summed alongside it (T10 crop rule 1).
+Eurostat,apro_cpshr|apro_cpnhr_h,I1110-1130,I1110-1130,"Rape, turnip rape, sunflower seeds and soya",,dropped,"No exact WHEP counterpart: the class spans rape (270), sunflower (267) and soya (236), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I1111,I1111,Winter rape and turnip rape seeds,270,member,"Member of the published aggregate I1110, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I1112,I1112,Spring rape and turnip rape seeds,270,member,"Member of the published aggregate I1110, which binds; recorded so the class is accounted for, never summed alongside the aggregate (T10 crop rule 1)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I1120,I1120,Sunflower seed,267,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,I1130,I1130,Soya,236,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,I1140,I1140,Linseed (oil flax),333,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,I1150,I1150,Cotton seed,,dropped,"No exact WHEP counterpart: Eurostat books the cotton crop twice, as cotton seed (I1150) and cotton fibre (I2300), so neither carries the WHEP seed-cotton area (328) on its own; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I1190,I1190,Other oilseed crops n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I2000,I2000,Fibre crops,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,I2100,I2100,Fibre flax,,dropped,"No exact WHEP counterpart: WHEP carries no unambiguous fibre-flax primary item (772 Linum, 773 Flax processed but not spun); not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I2200,I2200,Hemp,,dropped,"No exact WHEP counterpart: WHEP carries two overlapping hemp fibre items (776 Hemp, 777 True hemp raw or retted) and the class matches neither uniquely; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I2300,I2300,Cotton fibre,,dropped,No exact WHEP counterpart: the cotton fibre half of a crop Eurostat books twice; see I1150; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,I2900,I2900,Other fibre crops n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I3000,I3000,Tobacco,826,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,I4000,I4000,Hops,677,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,I5000,I5000,"Aromatic, medicinal and culinary plants",,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,I6000,I6000,Energy crops n.e.c.,,dropped,"No exact WHEP counterpart: an end-use class, not a botanical item; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,I9000,I9000,Other industrial crops n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,J0000,J0000,Permanent grassland,,dropped,No exact WHEP counterpart: WHEP's crop vocabulary carries only temporary grassland (996); permanent grassland is a land-cover class carried by the pasture surfaces; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,K0000,K0000,Kitchen gardens,,dropped,No exact WHEP counterpart: a holding-type class spanning every garden crop; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,L0000,L0000,Nurseries,,dropped,"No exact WHEP counterpart: nurseries are a production stage, not a WHEP crop item; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,N0000,N0000,Flowers and ornamental plants (excluding nurseries),2108,exact,"Excludes nurseries (L0000), which Eurostat serves separately."
+Eurostat,apro_cpshr|apro_cpnhr_h,O1000,O1000,Olives,260,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,P0000,P0000,Dry pulses and protein crops for the production of grain (including seed and mixtures of cereals and pulses),,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,P1100,P1100,Field peas,187,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,P1200,P1200,Broad and field beans,181,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,P1300,P1300,Sweet lupins,210,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,P9000,P9000,"Other dry pulses and protein crops n.e.c. (lentils, chickpeas, vetches, etc.)",,dropped,"No exact WHEP counterpart: the class spans lentils (201), chick peas (191), vetches (205) and other pulses (211), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,PECR,PECR,Permanent crops,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,PECR9,PECR9,Other permanent crops,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,Q0000,Q0000,Fallow land,3003,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,R0000,R0000,Root crops,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,R1000,R1000,Potatoes (including seed potatoes),116,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,R2000,R2000,Sugar beet (excluding seed),157,exact,
+Eurostat,apro_cpshr|apro_cpnhr_h,R9000,R9000,Other root crops n.e.c.,,dropped,"No exact WHEP counterpart: residual n.e.c. class whose membership is defined by the source's own named classes, not by WHEP's; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,T0000,T0000,Citrus fruits,,dropped,"No exact WHEP counterpart: the class spans oranges (490), tangerines (495), lemons and limes (497), pomelos and grapefruits (507) and other citrus (512), which WHEP carries as separate items and the source serves separately; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,UAA,UAA,Utilised agricultural area,,dropped,"No exact WHEP counterpart: a land-use total, not a crop; not folded into a near neighbour (T10 crop rule 4)."
+Eurostat,apro_cpshr|apro_cpnhr_h,V0000_S0000,V0000_S0000,Fresh vegetables (including melons) and strawberries,,dropped,No exact WHEP counterpart: group total spanning several WHEP items; not folded into a near neighbour (T10 crop rule 4).
+Eurostat,apro_cpshr|apro_cpnhr_h,W1000,W1000,Grapes,560,exact,

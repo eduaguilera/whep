@@ -45,8 +45,61 @@ landuse engine.
 forwarded to both engines. See \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}'s
 \emph{Which area code the output is keyed on}.
 \item \code{country_grid}: which cell-to-polity crosswalk the engines
-allocate into, \code{"centroid"} (default) or \code{"fraction"}. See
-\emph{Which cell-to-polity crosswalk}.
+allocate into, \code{"polycell"} (default), \code{"centroid"} or
+\code{"fraction"}. See \emph{Which cell-to-polity crosswalk}.
+\item \code{grid_vintage}: which vintage of the polycell support the level-0
+grid is read at, \code{"snapshot_2015"} (default) or \code{"year_aware"}. See
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}'s \emph{Which vintage of the support level 0 is
+read at}. The two are different geographies, not two precisions of one:
+\code{"snapshot_2015"} allocates every year of a run into the present-day
+cell-to-country map, \code{"year_aware"} into the map valid that year. The
+snapshot remains the default because the national tables are on a
+constant-territory basis the historical support cannot receive: see
+\code{.grid_vintages()} and \code{validation/spatialize_grid_vintage.R}.
+Recorded in \code{run_metadata.yaml} and per row in \code{method_grid_vintage}.
+Not read under \code{country_grid = "centroid"} or \code{"fraction"}, which carry
+no validity interval at all and are recorded as \code{"static_crosswalk"}.
+\item \code{level} (integer, default \code{0L}): containment depth the grid is
+resolved at. \code{0L} is today's cell-to-\code{area_code} grid; \code{1L} and
+deeper key the cells on admin units through
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}, which only the \code{"polycell"}
+crosswalk supports.
+\item \code{granted_containers} (default \code{NULL}): the container \code{area_code}s the
+run grants a depth, e.g. \code{110L} for Japan. \strong{Required whenever
+\code{level > 0}} and refused at \code{level = 0}; a depth run must say whose
+depth it is, because that decides which containment edges
+\code{\link[=read_level_country_grid]{read_level_country_grid()}} reads, which admin-share rows constrain
+the run, and which cells \code{\link[=build_allocation_layer]{build_allocation_layer()}} takes from the
+deep grid rather than from level 0. See \emph{What a granted depth runs}.
+\item \code{double_claim}: which clashes the depth read's double-claim gate
+refuses, \code{"co_presence"} (default) or \code{"measured"}, forwarded to
+\code{\link[=read_level_country_grid]{read_level_country_grid()}}. The default is the fail-closed rule.
+\item \code{output_level} (integer, default \code{0L}): grain of the crop output.
+\code{0L} sums granted-depth rows back onto the container, so
+\verb{(lon, lat, area_code, item_prod_code, year)} stays unique and the
+schema equals a level-0 run's; a positive value returns unit-grain
+rows carrying \code{level_polity_code}. It may not exceed \code{level}.
+\item \code{constraint_exclude} (default \code{NULL}): container x year ranges to
+hold out of the admin constraint, as a list named by \code{area_code},
+such as \code{list("840" = 1961:1989)}. That is the key
+\code{\link[=resolve_admin_shares]{resolve_admin_shares()}} reads, and it is checked here against the
+same rule, so a hold-out this run records is one the resolver can
+honour. Recorded in \code{run_metadata.yaml} and consumed by the
+admin-shares resolver; it does not by itself change a run that has
+no admin constraint wired.
+\item \code{livestock_proxy}: one of \code{"luh2"} (default) or \code{"glw3"}, forwarded
+to \code{\link[=build_gridded_livestock]{build_gridded_livestock()}}'s \code{proxy_method}. Under \code{"glw3"} the
+density table is read with \code{\link[=read_glw_density]{read_glw_density()}}, which needs a
+\code{WHEP_GLW3_DIR} tree and aborts without one; under \code{"luh2"} it is
+not read at all.
+\item \code{livestock_glw_variant}: which GLW3 product a \code{"glw3"} run
+allocates on, \code{"DA"} (default, the dasymetric rasters) or \code{"AW"}
+(the areal-weighted ones), forwarded to \code{\link[=read_glw_density]{read_glw_density()}}'s
+\code{variant}. They are different within-country geographies, so the
+resolved value is recorded twice: in \code{run_metadata.yaml} with the
+rest of the config, and per row in the output's
+\code{method_livestock_proxy} as \code{"glw3_da"} or \code{"glw3_aw"}. Ignored
+under \code{livestock_proxy = "luh2"}, which reads no raster.
 }}
 
 \item{paths}{Named list of filesystem paths. Recognised entries:
@@ -62,8 +115,10 @@ otherwise to a session temporary directory (suffixed with \verb{_custom} when
 }}
 }
 \value{
-Invisibly, a named list with \code{preset}, resolved \code{config},
-\code{years}, \code{out_dir}, and \code{output_paths}.
+Invisibly, a named list with \code{preset}, \code{components}, \code{cft_target},
+resolved \code{config}, \code{years}, \code{out_dir}, \code{output_paths}, and \code{admin} -- the
+resolver's coverage report and the constraint summary at a granted depth,
+\code{NULL} otherwise.
 }
 \description{
 Wrapper around \code{\link[=build_gridded_landuse]{build_gridded_landuse()}} that resolves a named
@@ -110,7 +165,53 @@ Livestock (\code{components} contains \code{"livestock"}):
 \item \code{manure_pattern.parquet} (optional, enables
 manure-intensity weighting if present).
 \item \code{livestock_mapping.csv} from the installed package.
+\item The GLW3 rasters under \code{WHEP_GLW3_DIR}, read only when
+\code{livestock_proxy = "glw3"} (see \code{\link[=read_glw_density]{read_glw_density()}}).
 }
+}
+
+\section{What a granted depth runs}{
+
+With \code{level > 0} the landuse step does not call \code{\link[=build_gridded_landuse]{build_gridded_landuse()}}
+on a level-0 grid. It runs the subnational chain, in this order, and each
+step aborts naming what it is missing rather than continuing on the
+level-0 pattern:
+
+\enumerate{
+\item \code{\link[=read_level_country_grid]{read_level_country_grid()}} twice -- level 0 for the ungranted
+countries, \code{level} scoped to \code{granted_containers} for the granted ones
+-- and \code{\link[=build_allocation_layer]{build_allocation_layer()}} to assert the two partition every
+cell. Both halves are read year-aware, which is what
+\code{method_grid_vintage} has always recorded for a depth run.
+\item \code{\link[=read_admin_shares]{read_admin_shares()}}, scoped to \code{granted_containers}. A granted
+container with no admin row aborts with class
+\code{whep_run_admin_container_absent}; an unregistered pin with
+\code{whep_run_no_admin_shares}.
+\item \code{\link[=resolve_admin_units]{resolve_admin_units()}}, turning each source's native identifier
+into a polity code under the code system that identifier belongs to.
+Rows resolving to nothing are dropped and counted; a source resolving
+to nothing at all aborts with \code{whep_run_admin_unresolved}, and a
+source whose code system is undeclared with
+\code{whep_run_admin_code_system}.
+\item \code{\link[=resolve_admin_shares]{resolve_admin_shares()}}, applying indicator and source precedence
+and honouring \code{constraint_exclude}. A constraint sharing no
+\code{level_polity_code} with the layer aborts with
+\code{whep_run_admin_layer_mismatch}, because a run whose constraint
+matched nothing is indistinguishable from an unconstrained one in
+every output it writes.
+\item \code{\link[=allocate_level_crops]{allocate_level_crops()}}, splitting each national total across the
+container's units and spreading each unit's target over that unit's
+cells.
+\item \code{\link[=reconcile_admin_allocation]{reconcile_admin_allocation()}} and \code{\link[=seam_gate]{seam_gate()}}, written beside
+the parquets as the run's own audit trail.
+}
+
+What actually happened is recorded in \code{run_metadata.yaml} under
+\code{admin_constraint} -- the resolved, dropped and held-out row counts, the
+units constrained, the \code{method_crop_alloc} tally over the targets, the
+share basis the gate judged on, and the gate's verdict -- and per row in
+the targets' own \code{method_crop_alloc}. A level-0 run records
+\code{admin_constraint: none}.
 }
 
 \section{Which cell-to-polity crosswalk}{
@@ -143,6 +244,8 @@ area the chosen grid has no cell for and the national total at stake.
 
 \section{Outputs written to \code{out_dir}}{
 
+Every parquet below carries \code{method_grid_vintage}, the geography the run
+allocated into: \code{"year_aware"}, \code{"snapshot_2015"} or \code{"static_crosswalk"}.
 \itemize{
 \item \code{gridded_landuse_crops.parquet} — crop-level output.
 \item \code{gridded_landuse.parquet} — CFT-aggregated output
@@ -151,7 +254,21 @@ area the chosen grid has no cell for and the national total at stake.
 livestock stocks and emissions (when livestock component
 selected).
 \item \code{run_metadata.yaml} — resolved preset, components,
-flags, years, timestamp, and package version.
+flags, years, timestamp, package version, and the resolved
+\code{method_grid_vintage}.
+\item \code{admin_coverage.csv} — which admin source constrained each
+container x item x year, at what tier, grain and depth. Written
+only when \code{level > 0}, with its header and no rows where no
+coverage is granted. See \code{\link[=admin_coverage_prototype]{admin_coverage_prototype()}}.
+\item Eleven further CSVs, written only when \code{level > 0} and the
+landuse component ran: \code{admin_targets.csv} (one row per unit, item and
+year with its share, target and \code{method_crop_alloc}),
+\code{admin_group_coverage.csv}, \code{admin_conservation.csv},
+\code{admin_breach.csv}, \code{admin_reconciliation.csv},
+\code{admin_reconciliation_units.csv}, \code{admin_unit_cropland.csv},
+\code{admin_seams.csv} and the three seam-gate tiers
+\code{admin_seam_gate_a.csv}, \code{admin_seam_gate_b.csv},
+\code{admin_seam_gate_c.csv}.
 }
 }
 

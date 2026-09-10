@@ -60,6 +60,7 @@
   .check_columns(country_grid, c("lon", "lat", "area_code"), arg)
 
   country_grid <- tibble::as_tibble(country_grid)
+  .check_level_columns(country_grid, arg)
   frac_col <- intersect(.polity_share_cols(), names(country_grid))
   if (length(frac_col) == 0L) {
     .abort_missing_polity_share(country_grid, arg)
@@ -77,6 +78,40 @@
       cell_area_frac = as.numeric(cell_area_frac)
     ) |>
     .check_polity_share(frac_col[[1L]], arg)
+}
+
+#' Check the granted-depth columns without touching them (whep#1000 T12).
+#'
+#' `level_polity_code` and `level` pass through `.normalize_country_grid()`
+#' UNCHANGED: they are identity, not measurement, and coercing an identity is
+#' how one compartment quietly becomes another. They are still type-checked,
+#' because a `level_polity_code` read back as a factor would make
+#' `.compartment_id_cols()` group on integer levels whose labels differ between
+#' two grids, and a fractional `level` would make a depth-1 grid answer to a
+#' depth request it does not satisfy. An all-`NA` column keeps whatever type it
+#' arrived with: that is a level-0 row set, and a parquet round trip returns it
+#' as logical.
+#' @noRd
+.check_level_columns <- function(country_grid, arg) {
+  code <- country_grid[["level_polity_code"]]
+  if (!is.null(code) && !all(is.na(code)) && !is.character(code)) {
+    cli::cli_abort(c(
+      "{.arg {arg}} has a {.field level_polity_code} of type
+       {.cls {class(code)}}.",
+      i = "It is a polity code and must be {.cls character}."
+    ))
+  }
+  lvl <- country_grid[["level"]]
+  ok <- is.null(lvl) ||
+    all(is.na(lvl)) ||
+    (is.numeric(lvl) && all(lvl >= 0 & lvl == round(lvl), na.rm = TRUE))
+  if (!ok) {
+    cli::cli_abort(c(
+      "{.arg {arg}} has a {.field level} that is not a containment depth.",
+      i = "Depths are non-negative whole numbers; 0 is today's grid."
+    ))
+  }
+  invisible(NULL)
 }
 
 #' Refuse a grid that carries no polity share (S-A5).
@@ -200,9 +235,23 @@
 }
 
 #' Columns that identify a polity compartment within a physical cell.
+#'
+#' `level_polity_code` is appended LAST and the first three keep their order,
+#' because that order is what every consumer's column layout inherits
+#' (`.spatialize_year()`'s select, `.aggregate_to_cft()`'s grouping,
+#' `.write_landuse_outputs()`'s grouping). It is present only on a
+#' granted-depth grid (whep#1000 T12, decision 10): a level-0 country grid --
+#' every grid `.read_polycell_country_grid()` returns -- does not carry the
+#' column, so `intersect()` returns exactly what it returned before and the
+#' default path is untouched. Where it IS present, the capacity ceiling, the
+#' redistribution join and the CFT aggregation all key on the admin unit rather
+#' than on its container, which is the whole point of allocating at depth.
 #' @noRd
 .compartment_id_cols <- function(data) {
-  intersect(c("polycell_id", "cell_id", "area_code"), names(data))
+  intersect(
+    c("polycell_id", "cell_id", "area_code", "level_polity_code"),
+    names(data)
+  )
 }
 
 #' Join/grouping columns for a compartment-resolved cell.

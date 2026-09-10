@@ -1637,3 +1637,296 @@
   ) |>
     dplyr::mutate(cell_area_ha = .cell_area_ha_lat(.data$lat))
 }
+
+# ---- admin_stats_nass.R (#1000) ------------------------------------------------------
+
+# Ten rows of one read_admin_stats_nass("crops") run over the test fixture,
+# which itself holds verbatim rows of the 2026-09-02 dump, so every value
+# here is a published NASS figure converted by this reader. The last row is
+# NASS's OTHER STATES residual, kept to show the flag.
+.example_admin_stats_nass <- function() {
+  tibble::tibble(
+    source = "USDA_NASS",
+    source_native_unit_id = c(
+      "55",
+      "04",
+      "04",
+      "06",
+      "26",
+      "22",
+      "05",
+      "34",
+      "45",
+      "98"
+    ),
+    source_native_unit_name = c(
+      "WISCONSIN",
+      "ARIZONA",
+      "ARIZONA",
+      "CALIFORNIA",
+      "MICHIGAN",
+      "LOUISIANA",
+      "ARKANSAS",
+      "NEW JERSEY",
+      "SOUTH CAROLINA",
+      "OTHER STATES"
+    ),
+    source_native_item_code = NA_character_,
+    source_native_item_name = c(
+      "OATS - ACRES HARVESTED",
+      "WHEAT - ACRES HARVESTED",
+      "OATS - ACRES HARVESTED",
+      "BARLEY - ACRES HARVESTED",
+      "OATS - ACRES HARVESTED",
+      "OATS - ACRES HARVESTED",
+      "WHEAT - ACRES HARVESTED",
+      "CORN, GRAIN - ACRES HARVESTED",
+      "SOYBEANS - ACRES HARVESTED",
+      "BEANS, DRY EDIBLE, GREAT NORTHERN - ACRES HARVESTED"
+    ),
+    indicator_used = "area_harvested",
+    quantity = "area",
+    year = c(
+      1876L,
+      1913L,
+      1923L,
+      1927L,
+      1944L,
+      1956L,
+      1982L,
+      1998L,
+      2007L,
+      2022L
+    ),
+    value = c(
+      337912.5112704,
+      9307.76977152,
+      6070.2846336,
+      363003.02108928,
+      529733.50569216,
+      38040.45037056,
+      768902.720256,
+      39659.19293952,
+      178061.6825856,
+      526.091334912
+    ),
+    value_unit = "ha",
+    value_flag = c(rep(NA_character_, 9), "residual"),
+    grain = "admin1",
+    nuts_version = NA_character_,
+    source_version = "20260902",
+    recorded_at = "2026-09-02T00:00:00Z"
+  )
+}
+
+# ---- admin_stats_eurostat.R (#1000) --------------------------------------------------
+
+# Ten rows taken from a real read of all four tables on 2026-09-02, after
+# the vintage dedupe: FRF2 keeps the 1990 wheat area that FR21 also
+# reported, and FR21 keeps 1989, which no newer code covers. FI20's swine
+# row is Eurostat's confidentiality suppression -- flag kept, value gone.
+.example_admin_stats_eurostat <- function() {
+  tibble::tribble(
+    ~source, ~source_native_unit_id, ~source_native_unit_name, ~source_native_item_code, ~source_native_item_name, ~quantity, ~indicator_used, ~year, ~value, ~value_unit, ~value_flag, ~concept_break, ~grain, ~nuts_level, ~nuts_version, ~source_version, ~recorded_at,
+    "Eurostat_apro_cpnhr_h", "FR21", "Champagne-Ardenne (NUTS 2013)", "C1110", "Common wheat and spelt", "area", "area_harvested", 1989L, 413100, "ha", NA_character_, FALSE, "admin1", 2L, "2013", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpnhr_h", "FRF2", "Champagne-Ardenne", "C1110", "Common wheat and spelt", "area", "area_harvested", 1990L, 417100, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpnhr_h", "FRF2", "Champagne-Ardenne", "C1110", "Common wheat and spelt", "production", "production", 1990L, 3423200, "tonnes", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpnhr_h", "FRF1", "Alsace", "C1300", "Barley", "area", "area_harvested", 1995L, 7400, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "01/08/23 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpshr", "ES51", "Catalu\u00f1a", "C1110", "Common wheat and spelt", "area", "area_harvested", 2020L, 90660, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "28/05/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_cpshr", "DE11", "Stuttgart", "C1110", "Common wheat and spelt", "area", "area_harvested", 2003L, 85500, "ha", NA_character_, FALSE, "admin1", 2L, "2024", "28/05/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_mt_ls_r", "FRF2", "Champagne-Ardenne", "A2000", "Live bovine animals", "heads", NA_character_, 2020L, 547520, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_mt_ls_r", "FRF2", "Champagne-Ardenne", "A2300F", "Dairy cows", "heads", NA_character_, 2020L, 86390, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_apro_mt_ls_r", "FI20", "\u00c5land", "A3100", "Live swine, domestic species", "heads", NA_character_, 2020L, NA_real_, "heads", "C", FALSE, "admin1", 2L, "2024", "31/07/26 23:00:00", "2026-09-02T00:00:00Z",
+    "Eurostat_ef_lsk_poultry", "FRF2", "Champagne-Ardenne", "A5000", "Live poultry", "heads", NA_character_, 2020L, 6600200, "heads", NA_character_, FALSE, "admin1", 2L, "2024", "17/06/26 23:00:00", "2026-09-02T00:00:00Z"
+  )
+}
+
+# ---- admin_stats_sidra.R (#1000) -----------------------------------------------------
+
+# Ten rows the API served on 2026-09-02, values unmodified: 2020 crop rows
+# for Sao Paulo, Parana and Rio Grande do Sul (harvested area, planted area
+# and production), the 1985 Rondonia wheat absolute zero, the 1985 Tocantins
+# not-available code from before that state existed, and three head-count
+# rows (PPM sheep, PPM poultry, milked cows).
+.example_admin_stats_sidra <- function() {
+  tibble::tribble(
+    ~source,
+    ~source_native_unit_id,
+    ~source_native_unit_name,
+    ~source_native_item_code,
+    ~source_native_item_name,
+    ~indicator_used,
+    ~quantity,
+    ~year,
+    ~value,
+    ~value_unit,
+    ~value_flag,
+    "IBGE_PAM", "17", "Tocantins", "40122", "Milho (em gr\u00e3o)",
+    "area_harvested", "area", 1985L, NA_real_, "ha", "...",
+    "IBGE_PAM", "11", "Rond\u00f4nia", "40127", "Trigo (em gr\u00e3o)",
+    "area_harvested", "area", 1985L, 0, "ha", NA_character_,
+    "IBGE_PAM", "35", "S\u00e3o Paulo", "40122", "Milho (em gr\u00e3o)",
+    "area_harvested", "area", 2020L, 810278, "ha", NA_character_,
+    "IBGE_PAM", "35", "S\u00e3o Paulo", "40122", "Milho (em gr\u00e3o)",
+    "area_planted_or_sown", "area", 2020L, 810287, "ha", NA_character_,
+    "IBGE_PAM", "35", "S\u00e3o Paulo", "40122", "Milho (em gr\u00e3o)",
+    "production", "production", 2020L, 4503594, "tonnes", NA_character_,
+    "IBGE_PAM", "41", "Paran\u00e1", "40127", "Trigo (em gr\u00e3o)",
+    "area_harvested", "area", 2020L, 1117241, "ha", NA_character_,
+    "IBGE_PAM", "43", "Rio Grande do Sul", "40102", "Arroz (em casca)",
+    "area_harvested", "area", 2020L, 949613, "ha", NA_character_,
+    "IBGE_PPM", "43", "Rio Grande do Sul", "2677", "Ovino",
+    NA_character_, "heads", 2020L, 2950926, "heads", NA_character_,
+    "IBGE_PPM", "35", "S\u00e3o Paulo", "32796", "Galin\u00e1ceos - total",
+    NA_character_, "heads", 2020L, 200339119, "heads", NA_character_,
+    "IBGE_PPM", "35", "S\u00e3o Paulo", NA_character_, "Vacas ordenhadas",
+    NA_character_, "heads", 2020L, 1008099, "heads", NA_character_
+  ) |>
+    dplyr::mutate(
+      grain = "admin1",
+      nuts_version = NA_character_,
+      source_version = NA_character_,
+      recorded_at = "2026-09-02T00:00:00Z"
+    )
+}
+
+# ---- admin_shares_pins.R (#1000) -----------------------------------------------------
+
+# Ten rows of the 2026-09-03 staged build: the five largest Japanese
+# rice-area prefectures of 2000, and the complete Bolivian cocoa-bean
+# harvested-area group of 2023, whose five shares sum to 1. Three
+# families are reported absent, which is the state of the board until the
+# pins are registered.
+.example_admin_family <- function() {
+  list(
+    "admin-stats-japan" = tibble::tribble(
+      ~source_native_unit_id, ~source_native_unit_name, ~value,
+      "JPN-HOKKAIDO", "Hokkaido", 134900,
+      "JPN-NIIGATA", "Niigata", 120700,
+      "JPN-AKITA", "Akita", 95600,
+      "JPN-MIYAGI", "Miyagi", 84300,
+      "JPN-FUKUSHIMA", "Fukushima", 82300
+    ) |>
+      dplyr::mutate(
+        source = "admin-stats-japan",
+        source_native_item_code = "27",
+        source_native_item_name = "Rice",
+        indicator_used = "area_harvested",
+        quantity = "area",
+        year = 2000L,
+        value_unit = "ha",
+        value_flag = NA_character_,
+        grain = "admin1",
+        nuts_version = NA_character_,
+        source_version = "NATIONAL_OFFICIAL:JPN:MAFF",
+        recorded_at = "2026-09-03T06:21:54Z"
+      ) |>
+      dplyr::select(dplyr::all_of(.admin_family_shape("admin-stats-japan"))),
+    "admin-stats-latam" = tibble::tribble(
+      ~source_native_unit_id, ~source_native_unit_name, ~share,
+      "BOL-LAPAZ", "La Paz", 0.792032501,
+      "BOL-COCHABAMBA", "Cochabamba", 0.091117913,
+      "BOL-BEN", "Beni", 0.089528663,
+      "BOL-PANDO", "Pando", 0.018272781,
+      "BOL-SANTACRUZ", "Santa Cruz", 0.009048142
+    ) |>
+      dplyr::mutate(
+        source = "admin-stats-latam",
+        source_native_item_code = "661",
+        source_native_item_name = "Cocoa beans",
+        indicator_used = "area_harvested",
+        quantity = "area",
+        year = 2023L,
+        value_unit = "ha",
+        value_flag = NA_character_,
+        grain = "admin1",
+        nuts_version = NA_character_,
+        source_version = "2026-05-21",
+        recorded_at = "2026-09-03T06:21:54Z"
+      ) |>
+      dplyr::select(dplyr::all_of(.admin_family_shape("admin-stats-latam"))),
+    not_shipped = c(
+      "admin-stats-spain-provinces",
+      "admin-stats-australia",
+      "admin-stats-france-livestock"
+    )
+  )
+}
+
+# Illustrative, NOT sampled from GLW3: the rasters need a WHEP_GLW3_DIR
+# tree, which the example surface may not have. The shape is exact -- the
+# four contract columns, one row per cell and group, cattle_dairy and
+# cattle_non_dairy carrying identical counts as the crosswalk's
+# replication rule requires -- and the magnitudes are of the right order
+# for a 0.5-degree cell, but no value here is a GLW3 measurement.
+.example_glw_density <- function() {
+  tibble::tribble(
+    ~lon,    ~lat, ~species_group,      ~density, ~glw_variant,
+    -3.75,  40.25, "cattle_dairy",         12400, "DA",
+    -3.25,  40.25, "cattle_dairy",          8150, "DA",
+    -3.75,  40.25, "cattle_non_dairy",     12400, "DA",
+    -3.25,  40.25, "cattle_non_dairy",      8150, "DA",
+    -3.75,  40.25, "chickens_broilers",   870000, "DA",
+    -3.25,  40.25, "chickens_broilers",   642000, "DA",
+    -3.75,  40.25, "chickens_layers",     870000, "DA",
+    -3.25,  40.25, "chickens_layers",     642000, "DA",
+    -3.75,  40.25, "pigs",                 61200, "DA",
+    -3.25,  40.25, "pigs",                 44800, "DA",
+    -3.75,  40.25, "poultry",              25300, "DA",
+    -3.25,  40.25, "poultry",              18100, "DA",
+    -3.75,  40.25, "sheep_goats",         143000, "DA",
+    -3.25,  40.25, "sheep_goats",          97600, "DA"
+  )
+}
+
+# `.example_admin_family()`; it is defined here only because that file was
+# out of bounds to the wave that wrote `read_admin_shares()`. Sampled from
+# the 2026-09-03 staged families -- two Japanese prefectures shipping
+# values and two Bolivian departments shipping shares -- so the shape and
+# the magnitudes are real, and the shares-only case is visible in the
+# example itself.
+#
+# `excluded` is built by the real reporter over the real consent manifest
+# rather than transcribed. A hardcoded copy drifted the moment `detail`
+# changed, and it advertised the wrong contract while every test passed.
+.example_admin_shares <- function() {
+  japan <- "admin-stats-japan"
+  latam <- "admin-stats-latam"
+  shares <- tibble::tibble(
+    area_code = c(110L, 110L, 19L, 19L),
+    level_polity_code = NA_character_,
+    level = 1L,
+    item_prod_code = c(27L, 27L, 661L, 661L),
+    indicator_used = "area_harvested",
+    year = c(2000L, 2000L, 2023L, 2023L),
+    value = c(134900, 120700, NA, NA),
+    share = c(NA, NA, 0.792032501, 0.009048142),
+    source = c(japan, japan, latam, latam),
+    tier = c(2L, 2L, 3L, 3L),
+    grain = "admin1",
+    concept_break = FALSE,
+    nuts_version = NA_character_,
+    source_native_id = c(
+      "JPN-HOKKAIDO",
+      "JPN-NIIGATA",
+      "BOL-LAPAZ",
+      "BOL-SANTACRUZ"
+    ),
+    source_native_name = c("Hokkaido", "Niigata", "La Paz", "Santa Cruz"),
+    source_id = c(japan, japan, latam, latam),
+    source_version = c(
+      "NATIONAL_OFFICIAL:JPN:MAFF",
+      "NATIONAL_OFFICIAL:JPN:MAFF",
+      "2026-05-21",
+      "2026-05-21"
+    ),
+    recorded_at = "2026-09-03T06:21:54Z",
+    treatment_year = "observed",
+    value_flag = NA_character_
+  )
+  list(
+    shares = shares,
+    excluded = .admin_shares_excluded(shares),
+    not_shipped = character()
+  )
+}

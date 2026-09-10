@@ -1,3 +1,15 @@
+# FOR THE INTEGRATION PASS (whep#1000 T13) -- NSE symbols this file gained and
+# that the `utils::globalVariables()` block at the end of `R/utils.R` does not
+# yet declare (verified with `lintr::object_usage_linter()`):
+#
+#   i.unit_mc_ir, i.unit_mc_rf, ir_share, rf_share, unit_ir, unit_ir_land,
+#   unit_mc_ir, unit_mc_rf, unit_rf, unit_rf_land
+#
+# `i.unit_mc_rf` and `i.unit_mc_ir` are data.table join-side names and follow
+# the file's existing `i.cropland_ha` / `i.rf_capacity` usages, which are not
+# declared either. No export and no example changes here: the new behaviour is
+# reached through `config` keys and through `allocate_level_crops()`.
+
 #' Build gridded landuse dataset
 #'
 #' @description
@@ -95,6 +107,17 @@
 #'   - `area_key`: Which area code the output is keyed on, `"grid"`
 #'     (default) or `"polity_area"`. See *Which area code the output is
 #'     keyed on*.
+#'   - `mc_factor`: Which multi-cropping factor sets the capacity
+#'     ceiling of a granted-depth compartment, `"unit"` (default) or
+#'     `"national"`. See *The capacity ceiling and its breach*. A grid
+#'     with no `level_polity_code` has no unit, so the two are the same
+#'     table there and a level-0 run is unaffected.
+#'   - `pattern_extension`: `"none"` (default) or `"granted_units"`.
+#'     Under `"granted_units"`, a granted-depth compartment carrying no
+#'     `crop_patterns` row for an item the national table gives it a
+#'     target for gains one at `harvest_fraction = 0`, so the crop is
+#'     placed uniformly over that unit's cropland of its LUH2 type
+#'     instead of being dropped. Level-0 rows are never extended.
 #'
 #' @return A tibble with gridded crop (or CFT) harvested areas.
 #'   Columns:
@@ -111,6 +134,46 @@
 #'   - `crop_name` or `cft_name`: Crop or CFT identifier.
 #'   - `rainfed_ha`: Rainfed harvested area in the cell.
 #'   - `irrigated_ha`: Irrigated harvested area in the cell.
+#'
+#'   The per-compartment capacity breach is a second table and is
+#'   therefore **not** returned here: this function's return value is a
+#'   contract two in-package consumers and every `run_spatialize()` caller
+#'   already depend on, and an attribute would ride through every dplyr
+#'   verb into comparisons that are about the allocation. Allocate at a
+#'   granted depth with [allocate_level_crops()], which returns the breach
+#'   beside the allocation. See *The capacity ceiling and its breach*.
+#'
+#' @section The capacity ceiling and its breach:
+#' The ceiling is soft: `.redistribute_country_dt()` rescales every crop
+#' back to its target after the logit passes, so where a compartment's
+#' cells cannot hold the target the target wins and the ceiling gives
+#' way. That excess is measured rather than absorbed, and returned as the
+#' `breach` table of [allocate_level_crops()]: one row per compartment,
+#' cell, item and `mc_basis`, with `rf_over` and `ir_over` in hectares,
+#' which T14's reconciliation consumes as a table and never as warning
+#' text. A cell's ceiling
+#' is shared by every item in it, so the cell's excess is attributed to
+#' items **pro rata by their allocated area** -- no other split is
+#' available, and summing the rows of a cell recovers its excess exactly.
+#'
+#' `mc_basis` records which multi-cropping factor the row was scored
+#' against. Rows carrying a `level_polity_code` are scored twice: at
+#' `"national"`, the factor the `multicropping` layer supplies (which is
+#' a national figure broadcast to every cell, so it inflates a unit's
+#' breach by construction), and at `"unit"`, the unit's own implied
+#' intensity -- its whole allocated harvested area over the same physical
+#' cropland the ceiling uses, floored at 1 because a factor below 1 would
+#' forbid single cropping on land that exists. `in_force` marks the basis
+#' `mc_factor` selected, which is the one the redistribution ran against.
+#'
+#' The unit factor makes a unit's *aggregate* ceiling equal its own
+#' allocation by construction, so a breach at `"unit"` is always a
+#' within-unit concentration, never a shortfall of the unit as a whole;
+#' that is the difference the pair of bases exists to show. The plan
+#' phrases the unit factor as unit harvested over unit *herbaceous* LUH2
+#' cropland; the ceiling carries no LUH2 type split, so it is computed
+#' over the same cropland the ceiling itself multiplies, and a
+#' herbaceous-only denominator would leave the two inconsistent.
 #'
 #' @section Which area code the output is keyed on:
 #' The chain allocates *from* a national table keyed on `area_code` and
@@ -195,6 +258,29 @@ build_gridded_landuse <- function(
   country_grid,
   config = list()
 ) {
+  .gridded_landuse_parts(
+    country_areas,
+    crop_patterns,
+    gridded_cropland,
+    country_grid,
+    config
+  )$allocation
+}
+
+#' The engine, returning its diagnostics beside the allocation.
+#'
+#' `build_gridded_landuse()` is this function's `allocation` element and
+#' nothing else, so the exported return value keeps the exact shape,
+#' classes and attributes it has always had; `allocate_level_crops()` calls
+#' this one and returns `breach` as a table of its own.
+#' @noRd
+.gridded_landuse_parts <- function(
+  country_areas,
+  crop_patterns,
+  gridded_cropland,
+  country_grid,
+  config = list()
+) {
   .validate_landuse_inputs(
     country_areas,
     crop_patterns,
@@ -212,6 +298,17 @@ build_gridded_landuse <- function(
   expansion_threshold <- config$expansion_threshold
 
   country_areas <- .ensure_irrigation_cols(country_areas)
+  # DELIBERATELY UNGUARDED AT LEVEL 0. `.check_irrigation_within_area()` runs
+  # only where the national table states UNIT targets -- the granted-depth
+  # path this epic adds, where nothing is pinned and no caller exists yet.
+  # Applying it to a container-keyed table would turn inputs that produce
+  # output today into an abort, which is a fail-loud-vs-continue change on a
+  # published path: a science decision, not a mechanical one, and out of this
+  # task's scope. `allocate_level_crops()` runs the same check on the
+  # container-keyed table it is handed, before it splits it into units.
+  if (rlang::has_name(country_areas, "level_polity_code")) {
+    .check_irrigation_within_area(country_areas)
+  }
   gridded_cropland <- .ensure_gridded_irrigation(gridded_cropland)
 
   if (!is.null(years)) {
@@ -259,6 +356,13 @@ build_gridded_landuse <- function(
     .build_base_grid_cp(country_grid, crop_patterns, type_lookup)
   }
 
+  opts <- list(
+    max_iterations = max_iterations,
+    expansion_threshold = expansion_threshold,
+    mc_factor = config$mc_factor,
+    pattern_extension = config$pattern_extension
+  )
+
   .spatialize_one <- function(yr) {
     country_grid_yr <- .filter_country_grid_year(country_grid, yr)
     if (nrow(country_grid_yr) == 0L) {
@@ -282,8 +386,7 @@ build_gridded_landuse <- function(
         dplyr::filter(type_cropland, year == yr)
       },
       multicropping = multicropping,
-      max_iterations = max_iterations,
-      expansion_threshold = expansion_threshold
+      opts = opts
     )
   }
 
@@ -292,24 +395,33 @@ build_gridded_landuse <- function(
   } else {
     purrr::map(years, .spatialize_one)
   }
-  result <- data.table::rbindlist(parts, fill = TRUE)
+  result <- data.table::rbindlist(
+    purrr::map(parts, "allocation"),
+    fill = TRUE
+  )
+  breach <- data.table::rbindlist(purrr::map(parts, "breach"), fill = TRUE)
   rm(parts)
 
   if (!is.null(cft_mapping)) {
     result <- .aggregate_to_cft(result, cft_mapping)
   }
 
-  tibble::as_tibble(result) |>
+  out <- tibble::as_tibble(result) |>
     .spatialize_apply_area_key(
       config$area_key,
       c("rainfed_ha", "irrigated_ha")
     ) |>
     .add_reporting_polity_columns()
+  list(allocation = out, breach = tibble::as_tibble(breach))
 }
 
 # --- Private helpers ----------------------------------------------------------
 
 #' Spatialize a single year using data.table for all crops at once.
+#'
+#' Returns a list of two tibbles: `allocation`, the year's gridded rows,
+#' and `breach`, the per-compartment capacity excess at both
+#' multi-cropping bases.
 #' @noRd
 .spatialize_year <- function(
   yr,
@@ -319,99 +431,54 @@ build_gridded_landuse <- function(
   country_grid,
   type_cropland_yr = NULL,
   multicropping,
-  max_iterations,
-  expansion_threshold
+  opts
 ) {
   t_alloc0 <- proc.time()[["elapsed"]]
 
-  cl <- data.table::as.data.table(cropland)
   ca <- data.table::as.data.table(country_areas)
+  # THE ALLOCATION KEY. Every denominator, join and target below groups on
+  # exactly the grain the NATIONAL TABLE is keyed at -- the container alone,
+  # or the container and its unit -- never on the grid's. A unit-keyed grid
+  # under a container-keyed national table is the pattern-implied split and
+  # must stay one national total; grouping on the grid there would hand every
+  # unit the container's whole total.
+  alloc_cols <- .alloc_target_cols(ca, base_grid_cp)
+  opts$alloc_cols <- alloc_cols
+  base_grid_cp <- .extend_base_grid_pattern(
+    base_grid_cp,
+    country_grid,
+    ca,
+    opts
+  )
+  grid_cp <- .spatialize_cell_potential(
+    base_grid_cp,
+    cropland,
+    type_cropland_yr,
+    alloc_cols,
+    yr
+  )
 
-  # Per-year: copy the static base (cells × crops) and attach cropland.
-  # `.build_base_grid_cp()` has already dropped the rows no compartment claims,
-  # so a surviving NA share would be an unkeyed allocation reaching the engine.
-  grid_cp <- data.table::copy(base_grid_cp)
-  if (anyNA(grid_cp$cell_area_frac)) {
-    cli::cli_abort(
-      "{sum(is.na(grid_cp$cell_area_frac))} compartment{?s} in year {yr} have
-       no {.field cell_area_frac}."
-    )
-  }
-  grid_cp[
-    cl,
-    `:=`(
-      cropland_ha = i.cropland_ha * cell_area_frac,
-      irrigated_ha = i.irrigated_ha * cell_area_frac
-    ),
-    on = .(lon, lat)
-  ]
-  grid_cp[, rainfed_ha := cropland_ha - irrigated_ha]
-
-  use_type_aware <- !is.null(type_cropland_yr) &&
-    "luh2_type" %in% names(grid_cp)
-
-  # Type-aware: replace cropland with type-specific where applicable
-  if (use_type_aware) {
-    # Preserve original LUH2 total cropland so the fallback path below
-    # can restore it for (country, crop) groups with no type potential.
-    grid_cp[, `:=`(
-      .orig_cropland_ha = cropland_ha,
-      .orig_irrigated_ha = irrigated_ha,
-      .orig_rainfed_ha = rainfed_ha
-    )]
-    tc <- data.table::as.data.table(type_cropland_yr)
-    grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
-
-    # Compute potential for type-aware crops
-    grid_cp_tc[
-      !is.na(type_ha),
-      `:=`(
-        cropland_ha = type_ha * cell_area_frac,
-        irrigated_ha = type_irrig_ha * cell_area_frac,
-        rainfed_ha = (type_ha - type_irrig_ha) * cell_area_frac
-      )
-    ]
-
-    # `type_cropland` is stored sparse: cells lacking a crop's LUH2 type have
-    # no row and join to `type_ha = NA`. Zero those so a crop cannot be placed
-    # in a cell lacking its type. Otherwise they would keep the inherited total
-    # cropland and both leak allocation and inflate `type_pot`, masking the
-    # whole-group fallback below.
-    grid_cp_tc[
-      is.na(type_ha),
-      `:=`(
-        cropland_ha = 0,
-        irrigated_ha = 0,
-        rainfed_ha = 0
-      )
-    ]
-
-    # Check which (country, crop) have type potential; fallback where zero
-    grid_cp_tc[,
-      type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
-      by = .(area_code, item_prod_code)
-    ]
-    grid_cp_tc[
-      type_pot <= 0,
-      `:=`(
-        cropland_ha = .orig_cropland_ha,
-        irrigated_ha = .orig_irrigated_ha,
-        rainfed_ha = .orig_rainfed_ha
-      )
-    ]
-
-    grid_cp <- grid_cp_tc
-    grid_cp[, `:=`(
-      type_pot = NULL,
-      luh2_type = NULL,
-      .orig_cropland_ha = NULL,
-      .orig_irrigated_ha = NULL,
-      .orig_rainfed_ha = NULL
-    )]
-  }
+  # THE ALLOCATION KEY IS SPELLED OUT IN BOTH GRAINS, ON PURPOSE.
+  # `.alloc_target_cols()` decides which grain is in force; the join and the
+  # share denominators below then write that grain as a LITERAL `on =` /
+  # `by =` instead of passing the vector. The territorial join audit
+  # (`R/join_audit.R`) reads keys exactly as written, so `on = alloc_cols`
+  # resolves to `<dynamic>` and takes the engine's core allocation join --
+  # the most important territorial grouping in the spatialization -- out of
+  # the gate that exists to watch it. `test_join_audit.R` pins both spellings
+  # against `.alloc_target_cols()`, so they cannot drift away from it.
+  unit_keyed <- "level_polity_code" %in% alloc_cols
 
   # Join country_areas (cartesian: each country-crop gets its cells)
-  dat <- grid_cp[ca, on = .(area_code, item_prod_code), nomatch = NA]
+  dat <- if (unit_keyed) {
+    grid_cp[
+      ca,
+      on = .(area_code, level_polity_code, item_prod_code),
+      nomatch = NA
+    ]
+  } else {
+    grid_cp[ca, on = .(area_code, item_prod_code), nomatch = NA]
+  }
   dat <- dat[!is.na(harvested_area_ha)]
 
   # Compute allocation for ALL (country, crop) pairs in one pass
@@ -419,15 +486,27 @@ build_gridded_landuse <- function(
     rf_potential = harvest_fraction * rainfed_ha,
     ir_potential = harvest_fraction * irrigated_ha
   )]
-  dat[,
-    `:=`(
-      rf_pot_sum = sum(rf_potential, na.rm = TRUE),
-      ir_pot_sum = sum(ir_potential, na.rm = TRUE),
-      rainfed_sum = sum(rainfed_ha, na.rm = TRUE),
-      irrigated_sum = sum(irrigated_ha, na.rm = TRUE)
-    ),
-    by = .(area_code, item_prod_code)
-  ]
+  if (unit_keyed) {
+    dat[,
+      `:=`(
+        rf_pot_sum = sum(rf_potential, na.rm = TRUE),
+        ir_pot_sum = sum(ir_potential, na.rm = TRUE),
+        rainfed_sum = sum(rainfed_ha, na.rm = TRUE),
+        irrigated_sum = sum(irrigated_ha, na.rm = TRUE)
+      ),
+      by = .(area_code, level_polity_code, item_prod_code)
+    ]
+  } else {
+    dat[,
+      `:=`(
+        rf_pot_sum = sum(rf_potential, na.rm = TRUE),
+        ir_pot_sum = sum(ir_potential, na.rm = TRUE),
+        rainfed_sum = sum(rainfed_ha, na.rm = TRUE),
+        irrigated_sum = sum(irrigated_ha, na.rm = TRUE)
+      ),
+      by = .(area_code, item_prod_code)
+    ]
+  }
   dat[, `:=`(
     rf_uniform = data.table::fifelse(
       rainfed_sum > 0,
@@ -457,7 +536,7 @@ build_gridded_landuse <- function(
   # Surface (country, crop) pairs whose national area cannot be allocated
   # (no matching grid cell / only zero-cropland cells) before the filter
   # below silently drops them.
-  .warn_unallocated_crops(dat, yr)
+  .warn_unallocated_crops(dat, yr, alloc_cols)
 
   result <- dat[
     allocated_rf > 0 | allocated_ir > 0,
@@ -485,22 +564,276 @@ build_gridded_landuse <- function(
     multicropping_yr <- dplyr::filter(multicropping_yr, year == yr) |>
       dplyr::select(-year)
   }
-  result <- result |>
-    .apply_capacity_constraint(
-      cropland,
-      country_grid,
-      multicropping_yr,
-      max_iterations,
-      expansion_threshold
-    ) |>
-    dplyr::mutate(year = yr, .before = 1L)
+  constrained <- .apply_capacity_constraint(
+    result,
+    cropland,
+    country_grid,
+    multicropping_yr,
+    opts
+  )
+  result <- dplyr::mutate(constrained$allocated, year = yr, .before = 1L)
 
   t_cap <- round(proc.time()[["elapsed"]] - t_alloc0 - t_alloc, 2)
   cli::cli_alert(
     "  Year {yr}: {nrow(result)} rows (alloc {t_alloc}s, cap {t_cap}s)"
   )
 
-  result
+  list(
+    allocation = result,
+    breach = dplyr::mutate(constrained$breach, year = yr, .before = 1L)
+  )
+}
+
+#' The grain the national table is keyed at, which is the allocation key.
+#'
+#' A `country_areas` carrying `level_polity_code` states a UNIT target, so
+#' every share denominator, capacity target and redistribution group below
+#' is that unit's; one without states a container target spread by the
+#' pattern, which is the pattern-implied split of decision T31(f). The grid
+#' does not decide this: a unit-keyed grid under a container-keyed national
+#' table is the pattern-implied case, and grouping on the grid there would
+#' give every unit the container's whole total.
+#' @noRd
+.alloc_target_cols <- function(country_areas, grid) {
+  base <- c("area_code", "item_prod_code")
+  if (!rlang::has_name(country_areas, "level_polity_code")) {
+    return(base)
+  }
+  if (!rlang::has_name(grid, "level_polity_code")) {
+    cli::cli_abort(c(
+      "{.arg country_areas} carries unit targets
+       ({.field level_polity_code}) but {.arg country_grid} has no unit to
+       place them in.",
+      i = "Allocate at the granted depth with
+           {.fn read_level_country_grid} and {.fn build_allocation_layer},
+           or drop the unit key from the national table."
+    ))
+  }
+  c("area_code", "level_polity_code", "item_prod_code")
+}
+
+#' Attach cropland to the static base grid and apply the LUH2 type split.
+#'
+#' Extracted from `.spatialize_year()` unchanged except for the grouping
+#' key, so the pre-capacity potential the unit-target builder reads
+#' (`.alloc_unit_weights()`) is the SAME quantity the engine allocates on,
+#' rather than a second implementation of it.
+#' @noRd
+.spatialize_cell_potential <- function(
+  base_grid_cp,
+  cropland,
+  type_cropland_yr,
+  group_cols,
+  yr
+) {
+  cl <- data.table::as.data.table(cropland)
+  # Per-year: copy the static base (cells × crops) and attach cropland.
+  # `.build_base_grid_cp()` has already dropped the rows no compartment claims,
+  # so a surviving NA share would be an unkeyed allocation reaching the engine.
+  grid_cp <- data.table::copy(base_grid_cp)
+  if (anyNA(grid_cp$cell_area_frac)) {
+    cli::cli_abort(
+      "{sum(is.na(grid_cp$cell_area_frac))} compartment{?s} in year {yr} have
+       no {.field cell_area_frac}."
+    )
+  }
+  grid_cp[
+    cl,
+    `:=`(
+      cropland_ha = i.cropland_ha * cell_area_frac,
+      irrigated_ha = i.irrigated_ha * cell_area_frac
+    ),
+    on = .(lon, lat)
+  ]
+  grid_cp[, rainfed_ha := cropland_ha - irrigated_ha]
+
+  use_type_aware <- !is.null(type_cropland_yr) &&
+    "luh2_type" %in% names(grid_cp)
+  if (!use_type_aware) {
+    return(grid_cp)
+  }
+  .spatialize_type_cropland(grid_cp, type_cropland_yr, group_cols)
+}
+
+#' Replace cropland with its LUH2-type slice, with the whole-group fallback.
+#' @noRd
+.spatialize_type_cropland <- function(grid_cp, type_cropland_yr, group_cols) {
+  # Preserve original LUH2 total cropland so the fallback path below
+  # can restore it for (country, crop) groups with no type potential.
+  grid_cp[, `:=`(
+    .orig_cropland_ha = cropland_ha,
+    .orig_irrigated_ha = irrigated_ha,
+    .orig_rainfed_ha = rainfed_ha
+  )]
+  tc <- data.table::as.data.table(type_cropland_yr)
+  grid_cp_tc <- tc[grid_cp, on = .(lon, lat, luh2_type), nomatch = NA]
+
+  # Compute potential for type-aware crops
+  grid_cp_tc[
+    !is.na(type_ha),
+    `:=`(
+      cropland_ha = type_ha * cell_area_frac,
+      irrigated_ha = type_irrig_ha * cell_area_frac,
+      rainfed_ha = (type_ha - type_irrig_ha) * cell_area_frac
+    )
+  ]
+
+  # `type_cropland` is stored sparse: cells lacking a crop's LUH2 type have
+  # no row and join to `type_ha = NA`. Zero those so a crop cannot be placed
+  # in a cell lacking its type. Otherwise they would keep the inherited total
+  # cropland and both leak allocation and inflate `type_pot`, masking the
+  # whole-group fallback below.
+  grid_cp_tc[
+    is.na(type_ha),
+    `:=`(
+      cropland_ha = 0,
+      irrigated_ha = 0,
+      rainfed_ha = 0
+    )
+  ]
+
+  # Check which allocation group has type potential; fallback where zero.
+  # Both grains written out, for the reason `.spatialize_year()` gives where
+  # it forms the same key.
+  if ("level_polity_code" %in% group_cols) {
+    grid_cp_tc[,
+      type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
+      by = .(area_code, level_polity_code, item_prod_code)
+    ]
+  } else {
+    grid_cp_tc[,
+      type_pot := sum(harvest_fraction * cropland_ha, na.rm = TRUE),
+      by = .(area_code, item_prod_code)
+    ]
+  }
+  grid_cp_tc[
+    type_pot <= 0,
+    `:=`(
+      cropland_ha = .orig_cropland_ha,
+      irrigated_ha = .orig_irrigated_ha,
+      rainfed_ha = .orig_rainfed_ha
+    )
+  ]
+  grid_cp_tc[, `:=`(
+    type_pot = NULL,
+    luh2_type = NULL,
+    .orig_cropland_ha = NULL,
+    .orig_irrigated_ha = NULL,
+    .orig_rainfed_ha = NULL
+  )]
+  grid_cp_tc
+}
+
+#' Give a granted unit a zero-pattern row for every item it must place.
+#'
+#' Decision T31(b). `.build_base_grid_cp()` is `crop_patterns`-keyed, so a
+#' unit whose cells carry no Monfreda pattern for a crop has NO engine row
+#' for it and its target is warned and dropped -- at province grain the
+#' common case, and the signature this feature exists to remove. A row at
+#' `harvest_fraction = 0` puts the unit back in its own group, where the
+#' engine's existing uniform branch (`rf_uniform`, reached when the group's
+#' potential is zero) spreads the target over that unit's cropland of the
+#' crop's LUH2 type.
+#'
+#' Only compartments carrying a `level_polity_code` are extended, so no
+#' level-0 country's allocation moves; and only items the national table
+#' actually gives that compartment's container a target for.
+#' @noRd
+.extend_base_grid_pattern <- function(base_grid_cp, country_grid, ca, opts) {
+  if (opts$pattern_extension == "none") {
+    return(base_grid_cp)
+  }
+  if (!rlang::has_name(country_grid, "level_polity_code")) {
+    return(base_grid_cp)
+  }
+  grid <- data.table::as.data.table(country_grid)
+  units <- grid[!is.na(level_polity_code)]
+  if (nrow(units) == 0L) {
+    return(base_grid_cp)
+  }
+  # Taken from the GRID, never from `base_grid_cp`: the base is
+  # `crop_patterns`-keyed, so a unit whose cells carry no pattern row for any
+  # item at all is absent from it entirely, and extending what survives there
+  # would reach every unit except the one that needs it most.
+  cell_cols <- .compartment_cell_cols(units)
+  keep <- setdiff(
+    names(units),
+    c("item_prod_code", "luh2_type", "harvest_fraction")
+  )
+  cells <- unique(units[, keep, with = FALSE])
+  cells[, harvest_fraction := 0]
+  wanted <- unique(data.table::as.data.table(ca)[,
+    c("area_code", "item_prod_code"),
+    with = FALSE
+  ])
+  filled <- cells[wanted, on = "area_code", allow.cartesian = TRUE]
+  filled <- filled[!is.na(lon)]
+  have <- unique(base_grid_cp[,
+    c(cell_cols, "item_prod_code"),
+    with = FALSE
+  ])
+  filled <- filled[!have, on = c(cell_cols, "item_prod_code")]
+  if (nrow(filled) == 0L) {
+    return(base_grid_cp)
+  }
+  if (rlang::has_name(base_grid_cp, "luh2_type")) {
+    types <- unique(base_grid_cp[
+      !is.na(luh2_type),
+      c("item_prod_code", "luh2_type"),
+      with = FALSE
+    ])
+    filled[types, luh2_type := i.luh2_type, on = "item_prod_code"]
+  }
+  cli::cli_inform(
+    "Pattern extension: {nrow(filled)} zero-pattern compartment-item row{?s}
+     added for {dplyr::n_distinct(filled$level_polity_code)} granted unit{?s}."
+  )
+  out <- data.table::rbindlist(
+    list(base_grid_cp, filled),
+    use.names = TRUE,
+    fill = TRUE
+  )
+  data.table::setkey(out, lon, lat)
+  out
+}
+
+#' Refuse a national table whose irrigated area exceeds its harvested area.
+#'
+#' The engine computes `rainfed_target := harvested - irrigated` with no
+#' clipping, so such a row allocates a NEGATIVE rainfed area which the
+#' output filter (`allocated_rf > 0 | allocated_ir > 0`) then keeps
+#' whenever the irrigated part is positive. It has no physical reading:
+#' irrigated harvested area is part of harvested area, not additional to
+#' it. `.cap_national_irrigation()` in `inst/scripts/prepare_spatialize_all.R`
+#' caps a country's irrigation at its national irrigated total, which is a
+#' different budget and does not prevent this.
+#' @noRd
+.check_irrigation_within_area <- function(country_areas, tolerance = 1e-6) {
+  over <- which(
+    country_areas$irrigated_area_ha >
+      country_areas$harvested_area_ha + tolerance
+  )
+  if (length(over) == 0L) {
+    return(invisible(NULL))
+  }
+  worst <- over[[which.max(
+    country_areas$irrigated_area_ha[over] -
+      country_areas$harvested_area_ha[over]
+  )]]
+  cli::cli_abort(
+    c(
+      "{length(over)} {.arg country_areas} row{?s} have more irrigated than
+       harvested area.",
+      x = "Worst: area_code {.val {country_areas$area_code[worst]}}, item
+           {.val {country_areas$item_prod_code[worst]}},
+           {.val {country_areas$irrigated_area_ha[worst]}} irrigated of
+           {.val {country_areas$harvested_area_ha[worst]}} harvested.",
+      i = "Irrigated harvested area is part of harvested area. Cap it before
+           allocating; the unit-target builder floors the rainfed remainder
+           at zero and reports the clipped hectares."
+    ),
+    class = "whep_spatialize_irrigation_over_area"
+  )
 }
 
 .landuse_config_defaults <- function() {
@@ -513,7 +846,9 @@ build_gridded_landuse <- function(
     max_iterations = 1000L,
     expansion_threshold = 100L,
     n_workers = 1L,
-    area_key = "grid"
+    area_key = "grid",
+    mc_factor = "unit",
+    pattern_extension = "none"
   )
 }
 
@@ -536,6 +871,16 @@ build_gridded_landuse <- function(
   }
   config <- utils::modifyList(defaults, config)
   config$area_key <- .resolve_spatialize_area_key(config$area_key)
+  config$mc_factor <- rlang::arg_match0(
+    config$mc_factor,
+    c("unit", "national"),
+    arg_nm = "mc_factor"
+  )
+  config$pattern_extension <- rlang::arg_match0(
+    config$pattern_extension,
+    c("none", "granted_units"),
+    arg_nm = "pattern_extension"
+  )
   config
 }
 
@@ -617,67 +962,51 @@ build_gridded_landuse <- function(
   cropland,
   country_grid,
   multicropping,
-  max_iterations,
-  expansion_threshold
+  opts
 ) {
-  country_cols <- .compartment_id_cols(country_grid)
-  country_lookup <- data.table::as.data.table(country_grid)[,
-    unique(c(country_cols, "lon", "lat", "cell_area_frac")),
-    with = FALSE
-  ]
-
-  # Build per-compartment capacity. The physical cropland layer is shared
-  # by all polity compartments in a cell, then clipped to each compartment's
-  # geographic envelope via cell_area_frac.
   allocated_dt <- data.table::as.data.table(allocated)
-  cropland_dt <- data.table::as.data.table(cropland)
-  capacity_dt <- cropland_dt[country_lookup, on = .(lon, lat), nomatch = 0L]
-  if (is.null(multicropping)) {
-    capacity_dt[, `:=`(mc_rainfed = 1, mc_irrigated = 1)]
-  } else {
-    # Left join: a cropland cell missing from the multicropping layer must
-    # stay in capacity_dt (not be dropped), defaulting to a multicropping
-    # factor of 1 rather than falling through to the Inf/unconstrained
-    # default further down (#223).
-    mc_dt <- data.table::as.data.table(multicropping)
-    capacity_dt <- mc_dt[capacity_dt, on = .(lon, lat)]
-    capacity_dt[is.na(mc_rainfed), mc_rainfed := 1]
-    capacity_dt[is.na(mc_irrigated), mc_irrigated := 1]
-  }
-  capacity_dt[, `:=`(
-    rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
-    ir_capacity = irrigated_ha * cell_area_frac * mc_irrigated
-  )]
-  capacity_dt <- capacity_dt[,
-    c(.compartment_cell_cols(country_lookup), "rf_capacity", "ir_capacity"),
-    with = FALSE
-  ]
-
-  cell_cols <- .compartment_cell_cols(allocated_dt)
+  capacity <- .capacity_bases(
+    cropland,
+    country_grid,
+    multicropping,
+    allocated_dt,
+    opts$mc_factor
+  )
   capacity_join_cols <- .compartment_join_cols(
     allocated_dt,
-    capacity_dt,
+    capacity$in_force,
     "allocated",
     "country_grid"
   )
-
-  # Compute per-cell sums
+  cell_cols <- .compartment_cell_cols(allocated_dt)
   cell_sums <- allocated_dt[,
-    .(
+    list(
       total_rf = sum(rainfed_ha, na.rm = TRUE),
       total_ir = sum(irrigated_ha, na.rm = TRUE)
     ),
     by = cell_cols
   ]
-
-  overloaded <- capacity_dt[cell_sums, on = capacity_join_cols, nomatch = 0L]
-  overloaded <- overloaded[
-    total_rf > rf_capacity + 1e-4 |
-      total_ir > ir_capacity + 1e-4
-  ]
+  overloaded <- .capacity_overloaded(
+    capacity$in_force,
+    cell_sums,
+    capacity_join_cols
+  )
 
   if (nrow(overloaded) == 0L) {
-    return(allocated)
+    # Nothing exceeded the ceiling in force, so nothing was rescaled and the
+    # in-force breach is empty by construction. The ALTERNATIVE basis can
+    # still be breached, and that is the comparison decision T31(g) asks
+    # for, so it is measured -- but only where a granted depth makes a
+    # second basis exist, which keeps the level-0 fast path untouched.
+    return(list(
+      allocated = allocated,
+      breach = .capacity_breach_all(
+        allocated_dt,
+        capacity,
+        capacity_join_cols,
+        skip_in_force = TRUE
+      )
+    ))
   }
 
   # Find which countries need redistribution
@@ -685,10 +1014,9 @@ build_gridded_landuse <- function(
 
   fixed <- .redistribute_countries_dt(
     allocated_dt,
-    capacity_dt,
+    capacity$in_force,
     countries_to_fix,
-    max_iterations,
-    expansion_threshold
+    opts
   )
 
   out_cols <- unique(c(
@@ -709,21 +1037,210 @@ build_gridded_landuse <- function(
     use.names = TRUE,
     fill = TRUE
   )
-  .warn_capacity_breach(out, capacity_dt, capacity_join_cols)
-  tibble::as_tibble(out)
+  breach <- .capacity_breach_all(out, capacity, capacity_join_cols)
+  .warn_capacity_breach(
+    .capacity_cell_breach(out, capacity$in_force, capacity_join_cols)
+  )
+  list(allocated = tibble::as_tibble(out), breach = breach)
 }
 
-#' Report polycells left above their capacity ceiling.
+#' Per-compartment capacity at both multi-cropping bases.
 #'
-#' `.redistribute_country_dt()` rescales each crop back to its national target
-#' after the logit passes, so when a country's cells are collectively too small
-#' the national total wins and the per-cell ceiling gives way. That is a soft
-#' ceiling, and moving the land denominator onto the polycell makes it bite
-#' more often, so the breach is measured and reported rather than absorbed.
-#' It is not silently corrected here: which invariant should yield is the
-#' caller's decision, and it needs the magnitude to make it.
+#' The physical cropland layer is shared by all polity compartments in a
+#' cell, then clipped to each compartment's geographic envelope via
+#' `cell_area_frac`. `national` multiplies it by the `multicropping`
+#' layer's factor as supplied; `unit` replaces that factor, for
+#' granted-depth compartments only, by the unit's own implied intensity.
+#' Both are returned whenever the second exists, because decision T31(g)
+#' adopts the unit factor and asks for the breach at both.
 #' @noRd
-.warn_capacity_breach <- function(allocated, capacity, join_cols) {
+.capacity_bases <- function(
+  cropland,
+  country_grid,
+  multicropping,
+  allocated_dt,
+  mc_factor
+) {
+  country_cols <- .compartment_id_cols(country_grid)
+  country_lookup <- data.table::as.data.table(country_grid)[,
+    unique(c(country_cols, "lon", "lat", "cell_area_frac")),
+    with = FALSE
+  ]
+  cropland_dt <- data.table::as.data.table(cropland)
+  base <- cropland_dt[country_lookup, on = .(lon, lat), nomatch = 0L]
+  if (is.null(multicropping)) {
+    base[, `:=`(mc_rainfed = 1, mc_irrigated = 1)]
+  } else {
+    # Left join: a cropland cell missing from the multicropping layer must
+    # stay in the table (not be dropped), defaulting to a multicropping
+    # factor of 1 rather than falling through to the Inf/unconstrained
+    # default further down (#223).
+    mc_dt <- data.table::as.data.table(multicropping)
+    base <- mc_dt[base, on = .(lon, lat)]
+    base[is.na(mc_rainfed), mc_rainfed := 1]
+    base[is.na(mc_irrigated), mc_irrigated := 1]
+  }
+  national <- .capacity_from_factors(base, country_lookup)
+  unit_base <- .unit_mc_factors(base, allocated_dt)
+  if (is.null(unit_base)) {
+    return(list(
+      in_force = national,
+      in_force_name = "national",
+      bases = list(national = national)
+    ))
+  }
+  unit <- .capacity_from_factors(unit_base, country_lookup)
+  list(
+    in_force = if (mc_factor == "unit") unit else national,
+    in_force_name = mc_factor,
+    bases = list(national = national, unit = unit)
+  )
+}
+
+.capacity_from_factors <- function(base, country_lookup) {
+  out <- data.table::copy(base)
+  out[, `:=`(
+    rf_capacity = (cropland_ha - irrigated_ha) * cell_area_frac * mc_rainfed,
+    ir_capacity = irrigated_ha * cell_area_frac * mc_irrigated
+  )]
+  out[,
+    c(.compartment_cell_cols(country_lookup), "rf_capacity", "ir_capacity"),
+    with = FALSE
+  ]
+}
+
+#' The unit's own implied multi-cropping factor (decision T31(g)).
+#'
+#' A unit's whole allocated harvested area over the same physical cropland
+#' the ceiling multiplies, floored at 1: below 1 the factor would forbid
+#' single cropping on land that exists, which is not a capacity statement
+#' but an observation about how little of the unit is sown. A unit with no
+#' cropland of that water regime keeps 1, since no multiplier makes
+#' capacity out of zero land. `NULL` when no compartment carries a unit,
+#' which is every level-0 grid.
+#' @noRd
+.unit_mc_factors <- function(base, allocated_dt) {
+  if (
+    !rlang::has_name(base, "level_polity_code") ||
+      !rlang::has_name(allocated_dt, "level_polity_code") ||
+      all(is.na(base$level_polity_code))
+  ) {
+    return(NULL)
+  }
+  unit_cols <- c("area_code", "level_polity_code")
+  land <- base[,
+    list(
+      unit_rf_land = sum((cropland_ha - irrigated_ha) * cell_area_frac),
+      unit_ir_land = sum(irrigated_ha * cell_area_frac)
+    ),
+    by = unit_cols
+  ]
+  sown <- allocated_dt[,
+    list(
+      unit_rf = sum(rainfed_ha, na.rm = TRUE),
+      unit_ir = sum(irrigated_ha, na.rm = TRUE)
+    ),
+    by = unit_cols
+  ]
+  factors <- land[sown, on = unit_cols, nomatch = NA]
+  factors[, `:=`(
+    unit_mc_rf = .safe_intensity(unit_rf, unit_rf_land),
+    unit_mc_ir = .safe_intensity(unit_ir, unit_ir_land)
+  )]
+  out <- data.table::copy(base)
+  out[
+    factors,
+    `:=`(unit_mc_rf = i.unit_mc_rf, unit_mc_ir = i.unit_mc_ir),
+    on = unit_cols
+  ]
+  out[
+    !is.na(level_polity_code) & !is.na(unit_mc_rf),
+    `:=`(mc_rainfed = unit_mc_rf, mc_irrigated = unit_mc_ir)
+  ]
+  out[, `:=`(unit_mc_rf = NULL, unit_mc_ir = NULL)]
+  out
+}
+
+.safe_intensity <- function(sown, land) {
+  data.table::fifelse(is.finite(sown / land), pmax(sown / land, 1), 1)
+}
+
+.capacity_overloaded <- function(capacity, cell_sums, join_cols) {
+  over <- capacity[cell_sums, on = join_cols, nomatch = 0L]
+  over[
+    total_rf > rf_capacity + 1e-4 |
+      total_ir > ir_capacity + 1e-4
+  ]
+}
+
+#' Measure every polycell left above its capacity ceiling, at both bases.
+#'
+#' `.redistribute_country_dt()` rescales each crop back to its target after
+#' the logit passes, so when a compartment's cells are collectively too small
+#' the target wins and the per-cell ceiling gives way. That is a soft
+#' ceiling, and moving the land denominator onto the polycell makes it bite
+#' more often, so the breach is measured and RETURNED rather than absorbed
+#' or left in a warning string: which invariant should yield is the caller's
+#' decision (T14 consumes this table), and it needs the magnitude to make it.
+#' @noRd
+.capacity_breach_all <- function(
+  allocated,
+  capacity,
+  join_cols,
+  skip_in_force = FALSE
+) {
+  bases <- capacity$bases
+  if (skip_in_force) {
+    bases <- bases[setdiff(names(bases), capacity$in_force_name)]
+  }
+  purrr::imap(
+    bases,
+    \(cap, nm) {
+      .capacity_breach_table(allocated, cap, join_cols) |>
+        dplyr::mutate(
+          mc_basis = nm,
+          in_force = identical(nm, capacity$in_force_name)
+        )
+    }
+  ) |>
+    purrr::list_rbind()
+}
+
+#' One basis' breach, attributed to items pro rata by allocated area.
+#'
+#' A cell's ceiling is shared by every item allocated into it, so no split
+#' of its excess between them is derivable; pro rata by allocated area is
+#' the only attribution that sums back to the compartment's own excess
+#' exactly, and that identity is what makes the item-keyed table safe to
+#' aggregate.
+#' @noRd
+.capacity_breach_table <- function(allocated, capacity, join_cols) {
+  breach <- .capacity_cell_breach(allocated, capacity, join_cols)
+  keep <- c(join_cols, "item_prod_code", "rf_over", "ir_over")
+  if (nrow(breach) == 0L) {
+    empty <- allocated[0L, c(join_cols, "item_prod_code"), with = FALSE]
+    empty[, `:=`(rf_over = 0, ir_over = 0)]
+    return(tibble::as_tibble(empty))
+  }
+  rows <- allocated[breach, on = join_cols, nomatch = 0L]
+  rows[, `:=`(
+    rf_share = data.table::fifelse(total_rf > 0, rainfed_ha / total_rf, 0),
+    ir_share = data.table::fifelse(total_ir > 0, irrigated_ha / total_ir, 0)
+  )]
+  rows[, `:=`(
+    rf_over = rf_over * rf_share,
+    ir_over = ir_over * ir_share
+  )]
+  tibble::as_tibble(rows[, keep, with = FALSE])
+}
+
+#' Every polycell left above one basis' ceiling, before item attribution.
+#'
+#' The ceiling is a property of the CELL, so this is the grain the breach is
+#' measured at and the grain the warning reports; the item split is applied
+#' on top of it, for the returned table only.
+#' @noRd
+.capacity_cell_breach <- function(allocated, capacity, join_cols) {
   tolerance <- 1e-4
   sums <- allocated[,
     list(
@@ -737,7 +1254,20 @@ build_gridded_landuse <- function(
     rf_over = pmax(total_rf - rf_capacity, 0),
     ir_over = pmax(total_ir - ir_capacity, 0)
   )]
-  breach <- breach[rf_over > tolerance | ir_over > tolerance]
+  breach[rf_over > tolerance | ir_over > tolerance]
+}
+
+#' Report the breach in force, naming the grain whose total was preserved.
+#'
+#' Takes the PER-POLYCELL breach, not the item-attributed table: `worst` is
+#' the largest single-regime excess of one cell, exactly the figure this
+#' warning has always carried. Re-deriving it from the attributed table
+#' would take `max()` over per-cell sums of both regimes instead, which is a
+#' different statistic and moved the printed number (12670 -> 12808 ha on
+#' the level-0 two-country fixture) without anything having decided that it
+#' should.
+#' @noRd
+.warn_capacity_breach <- function(breach) {
   if (nrow(breach) == 0L) {
     return(invisible(NULL))
   }
@@ -745,11 +1275,19 @@ build_gridded_landuse <- function(
     sum(breach$ir_over, na.rm = TRUE)
   worst <- max(c(breach$rf_over, breach$ir_over), na.rm = TRUE)
   codes <- sort(unique(breach$area_code))
+  grain <- if (
+    rlang::has_name(breach, "level_polity_code") &&
+      any(!is.na(breach$level_polity_code))
+  ) {
+    "unit"
+  } else {
+    "national"
+  }
   cli::cli_warn(c(
     "{nrow(breach)} polycell{?s} hold more harvested area than their capacity;
      {round(excess)} ha over, worst {round(worst)} ha.",
     "x" = "{length(codes)} area_code{?s}: {.val {codes}}.",
-    i = "The national total was preserved and the per-cell ceiling gave way."
+    i = "The {grain} total was preserved and the per-cell ceiling gave way."
   ))
 }
 
@@ -762,8 +1300,7 @@ build_gridded_landuse <- function(
   allocated,
   capacity,
   countries,
-  max_iterations,
-  expansion_threshold
+  opts
 ) {
   join_cols <- .compartment_join_cols(
     allocated,
@@ -800,28 +1337,31 @@ build_gridded_landuse <- function(
       on = join_cols
     ]
 
-    fixed[[idx]] <- .redistribute_country_dt(
-      work,
-      max_iterations,
-      expansion_threshold
-    )[, ..out_cols]
+    fixed[[idx]] <- .redistribute_country_dt(work, opts)[, ..out_cols]
   }
 
   data.table::rbindlist(fixed, use.names = TRUE, fill = TRUE)
 }
 
 #' Redistribute for one country using vectorized logit updates.
+#'
+#' `.crop_group` is the ALLOCATION TARGET's grain inside the country, not
+#' the item alone: under a unit-keyed national table the target that binds
+#' is the unit's, so the logit passes and the final rescale must conserve
+#' each (unit, item) and never move hectares across a unit border. Grouping
+#' on the item alone there pools the units of a country, and a unit whose
+#' cells are too small has its excess pushed into a sibling that reported a
+#' smaller area -- the two units' targets swap, silently, with every
+#' national total still reconciling.
 #' @noRd
-.redistribute_country_dt <- function(
-  work,
-  max_iterations,
-  expansion_threshold
-) {
+.redistribute_country_dt <- function(work, opts) {
   tolerance <- 1e-4
+  max_iterations <- opts$max_iterations
   cell_cols <- .compartment_cell_cols(work)
+  target_cols <- setdiff(opts$alloc_cols, "area_code")
 
   work[, .cell_group := .GRP, by = cell_cols]
-  work[, .crop_group := .GRP, by = item_prod_code]
+  work[, .crop_group := .GRP, by = target_cols]
 
   cell_capacity <- work[,
     .(
@@ -1022,14 +1562,26 @@ build_gridded_landuse <- function(
 #' otherwise be dropped silently, leaking its national total. Detect these
 #' and warn with the count, leaked area, and identities.
 #' @noRd
-.warn_unallocated_crops <- function(dat, yr) {
-  leaked <- dat[,
-    .(
-      national_area = harvested_area_ha[1L],
-      allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
-    ),
-    by = .(area_code, item_prod_code)
-  ]
+.warn_unallocated_crops <- function(dat, yr, alloc_cols) {
+  # Both grains written out, for the reason `.spatialize_year()` gives where
+  # it forms the same key.
+  leaked <- if ("level_polity_code" %in% alloc_cols) {
+    dat[,
+      list(
+        national_area = harvested_area_ha[1L],
+        allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
+      ),
+      by = .(area_code, level_polity_code, item_prod_code)
+    ]
+  } else {
+    dat[,
+      list(
+        national_area = harvested_area_ha[1L],
+        allocated = sum(allocated_rf + allocated_ir, na.rm = TRUE)
+      ),
+      by = .(area_code, item_prod_code)
+    ]
+  }
   leaked <- leaked[national_area > 0 & allocated <= 0]
   if (nrow(leaked) == 0L) {
     return(invisible(NULL))
@@ -1037,9 +1589,19 @@ build_gridded_landuse <- function(
   # `codes` is integer, so the plural marker must follow an explicit scalar
   # count: cli's make_quantity() errors on a numeric vector of length > 1.
   codes <- sort(unique(leaked$area_code))
+  grain <- if ("level_polity_code" %in% alloc_cols) {
+    "(country, unit, crop)"
+  } else {
+    "(country, crop)"
+  }
+  # `cli::qty()` restates the quantity immediately before `{?s}`. Without it
+  # the interpolated `{grain}` sits between the count and the plural marker,
+  # and cli pluralises on `grain` -- a length-1 string -- so every message
+  # read "258 (country, crop) pair". Measured against `main`, which had the
+  # count adjacent to the marker and pluralised correctly.
   cli::cli_warn(c(
-    "{nrow(leaked)} (country, crop) pair{?s} in year {yr} have national \\
-     harvested area but no allocatable grid cell; \\
+    "{nrow(leaked)} {grain} {cli::qty(nrow(leaked))}pair{?s} in year {yr} \\
+     have national harvested area but no allocatable grid cell; \\
      {round(sum(leaked$national_area))} ha dropped:",
     "x" = "{length(codes)} area_code{?s}: {.val {codes}}."
   ))

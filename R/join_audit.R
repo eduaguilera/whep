@@ -69,6 +69,19 @@
     ".adjust_food_for_leftovers", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "`cbs_yr` is one year of the CBS; the IO model is built per
      year.",
+    ".alloc_straddle", "left_join", "area_code, level_polity_code", 1L,
+    "diagnostic",
+    "Attaches each unit's own cell count to the straddling report. The report
+     names the units and cells a granted-depth allocation is exposed on; it
+     moves no allocated hectare. Its geometry is the allocation layer's
+     distinct compartments across the whole run, so a unit whose cells change
+     between two of its validity intervals is reported on their union -- said
+     here rather than left to be discovered, because the diagnostic is read
+     per year.",
+    ".alloc_straddle", "left_join",
+    "lon, lat, area_code, level_polity_code", 1L, "diagnostic",
+    "The same report, attaching each compartment-cell's sibling and foreign
+     sharing flags to the allocation. Same geometry, same caveat.",
     ".allocate_livestock_to_grid", "inner_join", "area_code", 1L, "single_year",
     "Called inside the per-year, per-species-group loop that stamps `year`
      afterwards.",
@@ -194,6 +207,13 @@
      year-aware at all (whep#761): the caller has already resolved
      (area_code, year) -> polity_code unfloored, and every step after this one
      carries `year`.",
+    ".level_support_units", "inner_join", "polity_code, member_code", 1L,
+    "identity_lookup",
+    "The containment edge join proposes which containers a polity sat inside;
+     the interval intersection on the very next line disposes of them
+     (`pmax(start_year, start_year_edge)`, `pmin(end_year, end_year_edge)`,
+     then `start_year < end_year`). Keying it on a year instead would need one
+     row per polity-year. Same shape as `.add_polity_columns_dt()`.",
     ".luh2_perennial_backcast", "merge", "area_code", 2L, "single_year",
     "Both joined tables are the anchor year alone; the back-cast rescales the
      pre-anchor years onto it.",
@@ -267,8 +287,23 @@
      the label the sources disagree about.",
     ".spatialize_to_bucket", "[", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, keeping the raw code alongside.",
+    ".extend_base_grid_pattern", "[", "area_code", 1L, "single_year",
+    "Gives a granted-depth compartment a zero-pattern row for every item its
+     container has a target for, inside one year of the spatialization.",
     ".spatialize_year", "[", "area_code, item_prod_code", 1L, "single_year",
-    "One year of the spatialization.",
+    "One year of the spatialization: the engine's core allocation join, the
+     national table onto the grid, where the national table is keyed on the
+     CONTAINER. whep#1000 T13 made this key the allocation grain, which is
+     chosen by `.alloc_target_cols()`; both grains are written out literally
+     at the call site so that this join stays visible here rather than
+     resolving to `<dynamic>`.",
+    ".spatialize_year", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same join in the other grain: a national table stating UNIT targets
+     is joined on the container AND the unit, so a unit receives its own
+     target instead of its container's whole total. Still one year of the
+     spatialization; the unit code names a polity that carries its own
+     period, and the year the row belongs to is stamped by the caller.",
     ".warn_orphan_land", "anti_join", "item_cbs_code, area_code", 1L,
     "diagnostic",
     "Reports extension rows no production or trade key supports.",
@@ -278,6 +313,14 @@
     "Its documented contract is one year's cropgrids, fallow and weights.",
     "attribute_fallow_to_crops", "left_join", "area_code, item_cbs_code", 1L,
     "single_year", "One year's tables, as above.",
+    "build_allocation_layer", "semi_join", "area_code, level", 1L,
+    "time_invariant",
+    "`granted` is the T25 coverage report's grant: which container is
+     allocated at which containment depth. A grant is a property of the
+     country and of the evidence base, not of a year -- the years a source
+     covers live in the coverage report itself and in `constraint_exclude`.
+     A year here would let one country be allocated at two depths in one run,
+     which decision 10 forbids.",
     "build_cropgrids_land_extension", "left_join", "area_code, item_cbs_code",
     1L, "time_invariant",
     "The CROPGRIDS physical-to-harvested ratio is one map vintage applied to
@@ -287,7 +330,52 @@
     "Compares two already-summarised footprints; its documented contract has no
      year column.",
     "prepare_livestock_emissions", "left_join", "area_code", 1L,
-    "identity_lookup", "area_code -> ISO3 through the current-area lookup."
+    "identity_lookup", "area_code -> ISO3 through the current-area lookup.",
+    ".match_admin_overrides", "left_join", "area_code", 1L,
+    "time_invariant",
+    "A per-container override is a policy the caller states once, not an
+     observation: `resolve_admin_shares(overrides =)` takes
+     (area_code, item_prod_code, source) and no year, so the container-wide
+     form can only key on the container. Keying it on the year would force
+     the user to enumerate every year an override applies to, the opposite of
+     what the argument is for (whep#1000 T25).",
+    ".match_admin_overrides", "left_join", "area_code, item_prod_code", 1L,
+    "time_invariant",
+    "The item-specific form of the same policy lookup, joined before the
+     container-wide one so the more specific row wins (whep#1000 T25).",
+    ".sg_regime_mismatch", "left_join", "area_code, seam_year", 1L,
+    "diagnostic",
+    "Both sides are derivations of the SAME
+     `distinct(seams, area_code, seam_year)` frame of one `seam_gate()` call
+     -- `wanted`, and so `mismatched`, is built from `gates` -- so the key
+     cannot cross a succession. `seam_year` is itself a year, the one the
+     gated pair straddles, so the join is year-keyed in substance and the
+     audit misses it only because the column is not spelled `year`
+     (whep#1000 T29).",
+    ".sg_scan_one_pair", "left_join", "area_code", 2L, "single_year",
+    "Both counted sides are `scored` cut to `year %in% c(from, to)` and to
+     `codes` in the lines just above, and the left side is those same `codes`
+     with `y1`/`y2` stamped on them. The scan runs ONE two-year window at a
+     time, so the years are constants of the call and are carried out of it
+     rather than missing from it (whep#1000 T29).",
+    ".sg_tier_c_gate", "left_join", "area_code, seam_year", 1L, "diagnostic",
+    "`plan` and `regime` are both built from the one `gates` frame of the same
+     `.sg_tier_c()` call, and `seam_year` is the year. Same argument as
+     `.sg_regime_mismatch` above; tier C reports and repairs nothing.",
+    ".sg_tier_c_gate", "left_join", "area_code, y1, y2", 1L, "diagnostic",
+    "`rates` is scanned over `distinct(plan, y1, y2)`, so the right side is
+     derived from the left and the two cannot disagree about a territory.
+     `y1` and `y2` ARE the pair's two years, which makes this key year-aware
+     in substance exactly as `.attach_mapping_source`'s period key is.",
+    ".recon_bridge_summary", "left_join", "area_code, item_prod_code", 2L,
+    "diagnostic",
+    "Both joins attach per-SERIES summaries to each other: the carried runs,
+     the first/last observed year and the run totals are all reductions of
+     the one `years` frame of a single `reconcile_admin_allocation()` call,
+     so the two sides cannot disagree about a territory, and what is joined
+     is the length of a run of years -- a year in the key would return one
+     year per year. The report moves no published value: it is T14's
+     visibility rule for decision T31(e)'s unlimited bridge (whep#1000 T14)."
   )
 }
 
@@ -340,6 +428,35 @@
 .territorial_grouping_baseline <- function() {
   tibble::tribble(
     ~owner, ~group_fn, ~key, ~n, ~class, ~why,
+    ".alloc_bridge_report", "summarise",
+    "area_code, item_prod_code, treatment, run_id", 1L, "year_axis",
+    "The length of one contiguous run of bridged years: the reduction over
+     the year axis is the quantity itself, and `run_id` is what a year-free
+     group means here.",
+    ".alloc_bridge_report", "mutate", "area_code, item_prod_code, treatment",
+    1L, "year_axis",
+    "Numbers the contiguous runs of a series with `cumsum(diff(year) != 1)`,
+     which reads the year axis to CUT it; the frame is already distinct on
+     (series, treatment, year).",
+    ".alloc_bridge_report", "summarise",
+    "area_code, item_prod_code, treatment", 1L, "year_axis",
+    "The longest such run per series, decision T31(e)'s visibility rule. A
+     year in the key would return one year per year.",
+    ".alloc_straddle", "distinct", "lon, lat, area_code, level_polity_code",
+    1L, "diagnostic",
+    "The allocation layer's distinct compartment-cells, for the straddling
+     report; see the join row of the same name.",
+    ".alloc_straddle", "summarise", "area_code, level_polity_code", 1L,
+    "diagnostic", "Each unit's cell count, for the same report.",
+    ".alloc_straddle", "mutate", "lon, lat, area_code", 1L, "diagnostic",
+    "Counts the units of ONE CONTAINER sharing a cell, which is what makes a
+     straddle a sibling's rather than a foreign country's. `area_code` is in
+     the key for exactly that reason: keyed on the cell alone, a unit sharing
+     a cell with another COUNTRY scored as sibling straddle with no sibling
+     anywhere in the layer, and the two columns whose purpose is to separate
+     those exposures returned the same number. Both sides are the same
+     `layer` frame of one call, so the key cannot cross a succession, and the
+     report moves no allocated hectare.",
     ".area_reported_year_bounds", "summarise", "area_code", 1L, "year_axis",
     "`min(map_year_start)`/`max(map_year_end)` IS the reduction over the
      crosswalk's periods: one reported-year window per area, the bound that
@@ -496,6 +613,58 @@
     "Sums gridded land into buckets for ONE year: `.measure_land_year()` passes
      `polity_areas[year == yr]`, so the polygons are the ones live that year
      and the sum is within it.",
+    ".level0_fold_epochs", "summarise",
+    "lon, lat, area_code, start_year, end_year", 1L, "single_year",
+    "`.carbon_fold_area_code()`'s DA-23 fold with the epoch in the key
+     (whep#1000 T39): two polities sharing one reporting code inside one cell
+     are summed only where their validity intervals coincide exactly, so a
+     successor is never added to its own predecessor. The group is one
+     interval, which is what `single_year` means for an interval-grain table;
+     it reads as year-free only because the audit tests for a column literally
+     named `year`, and the interval is carried as `start_year`/`end_year`.",
+    ".level_compartment_shares", "summarise",
+    "lon, lat, area_code, level_polity_code, start_year, end_year", 1L,
+    "single_year",
+    "Reduces the allocation layer to one share per (cell, compartment,
+     INTERVAL) for the two decision-10 assertions and nothing else; no
+     hectare is allocated through it. The interval is in the key, which is
+     the whole point: a compartment's share of a cell is read at each of its
+     own validity intervals and never summed across them, so a successor is
+     never added to its predecessor. It reads as year-free only because the
+     audit tests for a column literally named `year` while the grain is
+     carried as `start_year`/`end_year`. The function still refuses
+     (`whep_alloc_layer_varying_share`) a compartment holding two shares of
+     one cell WITHIN one interval, which cannot be summed or chosen between.",
+    ".level_container_land", "summarise", "lon, lat, polity_code", 1L,
+    "single_year",
+    "Runs inside `purrr::map(years, ...)` over
+     `.filter_country_grid_year(support, yr)`, so the support is already one
+     year when it is summed, and `start_year = yr` is stamped on the result
+     afterwards.",
+    ".level_polity_types", "distinct", "polity_code, polity_type", 1L,
+    "identity_lookup",
+    "A polity code already names its own period (`JPN-1952-2025`), and its
+     type is an attribute of that period; the dedup IS the resolution, and the
+     function aborts if one code carries two types.",
+    ".level_container_segments", "mutate", "lon, lat, area_code", 1L,
+    "diagnostic",
+    "Assertion (b) of whep#1000 decision 10, which compares a granted
+     country's unit shares in a cell against the level-0 share the same cell
+     carries, and writes mismatches to the ragged-coverage report. It
+     allocates nothing. This is an INTERVAL SWEEP: both sides are swept
+     together on (cell, container) so each segment states the two shares over
+     one and the same interval, and the grain rides on `start_year`/`end_year`
+     rather than a column named `year`, which is the only reason it reads as
+     year-free. The earlier row here said neither side had a year to key on;
+     that was false, and reusing one peak epoch for both sides is what let a
+     container short in a LATER epoch go unreported.",
+    ".level_ragged_window", "mutate", "lon, lat, area_code", 1L,
+    "diagnostic",
+    "Bounds that sweep to the container's own depth span in the cell, so a
+     container that leaves a cell and returns is not read as ragged across
+     the gap where BOTH sides are legitimately empty (Mexico holds
+     (-99.25, 27.75) whole until 1848 and 0.0022 of it from 1867). Same
+     interval grain, same report, allocates nothing.",
     ".lw_area_regions", "distinct", "iso3c, area_code, <dynamic>", 1L,
     "identity_lookup",
     "ISO3 -> area bridge for Gustavsson's Annex 1 regions; the snapshot it
@@ -590,9 +759,29 @@
     "diagnostic",
     "The (area, crop) pairs the crop-pattern weights cover, so the warning can
      name the carbon they cannot spatialize.",
-    ".spatialize_year", "[", "area_code, item_prod_code", 2L, "single_year",
-    "Both are inside `.spatialize_year(yr, ...)`, which stamps `year = yr` at
-     the end.",
+    ".spatialize_type_cropland", "[", "area_code, item_prod_code", 1L,
+    "single_year",
+    "`type_pot`, the LUH2-type potential of one allocation group, deciding
+     whether that group has any of its crop's type to sit in or falls back to
+     total cropland. Called from `.spatialize_year(yr, ...)` on one year's
+     `type_cropland`, which is where the year is. It stood under
+     `.spatialize_year` until whep#1000 T13 lifted the type split into its own
+     helper; the key is unchanged.",
+    ".spatialize_type_cropland", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same fallback at unit grain: with unit targets the group is the unit,
+     so one unit's type cropland cannot keep a sibling out of the whole
+     group's fallback. Same year scope.",
+    ".spatialize_year", "[", "area_code, item_prod_code", 1L, "single_year",
+    "The four share denominators -- `rf_pot_sum`, `ir_pot_sum`, `rainfed_sum`,
+     `irrigated_sum` -- of the engine's allocation, over one year's grid.
+     Written out in both grains at the call site so the audit can see the key;
+     `.alloc_target_cols()` chooses which one runs.",
+    ".spatialize_year", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "single_year",
+    "The same four denominators at unit grain, so a unit's target is spread
+     over that unit's own potential and not its container's. Same year
+     scope.",
     ".summarise_folded_rows", "[", "area_code, polity_area_code, <dynamic>", 1L,
     "diagnostic",
     "Counts the rows each area folds into its bucket, for the fold warning's
@@ -624,6 +813,12 @@
     "diagnostic",
     "Reports the (country, crop) pairs with national area but no allocatable
      cell, inside one year of the spatialization.",
+    ".warn_unallocated_crops", "[",
+    "area_code, level_polity_code, item_prod_code", 1L, "diagnostic",
+    "The same report at unit grain, so a unit that cannot place its target is
+     named instead of being averaged into its container's success. Both grains
+     are written out at the call site; `.alloc_target_cols()` chooses which
+     one runs.",
     ".weight_supply_by_value", "mutate", "area_code, proc_group, proc_cbs_code",
     1L, "single_year",
     "`all(price_ok | type != \"supply\")` over one year's supply-use, so a
@@ -668,7 +863,55 @@
     "row_promotion_status", "summarise", "area_code, area_name, area_iso3c", 1L,
     "diagnostic",
     "`n_periods = n()` over an area's crosswalk periods, for the promotion
-     report. The two name columns are attributes of the code, carried through."
+     report. The two name columns are attributes of the code, carried through.",
+    ".sg_regime_mismatch", "count", "area_code, seam_year", 1L, "diagnostic",
+    "Counts, per (container, seam), the cell series whose within-unit weight
+     regime differs across the seam. Every counted row has already been
+     reduced over exactly the two years of that seam (`n_years == 2L`), and
+     `seam_year` is the year, so nothing collapses across time. It reaches no
+     value: a regime flip sets tier C's `reason`, and `seam_gate()` repairs
+     nothing (whep#1000 T29).",
+    ".sg_scan_one_pair", "count", "area_code", 2L, "single_year",
+    "`both` and `flags` are the one (y1, y2) window the caller passed in, cut
+     from `scored` two lines above, so each count is within that window and the
+     years ride out on `y1`/`y2`. Same scope as the join rows of the same
+     name.",
+    ".sg_tier_c", "distinct", "area_code, seam_year", 1L, "diagnostic",
+    "Reduces the resolver's per-ITEM seam list to the (container, seam year)
+     gates tier C is keyed on, which is its documented contract rather than an
+     omission: the crop-level engine output carries `crop_name` and no
+     `item_prod_code`, so there is nothing to join a per-item seam to.
+     `seam_year` is the year, so the dedup collapses the ITEM dimension and
+     never a year (whep#1000 T29).",
+    ".recon_extent_one_year", "summarise", "area_code, level_polity_code", 1L,
+    "single_year",
+    "Sums a unit's cropland over its compartment cells for ONE year: both the
+     layer (`.filter_country_grid_year(layer, yr)`) and the cropland cells
+     are cut to `yr` before the join, and the year is stamped back on the
+     result, so the key is year-scoped by the caller's `map()` over years
+     (whep#1000 T14).",
+    ".recon_carried_runs", "mutate", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "Numbers each series' contiguous runs of carried years with
+     `cumsum(diff(year) != 1)`: it reads the year axis in order to cut it.
+     The same operation `.alloc_bridge_report` performs, for the reason the
+     diagnostics exist -- decision T31(e) allows a bridge of any length, so
+     the length must be visible (whep#1000 T14).",
+    ".recon_carried_runs", "summarise", "area_code, item_prod_code, run_id",
+    1L, "year_axis",
+    "The length, start and end of one contiguous run of carried years: the
+     reduction over the year axis IS the quantity, and `run_id` is what a
+     year-free group means here (whep#1000 T14).",
+    ".recon_bridge_summary", "summarise", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "The first and last OBSERVED year of a series, which is what decides
+     whether a carried run is interior (a bridge) or a leading back-cast (not
+     one). A year in the key would return one year per year (whep#1000 T14).",
+    ".recon_run_totals", "summarise", "area_code, item_prod_code", 1L,
+    "year_axis",
+    "Total carried years and the longest run per series, the per-(country,
+     item) figure T13/T14 report so a 60-year bridge is legible rather than
+     merely legal (whep#1000 T14)."
   )
 }
 

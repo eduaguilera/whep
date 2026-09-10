@@ -948,6 +948,48 @@ testthat::test_that("a breached capacity ceiling is reported, not absorbed", {
   testthat::expect_no_warning(do.call(whep::build_gridded_landuse, roomy))
 })
 
+testthat::test_that("the breached-capacity worst is one cell's one regime", {
+  # `worst` is the largest SINGLE-REGIME excess of one polycell, which is
+  # what the ceiling is a property of. Re-deriving it as the largest per-cell
+  # SUM of the two regimes is a different statistic, and it silently moved
+  # the printed figure (12670 -> 12808 ha on the two-country fixture) when
+  # the breach became an item-attributed table. This fixture separates them:
+  # cell A is 240 ha over rainfed and 160 over irrigated (sum 400), cell B is
+  # 300 ha over rainfed and nothing irrigated. The total is 700 either way;
+  # the worst is 300, not 400.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      ~irrigated_area_ha,
+      2000L,         1L,             15L,                500, 200,
+      2000L,         2L,             15L,                400,   0
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      0.75, 50.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,           100,            40,
+      0.75, 50.25, 2000L,           100,             0
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         2L,               1
+    )
+  )
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, fix),
+    "2 polycells hold more harvested area than their capacity"
+  )
+  testthat::expect_warning(
+    do.call(whep::build_gridded_landuse, fix),
+    "700 ha over, worst 300 ha"
+  )
+})
+
 testthat::test_that("splitting a polycell in two changes no cell's allocation", {
   # The one S-A6 property the border fixtures above cannot reach: two polycells
   # of the SAME `area_code` inside one cell. That is not hypothetical -- DA-23
@@ -1419,4 +1461,309 @@ testthat::test_that("a national table without the value column still warns", {
     ),
     "238"
   )
+})
+
+# --- T13: the engine at a granted depth --------------------------------------
+
+# Two crops, both irrigated, in a country whose first cell cannot hold what
+# the pattern sends it, so the capacity redistribution runs across crops and
+# both water regimes; two years, so the year loop is exercised. Pinned from
+# the engine BEFORE the T13 grouping change, at worktree 603932b8 on
+# 2026-09-04, by `build_gridded_landuse()` on exactly these inputs.
+.t13_level0_fixture <- function() {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      ~irrigated_area_ha,
+      2000L,         1L,             15L,               1200,   300,
+      2000L,         1L,             44L,                400,   100,
+      2001L,         1L,             15L,               1300,   250,
+      2001L,         1L,             44L,                300,   150
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               0.9,
+      0.75, 50.25,             15L,               0.1,
+      0.25, 50.25,             44L,               0.2,
+      0.75, 50.25,             44L,               0.8
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha, ~irrigated_ha,
+      0.25, 50.25, 2000L,           800,           200,
+      0.75, 50.25, 2000L,           700,           300,
+      0.25, 50.25, 2001L,           800,           200,
+      0.75, 50.25, 2001L,           700,           300
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    )
+  )
+}
+
+.t13_level0_golden <- function() {
+  tibble::tribble(
+    ~year,  ~lon,  ~lat, ~item_prod_code,          ~rainfed_ha,
+    ~irrigated_ha,
+    2000L, 0.25, 50.25,             15L, 771.00469440499353,
+    232.78858458742630,
+    2000L, 0.25, 50.25,             44L,  56.80420445961712,
+    10.67014272728195,
+    2000L, 0.75, 50.25,             15L, 128.99530559500653,
+    67.21141541257366,
+    2000L, 0.75, 50.25,             44L, 243.19579554038282,
+    89.32985727271804,
+    2001L, 0.25, 50.25,             15L, 873.37863676567554,
+    204.28853324913533,
+    2001L, 0.25, 50.25,             44L,  25.19393998097628,
+    18.38017929773454,
+    2001L, 0.75, 50.25,             15L, 176.62136323432446,
+    45.71146675086465,
+    2001L, 0.75, 50.25,             44L, 124.80606001902370,
+    131.61982070226543
+  ) |>
+    dplyr::mutate(area_code = 1L)
+}
+
+testthat::test_that("the T13 grouping moves no level-0 value", {
+  # The two-level allocation reaches level 0 through the SAME code: the
+  # allocation key, the type-potential fallback, the redistribution's crop
+  # group and the capacity ceiling all read the national table's own grain,
+  # which at level 0 is what it always was. Compared bit-for-bit on the keys
+  # and, at 1e-9 ha, on the values.
+  fix <- .t13_level0_fixture()
+  got <- suppressWarnings(do.call(whep::build_gridded_landuse, fix)) |>
+    dplyr::arrange(year, lon, item_prod_code)
+  want <- .t13_level0_golden() |>
+    dplyr::arrange(year, lon, item_prod_code)
+
+  testthat::expect_identical(
+    got[c("year", "area_code", "lon", "lat", "item_prod_code")],
+    want[c("year", "area_code", "lon", "lat", "item_prod_code")]
+  )
+  testthat::expect_identical(
+    round(got$rainfed_ha, 9),
+    round(want$rainfed_ha, 9)
+  )
+  testthat::expect_identical(
+    round(got$irrigated_ha, 9),
+    round(want$irrigated_ha, 9)
+  )
+  testthat::expect_equal(got$rainfed_ha, want$rainfed_ha, tolerance = 1e-12)
+  testthat::expect_equal(
+    got$irrigated_ha,
+    want$irrigated_ha,
+    tolerance = 1e-12
+  )
+  # Not vacuous: the ceiling really did bind, so the redistribution ran.
+  # One year, because the warning fires once per year and
+  # `expect_warning()` consumes only the first.
+  testthat::expect_warning(
+    whep::build_gridded_landuse(
+      fix$country_areas,
+      fix$crop_patterns,
+      fix$gridded_cropland,
+      fix$country_grid,
+      config = list(years = 2000L)
+    ),
+    "more harvested area than their capacity"
+  )
+})
+
+testthat::test_that("unit targets on a grid with no unit are refused", {
+  fix <- two_country_fixture()
+  fix$country_areas$level_polity_code <- "A-A1-1900-2100"
+  testthat::expect_error(
+    do.call(whep::build_gridded_landuse, fix),
+    "no unit to place them in"
+  )
+})
+
+testthat::test_that("more irrigated than harvested is refused at depth only", {
+  # The gate is on the CONSTRAINED path: a national table stating unit
+  # targets, which is new code with nothing pinned behind it. Level 0 is
+  # deliberately left as it was. Turning irrigated > harvested into an abort
+  # there would stop inputs that produce output today from producing it,
+  # which is a fail-loud-vs-continue decision on a published path and not
+  # one this change is entitled to take.
+  fix <- two_country_fixture()
+  fix$country_areas$irrigated_area_ha <- c(1500, 0)
+  level0 <- suppressWarnings(do.call(whep::build_gridded_landuse, fix))
+  testthat::expect_gt(nrow(level0), 0L)
+
+  deep <- fix
+  deep$country_areas$level_polity_code <- "A-A1-1900-2100"
+  deep$country_grid$level_polity_code <- "A-A1-1900-2100"
+  deep$country_grid$level <- 1L
+  testthat::expect_error(
+    do.call(whep::build_gridded_landuse, deep),
+    class = "whep_spatialize_irrigation_over_area"
+  )
+  # The boundary itself is legal: all of a crop's area may be irrigated.
+  deep$country_areas$irrigated_area_ha <- c(1000, 0)
+  testthat::expect_no_error(
+    suppressWarnings(do.call(whep::build_gridded_landuse, deep))
+  )
+  # And the driver still refuses it on the container-keyed table it is
+  # handed, before any unit split happens.
+  testthat::expect_error(
+    allocate_level_crops(
+      tibble::tibble(
+        year = 2000L,
+        area_code = 1L,
+        item_prod_code = 15L,
+        harvested_area_ha = 250,
+        irrigated_area_ha = 400
+      ),
+      tibble::tibble(
+        lon = c(0.25, 0.75),
+        lat = 50.25,
+        item_prod_code = 15L,
+        harvest_fraction = 0.5
+      ),
+      tibble::tibble(
+        lon = c(0.25, 0.75),
+        lat = 50.25,
+        year = 2000L,
+        cropland_ha = 1e4
+      ),
+      tibble::tribble(
+        ~lon,   ~lat, ~area_code, ~level_polity_code, ~level, ~cell_area_frac,
+        0.25,  50.25,         1L, "U1",                   1L,               1,
+        0.75,  50.25,         1L, "U2",                   1L,               1
+      ),
+      NULL
+    ),
+    class = "whep_spatialize_irrigation_over_area"
+  )
+})
+
+testthat::test_that("the unit multi-cropping factor moves only granted rows", {
+  # T31(g). The `multicropping` layer's factor is a national figure
+  # broadcast to every cell, so a unit asked to carry more than the country
+  # average breaches by construction; the unit factor is its own implied
+  # intensity, under which its aggregate ceiling equals its allocation.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~level_polity_code, ~item_prod_code,
+      ~harvested_area_ha,
+      2000L,         1L, "A-A1-1900-2100",               15L, 150,
+      2000L,         1L, "A-A2-1900-2100",               15L, 100
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               0.5,
+      0.75, 50.25,             15L,               0.5
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          100,
+      0.75, 50.25, 2000L,         1000
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~level_polity_code, ~level, ~cell_area_frac,
+      0.25, 50.25,         1L, "A-A1-1900-2100",       1L,               1,
+      0.75, 50.25,         1L, "A-A2-1900-2100",       1L,               1
+    )
+  )
+  parts_national <- suppressWarnings(whep:::.gridded_landuse_parts(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(mc_factor = "national")
+  ))
+  parts_unit <- whep:::.gridded_landuse_parts(
+    fix$country_areas,
+    fix$crop_patterns,
+    fix$gridded_cropland,
+    fix$country_grid,
+    config = list(mc_factor = "unit")
+  )
+  # The allocation is the same either way here -- the reported share binds
+  # and the ceiling is soft -- but which ceiling was in force is not.
+  testthat::expect_equal(
+    parts_national$allocation$rainfed_ha,
+    parts_unit$allocation$rainfed_ha,
+    tolerance = 1e-9
+  )
+  in_force <- function(parts) {
+    dplyr::filter(parts$breach, in_force)
+  }
+  testthat::expect_equal(in_force(parts_national)$rf_over, 50)
+  testthat::expect_equal(nrow(in_force(parts_unit)), 0L)
+  # BOTH bases are reported in both runs, which is what makes the change
+  # measurable rather than merely adopted.
+  testthat::expect_setequal(parts_unit$breach$mc_basis, "national")
+  testthat::expect_false(any(parts_unit$breach$in_force))
+  testthat::expect_equal(parts_unit$breach$rf_over, 50)
+})
+
+testthat::test_that("a cell's breach is attributed to its items pro rata", {
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,                300,
+      2000L,         1L,             44L,                100
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0,
+      0.25, 50.25,             44L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,          100
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1
+    )
+  )
+  parts <- suppressWarnings(do.call(whep:::.gridded_landuse_parts, fix))
+  breach <- dplyr::arrange(parts$breach, item_prod_code)
+  # 400 ha allocated into a 100 ha ceiling: the cell is 300 ha over, and the
+  # two items carry it in the 3:1 proportion of their own allocations.
+  testthat::expect_equal(sum(breach$rf_over), 300, tolerance = 1e-9)
+  testthat::expect_equal(breach$rf_over, c(225, 75), tolerance = 1e-9)
+  testthat::expect_setequal(breach$item_prod_code, c(15L, 44L))
+})
+
+testthat::test_that("the pattern extension reaches granted units only", {
+  # A layer holding one granted unit and one level-0 country in the SAME
+  # cell. Neither has a `crop_patterns` row for item 44; only the unit gains
+  # one, so the level-0 country's allocation cannot change.
+  fix <- list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             44L,                100,
+      2000L,         2L,             44L,                 80
+    ),
+    crop_patterns = tibble::tribble(
+      ~lon,  ~lat, ~item_prod_code, ~harvest_fraction,
+      0.25, 50.25,             15L,               1.0
+    ),
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat,  ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,        10000
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~level_polity_code, ~level, ~cell_area_frac,
+      0.25, 50.25,         1L, "A-A1-1900-2100",       1L,             0.5,
+      0.25, 50.25,         2L, NA_character_,          0L,             0.5
+    )
+  )
+  plain <- suppressWarnings(do.call(whep::build_gridded_landuse, fix))
+  extended <- suppressWarnings(do.call(
+    whep::build_gridded_landuse,
+    c(fix, list(config = list(pattern_extension = "granted_units")))
+  ))
+  # Without the extension neither country can place item 44 at all.
+  testthat::expect_equal(nrow(plain), 0L)
+  # With it, the granted unit places its 100 ha uniformly over its own
+  # cropland and the level-0 country still places nothing.
+  testthat::expect_equal(nrow(extended), 1L)
+  testthat::expect_equal(extended$area_code, 1L)
+  testthat::expect_equal(extended$rainfed_ha, 100, tolerance = 1e-9)
 })

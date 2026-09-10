@@ -18,7 +18,7 @@
 # Coverage is partial by construction, and the partition is asserted below so a
 # new dataset cannot arrive both unchecked and unexcluded:
 #
-#   * checked  -- the 49 datasets written by the seven builders in
+#   * checked  -- the 56 datasets written by the seven builders in
 #     `.offline_data_builders()`, which read only inst/extdata/, data-raw/ and
 #     committed data/*.rda.
 #   * excluded -- the 7 datasets in `.externally_built_datasets()`. Five come
@@ -76,6 +76,7 @@
     "polities",              "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "polity_area_crosswalk", "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "polity_label_aliases",  "table_mappings.R",         "WHEP_POLITIES_GPKG",
+    "polity_containment",    "table_mappings.R",         "WHEP_POLITIES_GPKG",
     "coello_synthetic_n",    "coello_synthetic_n.R",     "WHEP_COELLO_DIR",
     "livestock_coefs",       "livestock_coefficients.R", "openxlsx"
   )
@@ -266,7 +267,8 @@ testthat::test_that("a data/*.rda built from its inputs passes", {
   c(
     WHEP_POLITIES_GPKG = "polities_database.gpkg",
     WHEP_POLITIES_FAOSTAT_MAP = "faostat_area_polity_map.csv",
-    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv"
+    WHEP_POLITIES_LABEL_ALIAS_MAP = "label_alias_map.csv",
+    WHEP_POLITY_CONTAINMENT_CSV = "polity_containment.csv"
   )
 }
 
@@ -318,4 +320,57 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
       expected.label = paste0("committed data/", dataset, ".rda")
     )
   })
+})
+
+# The builder's own guards, read without running the builder ---------------
+#
+# `harmonization_tables.R` refuses a malformed inst/extdata CSV, and what a
+# maintainer gets from that refusal is the whole value of it. cli >= 3.4.0
+# reads a `{}` expression starting with a dot as a STYLE name, so
+# `{.val {.mapping_kinds()}}` aborted with "Invalid cli literal" and took
+# the table name, the rejected value and the vocabulary with it (whep#618,
+# already fixed twice in R/). Nothing else reaches these guards: the
+# rebuild above only ever walks the happy path, because the repo's CSVs
+# are clean.
+
+.assigned_name <- function(expr) {
+  assigned <- is.call(expr) &&
+    identical(as.character(expr[[1]]), "<-") &&
+    is.name(expr[[2]])
+  if (assigned) rlang::as_name(expr[[2]]) else NA_character_
+}
+
+# Evaluates only the named top-level definitions of a builder, so a guard
+# can be called without the builder's file reads and .rda writes.
+.builder_definitions <- function(builder, defs, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  env <- new.env(parent = globalenv())
+  wanted <- exprs[purrr::map_chr(exprs, .assigned_name) %in% defs]
+  purrr::walk(wanted, eval, envir = env)
+  env
+}
+
+testthat::test_that("a mistyped mapping_kind names the vocabulary it missed", {
+  root <- .skip_without_data_raw()
+  env <- .builder_definitions(
+    "harmonization_tables.R",
+    c(".mapping_kinds", ".assert_target_presence", ".assert_mapping_rows"),
+    root
+  )
+  rows <- tibble::tibble(
+    class_key = "SOYBEANS - ACRES HARVESTED",
+    item_prod_code = "236",
+    mapping_kind = "aggregat",
+    mapping_reason = "summed over the two NASS soybean classes"
+  )
+
+  err <- testthat::expect_error(
+    env$.assert_mapping_rows(rows, "item_prod_code", "admin_items_nass")
+  )
+  refusal <- conditionMessage(err)
+
+  testthat::expect_no_match(refusal, "Invalid cli literal")
+  testthat::expect_match(refusal, "admin_items_nass")
+  testthat::expect_match(refusal, "aggregat")
+  testthat::expect_match(refusal, "sum_member")
 })
