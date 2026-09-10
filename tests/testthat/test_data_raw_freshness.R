@@ -319,3 +319,51 @@ testthat::test_that("table_mappings.R matches upstream where it can be run", {
     )
   })
 })
+
+
+# Evaluates one top-level `<name> <- function(...)` out of a builder, so a
+# guard can be exercised without running the builder's CSV reads.
+.builder_function <- function(builder, name, root) {
+  exprs <- as.list(parse(file.path(root, "data-raw", builder)))
+  wanted <- purrr::keep(exprs, function(expr) {
+    rlang::is_call(expr, c("<-", "=")) &&
+      identical(rlang::expr_text(expr[[2]]), name)
+  })
+  testthat::expect_length(wanted, 1L)
+  env <- new.env(parent = globalenv())
+  eval(wanted[[1]], envir = env)
+  rlang::env_get(env, name)
+}
+
+testthat::test_that("the non-unique-key guard names the values (#621)", {
+  # `.assert_unique_key()` is the build-time gate that stops a fanned-out join
+  # key from shipping, and its whole point is to say which values repeat. Keys
+  # are usually numeric code columns, so with two duplicates the plural marker
+  # had nothing numeric ahead of it, cli read the quantity off the code vector
+  # and aborted inside its own formatter -- "length(object) == 1 is not TRUE",
+  # a bare simpleError with none of the values in it. One duplicate hides the
+  # defect, hence two here.
+  root <- .skip_without_data_raw()
+  assert_unique_key <- .builder_function(
+    "harmonization_tables.R",
+    ".assert_unique_key",
+    root
+  )
+  dup <- tibble::tibble(
+    item_cbs_code = c(2511, 2511, 2513, 2513),
+    label = c("a", "b", "c", "d")
+  )
+  cnd <- testthat::expect_error(
+    assert_unique_key(dup, "item_cbs_code", "items_cbs"),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "2511")
+  testthat::expect_match(conditionMessage(cnd), "2513")
+  testthat::expect_match(conditionMessage(cnd), "Duplicated values")
+  # A unique key passes the table straight back.
+  ok <- tibble::tibble(item_cbs_code = c(2511, 2513), label = c("a", "b"))
+  testthat::expect_identical(
+    assert_unique_key(ok, "item_cbs_code", "items_cbs"),
+    ok
+  )
+})

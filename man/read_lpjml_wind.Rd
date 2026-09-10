@@ -8,11 +8,13 @@ read_lpjml_wind(years = NULL, wind_dir = NULL, example = FALSE)
 }
 \arguments{
 \item{years}{Optional integer vector of calendar years to keep. \code{NULL}
-reads every year present in the file (1901-2016).}
+reads every year present in the file (1901-2019 in the currently pinned
+base; the span is whatever the resolved file holds, not a fixed range).}
 
-\item{wind_dir}{Path to the directory holding
-\code{wind_gswp3-w5e5_1901_2016_monthly.nc}. Defaults to
-\code{Sys.getenv("WHEP_WIND_DIR")}.}
+\item{wind_dir}{Path to the directory holding a
+\verb{wind_gswp3-w5e5_<span>_monthly.nc}. The span in that filename is
+resolved against the directory rather than assumed, so an extended base
+reads without a code change. Defaults to \code{Sys.getenv("WHEP_WIND_DIR")}.}
 
 \item{example}{If \code{TRUE}, return a small fixture instead of reading data.
 Defaults to \code{FALSE}.}
@@ -27,7 +29,16 @@ returns it in tidy long form. The file's \code{wind} variable carries no
 \code{units} attribute, because the monthly aggregation dropped it; the unit is
 metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
 is derived from, which declares \code{units = "m s-1"} and \code{standard_name = "wind_speed"}. That is why the output column is named \code{windspeed_ms}.
+
+The \code{windspeed_ms} column is named to match the MANNER driver column of
+the same name, so the output feeds \code{\link[=calculate_nh3]{calculate_nh3()}} (\code{method = "manner"}
+or \code{"manner_default"}, whose organic path requires \code{windspeed_ms}) after a
+join onto the gridded N-input records; this reader is the package's only
+source of that driver.
 }
 \examples{
 read_lpjml_wind(example = TRUE)
+}
+\seealso{
+\code{\link[=calculate_nh3]{calculate_nh3()}}, which consumes \code{windspeed_ms}.
 }

@@ -388,11 +388,51 @@ read_soil_hydraulic <- function(
   32L
 }
 
+# The whole-number factor that aggregates `src_res` up to `target_res`. Round,
+# never truncate, and refuse a ratio that is not whole rather than silently
+# accepting one.
+#
+# `as.integer()` truncates, and the ratio does not arrive exact. The EHdr
+# sidecar stores the cell size to 15 significant digits, so a resolution that
+# is an exact ratio in memory comes back perturbed: at one sixth of a degree
+# the header holds 0.166666666666667, `terra::res()` reads back
+# 0.16666666666666699, and 0.5 over that is 2.99999999999999423, which
+# truncates to 2. The whole world is then aggregated over 2x2 blocks where 3x3
+# is meant -- a complete, plausible grid at the wrong support, with no warning,
+# no NA and no failed check. HWSD's own header rounds the other way
+# (0.5 / 0.00833333333333332975 = 60.0000000000000284, truncating to the
+# correct 60), so the aggregation is right today by luck, not by design, and a
+# re-download whose header rounded up would flip it.
+#
+# The tolerance is relative and has fourteen orders of magnitude of clearance
+# on both sides: the header round trip moves the ratio by ~1e-16 relative,
+# while the smallest genuine mismatch -- a factor out by one source pixel --
+# moves it by 1/factor, which is 1.7e-2 at HWSD's factor of 60.
+.hwsd_agg_factor <- function(target_res, src_res) {
+  ratio <- target_res / src_res
+  whole <- round(ratio)
+  residue <- ratio - whole
+  if (whole < 1 || abs(residue) > .hwsd_agg_tolerance() * whole) {
+    cli::cli_abort(c(
+      "Target resolution is not a whole multiple of the source resolution.",
+      "i" = "Target {.val {target_res}} over source {.val {src_res}} is
+             {.val {ratio}}.",
+      "i" = "Nearest whole factor {.val {whole}}, residue {.val {residue}}."
+    ))
+  }
+  as.integer(whole)
+}
+
+# Relative tolerance on the aggregation ratio's distance from a whole number.
+.hwsd_agg_tolerance <- function() {
+  1e-6
+}
+
 # Classify and mean-aggregate one latitude band, releasing its full-resolution
 # intermediates before the next band allocates its own.
 .hwsd_band_values <- function(src, band, rcl, target_res) {
   sub <- terra::crop(src, band)
-  agg_factor <- as.integer(target_res / terra::res(sub)[1])
+  agg_factor <- .hwsd_agg_factor(target_res, terra::res(sub)[1])
   classified <- terra::classify(sub, rcl, others = NA)
   coarse <- terra::aggregate(
     classified,

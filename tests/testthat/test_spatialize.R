@@ -1584,3 +1584,34 @@ testthat::test_that("the signal floor is below EarthStat's float32 precision", {
   testthat::expect_true(signal_floor > 0)
   testthat::expect_true(signal_floor < 7.159938979837773e-12)
 })
+testthat::test_that("the duplicate-CFT abort names every code (#621)", {
+  # `item_prod_code` is numeric, so with two duplicated codes the message's
+  # plural marker had nothing numeric ahead of it and cli read the quantity
+  # off the code vector, aborting inside its own formatter with
+  # "length(object) == 1 is not TRUE". One duplicate hides the defect
+  # entirely, which is why the fixture carries two.
+  mapping <- tibble::tribble(
+    ~item_prod_code, ~cft,
+    15L,             "temperate_cereals",
+    15L,             "wheat",
+    27L,             "rice",
+    27L,             "rice_irrigated"
+  )
+  cnd <- testthat::expect_error(
+    whep:::.assert_unique_cft_mapping(mapping),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "15")
+  testthat::expect_match(conditionMessage(cnd), "27")
+  testthat::expect_match(conditionMessage(cnd), "Duplicated code")
+  # A unique mapping still passes through untouched.
+  unique_mapping <- tibble::tribble(
+    ~item_prod_code, ~cft,
+    15L,             "temperate_cereals",
+    27L,             "rice"
+  )
+  testthat::expect_identical(
+    whep:::.assert_unique_cft_mapping(unique_mapping),
+    unique_mapping
+  )
+})
