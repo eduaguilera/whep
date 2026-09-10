@@ -60,6 +60,40 @@
 #'   it raises 4,493 import keys by 9.70 Mt and 3,771 export keys by
 #'   10.27 Mt, moving 26,538 published rows over 180 areas; see `NEWS.md`.
 #'   The conflict count is reported by every build under either setting.
+#' @param negative_supply One of `"report"` (default), `"floor"` or
+#'   `"abort"`, selecting what happens when a pre-1962 row has no observed
+#'   `domestic_supply` and the `production + import - export` reconstruction
+#'   that replaces it comes out below zero (whep#1065). Every destiny of such
+#'   a row is apportioned from that negative supply, so every destiny comes
+#'   out negative — including `other_uses`, which is not a quantity that can
+#'   be negative.
+#'
+#'   Measured on a real 1950–1965 build, 151 rows reconstruct a negative
+#'   supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
+#'   output as 121 negative `other_uses` rows worth −883.91 Mt (29.2% of the
+#'   positive pre-1962 `other_uses` mass they net against), plus −108.42 Mt
+#'   of `production`, −73.69 Mt of `feed`, −64.09 Mt of `processing` and
+#'   −10.78 Mt of `food`.
+#'
+#'   It is **not** a stock draw: 83 of the 151 rows are the United States
+#'   (99.77% of the mass), the export/(production + import) ratio has median
+#'   1.96 and maximum 107.98, and it persists for eleven consecutive years.
+#'   The cause is upstream — US tobacco 1951 carries a 117,504,000 t export
+#'   against 728,949 t of production, 115,136,000 t of which is
+#'   `historical-trade-exports` item 831 recorded as 115,136 `"1000 MT"`,
+#'   46× the world's 1951 tobacco production and 473× the same country's
+#'   observed 1961 export. So neither treatment makes the row physical.
+#'
+#'   `"report"` keeps every value as computed, so it **moves no published
+#'   value**, and warns with the count, the total and the three largest.
+#'   `"floor"` clamps the reconstruction at zero, which is what
+#'   `.select_best_source()` already does to an observed negative supply, and
+#'   is also the stock-draw treatment, because the residual is rebooked as
+#'   `stock_withdrawal` downstream; it moves 3,981 rows, raises `other_uses`
+#'   by 883.90 Mt to 4,259.29 Mt, leaves no negative destiny anywhere, and
+#'   adds 880.18 Mt of `stock_withdrawal`. `"abort"` refuses to build any
+#'   range starting before 1961. Which is right is an open question — see
+#'   whep#1065 — so the reporting default is the one that invents nothing.
 #' @param .fixed_data Optional tibble with the same structure as the
 #'   output of the internal `.read_cbs() |> .fix_cbs()` steps. When
 #'   supplied, `primary_all` is ignored and the pipeline skips directly
@@ -2425,14 +2459,21 @@ build_processing_coefs <- function(
 # `"floor"` clamps the reconstruction at zero, which is the treatment
 # `.select_best_source()` already applies to an OBSERVED negative
 # `domestic_supply` -- the asymmetry between the two is what whep#1065 is
-# about. It is also the stock-draw treatment: nothing further has to be
-# wired through, because `.reestimate_domestic_supply()` recomputes
+# about. It is at the same time the stock-draw treatment, and nothing has to
+# be wired through for that: `.reestimate_domestic_supply()` recomputes
 # `stock_variation` as `production + import - export - domestic_supply` and
 # `.pivot_cbs_wide()` splits a negative one into `stock_withdrawal`, so the
-# exported mass the reconstruction could not source is booked as a draw on
-# stocks rather than as negative use.
+# exported mass the reconstruction cannot source is booked as a draw on
+# stocks instead of as negative use. Measured over 1950-1965 it moves 3,981
+# published rows: `other_uses` +883.90 Mt (from 3,375.38 to 4,259.29 Mt, and
+# no negative destiny left anywhere), `production` +124.75, `feed` +76.92,
+# `processing` +64.61, `food` +15.24, and `stock_withdrawal` +880.18 Mt.
+# US tobacco 1951 goes from -119.41 Mt of other uses to zero and a 116.30 Mt
+# stock withdrawal -- which is why this is not the default: the mass is
+# rebooked, not resolved.
 #
-# `"abort"` refuses to build the affected years.
+# `"abort"` refuses to build the affected years, i.e. every build that starts
+# before 1961.
 .cbs_negative_supply_choices <- function() {
   c("report", "floor", "abort")
 }
@@ -2457,19 +2498,41 @@ build_processing_coefs <- function(
 }
 
 # A negative reconstructed supply says the row's exports exceed its
-# production plus its imports. That is not a measurement: it is what happens
-# when observed trade is paired with a back-cast production series, and the
-# whole of it flows into the destinies, because `.apply_filled_shares()`
-# multiplies this number by a share carried in from another year. Every
-# destiny of such a row comes out negative, and a negative "other uses" is a
-# physically impossible published quantity.
+# production plus its imports, and the whole of it flows into the destinies,
+# because `.apply_filled_shares()` multiplies this number by a share carried
+# in from another year. Every destiny of such a row comes out negative, and a
+# negative "other uses" is a physically impossible published quantity.
 #
-# It survives every guard the build has. `.select_best_source()` clamps a
-# negative OBSERVED `domestic_supply` at zero but never sees this one;
+# Measured on a real 1950-1965 build of `main` (207,816 frame rows): 151 rows
+# reconstruct a negative supply, totalling -1,015.70 Mt, in 1950-1960 only.
+# They reach the published output as 121 negative `other_uses` rows worth
+# -883.91 Mt -- 29.2% of the 3,029.43 Mt of positive pre-1962 `other_uses`
+# mass they net against -- plus -108.42 Mt of `production`, -73.69 Mt of
+# `feed`, -64.09 Mt of `processing` and -10.78 Mt of `food`. There are no
+# negative destinies at all from 1962 on.
+#
+# **It is not a stock draw.** 83 of the 151 rows are area 231 (the United
+# States), and they carry 99.77% of the negative mass; the export/(production
+# + import) ratio has median 1.96 and maximum 107.98, sustained over eleven
+# consecutive years. Traced to the source, US tobacco 1951 has production
+# 728,949 t and an export of 117,504,000 t, of which 115,136,000 t is
+# `historical-trade-exports` item 831 "Tobacco products nes" recorded as
+# 115,136 "1000 MT" -- 46x the whole world's 1951 tobacco production and 473x
+# the same country's observed 1961 export of 248,219 t. The reconstruction is
+# faithful; its export input is not a tonnage. So flooring the supply and
+# booking the residual as a stock withdrawal is no more physical than passing
+# the negative through: it moves an impossible number from one column to
+# another. The trade defect is upstream of this function and is not fixed
+# here.
+#
+# Nothing detected it. `.select_best_source()` clamps a negative OBSERVED
+# `domestic_supply` at zero but never sees this one;
 # `.cbs_fix_final_balance()` clamps the final `domestic_supply` at zero but
-# not the destinies; and `check_supply_use_balance()` reconciles anyway,
-# because the same negative sits on both sides of the identity. That is why
-# this reports rather than relying on a balance check.
+# leaves the destinies negative; and `check_supply_use_balance()` reconciles
+# these rows to a maximum of 44.1 t and a median of 0.002 t, indistinguishable
+# from the whole output's rounding noise, because `stock_variation` absorbs the
+# difference and the same negative sits on both sides. That is why this
+# reports on the SIGN rather than relying on a balance check.
 .resolve_historical_supply <- function(df, method) {
   computed <- dplyr::if_else(
     !is.na(df$production) & !is.na(df$import) & !is.na(df$export),
@@ -2514,7 +2577,7 @@ build_processing_coefs <- function(
     "!" = paste0(
       "{nrow(negative)} pre-1962 row{?s} reconstruct{?s/} a negative ",
       "domestic supply from {.field production + import - export}, ",
-      "totalling {.val {total_txt}}."
+      "totalling {total_txt}."
     ),
     "*" = "Largest: {.val {worst_txt}}.",
     "i" = paste0(
@@ -4178,6 +4241,14 @@ build_processing_coefs <- function(
         0
       ),
       export = production * export_share,
+      # The second place a domestic supply is computed without a floor
+      # (whep#1065). `export_share` is a GLOBAL export / (production +
+      # import) ratio, so nothing bounds it at 1: measured on a real
+      # 1950-1965 build it exceeds 1 for 33 of 2,016 (year, item) keys and
+      # reaches 32.66 for tobacco 1951, driven by the same inflated
+      # pre-1961 export figures, and this supply then comes out negative.
+      # Left as computed here because the fix belongs to the export values,
+      # not to this arithmetic.
       domestic_supply = production - export
     ) |>
     dplyr::select(
