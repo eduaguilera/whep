@@ -12,6 +12,85 @@
 #' [`pins`](https://pins.rstudio.com/index.html) package. It supports multiple
 #' file formats and file versioning.
 #'
+#' @section The 2025-07-14 pin batch:
+#' Six aliases in [`whep_inputs`] were published together on 2025-07-14,
+#' between 12:33:43Z and 12:33:50Z: `commodity_balance_sheet`,
+#' `bilateral_trade`, `processing_coefs`, `feed_intake`, `primary_prod` and
+#' `crop_residues`. `inst/scripts/comparison_report.md` names that batch as
+#' the "original R-script-based pipeline by the same team", the pipeline this
+#' package replaced, and four of the six are read only by
+#' `inst/scripts/compare_global_whep.R`, which benchmarks `whep` against them
+#' --- or, for `feed_intake`, by nothing at all.
+#'
+#' The other two are read on the default build path, and they do **not** share
+#' a provenance despite sharing a timestamp. Each was established separately
+#' (#1054), because the timestamp alone establishes nothing.
+#'
+#' ## `crop_residues` is predecessor output
+#'
+#' Read by [get_primary_residues()], and from there by
+#' [build_commodity_balances()]. All 475,688 of its `Product` rows equal the
+#' `primary_prod` pin's `tonnes` values exactly --- no key unmatched on either
+#' side, no value differing at a relative tolerance of 1e-6 --- so it is a
+#' downstream artifact of the same predecessor run, carrying that run's
+#' production series into the commodity balance.
+#'
+#' Its residue quantities are those production numbers times a
+#' residue-to-product ratio that varies by year and does not exist in this
+#' repository: 100 of its 116 `Name_biomass` items carry between 164 and 252
+#' distinct ratios across 1961--2021, 33,411 area-item-year keys carry a
+#' residue of exactly 0, and `biomass_coefs$kg_residue_kg_product_FM`
+#' reproduces only 3,189 of the 472,790 keys where the comparison can be made.
+#' The ratios are therefore not recoverable here, and the artifact is not
+#' reproducible from this package.
+#'
+#' It is not a small input. [get_primary_residues()] supplies 7.63 Gt to the
+#' 2010 commodity balance (Straw 3.60 Gt, Other crop residues 2.49 Gt,
+#' Firewood 1.54 Gt) and 327.7 Gt over 1961--2021, and 3,998 of its 249,095
+#' output rows carry `NA` polity columns because the pin is name-keyed.
+#'
+#' Driving the same residue model off a fresh [get_primary_production()] would
+#' move those numbers. Measured for 2010 at (`area_code`, `item_prod`): 1.958
+#' Gt of current production sits on 6,425 keys the pin never sees (809 Mt of
+#' it primary crops, including the modelled temporary-grassland item), 64.8 Mt
+#' on 296 keys is pin-only, and of the 8,010 shared keys 538 disagree, putting
+#' 1.102 Gt --- 11.01% of the pin's shared-key mass --- more than 1% apart.
+#' The largest class is rice, 673.9 Mt in the pin against 463.3 Mt fresh, a
+#' ratio of 0.6876: current code puts rice on a milled-equivalent basis while
+#' the pin's is paddy, which is a basis difference rather than an error, since
+#' straw scales with the field crop. The second is fodder, where the current
+#' build is close to twice the pin on every forage and silage item, the pin
+#' predating that work. Replacing the pin therefore means choosing a residue
+#' model, which is a science decision and not a refresh.
+#'
+#' ## `bilateral_trade` is a curated FAOSTAT input
+#'
+#' Read by [get_bilateral_trade()] and by the live-animal branch of
+#' [build_commodity_balances()]. Its values are the FAOSTAT Detailed Trade
+#' Matrix, not model output: against the `faostat-trade-bilateral` pin over
+#' 2010, all 296,642 shared `tonnes` keys and all 5,102 shared `Head` keys
+#' agree exactly, with not one key differing. Over the full 1986--2021 span it
+#' carries 83,147,095,412 tonnes against FAOSTAT's 83,159,972,741 on
+#' CBS-mapped quantity rows, and 11,707,083,640 head against 11,708,244,416.
+#'
+#' The only transformations are an aggregation of FAOSTAT trade items onto CBS
+#' item names, a fold of 18 FAOSTAT areas into area code 999 (Bhutan, Comoros,
+#' Cook Islands, Equatorial Guinea, Faroe Islands, Marshall Islands,
+#' Micronesia, Nauru, New Caledonia, North Macedonia, Niue, Seychelles,
+#' Eswatini, Syrian Arab Republic, China Taiwan Province of, Tonga, Tuvalu and
+#' Palestine --- 3.18% of its rows, 1.892% of its tonnage, 0.492% of its head
+#' counts), and a `Country_share` column the reader discards. So the shared
+#' timestamp implies nothing about it, and there is nothing to regenerate:
+#' what it holds is what FAOSTAT published.
+#'
+#' Two things it does not hold. FAOSTAT's `1000 Head` rows are absent
+#' entirely --- 89,073 rows and 76,141,882 thousand head over 1986--2021,
+#' against the 11,707,083,640 head the pin does carry, all of it live broiler
+#' chicken, turkey, duck, rabbit and goose trade --- and so are its 5,011 `No`
+#' rows. Current code drops the same rows when it reads the raw pin, so
+#' [build_detailed_trade()] would not recover them; the same class of unit was
+#' fixed for `faostat-trade-totals` in #865 and is still open here.
+#'
 #' @param file_alias Internal name of the requested file. You can find the
 #'   possible values in the `alias` column of the [`whep_inputs`] dataset.
 #' @param type The extension of the file that must be read. Possible values:
@@ -107,6 +186,40 @@ whep_list_file_versions <- function(file_alias) {
 
   board |>
     pins::pin_versions(file_alias)
+}
+
+# The six aliases published together on 2025-07-14 between 12:33:43Z and
+# 12:33:50Z: the snapshot batch of the predecessor R-script pipeline this
+# package replaced, named as such in `inst/scripts/comparison_report.md`.
+#
+# The census lives in code so it can be checked mechanically. The roxygen
+# section on `whep_read_file()` states, per alias, what produced it and what
+# reads it; if a seventh artifact from the batch is ever registered, or one of
+# these six is refreshed to a different version, that section is out of date
+# and the guard in `test_input_files.R` fires (#1054).
+.predecessor_batch_aliases <- function() {
+  c(
+    "commodity_balance_sheet",
+    "bilateral_trade",
+    "processing_coefs",
+    "feed_intake",
+    "primary_prod",
+    "crop_residues"
+  )
+}
+
+# The two of that batch which package code reads on the default build path,
+# rather than only `inst/scripts/compare_global_whep.R`. They do not share a
+# provenance: `crop_residues` is predecessor output whose `Product` rows equal
+# the `primary_prod` pin to the last digit, while `bilateral_trade` is a
+# harmonisation of the FAOSTAT Detailed Trade Matrix whose values match the
+# raw pin exactly. The roxygen section carries the evidence for both.
+#
+# No warning is attached to these two. Every commodity balance build reads
+# them, so a warning at the read is noise rather than information; the four
+# benchmark-only aliases are a separate call (#1030).
+.predecessor_batch_build_path <- function() {
+  c("bilateral_trade", "crop_residues")
 }
 
 .read_file <- function(paths, extension) {

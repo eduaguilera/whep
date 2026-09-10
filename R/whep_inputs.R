@@ -18,5 +18,7 @@
 #'   calling `whep_read_file()`. If you want to use a different one, you can
 #'   find the available versions of a file by using `whep_list_file_versions()`.
 #'
+#' @inheritSection whep_read_file The 2025-07-14 pin batch
+#'
 #' @source Created by the package authors.
 "whep_inputs"

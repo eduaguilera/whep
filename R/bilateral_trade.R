@@ -143,6 +143,8 @@
 #'    ). The target sums for rows and columns are respectively the balanced
 #'    exports and imports computed from the commodity balance sheet.
 #'
+#' @inheritSection whep_read_file The 2025-07-14 pin batch
+#'
 #' @export
 #'
 #' @examples
@@ -165,6 +167,12 @@ get_bilateral_trade <- function(
     dplyr::select(year, item_cbs_code, area_code, export, import)
 
   cli::cli_progress_step("Reading raw bilateral trade data")
+  # The `bilateral_trade` pin shares the predecessor pipeline's 2025-07-14
+  # timestamp but not its provenance: every value it holds is the FAOSTAT
+  # Detailed Trade Matrix, matching the raw `faostat-trade-bilateral` pin
+  # exactly. What it adds is the CBS item aggregation and a fold of 18 areas
+  # into code 999; what it drops is FAOSTAT's `1000 Head` and `No` rows. See
+  # the pin-batch section above for the figures (#1054).
   btd <- "bilateral_trade" |>
     whep_read_file() |>
     .clean_bilateral_trade()

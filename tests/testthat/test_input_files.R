@@ -390,3 +390,57 @@ testthat::test_that(".find_cache_dir survives an unreadable neighbour", {
   testthat::expect_true(fs::dir_exists(empty))
   testthat::expect_equal(fs::path(result), fs::path(wanted))
 })
+
+# The 2025-07-14 predecessor pin batch --------------------------------------
+
+testthat::test_that("the predecessor batch census matches the registry", {
+  # #1054: six aliases were published together on 2025-07-14, and the roxygen
+  # section on `whep_read_file()` says, per alias, what produced it and what
+  # reads it. Nothing keeps prose in step with the registry, so the census is
+  # asserted here instead. A seventh artifact from that batch, or a refresh of
+  # one of the six, then has to come with a rewrite of that section rather than
+  # leaving it quietly wrong.
+  registered <- whep::whep_inputs |>
+    dplyr::filter(stringr::str_starts(version, "20250714")) |>
+    dplyr::pull(alias)
+
+  testthat::expect_setequal(registered, .predecessor_batch_aliases())
+  testthat::expect_true(
+    all(.predecessor_batch_aliases() %in% whep::whep_inputs$alias)
+  )
+})
+
+testthat::test_that("the build-path subset is part of the batch", {
+  # These two are why the issue existed: they are read by package functions
+  # rather than only by `inst/scripts/compare_global_whep.R`, so each one's
+  # provenance had to be established separately. `crop_residues` turned out to
+  # be predecessor output and `bilateral_trade` a FAOSTAT harmonisation.
+  testthat::expect_true(
+    all(.predecessor_batch_build_path() %in% .predecessor_batch_aliases())
+  )
+  testthat::expect_setequal(
+    .predecessor_batch_build_path(),
+    c("bilateral_trade", "crop_residues")
+  )
+})
+
+testthat::test_that("the documented readers read the documented aliases", {
+  # The census is only worth asserting if it tracks the code, so this pins the
+  # two call sites the roxygen section names. Both readers are stubbed, so
+  # nothing reaches the network.
+  seen <- character()
+  testthat::local_mocked_bindings(
+    whep_read_file = function(file_alias, ...) {
+      seen <<- c(seen, file_alias)
+      rlang::abort("stubbed", class = "whep_test_stub")
+    }
+  )
+
+  testthat::expect_error(get_primary_residues(), class = "whep_test_stub")
+  testthat::expect_error(
+    get_bilateral_trade(cbs = .example_get_wide_cbs()),
+    class = "whep_test_stub"
+  )
+
+  testthat::expect_setequal(seen, .predecessor_batch_build_path())
+})
