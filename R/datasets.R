@@ -303,7 +303,7 @@
 #' for medium wheat at 85% and 72% extraction (11.7 and 10.9 g per 100 g of
 #' flour, so 99.4 and 78.5 g per kg of grain equivalent; FAO, *Food
 #' composition tables for international use*, 2nd ed. 1953,
-#' <https://www.fao.org/4/x5557e/>, which FAO itself flags as historical),
+#' <https://www.fao.org/4/x5557e/x5557e04.htm>, which FAO itself flags as historical),
 #' is consistent with USDA FoodData Central 168894 white all-purpose flour at
 #' 10.33 g per 100 g, and reproduces FAOSTAT FBS's own world implied density
 #' for item 2511 -- 91.7 to 93.2 g per kg over 2010-2023 -- to better than 1%
