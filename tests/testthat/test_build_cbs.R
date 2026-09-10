@@ -1049,6 +1049,196 @@ test_that(".select_best_source keys on area_code, not periodized name", {
   expect_equal(prod_fmt$value, 100)
 })
 
+
+# -- fao_flag provenance (whep#953) -------------------------------------------
+
+.make_flagged_cbs_raw <- function() {
+  tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit, ~fao_flag,
+    "Spain", 203L, "Wheat", 2511L, "production", 2010L, 5000, "FAOSTAT_prod", "tonnes", "A",
+    "Spain", 203L, "Wheat", 2511L, "production", 2010L, 4000, "FAOSTAT_FBS_New", "tonnes", "I",
+    "Spain", 203L, "Wheat", 2511L, "food", 2010L, 3000, "FAOSTAT_FBS_New", "tonnes", "I",
+    "Spain", 203L, "Wheat", 2511L, "seed", 2010L, 100, "FAOSTAT_FBS_Old", "tonnes", "S"
+  )
+}
+
+test_that(".select_best_source keeps the flag of the selected source", {
+  # whep#953: the column was reduced away here, so the documented `fao_flag`
+  # was NA in every row of every build. The flag has to follow the value: the
+  # sources disagree about provenance on 28.6% of the selection keys of a real
+  # 2010-2013 build, so an arbitrary pick would credit one vintage's
+  # provenance to another vintage's number.
+  selected <- whep:::.select_best_source(.make_flagged_cbs_raw())
+
+  expect_true("fao_flag" %in% names(selected))
+  flag_of <- function(el) {
+    selected |> dplyr::filter(element == el) |> dplyr::pull(fao_flag)
+  }
+  # FAOSTAT_prod outranks FBS_New, so "A" wins over "I" on production.
+  expect_equal(flag_of("production"), "A")
+  expect_equal(flag_of("food"), "I")
+  expect_equal(flag_of("seed"), "S")
+})
+
+test_that("a supplied flag survives to the long CBS output", {
+  # The end-to-end claim of whep#953, over the two steps that dropped it.
+  out <- .make_flagged_cbs_raw() |>
+    whep:::.select_best_source() |>
+    whep:::.format_cbs_output()
+
+  expect_true("fao_flag" %in% names(out))
+  expect_false(all(is.na(out$fao_flag)))
+  expect_equal(
+    out |> dplyr::filter(element == "production") |> dplyr::pull(fao_flag),
+    "A"
+  )
+})
+
+test_that(".select_best_source works when no source carries a flag", {
+  # The other branch: nothing upstream reports a flag, so the column is
+  # emitted as all-NA rather than being absent from a documented output.
+  raw <- .make_flagged_cbs_raw() |> dplyr::select(-fao_flag)
+  selected <- whep:::.select_best_source(raw)
+
+  expect_true("fao_flag" %in% names(selected))
+  expect_true(all(is.na(selected$fao_flag)))
+  expect_equal(nrow(selected), 3L)
+
+  # And the same when the column is there but every value in it is missing,
+  # which is a different branch: the fold runs and matches nothing.
+  all_na <- .make_flagged_cbs_raw() |>
+    dplyr::mutate(fao_flag = NA_character_) |>
+    whep:::.select_best_source()
+  expect_true(all(is.na(all_na$fao_flag)))
+  expect_equal(nrow(all_na), 3L)
+})
+
+test_that(".select_best_source folds the averaged sources' flags", {
+  # The `mean` branch is the one that really does combine several sources.
+  # Agreeing flags are kept; disagreeing ones are reported as NA rather than
+  # having one of them stand for the average (whep#581).
+  raw <- tibble::tribble(
+    ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~year, ~value, ~source, ~unit, ~fao_flag,
+    "Spain", 203L, "Wheat", 2511L, "import", 2010L, 100, "FAOSTAT_CBS", "tonnes", "S",
+    "Spain", 203L, "Wheat", 2511L, "import", 2010L, 200, "FAOSTAT_trade", "tonnes", "S",
+    "Spain", 203L, "Barley", 2513L, "import", 2010L, 100, "FAOSTAT_CBS", "tonnes", "S",
+    "Spain", 203L, "Barley", 2513L, "import", 2010L, 200, "FAOSTAT_trade", "tonnes", "A"
+  )
+  selected <- whep:::.select_best_source(raw)
+
+  expect_equal(unique(selected$source), "mean")
+  agree <- selected |> dplyr::filter(item_cbs_code == 2511L)
+  disagree <- selected |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(agree$fao_flag, "S")
+  expect_true(is.na(disagree$fao_flag))
+})
+
+test_that(".fold_flags_by is .fold_fao_flag applied per group", {
+  # The grouped fold is written vectorised because calling the helper once per
+  # group is most of what carrying the flag costs on a real build. It has to
+  # be the same rule, so pin the equivalence rather than assert it in a
+  # comment: agreeing groups keep their flag, disagreeing ones are absent
+  # (which joins as NA), and NA rows never create a group of their own.
+  flags <- tibble::tribble(
+    ~key, ~fao_flag,
+    "agree", "A",
+    "agree", "A",
+    "disagree", "A",
+    "disagree", "E",
+    "single", "S",
+    "with_na", "I",
+    "with_na", NA_character_,
+    "all_na", NA_character_
+  )
+  dt <- data.table::as.data.table(flags)
+  vectorised <- whep:::.fold_flags_by(dt[!is.na(fao_flag)], "key")
+  per_group <- dt[,
+    .(fao_flag = whep:::.fold_fao_flag(fao_flag)),
+    by = "key"
+  ][!is.na(fao_flag)]
+
+  expect_equal(
+    vectorised[order(key)],
+    per_group[order(key)],
+    ignore_attr = TRUE
+  )
+  expect_setequal(vectorised$key, c("agree", "single", "with_na"))
+  expect_equal(vectorised$fao_flag[vectorised$key == "with_na"], "I")
+})
+
+test_that(".collapse_cbs_observations folds the flag with the mean", {
+  # This collapse runs over every year of the frame when `historical_data` is
+  # supplied, so dropping the flag here would put the whole build back to
+  # all-NA on that path alone.
+  frame <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    1990L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    1990L, "Spain", 203L, "Wheat", 2511L, "production", 120, "FAOSTAT_prod", "A",
+    1991L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    1991L, "Spain", 203L, "Wheat", 2511L, "production", 120, "FAOSTAT_prod", "E"
+  )
+  result <- whep:::.collapse_cbs_observations(frame)
+
+  expect_true("fao_flag" %in% names(result))
+  expect_equal(
+    result |> dplyr::filter(year == 1990L) |> dplyr::pull(fao_flag),
+    "A"
+  )
+  expect_true(
+    is.na(result |> dplyr::filter(year == 1991L) |> dplyr::pull(fao_flag))
+  )
+
+  # It also still works on a frame with no flag column at all.
+  no_flag <- whep:::.collapse_cbs_observations(
+    dplyr::select(frame, -fao_flag)
+  )
+  expect_false("fao_flag" %in% names(no_flag))
+  expect_equal(nrow(no_flag), 2L)
+})
+
+test_that(".extract_source_lookup carries the flag with the source", {
+  cbs <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010L, 203L, 2511L, "production", 5000, "FAOSTAT_prod", "A",
+    2010L, 203L, 2511L, "food", 3000, "FAOSTAT_FBS_New", "I"
+  )
+  lookup <- whep:::.extract_source_lookup(data.table::as.data.table(cbs))
+
+  expect_true("fao_flag" %in% names(lookup))
+  expect_equal(
+    lookup$fao_flag[lookup$element == "production"],
+    "A"
+  )
+
+  # And it stays absent, rather than becoming NA columns, when the input has
+  # no flag at all.
+  no_flag <- whep:::.extract_source_lookup(
+    data.table::as.data.table(dplyr::select(cbs, -fao_flag))
+  )
+  expect_false("fao_flag" %in% names(no_flag))
+})
+
+test_that(".format_cbs_output folds flags across a summed group", {
+  # The output key is coarser than the input's: it drops `item_cbs` and
+  # `source`, so several rows can be summed into one. The flag describes the
+  # value, so it survives only if every part agrees.
+  cbs <- tibble::tribble(
+    ~year, ~area, ~area_code, ~item_cbs, ~item_cbs_code, ~element, ~value, ~source, ~fao_flag,
+    2010L, "Spain", 203L, "Wheat", 2511L, "production", 100, "FAOSTAT_prod", "A",
+    2010L, "Spain", 203L, "Wheat and products", 2511L, "production", 200, "FAOSTAT_CBS", "A",
+    2010L, "Spain", 203L, "Barley", 2513L, "production", 100, "FAOSTAT_prod", "A",
+    2010L, "Spain", 203L, "Barley and products", 2513L, "production", 200, "FAOSTAT_CBS", "S"
+  )
+  result <- whep:::.format_cbs_output(cbs)
+
+  agree <- result |> dplyr::filter(item_cbs_code == 2511L)
+  disagree <- result |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(agree$value, 300)
+  expect_equal(agree$fao_flag, "A")
+  expect_equal(disagree$value, 300)
+  expect_true(is.na(disagree$fao_flag))
+})
+
 test_that("a duplicated (key, source) pair is summed, not counted", {
   # whep#557: with no `fun.aggregate`, dcast falls back to a row count, and it
   # applies that to EVERY cell, so one duplicate anywhere turns the whole table
@@ -1413,6 +1603,21 @@ test_that(".select_best_source scales FBS_Old to FBS_New level", {
     dplyr::filter(year == 2015) |>
     dplyr::pull(source)
   expect_equal(src_2015, "FAOSTAT_FBS_New")
+})
+
+test_that("a scaled FBS_Old value keeps FBS_Old's flag (whep#953)", {
+  # `FAOSTAT_FBS_Old_scaled` is FBS_Old's own number times an overlap ratio,
+  # so it is the same observation and carries the same flag -- not FBS_New's,
+  # even though FBS_New supplied the ratio.
+  result <- .make_select_best_source_input() |>
+    dplyr::mutate(
+      fao_flag = dplyr::if_else(source == "FAOSTAT_FBS_New", "I", "S")
+    ) |>
+    whep:::.select_best_source()
+
+  scaled <- result |> dplyr::filter(source == "FAOSTAT_FBS_Old_scaled")
+  expect_gt(nrow(scaled), 0L)
+  expect_true(all(scaled$fao_flag == "S"))
 })
 
 test_that(".select_best_source uses dataset-specific source names", {
