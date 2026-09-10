@@ -85,6 +85,20 @@
 #' stage 2 costs a further 6.4 s and +2.0 GB there, and is paid only by a
 #' lattice that is already broken.
 #'
+#' @section What it cannot see:
+#' Three absences pass this check, and a caller must not read a pass as more
+#' than it is.
+#'
+#' * A **group that is absent entirely**. No rows at all means no group, and
+#'   `.by` can only name groups the data already carries. Assert the expected
+#'   *group* set the same way: put the grouping keys in the data-frame form of
+#'   `expected` and pass no `.by`.
+#' * A key that is present but **wrong**. This is a completeness check, not a
+#'   validity one; month 13 is not a failure here, only an absent month 12 is.
+#' * A lattice that is complete while its **values** are absent as zeros. That
+#'   is the other half of the family: assert the input was supplied, not that
+#'   its keys are all there (whep#1034).
+#'
 #' @param data A tibble to check.
 #' @param expected The expected key set: a named list of value vectors, a data
 #'   frame of expected key rows, or a function of `data` returning either.

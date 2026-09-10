@@ -103,6 +103,23 @@ stage 2 costs a further 6.4 s and +2.0 GB there, and is paid only by a
 lattice that is already broken.
 }
 
+\section{What it cannot see}{
+
+Three absences pass this check, and a caller must not read a pass as more
+than it is.
+\itemize{
+\item A \strong{group that is absent entirely}. No rows at all means no group, and
+\code{.by} can only name groups the data already carries. Assert the expected
+\emph{group} set the same way: put the grouping keys in the data-frame form of
+\code{expected} and pass no \code{.by}.
+\item A key that is present but \strong{wrong}. This is a completeness check, not a
+validity one; month 13 is not a failure here, only an absent month 12 is.
+\item A lattice that is complete while its \strong{values} are absent as zeros. That
+is the other half of the family: assert the input was supplied, not that
+its keys are all there (whep#1034).
+}
+}
+
 \examples{
 eleven <- tibble::tibble(year = 2000L, month = 1:11)
 key_lattice_gaps(eleven, list(month = 1:12), .by = "year")
