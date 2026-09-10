@@ -56,6 +56,16 @@
 #'   supply: that is the signature of an LPJmL 6.x run without the green/blue
 #'   fix, whose split is unusable (the numbers are still returned, so the
 #'   warning changes nothing; `"irrig_share"` does not read those cubes).
+#'
+#'   `partial_year` is the one member that is a policy rather than a method:
+#'   what to do when a cell-year does not carry all twelve months, so that
+#'   summing it to an annual flux would return a total over eleven. `"abort"`
+#'   (default) refuses, naming the absent cell-months; `"warn"` returns the
+#'   short sums; `"drop"` excludes the incomplete cell-years, so the year is
+#'   absent rather than wrong. It is stamped into `method_water` as
+#'   `partial:<choice>` only when it is not the default, because `"abort"` and
+#'   `"warn"` return byte-identical numbers and only `"drop"` removes rows a
+#'   reader could not otherwise account for.
 #' @param resolution `"grid"` (per cell, default) or `"polity"` (aggregated to
 #'   `year` and `area_code`).
 #' @param bands Optional character vector of LPJmL crop-functional-type band
@@ -189,6 +199,13 @@ build_water_balance <- function(
 #' @param years Optional integer vector of calendar years to keep. `NULL` keeps
 #'   every year the inputs cover.
 #' @inheritParams build_water_balance
+#' @param partial_year What to do when a cell-year does not carry all twelve
+#'   months by the time `water_balance_mm` is summed. A cell-month survives to
+#'   that point only if CRU temperature, CRU PET, LPJmL precipitation and LPJmL
+#'   irrigation all carry it, so an inner join can strip one and the annual
+#'   surplus is then summed over eleven with nothing `NA` and no row visibly
+#'   lost. `"abort"` (default) refuses, naming the absent cell-months; `"warn"`
+#'   returns the short sums; `"drop"` excludes the affected cell-years.
 #' @param data Optional named list of pre-loaded inputs, each falling back to
 #'   its reader when absent: `temp` (CRU `tmp`, `lon`, `lat`, `year`, `month`,
 #'   `value` degrees Celsius), `pet` (CRU `pet`, same schema, mm/day), `prec`
@@ -227,10 +244,12 @@ get_soc_climate_drivers <- function(
   run_dir = NULL,
   years = NULL,
   polity_validity = c("keep", "flag", "drop"),
+  partial_year = c("abort", "warn", "drop"),
   data = list(),
   example = FALSE
 ) {
   polity_validity <- rlang::arg_match(polity_validity)
+  partial_year <- rlang::arg_match(partial_year)
   if (isTRUE(example)) {
     return(.resolve_polity_validity(
       .example_soc_climate_drivers(),
@@ -238,7 +257,7 @@ get_soc_climate_drivers <- function(
     ))
   }
   status <- if (polity_validity == "flag") "flag" else NULL
-  .socd_build(run_dir, years, polity_validity, data) |>
+  .socd_build(run_dir, years, polity_validity, partial_year, data) |>
     .add_reporting_polity_columns(mapping_status = status)
 }
 
@@ -251,10 +270,10 @@ get_soc_climate_drivers <- function(
 # own output. Polity validity itself still applies here, because it can drop
 # rows. The exported wrapper above attaches the columns, so its contract is
 # unchanged (#624).
-.socd_build <- function(run_dir, years, polity_validity, data) {
+.socd_build <- function(run_dir, years, polity_validity, partial_year, data) {
   pin <- .socd_pin_hydrology(data, run_dir, years)
   swc <- .wb_swc_topsoil(data, run_dir, years, pin)
-  monthly <- .socd_monthly_climate(data, run_dir, years, pin)
+  monthly <- .socd_monthly_climate(data, run_dir, years, pin, partial_year)
   # The pin carries swc_topsoil, prec_mm and irrig_mm for every requested year --
   # ~12 GB at 1901-2022 -- and nothing below reads it, because swc and monthly
   # are already derived from it. Left referenced it stays resident through
@@ -278,7 +297,8 @@ get_soc_climate_drivers <- function(
   list(
     aet = c("components"),
     drainage = c("seepage", "residual"),
-    blue_green = c("cft_native", "irrig_share")
+    blue_green = c("cft_native", "irrig_share"),
+    partial_year = c("abort", "warn", "drop")
   )
 }
 
@@ -309,11 +329,17 @@ get_soc_climate_drivers <- function(
     flux_vars <- flux_vars[names(flux_vars) != "seepage"]
   }
   parts <- purrr::imap(flux_vars, function(reader_var, name) {
-    raw <- data[[name]] %||% read_lpjml_hydrology(reader_var, monthly = FALSE)
-    .wb_annual_flux(raw, name)
+    raw <- data[[name]] %||%
+      read_lpjml_hydrology(
+        reader_var,
+        monthly = FALSE,
+        partial_year = method$partial_year
+      )
+    .wb_annual_flux(raw, name, method$partial_year)
   })
   swc <- .wb_swc_change(
-    data$swc %||% read_lpjml_hydrology("swc", monthly = TRUE)
+    data$swc %||% read_lpjml_hydrology("swc", monthly = TRUE),
+    method$partial_year
   )
   wide <- purrr::reduce(
     c(unname(parts), list(swc)),
@@ -511,8 +537,15 @@ get_soc_climate_drivers <- function(
 # Coerce one flux input to annual cell-year totals named `name`. Monthly inputs
 # (a `month` column present) are summed over the 12 months; already-annual
 # inputs are passed through after renaming `value`.
-.wb_annual_flux <- function(raw, name) {
+#
+# The lattice check guards the injected-input path: a flux read through
+# read_lpjml_hydrology(monthly = FALSE) arrives already annual and was checked
+# there, but `data$<name>` is whatever the caller passed, and a caller who
+# hands over eleven months gets an eleven-month year with no NA in it and no
+# identity to notice (whep#1073).
+.wb_annual_flux <- function(raw, name, partial_year = "abort") {
   if (rlang::has_name(raw, "month")) {
+    raw <- .wb_resolve_partial_flux(raw, name, partial_year)
     raw <- dplyr::summarise(
       raw,
       value = sum(value),
@@ -525,12 +558,47 @@ get_soc_climate_drivers <- function(
   )
 }
 
+# Apply the `partial_year` policy to a monthly flux the caller injected, using
+# the same three-way lever the reader carries. "drop" removes the incomplete
+# cell-years and says so, rather than short-summing them.
+.wb_resolve_partial_flux <- function(raw, name, partial_year) {
+  expected <- list(month = 1:12)
+  by_cols <- c("lon", "lat", "year")
+  if (identical(partial_year, "drop")) {
+    gaps <- key_lattice_gaps(raw, expected, .by = by_cols)
+    return(dplyr::anti_join(raw, dplyr::distinct(gaps[by_cols]), by = by_cols))
+  }
+  check_keys_complete(
+    raw,
+    expected,
+    .by = by_cols,
+    action = partial_year,
+    details = c(
+      i = "The injected {.field {name}} flux is summed to a cell-year total,
+           so a cell-year short of a month returns a short annual flux and the
+           water budget closes over it regardless.",
+      i = "Supply twelve months per cell-year, or set
+           {.code method = list(partial_year = \"drop\")}."
+    )
+  )
+}
+
 # Annual whole-profile soil-water change (mm): for each cell-year, the
 # December-minus-prior-December change in column storage, falling back to
 # December minus January in the first available year. Column storage sums all
 # soil layers as fractional saturation times layer thickness times a porosity
 # (water-holding) factor; thickness alone would imply porosity = 1.
-.wb_swc_change <- function(swc) {
+#
+# The expected lattice here is months 1 AND 12, not all twelve, because that is
+# exactly what the code below reads: .wb_swc_column_state() takes min(month)
+# and max(month) as the January and December states, so an absent December
+# does not fail, it silently becomes November -- a whole month of storage
+# change attributed to the wrong boundary, with no NA and no row lost
+# (whep#1073). Months 2-11 are genuinely immaterial to this term and are not
+# required, so a caller who legitimately supplies only the two boundary months
+# is not refused.
+.wb_swc_change <- function(swc, partial_year = "abort") {
+  swc <- .wb_check_swc_boundary(swc, partial_year)
   state <- .wb_swc_column_state(swc)
   state |>
     dplyr::arrange(year) |>
@@ -540,6 +608,39 @@ get_soc_climate_drivers <- function(
       .by = c(lon, lat)
     ) |>
     dplyr::select(lon, lat, year, soil_water_change_mm)
+}
+
+# Refuse (or, on "drop", remove) a cell-year-layer whose January or December
+# soil-water state never arrived.
+#
+# The frame is narrowed to the two boundary months BEFORE the check, and that
+# is load-bearing rather than tidiness: the count fast path applies only while
+# the observed vocabulary lies inside the expected one, so asserting
+# {1, 12} against a frame that also holds months 2-11 would send every call
+# down the enumerating path -- on a full-span layered soil-water read that is
+# 6 x 86.8e6 rows of needless work. Narrowing first restores the scalar path.
+.wb_check_swc_boundary <- function(swc, partial_year) {
+  expected <- list(month = c(1L, 12L))
+  by_cols <- c("lon", "lat", "year", "layer")
+  boundary <- dplyr::filter(swc, month %in% c(1L, 12L))
+  if (identical(partial_year, "drop")) {
+    gaps <- key_lattice_gaps(boundary, expected, .by = by_cols)
+    return(dplyr::anti_join(swc, dplyr::distinct(gaps[by_cols]), by = by_cols))
+  }
+  check_keys_complete(
+    boundary,
+    expected,
+    .by = by_cols,
+    action = partial_year,
+    details = c(
+      i = "{.fun .wb_swc_column_state} reads the January and December column
+           states as {.code min(month)} and {.code max(month)}, so an absent
+           December becomes November without any value going missing.",
+      i = "Set {.code method = list(partial_year = \"drop\")} to exclude the
+           affected cell-years instead."
+    )
+  )
+  swc
 }
 
 # Per cell-year December and January column-storage states (mm), summing all
@@ -816,14 +917,28 @@ get_soc_climate_drivers <- function(
 # "aet:<aet>|drain:<drainage>|bg:<blue_green>" provenance label for the
 # method_water column. `bg_realized` is the blue_green method actually used
 # (cft_native, irrig_share, or irrig_share_fallback when cft_native degraded).
+#
+# partial_year appends "|partial:<choice>" ONLY when it is not the default.
+# Unlike the other three it is a refusal policy rather than an estimation
+# method: on "abort" and "warn" the numbers are byte-identical, so stamping the
+# default would change a published provenance string for every caller and say
+# nothing. On "drop" it is the one thing a reader cannot recover from the
+# output -- a dropped cell-year and a cell-year the run never had look
+# identical -- so that choice is recorded.
 .wb_method_label <- function(method, bg_realized) {
+  partial <- if (identical(method$partial_year, "abort")) {
+    ""
+  } else {
+    paste0("|partial:", method$partial_year)
+  }
   paste0(
     "aet:",
     method$aet,
     "|drain:",
     method$drainage,
     "|bg:",
-    bg_realized
+    bg_realized,
+    partial
   )
 }
 
@@ -895,11 +1010,20 @@ get_soc_climate_drivers <- function(
 # decomposition modifiers consume: precip_mm and pet_mm (monthly, for Century)
 # and water_balance_mm (the annual sum of water_minus_pet_mm, for AMG). Each
 # source falls back to its reader when not injected.
-.socd_monthly_climate <- function(data, run_dir, years, pin = NULL) {
+.socd_monthly_climate <- function(
+  data,
+  run_dir,
+  years,
+  pin = NULL,
+  partial_year = "abort"
+) {
   sources <- .socd_monthly_sources(data, run_dir, years, pin)
   groups <- purrr::map(sources, \(x) split(seq_len(nrow(x)), x$year))
   shared <- Reduce(intersect, purrr::map(groups, names))
-  purrr::map(shared, \(year) .socd_monthly_year(sources, groups, year)) |>
+  purrr::map(
+    shared,
+    \(year) .socd_monthly_year(sources, groups, year, partial_year)
+  ) |>
     dplyr::bind_rows()
 }
 
@@ -940,7 +1064,7 @@ get_soc_climate_drivers <- function(
 # 1901-2022, each join copying the result: the read peaks at 86.7 GB there, for
 # an 11.9 GB result, and that peak alone is what a full-span
 # build_carbon_balance() could not fit (#624).
-.socd_monthly_year <- function(sources, groups, year) {
+.socd_monthly_year <- function(sources, groups, year, partial_year) {
   rows <- function(name) {
     sources[[name]][groups[[name]][[year]], , drop = FALSE]
   }
@@ -953,7 +1077,7 @@ get_soc_climate_drivers <- function(
       water_minus_pet_mm = (precip_mm + irrig_mm) - pet_mm,
       method_water_input = "lpjml_prec_irrig"
     ) |>
-    .socd_add_water_balance() |>
+    .socd_add_water_balance(partial_year) |>
     dplyr::select(
       lon,
       lat,
@@ -973,13 +1097,52 @@ get_soc_climate_drivers <- function(
 # cell-year carries that year's single annual scalar (the per-cell-year value
 # soc_rate_modifier_amg expects). Keyed on (lon, lat, year): the annual balance
 # of a grid cell is independent of which polity later claims it.
-.socd_add_water_balance <- function(monthly) {
+#
+# This sum is reached through four inner joins on (lon, lat, year, month), so
+# it is the site in this file most exposed to a missing row: a cell-month that
+# CRU temperature has and LPJmL precipitation does not is dropped by the join,
+# and the year's surplus is then summed over eleven months with nothing NA and
+# no row visibly lost (whep#1073). The lattice check runs after the joins, on
+# what survived them, which is the only place it can see the loss.
+.socd_add_water_balance <- function(monthly, partial_year = "abort") {
+  monthly <- .socd_check_months(monthly, partial_year)
   annual <- monthly |>
     dplyr::summarise(
       water_balance_mm = sum(water_minus_pet_mm),
       .by = c(lon, lat, year)
     )
   dplyr::inner_join(monthly, annual, by = c("lon", "lat", "year"))
+}
+
+# Refuse (or, on "drop", remove) a cell-year whose twelve monthly surpluses did
+# not all survive the joins above.
+.socd_check_months <- function(monthly, partial_year) {
+  expected <- list(month = 1:12)
+  by_cols <- c("lon", "lat", "year")
+  if (identical(partial_year, "drop")) {
+    gaps <- key_lattice_gaps(monthly, expected, .by = by_cols)
+    return(dplyr::anti_join(
+      monthly,
+      dplyr::distinct(gaps[by_cols]),
+      by = by_cols
+    ))
+  }
+  check_keys_complete(
+    monthly,
+    expected,
+    .by = by_cols,
+    action = partial_year,
+    details = c(
+      i = "{.field water_balance_mm} is the annual sum of the monthly surplus,
+           so a cell-year short of a month yields a smaller surplus that the
+           AMG rate modifier consumes as if it were the year's.",
+      i = "A cell-month reaches here only if CRU temperature, CRU PET, LPJmL
+           precipitation and LPJmL irrigation all carry it; check which source
+           is short before assuming the run is.",
+      i = "Set {.code partial_year = \"drop\"} to exclude the affected
+           cell-years instead."
+    )
+  )
 }
 
 # Read a CRU variable (temp or pet) from the injected tibble or read_cru_climate.

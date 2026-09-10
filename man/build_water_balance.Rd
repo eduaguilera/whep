@@ -24,7 +24,17 @@ left out take their default. \code{"cft_native"} warns when the per-CFT cubes
 report consumptive blue water on a \emph{rainfed} band, which no irrigation can
 supply: that is the signature of an LPJmL 6.x run without the green/blue
 fix, whose split is unusable (the numbers are still returned, so the
-warning changes nothing; \code{"irrig_share"} does not read those cubes).}
+warning changes nothing; \code{"irrig_share"} does not read those cubes).
+
+\code{partial_year} is the one member that is a policy rather than a method:
+what to do when a cell-year does not carry all twelve months, so that
+summing it to an annual flux would return a total over eleven. \code{"abort"}
+(default) refuses, naming the absent cell-months; \code{"warn"} returns the
+short sums; \code{"drop"} excludes the incomplete cell-years, so the year is
+absent rather than wrong. It is stamped into \code{method_water} as
+\verb{partial:<choice>} only when it is not the default, because \code{"abort"} and
+\code{"warn"} return byte-identical numbers and only \code{"drop"} removes rows a
+reader could not otherwise account for.}
 
 \item{resolution}{\code{"grid"} (per cell, default) or \code{"polity"} (aggregated to
 \code{year} and \code{area_code}).}

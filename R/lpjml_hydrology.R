@@ -80,11 +80,36 @@
 #'   are already one per cell-year-band.
 #' @param agg Annual aggregation for `monthly = FALSE`, `"sum"` (flux default)
 #'   or `"mean"` (soil-water default).
+#' @param partial_year What to do when `monthly = FALSE` and a cell-year does
+#'   not carry all twelve months, so that aggregating it would silently return
+#'   a total over eleven. `"abort"` (default) refuses, naming the absent
+#'   cell-months; `"warn"` returns the short aggregate anyway; `"drop"` removes
+#'   the incomplete cell-years and reports how many went, so the year is
+#'   *absent* rather than wrong. Immaterial for the annual per-CFT variables,
+#'   which carry no `month`. See *Partial years* below.
 #' @param data Optional pre-read tibble (`lon`, `lat`, `year`, `month`,
 #'   `value`, plus `layer` for `"swc"` or `band` for `"cft_nir"`) used in
 #'   place of reading NetCDF, for testing.
 #' @param example If `TRUE`, return a small fixture instead of reading remote
 #'   data. Defaults to `FALSE`.
+#'
+#' @section Partial years:
+#' An LPJmL monthly output grows one time step at a time, so a run that was
+#' interrupted, or is still writing, leaves a final year with fewer than twelve
+#' steps. Aggregating that year sums **eleven** months and says nothing: no
+#' value is `NA`, the row count is unchanged (one row per cell-year either
+#' way), and every downstream total and identity goes on balancing over the
+#' eleven. Reproduced on a real 24-month run truncated to 23 with
+#' `ncks -d time,0,22`: the second year's summed deep seepage fell 3.05% over
+#' 500 land cells (98,478 to 95,477 mm), with an identical 3,392-row output and
+#' no `NA` in any land cell (whep#1073).
+#'
+#' The refusal lives here, at the reader, because this is where the absence is
+#' created; once the short annual total is downstream it is indistinguishable
+#' from a measurement. `years = ` was already safe -- the coverage check counts
+#' only whole years, so requesting a partial one aborts -- and `partial_year`
+#' closes the `years = NULL` whole-file read that it does not cover.
+#'
 #' @return A tibble with columns `lon`, `lat`, `year`, `value` (plus `month`
 #'   for the monthly variables when `monthly = TRUE`, `layer` for `"swc"`, and
 #'   `band` plus `band_name` for the per-CFT variables). The annual per-CFT
@@ -114,6 +139,7 @@ read_lpjml_hydrology <- function(
   first_year = 1901L,
   monthly = TRUE,
   agg = c("sum", "mean"),
+  partial_year = c("abort", "warn", "drop"),
   data = NULL,
   example = FALSE
 ) {
@@ -122,11 +148,16 @@ read_lpjml_hydrology <- function(
   }
   var <- rlang::arg_match(var)
   agg <- if (var == "swc" && missing(agg)) "mean" else rlang::arg_match(agg)
+  partial_year <- rlang::arg_match(partial_year)
   long <- data %||%
     .read_hydro_cube(var, .resolve_run_dir(run_dir), first_year, years)
   long <- .hydro_name_band(long, var)
   long <- .filter_years_if_present(long, years)
-  if (monthly) long else .aggregate_hydro_annual(long, var, agg)
+  if (monthly) {
+    return(long)
+  }
+  long <- .hydro_resolve_partial_years(long, var, partial_year)
+  .aggregate_hydro_annual(long, var, agg)
 }
 
 # Logical name -> (file, in-file variable, time steps per year) for each LPJmL
@@ -477,16 +508,80 @@ read_lpjml_hydrology <- function(
   long
 }
 
-# Aggregate the 12 monthly values of each year per cell and third-dimension
-# member (`layer` for SWC, `band` for cft_nir): flux variables sum, soil water
-# content means.
-.aggregate_hydro_annual <- function(long, var, agg) {
-  group_cols <- c(
+# Apply the `partial_year` policy before the annual aggregation below sums a
+# cell-year that has fewer than twelve months in it.
+#
+# The check is against the calendar lattice 1..12 per (lon, lat, year) rather
+# than against anything the rows themselves say, because the rows say nothing:
+# an absent month is an absent ROW, not an NA, so no na.rm choice, no
+# conservation identity and no row count can see it (whep#1073). Grouped on the
+# third dimension too where there is one, since a layer or band is a separate
+# series with its own twelve months.
+#
+# Skipped for the variables LPJmL writes one step per year, which have no
+# calendar-month lattice to be short of: a real read of one carries no `month`
+# column, and asserting 1..12 over an injected fixture that adds one would
+# refuse a shape the variable never has on disk.
+.hydro_resolve_partial_years <- function(long, var, partial_year) {
+  monthly_var <- .hydro_steps_per_year(var) == 12L
+  if (!monthly_var || !rlang::has_name(long, "month")) {
+    return(long)
+  }
+  by_cols <- .hydro_annual_groups(long)
+  if (identical(partial_year, "drop")) {
+    return(.hydro_drop_partial_years(long, by_cols))
+  }
+  check_keys_complete(
+    long,
+    list(month = 1:12),
+    .by = by_cols,
+    action = if (identical(partial_year, "abort")) "abort" else "warn",
+    details = c(
+      i = "{.field {var}} is aggregated to annual totals, so a cell-year with
+           fewer than twelve months returns a short sum that nothing
+           downstream can tell from a complete one.",
+      i = "An LPJmL monthly output grows one step at a time: an interrupted or
+           still-running simulation leaves its last year partial.",
+      i = "Pass {.code partial_year = \"drop\"} to aggregate only the complete
+           cell-years, or {.code partial_year = \"warn\"} to accept the short
+           sums."
+    )
+  )
+}
+
+# Drop the cell-years that cannot be summed, and say how many went. A silent
+# drop would be the same defect wearing the opposite sign.
+.hydro_drop_partial_years <- function(long, by_cols) {
+  gaps <- key_lattice_gaps(long, list(month = 1:12), .by = by_cols)
+  if (nrow(gaps) == 0L) {
+    return(long)
+  }
+  incomplete <- dplyr::distinct(gaps[by_cols])
+  cli::cli_inform(c(
+    "!" = "Dropped {nrow(incomplete)} incomplete cell-year{?s}
+           ({nrow(gaps)} absent cell-month{?s}) before annual aggregation.",
+    i = "{.code partial_year = \"drop\"}: the year is absent rather than
+         summed over fewer than twelve months."
+  ))
+  dplyr::anti_join(long, incomplete, by = by_cols)
+}
+
+# The cell-year grouping the annual aggregation reduces to, third dimension
+# included: a layer or band is its own series and needs its own twelve months.
+.hydro_annual_groups <- function(long) {
+  c(
     "lon",
     "lat",
     "year",
     intersect(c("layer", "band", "band_name"), names(long))
   )
+}
+
+# Aggregate the 12 monthly values of each year per cell and third-dimension
+# member (`layer` for SWC, `band` for cft_nir): flux variables sum, soil water
+# content means.
+.aggregate_hydro_annual <- function(long, var, agg) {
+  group_cols <- .hydro_annual_groups(long)
   reducer <- if (agg == "mean") base::mean else base::sum
   dplyr::summarise(
     long,

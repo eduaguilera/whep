@@ -580,14 +580,17 @@ reference:
   desc: >
     Checks that make footprint, balance and time-series results trustworthy:
     conservation invariants, accounting identities, within-series jump
-    detection (the level-2 detector of the AFE data-validation framework), and
-    other data-quality diagnostics.
+    detection (the level-2 detector of the AFE data-validation framework),
+    completeness against an expected key lattice, and other data-quality
+    diagnostics.
   contents:
   - check_footprint_conservation
   - summarise_conservation
   - assert_footprint_invariants
   - check_supply_use_balance
   - check_series_jumps
+  - check_keys_complete
+  - key_lattice_gaps
   - check_fodder_land_share
   - check_arable_composition
   - check_parquet_integrity
