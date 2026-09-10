@@ -70,7 +70,8 @@ testthat::test_that("the example fixture matches the documented contract", {
       "reporting_polity_code",
       "reporting_polity_name",
       "reporting_polity_has_geometry",
-      "population"
+      "population",
+      "method_territory_overlap"
     )
   )
   testthat::expect_true(all(out$population > 0))
@@ -528,4 +529,204 @@ testthat::test_that("the FBS fill never overwrites a pin or WPP row", {
   btn <- dplyr::filter(out, .data$year == 2010L, .data$area_code == 18L)
   testthat::expect_equal(btn$population, 701633)
   testthat::expect_equal(btn$source_pop, "UN WPP 2024")
+})
+
+# ---- Two codes, one territory (#939) ---------------------------------------
+#
+# Neither fill can overwrite a key the previous source already has, and that is
+# verifiable bitwise on the real pins. It does not make the composed table
+# duplicate-free: two DIFFERENT area codes can name the same ground in the same
+# year, and an anti-join on `(year, area_code)` cannot see it. These pin the
+# guard that can, on the three real shapes -- one inside the pin itself, one
+# created by the UN WPP fill, one by the FAOSTAT FBS fill.
+
+# Real `gdp-population` values (thousands) for 1961. The pin carries `CSK`
+# 1850-1992 AND `CZE` 1850-2021, so Czechia is reported inside Czechoslovakia
+# for 143 years by the DEFAULT source, with no fill involved. `SUN` is the
+# federation the WPP fill duplicates; Spain is the control that overlaps
+# nothing.
+.popf_overlap <- function() {
+  tibble::tribble(
+    ~Year, ~area,            ~area_code, ~pop,
+    1961L, "Czechoslovakia", "CSK",      13755.489,
+    1961L, "Czechia",        "CZE",      9570.406,
+    1961L, "USSR",           "SUN",      214456.648,
+    1961L, "Spain",          "ESP",      30711.868
+  )
+}
+
+# A read_wpp_population() output for the same year: the real WPP 2024 figure for
+# Russia in 1961, a successor state the pin has no row for at all, so the fill
+# adds it beside the pin's USSR row.
+.popf_wpp_successor <- function() {
+  tibble::tribble(
+    ~year, ~area_code, ~iso3c, ~population,
+    1961L, 185L,       "RUS",  121604302
+  )
+}
+
+.popf_overlap_read <- function(...) {
+  suppressMessages(
+    whep::read_population(data = list(gdp_population = .popf_overlap()), ...)
+  )
+}
+
+testthat::test_that("the pin's own federation-inside-federation row goes", {
+  # 51 Czechoslovakia and 167 Czechia are both `Original` rows of the same pin
+  # in the same year, so this half of the defect is in the DEFAULT source and no
+  # fill has to be switched on to reach it.
+  out <- .popf_overlap_read()
+  testthat::expect_false(any(out$area_code == 167L))
+  testthat::expect_setequal(out$area_code, c(51L, 203L, 228L))
+  # The federation's own value is untouched; only the duplicate row went.
+  testthat::expect_equal(
+    dplyr::pull(dplyr::filter(out, .data$area_code == 51L), "population"),
+    13755489
+  )
+})
+
+testthat::test_that("keeping both is what double counts, and it is measured", {
+  # `"none"` is the pre-#939 composition. 9,570,406 of the 268,494,411 persons
+  # in the year is 3.56%, which is what the warning has to quote: the guard is
+  # only worth having if the number it removes is the number it reports.
+  out <- suppressWarnings(.popf_overlap_read(territory_overlap = "none"))
+  testthat::expect_true(all(c(51L, 167L) %in% out$area_code))
+  testthat::expect_equal(sum(out$population), 268494411)
+  testthat::expect_warning(
+    whep::read_population(
+      data = list(gdp_population = .popf_overlap()),
+      territory_overlap = "none"
+    ),
+    "double counts"
+  )
+  testthat::expect_warning(
+    whep::read_population(
+      data = list(gdp_population = .popf_overlap()),
+      territory_overlap = "none"
+    ),
+    "3\\.56"
+  )
+})
+
+testthat::test_that("the overlap is named, not resolved in silence", {
+  testthat::expect_message(
+    whep::read_population(data = list(gdp_population = .popf_overlap())),
+    "Czechoslovakia \\(51, 1961-1961\\) over 167"
+  )
+  testthat::expect_message(
+    whep::read_population(data = list(gdp_population = .popf_overlap())),
+    "Kept the federation"
+  )
+})
+
+testthat::test_that("the successors branch drops the federation instead", {
+  # The alternative the maintainer may prefer, and the reason it is not the
+  # default: 51 covers Slovakia as well as Czechia, so keeping 167 and dropping
+  # 51 removes Slovakia's people from the year rather than de-duplicating
+  # anything -- 13,755,489 persons out instead of 9,570,406.
+  out <- .popf_overlap_read(territory_overlap = "successors")
+  testthat::expect_false(any(out$area_code == 51L))
+  testthat::expect_true(any(out$area_code == 167L))
+  testthat::expect_equal(sum(out$population), 254738922)
+})
+
+testthat::test_that("the WPP fill cannot add a successor beside its federation", {
+  # 185 Russia has no pin row in 1961 at all, so the anti-join lets it in beside
+  # the pin's 228 USSR: same ground, two codes, both summed. This is the half of
+  # the defect that made the real 1961 world sum 8.2% high.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = .popf_overlap(),
+        wpp_population = .popf_wpp_successor()
+      ),
+      population_source = "pin_wpp_fallback"
+    )
+  )
+  testthat::expect_false(any(out$area_code == 185L))
+  testthat::expect_equal(
+    dplyr::pull(dplyr::filter(out, .data$area_code == 228L), "population"),
+    214456648
+  )
+})
+
+testthat::test_that("the FBS fill cannot stack a federation on WPP's parts", {
+  # 1992-2005 is where the two fills meet: the FBS fill supplies 186 Serbia and
+  # Montenegro (the row #862 wants) while the WPP fill has already supplied 272
+  # Serbia and 273 Montenegro for the same years. All three describe the same
+  # ground.
+  out <- suppressMessages(
+    whep::read_population(
+      data = list(
+        gdp_population = tibble::tribble(
+          ~Year, ~area,   ~area_code, ~pop,
+          2000L, "Spain", "ESP",      40283
+        ),
+        wpp_population = tibble::tribble(
+          ~year, ~area_code, ~iso3c, ~population,
+          2000L, 272L,       "SRB",  7694604,
+          2000L, 273L,       "MNE",  634195
+        ),
+        fbs_population = tibble::tribble(
+          ~year, ~area_code, ~population, ~source_pop,
+          2000L, 186L,       10801000,    "FAOSTAT FBS old"
+        )
+      ),
+      population_source = "pin_wpp_fbs_fallback"
+    )
+  )
+  testthat::expect_setequal(out$area_code, c(186L, 203L))
+  testthat::expect_equal(
+    dplyr::pull(dplyr::filter(out, .data$area_code == 186L), "population"),
+    10801000
+  )
+})
+
+testthat::test_that("a table with no overlap is left alone and says nothing", {
+  # The branch that must not fire. Every area in this fixture is disjoint from
+  # every other, so the guard has to be a no-op and emit no message of its own.
+  before <- suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw()),
+      territory_overlap = "none"
+    )
+  )
+  # No overlap, so `"none"` does not warn either: the warning is the duplicate's
+  # and not the mode's.
+  testthat::expect_no_warning(suppressMessages(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw()),
+      territory_overlap = "none"
+    )
+  ))
+  after <- suppressMessages(
+    whep::read_population(data = list(gdp_population = .popf_raw()))
+  )
+  testthat::expect_equal(
+    dplyr::select(after, -"method_territory_overlap"),
+    dplyr::select(before, -"method_territory_overlap")
+  )
+  testthat::expect_equal(nrow(whep:::.pop_overlap_pairs(after)), 0L)
+  testthat::expect_null(
+    whep:::.pop_report_overlaps(after, whep:::.pop_overlap_pairs(after), "none")
+  )
+})
+
+testthat::test_that("the chosen treatment is recorded in the output", {
+  out <- .popf_overlap_read(territory_overlap = "successors")
+  testthat::expect_equal(unique(out$method_territory_overlap), "successors")
+  testthat::expect_equal(
+    unique(.popf_overlap_read()$method_territory_overlap),
+    "federation"
+  )
+})
+
+testthat::test_that("an unknown territory_overlap is rejected", {
+  testthat::expect_error(
+    whep::read_population(
+      data = list(gdp_population = .popf_raw()),
+      territory_overlap = "drop"
+    ),
+    "arg_match|must be one of|drop"
+  )
 })

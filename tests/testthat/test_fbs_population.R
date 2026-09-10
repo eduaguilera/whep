@@ -19,6 +19,23 @@
   )
 }
 
+# The China block, real `faostat-fbs-old` values (thousands) for 2000: the four
+# areas that report separately and the aggregate over them. Area 351 is
+# numbered below 5000 and DOES land on a `polity_area_code` of its own, so a
+# filter on the bucket alone admitted it beside its own members (#939). Kept out
+# of `.fbsp_old()` because area 41 alone is over a billion people, which is what
+# the `World` assertion there uses as its tell.
+.fbsp_china <- function() {
+  tibble::tribble(
+    ~`Area Code`, ~Area,                  ~`Item Code`, ~`Element Code`, ~Year, ~Value,
+    41L,          "China, mainland",      2501L,        511L,            2000L, 1280429,
+    96L,          "China, Hong Kong SAR", 2501L,        511L,            2000L, 6835,
+    128L,         "China, Macao SAR",     2501L,        511L,            2000L, 432,
+    214L,         "China, Taiwan",        2501L,        511L,            2000L, 21935,
+    351L,         "China",                2501L,        511L,            2000L, 1309631
+  )
+}
+
 .fbsp_new <- function() {
   tibble::tribble(
     ~`Area Code`, ~Area,   ~`Item Code`, ~`Element Code`, ~Year, ~Value,
@@ -115,6 +132,62 @@ testthat::test_that("a table missing a required column aborts", {
       )
     ),
     regexp = "Value"
+  )
+})
+
+testthat::test_that("an aggregate with a bucket but no polity is dropped", {
+  # #939. Area 351 "China" is FAOSTAT's aggregate over 41, 96, 128 and 214. It
+  # is numbered below 5000, so the `>= 5000` reasoning this reader documented
+  # does not reach it, and it resolves to `polity_area_code` 351 with
+  # `polity_code` NA -- the crosswalk marks it "unmapped". Filtering on the
+  # bucket alone therefore kept it, and read_population()'s FBS fill then added
+  # it beside its four members in every year 1961-2023.
+  out <- suppressMessages(
+    whep::read_fbs_population(
+      data = list(fbs_old = .fbsp_china(), fbs_new = .fbsp_new())
+    )
+  )
+  testthat::expect_false(any(out$area_code == 351L))
+  testthat::expect_setequal(
+    dplyr::filter(out, .data$year == 2000L)$area_code,
+    c(41L, 96L, 128L, 214L)
+  )
+  # The invariant, not a hand-picked equality: what is left sums to EXACTLY the
+  # aggregate the dropped row carried, so dropping it removes a duplicate
+  # rather than a territory. It holds on the real pins too, to within 0.011%
+  # over all 63 years.
+  testthat::expect_equal(
+    sum(dplyr::filter(out, .data$year == 2000L)$population),
+    1309631 * 1000
+  )
+})
+
+testthat::test_that("the dropped aggregate is named, not dropped in silence", {
+  testthat::expect_message(
+    whep::read_fbs_population(
+      data = list(fbs_old = .fbsp_china(), fbs_new = .fbsp_new())
+    ),
+    "351"
+  )
+  # And an input with no such aggregate says nothing about one.
+  testthat::expect_equal(
+    nrow(
+      dplyr::filter(
+        whep::add_polity_code(
+          tibble::tibble(area_code = c(41L, 203L), year = c(2000L, 2000L))
+        ),
+        !is.na(.data$polity_area_code),
+        is.na(.data$polity_code)
+      )
+    ),
+    0L
+  )
+  testthat::expect_null(
+    whep:::.fbs_pop_report_aggregates(
+      whep::add_polity_code(
+        tibble::tibble(area_code = 203L, year = 2000L)
+      )
+    )
   )
 })
 

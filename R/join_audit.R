@@ -212,6 +212,14 @@
     ".n_country_to_polity", "inner_join", "area_code", 1L, "identity_lookup",
     "area_code -> polity_area_code, checked against the year-aware route over
      the real pins to 0 differences.",
+    ".pop_overlap_pairs", "inner_join", "reporting_polity_code", 1L,
+    "identity_lookup",
+    "Attaches a polity's transitive successors so `read_population()` can see
+     that two area codes name the same ground in one year (whep#939). The key
+     is `reporting_polity_code`, which IS the year-scoped identity -- a polity
+     code carries its own period -- and the succession relation is an attribute
+     of that period, not of a calendar year. The year enters at the next join,
+     which keys on (year, successor polity).",
     ".prepare_historical_cbs", "merge", "area_code", 1L, "identity_lookup",
     "Attaches the one label the code carries; the value keeps its own year.",
     ".prepare_historical_production", "merge", "area_code", 1L,
