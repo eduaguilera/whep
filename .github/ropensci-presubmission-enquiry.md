@@ -383,8 +383,8 @@ should be checked internally before anyone ticks that box.
   specific scientific formats generated from scientific workflows", and almost
   nothing on CRAN does it. The nearest package, `FAOSTAT` (CRAN 2.4.2,
   2026-05-07), is a FAOSTAT/WDI download client and does not overlap with
-  `whep`'s harmonisation, balances, or gridding — so §5.2.3 package overlap is
-  not an obstacle.
+  `whep`'s harmonisation, balances, or gridding — so §5.2.3 package
+  overlap is not an obstacle.
 - The gridded work (0.5° cell × polity land, water and nutrient surfaces,
   LUH2/HYDE/HWSD raster ingestion) is a clean *geospatial data* fit.
 - The year-aware polity model — resolving historical territories back to 1850
