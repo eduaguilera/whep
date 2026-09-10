@@ -4109,7 +4109,13 @@ prepare_soil_inputs <- function(
       cli::cli_abort("HWSD raster not found at {hwsd_path}")
     }
     hwsd_rast <- terra::rast(hwsd_path)
-    agg_factor <- as.integer(target_res / terra::res(hwsd_rast)[1])
+    # Rounded and refused-if-not-whole in the package helper, which is covered
+    # by the test suite: `as.integer()` truncated a header round trip's residue
+    # and aggregated the whole world one block short (whep#1043).
+    agg_factor <- whep:::.hwsd_agg_factor(
+      target_res,
+      terra::res(hwsd_rast)[1]
+    )
 
     # Reclassify mu_global IDs -> texture code and pH directly on the raster,
     # then aggregate spatially. Both ops run in terra's C++ layer.
