@@ -116,6 +116,36 @@ version.</p></li>
     <p>A tibble with the dataset. Some information about each dataset can
 be found in the code where it's used as input for further processing.</p>
     </div>
+    <div class="section level2">
+    <h2 id="frozen-predecessor-pipeline-references">Frozen predecessor-pipeline references<a class="anchor" aria-label="anchor" href="#frozen-predecessor-pipeline-references"></a></h2>
+
+
+<p>Four aliases in <code><a href="whep_inputs.html">whep_inputs</a></code> are not outputs of this package:
+<code>primary_prod</code>, <code>commodity_balance_sheet</code>, <code>processing_coefs</code> and
+<code>feed_intake</code>. They are the 2025-07-14 snapshot of the predecessor
+R-script pipeline this package replaced, kept frozen so
+<code>inst/scripts/compare_global_whep.R</code> can benchmark <code>whep</code> against it. No
+package function reads them, their schema is the old one (CamelCase,
+name-keyed, no polity columns) and they stop in 2021, so reading one warns.</p>
+<p>Their numbers are not what current code produces, so they are references,
+not substitutes. <code>primary_prod</code> (2,443,516 rows, 1961–2021) against a
+fresh <code><a href="build_primary_production.html">build_primary_production()</a></code> over the same 2015–2021 window:</p><ul><li><p>The pin has no <code>slaughtered_heads</code> row in any of its years; the build
+emits 12,195 over 2015–2021. Three <code>item_prod</code> codes are pin-only (378,
+773, 1163; 1,332 rows) and three appear in no pin year at all (1051, and
+the modelled grassland items 3001 and 3002).</p></li>
+<li><p>317,587 rows against the build's 328,242 for the window, a 3.2%
+shortfall.</p></li>
+<li><p>Its 2020–2021 fodder harvested area is carried forward from 2019 —
+85.93 Mha in each year, 468 country-item series over 96 areas, equal to
+2019 to the last digit — where the build emits no fodder row at all
+after 2019, because <code>eu-agridb-fodder</code> stops in 2019,
+<code>faostat-production-old</code> in 2013, and <code>faostat-production</code> carries none
+of the 16 fodder items.</p></li>
+<li><p>Even in a year both cover they disagree: 2019 fodder harvested area is
+85.93 Mha in the pin against 90.42 Mha from the build.</p></li>
+</ul><p>Build the current series with the matching <code>build_*()</code> or <code>get_*()</code>
+function instead.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

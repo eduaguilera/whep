@@ -53,12 +53,24 @@ with `gwp`:
 
 - `"ar4"`: IPCC AR4 (2007), CH4 = 25, N2O = 298.
 
+`options` is handed to
+[`calculate_livestock_emissions()`](https://eduaguilera.github.io/whep/reference/calculate_livestock_emissions.md)
+unchanged, so the manure engine's method levers (the manure-management
+split, the climate zone its methane conversion factors are read at) are
+selectable from here too; its defaults leave every published value
+untouched. Only `mms_region` bites at Tier 1, whose manure CH4 comes
+from regional emission factors rather than a climate-zone MCF; the
+climate options reach the MCF on the Tier 2 path only. Whichever choice
+each row took is recorded in `method_mms` and `method_manure_ch4`, which
+the extension carries into its own output.
+
 ## Usage
 
 ``` r
 build_livestock_ghg_extension(
   tier = 1,
   gwp = c("ar6", "ar5", "ar4"),
+  options = list(),
   data = list(),
   example = FALSE
 )
@@ -75,6 +87,45 @@ build_livestock_ghg_extension(
   100-year global warming potential standard, `"ar6"` (default), `"ar5"`
   or `"ar4"`.
 
+- options:
+
+  A named list of manure-engine options. Every default reproduces the
+  behaviour in force before whep#949, so passing none leaves published
+  values unchanged.
+
+  `mms_region` selects how the manure-management split in
+  [regional_mms_distribution](https://eduaguilera.github.io/whep/reference/regional_mms_distribution.md)
+  is keyed:
+
+  - `"as_available"` (default): a row uses its own region when the frame
+    already carries a `region` column, and the `region == "Global"`
+    split otherwise. Tier 1 resolves a region for the (sourced) per-head
+    N-excretion table and so takes the region-specific split; Tier 2
+    carries no region and so takes the Global one.
+
+  - `"resolve"`: the IPCC region is resolved from `iso3`, `area_code` or
+    `polity_area_code` where it is missing, which makes the table's four
+    region-specific `(region, species)` pairs live on the Tier 2 path
+    too. Those four pairs are an unsourced placeholder (whep#921), which
+    is why this is opt-in rather than the default.
+
+  - `"global"`: every row takes the `region == "Global"` split, whatever
+    region column it carries.
+
+  `climate_source` selects the climate zone the methane conversion
+  factors in
+  [climate_mcf](https://eduaguilera.github.io/whep/reference/climate_mcf.md)
+  are read at. A `climate_zone` column already on the frame is always
+  used. `"assumed"` (default) fills a missing one with
+  `assumed_climate_zone`; `"from_data"` aborts instead of assuming.
+
+  `assumed_climate_zone` is the zone `"assumed"` fills in: `"Cool"`,
+  `"Temperate"` (default) or `"Warm"`. WHEP has no territory-to-zone
+  crosswalk, so the whole world is assumed Temperate unless a caller
+  supplies zones; `method_manure_ch4` records which of the two happened,
+  and this argument exists so the sensitivity to the assumption can be
+  measured (whep#949).
+
 - data:
 
   Optional named list of pre-loaded inputs to avoid remote reads:
@@ -90,9 +141,11 @@ build_livestock_ghg_extension(
 ## Value
 
 A tibble with columns `year`, `area_code`, `item_cbs_code`, `impact_u`
-(livestock emissions in kilograms CO2e) and `method_ghg` (the chosen
-tier and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), plus the polity
-columns below.
+(livestock emissions in kilograms CO2e), `method_ghg` (the chosen tier
+and GWP standard, e.g. `"IPCC_2019_Tier1_AR6"`), `method_mms` and
+`method_manure_ch4` (the manure-engine choices the summed rows took,
+`NA` when nothing reached the manure engine), plus the polity columns
+below.
 
 ## Polity columns
 
@@ -149,7 +202,7 @@ extra column.
 
 ``` r
 build_livestock_ghg_extension(example = TRUE)
-#> # A tibble: 6 × 9
+#> # A tibble: 6 × 11
 #>    year area_code polity_area_code reporting_polity_code reporting_polity_name
 #>   <int>     <int>            <int> <chr>                 <chr>                
 #> 1  1986        10               10 AUS-1901-2025         Australia            
@@ -158,6 +211,6 @@ build_livestock_ghg_extension(example = TRUE)
 #> 4  1986       100              100 IND-1949-2025         India                
 #> 5  1987        10               10 AUS-1901-2025         Australia            
 #> 6  1987       100              100 IND-1949-2025         India                
-#> # ℹ 4 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
-#> #   impact_u <dbl>, method_ghg <chr>
+#> # ℹ 6 more variables: reporting_polity_has_geometry <lgl>, item_cbs_code <int>,
+#> #   impact_u <dbl>, method_ghg <chr>, method_mms <chr>, method_manure_ch4 <chr>
 ```

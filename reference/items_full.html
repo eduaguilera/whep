@@ -74,7 +74,15 @@ following columns:</p><ul><li><p><code>item_cbs</code>: Name of the CBS item.</p
 <code>"Other processing residues"</code>).</p></li>
 <li><p><code>Cat_1</code>: Primary category label used in material flow accounting.</p></li>
 <li><p><code>Name_biomass</code>: Corresponding item name in <code>biomass_coefs</code>, enabling
-joins with the biomass coefficient table.</p></li>
+joins with the biomass coefficient table. <code>NA</code> for the 21 live-animal
+items, which are heads rather than biomass and have no coefficient row by
+design. Three rows instead carry the literal string <code>"0"</code>, an upstream
+placeholder that matches no <code>biomass_coefs</code> row: 2775 Aquatic Plants,
+4000 Animal draught and 2899 Miscellaneous. Every other value resolves.
+Draught is measured in work hours and Miscellaneous is a residual
+aggregate, so neither has a biomass counterpart; Aquatic Plants is a real
+commodity whose coefficient row does not exist yet, so its CBS feed and
+food mass carries no dry matter, protein or energy (whep#970).</p></li>
 <li><p><code>dbMFA_items</code>: Item identifier used in the material flow analysis
 database.</p></li>
 <li><p><code>FEDNA</code>: Item name used in FEDNA feed composition tables.</p></li>

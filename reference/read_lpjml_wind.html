@@ -4,12 +4,22 @@
 returns it in tidy long form. The file's wind variable carries no
 units attribute, because the monthly aggregation dropped it; the unit is
 metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
-is derived from, which declares units = &quot;m s-1&quot; and standard_name = &quot;wind_speed&quot;. That is why the output column is named windspeed_ms."><meta property="og:description" content="Reads the GSWP3-W5E5 monthly windspeed forcing used to drive LPJmL
+is derived from, which declares units = &quot;m s-1&quot; and standard_name = &quot;wind_speed&quot;. That is why the output column is named windspeed_ms.
+The windspeed_ms column is named to match the MANNER driver column of
+the same name, so the output feeds calculate_nh3() (method = &quot;manner&quot;
+or &quot;manner_default&quot;, whose organic path requires windspeed_ms) after a
+join onto the gridded N-input records; this reader is the package's only
+source of that driver."><meta property="og:description" content="Reads the GSWP3-W5E5 monthly windspeed forcing used to drive LPJmL
 (single consolidated NetCDF, already on WHEP's native 0.5-degree grid) and
 returns it in tidy long form. The file's wind variable carries no
 units attribute, because the monthly aggregation dropped it; the unit is
 metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
-is derived from, which declares units = &quot;m s-1&quot; and standard_name = &quot;wind_speed&quot;. That is why the output column is named windspeed_ms."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
+is derived from, which declares units = &quot;m s-1&quot; and standard_name = &quot;wind_speed&quot;. That is why the output column is named windspeed_ms.
+The windspeed_ms column is named to match the MANNER driver column of
+the same name, so the output feeds calculate_nh3() (method = &quot;manner&quot;
+or &quot;manner_default&quot;, whose organic path requires windspeed_ms) after a
+join onto the gridded N-input records; this reader is the package's only
+source of that driver."><meta property="og:image" content="https://eduaguilera.github.io/whep/logo.png"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -55,6 +65,11 @@ returns it in tidy long form. The file's <code>wind</code> variable carries no
 <code>units</code> attribute, because the monthly aggregation dropped it; the unit is
 metres per second, taken from the ISIMIP2a GSWP3-W5E5 daily source the file
 is derived from, which declares <code>units = "m s-1"</code> and <code>standard_name = "wind_speed"</code>. That is why the output column is named <code>windspeed_ms</code>.</p>
+<p>The <code>windspeed_ms</code> column is named to match the MANNER driver column of
+the same name, so the output feeds <code><a href="calculate_nh3.html">calculate_nh3()</a></code> (<code>method = "manner"</code>
+or <code>"manner_default"</code>, whose organic path requires <code>windspeed_ms</code>) after a
+join onto the gridded N-input records; this reader is the package's only
+source of that driver.</p>
     </div>
 
     <div class="section level2">
@@ -68,13 +83,15 @@ is derived from, which declares <code>units = "m s-1"</code> and <code>standard_
 
 <dl><dt id="arg-years">years<a class="anchor" aria-label="anchor" href="#arg-years"></a></dt>
 <dd><p>Optional integer vector of calendar years to keep. <code>NULL</code>
-reads every year present in the file (1901-2016).</p></dd>
+reads every year present in the file (1901-2019 in the currently pinned
+base; the span is whatever the resolved file holds, not a fixed range).</p></dd>
 
 
 <dt id="arg-wind-dir">wind_dir<a class="anchor" aria-label="anchor" href="#arg-wind-dir"></a></dt>
-<dd><p>Path to the directory holding
-<code>wind_gswp3-w5e5_1901_2016_monthly.nc</code>. Defaults to
-<code>Sys.getenv("WHEP_WIND_DIR")</code>.</p></dd>
+<dd><p>Path to the directory holding a
+<code>wind_gswp3-w5e5_&lt;span&gt;_monthly.nc</code>. The span in that filename is
+resolved against the directory rather than assumed, so an extended base
+reads without a code change. Defaults to <code>Sys.getenv("WHEP_WIND_DIR")</code>.</p></dd>
 
 
 <dt id="arg-example">example<a class="anchor" aria-label="anchor" href="#arg-example"></a></dt>
@@ -85,6 +102,10 @@ Defaults to <code>FALSE</code>.</p></dd>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with <code>lon</code>, <code>lat</code>, <code>year</code>, <code>month</code>, <code>windspeed_ms</code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
+    <div class="dont-index"><p><code><a href="calculate_nh3.html">calculate_nh3()</a></code>, which consumes <code>windspeed_ms</code>.</p></div>
     </div>
 
     <div class="section level2">
