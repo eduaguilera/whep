@@ -57,17 +57,39 @@
 #'   remote-data read is skipped entirely and the pipeline starts from
 #'   `.fix_production()`. Columns required: `year`, `area`, `area_code`,
 #'   `item_prod`, `item_prod_code`, `item_cbs`, `item_cbs_code`,
-#'   `live_anim`, `live_anim_code`, `unit`, `value`, `source`.
+#'   `live_anim`, `live_anim_code`, `unit`, `value`, `source`. `fao_flag` is
+#'   used when present and completed as `NA` when it is not.
 #'   Default `NULL`.
 #'
-#' @returns A tibble with the same columns as [get_primary_production()]:
-#'   `year`, legacy numeric `area_code`, numeric `polity_area_code`,
-#'   `reporting_polity_code`, `reporting_polity_name`,
+#' @returns A tibble with the columns of [get_primary_production()] plus
+#'   `fao_flag`: `year`, legacy numeric `area_code`, numeric
+#'   `polity_area_code`, `reporting_polity_code`, `reporting_polity_name`,
 #'   `reporting_polity_has_geometry`, `item_prod_code`, `item_cbs_code`,
-#'   `live_anim_code`, `unit`, `value`, and `source`.
+#'   `live_anim_code`, `unit`, `value`, `source`, and `fao_flag`.
 #'   Item names can be recovered via [add_item_prod_name()] and related helpers.
 #'   When `show_duplicates = TRUE`, returns a wide tibble with one
 #'   column per source showing the competing values.
+#'
+#'   `fao_flag` is FAOSTAT's own observation-status code for the value (`"A"`
+#'   official, `"E"` estimated, `"I"` imputed, `"M"`, `"X"`), and it describes
+#'   the number in `value` rather than the row's item or area. It is `NA`
+#'   wherever the number is not one FAOSTAT published under a flag, which is
+#'   most rows that are not `unit == "tonnes"` or `unit == "ha"`:
+#'   * WHEP's own yields (`t_ha`, `t_LU`, `t_head`) are ratios it computes, so
+#'     FAOSTAT's separate Yield flag is not a statement about them;
+#'   * `LU` and `heads` are livestock-unit conversions summed over an animal's
+#'     products, and `slaughtered_heads` is one FAOSTAT count split across CBS
+#'     items by shares;
+#'   * a gap-filled, back-cast, imputed or reconstructed value (`fill_linear`,
+#'     `imputed_yield`, `LUH2_*`, `EuropeAgriDB`, `DM_yield_estimate`,
+#'     `Estimated`) is WHEP's estimate, not a reported figure -- and a
+#'     `FAOSTAT_prod` row can still be one of these, because `source` is
+#'     resolved per key while the flag is resolved per quantity;
+#'   * a value summed or averaged from parts whose flags disagree is dropped
+#'     rather than credited to one of them (whep#581).
+#'
+#'   Measured on a real 2010-2013 build: 45.5% of rows carry a flag, 91.7% of
+#'   `tonnes` rows and 88.2% of `ha` rows.
 #'
 #' @export
 #'
@@ -172,7 +194,7 @@ build_primary_production <- function(
 #' @returns A tibble in long format with columns:
 #'   `year`, `area`, `area_code`, `item_prod`, `item_prod_code`,
 #'   `item_cbs`, `item_cbs_code`, `live_anim`, `live_anim_code`,
-#'   `unit`, `value`, `source`.
+#'   `unit`, `value`, `source`, `fao_flag`.
 #'
 #'   The `source` column indicates data provenance:
 #'   `"FAOSTAT_prod"` (original FAOSTAT production), `"EuropeAgriDB"` (European AgriDB fodder),
@@ -471,9 +493,27 @@ build_primary_production <- function(
       "value"
     )
   )
-  # Rename FAOSTAT flag so .aggregate_to_polities carries it through
+  # Rename FAOSTAT flag so .aggregate_to_polities carries it through.
+  #
+  # Absence is reported rather than tolerated. Every one of the 4,209,110 rows
+  # of the pin carries a flag, so a missing column means the pin was rebuilt
+  # without it -- and everything downstream would then complete the column with
+  # NA and pass every shape check, which is how whep#1044 stayed invisible.
+  # A guard that only asserts the column EXISTS cannot see that.
   if ("Flag" %in% names(dt)) {
     data.table::setnames(dt, "Flag", "fao_flag")
+  } else {
+    cli::cli_warn(
+      c(
+        "{.field faostat-production} carries no {.field Flag} column.",
+        "!" = "Every production row's {.field fao_flag} will be {.val NA},
+               so the CBS cannot tell an official measurement from FAO's own
+               estimate.",
+        "i" = "The pin is expected to keep FAOSTAT's observation-status codes;
+               regenerate it from a download that includes them (whep#1044)."
+      ),
+      class = "whep_warn_missing_prod_flag"
+    )
   }
   dt[, item_prod_code := as.character(item_prod_code)]
   dt <- .aggregate_to_polities(
@@ -2289,6 +2329,8 @@ build_primary_production <- function(
 
 .impute_missing_values <- function(df) {
   df |>
+    .ensure_fao_flag("flag_t") |>
+    .ensure_fao_flag("flag_fu") |>
     dplyr::mutate(
       yield = dplyr::if_else(
         !is.na(yield_c),
@@ -2352,6 +2394,10 @@ build_primary_production <- function(
 .assemble_production_raw <- function(yield_all) {
   cli::cli_progress_step("Assembling production")
   items <- whep::items_full
+
+  yield_all <- yield_all |>
+    .ensure_fao_flag("flag_t") |>
+    .ensure_fao_flag("flag_fu")
 
   # Each output row takes the flag of the quantity it is: the `ha` row gets
   # "Area harvested"'s flag, the `t` row gets "Production"'s. The yield rows get
