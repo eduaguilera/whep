@@ -291,10 +291,15 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
   # Regression lock for #1029: threading `options` from the extension down to
   # calculate_livestock_emissions() must not move a published value. The
   # expected figures were produced by the pre-passthrough code (origin/main at
-  # 6c8bf0d2) on this same fixture, at both tiers. Tier 2 is now asked for
-  # `mcf_source = "as_shipped"` explicitly, because whep#1022 moved the
-  # default onto the 2019 Refinement; the lock still proves the passthrough
-  # itself moves nothing, which is what #1029 was about.
+  # 6c8bf0d2) on this same fixture, at both tiers.
+  #
+  # Two defaults have since moved off the behaviour those figures were
+  # measured under, so the lock asks for the old rung on both explicitly:
+  # whep#1022 moved `mcf_source` onto the 2019 Refinement, and whep#958 moved
+  # `mms_shares` off the unsourced placeholder onto the GLEAM 2.0 ingest. With
+  # both pinned back the 6c8bf0d2 figures are unchanged, which is what #1029
+  # was about -- the passthrough itself moves nothing. The shipped defaults
+  # are locked beside them.
   expected_tier1 <- tibble::tribble(
     ~area_code, ~item_cbs_code, ~impact_u,
     10L, 961L, 1845198000,
@@ -316,8 +321,19 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     10L, 976L, 1600495292.4821796,
     100L, 960L, 492717625.4361503
   )
+  # The shipped Tier 1 default, re-measured on this same fixture. Tier 1 reads
+  # no MCF table, so `mms_shares` is the only flip that reaches it; the Tier 2
+  # default is locked in the test below.
+  gleam_tier1 <- tibble::tribble(
+    ~area_code, ~item_cbs_code, ~impact_u,
+    10L, 961L, 1887669000,
+    10L, 976L, 1472445000,
+    100L, 960L, 910771875
+  )
 
+  placeholder <- list(mms_shares = "placeholder")
   tier1 <- whep::build_livestock_ghg_extension(
+    options = placeholder,
     data = list(primary_prod = .ghg_prod_fixture())
   )
   # `uniform_medium` is the rung that reproduces the inline IPCC "Medium" diet
@@ -327,9 +343,12 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     whep::build_livestock_ghg_extension(
       tier = 2,
       method_diet = "uniform_medium",
-      options = list(mcf_source = "as_shipped"),
+      options = c(placeholder, list(mcf_source = "as_shipped")),
       data = list(primary_prod = .ghg_prod_fixture())
     )
+  )
+  tier1_default <- whep::build_livestock_ghg_extension(
+    data = list(primary_prod = .ghg_prod_fixture())
   )
 
   testthat::expect_equal(
@@ -348,8 +367,19 @@ testthat::test_that("the #1029 numbers survive under mcf_source as_shipped", {
     ),
     dplyr::arrange(expected_tier2, area_code, item_cbs_code)
   )
+  testthat::expect_equal(
+    dplyr::arrange(
+      dplyr::select(tier1_default, area_code, item_cbs_code, impact_u),
+      area_code,
+      item_cbs_code
+    ),
+    dplyr::arrange(gleam_tier1, area_code, item_cbs_code)
+  )
   # The defaults the manure engine actually took, recorded per sector.
-  testthat::expect_true(all(tier1$method_mms == "region_specific"))
+  testthat::expect_true(all(
+    tier1_default$method_mms == "gleam_2_0/region_specific"
+  ))
+  testthat::expect_true(all(tier1$method_mms == "placeholder/region_specific"))
   testthat::expect_true(all(tier1$method_manure_ch4 == "IPCC_2019_Tier1"))
   testthat::expect_true(all(
     tier2$method_manure_ch4 ==
@@ -482,8 +512,8 @@ testthat::test_that("mms_region reaches the manure kernel", {
     data = list(primary_prod = .ghg_prod_fixture())
   )
 
-  testthat::expect_true(all(default$method_mms == "region_specific"))
-  testthat::expect_true(all(global$method_mms == "regional_default"))
+  testthat::expect_true(all(default$method_mms == "gleam_2_0/region_specific"))
+  testthat::expect_true(all(global$method_mms == "gleam_2_0/regional_default"))
 })
 
 testthat::test_that("an unknown option aborts before the production read", {
