@@ -1794,3 +1794,264 @@ test_that(".best_source_by_key ranks a key's competing sources (#937)", {
   crop_dt[, source := NA_character_]
   expect_equal(nrow(whep:::.best_source_by_key(crop_dt)), 0L)
 })
+
+
+# -- fao_flag provenance (whep#1044) -------------------------------------------
+
+.make_flagged_primary_raw <- function() {
+  tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "ha",  1e6,    "FAOSTAT_prod", "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "t",   5e6,    "FAOSTAT_prod", "E"
+  )
+}
+
+.empty_fao_liv_all <- function() {
+  tibble::tibble(
+    year = integer(),
+    area = character(),
+    area_code = integer(),
+    item_prod = character(),
+    item_prod_code = character(),
+    unit = character(),
+    value = double(),
+    source = character()
+  )
+}
+
+test_that(".combine_primary_raw folds the FAOSTAT flag over its sum", {
+  # whep#1044: without this the flag never leaves `.read_fao_crop_liv()`, and
+  # the `any_of("fao_flag")` at the end of `build_primary_production()` selects
+  # a column that is never there. The fold rule is whep#581's: the sum of an
+  # official tonnage and a reconstructed one is not itself official.
+  agreeing <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "t",   3e6,    "FAOSTAT_prod", "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "t",   2e6,    "EuropeAgriDB", "A"
+  )
+  disagreeing <- agreeing |>
+    dplyr::mutate(fao_flag = c("A", "E"))
+
+  kept <- whep:::.combine_primary_raw(agreeing, .empty_fao_liv_all())
+  dropped <- whep:::.combine_primary_raw(disagreeing, .empty_fao_liv_all())
+
+  expect_equal(kept$value, 5e6)
+  expect_equal(kept$fao_flag, "A")
+  expect_equal(dropped$value, 5e6)
+  expect_true(is.na(dropped$fao_flag))
+})
+
+test_that(".combine_primary_raw emits fao_flag with no flag anywhere", {
+  # One stable shape, so the steps downstream can assume the column and the
+  # final select can demand it with `all_of()`.
+  result <- .make_flagged_primary_raw() |>
+    dplyr::select(-fao_flag) |>
+    whep:::.combine_primary_raw(.empty_fao_liv_all())
+
+  expect_true("fao_flag" %in% names(result))
+  expect_true(all(is.na(result$fao_flag)))
+  expect_equal(nrow(result), 2L)
+})
+
+test_that(".calculate_raw_yields keeps one flag per unit, not per key", {
+  # FAOSTAT flags "Area harvested" and "Production" as separate observations
+  # and they disagree, so the yield dcast has to pivot the flag the way it
+  # pivots the value. A single flag for the pair would credit the tonnage's
+  # provenance to the hectarage or the other way round.
+  result <- whep:::.calculate_raw_yields(
+    .make_flagged_primary_raw(),
+    whep::items_prod_full
+  )
+  row <- result |>
+    dplyr::filter(item_prod_code == "15", unit == "t_ha", !is.na(fu))
+
+  expect_equal(row$flag_fu, "A")
+  expect_equal(row$flag_t, "E")
+})
+
+test_that(".calculate_raw_yields drops the flag of a discarded zero", {
+  # A reported zero is nulled here and `.impute_missing_values()` replaces it,
+  # so keeping its flag would stamp a FAOSTAT observation status on WHEP's own
+  # estimate.
+  result <- .make_flagged_primary_raw() |>
+    dplyr::mutate(value = c(1e6, 0)) |>
+    whep:::.calculate_raw_yields(whep::items_prod_full)
+  row <- result |>
+    dplyr::filter(item_prod_code == "15", unit == "t_ha", !is.na(fu))
+
+  expect_equal(row$flag_fu, "A")
+  expect_true(is.na(row$t))
+  expect_true(is.na(row$flag_t))
+})
+
+test_that(".calculate_raw_yields works with no flag column at all", {
+  result <- .make_flagged_primary_raw() |>
+    dplyr::select(-fao_flag) |>
+    whep:::.calculate_raw_yields(whep::items_prod_full)
+
+  expect_true(all(c("flag_t", "flag_fu") %in% names(result)))
+  expect_true(all(is.na(result$flag_t)))
+  expect_true(all(is.na(result$flag_fu)))
+})
+
+test_that(".impute_missing_values drops the flag of a replaced value", {
+  # The load-bearing guarantee: `t2` is `t` exactly when `t` is present, and
+  # `fu2` is `fu` on the same terms, so each flag is valid on precisely the
+  # rows where its own number survived.
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,             ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,    ~group,               ~t,  ~fu, ~yield_c, ~yield_glo, ~t_cbs, ~prod_cbs_ratio, ~sumprod_cbs_ratio, ~source,        ~Multi_type,   ~source_yield_c, ~flag_t, ~flag_fu,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products",  2511L,          NA_character_, NA_character_,   "t_head", "Livestock products", 5e6, 1e6, 5,        5,          5e6,    1,               1,                  "FAOSTAT_prod", NA_character_, "Original",      "A",     "E",
+    2019L, "Spain", 203L,       "Barley",   "44",            "Barley and products", 2513L,          NA_character_, NA_character_,   "t_head", "Livestock products", NA,  1e6, 5,        5,          5e6,    1,               1,                  NA_character_,  NA_character_, "Original",      "A",     "E"
+  )
+
+  result <- whep:::.impute_missing_values(df)
+
+  reported <- result |> dplyr::filter(item_prod_code == "15")
+  imputed <- result |> dplyr::filter(item_prod_code == "44")
+
+  expect_equal(reported$flag_t, "A")
+  expect_equal(reported$flag_fu, "E")
+  # The tonnage was reconstructed as fu * yield, so its flag goes with the
+  # number it replaced; the hectarage is untouched and keeps its own.
+  expect_true(is.na(imputed$flag_t))
+  expect_equal(imputed$flag_fu, "E")
+})
+
+test_that(".assemble_production_raw sends each flag to its own unit", {
+  # The `ha` row is the hectarage, the `t` row is the tonnage, and WHEP's
+  # yield is neither -- it is a ratio of the two, so FAOSTAT's flag for either
+  # input is not a statement about it.
+  yield_all <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~live_anim,    ~live_anim_code, ~unit,  ~source,        ~fu2, ~t2, ~yield, ~flag_fu, ~flag_t,
+    2019L, "Spain", 203L,       "Wheat",    "15",            NA_character_, NA_character_,   "t_ha", "FAOSTAT_prod", 1e6,  5e6, 5,      "A",      "E"
+  )
+
+  result <- suppressMessages(whep:::.assemble_production_raw(yield_all))
+  flag_of <- function(u) {
+    result |> dplyr::filter(unit == u) |> dplyr::pull(fao_flag)
+  }
+
+  expect_true("fao_flag" %in% names(result))
+  expect_equal(flag_of("ha"), "A")
+  expect_equal(flag_of("tonnes"), "E")
+  expect_true(is.na(flag_of("t_ha")))
+})
+
+test_that("the parked flag lookup re-joins each flag on its own unit", {
+  # `.add_historical_yields()` and `.finalise_primary()` take the values wide
+  # and back again, which a character passenger cannot cross without becoming
+  # an id column of the pivot. The flags are parked and re-joined instead, so
+  # the round trip has to land each flag back on the unit it describes.
+  long <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,    ~value, ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "ha",     1e6,    "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "tonnes", 5e6,    "E"
+  )
+  lookup <- whep:::.production_flag_lookup(long)
+
+  # The same rows with `unit` as the factor `.finalise_primary()`'s melt emits.
+  finalised <- long |>
+    dplyr::mutate(unit = factor(unit, levels = c("ha", "tonnes"))) |>
+    dplyr::select(-fao_flag)
+  result <- whep:::.attach_production_flags(finalised, lookup) |>
+    tibble::as_tibble()
+
+  expect_equal(result$fao_flag, c("A", "E"))
+  expect_setequal(
+    names(lookup),
+    c(whep:::.production_flag_key(), "fao_flag_folded")
+  )
+})
+
+test_that("the parked lookup folds a key split across land_use labels", {
+  # `.finalise_primary()` drops `land_use`, so the fold has to happen before
+  # the re-join or one key would match two lookup rows.
+  long <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,             ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,    ~land_use,  ~value, ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products",  2511L,          NA_character_, NA_character_,   "tonnes", "Cropland", 3e6,    "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products",  2511L,          NA_character_, NA_character_,   "tonnes", "Agriland", 2e6,    "A",
+    2019L, "Spain", 203L,       "Barley",   "44",            "Barley and products", 2513L,          NA_character_, NA_character_,   "tonnes", "Cropland", 3e6,    "A",
+    2019L, "Spain", 203L,       "Barley",   "44",            "Barley and products", 2513L,          NA_character_, NA_character_,   "tonnes", "Agriland", 2e6,    "E"
+  )
+
+  lookup <- whep:::.production_flag_lookup(long)
+
+  expect_equal(nrow(lookup), 1L)
+  expect_equal(lookup$item_prod_code, "15")
+  expect_equal(lookup$fao_flag_folded, "A")
+})
+
+test_that("build_primary_production emits fao_flag from .raw_data", {
+  # The end-to-end claim of whep#1044 over the part of the pipeline that runs
+  # offline. `any_of()` here could never fail, so it kept reading as correct
+  # while selecting nothing; `all_of()` plus `.ensure_fao_flag()` means the
+  # column is either real or the build stops.
+  raw <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~item_cbs,            ~item_cbs_code, ~live_anim,    ~live_anim_code, ~unit,    ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "tonnes", 5e6,    "FAOSTAT_prod", "A",
+    2019L, "Spain", 203L,       "Wheat",    "15",            "Wheat and products", 2511L,          NA_character_, NA_character_,   "ha",     1e6,    "FAOSTAT_prod", "E"
+  )
+
+  result <- suppressMessages(whep::build_primary_production(.raw_data = raw))
+
+  expect_true("fao_flag" %in% names(result))
+  expect_setequal(result$fao_flag, c("A", "E"))
+
+  # And the column is emitted, all-NA, when the caller's raw data has none.
+  unflagged <- suppressMessages(
+    whep::build_primary_production(.raw_data = dplyr::select(raw, -fao_flag))
+  )
+  expect_true("fao_flag" %in% names(unflagged))
+  expect_true(all(is.na(unflagged$fao_flag)))
+})
+
+test_that("the synthetic game-meat stock claims no FAOSTAT flag", {
+  # LU = tonnes * 3 for an item FAOSTAT reports no stock for at all, so the
+  # meat tonnage's flag does not describe these rows.
+  df <- tibble::tribble(
+    ~year, ~area,   ~area_code, ~item_prod,  ~item_prod_code, ~unit,    ~value, ~source,        ~fao_flag,
+    2019L, "Spain", 203L,       "Game meat", 1163,            "tonnes", 100,    "FAOSTAT_prod", "A"
+  )
+
+  result <- suppressMessages(whep:::.add_game_meat_final(df))
+
+  expect_equal(
+    result |> dplyr::filter(unit == "tonnes") |> dplyr::pull(fao_flag),
+    "A"
+  )
+  expect_true(
+    all(is.na(
+      result |> dplyr::filter(unit != "tonnes") |> dplyr::pull(fao_flag)
+    ))
+  )
+})
+
+test_that(".read_fao_crop_liv reports a pin with no Flag column", {
+  # Not merely tolerated. Every row of `faostat-production` carries a flag, so
+  # an absent column means the pin was rebuilt without one -- and everything
+  # downstream would complete `fao_flag` with NA and still satisfy every shape
+  # check, which is the shape that hid whep#1044.
+  raw <- tibble::tribble(
+    ~`Item Code`, ~Item,   ~`Area Code`, ~Unit, ~Element,    ~Year, ~Value, ~Flag,
+    15,           "Wheat", 203,          "t",   "Production", 2019L, 5e6,   "A"
+  )
+  local_mocked_bindings(
+    .read_input = function(name, years = NULL, year_col = NULL, ...) {
+      data.table::as.data.table(raw)
+    }
+  )
+  expect_no_warning(
+    suppressMessages(whep:::.read_fao_crop_liv(years = 2019L)),
+    class = "whep_warn_missing_prod_flag"
+  )
+
+  local_mocked_bindings(
+    .read_input = function(name, years = NULL, year_col = NULL, ...) {
+      data.table::as.data.table(dplyr::select(raw, -Flag))
+    }
+  )
+  expect_warning(
+    suppressMessages(whep:::.read_fao_crop_liv(years = 2019L)),
+    class = "whep_warn_missing_prod_flag"
+  )
+})

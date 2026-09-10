@@ -2894,3 +2894,62 @@ test_that("binding an off-window recovered row aborts", {
     class = "whep_error_off_window_area_year"
   )
 })
+
+
+# -- .primary_to_cbs fao_flag (whep#1044) --------------------------------------
+
+.make_flagged_primary_all <- function(flags) {
+  tibble::tribble(
+    ~year, ~area_code, ~item_prod_code, ~item_cbs_code, ~live_anim_code, ~unit,    ~value, ~source,
+    2019L, 203L,       "15",            2511L,          NA_character_,   "tonnes", 3e6,    "FAOSTAT_prod",
+    2019L, 203L,       "16",            2511L,          NA_character_,   "tonnes", 2e6,    "FAOSTAT_prod",
+    2019L, 203L,       "44",            2513L,          NA_character_,   "tonnes", 1e6,    "FAOSTAT_prod",
+    2019L, 203L,       "15",            2511L,          NA_character_,   "ha",     1e6,    "FAOSTAT_prod"
+  ) |>
+    dplyr::mutate(fao_flag = flags)
+}
+
+test_that(".primary_to_cbs carries the production flag through its sum", {
+  # whep#1044: the CBS row is the sum of the production items that map to one
+  # CBS item, so its flag is only defined when every one of them agrees. Before
+  # this the column did not survive `.primary_to_cbs()` at all, so the
+  # FAOSTAT_prod rows of the CBS were NA however faithfully
+  # `build_primary_production()` reported the flag.
+  result <- .make_flagged_primary_all(c("A", "A", "E", "I")) |>
+    whep:::.primary_to_cbs() |>
+    tibble::as_tibble()
+
+  expect_true("fao_flag" %in% names(result))
+  # Items 15 and 16 both map to CBS 2511 and both are "A", so the sum keeps it.
+  wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
+  expect_equal(wheat$value, 5e6)
+  expect_equal(wheat$fao_flag, "A")
+  # A single-item CBS row keeps its own flag.
+  barley <- result |> dplyr::filter(item_cbs_code == 2513L)
+  expect_equal(barley$fao_flag, "E")
+})
+
+test_that(".primary_to_cbs drops a flag its parts disagree about", {
+  result <- .make_flagged_primary_all(c("A", "E", "E", "I")) |>
+    whep:::.primary_to_cbs() |>
+    tibble::as_tibble()
+
+  wheat <- result |> dplyr::filter(item_cbs_code == 2511L)
+  expect_equal(wheat$value, 5e6)
+  expect_true(is.na(wheat$fao_flag))
+})
+
+test_that(".primary_to_cbs emits fao_flag when production carries none", {
+  result <- .make_flagged_primary_all(NA_character_) |>
+    dplyr::select(-fao_flag) |>
+    whep:::.primary_to_cbs() |>
+    tibble::as_tibble()
+
+  expect_true("fao_flag" %in% names(result))
+  expect_true(all(is.na(result$fao_flag)))
+  # And the values are the ones the flag-free build produced.
+  expect_equal(
+    result |> dplyr::filter(item_cbs_code == 2511L) |> dplyr::pull(value),
+    5e6
+  )
+})
