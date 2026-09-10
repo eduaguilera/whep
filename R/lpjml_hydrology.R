@@ -518,9 +518,13 @@ read_lpjml_hydrology <- function(
 # third dimension too where there is one, since a layer or band is a separate
 # series with its own twelve months.
 #
-# Skipped for the annual per-CFT cubes, which have no `month` at all.
+# Skipped for the variables LPJmL writes one step per year, which have no
+# calendar-month lattice to be short of: a real read of one carries no `month`
+# column, and asserting 1..12 over an injected fixture that adds one would
+# refuse a shape the variable never has on disk.
 .hydro_resolve_partial_years <- function(long, var, partial_year) {
-  if (!rlang::has_name(long, "month")) {
+  monthly_var <- .hydro_steps_per_year(var) == 12L
+  if (!monthly_var || !rlang::has_name(long, "month")) {
     return(long)
   }
   by_cols <- .hydro_annual_groups(long)
