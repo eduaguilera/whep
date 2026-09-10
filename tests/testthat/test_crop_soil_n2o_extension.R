@@ -219,6 +219,44 @@ testthat::test_that("country N totals are re-keyed onto the polity vocabulary", 
   testthat::expect_equal(applied$manure_applied_n_t, 10) # kg N -> tonnes N
 })
 
+# whep#1034. Both pins have already moved a label in a shipped revision, and
+# nothing in this chain could see it: an unmatched filter drops the stream
+# through a bind_rows() and a sum(na.rm = TRUE) in .soil_n2o_co2e().
+
+testthat::test_that("a renamed emissions Element is refused, not dropped", {
+  manure <- tibble::tribble(
+    ~Item, ~Element, ~Year, ~`Area Code`, ~Value,
+    "All Animals", "Manure applied to soils", 2015L, 276L, 9000
+  )
+  condition <- tryCatch(
+    whep:::.manure_applied_n_country(manure),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(
+    condition$absent,
+    "Manure applied to soils (N content)"
+  )
+  testthat::expect_identical(condition$observed, "Manure applied to soils")
+})
+
+testthat::test_that("a recased fertiliser Element is refused, not dropped", {
+  fertilizer <- tibble::tribble(
+    ~Element, ~Item, ~Year, ~`Area Code`, ~Value,
+    "Agricultural use", "Nutrient nitrogen N (total)", 2015L, 276L, 900
+  )
+  condition <- tryCatch(
+    whep:::.synthetic_n_country(fertilizer),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(condition$absent, "Agricultural Use")
+})
+
+testthat::test_that("a deliberately empty stream carries no vocabulary", {
+  f <- .soil_n2o_fixture()
+  testthat::expect_equal(nrow(f$manure), 0L)
+  testthat::expect_no_error(whep::build_crop_soil_n2o_extension(data = f))
+})
+
 testthat::test_that("post-split Sudan fertiliser reaches its polity's crops", {
   # End-to-end regression for the join the vocabulary mismatch broke. The crop
   # shares are keyed on 206, the FABIO bucket, while FAOSTAT reports 276 and
