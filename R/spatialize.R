@@ -246,7 +246,9 @@ build_gridded_landuse <- function(
   }
 
   years <- sort(unique(country_areas$year))
-  n_workers <- config$n_workers
+  # Windows cannot fork and R CMD check caps forked workers at two; both
+  # are resolved by `.parallel_workers()`, shared with bilateral_trade.R.
+  n_workers <- .parallel_workers(config$n_workers)
 
   # Year-invariant work — done once, shared across the year loop.
   # Cartesian: cells × crops. Per-year work just joins cropland_ha onto this.
@@ -287,7 +289,7 @@ build_gridded_landuse <- function(
     )
   }
 
-  parts <- if (n_workers > 1L && .Platform$OS.type != "windows") {
+  parts <- if (n_workers > 1L) {
     parallel::mclapply(years, .spatialize_one, mc.cores = n_workers)
   } else {
     purrr::map(years, .spatialize_one)
