@@ -176,8 +176,8 @@ private board". **That is not what the code does.** Measured:
   LUH2, LPJmL, wind, Natural Earth, WPP, the gridded land surfaces), and for
   those the reader **aborts with an instruction** when the variable is unset
   rather than falling back to something else. A few are only *overrides* for
-  a WHEP-built pin — `WHEP_POLITY_FRACTION_PATH` became one in #694 — so 17 is
-  the count of variables, not the count of hard prerequisites.
+  a WHEP-built pin (`WHEP_POLITY_FRACTION_PATH` became one in #694), so 17
+  counts variables, not hard prerequisites.
 - **15** scripts under `inst/scripts/download/` fetch those archives from
   their official sources, so each is reproducibly obtainable rather than a
   local accident.
@@ -284,9 +284,18 @@ rejection costs one issue, and it arrives before any reviewer is recruited.
 
 ### 3.2 What `whep` actually is, measured
 
-A line-count classification of all 166 files in `R/` into three buckets
-(assignment script kept at the end of this section's reasoning; the split is a
-judgement call, but the file lists are reproducible):
+A line-count classification of all 166 files in `R/` into three buckets. The
+split is a judgement call, so the rule is stated rather than asserted: bucket
+3 is a fixed list of 29 infrastructure files (`utils.R`, `table_schema.R`,
+`toy_examples.R`, the dataset docs, the pins plumbing, and so on); of the
+rest, anything whose filename matches a modelling or indicator subsystem
+(`io_model`, `footprint`, `_extension`, `carbon_balance`, `soc`, `n_balance`,
+`nitrogen`, `n2o`, `nh3`, `leach`, `water_balance`, `bnf`, `critical_n`,
+`crop_npp`, `manner_model`, `livestock`, `manure`, `feed`, `enteric`,
+`methane`, `excret`, `decomposition`, `lmdi`, `typolog`, `grafs`,
+`circularity`, `nourishment`, `protein_`, `energy_co2`, …) is bucket 1, and
+everything remaining is bucket 2. Reasonable people would move a handful of
+files; the conclusion does not depend on which:
 
 | Bucket | Files | Lines | Share |
 | --- | --- | --- | --- |
