@@ -1421,6 +1421,169 @@ testthat::test_that("a national table without the value column still warns", {
   )
 })
 
+# Float underflow treated as signal (issues 1070 and 985) ---------------------
+
+# A (country, crop) whose whole EarthStat pattern is arithmetic residue. The
+# weights below are the shape the real pin carries: `crop_patterns.parquet`
+# holds 315,741 values under 1e-20, in a mode near 1e-25, and for 1,991 of its
+# 14,322 (area_code, item_prod_code) pairs EVERY cell is in that mode.
+underflow_pattern_fixture <- function(residue = c(3e-25, 1e-25)) {
+  list(
+    country_areas = tibble::tribble(
+      ~year, ~area_code, ~item_prod_code, ~harvested_area_ha,
+      2000L,         1L,             15L,               1000
+    ),
+    crop_patterns = tibble::tibble(
+      lon = c(0.25, 0.75),
+      lat = c(50.25, 50.25),
+      item_prod_code = c(15L, 15L),
+      harvest_fraction = residue
+    ),
+    # Ten times the national harvested area, so no cell can hit the capacity
+    # ceiling and the split under test is the placement itself.
+    gridded_cropland = tibble::tribble(
+      ~lon,  ~lat, ~year, ~cropland_ha,
+      0.25, 50.25, 2000L,         6000,
+      0.75, 50.25, 2000L,         4000
+    ),
+    country_grid = tibble::tribble(
+      ~lon,  ~lat, ~area_code, ~cell_area_frac,
+      0.25, 50.25,         1L,               1,
+      0.75, 50.25,         1L,               1
+    )
+  )
+}
+
+testthat::test_that("an all-underflow pattern falls back to uniform", {
+  fx <- underflow_pattern_fixture()
+
+  testthat::expect_message(
+    build_gridded_landuse(
+      fx$country_areas,
+      fx$crop_patterns,
+      fx$gridded_cropland,
+      fx$country_grid,
+      config = list(years = 2000L)
+    ),
+    "float underflow"
+  )
+  result <- suppressMessages(
+    build_gridded_landuse(
+      fx$country_areas,
+      fx$crop_patterns,
+      fx$gridded_cropland,
+      fx$country_grid,
+      config = list(years = 2000L)
+    )
+  )
+
+  # Uniform means proportional to cropland (6000:4000), NOT to the residue
+  # weighted by cropland (3e-25 * 6000 : 1e-25 * 4000 = 818.18:181.82).
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(600, 400)
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 1000)
+})
+
+testthat::test_that("pattern_signal_floor = 0 keeps normalising the noise", {
+  fx <- underflow_pattern_fixture()
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    fx$crop_patterns,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L, pattern_signal_floor = 0)
+  )
+
+  # The whep#1070 behaviour, kept selectable for sensitivity work: the split is
+  # decided by underflow, and the national total is conserved either way, which
+  # is why no total-based check could see the defect.
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(1000 * 1800 / 2200, 1000 * 400 / 2200)
+  )
+  testthat::expect_equal(sum(result$rainfed_ha), 1000)
+})
+
+testthat::test_that("a residue cell beside a signal cell gets nothing", {
+  fx <- underflow_pattern_fixture(residue = c(0.5, 1e-25))
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    fx$crop_patterns,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L)
+  )
+
+  # whep#985's half: without the floor the second cell is written with an
+  # allocation of about 1.3e-22 ha, which is what puts denormal float32 crop
+  # stands into the LPJmL landuse forcing file.
+  testthat::expect_equal(nrow(result), 1L)
+  testthat::expect_equal(result$lon, 0.25)
+  testthat::expect_equal(result$rainfed_ha, 1000)
+})
+
+testthat::test_that("the floor survives the parquet round trip", {
+  # Written to disk and read back rather than passed in memory: the pin is a
+  # parquet file, and whep#1068 showed an in-memory fixture can be exact where
+  # the real I/O path is not. 1.401298e-45 is FLT_TRUE_MIN, the smallest
+  # positive float32 denormal, and the smallest value whep#985 measured in the
+  # landuse forcing file.
+  fx <- underflow_pattern_fixture(residue = c(1.401298464324817e-45, 1e-30))
+  path <- withr::local_tempfile(fileext = ".parquet")
+  nanoparquet::write_parquet(fx$crop_patterns, path)
+  round_tripped <- nanoparquet::read_parquet(path)
+
+  testthat::expect_true(min(round_tripped$harvest_fraction) > 0)
+
+  result <- build_gridded_landuse(
+    fx$country_areas,
+    round_tripped,
+    fx$gridded_cropland,
+    fx$country_grid,
+    config = list(years = 2000L)
+  )
+
+  testthat::expect_equal(
+    result$rainfed_ha[order(result$lon)],
+    c(600, 400)
+  )
+})
+
+testthat::test_that(".zero_pattern_underflow refuses a bad floor", {
+  base <- data.table::data.table(
+    area_code = 1L,
+    item_prod_code = 15L,
+    harvest_fraction = 1e-25
+  )
+
+  testthat::expect_error(
+    whep:::.zero_pattern_underflow(base, NA_real_),
+    "pattern_signal_floor"
+  )
+  testthat::expect_error(
+    whep:::.zero_pattern_underflow(base, c(1e-12, 1e-20)),
+    "pattern_signal_floor"
+  )
+  testthat::expect_identical(
+    whep:::.zero_pattern_underflow(base, 0)$harvest_fraction,
+    1e-25
+  )
+})
+
+testthat::test_that("the signal floor is below EarthStat's float32 precision", {
+  signal_floor <- whep:::.crop_pattern_signal_floor()
+
+  # The smallest per-crop float32 significance floor across the 147 crops in
+  # the `spatialize-crop-patterns` pin is 7.16e-12 -- that crop's own raster
+  # maximum times FLT_EPSILON. The floor must sit below it, or it would discard
+  # signal for that crop.
+  testthat::expect_true(signal_floor > 0)
+  testthat::expect_true(signal_floor < 7.159938979837773e-12)
+})
 testthat::test_that("the duplicate-CFT abort names every code (#621)", {
   # `item_prod_code` is numeric, so with two duplicated codes the message's
   # plural marker had nothing numeric ahead of it and cli read the quantity

@@ -388,12 +388,88 @@
   do.call(paste, c(keys, list(sep = "\r")))
 }
 
+# Below which a `harvest_fraction` is float arithmetic residue, not an area.
+#
+# EarthStat ships each crop's HarvestedAreaFraction as a float32 GeoTIFF
+# (Monfreda et al. 2008; verified on the source rasters, GDAL type Float32 with
+# no nodata value). A float32 carries 24 significand bits, so
+# `FLT_EPSILON = 1.1920929e-07`, and within one raster a cell below
+# `max * FLT_EPSILON` lies past the last significant bit of that raster's own
+# largest value. It cannot have survived the accumulation that produced the
+# allocation, so it is arithmetic residue rather than an allocated area.
+# EarthStat leaves a great deal of it: the `brazil` raster's smallest positive
+# cell is 8.24e-42 -- a float32 DENORMAL -- and 98.3% of its 510,866 positive
+# cells are below 1e-12.
+#
+# Across the 147 crops in the `spatialize-crop-patterns` pin the smallest of
+# those per-crop floors is 7.16e-12, so 1e-12 is the largest decade that sits
+# below EVERY crop's own float32 significance floor: it cannot discard signal
+# for any crop, while removing 319,048 of the pin's 2,297,621 rows (13.886%).
+#
+# The value is not delicate. 1e-12, 1e-20 and the per-crop
+# `max * FLT_EPSILON^2` rule all select exactly the same 1,991 of 14,322
+# `(area_code, item_prod_code)` pairs as all-residue, because the residue sits
+# in a mode near 1e-25 separated from the signal tail by five near-empty
+# decades (3 values in 1e-21.5..1e-21, 38 in 1e-21..1e-18). The partition is a
+# property of the data, not of the threshold; `config$pattern_signal_floor`
+# exposes it for sensitivity work, and `0` restores the untoleranced
+# `harvest_fraction > 0` behaviour of whep#1070.
+.crop_pattern_signal_floor <- function() {
+  1e-12
+}
+
+#' Zero the pattern weights that are float underflow rather than signal.
+#'
+#' `.spatialize_year()` decides whether a (country, crop) has a usable pattern
+#' with `rf_pot_sum > 0`. An IEEE sum of non-negative terms is exactly zero
+#' only if every term is zero, so that guard is sound -- unless the terms are
+#' themselves underflow, which is greater than zero and normalises to a
+#' placement made of noise (whep#1070). Zeroing the residue first restores the
+#' guard: after this, `rf_pot_sum > 0` answers "is there any signal here".
+#'
+#' Zeroing, not dropping: the pair keeps its cell footprint, so `rf_uniform`
+#' can spread the national area over it and the national total is unchanged.
+#' @noRd
+.zero_pattern_underflow <- function(
+  base_grid_cp,
+  floor = .crop_pattern_signal_floor()
+) {
+  if (!is.numeric(floor) || length(floor) != 1L || is.na(floor)) {
+    cli::cli_abort(
+      "{.arg pattern_signal_floor} must be a single non-missing number."
+    )
+  }
+  if (floor <= 0) {
+    return(base_grid_cp)
+  }
+  residue <- base_grid_cp$harvest_fraction > 0 &
+    base_grid_cp$harvest_fraction < floor
+  n_residue <- sum(residue, na.rm = TRUE)
+  if (n_residue == 0L) {
+    return(base_grid_cp)
+  }
+  base_grid_cp[residue, harvest_fraction := 0]
+  emptied <- base_grid_cp[,
+    list(pattern_max = max(harvest_fraction, na.rm = TRUE)),
+    by = .(area_code, item_prod_code)
+  ]
+  n_pairs <- sum(emptied$pattern_max <= 0, na.rm = TRUE)
+  cli::cli_inform(c(
+    "Zeroed {n_residue} {.field harvest_fraction} cell{?s} below
+     {.val {floor}} as float underflow, not signal.",
+    i = "{cli::qty(n_pairs)}{n_pairs} (country, crop) pair{?s} are left with no
+         pattern at all and fall back to uniform placement."
+  ))
+  base_grid_cp
+}
+
 #' Build the static crop-pattern by country-compartment table.
 #' @noRd
 .build_base_grid_cp <- function(
   country_grid,
   crop_patterns,
-  type_lookup = NULL
+  type_lookup = NULL,
+  pattern_signal_floor = .crop_pattern_signal_floor()
 ) {
   cg_dt <- data.table::as.data.table(country_grid)
   cp_dt <- data.table::as.data.table(crop_patterns)
@@ -406,6 +482,10 @@
       harvest_fraction
     )
   ]
+  base_grid_cp <- .zero_pattern_underflow(
+    base_grid_cp,
+    pattern_signal_floor
+  )
   if (!is.null(type_lookup)) {
     tlu_dt <- data.table::as.data.table(type_lookup)
     base_grid_cp[tlu_dt, luh2_type := i.luh2_type, on = .(item_prod_code)]

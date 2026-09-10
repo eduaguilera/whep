@@ -31,6 +31,10 @@
 #'     CFT-aggregated parquet alongside the crop-level output.
 #'   - `max_iterations`, `expansion_threshold`: forwarded to the
 #'     landuse engine.
+#'   - `pattern_signal_floor`: forwarded to the landuse engine as
+#'     `config$pattern_signal_floor`; the `harvest_fraction` below which a
+#'     `crop_patterns` cell is float underflow rather than an allocated
+#'     area. `0` restores the untoleranced behaviour of whep#1070.
 #'   - `cft_target`: one of `"whep"` (default for
 #'     `preset = "whep"`) or `"lpjml"` (default for
 #'     `preset = "lpjml"`). Selects which column of
@@ -271,7 +275,8 @@ run_spatialize <- function(
       years = resolved_years,
       max_iterations = config$max_iterations,
       expansion_threshold = config$expansion_threshold,
-      area_key = config$area_key
+      area_key = config$area_key,
+      pattern_signal_floor = config$pattern_signal_floor
     )
   )
   list(
@@ -331,7 +336,8 @@ run_spatialize <- function(
       max_iterations = 1000L,
       expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     ),
     whep = list(
       use_type_constraint = TRUE,
@@ -339,7 +345,8 @@ run_spatialize <- function(
       max_iterations = 1000L,
       expansion_threshold = 100L,
       area_key = "grid",
-      country_grid = "polycell"
+      country_grid = "polycell",
+      pattern_signal_floor = .crop_pattern_signal_floor()
     )
   )
 }
@@ -352,7 +359,8 @@ run_spatialize <- function(
     "expansion_threshold",
     "cft_target",
     "area_key",
-    "country_grid"
+    "country_grid",
+    "pattern_signal_floor"
   )
 }
 
