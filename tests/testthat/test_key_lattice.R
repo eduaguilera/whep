@@ -282,3 +282,52 @@ testthat::test_that("caller details are interpolated in the caller's frame", {
   testthat::expect_s3_class(cnd, "whep_incomplete_lattice")
   testthat::expect_match(conditionMessage(cnd), "mseepage")
 })
+
+testthat::test_that("the count fast path settles a complete lattice", {
+  # The fast path never builds the lattice, so it never reaches
+  # .lattice_distinct_keys(). Mocking that to abort is a positive test that
+  # stage 1 alone answered -- the assertion the cost claim rests on.
+  full <- .lattice_month_fixture(n_cells = 4L)
+  testthat::local_mocked_bindings(
+    .lattice_distinct_keys = function(...) {
+      cli::cli_abort("the enumerating path was reached")
+    }
+  )
+  testthat::expect_equal(
+    nrow(whep::key_lattice_gaps(
+      full,
+      list(month = 1:12),
+      .by = c("lon", "lat", "year")
+    )),
+    0L
+  )
+})
+
+testthat::test_that("narrowing to the asserted keys keeps the fast path", {
+  # An expected set smaller than the observed vocabulary defeats the count
+  # identity, so the caller must narrow first. Both halves are asserted here,
+  # because the second is the wiring rule the cost claim depends on.
+  full <- .lattice_month_fixture(n_cells = 4L)
+  narrowed <- dplyr::filter(full, month %in% c(1L, 12L))
+  reached <- FALSE
+  testthat::local_mocked_bindings(
+    .lattice_distinct_keys = function(data, key_cols, by_cols) {
+      reached <<- TRUE
+      dplyr::distinct(data[c(by_cols, key_cols)])
+    }
+  )
+  whep::key_lattice_gaps(
+    full,
+    list(month = c(1L, 12L)),
+    .by = c("lon", "lat", "year")
+  )
+  testthat::expect_true(reached)
+
+  reached <- FALSE
+  whep::key_lattice_gaps(
+    narrowed,
+    list(month = c(1L, 12L)),
+    .by = c("lon", "lat", "year")
+  )
+  testthat::expect_false(reached)
+})

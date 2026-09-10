@@ -612,15 +612,23 @@ get_soc_climate_drivers <- function(
 
 # Refuse (or, on "drop", remove) a cell-year-layer whose January or December
 # soil-water state never arrived.
+#
+# The frame is narrowed to the two boundary months BEFORE the check, and that
+# is load-bearing rather than tidiness: the count fast path applies only while
+# the observed vocabulary lies inside the expected one, so asserting
+# {1, 12} against a frame that also holds months 2-11 would send every call
+# down the enumerating path -- on a full-span layered soil-water read that is
+# 6 x 86.8e6 rows of needless work. Narrowing first restores the scalar path.
 .wb_check_swc_boundary <- function(swc, partial_year) {
   expected <- list(month = c(1L, 12L))
   by_cols <- c("lon", "lat", "year", "layer")
+  boundary <- dplyr::filter(swc, month %in% c(1L, 12L))
   if (identical(partial_year, "drop")) {
-    gaps <- key_lattice_gaps(swc, expected, .by = by_cols)
+    gaps <- key_lattice_gaps(boundary, expected, .by = by_cols)
     return(dplyr::anti_join(swc, dplyr::distinct(gaps[by_cols]), by = by_cols))
   }
   check_keys_complete(
-    swc,
+    boundary,
     expected,
     .by = by_cols,
     action = partial_year,
@@ -632,6 +640,7 @@ get_soc_climate_drivers <- function(
            affected cell-years instead."
     )
   )
+  swc
 }
 
 # Per cell-year December and January column-storage states (mm), summing all

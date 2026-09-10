@@ -67,6 +67,14 @@
 #'    for the groups that already failed their count, never for the whole
 #'    table. The enumeration is the diagnostic, not the detector.
 #'
+#' One rule follows from stage 1 and is worth knowing before wiring a check on
+#' a large table: **narrow the data to the keys you are asserting about**. An
+#' expected set deliberately smaller than a column's observed vocabulary --
+#' "months 1 and 12 must be here", on a frame that also holds 2 to 11 --
+#' defeats the count identity and sends every call down stage 2, even when
+#' nothing is missing. Filtering to the two months first keeps the assertion
+#' identical and the cost scalar; `.wb_check_swc_boundary()` does exactly this.
+#'
 #' Measured on the 86,781,420-row `lpjml-soc-hydrology` cell-month lattice
 #' (7,231,785 cell-year groups, `lon`/`lat`/`year`/`month`): stage 1 settles it
 #' in **13.9 s with no measurable allocation above the frame itself**. For
