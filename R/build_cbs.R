@@ -88,11 +88,13 @@ build_commodity_balances <- function(
   format = c("long", "wide"),
   trade_recovery = c("none", "net_import"),
   trade_zero = .cbs_trade_zero_choices(),
+  negative_supply = .cbs_negative_supply_choices(),
   .fixed_data = NULL
 ) {
   format <- rlang::arg_match(format)
   trade_recovery <- rlang::arg_match(trade_recovery)
   trade_zero <- rlang::arg_match(trade_zero)
+  negative_supply <- rlang::arg_match(negative_supply)
   if (example) {
     return(
       if (format == "wide") {
@@ -109,7 +111,13 @@ build_commodity_balances <- function(
     ))
   }
   if (is.null(.fixed_data)) {
-    fixed <- .read_cbs(primary_all, start_year, end_year, historical_data) |>
+    fixed <- .read_cbs(
+      primary_all,
+      start_year,
+      end_year,
+      historical_data,
+      negative_supply = negative_supply
+    ) |>
       .fix_cbs(trade_recovery = trade_recovery, trade_zero = trade_zero)
   } else {
     if (!is.null(historical_data)) {
@@ -125,6 +133,12 @@ build_commodity_balances <- function(
     if (trade_zero != "prefer_record") {
       cli::cli_warn(
         "{.arg trade_zero} is ignored when {.arg .fixed_data} is supplied."
+      )
+    }
+    if (negative_supply != "report") {
+      cli::cli_warn(
+        "{.arg negative_supply} is ignored when {.arg .fixed_data} is
+         supplied."
       )
     }
     fixed <- .fixed_data
@@ -300,7 +314,8 @@ build_commodity_balances <- function(
   primary_all,
   start_year = 1850,
   end_year = 2023,
-  historical_data = NULL
+  historical_data = NULL,
+  negative_supply = .cbs_negative_supply_choices()
 ) {
   output_years <- start_year:end_year
 
@@ -341,7 +356,8 @@ build_commodity_balances <- function(
   cbs_raw <- .cbs_extend_historical(
     cbs_raw0,
     inputs,
-    years
+    years,
+    negative_supply = negative_supply
   )
 
   # Trim to requested years and attach context for downstream
@@ -2205,7 +2221,8 @@ build_processing_coefs <- function(
 .cbs_extend_historical <- function(
   cbs_raw0,
   inputs,
-  years
+  years,
+  negative_supply = .cbs_negative_supply_choices()
 ) {
   items <- whep::items_full
 
@@ -2272,7 +2289,8 @@ build_processing_coefs <- function(
       inputs$primary_cbs_area,
       inputs$gdp_pop,
       inputs$land_areas_wide,
-      items
+      items,
+      negative_supply = negative_supply
     )
 
   cbs_hist_pre <- cbs_hist |>
@@ -2329,8 +2347,13 @@ build_processing_coefs <- function(
   primary_area,
   gdp_pop,
   land_wide,
-  items
+  items,
+  negative_supply = .cbs_negative_supply_choices()
 ) {
+  negative_supply <- rlang::arg_match(
+    negative_supply,
+    .cbs_negative_supply_choices()
+  )
   expected_elements <- c(
     "domestic_supply",
     "production",
@@ -2356,15 +2379,8 @@ build_processing_coefs <- function(
       }
       d
     })() |>
+    .resolve_historical_supply(negative_supply) |>
     dplyr::mutate(
-      domestic_supply = dplyr::coalesce(
-        domestic_supply,
-        dplyr::if_else(
-          !is.na(production) & !is.na(import) & !is.na(export),
-          production + import - export,
-          NA_real_
-        )
-      ),
       food_share = .cbs_safe_ratio(food, domestic_supply),
       feed_share = .cbs_safe_ratio(feed, domestic_supply),
       other_uses_share = .cbs_safe_ratio(other_uses, domestic_supply),
@@ -2393,6 +2409,130 @@ build_processing_coefs <- function(
 # carried forward as non-finite data.
 .cbs_safe_ratio <- function(num, denom) {
   dplyr::if_else(is.na(denom) | denom == 0, NA_real_, num / denom)
+}
+
+# -- Negative computed domestic supply ----------------------------------------
+
+# What to do with a pre-1962 row whose domestic supply is not observed and
+# whose `production + import - export` reconstruction comes out below zero
+# (whep#1065), most conservative first.
+#
+# `"report"` is the default and is the behaviour every published build has
+# had: the value is kept exactly as computed and is now named out loud
+# instead of passing in silence. It is the default because it moves no
+# published number, not because it is right.
+#
+# `"floor"` clamps the reconstruction at zero, which is the treatment
+# `.select_best_source()` already applies to an OBSERVED negative
+# `domestic_supply` -- the asymmetry between the two is what whep#1065 is
+# about. It is also the stock-draw treatment: nothing further has to be
+# wired through, because `.reestimate_domestic_supply()` recomputes
+# `stock_variation` as `production + import - export - domestic_supply` and
+# `.pivot_cbs_wide()` splits a negative one into `stock_withdrawal`, so the
+# exported mass the reconstruction could not source is booked as a draw on
+# stocks rather than as negative use.
+#
+# `"abort"` refuses to build the affected years.
+.cbs_negative_supply_choices <- function() {
+  c("report", "floor", "abort")
+}
+
+# Rows whose `domestic_supply` comes from the reconstruction and is negative.
+# Only the reconstructed value can be: `.select_best_source()` clamps every
+# observed `domestic_supply` at zero before this point.
+.negative_computed_supply <- function(df, computed) {
+  is_computed <- is.na(df$domestic_supply) & !is.na(computed)
+  keep <- which(is_computed & computed < 0)
+  tibble::as_tibble(df)[keep, ] |>
+    dplyr::transmute(
+      year,
+      area_code,
+      item_cbs,
+      item_cbs_code,
+      production,
+      import,
+      export,
+      computed_supply = computed[keep]
+    )
+}
+
+# A negative reconstructed supply says the row's exports exceed its
+# production plus its imports. That is not a measurement: it is what happens
+# when observed trade is paired with a back-cast production series, and the
+# whole of it flows into the destinies, because `.apply_filled_shares()`
+# multiplies this number by a share carried in from another year. Every
+# destiny of such a row comes out negative, and a negative "other uses" is a
+# physically impossible published quantity.
+#
+# It survives every guard the build has. `.select_best_source()` clamps a
+# negative OBSERVED `domestic_supply` at zero but never sees this one;
+# `.cbs_fix_final_balance()` clamps the final `domestic_supply` at zero but
+# not the destinies; and `check_supply_use_balance()` reconciles anyway,
+# because the same negative sits on both sides of the identity. That is why
+# this reports rather than relying on a balance check.
+.resolve_historical_supply <- function(df, method) {
+  computed <- dplyr::if_else(
+    !is.na(df$production) & !is.na(df$import) & !is.na(df$export),
+    df$production + df$import - df$export,
+    NA_real_
+  )
+  negative <- .negative_computed_supply(df, computed)
+  .report_negative_supply(negative, method)
+  if (method == "floor") {
+    computed <- dplyr::if_else(!is.na(computed) & computed < 0, 0, computed)
+  }
+  df$domestic_supply <- dplyr::coalesce(df$domestic_supply, computed)
+  df
+}
+
+# Tonnes with a thousands separator. The real offenders are hundreds of
+# millions of tonnes and a test fixture is hundreds, so a fixed Mt scale
+# rounds one of the two to "0".
+.cbs_tonnes <- function(x) {
+  paste(format(round(x), big.mark = ",", scientific = FALSE, trim = TRUE), "t")
+}
+
+.report_negative_supply <- function(negative, method) {
+  if (nrow(negative) == 0L) {
+    return(invisible(negative))
+  }
+  worst <- negative |>
+    dplyr::slice_min(computed_supply, n = 3L, with_ties = FALSE)
+  # Interpolated outside the cli strings: a `{}` expression starting with a
+  # dot is read as a cli style, not as a call.
+  total_txt <- .cbs_tonnes(sum(negative$computed_supply))
+  worst_txt <- paste0(
+    worst$item_cbs,
+    " ",
+    worst$year,
+    " area ",
+    worst$area_code,
+    " = ",
+    .cbs_tonnes(worst$computed_supply)
+  )
+  bullets <- c(
+    "!" = paste0(
+      "{nrow(negative)} pre-1962 row{?s} reconstruct{?s/} a negative ",
+      "domestic supply from {.field production + import - export}, ",
+      "totalling {.val {total_txt}}."
+    ),
+    "*" = "Largest: {.val {worst_txt}}.",
+    "i" = paste0(
+      "Every destiny of {cli::qty(nrow(negative))} th{?is/ese} row{?s} is ",
+      "apportioned from that negative supply, so every destiny comes out ",
+      "negative too (whep#1065)."
+    ),
+    "i" = paste0(
+      "{.arg negative_supply} is {.val {method}}; ",
+      "{.val {setdiff(.cbs_negative_supply_choices(), method)}} also ",
+      "selectable."
+    )
+  )
+  if (method == "abort") {
+    cli::cli_abort(bullets, class = "whep_negative_supply")
+  }
+  cli::cli_warn(bullets, class = "whep_negative_supply")
+  invisible(negative)
 }
 
 .fill_share_columns <- function(df) {

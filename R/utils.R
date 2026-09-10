@@ -2116,6 +2116,9 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # build_cbs.R (#1065) — the reconstructed `production + import - export`
+    # domestic supply of a pre-1962 row, reported when it comes out negative
+    "computed_supply"
   )
 )

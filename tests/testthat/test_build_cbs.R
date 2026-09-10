@@ -2894,3 +2894,247 @@ test_that("binding an off-window recovered row aborts", {
     class = "whep_error_off_window_area_year"
   )
 })
+
+# -- Negative computed domestic supply (whep#1065) -----------------------------
+
+# One area, one item, two years, and the whole mechanism.
+#
+# 1951 is the FAOSTAT-anchor shape: it reports a `domestic_supply` and two
+# destinies that exhaust it, so it fixes `other_uses_share` at 0.8 and
+# `food_share` at 0.2. 1950 reports only production and trade, so its supply
+# has to be RECONSTRUCTED -- and its export exceeds production plus import, so
+# the reconstruction is -300. That negative number is then multiplied by the
+# 1951 shares, which is how a negative "other uses" reaches a published
+# number.
+.negative_supply_frame <- function() {
+  tibble::tribble(
+    ~year, ~area,           ~element,          ~value,
+    1950L, "United States", "production",         100,
+    1950L, "United States", "import",               0,
+    1950L, "United States", "export",             400,
+    1951L, "United States", "production",         100,
+    1951L, "United States", "import",               0,
+    1951L, "United States", "export",               0,
+    1951L, "United States", "domestic_supply",    100,
+    1951L, "United States", "other_uses",          80,
+    1951L, "United States", "food",                20
+  ) |>
+    dplyr::mutate(
+      area_code = 231L,
+      item_cbs = "Tobacco",
+      item_cbs_code = 2671L
+    )
+}
+
+.negative_supply_args <- function() {
+  list(
+    primary_area = tibble::tibble(
+      year = integer(),
+      area = character(),
+      area_code = integer(),
+      item_cbs = character(),
+      item_cbs_code = integer(),
+      area_ha = double()
+    ),
+    gdp_pop = tibble::tibble(
+      year = integer(),
+      area_code = character(),
+      pop = double()
+    ),
+    land_wide = tibble::tibble(
+      year = integer(),
+      area_code = integer(),
+      Cropland = double(),
+      Pasture = double(),
+      agriland = double()
+    )
+  )
+}
+
+.run_negative_supply <- function(method) {
+  a <- .negative_supply_args()
+  whep:::.fill_historical_destinies(
+    .negative_supply_frame(),
+    a$primary_area,
+    a$gdp_pop,
+    a$land_wide,
+    whep::items_full,
+    negative_supply = method
+  )
+}
+
+.destiny_elements <- function() {
+  c("food", "feed", "other_uses", "processing", "processing_primary", "seed")
+}
+
+test_that("a reconstructed negative domestic supply is reported", {
+  expect_warning(
+    .run_negative_supply("report"),
+    class = "whep_negative_supply"
+  )
+})
+
+test_that("the reported row carries the negative supply and its keys", {
+  reported <- whep:::.negative_computed_supply(
+    tibble::tibble(
+      year = c(1950L, 1951L),
+      area_code = c(231L, 231L),
+      item_cbs = c("Tobacco", "Tobacco"),
+      item_cbs_code = c(2671L, 2671L),
+      production = c(100, 100),
+      import = c(0, 0),
+      export = c(400, 0),
+      domestic_supply = c(NA_real_, 100)
+    ),
+    computed = c(-300, 100)
+  )
+
+  expect_equal(nrow(reported), 1L)
+  expect_equal(reported$year, 1950L)
+  expect_equal(reported$computed_supply, -300)
+})
+
+test_that("an observed negative domestic supply is not reported", {
+  # Only the reconstruction can be negative here: `.select_best_source()`
+  # already clamps an observed one at zero. Reporting an observed value would
+  # be reporting the wrong quantity.
+  reported <- whep:::.negative_computed_supply(
+    tibble::tibble(
+      year = 1950L,
+      area_code = 231L,
+      item_cbs = "Tobacco",
+      item_cbs_code = 2671L,
+      production = 100,
+      import = 0,
+      export = 400,
+      domestic_supply = -300
+    ),
+    computed = -300
+  )
+
+  expect_equal(nrow(reported), 0L)
+})
+
+test_that("the default passes the negative destinies through", {
+  # The published behaviour, pinned so the reporting default cannot quietly
+  # start moving numbers. Asserted on the SIGN, because the balance identity
+  # cannot see this: the same negative sits on both sides of it.
+  out <- suppressWarnings(.run_negative_supply("report"))
+
+  supply <- out |>
+    dplyr::filter(year == 1950L, element == "domestic_supply") |>
+    dplyr::pull(value)
+  other_uses <- out |>
+    dplyr::filter(year == 1950L, element == "other_uses") |>
+    dplyr::pull(value)
+
+  expect_equal(supply, -300)
+  expect_equal(other_uses, -240)
+})
+
+test_that("the balance identity holds while a destiny is negative", {
+  # Why a balance check cannot be the test for whep#1065: reconcile the row
+  # and it reconciles, because `sum(destinies) == domestic_supply` is true of
+  # a negative supply too. The sign is the only thing that shows the defect.
+  out <- suppressWarnings(.run_negative_supply("report"))
+
+  row <- out |>
+    dplyr::filter(year == 1950L) |>
+    tidyr::pivot_wider(names_from = element, values_from = value)
+  uses <- row |>
+    dplyr::select(dplyr::all_of(.destiny_elements())) |>
+    rowSums()
+
+  expect_equal(unname(uses), row$domestic_supply)
+  expect_lt(row$other_uses, 0)
+})
+
+test_that("flooring leaves no negative destiny", {
+  # The invariant, not a hand-picked expectation: no use of any item in any
+  # year may be negative.
+  out <- suppressWarnings(.run_negative_supply("floor"))
+  destinies <- dplyr::filter(out, element %in% .destiny_elements())
+
+  expect_gt(nrow(destinies), 0L)
+  expect_true(all(destinies$value >= 0))
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1950L, element == "domestic_supply") |>
+      dplyr::pull(value),
+    0
+  )
+})
+
+test_that("flooring leaves an observed supply and its destinies alone", {
+  out <- suppressWarnings(.run_negative_supply("floor"))
+
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1951L, element == "domestic_supply") |>
+      dplyr::pull(value),
+    100
+  )
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1951L, element == "other_uses") |>
+      dplyr::pull(value),
+    80
+  )
+  expect_equal(
+    out |>
+      dplyr::filter(year == 1951L, element == "food") |>
+      dplyr::pull(value),
+    20
+  )
+})
+
+test_that("flooring keeps the exported mass as a stock withdrawal", {
+  # `"floor"` is also the stock-draw treatment: it books no negative use, and
+  # the mass the reconstruction could not source stays visible as the
+  # `production + import - export - domestic_supply` residual that
+  # `.reestimate_domestic_supply()` computes and `.pivot_cbs_wide()` splits
+  # into `stock_withdrawal`. Nothing is silently discarded.
+  out <- suppressWarnings(.run_negative_supply("floor"))
+  row <- out |>
+    dplyr::filter(year == 1950L) |>
+    tidyr::pivot_wider(names_from = element, values_from = value)
+
+  residual <- row$production + row$import - row$export - row$domestic_supply
+
+  expect_equal(residual, -300)
+  expect_equal(row$export, 400)
+})
+
+test_that("aborting refuses the build", {
+  expect_error(
+    .run_negative_supply("abort"),
+    class = "whep_negative_supply"
+  )
+})
+
+test_that("an unknown negative_supply method is rejected", {
+  expect_error(.run_negative_supply("clamp"), class = "rlang_error")
+})
+
+test_that("a frame with no negative reconstruction is silent", {
+  a <- .negative_supply_args()
+  clean <- .negative_supply_frame() |>
+    dplyr::mutate(
+      value = dplyr::if_else(
+        year == 1950L & element == "export",
+        0,
+        value
+      )
+    )
+
+  expect_no_warning(
+    whep:::.fill_historical_destinies(
+      clean,
+      a$primary_area,
+      a$gdp_pop,
+      a$land_wide,
+      whep::items_full,
+      negative_supply = "report"
+    )
+  )
+})
