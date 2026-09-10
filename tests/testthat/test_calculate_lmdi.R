@@ -894,3 +894,93 @@ test_that("calculate_lmdi total output keeps every per-period target field", {
     expected
   )
 })
+
+# Logarithmic mean weight ------------------------------------------------------
+
+#' Two period totals that are equal in exact arithmetic but one ulp apart.
+#'
+#' The pair has to be *accumulated*, not written down. Two literals that look
+#' equal are bit-identical, so the exact-equality test catches them and an
+#' in-memory pair of constants stays green on the broken code -- the same trap
+#' PR 1068 hit with `read_soil_ph()`, where a fixture held in memory never
+#' exercised the defect. Here the same six item-level values are folded in two
+#' different orders, as two independently aggregated period sums are in a real
+#' panel: double addition is not associative, so the totals are mathematically
+#' equal and differ by one ulp as doubles. A left fold is used rather than
+#' `sum()` because `sum()` accumulates in long double on some platforms and
+#' would there agree bit for bit.
+lmdi_ulp_pair_fixture <- function() {
+  items <- c(53728.8, 92562.9, 95662.2, 95680.0, 97779.9, 88685.5)
+  list(
+    high = purrr::reduce(items, `+`),
+    low = purrr::reduce(rev(items), `+`)
+  )
+}
+
+test_that("log-mean fixture really is an accumulated, non-identical pair", {
+  pair <- lmdi_ulp_pair_fixture()
+
+  expect_false(pair$high == pair$low)
+  expect_equal(pair$high, pair$low)
+})
+
+test_that(".log_mean weights two equal accumulated sums by their value", {
+  pair <- lmdi_ulp_pair_fixture()
+
+  # Exactly equal inputs, the case the old exact test did catch.
+  expect_equal(whep:::.log_mean(500, 500), 500)
+  # A genuine change still follows the closed form.
+  expect_equal(whep:::.log_mean(110, 100), 10 / log(1.1))
+  # One ulp of accumulation residue must not move the weight. The old
+  # exact-equality test missed this pair and returned 262144 for the first
+  # ordering, 49.98 percent below the correct 524099.3.
+  expect_equal(whep:::.log_mean(pair$high, pair$low), pair$high)
+  expect_equal(whep:::.log_mean(pair$low, pair$high), pair$high)
+})
+
+test_that(".log_mean keeps its non-positive and missing-input behaviour", {
+  expect_equal(whep:::.log_mean(0, 0), 0)
+  expect_equal(whep:::.log_mean(-5, -5), -5)
+  expect_equal(whep:::.log_mean(10, 0), 0)
+  expect_equal(whep:::.log_mean(0, 10), 0)
+  expect_equal(whep:::.log_mean(-10, 10), 0)
+  expect_equal(whep:::.log_mean(NA_real_, 10), NA_real_)
+  expect_equal(
+    whep:::.log_mean(c(100, 100, 0, NA), c(100, 200, 10, 5)),
+    c(100, -100 / log(0.5), 0, NA)
+  )
+})
+
+test_that("calculate_lmdi does not amplify accumulation residue", {
+  pair <- lmdi_ulp_pair_fixture()
+  # A period over which production is unchanged, to the last ulp of two
+  # independently accumulated totals, while area doubles and yield halves.
+  # The logarithmic mean weight is then the common total, and each factor
+  # contributes plus or minus total times log(2).
+  data <- tibble::tibble(
+    year = c(2000, 2001),
+    area = c(1000, 2000),
+    prod = c(pair$low, pair$high)
+  ) |>
+    dplyr::mutate(yield = prod / area)
+
+  result <- calculate_lmdi(
+    data,
+    identity = "prod:area*yield",
+    time_var = year,
+    verbose = FALSE
+  )
+
+  additive <- result |>
+    dplyr::filter(component_type == "factor") |>
+    dplyr::select(factor_label, additive)
+
+  expect_equal(
+    additive$additive[additive$factor_label == "area"],
+    pair$high * log(2)
+  )
+  expect_equal(
+    additive$additive[additive$factor_label == "yield"],
+    -pair$high * log(2)
+  )
+})
