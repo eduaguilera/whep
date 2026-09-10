@@ -271,6 +271,49 @@
 #' - `Calcium_mg_kgFM`: Calcium content in mg per kg fresh matter.
 #' - `VitaminA_microg_kgFM`: Vitamin A content in micrograms per kg fresh
 #'   matter.
+#'
+#' `N_kgN_kgFM` is the food-composition nitrogen density of the edible part,
+#' and is what [build_food_supply()] turns into protein. Its provenance is
+#' weak and worth knowing before trusting a row. Upstream it sits under the
+#' `NUTRIENTS IN EDIBLE PART` group header with the four columns above, but
+#' the workbook's `Sources` sheet has **no column for any of the five**: its
+#' columns run from `kg_residue_kg_product_FM` straight to
+#' `Product_kgN_kgDM`, so the whole nutrition block is undocumented at source
+#' (#500 section 6, #1074). Most rows are a lookup into the workbook's
+#' food-composition sheet, the same lookup that fills the four columns above.
+#' Eight are not, because that sheet's nitrogen column is blank for them, and
+#' there the cell holds the agronomic `Product_kgN_kgDM * Product_kgDM_kgFM`
+#' or a literal instead: `Oats`, `Rice`, `Rye`, `Wheat`, `Maize`,
+#' `Vegetables, other`, `Olive` and `Honey`.
+#'
+#' `Wheat` was the largest consequence. It carried 0.018951 kg N per kg,
+#' 118.4 g of protein per kg at N x 6.25, which is a whole-grain figure
+#' (FEDNA 2016 feed-table wheat grain, the source the `Sources` sheet records
+#' for `Product_kgN_kgDM`; FAO's own whole-meal value for medium wheat is
+#' 12.2 g per 100 g). Applied to a commodity-balance `food` quantity that is
+#' the wheat-grain equivalent of milled products, that counts the bran and
+#' germ protein that milling diverts away from food. It now carries 0.01488,
+#' the 93 g of protein per kg that the food-composition sheet holds for this
+#' row under the label `Harina de Trigo` (wheat flour) and that was never
+#' exported -- the same row this table already draws the wheat lipids
+#' (12 g/kg), carbohydrates (800 g/kg), calcium (150 mg/kg) and vitamin A (0)
+#' from, so the change makes the row internally consistent rather than
+#' importing a foreign number. **That 93 has no `Sources` entry either**, so
+#' it is corroborated rather than cited: it lies between FAO's flour figures
+#' for medium wheat at 85% and 72% extraction (11.7 and 10.9 g per 100 g of
+#' flour, so 99.4 and 78.5 g per kg of grain equivalent; FAO, *Food
+#' composition tables for international use*, 2nd ed. 1953,
+#' <https://www.fao.org/4/x5557e/x5557e04.htm>, which FAO itself flags as historical),
+#' is consistent with USDA FoodData Central 168894 white all-purpose flour at
+#' 10.33 g per 100 g, and reproduces FAOSTAT FBS's own world implied density
+#' for item 2511 -- 91.7 to 93.2 g per kg over 2010-2023 -- to better than 1%
+#' (whep#796). The previous value stays selectable as
+#' `build_food_supply(protein_basis = "product_nitrogen")`, which reads the
+#' agronomic route directly. The other seven rows are left alone: for `Rice`
+#' the basis question was settled in #751/#755, and for `Oats` and `Maize`
+#' the food-composition figure moves *away* from the FBS oracle, so they need
+#' the expert rather than this edit.
+#'
 #' The ten `Edible_*` and `NonEdible_*` nutrient columns below are **empty in
 #' every row**, upstream in the source workbook as well as here, so no
 #' edible/non-edible nutrient split can be read from them (#361). Use

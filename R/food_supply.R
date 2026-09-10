@@ -28,7 +28,12 @@
 #' `Product_kgN_kgDM * Product_kgDM_kgFM`. `Edible_N_kgFM` is not read: it is
 #' empty in every coefficient row, upstream as well as in the packaged data, so
 #' the edible basis is derived from `Edible_portion` instead of stored
-#' redundantly. Energy per kilogram
+#' redundantly. `N_kgN_kgFM` must be a **food-composition** density for this to
+#' mean anything, because `food_t` for a processed FBS item is the primary
+#' equivalent of the products actually eaten: a whole-grain nitrogen density on
+#' that mass counts milling offal as food. Eight coefficient rows carry the
+#' agronomic value instead and are named in [biomass_coefs]; `Wheat` was the
+#' largest, at 1.27x FAOSTAT FBS world protein until #796. Energy per kilogram
 #' fresh matter follows `GE_product_edible_portion_MJ_kgFM`, then
 #' `GE_product_MJ_kgFM` (MJ per kg fresh matter), converted to kilocalories via
 #' `MJ / 0.004184`. The energy term is GROSS (combustion) energy, not Atwater
