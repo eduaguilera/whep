@@ -92,14 +92,28 @@ Seven GitHub Actions workflows, all green on `main` at `8004b218`:
   the action's own `action.yaml`.
 - There is a **second, independent check surface**: r-universe
   (<https://eduaguilera.r-universe.dev>). Six binaries at `8004b218`, five
-  `check: OK` and one `check: WARNING` (macOS, R 4.5.3). The warning text
-  could not be retrieved — the r-universe HTML page returns HTTP 403 to
-  automated fetches and no JSON endpoint exposes the check log. **Someone
-  should open that page in a browser before the enquiry goes out**, because
-  "0/0/0 everywhere" is currently not a claim we can make.
+  `check: OK` and one `check: WARNING` (macOS oldrel, R 4.5.3). **That one is
+  not ours.** Read out of the r-universe build log
+  (`gh run view 34366096456 --repo r-universe/eduaguilera --log` — the
+  package's own HTML page returns HTTP 403 to automated fetches, but the
+  build log does not):
+
+  ```
+  * checking package dependencies ... WARNING
+  Cannot process vignettes
+  Package suggested but not available for checking: 'knitr'
+  VignetteBuilder package required for checking but not installed: 'knitr'
+  ```
+
+  `knitr` failed to install on that runner ("Installing from remotes: knitr"),
+  so the vignette builder was absent, which also produced that leg's single
+  NOTE ("Package has 'vignettes' subdirectory but apparently no vignettes").
+  Both trace to one missing dependency on the build host, not to the package.
+  Nothing to fix, and worth recording so it is not re-investigated.
 - Six `skip_on_ci()` calls remain in the suite. `CLAUDE.md` warns these do not
-  fire on r-universe, which is consistent with the one WARNING above being a
-  surface CI cannot see.
+  fire on r-universe, so those six run for real there. They did not cause the
+  WARNING above, but they are a class of test that only this second surface
+  exercises, which is a reason to keep watching it.
 
 ### 2.2 The check is not clean today — two separate things
 
@@ -157,10 +171,13 @@ private board". **That is not what the code does.** Measured:
   15556812, CC-BY-4.0) and the critical-nitrogen archive (Zenodo record
   6395016, CC-BY-4.0). Both licences are cited at the point of use in
   `R/luh2_landuse.R` and `R/critical_n.R`.
-- **17** `WHEP_*` environment variables gate multi-GB third-party archives
-  held on local disk (CRU, HYDE, HWSD, HaNi, LUH2, LPJmL, wind, Natural
-  Earth, WPP, and the gridded land surfaces). The readers abort with an
-  instruction when unset rather than falling back to something else.
+- **17** `WHEP_*` environment variables appear in `R/`. Most of them point at
+  multi-GB third-party archives held on local disk (CRU, HYDE, HWSD, HaNi,
+  LUH2, LPJmL, wind, Natural Earth, WPP, the gridded land surfaces), and for
+  those the reader **aborts with an instruction** when the variable is unset
+  rather than falling back to something else. A few are only *overrides* for
+  a WHEP-built pin — `WHEP_POLITY_FRACTION_PATH` became one in #694 — so 17 is
+  the count of variables, not the count of hard prerequisites.
 - **15** scripts under `inst/scripts/download/` fetch those archives from
   their official sources, so each is reproducibly obtainable rather than a
   local accident.
@@ -414,8 +431,8 @@ about *before* asking, because it may well be the answer.
 
 ## 4. The draft enquiry — text to paste
 
-Fill in the author handles, confirm the AI paragraph with the maintainers, and
-check the r-universe macOS WARNING (§2.1) before sending.
+Fill in the author handles and confirm the AI paragraph with the maintainers
+before sending.
 
 ---
 
@@ -641,12 +658,11 @@ submission:
 2. Close the 1 NOTE: add `unanchored` and `unexercised` to `inst/WORDLIST`
    (§2.2). Belongs with #31. Two words, and it is the difference between
    #46's claim and #46's reality.
-3. Resolve the r-universe macOS `check: WARNING` (§2.1) — currently unread.
-4. Re-run `pkgcheck::pkgcheck(".", goodpractice = TRUE, use_cache = FALSE)`
+3. Re-run `pkgcheck::pkgcheck(".", goodpractice = TRUE, use_cache = FALSE)`
    against `main` and confirm the gates from the measured numbers, not from
    #46's stale table. Mind the two traps recorded in #46: the stale
    `/tmp/rcheck/whep.Rcheck` and the false "no continuous integration checks".
-5. Agree internally how much breaking change we would accept, since §5.1.1
+4. Agree internally how much breaking change we would accept, since §5.1.1
    warns review can require it and we have CRAN users.
 
 ### If the answer is "in scope only if scoped/narrowed" (most likely good case)
@@ -694,10 +710,6 @@ six months from memory.
 
 Stated so nobody quotes these as settled:
 
-- **The r-universe macOS R 4.5.3 `check: WARNING` text.** The status is real
-  (r-universe JSON API, `8004b218`); the log is not machine-readable — the
-  package page returns HTTP 403 to automated fetches. Read it in a browser
-  before sending.
 - **A fresh local `pkgcheck` run.** The gate figures in §2 are measured
   directly (coverage from Codecov, tests from the CI log, examples and exports
   from the tree) but `pkgcheck` itself was not re-run in this session, so its
