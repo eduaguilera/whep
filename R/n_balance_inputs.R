@@ -192,9 +192,16 @@ build_n_inputs <- function(
     .n_inputs_som(data),
     .n_inputs_synthetic(data)
   )
+  # Scope to `years` BEFORE allocating, not after. The land support is built
+  # for `years` only, while an upstream term can legitimately arrive with more:
+  # the carbon balance is marched over a spin-up before the driven year
+  # (whep#798), so every spin-up year of SOM mineralization would enter the
+  # allocation with no support row to land on, be dropped by the join, and take
+  # the mass check with it -- an abort over nitrogen this function was about to
+  # discard anyway. Filtering first leaves the retained rows identical.
   assembled |>
-    .ni_allocate_unattributed(data) |>
     .ni_filter_years(years) |>
+    .ni_allocate_unattributed(data) |>
     .ni_validate_resolution(resolution) |>
     .ni_resolve(resolution) |>
     .resolve_polity_validity(polity_validity)
@@ -938,7 +945,7 @@ build_n_inputs <- function(
       n_input_t = .data$n_input_t * .data$area_ha / sum(.data$area_ha),
       .by = ".source_row"
     )
-  .ni_check_unallocated(sourced, allocated)
+  .ni_check_unallocated(sourced, allocated, support)
   dplyr::bind_rows(
     dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
     dplyr::select(allocated, dplyr::all_of(.ni_schema()))
@@ -957,8 +964,11 @@ build_n_inputs <- function(
 # mass, of which som_mineralization alone was 1,403 Tg against a whole-territory
 # deposition of 63 Tg, and the message said only "Source: 1409438267 t N".
 # Decomposing both the source and the unallocated residual by fert_type is what
-# separates the two, and it costs one summarise on the failure path only.
-.ni_check_unallocated <- function(sourced, allocated) {
+# separates the two, and it costs one summarise on the failure path only. A
+# third condition is worth naming outright because it looks like neither: a
+# term arriving over more years than the support covers, which is what a marched
+# carbon balance handed to a single-year balance does.
+.ni_check_unallocated <- function(sourced, allocated, support) {
   source_mass <- sum(sourced$n_input_t, na.rm = TRUE)
   allocated_mass <- sum(allocated$n_input_t, na.rm = TRUE)
   if (isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
@@ -967,6 +977,7 @@ build_n_inputs <- function(
   lost <- dplyr::filter(sourced, !.data$.source_row %in% allocated$.source_row)
   by_source <- .ni_stream_masses(sourced)
   by_lost <- .ni_stream_masses(lost)
+  off_span <- sort(setdiff(unique(lost$year), unique(support$year)))
   cli::cli_abort(
     c(
       "Could not allocate all non-item nitrogen over agricultural support.",
@@ -977,9 +988,27 @@ build_n_inputs <- function(
       i = "{nrow(lost)} source row{?s} sit{?s/} on a cell-year with no cropland
            support, so the allocation join drops them (#423). A
            {.code polity_validity = \"drop\"} support also removes rows whose
-           polity did not exist in that year."
+           polity did not exist in that year.",
+      .ni_off_span_bullet(off_span)
     ),
     class = "whep_n_unallocated_non_item"
+  )
+}
+
+# The bullet naming years the support does not cover at all, or nothing when
+# every unallocated row is inside the support's span. A term arriving over more
+# years than the support was built for cannot be diagnosed from a mass total,
+# and it is the shape a marched carbon balance takes when it is handed to a
+# single-year nitrogen balance unsliced.
+.ni_off_span_bullet <- function(off_span) {
+  if (length(off_span) == 0L) {
+    return(character(0))
+  }
+  c(
+    i = cli::format_inline(
+      "{cli::qty(length(off_span))}{length(off_span)} unallocated year{?s}
+       {?is/are} outside the support's span entirely: {.val {off_span}}."
+    )
   )
 }
 

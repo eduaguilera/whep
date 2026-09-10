@@ -884,6 +884,52 @@ testthat::test_that("unattributed Cropland manure stays on cropland support", {
   )
 }
 
+# The carbon balance is marched over a spin-up (whep#798) and handed to
+# build_n_inputs() whole, while the land support is built for the driven year
+# only. Every spin-up year of SOM mineralization therefore has no support at
+# all, so it must be dropped before the allocation rather than after it.
+.nbi_spinup_carbon_balance <- function() {
+  dplyr::bind_rows(
+    .nbi_carbon_balance(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~land_use, ~year, ~area_ha, ~son_change_kgn_ha,
+      0.25, 50.25, 10L, "Cropland", 2009L, 50, 4000,
+      0.25, 50.25, 10L, "Cropland", 2008L, 50, 4000
+    )
+  )
+}
+
+testthat::test_that("a marched carbon balance does not reach the allocation", {
+  data <- .nbi_full_data()
+  data$carbon_balance <- .nbi_spinup_carbon_balance()
+
+  out <- whep::build_n_inputs(years = 2010L, data = data)
+
+  som <- out[out$fert_type == "som_mineralization", ]
+  testthat::expect_setequal(out$year, 2010L)
+  # Only the driven year's 12 kg N/ha over 50 ha survives; the two spin-up
+  # years are neither allocated nor counted against the support.
+  testthat::expect_equal(sum(som$n_input_t), 0.6, tolerance = 1e-8)
+})
+
+testthat::test_that("the abort names years the support does not cover", {
+  data <- .nbi_full_data()
+  data$carbon_balance <- .nbi_spinup_carbon_balance()
+
+  err <- testthat::expect_error(
+    whep::build_n_inputs(data = data),
+    class = "whep_n_unallocated_non_item"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(err, prefix = FALSE),
+    collapse = " "
+  ))
+
+  testthat::expect_match(message, "outside the support's span entirely")
+  testthat::expect_match(message, "2008")
+  testthat::expect_match(message, "2009")
+})
+
 testthat::test_that("unallocatable non-item nitrogen names its streams", {
   err <- testthat::expect_error(
     whep:::.ni_allocate_unattributed(
