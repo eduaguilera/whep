@@ -853,21 +853,20 @@ test_that("gleam_mms_shares is a clean tibble", {
   )
 })
 
-test_that("regional_mms_distribution keeps its whep#921 values", {
-  # This table is an unsourced placeholder (see its @source) and it is LIVE:
-  # `.resolve_mms_shares()` weights the Tier 2 manure CH4 methane conversion
-  # factor and the Tier 1 manure direct-N2O EF3 with it. GLEAM 2.0 Supplement
-  # S1 Tables 4.2-4.11 publish real regional shares that disagree materially,
-  # so revaluing this table is a maintainer decision (whep#921), never a
-  # drive-by edit. What is locked here is the two effective factors the table
-  # actually feeds, per (region, species), so any revalue has to come through
-  # a deliberate update of these expectations with its numbers stated.
+test_that("the placeholder half keeps its whep#921 values", {
+  # `source == "placeholder"` is the unsourced table WHEP shipped before the
+  # GLEAM 2.0 ingest (whep#958), kept selectable through the `mms_shares`
+  # engine option so pre-ingest values stay reproducible. It must not drift:
+  # these are the same expectations, arithmetic included, that locked the
+  # whole table before whep#958, so a failure here means the retained half
+  # moved rather than the ingest landing beside it.
   #
-  # The Poultry EF3 of 0.005 is the `dplyr::coalesce()` default, not a table
-  # value: `mms_type` "Poultry Manure" and "Anaerobic Lagoon" match no row of
-  # `ipcc_2019_n2o_ef_direct`, whose labels are "Poultry Manure - High Rise" /
-  # "- Deep Litter" and "Uncovered Anaerobic Lagoon" (all 0.001).
-  mms <- whep::regional_mms_distribution
+  # The arithmetic is deliberately the table\'s own and not the engine\'s
+  # crosswalk: the Poultry EF3 of 0.005 is the `dplyr::coalesce()` default
+  # here, because `mms_type` "Poultry Manure" and "Anaerobic Lagoon" match no
+  # row of `ipcc_2019_n2o_ef_direct` by name.
+  mms <- whep::regional_mms_distribution |>
+    dplyr::filter(.data$source == "placeholder")
   temperate_mcf <- whep::climate_mcf |>
     dplyr::filter(.data$climate_zone == "Temperate") |>
     dplyr::select("mms_type", "mcf_percent")
@@ -919,6 +918,158 @@ test_that("regional_mms_distribution keeps its whep#921 values", {
   testthat::expect_equal(effective$species, expected$species)
   testthat::expect_equal(effective$weighted_mcf, expected$weighted_mcf)
   testthat::expect_equal(effective$weighted_ef3, expected$weighted_ef3)
+})
+
+test_that("regional_mms_distribution carries both halves, each summing to 1", {
+  obj <- whep::regional_mms_distribution
+  assert_clean_tibble(
+    obj,
+    "regional_mms_distribution",
+    c("source", "region", "species", "mms_type", "fraction", "reference"),
+    min_rows = 200L
+  )
+  assert_numeric_cols(obj, "regional_mms_distribution", "fraction")
+  testthat::expect_setequal(unique(obj$source), c("gleam_2_0", "placeholder"))
+  # Every MMS label must be one the manure chain can serve: an unservable one
+  # aborts the engine rather than degrading quietly (whep#950).
+  testthat::expect_true(
+    all(obj$mms_type %in% whep:::.manure_ef3()$mms_type)
+  )
+  sums <- obj |>
+    dplyr::summarise(
+      total = sum(.data$fraction),
+      .by = c("source", "region", "species")
+    )
+  testthat::expect_equal(sums$total, rep(1, nrow(sums)))
+  # No row is left without a citation, and the WHEP-derived Global rows of the
+  # ingest say so where a reader will see it.
+  testthat::expect_false(any(is.na(obj$reference) | obj$reference == ""))
+  testthat::expect_true(
+    all(grepl(
+      "WHEP-derived",
+      obj$reference[obj$source == "gleam_2_0" & obj$region == "Global"] |>
+        setdiff(obj$reference[grepl("unsourced", obj$reference)])
+    ))
+  )
+})
+
+test_that("the GLEAM 2.0 half keeps its whep#958 ingest values", {
+  # `source == "gleam_2_0"` is the ingest of Supplement S1 Tab. 4.2-4.11 made
+  # the default in whep#958, and it is LIVE: `.resolve_mms_shares()` weights
+  # the manure CH4 methane conversion factor and the manure direct-N2O EF3
+  # with it at both tiers. What is locked is the two effective factors it
+  # feeds, per (region, species), computed through the engine\'s own EF3
+  # crosswalk `.manure_ef3()` rather than a name join, so the lock measures
+  # what the engine reads.
+  #
+  # Re-deriving these means re-deciding one of the four crosswalk choices in
+  # `?regional_mms_distribution`; update the expectations deliberately, with
+  # the numbers stated, never as a drive-by.
+  mms <- whep::regional_mms_distribution |>
+    dplyr::filter(.data$source == "gleam_2_0")
+  temperate_mcf <- whep::climate_mcf |>
+    dplyr::filter(.data$climate_zone == "Temperate") |>
+    dplyr::select("mms_type", "mcf_percent")
+
+  effective <- mms |>
+    dplyr::left_join(temperate_mcf, by = "mms_type") |>
+    dplyr::left_join(whep:::.manure_ef3(), by = "mms_type") |>
+    dplyr::summarise(
+      weighted_mcf = sum(.data$fraction * .data$mcf_percent / 100),
+      weighted_ef3 = sum(.data$fraction * .data$ef3),
+      .by = c("region", "species")
+    ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  expected <- tibble::tribble(
+    ~region, ~species, ~weighted_mcf, ~weighted_ef3,
+    "Asia", "Buffalo", 0.1545328, 0.00500215,
+    "Eastern Europe", "Buffalo", 0.0447376, 0.00685026,
+    "Global", "Buffalo", 0.0937141, 0.00643663,
+    "Indian Subcontinent", "Buffalo", 0.1333747, 0.00532505,
+    "Latin America", "Buffalo", 0.1798163, 0.00591429,
+    "Middle East", "Buffalo", 0.1517521, 0.00594549,
+    "North America", "Buffalo", 0.0231325, 0.00740964,
+    "Western Europe", "Buffalo", 0.0176289, 0.00819588,
+    "Global", "Camels", 0.0150000, 0.01000000,
+    "Africa", "Cattle", 0.0283737, 0.00732527,
+    "Asia", "Cattle", 0.0350118, 0.00690071,
+    "Eastern Europe", "Cattle", 0.0919500, 0.00566250,
+    "Global", "Cattle", 0.0658414, 0.00694502,
+    "Indian Subcontinent", "Cattle", 0.0331250, 0.00637500,
+    "Latin America", "Cattle", 0.0217500, 0.00865000,
+    "Middle East", "Cattle", 0.0281038, 0.00737924,
+    "North America", "Cattle", 0.1663750, 0.00568000,
+    "Oceania", "Cattle", 0.0328250, 0.00977500,
+    "Western Europe", "Cattle", 0.1289500, 0.00604000,
+    "Africa", "Goats", 0.0190000, 0.00920000,
+    "Asia", "Goats", 0.0257500, 0.00785000,
+    "Eastern Europe", "Goats", 0.0296250, 0.00707500,
+    "Global", "Goats", 0.0230000, 0.00840000,
+    "Indian Subcontinent", "Goats", 0.0187500, 0.00925000,
+    "Latin America", "Goats", 0.0192500, 0.00915000,
+    "Middle East", "Goats", 0.0257500, 0.00785000,
+    "North America", "Goats", 0.0282500, 0.00735000,
+    "Oceania", "Goats", 0.0150000, 0.01000000,
+    "Western Europe", "Goats", 0.0190000, 0.00920000,
+    "Global", "Horses", 0.0200000, 0.00900000,
+    "Global", "Mules and Asses", 0.0150000, 0.01000000,
+    "Africa", "Poultry", 0.0133333, 0.00400000,
+    "Asia", "Poultry", 0.0182078, 0.00408576,
+    "Eastern Europe", "Poultry", 0.0153051, 0.00431548,
+    "Global", "Poultry", 0.0298560, 0.00452611,
+    "Indian Subcontinent", "Poultry", 0.0216667, 0.00533333,
+    "Latin America", "Poultry", 0.0820873, 0.00474862,
+    "Middle East", "Poultry", 0.0473024, 0.00416755,
+    "North America", "Poultry", 0.0539333, 0.00503000,
+    "Oceania", "Poultry", 0.0133333, 0.00469000,
+    "Western Europe", "Poultry", 0.0180857, 0.00457486,
+    "Africa", "Sheep", 0.0190000, 0.00920000,
+    "Asia", "Sheep", 0.0257500, 0.00785000,
+    "Eastern Europe", "Sheep", 0.0296250, 0.00707500,
+    "Global", "Sheep", 0.0230000, 0.00840000,
+    "Indian Subcontinent", "Sheep", 0.0187500, 0.00925000,
+    "Latin America", "Sheep", 0.0192500, 0.00915000,
+    "Middle East", "Sheep", 0.0257500, 0.00785000,
+    "North America", "Sheep", 0.0282500, 0.00735000,
+    "Oceania", "Sheep", 0.0150000, 0.01000000,
+    "Western Europe", "Sheep", 0.0190000, 0.00920000,
+    "Africa", "Swine", 0.1200331, 0.00443771,
+    "Asia", "Swine", 0.3907504, 0.00263056,
+    "Eastern Europe", "Swine", 0.1731915, 0.00397484,
+    "Global", "Swine", 0.2615385, 0.00350101,
+    "Indian Subcontinent", "Swine", 0.2110037, 0.00413917,
+    "Latin America", "Swine", 0.2179005, 0.00378434,
+    "Middle East", "Swine", 0.2069998, 0.00392767,
+    "North America", "Swine", 0.3355079, 0.00283342,
+    "Oceania", "Swine", 0.5056386, 0.00225895,
+    "Western Europe", "Swine", 0.2811676, 0.00304864
+  ) |>
+    dplyr::arrange(.data$species, .data$region)
+
+  testthat::expect_equal(nrow(mms), 198L)
+  testthat::expect_equal(effective$region, expected$region)
+  testthat::expect_equal(effective$species, expected$species)
+  testthat::expect_equal(
+    effective$weighted_mcf,
+    expected$weighted_mcf,
+    tolerance = 1e-6
+  )
+  testthat::expect_equal(
+    effective$weighted_ef3,
+    expected$weighted_ef3,
+    tolerance = 1e-6
+  )
+  # The lock is not vacuous: a deliberately wrong expectation must fail. The
+  # values come from `whep::regional_mms_distribution`, which resolves through
+  # the package exports, so no binding stub could fake a pass here either.
+  testthat::expect_failure(
+    testthat::expect_equal(
+      effective$weighted_mcf,
+      expected$weighted_mcf + 0.01,
+      tolerance = 1e-6
+    )
+  )
 })
 
 test_that("gleam_animal_weights is a clean tibble", {

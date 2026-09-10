@@ -8,6 +8,13 @@
 reproduces the behaviour in force before whep#949, so passing none leaves
 published values unchanged.
 
+\code{mms_shares} selects which half of \link{regional_mms_distribution} the
+split is read from: \code{"gleam_2_0"} (default) is the GLEAM 2.0 Supplement
+S1 Tab. 4.2-4.11 ingest, \code{"placeholder"} the unsourced table it replaced
+in whep#958. The placeholder stays selectable so the values WHEP
+published before that ingest remain reproducible and the sensitivity to
+it stays measurable; it is not a defensible alternative estimate.
+
 \code{mms_region} selects how the manure-management split in
 \link{regional_mms_distribution} is keyed:
 \itemize{
@@ -17,10 +24,10 @@ otherwise. Tier 1 resolves a region for the (sourced) per-head
 N-excretion table and so takes the region-specific split; Tier 2 carries
 no region and so takes the Global one.
 \item \code{"resolve"}: the IPCC region is resolved from \code{iso3}, \code{area_code} or
-\code{polity_area_code} where it is missing, which makes the table's four
-region-specific \verb{(region, species)} pairs live on the Tier 2 path too.
-Those four pairs are an unsourced placeholder (whep#921), which is why
-this is opt-in rather than the default.
+\code{polity_area_code} where it is missing, which makes the table's
+region-specific rows live on the Tier 2 path too. Opt-in because it
+changes which rows of the table apply, not because the rows are
+doubtful: since whep#958 they are the GLEAM 2.0 ingest.
 \item \code{"global"}: every row takes the \code{region == "Global"} split, whatever
 region column it carries.
 }

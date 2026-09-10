@@ -5,45 +5,99 @@
 \alias{regional_mms_distribution}
 \title{Regional MMS distribution.}
 \format{
-A tibble with \code{region}, \code{species}, \code{mms_type},
-\code{fraction}.
+A tibble with \code{source}, \code{region}, \code{species}, \code{mms_type}, \code{fraction}
+and \code{reference}. \code{source} is either "gleam_2_0" or "placeholder", and is
+the value the manure engines' MMS-shares option takes (see
+\link{manure_engine_options}). \code{reference} cites each row. \code{fraction} sums to
+one within every \verb{(source, region, species)}. \code{region} is the IPCC label
+vocabulary \code{.add_ipcc_region()} emits, plus a "Global" fallback.
 }
 \source{
-Unverified. The values are a hardcoded \code{tribble()} in
-\code{generate_ipcc_tier2_params()} in \code{data-raw/livestock_coefficients.R},
-annotated there "GLEAM 3.0 / FAO statistics (simplified)"; they are round
-to the nearest 5 percentage points and match no table of the committed
-GLEAM 3.0 Supplement S1 workbook, which carries no MMS shares. Unlike
-\code{gleam_mms_shares} this object \strong{is} result-affecting, through
-\code{.resolve_mms_shares()}: it weights the Tier 2 manure CH4 methane
-conversion factor (\code{climate_mcf}) and the Tier \strong{1} manure direct-N2O
-emission factor (\code{ipcc_2019_n2o_ef_direct}). It does not reach Tier 2
-direct N2O, whose rows carry no \code{region} column and so take the pasture
-EF3 for every stream (measured, whep#921).
+\code{source == "gleam_2_0"} is ingested from Tables 4.2-4.11 of Supplement S1
+to FAO. 2018. \emph{GLEAM Model description, Version 2.0, Revision 5}, July
+2018, data reference year 2010 (workbook
+\url{https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx},
+219715 bytes, md5 \verb{72fd2ea477dfe8b30cd3657b2baa4af1}, re-downloaded from
+FAO and verified 2026-09-09; FAO issues no DOI). Those ten tables are the
+only published regional MMS shares in any GLEAM release: version 3.0
+dropped the family, and its Supplement S1 carries MMS \emph{definitions} only.
+The read and the crosswalk are in \code{data-raw/livestock_coefficients.R}.
 
-The real shares are published in Supplement S1, Tables 4.2-4.11 of
-FAO. 2018. \emph{GLEAM Model description, Version 2.0, Revision 5} (workbook
-md5 \verb{72fd2ea477dfe8b30cd3657b2baa4af1}, re-downloaded from FAO and
-verified 2026-08-26; see \code{gleam_mms_shares}), per production system
-(dairy / beef / feedlot cattle, dairy / non-dairy buffalo, small
-ruminants, backyard / intermediate / industrial pigs, chickens) over the
-10 GLEAM regions. Adopting them takes four choices that each move
-numbers: collapsing the per-system tables onto \code{species_gen}, collapsing
-GLEAM's regions onto the IPCC labels \code{.add_ipcc_region()} emits, deriving
-the \code{Global} row GLEAM does not publish, and mapping GLEAM's richer MMS
-vocabulary (Drylot, Pit storage, Burned for fuel, Uncovered anaerobic
-lagoon) onto \code{mms_type}. Under one illustrative crosswalk (equal weights
-throughout) on FAOSTAT 2020 head counts, whep#921 measured Tier 1 manure
-direct N2O -11.1\% (Buffalo -57\%, Poultry +22\%), Tier 1 manure CO2e
--4.2\% and Tier 2 manure CH4 -26.9\%. Treat as unverified until a
-crosswalk is chosen.
+The published grain is finer than this table's on three axes at once, so
+the ingest is a crosswalk and each of its four choices moves numbers
+(whep#958). Stated here, and at the point of use in the builder:
+\enumerate{
+\item \strong{Species collapse.} GLEAM publishes one table per production system;
+this table is keyed on \code{species_gen}. Systems are averaged
+\strong{unweighted} within a species and region, counting only the systems
+the source publishes a column for. A herd- or manure-weighted mean
+would be better and is \strong{not available from the source}: Supplement
+S1 publishes herd \emph{parameters} (Tab. 2.4-2.21) and no regional animal
+numbers or system shares anywhere. Tab. 4.4 (feedlot cattle) is not
+read: GLEAM models the feedlot as a sub-system of the beef herd, so
+reading it would give a minority system a third of all cattle manure.
+The equal-weight collapse is coarsest for poultry, where the flat
+backyard assumption (50 percent pasture, 50 percent daily spread,
+identical in all ten regions) gets a third of the weight.
+\item \strong{Region collapse.} GLEAM's 10 regions are mapped onto the IPCC
+labels \code{.add_ipcc_region()} emits. Only one pair collides -- the
+Russian Federation and Eastern Europe both map to \code{"Eastern Europe"}
+-- and those two published columns are averaged unweighted.
+\item \strong{The \code{Global} row.} GLEAM publishes no global row, and most WHEP
+output resolves to \code{"Global"} (whep#678), so the row carrying the most
+weight is the one with no published value. It is the unweighted mean
+over the 10 GLEAM regions of the species-collapsed distributions,
+counting a region only where the source publishes one, and taken over
+the 10 published regions rather than the 9 IPCC labels so that the
+Russian Federation and Eastern Europe keep one vote each. \strong{This row
+is WHEP-derived, not FAO-published}, and its \code{reference} says so.
+\item \strong{MMS vocabulary.} GLEAM names 14 systems; WHEP's manure chain serves
+six labels and only six, in all four tables it reads by MMS name.
+Pasture, daily spread, solid storage, liquid slurry, uncovered
+anaerobic lagoon and poultry manure with litter map by identity.
+Drylot maps to \code{"Solid Storage"}, following IPCC's own combined "solid
+storage and dry lot" category, which \link{ipcc_2019_n2o_ef_direct} carries
+at the same EF3; a separate \code{"Dry Lot"} label would give a \emph{lower}
+methane conversion factor (2.5 against 4.0 percent, Temperate). Pit
+storage maps to \code{"Poultry Manure"} for chickens (a layer deep pit is
+IPCC's poultry manure without litter, held at the same EF3 as the
+with-litter row) and to \code{"Liquid/Slurry"} otherwise -- \strong{assumed,
+unverified}, as is intensive-windrow composting to \code{"Solid Storage"}.
+Burned for fuel and anaerobic digester are \strong{excluded} and the rest
+renormalised: neither has a servable WHEP label, both being in
+\link{climate_mcf} only at the unjoinable \code{climate_zone == "All"} and in
+\code{manure_loss_fractions.csv} not at all. Excluding them says the
+excreted nitrogen passes through the systems that remain, which
+overstates those systems; it removes 18.5 percent of published buffalo
+shares (dung burnt for fuel), 5.2 percent of swine and 4.1 percent of
+cattle, and none of the others.
+}
+
+GLEAM 2.0 publishes no manure-management table for horses, camels or
+mules and asses. Those four rows are the placeholder's, retained so the
+engine still resolves a split for them, and flagged unsourced in
+\code{reference}.
+
+\code{source == "placeholder"} is the table WHEP shipped before whep#958:
+a hardcoded \code{tribble()} annotated "GLEAM 3.0 / FAO statistics
+(simplified)", round to the nearest 5 percentage points, matching no
+table of any GLEAM release (whep#921). It is kept selectable so the
+values published before the ingest stay reproducible and the sensitivity
+to the ingest stays measurable. It is \strong{not} a defensible alternative
+estimate.
+
+This object is result-affecting through \code{.resolve_mms_shares()}: it
+weights the Tier 2 manure CH4 methane conversion factor (\link{climate_mcf})
+and the manure direct-N2O emission factor (\link{ipcc_2019_n2o_ef_direct}) at
+both tiers.
 }
 \usage{
 regional_mms_distribution
 }
 \description{
-Fraction of manure managed in each MMS type by region
-and species.
+Fraction of manure managed in each manure-management system (MMS) by region
+and species, in two selectable halves: the GLEAM 2.0 ingest that the manure
+engines read by default, and the unsourced placeholder it replaced.
 }
 \examples{
 regional_mms_distribution

@@ -25,8 +25,9 @@ liquid/slurry 42\%, solid storage 30\%, pasture 27\%, daily spread 1\% in
 GLEAM against 60/30/10 here, and the Sub-Saharan Africa (90/10), Latin
 America (95/5) and South Asia (60/30/10) rows omit the drylot share
 GLEAM gives as 35\%, 42\% and 54\% respectively. Not re-ingested here
-because no function in \verb{R/} reads this object -- the manure chain uses
-\code{regional_mms_distribution}, which is separately unsourced.
+because no function in \verb{R/} reads this object. The manure chain reads
+\link{regional_mms_distribution} instead, which whep#958 re-ingested from the
+same GLEAM 2.0 tables.
 }
 \usage{
 gleam_mms_shares
