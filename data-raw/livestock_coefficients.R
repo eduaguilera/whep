@@ -1717,6 +1717,330 @@ generate_ipcc_2006_tables <- function() {
   )
 }
 
+# GLEAM 2.0 manure-management shares ----
+#
+# Tab. 4.2-4.11 of the GLEAM 2.0 Supplement S1 workbook are the only published
+# regional manure-management (MMS) shares in any GLEAM release: version 3.0
+# dropped the whole table family, which is why the committed 3.0 workbook has
+# no sheet for them. They are read here from
+# data-raw/GLEAM_2.0_Supplement_S1.xlsx, byte-identical (219715 bytes, md5
+# 72fd2ea477dfe8b30cd3657b2baa4af1) to
+# https://www.fao.org/fileadmin/user_upload/gleam/docs/GLEAM_2.0_Supplement_S1.xlsx
+# re-downloaded and verified 2026-09-09.
+#
+# FAO. 2018. GLEAM Model description, Version 2.0, Revision 5, July 2018.
+# Data reference year 2010. FAO issues no DOI for it.
+#
+# The published grain is finer than `regional_mms_distribution`'s in three
+# ways at once -- production system, region and MMS vocabulary -- so the
+# ingest is a crosswalk, not a copy. The four choices it forces are whep#958;
+# each one is stated where it is applied below and summarised in the
+# `@source` block of `?regional_mms_distribution`.
+
+# The 10 GLEAM regions, in the column order every Tab. 4.x sheet uses. They
+# are read positionally, not by header: openxlsx reads the "NA" (North
+# America) header as a missing value, and Tab. 4.5 / 4.6 head the same two
+# columns "RUSS" and "OC".
+gleam2_mms_regions <- c(
+  "NA",
+  "RUS",
+  "WE",
+  "EE",
+  "NENA",
+  "ESEA",
+  "OCE",
+  "SA",
+  "LAC",
+  "SSA"
+)
+
+# CHOICE 1 of 4 -- species collapse. GLEAM publishes one table per production
+# system; `regional_mms_distribution` is keyed on `species_gen` alone, so the
+# systems have to be collapsed onto a species.
+#
+# Tab. 4.4 (feedlot cattle) is deliberately NOT read: GLEAM models the feedlot
+# as a sub-system of the beef herd rather than a herd of its own, and WHEP has
+# no feedlot category to attach it to, so reading it would give a minority
+# system a third of the weight of all cattle manure. Tab. 4.7 covers sheep and
+# goats together, so both species take it.
+#
+# Tab. 4.11 holds three systems (Layer / Broiler / Backyard) in one sheet,
+# marked by its "Share (...)" rows, so its system is read from the sheet.
+gleam2_mms_sheets <- function() {
+  tibble::tribble(
+    ~sheet, ~system, ~species,
+    "Tab. 4.2", "Dairy cattle", "Cattle",
+    "Tab. 4.3", "Beef cattle", "Cattle",
+    "Tab. 4.5", "Dairy buffalo", "Buffalo",
+    "Tab. 4.6", "Non-dairy buffalo", "Buffalo",
+    "Tab. 4.7", "Small ruminants", "Sheep",
+    "Tab. 4.7", "Small ruminants", "Goats",
+    "Tab. 4.8", "Backyard pig", "Swine",
+    "Tab. 4.9", "Intermediate pig", "Swine",
+    "Tab. 4.10", "Industrial pig", "Swine",
+    "Tab. 4.11", NA_character_, "Poultry"
+  )
+}
+
+# CHOICE 2 of 4 -- region collapse. GLEAM's 10 regions are mapped onto the
+# IPCC labels `.add_ipcc_region()` emits, so the ingested rows are keyed in
+# exactly the vocabulary the runtime resolves a territory to. That crosswalk
+# sends the Russian Federation and Eastern Europe to the same label, so those
+# two published columns are averaged (unweighted) into one row.
+gleam2_mms_ipcc_region <- function() {
+  tibble::tribble(
+    ~gleam_region, ~region,
+    "NA", "North America",
+    "RUS", "Eastern Europe",
+    "WE", "Western Europe",
+    "EE", "Eastern Europe",
+    "NENA", "Middle East",
+    "ESEA", "Asia",
+    "OCE", "Oceania",
+    "SA", "Indian Subcontinent",
+    "LAC", "Latin America",
+    "SSA", "Africa"
+  )
+}
+
+# CHOICE 4 of 4 -- MMS vocabulary. GLEAM names 14 systems; WHEP's manure chain
+# serves six labels, and only those six, in all four tables it reads by MMS
+# name (`climate_mcf` at the three real climate zones, `.manure_ef3()`,
+# `manure_loss_fractions.csv` and `.mms_manure_type()`). Every GLEAM system is
+# therefore mapped onto one of the six, or excluded:
+#
+# - Six map by identity (pasture, daily spread, solid storage, liquid slurry,
+#   uncovered anaerobic lagoon, poultry manure with litter). GLEAM assumes 50
+#   percent of its liquid slurry carries a natural crust; WHEP's
+#   "Liquid/Slurry" EF3 is the no-crust 0.002, not the 0.0035 a half-and-half
+#   mix would give.
+# - Drylot -> "Solid Storage", following IPCC's own combined category "solid
+#   storage and dry lot", which `ipcc_2019_n2o_ef_direct` carries at the same
+#   EF3 (0.005) as solid storage. The alternative is a separate "Dry Lot"
+#   label, which `climate_mcf` already serves at a LOWER methane conversion
+#   factor (2.5 against 4.0 percent, Temperate).
+# - Composting - intensive windrow -> "Solid Storage". ASSUMED, UNVERIFIED.
+#   Reached only by Tab. 4.4, which is not read, so it moves nothing today.
+# - Pit storage (all three published variants) -> "Poultry Manure" for
+#   chickens, "Liquid/Slurry" otherwise. ASSUMED, UNVERIFIED. A layer deep pit
+#   is IPCC's "poultry manure without litter", which `ipcc_2019_n2o_ef_direct`
+#   holds at the same 0.001 as the with-litter row; a pig pit below the
+#   confinement is a slurry system. WHEP has no pit-storage label of its own,
+#   and adding one needs an MCF and an EF3 this ingest cannot source.
+# - Burned for fuel and anaerobic digester are EXCLUDED, and the remaining
+#   systems renormalised to one. Neither has a servable WHEP label: both are
+#   in `climate_mcf` only at `climate_zone == "All"`, which the MCF join
+#   cannot reach, and neither is in `manure_loss_fractions.csv` at all.
+#   Excluding them says the excreted nitrogen and volatile solids pass through
+#   the systems that remain, which OVERSTATES those systems. It matters most
+#   for buffalo: over the tables read, 18.5 percent of published buffalo
+#   shares are excluded this way (dung burnt for fuel), against 4.1 percent
+#   for cattle and 5.2 percent for swine, and none for the other species.
+gleam2_mms_crosswalk <- function() {
+  tibble::tribble(
+    ~gleam_mms, ~mms_type,
+    "Pasture, range, paddock", "Pasture/Range/Paddock",
+    "Daily spread", "Daily Spread",
+    "Solid storage", "Solid Storage",
+    "Liquid slurry", "Liquid/Slurry",
+    "Liquid slurry*", "Liquid/Slurry",
+    "Uncovered anaerobic lagoon", "Anaerobic Lagoon",
+    "Poultry manure with litter", "Poultry Manure",
+    "Drylot", "Solid Storage",
+    "Composting – intensive windrow", "Solid Storage",
+    "Pit storage", "<pit>",
+    "Pit storage (<1 month)", "<pit>",
+    "Pit storage (>1 month)", "<pit>",
+    "Burned for fuel", NA_character_,
+    "Anaerobic digester", NA_character_
+  )
+}
+
+# Species `regional_mms_distribution` carries that GLEAM 2.0 has no table for.
+# Their rows are the pre-whep#958 placeholder values, kept so the manure engine
+# still resolves a split for them, and flagged unsourced in `reference`.
+gleam2_mms_unsourced_species <- function() {
+  c("Horses", "Camels", "Mules and Asses")
+}
+
+# One Tab. 4.x sheet, long. Returns `system` (from the sheet's "Share (...)"
+# rows, NA where the sheet has only the bare "Share" marker), `gleam_region`,
+# `gleam_mms` and `share_percent`, with the unpublished "-" cells dropped.
+parse_gleam2_mms_sheet <- function(path, sheet) {
+  raw <- openxlsx::read.xlsx(path, sheet = sheet, colNames = FALSE)
+  label <- stringr::str_trim(as.character(raw[[1]]))
+  label[is.na(label)] <- ""
+  is_share <- stringr::str_detect(label, "^Share")
+  block <- label[is_share] |>
+    stringr::str_remove("^Share") |>
+    stringr::str_remove_all("[()]") |>
+    stringr::str_squish()
+  block[block == ""] <- NA_character_
+  is_note <- stringr::str_detect(
+    label,
+    "^(TABLE|Regions:|\\*|Manure management system)"
+  )
+  values <- raw[, 2:11] |>
+    purrr::map(~ suppressWarnings(as.numeric(.x))) |>
+    rlang::set_names(gleam2_mms_regions) |>
+    tibble::as_tibble()
+
+  tibble::tibble(
+    system = c(NA_character_, block)[cumsum(is_share) + 1L],
+    gleam_mms = label,
+    keep = !is_share & !is_note & label != ""
+  ) |>
+    dplyr::bind_cols(values) |>
+    dplyr::filter(.data$keep) |>
+    dplyr::select(-"keep") |>
+    tidyr::pivot_longer(
+      dplyr::all_of(gleam2_mms_regions),
+      names_to = "gleam_region",
+      values_to = "share_percent"
+    ) |>
+    dplyr::filter(!is.na(.data$share_percent))
+}
+
+# Tab. 4.2-4.11 as published, one row per
+# (species, production system, GLEAM region, GLEAM MMS label).
+parse_gleam2_mms <- function(path) {
+  sheets <- gleam2_mms_sheets()
+  unique(sheets$sheet) |>
+    rlang::set_names() |>
+    purrr::map(~ parse_gleam2_mms_sheet(path, .x)) |>
+    purrr::list_rbind(names_to = "sheet") |>
+    dplyr::inner_join(
+      sheets,
+      by = "sheet",
+      suffix = c("", "_sheet"),
+      relationship = "many-to-many"
+    ) |>
+    dplyr::mutate(
+      system = dplyr::coalesce(.data$system, .data$system_sheet)
+    ) |>
+    dplyr::select(
+      "sheet",
+      "species",
+      "system",
+      "gleam_region",
+      "gleam_mms",
+      "share_percent"
+    )
+}
+
+# The published shares crosswalked onto WHEP's six `mms_type` labels and
+# renormalised within each (species, system, GLEAM region), so the excluded
+# systems are reallocated to the ones that remain rather than leaving the
+# split short of one.
+gleam2_mms_by_system <- function(published) {
+  published |>
+    dplyr::left_join(gleam2_mms_crosswalk(), by = "gleam_mms") |>
+    dplyr::mutate(
+      mms_type = dplyr::case_when(
+        is.na(.data$mms_type) ~ NA_character_,
+        .data$mms_type != "<pit>" ~ .data$mms_type,
+        .data$species == "Poultry" ~ "Poultry Manure",
+        .default = "Liquid/Slurry"
+      )
+    ) |>
+    dplyr::filter(!is.na(.data$mms_type), .data$share_percent > 0) |>
+    dplyr::summarise(
+      share = sum(.data$share_percent),
+      .by = c("species", "system", "gleam_region", "mms_type")
+    ) |>
+    dplyr::mutate(
+      fraction = .data$share / sum(.data$share),
+      .by = c("species", "system", "gleam_region")
+    ) |>
+    dplyr::select(-"share")
+}
+
+# Unweighted mean of the distributions in `keys`, over the groups that publish
+# one. A system or region with no published column simply does not vote; a
+# label absent from one voter's distribution counts as zero there, which is
+# what dividing by the number of voters rather than by the number of rows
+# does.
+gleam2_mms_mean <- function(shares, keys, over) {
+  voters <- shares |>
+    dplyr::distinct(dplyr::across(dplyr::all_of(c(keys, over)))) |>
+    dplyr::count(dplyr::across(dplyr::all_of(keys)), name = "n_voters")
+  shares |>
+    dplyr::summarise(
+      fraction = sum(.data$fraction),
+      .by = dplyr::all_of(c(keys, "mms_type"))
+    ) |>
+    dplyr::left_join(voters, by = keys) |>
+    dplyr::mutate(fraction = .data$fraction / .data$n_voters) |>
+    dplyr::select(-"n_voters")
+}
+
+# CHOICE 3 of 4 -- the `Global` row. GLEAM publishes regional tables and no
+# global one, and most WHEP output resolves to `Global` (whep#678), so the row
+# carrying the most weight is the one with no published value.
+#
+# It is derived here as the unweighted mean over the 10 GLEAM regions of the
+# species-collapsed distributions, counting a region only where the source
+# publishes one. A herd-weighted or manure-weighted mean would be better, and
+# is NOT available from the source: Supplement S1 publishes herd *parameters*
+# (Tab. 2.4-2.21: live weights, fertility, mortality, yields) and no regional
+# animal numbers or production-system shares anywhere, so any weighting would
+# have to come from outside GLEAM. Averaging over the 10 published regions
+# rather than over the 9 IPCC labels keeps the Russian Federation and Eastern
+# Europe at one vote each instead of half a vote each.
+#
+# This row is WHEP's, not FAO's. `reference` says so on every row of it.
+gleam2_mms_distribution <- function(path, placeholder) {
+  by_system <- parse_gleam2_mms(path) |>
+    gleam2_mms_by_system()
+  by_region <- gleam2_mms_mean(
+    by_system,
+    keys = c("species", "gleam_region"),
+    over = "system"
+  )
+  global <- by_region |>
+    gleam2_mms_mean(keys = "species", over = "gleam_region") |>
+    dplyr::mutate(
+      region = "Global",
+      reference = paste(
+        "GLEAM 2.0 Supplement S1 Tab. 4.2-4.11, unweighted mean over the",
+        "10 GLEAM regions (WHEP-derived; GLEAM publishes no global row)"
+      )
+    )
+  regional <- by_region |>
+    dplyr::left_join(gleam2_mms_ipcc_region(), by = "gleam_region") |>
+    gleam2_mms_mean(keys = c("species", "region"), over = "gleam_region") |>
+    dplyr::mutate(
+      reference = "GLEAM 2.0 Supplement S1 Tab. 4.2-4.11"
+    )
+  unsourced <- placeholder |>
+    dplyr::filter(
+      .data$species %in% gleam2_mms_unsourced_species(),
+      .data$region == "Global"
+    ) |>
+    dplyr::mutate(
+      reference = paste(
+        "unsourced placeholder retained: GLEAM 2.0 publishes no manure-",
+        "management table for this species (whep#921, whep#958)"
+      )
+    )
+
+  dplyr::bind_rows(global, regional, unsourced) |>
+    dplyr::mutate(
+      fraction = .data$fraction / sum(.data$fraction),
+      .by = c("region", "species")
+    ) |>
+    dplyr::mutate(source = "gleam_2_0") |>
+    dplyr::select(
+      "source",
+      "region",
+      "species",
+      "mms_type",
+      "fraction",
+      "reference"
+    ) |>
+    dplyr::arrange(.data$species, .data$region, .data$mms_type)
+}
+
 # IPCC Tier 2 Parameters ----
 
 generate_ipcc_tier2_params <- function() {
@@ -1913,21 +2237,17 @@ generate_ipcc_tier2_params <- function() {
       "Burned for Fuel",           "All",       10.0
     ),
 
-    # Regional MMS Distribution.
+    # Regional MMS Distribution, the pre-whep#958 placeholder.
     # UNVERIFIED (whep#881, whep#921). Annotated "GLEAM 3.0 / FAO statistics
     # (simplified)" but traceable to no table: the GLEAM 3.0 workbook carries
-    # no MMS shares, and these are round to 5 percentage points. Unlike
-    # gleam_mms_shares this table IS live -- .resolve_mms_shares() weights the
-    # Tier 2 manure CH4 MCF and the Tier 1 manure direct-N2O EF3 with it
-    # (Tier 2 direct N2O never sees it: those rows carry no `region`).
-    # GLEAM 2.0 Supplement S1 Tables 4.2-4.11 publish the real regional
-    # shares, per production system and over the 10 GLEAM regions. Adopting
-    # them needs four crosswalk choices (species collapse, region collapse, a
-    # Global row GLEAM does not publish, and the richer MMS vocabulary), and
-    # whep#921 measured one illustrative crosswalk on FAOSTAT 2020 heads at
-    # Tier 1 direct N2O -11.1% and Tier 2 manure CH4 -26.9%. Maintainer
-    # decision, not a cleanup.
-    regional_mms_distribution = tibble::tribble(
+    # no MMS shares, and these are round to 5 percentage points.
+    # Since whep#958 this is no longer what the manure engines read by
+    # default. It ships as the `source == "placeholder"` half of
+    # `regional_mms_distribution`, selectable with the `mms_shares` engine
+    # option, so the values published before the GLEAM 2.0 ingest stay
+    # reproducible and the sensitivity to the ingest stays measurable.
+    # The sourced half is built by gleam2_mms_distribution() above.
+    regional_mms_placeholder = tibble::tribble(
       ~region, ~species, ~mms_type, ~fraction,
       "North America", "Cattle",
         "Liquid/Slurry", 0.40,
@@ -2174,6 +2494,39 @@ main <- function() {
   # IPCC Tier 2 parameters
   message("\nGenerating IPCC Tier 2 parameters...")
   ipcc_t2_raw <- generate_ipcc_tier2_params()
+
+  # regional_mms_distribution: the GLEAM 2.0 ingest (whep#958) plus the
+  # placeholder it replaced, kept selectable. The workbook is required -- the
+  # sourced half cannot be reconstructed without it, and a silent fall back to
+  # the placeholder is exactly the provenance failure whep#921 was opened for.
+  gleam2_file <- "data-raw/GLEAM_2.0_Supplement_S1.xlsx"
+  if (!file.exists(gleam2_file)) {
+    stop("GLEAM 2.0 workbook not found: ", gleam2_file)
+  }
+  message("\nIngesting GLEAM 2.0 Tab. 4.2-4.11 manure-management shares...")
+  regional_mms_distribution <- dplyr::bind_rows(
+    gleam2_mms_distribution(
+      gleam2_file,
+      ipcc_t2_raw$regional_mms_placeholder
+    ),
+    ipcc_t2_raw$regional_mms_placeholder |>
+      dplyr::mutate(
+        source = "placeholder",
+        reference = paste(
+          "unsourced placeholder, superseded by the GLEAM 2.0 ingest",
+          "(whep#921, whep#958)"
+        )
+      ) |>
+      dplyr::select(
+        "source",
+        "region",
+        "species",
+        "mms_type",
+        "fraction",
+        "reference"
+      )
+  )
+
   ipcc_tier2 <- list(
     ipcc_tier2_energy_coefs = ipcc_t2_raw$energy_coefs,
     ipcc_tier2_ym_values = ipcc_t2_raw$ym_values,
@@ -2183,7 +2536,7 @@ main <- function() {
     livestock_production_defaults = ipcc_t2_raw$production_defaults,
     feed_characteristics = ipcc_t2_raw$feed_characteristics,
     climate_mcf = ipcc_t2_raw$climate_mcf,
-    regional_mms_distribution = ipcc_t2_raw$regional_mms_distribution,
+    regional_mms_distribution = regional_mms_distribution,
     temperature_adjustment = ipcc_t2_raw$temperature_adjustment,
     indirect_n2o_ef = ipcc_t2_raw$indirect_n2o_ef,
     uncertainty_ranges = ipcc_t2_raw$uncertainty_ranges,
