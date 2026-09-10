@@ -864,6 +864,63 @@ testthat::test_that("unattributed Cropland manure stays on cropland support", {
   )
 })
 
+# Two non-item streams, one of them on a cell the support does not cover, so
+# the allocation loses mass and the guard fires. whep#792 reached that abort
+# knowing only the total, which is why the stream decomposition is asserted.
+.nbi_unallocatable_inputs <- function() {
+  dplyr::bind_rows(
+    whep:::.ni_empty(),
+    tibble::tribble(
+      ~lon, ~lat, ~area_code, ~year, ~fert_type, ~n_input_t,
+      0.25, 50.25, 10L, 2010L, "deposition", 4,
+      0.75, 50.25, 10L, 2010L, "som_mineralization", 1400,
+      0.75, 50.75, 10L, 2010L, "som_mineralization", 9
+    ) |>
+      dplyr::mutate(
+        item_cbs_code = NA_integer_,
+        method_recycling_n = NA_character_,
+        method_synthetic = NA_character_
+      )
+  )
+}
+
+testthat::test_that("unallocatable non-item nitrogen names its streams", {
+  err <- testthat::expect_error(
+    whep:::.ni_allocate_unattributed(
+      .nbi_unallocatable_inputs(),
+      list(ag_land_support = .nbi_ag_land_support())
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+  message <- cli::ansi_strip(paste(
+    rlang::cnd_message(err, prefix = FALSE),
+    collapse = " "
+  ))
+
+  # The stream carrying the implausible mass, and how much of it went nowhere.
+  testthat::expect_match(message, "som_mineralization 1409 t N")
+  testthat::expect_match(message, "Unallocated by stream")
+  testthat::expect_match(message, "unallocated: 1409 t N")
+  # Deposition allocated in full, so it must not appear as unallocated.
+  testthat::expect_match(message, "deposition 4 t N")
+  testthat::expect_match(message, "2 source rows sit on a cell-year with no")
+})
+
+testthat::test_that("every placed non-item tonne survives the allocation", {
+  inputs <- dplyr::filter(
+    .nbi_unallocatable_inputs(),
+    is.na(.data$lon) | .data$lon == 0.25
+  )
+
+  out <- whep:::.ni_allocate_unattributed(
+    inputs,
+    list(ag_land_support = .nbi_ag_land_support())
+  )
+
+  testthat::expect_equal(sum(out$n_input_t), 4)
+  testthat::expect_setequal(out$item_cbs_code, c(2511L, 2807L))
+})
+
 testthat::test_that("transported manure is retained as an unattributed agricultural input", {
   applied <- tibble::tibble(
     year = 2010L,

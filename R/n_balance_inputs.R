@@ -909,44 +909,93 @@ build_n_inputs <- function(
     )
 }
 
+# `.source_row` numbers each non-item row so its mass is split across the
+# cropland support of its own cell-year, and so the rows the inner join drops --
+# a cell-year with non-item nitrogen but no cropland support at all -- can still
+# be named once the residual is known.
+#
+# No `support_ha > 0` filter: .ni_land_support already drops every non-positive
+# and NA support area before summarising, so each group's sum is positive by
+# construction and the filter it used to carry could never fire. What actually
+# loses mass here is the inner join, and the residual check below is the only
+# place that loss surfaces.
 .ni_allocate_unattributed <- function(inputs, data) {
   unattributed <- dplyr::filter(inputs, is.na(.data$item_cbs_code))
   if (nrow(unattributed) == 0L) {
     return(inputs)
   }
   support <- .ni_land_support(data)
-  allocated <- unattributed |>
+  sourced <- unattributed |>
     dplyr::select(-"item_cbs_code") |>
-    dplyr::mutate(.source_row = dplyr::row_number()) |>
+    dplyr::mutate(.source_row = dplyr::row_number())
+  allocated <- sourced |>
     dplyr::inner_join(
       dplyr::filter(support, .data$land_use == "cropland"),
       by = c("lon", "lat", "area_code", "year"),
       relationship = "many-to-many"
     ) |>
     dplyr::mutate(
-      support_ha = sum(.data$area_ha),
+      n_input_t = .data$n_input_t * .data$area_ha / sum(.data$area_ha),
       .by = ".source_row"
-    ) |>
-    dplyr::filter(.data$support_ha > 0) |>
-    dplyr::mutate(
-      n_input_t = .data$n_input_t * .data$area_ha / .data$support_ha
-    ) |>
-    dplyr::select(dplyr::all_of(.ni_schema()))
-  source_mass <- sum(unattributed$n_input_t, na.rm = TRUE)
-  allocated_mass <- sum(allocated$n_input_t, na.rm = TRUE)
-  if (!isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
-    cli::cli_abort(c(
-      "Could not allocate all non-item nitrogen over agricultural support.",
-      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N.",
-      i = "{.code polity_validity = \"drop\"} removes support rows whose
-           polity did not exist in that year; a non-item input supplied
-           directly still carries them."
-    ))
-  }
+    )
+  .ni_check_unallocated(sourced, allocated)
   dplyr::bind_rows(
     dplyr::filter(inputs, !is.na(.data$item_cbs_code)),
-    allocated
+    dplyr::select(allocated, dplyr::all_of(.ni_schema()))
   )
+}
+
+# Abort when the cropland support could not carry every non-item tonne, naming
+# the streams on both sides of the loss.
+#
+# Two very different conditions reach this abort and a single pair of totals
+# cannot tell them apart. One is the expected territorial-coverage gap of #423:
+# deposition, urban nitrogen and soil-organic-matter mineralization all have a
+# whole-territory extent, cropland support does not, so a cell with no cropland
+# has nowhere to put its share. The other is one stream arriving at an
+# implausible magnitude -- whep#792 reached this abort with 1,409 Tg N of source
+# mass, of which som_mineralization alone was 1,403 Tg against a whole-territory
+# deposition of 63 Tg, and the message said only "Source: 1409438267 t N".
+# Decomposing both the source and the unallocated residual by fert_type is what
+# separates the two, and it costs one summarise on the failure path only.
+.ni_check_unallocated <- function(sourced, allocated) {
+  source_mass <- sum(sourced$n_input_t, na.rm = TRUE)
+  allocated_mass <- sum(allocated$n_input_t, na.rm = TRUE)
+  if (isTRUE(all.equal(source_mass, allocated_mass, tolerance = 1e-8))) {
+    return(invisible(NULL))
+  }
+  lost <- dplyr::filter(sourced, !.data$.source_row %in% allocated$.source_row)
+  by_source <- .ni_stream_masses(sourced)
+  by_lost <- .ni_stream_masses(lost)
+  cli::cli_abort(
+    c(
+      "Could not allocate all non-item nitrogen over agricultural support.",
+      i = "Source: {source_mass} t N; allocated: {allocated_mass} t N;
+           unallocated: {source_mass - allocated_mass} t N.",
+      i = "Source by stream: {.val {by_source}}.",
+      i = "Unallocated by stream: {.val {by_lost}}.",
+      i = "{nrow(lost)} source row{?s} sit{?s/} on a cell-year with no cropland
+           support, so the allocation join drops them (#423). A
+           {.code polity_validity = \"drop\"} support also removes rows whose
+           polity did not exist in that year."
+    ),
+    class = "whep_n_unallocated_non_item"
+  )
+}
+
+# One "<fert_type> <mass> t N" label per stream, heaviest first, for the abort
+# above. Kept separate so the message body stays readable.
+.ni_stream_masses <- function(rows) {
+  rows |>
+    dplyr::summarise(
+      n_input_t = sum(.data$n_input_t, na.rm = TRUE),
+      .by = "fert_type"
+    ) |>
+    dplyr::arrange(dplyr::desc(.data$n_input_t)) |>
+    dplyr::mutate(
+      label = paste(.data$fert_type, signif(.data$n_input_t, 6), "t N")
+    ) |>
+    dplyr::pull(.data$label)
 }
 
 # ---- 7. Synthetic fertiliser (country total -> crop -> grid) -------------
