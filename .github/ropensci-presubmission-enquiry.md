@@ -73,6 +73,9 @@ Corrections to figures quoted elsewhere in the tracker:
   metadata via merged PR #75, #594 coverage, #189 examples, #595 README
   statement of need, #31 spell check — `tests/spelling.R` and `inst/WORDLIST`
   both present). **#593 is the only one still open.**
+- #46 says `R CMD check` is **0 errors, 0 warnings, 0 notes**. Measured on the
+  latest `main` run: **1 NOTE on all four platforms**, from the spell check
+  #31 added. Details and the two offending words are in §2.2.
 
 ### 2.1 CI surfaces that actually exist
 
@@ -98,16 +101,45 @@ Seven GitHub Actions workflows, all green on `main` at `8004b218`:
   fire on r-universe, which is consistent with the one WARNING above being a
   surface CI cannot see.
 
-### 2.2 The one known hard blocker
+### 2.2 The check is not clean today — two separate things
 
-`rcmdcheck --as-cran` **ERRORs on `main` on any host with more than four
-cores** (#1039; fix in open PR #1047): the bilateral-trade code requests 16
-forked workers against `R CMD check`'s two-core limit. GitHub's runners have
-four cores, so CI is blind to it by luck of the core count rather than by
-design. This is a genuine CRAN blocker for #190 and it is the honest answer to
-"is the package clean?" today. It should be merged before either an rOpenSci
-submission or a CRAN submission, and it is worth saying in the enquiry that
-we know about it.
+**One ERROR that CI cannot see.** `rcmdcheck --as-cran` **ERRORs on `main` on
+any host with more than four cores** (#1039; fix in open PR #1047): the
+bilateral-trade code requests 16 forked workers against `R CMD check`'s
+two-core limit. GitHub's runners have four cores, so CI is blind to it by luck
+of the core count rather than by design. This is a genuine CRAN blocker for
+#190. It should be merged before either an rOpenSci submission or a CRAN
+submission, and it is worth saying in the enquiry that we know about it.
+
+**One NOTE that CI does see, on every platform.** #46 states "`R CMD check` —
+**0 errors, 0 warnings, 0 notes**". That is stale. Measured on the `main` run
+`34340342167` (2026-09-09), all four platforms report:
+
+```
+Status: 1 NOTE
+```
+
+and the NOTE is the spell check that #31 introduced, failing on two words
+absent from `inst/WORDLIST`:
+
+```
+* checking tests ...
+  Running 'spelling.R'
+  Comparing 'spelling.Rout' to 'spelling.Rout.save' ...
+< Potential spelling errors:
+<   WORD          FOUND IN
+<   unanchored    get_bilateral_trade.Rd:30
+<   unexercised   polity_area_crosswalk.Rd:165
+```
+
+This is a two-word fix to `inst/WORDLIST` (or a
+`spelling::update_wordlist()`), and it is deliberately **not** bundled into
+the pull request that added this file — it belongs with #31, not with a docs
+change. But it means neither #46's "0/0/0" claim nor #190's "0 errors / 0
+warnings / **0 notes**" definition of done is currently met, and the gap is
+cheap to close. Note also that a NOTE does not fail our CI: the workflow uses
+`error-on: "warning"`, so notes pass silently. That is why a stale 0/0/0 claim
+could survive in the tracker for a month.
 
 ### 2.3 The data-availability picture (this is better than #593 assumed)
 
@@ -358,8 +390,9 @@ should be checked internally before anyone ticks that box.
 - The year-aware polity model — resolving historical territories back to 1850
   so a series is attributed to the state that existed at the time — is a
   genuinely reusable contribution beyond this project, and beyond agriculture.
-- Engineering readiness is real and measured, not aspirational: 0/0/0-clean
-  `--as-cran` on four platforms (modulo #1039), 83% coverage, 10,830 passing
+- Engineering readiness is real and measured, not aspirational: `--as-cran`
+  with 0 errors and 0 warnings on four platforms (1 NOTE — see §2.2 — and
+  #1039 off a 4-core host), 83% coverage, 10,830 passing
   tests, an offline-enforced suite, 261 of 261 exports with runnable examples,
   no `\dontrun`, `CITATION.cff`, `codemeta.json`, contributing guide, code of
   conduct, MIT licence, pkgdown site, and a second check surface on
@@ -563,12 +596,13 @@ imports. We mention it because it bears on your ability to find reviewers, and
 because if the answer to question 2 above is "scope the review", the size
 problem largely goes away.
 
-**One open check failure.** `R CMD check --as-cran` currently ERRORs on any
-host with more than four cores: one code path requests 16 forked workers
-against the check limit of two. Our CI runners have four cores, so CI does not
-see it. The fix is in an open pull request and will land before any
-submission — we mention it so that a `pkgcheck` run against `main` that
-reports it is not a surprise.
+**Two open check findings**, so that a `pkgcheck` run against `main` does not
+surprise anyone. `R CMD check --as-cran` currently ERRORs on any host with
+more than four cores: one code path requests 16 forked workers against the
+check limit of two. Our CI runners have four cores, so CI does not see it; the
+fix is in an open pull request and will land before any submission. And the
+check reports 1 NOTE on every platform — our spell check flags two words
+missing from the package word list. Both will be closed before we submit.
 
 ## Use of Generative AI
 
@@ -604,12 +638,15 @@ are already closed and measurably passing (§2). What actually remains before a
 submission:
 
 1. Merge PR #1047 so `--as-cran` is clean off a 4-core host (#1039).
-2. Resolve the r-universe macOS `check: WARNING` (§2.1) — currently unread.
-3. Re-run `pkgcheck::pkgcheck(".", goodpractice = TRUE, use_cache = FALSE)`
+2. Close the 1 NOTE: add `unanchored` and `unexercised` to `inst/WORDLIST`
+   (§2.2). Belongs with #31. Two words, and it is the difference between
+   #46's claim and #46's reality.
+3. Resolve the r-universe macOS `check: WARNING` (§2.1) — currently unread.
+4. Re-run `pkgcheck::pkgcheck(".", goodpractice = TRUE, use_cache = FALSE)`
    against `main` and confirm the gates from the measured numbers, not from
    #46's stale table. Mind the two traps recorded in #46: the stale
    `/tmp/rcheck/whep.Rcheck` and the false "no continuous integration checks".
-4. Agree internally how much breaking change we would accept, since §5.1.1
+5. Agree internally how much breaking change we would accept, since §5.1.1
    warns review can require it and we have CRAN users.
 
 ### If the answer is "in scope only if scoped/narrowed" (most likely good case)
@@ -637,8 +674,11 @@ before any more polishing:
 - Nothing in #46's *engineering* content is wasted — coverage, examples,
   spell-check, metadata are all good for CRAN too, and all already done.
 - **#190 is unaffected either way.** Its blockers are CRAN mechanics and
-  correctness (#1039, #183 tarball size, #184 vignette network fetch, and the
-  correctness list), not rOpenSci readiness. #190 should proceed on its own
+  correctness (#1039, the 1 NOTE in §2.2, #183 tarball size, #184 vignette
+  network fetch, and the correctness list), not rOpenSci readiness. Note that
+  #190's definition of done demands **0 notes**, so §2.2's spell-check NOTE is
+  a #190 blocker in its own right, regardless of what rOpenSci says. #190
+  should proceed on its own
   schedule and **should not wait on this enquiry.** The one thing the enquiry
   changes for #190 is the ordering advice in §5.1.1: rOpenSci prefers review
   *before* CRAN publication. Since 0.1.0–0.3.0 are already on CRAN, that ship
