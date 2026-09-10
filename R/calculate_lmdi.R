@@ -582,8 +582,37 @@ calculate_lmdi <- function(
 }
 
 
+# Logarithmic mean of two period sums, the LMDI weight.
+#
+# `a` and `b` are independently accumulated sums, so two mathematically
+# equal totals can still land a few ulps apart. An exact `a == b` test then
+# misses and `(a - b) / log(a / b)` evaluates on pure accumulation residue:
+# it does not error or return Inf, it returns a plausible weight that is
+# wrong by up to 15 percent, and that weight multiplies every factor's
+# log-ratio (#1071). Near equality `log1p()` of the relative difference
+# keeps its significant digits where `log(a / b)` has lost all of them.
+#
+# This is the same stable form as `.ratio_log_mean()` in
+# R/decompose_weighted_ratio.R, adopted here rather than reinvented.
+# Non-positive or missing inputs keep the previous behaviour: an exactly
+# equal pair returns its common value, anything else returns 0.
 .log_mean <- function(a, b) {
-  ifelse(a == b, a, ifelse(a > 0 & b > 0, (a - b) / log(a / b), 0))
+  size <- max(length(a), length(b))
+  a <- rep_len(a, size)
+  b <- rep_len(b, size)
+  difference <- a - b
+  equal <- !is.na(difference) & difference == 0
+  usable <- !is.na(difference) & a > 0 & b > 0
+  near <- usable &
+    !equal &
+    abs(difference) <= sqrt(.Machine$double.eps) * pmax(a, b)
+  far <- usable & !equal & !near
+  result <- rep(0, size)
+  result[is.na(difference)] <- NA_real_
+  result[equal] <- a[equal]
+  result[near] <- difference[near] / log1p(difference[near] / b[near])
+  result[far] <- difference[far] / (log(a[far]) - log(b[far]))
+  result
 }
 
 .parse_identity <- function(identity_expr) {
