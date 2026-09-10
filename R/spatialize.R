@@ -1087,7 +1087,10 @@ build_gridded_landuse <- function(
     cli::cli_abort(c(
       "{.arg cft_mapping} must have one row per \\
        {.field item_prod_code}.",
-      i = "Duplicated code{?s}: {.val {dupes}}."
+      # qty() pinned: `dupes` holds numeric item codes, and a marker with
+      # nothing numeric before it makes cli read the quantity off that vector
+      # and abort on "length(object) == 1 is not TRUE" (#621).
+      i = "{cli::qty(length(dupes))}Duplicated code{?s}: {.val {dupes}}."
     ))
   }
   invisible(cft_mapping)

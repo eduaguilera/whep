@@ -236,3 +236,36 @@ test_that(".fabio_area_bridge aborts on unusable inputs", {
     "ROW"
   )
 })
+
+test_that("the ambiguous-bucket abort names every clashing code (#621)", {
+  # Two codes each folded into two buckets, so the codes reach the message as
+  # an integer vector of length 2. A one-element fixture cannot see this
+  # defect: cli only reads the quantity off a numeric vector when that vector
+  # is longer than one, and then aborts inside its own formatter with
+  # "length(object) == 1 is not TRUE" -- a bare simpleError, so the intended
+  # rlang_error naming the codes never reaches the caller.
+  cw <- tibble::tribble(
+    ~area_code, ~area_iso3c, ~polity_area_code,
+    41L,        "CHN",       41L,
+    41L,        "CHN",       351L,
+    96L,        "HKG",       96L,
+    96L,        "HKG",       351L
+  )
+  cnd <- testthat::expect_error(
+    whep:::.fabio_bridge_whep_buckets(cw, areas = c(41L, 96L)),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd), "41")
+  testthat::expect_match(conditionMessage(cnd), "96")
+  testthat::expect_match(conditionMessage(cnd), "more than one bucket")
+  # One clash still aborts, and now pluralises off the count rather than off
+  # the code's own value: "area 41", not "areas 41".
+  cnd1 <- testthat::expect_error(
+    whep:::.fabio_bridge_whep_buckets(
+      dplyr::filter(cw, area_code == 41L),
+      areas = 41L
+    ),
+    class = "rlang_error"
+  )
+  testthat::expect_match(conditionMessage(cnd1), "folds area 41")
+})

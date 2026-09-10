@@ -3510,7 +3510,12 @@ prepare_multicropping <- function(l_files_dir, output_dir) {
   missing <- setdiff(required, names(nex_source))
   if (length(missing) > 0L) {
     cli::cli_abort(c(
-      "{.arg nex_source} is missing required column{?s}:",
+      # qty() pinned: the column names live in the next bullet, and each
+      # bullet is its own cli format string, so this one carried a marker with
+      # no quantity at all and aborted on "Cannot pluralize without a
+      # quantity" instead of listing the missing columns (#621).
+      "{.arg nex_source} is missing required \\
+       {cli::qty(length(missing))}column{?s}:",
       "x" = "{.val {missing}}."
     ))
   }
