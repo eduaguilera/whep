@@ -179,10 +179,8 @@ picked up from a fresh clone).
 
 ## Running things
 
-`.Rprofile` runs
-[`devtools::load_all()`](https://devtools.r-lib.org/reference/load_all.html)
-on session start, so a plain `Rscript`/`R` session already has the
-package loaded.
+`.Rprofile` runs `devtools::load_all()` on session start, so a plain
+`Rscript`/`R` session already has the package loaded.
 
 ``` r
 
@@ -477,11 +475,10 @@ Conventions of the codebase (follow them; they are how the code reads):
     without `CI` set, so a `skip_on_ci()` test runs there for real. Use
     `skip_on_cran()`, which fires wherever `NOT_CRAN` is unset
     (r-universe, CRAN) while `r-lib/actions/setup-r` and
-    [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
-    both set it. A real-data test that genuinely cannot be rescoped onto
-    a fixture needs **both**. Guarding on a local file or `WHEP_*` env
-    var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests
-    do.
+    `devtools::test()` both set it. A real-data test that genuinely
+    cannot be rescoped onto a fixture needs **both**. Guarding on a
+    local file or `WHEP_*` env var is equally fine — that is what the
+    LPJmL/HWSD/LUH2 smoke tests do.
   - The `offline-tests` job is the enforcement, and it only sees these
     tests because it unsets `CI`. If it fails alone, add a fixture — do
     not skip the test and do not relax the job.
@@ -571,16 +568,12 @@ devtools::test()
 
 ### There are three verification surfaces and they disagree
 
-A green
-[`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
-does **not** mean a green CI. Three layouts exist:
+A green `devtools::test()` does **not** mean a green CI. Three layouts
+exist:
 
-1.  **Source checkout** — what
-    [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
-    runs. `.Rprofile` calls
-    [`devtools::load_all()`](https://devtools.r-lib.org/reference/load_all.html),
-    which pre-attaches every package data object, and `inst/` is
-    present.
+1.  **Source checkout** — what `devtools::test()` runs. `.Rprofile`
+    calls `devtools::load_all()`, which pre-attaches every package data
+    object, and `inst/` is present.
 2.  **`R CMD INSTALL .`** — installs `inst/` **wholesale**, ignoring
     `.Rbuildignore`.
 3.  **Built tarball** — what `R CMD check`, r-universe and CRAN run.
@@ -724,13 +717,13 @@ one (#384 — that is how `regions_full` came to resolve eight areas to
 polities upstream had retired).
 `tests/testthat/test_data_raw_freshness.R` is the gate. It re-runs every
 builder whose inputs live inside the repo, with the
-[`usethis::use_data()`](https://usethis.r-lib.org/reference/use_data.html)
-calls stripped so nothing is written, and compares each rebuilt object
-with the committed `.rda` by content. It covers 49 of the 56 tables; the
-seven it cannot rebuild (the whep-polities GeoPackage, the Coello CSV,
-the GLEAM workbook) are listed there with the input that blocks each
-one, and the list is asserted to be exactly the complement, so a new
-dataset cannot arrive both unchecked and unexcluded.
+`usethis::use_data()` calls stripped so nothing is written, and compares
+each rebuilt object with the committed `.rda` by content. It covers 49
+of the 56 tables; the seven it cannot rebuild (the whep-polities
+GeoPackage, the Coello CSV, the GLEAM workbook) are listed there with
+the input that blocks each one, and the list is asserted to be exactly
+the complement, so a new dataset cannot arrive both unchecked and
+unexcluded.
 
 ## This is the only agent instruction file
 

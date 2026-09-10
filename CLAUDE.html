@@ -121,19 +121,19 @@
 </div>
 <div class="section level2">
 <h2 id="running-things">Running things<a class="anchor" aria-label="anchor" href="#running-things"></a></h2>
-<p><code>.Rprofile</code> runs <code><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">devtools::load_all()</a></code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
+<p><code>.Rprofile</code> runs <code>devtools::load_all()</code> on session start, so a plain <code>Rscript</code>/<code>R</code> session already has the package loaded.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span>filter <span class="op">=</span> <span class="st">"cbs"</span><span class="op">)</span>   <span class="co"># one test file — the cheap inner loop</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span>                 <span class="co"># whole suite, must be 100% green</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="ex">air</span> format .                     <span class="co"># mandatory before committing</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
+<code class="sourceCode R"><span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span>             <span class="co"># after air, to refresh man/</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
 <span>  build_args <span class="op">=</span> <span class="st">"--no-build-vignettes"</span>,</span>
 <span>  args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"--no-tests"</span>, <span class="st">"--ignore-vignettes"</span><span class="op">)</span>,</span>
 <span>  error_on <span class="op">=</span> <span class="st">"error"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu">lintr</span><span class="fu">::</span><span class="fu"><a href="https://lintr.r-lib.org/reference/lint.html" class="external-link">lint_package</a></span><span class="op">(</span><span class="op">)</span>   <span class="co"># linters and exclusions come from .lintr</span></span></code></pre></div>
+<span><span class="fu">lintr</span><span class="fu">::</span><span class="fu">lint_package</span><span class="op">(</span><span class="op">)</span>   <span class="co"># linters and exclusions come from .lintr</span></span></code></pre></div>
 <p>Gotchas worth knowing before losing an hour:</p>
 <ul><li>
 <code>WHEP_*</code> paths belong in <code>~/.Renviron</code> and are read from there. Do <strong>not</strong> add a <code>.Renviron</code> at the repo root: R reads a working-directory <code>.Renviron</code> <em>instead of</em> <code>~/.Renviron</code>, never both, so one here silently hides every <code>WHEP_*</code> path an R session started at the root would otherwise see. That was #456, fixed by moving <code>_R_CHECK_SYSTEM_CLOCK_</code> out of a tracked <code>.Renviron</code> into the R-CMD-check workflow env and <code>.Rprofile</code>.</li>
@@ -238,7 +238,7 @@
 <li>
 <strong>The suite must never reach the network or read a <code>WHEP_*</code> path.</strong> A test that does turns an unrelated outage into a hard <code>R CMD check</code> ERROR (#490). Stub the reader with <code><a href="https://testthat.r-lib.org/reference/local_mocked_bindings.html" class="external-link">testthat::local_mocked_bindings()</a></code> (43 call sites do this already) or use a fixture under <code>tests/testthat/fixtures/</code>.
 <ul><li>
-<code>skip_on_ci()</code> does <strong>not</strong> enforce this: r-universe runs its check without <code>CI</code> set, so a <code>skip_on_ci()</code> test runs there for real. Use <code>skip_on_cran()</code>, which fires wherever <code>NOT_CRAN</code> is unset (r-universe, CRAN) while <code>r-lib/actions/setup-r</code> and <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> both set it. A real-data test that genuinely cannot be rescoped onto a fixture needs <strong>both</strong>. Guarding on a local file or <code>WHEP_*</code> env var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests do.</li>
+<code>skip_on_ci()</code> does <strong>not</strong> enforce this: r-universe runs its check without <code>CI</code> set, so a <code>skip_on_ci()</code> test runs there for real. Use <code>skip_on_cran()</code>, which fires wherever <code>NOT_CRAN</code> is unset (r-universe, CRAN) while <code>r-lib/actions/setup-r</code> and <code>devtools::test()</code> both set it. A real-data test that genuinely cannot be rescoped onto a fixture needs <strong>both</strong>. Guarding on a local file or <code>WHEP_*</code> env var is equally fine — that is what the LPJmL/HWSD/LUH2 smoke tests do.</li>
 <li>The <code>offline-tests</code> job is the enforcement, and it only sees these tests because it unsets <code>CI</code>. If it fails alone, add a fixture — do not skip the test and do not relax the job.</li>
 </ul></li>
 <li>Access exported objects via <code><a href="https://rdrr.io/r/base/name.html" class="external-link">whep::name</a></code> — never <code>:::</code> or <code><a href="https://rdrr.io/r/utils/getFromNamespace.html" class="external-link">getFromNamespace()</a></code> for something exported. Private helpers are tested directly as <code>whep:::.helper()</code>, which is the established practice. For dynamic access in loops use <code>getExportedValue("whep", nm)</code>.</li>
@@ -268,7 +268,7 @@
 <span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="ex">air</span> format .</span></code></pre></div>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># 2. Document</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/document.html" class="external-link">document</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">document</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 3. Check — WITH TESTS. Do not pass `--no-tests`; see below.</span></span>
 <span><span class="fu">rcmdcheck</span><span class="fu">::</span><span class="fu"><a href="http://r-lib.github.io/rcmdcheck/reference/rcmdcheck.html" class="external-link">rcmdcheck</a></span><span class="op">(</span></span>
@@ -278,12 +278,12 @@
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 4. Test</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">test</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">test</span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="there-are-three-verification-surfaces-and-they-disagree">There are three verification surfaces and they disagree<a class="anchor" aria-label="anchor" href="#there-are-three-verification-surfaces-and-they-disagree"></a></h3>
-<p>A green <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> does <strong>not</strong> mean a green CI. Three layouts exist:</p>
+<p>A green <code>devtools::test()</code> does <strong>not</strong> mean a green CI. Three layouts exist:</p>
 <ol style="list-style-type: decimal"><li>
-<strong>Source checkout</strong> — what <code><a href="https://devtools.r-lib.org/reference/test.html" class="external-link">devtools::test()</a></code> runs. <code>.Rprofile</code> calls <code><a href="https://devtools.r-lib.org/reference/load_all.html" class="external-link">devtools::load_all()</a></code>, which pre-attaches every package data object, and <code>inst/</code> is present.</li>
+<strong>Source checkout</strong> — what <code>devtools::test()</code> runs. <code>.Rprofile</code> calls <code>devtools::load_all()</code>, which pre-attaches every package data object, and <code>inst/</code> is present.</li>
 <li>
 <strong><code>R CMD INSTALL .</code></strong> — installs <code>inst/</code> <strong>wholesale</strong>, ignoring <code>.Rbuildignore</code>.</li>
 <li>
@@ -332,7 +332,7 @@
 <li>Run <code>Rscript data-raw/harmonization_tables.R</code> to rebuild <code>.rda</code> files.</li>
 <li>Run <code>Rscript data-raw/table_mappings.R</code> if <code>regions.csv</code> or <code>items_*.csv</code> changed.</li>
 <li>Run <code>Rscript data-raw/whep_inputs.R</code> if <code>whep_inputs.csv</code> changed.</li>
-</ol><p>Skipping the rebuild is a defect, not an omission: <code>data/*.rda</code> is a committed build product, so an edited CSV that was never rebuilt ships a table disagreeing with its own source, and it looks exactly like a fresh one (#384 — that is how <code>regions_full</code> came to resolve eight areas to polities upstream had retired). <code>tests/testthat/test_data_raw_freshness.R</code> is the gate. It re-runs every builder whose inputs live inside the repo, with the <code><a href="https://usethis.r-lib.org/reference/use_data.html" class="external-link">usethis::use_data()</a></code> calls stripped so nothing is written, and compares each rebuilt object with the committed <code>.rda</code> by content. It covers 49 of the 56 tables; the seven it cannot rebuild (the whep-polities GeoPackage, the Coello CSV, the GLEAM workbook) are listed there with the input that blocks each one, and the list is asserted to be exactly the complement, so a new dataset cannot arrive both unchecked and unexcluded.</p>
+</ol><p>Skipping the rebuild is a defect, not an omission: <code>data/*.rda</code> is a committed build product, so an edited CSV that was never rebuilt ships a table disagreeing with its own source, and it looks exactly like a fresh one (#384 — that is how <code>regions_full</code> came to resolve eight areas to polities upstream had retired). <code>tests/testthat/test_data_raw_freshness.R</code> is the gate. It re-runs every builder whose inputs live inside the repo, with the <code>usethis::use_data()</code> calls stripped so nothing is written, and compares each rebuilt object with the committed <code>.rda</code> by content. It covers 49 of the 56 tables; the seven it cannot rebuild (the whep-polities GeoPackage, the Coello CSV, the GLEAM workbook) are listed there with the input that blocks each one, and the list is asserted to be exactly the complement, so a new dataset cannot arrive both unchecked and unexcluded.</p>
 </div>
 <div class="section level2">
 <h2 id="this-is-the-only-agent-instruction-file">This is the only agent instruction file<a class="anchor" aria-label="anchor" href="#this-is-the-only-agent-instruction-file"></a></h2>

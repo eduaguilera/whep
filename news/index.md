@@ -1641,9 +1641,7 @@
   the three `whep-polities` files existing. It skips on CI, r-universe
   and CRAN, where they do not, so the suite still reads no `WHEP_*` path
   and touches no network — but a maintainer who *can* re-sync now finds
-  out from
-  [`devtools::test()`](https://devtools.r-lib.org/reference/test.html)
-  rather than from a manual audit.
+  out from `devtools::test()` rather than from a manual audit.
 
 - **The cell-polity crosswalk is a pin now, so no user regenerates it
   ([\#694](https://github.com/eduaguilera/whep/issues/694),
@@ -5065,17 +5063,16 @@
   behaviour ([\#139](https://github.com/eduaguilera/whep/issues/139)).
 
 - `get_faostat_data()` no longer attaches and then unloads `FAOSTAT` to
-  make
-  [`FAOSTAT::fillCountryCode()`](https://rdrr.io/pkg/FAOSTAT/man/fillCountryCode.html)
-  see its lazily loaded `FAOcountryProfile`. The ISO3 lookup now loads
-  that dataset explicitly and matches area names itself, reproducing
-  `fillCountryCode()`’s rule (exact match against the six profile name
-  columns, unresolved when several profile rows match). Verified
-  identical on all 232 FAOSTAT area names in `regions_full` and
-  upstream’s `faostat_area_polity_map`: 215 resolve, 0 differences. Two
-  side effects are gone – the user’s `FAOSTAT` session state is left
-  alone, and rows keep their input order instead of being sorted by area
-  name by an internal [`merge()`](https://rdrr.io/r/base/merge.html)
+  make `FAOSTAT::fillCountryCode()` see its lazily loaded
+  `FAOcountryProfile`. The ISO3 lookup now loads that dataset explicitly
+  and matches area names itself, reproducing `fillCountryCode()`’s rule
+  (exact match against the six profile name columns, unresolved when
+  several profile rows match). Verified identical on all 232 FAOSTAT
+  area names in `regions_full` and upstream’s `faostat_area_polity_map`:
+  215 resolve, 0 differences. Two side effects are gone – the user’s
+  `FAOSTAT` session state is left alone, and rows keep their input order
+  instead of being sorted by area name by an internal
+  [`merge()`](https://rdrr.io/r/base/merge.html)
   ([\#520](https://github.com/eduaguilera/whep/issues/520)).
 
 - `citation("whep")` now returns two entries – the package itself,
