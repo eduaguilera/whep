@@ -492,20 +492,34 @@ cft_to_pft <- c(
   r <- terra::rast(tif_path)
   agg_factor <- as.integer(target_res / (5 / 60))
   r_agg <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
-  # whep#1070/#985: `harvest_fraction > 0` is not a tolerance. EarthStat's
-  # float32 rasters carry their own arithmetic residue down to denormals -- the
-  # `brazil` layer's smallest positive cell is 8.24e-42 and 98.3% of its
-  # positive cells are below 1e-12 -- and every one of those was greater than
-  # zero, so 13.886% of the pin's rows were underflow presented as an area. The
-  # floor lives in the package so the reasoning for it is in one place and
-  # under test; `whep:::.crop_pattern_signal_floor()` argues it from EarthStat's
-  # own float32 precision.
+  # whep#1070 and whep#985: `harvest_fraction > 0` is not a tolerance.
+  # EarthStat's float32 rasters carry their own arithmetic residue down to
+  # denormals -- the `brazil` layer's smallest positive cell is 8.24e-42, and
+  # 98.3% of its 510,866 positive cells are below 1e-12 -- and every one of
+  # those is greater than zero, so 13.886% of this pin's rows were underflow
+  # presented as an area. The floor lives in the package so the reasoning for
+  # it is in one place and under test:
+  # `whep:::.crop_pattern_signal_floor()` argues it from EarthStat's own
+  # float32 precision.
+  #
+  # Zeroed, not dropped. The row set of this pin is the raster's footprint for
+  # the crop, and two consumers read absence as something other than zero: the
+  # landuse engine spreads a national area uniformly over a pair's pattern
+  # cells when the pattern carries no signal, and cannot do that for a pair
+  # with no cell at all, while `prepare_spatial_yield_index()` below
+  # coalesces a missing `harvest_fraction` to a weight of 1. Writing zero keeps
+  # both of those seeing what they saw before, so re-pinning moves no number;
+  # dropping the rows would not.
   .raster_to_tibble(r_agg, "harvest_fraction") |>
-    dplyr::filter(
-      !is.na(harvest_fraction),
-      harvest_fraction >= whep:::.crop_pattern_signal_floor()
-    ) |>
-    dplyr::mutate(item_prod_code = item_prod_code)
+    dplyr::filter(!is.na(harvest_fraction), harvest_fraction > 0) |>
+    dplyr::mutate(
+      harvest_fraction = dplyr::if_else(
+        harvest_fraction < whep:::.crop_pattern_signal_floor(),
+        0,
+        harvest_fraction
+      ),
+      item_prod_code = item_prod_code
+    )
 }
 
 # ---- Read one EarthStat fertilizer raster (N, P, or K) ------------------
@@ -1434,10 +1448,19 @@ prepare_crop_patterns <- function(l_files_dir, target_res) {
       mc.cores = n_workers
     )
   }
+  # The floor is re-applied after the sum: several EarthStat crops can map to
+  # one `item_prod_code`, and a sum of sub-floor residues is still residue.
   dplyr::bind_rows(parts) |>
     dplyr::summarise(
       harvest_fraction = sum(harvest_fraction),
       .by = c(lon, lat, item_prod_code)
+    ) |>
+    dplyr::mutate(
+      harvest_fraction = dplyr::if_else(
+        harvest_fraction < whep:::.crop_pattern_signal_floor(),
+        0,
+        harvest_fraction
+      )
     )
 }
 
@@ -1926,12 +1949,28 @@ prepare_yield_inputs <- function(
     dplyr::left_join(crop_patterns, by = c("lon", "lat", "item_prod_code")) |>
     dplyr::mutate(weight = dplyr::coalesce(harvest_fraction, 1.0))
 
+  # A zero weight total is now reachable: whep#1070 writes an EarthStat cell
+  # whose harvested-area fraction is float residue as an exact zero, and a
+  # (country, crop) all of whose yield cells are such cells sums to zero
+  # weight. That used to divide a residue-weighted sum by a residue-weighted
+  # total -- two noise quantities whose ratio is roughly the unweighted mean --
+  # and would now be 0/0. Fall back to the unweighted mean explicitly rather
+  # than dropping the country-crop on a `NaN > 0` that is silently `NA`.
   country_mean_yields <- yields_weighted |>
     dplyr::summarise(
-      country_mean = sum(yield_t_ha * weight, na.rm = TRUE) /
-        sum(weight, na.rm = TRUE),
+      weight_total = sum(weight, na.rm = TRUE),
+      weighted_yield = sum(yield_t_ha * weight, na.rm = TRUE),
+      unweighted_yield = mean(yield_t_ha, na.rm = TRUE),
       .by = c(area_code, item_prod_code)
     ) |>
+    dplyr::mutate(
+      country_mean = dplyr::if_else(
+        weight_total > 0,
+        weighted_yield / weight_total,
+        unweighted_yield
+      )
+    ) |>
+    dplyr::select(area_code, item_prod_code, country_mean) |>
     dplyr::filter(country_mean > 0)
 
   spatial_yield_index <- yields_with_country |>

@@ -1421,7 +1421,7 @@ testthat::test_that("a national table without the value column still warns", {
   )
 })
 
-# whep#1070 / whep#985: float underflow treated as signal ----------------------
+# Float underflow treated as signal (issues 1070 and 985) ---------------------
 
 # A (country, crop) whose whole EarthStat pattern is arithmetic residue. The
 # weights below are the shape the real pin carries: `crop_patterns.parquet`

@@ -624,6 +624,13 @@
     "diagnostic",
     "Reports the (country, crop) pairs with national area but no allocatable
      cell, inside one year of the spatialization.",
+    ".zero_pattern_underflow", "[", "area_code, item_prod_code", 1L,
+    "diagnostic",
+    "`max(harvest_fraction)` over the crop's cells, to count the (country,
+     crop) pairs whose whole pattern was float underflow for the message that
+     says how many fall back to uniform placement. `crop_patterns` is a
+     single-vintage gridded map with no year axis of its own, and the count
+     reaches no value.",
     ".weight_supply_by_value", "mutate", "area_code, proc_group, proc_cbs_code",
     1L, "single_year",
     "`all(price_ok | type != \"supply\")` over one year's supply-use, so a
