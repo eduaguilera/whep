@@ -2120,6 +2120,9 @@ utils::globalVariables(
     # livestock_ghg_extension.R (#1029) — the manure-management split the
     # manure engine stamped, carried through the extension's sum so a
     # non-default `options` run is self-describing downstream
-    "method_mms"
+    "method_mms",
+    # build_cbs.R (#1065) — the reconstructed `production + import - export`
+    # domestic supply of a pre-1962 row, reported when it comes out negative
+    "computed_supply"
   )
 )
