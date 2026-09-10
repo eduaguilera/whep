@@ -2116,6 +2116,19 @@ utils::globalVariables(
     # bilateral_trade.R (#943) — integer copy of the country factor level,
     # used to join a trade matrix's own row/column margins onto the country
     # dimension when no CBS row anchors the item
-    "area_code_int"
+    "area_code_int",
+    # read_raw_inputs.R / build_production.R (#1044) — carrying the FAOSTAT
+    # observation-status flag from the production pin to the CBS. The two
+    # per-unit flags the yield dcast pivots ("Area harvested" and "Production"
+    # are flagged separately), their update-join counterparts, the grouped
+    # fold's own columns, and the character unit the parked lookup joins on
+    "flag_fu",
+    "flag_t",
+    "i.flag_fu",
+    "i.flag_t",
+    ".n_group_flags",
+    "fao_flag_folded",
+    "i.fao_flag_folded",
+    ".join_unit"
   )
 )

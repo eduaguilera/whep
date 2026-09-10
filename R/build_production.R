@@ -109,6 +109,7 @@ build_primary_production <- function(
   cb_extracts <- attr(raw, ".cb_extracts")
 
   clean <- raw |>
+    .ensure_fao_flag() |>
     .fix_production() |>
     dplyr::mutate(value = .round_reproducible(.data$value)) |>
     tibble::as_tibble()
@@ -138,7 +139,13 @@ build_primary_production <- function(
       unit,
       value,
       source,
-      dplyr::any_of("fao_flag")
+      # `all_of()`, not `any_of()`. `any_of()` cannot fail on a missing column
+      # by design, so for as long as `.read_production()` did not carry the
+      # flag this line silently selected nothing and the code still read as
+      # though the flag reached the CBS -- which is what hid whep#1044. The
+      # column is now guaranteed upstream by `.ensure_fao_flag()`, so a future
+      # rename should stop the build rather than empty the column.
+      dplyr::all_of("fao_flag")
     ) |>
     .add_reporting_polity_columns()
 
@@ -283,10 +290,14 @@ build_primary_production <- function(
 
   cb_extracts <- attr(cbs_prod_raw, ".cb_extracts")
 
-  result <- primary_ext |>
-    dplyr::bind_rows(grassland) |>
+  prod_long <- primary_ext |>
+    dplyr::bind_rows(grassland)
+  fao_flags <- .production_flag_lookup(prod_long)
+
+  result <- prod_long |>
     .add_historical_yields(int_yields) |>
     .finalise_primary() |>
+    .attach_production_flags(fao_flags) |>
     dplyr::bind_rows(fao_slaughter) |>
     .filter_years(output_years)
 
@@ -383,6 +394,18 @@ build_primary_production <- function(
       by = by_cols,
       anchor_years = anchor_years
     )
+    # The smoothed value is a linear trend WHEP fitted over the anchor years,
+    # not the figure FAOSTAT published, so the flag goes with the number it
+    # replaced (whep#1044).
+    if ("fao_flag" %in% names(df)) {
+      df[,
+        fao_flag := data.table::fifelse(
+          !is.na(qc_carry_forward) & qc_carry_forward,
+          NA_character_,
+          fao_flag
+        )
+      ]
+    }
   }
 
   df <- .collapse_qc_flags(df)
@@ -1653,7 +1676,7 @@ build_primary_production <- function(
 
 .combine_primary_raw <- function(fao_combined, fao_liv_all) {
   cli::cli_progress_step("Combining primary raw dataset")
-  dplyr::bind_rows(
+  bound <- dplyr::bind_rows(
     fao_combined |>
       dplyr::filter(unit %in% c("ha", "t")) |>
       dplyr::mutate(
@@ -1664,19 +1687,29 @@ build_primary_production <- function(
         )
       ),
     fao_liv_all
-  ) |>
+  )
+  by_cols <- c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "unit"
+  )
+  out <- bound |>
     dplyr::summarise(
       value = sum(value),
       source = source[1L],
-      .by = c(
-        year,
-        area,
-        area_code,
-        item_prod,
-        item_prod_code,
-        unit
-      )
+      .by = dplyr::all_of(by_cols)
     )
+  # `source[1L]` above is an arbitrary pick and always was. The FAOSTAT
+  # observation-status flag must not be, because it is a claim about the summed
+  # value rather than a label for one of its parts -- a FAOSTAT tonnage bound to
+  # a reconstructed fodder tonnage on the same key is not "official" because one
+  # half of it was. Kept when every part agrees, `NA` when they disagree
+  # (whep#581).
+  .add_folded_fao_flags(out, bound, by_cols) |>
+    tibble::as_tibble()
 }
 
 .add_game_meat <- function(df) {
@@ -1705,6 +1738,10 @@ build_primary_production <- function(
     whep::primary_double
   )
 
+  # `yield_double` carries no flag columns and therefore binds as NA. That is
+  # the right answer rather than an omission: a double-product row's tonnage
+  # and area are `.build_double_combined()`'s reconstruction from two reported
+  # series, not a figure FAOSTAT published under a flag (whep#1044).
   dplyr::bind_rows(
     yield_raw |>
       dplyr::filter(
@@ -1716,6 +1753,7 @@ build_primary_production <- function(
 }
 
 .calculate_raw_yields <- function(primary_raw, items_prod) {
+  primary_raw <- .ensure_fao_flag(primary_raw)
   crop_dt <- data.table::as.data.table(primary_raw)[unit %in% c("ha", "t")]
   crop_yield <- data.table::dcast(
     crop_dt,
@@ -1739,11 +1777,14 @@ build_primary_production <- function(
     all.x = TRUE,
     sort = FALSE
   )
+  crop_yield <- .add_crop_yield_flags(crop_yield, crop_dt)
   crop_yield <- tibble::as_tibble(crop_yield)
 
   liv_yield <- primary_raw |>
     dplyr::filter(unit == "t") |>
     dplyr::select(-unit) |>
+    dplyr::rename(flag_t = fao_flag) |>
+    dplyr::mutate(flag_fu = NA_character_) |>
     dplyr::right_join(
       items_prod |>
         dplyr::filter(!is.na(live_anim)) |>
@@ -1821,7 +1862,13 @@ build_primary_production <- function(
         yield_c == 0 | is.infinite(yield_c) | is.nan(yield_c),
         NA_real_,
         yield_c
-      )
+      ),
+      # A flag describes the number it arrived with, so it goes wherever that
+      # number goes -- including to NA. A reported zero is discarded here and
+      # `.impute_missing_values()` replaces it, so keeping its flag would put a
+      # FAOSTAT observation status on WHEP's own estimate (whep#1044).
+      flag_t = dplyr::if_else(is.na(t), NA_character_, flag_t),
+      flag_fu = dplyr::if_else(is.na(fu), NA_character_, flag_fu)
     ) |>
     tidyr::complete(
       year,
@@ -1853,6 +1900,41 @@ build_primary_production <- function(
   src <- src[src[, .I[1L], by = key]$V1]
   src[, .src_rank := NULL]
   src[]
+}
+
+# The FAOSTAT observation-status flag of each of the two quantities the yield
+# dcast folds into columns, pivoted the same way the values are.
+#
+# It has to be per-unit. FAOSTAT flags "Area harvested" and "Production" as
+# separate observations and they disagree, so a single flag for the pair would
+# credit the tonnage's provenance to the hectarage or the other way round --
+# exactly the misattribution whep#953 refused for the CBS sources. Unlike
+# `source`, which `.best_source_by_key()` has to arbitrate down to one per key,
+# there is nothing to arbitrate here: each flag follows its own number.
+#
+# `crop_dt` is unique on (key, unit) -- `.combine_primary_raw()` summed it that
+# way -- which is the same fact the value dcast above relies on, so neither
+# needs a `fun.aggregate`.
+.add_crop_yield_flags <- function(crop_yield, crop_dt) {
+  key <- c("year", "area", "area_code", "item_prod", "item_prod_code")
+  crop_yield[, `:=`(flag_fu = NA_character_, flag_t = NA_character_)]
+  flags <- data.table::dcast(
+    crop_dt,
+    year + area + area_code + item_prod + item_prod_code ~ unit,
+    value.var = "fao_flag"
+  )
+  # A frame carrying only one of the two units still has to come out with both
+  # flag columns, so the caller's shape does not depend on its input.
+  for (unit_col in setdiff(c("ha", "t"), names(flags))) {
+    flags[, (unit_col) := NA_character_]
+  }
+  data.table::setnames(flags, c("ha", "t"), c("flag_fu", "flag_t"))
+  crop_yield[
+    flags,
+    `:=`(flag_fu = i.flag_fu, flag_t = i.flag_t),
+    on = key
+  ]
+  crop_yield
 }
 
 .handle_double_products <- function(yield_raw, primary_double) {
@@ -2059,6 +2141,11 @@ build_primary_production <- function(
   )
 
   out <- out[chars]
+  # Not folded through `.first_non_na_chars()` with `source`: that helper keeps
+  # whichever row's value is non-NA first, which is the arbitrary pick whep#581
+  # ruled out for a flag. `t` and `fu` are summed over the group above, so the
+  # flag of the sum is only defined when every part agrees.
+  out <- .add_folded_fao_flags(out, df, by_cols, c("flag_t", "flag_fu"))
   df[, c(".t_ok", ".fu_ok") := NULL]
   out
 }
@@ -2195,6 +2282,7 @@ build_primary_production <- function(
   )
 
   out <- out[chars]
+  out <- .add_folded_fao_flags(out, df, by_cols, c("flag_t", "flag_fu"))
   df[, .tcbs_ok := NULL]
   out
 }
@@ -2237,6 +2325,15 @@ build_primary_production <- function(
         TRUE ~ "imputed_yield"
       )
     ) |>
+    # The load-bearing guarantee behind `fao_flag` on the production output:
+    # `t2` is `t` exactly when `t` is present and an imputation otherwise, and
+    # `fu2` is `fu` on the same terms. So each flag is valid on precisely the
+    # rows where its own number survived, and NA is asserted rather than
+    # assumed everywhere else (whep#1044).
+    dplyr::mutate(
+      flag_t = dplyr::if_else(is.na(t), NA_character_, flag_t),
+      flag_fu = dplyr::if_else(is.na(fu), NA_character_, flag_fu)
+    ) |>
     dplyr::mutate(
       remove = dplyr::if_else(
         (is.na(group) | group == "Crop products") |
@@ -2256,6 +2353,12 @@ build_primary_production <- function(
   cli::cli_progress_step("Assembling production")
   items <- whep::items_full
 
+  # Each output row takes the flag of the quantity it is: the `ha` row gets
+  # "Area harvested"'s flag, the `t` row gets "Production"'s. The yield rows get
+  # neither. WHEP computes its own yield as t/fu, so FAOSTAT's Yield flag is not
+  # a statement about this number and the two input flags describe different
+  # quantities -- a ratio of an official area and an estimated tonnage is not
+  # "official" (whep#1044).
   ha_df <- yield_all |>
     dplyr::filter(unit == "t_ha") |>
     dplyr::mutate(unit = "ha") |>
@@ -2269,7 +2372,8 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = fu2
+      value = fu2,
+      fao_flag = flag_fu
     )
 
   tonnes_df <- yield_all |>
@@ -2285,10 +2389,12 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = t2
+      value = t2,
+      fao_flag = flag_t
     )
 
   yield_df <- yield_all |>
+    dplyr::mutate(fao_flag = NA_character_) |>
     dplyr::select(
       year,
       area,
@@ -2299,14 +2405,19 @@ build_primary_production <- function(
       live_anim_code,
       unit,
       source,
-      value = yield
+      value = yield,
+      fao_flag
     )
 
+  # No flag: the stock these rows report is `.finalise_livestock()`'s LU/head
+  # conversion averaged over every product of the animal, so it is not a figure
+  # FAOSTAT published for any one of them.
   live_anim_df <- yield_all |>
     dplyr::filter(unit %in% c("t_LU", "t_head")) |>
     dplyr::summarise(
       value = mean(fu2, na.rm = TRUE),
       source = source[1L],
+      fao_flag = NA_character_,
       .by = c(
         year,
         area,
@@ -2755,7 +2866,11 @@ build_primary_production <- function(
       value = value * 3,
       unit = "LU",
       item_prod = "Game",
-      item_prod_code = 1190
+      item_prod_code = 1190,
+      # The tonnage's flag does not describe these rows. A stock inferred from
+      # a meat tonnage through an assumed 3 LU/t factor is WHEP's estimate for
+      # an item FAOSTAT reports no stock for at all (whep#1044).
+      fao_flag = NA_character_
     )
 
   game_heads <- game_lu |>
@@ -3520,6 +3635,66 @@ build_primary_production <- function(
   ]
 
   out
+}
+
+# The grain both ends of the wide detour below share: one row per production
+# key and unit.
+.production_flag_key <- function() {
+  c(
+    "year",
+    "area",
+    "area_code",
+    "item_prod",
+    "item_prod_code",
+    "item_cbs",
+    "item_cbs_code",
+    "live_anim",
+    "live_anim_code",
+    "unit"
+  )
+}
+
+# The FAOSTAT observation-status flags of the long production rows, parked while
+# the values take their wide detour through `.add_historical_yields()` and
+# `.finalise_primary()`, and re-joined on the far side.
+#
+# Parked rather than carried, for the reason `.best_source_by_key()` parks
+# `source` around the yield dcast and the CBS parks it around its pivots: a
+# character passenger cannot cross a `dcast`/`melt` cycle without becoming an id
+# column of it, and this one would have to cross two. What makes parking sound
+# here is that the grain does not change across the detour -- both ends are one
+# row per (key, unit) -- and nothing in between replaces a value that has a
+# flag. `tonnes := ha * t_ha` recomputes `tonnes / ha * ha` wherever the tonnage
+# was reported, and only reaches a back-cast `t_ha` where it was not, in which
+# case there is no flag to invalidate (whep#1044).
+#
+# The fold is over the key WITHOUT `land_use`, which is the one column
+# `.finalise_primary()` drops, so a key split across two land-use labels folds
+# rather than joining twice.
+.production_flag_lookup <- function(df) {
+  by_cols <- .production_flag_key()
+  src <- .ensure_fao_flag(data.table::as.data.table(df))
+  src <- data.table::copy(src[, c(by_cols, "fao_flag"), with = FALSE])
+  src[, unit := as.character(unit)]
+  .fold_fao_flag_by(src, by_cols)
+}
+
+.attach_production_flags <- function(df, flags) {
+  dt <- data.table::as.data.table(df)
+  dt[, fao_flag := NA_character_]
+  if (nrow(flags) == 0L) {
+    return(dt)
+  }
+  # `.finalise_primary()`'s `melt` leaves `unit` a factor; the lookup keys on
+  # the character labels, so the join gets a character column of its own rather
+  # than either side being coerced under it.
+  dt[, .join_unit := as.character(unit)]
+  join_cols <- c(setdiff(.production_flag_key(), "unit"), ".join_unit")
+  data.table::setnames(flags, "unit", ".join_unit")
+  dt[flags, fao_flag := i.fao_flag_folded, on = join_cols]
+  data.table::setnames(flags, ".join_unit", "unit")
+  dt[, .join_unit := NULL]
+  dt
 }
 
 .prod_source_rank <- function(source) {
