@@ -73,7 +73,7 @@ instead, which is 21.7\% above the most nitrogen the molecule can hold:
 methionine is C5H11NO2S with one nitrogen atom, so its mass fraction is
 14.007 over 149.208, or 0.0939 kg N per kg. It is now FEDNA's DL-Metionina
 entry, 58.5\% crude protein and better than 99\% purity, giving 0.0936
-(whep#931; \url{https://www.fundacionfedna.org/ingredientes_para_piensos}).
+(whep#931; \url{https://fundacionfedna.org/ingredientes-para-piensos}).
 The alternative is the other commercial methionine source,
 the hydroxy analogue FEDNA lists as HIDROXI-ANAL MET, which is C5H10O3S
 and holds no nitrogen at all; that is the product \code{codes_coefs_items_full}
