@@ -90,9 +90,9 @@ be negative.
 Measured on a real 1950–1965 build, 151 rows reconstruct a negative
 supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
 output as 121 negative \code{other_uses} rows worth −883.91 Mt (29.2\% of the
-positive pre-1962 \code{other_uses} mass they net against), plus −108.42 Mt
-of \code{production}, −73.69 Mt of \code{feed}, −64.09 Mt of \code{processing} and
-−10.78 Mt of \code{food}.
+positive pre-1962 \code{other_uses} mass they net against), plus −123.22 Mt
+of \code{production}, −76.66 Mt of \code{feed}, −64.62 Mt of \code{processing} and
+−15.61 Mt of \code{food}.
 
 It is \strong{not} a stock draw: 83 of the 151 rows are the United States
 (99.77\% of the mass), the export/(production + import) ratio has median

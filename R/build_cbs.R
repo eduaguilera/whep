@@ -71,9 +71,9 @@
 #'   Measured on a real 1950–1965 build, 151 rows reconstruct a negative
 #'   supply totalling −1,015.70 Mt, all in 1950–1960, and they reach the
 #'   output as 121 negative `other_uses` rows worth −883.91 Mt (29.2% of the
-#'   positive pre-1962 `other_uses` mass they net against), plus −108.42 Mt
-#'   of `production`, −73.69 Mt of `feed`, −64.09 Mt of `processing` and
-#'   −10.78 Mt of `food`.
+#'   positive pre-1962 `other_uses` mass they net against), plus −123.22 Mt
+#'   of `production`, −76.66 Mt of `feed`, −64.62 Mt of `processing` and
+#'   −15.61 Mt of `food`.
 #'
 #'   It is **not** a stock draw: 83 of the 151 rows are the United States
 #'   (99.77% of the mass), the export/(production + import) ratio has median
@@ -2507,8 +2507,8 @@ build_processing_coefs <- function(
 # reconstruct a negative supply, totalling -1,015.70 Mt, in 1950-1960 only.
 # They reach the published output as 121 negative `other_uses` rows worth
 # -883.91 Mt -- 29.2% of the 3,029.43 Mt of positive pre-1962 `other_uses`
-# mass they net against -- plus -108.42 Mt of `production`, -73.69 Mt of
-# `feed`, -64.09 Mt of `processing` and -10.78 Mt of `food`. There are no
+# mass they net against -- plus -123.22 Mt of `production`, -76.66 Mt of
+# `feed`, -64.62 Mt of `processing` and -15.61 Mt of `food`. There are no
 # negative destinies at all from 1962 on.
 #
 # **It is not a stock draw.** 83 of the 151 rows are area 231 (the United
