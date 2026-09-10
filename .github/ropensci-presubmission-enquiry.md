@@ -133,8 +133,11 @@ private board". **That is not what the code does.** Measured:
   their official sources, so each is reproducibly obtainable rather than a
   local accident.
 - **The test suite never reaches the network and never reads a `WHEP_*`
-  path**, and that is enforced by a dedicated `offline-tests` job which unsets
-  `CI` so that `skip_on_ci()` cannot hide anything from it.
+  path**, and that is enforced rather than asserted: the `offline-tests` job
+  runs the whole suite with `http_proxy`/`https_proxy` pointed at a **dead
+  port** (`http://127.0.0.1:9`), an **empty** `XDG_CACHE_HOME` so the pin
+  cache starts cold, and `CI: "false"` so the six `skip_on_ci()` tests run
+  there too and cannot hide from it.
 
 So the fair statement to rOpenSci is not "our data is private". It is: **a
 reviewer can install the package, run every example, run the full test suite
@@ -541,9 +544,10 @@ not currently summarised in one place in the docs.
 **Reviewability.** A reviewer can install the package, run all 261 exports'
 examples, run the full test suite (10,830 passing tests, 83% line coverage) and
 build the pkgdown site with nothing but a clone — the suite never touches the
-network or any local data path, and that is enforced by a dedicated CI job
-that deliberately unsets `CI` so no skip can hide from it. What a reviewer
-**cannot** do without tens of GB of third-party archives and about a dozen
+network or any local data path, and that is enforced rather than asserted by a
+CI job that runs the suite behind a dead proxy, with an empty cache directory,
+and with `CI` set false so that even our `skip_on_ci()` tests run. What a
+reviewer **cannot** do without tens of GB of third-party archives and a dozen
 environment variables is re-run the full pipeline end to end and reproduce a
 published number. Fifteen scripts under `inst/scripts/download/` fetch those
 archives from their official sources, so it is possible, but it is not an
