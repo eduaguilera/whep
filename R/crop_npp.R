@@ -231,7 +231,12 @@ calculate_crop_npp_components <- function(
 #'   as 0 when absent), `crop_npp_dm_t` (kept when present) and
 #'   `residue_soil_dm_t` (enables the soil-residue nitrogen and carbon split).
 #' @return The input tibble with weed dry matter, and nitrogen (`*_n_t`) and
-#'   carbon (`*_c_t`) for product, residue, root, weeds, crop NPP and total NPP.
+#'   carbon (`*_c_t`) for product, residue, root, weeds, crop NPP and total NPP,
+#'   plus `method_weed_npp`: `"supplied"` where `weed_ag_dm_t` arrived and
+#'   `"absent_zero"` where it did not and the weed terms are a fill. Filter on
+#'   it before reading `weed_npp_c_t` or `weed_npp_n_t` as a measurement -- an
+#'   absent weed stream and a weed-free field are the same zero otherwise
+#'   (whep#1034).
 #' @export
 #' @examples
 #' tibble::tibble(item_prod_code = "15", production_t = 100, area_ha = 40) |>
@@ -655,13 +660,27 @@ calculate_npp_carbon_nitrogen <- function(x) {
     dplyr::left_join(coefs, by = "item_prod_code")
 }
 
+# Weed biomass is a genuinely optional input: only
+# `calculate_crop_npp_components()` produces it, and the soil-carbon chain's own
+# default reader does not call that function, so on the default build every weed
+# row here is filled with zero. That fill is documented, but until whep#1034 it
+# was not RECOVERABLE: `weed_npp_c_t` arrived downstream as a column of zeros
+# that `build_soil_carbon_inputs()` accepts as one of its three carbon streams,
+# and `total_npp_c_t == crop_npp_c_t + weed_npp_c_t` holds exactly either way,
+# because zero satisfies a sum. So the row says which it is, per row, before the
+# fill erases the distinction.
 .npp_cn_weeds <- function(x) {
   weed <- whep::whep_coef_table("weed_coefs")
   if (!rlang::has_name(x, "weed_ag_dm_t")) {
-    x <- dplyr::mutate(x, weed_ag_dm_t = 0)
+    x <- dplyr::mutate(x, weed_ag_dm_t = NA_real_)
   }
   dplyr::mutate(
     x,
+    method_weed_npp = dplyr::if_else(
+      is.na(weed_ag_dm_t),
+      "absent_zero",
+      "supplied"
+    ),
     weed_ag_dm_t = tidyr::replace_na(weed_ag_dm_t, 0),
     weed_bg_dm_t = weed_ag_dm_t * weed$root_shoot_ratio_weed,
     weed_npp_dm_t = weed_ag_dm_t + weed_bg_dm_t,

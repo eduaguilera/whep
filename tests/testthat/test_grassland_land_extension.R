@@ -183,3 +183,93 @@ testthat::test_that("active_grazing rejects invalid usable grass yield", {
     )
   )
 })
+
+# whep#1034. The three defects behind that issue all satisfied their own
+# consistency check while an input was missing, so the tests below assert the
+# INADEQUACY of the checks this extension would otherwise be judged by, and
+# that the supplied-assertion fires where they cannot.
+
+testthat::test_that("no grazing intake joins: every check holds at zero", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 10L, 3000L, "ha", 1000,
+    2000L, 20L, 3000L, "ha", 100
+  )
+  # A feed_type vocabulary that moved upstream: nothing says "grass" any more.
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 10L, 3000L, "Grass", 1000,
+    2000L, 20L, 3000L, "Grass", 1000
+  )
+  # What the unguarded code returned, and every property it satisfies.
+  zeroed <- dplyr::mutate(primary_prod, impact_u = 0)
+
+  expect_supplied_guard(
+    identity = all(zeroed$impact_u >= 0) &&
+      all(zeroed$impact_u <= primary_prod$value) &&
+      sum(zeroed$impact_u) <= sum(primary_prod$value),
+    guard = whep::build_grassland_land_extension(
+      source = "luh2",
+      grassland_metric = "active_grazing",
+      usable_grass_yield_dm_t_ha = 2,
+      data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+    )
+  )
+})
+
+testthat::test_that("one country without grazing is still a zero, not an absence", {
+  primary_prod <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~unit, ~value,
+    2000L, 10L, 3000L, "ha", 1000,
+    2000L, 20L, 3000L, "ha", 100
+  )
+  feed_intake <- tibble::tribble(
+    ~year, ~area_code, ~item_cbs_code, ~feed_type, ~intake_dry_matter,
+    2000L, 10L, 3000L, "grass", 1000
+  )
+
+  result <- whep::build_grassland_land_extension(
+    source = "luh2",
+    grassland_metric = "active_grazing",
+    usable_grass_yield_dm_t_ha = 2,
+    data = list(primary_prod = primary_prod, feed_intake = feed_intake)
+  )
+
+  testthat::expect_equal(
+    dplyr::filter(result, area_code == 10L)$impact_u,
+    500
+  )
+  testthat::expect_equal(dplyr::filter(result, area_code == 20L)$impact_u, 0)
+})
+
+testthat::test_that("a renamed Element label is refused, not returned empty", {
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    10, 6655, "Area under cultivation", 2000, 50000
+  )
+  condition <- tryCatch(
+    whep::build_grassland_land_extension(
+      source = "faostat_pasture",
+      data = list(landuse = landuse)
+    ),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(condition$absent, "Area")
+  testthat::expect_match(conditionMessage(condition), "Area under cultivation")
+})
+
+testthat::test_that("a missing pasture item code is refused", {
+  landuse <- tibble::tribble(
+    ~`Area Code`, ~`Item Code`, ~Element, ~Year, ~Value,
+    10, 6621, "Area", 2000, 50000
+  )
+  condition <- tryCatch(
+    whep::build_grassland_land_extension(
+      source = "faostat_pasture",
+      data = list(landuse = landuse)
+    ),
+    whep_absent_label = function(e) e
+  )
+  testthat::expect_identical(condition$absent, "6655")
+  testthat::expect_identical(condition$observed, "6621")
+})
