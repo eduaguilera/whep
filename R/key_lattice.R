@@ -156,7 +156,8 @@ key_lattice_gaps <- function(data, expected, .by = NULL, max_gaps = 1e6) {
 #' @param .by Character vector of grouping columns, or `NULL` for one group.
 #' @param action `"abort"` (default) to raise, `"warn"` to carry on.
 #' @param details Extra `cli` bullets appended to the message, for the caller
-#'   to name its source and its remedy.
+#'   to name its source and its remedy. Interpolated in the caller's own
+#'   environment, so a bullet may name the caller's variables.
 #'
 #' @return `data`, invisibly. Raises or warns with class
 #'   `whep_incomplete_lattice` (and `whep_absent_input`) when a key is
@@ -343,7 +344,7 @@ check_keys_complete <- function(
 # reader to the cause: "year=2023, month=12 is absent" is a truncated run,
 # while "58,795 rows arrived" is no information at all.
 .signal_lattice_gaps <- function(gaps, action, details) {
-  shown <- .lattice_gap_labels(gaps)
+  caller <- rlang::caller_env(2)
   message <- c(
     "{nrow(gaps)} expected key{?s} {?is/are} missing from the lattice.",
     x = "An aggregate over the keys that did arrive is a plausible number that
@@ -353,18 +354,26 @@ check_keys_complete <- function(
     i = "Missing: {.val {shown$labels}}{shown$more}",
     details
   )
+  # `details` is the caller's prose and may name the caller's own variables, so
+  # cli has to interpolate in an environment that carries both: the locals this
+  # message needs, parented on the caller's frame. Without this a `{var}` in a
+  # caller's bullet silently resolves to `stats::var` and cli dies trying to
+  # paste a closure.
+  envir <- rlang::env(caller, gaps = gaps, shown = .lattice_gap_labels(gaps))
   if (identical(action, "abort")) {
     cli::cli_abort(
       message,
       class = c("whep_incomplete_lattice", "whep_absent_input"),
       missing = gaps,
-      call = rlang::caller_env(2)
+      call = caller,
+      .envir = envir
     )
   }
   cli::cli_warn(
     message,
     class = c("whep_incomplete_lattice", "whep_absent_input"),
-    missing = gaps
+    missing = gaps,
+    .envir = envir
   )
 }
 
