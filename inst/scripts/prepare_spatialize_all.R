@@ -492,8 +492,19 @@ cft_to_pft <- c(
   r <- terra::rast(tif_path)
   agg_factor <- as.integer(target_res / (5 / 60))
   r_agg <- terra::aggregate(r, fact = agg_factor, fun = "mean", na.rm = TRUE)
+  # whep#1070/#985: `harvest_fraction > 0` is not a tolerance. EarthStat's
+  # float32 rasters carry their own arithmetic residue down to denormals -- the
+  # `brazil` layer's smallest positive cell is 8.24e-42 and 98.3% of its
+  # positive cells are below 1e-12 -- and every one of those was greater than
+  # zero, so 13.886% of the pin's rows were underflow presented as an area. The
+  # floor lives in the package so the reasoning for it is in one place and
+  # under test; `whep:::.crop_pattern_signal_floor()` argues it from EarthStat's
+  # own float32 precision.
   .raster_to_tibble(r_agg, "harvest_fraction") |>
-    dplyr::filter(!is.na(harvest_fraction), harvest_fraction > 0) |>
+    dplyr::filter(
+      !is.na(harvest_fraction),
+      harvest_fraction >= whep:::.crop_pattern_signal_floor()
+    ) |>
     dplyr::mutate(item_prod_code = item_prod_code)
 }
 
