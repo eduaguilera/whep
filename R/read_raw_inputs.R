@@ -474,6 +474,72 @@
   if (length(distinct_flags) == 1L) distinct_flags else NA_character_
 }
 
+# `.fold_fao_flag()`'s rule applied per group, without calling it once per
+# group. A group that still has two rows after the distinct-flag dedup is a
+# group whose parts disagree, so dropping those leaves exactly the agreeing
+# groups; a group absent from the result joins back as `NA`, which is the same
+# answer. The equivalence is asserted against the scalar helper in
+# `test_read_raw_inputs.R` rather than only claimed here.
+#
+# It is vectorised because the production build folds flags over millions of
+# groups on the way from the pin to the CBS (whep#1044), and a per-group call
+# to the scalar helper is most of what carrying the flag would cost.
+.fold_fao_flag_by <- function(df, by_cols, flag_col = "fao_flag") {
+  dt <- data.table::as.data.table(df)
+  keep <- c(by_cols, flag_col)
+  agreed <- unique(
+    dt[!is.na(dt[[flag_col]]), keep, with = FALSE],
+    by = keep
+  )
+  agreed[, .n_group_flags := .N, by = by_cols]
+  agreed <- agreed[.n_group_flags == 1L, keep, with = FALSE]
+  data.table::setnames(agreed, flag_col, "fao_flag_folded")
+  agreed
+}
+
+# `fao_flag` is present at every step of the production chain once
+# `.read_fao_crop_liv()` has renamed FAOSTAT's `Flag`, but
+# `build_primary_production(.raw_data = )` and the unit-test fixtures hand in
+# frames that never saw the pin. One stable shape lets each step assume the
+# column and lets the final select demand it with `all_of()` rather than
+# quietly selecting nothing, which is what hid whep#1044 for as long as it did.
+.ensure_fao_flag <- function(df, flag_col = "fao_flag") {
+  if (flag_col %in% names(df)) {
+    return(df)
+  }
+  if (data.table::is.data.table(df)) {
+    return(data.table::copy(df)[, (flag_col) := NA_character_])
+  }
+  dplyr::mutate(df, "{flag_col}" := NA_character_)
+}
+
+# Attach folded flags from `src` (the rows before an aggregation) onto `out`
+# (the rows after it).
+#
+# An update-join rather than a `merge()`, for the same reason whep#420 pinned
+# the read order: a `merge()` is free to return `out`'s rows in another order,
+# and the production build's row order is its own output -- `.dedup_production()`
+# restores it from `.I`. Adding a provenance column must not move a row, so the
+# flag is written into `out` in place.
+#
+# Always emits the column, all-`NA` when `src` carries no flag at all, so every
+# step of the production chain has one stable shape and the final select can
+# demand the column with `all_of()` instead of quietly selecting nothing
+# (whep#1044).
+.add_folded_fao_flags <- function(out, src, by_cols, flag_cols = "fao_flag") {
+  dt <- data.table::as.data.table(out)
+  for (col in flag_cols) {
+    dt[, (col) := NA_character_]
+    if (col %in% names(src)) {
+      folded <- .fold_fao_flag_by(src, by_cols, col)
+      if (nrow(folded) > 0L) {
+        dt[folded, (col) := i.fao_flag_folded, on = by_cols]
+      }
+    }
+  }
+  dt
+}
+
 .extract_fao <- function(pin_alias, years = NULL) {
   cb_elements <- c(
     "production",

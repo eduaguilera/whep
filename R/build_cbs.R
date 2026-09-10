@@ -1082,7 +1082,14 @@ build_processing_coefs <- function(
     "unit",
     "element"
   )
-  dt <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+  # The sum is over the production items that map to one CBS item, so the flag
+  # of the CBS row is only defined when every one of them agrees -- a CBS
+  # tonnage built from an official item and an imputed one is neither
+  # (whep#581, whep#1044). Without this the flag would not survive
+  # `.primary_to_cbs()` at all, and the FAOSTAT_prod rows of the CBS would stay
+  # NA however faithfully `build_primary_production()` reported it.
+  agg <- dt[, .(value = sum(value, na.rm = TRUE)), by = by_cols]
+  dt <- .add_folded_fao_flags(agg, dt, by_cols)
   dt <- dt[!is.na(area)]
 
   feed_dt <- dt[item_cbs_code %in% fodder_codes]
