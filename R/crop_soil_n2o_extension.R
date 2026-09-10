@@ -163,7 +163,26 @@ build_crop_soil_n2o_extension <- function(
 
 # Country-total manure N applied to soils (tonnes N) from the FAOSTAT emissions
 # pin (reported in kg N as "Manure applied to soils (N content)").
+#
+# The Item and Element labels are the pin's vocabulary, not WHEP's contract, and
+# this pin has already lost labels once: the frozen revision carries 10 Element
+# labels where its predecessor carried 25. A label that has moved makes this
+# filter match nothing, the stream is then dropped by a `bind_rows()` and a
+# `sum(na.rm = TRUE)` in `.soil_n2o_co2e()`, and the extension ships short by
+# its whole applied-manure term with nothing raised (whep#1016, whep#1034).
 .manure_applied_n_country <- function(manure) {
+  check_labels_supplied(
+    manure,
+    "Element",
+    "Manure applied to soils (N content)",
+    details = c(i = "Source: the {.val faostat-emissions-livestock} pin.")
+  )
+  check_labels_supplied(
+    manure,
+    "Item",
+    "All Animals",
+    details = c(i = "Source: the {.val faostat-emissions-livestock} pin.")
+  )
   manure |>
     dplyr::filter(
       .data$Item == "All Animals",
@@ -182,7 +201,23 @@ build_crop_soil_n2o_extension <- function(
 }
 
 # Country-total synthetic fertiliser N (tonnes N) from the FAOSTAT pin.
+#
+# Same shape, and this pin has already recased a label in a shipped revision:
+# `Export Quantity` became `Export quantity` between two versions. Nothing in
+# the synthetic-fertiliser chain would notice the equivalent happening here.
 .synthetic_n_country <- function(fertilizer) {
+  check_labels_supplied(
+    fertilizer,
+    "Element",
+    "Agricultural Use",
+    details = c(i = "Source: the {.val faostat-fertilizer-nutrients} pin.")
+  )
+  check_labels_supplied(
+    fertilizer,
+    "Item",
+    "Nutrient nitrogen N (total)",
+    details = c(i = "Source: the {.val faostat-fertilizer-nutrients} pin.")
+  )
   fertilizer |>
     dplyr::filter(
       .data$Element == "Agricultural Use",

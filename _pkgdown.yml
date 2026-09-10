@@ -472,6 +472,22 @@ reference:
   - check_table_schema
   - assert_table_schema
 
+- title: Absent-input guards
+  desc: >
+    Assert that an input *arrived*, never that the totals it feeds reconcile.
+    Zero satisfies a sum, so a consistency identity, a conservation check and
+    a row count are all passed by an absence.
+    `check_inputs_supplied()` refuses a column that is missing, or present and
+    identically zero or missing; `check_labels_supplied()` refuses a value
+    vocabulary that no longer carries the labels a filter selects on, and
+    names what it carries instead; `stamp_inputs_supplied()` writes the
+    provenance label the first one reads, which no arithmetic downstream can
+    forge.
+  contents:
+  - check_inputs_supplied
+  - check_labels_supplied
+  - stamp_inputs_supplied
+
 - title: Gap filling functions
   desc: >
     Functions to fill gaps (NA values) in time-dependent variables using different methods.
