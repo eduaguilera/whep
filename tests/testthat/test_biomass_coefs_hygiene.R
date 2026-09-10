@@ -192,3 +192,164 @@ testthat::test_that("no single constituent outweighs its own dry matter", {
     )
   testthat::expect_equal(nrow(fibrous), 0L)
 })
+
+# Formula-derived nitrogen ceilings for the synthetic feed additives (#931).
+# Standard atomic weights, IUPAC 2021 conventional values.
+.bch_atomic_weights <- function() {
+  c(
+    carbon = 12.011,
+    hydrogen = 1.008,
+    nitrogen = 14.007,
+    oxygen = 15.999,
+    sulfur = 32.06,
+    chlorine = 35.45
+  )
+}
+
+# One row per additive whose molecular formula is known. The nitrogen mass
+# fraction of a pure substance is an upper bound on any commercial grade of
+# it, because impurity and moisture can only dilute the molecule.
+.bch_additive_formulas <- function() {
+  weights <- .bch_atomic_weights()
+  tibble::tribble(
+    ~Name_biomass,       ~carbon, ~hydrogen, ~nitrogen, ~oxygen, ~sulfur, ~chlorine,
+    "Methionine",        5,       11,        1,         2,       1,       0,
+    "Lysine",            6,       14,        2,         2,       0,       0,
+    "Threonine",         4,       9,         1,         3,       0,       0,
+    "Tryptophan",        11,      12,        2,         2,       0,       0,
+    "Valine",            5,       11,        1,         2,       0,       0,
+    "Urea",              1,       4,         2,         1,       0,       0,
+    "Choline chloride",  5,       14,        1,         1,       0,       1,
+    "Ammonium chloride", 0,       4,         1,         0,       0,       1
+  ) |>
+    dplyr::mutate(
+      molar_mass = .data$carbon *
+        weights[["carbon"]] +
+        .data$hydrogen * weights[["hydrogen"]] +
+        .data$nitrogen * weights[["nitrogen"]] +
+        .data$oxygen * weights[["oxygen"]] +
+        .data$sulfur * weights[["sulfur"]] +
+        .data$chlorine * weights[["chlorine"]],
+      n_ceiling = weights[["nitrogen"]] * .data$nitrogen / .data$molar_mass
+    ) |>
+    dplyr::inner_join(
+      whep::biomass_coefs |>
+        dplyr::select("Name_biomass", "Product_kgN_kgDM"),
+      by = "Name_biomass"
+    )
+}
+
+testthat::test_that("the additive formula table reaches every shipped row", {
+  # Guards the two invariants below against passing on an empty join. Both
+  # read whep::biomass_coefs, which local_mocked_bindings() cannot stub,
+  # because the package exports environment resolves before the namespace.
+  additives <- .bch_additive_formulas()
+  testthat::expect_equal(nrow(additives), 8L)
+  testthat::expect_false(any(is.na(additives$Product_kgN_kgDM)))
+  # The molar masses are the published ones, so a typo in an atom count shows
+  # up here rather than silently loosening a ceiling.
+  testthat::expect_equal(
+    round(additives$molar_mass[additives$Name_biomass == "Methionine"], 3),
+    149.208
+  )
+  testthat::expect_equal(
+    round(additives$molar_mass[additives$Name_biomass == "Urea"], 3),
+    60.056
+  )
+})
+
+testthat::test_that("no additive holds more nitrogen than its own molecule", {
+  # The bound no measurement can cross: a kilogram of dry Methionine cannot
+  # hold more nitrogen than a kilogram of pure methionine does. Methionine
+  # shipped 0.1143 against a ceiling of 0.0939 until #931; it now carries
+  # FEDNA's DL-Metionina figure. Lysine is the one remaining breach, 5.2%
+  # over the free base, and is pinned rather than fixed because choosing
+  # between the free base and the hydrochloride moves a published number.
+  over <- .bch_additive_formulas() |>
+    dplyr::filter(.data$Product_kgN_kgDM > .data$n_ceiling) |>
+    dplyr::pull("Name_biomass")
+  testthat::expect_setequal(over, "Lysine")
+  # Not vacuous: the same comparison against a deliberately halved ceiling
+  # has to fail, which it can only do if real coefficients are being read.
+  testthat::expect_failure(
+    testthat::expect_setequal(
+      .bch_additive_formulas() |>
+        dplyr::filter(.data$Product_kgN_kgDM > .data$n_ceiling / 2) |>
+        dplyr::pull("Name_biomass"),
+      "Lysine"
+    )
+  )
+})
+
+testthat::test_that("Methionine carries the FEDNA DL-Metionina nitrogen", {
+  # FEDNA's industrial amino acids page gives DL-Metionina 58.5% crude
+  # protein, and the workbook's own convention for this block is crude
+  # protein over 6.25. That is 0.0936, which sits just inside the 0.0939
+  # ceiling above, as a grade of better than 99% purity should (#931).
+  # The standing alternative is the hydroxy analogue, which holds no
+  # nitrogen; pinning the number here makes that switch a visible diff.
+  methionine <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass == "Methionine")
+  testthat::expect_equal(nrow(methionine), 1L)
+  testthat::expect_equal(methionine$Product_kgN_kgDM, 0.0936)
+  # The fresh-matter column is that number times the row's dry matter, the
+  # identity the source workbook enforces on the additive rows.
+  testthat::expect_equal(
+    methionine$N_kgN_kgFM,
+    methionine$Product_kgN_kgDM * methionine$Product_kgDM_kgFM
+  )
+})
+
+testthat::test_that("the wood residue nitrogen coefficients are pinned", {
+  # Issue whep#932 is open on these. Two different quantities are priced
+  # through Average wood: the harvested Wood item, which is stemwood, and
+  # the residue production of forest and shrubland land, relabelled
+  # Firewood, which is branches, bark and foliage. The shipped 0.0030 is
+  # the mean of a beech, a conifer and a holm-oak anchor; the retired pin
+  # carried 0.00095 for the same rows. Pinned so that whichever way #932
+  # settles, the change is deliberate and lands in a diff of this list.
+  wood_rows <- c(
+    "European beech",
+    "Spruce",
+    "Poplar",
+    "Willow, Sallow",
+    "Eucalyptus",
+    "Conifers",
+    "Bark (conifers)",
+    "Bark (broad-leaved tree)",
+    "Broad-leaved tree",
+    "Temperate wood",
+    "Tropical wood",
+    "Average wood",
+    "Holm oak forest",
+    "Mediterranean shrubland",
+    "Shrubland",
+    "Savanna",
+    "Paper",
+    "Charcoal"
+  )
+  wood <- whep::biomass_coefs |>
+    dplyr::filter(.data$Name_biomass %in% wood_rows)
+  testthat::expect_equal(nrow(wood), length(wood_rows))
+  testthat::expect_equal(
+    sort(unique(round(wood$Residue_kgN_kgDM, 6))),
+    c(0.001, 0.003, 0.0035, 0.0045)
+  )
+  anchors <- wood |>
+    dplyr::filter(
+      .data$Name_biomass %in%
+        c("European beech", "Conifers", "Holm oak forest", "Average wood")
+    ) |>
+    dplyr::arrange(.data$Name_biomass)
+  testthat::expect_equal(anchors$Name_biomass, sort(anchors$Name_biomass))
+  testthat::expect_equal(
+    anchors$Residue_kgN_kgDM,
+    c(0.003, 0.0035, 0.001, 0.0045)
+  )
+  # Both items that reach these rows through items_full point at Average
+  # wood, so that single cell is what carries the nitrogen.
+  testthat::expect_equal(
+    wood$Residue_kgN_kgDM[wood$Name_biomass == "Average wood"],
+    0.003
+  )
+})
