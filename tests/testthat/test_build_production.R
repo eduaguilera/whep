@@ -1820,9 +1820,9 @@ test_that(".best_source_by_key ranks a key's competing sources (#937)", {
 }
 
 test_that(".combine_primary_raw folds the FAOSTAT flag over its sum", {
-  # whep#1044: without this the flag never leaves `.read_fao_crop_liv()`, and
-  # the `any_of("fao_flag")` at the end of `build_primary_production()` selects
-  # a column that is never there. The fold rule is whep#581's: the sum of an
+  # Without this fold, the flag never leaves the FAOSTAT read, and the
+  # end-of-pipeline select in build_primary_production picks up a column that
+  # is never there -- whep#1044. The fold rule is whep#581's: the sum of an
   # official tonnage and a reconstructed one is not itself official.
   agreeing <- tibble::tribble(
     ~year, ~area,   ~area_code, ~item_prod, ~item_prod_code, ~unit, ~value, ~source,        ~fao_flag,
