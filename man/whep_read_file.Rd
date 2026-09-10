@@ -84,10 +84,11 @@ production series into the commodity balance.
 
 Its residue quantities are those production numbers times a
 residue-to-product ratio that varies by year and does not exist in this
-repository: 100 of its 116 \code{Name_biomass} items carry between 164 and 252
-distinct ratios across 1961--2021, 33,411 area-item-year keys carry a
-residue of exactly 0, and \code{biomass_coefs$kg_residue_kg_product_FM}
-reproduces only 3,189 of the 472,790 keys where the comparison can be made.
+repository: 100 of its 116 \code{Name_biomass} items carry between 77 and 252
+distinct ratios across 1961--2021 (the 16 that carry one flat ratio are all
+fodder items), 33,411 area-item-year keys carry a residue of exactly 0, and
+\code{biomass_coefs$kg_residue_kg_product_FM} reproduces only 3,189 of the
+472,790 keys where the comparison can be made.
 The ratios are therefore not recoverable here, and the artifact is not
 reproducible from this package.
 
