@@ -1115,8 +1115,32 @@ admin_coverage_prototype <- function() {
   cell_land <- .level_cell_land(support, unique(units$start_year))
   units |>
     dplyr::left_join(cell_land, by = c("lon", "lat", "start_year")) |>
+    .level_drop_dry_cells() |>
     dplyr::mutate(cell_area_frac = land_area_ha / cell_land_ha) |>
     .level_finish_grid()
+}
+
+# THE SAME TREATMENT `.level0_attach_share()` GIVES A CELL WITH NO LAND, which
+# is where the reasoning is stated: a zero denominator has no share to take, so
+# the cell is dropped and reported rather than divided. A polycell that is
+# entirely inland water or ice measures zero land legitimately -- Chilean
+# fjords, Magallanes ice, Quintana Roo lagoons -- and `0 / 0` is `NaN`, which
+# `.level_finish_grid()`'s bound then refuses, aborting a whole depth read over
+# cells that can hold no cropland in the first place. Measured on an
+# eight-country support built from the 2026-09-09 polity snapshot: 30 cells,
+# 136 compartments, 0.3% of the rows.
+.level_drop_dry_cells <- function(grid) {
+  dry <- dplyr::filter(
+    grid,
+    is.na(.data$cell_land_ha) | .data$cell_land_ha <= 0
+  )
+  if (nrow(dry) > 0L) {
+    cli::cli_warn(
+      "{dplyr::n_distinct(dry$lon, dry$lat)} cell{?s} hold no land in at
+       least one interval and carry no allocation; dropped from the grid."
+    )
+  }
+  dplyr::filter(grid, !is.na(.data$cell_land_ha), .data$cell_land_ha > 0)
 }
 
 #' Column names that hold a unit's share of its CONTAINER, not of the cell.

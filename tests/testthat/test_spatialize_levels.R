@@ -4593,3 +4593,38 @@ testthat::test_that("an unknown double_claim rule is refused", {
     class = "rlang_error"
   )
 })
+
+
+testthat::test_that("a depth read drops a cell with no measured land", {
+  # A polycell that is entirely inland water or ice has zero land, so the
+  # land-basis share is 0/0. `.level0_attach_share()` already drops such a
+  # cell and reports it; the depth path divided and then refused its own
+  # `NaN`. Measured on an eight-country support built from the 2026-09-09
+  # polity snapshot: 30 cells, 136 compartments, all of them Chilean fjords,
+  # Magallanes ice and Quintana Roo lagoons.
+  support <- dplyr::bind_rows(
+    .lv_support(),
+    tibble::tibble(
+      polycell_id = "AICHI@3",
+      cell_id = 3L,
+      lon = 138.25,
+      lat = 35.25,
+      polity_code = "JPN-AICHI-1871-2025",
+      area_code = NA_integer_,
+      start_year = 1952L,
+      end_year = 2025L,
+      cell_area_ha = 4000,
+      land_area_ha = 0
+    )
+  )
+  testthat::expect_warning(
+    grid <- whep::read_level_country_grid(
+      level = 1L,
+      support = support,
+      containment = .lv_containment()
+    ),
+    "hold no land"
+  )
+  testthat::expect_false(any(is.na(grid$cell_area_frac)))
+  testthat::expect_false(138.25 %in% grid$lon)
+})
