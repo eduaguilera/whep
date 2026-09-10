@@ -526,3 +526,151 @@ testthat::test_that("aet sums its three components, and checks coverage", {
     "outside the run's coverage"
   )
 })
+
+# ---- partial years (whep#1073) ----------------------------------------
+#
+# Write a monthly cube whose time axis stops mid-year, the shape an
+# interrupted or still-running LPJmL simulation leaves on disk. `n_steps` is
+# deliberately not a multiple of 12.
+.lpjml_hydro_partial_cube <- function(n_steps = 23L) {
+  dir <- withr::local_tempdir(.local_envir = parent.frame())
+  lon <- c(-179.75, -179.25)
+  lat <- c(0.25, 0.75)
+  dim_lon <- ncdf4::ncdim_def("lon", "degrees_east", lon)
+  dim_lat <- ncdf4::ncdim_def("lat", "degrees_north", lat)
+  dim_time <- ncdf4::ncdim_def("time", "months", seq_len(n_steps))
+  var <- ncdf4::ncvar_def(
+    "seepage",
+    "mm",
+    list(dim_lon, dim_lat, dim_time),
+    missval = -9999
+  )
+  path <- file.path(dir, "mseepage.nc")
+  nc <- ncdf4::nc_create(path, list(var))
+  ncdf4::ncvar_put(
+    nc,
+    var,
+    array(1, dim = c(length(lon), length(lat), n_steps))
+  )
+  ncdf4::nc_close(nc)
+  list(dir = dir, n_cells = length(lon) * length(lat))
+}
+
+testthat::test_that("an eleven-month year aborts rather than being summed", {
+  cube <- .lpjml_hydro_partial_cube()
+
+  expect_lattice_guard(
+    # The short annual read is perfectly well-formed: the same row count as a
+    # complete one, no NA, every value finite. Nothing but the lattice can
+    # tell the second year is eleven months of seepage.
+    well_formed = {
+      short <- suppressWarnings(
+        whep::read_lpjml_hydrology(
+          "drainage",
+          run_dir = cube$dir,
+          first_year = 1901L,
+          monthly = FALSE,
+          partial_year = "warn"
+        )
+      )
+      nrow(short) == cube$n_cells * 2L &&
+        !anyNA(short$value) &&
+        all(is.finite(short$value)) &&
+        all(short$value[short$year == 1902L] == 11)
+    },
+    guard = whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE
+    )
+  )
+})
+
+testthat::test_that("the abort names the absent cell-month and the remedy", {
+  cube <- .lpjml_hydro_partial_cube()
+  cnd <- rlang::catch_cnd(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE
+    ),
+    classes = "error"
+  )
+  testthat::expect_s3_class(cnd, "whep_incomplete_lattice")
+  testthat::expect_setequal(cnd$missing$month, 12L)
+  testthat::expect_setequal(cnd$missing$year, 1902L)
+  testthat::expect_equal(nrow(cnd$missing), cube$n_cells)
+  testthat::expect_match(conditionMessage(cnd), "drainage")
+  testthat::expect_match(conditionMessage(cnd), "partial_year")
+})
+
+testthat::test_that("drop excludes the partial year and leaves the rest", {
+  cube <- .lpjml_hydro_partial_cube()
+  read_dropped <- function() {
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE,
+      partial_year = "drop"
+    )
+  }
+  testthat::expect_message(read_dropped(), "Dropped")
+  dropped <- suppressMessages(read_dropped())
+  testthat::expect_equal(nrow(dropped), cube$n_cells)
+  testthat::expect_setequal(dropped$year, 1901L)
+  testthat::expect_true(all(dropped$value == 12))
+})
+
+testthat::test_that("a complete run is untouched by every policy", {
+  cube <- .lpjml_hydro_fixture_cube()
+  policies <- c("abort", "warn", "drop")
+  results <- purrr::map(policies, function(policy) {
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE,
+      partial_year = policy
+    )
+  })
+  testthat::expect_silent(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE
+    )
+  )
+  testthat::expect_equal(results[[2]], results[[1]])
+  testthat::expect_equal(results[[3]], results[[1]])
+})
+
+testthat::test_that("a monthly read is not judged against the lattice", {
+  # The reader returns what the file holds; the caller of a monthly read is
+  # the one who decides what a complete lattice means for its own aggregate.
+  cube <- .lpjml_hydro_partial_cube()
+  monthly <- whep::read_lpjml_hydrology(
+    "drainage",
+    run_dir = cube$dir,
+    first_year = 1901L,
+    monthly = TRUE
+  )
+  testthat::expect_equal(nrow(monthly), cube$n_cells * 23L)
+})
+
+testthat::test_that("an unknown partial_year policy is rejected", {
+  cube <- .lpjml_hydro_fixture_cube()
+  testthat::expect_error(
+    whep::read_lpjml_hydrology(
+      "drainage",
+      run_dir = cube$dir,
+      first_year = 1901L,
+      monthly = FALSE,
+      partial_year = "ignore"
+    ),
+    class = "rlang_error"
+  )
+})

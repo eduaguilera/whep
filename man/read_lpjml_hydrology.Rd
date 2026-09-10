@@ -13,6 +13,7 @@ read_lpjml_hydrology(
   first_year = 1901L,
   monthly = TRUE,
   agg = c("sum", "mean"),
+  partial_year = c("abort", "warn", "drop"),
   data = NULL,
   example = FALSE
 )
@@ -48,6 +49,14 @@ are already one per cell-year-band.}
 \item{agg}{Annual aggregation for \code{monthly = FALSE}, \code{"sum"} (flux default)
 or \code{"mean"} (soil-water default).}
 
+\item{partial_year}{What to do when \code{monthly = FALSE} and a cell-year does
+not carry all twelve months, so that aggregating it would silently return
+a total over eleven. \code{"abort"} (default) refuses, naming the absent
+cell-months; \code{"warn"} returns the short aggregate anyway; \code{"drop"} removes
+the incomplete cell-years and reports how many went, so the year is
+\emph{absent} rather than wrong. Immaterial for the annual per-CFT variables,
+which carry no \code{month}. See \emph{Partial years} below.}
+
 \item{data}{Optional pre-read tibble (\code{lon}, \code{lat}, \code{year}, \code{month},
 \code{value}, plus \code{layer} for \code{"swc"} or \code{band} for \code{"cft_nir"}) used in
 place of reading NetCDF, for testing.}
@@ -70,6 +79,25 @@ variable name, so callers need not know the LPJmL naming quirks. The
 synthetic \code{"aet"} variable sums the three actual-evapotranspiration
 components (transpiration, evaporation, interception).
 }
+\section{Partial years}{
+
+An LPJmL monthly output grows one time step at a time, so a run that was
+interrupted, or is still writing, leaves a final year with fewer than twelve
+steps. Aggregating that year sums \strong{eleven} months and says nothing: no
+value is \code{NA}, the row count is unchanged (one row per cell-year either
+way), and every downstream total and identity goes on balancing over the
+eleven. Reproduced on a real 24-month run truncated to 23 with
+\verb{ncks -d time,0,22}: the second year's summed deep seepage fell 3.05\% over
+500 land cells (98,478 to 95,477 mm), with an identical 3,392-row output and
+no \code{NA} in any land cell (whep#1073).
+
+The refusal lives here, at the reader, because this is where the absence is
+created; once the short annual total is downstream it is indistinguishable
+from a measurement. \verb{years = } was already safe -- the coverage check counts
+only whole years, so requesting a partial one aborts -- and \code{partial_year}
+closes the \code{years = NULL} whole-file read that it does not cover.
+}
+
 \examples{
 read_lpjml_hydrology(example = TRUE)
 }
