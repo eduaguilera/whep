@@ -203,6 +203,17 @@ get_livestock_cbs <- function(primary_prod) {
 
 # Extract per-country import and export totals for live animals
 # from the raw bilateral trade data.
+#
+# The head counts this returns are FAOSTAT's, not model output: the
+# `bilateral_trade` pin's values match the raw FAOSTAT Detailed Trade Matrix
+# exactly. They are, however, only FAOSTAT's `Head` rows. The pin drops every
+# `1000 Head` row -- 89,073 rows and 76,141,882 thousand head over 1986-2021,
+# all of it live broiler chicken, turkey, duck, rabbit and goose trade,
+# against the 11,707,083,640 head the pin does carry -- so those species enter
+# the livestock balance with no live trade at all, and `production` below is
+# their slaughter count alone. Reading the raw pin instead would not recover
+# them, because current code applies the same unit filter. Same class as
+# whep#865, which fixed `1000 An` for `faostat-trade-totals` (#1054).
 .get_livestock_trade_totals <- function(livestock_items) {
   btd <- tryCatch(
     "bilateral_trade" |>

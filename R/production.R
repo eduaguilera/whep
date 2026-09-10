@@ -94,6 +94,8 @@ get_primary_production <- function(years = NULL, example = FALSE) {
 #'    When necessary, FAOSTAT codes are extended for our needs.
 #' - `value`: The amount of residue produced, measured in tonnes.
 #'
+#' @inheritSection whep_read_file The 2025-07-14 pin batch
+#'
 #' @export
 #'
 #' @examples
@@ -103,6 +105,12 @@ get_primary_residues <- function(example = FALSE) {
     return(.example_get_primary_residues())
   }
 
+  # The `crop_residues` pin is predecessor-pipeline output, not a curated
+  # input: its `Product` rows equal the `primary_prod` pin's tonnes to the last
+  # digit, and the year-varying residue ratio behind its `Residue` rows is not
+  # in this repository. See the pin-batch section above for the measurement,
+  # and note that this is where the predecessor's production series enters the
+  # commodity balance (#1054).
   "crop_residues" |>
     whep_read_file() |>
     dplyr::rename_with(tolower) |>

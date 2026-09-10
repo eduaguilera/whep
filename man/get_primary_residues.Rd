@@ -36,6 +36,89 @@ When necessary, FAOSTAT codes are extended for our needs.
 \description{
 Get type and amount of residue produced for each crop production item.
 }
+\section{The 2025-07-14 pin batch}{
+
+Six aliases in \code{\link{whep_inputs}} were published together on 2025-07-14,
+between 12:33:43Z and 12:33:50Z: \code{commodity_balance_sheet},
+\code{bilateral_trade}, \code{processing_coefs}, \code{feed_intake}, \code{primary_prod} and
+\code{crop_residues}. \code{inst/scripts/comparison_report.md} names that batch as
+the "original R-script-based pipeline by the same team", the pipeline this
+package replaced, and four of the six are read only by
+\code{inst/scripts/compare_global_whep.R}, which benchmarks \code{whep} against them
+--- or, for \code{feed_intake}, by nothing at all.
+
+The other two are read on the default build path, and they do \strong{not} share
+a provenance despite sharing a timestamp. Each was established separately
+(#1054), because the timestamp alone establishes nothing.
+\subsection{\code{crop_residues} is predecessor output}{
+
+Read by \code{\link[=get_primary_residues]{get_primary_residues()}}, and from there by
+\code{\link[=build_commodity_balances]{build_commodity_balances()}}. All 475,688 of its \code{Product} rows equal the
+\code{primary_prod} pin's \code{tonnes} values exactly --- no key unmatched on either
+side, no value differing at a relative tolerance of 1e-6 --- so it is a
+downstream artifact of the same predecessor run, carrying that run's
+production series into the commodity balance.
+
+Its residue quantities are those production numbers times a
+residue-to-product ratio that varies by year and does not exist in this
+repository: 100 of its 116 \code{Name_biomass} items carry between 77 and 252
+distinct ratios across 1961--2021 (the 16 that carry one flat ratio are all
+fodder items), 33,411 area-item-year keys carry a residue of exactly 0, and
+\code{biomass_coefs$kg_residue_kg_product_FM} reproduces only 3,189 of the
+472,790 keys where the comparison can be made.
+The ratios are therefore not recoverable here, and the artifact is not
+reproducible from this package.
+
+It is not a small input. \code{\link[=get_primary_residues]{get_primary_residues()}} supplies 7.63 Gt to the
+2010 commodity balance (Straw 3.60 Gt, Other crop residues 2.49 Gt,
+Firewood 1.54 Gt) and 327.7 Gt over 1961--2021, and 3,998 of its 249,095
+output rows carry \code{NA} polity columns because the pin is name-keyed.
+
+Driving the same residue model off a fresh \code{\link[=get_primary_production]{get_primary_production()}} would
+move those numbers. Measured for 2010 at (\code{area_code}, \code{item_prod}): 1.958
+Gt of current production sits on 6,425 keys the pin never sees (809 Mt of
+it primary crops, including the modelled temporary-grassland item), 64.8 Mt
+on 296 keys is pin-only, and of the 8,010 shared keys 538 disagree, putting
+1.102 Gt --- 11.01\% of the pin's shared-key mass --- more than 1\% apart.
+The largest class is rice, 673.9 Mt in the pin against 463.3 Mt fresh, a
+ratio of 0.6876: current code puts rice on a milled-equivalent basis while
+the pin's is paddy, which is a basis difference rather than an error, since
+straw scales with the field crop. The second is fodder, where the current
+build is close to twice the pin on every forage and silage item, the pin
+predating that work. Replacing the pin therefore means choosing a residue
+model, which is a science decision and not a refresh.
+}
+
+\subsection{\code{bilateral_trade} is a curated FAOSTAT input}{
+
+Read by \code{\link[=get_bilateral_trade]{get_bilateral_trade()}} and by the live-animal branch of
+\code{\link[=build_commodity_balances]{build_commodity_balances()}}. Its values are the FAOSTAT Detailed Trade
+Matrix, not model output: against the \code{faostat-trade-bilateral} pin over
+2010, all 296,642 shared \code{tonnes} keys and all 5,102 shared \code{Head} keys
+agree exactly, with not one key differing. Over the full 1986--2021 span it
+carries 83,147,095,412 tonnes against FAOSTAT's 83,159,972,741 on
+CBS-mapped quantity rows, and 11,707,083,640 head against 11,708,244,416.
+
+The only transformations are an aggregation of FAOSTAT trade items onto CBS
+item names, a fold of 18 FAOSTAT areas into area code 999 (Bhutan, Comoros,
+Cook Islands, Equatorial Guinea, Faroe Islands, Marshall Islands,
+Micronesia, Nauru, New Caledonia, North Macedonia, Niue, Seychelles,
+Eswatini, Syrian Arab Republic, China Taiwan Province of, Tonga, Tuvalu and
+Palestine --- 3.18\% of its rows, 1.892\% of its tonnage, 0.492\% of its head
+counts), and a \code{Country_share} column the reader discards. So the shared
+timestamp implies nothing about it, and there is nothing to regenerate:
+what it holds is what FAOSTAT published.
+
+Two things it does not hold. FAOSTAT's \verb{1000 Head} rows are absent
+entirely --- 89,073 rows and 76,141,882 thousand head over 1986--2021,
+against the 11,707,083,640 head the pin does carry, all of it live broiler
+chicken, turkey, duck, rabbit and goose trade --- and so are its 5,011 \code{No}
+rows. Current code drops the same rows when it reads the raw pin, so
+\code{\link[=build_detailed_trade]{build_detailed_trade()}} would not recover them; the same class of unit was
+fixed for \code{faostat-trade-totals} in #865 and is still open here.
+}
+}
+
 \examples{
 get_primary_residues(example = TRUE)
 }
