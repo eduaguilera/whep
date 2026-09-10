@@ -2143,6 +2143,9 @@ utils::globalVariables(
     # build_cbs.R (#1024) — the per-key count of distinct units, used by
     # `.abort_if_units_mixed()` to reject a sum that would add two
     # denominations into one `value`
-    "n_units"
+    "n_units",
+    # build_cbs.R (#1065) — the reconstructed `production + import - export`
+    # domestic supply of a pre-1962 row, reported when it comes out negative
+    "computed_supply"
   )
 )
