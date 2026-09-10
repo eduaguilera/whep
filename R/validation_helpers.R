@@ -181,8 +181,15 @@
     dplyr::filter(.data$n > 1L)
   if (nrow(clashes) > 0L) {
     bad <- clashes$area_code
+    # qty() pinned: `bad` is an integer vector, so with the marker ahead of it
+    # and nothing numeric before, cli reads the quantity off the code vector
+    # and dies on "length(object) == 1 is not TRUE" -- the abort that should
+    # name the clashing codes reports a cli internal instead (#621). One code
+    # does not crash but pluralises off the code's value ("areas 41"), so
+    # pinning fixes the wording too.
     cli::cli_abort(
-      "{.arg crosswalk} folds area{?s} {.val {bad}} into more than one bucket."
+      "{.arg crosswalk} folds {cli::qty(length(bad))}area{?s} {.val {bad}} \\
+       into more than one bucket."
     )
   }
   dplyr::coalesce(lookup$bucket[match(areas, lookup$area_code)], areas)

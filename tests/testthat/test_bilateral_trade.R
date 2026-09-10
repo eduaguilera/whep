@@ -745,6 +745,105 @@ testthat::test_that("'keep' carries the unanchored tonnage into the matrix", {
   testthat::expect_equal(other["20", "10"], 250)
 })
 
+# Fixture with several year-item groups: enough to be split across workers,
+# and unbalanced enough that `.balance_matrix()` does real work on each.
+.worker_invariance_fixture <- function() {
+  countries <- c(10L, 20L, 30L, 40L)
+  keys <- tidyr::expand_grid(
+    year = 2010:2012,
+    item_cbs_code = c(2511L, 2531L)
+  )
+  flows <- tidyr::expand_grid(keys, from_code = countries, to_code = countries)
+  btd <- flows |>
+    dplyr::filter(from_code != to_code) |>
+    dplyr::mutate(
+      unit = "tonnes",
+      # Deterministic, asymmetric, and zero for some pairs so the
+      # missing-flow estimator is exercised too.
+      value = ((from_code * 7L + to_code * 3L + year + item_cbs_code) %% 11L) *
+        10
+    )
+  cbs <- tidyr::expand_grid(keys, area_code = countries) |>
+    dplyr::mutate(
+      export = ((area_code + year) %% 5L) * 100 + 50,
+      import = ((area_code * 3L + item_cbs_code) %% 7L) * 100 + 50
+    )
+  list(btd = btd, cbs = cbs, codes = factor(countries))
+}
+
+testthat::test_that(".process_bilateral_trade output is worker-invariant", {
+  # `.process_bilateral_trade()` claims its result does not depend on the
+  # worker count. Assert it: each group is balanced from its own inputs and
+  # mclapply preserves input order, so 1, 2 and N workers must agree
+  # bit-for-bit.
+  fixture <- .worker_invariance_fixture()
+  nested <- .nest_by_year_item_code(
+    fixture$btd,
+    fixture$cbs,
+    fixture$codes,
+    "drop"
+  )
+  testthat::expect_gt(nrow(nested), 2L)
+
+  # `mclapply(mc.cores > 1)` stops outright on Windows, so the only honest
+  # multi-worker comparison there is none: run serially and let the assertion
+  # below be trivially true rather than erroring. `.parallel_workers()` already
+  # forces 1 on Windows, so the invariant it guards cannot be violated there.
+  worker_counts <- if (.is_windows()) {
+    1L
+  } else if (!.core_limit_in_force() && isTRUE(parallel::detectCores() >= 4L)) {
+    c(1L, 2L, 4L)
+  } else {
+    c(1L, 2L)
+  }
+
+  runs <- purrr::map(worker_counts, function(workers) {
+    testthat::local_mocked_bindings(
+      .parallel_workers = function(...) workers
+    )
+    .process_bilateral_trade(nested, fixture$codes)
+  })
+
+  purrr::walk(runs[-1], function(run) {
+    testthat::expect_identical(run, runs[[1]])
+  })
+  # Guard the guard: the comparison would be vacuous on empty matrices.
+  testthat::expect_true(all(purrr::map_lgl(
+    runs[[1]]$bilateral_trade,
+    function(m) is.matrix(m) && sum(m) > 0
+  )))
+})
+
+testthat::test_that(".process_bilateral_trade obeys the check core limit", {
+  # Regression guard for #1039: `R CMD check --as-cran` sets
+  # `_R_CHECK_LIMIT_CORES_`, and parallel's own guard then aborts above two
+  # processes. Before the fix this asked for half the host's cores, so it
+  # errored on any machine with more than four.
+  withr::local_envvar(c("_R_CHECK_LIMIT_CORES_" = "TRUE"))
+  requested <- NULL
+  testthat::local_mocked_bindings(
+    # `mc.cores` arrives in the dots so the stub's own formals can stay
+    # snake_case; it is the value parallel's guard would have vetted.
+    mclapply = function(values, fn, ...) {
+      requested <<- list(...)$mc.cores
+      lapply(values, fn)
+    },
+    .package = "parallel"
+  )
+
+  fixture <- .worker_invariance_fixture()
+  nested <- .nest_by_year_item_code(
+    fixture$btd,
+    fixture$cbs,
+    fixture$codes,
+    "drop"
+  )
+  result <- .process_bilateral_trade(nested, fixture$codes)
+
+  testthat::expect_lte(requested, 2L)
+  testthat::expect_equal(nrow(result), nrow(nested))
+})
+
 testthat::test_that(".downscale_estimate_matrix scales rows exceeding balance", {
   estimates <- matrix(
     c(6, 4, 3, 7),

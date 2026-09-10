@@ -1037,26 +1037,55 @@ build_feed_demand <- function(
 # stays NA) or has no matching `biomass_coefs` density (`avail_dm_t` stays
 # NA). Either drops real feed supply from availability with no trace, unlike
 # the demand-side steps (`.warn_dropped_mix`, `.warn_uncelled_demand`,
-# `.warn_unsplit_intake`). Items tagged "non_feed" by the taxonomy are an
-# intentional exclusion, not a classification gap, so they are not warned on.
+# `.warn_unsplit_intake`).
+#
+# Each item is named with its own tonnage and its own reason (whep#970): the
+# code alone does not say whether the taxonomy or the `items_full` bridge is
+# the gap, and the two need different fixes. Items tagged "non_feed" are an
+# intentional exclusion, not a classification gap, so they are skipped on the
+# density leg too, which the plain `is.na(avail_dm_t)` test did not do: CBS
+# item 2899 "Miscellaneous" is both "non_feed" and unbridged, so any feed mass
+# it ever carried would have been reported as lost to a gap when it is
+# excluded by design.
 .warn_unclassified_feed <- function(joined) {
-  unclassified <- joined[
-    is.na(joined$feed_quality) | is.na(joined$avail_dm_t),
-    ,
-    drop = FALSE
-  ]
-  if (nrow(unclassified) == 0) {
+  gaps <- joined |>
+    dplyr::filter(
+      !(.data$feed_quality %in% "non_feed"),
+      is.na(.data$feed_quality) | is.na(.data$avail_dm_t)
+    ) |>
+    dplyr::summarise(
+      feed_t = sum(.data$feed, na.rm = TRUE),
+      .by = c("item_cbs_code", "item_cbs", "Name_biomass", "feed_quality")
+    )
+  if (nrow(gaps) == 0) {
     return(invisible(NULL))
   }
-  items <- unique(unclassified$item_cbs_code)
-  dropped <- round(sum(unclassified$feed, na.rm = TRUE))
+  labels <- sprintf(
+    "%s (%s): %.0f t, %s",
+    dplyr::coalesce(gaps$item_cbs, "not in items_full"),
+    gaps$item_cbs_code,
+    gaps$feed_t,
+    .feed_gap_reason(gaps$feed_quality, gaps$Name_biomass)
+  )
   cli::cli_warn(c(
-    "{length(items)} CBS feed item{?s} could not be classified for national
-     availability: {.val {items}}.",
-    i = "{dropped} t of CBS feed mass is dropped (missing from
+    "{nrow(gaps)} CBS feed item{?s} could not be classified for national
+     availability: {.val {labels}}.",
+    i = "{round(sum(gaps$feed_t))} t of CBS feed mass is dropped (missing from
       {.field feed_taxonomy} or {.field biomass_coefs})."
   ))
   invisible(NULL)
+}
+
+# Why one CBS feed item failed to classify, so the warning says which table to
+# repair. A `Name_biomass` of "0" is the upstream placeholder carried by three
+# items_full rows, not a biomass name (whep#970).
+.feed_gap_reason <- function(feed_quality, name_biomass) {
+  dplyr::case_when(
+    is.na(feed_quality) ~ "absent from feed_taxonomy",
+    is.na(name_biomass) ~ "no Name_biomass in items_full",
+    name_biomass == "0" ~ "placeholder Name_biomass '0'",
+    .default = paste0("no biomass_coefs row named ", name_biomass)
+  )
 }
 
 # ---- Provincial grain (sub_territory = cell) --------------------------------
