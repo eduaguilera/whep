@@ -703,8 +703,8 @@ before any more polishing:
   network fetch, and the correctness list), not rOpenSci readiness. Note that
   #190's definition of done demands **0 notes**, so §2.2's spell-check NOTE is
   a #190 blocker in its own right, regardless of what rOpenSci says. #190
-  should proceed on its own
-  schedule and **should not wait on this enquiry.** The one thing the enquiry
+  should proceed on its own schedule and **should not wait on this
+  enquiry.** The one thing the enquiry
   changes for #190 is the ordering advice in §5.1.1: rOpenSci prefers review
   *before* CRAN publication. Since 0.1.0–0.3.0 are already on CRAN, that ship
   has sailed, and there is no reason to delay 0.4.0 for a review decision.
@@ -732,9 +732,9 @@ Stated so nobody quotes these as settled:
 - **Whether rOpenSci has ever scoped a review to part of a package.** The
   policy text does not say, either way. Question 2 in the enquiry asks it
   directly rather than assuming an answer.
-- **The line-count split in §3.2 is a judgement call**, not a fact. The file
-  assignments are reproducible and listed in the PR that added this document,
-  but a different reviewer would draw the boundary somewhat differently. The
+- **The line-count split in §3.2 is a judgement call**, not a fact. The rule
+  that produced it is written out there so it can be re-run or redrawn, but a
+  different reviewer would place a handful of files differently. The
   conclusion is robust to reasonable redrawing: the modelling share is
   comfortably above half either way.
 - **The maintainers' affirmation that all AI-generated material has been
