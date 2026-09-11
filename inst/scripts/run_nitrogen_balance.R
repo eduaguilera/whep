@@ -333,12 +333,22 @@ noy <- nbd_stage("noy", read_n_deposition("noy", years = year))
 # balance's own calibration. The driver's job is to stop manufacturing the 4x
 # that was its own.
 NBD_SPINUP_YEARS <- 30L
+#
+# Marched over the spin-up, then SLICED to the driven year, like every other
+# input. build_nitrogen_balance() has no `years` argument, so a whole marched
+# balance handed to it makes .n_inputs_som() emit thirty-one years of soil
+# mineralization against a land support built for one -- thirty years of it
+# then has no support row at all, is dropped by the allocation join, and takes
+# the mass check down with it. That would have hidden the very factor this
+# spin-up removes: the source mass reaching the guard would be the whole span's
+# nitrogen, not the driven year's.
 carbon_balance <- nbd_stage(
   "carbon_balance",
   build_carbon_balance(
     resolution = "grid",
     years = (year - NBD_SPINUP_YEARS):year
-  ),
+  ) |>
+    dplyr::filter(.data$year == !!year),
   heavy = TRUE
 )
 # redistribute_feed() takes two already-assembled tables (feed demand and feed

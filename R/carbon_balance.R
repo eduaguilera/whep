@@ -854,6 +854,46 @@ build_carbon_balance <- function(
 
 # Cell-level initial SOC density: the fraction-weighted mean of the per-class
 # equilibrium densities, applied uniformly to each class in the cell.
+#
+# This opening guess is a scientific CHOICE, and it is the single largest
+# control on the soil-nitrogen mineralization this balance hands to the nitrogen
+# balance, so what each alternative implies is recorded here rather than only in
+# a pull request. Both columns below were measured on one global 1980-2010 HSOC
+# build on main, reported at 2010; the only thing varied is this function.
+#
+#                                        cell-average   own-equilibrium
+#   cropland opening stock / own eq            5.06              1
+#   cropland area opening above own eq        98.6%              0%
+#   cropland carbon loss, Pg C/yr              2.47           1.67
+#   cropland son_change, kg N/ha                210            128
+#   non-item nitrogen stream, Tg N              309            209
+#
+# Halving the flux is not on its own an argument for opening each class at its
+# own equilibrium, because that also removes the stock. On cells LPJmL calls
+# more than half cropland, at WHEP's own 0-30 cm depth, in MgC/ha:
+#
+#   cell-average opening   70.5      own-equilibrium opening   25.4
+#   LPJmL simulated        79.7      LPJmL own equilibrium     13.0
+#
+# The last figure is the point. Real cropland carries legacy carbon from the
+# vegetation it replaced, and LPJmL's own cropland sits at 6.1 times its own
+# equilibrium (whep#799, measured by the maintainer). Opening every class at its
+# own steady state asserts that legacy does not exist, so part of the
+# mineralization it removes is real: breaking natural land to cropland does
+# release soil nitrogen for decades. Against LPJmL the cell-average opening is
+# 0.88 of the simulated cropland stock and the own-equilibrium opening 0.32, and
+# the depth-invariant natural-to-cropland ratio is 5.2 against 16.0, where LPJmL
+# puts 1.70. Grassland goes the other way -- own-equilibrium matches LPJmL to
+# 0.96 where cell-average overshoots to 1.45 -- and natural land is 2.7 to 3.0
+# times LPJmL under either, which is whep#799's defect and not this function's.
+#
+# Neither opening is therefore the physical answer. That is a pre-industrial
+# start (whep#369), where the march's own land-use-change transfer builds the
+# legacy stock instead of an opening guess standing in for it. The two openings
+# already converge towards each other as the span lengthens, which is that
+# transfer doing part of the work: the non-item nitrogen stream is 309 against
+# 209 Tg N over 1980-2010 and 318 against 251 Tg N over 1950-2010, and the 2010
+# area-weighted cropland stock 74.9 against 44.3 and 79.2 against 60.4 MgC/ha.
 .cb_init_density <- function(classes) {
   classes |>
     dplyr::mutate(
