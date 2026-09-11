@@ -889,7 +889,11 @@ build_carbon_balance <- function(
 #
 # Neither opening is therefore the physical answer. That is a pre-industrial
 # start (whep#369), where the march's own land-use-change transfer builds the
-# legacy stock instead of an opening guess standing in for it.
+# legacy stock instead of an opening guess standing in for it. The two openings
+# already converge towards each other as the span lengthens, which is that
+# transfer doing part of the work: the non-item nitrogen stream is 309 against
+# 209 Tg N over 1980-2010 and 318 against 251 Tg N over 1950-2010, and the 2010
+# area-weighted cropland stock 74.9 against 44.3 and 79.2 against 60.4 MgC/ha.
 .cb_init_density <- function(classes) {
   classes |>
     dplyr::mutate(
